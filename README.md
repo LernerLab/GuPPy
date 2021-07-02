@@ -1,7 +1,7 @@
 # GuPPy
  Guided Photometry Analysis in Python, a free and open-source FP analysis tool.
 
-## Installation Instructions
+### Installation Instructions
 
 GuPPy can be run on Windows, Mac or Linux
 
