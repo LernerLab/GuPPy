@@ -15,7 +15,7 @@ Follow the instructions below to install GuPPy
 cd path_to_GuPPy_folder
 ```
 - Execute the following commands on Anaconda Prompt or terminal window <br>
-Note : filename in the first command should be replaced by spec_file_windows10.txt or spec_file_mac.txt or spec_file_linux.txt (based on your OS)
+Note : filename in the first command should be replaced by <b>spec_file_windows10.txt</b> or <b>spec_file_mac.txt</b> or <b>spec_file_linux.txt</b> (based on your OS)
 ```
 conda create --name guppy --file filename
 conda activate guppy
