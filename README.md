@@ -34,3 +34,13 @@ conda activate guppy
 - All the basic instructions to run the GuPPy code is available in the jupyter notebook file.
 
 
+
+## Contributors
+
+- [Venus Sherathiya](https://github.com/venus-sherathiya)
+- Michael Schaid
+- Jillian Seiler
+- Gabriela Lopez
+- [Talia Lerner](https://github.com/talialerner)
+
+
