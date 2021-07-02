@@ -1,11 +1,11 @@
 # GuPPy
  Guided Photometry Analysis in Python, a free and open-source FP analysis tool.
 
-### Installation Instructions
+## Installation Instructions
 
-GuPPy can be run on Windows, Mac or Linux
+GuPPy can be run on Windows, Mac or Linux.
 
-Follow the instructions below to install GuPPy
+Follow the instructions below to install GuPPy : 
 
 - Download the Guppy code
 - Install [Anaconda](https://www.anaconda.com/products/individual#macos). Install Anaconda based on your operating system (Mac, Windows or Linux)
@@ -31,5 +31,6 @@ jupyter notebook
 ```
 conda activate guppy
 ```
+- All the basic instructions to run the GuPPy code is available in the jupyter notebook file.
 
 
