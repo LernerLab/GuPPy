@@ -22,3 +22,14 @@ conda activate guppy
 conda install -c anaconda ipykernel
 python -m ipykernel install --user --name=guppy
 ```
+- Open Jupyter Notebook. Run the following command to open Jupyter Notebook
+```
+jupyter notebook
+```
+- Find the file [runFiberPhotometryAnalysis.ipynb](https://github.com/LernerLab/GuPPy/blob/main/GuPPy/runFiberPhotometryAnalysis.ipynb) in jupyter notebook and open it.
+- Whenever user opens a new terminal window for running the GuPPy code. Please execute the following command
+```
+conda activate guppy
+```
+
+
