@@ -1,4 +1,7 @@
 # GuPPy
+
+[![Join the chat at https://gitter.im/LernerLab/GuPPy](https://badges.gitter.im/LernerLab/GuPPy.svg)](https://gitter.im/LernerLab/GuPPy?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
  Guided Photometry Analysis in Python, a free and open-source FP analysis tool.
 
 ## Installation Instructions
