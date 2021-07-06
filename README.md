@@ -35,6 +35,10 @@ conda activate guppy
 
 - Detailed [user guide](https://github.com/LernerLab/GuPPy/wiki) consists of all the detailed instructions about how to use GuPPy.
 
+## Discussions
+
+- GuPPy is at a very early stage, and was developed with our data in mind. In future developments, we hope to support other data types/formats. If you have any issues, please get in touch on the [chat room](https://gitter.im/LernerLab/GuPPy?utm_source=share-link&utm_medium=link&utm_campaign=share-link) or by [raising an issue](https://github.com/LernerLab/GuPPy/issues).
+
 ## Contributors
 
 - [Venus Sherathiya](https://github.com/venus-sherathiya)
