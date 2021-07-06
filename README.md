@@ -33,6 +33,7 @@ conda activate guppy
 ```
 - All the basic instructions to run the GuPPy code is available in the jupyter notebook file.
 
+- Detailed [user guide](https://github.com/LernerLab/GuPPy/wiki) consists of all the detailed instructions about how to use GuPPy.
 
 ## Contributors
 
