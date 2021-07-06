@@ -89,7 +89,7 @@ def saveStorenames(inputParametersPath, data, event_name, filepath):
 
                 ### Instructions to follow : 
 
-                - See instructions in “read me” for duplicating storenames. Otherwise leave these selections blank.<br>
+                - See instructions in “Github Wiki” for duplicating storenames. Otherwise leave these selections blank.<br>
                 - Select storenames from list and click “Select Storenames” to populate area below.<br>
                 - Enter names for storenames, in order, using the following naming convention:<br>
                     Isosbestic = “control_region” (ex: Dv1A= control_DMS)<br>
