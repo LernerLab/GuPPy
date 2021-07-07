@@ -1,3 +1,4 @@
+[![DOI](https://zenodo.org/badge/382176345.svg)](https://zenodo.org/badge/latestdoi/382176345)
 # GuPPy
  Guided Photometry Analysis in Python, a free and open-source FP analysis tool.
 
