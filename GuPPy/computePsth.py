@@ -6,6 +6,7 @@ import h5py
 import math
 import pandas as pd
 from scipy import signal as ss
+from collections import OrderedDict
 from preprocess import get_all_stores_for_combining_data
 
 
@@ -50,12 +51,12 @@ def write_hdf5(data, event, filepath, key):
 				f.create_dataset(key, data=data, maxshape=(None, ), chunks=True)
 
 
-def create_Df_area_peak(filepath, arr, name, index=[], columns=[]):
+def create_Df_area_peak(filepath, arr, name, index=[]):
 
 	op = os.path.join(filepath, 'peak_AUC_'+name+'.h5')
 	dirname = os.path.dirname(filepath)
 
-	df = pd.DataFrame(arr, index=index, columns=columns)
+	df = pd.DataFrame(arr, index=index)
 
 	df.to_hdf(op, key='df', mode='w')
 
@@ -65,9 +66,10 @@ def read_Df_area_peak(filepath, name):
 
 	return df
 
-def create_csv_area_peak(filepath, arr, name, index=[], columns=[]):
+def create_csv_area_peak(filepath, arr, name, index=[]):
 	op = os.path.join(filepath, 'peak_AUC_'+name+'.csv')
-	df = pd.DataFrame(arr, index=index, columns=columns)
+	df = pd.DataFrame(arr, index=index)
+	
 	df.to_csv(op)
 
 
@@ -262,34 +264,54 @@ def storenamePsth(filepath, event, inputParameters, storesList):
 
 			print("PSTH for event {} computed.".format(event))
 
+
 def helperPSTHPeakAndArea(psth_mean, timestamps, sampling_rate, peak_startPoint, peak_endPoint):
 
-	startPtForPeak = np.where(timestamps>=peak_startPoint)[0]
-	endPtForPeak = np.where(timestamps>=peak_endPoint)[0]
+	peak_startPoint = np.asarray(peak_startPoint)
+	peak_endPoint = np.asarray(peak_endPoint)
 
-	if len(startPtForPeak)>=1 and len(endPtForPeak)>=1:
-		peakPoint = startPtForPeak[0] + np.argmax(psth_mean[startPtForPeak[0]:endPtForPeak[0]])
-		peak = psth_mean[peakPoint]
-	else:
-		peak = None
+	peak_startPoint = peak_startPoint[~np.isnan(peak_startPoint)]
+	peak_endPoint = peak_endPoint[~np.isnan(peak_endPoint)]
 
-	areaStrtPt = np.where(timestamps>=peak_startPoint)[0][0]
-	for i in range(areaStrtPt, psth_mean.shape[0]):
-	    arr = psth_mean[i:int(i+(0.5*sampling_rate))]
-	    if psth_mean[i]<0 and (arr<0).all():
-	        areaEndPt = i
-	        break
+	#print(peak_startPoint, peak_endPoint)
 
-	if i==(psth_mean.shape[0])-1:
-	    areaEndPt = psth_mean.shape[0]-1
+	if peak_startPoint.shape[0]!=peak_endPoint.shape[0]:
+		raise Exception('Number of Peak Start Time and Peak End Time are unequal.')
 
-	area = np.trapz(psth_mean[areaStrtPt:areaEndPt])
-	
-	if peak_startPoint==0 and peak_endPoint==0:
-		return -1, area
-	else:
-		return peak, area
+	if np.less_equal(peak_endPoint, peak_startPoint).any()==True:
+		raise Exception('Peak End Time is lesser than or equal to Peak Start Time. Please check the Peak parameters window.')
 
+	#print(peak_startPoint, peak_endPoint)
+
+	peak_area = OrderedDict()
+
+	if peak_startPoint.shape[0]==0 or peak_endPoint.shape[0]==0:
+		peak_area['peak'] = np.nan
+		peak_area['area'] = np.nan
+
+	for i in range(peak_startPoint.shape[0]):
+		startPtForPeak = np.where(timestamps>=peak_startPoint[i])[0]
+		endPtForPeak = np.where(timestamps>=peak_endPoint[i])[0]
+		if len(startPtForPeak)>=1 and len(endPtForPeak)>=1:
+			peakPoint = startPtForPeak[0] + np.argmax(psth_mean[startPtForPeak[0]:endPtForPeak[0]])
+			peak_area['peak_'+str(i+1)] = psth_mean[peakPoint]
+
+			for j in range(startPtForPeak[0], endPtForPeak[0]):
+				arr = psth_mean[j:int(j+(0.5*sampling_rate))]
+				if psth_mean[j]<0 and (arr<0).all():
+					areaEndPt = j
+					break
+			if j==endPtForPeak[0]-1:
+				areaEndPt = endPtForPeak[0]-1
+
+			peak_area['area_'+str(i+1)] = np.trapz(psth_mean[startPtForPeak[0]:areaEndPt])
+		else:
+			peak_area['peak_'+str(i+1)] = np.nan
+			peak_area['area_'+str(i+1)] = np.nan
+
+	#print(peak_area)
+
+	return peak_area
 
 
 # function to compute PSTH peak and area using the function helperPSTHPeakAndArea save the values to h5 and csv files.
@@ -321,11 +343,11 @@ def findPSTHPeakAndArea(filepath, event, inputParameters, storesList):
 			psth = read_Df(filepath, event+'_'+name_1, basename)
 			psth_mean = np.asarray(psth['mean'])
 			timestamps = np.asarray(read_Df(filepath, 'ts_psth', '')).ravel()
-			peak, area = helperPSTHPeakAndArea(psth_mean, timestamps, sampling_rate, peak_startPoint, peak_endPoint)
-			arr = np.array([[peak, area]])
+			peak_area = helperPSTHPeakAndArea(psth_mean, timestamps, sampling_rate, peak_startPoint, peak_endPoint)   # peak, area = 
+			#arr = np.array([[peak, area]])
 			fileName = [os.path.basename(os.path.dirname(filepath))]
-			create_Df_area_peak(filepath, arr, event+'_'+name_1+'_'+basename, index=fileName, columns=['peak', 'area'])
-			create_csv_area_peak(filepath, arr, event+'_'+name_1+'_'+basename, index=fileName, columns=['peak', 'area'])
+			create_Df_area_peak(filepath, peak_area, event+'_'+name_1+'_'+basename, index=fileName) # columns=['peak', 'area']
+			create_csv_area_peak(filepath, peak_area, event+'_'+name_1+'_'+basename, index=fileName)
 
 			print('Peak and Area for PSTH mean signal for event {} computed.'.format(event))
 
@@ -413,12 +435,14 @@ def averageForGroup(folderNames, event, inputParameters):
 				continue
 			else:
 				df = read_Df_area_peak(temp_path[j][0], temp_path[j][1]+'_'+temp_path[j][2])
-				arr.append(np.array([df['peak'][0], df['area'][0]]))
+				arr.append(df)
 				fileName.append(os.path.basename(temp_path[j][0]))
 		
-		arr = np.asarray(arr)
-		create_Df_area_peak(op, arr, temp_path[j][1]+'_'+temp_path[j][2], index=fileName, columns=['peak', 'area'])
-		create_csv_area_peak(op, arr, temp_path[j][1]+'_'+temp_path[j][2], index=fileName, columns=['peak', 'area'])
+		new_df = pd.concat(arr, axis=0)  #os.path.join(filepath, 'peak_AUC_'+name+'.csv')
+		new_df.to_csv(os.path.join(op, 'peak_AUC_{}_{}.csv'.format(temp_path[j][1], temp_path[j][2])), index=fileName)
+		new_df.to_hdf(os.path.join(op, 'peak_AUC_{}_{}.h5'.format(temp_path[j][1], temp_path[j][2])), key='df', mode='w', index=fileName)
+		#create_Df_area_peak(op, new_df, temp_path[j][1]+'_'+temp_path[j][2], index=fileName)
+		#create_csv_area_peak(op, new_df, temp_path[j][1]+'_'+temp_path[j][2], index=fileName)
 
 	print("Group of data averaged.")
 
