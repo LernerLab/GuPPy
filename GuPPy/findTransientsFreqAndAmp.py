@@ -167,13 +167,13 @@ def findFreqAndAmp(filepath, inputParameters, window=15):
 		z_score = read_hdf5('', path[i], 'data')
 		z_score_chunks, z_score_chunks_index = createChunks(z_score, sampling_rate, window)
 
-		p = mp.Pool(mp.cpu_count())
+		#p = mp.Pool(mp.cpu_count())
 		with mp.Pool(mp.cpu_count()) as p:
 			result = p.starmap(processChunks, zip(z_score_chunks, z_score_chunks_index))
 		#p.close()
 		#p.join()
 		
-		result = np.asarray(result)
+		result = np.asarray(result, dtype=object)
 		ts = read_hdf5('timeCorrection_'+name_1, filepath, 'timestampNew')
 		freq, peaksAmp, peaksInd = calculate_freq_amp(result, z_score, z_score_chunks_index, ts)
 		arr = np.array([[freq, np.mean(peaksAmp)]])
