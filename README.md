@@ -36,6 +36,10 @@ conda activate guppy
 
 - Detailed [user guide](https://github.com/LernerLab/GuPPy/wiki) consists of all the detailed instructions about how to use GuPPy.
 
+## Sample Data
+
+- [Sample data](https://northwestern.box.com/s/pmzpqey540gkftka669frax84ofk5f4h) for the user to go through the tool in the start. It has two sample data : 1) Clean Data 2) Data with artifacts. It also has a event timestamps file in  'csv' format to get an idea about the structure of the 'csv' file.
+
 ## Discussions
 
 - GuPPy is at a very early stage, and was developed with our data (FP data recorded using TDT systems) in mind. In future developments, we hope to support other data types/formats. If you have any issues, please get in touch on the [chat room](https://gitter.im/LernerLab/GuPPy?utm_source=share-link&utm_medium=link&utm_campaign=share-link) or by [raising an issue](https://github.com/LernerLab/GuPPy/issues).
