@@ -20,7 +20,6 @@ from holoviews.operation.datashader import datashade, dynspread, rasterize
 import datashader as ds
 import matplotlib.pyplot as plt
 from preprocess import get_all_stores_for_combining_data
-#import datashader.transfer_functions as tf
 import panel as pn 
 pn.extension()
 

@@ -292,7 +292,7 @@ def executeFindFreqAndAmp(inputParametersPath):
 				filepath = op[i][0]
 				storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',')
 				findFreqAndAmp(filepath, inputParameters, window=moving_window)
-			plt.show()
+			#plt.show()
 		else:
 			for i in range(len(folderNames)):
 				filepath = folderNames[i]
