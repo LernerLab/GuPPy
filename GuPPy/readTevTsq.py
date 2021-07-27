@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import time
 import glob
@@ -276,4 +277,7 @@ def readRawData(inputParametersPath):
 
 	print("Raw data fetched and saved.")
 
-	
+#if __name__ == "__main__":
+#	print('run')
+#	readRawData(sys.argv[1:][0])
+

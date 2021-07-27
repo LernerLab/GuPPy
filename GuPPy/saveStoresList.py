@@ -200,8 +200,7 @@ def saveStorenames(inputParametersPath, data, event_name, filepath):
 
 
 
-
-    # on clicking save button, following functino is executed
+    # on clicking save button, following function is executed
     def save_button(event=None):
         global storenames
         

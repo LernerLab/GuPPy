@@ -1,4 +1,5 @@
 import os
+import sys
 import glob
 import h5py
 import json
@@ -29,12 +30,13 @@ def read_hdf5(event, filepath, key):
 def processChunks(arrValues, arrIndexes):
     
     arrValues = arrValues[~np.isnan(arrValues)] 
-    median = np.median(arrValues)
-    
-    mad = np.median(np.abs(arrValues-median))
-    
+    median = np.median(arrValues)			
+    										
+    mad = np.median(np.abs(arrValues-median))   
+    										
     firstThreshold = median + (2*mad)
-    
+    										
+    										
     greaterThanMad = np.where(arrValues>firstThreshold)[0]
     
 
@@ -146,7 +148,7 @@ def visuzlize_peaks(filepath, z_score, timestamps, peaksIndex):
 			timestamps[peaksIndex], z_score[peaksIndex], 'o')
 	ax.set_title(basename)
 	fig.suptitle(os.path.basename(dirname))
-	#plt.show()
+	plt.show()
 
 def findFreqAndAmp(filepath, inputParameters, window=15):
 
@@ -299,24 +301,12 @@ def executeFindFreqAndAmp(inputParametersPath):
 					filepath = storesListPath[j]
 					storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',')
 					findFreqAndAmp(filepath, inputParameters, window=moving_window)
-			plt.show()
+			#plt.show()
 
 	print('Transients in z-score data found and frequency and amplitude are calculated.')
 
 
-def findPsthPeakAndAUC(inputParametersPath):
-
-	with open(inputParametersPath) as f:	
-		inputParameters = json.load(f)
-
-	folderNames = inputParameters['folderNames']
-
-	for i in range(len(folderNames)):
-		filepath = folderNames[i]
-		storesListPath = glob.glob(os.path.join(filepath, '*_output_*'))
-		for j in range(len(storesListPath)):
-			filepath = storesListPath[j]
-			storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',')
-
+#if __name__ == "__main__":
+#	executeFindFreqAndAmp(sys.argv[1:][0])
 
 

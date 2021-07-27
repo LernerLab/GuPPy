@@ -680,6 +680,7 @@ def execute_zscore(folderNames, inputParameters, timeForLightsTurnOn, remove_art
 			visualize_z_score(filepath)
 			visualize_dff(filepath)
 
+	#plt.show()
 	print("Signal data and event timestamps are extracted.")
 
 
