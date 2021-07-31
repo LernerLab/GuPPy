@@ -3,6 +3,7 @@ import json
 import glob
 import time
 import re
+import fnmatch
 import numpy as np 
 import h5py
 import math
@@ -10,6 +11,13 @@ from scipy import signal as ss
 import matplotlib.pyplot as plt
 from matplotlib.widgets import MultiCursor
 from combineDataFn import processTimestampsForCombiningData
+
+
+# find files by ignoreing the case sensitivity
+def find_files(path, glob_path, ignore_case = False):
+    rule = re.compile(fnmatch.translate(glob_path), re.IGNORECASE) if ignore_case \
+            else re.compile(fnmatch.translate(glob_path))
+    return [os.path.join(path,n) for n in os.listdir(os.path.expanduser(path)) if rule.match(n)]
 
 
 # function to read hdf5 file
@@ -119,10 +127,14 @@ def applyCorrection(filepath, timeForLightsTurnOn, event, displayName, naming):
 	timeRecStart = read_hdf5('timeCorrection_'+naming, filepath, 'timeRecStart')[0]
 	timestampNew = read_hdf5('timeCorrection_'+naming, filepath, 'timestampNew')
 	correctionIndex = read_hdf5('timeCorrection_'+naming, filepath, 'correctionIndex')
+
 	
 	if 'control' in displayName.lower() or 'signal' in displayName.lower():
 		arr = read_hdf5(event, filepath, 'data')
-		arr = arr[correctionIndex]
+		if (arr==0).all()==True:
+			arr = arr
+		else:
+			arr = arr[correctionIndex]
 		write_hdf5(arr, displayName, filepath, 'data')
 	else:
 		arr = read_hdf5(event, filepath, 'timestamps')
@@ -211,6 +223,10 @@ def visualize(filepath, x, y1, y2, plot_name, removeArtifacts):
     
 
 	# plotting control and signal data
+
+	if (y1==0).all()==True:
+		y1 = np.zeros(x.shape[0])
+
 	name = os.path.basename(filepath)
 	fig = plt.figure()
 	ax1 = fig.add_subplot(211)
@@ -274,9 +290,9 @@ def visualize(filepath, x, y1, y2, plot_name, removeArtifacts):
 
 # function to plot control and signal, also provide a feature to select chunks for artifacts removal
 def visualizeControlAndSignal(filepath, removeArtifacts):
-	path_1 = glob.glob(os.path.join(filepath, 'control*'))
+	path_1 = find_files(filepath, 'control*', ignore_case=True) #glob.glob(os.path.join(filepath, 'control*'))
 	
-	path_2 = glob.glob(os.path.join(filepath, 'signal*'))
+	path_2 = find_files(filepath, 'signal*', ignore_case=True) #glob.glob(os.path.join(filepath, 'signal*'))
 	
 
 	path = sorted(path_1 + path_2)
@@ -303,9 +319,9 @@ def visualizeControlAndSignal(filepath, removeArtifacts):
 
 # functino to check if the naming convention for saving storeslist file was followed or not
 def decide_naming_convention(filepath):
-	path_1 = glob.glob(os.path.join(filepath, 'control*'))
+	path_1 = find_files(filepath, 'control*', ignore_case=True) #glob.glob(os.path.join(filepath, 'control*'))
 	
-	path_2 = glob.glob(os.path.join(filepath, 'signal*'))
+	path_2 = find_files(filepath, 'signal*', ignore_case=True) #glob.glob(os.path.join(filepath, 'signal*'))
 	
 	path = sorted(path_1 + path_2)
 	if len(path)%2 != 0:
@@ -340,6 +356,9 @@ def eliminateData(filepath, timeForLightsTurnOn, event, sampling_rate, naming):
 	ts = read_hdf5('timeCorrection_'+naming, filepath, 'timestampNew')
 	data = read_hdf5(event, filepath, 'data').reshape(-1)
 	coords = fetchCoords(filepath, naming, ts)
+
+	if (data==0).all()==True:
+		data = np.zeros(ts.shape[0])
 
 	arr = np.array([])
 	ts_arr = np.array([])
@@ -474,6 +493,9 @@ def helper_z_score(control, signal, filepath, name, inputParameters):     #helpe
 	coords_path = os.path.join(filepath, 'coordsForPreProcessing_'+name+'.npy')
 
 	print("Remove Artifacts : ", removeArtifacts)
+
+	if (control==0).all()==True:
+		control = np.zeros(tsNew.shape[0])
 	
 	z_score_arr, norm_data_arr = np.array([]), np.array([])
 
@@ -517,8 +539,8 @@ def compute_z_score(filepath, inputParameters):
 	remove_artifacts = inputParameters['removeArtifacts']
 
 
-	path_1 = glob.glob(os.path.join(filepath, 'control*'))
-	path_2 = glob.glob(os.path.join(filepath, 'signal*'))
+	path_1 = find_files(filepath, 'control*', ignore_case=True) #glob.glob(os.path.join(filepath, 'control*'))
+	path_2 = find_files(filepath, 'signal*', ignore_case=True) #glob.glob(os.path.join(filepath, 'signal*'))
 	
 	path = sorted(path_1 + path_2)
 
