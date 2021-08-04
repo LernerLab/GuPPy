@@ -24,6 +24,9 @@ def readtsq(filepath):
 	path = glob.glob(os.path.join(filepath, '*.tsq'))
 	if len(path)>1:
 		raise Exception('Two tsq files are present at the location.')
+	elif len(path)==0:
+		print("\033[1m"+"No tsq file found."+"\033[1m")
+		return 0
 	else:
 		path = path[0]
 
@@ -79,22 +82,32 @@ def write_hdf5(data, event, filepath, key):
 
 # function to read event timestamps csv file.
 def import_csv(filepath, event, outputPath):
-	print("\033[1m"+"Trying to read {} timestamps from csv file.".format(event)+"\033[0m")
+	print("\033[1m"+"Trying to read data for {} from csv file.".format(event)+"\033[0m")
 	if not os.path.exists(os.path.join(filepath, event+'.csv')):
 		raise Exception("\033[1m"+"No csv file found for event {}".format(event)+"\033[0m")
 
 	df = pd.read_csv(os.path.join(filepath, event+'.csv'), index_col=False)
-	data = np.asarray(df).flatten()
+	data = df
 	key = list(df.columns)
 
+	if len(key)==3:
+		arr1 = np.array(['timestamps', 'data', 'sampling_rate'])
+		arr2 = np.char.lower(np.array(key))
+		if (np.sort(arr1)==np.sort(arr2)).all()==False:
+			raise Exception("\033[1m"+"Column names should be timestamps, data and sampling_rate"+"\033[0m")
 
-	if len(key)>1:
-		raise Exception("\033[1m"+"csv file should contain only one column"+"\033[0m")
+	if len(key)==1:
+		if key[0].lower()!='timestamps':
+			raise Exception("\033[1m"+"Column name should be timestamps"+"\033[0m")
 
-	if key[0].lower()!='data' and key[0].lower()!='timestamps':
-		raise Exception("\033[1m"+"Based on the type of data, csv file column name should be either data or timestamps"+"\033[0m")
+	if len(key)!=3 and len(key)!=1:
+		raise Exception("\033[1m"+"Number of columns in csv file should be either three or one. Three columns if \
+									the file is for control or signal data or one column if the file is for event TTLs."+"\033[0m")
 
-	print("\033[1m"+"Reading {} timestamps from csv file is completed.".format(event)+"\033[0m")
+	for i in range(len(key)):
+	    write_hdf5(data[key[i]].dropna(), event, outputPath, key[i].lower())
+
+	print("\033[1m"+"Reading data for {} from csv file is completed.".format(event)+"\033[0m")
 
 	return data, key
 
@@ -183,8 +196,7 @@ def readtev(data, filepath, event, outputPath):
 	    print("\033[1m"+"File contains the following TDT store names:"+"\033[0m")
 	    print("\033[1m"+str(allnames)+"\033[0m")
 	    print("\033[1m"+"TDT store name "+str(event)+" not found."+"\033[0m")
-	    timestamps, key = import_csv(filepath, event, outputPath)
-	    write_hdf5(timestamps, event, outputPath, key[0].lower())
+	    import_csv(filepath, event, outputPath)
 
 	    return 0
 	    
@@ -247,6 +259,20 @@ def execute_readtev(data, filepath, event, outputPath):
 	print("Time taken = {0:.5f}".format(time.time() - start))
 
 
+def execute_import_csv(filepath, event, outputPath):
+	#print("Reading data for event {} ...".format(event))
+
+	start = time.time()
+	with mp.Pool(mp.cpu_count()) as p:
+		p.starmap(import_csv, zip(repeat(filepath), event, repeat(outputPath)))
+	#for i in range(event.size):
+	#	import_csv(filepath, event[i], outputPath)
+
+	print("Time taken = {0:.5f}".format(time.time() - start))
+
+	#print("Data for event {} fetched and stored.".format(event))
+
+
 # function to read data from 'tsq' and 'tev' files
 def readRawData(inputParametersPath):
 
@@ -273,11 +299,14 @@ def readRawData(inputParametersPath):
 		for j in range(len(storesListPath)):
 			op = storesListPath[j]
 			storesList = np.genfromtxt(os.path.join(op, 'storesList.csv'), dtype='str', delimiter=',')
-			execute_readtev(data, filepath, np.unique(storesList[0,:]), op)
+			if isinstance(data, pd.DataFrame):
+				execute_readtev(data, filepath, np.unique(storesList[0,:]), op)
+			else:
+				execute_import_csv(filepath, np.unique(storesList[0,:]), op)
 
 	print("Raw data fetched and saved.")
 
-#if __name__ == "__main__":
-#	print('run')
-#	readRawData(sys.argv[1:][0])
+if __name__ == "__main__":
+	print('run')
+	readRawData(sys.argv[1:][0])
 

@@ -20,6 +20,14 @@ def find_files(path, glob_path, ignore_case = False):
     return [os.path.join(path,n) for n in os.listdir(os.path.expanduser(path)) if rule.match(n)]
 
 
+# check if dealing with TDT files or csv files
+def check_TDT(filepath):
+	path = glob.glob(os.path.join(filepath, '*.tsq'))
+	if len(path)>0:
+		return True
+	else:
+		return False
+
 # function to read hdf5 file
 def read_hdf5(event, filepath, key):
 	if event:
@@ -67,8 +75,53 @@ def write_hdf5(data, event, filepath, key):
 					f.create_dataset(key, data=data)
 
 
-# function to correct timestamps after eliminating fist few seconds of the data
-def timestampCorrection(filepath, timeForLightsTurnOn, storesList):
+# function to correct timestamps after eliminating first few seconds of the data (for csv data)
+def timestampCorrection_csv(filepath, timeForLightsTurnOn, storesList):
+	
+	print("Correcting timestamps by getting rid of the first {} seconds and convert timestamps to seconds...".format(timeForLightsTurnOn))
+	storenames = storesList[0,:]
+	storesList = storesList[1,:]
+	
+	arr = []
+	for i in range(storesList.shape[0]):
+	    if 'control' in storesList[i].lower() or 'signal' in storesList[i].lower():
+	        arr.append(storesList[i])
+
+	arr = sorted(arr)
+	try:
+		arr = np.asarray(arr).reshape(2,-1)
+	except:
+		raise Exception('Error in saving stores list file or spelling mistake for control or signal')
+
+	for i in range(arr.shape[1]):
+		name_1 = arr[0,i].split('_')[-1]
+		name_2 = arr[1,i].split('_')[-1]
+		#dirname = os.path.dirname(path[i])
+		idx = np.where(storesList==arr[1,i])[0]
+
+		if idx.shape[0]==0:
+			raise Exception('{} does not exist in the stores list file.'.format(arr[0,i]))
+
+		timestamp = read_hdf5(storenames[idx][0], filepath, 'timestamps')
+		sampling_rate = read_hdf5(storenames[idx][0], filepath, 'sampling_rate')
+
+		if name_1==name_2:
+			correctionIndex = np.where(timestamp>=timeForLightsTurnOn)[0]
+			timestampNew = timestamp[correctionIndex]
+			
+			write_hdf5(timestampNew, 'timeCorrection_'+name_1, filepath, 'timestampNew')
+			write_hdf5(correctionIndex, 'timeCorrection_'+name_1, filepath, 'correctionIndex')
+			write_hdf5(np.asarray(sampling_rate), 'timeCorrection_'+name_1, filepath, 'sampling_rate')
+
+		else:
+			raise Exception('Error in naming convention of files or Error in storesList file')
+
+	print("Timestamps corrected and converted to seconds.")
+
+
+
+# function to correct timestamps after eliminating first few seconds of the data (for TDT data)
+def timestampCorrection_tdt(filepath, timeForLightsTurnOn, storesList):
 
 	print("Correcting timestamps by getting rid of the first {} seconds and convert timestamps to seconds...".format(timeForLightsTurnOn))
 	storenames = storesList[0,:]
@@ -124,11 +177,14 @@ def timestampCorrection(filepath, timeForLightsTurnOn, storesList):
 # function to apply correction to control, signal and event timestamps 
 def applyCorrection(filepath, timeForLightsTurnOn, event, displayName, naming):
 
-	timeRecStart = read_hdf5('timeCorrection_'+naming, filepath, 'timeRecStart')[0]
+	cond = check_TDT(os.path.dirname(filepath))
+
+	if cond==True:
+		timeRecStart = read_hdf5('timeCorrection_'+naming, filepath, 'timeRecStart')[0]
+	
 	timestampNew = read_hdf5('timeCorrection_'+naming, filepath, 'timestampNew')
 	correctionIndex = read_hdf5('timeCorrection_'+naming, filepath, 'correctionIndex')
 
-	
 	if 'control' in displayName.lower() or 'signal' in displayName.lower():
 		arr = read_hdf5(event, filepath, 'data')
 		if (arr==0).all()==True:
@@ -138,10 +194,13 @@ def applyCorrection(filepath, timeForLightsTurnOn, event, displayName, naming):
 		write_hdf5(arr, displayName, filepath, 'data')
 	else:
 		arr = read_hdf5(event, filepath, 'timestamps')
-		res = (arr>=timeRecStart).all()
-		if res:
-			arr = np.subtract(arr, timeRecStart)
-			arr = np.subtract(arr, timeForLightsTurnOn)
+		if cond==True:
+			res = (arr>=timeRecStart).all()
+			if res==True:
+				arr = np.subtract(arr, timeRecStart)
+				arr = np.subtract(arr, timeForLightsTurnOn)
+			else:
+				arr = np.subtract(arr, timeForLightsTurnOn)
 		else:
 			arr = np.subtract(arr, timeForLightsTurnOn)
 		write_hdf5(arr, displayName+'_'+naming, filepath, 'ts')
@@ -195,7 +254,7 @@ def visualize_z_score(filepath):
 		ax.plot(x,y)
 		ax.set_title(basename)
 		fig.suptitle(name)
-	plt.show()
+	#plt.show()
 
 # function to plot deltaF/F
 def visualize_dff(filepath):
@@ -215,7 +274,7 @@ def visualize_dff(filepath):
 		ax.plot(x,y)
 		ax.set_title(basename)
 		fig.suptitle(name)
-	plt.show()
+	#plt.show()
 
 
 
@@ -285,7 +344,7 @@ def visualize(filepath, x, y1, y2, plot_name, removeArtifacts):
 	cid = fig.canvas.mpl_connect('close_event', plt_close_event)
 	#multi = MultiCursor(fig.canvas, (ax1, ax2), color='g', lw=1, horizOn=False, vertOn=True)
 
-	plt.show()
+	#plt.show()
 	#return fig
 
 # function to plot control and signal, also provide a feature to select chunks for artifacts removal
@@ -583,15 +642,21 @@ def compute_z_score(filepath, inputParameters):
 # function to execute timestamps corrections using functions timestampCorrection and decide_naming_convention_and_applyCorrection
 def execute_timestamp_correction(folderNames, timeForLightsTurnOn):
 
+
 	for i in range(len(folderNames)):
 		filepath = folderNames[i]
 		storesListPath = glob.glob(os.path.join(filepath, '*_output_*'))
+		cond = check_TDT(folderNames[i])
+
 		for j in range(len(storesListPath)):
 			filepath = storesListPath[j]
 			storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',')
 
-			timestampCorrection(filepath, timeForLightsTurnOn, storesList)
 
+			if cond==True:
+				timestampCorrection_tdt(filepath, timeForLightsTurnOn, storesList)
+			else:
+				timestampCorrection_csv(filepath, timeForLightsTurnOn, storesList)
 
 			for k in range(storesList.shape[1]):
 				decide_naming_convention_and_applyCorrection(filepath, timeForLightsTurnOn, storesList[0,k], storesList[1,k], storesList)
@@ -702,7 +767,7 @@ def execute_zscore(folderNames, inputParameters, timeForLightsTurnOn, remove_art
 			visualize_z_score(filepath)
 			visualize_dff(filepath)
 
-	#plt.show()
+	plt.show()
 	print("Signal data and event timestamps are extracted.")
 
 
