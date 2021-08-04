@@ -89,13 +89,20 @@ def helper_plots(filepath, event, name):
 		columns = columns_dict
 		df_new = df
 
+
+		colormaps = plt.colormaps()
+		new_colormaps = ['plasma', 'plasma_r', 'magma', 'magma_r', 'inferno', 'inferno_r', 'viridis', 'viridis_r']
+		set_a = set(colormaps)
+		set_b = set(new_colormaps)
+		colormaps = new_colormaps + list(set_a.difference(set_b))
+
 		selector_for_multipe_events_plot = param.ListSelector(default=[new_event[0]], objects=new_event)
 		x = param.ObjectSelector(default=columns[new_event[0]][-2], objects=[columns[new_event[0]][-2]])
 		y = param.ObjectSelector(default=columns[new_event[0]][-4] , objects=columns[new_event[0]]) 
 		Y_Label = param.ObjectSelector(default='y', objects=['y','z-score', '\u0394F/F'])     
 		save_options = param.ObjectSelector(default='None' , objects=['None', 'save_png_format', 'save_svg_format', 'save_both_format'])
 		save_options_heatmap = param.ObjectSelector(default='None' , objects=['None', 'save_png_format', 'save_svg_format', 'save_both_format'])
-		color_map = param.ObjectSelector(default='RdBu' , objects=plt.colormaps())
+		color_map = param.ObjectSelector(default='plasma' , objects=colormaps)
 		height_heatmap = param.ObjectSelector(default=600, objects=np.arange(0,5100,100))
 		width_heatmap = param.ObjectSelector(default=1200, objects=np.arange(0,5100,100))
 		Height_Plot = param.ObjectSelector(default=300, objects=np.arange(0,5100,100))
