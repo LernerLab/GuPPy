@@ -148,7 +148,7 @@ def visuzlize_peaks(filepath, z_score, timestamps, peaksIndex):
 			timestamps[peaksIndex], z_score[peaksIndex], 'o')
 	ax.set_title(basename)
 	fig.suptitle(os.path.basename(dirname))
-	plt.show()
+	#plt.show()
 
 def findFreqAndAmp(filepath, inputParameters, window=15):
 
@@ -292,7 +292,7 @@ def executeFindFreqAndAmp(inputParametersPath):
 				filepath = op[i][0]
 				storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',')
 				findFreqAndAmp(filepath, inputParameters, window=moving_window)
-			#plt.show()
+			plt.show()
 		else:
 			for i in range(len(folderNames)):
 				filepath = folderNames[i]
@@ -301,12 +301,12 @@ def executeFindFreqAndAmp(inputParametersPath):
 					filepath = storesListPath[j]
 					storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',')
 					findFreqAndAmp(filepath, inputParameters, window=moving_window)
-			#plt.show()
+			plt.show()
 
 	print('Transients in z-score data found and frequency and amplitude are calculated.')
 
 
-#if __name__ == "__main__":
-#	executeFindFreqAndAmp(sys.argv[1:][0])
+if __name__ == "__main__":
+	executeFindFreqAndAmp(sys.argv[1:][0])
 
 
