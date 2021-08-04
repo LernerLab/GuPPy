@@ -39,7 +39,7 @@ conda activate guppy
 
 ## Sample Data
 
-- [Sample data](https://northwestern.box.com/s/pmzpqey540gkftka669frax84ofk5f4h) for the user to go through the tool in the start. It has two sample data : 1) Clean Data 2) Data with artifacts. It also has a event timestamps file in  'csv' format to get an idea about the structure of the 'csv' file.
+- [Sample data](https://northwestern.box.com/s/pmzpqey540gkftka669frax84ofk5f4h) for the user to go through the tool in the start. It has two sample data : 1) Clean Data 2) Data with artifacts. It also has a control channel, signal channel and event timestamps file in  'csv' format to get an idea about the structure of the 'csv' file.
 
 ## Discussions
 
