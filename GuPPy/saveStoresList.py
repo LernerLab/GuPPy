@@ -14,6 +14,9 @@ from numpy import int32, uint32, uint8, uint16, float64, int64, int32, float32
 import panel as pn
 from collections import OrderedDict
 from random import randint
+from pathlib import Path
+import tkinter as tk
+from tkinter import ttk, IntVar
 
 #hv.extension()
 pn.extension()
@@ -55,6 +58,8 @@ def readtsq(filepath):
     path = glob.glob(os.path.join(filepath, '*.tsq'))
     if len(path)>1:
         raise Exception('Two tsq files are present at the location.')
+    elif len(path)==0:
+        return 0
     else:
         path = path[0]
     tsq = np.fromfile(path, dtype=tsq_dtype)
@@ -72,16 +77,28 @@ def saveStorenames(inputParametersPath, data, event_name, filepath):
     with open(inputParametersPath) as f:
         inputParameters = json.load(f)
 
-
     # reading storenames from the data fetched using 'readtsq' function
-    data['name'] = np.asarray(data['name'], dtype=np.str)
-    allnames = np.unique(data['name'])
-    index = []
-    for i in range(len(allnames)):
-        length = len(np.str(allnames[i]))
-        if length<4:
-            index.append(i)
-    allnames = np.delete(allnames, index, 0)
+    if isinstance(data, pd.DataFrame):
+        data['name'] = np.asarray(data['name'], dtype=np.str)
+        allnames = np.unique(data['name'])
+        index = []
+        for i in range(len(allnames)):
+            length = len(np.str(allnames[i]))
+            if length<4:
+                index.append(i)
+        allnames = np.delete(allnames, index, 0)
+        allnames = list(allnames)
+
+    else:
+        allnames = []
+
+
+    # finalizing all the storenames 
+    allnames = allnames + event_name
+
+    #if len(allnames)==0:
+    #    raise Exception('No storenames found. There are not any TDT files or csv files to look for storenames.')
+
 
     # instructions about how to save the storeslist file
     mark_down = pn.pane.Markdown("""
@@ -108,15 +125,15 @@ def saveStorenames(inputParametersPath, data, event_name, filepath):
                                          "UnrewardedPort", "RewardedPort", 
                                          "InactiveNosepoke"]}
                 ```
+                - If user has saved storenames before, clicking "Select Storenames" button will pop up a dialog box
+                  showing previously used names for storenames. Select names for storenames by checking a checkbox and
+                  click on "Show" to populate the text area in the Storenames GUI. Close the dialog box.
 
                 - Select “create new” or “overwrite” to generate a new storenames list or replace a previous one
                 - Click Save
 
                 """, width=550)
 
-    # finalizing all the storenames
-    allnames = list(allnames)
-    allnames = allnames + event_name
 
     # creating GUI template
     template = pn.template.MaterialTemplate(title='Storenames GUI - {}'.format(os.path.basename(filepath), mark_down))
@@ -150,6 +167,10 @@ def saveStorenames(inputParametersPath, data, event_name, filepath):
     overwrite_button = pn.widgets.MenuButton(name='over-write storeslist file or create a new one?  ', items=['over_write_file', 'create_new_file'], button_type='default', split=True, align='end')
     
     literal_input_2 = pn.widgets.Ace(value="""{}""", sizing_mode='stretch_both', theme='tomorrow', language='json', height=150)
+
+    alert = pn.pane.Alert('#### No alerts !!', alert_type='danger', height=60)
+
+
     take_widgets = pn.WidgetBox(
         multi_choice,
         literal_input_1   
@@ -162,6 +183,8 @@ def saveStorenames(inputParametersPath, data, event_name, filepath):
     
     storenames = []
     
+    if len(allnames)==0:
+        alert.object = '####Alert !! \n No storenames found. There are not any TDT files or csv files to look for storenames.'
 
     # on clicking overwrite_button, following function is executed
     def overwrite_button_actions(event):
@@ -172,9 +195,40 @@ def saveStorenames(inputParametersPath, data, event_name, filepath):
             select_location.options = [show_dir(filepath)]
             #select_location.value = select_location.options[0]
 
+
+    def checkbox_states():
+        global storenames
+        k = list(vars_list.keys())
+        
+        with open(os.path.join(Path.home(), '.storesList.json')) as f:
+                global_storenames = json.load(f)
+
+        res_dict = dict()
+
+        for i in range(len(k)):
+            values = np.array(list(map((lambda val: val.get()), vars_list[k[i]])))
+            idx = np.where(values==1)[0]
+            if idx.shape[0]>1:
+                alert.object = '####Alert !! \n More than 1 checkboxes were ticked for the storename {}.'.format(k[i])
+            if idx.shape[0]!=0:
+                res_dict[k[i]] = list(np.array(global_storenames[k[i]])[idx])
+
+        names_for_storenames = []
+        for i in range(len(storenames)):
+            if storenames[i] in res_dict:
+                names_for_storenames.append(res_dict[storenames[i]])
+            else:
+                names_for_storenames.append([""])
+
+        d = dict()
+        d["storenames"] = storenames
+        d["names_for_storenames"] = list(np.concatenate(names_for_storenames))
+        literal_input_2.value = str(json.dumps(d))
+
+
     # on clicking 'Select Storenames' button, following function is executed
     def update_values(event):
-        global storenames
+        global storenames, vars_list
         arr = []
         for w in take_widgets:
             arr.append(w.value)
@@ -193,10 +247,33 @@ def saveStorenames(inputParametersPath, data, event_name, filepath):
         for w in change_widgets:
             w.value = str(storenames)
 
-        d = dict()
-        d["storenames"] = storenames
-        d["names_for_storenames"] = []
-        literal_input_2.value = str(json.dumps(d))
+
+        if os.path.exists(os.path.join(Path.home(), '.storesList.json')):
+            with open(os.path.join(Path.home(), '.storesList.json')) as f:
+                global_storenames = json.load(f)
+
+            root = tk.Tk()
+            root.title('Select names for storenames')
+            root.geometry('800x500')
+            vars_list = dict()
+            alert_text = "##### Alert !! \n"
+            for i in range(len(storenames)):
+                if storenames[i] in global_storenames:
+                    T = ttk.Label(root, text="Select name for {} : ".format(storenames[i])).grid(row=i+1)
+                    vars_list[storenames[i]] = list(np.arange(len(global_storenames[storenames[i]])))
+                    for j in range(len(global_storenames[storenames[i]])):
+                        vars_list[storenames[i]][j] = IntVar()
+                        chk = ttk.Checkbutton(root, text=str(global_storenames[storenames[i]][j]), variable=vars_list[storenames[i]][j]).grid(row=i+1, column=j+1)
+
+
+            val = ttk.Button(root, text='Show', command=checkbox_states).grid(row=len(storenames)+3, column=3)
+            root.mainloop()
+
+        else:
+            d = dict()
+            d["storenames"] = storenames
+            d["names_for_storenames"] = []
+            literal_input_2.value = str(json.dumps(d))
 
 
 
@@ -206,6 +283,45 @@ def saveStorenames(inputParametersPath, data, event_name, filepath):
         
         d = json.loads(literal_input_2.value)
         arr1, arr2 = np.asarray(d["storenames"]), np.asarray(d["names_for_storenames"])
+
+        if np.where(arr2=="")[0].size>0:
+            alert.object = '#### Alert !! \n Empty string in the list names_for_storenames.'
+            raise Exception('Empty string in the list names_for_storenames.')
+        else:
+            alert.object = '#### No alerts !!'
+
+        if arr1.shape[0]!=arr2.shape[0]:
+            alert.object = '#### Alert !! \n Length of list storenames and names_for_storenames is not equal.'
+            raise Exception('Length of list storenames and names_for_storenames is not equal.')
+        else:
+            alert.object = '#### No alerts !!'
+
+
+        if not os.path.exists(os.path.join(Path.home(), '.storesList.json')):
+            global_storenames = dict()
+
+            for i in range(arr1.shape[0]):
+                if arr1[i] in global_storenames:
+                    global_storenames[arr1[i]].append(arr2[i])
+                    global_storenames[arr1[i]] = list(set(global_storenames[arr1[i]]))
+                else:
+                    global_storenames[arr1[i]] = [arr2[i]]
+
+            with open(os.path.join(Path.home(), '.storesList.json'), 'w') as f:
+                json.dump(global_storenames, f, indent=4) 
+        else:
+            with open(os.path.join(Path.home(), '.storesList.json')) as f:
+                global_storenames = json.load(f)
+
+            for i in range(arr1.shape[0]):
+                if arr1[i] in global_storenames:
+                    global_storenames[arr1[i]].append(arr2[i])
+                    global_storenames[arr1[i]] = list(set(global_storenames[arr1[i]]))
+                else:
+                    global_storenames[arr1[i]] = [arr2[i]]
+
+            with open(os.path.join(Path.home(), '.storesList.json'), 'w') as f:
+                json.dump(global_storenames, f, indent=4)
 
         arr = np.asarray([arr1, arr2])
         print(arr)
@@ -226,7 +342,7 @@ def saveStorenames(inputParametersPath, data, event_name, filepath):
 
     widget_1 = pn.Column('# '+os.path.basename(filepath), mark_down)
 
-    widget_2 = pn.Column(repeat_storename_wd, cross_selector, update_options, text, literal_input_2, mark_down_for_overwrite, overwrite_button, select_location, save, path)
+    widget_2 = pn.Column(repeat_storename_wd, cross_selector, update_options, text, literal_input_2, alert, mark_down_for_overwrite, overwrite_button, select_location, save, path)
     #pn.Column(mark_down_for_overwrite, pn.Row(overwrite_button, select_location))
     #box = pn.Column('# '+os.path.basename(filepath), mark_down, multi_choice, literal_input_1, cross_selector, update_options, text, literal_input_2, save) # '# '+os.path.basename(filepath), 
     template.main.append(pn.Row(widget_1, widget_2))
