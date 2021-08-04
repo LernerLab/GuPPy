@@ -296,15 +296,15 @@ def helperPSTHPeakAndArea(psth_mean, timestamps, sampling_rate, peak_startPoint,
 			peakPoint = startPtForPeak[0] + np.argmax(psth_mean[startPtForPeak[0]:endPtForPeak[0]])
 			peak_area['peak_'+str(i+1)] = psth_mean[peakPoint]
 
-			for j in range(startPtForPeak[0], endPtForPeak[0]):
-				arr = psth_mean[j:int(j+(0.5*sampling_rate))]
-				if psth_mean[j]<0 and (arr<0).all():
-					areaEndPt = j
-					break
-			if j==endPtForPeak[0]-1:
-				areaEndPt = endPtForPeak[0]-1
+			#for j in range(startPtForPeak[0], endPtForPeak[0]):
+			#	arr = psth_mean[j:int(j+(0.5*sampling_rate))]
+			#	if psth_mean[j]<0 and (arr<0).all():
+			#		areaEndPt = j
+			#		break
+			#if j==endPtForPeak[0]-1:
+			#	areaEndPt = endPtForPeak[0]-1
 
-			peak_area['area_'+str(i+1)] = np.trapz(psth_mean[startPtForPeak[0]:areaEndPt])
+			peak_area['area_'+str(i+1)] = np.trapz(psth_mean[startPtForPeak[0]:endPtForPeak[0]])
 		else:
 			peak_area['peak_'+str(i+1)] = np.nan
 			peak_area['area_'+str(i+1)] = np.nan
