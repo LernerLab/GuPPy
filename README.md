@@ -23,7 +23,7 @@ conda activate guppy
 conda install -c anaconda ipykernel
 python -m ipykernel install --user --name=guppy
 ```
-- On the terminal, go to the folder where [savingInputParameters.ipynb](https://github.com/LernerLab/GuPPy/blob/main/GuPPy/savingInputParameters.ipynb) file is located using the folowing command. 
+- On the terminal window or Anaconda prompt window, go to the folder where [savingInputParameters.ipynb](https://github.com/LernerLab/GuPPy/blob/main/GuPPy/savingInputParameters.ipynb) file is located using the folowing command. 
 ```
 cd path_to_the_file
 ```
