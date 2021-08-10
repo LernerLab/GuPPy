@@ -13,7 +13,7 @@ from matplotlib.widgets import MultiCursor
 from combineDataFn import processTimestampsForCombiningData
 
 
-# find files by ignoreing the case sensitivity
+# find files by ignoring the case sensitivity
 def find_files(path, glob_path, ignore_case = False):
     rule = re.compile(fnmatch.translate(glob_path), re.IGNORECASE) if ignore_case \
             else re.compile(fnmatch.translate(glob_path))
@@ -87,7 +87,7 @@ def timestampCorrection_csv(filepath, timeForLightsTurnOn, storesList):
 	    if 'control' in storesList[i].lower() or 'signal' in storesList[i].lower():
 	        arr.append(storesList[i])
 
-	arr = sorted(arr)
+	arr = sorted(arr, key=str.casefold)
 	try:
 		arr = np.asarray(arr).reshape(2,-1)
 	except:
@@ -132,7 +132,8 @@ def timestampCorrection_tdt(filepath, timeForLightsTurnOn, storesList):
 	    if 'control' in storesList[i].lower() or 'signal' in storesList[i].lower():
 	        arr.append(storesList[i])
 
-	arr = sorted(arr)
+	arr = sorted(arr, key=str.casefold)
+
 	try:
 		arr = np.asarray(arr).reshape(2,-1)
 	except:
@@ -219,7 +220,7 @@ def decide_naming_convention_and_applyCorrection(filepath, timeForLightsTurnOn, 
 	    if 'control' in storesList[i].lower() or 'signal' in storesList[i].lower():
 	        arr.append(storesList[i])
 
-	arr = sorted(arr)
+	arr = sorted(arr, key=str.casefold)
 	arr = np.asarray(arr).reshape(2,-1)
 
 	for i in range(arr.shape[1]):
@@ -354,7 +355,7 @@ def visualizeControlAndSignal(filepath, removeArtifacts):
 	path_2 = find_files(filepath, 'signal*', ignore_case=True) #glob.glob(os.path.join(filepath, 'signal*'))
 	
 
-	path = sorted(path_1 + path_2)
+	path = sorted(path_1 + path_2, key=str.casefold)
 	
 	if len(path)%2 != 0:
 		raise Exception('There are not equal number of Control and Signal data')
@@ -382,7 +383,7 @@ def decide_naming_convention(filepath):
 	
 	path_2 = find_files(filepath, 'signal*', ignore_case=True) #glob.glob(os.path.join(filepath, 'signal*'))
 	
-	path = sorted(path_1 + path_2)
+	path = sorted(path_1 + path_2, key=str.casefold)
 	if len(path)%2 != 0:
 		raise Exception('There are not equal number of Control and Signal data')
 	
@@ -601,7 +602,8 @@ def compute_z_score(filepath, inputParameters):
 	path_1 = find_files(filepath, 'control*', ignore_case=True) #glob.glob(os.path.join(filepath, 'control*'))
 	path_2 = find_files(filepath, 'signal*', ignore_case=True) #glob.glob(os.path.join(filepath, 'signal*'))
 	
-	path = sorted(path_1 + path_2)
+
+	path = sorted(path_1 + path_2, key=str.casefold)
 
 
 	b = np.divide(np.ones((100,)), 100)
@@ -683,7 +685,7 @@ def get_all_stores_for_combining_data(folderNames):
 		match = r'[\s\S]*'+'_output_'+str(i)
 		for j in folderNames:
 			temp.append(re.findall(match, j))
-		temp = sorted(list(np.concatenate(temp).flatten()))
+		temp = sorted(list(np.concatenate(temp).flatten()), key=str.casefold)
 		if len(temp)>0:
 			op.append(temp)
 

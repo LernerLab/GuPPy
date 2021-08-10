@@ -3,7 +3,13 @@ import glob
 import json
 import numpy as np 
 import h5py
+import re
+import fnmatch
 
+def find_files(path, glob_path, ignore_case = False):
+    rule = re.compile(fnmatch.translate(glob_path), re.IGNORECASE) if ignore_case \
+            else re.compile(fnmatch.translate(glob_path))
+    return [os.path.join(path,n) for n in os.listdir(os.path.expanduser(path)) if rule.match(n)]
 
 def read_hdf5(event, filepath, key):
 	if event:
@@ -43,11 +49,12 @@ def write_hdf5(data, event, filepath, key):
 
 
 def decide_naming_convention(filepath):
-	path_1 = glob.glob(os.path.join(filepath, 'control*'))
+	path_1 = find_files(filepath, 'control*', ignore_case=True) #glob.glob(os.path.join(filepath, 'control*'))
 	
-	path_2 = glob.glob(os.path.join(filepath, 'signal*'))
+	path_2 = find_files(filepath, 'signal*', ignore_case=True) #glob.glob(os.path.join(filepath, 'signal*'))
 	
-	path = sorted(path_1 + path_2)
+	path = sorted(path_1 + path_2, key=str.casefold)
+
 	if len(path)%2 != 0:
 		raise Exception('There are not equal number of Control and Signal data')
 	
