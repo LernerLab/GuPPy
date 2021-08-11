@@ -17,7 +17,17 @@ from combineDataFn import processTimestampsForCombiningData
 def find_files(path, glob_path, ignore_case = False):
     rule = re.compile(fnmatch.translate(glob_path), re.IGNORECASE) if ignore_case \
             else re.compile(fnmatch.translate(glob_path))
-    return [os.path.join(path,n) for n in os.listdir(os.path.expanduser(path)) if rule.match(n)]
+
+    no_bytes_path = os.listdir(os.path.expanduser(path))
+    str_path = []
+
+    # converting byte object to string
+    for x in no_bytes_path:
+    	try:
+    		str_path.append(x.decode('utf-8'))
+    	except:
+    		str_path.append(x)
+    return [os.path.join(path,n) for n in str_path if rule.match(n)]
 
 
 # check if dealing with TDT files or csv files
@@ -186,8 +196,10 @@ def applyCorrection(filepath, timeForLightsTurnOn, event, displayName, naming):
 	timestampNew = read_hdf5('timeCorrection_'+naming, filepath, 'timestampNew')
 	correctionIndex = read_hdf5('timeCorrection_'+naming, filepath, 'correctionIndex')
 
+
 	if 'control' in displayName.lower() or 'signal' in displayName.lower():
 		arr = read_hdf5(event, filepath, 'data')
+		
 		if (arr==0).all()==True:
 			arr = arr
 		else:
