@@ -64,7 +64,7 @@ def helper_plots(filepath, event, name):
 
 		df = pd.concat(frames, keys=new_event, axis=1)
 	else:
-		new_event = event
+		new_event = list(np.unique(np.array(event)))
 		frames = []
 		for i in range(len(new_event)):
 			frames.append(read_Df(filepath, new_event[i], ''))
