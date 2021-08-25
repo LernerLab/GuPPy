@@ -37,6 +37,15 @@ conda activate guppy
 ```
 - All the basic instructions along with detailed instructions of each step to run the GuPPy tool is on [Github Wiki Page](https://github.com/LernerLab/GuPPy/wiki).
 
+## Tutorial Videos
+
+- [Installation steps](https://youtu.be/7qfU8xvj2nc)
+- [Explaining Input Parameters GUI](https://youtu.be/A3wfkG4n7J8)
+- [Individual Analysis steps](https://youtu.be/6IollIr9q6Y)
+- [Artifacts Removal](https://youtu.be/OKiRZZxKj6Y)
+- [Group Analysis steps](https://youtu.be/9JYt5k1zguw)
+- [Use of csv file as an input](https://youtu.be/1_hec_GV2_A)
+
 ## Sample Data
 
 - [Sample data](https://northwestern.box.com/s/pmzpqey540gkftka669frax84ofk5f4h) for the user to go through the tool in the start. It has two sample data : 1) Clean Data 2) Data with artifacts. It also has a control channel, signal channel and event timestamps file in  'csv' format to get an idea about the structure of the 'csv' file.
