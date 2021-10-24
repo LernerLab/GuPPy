@@ -46,7 +46,7 @@ python -m ipykernel install --user --name=guppy
 7. On the terminal window or Anaconda prompt window, use the savingInputParameters.ipynb path/location to execute the following command: 
 
 ```
-cd path_to_savingInputParameters.ipynb_file
+cd path_to_file
 ```
 8. Lastly, execute the following command to open the GuPPy User Interface:
 ```
