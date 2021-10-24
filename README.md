@@ -17,7 +17,7 @@ Follow the instructions below to install GuPPy :
    
    d. Inside the GuPPy-main folder there is a subfolder named “GuPPy”. Take note of the Guppy subfolder location or path. It will be important for future steps in the GuPPy workflow <br>
    - Mac: Right click folder → Click Get Info → Text next to “Where:” <br>
-       ~ Ex: /Users/gabrielalopez/Desktop/GuPPy-main <br>
+       ~ Ex: /Users/LernerLab/Desktop/GuPPy-main <br>
    - PC: Right click folder → Properties → Text next to “Location:” <br>
 
 2. Install [Anaconda](https://www.anaconda.com/products/individual#macos). Install Anaconda based on your operating system (Mac, Windows or Linux)
@@ -48,11 +48,13 @@ python -m ipykernel install --user --name=guppy
 ```
 cd path_to_file
 ```
+ - Ex: cd /Users/LernerLab/Desktop/GuPPy-main/GuPPy
+ 
 8. Lastly, execute the following command to open the GuPPy User Interface:
 ```
 panel serve --show savingInputParameters.ipynb
 ```
-GuPPy is now officially downloaded and ready to use!
+<b> GuPPy is now officially downloaded and ready to use! <b>
 
 - The full instructions along with detailed descriptions of each step to run the GuPPy tool is on [Github Wiki Page](https://github.com/LernerLab/GuPPy/wiki).
 
