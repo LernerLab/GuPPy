@@ -20,9 +20,9 @@ Follow the instructions below to install GuPPy :
        ~ Ex: /Users/LernerLab/Desktop/GuPPy-main <br>
    - PC: Right click folder → Properties → Text next to “Location:” <br>
 
-2. Install [Anaconda](https://www.anaconda.com/products/individual#macos). Install Anaconda based on your operating system (Mac, Windows or Linux)
+2. Install [Anaconda](https://www.anaconda.com/products/individual#macos). Install Anaconda based on your operating system (Mac, Windows or Linux).
 
-3. Open Anaconda Prompt window (for windows) or open terminal window (for Mac or Linux)
+3. Once installed, open an Anaconda Prompt window (for windows) or Terminal window (for Mac or Linux).
 
 4. Find the location where GuPPy folder is located (from Step 1d) and execute the following command on the Anaconda Prompt or terminal window: 
 
