@@ -165,7 +165,7 @@ def helper_psth(z_score, event, filepath, nSecPrev, nSecPost, timeInterval, base
 
 	totalTs = (-1*nTsPrev) + nTsPost
 	increment = ((-1*nSecPrev)+nSecPost)/totalTs
-	timeAxis = np.arange(nSecPrev, nSecPost+increment, increment) # change -1*nSecPrev
+	timeAxis = np.linspace(nSecPrev, nSecPost+increment, totalTs+1)   #np.arange(nSecPrev, nSecPost+increment, increment) # change -1*nSecPrev
 	timeAxisNew = np.concatenate((timeAxis, timeAxis[::-1]))
 
 	create_Df(filepath, 'ts_psth', '', timeAxis)
