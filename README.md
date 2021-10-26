@@ -20,9 +20,9 @@ GuPPy can be run on Windows, Mac or Linux.
        ~ Ex: /Users/LernerLab/Desktop/GuPPy-main <br>
    - Windows/Linux: Right click folder → Properties → Text next to “Location:” <br>
 
-2. Install [Anaconda](https://www.anaconda.com/products/individual#macos). Install Anaconda based on your operating system (Mac, Windows or Linux).
+2.  Anaconda is a distribution of the Python and R programming languages for scientific computing. Install [Anaconda](https://www.anaconda.com/products/individual#macos). Install Anaconda based on your operating system (Mac, Windows or Linux) by following the prompts when you run the downloaded installation file.
 
-3. Once installed, open an Anaconda Prompt window (for windows) or Terminal window (for Mac or Linux).
+3. Once installed, open an Anaconda Prompt window (for windows) or Terminal window (for Mac or Linux). You can search for "anaconda prompt" or "terminal" on your computer to open this window.
 
 4. Find the location where GuPPy folder is located (from Step 1d) and execute the following command on the Anaconda Prompt or terminal window: 
 
