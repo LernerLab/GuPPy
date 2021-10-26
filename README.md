@@ -18,7 +18,7 @@ GuPPy can be run on Windows, Mac or Linux.
    d. Inside the GuPPy-main folder there is a subfolder named “GuPPy”. Take note of the Guppy subfolder location or path. It will be important for future steps in the GuPPy workflow <br>
    - Mac: Right click folder → Click Get Info → Text next to “Where:” <br>
        ~ Ex: /Users/LernerLab/Desktop/GuPPy-main <br>
-   - PC: Right click folder → Properties → Text next to “Location:” <br>
+   - Windows/Linux: Right click folder → Properties → Text next to “Location:” <br>
 
 2. Install [Anaconda](https://www.anaconda.com/products/individual#macos). Install Anaconda based on your operating system (Mac, Windows or Linux).
 
@@ -34,7 +34,7 @@ cd path_to_GuPPy_folder
 5. Next, execute the following commands, in this specific order, on Anaconda Prompt or terminal window: <br>
    - Note : filename in the first command should be replaced by <b>spec_file_windows10.txt</b> or <b>spec_file_mac.txt</b> or <b>spec_file_linux.txt</b> (based on your OS) <br>
    - Some of these commands will initiate various transactions. Wait until they are all done before executing the next line <br>
-   - Mac users: if terminal asks: Proceed ([y]/n)? Respond with y <br>
+   - If the Anaconda Prompt or Terminal window asks: Proceed ([y]/n)? Respond with y <br>
 ```
 conda create --name guppy --file filename
 conda activate guppy
