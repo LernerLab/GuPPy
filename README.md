@@ -13,7 +13,7 @@ GuPPy can be run on Windows, Mac or Linux.
    
    b. Click on Download ZIP. *(Ensure that you save this ZIP locally, not in any external cloud storage such as iCloud, OneDrive, Box, etc. We suggest saving it in your User folder on the C drive)* <br>
    
-   c. Once downloaded, open ZIP file and you should have a folder named “GuPPy-main”. Place this GuPPy-main folder wherever is most convenient. <br>
+   c. Once downloaded, open ZIP file and you should have a folder named “GuPPy-main”. Place this GuPPy-main folder wherever is most convenient (avoiding cloud storage). <br>
    
    d. Inside the GuPPy-main folder there is a subfolder named “GuPPy”. Take note of the Guppy subfolder location or path. It will be important for future steps in the GuPPy workflow <br>
    - Mac: Right click folder → Click Get Info → Text next to “Where:” <br>
