@@ -11,7 +11,7 @@ GuPPy can be run on Windows, Mac or Linux.
 1. Download the Guppy code <br>
    a. Press the green button labeled “Code” on the top right corner and that will initiate a pull down menu. <br>
    
-   b. Click on Download ZIP. *(Mac Users: Check settings for Desktop and Documents to assure folder does not get saved to the Cloud)* <br>
+   b. Click on Download ZIP. *(Mac Users: Check settings for Desktop and Documents to assure ZIP does not get saved to the Cloud)* <br>
    
    c. Once downloaded, open ZIP file and you should have a folder named “GuPPy-main”. Place this GuPPy-main folder wherever is most convenient. <br>
    
