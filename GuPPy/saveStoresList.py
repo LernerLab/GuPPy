@@ -122,7 +122,7 @@ def saveStorenames(inputParametersPath, data, event_name, flag, filepath):
         keys = list(d.keys())
         mark_down_np = pn.pane.Markdown("""
                                         ### Extra Instructions to follow when using Neurophotometrics data :
-                                        - View to plots below to recognize between isosbestic control channel and
+                                        - View the plots below to recognize between isosbestic control channel and
                                           signal channel.<br>
                                         - Please name the storenames accordingly by viewing the plots and also by
                                           following the instructions above.<br>
