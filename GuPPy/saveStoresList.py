@@ -124,8 +124,11 @@ def saveStorenames(inputParametersPath, data, event_name, flag, filepath):
                                         ### Extra Instructions to follow when using Neurophotometrics data :
                                         - View to plots below to recognize between isosbestic control channel and
                                           signal channel.<br>
-                                        - Please name the storenames accordingly by viewing the plots.<br>
-                                        - For reference, chev1 and chod1 channels corresponds to the same region.
+                                        - Please name the storenames accordingly by viewing the plots and also by
+                                          following the instructions above.<br>
+                                        - For reference, chev1 and chod1 channels corresponds to the same region. 
+                                          One of the two will be isosbestic control and other will be signal channel
+
             """)
         plot_select = pn.widgets.Select(name='Select channel to see correspondings channels', options=keys, value=keys[0])
         
