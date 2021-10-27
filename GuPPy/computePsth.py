@@ -1,10 +1,17 @@
+# coding: utf-8
+
 import os
+import sys
 import json
 import glob
+import re
+import time
 import numpy as np 
 import h5py
 import math
 import pandas as pd
+from itertools import repeat
+import multiprocessing as mp
 from scipy import signal as ss
 from collections import OrderedDict
 from preprocess import get_all_stores_for_combining_data
@@ -80,18 +87,28 @@ def create_Df(filepath, event, name, psth, columns=[]):
 	else:
 		op = os.path.join(filepath, event+'.h5')
 	
+	# check if file already exists
+	#if os.path.exists(op):
+	#	return 0
+
+	# removing psth binned trials
+	columns = list(np.array(columns, dtype='str'))
+	regex = re.compile('bin_*')
+	single_trials_index = [i for i in range(len(columns)) if not regex.match(columns[i])]
+	single_trials_index = [i for i in range(len(columns)) if columns[i]!='timestamps']
+
 	psth = psth.T
 	if psth.ndim > 1:
-		mean = np.nanmean(psth, axis=1).reshape(-1,1)
-		err = np.nanstd(psth, axis=1)/math.sqrt(psth.shape[1])
+		mean = np.nanmean(psth[:,single_trials_index], axis=1).reshape(-1,1)
+		err = np.nanstd(psth[:,single_trials_index], axis=1)/math.sqrt(psth[:,single_trials_index].shape[1])
 		err = err.reshape(-1,1)
 		psth = np.hstack((psth,mean))
 		psth = np.hstack((psth, err))
-		timestamps = np.asarray(read_Df(filepath, 'ts_psth', ''))
-		psth = np.hstack((psth, timestamps))
+		#timestamps = np.asarray(read_Df(filepath, 'ts_psth', ''))
+		#psth = np.hstack((psth, timestamps))
 	try:
 		ts = read_hdf5(event, filepath, 'ts')
-		ts = np.append(ts, ['mean', 'err', 'timestamps'])
+		ts = np.append(ts, ['mean', 'err'])
 	except:
 		ts = None
 
@@ -99,7 +116,7 @@ def create_Df(filepath, event, name, psth, columns=[]):
 		df = pd.DataFrame(psth, index=None, columns=ts, dtype='float32')
 	else:
 		columns = np.asarray(columns)
-		columns = np.append(columns, ['mean', 'err', 'timestamps'])
+		columns = np.append(columns, ['mean', 'err'])
 		df = pd.DataFrame(psth, index=None, columns=columns, dtype='float32')
 
 	df.to_hdf(op, key='df', mode='w')
@@ -137,10 +154,10 @@ def rowFormation(z_score, thisIndex, nTsPrev, nTsPost):
 
 
 # function to calculate baseline for each PSTH trial and do baseline correction
-def baselineCorrection(filepath, arr, baselineStart, baselineEnd):
+def baselineCorrection(filepath, arr, timeAxis, baselineStart, baselineEnd):
 
-	timeAxis = read_Df(filepath, 'ts_psth', '')
-	timeAxis = np.asarray(timeAxis).reshape(-1)
+	#timeAxis = read_Df(filepath, 'ts_psth', '')
+	#timeAxis = np.asarray(timeAxis).reshape(-1)
 	baselineStrtPt = np.where(timeAxis>=baselineStart)[0]
 	baselineEndPt = np.where(timeAxis>=baselineEnd)[0]
 
@@ -155,7 +172,7 @@ def baselineCorrection(filepath, arr, baselineStart, baselineEnd):
 
 
 # helper function to make PSTH for each event
-def helper_psth(z_score, event, filepath, nSecPrev, nSecPost, timeInterval, baselineStart, baselineEnd, naming, just_use_signal):
+def helper_psth(z_score, event, filepath, nSecPrev, nSecPost, timeInterval, bin_psth_trials, baselineStart, baselineEnd, naming, just_use_signal):
 
 	sampling_rate = read_hdf5('timeCorrection_'+naming, filepath, 'sampling_rate')[0]
 
@@ -165,11 +182,14 @@ def helper_psth(z_score, event, filepath, nSecPrev, nSecPost, timeInterval, base
 
 	totalTs = (-1*nTsPrev) + nTsPost
 	increment = ((-1*nSecPrev)+nSecPost)/totalTs
-	timeAxis = np.arange(nSecPrev, nSecPost+increment, increment) # change -1*nSecPrev
+	timeAxis = timeAxis = np.linspace(nSecPrev, nSecPost+increment, totalTs+1) #np.arange(nSecPrev, nSecPost+increment, increment) # change -1*nSecPrev
 	timeAxisNew = np.concatenate((timeAxis, timeAxis[::-1]))
 
-	create_Df(filepath, 'ts_psth', '', timeAxis)
-	create_Df(filepath, 'ts_new_psth', '', timeAxisNew)
+	# avoid writing same data to same file in multi-processing
+	#if not os.path.exists(os.path.join(filepath, 'ts_psth.h5')):
+	#	print('file not exists')
+	#	create_Df(filepath, 'ts_psth', '', timeAxis)
+	#	time.sleep(2)
 
 	ts = read_hdf5(event+'_'+naming, filepath, 'ts')
 	
@@ -216,17 +236,58 @@ def helper_psth(z_score, event, filepath, nSecPrev, nSecPost, timeInterval, base
 			arr = arr
 		
 		psth_baselineUncorrected[i,:] = arr                                            # extra
-		psth[i,:] = baselineCorrection(filepath, arr, baselineStart, baselineEnd)
+		psth[i,:] = baselineCorrection(filepath, arr, timeAxis, baselineStart, baselineEnd)
 
 	write_hdf5(ts, event+'_'+naming, filepath, 'ts')
+	columns = list(ts)
 
-	return psth, psth_baselineUncorrected
+	if bin_psth_trials>0:
+		timestamps = read_hdf5('timeCorrection_'+naming, filepath, 'timestampNew')
+		timestamps = np.divide(timestamps, 60)
+		ts_min = np.divide(ts, 60)
+		bin_steps = np.arange(timestamps[0], timestamps[-1]+bin_psth_trials, bin_psth_trials)
+
+		psth_bin, psth_bin_baselineUncorrected = [], []
+		
+		for i in range(1, bin_steps.shape[0]):
+			index = np.where((ts_min>=bin_steps[i-1]) & (ts_min<=bin_steps[i]))[0]
+
+			# no trials in a given bin window, just put all the nan values
+			if index.shape[0]==0:
+				psth_bin.append(np.full(psth.shape[1], np.nan))
+				psth_bin_baselineUncorrected.append(np.full(psth_baselineUncorrected.shape[1], np.nan))
+				psth_bin.append(np.full(psth.shape[1], np.nan))
+				psth_bin_baselineUncorrected.append(np.full(psth_baselineUncorrected.shape[1], np.nan))
+			else:
+				arr = psth[index,:]
+				#  mean of bins
+				psth_bin.append(np.nanmean(psth[index,:], axis=0))
+				psth_bin_baselineUncorrected.append(np.nanmean(psth_baselineUncorrected[index,:], axis=0))
+				psth_bin.append(np.nanstd(psth[index,:],axis=0)/math.sqrt(psth[index,:].shape[0]))
+				# error of bins
+				psth_bin_baselineUncorrected.append(np.nanstd(psth_baselineUncorrected[index,:],axis=0)/math.sqrt(psth_baselineUncorrected[index,:].shape[0]))
+			
+			# adding column names
+			columns.append('bin_({}-{})'.format(np.around(bin_steps[i-1],0), np.around(bin_steps[i],0)))
+			columns.append('bin_err_({}-{})'.format(np.around(bin_steps[i-1],0), np.around(bin_steps[i],0)))
+
+		psth = np.concatenate((psth, psth_bin), axis=0)
+		psth_baselineUncorrected = np.concatenate((psth_baselineUncorrected, psth_bin_baselineUncorrected), axis=0)
+
+	timeAxis = timeAxis.reshape(1,-1)
+	psth = np.concatenate((psth, timeAxis), axis=0)
+	psth_baselineUncorrected = np.concatenate((psth_baselineUncorrected, timeAxis), axis=0)
+	columns.append('timestamps')
+
+	return psth, psth_baselineUncorrected, columns
 
 
 # function to create PSTH for each event using function helper_psth and save the PSTH to h5 file
-def storenamePsth(filepath, event, inputParameters, storesList):
+def storenamePsth(filepath, event, inputParameters):
 
 	selectForComputePsth = inputParameters['selectForComputePsth']
+	bin_psth_trials = inputParameters['bin_psth_trials']
+
 	if selectForComputePsth=='z_score':
 		path = glob.glob(os.path.join(filepath, 'z_score_*'))
 	elif selectForComputePsth=='dff':
@@ -237,7 +298,7 @@ def storenamePsth(filepath, event, inputParameters, storesList):
 	b = np.divide(np.ones((100,)), 100)
 	a = 1
 
-	storesList = storesList
+	#storesList = storesList
 	#sampling_rate = read_hdf5(storesList[0,0], filepath, 'sampling_rate')
 	nSecPrev, nSecPost = inputParameters['nSecPrev'], inputParameters['nSecPost']
 	baselineStart, baselineEnd = inputParameters['baselineCorrectionStart'], inputParameters['baselineCorrectionEnd']
@@ -258,9 +319,14 @@ def storenamePsth(filepath, event, inputParameters, storesList):
 			else:
 				z_score = read_hdf5('', path[i], 'data')
 				just_use_signal = False
-			psth, psth_baselineUncorrected = helper_psth(z_score, event, filepath, nSecPrev, nSecPost, timeInterval, baselineStart, baselineEnd, name_1, just_use_signal)
-			create_Df(filepath, event+'_'+name_1+'_baselineUncorrected', basename, psth_baselineUncorrected)     # extra
-			create_Df(filepath, event+'_'+name_1, basename, psth)
+			psth, psth_baselineUncorrected, cols = helper_psth(z_score, event, filepath, 
+															   nSecPrev, nSecPost, timeInterval, 
+															   bin_psth_trials, 
+															   baselineStart, baselineEnd, 
+															   name_1, just_use_signal)
+
+			create_Df(filepath, event+'_'+name_1+'_baselineUncorrected', basename, psth_baselineUncorrected, columns=cols)     # extra
+			create_Df(filepath, event+'_'+name_1, basename, psth, columns=cols)
 
 			print("PSTH for event {} computed.".format(event))
 
@@ -293,30 +359,18 @@ def helperPSTHPeakAndArea(psth_mean, timestamps, sampling_rate, peak_startPoint,
 		startPtForPeak = np.where(timestamps>=peak_startPoint[i])[0]
 		endPtForPeak = np.where(timestamps>=peak_endPoint[i])[0]
 		if len(startPtForPeak)>=1 and len(endPtForPeak)>=1:
-			peakPoint = startPtForPeak[0] + np.argmax(psth_mean[startPtForPeak[0]:endPtForPeak[0]])
-			peak_area['peak_'+str(i+1)] = psth_mean[peakPoint]
-
-			#for j in range(startPtForPeak[0], endPtForPeak[0]):
-			#	arr = psth_mean[j:int(j+(0.5*sampling_rate))]
-			#	if psth_mean[j]<0 and (arr<0).all():
-			#		areaEndPt = j
-			#		break
-			#if j==endPtForPeak[0]-1:
-			#	areaEndPt = endPtForPeak[0]-1
-
-			peak_area['area_'+str(i+1)] = np.trapz(psth_mean[startPtForPeak[0]:endPtForPeak[0]])
+			peakPoint = startPtForPeak[0] + np.argmax(psth_mean[startPtForPeak[0]:endPtForPeak[0],:], axis=0)
+			peak_area['peak_'+str(i+1)] = np.amax(psth_mean[peakPoint],axis=0)
+			peak_area['area_'+str(i+1)] = np.trapz(psth_mean[startPtForPeak[0]:endPtForPeak[0],:], axis=0)
 		else:
 			peak_area['peak_'+str(i+1)] = np.nan
 			peak_area['area_'+str(i+1)] = np.nan
-
-	#print(peak_area)
 
 	return peak_area
 
 
 # function to compute PSTH peak and area using the function helperPSTHPeakAndArea save the values to h5 and csv files.
-def findPSTHPeakAndArea(filepath, event, inputParameters, storesList):
-
+def findPSTHPeakAndArea(filepath, event, inputParameters):
 
 	#sampling_rate = read_hdf5(storesList[0,0], filepath, 'sampling_rate')
 	peak_startPoint = inputParameters['peak_startPoint']
@@ -341,13 +395,18 @@ def findPSTHPeakAndArea(filepath, event, inputParameters, storesList):
 			name_1 = basename.split('_')[-1]
 			sampling_rate = read_hdf5('timeCorrection_'+name_1, filepath, 'sampling_rate')[0]
 			psth = read_Df(filepath, event+'_'+name_1, basename)
-			psth_mean = np.asarray(psth['mean'])
-			timestamps = np.asarray(read_Df(filepath, 'ts_psth', '')).ravel()
-			peak_area = helperPSTHPeakAndArea(psth_mean, timestamps, sampling_rate, peak_startPoint, peak_endPoint)   # peak, area = 
+			cols = list(psth.columns)
+			regex = re.compile('bin_[(]')
+			bin_names = [cols[i] for i in range(len(cols)) if regex.match(cols[i])]
+			psth_mean_bin_names = bin_names + ['mean']
+			psth_mean_bin_mean = np.asarray(psth[psth_mean_bin_names])
+			timestamps = np.asarray(psth['timestamps']).ravel() #np.asarray(read_Df(filepath, 'ts_psth', '')).ravel()
+			peak_area = helperPSTHPeakAndArea(psth_mean_bin_mean, timestamps, sampling_rate, peak_startPoint, peak_endPoint)   # peak, area = 
 			#arr = np.array([[peak, area]])
 			fileName = [os.path.basename(os.path.dirname(filepath))]
-			create_Df_area_peak(filepath, peak_area, event+'_'+name_1+'_'+basename, index=fileName) # columns=['peak', 'area']
-			create_csv_area_peak(filepath, peak_area, event+'_'+name_1+'_'+basename, index=fileName)
+			index = [fileName[0]+'_'+s for s in psth_mean_bin_names]
+			create_Df_area_peak(filepath, peak_area, event+'_'+name_1+'_'+basename, index=index) # columns=['peak', 'area']
+			create_csv_area_peak(filepath, peak_area, event+'_'+name_1+'_'+basename, index=index)
 
 			print('Peak and Area for PSTH mean signal for event {} computed.'.format(event))
 
@@ -403,13 +462,13 @@ def averageForGroup(folderNames, event, inputParameters):
 
 
 
-	timestamps = np.asarray(read_Df(new_path[0][0][0], 'ts_psth', '')).reshape(-1)
+	#timestamps = np.asarray(read_Df(new_path[0][0][0], 'ts_psth', '')).reshape(-1)
 	op = makeAverageDir(abspath)
-	create_Df(op, 'ts_psth', '', timestamps)
+	#create_Df(op, 'ts_psth', '', timestamps)
 
 	# read PSTH for each event and make the average of it. Save the final output to an average folder.
 	for i in range(len(new_path)):
-		psth = [] 
+		psth, psth_bins = [], [] 
 		columns = []
 		temp_path = new_path[i]
 		for j in range(len(temp_path)):
@@ -418,17 +477,41 @@ def averageForGroup(folderNames, event, inputParameters):
 				continue
 			else:
 				df = read_Df(temp_path[j][0], temp_path[j][1], temp_path[j][2])    # filepath, event, name
+				cols = list(df.columns)
+				regex = re.compile('bin_[(]')
+				bins_cols = [cols[i] for i in range(len(cols)) if regex.match(cols[i])]
 				psth.append(np.asarray(df['mean']))
 				columns.append(os.path.basename(temp_path[j][0]))
+				if len(bins_cols)>0:
+					psth_bins.append(df[bins_cols])
+					
+		if len(bins_cols)>0:
+			df_bins = pd.concat(psth_bins, axis=1)
+			df_bins_mean = df_bins.groupby(by=df_bins.columns, axis=1).mean()
+			df_bins_err = df_bins.groupby(by=df_bins.columns, axis=1).std()/math.sqrt(df_bins.shape[1]) 
+			cols_err = list(df_bins_err.columns)
+			dict_err = {}
+			for i in cols_err:
+			    split = i.split('_')
+			    dict_err[i] = '{}_err_{}'.format(split[0], split[1])
+			df_bins_err = df_bins_err.rename(columns=dict_err)
+			columns = columns + list(df_bins_mean.columns) + list(df_bins_err.columns)
+			df_bins_mean_err = pd.concat([df_bins_mean, df_bins_err], axis=1).T
+			psth, df_bins_mean_err = np.asarray(psth), np.asarray(df_bins_mean_err)
+			psth = np.concatenate((psth, df_bins_mean_err), axis=0)
+		else:
+			psth = np.asarray(psth)
 
-		psth = np.asarray(psth)
+		timestamps = np.asarray(df['timestamps']).reshape(1,-1)
+		psth = np.concatenate((psth, timestamps), axis=0)
+		columns = columns + ['timestamps']
 		create_Df(op, temp_path[j][1], temp_path[j][2], psth, columns=columns)
 
 
 	# read PSTH peak and area for each event and combine them. Save the final output to an average folder
 	for i in range(len(new_path)):
 		arr = [] 
-		fileName = []
+		index = []
 		temp_path = new_path[i]
 		for j in range(len(temp_path)):
 			if not os.path.exists(os.path.join(temp_path[j][0], 'peak_AUC_'+temp_path[j][1]+'_'+temp_path[j][2]+'.h5')):
@@ -436,13 +519,12 @@ def averageForGroup(folderNames, event, inputParameters):
 			else:
 				df = read_Df_area_peak(temp_path[j][0], temp_path[j][1]+'_'+temp_path[j][2])
 				arr.append(df)
-				fileName.append(os.path.basename(temp_path[j][0]))
+				index.append(list(df.index))
 		
+		index = list(np.concatenate(index))
 		new_df = pd.concat(arr, axis=0)  #os.path.join(filepath, 'peak_AUC_'+name+'.csv')
-		new_df.to_csv(os.path.join(op, 'peak_AUC_{}_{}.csv'.format(temp_path[j][1], temp_path[j][2])), index=fileName)
-		new_df.to_hdf(os.path.join(op, 'peak_AUC_{}_{}.h5'.format(temp_path[j][1], temp_path[j][2])), key='df', mode='w', index=fileName)
-		#create_Df_area_peak(op, new_df, temp_path[j][1]+'_'+temp_path[j][2], index=fileName)
-		#create_csv_area_peak(op, new_df, temp_path[j][1]+'_'+temp_path[j][2], index=fileName)
+		new_df.to_csv(os.path.join(op, 'peak_AUC_{}_{}.csv'.format(temp_path[j][1], temp_path[j][2])), index=index)
+		new_df.to_hdf(os.path.join(op, 'peak_AUC_{}_{}.h5'.format(temp_path[j][1], temp_path[j][2])), key='df', mode='w', index=index)
 
 	print("Group of data averaged.")
 
@@ -511,13 +593,20 @@ def psthForEachStorename(inputParametersPath):
 				for j in range(len(storesListPath)):
 					filepath = storesListPath[j]
 					storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',')
-					for k in range(storesList.shape[1]):
-						storenamePsth(filepath, storesList[1,k], inputParameters, storesList)
-						findPSTHPeakAndArea(filepath, storesList[1,k], inputParameters, storesList)
+
+					with mp.Pool(mp.cpu_count()) as p:
+						p.starmap(storenamePsth, zip(repeat(filepath), storesList[1,:], repeat(inputParameters)))
+
+					with mp.Pool(mp.cpu_count()) as pq:
+						pq.starmap(findPSTHPeakAndArea, zip(repeat(filepath), storesList[1,:], repeat(inputParameters)))
+
+					#for k in range(storesList.shape[1]):
+					#	storenamePsth(filepath, storesList[1,k], inputParameters)
+					#	findPSTHPeakAndArea(filepath, storesList[1,k], inputParameters)
 
 
 	print("PSTH, Area and Peak are computed for all events.")
 
-
-
+if __name__ == "__main__":
+	psthForEachStorename(sys.argv[1:][0])
 

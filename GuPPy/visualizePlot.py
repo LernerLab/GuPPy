@@ -4,6 +4,7 @@ import json
 import glob
 import h5py
 import param
+import re
 import numpy as np 
 import pandas as pd
 import functools
@@ -42,9 +43,19 @@ def make_dir(filepath):
 
 	return op
 
+# remove unnecessary column names
+def remove_cols(cols):
+	regex = re.compile('bin_err_*')
+	remove_cols = [cols[i] for i in range(len(cols)) if regex.match(cols[i])]
+	remove_cols = remove_cols + ['err', 'timestamps']
+	cols = [i for i in cols if i not in remove_cols]
+
+	return cols
+
+#def look_psth_bins(event, name):
 
 # helper function to create plots
-def helper_plots(filepath, event, name):
+def helper_plots(filepath, event, name, inputParameters):
 
 	basename = os.path.basename(filepath)
 
@@ -53,21 +64,30 @@ def helper_plots(filepath, event, name):
 	# combine all the event PSTH so that it can be viewed together
 	if name:
 		event_name, name = event, name
-		new_event = []
-		frames = []
+		new_event, frames, bins = [], [], {}
 		for i in range(len(event_name)):
 		    
 		    for j in range(len(name)):
 		        new_event.append(event_name[i]+'_'+name[j].split('_')[-1])
 		        new_name = name[j]
-		        frames.append(read_Df(filepath, new_event[-1], new_name))
+		        temp_df = read_Df(filepath, new_event[-1], new_name)
+		        cols = list(temp_df.columns)
+		        regex = re.compile('bin_[(]')
+		        bins[new_event[-1]] = [cols[i] for i in range(len(cols)) if regex.match(cols[i])]
+		        #bins.append(keep_cols)
+		        frames.append(temp_df)
 
 		df = pd.concat(frames, keys=new_event, axis=1)
 	else:
 		new_event = list(np.unique(np.array(event)))
-		frames = []
+		frames, bins = [], {}
 		for i in range(len(new_event)):
-			frames.append(read_Df(filepath, new_event[i], ''))
+			temp_df = read_Df(filepath, new_event[i], '')
+			cols = list(temp_df.columns)
+			regex = re.compile('bin_[(]')
+			bins[new_event[i]] = [cols[i] for i in range(len(cols)) if regex.match(cols[i])]
+			frames.append(temp_df)
+
 		df = pd.concat(frames, keys=new_event, axis=1)
 
 	columns_dict = dict()
@@ -83,9 +103,27 @@ def helper_plots(filepath, event, name):
 
 		#class_event = new_event
 
+		# make options array for different selectors
+		multiple_plots_options, heatmap_options = [], []
+		bins_keys = list(bins.keys())
+		if len(bins_keys)>0:
+			bins_new = bins
+			for i in range(len(bins_keys)):
+				arr = bins[bins_keys[i]]
+				if len(arr)>0:
+					heatmap_options.append('{}_bin'.format(bins_keys[i]))
+					for j in arr:
+						multiple_plots_options.append('{}_{}'.format(bins_keys[i], j))
+
+			multiple_plots_options = new_event + multiple_plots_options
+			heatmap_options = new_event + heatmap_options
+		else:
+			multiple_plots_options = new_event
+			heatmap_options = new_event
+		
 		# create different options and selectors 
 		event_selector = param.ObjectSelector(default=new_event[0], objects=new_event)
-		event_selector_heatmap = param.ObjectSelector(default=new_event[0], objects=new_event)
+		event_selector_heatmap = param.ObjectSelector(default=heatmap_options[0], objects=heatmap_options)
 		columns = columns_dict
 		df_new = df
 
@@ -96,9 +134,14 @@ def helper_plots(filepath, event, name):
 		set_b = set(new_colormaps)
 		colormaps = new_colormaps + list(set_a.difference(set_b))
 
-		selector_for_multipe_events_plot = param.ListSelector(default=[new_event[0]], objects=new_event)
-		x = param.ObjectSelector(default=columns[new_event[0]][-2], objects=[columns[new_event[0]][-2]])
-		y = param.ObjectSelector(default=columns[new_event[0]][-4] , objects=columns[new_event[0]]) 
+		x_min = float(inputParameters['nSecPrev'])-20
+		x_max = float(inputParameters['nSecPost'])+20
+		selector_for_multipe_events_plot = param.ListSelector(default=[multiple_plots_options[0]], objects=multiple_plots_options)
+		x = param.ObjectSelector(default=columns[new_event[0]][-4], objects=[columns[new_event[0]][-4]])
+		#print(columns[new_event[0]])
+		#print(remove_cols(columns[new_event[0]]))
+		y = param.ObjectSelector(default=remove_cols(columns[new_event[0]])[-2], objects=remove_cols(columns[new_event[0]]))                     
+		# columns[new_event[0]][-4]   columns[new_event[0]]
 		Y_Label = param.ObjectSelector(default='y', objects=['y','z-score', '\u0394F/F'])     
 		save_options = param.ObjectSelector(default='None' , objects=['None', 'save_png_format', 'save_svg_format', 'save_both_format'])
 		save_options_heatmap = param.ObjectSelector(default='None' , objects=['None', 'save_png_format', 'save_svg_format', 'save_both_format'])
@@ -109,8 +152,10 @@ def helper_plots(filepath, event, name):
 		Width_Plot = param.ObjectSelector(default=1000, objects=np.arange(0,5100,100))
 		save_hm = param.Action(lambda x: x.param.trigger('save_hm'), label='Save')
 		save_psth = param.Action(lambda x: x.param.trigger('save_psth'), label='Save')
-		X_Limit = param.Range(default=(-5, 10), bounds=(-50,50))
+		X_Limit = param.Range(default=(-5, 10), bounds=(x_min,x_max))
 		Y_Limit = param.Range(bounds=(-20, 20.0))
+
+		#C_Limit = param.Range(bounds=(-20,20.0))
 		
 		results_hm = dict()
 		results_psth = dict()
@@ -172,10 +217,10 @@ def helper_plots(filepath, event, name):
 		def _update_x_y(self):
 		    x_value = self.columns[self.event_selector]
 		    y_value = self.columns[self.event_selector]
-		    self.param['x'].objects = [x_value[-2]]
-		    self.param['y'].objects = y_value
-		    self.x = x_value[-2]
-		    self.y = self.param['y'].objects[-4]
+		    self.param['x'].objects = [x_value[-4]]
+		    self.param['y'].objects = remove_cols(y_value)
+		    self.x = x_value[-4]
+		    self.y = self.param['y'].objects[-2]
 	    
 
 	    # function to plot multiple PSTHs into one plot
@@ -185,20 +230,39 @@ def helper_plots(filepath, event, name):
 			arr = self.selector_for_multipe_events_plot
 			df1 = self.df_new
 			for i in range(len(arr)):
-			    data_curve.append(df1[arr[i]]['mean'])
-			    cols_curve.append(arr[i]+'_'+'mean')
-			    data_spread.append(df1[arr[i]]['err'])
-			    cols_spread.append(arr[i]+'_'+'mean')
+				if 'bin' in arr[i]:
+					split = arr[i].rsplit('_',2)
+					df_name = split[0]  #'{}_{}'.format(split[0], split[1])
+					col_name_mean = '{}_{}'.format(split[-2], split[-1])
+					col_name_err = '{}_err_{}'.format(split[-2], split[-1])
+					data_curve.append(df1[df_name][col_name_mean])
+					cols_curve.append(arr[i])
+					data_spread.append(df1[df_name][col_name_err])
+					cols_spread.append(arr[i])
+				else:
+				    data_curve.append(df1[arr[i]]['mean'])
+				    cols_curve.append(arr[i]+'_'+'mean')
+				    data_spread.append(df1[arr[i]]['err'])
+				    cols_spread.append(arr[i]+'_'+'mean')
 
 			
 
 			if len(arr)>0:
 				if self.Y_Limit==None:
 					self.Y_Limit = (np.nanmin(np.asarray(data_curve))-0.5, np.nanmax(np.asarray(data_curve))+0.5)
-				data_curve.append(df1[arr[i]]['timestamps'])
-				cols_curve.append('timestamps')
-				data_spread.append(df1[arr[i]]['timestamps'])
-				cols_spread.append('timestamps')
+
+				if 'bin' in arr[i]:
+					split = arr[i].rsplit('_', 2)
+					df_name = split[0]
+					data_curve.append(df1[df_name]['timestamps'])
+					cols_curve.append('timestamps')
+					data_spread.append(df1[df_name]['timestamps'])
+					cols_spread.append('timestamps')
+				else:
+					data_curve.append(df1[arr[i]]['timestamps'])
+					cols_curve.append('timestamps')
+					data_spread.append(df1[arr[i]]['timestamps'])
+					cols_spread.append('timestamps')
 				df_curve = pd.concat(data_curve, axis=1)
 				df_spread = pd.concat(data_spread, axis=1)
 				df_curve.columns = cols_curve
@@ -234,7 +298,12 @@ def helper_plots(filepath, event, name):
 				if self.Y_Limit==None:
 					self.Y_Limit = (np.nanmin(np.asarray(df1))-0.5, np.nanmax(np.asarray(df1))-0.5)
 
-				ndoverlay = hv.NdOverlay({c:hv.Curve((df1[self.x], df1[c])) for c in self.param['y'].objects[:-4]})
+
+				options = self.param['y'].objects 
+				regex = re.compile('bin_[(]')
+				remove_bin_trials = [options[i] for i in range(len(options)) if not regex.match(options[i])]
+
+				ndoverlay = hv.NdOverlay({c:hv.Curve((df1[self.x], df1[c])) for c in remove_bin_trials[:-2]})
 				img1 = datashade(ndoverlay, normalization='linear', aggregator=ds.count())
 				x_points = df1[self.x]
 				y_points = df1['mean']
@@ -251,11 +320,15 @@ def helper_plots(filepath, event, name):
 
 				return img
 
-			elif self.y == 'mean':
+			elif self.y == 'mean' or 'bin' in self.y:
 
 				xpoints = df1[self.x]
 				ypoints = df1[self.y]
-				err = df1['err']
+				if self.y == 'mean':
+					err = df1['err']
+				else:
+					split = self.y.split('_')
+					err = df1['{}_err_{}'.format(split[0],split[1])]
 
 				index = np.arange(0, xpoints.shape[0], 3)
 
@@ -301,18 +374,33 @@ def helper_plots(filepath, event, name):
 		# function to show heatmaps for each event
 		@param.depends('event_selector_heatmap', 'color_map', 'height_heatmap', 'width_heatmap')
 		def heatmap(self):
-
 			height = self.height_heatmap
 			width = self.width_heatmap
-			df_hm = self.df_new[self.event_selector_heatmap]
-			df_hm = df_hm.drop(['err', 'mean'], axis=1)
-			time = np.asarray(df_hm['timestamps'])
-			event_ts_for_each_event = np.arange(1,len(df_hm.columns[:-1])+1)
-			yticks = list(event_ts_for_each_event)
-			z_score = np.asarray(df_hm[df_hm.columns[:-1]]).T
+			if 'bin' in self.event_selector_heatmap:
+				split = self.event_selector_heatmap.rsplit('_',1)
+				df_name = split[0]
+				df_hm = self.df_new[df_name][self.bins_new[df_name]]
+				time = np.asarray(self.df_new[df_name]['timestamps'])
+				event_ts_for_each_event = np.arange(1, len(df_hm.columns)+1)
+				yticks = list(event_ts_for_each_event)
+				z_score = np.asarray(df_hm).T
+			else:
+				df_hm = self.df_new[self.event_selector_heatmap]
+				cols = list(df_hm.columns)
+				regex = re.compile('bin_*')
+				drop_cols = [cols[i] for i in range(len(cols)) if regex.match(cols[i])]
+				drop_cols = ['err', 'mean'] + drop_cols
+				df_hm = df_hm.drop(drop_cols, axis=1)
+				time = np.asarray(df_hm['timestamps'])
+				event_ts_for_each_event = np.arange(1,len(df_hm.columns[:-1])+1)
+				yticks = list(event_ts_for_each_event)
+				z_score = np.asarray(df_hm[df_hm.columns[:-1]]).T
+
+			#if self.C_Limit==None:
+			#	self.C_Limit = (np.nanmin(z_score), np.nanmax(z_score))
 
 			clim = (np.nanmin(z_score), np.nanmax(z_score))
-
+			
 			font_size = {'labels': 16, 'yticks': 6}
 			
 			if event_ts_for_each_event.shape[0]==1:
@@ -331,7 +419,7 @@ def helper_plots(filepath, event, name):
 				dummy_image = hv.QuadMesh((time[0:100], event_ts_for_each_event, z_score[:,0:100])).opts(colorbar=True, cmap=process_cmap(self.color_map, provider="matplotlib"), clim=clim)
 				actual_image = hv.QuadMesh((time, event_ts_for_each_event, z_score))
 				
-				dynspread_img = datashade(actual_image, cmap=process_cmap(self.color_map, provider="matplotlib")).opts(**ropts)
+				dynspread_img = datashade(actual_image, cmap=process_cmap(self.color_map, provider="matplotlib")).opts(**ropts)   #clims=self.C_Limit, cnorm='log'
 				image = ((dummy_image * dynspread_img).opts(opts.QuadMesh(width=int(width), height=int(height)))).opts(shared_axes=False) 
 				
 				save_opts = self.save_options_heatmap
@@ -357,7 +445,7 @@ def helper_plots(filepath, event, name):
 	                									view.contPlot, view.update_selector)
 
 	hm_tab = pn.Column('## '+basename, pn.Row(view.param.event_selector_heatmap, view.param.color_map, view.param.save_options_heatmap, 
-											view.param.width_heatmap, view.param.height_heatmap, 
+											view.param.width_heatmap, view.param.height_heatmap,
 											view.param.save_hm, width=1000), view.heatmap) #
 	print('app')
 
@@ -412,9 +500,9 @@ def createPlots(filepath, event, inputParameters):
 
 	if average==True:
 		print('average')
-		helper_plots(filepath, name_arr, '')
+		helper_plots(filepath, name_arr, '', inputParameters)
 	else:
-		helper_plots(filepath, event, name_arr)
+		helper_plots(filepath, event, name_arr, inputParameters)
 
 
 

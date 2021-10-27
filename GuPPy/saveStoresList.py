@@ -15,6 +15,8 @@ import panel as pn
 from collections import OrderedDict
 from random import randint
 from pathlib import Path
+import holoviews as hv
+from holoviews import opts
 import tkinter as tk
 from tkinter import ttk, IntVar
 
@@ -46,6 +48,18 @@ def make_dir(filepath):
 
     return op
 
+def check_header(df):
+    arr = list(df.columns)
+    check_float = []
+    for i in arr:
+        try:
+            check_float.append(float(i))
+        except:
+            pass
+    
+    return arr, check_float
+
+
 # function to read 'tsq' file
 def readtsq(filepath):
     names = ('size', 'type', 'name', 'chan', 'sort_code', 'timestamp',
@@ -71,7 +85,7 @@ def readtsq(filepath):
 
 
 # function to show GUI and save 
-def saveStorenames(inputParametersPath, data, event_name, filepath):
+def saveStorenames(inputParametersPath, data, event_name, flag, filepath):
     
     # reading input parameters file
     with open(inputParametersPath) as f:
@@ -93,11 +107,36 @@ def saveStorenames(inputParametersPath, data, event_name, filepath):
         allnames = []
 
 
+    if 'data_np_v2' in flag or 'data_np' in flag or 'event_np' in flag:
+        path_chev = glob.glob(os.path.join(filepath, 'chev*'))
+        path_chod = glob.glob(os.path.join(filepath, 'chod*'))
+        combine_paths = path_chev + path_chod
+        d = dict()
+        for i in range(len(combine_paths)):
+            basename = (os.path.basename(combine_paths[i])).split('.')[0]
+            df = pd.read_csv(combine_paths[i])
+            d[basename] = {
+                    'x': np.array(df['timestamps']),
+                    'y': np.array(df['data'])
+            }
+        keys = list(d.keys())
+        mark_down_np = pn.pane.Markdown("""
+                                        ### Extra Instructions to follow when using Neurophotometrics data :
+                                        - View to plots below to recognize between isosbestic control channel and
+                                          signal channel.<br>
+                                        - Please name the storenames accordingly by viewing the plots.<br>
+                                        - For reference, chev1 and chod1 channels corresponds to the same region.
+            """)
+        plot_select = pn.widgets.Select(name='Select channel to see correspondings channels', options=keys, value=keys[0])
+        
+        @pn.depends(plot_select=plot_select)
+        def plot(plot_select):
+            return hv.Curve((d[plot_select]['x'], d[plot_select]['y'])).opts(width=550)
+    else:
+        pass
+
     # finalizing all the storenames 
     allnames = allnames + event_name
-
-    #if len(allnames)==0:
-    #    raise Exception('No storenames found. There are not any TDT files or csv files to look for storenames.')
 
 
     # instructions about how to save the storeslist file
@@ -340,28 +379,204 @@ def saveStorenames(inputParametersPath, data, event_name, filepath):
     # creating widgets, adding them to template and showing a GUI on a new browser window
     number = randint(5000,5200)
 
-    widget_1 = pn.Column('# '+os.path.basename(filepath), mark_down)
+    if 'data_np_v2' in flag or 'data_np' in flag or 'event_np' in flag:
+        widget_1 = pn.Column('# '+os.path.basename(filepath), mark_down, mark_down_np, plot_select, plot)
+        widget_2 = pn.Column(repeat_storename_wd, cross_selector, update_options, 
+                             text, literal_input_2, alert, mark_down_for_overwrite, 
+                             overwrite_button, select_location, save, path)
+        template.main.append(pn.Row(widget_1, widget_2))
 
-    widget_2 = pn.Column(repeat_storename_wd, cross_selector, update_options, text, literal_input_2, alert, mark_down_for_overwrite, overwrite_button, select_location, save, path)
-    #pn.Column(mark_down_for_overwrite, pn.Row(overwrite_button, select_location))
-    #box = pn.Column('# '+os.path.basename(filepath), mark_down, multi_choice, literal_input_1, cross_selector, update_options, text, literal_input_2, save) # '# '+os.path.basename(filepath), 
-    template.main.append(pn.Row(widget_1, widget_2))
-    #box = pn.Row(widget_1, widget_2)
+    else:
+        widget_1 = pn.Column('# '+os.path.basename(filepath), mark_down)
+        widget_2 = pn.Column(repeat_storename_wd, cross_selector, update_options, 
+                             text, literal_input_2, alert, mark_down_for_overwrite, 
+                             overwrite_button, select_location, save, path)
+        template.main.append(pn.Row(widget_1, widget_2))
+
     template.show(port=number)
 
 
 # In[4]:
-# function to import event name to make it appear in the storenames selection 
-# (if event timestamps csv file is present at the same location where TDT data is present)
-def import_csv(filepath):
+# function to see if there are 'csv' files present
+# and recognize type of 'csv' files either from
+# Neurophotometrics or custom made 'csv' files
+# and read data accordingly
+def import_np_csv(filepath, isosbestic_control):
     path = glob.glob(os.path.join(filepath, '*.csv'))
+    path_chev = glob.glob(os.path.join(filepath, 'chev*'))
+    path_chod = glob.glob(os.path.join(filepath, 'chod*'))
+    path_event = glob.glob(os.path.join(filepath, 'event*'))
+    #path_sig = glob.glob(os.path.join(filepath, 'sig*'))
+    path_chev_chod_event = path_chev + path_chod + path_event
 
+    path = list(set(path)-set(path_chev_chod_event))
     event_from_filename = []
+    flag_arr = []
+    
     for i in range(len(path)):
-        name = os.path.basename(path[i]).split('.')[0]
-        event_from_filename.append(name)
+        dirname = os.path.dirname(path[i])
 
-    return event_from_filename
+        df = pd.read_csv(path[i], dtype=float)
+
+        colnames, value = check_header(df)
+        #print(len(colnames), len(value))
+
+        # check dataframe structure and read data accordingly
+        if len(value)>0:
+            columns_isstr = False
+            df = pd.read_csv(path[i], header=None)
+            cols = np.array(list(df.columns), dtype=np.str)
+        else:
+            df = df
+            columns_isstr = True
+            cols = np.array(list(df.columns), dtype=np.str)
+
+        # check the structure of dataframe and assign flag to the type of file
+        if len(cols)==1:
+            if cols[0].lower()!='timestamps':
+                raise Exception("\033[1m"+"Column name should be timestamps (all lower-cases)"+"\033[0m")
+            else:
+                flag = 'event_csv'
+        elif len(cols)==3:
+            arr1 = np.array(['timestamps', 'data', 'sampling_rate'])
+            arr2 = np.char.lower(np.array(cols))
+            if (np.sort(arr1)==np.sort(arr2)).all()==False:
+                raise Exception("\033[1m"+"Column names should be timestamps, data and sampling_rate (all lower-cases)"+"\033[0m")
+            else:
+                flag = 'data_csv'
+        elif len(cols)==2:
+            flag = 'event_or_data_np'
+        elif len(cols)>=2:
+            flag  = 'data_np'
+        else:
+            raise Exception('Number of columns in csv file does not make sense.')
+
+
+        if columns_isstr == True and 'flags' in np.char.lower(np.array(cols)):
+            flag = flag+'_v2'
+        else:
+            flag = flag
+
+
+        # used assigned flags to process the files and read the data
+        if flag=='event_or_data_np':
+            arr = list(df.iloc[:,1])
+            check_float = [True for i in arr if type(i)==np.float]
+            if len(arr)==len(check_float):
+                flag = 'data_np'
+            else:
+                flag = 'event_np'
+        else:
+            pass
+
+        flag_arr.append(flag)
+
+        if flag=='event_csv' or flag=='data_csv':
+            name = os.path.basename(path[i]).split('.')[0]
+            event_from_filename.append(name)
+        elif flag=='data_np':
+            indices = np.arange(df.shape[0])
+            if isosbestic_control==True:
+                odd_indices = indices[1::2]
+                even_indices = indices[::2]
+                indices_dict = {'chod': odd_indices, 'chev': even_indices}
+            else:
+                indices_dict = {'chev': indices}
+
+            keys = list(indices_dict.keys())
+            for k in range(len(keys)):
+                for j in range(df.shape[1]):
+                    if j==0:
+                        timestamps = df.iloc[:,j][indices_dict[keys[k]]]
+                        #timestamps_odd = df.iloc[:,j][odd_indices]
+                    else:
+                        d = dict()
+                        d['timestamps'] = timestamps 
+                        d['data'] = df.iloc[:,j][indices_dict[keys[k]]]
+                        
+                        df_ch = pd.DataFrame(d)
+                        df_ch.to_csv(os.path.join(dirname, keys[k]+str(j)+'.csv'), index=False)
+                        event_from_filename.append(keys[k]+str(j))
+                    
+        elif flag=='event_np':
+            type_val = np.array(df.iloc[:,1])
+            type_val_unique = np.unique(type_val)
+            timestamps = np.array(df.iloc[:,0])
+            for j in range(len(type_val_unique)):
+                idx = np.where(type_val==type_val_unique[j])
+                d = dict()
+                d['timestamps'] = timestamps[idx]
+                df_new = pd.DataFrame(d)
+                df_new.to_csv(os.path.join(dirname, 'event'+str(j)+'.csv'), index=False)
+                event_from_filename.append('event'+str(j))
+        else:
+            cols = np.array(list(df.columns))
+            df = df.drop(['FrameCounter', 'Flags'], axis=1)
+            indices = np.arange(df.shape[0])
+            if isosbestic_control==True:
+                odd_indices = indices[1::2]
+                even_indices = indices[::2]
+                indices_dict = {'chod': odd_indices, 'chev': even_indices}
+            else:
+                indices_dict = {'chev': indices}
+
+            keys = list(indices_dict.keys())
+            for k in range(len(keys)):
+                for j in range(df.shape[1]):
+                    if j==0:
+                        timestamps = df.iloc[:,j][indices_dict[keys[k]]]
+                        #timestamps_odd = df.iloc[:,j][odd_indices]
+                    else:
+                        d = dict()
+                        d['timestamps'] = timestamps 
+                        d['data'] = df.iloc[:,j][indices_dict[keys[k]]]
+                        
+                        df_ch = pd.DataFrame(d)
+                        df_ch.to_csv(os.path.join(dirname, keys[k]+str(j)+'.csv'), index=False)
+                        event_from_filename.append(keys[k]+str(j))
+
+        path_chev = glob.glob(os.path.join(filepath, 'chev*'))
+        path_chod = glob.glob(os.path.join(filepath, 'chod*'))
+        path_event = glob.glob(os.path.join(filepath, 'event*'))
+        #path_sig = glob.glob(os.path.join(filepath, 'sig*'))
+        path_chev_chod_event = path_chev + path_chod + path_event 
+
+
+        if i==len(path)-1:
+            if 'data_np_v2' in flag_arr:
+                divisor = 1
+            else:
+                divisor = 1000
+
+            for j in range(len(path_event)):
+                df_event = pd.read_csv(path_event[j])
+                df_chev = pd.read_csv(path_chev[0])
+                df_event['timestamps'] = (df_event['timestamps']-df_chev['timestamps'][0])/divisor
+                df_event.to_csv(path_event[j], index=False)
+            
+            if len(path_chev)==len(path_chod) and isosbestic_control==True:
+                for j in range(len(path_chev)):
+                    df_chev = pd.read_csv(path_chev[j])
+                    df_chev['timestamps'] = (df_chev['timestamps']-df_chev['timestamps'][0])/divisor
+                    df_chev['sampling_rate'] = np.full(df_chev.shape[0], np.nan)
+                    df_chev['sampling_rate'][0] = df_chev.shape[0]/(df_chev['timestamps'].iloc[-1] - df_chev['timestamps'].iloc[0])
+                    df_chev.to_csv(path_chev[j], index=False)
+                    df_chod = pd.read_csv(path_chod[j])
+                    df_chod['timestamps'] = df_chev['timestamps']
+                    df_chod['sampling_rate'] = np.full(df_chod.shape[0], np.nan)
+                    df_chod['sampling_rate'][0] = df_chod.shape[0]/(df_chod['timestamps'].iloc[-1] - df_chod['timestamps'].iloc[0])
+                    df_chod.to_csv(path_chod[j], index=False)
+
+            elif len(path_chod)==0 and isosbestic_control==False:
+                for j in range(len(path_chev)):
+                    df_chev['timestamps'] = (df_chev['timestamps']-df_chev['timestamps'][0])/divisor
+                    df_chev['sampling_rate'] = np.full(df_chev.shape[0], np.nan)
+                    df_chev['sampling_rate'][0] = df_chev.shape[0]/(df_chev['timestamps'].iloc[-1] - df_chev['timestamps'].iloc[0])
+                    df_chev.to_csv(path_chev[j], index=False)
+            else:
+                raise Exception('Number of chev and chod files should be same.')
+    
+    return event_from_filename, flag_arr
 
 
 # function to read input parameters and run the saveStorenames function
@@ -371,6 +586,7 @@ def execute(inputParametersPath):
         inputParameters = json.load(f)
 
     folderNames = inputParameters['folderNames']
+    isosbestic_control = inputParameters['isosbestic_control']
 
     print(folderNames)
     # In[5]:
@@ -378,8 +594,8 @@ def execute(inputParametersPath):
     for i in folderNames:
         filepath = os.path.join(inputParameters['abspath'], i)
         data = readtsq(filepath)
-        event_name = import_csv(filepath)
-        saveStorenames(inputParametersPath, data, event_name, filepath)
+        event_name, flag = import_np_csv(filepath, isosbestic_control)
+        saveStorenames(inputParametersPath, data, event_name, flag, filepath)
 
 
 #execute(sys.argv[1:][0])

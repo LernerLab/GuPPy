@@ -7,7 +7,9 @@ import fnmatch
 import numpy as np 
 import h5py
 import math
+import shutil
 from scipy import signal as ss
+from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 from matplotlib.widgets import MultiCursor
 from combineDataFn import processTimestampsForCombiningData
@@ -29,6 +31,92 @@ def find_files(path, glob_path, ignore_case = False):
     		str_path.append(x)
     return [os.path.join(path,n) for n in str_path if rule.match(n)]
 
+
+# curve fit exponential function
+def curveFitFn(x,a,b,c):
+    return a+(b*np.exp(-(1/c)*x))
+
+
+# helper function to create control channel using signal channel
+# by curve fitting signal channel to exponential function
+# when there is no isosbestic control channel is present
+def helper_create_control_channel(signal, timestamps, window):
+	# check if window is greater than signal shape
+	if window>signal.shape[0]:
+		window = ((window+1)/2)+1
+
+	filtered_signal = ss.savgol_filter(signal, window_length=window, polyorder=3)
+
+	p0 = [5,50,60]
+
+	try:
+		popt, pcov = curve_fit(curveFitFn, timestamps, filtered_signal, p0)
+	except Exception as e:
+		print(e)
+
+	#print('Curve Fit Parameters : ', popt)
+	control = curveFitFn(timestamps,*popt)
+
+	return control
+
+# main function to create control channel using
+# signal channel and save it to a file
+def create_control_channel(filepath, arr, window=5001):
+
+	storenames = arr[0,:]
+	storesList = arr[1,:]
+
+	
+	for i in range(storesList.shape[0]):
+		event_name, event = storesList[i], storenames[i]
+		if 'control' in event_name.lower() and 'cntrl' in event.lower():
+			print('Creating control channel from signal channel using curve-fitting')
+			name = event_name.split('_')[-1]
+			signal = read_hdf5('signal_'+name, filepath, 'data')
+			timestampNew = read_hdf5('timeCorrection_'+name, filepath, 'timestampNew')
+
+			control = helper_create_control_channel(signal, timestampNew, window)
+
+			write_hdf5(control, event_name, filepath, 'data')
+
+			print('Control channel from signal channel created using curve-fitting')
+
+
+# function to add control channel when there is no 
+# isosbestic control channel and update the storeslist file
+def add_control_channel(filepath, arr):
+
+	storenames = arr[0,:]
+	storesList = np.char.lower(arr[1,:])
+
+	keep_control = np.array([])
+	# check a case if there is isosbestic control channel present
+	for i in range(storesList.shape[0]):
+		if 'control' in storesList[i].lower():
+			name = storesList[i].split('_')[-1]
+			new_str = 'signal_'+str(name).lower()
+			find_signal = [True for i in storesList if i==new_str]
+			if len(find_signal)>1:
+				raise Exception('Error in naming convention of files or Error in storesList file')
+			if len(find_signal)==0:
+				raise Exception("Isosbectic control channel parameter is set to False and still \
+							 	 storeslist file shows there is control channel present")
+		else:
+			continue
+	
+	for i in range(storesList.shape[0]):
+		if 'signal' in storesList[i].lower():
+			name = storesList[i].split('_')[-1]
+			new_str = 'control_'+str(name).lower()
+			find_signal = [True for i in storesList if i==new_str]
+			if len(find_signal)==0:
+				src, dst = os.path.join(filepath, arr[0,i]+'.hdf5'), os.path.join(filepath, 'cntrl'+str(i)+'.hdf5')
+				shutil.copyfile(src,dst)
+				arr = np.concatenate((arr, [['cntrl'+str(i)],['control_'+str(arr[1,i].split('_')[-1])]]), axis=1)
+
+	np.savetxt(os.path.join(filepath, 'storesList.csv'), arr, delimiter=",", fmt='%s')
+
+	return arr
 
 # check if dealing with TDT files or csv files
 def check_TDT(filepath):
@@ -118,7 +206,6 @@ def timestampCorrection_csv(filepath, timeForLightsTurnOn, storesList):
 		if name_1==name_2:
 			correctionIndex = np.where(timestamp>=timeForLightsTurnOn)[0]
 			timestampNew = timestamp[correctionIndex]
-			
 			write_hdf5(timestampNew, 'timeCorrection_'+name_1, filepath, 'timestampNew')
 			write_hdf5(correctionIndex, 'timeCorrection_'+name_1, filepath, 'correctionIndex')
 			write_hdf5(np.asarray(sampling_rate), 'timeCorrection_'+name_1, filepath, 'sampling_rate')
@@ -155,6 +242,8 @@ def timestampCorrection_tdt(filepath, timeForLightsTurnOn, storesList):
 		#dirname = os.path.dirname(path[i])
 		idx = np.where(storesList==arr[1,i])[0]
 
+
+
 		if idx.shape[0]==0:
 			raise Exception('{} does not exist in the stores list file.'.format(arr[0,i]))
 		
@@ -180,6 +269,7 @@ def timestampCorrection_tdt(filepath, timeForLightsTurnOn, storesList):
 			write_hdf5(np.asarray([sampling_rate]), 'timeCorrection_'+name_1, filepath, 'sampling_rate')
 		else:
 			raise Exception('Error in naming convention of files or Error in storesList file')
+
 
 	print("Timestamps corrected and converted to seconds.")
 	#return timeRecStart, correctionIndex, timestampNew
@@ -218,6 +308,9 @@ def applyCorrection(filepath, timeForLightsTurnOn, event, displayName, naming):
 			arr = np.subtract(arr, timeForLightsTurnOn)
 		write_hdf5(arr, displayName+'_'+naming, filepath, 'ts')
 		
+	#if isosbestic_control==False and 'control' in displayName.lower():
+	#	control = create_control_channel(filepath, displayName)
+	#	write_hdf5(control, displayName, filepath, 'data')
 
 
 # function to check if naming convention was followed while saving storeslist file
@@ -291,7 +384,7 @@ def visualize_dff(filepath):
 
 
 
-def visualize(filepath, x, y1, y2, plot_name, removeArtifacts):
+def visualize(filepath, x, y1, y2, y3, plot_name, removeArtifacts):
     
 
 	# plotting control and signal data
@@ -301,46 +394,69 @@ def visualize(filepath, x, y1, y2, plot_name, removeArtifacts):
 
 	name = os.path.basename(filepath)
 	fig = plt.figure()
-	ax1 = fig.add_subplot(211)
+	ax1 = fig.add_subplot(311)
 	line1, = ax1.plot(x,y1)
 	ax1.set_title(plot_name[0])
-	ax2 = fig.add_subplot(212)
+	ax2 = fig.add_subplot(312)
 	line2, = ax2.plot(x,y2)
 	ax2.set_title(plot_name[1])
+	ax3 = fig.add_subplot(313)
+	line3, = ax3.plot(x,y2)
+	line3, = ax3.plot(x,y3)
+	ax3.set_title(plot_name[2])
 	fig.suptitle(name)
 
 	hfont = {'fontname':'Helvetica'}
 
 	if removeArtifacts==True:
-		ax2.set_xlabel('Time(s) \n Note : Artifacts have been removed, but are not reflected in this plot.', **hfont)
+		ax3.set_xlabel('Time(s) \n Note : Artifacts have been removed, but are not reflected in this plot.', **hfont)
 	else:
-		ax2.set_xlabel('Time(s)', **hfont)
+		ax3.set_xlabel('Time(s)', **hfont)
 
 	global coords
 	coords = []
 
-	# clicking any key on keyboard will draw a line on the plot so that user can see what chunks are selected
+	# clicking 'space' key on keyboard will draw a line on the plot so that user can see what chunks are selected
+	# and clicking 'd' key on keyboard will deselect the selected point
 	def onclick(event):
-		global ix, iy
-		ix, iy = event.xdata, event.ydata
-		print('x = %d, y = %d'%(
-		    ix, iy))
+		#global ix, iy
 
-		y1_max, y1_min = np.amax(y1), np.amin(y1)
-		y2_max, y2_min = np.amax(y2), np.amin(y2)
+		if event.key == ' ':
+			ix, iy = event.xdata, event.ydata
+			print('x = %d, y = %d'%(
+			    ix, iy))
 
-		ax1.plot([ix,ix], [y1_max, y1_min], 'k--')
-		ax2.plot([ix,ix], [y2_max, y2_min], 'k--')
+			y1_max, y1_min = np.amax(y1), np.amin(y1)
+			y2_max, y2_min = np.amax(y2), np.amin(y2)
 
-		fig.canvas.draw()
+			#ax1.plot([ix,ix], [y1_max, y1_min], 'k--')
+			#ax2.plot([ix,ix], [y2_max, y2_min], 'k--')
 
-		global coords
-		coords.append((ix, iy))
+			ax1.axvline(ix, c='black', ls='--')
+			ax2.axvline(ix, c='black', ls='--')
+			ax3.axvline(ix, c='black', ls='--')
 
-		#if len(coords) == 2:
-		#    fig.canvas.mpl_disconnect(cid)
+			fig.canvas.draw()
 
-		return coords
+			global coords
+			coords.append((ix, iy))
+
+			#if len(coords) == 2:
+			#    fig.canvas.mpl_disconnect(cid)
+
+			return coords
+
+		elif event.key == 'd':
+			if len(coords)>0:
+				print('x = %d, y = %d; deleted'%(
+			    	coords[-1][0], coords[-1][1]))
+				del coords[-1]
+				ax1.lines[-1].remove()
+				ax2.lines[-1].remove()
+				ax3.lines[-1].remove()
+				fig.canvas.draw()
+
+			return coords
 
 	# close the plot will save coordinates for all the selected chunks in the data
 	def plt_close_event(event):
@@ -380,13 +496,17 @@ def visualizeControlAndSignal(filepath, removeArtifacts):
 		name_2 = ((os.path.basename(path[1,i])).split('.')[0]).split('_')
 		
 		ts_path = os.path.join(filepath, 'timeCorrection_'+name_1[-1]+'.hdf5')
+		cntrl_sig_fit_path = os.path.join(filepath, 'cntrl_sig_fit_'+name_1[-1]+'.hdf5')
 		ts = read_hdf5('', ts_path, 'timestampNew')
 		
 		control = read_hdf5('', path[0,i], 'data').reshape(-1)
 		signal = read_hdf5('', path[1,i], 'data').reshape(-1)
-			
-		plot_name = [(os.path.basename(path[0,i])).split('.')[0], (os.path.basename(path[1,i])).split('.')[0]]
-		visualize(filepath, ts, control, signal, plot_name, removeArtifacts)
+		cntrl_sig_fit = read_hdf5('', cntrl_sig_fit_path, 'data').reshape(-1)
+
+		plot_name = [(os.path.basename(path[0,i])).split('.')[0], 
+					 (os.path.basename(path[1,i])).split('.')[0],
+					 (os.path.basename(cntrl_sig_fit_path)).split('.')[0]]
+		visualize(filepath, ts, control, signal, cntrl_sig_fit, plot_name, removeArtifacts)
 		
 
 # functino to check if the naming convention for saving storeslist file was followed or not
@@ -540,27 +660,57 @@ def controlFit(control, signal):
 # function to filter control and signal channel, also execute above two function : controlFit and deltaFF
 # function will also take care if there is only signal channel and no control channel
 # if there is only signal channel, z-score will be computed using just signal channel
-def execute_controlFit_dff(control, signal):
+def execute_controlFit_dff(control, signal, isosbestic_control, filter_window):
 
-	b = np.divide(np.ones((100,)), 100)
+	b = np.divide(np.ones((filter_window,)), filter_window)
 	a = 1
 
-	if (control==0).all()==True:
+	if isosbestic_control==False:
 		signal_smooth = ss.filtfilt(b, a, signal)
-		return signal_smooth
+		control_fit = controlFit(control, signal_smooth)
+		norm_data = deltaFF(signal_smooth, control_fit)
 	else:
 		control_smooth = ss.filtfilt(b, a, control)
 		signal_smooth = ss.filtfilt(b, a, signal)
 		control_fit = controlFit(control_smooth, signal_smooth)
 		norm_data = deltaFF(signal_smooth, control_fit)
-		return norm_data
+	
+	return norm_data, control_fit
 
+# function to compute z-score based on z-score computation method
+def z_score_computation(dff, timestamps, inputParameters):
+
+	zscore_method = inputParameters['zscore_method']
+	baseline_start, baseline_end = inputParameters['baselineWindowStart'], inputParameters['baselineWindowEnd']
+
+	if zscore_method=='standard z-score':
+		numerator = np.subtract(dff, np.nanmean(dff))
+		zscore = np.divide(numerator, np.nanstd(dff))
+	elif zscore_method=='baseline z-score':
+		idx = np.where((timestamps>baseline_start) & (timestamps<baseline_end))[0]
+		if idx.shape[0]==0:
+			raise Exception('Baseline Window Parameters for baseline z-score computation zscore_method \
+							are not correct.')
+		else:
+			baseline_mean = np.nanmean(dff[idx]) 
+			baseline_std = np.nanstd(dff[idx])
+			numerator = np.subtract(dff, baseline_mean)
+			zscore = np.divide(numerator, baseline_std)
+	else:
+		median = np.median(dff)
+		mad = np.median(np.abs(dff-median))
+		numerator = 0.6745*(dff-median)
+		zscore = np.divide(numerator, mad)
+
+	return zscore
 
 # helper function to compute z-score and deltaF/F
-
 def helper_z_score(control, signal, filepath, name, inputParameters):     #helper_z_score(control_smooth, signal_smooth):
 
 	removeArtifacts = inputParameters['removeArtifacts']
+	filter_window = inputParameters['filter_window']
+
+	isosbestic_control = inputParameters['isosbestic_control']
 	tsNew = read_hdf5('timeCorrection_'+name, filepath, 'timestampNew')
 	coords_path = os.path.join(filepath, 'coordsForPreProcessing_'+name+'.npy')
 
@@ -569,7 +719,8 @@ def helper_z_score(control, signal, filepath, name, inputParameters):     #helpe
 	if (control==0).all()==True:
 		control = np.zeros(tsNew.shape[0])
 	
-	z_score_arr, norm_data_arr = np.array([]), np.array([])
+	z_score_arr, norm_data_arr, control_fit_arr = np.array([]), np.array([]), np.array([])
+	temp_control_arr = np.array([])
 
 	if removeArtifacts==True:
 		coords = fetchCoords(filepath, name, tsNew)
@@ -578,30 +729,48 @@ def helper_z_score(control, signal, filepath, name, inputParameters):     #helpe
 		# z-score is calculated
 		for i in range(coords.shape[0]):
 			tsNew_index = np.where((tsNew>coords[i,0]) & (tsNew<coords[i,1]))[0]
-			control_arr = control[tsNew_index]
-			signal_arr = signal[tsNew_index]
-			#print(coords[i,:], control_arr.shape, signal_arr.shape)
-			#control_smooth = ss.filtfilt(b, a, control_arr)
-			#signal_smooth = ss.filtfilt(b, a, signal_arr)
-			#control_fit = controlFit(control_smooth, signal_smooth)
-			norm_data = execute_controlFit_dff(control_arr, signal_arr)
+			if isosbestic_control==False:
+				control_arr = helper_create_control_channel(signal[tsNew_index], tsNew[tsNew_index], window=101)
+				signal_arr = signal[tsNew_index]
+				norm_data, control_fit = execute_controlFit_dff(control_arr, signal_arr, 
+																isosbestic_control, filter_window)
+				temp_control_arr = np.concatenate((temp_control_arr, control_arr))
+				if i<coords.shape[0]-1:
+					blank_index = np.where((tsNew>coords[i,1]) & (tsNew<coords[i+1,0]))[0]
+					temp_control_arr = np.concatenate((temp_control_arr, np.zeros(blank_index.shape[0])))
+			else:
+				control_arr = control[tsNew_index]
+				signal_arr = signal[tsNew_index]
+				norm_data, control_fit = execute_controlFit_dff(control_arr, signal_arr, 
+					    									    isosbestic_control, filter_window)
 			norm_data_arr = np.concatenate((norm_data_arr, norm_data))
+			control_fit_arr = np.concatenate((control_fit_arr, control_fit))
 
-		res = np.subtract(norm_data_arr, np.nanmean(norm_data_arr))
-		z_score = np.divide(res, np.nanstd(norm_data_arr))
+		#res = np.subtract(norm_data_arr, np.nanmean(norm_data_arr))
+		z_score = z_score_computation(norm_data_arr, tsNew, inputParameters)
 		z_score_arr = np.concatenate((z_score_arr, z_score))
 			
 	else:
-		#control_smooth = ss.filtfilt(b, a, control)
-		#signal_smooth = ss.filtfilt(b, a, signal)
-		#control_fit = controlFit(control_smooth, signal_smooth)
-		norm_data = execute_controlFit_dff(control, signal)
-		res = np.subtract(norm_data, np.nanmean(norm_data))
-		z_score = np.divide(res, np.nanstd(norm_data))
+		norm_data, control_fit = execute_controlFit_dff(control, signal, 
+														isosbestic_control, filter_window)
+		#res = np.subtract(norm_data, np.nanmean(norm_data))
+		z_score = z_score_computation(norm_data, tsNew, inputParameters)
 		z_score_arr = np.concatenate((z_score_arr, z_score))
 		norm_data_arr = np.concatenate((norm_data_arr, norm_data))
+		control_fit_arr = np.concatenate((control_fit_arr, control_fit))
 
-	return z_score_arr, norm_data_arr
+	# handle the case if there are chunks being cut in the front and the end
+	if isosbestic_control==False and removeArtifacts==True:
+		coords = coords.flatten()
+		# front chunk 
+		idx = np.where((tsNew>=tsNew[0]) & (tsNew<coords[0]))[0]
+		temp_control_arr = np.concatenate((np.zeros(idx.shape[0]), temp_control_arr))
+		# end chunk
+		idx = np.where((tsNew>coords[-1]) & (tsNew<=tsNew[-1]))[0]
+		temp_control_arr = np.concatenate((temp_control_arr, np.zeros(idx.shape[0])))
+		write_hdf5(temp_control_arr, 'control_'+name, filepath, 'data')
+
+	return z_score_arr, norm_data_arr, control_fit_arr
 
 
 # compute z-score and deltaF/F and save it to hdf5 file
@@ -638,13 +807,15 @@ def compute_z_score(filepath, inputParameters):
 			#control_smooth = ss.filtfilt(b, a, control)
 			#signal_smooth = ss.filtfilt(b, a, signal)
 			#_score, dff = helper_z_score(control_smooth, signal_smooth)
-			z_score, dff = helper_z_score(control, signal, filepath, name, inputParameters)
+			z_score, dff, control_fit = helper_z_score(control, signal, filepath, name, inputParameters)
 			if remove_artifacts==True:
 				write_hdf5(z_score, 'z_score_'+name, filepath, 'data')
 				write_hdf5(dff, 'dff_'+name, filepath, 'data')
+				write_hdf5(control_fit, 'cntrl_sig_fit_'+name, filepath, 'data')
 			else:
 				write_hdf5(z_score, 'z_score_'+name, filepath, 'data')
 				write_hdf5(dff, 'dff_'+name, filepath, 'data')
+				write_hdf5(control_fit, 'cntrl_sig_fit_'+name, filepath, 'data')
 		else:
 			raise Exception('Error in naming convention of files or Error in storesList file')
 
@@ -654,7 +825,7 @@ def compute_z_score(filepath, inputParameters):
 
 
 # function to execute timestamps corrections using functions timestampCorrection and decide_naming_convention_and_applyCorrection
-def execute_timestamp_correction(folderNames, timeForLightsTurnOn):
+def execute_timestamp_correction(folderNames, timeForLightsTurnOn, isosbestic_control):
 
 
 	for i in range(len(folderNames)):
@@ -666,6 +837,9 @@ def execute_timestamp_correction(folderNames, timeForLightsTurnOn):
 			filepath = storesListPath[j]
 			storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',')
 
+			if isosbestic_control==False:
+				storesList = add_control_channel(filepath, storesList)
+				
 
 			if cond==True:
 				timestampCorrection_tdt(filepath, timeForLightsTurnOn, storesList)
@@ -673,7 +847,14 @@ def execute_timestamp_correction(folderNames, timeForLightsTurnOn):
 				timestampCorrection_csv(filepath, timeForLightsTurnOn, storesList)
 
 			for k in range(storesList.shape[1]):
-				decide_naming_convention_and_applyCorrection(filepath, timeForLightsTurnOn, storesList[0,k], storesList[1,k], storesList)
+				decide_naming_convention_and_applyCorrection(filepath, timeForLightsTurnOn, 
+															 storesList[0,k], storesList[1,k], storesList)
+
+			# check if isosbestic control is false and also if new control channel is added
+			if isosbestic_control==False:
+				create_control_channel(filepath, storesList, window=101)
+
+
 
 
 # for combining data, reading storeslist file from both data and create a new storeslist array
@@ -747,7 +928,13 @@ def combineData(folderNames, timeForLightsTurnOn, storesList):
 
 
 # function to compute z-score and deltaF/F using functions : compute_z_score and/or processTimestampsForArtifacts
-def execute_zscore(folderNames, inputParameters, timeForLightsTurnOn, remove_artifacts, plot_zScore_dff, combine_data):
+def execute_zscore(folderNames, inputParameters):
+
+	timeForLightsTurnOn = inputParameters['timeForLightsTurnOn']
+	remove_artifacts = inputParameters['removeArtifacts']
+	plot_zScore_dff = inputParameters['plot_zScore_dff']
+	combine_data = inputParameters['combine_data']
+	isosbestic_control = inputParameters['isosbestic_control']
 
 	storesListPath = []
 	for i in range(len(folderNames)):
@@ -799,19 +986,21 @@ def extractTsAndSignal(inputParametersPath):
 	remove_artifacts = inputParameters['removeArtifacts']
 	plot_zScore_dff = inputParameters['plot_zScore_dff']
 	combine_data = inputParameters['combine_data']
+	isosbestic_control = inputParameters['isosbestic_control']
+
 
 	print("Remove Artifacts : ", remove_artifacts)
 	print("Combine Data : ", combine_data)
-	#print(type(remove_artifacts))
+	print("Isosbestic Control Channel : ", isosbestic_control)
 
 	if combine_data==False:
-		execute_timestamp_correction(folderNames, timeForLightsTurnOn)
-		execute_zscore(folderNames, inputParameters, timeForLightsTurnOn, remove_artifacts, plot_zScore_dff, combine_data)
+		execute_timestamp_correction(folderNames, timeForLightsTurnOn, isosbestic_control)
+		execute_zscore(folderNames, inputParameters)
 	else:
-		execute_timestamp_correction(folderNames, timeForLightsTurnOn)
+		execute_timestamp_correction(folderNames, timeForLightsTurnOn, isosbestic_control)
 		storesList = check_storeslistfile(folderNames)
 		op_folder = combineData(folderNames, timeForLightsTurnOn, storesList)
-		execute_zscore(op_folder, inputParameters, timeForLightsTurnOn, remove_artifacts, plot_zScore_dff, combine_data)
+		execute_zscore(op_folder, inputParameters)
 		
 
 	

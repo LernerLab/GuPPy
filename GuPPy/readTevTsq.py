@@ -102,10 +102,10 @@ def import_csv(filepath, event, outputPath):
 
 	if len(key)!=3 and len(key)!=1:
 		raise Exception("\033[1m"+"Number of columns in csv file should be either three or one. Three columns if \
-									the file is for control or signal data or one column if the file is for event TTLs."+"\033[0m")
-
+								   the file is for control or signal data or one column if the file is for event TTLs."+"\033[0m")
+		
 	for i in range(len(key)):
-	    write_hdf5(data[key[i]].dropna(), event, outputPath, key[i].lower())
+		write_hdf5(data[key[i]].dropna(), event, outputPath, key[i].lower())
 
 	print("\033[1m"+"Reading data for {} from csv file is completed.".format(event)+"\033[0m")
 
