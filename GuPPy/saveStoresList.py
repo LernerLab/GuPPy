@@ -123,7 +123,9 @@ def saveStorenames(inputParametersPath, data, event_name, flag, filepath):
         mark_down_np = pn.pane.Markdown("""
                                         ### Extra Instructions to follow when using Neurophotometrics data :
                                         - View the plots below to recognize between isosbestic control channel and
-                                          signal channel.<br>
+                                          signal channel. If there is no isosbestic control channel user will only see
+                                          signal channel. The numbers 1,2,3, ... ,n represent channels corresponding
+                                          to the same region. <br>
                                         - Please name the storenames accordingly by viewing the plots and also by
                                           following the instructions above.<br>
                                         - For reference, chev1 and chod1 channels corresponds to the same region. 
