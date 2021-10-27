@@ -54,7 +54,7 @@ cd path_to_file
 ```
 panel serve --show savingInputParameters.ipynb
 ```
-<b> GuPPy is now officially downloaded and ready to use! <b>
+<b> GuPPy is now officially downloaded and ready to use! <b> <br>
 
 - The full instructions along with detailed descriptions of each step to run the GuPPy tool is on [Github Wiki Page](https://github.com/LernerLab/GuPPy/wiki).
 
