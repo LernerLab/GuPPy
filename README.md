@@ -80,7 +80,7 @@ panel serve --show savingInputParameters.ipynb
 - [Venus Sherathiya](https://github.com/venus-sherathiya)
 - Michael Schaid
 - Jillian Seiler
-- Gabriela Lopez
+- [Gabriela Lopez](https://github.com/glopez924)
 - [Talia Lerner](https://github.com/talialerner)
 
 
