@@ -6,8 +6,9 @@
 
 GuPPy can be run on Windows, Mac or Linux.
 
-**Follow the instructions below to install GuPPy for the first time :** <br>
-_Note: if you already installed GuPPy and are downloading an update, you only need to do Step 1 to get the new code, then you can continue to the instructions in the Wiki to get started on your analysis!_
+**Follow the instructions below to install GuPPy :** <br>
+- Current Users : Download new code updates by following steps 1.a to 1.c, then visit the Github Wiki page to get started on your analysis
+- New Users : Follow all the installation steps and then visit the Github Wiki page to get started on your analysis
 
 1. Download the Guppy code <br>
    a. Press the green button labeled “Code” on the top right corner and that will initiate a pull down menu. <br>
