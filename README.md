@@ -73,7 +73,7 @@ panel serve --show savingInputParameters.ipynb
 
 ## Discussions
 
-- GuPPy is at an early stage of development, and was developed with our data (FP data recorded using TDT systems) in mind. We are now supporting other data types/formats using 'csv' files as input, but these are less extensively tested. If you have any issues, please get in touch on the [chat room](https://gitter.im/LernerLab/GuPPy?utm_source=share-link&utm_medium=link&utm_campaign=share-link) or by [raising an issue](https://github.com/LernerLab/GuPPy/issues), so that we can continue to improve this tool.
+- GuPPy was initially developed keeping our data (FP data recorded using TDT systems) in mind. GuPPy now supports data collected using Neurophotometrics and also other data types/formats using 'csv' files as input, but these are less extensively tested because of lack of sample data. If you have any issues, please get in touch on the [chat room](https://gitter.im/LernerLab/GuPPy?utm_source=share-link&utm_medium=link&utm_campaign=share-link) or by [raising an issue](https://github.com/LernerLab/GuPPy/issues), so that we can continue to improve this tool.
 
 ## Contributors
 
