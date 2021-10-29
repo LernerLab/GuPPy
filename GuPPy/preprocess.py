@@ -392,6 +392,7 @@ def visualize(filepath, x, y1, y2, y3, plot_name, removeArtifacts):
 	if (y1==0).all()==True:
 		y1 = np.zeros(x.shape[0])
 
+	coords_path = os.path.join(filepath, 'coordsForPreProcessing_'+plot_name[0].split('_')[-1]+'.npy')
 	name = os.path.basename(filepath)
 	fig = plt.figure()
 	ax1 = fig.add_subplot(311)
@@ -408,7 +409,7 @@ def visualize(filepath, x, y1, y2, y3, plot_name, removeArtifacts):
 
 	hfont = {'fontname':'Helvetica'}
 
-	if removeArtifacts==True:
+	if removeArtifacts==True and os.path.exists(coords_path):
 		ax3.set_xlabel('Time(s) \n Note : Artifacts have been removed, but are not reflected in this plot.', **hfont)
 	else:
 		ax3.set_xlabel('Time(s)', **hfont)
