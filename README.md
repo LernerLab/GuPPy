@@ -1,6 +1,6 @@
 [![DOI](https://zenodo.org/badge/382176345.svg)](https://zenodo.org/badge/latestdoi/382176345) [![Join the chat at https://gitter.im/LernerLab/GuPPy](https://badges.gitter.im/LernerLab/GuPPy.svg)](https://gitter.im/LernerLab/GuPPy?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 # GuPPy
- Guided Photometry Analysis in Python, a free and open-source FP analysis tool.
+ Guided Photometry Analysis in Python, a free and open-source fiber photometry data analysis tool.
 
 ## Installation Instructions
 
@@ -71,7 +71,7 @@ panel serve --show savingInputParameters.ipynb
 
 ## Sample Data
 
-- [Sample data](https://northwestern.box.com/s/pmzpqey540gkftka669frax84ofk5f4h) for the user to go through the tool in the start. It has two sample data : 1) Clean Data 2) Data with artifacts. It also has a control channel, signal channel and event timestamps file in  'csv' format to get an idea about the structure of the 'csv' file.
+- [Sample data](https://northwestern.box.com/s/pmzpqey540gkftka669frax84ofk5f4h) for the user to go through the tool in the start. This folder of sample data has two types of sample data recorded with a TDT system : 1) Clean Data 2) Data with artifacts (to practice removing them). It also has sample data recorded with a Neurophotometrics system. Finally, it has a control channel, signal channel and event timestamps file in a 'csv' format to get an idea of how to structure other data in the 'csv' file format accepted by GuPPy.
 
 ## Discussions
 
