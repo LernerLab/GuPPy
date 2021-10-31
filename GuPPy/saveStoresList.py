@@ -122,16 +122,21 @@ def saveStorenames(inputParametersPath, data, event_name, flag, filepath):
         keys = list(d.keys())
         mark_down_np = pn.pane.Markdown("""
                                         ### Extra Instructions to follow when using Neurophotometrics data :
-                                        - View the plots below to recognize between isosbestic control channel and
-                                          signal channel. If there is no isosbestic control channel user will only see
-                                          signal channel. The numbers 1,2,3, ... ,n represent channels corresponding
-                                          to the same region. <br>
-                                        - Please name the storenames accordingly by viewing the plots and also by
-                                          following the instructions above.<br>
-                                        - For reference, chev1 and chod1 channels corresponds to the same region. 
-                                          One of the two will be isosbestic control and other will be signal channel
+                                        - Guppy will take the NPM data, which has interleaved frames 
+                                        from the signal and control channels, and divide it out into 
+                                        separate channels for each site you recordded. 
+                                        However, since NPM does not automatically annotate which 
+                                        frames belong to the signal channel and which belong to the 
+                                        control channel, the user must specify this for GuPPy.
+                                        - Each of your recording sites will have a channel 
+                                        named “chod” and a channel named “chev”
+                                        - View the plots below and, for each site, 
+                                        determine whether the “chev” or “chod” channel is signal or control
+                                        - When you give your storenames, name the channels appropriately. 
+                                        For example, “chev1” might be “signal_A” and 
+                                        “chod1” might be “control_A” (or vice versa).
 
-            """)
+                                            """)
         plot_select = pn.widgets.Select(name='Select channel to see correspondings channels', options=keys, value=keys[0])
         
         @pn.depends(plot_select=plot_select)

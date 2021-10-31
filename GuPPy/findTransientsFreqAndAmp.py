@@ -127,7 +127,7 @@ def create_Df(filepath, arr, name, index=[], columns=[]):
 	df.to_hdf(op, key='df', mode='w')
 
 def create_csv(filepath, arr, name, index=[], columns=[]):
-	op = os.path.join(filepath, 'freqAndAmp_'+name+'.csv')
+	op = os.path.join(filepath, name)
 	df = pd.DataFrame(arr, index=index, columns=columns)
 	df.to_csv(op)
 
@@ -178,10 +178,14 @@ def findFreqAndAmp(filepath, inputParameters, window=15):
 		result = np.asarray(result, dtype=object)
 		ts = read_hdf5('timeCorrection_'+name_1, filepath, 'timestampNew')
 		freq, peaksAmp, peaksInd = calculate_freq_amp(result, z_score, z_score_chunks_index, ts)
+		peaks_occurrences = np.array([ts[peaksInd], peaksAmp]).T
 		arr = np.array([[freq, np.mean(peaksAmp)]])
 		fileName = [os.path.basename(os.path.dirname(filepath))]
 		create_Df(filepath, arr, basename, index=fileName ,columns=['freq (events/min)', 'amplitude'])
-		create_csv(filepath, arr, basename, index=fileName, columns=['freq (events/min)', 'amplitude'])
+		create_csv(filepath, arr, 'freqAndAmp_'+basename+'.csv', 
+				   index=fileName, columns=['freq (events/min)', 'amplitude'])
+		create_csv(filepath, peaks_occurrences, 'transientsOccurrences_'+basename+'.csv', 
+				   index=np.arange(peaks_occurrences.shape[0]),columns=['timestamps', 'amplitude'])
 		visuzlize_peaks(path[i], z_score, ts, peaksInd)
 	
 	print('Frequency and amplitude of transients in z_score data are calculated.')
