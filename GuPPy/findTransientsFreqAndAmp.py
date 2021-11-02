@@ -256,7 +256,7 @@ def averageForGroup(folderNames, inputParameters):
 
 		arr = np.asarray(arr)
 		create_Df(op, arr, temp_path[j][1], index=fileName, columns=['freq (events/min)', 'amplitude'])
-		create_csv(op, arr, temp_path[j][1], index=fileName, columns=['freq (events/min)', 'amplitude'])
+		create_csv(op, arr, 'freqAndAmp_'+temp_path[j][1]+'.csv', index=fileName, columns=['freq (events/min)', 'amplitude'])
 
 	print('Results for frequency and amplitude of transients in z-score data are combined.')
 
