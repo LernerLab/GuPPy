@@ -63,11 +63,12 @@ panel serve --show savingInputParameters.ipynb
 ## Tutorial Videos
 
 - [Installation steps](https://youtu.be/7qfU8xvj2nc)
-- [Explaining Input Parameters GUI](https://youtu.be/A3wfkG4n7J8)
+- [Explaining Input Parameters GUI](https://youtu.be/aO7_QqbYZ84)
 - [Individual Analysis steps](https://youtu.be/6IollIr9q6Y)
-- [Artifacts Removal](https://youtu.be/OKiRZZxKj6Y)
-- [Group Analysis steps](https://youtu.be/9JYt5k1zguw)
-- [Use of csv file as an input](https://youtu.be/1_hec_GV2_A)
+- [Artifacts Removal](https://youtu.be/KXh3vkkZxuo)
+- [Group Analysis steps](https://youtu.be/lntf-SER_so)
+- [Use of csv file as an input](https://youtu.be/Yrhartn5Hwk)
+- [Use of Neurophotometrics data as an input](https://youtu.be/n1HSGRnBYPQ)
 
 ## Sample Data
 
