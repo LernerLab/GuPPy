@@ -398,7 +398,9 @@ def findPSTHPeakAndArea(filepath, event, inputParameters):
 			cols = list(psth.columns)
 			regex = re.compile('bin_[(]')
 			bin_names = [cols[i] for i in range(len(cols)) if regex.match(cols[i])]
-			psth_mean_bin_names = bin_names + ['mean']
+			regex_trials = re.compile('[+-]?([0-9]*[.])?[0-9]+')
+			trials_names = [cols[i] for i in range(len(cols)) if regex_trials.match(cols[i])]
+			psth_mean_bin_names = trials_names + bin_names + ['mean']
 			psth_mean_bin_mean = np.asarray(psth[psth_mean_bin_names])
 			timestamps = np.asarray(psth['timestamps']).ravel() #np.asarray(read_Df(filepath, 'ts_psth', '')).ravel()
 			peak_area = helperPSTHPeakAndArea(psth_mean_bin_mean, timestamps, sampling_rate, peak_startPoint, peak_endPoint)   # peak, area = 
@@ -427,6 +429,7 @@ def averageForGroup(folderNames, event, inputParameters):
 	abspath = inputParameters['abspath']
 	selectForComputePsth = inputParameters['selectForComputePsth']
 	path_temp_len = []
+	op = makeAverageDir(abspath)
 
 	# combining paths to all the selected folders for doing average
 	for i in range(len(folderNames)):
@@ -441,10 +444,10 @@ def averageForGroup(folderNames, event, inputParameters):
 		#path_temp = glob.glob(os.path.join(folderNames[i], 'z_score_*'))
 		for j in range(len(path_temp)):
 			basename = (os.path.basename(path_temp[j])).split('.')[0]
+			write_hdf5(np.array([]), basename, op, 'data')
 			name_1 = basename.split('_')[-1]
 			temp = [folderNames[i], event+'_'+name_1, basename]
 			path.append(temp)
-
 
 	# processing of all the paths
 	path_temp_len = np.asarray(path_temp_len)
@@ -459,12 +462,6 @@ def averageForGroup(folderNames, event, inputParameters):
 	for i in range(len(path)):
 		idx = np.where(naming==path[i][2])[0][0]
 		new_path[idx].append(path[i])
-
-
-
-	#timestamps = np.asarray(read_Df(new_path[0][0][0], 'ts_psth', '')).reshape(-1)
-	op = makeAverageDir(abspath)
-	#create_Df(op, 'ts_psth', '', timestamps)
 
 	# read PSTH for each event and make the average of it. Save the final output to an average folder.
 	for i in range(len(new_path)):
@@ -558,7 +555,8 @@ def psthForEachStorename(inputParametersPath):
 			for i in range(storesListPath.shape[0]):
 				storesList = np.concatenate((storesList, np.genfromtxt(os.path.join(storesListPath[i], 'storesList.csv'), dtype='str', delimiter=',')), axis=1)
 			storesList = np.unique(storesList, axis=1)
-			
+			op = makeAverageDir(inputParameters['abspath'])
+			np.savetxt(os.path.join(op, 'storesList.csv'), storesList, delimiter=",", fmt='%s')
 			for k in range(storesList.shape[1]):
 				
 				if 'control' in storesList[1,k].lower() or 'signal' in storesList[1,k].lower():
