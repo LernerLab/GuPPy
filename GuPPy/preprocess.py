@@ -13,6 +13,7 @@ from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 from matplotlib.widgets import MultiCursor
 from combineDataFn import processTimestampsForCombiningData
+plt.switch_backend('TKAgg')
 
 
 # find files by ignoring the case sensitivity
@@ -479,9 +480,9 @@ def visualize(filepath, x, y1, y2, y3, plot_name, removeArtifacts):
 
 # function to plot control and signal, also provide a feature to select chunks for artifacts removal
 def visualizeControlAndSignal(filepath, removeArtifacts):
-	path_1 = find_files(filepath, 'control*', ignore_case=True) #glob.glob(os.path.join(filepath, 'control*'))
+	path_1 = find_files(filepath, 'control_*', ignore_case=True) #glob.glob(os.path.join(filepath, 'control*'))
 	
-	path_2 = find_files(filepath, 'signal*', ignore_case=True) #glob.glob(os.path.join(filepath, 'signal*'))
+	path_2 = find_files(filepath, 'signal_*', ignore_case=True) #glob.glob(os.path.join(filepath, 'signal*'))
 	
 
 	path = sorted(path_1 + path_2, key=str.casefold)
@@ -512,9 +513,9 @@ def visualizeControlAndSignal(filepath, removeArtifacts):
 
 # functino to check if the naming convention for saving storeslist file was followed or not
 def decide_naming_convention(filepath):
-	path_1 = find_files(filepath, 'control*', ignore_case=True) #glob.glob(os.path.join(filepath, 'control*'))
+	path_1 = find_files(filepath, 'control_*', ignore_case=True) #glob.glob(os.path.join(filepath, 'control*'))
 	
-	path_2 = find_files(filepath, 'signal*', ignore_case=True) #glob.glob(os.path.join(filepath, 'signal*'))
+	path_2 = find_files(filepath, 'signal_*', ignore_case=True) #glob.glob(os.path.join(filepath, 'signal*'))
 	
 	path = sorted(path_1 + path_2, key=str.casefold)
 	if len(path)%2 != 0:
@@ -781,8 +782,8 @@ def compute_z_score(filepath, inputParameters):
 	remove_artifacts = inputParameters['removeArtifacts']
 
 
-	path_1 = find_files(filepath, 'control*', ignore_case=True) #glob.glob(os.path.join(filepath, 'control*'))
-	path_2 = find_files(filepath, 'signal*', ignore_case=True) #glob.glob(os.path.join(filepath, 'signal*'))
+	path_1 = find_files(filepath, 'control_*', ignore_case=True) #glob.glob(os.path.join(filepath, 'control*'))
+	path_2 = find_files(filepath, 'signal_*', ignore_case=True) #glob.glob(os.path.join(filepath, 'signal*'))
 	
 
 	path = sorted(path_1 + path_2, key=str.casefold)
