@@ -182,7 +182,7 @@ def helper_psth(z_score, event, filepath, nSecPrev, nSecPost, timeInterval, bin_
 
 	totalTs = (-1*nTsPrev) + nTsPost
 	increment = ((-1*nSecPrev)+nSecPost)/totalTs
-	timeAxis = timeAxis = np.linspace(nSecPrev, nSecPost+increment, totalTs+1) #np.arange(nSecPrev, nSecPost+increment, increment) # change -1*nSecPrev
+	timeAxis = np.linspace(nSecPrev, nSecPost+increment, totalTs+1)
 	timeAxisNew = np.concatenate((timeAxis, timeAxis[::-1]))
 
 	# avoid writing same data to same file in multi-processing
@@ -420,6 +420,25 @@ def makeAverageDir(filepath):
 
 	return op
 
+def psth_shape_check(psth):
+
+	each_ln = []
+	for i in range(len(psth)):
+		each_ln.append(psth[i].shape[0])
+
+	each_ln = np.asarray(each_ln)
+	keep_ln = each_ln[-1]
+
+	for i in range(len(psth)):
+		if psth[i].shape[0]>keep_ln:
+			psth[i] = psth[i][:keep_ln]
+		elif psth[i].shape[0]<keep_ln:
+			psth[i] = np.append(psth[i], np.full(keep_ln-len(psth[i]), np.nan))
+		else:
+			psth[i] = psth[i]
+
+	return psth
+
 # function to compute average of group of recordings
 def averageForGroup(folderNames, event, inputParameters):
 
@@ -497,6 +516,7 @@ def averageForGroup(folderNames, event, inputParameters):
 			psth, df_bins_mean_err = np.asarray(psth), np.asarray(df_bins_mean_err)
 			psth = np.concatenate((psth, df_bins_mean_err), axis=0)
 		else:
+			psth = psth_shape_check(psth)
 			psth = np.asarray(psth)
 
 		timestamps = np.asarray(df['timestamps']).reshape(1,-1)
@@ -582,8 +602,8 @@ def psthForEachStorename(inputParametersPath):
 					storesList = np.concatenate((storesList, np.genfromtxt(os.path.join(op[i][j], 'storesList.csv'), dtype='str', delimiter=',')), axis=1)
 				storesList = np.unique(storesList, axis=1)
 				for k in range(storesList.shape[1]):
-					storenamePsth(op[i][0], storesList[1,k], inputParameters, storesList)
-					findPSTHPeakAndArea(op[i][0], storesList[1,k], inputParameters, storesList)
+					storenamePsth(op[i][0], storesList[1,k], inputParameters)
+					findPSTHPeakAndArea(op[i][0], storesList[1,k], inputParameters)
 		else:
 			for i in range(len(folderNames)):
 				filepath = folderNames[i]

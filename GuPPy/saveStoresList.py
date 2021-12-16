@@ -110,7 +110,8 @@ def saveStorenames(inputParametersPath, data, event_name, flag, filepath):
     if 'data_np_v2' in flag or 'data_np' in flag or 'event_np' in flag:
         path_chev = glob.glob(os.path.join(filepath, 'chev*'))
         path_chod = glob.glob(os.path.join(filepath, 'chod*'))
-        combine_paths = path_chev + path_chod
+        path_chpr = glob.glob(os.path.join(filepath, 'chpr*'))
+        combine_paths = path_chev + path_chod + path_chpr
         d = dict()
         for i in range(len(combine_paths)):
             basename = (os.path.basename(combine_paths[i])).split('.')[0]
@@ -406,23 +407,69 @@ def saveStorenames(inputParametersPath, data, event_name, flag, filepath):
     template.show(port=number)
 
 
+# check flag consistency in neurophotometrics data
+def check_channels(state):
+    state = state.astype(int)
+    unique_state = np.unique(state[2:12])
+    if unique_state.shape[0]>3:
+        raise Exception("Looks like there are more than 3 channels in the file. Reading of these files\
+                        are not supported. Reach out to us if you get this error message.")
+
+    return unique_state.shape[0], unique_state
+    
+
+# function to decide indices of interleaved channels
+# in neurophotometrics data
+def decide_indices(df, flag, num_ch=2):
+    ch_name = ['chev', 'chod', 'chpr']
+    if len(ch_name)<num_ch:
+        raise Exception('Number of channels parameters in Input Parameters GUI is more than 3. \
+                         Looks like there are more than 3 channels in the file. Reading of these files\
+                         are not supported. Reach out to us if you get this error message.')
+    if flag=='data_np':
+        indices_dict = dict()
+        for i in range(num_ch):
+            indices_dict[ch_name[i]] = np.arange(i, df.shape[0], num_ch)
+
+    else:
+        cols = np.array(list(df.columns))
+        if 'flags' in np.char.lower(np.array(cols)):
+            arr = ['FrameCounter', 'Flags']
+            state = np.array(df['Flags'])
+        elif 'ledstate' in np.char.lower(np.array(cols)):
+            arr = ['FrameCounter', 'LedState']
+            state = np.array(df['LedState'])
+        else:
+            raise Exception("File type shows Neurophotometrics newer version \
+                            data but column names does not have Flags or LedState")
+
+        num_ch, ch = check_channels(state)
+        indices_dict = dict()
+        for i in range(num_ch):
+            first_occurrence = np.where(state==ch[i])[0]
+            indices_dict[ch_name[i]] = np.arange(first_occurrence[0], df.shape[0], num_ch)
+        
+        df = df.drop(arr, axis=1)
+
+    return df, indices_dict, num_ch
+
 # In[4]:
 # function to see if there are 'csv' files present
 # and recognize type of 'csv' files either from
 # Neurophotometrics or custom made 'csv' files
 # and read data accordingly
-def import_np_csv(filepath, isosbestic_control):
-    path = glob.glob(os.path.join(filepath, '*.csv'))
+def import_np_csv(filepath, isosbestic_control, num_ch):
+    path = sorted(glob.glob(os.path.join(filepath, '*.csv')))
     path_chev = glob.glob(os.path.join(filepath, 'chev*'))
     path_chod = glob.glob(os.path.join(filepath, 'chod*'))
+    path_chpr = glob.glob(os.path.join(filepath, 'chpr*'))
     path_event = glob.glob(os.path.join(filepath, 'event*'))
     #path_sig = glob.glob(os.path.join(filepath, 'sig*'))
-    path_chev_chod_event = path_chev + path_chod + path_event
+    path_chev_chod_event = path_chev + path_chod + path_event + path_chpr
 
     path = list(set(path)-set(path_chev_chod_event))
     event_from_filename = []
     flag_arr = []
-    
     for i in range(len(path)):
         dirname = os.path.dirname(path[i])
 
@@ -462,7 +509,7 @@ def import_np_csv(filepath, isosbestic_control):
             raise Exception('Number of columns in csv file does not make sense.')
 
 
-        if columns_isstr == True and 'flags' in np.char.lower(np.array(cols)):
+        if columns_isstr == True and ('flags' in np.char.lower(np.array(cols)) or 'ledstate' in np.char.lower(np.array(cols))):
             flag = flag+'_v2'
         else:
             flag = flag
@@ -480,19 +527,13 @@ def import_np_csv(filepath, isosbestic_control):
             pass
 
         flag_arr.append(flag)
-
+        print(flag)
         if flag=='event_csv' or flag=='data_csv':
             name = os.path.basename(path[i]).split('.')[0]
             event_from_filename.append(name)
         elif flag=='data_np':
-            indices = np.arange(df.shape[0])
-            if isosbestic_control==True:
-                odd_indices = indices[1::2]
-                even_indices = indices[::2]
-                indices_dict = {'chod': odd_indices, 'chev': even_indices}
-            else:
-                indices_dict = {'chev': indices}
-
+            df, indices_dict, num_channels = decide_indices(df, flag, num_ch)
+            
             keys = list(indices_dict.keys())
             for k in range(len(keys)):
                 for j in range(df.shape[1]):
@@ -520,15 +561,7 @@ def import_np_csv(filepath, isosbestic_control):
                 df_new.to_csv(os.path.join(dirname, 'event'+str(j)+'.csv'), index=False)
                 event_from_filename.append('event'+str(j))
         else:
-            cols = np.array(list(df.columns))
-            df = df.drop(['FrameCounter', 'Flags'], axis=1)
-            indices = np.arange(df.shape[0])
-            if isosbestic_control==True:
-                odd_indices = indices[1::2]
-                even_indices = indices[::2]
-                indices_dict = {'chod': odd_indices, 'chev': even_indices}
-            else:
-                indices_dict = {'chev': indices}
+            df, indices_dict, num_channels = decide_indices(df, flag)
 
             keys = list(indices_dict.keys())
             for k in range(len(keys)):
@@ -538,7 +571,7 @@ def import_np_csv(filepath, isosbestic_control):
                         #timestamps_odd = df.iloc[:,j][odd_indices]
                     else:
                         d = dict()
-                        d['timestamps'] = timestamps 
+                        d['timestamps'] = timestamps
                         d['data'] = df.iloc[:,j][indices_dict[keys[k]]]
                         
                         df_ch = pd.DataFrame(d)
@@ -547,12 +580,23 @@ def import_np_csv(filepath, isosbestic_control):
 
         path_chev = glob.glob(os.path.join(filepath, 'chev*'))
         path_chod = glob.glob(os.path.join(filepath, 'chod*'))
+        path_chpr = glob.glob(os.path.join(filepath, 'chpr*'))
         path_event = glob.glob(os.path.join(filepath, 'event*'))
         #path_sig = glob.glob(os.path.join(filepath, 'sig*'))
-        path_chev_chod_event = path_chev + path_chod + path_event 
+        path_chev_chod_chpr = [path_chev, path_chod, path_chpr]
 
+        if i==len(path)-1 and ('data_np_v2' in flag or 'data_np' in flag or 'event_np' in flag):
+            num_path_chev, num_path_chod, num_path_chpr = len(path_chev), len(path_chod), len(path_chpr)
+            arr_len, no_ch = [], []
+            for i in range(len(path_chev_chod_chpr)):
+                if len(path_chev_chod_chpr[i])>0:
+                    arr_len.append(len(path_chev_chod_chpr[i]))
+                else:
+                    continue
 
-        if i==len(path)-1:
+            unique_arr_len = np.unique(np.array(arr_len))
+            print(unique_arr_len)
+            print(unique_arr_len.shape[0])
             if 'data_np_v2' in flag_arr:
                 divisor = 1
             else:
@@ -564,27 +608,32 @@ def import_np_csv(filepath, isosbestic_control):
                 df_event['timestamps'] = (df_event['timestamps']-df_chev['timestamps'][0])/divisor
                 df_event.to_csv(path_event[j], index=False)
             
-            if len(path_chev)==len(path_chod) and isosbestic_control==True:
+            if unique_arr_len.shape[0]==1:
                 for j in range(len(path_chev)):
-                    df_chev = pd.read_csv(path_chev[j])
-                    df_chev['timestamps'] = (df_chev['timestamps']-df_chev['timestamps'][0])/divisor
-                    df_chev['sampling_rate'] = np.full(df_chev.shape[0], np.nan)
-                    df_chev['sampling_rate'][0] = df_chev.shape[0]/(df_chev['timestamps'].iloc[-1] - df_chev['timestamps'].iloc[0])
-                    df_chev.to_csv(path_chev[j], index=False)
-                    df_chod = pd.read_csv(path_chod[j])
-                    df_chod['timestamps'] = df_chev['timestamps']
-                    df_chod['sampling_rate'] = np.full(df_chod.shape[0], np.nan)
-                    df_chod['sampling_rate'][0] = df_chod.shape[0]/(df_chod['timestamps'].iloc[-1] - df_chod['timestamps'].iloc[0])
-                    df_chod.to_csv(path_chod[j], index=False)
+                    if 'chev' in indices_dict.keys():
+                        df_chev = pd.read_csv(path_chev[j])
+                        df_chev['timestamps'] = (df_chev['timestamps']-df_chev['timestamps'][0])/divisor
+                        df_chev['sampling_rate'] = np.full(df_chev.shape[0], np.nan)
+                        df_chev['sampling_rate'][0] = df_chev.shape[0]/(df_chev['timestamps'].iloc[-1] - df_chev['timestamps'].iloc[0])
+                        df_chev.to_csv(path_chev[j], index=False)
 
-            elif len(path_chod)==0 and isosbestic_control==False:
-                for j in range(len(path_chev)):
-                    df_chev['timestamps'] = (df_chev['timestamps']-df_chev['timestamps'][0])/divisor
-                    df_chev['sampling_rate'] = np.full(df_chev.shape[0], np.nan)
-                    df_chev['sampling_rate'][0] = df_chev.shape[0]/(df_chev['timestamps'].iloc[-1] - df_chev['timestamps'].iloc[0])
-                    df_chev.to_csv(path_chev[j], index=False)
+                    if 'chod' in indices_dict.keys():
+                        df_chod = pd.read_csv(path_chod[j])
+                        df_chod['timestamps'] = df_chev['timestamps']
+                        df_chod['sampling_rate'] = np.full(df_chod.shape[0], np.nan)
+                        df_chod['sampling_rate'][0] = df_chev['sampling_rate'][0]
+                        df_chod.to_csv(path_chod[j], index=False)
+
+                    if 'chpr' in indices_dict.keys():
+                        df_chpr = pd.read_csv(path_chpr[j])
+                        df_chpr['timestamps'] = df_chev['timestamps']
+                        df_chpr['sampling_rate'] = np.full(df_chpr.shape[0], np.nan)
+                        df_chpr['sampling_rate'][0] = df_chev['sampling_rate'][0]
+                        df_chpr.to_csv(path_chpr[j], index=False)
             else:
-                raise Exception('Number of chev and chod files should be same.')
+                raise Exception('Number of channels should be same for all regions.')
+        else:
+            pass
     
     return event_from_filename, flag_arr
 
@@ -597,6 +646,7 @@ def execute(inputParametersPath):
 
     folderNames = inputParameters['folderNames']
     isosbestic_control = inputParameters['isosbestic_control']
+    num_ch = inputParameters['noChannels']
 
     print(folderNames)
     # In[5]:
@@ -604,7 +654,7 @@ def execute(inputParametersPath):
     for i in folderNames:
         filepath = os.path.join(inputParameters['abspath'], i)
         data = readtsq(filepath)
-        event_name, flag = import_np_csv(filepath, isosbestic_control)
+        event_name, flag = import_np_csv(filepath, isosbestic_control, num_ch)
         saveStorenames(inputParametersPath, data, event_name, flag, filepath)
 
 

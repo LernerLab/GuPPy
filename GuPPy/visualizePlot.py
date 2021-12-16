@@ -61,6 +61,11 @@ def helper_plots(filepath, event, name, inputParameters):
 
 	#global new_event, df, columns_dict
 
+	# note when there are no behavior event TTLs
+	if len(event)==0:
+		print("\033[1m"+"There are no behavior event TTLs present to visualize.".format(event)+"\033[0m")
+		return 0
+
 	# combine all the event PSTH so that it can be viewed together
 	if name:
 		event_name, name = event, name

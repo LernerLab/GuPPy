@@ -154,7 +154,12 @@ def check_data(S, filepath, event, outputPath):
 
 		idx = np.where(storesList[0]==event)[0]
 		storesList = np.delete(storesList,idx,axis=1)
-		np.savetxt(os.path.join(outputPath, 'storesList.csv'), storesList, delimiter=",", fmt='%s')
+		if not os.path.exists(os.path.join(outputPath, '.cache_storesList.csv')):
+			os.rename(os.path.join(outputPath, 'storesList.csv'), os.path.join(outputPath, '.cache_storesList.csv'))
+		if idx.shape[0]==0:
+			pass 
+		else:
+			np.savetxt(os.path.join(outputPath, 'storesList.csv'), storesList, delimiter=",", fmt='%s')
 
 			
 
@@ -298,7 +303,11 @@ def readRawData(inputParametersPath):
 		# read data corresponding to each storename selected by user while saving the storeslist file
 		for j in range(len(storesListPath)):
 			op = storesListPath[j]
-			storesList = np.genfromtxt(os.path.join(op, 'storesList.csv'), dtype='str', delimiter=',')
+			if os.path.exists(os.path.join(op, '.cache_storesList.csv')):
+				storesList = np.genfromtxt(os.path.join(op, '.cache_storesList.csv'), dtype='str', delimiter=',')
+			else:
+				storesList = np.genfromtxt(os.path.join(op, 'storesList.csv'), dtype='str', delimiter=',')
+
 			if isinstance(data, pd.DataFrame):
 				execute_readtev(data, filepath, np.unique(storesList[0,:]), op)
 			else:
