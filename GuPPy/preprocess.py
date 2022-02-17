@@ -174,6 +174,27 @@ def write_hdf5(data, event, filepath, key):
 					f.create_dataset(key, data=data)
 
 
+# function to check control and signal channel has same length
+# if not, take a smaller length and do pre-processing
+def check_cntrl_sig_length(filepath, channels_arr, storenames, storesList):
+
+	indices = []
+	for i in range(channels_arr.shape[1]):
+		idx_c = np.where(storesList==channels_arr[0,i])[0]
+		idx_s = np.where(storesList==channels_arr[1,i])[0]
+		control = read_hdf5(storenames[idx_c[0]], filepath, 'data') 
+		signal = read_hdf5(storenames[idx_s[0]], filepath, 'data')
+		if control.shape[0]<signal.shape[0]:
+			indices.append(storesList[idx_c[0]])
+		elif control.shape[0]>signal.shape[0]:
+			print(storenames[idx_s[0]])
+			indices.append(storesList[idx_s[0]])
+		else:
+			indices.append(storesList[idx_s[0]])
+
+	return indices
+
+
 # function to correct timestamps after eliminating first few seconds of the data (for csv data)
 def timestampCorrection_csv(filepath, timeForLightsTurnOn, storesList):
 	
@@ -192,11 +213,13 @@ def timestampCorrection_csv(filepath, timeForLightsTurnOn, storesList):
 	except:
 		raise Exception('Error in saving stores list file or spelling mistake for control or signal')
 
+	indices = check_cntrl_sig_length(filepath, arr, storenames, storesList)
+
 	for i in range(arr.shape[1]):
 		name_1 = arr[0,i].split('_')[-1]
 		name_2 = arr[1,i].split('_')[-1]
 		#dirname = os.path.dirname(path[i])
-		idx = np.where(storesList==arr[1,i])[0]
+		idx = np.where(storesList==indices[i])[0]
 
 		if idx.shape[0]==0:
 			raise Exception('{} does not exist in the stores list file.'.format(arr[0,i]))
@@ -237,13 +260,13 @@ def timestampCorrection_tdt(filepath, timeForLightsTurnOn, storesList):
 	except:
 		raise Exception('Error in saving stores list file or spelling mistake for control or signal')
 
+	indices = check_cntrl_sig_length(filepath, arr, storenames, storesList)
+
 	for i in range(arr.shape[1]):
 		name_1 = arr[0,i].split('_')[-1]
 		name_2 = arr[1,i].split('_')[-1]
 		#dirname = os.path.dirname(path[i])
-		idx = np.where(storesList==arr[1,i])[0]
-
-
+		idx = np.where(storesList==indices[i])[0]
 
 		if idx.shape[0]==0:
 			raise Exception('{} does not exist in the stores list file.'.format(arr[0,i]))
@@ -287,10 +310,13 @@ def applyCorrection(filepath, timeForLightsTurnOn, event, displayName, naming):
 	timestampNew = read_hdf5('timeCorrection_'+naming, filepath, 'timestampNew')
 	correctionIndex = read_hdf5('timeCorrection_'+naming, filepath, 'correctionIndex')
 
-
 	if 'control' in displayName.lower() or 'signal' in displayName.lower():
+		split_name = displayName.split('_')[-1]
+		if split_name==naming:
+			pass 
+		else:
+			correctionIndex = read_hdf5('timeCorrection_'+split_name, filepath, 'correctionIndex')
 		arr = read_hdf5(event, filepath, 'data')
-		
 		if (arr==0).all()==True:
 			arr = arr
 		else:

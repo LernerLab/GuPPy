@@ -216,7 +216,7 @@ def saveStorenames(inputParametersPath, data, event_name, flag, filepath):
 
     overwrite_button = pn.widgets.MenuButton(name='over-write storeslist file or create a new one?  ', items=['over_write_file', 'create_new_file'], button_type='default', split=True, align='end')
     
-    literal_input_2 = pn.widgets.Ace(value="""{}""", sizing_mode='stretch_both', theme='tomorrow', language='json', height=150)
+    literal_input_2 = pn.widgets.Ace(value="""{}""", sizing_mode='stretch_both', theme='tomorrow', language='json', height=250)
 
     alert = pn.pane.Alert('#### No alerts !!', alert_type='danger', height=60)
 
