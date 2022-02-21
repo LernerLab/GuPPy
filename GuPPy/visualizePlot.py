@@ -109,22 +109,21 @@ def helper_plots(filepath, event, name, inputParameters):
 		#class_event = new_event
 
 		# make options array for different selectors
-		multiple_plots_options, heatmap_options = [], []
+		multiple_plots_options = []
+		heatmap_options = new_event
 		bins_keys = list(bins.keys())
 		if len(bins_keys)>0:
 			bins_new = bins
 			for i in range(len(bins_keys)):
 				arr = bins[bins_keys[i]]
 				if len(arr)>0:
-					heatmap_options.append('{}_bin'.format(bins_keys[i]))
+					#heatmap_options.append('{}_bin'.format(bins_keys[i]))
 					for j in arr:
 						multiple_plots_options.append('{}_{}'.format(bins_keys[i], j))
 
 			multiple_plots_options = new_event + multiple_plots_options
-			heatmap_options = new_event + heatmap_options
 		else:
 			multiple_plots_options = new_event
-			heatmap_options = new_event
 		
 		# create different options and selectors 
 		event_selector = param.ObjectSelector(default=new_event[0], objects=new_event)
@@ -143,18 +142,19 @@ def helper_plots(filepath, event, name, inputParameters):
 		x_max = float(inputParameters['nSecPost'])+20
 		selector_for_multipe_events_plot = param.ListSelector(default=[multiple_plots_options[0]], objects=multiple_plots_options)
 		x = param.ObjectSelector(default=columns[new_event[0]][-4], objects=[columns[new_event[0]][-4]])
-		#print(columns[new_event[0]])
-		#print(remove_cols(columns[new_event[0]]))
-		y = param.ObjectSelector(default=remove_cols(columns[new_event[0]])[-2], objects=remove_cols(columns[new_event[0]]))                     
-		# columns[new_event[0]][-4]   columns[new_event[0]]
+		y = param.ObjectSelector(default=remove_cols(columns[new_event[0]])[-2], objects=remove_cols(columns[new_event[0]]))
+
+		trial_no = range(1, len(remove_cols(columns[heatmap_options[0]])[:-2])+1)
+		trial_ts = ["{} - {}".format(i,j) for i,j in zip(trial_no, remove_cols(columns[heatmap_options[0]])[:-2])] + ['All']
+		heatmap_y = param.ListSelector(default=[trial_ts[-1]], objects=trial_ts)
 		Y_Label = param.ObjectSelector(default='y', objects=['y','z-score', '\u0394F/F'])     
 		save_options = param.ObjectSelector(default='None' , objects=['None', 'save_png_format', 'save_svg_format', 'save_both_format'])
 		save_options_heatmap = param.ObjectSelector(default='None' , objects=['None', 'save_png_format', 'save_svg_format', 'save_both_format'])
 		color_map = param.ObjectSelector(default='plasma' , objects=colormaps)
-		height_heatmap = param.ObjectSelector(default=600, objects=list(np.arange(0,5100,100)))
-		width_heatmap = param.ObjectSelector(default=1200, objects=list(np.arange(0,5100,100)))
-		Height_Plot = param.ObjectSelector(default=300, objects=list(np.arange(0,5100,100)))
-		Width_Plot = param.ObjectSelector(default=1000, objects=list(np.arange(0,5100,100)))
+		height_heatmap = param.ObjectSelector(default=600, objects=list(np.arange(0,5100,100))[1:])
+		width_heatmap = param.ObjectSelector(default=1000, objects=list(np.arange(0,5100,100))[1:])
+		Height_Plot = param.ObjectSelector(default=300, objects=list(np.arange(0,5100,100))[1:])
+		Width_Plot = param.ObjectSelector(default=1000, objects=list(np.arange(0,5100,100))[1:])
 		save_hm = param.Action(lambda x: x.param.trigger('save_hm'), label='Save')
 		save_psth = param.Action(lambda x: x.param.trigger('save_psth'), label='Save')
 		X_Limit = param.Range(default=(-5, 10), bounds=(x_min,x_max))
@@ -226,7 +226,14 @@ def helper_plots(filepath, event, name, inputParameters):
 		    self.param['y'].objects = remove_cols(y_value)
 		    self.x = x_value[-4]
 		    self.y = self.param['y'].objects[-2]
-	    
+
+		@param.depends('event_selector_heatmap', watch=True)
+		def _update_df(self):
+			cols = self.columns[self.event_selector_heatmap]
+			trial_no = range(1, len(remove_cols(cols)[:-2])+1)
+			trial_ts = ["{} - {}".format(i,j) for i,j in zip(trial_no, remove_cols(cols)[:-2])] + ['All'] 
+			self.param['heatmap_y'].objects = trial_ts
+			self.heatmap_y = [trial_ts[-1]]
 
 	    # function to plot multiple PSTHs into one plot
 		@param.depends('selector_for_multipe_events_plot', 'Y_Label', 'save_options', 'X_Limit', 'Y_Limit', 'Height_Plot', 'Width_Plot')
@@ -377,35 +384,36 @@ def helper_plots(filepath, event, name, inputParameters):
 
 
 		# function to show heatmaps for each event
-		@param.depends('event_selector_heatmap', 'color_map', 'height_heatmap', 'width_heatmap')
+		@param.depends('event_selector_heatmap', 'color_map', 'height_heatmap', 'width_heatmap', 'heatmap_y')
 		def heatmap(self):
 			height = self.height_heatmap
 			width = self.width_heatmap
-			if 'bin' in self.event_selector_heatmap:
-				split = self.event_selector_heatmap.rsplit('_',1)
-				df_name = split[0]
-				df_hm = self.df_new[df_name][self.bins_new[df_name]]
-				time = np.asarray(self.df_new[df_name]['timestamps'])
-				event_ts_for_each_event = np.arange(1, len(df_hm.columns)+1)
-				yticks = list(event_ts_for_each_event)
-				z_score = np.asarray(df_hm).T
-			else:
-				df_hm = self.df_new[self.event_selector_heatmap]
-				cols = list(df_hm.columns)
-				regex = re.compile('bin_*')
-				drop_cols = [cols[i] for i in range(len(cols)) if regex.match(cols[i])]
-				drop_cols = ['err', 'mean'] + drop_cols
-				df_hm = df_hm.drop(drop_cols, axis=1)
-				time = np.asarray(df_hm['timestamps'])
-				event_ts_for_each_event = np.arange(1,len(df_hm.columns[:-1])+1)
-				yticks = list(event_ts_for_each_event)
-				z_score = np.asarray(df_hm[df_hm.columns[:-1]]).T
+			df_hm = self.df_new[self.event_selector_heatmap]
+			cols = list(df_hm.columns)
+			regex = re.compile('bin_err_*')
+			drop_cols = [cols[i] for i in range(len(cols)) if regex.match(cols[i])]
+			drop_cols = ['err', 'mean'] + drop_cols
+			df_hm = df_hm.drop(drop_cols, axis=1)
+			cols = list(df_hm.columns)
+			bin_cols = [cols[i] for i in range(len(cols)) if re.compile('bin_*').match(cols[i])]
+			time = np.asarray(df_hm['timestamps'])
+			event_ts_for_each_event = np.arange(1,len(df_hm.columns[:-1])+1)
+			yticks = list(event_ts_for_each_event)
+			z_score = np.asarray(df_hm[df_hm.columns[:-1]]).T
 
-			#if self.C_Limit==None:
-			#	self.C_Limit = (np.nanmin(z_score), np.nanmax(z_score))
+			if self.heatmap_y[0]=='All':
+				indices = np.arange(z_score.shape[0]-len(bin_cols))
+				z_score = z_score[indices,:]
+				event_ts_for_each_event = np.arange(1,z_score.shape[0]+1)
+				yticks = list(event_ts_for_each_event)
+			else:
+				remove_all = list(set(self.heatmap_y)-set(['All']))
+				indices = sorted([int(s.split('-')[0])-1 for s in remove_all])
+				z_score = z_score[indices,:]
+				event_ts_for_each_event = np.arange(1,z_score.shape[0]+1)
+				yticks = list(event_ts_for_each_event)
 
 			clim = (np.nanmin(z_score), np.nanmax(z_score))
-			
 			font_size = {'labels': 16, 'yticks': 6}
 			
 			if event_ts_for_each_event.shape[0]==1:
@@ -440,18 +448,20 @@ def helper_plots(filepath, event, name, inputParameters):
 	print('view')
 	parameters = pn.Param(view.param.selector_for_multipe_events_plot, widgets={
 	    'selector_for_multipe_events_plot': {'type': pn.widgets.CrossSelector}})
-	#colormap = pn.Param(view.param.color_map, widgets={
-	#	'color_map': {'type':pn.widgets.Select, 'width': 100}
-	#	})
+	heatmap_y_parameters = pn.Param(view.param.heatmap_y, widgets={
+		'heatmap_y': {'type':pn.widgets.MultiSelect, 'name':'Trial # - Timestamps', 'width':200, 'size':30}})
+
 	line_tab = pn.Column('## '+basename, pn.Row(pn.Column(view.param.event_selector, pn.Row(view.param.x, view.param.y, width=500), 
 														pn.Row(view.param.X_Limit, view.param.Y_Limit, width=500),
 														pn.Row(view.param.Width_Plot, view.param.Height_Plot, view.param.Y_Label, view.param.save_options, width=500), 
 														view.param.save_psth), parameters), 
 	                									view.contPlot, view.update_selector)
 
-	hm_tab = pn.Column('## '+basename, pn.Row(view.param.event_selector_heatmap, view.param.color_map, view.param.save_options_heatmap, 
+	hm_tab = pn.Column('## '+basename, pn.Row(view.param.event_selector_heatmap, view.param.color_map, 
+											view.param.save_options_heatmap, 
 											view.param.width_heatmap, view.param.height_heatmap,
-											view.param.save_hm, width=1000), view.heatmap) #
+											view.param.save_hm, width=1000), 
+											pn.Row(view.heatmap, heatmap_y_parameters)) #
 	print('app')
 
 	template = pn.template.MaterialTemplate(title='Visualization GUI')
