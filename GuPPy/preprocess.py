@@ -304,6 +304,10 @@ def applyCorrection(filepath, timeForLightsTurnOn, event, displayName, naming):
 
 	cond = check_TDT(os.path.dirname(filepath))
 
+	# code added only for data where timestamps were split based on blocks
+	if '_block_' in event:
+		return 0
+
 	if cond==True:
 		timeRecStart = read_hdf5('timeCorrection_'+naming, filepath, 'timeRecStart')[0]
 	
