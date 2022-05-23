@@ -259,14 +259,19 @@ def saveStorenames(inputParametersPath, data, event_name, flag, filepath):
             values = np.array(list(map((lambda val: val.get()), vars_list[k[i]])))
             idx = np.where(values==1)[0]
             if idx.shape[0]>1:
-                alert.object = '####Alert !! \n More than 1 checkboxes were ticked for the storename {}.'.format(k[i])
+                if idx.shape[0]==np.where(np.array(storenames)==k[i])[0].shape[0]:
+                    alert.object = '####Alert !! \n checkboxes selected and storenames entries are same'
+                else:
+                    alert.object = '####Alert !! \n More than 1 checkboxes were ticked for the storename {}.'.format(k[i])
+                    continue
             if idx.shape[0]!=0:
                 res_dict[k[i]] = list(np.array(global_storenames[k[i]])[idx])
 
         names_for_storenames = []
         for i in range(len(storenames)):
             if storenames[i] in res_dict:
-                names_for_storenames.append(res_dict[storenames[i]])
+                names_for_storenames.append([res_dict[storenames[i]][-1]])
+                res_dict[storenames[i]].pop()
             else:
                 names_for_storenames.append([""])
 
@@ -309,8 +314,11 @@ def saveStorenames(inputParametersPath, data, event_name, flag, filepath):
             alert_text = "##### Alert !! \n"
             for i in range(len(storenames)):
                 if storenames[i] in global_storenames:
-                    T = ttk.Label(root, text="Select name for {} : ".format(storenames[i])).grid(row=i+1)
-                    vars_list[storenames[i]] = list(np.arange(len(global_storenames[storenames[i]])))
+                    if storenames[i] in vars_list:
+                        continue
+                    else:
+                        T = ttk.Label(root, text="Select name for {} : ".format(storenames[i])).grid(row=i+1)
+                        vars_list[storenames[i]] = list(np.arange(len(global_storenames[storenames[i]])))
                     for j in range(len(global_storenames[storenames[i]])):
                         vars_list[storenames[i]][j] = IntVar()
                         chk = ttk.Checkbutton(root, text=str(global_storenames[storenames[i]][j]), variable=vars_list[storenames[i]][j]).grid(row=i+1, column=j+1)
