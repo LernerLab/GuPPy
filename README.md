@@ -81,7 +81,7 @@ panel serve --show savingInputParameters.ipynb
 ## Contributors
 
 - [Venus Sherathiya](https://github.com/venus-sherathiya)
-- Michael Schaid
+- [Michael Schaid](https://github.com/Mschaid)
 - Jillian Seiler
 - [Gabriela Lopez](https://github.com/glopez924)
 - [Talia Lerner](https://github.com/talialerner)
