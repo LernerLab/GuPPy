@@ -5,6 +5,7 @@ import glob
 import h5py
 import param
 import re
+import math
 import numpy as np 
 import pandas as pd
 import functools
@@ -147,6 +148,8 @@ def helper_plots(filepath, event, name, inputParameters):
 		trial_no = range(1, len(remove_cols(columns[heatmap_options[0]])[:-2])+1)
 		trial_ts = ["{} - {}".format(i,j) for i,j in zip(trial_no, remove_cols(columns[heatmap_options[0]])[:-2])] + ['All']
 		heatmap_y = param.ListSelector(default=[trial_ts[-1]], objects=trial_ts)
+		psth_y = param.ListSelector(objects=trial_ts[:-1])
+		select_trials_checkbox = param.ListSelector(default=['just trials'], objects=['mean', 'just trials'])
 		Y_Label = param.ObjectSelector(default='y', objects=['y','z-score', '\u0394F/F'])     
 		save_options = param.ObjectSelector(default='None' , objects=['None', 'save_png_format', 'save_svg_format', 'save_both_format'])
 		save_options_heatmap = param.ObjectSelector(default='None' , objects=['None', 'save_png_format', 'save_svg_format', 'save_both_format'])
@@ -235,6 +238,14 @@ def helper_plots(filepath, event, name, inputParameters):
 			self.param['heatmap_y'].objects = trial_ts
 			self.heatmap_y = [trial_ts[-1]]
 
+		@param.depends('event_selector', watch=True)
+		def _update_psth_y(self):
+			cols = self.columns[self.event_selector]
+			trial_no = range(1, len(remove_cols(cols)[:-2])+1)
+			trial_ts = ["{} - {}".format(i,j) for i,j in zip(trial_no, remove_cols(cols)[:-2])]
+			self.param['psth_y'].objects = trial_ts
+			self.psth_y = [trial_ts[0]]
+
 	    # function to plot multiple PSTHs into one plot
 		@param.depends('selector_for_multipe_events_plot', 'Y_Label', 'save_options', 'X_Limit', 'Y_Limit', 'Height_Plot', 'Width_Plot')
 		def update_selector(self):
@@ -284,7 +295,6 @@ def helper_plots(filepath, event, name, inputParameters):
 				index = np.arange(0,ts.shape[0], 3)
 				df_curve = df_curve.loc[index, :]
 				df_spread = df_spread.loc[index, :]
-				#plot_combine = new_df.hvplot(x='timestamps', y=list(new_df.columns)[:-1], width=1200, height=300, xlim=(-5, 10))
 				overlay = hv.NdOverlay({c:hv.Curve((df_curve['timestamps'], df_curve[c]), kdims=['Time (s)']).opts(width=int(self.Width_Plot), height=int(self.Height_Plot), xlim=self.X_Limit, ylim=self.Y_Limit) for c in cols_curve[:-1]})
 				spread = hv.NdOverlay({d:hv.Spread((df_spread['timestamps'], df_curve[d], df_spread[d], df_spread[d]), vdims=['y', 'yerrpos', 'yerrneg']).opts(line_width=0, fill_alpha=0.3) for d in cols_spread[:-1]})
 				plot_combine = ((overlay * spread).opts(opts.NdOverlay(xlabel='Time (s)', ylabel=self.Y_Label))).opts(shared_axes=False)
@@ -382,6 +392,51 @@ def helper_plots(filepath, event, name, inputParameters):
 
 				return plot
 
+		# function to plot specific PSTH trials
+		@param.depends('event_selector', 'x', 'psth_y', 'select_trials_checkbox', 'Y_Label', 'save_options', 'Y_Limit', 'X_Limit', 'Height_Plot', 'Width_Plot')
+		def plot_specific_trials(self):
+			df_psth = self.df_new[self.event_selector]
+			if self.Y_Limit==None:
+				self.Y_Limit = (np.nanmin(ypoints)-0.5, np.nanmax(ypoints)+0.5)
+
+			if self.psth_y==None:
+				return None
+			else:
+				selected_trials = [s.split(' - ')[1] for s in list(self.psth_y)]
+
+			index = np.arange(0, df_psth['timestamps'].shape[0], 3)
+
+			if self.select_trials_checkbox==['just trials']:
+				overlay = hv.NdOverlay({c:hv.Curve((df_psth['timestamps'][index], df_psth[c][index]), kdims=['Time (s)']) for c in selected_trials})
+				ropts = dict(width=int(self.Width_Plot), height=int(self.Height_Plot), xlim=self.X_Limit, ylim=self.Y_Limit, xlabel='Time (s)', ylabel=self.Y_Label)
+				return overlay.opts(**ropts)
+			elif self.select_trials_checkbox==['mean']:
+				arr = np.asarray(df_psth[selected_trials])
+				mean = np.nanmean(arr, axis=1)
+				err = np.nanstd(arr, axis=1)/math.sqrt(arr.shape[1])
+				ropts_curve = dict(width=int(self.Width_Plot), height=int(self.Height_Plot), xlim=self.X_Limit, ylim=self.Y_Limit, color='blue', xlabel='Time (s)', ylabel=self.Y_Label)
+				ropts_spread = dict(width=int(self.Width_Plot), height=int(self.Height_Plot), fill_alpha=0.3, fill_color='blue', line_width=0)
+				plot_curve = hv.Curve((df_psth['timestamps'][index], mean[index]))  
+				plot_spread = hv.Spread((df_psth['timestamps'][index], mean[index], err[index], err[index]))
+				plot = (plot_curve * plot_spread).opts({'Curve': ropts_curve, 
+										   'Spread': ropts_spread})
+				return plot
+			elif self.select_trials_checkbox==['mean', 'just trials']:
+				overlay = hv.NdOverlay({c:hv.Curve((df_psth['timestamps'][index], df_psth[c][index]), kdims=['Time (s)']) for c in selected_trials})
+				ropts_overlay = dict(width=int(self.Width_Plot), height=int(self.Height_Plot), xlim=self.X_Limit, ylim=self.Y_Limit, xlabel='Time (s)', ylabel=self.Y_Label)				
+
+				arr = np.asarray(df_psth[selected_trials])
+				mean = np.nanmean(arr, axis=1)
+				err = np.nanstd(arr, axis=1)/math.sqrt(arr.shape[1])
+				ropts_curve = dict(width=int(self.Width_Plot), height=int(self.Height_Plot), xlim=self.X_Limit, ylim=self.Y_Limit, color='black', xlabel='Time (s)', ylabel=self.Y_Label)
+				ropts_spread = dict(width=int(self.Width_Plot), height=int(self.Height_Plot), fill_alpha=0.3, fill_color='black', line_width=0)
+				plot_curve = hv.Curve((df_psth['timestamps'][index], mean[index]))  
+				plot_spread = hv.Spread((df_psth['timestamps'][index], mean[index], err[index], err[index]))
+
+				plot = (plot_curve*plot_spread).opts({'Curve': ropts_curve, 
+										   			  'Spread': ropts_spread})
+				return overlay.opts(**ropts_overlay)*plot
+
 
 		# function to show heatmaps for each event
 		@param.depends('event_selector_heatmap', 'color_map', 'height_heatmap', 'width_heatmap', 'heatmap_y')
@@ -446,16 +501,29 @@ def helper_plots(filepath, event, name, inputParameters):
 
 	view = Viewer()
 	print('view')
+	psth_checkbox = pn.Param(view.param.select_trials_checkbox, widgets={
+		'select_trials_checkbox': {'type': pn.widgets.CheckBoxGroup, 'inline': True, 
+									'name': 'Select mean and/or just trials'}})
 	parameters = pn.Param(view.param.selector_for_multipe_events_plot, widgets={
-	    'selector_for_multipe_events_plot': {'type': pn.widgets.CrossSelector}})
+	    'selector_for_multipe_events_plot': {'type': pn.widgets.CrossSelector, 'width':550, 'align':('start', 'end')}})
 	heatmap_y_parameters = pn.Param(view.param.heatmap_y, widgets={
 		'heatmap_y': {'type':pn.widgets.MultiSelect, 'name':'Trial # - Timestamps', 'width':200, 'size':30}})
+	psth_y_parameters = pn.Param(view.param.psth_y, widgets={
+		'psth_y': {'type':pn.widgets.MultiSelect, 'name':'Trial # - Timestamps', 'width':200, 'size':15, 'align':('start', 'end')}})
 
-	line_tab = pn.Column('## '+basename, pn.Row(pn.Column(view.param.event_selector, pn.Row(view.param.x, view.param.y, width=500), 
-														pn.Row(view.param.X_Limit, view.param.Y_Limit, width=500),
-														pn.Row(view.param.Width_Plot, view.param.Height_Plot, view.param.Y_Label, view.param.save_options, width=500), 
-														view.param.save_psth), parameters), 
-	                									view.contPlot, view.update_selector)
+	options = pn.Column(view.param.event_selector, 
+		                pn.Row(view.param.x, view.param.y, width=400), 
+						pn.Row(view.param.X_Limit, view.param.Y_Limit, width=400),
+						pn.Row(view.param.Width_Plot, view.param.Height_Plot, view.param.Y_Label, view.param.save_options, width=400), 
+					    view.param.save_psth)
+	
+	options_selectors = pn.Row(options, parameters, width=1050)
+
+	line_tab = pn.Column('## '+basename, 
+		 				 pn.Row(options_selectors, pn.Column(psth_checkbox, psth_y_parameters), width=1200), 
+	                	 view.contPlot, 
+	                	 view.update_selector, 
+	                	 view.plot_specific_trials)
 
 	hm_tab = pn.Column('## '+basename, pn.Row(view.param.event_selector_heatmap, view.param.color_map, 
 											view.param.save_options_heatmap, 
