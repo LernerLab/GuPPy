@@ -359,8 +359,10 @@ def helperPSTHPeakAndArea(psth_mean, timestamps, sampling_rate, peak_startPoint,
 		startPtForPeak = np.where(timestamps>=peak_startPoint[i])[0]
 		endPtForPeak = np.where(timestamps>=peak_endPoint[i])[0]
 		if len(startPtForPeak)>=1 and len(endPtForPeak)>=1:
-			peakPoint = startPtForPeak[0] + np.argmax(psth_mean[startPtForPeak[0]:endPtForPeak[0],:], axis=0)
-			peak_area['peak_'+str(i+1)] = np.amax(psth_mean[peakPoint],axis=0)
+			peakPoint_pos = startPtForPeak[0] + np.argmax(psth_mean[startPtForPeak[0]:endPtForPeak[0],:], axis=0)
+			peakPoint_neg = startPtForPeak[0] + np.argmin(psth_mean[startPtForPeak[0]:endPtForPeak[0],:], axis=0)
+			peak_area['peak_pos_'+str(i+1)] = np.amax(psth_mean[peakPoint_pos],axis=0)
+			peak_area['peak_neg_'+str(i+1)] = np.amin(psth_mean[peakPoint_neg],axis=0)
 			peak_area['area_'+str(i+1)] = np.trapz(psth_mean[startPtForPeak[0]:endPtForPeak[0],:], axis=0)
 		else:
 			peak_area['peak_'+str(i+1)] = np.nan
