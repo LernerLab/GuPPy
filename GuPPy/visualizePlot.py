@@ -505,11 +505,11 @@ def helper_plots(filepath, event, name, inputParameters):
 		'select_trials_checkbox': {'type': pn.widgets.CheckBoxGroup, 'inline': True, 
 									'name': 'Select mean and/or just trials'}})
 	parameters = pn.Param(view.param.selector_for_multipe_events_plot, widgets={
-	    'selector_for_multipe_events_plot': {'type': pn.widgets.CrossSelector, 'width':550, 'align':('start', 'end')}})
+	    'selector_for_multipe_events_plot': {'type': pn.widgets.CrossSelector, 'width':550, 'align':'start'}})
 	heatmap_y_parameters = pn.Param(view.param.heatmap_y, widgets={
 		'heatmap_y': {'type':pn.widgets.MultiSelect, 'name':'Trial # - Timestamps', 'width':200, 'size':30}})
 	psth_y_parameters = pn.Param(view.param.psth_y, widgets={
-		'psth_y': {'type':pn.widgets.MultiSelect, 'name':'Trial # - Timestamps', 'width':200, 'size':15, 'align':('start', 'end')}})
+		'psth_y': {'type':pn.widgets.MultiSelect, 'name':'Trial # - Timestamps', 'width':200, 'size':15, 'align':'start'}})
 
 	options = pn.Column(view.param.event_selector, 
 		                pn.Row(view.param.x, view.param.y, width=400), 
