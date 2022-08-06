@@ -29,43 +29,45 @@ def read_hdf5(event, filepath, key):
 
 def processChunks(arrValues, arrIndexes):
     
-    arrValues = arrValues[~np.isnan(arrValues)] 
-    median = np.median(arrValues)			
-    										
-    mad = np.median(np.abs(arrValues-median))   
-    										
-    firstThreshold = median + (2*mad)
-    										
-    										
-    greaterThanMad = np.where(arrValues>firstThreshold)[0]
-    
-
-    arr = np.arange(arrValues.shape[0])
-    lowerThanMad = np.isin(arr, greaterThanMad, invert=True)
-    filteredOut = arrValues[np.where(lowerThanMad==True)[0]]
-    
-    filteredOutMedian = np.median(filteredOut)
-    filteredOutMad = np.median(np.abs(filteredOut-np.median(filteredOut)))
-    secondThreshold = filteredOutMedian+(3*filteredOutMad)
-
-    greaterThanThreshIndex = np.where(arrValues>secondThreshold)[0]
-    greaterThanThreshValues = arrValues[greaterThanThreshIndex]
-    temp = np.zeros(arrValues.shape[0])
-    temp[greaterThanThreshIndex] = greaterThanThreshValues
-    peaks = argrelextrema(temp, np.greater)[0]
-
-    firstThresholdY = np.full(arrValues.shape[0], firstThreshold)
-    secondThresholdY = np.full(arrValues.shape[0], secondThreshold)
+	arrValues = arrValues[~np.isnan(arrValues)] 
+	if arrValues.shape[0]==0:
+		print("zero length chunk")
+	median = np.median(arrValues)			
+											
+	mad = np.median(np.abs(arrValues-median))   
+											
+	firstThreshold = median + (2*mad)
+											
+											
+	greaterThanMad = np.where(arrValues>firstThreshold)[0]
 
 
-    newPeaks = np.full(arrValues.shape[0], np.nan)
-    newPeaks[peaks] = peaks + arrIndexes[0]
+	arr = np.arange(arrValues.shape[0])
+	lowerThanMad = np.isin(arr, greaterThanMad, invert=True)
+	filteredOut = arrValues[np.where(lowerThanMad==True)[0]]
 
-    #madY = np.full(arrValues.shape[0], mad)
-    medianY = np.full(arrValues.shape[0], median)
-    filteredOutMedianY = np.full(arrValues.shape[0], filteredOutMedian)
+	filteredOutMedian = np.median(filteredOut)
+	filteredOutMad = np.median(np.abs(filteredOut-np.median(filteredOut)))
+	secondThreshold = filteredOutMedian+(3*filteredOutMad)
 
-    return peaks, mad, filteredOutMad, medianY, filteredOutMedianY, firstThresholdY, secondThresholdY
+	greaterThanThreshIndex = np.where(arrValues>secondThreshold)[0]
+	greaterThanThreshValues = arrValues[greaterThanThreshIndex]
+	temp = np.zeros(arrValues.shape[0])
+	temp[greaterThanThreshIndex] = greaterThanThreshValues
+	peaks = argrelextrema(temp, np.greater)[0]
+
+	firstThresholdY = np.full(arrValues.shape[0], firstThreshold)
+	secondThresholdY = np.full(arrValues.shape[0], secondThreshold)
+
+
+	newPeaks = np.full(arrValues.shape[0], np.nan)
+	newPeaks[peaks] = peaks + arrIndexes[0]
+
+	#madY = np.full(arrValues.shape[0], mad)
+	medianY = np.full(arrValues.shape[0], median)
+	filteredOutMedianY = np.full(arrValues.shape[0], filteredOutMedian)
+
+	return peaks, mad, filteredOutMad, medianY, filteredOutMedianY, firstThresholdY, secondThresholdY
 
 
 
@@ -81,17 +83,17 @@ def createChunks(z_score, sampling_rate, window):
 		padded_z_score = z_score
 		z_score_index = np.arange(padded_z_score.shape[0])
 	else:
-	    padding = np.full(remainderPoints, np.nan)
-	    padded_z_score = np.concatenate((z_score, padding))
-	    z_score_index = np.arange(padded_z_score.shape[0])
+		padding = np.full(remainderPoints, np.nan)
+		padded_z_score = np.concatenate((z_score, padding))
+		z_score_index = np.arange(padded_z_score.shape[0])
 
 	reshape = padded_z_score.shape[0]/windowPoints
 
 	if reshape.is_integer()==True:
-	    z_score_chunks = padded_z_score.reshape(int(reshape), -1)
-	    z_score_chunks_index = z_score_index.reshape(int(reshape), -1)
+		z_score_chunks = padded_z_score.reshape(int(reshape), -1)
+		z_score_chunks_index = z_score_index.reshape(int(reshape), -1)
 	else:
-	    raise Exception('Reshaping values should be integer.')
+		raise Exception('Reshaping values should be integer.')
 
 	print('Chunks are created for multiprocessing.')
 	return z_score_chunks, z_score_chunks_index
@@ -104,11 +106,11 @@ def calculate_freq_amp(arr, z_score, z_score_chunks_index, timestamps):
 	peaksAmp = np.array([])
 	peaksInd = np.array([])
 	for i in range(z_score_chunks_index.shape[0]):
-	    count += peaks[i].shape[0]
-	    peaksIndexes = peaks[i]+z_score_chunks_index[i][0]
-	    peaksInd = np.concatenate((peaksInd, peaksIndexes))
-	    amps = z_score[peaksIndexes]-filteredOutMedian[i][0]
-	    peaksAmp = np.concatenate((peaksAmp, amps))
+		count += peaks[i].shape[0]
+		peaksIndexes = peaks[i]+z_score_chunks_index[i][0]
+		peaksInd = np.concatenate((peaksInd, peaksIndexes))
+		amps = z_score[peaksIndexes]-filteredOutMedian[i][0]
+		peaksAmp = np.concatenate((peaksAmp, amps))
 
 	peaksInd = peaksInd.ravel()
 	peaksInd = peaksInd.astype(int)
@@ -167,6 +169,8 @@ def findFreqAndAmp(filepath, inputParameters, window=15):
 		name_1 = basename.split('_')[-1]
 		sampling_rate = read_hdf5('timeCorrection_'+name_1, filepath, 'sampling_rate')[0]
 		z_score = read_hdf5('', path[i], 'data')
+		not_nan_indices = ~np.isnan(z_score)
+		z_score = z_score[not_nan_indices]
 		z_score_chunks, z_score_chunks_index = createChunks(z_score, sampling_rate, window)
 
 		#p = mp.Pool(mp.cpu_count())
@@ -177,6 +181,7 @@ def findFreqAndAmp(filepath, inputParameters, window=15):
 		
 		result = np.asarray(result, dtype=object)
 		ts = read_hdf5('timeCorrection_'+name_1, filepath, 'timestampNew')
+		ts = ts[not_nan_indices]
 		freq, peaksAmp, peaksInd = calculate_freq_amp(result, z_score, z_score_chunks_index, ts)
 		peaks_occurrences = np.array([ts[peaksInd], peaksAmp]).T
 		arr = np.array([[freq, np.mean(peaksAmp)]])

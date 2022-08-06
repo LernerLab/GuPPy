@@ -67,8 +67,8 @@ def decide_block_ts(filepath, storesList,
 
 	arr = []
 	for i in range(storesList.shape[0]):
-	    if 'control' in storesList[i].lower() or 'signal' in storesList[i].lower():
-	        arr.append(storesList[i].split('_')[-1])
+		if 'control' in storesList[i].lower() or 'signal' in storesList[i].lower():
+			arr.append(storesList[i].split('_')[-1])
 	arr = list(set(arr))
 
 	combine_ts = list()
@@ -86,7 +86,7 @@ def decide_block_ts(filepath, storesList,
 			block_change_ts.append(combine_ts[index])
 		else:
 			continue
-	
+
 	block_change_ts = [0.] + block_change_ts + [99999.]
 	new_storeslist, new_storenames = list(), list()
 	for i in range(storesList.shape[0]):
@@ -111,7 +111,7 @@ def decide_block_ts(filepath, storesList,
 					else:
 						continue
 
-	
+
 	for i in range(storesList.shape[0]):
 		if 'control' in storesList[i].lower() or 'signal' in storesList[i].lower():
 			new_storenames.append(storenames[i])
@@ -119,8 +119,8 @@ def decide_block_ts(filepath, storesList,
 		else:
 			continue	
 	np.savetxt(os.path.join(filepath, 'storesList.csv'), 
-			   np.array([new_storenames, new_storeslist]), 
-			   delimiter=",", fmt='%s')
+				np.array([new_storenames, new_storeslist]), 
+				delimiter=",", fmt='%s')
 	
 
 

@@ -18,19 +18,19 @@ plt.switch_backend('TKAgg')
 
 # find files by ignoring the case sensitivity
 def find_files(path, glob_path, ignore_case = False):
-    rule = re.compile(fnmatch.translate(glob_path), re.IGNORECASE) if ignore_case \
-            else re.compile(fnmatch.translate(glob_path))
+	rule = re.compile(fnmatch.translate(glob_path), re.IGNORECASE) if ignore_case \
+			else re.compile(fnmatch.translate(glob_path))
 
-    no_bytes_path = os.listdir(os.path.expanduser(path))
-    str_path = []
+	no_bytes_path = os.listdir(os.path.expanduser(path))
+	str_path = []
 
-    # converting byte object to string
-    for x in no_bytes_path:
-    	try:
-    		str_path.append(x.decode('utf-8'))
-    	except:
-    		str_path.append(x)
-    return [os.path.join(path,n) for n in str_path if rule.match(n)]
+	# converting byte object to string
+	for x in no_bytes_path:
+		try:
+			str_path.append(x.decode('utf-8'))
+		except:
+			str_path.append(x)
+	return [os.path.join(path,n) for n in str_path if rule.match(n)]
 
 
 # curve fit exponential function
@@ -204,8 +204,8 @@ def timestampCorrection_csv(filepath, timeForLightsTurnOn, storesList):
 	
 	arr = []
 	for i in range(storesList.shape[0]):
-	    if 'control' in storesList[i].lower() or 'signal' in storesList[i].lower():
-	        arr.append(storesList[i])
+		if 'control' in storesList[i].lower() or 'signal' in storesList[i].lower():
+			arr.append(storesList[i])
 
 	arr = sorted(arr, key=str.casefold)
 	try:
@@ -247,11 +247,11 @@ def timestampCorrection_tdt(filepath, timeForLightsTurnOn, storesList):
 	print("Correcting timestamps by getting rid of the first {} seconds and convert timestamps to seconds...".format(timeForLightsTurnOn))
 	storenames = storesList[0,:]
 	storesList = storesList[1,:]
-	
+
 	arr = []
 	for i in range(storesList.shape[0]):
-	    if 'control' in storesList[i].lower() or 'signal' in storesList[i].lower():
-	        arr.append(storesList[i])
+		if 'control' in storesList[i].lower() or 'signal' in storesList[i].lower():
+			arr.append(storesList[i])
 
 	arr = sorted(arr, key=str.casefold)
 
@@ -282,7 +282,7 @@ def timestampCorrection_tdt(filepath, timeForLightsTurnOn, storesList):
 			lengthAdder = adder.shape[0]
 			timestampNew = np.zeros((len(timestamps), lengthAdder))
 			for i in range(lengthAdder):
-			    timestampNew[:,i] = np.add(timestamps, adder[i])
+				timestampNew[:,i] = np.add(timestamps, adder[i])
 			timestampNew = (timestampNew.T).reshape(-1, order='F')
 			correctionIndex = np.where(timestampNew>=timeForLightsTurnOn)[0]
 			timestampNew = timestampNew[correctionIndex]
@@ -350,11 +350,11 @@ def decide_naming_convention_and_applyCorrection(filepath, timeForLightsTurnOn, 
 
 	print("Applying correction of timestamps to the data and event timestamps...")
 	storesList = storesList[1,:]
-	
+
 	arr = []
 	for i in range(storesList.shape[0]):
-	    if 'control' in storesList[i].lower() or 'signal' in storesList[i].lower():
-	        arr.append(storesList[i])
+		if 'control' in storesList[i].lower() or 'signal' in storesList[i].lower():
+			arr.append(storesList[i])
 
 	arr = sorted(arr, key=str.casefold)
 	arr = np.asarray(arr).reshape(2,-1)
@@ -634,6 +634,66 @@ def eliminateTs(filepath, timeForLightsTurnOn, event, sampling_rate, naming):
 	
 	return ts_arr
 
+def addingNaNValues(filepath, event, naming):
+	
+	ts = read_hdf5('timeCorrection_'+naming, filepath, 'timestampNew')
+	data = read_hdf5(event, filepath, 'data').reshape(-1)
+	coords = fetchCoords(filepath, naming, ts)
+
+	if (data==0).all()==True:
+		data = np.zeros(ts.shape[0])
+
+	arr = np.array([])
+	ts_index = np.arange(ts.shape[0])
+	for i in range(coords.shape[0]):
+
+		index = np.where((ts>coords[i,0]) & (ts<coords[i,1]))[0]
+		arr = np.concatenate((arr, index))
+	
+	nan_indices = list(set(ts_index).symmetric_difference(arr))
+	data[nan_indices] = np.nan
+
+	return data
+
+def removeTTLs(filepath, event, naming):
+	tsNew = read_hdf5('timeCorrection_'+naming, filepath, 'timestampNew')
+	ts = read_hdf5(event+'_'+naming, filepath, 'ts').reshape(-1)
+	coords = fetchCoords(filepath, naming, tsNew)
+
+	ts_arr = np.array([])
+	for i in range(coords.shape[0]):
+		ts_index = np.where((ts>coords[i,0]) & (ts<coords[i,1]))[0]
+		ts_arr = np.concatenate((ts_arr, ts[ts_index]))
+	
+	return ts_arr
+
+def addingNaNtoChunksWithArtifacts(filepath, events):
+	print("Updating values of chunks with artifacts by NaN values.")
+	storesList = events[1,:]
+
+	path = decide_naming_convention(filepath)
+
+	for j in range(path.shape[1]):
+		name_1 = ((os.path.basename(path[0,j])).split('.')[0]).split('_')
+		name_2 = ((os.path.basename(path[1,j])).split('.')[0]).split('_')
+		#dirname = os.path.dirname(path[i])
+		if name_1[-1]==name_2[-1]:
+			name = name_1[-1]
+			sampling_rate = read_hdf5('timeCorrection_'+name, filepath, 'sampling_rate')[0]
+			for i in range(len(storesList)):
+				if 'control_'+name.lower() in storesList[i].lower() or 'signal_'+name.lower() in storesList[i].lower():       # changes done
+					data = addingNaNValues(filepath, storesList[i], name)
+					write_hdf5(data, storesList[i], filepath, 'data')
+				else:
+					if 'control' in storesList[i].lower() or 'signal' in storesList[i].lower():
+						continue
+					else:
+						ts = removeTTLs(filepath, storesList[i], name)
+						write_hdf5(ts, storesList[i]+'_'+name, filepath, 'ts')
+				
+		else:
+			raise Exception('Error in naming convention of files or Error in storesList file')
+ 
 # main function to align timestamps for control, signal and event timestamps for artifacts removal
 def processTimestampsForArtifacts(filepath, timeForLightsTurnOn, events):
 
@@ -751,7 +811,9 @@ def helper_z_score(control, signal, filepath, name, inputParameters):     #helpe
 	if (control==0).all()==True:
 		control = np.zeros(tsNew.shape[0])
 	
-	z_score_arr, norm_data_arr, control_fit_arr = np.array([]), np.array([]), np.array([])
+	z_score_arr = np.array([])
+	norm_data_arr = np.full(tsNew.shape[0], np.nan)
+	control_fit_arr = np.full(tsNew.shape[0], np.nan)
 	temp_control_arr = np.array([])
 
 	if removeArtifacts==True:
@@ -775,21 +837,22 @@ def helper_z_score(control, signal, filepath, name, inputParameters):     #helpe
 				signal_arr = signal[tsNew_index]
 				norm_data, control_fit = execute_controlFit_dff(control_arr, signal_arr, 
 					    									    isosbestic_control, filter_window)
-			norm_data_arr = np.concatenate((norm_data_arr, norm_data))
-			control_fit_arr = np.concatenate((control_fit_arr, control_fit))
+			norm_data_arr[tsNew_index] = norm_data #np.concatenate((norm_data_arr, norm_data))
+			control_fit_arr[tsNew_index] = control_fit #np.concatenate((control_fit_arr, control_fit))
 
 		#res = np.subtract(norm_data_arr, np.nanmean(norm_data_arr))
 		z_score = z_score_computation(norm_data_arr, tsNew, inputParameters)
 		z_score_arr = np.concatenate((z_score_arr, z_score))
 			
 	else:
+		tsNew_index = np.arange(tsNew.shape[0])
 		norm_data, control_fit = execute_controlFit_dff(control, signal, 
 														isosbestic_control, filter_window)
 		#res = np.subtract(norm_data, np.nanmean(norm_data))
 		z_score = z_score_computation(norm_data, tsNew, inputParameters)
 		z_score_arr = np.concatenate((z_score_arr, z_score))
-		norm_data_arr = np.concatenate((norm_data_arr, norm_data))
-		control_fit_arr = np.concatenate((control_fit_arr, control_fit))
+		norm_data_arr[tsNew_index] = norm_data #np.concatenate((norm_data_arr, norm_data))
+		control_fit_arr[tsNew_index] = control_fit #np.concatenate((control_fit_arr, control_fit))
 
 	# handle the case if there are chunks being cut in the front and the end
 	if isosbestic_control==False and removeArtifacts==True:
@@ -985,7 +1048,8 @@ def execute_zscore(folderNames, inputParameters):
 		if remove_artifacts==True:
 			print("Removing Artifacts from the data and correcting timestamps...")
 			compute_z_score(filepath, inputParameters)
-			processTimestampsForArtifacts(filepath, timeForLightsTurnOn, storesList)
+			#processTimestampsForArtifacts(filepath, timeForLightsTurnOn, storesList)
+			addingNaNtoChunksWithArtifacts(filepath, storesList)
 			visualizeControlAndSignal(filepath, remove_artifacts)
 			print("Artifacts from the data are removed and timestamps are corrected.")
 		else:

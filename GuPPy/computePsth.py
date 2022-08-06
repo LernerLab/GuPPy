@@ -137,18 +137,18 @@ def read_Df(filepath, event, name):
 def rowFormation(z_score, thisIndex, nTsPrev, nTsPost):
     
 	if nTsPrev<thisIndex and z_score.shape[0]>(thisIndex+nTsPost):
-	    res = z_score[thisIndex-nTsPrev-1:thisIndex+nTsPost]
+		res = z_score[thisIndex-nTsPrev-1:thisIndex+nTsPost]
 	elif nTsPrev>=thisIndex and z_score.shape[0]>(thisIndex+nTsPost):
-	    mismatch = nTsPrev-thisIndex+1
-	    res = np.zeros(nTsPrev+nTsPost+1)
-	    res[:mismatch] = np.nan
-	    res[mismatch:] = z_score[:thisIndex+nTsPost]
+		mismatch = nTsPrev-thisIndex+1
+		res = np.zeros(nTsPrev+nTsPost+1)
+		res[:mismatch] = np.nan
+		res[mismatch:] = z_score[:thisIndex+nTsPost]
 	else:
-	    mismatch = (thisIndex+nTsPost)-z_score.shape[0]
-	    res1 = np.zeros(mismatch)
-	    res1[:] = np.nan
-	    res2 = z_score[thisIndex-nTsPrev-1:z_score.shape[0]]
-	    res = np.concatenate((res2, res1))
+		mismatch = (thisIndex+nTsPost)-z_score.shape[0]
+		res1 = np.zeros(mismatch)
+		res1[:] = np.nan
+		res2 = z_score[thisIndex-nTsPrev-1:z_score.shape[0]]
+		res = np.concatenate((res2, res1))
 
 	return res
 
@@ -508,8 +508,8 @@ def averageForGroup(folderNames, event, inputParameters):
 			cols_err = list(df_bins_err.columns)
 			dict_err = {}
 			for i in cols_err:
-			    split = i.split('_')
-			    dict_err[i] = '{}_err_{}'.format(split[0], split[1])
+				split = i.split('_')
+				dict_err[i] = '{}_err_{}'.format(split[0], split[1])
 			df_bins_err = df_bins_err.rename(columns=dict_err)
 			columns = columns + list(df_bins_mean.columns) + list(df_bins_err.columns)
 			df_bins_mean_err = pd.concat([df_bins_mean, df_bins_err], axis=1).T
