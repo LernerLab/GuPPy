@@ -181,10 +181,10 @@ def readtev(data, filepath, event, outputPath):
 
 	index = []
 	for i in range(len(allnames)):
-	    length = len(np.str(allnames[i]))
-	    if length<4:
-	        index.append(i)
-	
+		length = len(np.str(allnames[i]))
+		if length<4:
+			index.append(i)
+
 
 	allnames = np.delete(allnames, index, 0)
 	
@@ -197,14 +197,14 @@ def readtev(data, filepath, event, outputPath):
 
 
 	if sum(row)==0:
-	    print("\033[1m"+"Requested store name "+event+" not found (case-sensitive)."+"\033[0m")
-	    print("\033[1m"+"File contains the following TDT store names:"+"\033[0m")
-	    print("\033[1m"+str(allnames)+"\033[0m")
-	    print("\033[1m"+"TDT store name "+str(event)+" not found."+"\033[0m")
-	    import_csv(filepath, event, outputPath)
+		print("\033[1m"+"Requested store name "+event+" not found (case-sensitive)."+"\033[0m")
+		print("\033[1m"+"File contains the following TDT store names:"+"\033[0m")
+		print("\033[1m"+str(allnames)+"\033[0m")
+		print("\033[1m"+"TDT store name "+str(event)+" not found."+"\033[0m")
+		import_csv(filepath, event, outputPath)
 
-	    return 0
-	    
+		return 0
+		
 	allIndexesWhereEventIsPresent = np.where(row==1)
 	first_row = allIndexesWhereEventIsPresent[0][0]
 
@@ -231,10 +231,10 @@ def readtev(data, filepath, event, outputPath):
 		nsample = (data_size[first_row,]-10)*int(table[formatNew, 2])
 		S['data'] = np.zeros((len(fp_loc), nsample))
 		for i in range(0, len(fp_loc)):
-		    with open(tevfilepath, 'rb') as fp:
-		        fp.seek(fp_loc[i], os.SEEK_SET)
-		        S['data'][i,:] = np.fromfile(fp, dtype=table[formatNew, 3], count=nsample).reshape(1, nsample, order='F')
-		        #S['data'] = S['data'].swapaxes()
+			with open(tevfilepath, 'rb') as fp:
+				fp.seek(fp_loc[i], os.SEEK_SET)
+				S['data'][i,:] = np.fromfile(fp, dtype=table[formatNew, 3], count=nsample).reshape(1, nsample, order='F')
+				#S['data'] = S['data'].swapaxes()
 		S['npoints'] = nsample
 	else:
 		S['data'] = np.asarray(data['strobe'][allIndexesWhereEventIsPresent[0]])
@@ -256,7 +256,7 @@ def execute_readtev(data, filepath, event, outputPath):
 
 	start = time.time()
 	with mp.Pool(mp.cpu_count()) as p:
-	    p.starmap(readtev, zip(repeat(data), repeat(filepath), event, repeat(outputPath)))
+		p.starmap(readtev, zip(repeat(data), repeat(filepath), event, repeat(outputPath)))
 	#p = mp.Pool(mp.cpu_count())
 	#p.starmap(readtev, zip(repeat(data), repeat(filepath), event, repeat(outputPath)))
 	#p.close()

@@ -92,13 +92,14 @@ def create_Df(filepath, event, name, psth, columns=[]):
 	#	return 0
 
 	# removing psth binned trials
-	columns = list(np.array(columns, dtype='str'))
-	regex = re.compile('bin_*')
-	single_trials_index = [i for i in range(len(columns)) if not regex.match(columns[i])]
-	single_trials_index = [i for i in range(len(columns)) if columns[i]!='timestamps']
+	columns = np.array(columns, dtype='str')
+	regex = re.compile('bin_*') 
+	single_trials = columns[[i for i in range(len(columns)) if not regex.match(columns[i])]]
+	single_trials_index = [i for i in range(len(single_trials)) if single_trials[i]!='timestamps']
 
 	psth = psth.T
 	if psth.ndim > 1:
+		print(single_trials_index, np.array(columns)[single_trials_index])
 		mean = np.nanmean(psth[:,single_trials_index], axis=1).reshape(-1,1)
 		err = np.nanstd(psth[:,single_trials_index], axis=1)/math.sqrt(psth[:,single_trials_index].shape[1])
 		err = err.reshape(-1,1)
@@ -117,7 +118,7 @@ def create_Df(filepath, event, name, psth, columns=[]):
 	else:
 		columns = np.asarray(columns)
 		columns = np.append(columns, ['mean', 'err'])
-		df = pd.DataFrame(psth, index=None, columns=columns, dtype='float32')
+		df = pd.DataFrame(psth, index=None, columns=list(columns), dtype='float32')
 
 	df.to_hdf(op, key='df', mode='w')
 
@@ -137,18 +138,18 @@ def read_Df(filepath, event, name):
 def rowFormation(z_score, thisIndex, nTsPrev, nTsPost):
     
 	if nTsPrev<thisIndex and z_score.shape[0]>(thisIndex+nTsPost):
-	    res = z_score[thisIndex-nTsPrev-1:thisIndex+nTsPost]
+		res = z_score[thisIndex-nTsPrev-1:thisIndex+nTsPost]
 	elif nTsPrev>=thisIndex and z_score.shape[0]>(thisIndex+nTsPost):
-	    mismatch = nTsPrev-thisIndex+1
-	    res = np.zeros(nTsPrev+nTsPost+1)
-	    res[:mismatch] = np.nan
-	    res[mismatch:] = z_score[:thisIndex+nTsPost]
+		mismatch = nTsPrev-thisIndex+1
+		res = np.zeros(nTsPrev+nTsPost+1)
+		res[:mismatch] = np.nan
+		res[mismatch:] = z_score[:thisIndex+nTsPost]
 	else:
-	    mismatch = (thisIndex+nTsPost)-z_score.shape[0]
-	    res1 = np.zeros(mismatch)
-	    res1[:] = np.nan
-	    res2 = z_score[thisIndex-nTsPrev-1:z_score.shape[0]]
-	    res = np.concatenate((res2, res1))
+		mismatch = (thisIndex+nTsPost)-z_score.shape[0]
+		res1 = np.zeros(mismatch)
+		res1[:] = np.nan
+		res2 = z_score[thisIndex-nTsPrev-1:z_score.shape[0]]
+		res = np.concatenate((res2, res1))
 
 	return res
 
@@ -510,8 +511,8 @@ def averageForGroup(folderNames, event, inputParameters):
 			cols_err = list(df_bins_err.columns)
 			dict_err = {}
 			for i in cols_err:
-			    split = i.split('_')
-			    dict_err[i] = '{}_err_{}'.format(split[0], split[1])
+				split = i.split('_')
+				dict_err[i] = '{}_err_{}'.format(split[0], split[1])
 			df_bins_err = df_bins_err.rename(columns=dict_err)
 			columns = columns + list(df_bins_mean.columns) + list(df_bins_err.columns)
 			df_bins_mean_err = pd.concat([df_bins_mean, df_bins_err], axis=1).T

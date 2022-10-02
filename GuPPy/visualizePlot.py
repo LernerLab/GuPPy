@@ -72,16 +72,16 @@ def helper_plots(filepath, event, name, inputParameters):
 		event_name, name = event, name
 		new_event, frames, bins = [], [], {}
 		for i in range(len(event_name)):
-		    
-		    for j in range(len(name)):
-		        new_event.append(event_name[i]+'_'+name[j].split('_')[-1])
-		        new_name = name[j]
-		        temp_df = read_Df(filepath, new_event[-1], new_name)
-		        cols = list(temp_df.columns)
-		        regex = re.compile('bin_[(]')
-		        bins[new_event[-1]] = [cols[i] for i in range(len(cols)) if regex.match(cols[i])]
-		        #bins.append(keep_cols)
-		        frames.append(temp_df)
+			
+			for j in range(len(name)):
+				new_event.append(event_name[i]+'_'+name[j].split('_')[-1])
+				new_name = name[j]
+				temp_df = read_Df(filepath, new_event[-1], new_name)
+				cols = list(temp_df.columns)
+				regex = re.compile('bin_[(]')
+				bins[new_event[-1]] = [cols[i] for i in range(len(cols)) if regex.match(cols[i])]
+				#bins.append(keep_cols)
+				frames.append(temp_df)
 
 		df = pd.concat(frames, keys=new_event, axis=1)
 	else:
@@ -98,12 +98,12 @@ def helper_plots(filepath, event, name, inputParameters):
 
 	columns_dict = dict()
 	for i in range(len(new_event)):
-	    df_1 = df[new_event[i]]
-	    columns = list(df_1.columns)
-	    columns.append('All')
-	    columns_dict[new_event[i]] = columns
+		df_1 = df[new_event[i]]
+		columns = list(df_1.columns)
+		columns.append('All')
+		columns_dict[new_event[i]] = columns
 
-	
+
 	# create a class to make GUI and plot different graphs
 	class Viewer(param.Parameterized):
 
@@ -223,12 +223,12 @@ def helper_plots(filepath, event, name, inputParameters):
 		# function to change Y values based on event selection
 		@param.depends('event_selector', watch=True)
 		def _update_x_y(self):
-		    x_value = self.columns[self.event_selector]
-		    y_value = self.columns[self.event_selector]
-		    self.param['x'].objects = [x_value[-4]]
-		    self.param['y'].objects = remove_cols(y_value)
-		    self.x = x_value[-4]
-		    self.y = self.param['y'].objects[-2]
+			x_value = self.columns[self.event_selector]
+			y_value = self.columns[self.event_selector]
+			self.param['x'].objects = [x_value[-4]]
+			self.param['y'].objects = remove_cols(y_value)
+			self.x = x_value[-4]
+			self.y = self.param['y'].objects[-2]
 
 		@param.depends('event_selector_heatmap', watch=True)
 		def _update_df(self):
@@ -246,7 +246,7 @@ def helper_plots(filepath, event, name, inputParameters):
 			self.param['psth_y'].objects = trial_ts
 			self.psth_y = [trial_ts[0]]
 
-	    # function to plot multiple PSTHs into one plot
+		# function to plot multiple PSTHs into one plot
 		@param.depends('selector_for_multipe_events_plot', 'Y_Label', 'save_options', 'X_Limit', 'Y_Limit', 'Height_Plot', 'Width_Plot')
 		def update_selector(self):
 			data_curve, cols_curve, data_spread, cols_spread = [], [], [], []
@@ -263,10 +263,10 @@ def helper_plots(filepath, event, name, inputParameters):
 					data_spread.append(df1[df_name][col_name_err])
 					cols_spread.append(arr[i])
 				else:
-				    data_curve.append(df1[arr[i]]['mean'])
-				    cols_curve.append(arr[i]+'_'+'mean')
-				    data_spread.append(df1[arr[i]]['err'])
-				    cols_spread.append(arr[i]+'_'+'mean')
+					data_curve.append(df1[arr[i]]['mean'])
+					cols_curve.append(arr[i]+'_'+'mean')
+					data_spread.append(df1[arr[i]]['err'])
+					cols_spread.append(arr[i]+'_'+'mean')
 
 			
 
@@ -363,7 +363,7 @@ def helper_plots(filepath, event, name, inputParameters):
 				plot_curve = hv.Curve((xpoints[index], ypoints[index]))  #.opts(**ropts_curve)
 				plot_spread = hv.Spread((xpoints[index], ypoints[index], err[index], err[index]))  #.opts(**ropts_spread) #vdims=['y', 'yerrpos', 'yerrneg']
 				plot = (plot_curve * plot_spread).opts({'Curve': ropts_curve, 
-										   'Spread': ropts_spread})
+											'Spread': ropts_spread})
 
 				save_opts = self.save_options
 				op = make_dir(filepath)
@@ -419,7 +419,7 @@ def helper_plots(filepath, event, name, inputParameters):
 				plot_curve = hv.Curve((df_psth['timestamps'][index], mean[index]))  
 				plot_spread = hv.Spread((df_psth['timestamps'][index], mean[index], err[index], err[index]))
 				plot = (plot_curve * plot_spread).opts({'Curve': ropts_curve, 
-										   'Spread': ropts_spread})
+											'Spread': ropts_spread})
 				return plot
 			elif self.select_trials_checkbox==['mean', 'just trials']:
 				overlay = hv.NdOverlay({c:hv.Curve((df_psth['timestamps'][index], df_psth[c][index]), kdims=['Time (s)']) for c in selected_trials})
@@ -434,7 +434,7 @@ def helper_plots(filepath, event, name, inputParameters):
 				plot_spread = hv.Spread((df_psth['timestamps'][index], mean[index], err[index], err[index]))
 
 				plot = (plot_curve*plot_spread).opts({'Curve': ropts_curve, 
-										   			  'Spread': ropts_spread})
+														'Spread': ropts_spread})
 				return overlay.opts(**ropts_overlay)*plot
 
 
@@ -505,25 +505,25 @@ def helper_plots(filepath, event, name, inputParameters):
 		'select_trials_checkbox': {'type': pn.widgets.CheckBoxGroup, 'inline': True, 
 									'name': 'Select mean and/or just trials'}})
 	parameters = pn.Param(view.param.selector_for_multipe_events_plot, widgets={
-	    'selector_for_multipe_events_plot': {'type': pn.widgets.CrossSelector, 'width':550, 'align':'start'}})
+		'selector_for_multipe_events_plot': {'type': pn.widgets.CrossSelector, 'width':550, 'align':'start'}})
 	heatmap_y_parameters = pn.Param(view.param.heatmap_y, widgets={
 		'heatmap_y': {'type':pn.widgets.MultiSelect, 'name':'Trial # - Timestamps', 'width':200, 'size':30}})
 	psth_y_parameters = pn.Param(view.param.psth_y, widgets={
 		'psth_y': {'type':pn.widgets.MultiSelect, 'name':'Trial # - Timestamps', 'width':200, 'size':15, 'align':'start'}})
 
 	options = pn.Column(view.param.event_selector, 
-		                pn.Row(view.param.x, view.param.y, width=400), 
+						pn.Row(view.param.x, view.param.y, width=400), 
 						pn.Row(view.param.X_Limit, view.param.Y_Limit, width=400),
 						pn.Row(view.param.Width_Plot, view.param.Height_Plot, view.param.Y_Label, view.param.save_options, width=400), 
-					    view.param.save_psth)
-	
+						view.param.save_psth)
+
 	options_selectors = pn.Row(options, parameters, width=1050)
 
 	line_tab = pn.Column('## '+basename, 
-		 				 pn.Row(options_selectors, pn.Column(psth_checkbox, psth_y_parameters), width=1200), 
-	                	 view.contPlot, 
-	                	 view.update_selector, 
-	                	 view.plot_specific_trials)
+							pn.Row(options_selectors, pn.Column(psth_checkbox, psth_y_parameters), width=1200), 
+							view.contPlot, 
+							view.update_selector, 
+							view.plot_specific_trials)
 
 	hm_tab = pn.Column('## '+basename, pn.Row(view.param.event_selector_heatmap, view.param.color_map, 
 											view.param.save_options_heatmap, 
@@ -533,14 +533,14 @@ def helper_plots(filepath, event, name, inputParameters):
 	print('app')
 
 	template = pn.template.MaterialTemplate(title='Visualization GUI')
-	
+
 	number = randint(5000,5200)
-	
+
 	app = pn.Tabs(('PSTH', line_tab), 
-				   ('Heat Map', hm_tab))
-	
+					('Heat Map', hm_tab))
+
 	template.main.append(app)
-	
+
 	template.show(port=number)
 
 

@@ -81,17 +81,17 @@ def createChunks(z_score, sampling_rate, window):
 		padded_z_score = z_score
 		z_score_index = np.arange(padded_z_score.shape[0])
 	else:
-	    padding = np.full(remainderPoints, np.nan)
-	    padded_z_score = np.concatenate((z_score, padding))
-	    z_score_index = np.arange(padded_z_score.shape[0])
+		padding = np.full(remainderPoints, np.nan)
+		padded_z_score = np.concatenate((z_score, padding))
+		z_score_index = np.arange(padded_z_score.shape[0])
 
 	reshape = padded_z_score.shape[0]/windowPoints
 
 	if reshape.is_integer()==True:
-	    z_score_chunks = padded_z_score.reshape(int(reshape), -1)
-	    z_score_chunks_index = z_score_index.reshape(int(reshape), -1)
+		z_score_chunks = padded_z_score.reshape(int(reshape), -1)
+		z_score_chunks_index = z_score_index.reshape(int(reshape), -1)
 	else:
-	    raise Exception('Reshaping values should be integer.')
+		raise Exception('Reshaping values should be integer.')
 
 	print('Chunks are created for multiprocessing.')
 	return z_score_chunks, z_score_chunks_index
@@ -104,11 +104,11 @@ def calculate_freq_amp(arr, z_score, z_score_chunks_index, timestamps):
 	peaksAmp = np.array([])
 	peaksInd = np.array([])
 	for i in range(z_score_chunks_index.shape[0]):
-	    count += peaks[i].shape[0]
-	    peaksIndexes = peaks[i]+z_score_chunks_index[i][0]
-	    peaksInd = np.concatenate((peaksInd, peaksIndexes))
-	    amps = z_score[peaksIndexes]-filteredOutMedian[i][0]
-	    peaksAmp = np.concatenate((peaksAmp, amps))
+		count += peaks[i].shape[0]
+		peaksIndexes = peaks[i]+z_score_chunks_index[i][0]
+		peaksInd = np.concatenate((peaksInd, peaksIndexes))
+		amps = z_score[peaksIndexes]-filteredOutMedian[i][0]
+		peaksAmp = np.concatenate((peaksAmp, amps))
 
 	peaksInd = peaksInd.ravel()
 	peaksInd = peaksInd.astype(int)
