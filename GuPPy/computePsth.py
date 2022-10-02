@@ -92,10 +92,10 @@ def create_Df(filepath, event, name, psth, columns=[]):
 	#	return 0
 
 	# removing psth binned trials
-	columns = list(np.array(columns, dtype='str'))
+	columns = np.array(columns, dtype='str')
 	regex = re.compile('bin_*')
-	single_trials_index = [i for i in range(len(columns)) if not regex.match(columns[i])]
-	single_trials_index = [i for i in range(len(columns)) if columns[i]!='timestamps']
+	single_trials = columns[[i for i in range(len(columns)) if not regex.match(columns[i])]]
+	single_trials_index = [i for i in range(len(single_trials)) if single_trials[i]!='timestamps']
 
 	psth = psth.T
 	if psth.ndim > 1:
@@ -117,7 +117,7 @@ def create_Df(filepath, event, name, psth, columns=[]):
 	else:
 		columns = np.asarray(columns)
 		columns = np.append(columns, ['mean', 'err'])
-		df = pd.DataFrame(psth, index=None, columns=columns, dtype='float32')
+		df = pd.DataFrame(psth, index=None, columns=list(columns), dtype='float32')
 
 	df.to_hdf(op, key='df', mode='w')
 
