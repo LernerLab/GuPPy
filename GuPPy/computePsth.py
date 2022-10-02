@@ -99,7 +99,6 @@ def create_Df(filepath, event, name, psth, columns=[]):
 
 	psth = psth.T
 	if psth.ndim > 1:
-		print(single_trials_index, np.array(columns)[single_trials_index])
 		mean = np.nanmean(psth[:,single_trials_index], axis=1).reshape(-1,1)
 		err = np.nanstd(psth[:,single_trials_index], axis=1)/math.sqrt(psth[:,single_trials_index].shape[1])
 		err = err.reshape(-1,1)
