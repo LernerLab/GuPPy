@@ -137,18 +137,18 @@ def read_Df(filepath, event, name):
 def rowFormation(z_score, thisIndex, nTsPrev, nTsPost):
     
 	if nTsPrev<thisIndex and z_score.shape[0]>(thisIndex+nTsPost):
-	    res = z_score[thisIndex-nTsPrev-1:thisIndex+nTsPost]
+		res = z_score[thisIndex-nTsPrev-1:thisIndex+nTsPost]
 	elif nTsPrev>=thisIndex and z_score.shape[0]>(thisIndex+nTsPost):
-	    mismatch = nTsPrev-thisIndex+1
-	    res = np.zeros(nTsPrev+nTsPost+1)
-	    res[:mismatch] = np.nan
-	    res[mismatch:] = z_score[:thisIndex+nTsPost]
+		mismatch = nTsPrev-thisIndex+1
+		res = np.zeros(nTsPrev+nTsPost+1)
+		res[:mismatch] = np.nan
+		res[mismatch:] = z_score[:thisIndex+nTsPost]
 	else:
-	    mismatch = (thisIndex+nTsPost)-z_score.shape[0]
-	    res1 = np.zeros(mismatch)
-	    res1[:] = np.nan
-	    res2 = z_score[thisIndex-nTsPrev-1:z_score.shape[0]]
-	    res = np.concatenate((res2, res1))
+		mismatch = (thisIndex+nTsPost)-z_score.shape[0]
+		res1 = np.zeros(mismatch)
+		res1[:] = np.nan
+		res2 = z_score[thisIndex-nTsPrev-1:z_score.shape[0]]
+		res = np.concatenate((res2, res1))
 
 	return res
 
@@ -473,7 +473,7 @@ def averageForGroup(folderNames, event, inputParameters):
 	# processing of all the paths
 	path_temp_len = np.asarray(path_temp_len)
 	max_len = np.argmax(path_temp_len)
-	
+
 	naming = []
 	for i in range(len(path)):
 		naming.append(path[i][2])
@@ -510,8 +510,8 @@ def averageForGroup(folderNames, event, inputParameters):
 			cols_err = list(df_bins_err.columns)
 			dict_err = {}
 			for i in cols_err:
-			    split = i.split('_')
-			    dict_err[i] = '{}_err_{}'.format(split[0], split[1])
+				split = i.split('_')
+				dict_err[i] = '{}_err_{}'.format(split[0], split[1])
 			df_bins_err = df_bins_err.rename(columns=dict_err)
 			columns = columns + list(df_bins_mean.columns) + list(df_bins_err.columns)
 			df_bins_mean_err = pd.concat([df_bins_mean, df_bins_err], axis=1).T
@@ -548,12 +548,12 @@ def averageForGroup(folderNames, event, inputParameters):
 	print("Group of data averaged.")
 
 
-def psthForEachStorename(inputParametersPath):
+def psthForEachStorename(inputParameters):
 
 	print("Computing PSTH, Peak and Area for each event...")
 
-	with open(inputParametersPath) as f:	
-		inputParameters = json.load(f)
+		
+	inputParameters = inputParameters
 
 
 	#storesList = np.genfromtxt(inputParameters['storesListPath'], dtype='str', delimiter=',')
@@ -562,6 +562,9 @@ def psthForEachStorename(inputParametersPath):
 	folderNamesForAvg = inputParameters['folderNamesForAvg']
 	average = inputParameters['averageForGroup']
 	combine_data = inputParameters['combine_data']
+	numProcesses = inputParameters['numberOfCores']
+	if numProcesses==0:
+		numProcesses = mp.cpu_count()
 
 	print("Average for group : ", average)
 
@@ -614,10 +617,10 @@ def psthForEachStorename(inputParametersPath):
 					filepath = storesListPath[j]
 					storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',')
 
-					with mp.Pool(mp.cpu_count()) as p:
+					with mp.Pool(numProcesses) as p:
 						p.starmap(storenamePsth, zip(repeat(filepath), storesList[1,:], repeat(inputParameters)))
 
-					with mp.Pool(mp.cpu_count()) as pq:
+					with mp.Pool(numProcesses) as pq:
 						pq.starmap(findPSTHPeakAndArea, zip(repeat(filepath), storesList[1,:], repeat(inputParameters)))
 
 					#for k in range(storesList.shape[1]):
@@ -628,5 +631,5 @@ def psthForEachStorename(inputParametersPath):
 	print("PSTH, Area and Peak are computed for all events.")
 
 if __name__ == "__main__":
-	psthForEachStorename(sys.argv[1:][0])
+	psthForEachStorename(json.loads(sys.argv[1]))
 

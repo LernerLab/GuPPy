@@ -18,19 +18,19 @@ plt.switch_backend('TKAgg')
 
 # find files by ignoring the case sensitivity
 def find_files(path, glob_path, ignore_case = False):
-    rule = re.compile(fnmatch.translate(glob_path), re.IGNORECASE) if ignore_case \
-            else re.compile(fnmatch.translate(glob_path))
+	rule = re.compile(fnmatch.translate(glob_path), re.IGNORECASE) if ignore_case \
+			else re.compile(fnmatch.translate(glob_path))
 
-    no_bytes_path = os.listdir(os.path.expanduser(path))
-    str_path = []
+	no_bytes_path = os.listdir(os.path.expanduser(path))
+	str_path = []
 
-    # converting byte object to string
-    for x in no_bytes_path:
-    	try:
-    		str_path.append(x.decode('utf-8'))
-    	except:
-    		str_path.append(x)
-    return [os.path.join(path,n) for n in str_path if rule.match(n)]
+	# converting byte object to string
+	for x in no_bytes_path:
+		try:
+			str_path.append(x.decode('utf-8'))
+		except:
+			str_path.append(x)
+	return [os.path.join(path,n) for n in str_path if rule.match(n)]
 
 
 # curve fit exponential function
@@ -201,11 +201,11 @@ def timestampCorrection_csv(filepath, timeForLightsTurnOn, storesList):
 	print("Correcting timestamps by getting rid of the first {} seconds and convert timestamps to seconds...".format(timeForLightsTurnOn))
 	storenames = storesList[0,:]
 	storesList = storesList[1,:]
-	
+
 	arr = []
 	for i in range(storesList.shape[0]):
-	    if 'control' in storesList[i].lower() or 'signal' in storesList[i].lower():
-	        arr.append(storesList[i])
+		if 'control' in storesList[i].lower() or 'signal' in storesList[i].lower():
+			arr.append(storesList[i])
 
 	arr = sorted(arr, key=str.casefold)
 	try:
@@ -247,11 +247,11 @@ def timestampCorrection_tdt(filepath, timeForLightsTurnOn, storesList):
 	print("Correcting timestamps by getting rid of the first {} seconds and convert timestamps to seconds...".format(timeForLightsTurnOn))
 	storenames = storesList[0,:]
 	storesList = storesList[1,:]
-	
+
 	arr = []
 	for i in range(storesList.shape[0]):
-	    if 'control' in storesList[i].lower() or 'signal' in storesList[i].lower():
-	        arr.append(storesList[i])
+		if 'control' in storesList[i].lower() or 'signal' in storesList[i].lower():
+			arr.append(storesList[i])
 
 	arr = sorted(arr, key=str.casefold)
 
@@ -282,7 +282,7 @@ def timestampCorrection_tdt(filepath, timeForLightsTurnOn, storesList):
 			lengthAdder = adder.shape[0]
 			timestampNew = np.zeros((len(timestamps), lengthAdder))
 			for i in range(lengthAdder):
-			    timestampNew[:,i] = np.add(timestamps, adder[i])
+				timestampNew[:,i] = np.add(timestamps, adder[i])
 			timestampNew = (timestampNew.T).reshape(-1, order='F')
 			correctionIndex = np.where(timestampNew>=timeForLightsTurnOn)[0]
 			timestampNew = timestampNew[correctionIndex]
@@ -346,11 +346,11 @@ def decide_naming_convention_and_applyCorrection(filepath, timeForLightsTurnOn, 
 
 	print("Applying correction of timestamps to the data and event timestamps...")
 	storesList = storesList[1,:]
-	
+
 	arr = []
 	for i in range(storesList.shape[0]):
-	    if 'control' in storesList[i].lower() or 'signal' in storesList[i].lower():
-	        arr.append(storesList[i])
+		if 'control' in storesList[i].lower() or 'signal' in storesList[i].lower():
+			arr.append(storesList[i])
 
 	arr = sorted(arr, key=str.casefold)
 	arr = np.asarray(arr).reshape(2,-1)
@@ -1000,12 +1000,11 @@ def execute_zscore(folderNames, inputParameters):
 	print("Signal data and event timestamps are extracted.")
 
 
-def extractTsAndSignal(inputParametersPath):
+def extractTsAndSignal(inputParameters):
 
 	print("Extracting signal data and event timestamps...")
 
-	with open(inputParametersPath) as f:	
-		inputParameters = json.load(f)
+	inputParameters = inputParameters
 
 	#storesList = np.genfromtxt(inputParameters['storesListPath'], dtype='str', delimiter=',')
 

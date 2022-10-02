@@ -81,17 +81,17 @@ def createChunks(z_score, sampling_rate, window):
 		padded_z_score = z_score
 		z_score_index = np.arange(padded_z_score.shape[0])
 	else:
-	    padding = np.full(remainderPoints, np.nan)
-	    padded_z_score = np.concatenate((z_score, padding))
-	    z_score_index = np.arange(padded_z_score.shape[0])
+		padding = np.full(remainderPoints, np.nan)
+		padded_z_score = np.concatenate((z_score, padding))
+		z_score_index = np.arange(padded_z_score.shape[0])
 
 	reshape = padded_z_score.shape[0]/windowPoints
 
 	if reshape.is_integer()==True:
-	    z_score_chunks = padded_z_score.reshape(int(reshape), -1)
-	    z_score_chunks_index = z_score_index.reshape(int(reshape), -1)
+		z_score_chunks = padded_z_score.reshape(int(reshape), -1)
+		z_score_chunks_index = z_score_index.reshape(int(reshape), -1)
 	else:
-	    raise Exception('Reshaping values should be integer.')
+		raise Exception('Reshaping values should be integer.')
 
 	print('Chunks are created for multiprocessing.')
 	return z_score_chunks, z_score_chunks_index
@@ -104,11 +104,11 @@ def calculate_freq_amp(arr, z_score, z_score_chunks_index, timestamps):
 	peaksAmp = np.array([])
 	peaksInd = np.array([])
 	for i in range(z_score_chunks_index.shape[0]):
-	    count += peaks[i].shape[0]
-	    peaksIndexes = peaks[i]+z_score_chunks_index[i][0]
-	    peaksInd = np.concatenate((peaksInd, peaksIndexes))
-	    amps = z_score[peaksIndexes]-filteredOutMedian[i][0]
-	    peaksAmp = np.concatenate((peaksAmp, amps))
+		count += peaks[i].shape[0]
+		peaksIndexes = peaks[i]+z_score_chunks_index[i][0]
+		peaksInd = np.concatenate((peaksInd, peaksIndexes))
+		amps = z_score[peaksIndexes]-filteredOutMedian[i][0]
+		peaksAmp = np.concatenate((peaksAmp, amps))
 
 	peaksInd = peaksInd.ravel()
 	peaksInd = peaksInd.astype(int)
@@ -150,7 +150,7 @@ def visuzlize_peaks(filepath, z_score, timestamps, peaksIndex):
 	fig.suptitle(os.path.basename(dirname))
 	#plt.show()
 
-def findFreqAndAmp(filepath, inputParameters, window=15):
+def findFreqAndAmp(filepath, inputParameters, window=15, numProcesses=mp.cpu_count()):
 
 	print('calculating frequency and amplitude of transients in z-score data....')
 	selectForTransientsComputation = inputParameters['selectForTransientsComputation']
@@ -170,7 +170,7 @@ def findFreqAndAmp(filepath, inputParameters, window=15):
 		z_score_chunks, z_score_chunks_index = createChunks(z_score, sampling_rate, window)
 
 		#p = mp.Pool(mp.cpu_count())
-		with mp.Pool(mp.cpu_count()) as p:
+		with mp.Pool(numProcesses) as p:
 			result = p.starmap(processChunks, zip(z_score_chunks, z_score_chunks_index))
 		#p.close()
 		#p.join()
@@ -260,17 +260,18 @@ def averageForGroup(folderNames, inputParameters):
 
 	print('Results for frequency and amplitude of transients in z-score data are combined.')
 
-def executeFindFreqAndAmp(inputParametersPath):
+def executeFindFreqAndAmp(inputParameters):
 
 	print('Finding transients in z-score data and calculating frequency and amplitude....')
-	with open(inputParametersPath) as f:	
-		inputParameters = json.load(f)
+	
+	inputParameters = inputParameters
 
 	average = inputParameters['averageForGroup']
 	folderNamesForAvg = inputParameters['folderNamesForAvg']
 	folderNames = inputParameters['folderNames']
 	combine_data = inputParameters['combine_data']
 	moving_window = inputParameters['moving_window']
+	numberOfCores = inputParameters['numberOfCores']
 
 	if average==True:
 		if len(folderNamesForAvg)>0:
@@ -295,7 +296,7 @@ def executeFindFreqAndAmp(inputParametersPath):
 			for i in range(len(op)):
 				filepath = op[i][0]
 				storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',')
-				findFreqAndAmp(filepath, inputParameters, window=moving_window)
+				findFreqAndAmp(filepath, inputParameters, window=moving_window, numProcesses=numberOfCores)
 			plt.show()
 		else:
 			for i in range(len(folderNames)):
@@ -304,13 +305,13 @@ def executeFindFreqAndAmp(inputParametersPath):
 				for j in range(len(storesListPath)):
 					filepath = storesListPath[j]
 					storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',')
-					findFreqAndAmp(filepath, inputParameters, window=moving_window)
+					findFreqAndAmp(filepath, inputParameters, window=moving_window, numProcesses=numberOfCores)
 			plt.show()
 
 	print('Transients in z-score data found and frequency and amplitude are calculated.')
 
 
 if __name__ == "__main__":
-	executeFindFreqAndAmp(sys.argv[1:][0])
+	executeFindFreqAndAmp(json.loads(sys.argv[1]))
 
 
