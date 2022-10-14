@@ -43,7 +43,7 @@ def readtsq(filepath):
 
 # function to check if doric file exists
 def check_doric(filepath):
-	print("### Checking if doric file exits...")
+	print("### Checking if doric file exists...")
 	path = glob.glob(os.path.join(filepath, '*.csv')) + \
 		   glob.glob(os.path.join(filepath, '*.doric'))
 	
@@ -317,8 +317,8 @@ def execute_import_doric(filepath, storesList, flag, outputPath):
 					timestamps = np.array(df['Time(s)'])
 					sampling_rate = np.array([1/(timestamps[-1]-timestamps[-2])])
 					write_hdf5(sampling_rate, storesList[0,i], outputPath, 'sampling_rate')
-					write_hdf5(df['Time(s)'].dropna(), storesList[0,i], outputPath, 'timestamps')
-					write_hdf5(df[storesList[0,i]].dropna(), storesList[0,i], outputPath, 'data')
+					write_hdf5(df['Time(s)'], storesList[0,i], outputPath, 'timestamps')
+					write_hdf5(df[storesList[0,i]], storesList[0,i], outputPath, 'data')
 				else:
 					ttl = df[storesList[0,i]]
 					indices = np.where(ttl<=0)[0]
@@ -327,7 +327,7 @@ def execute_import_doric(filepath, storesList, flag, outputPath):
 	else:
 		path = glob.glob(os.path.join(filepath, '*.doric'))
 		if len(path)>1:
-			raise Exception('More than one Doric csv file present at the location')
+			raise Exception('More than one Doric file present at the location')
 		else:
 			with h5py.File(path[0], 'r') as f:
 				keys = list(f['Traces']['Console'].keys())

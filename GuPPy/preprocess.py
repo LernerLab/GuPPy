@@ -187,7 +187,6 @@ def check_cntrl_sig_length(filepath, channels_arr, storenames, storesList):
 		if control.shape[0]<signal.shape[0]:
 			indices.append(storesList[idx_c[0]])
 		elif control.shape[0]>signal.shape[0]:
-			print(storenames[idx_s[0]])
 			indices.append(storesList[idx_s[0]])
 		else:
 			indices.append(storesList[idx_s[0]])

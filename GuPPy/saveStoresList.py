@@ -200,7 +200,7 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
     update_options = pn.widgets.Button(name='Select Storenames')
     save = pn.widgets.Button(name='Save')
 
-    text = pn.widgets.TextInput(value="[]", name='Selected Store Names')
+    text = pn.widgets.LiteralInput(value=[], name='Selected Store Names', type=list)
 
     path = pn.widgets.TextInput(name='Location to Stores List file', width=500, sizing_mode="stretch_width")
 
@@ -242,44 +242,13 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
         else:
             select_location.options = [show_dir(filepath)]
             #select_location.value = select_location.options[0]
-
-
-    def checkbox_states():
-        global storenames
-        k = list(vars_list.keys())
-        
-        with open(os.path.join(Path.home(), '.storesList.json')) as f:
-                global_storenames = json.load(f)
-
-        res_dict = dict()
-
-        for i in range(len(k)):
-            values = np.array(list(map((lambda val: val.get()), vars_list[k[i]])))
-            idx = np.where(values==1)[0]
-            if idx.shape[0]>1:
-                if idx.shape[0]==np.where(np.array(storenames)==k[i])[0].shape[0]:
-                    alert.object = '####Alert !! \n checkboxes selected and storenames entries are same'
-                else:
-                    alert.object = '####Alert !! \n More than 1 checkboxes were ticked for the storename {}.'.format(k[i])
-                    continue
-            if idx.shape[0]!=0:
-                res_dict[k[i]] = list(np.array(global_storenames[k[i]])[idx])
-
-        names_for_storenames = []
-        for i in range(len(storenames)):
-            if storenames[i] in res_dict:
-                names_for_storenames.append([res_dict[storenames[i]][-1]])
-                res_dict[storenames[i]].pop()
-            else:
-                names_for_storenames.append([""])
-
-        d = dict()
-        d["storenames"] = storenames
-        d["names_for_storenames"] = list(np.concatenate(names_for_storenames))
-        literal_input_2.value = str(json.dumps(d))
     
     def fetchValues():
         alert.object = '#### No alerts !!'
+        storenames_cache = dict()
+        if os.path.exists(os.path.join(Path.home(), '.storesList.json')):
+            with open(os.path.join(Path.home(), '.storesList.json')) as f:
+                storenames_cache = json.load(f)
         comboBox_keys = list(hold_comboBoxValues.keys())
         textBox_keys = list(hold_textBoxValues.keys())
         
@@ -289,11 +258,11 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
         
         for i in range(len(textBox_keys)):
             textBoxValues.append(hold_textBoxValues[textBox_keys[i]].get())
-            if len(textBoxValues[-1].split())>0:
+            if len(textBoxValues[i].split())>1:
                 alert.object = '####Alert !! \n Whitespace is not allowed in the text box entry.'
-        
-        if '' in textBoxValues:
-            alert.object = '####Alert !! \n One of the text bov entry is empty.'
+            if textBoxValues[i]==None and comboBoxValues[i] not in storenames_cache:
+                print(textBoxValues[i], comboBoxValues[i])
+                alert.object = '####Alert !! \n One of the text box entry is empty.'
     
         if len(comboBoxValues)!=len(textBoxValues):
             alert.object = '####Alert !! \n Number of entries in combo box and text box should be same.'
@@ -302,14 +271,18 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
         for i in range(len(comboBoxValues)):
             if comboBoxValues[i]=='control' or comboBoxValues[i]=="signal":
                 names_for_storenames.append("{}_{}".format(comboBoxValues[i], textBoxValues[i]))
-            else:
+            elif comboBoxValues[i]=='event TTLs':
                 names_for_storenames.append(textBoxValues[i])
+            else:
+                names_for_storenames.append(comboBoxValues[i])
         
         d = dict()
-        d["storenames"] = comboBox_keys
+        print(text.value)
+        d["storenames"] = text.value
         d["names_for_storenames"] = names_for_storenames
         literal_input_2.value = str(json.dumps(d))
     
+    # on clicking 'Select Storenames' button, following function is executed
     def update_values(event):
         global storenames, vars_list
         arr = []
@@ -328,72 +301,81 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
             storenames = cross_selector.value
         
         for w in change_widgets:
-            w.value = str(storenames)
+            w.value = storenames
 
-
+        storenames_cache = dict()
         if os.path.exists(os.path.join(Path.home(), '.storesList.json')):
             with open(os.path.join(Path.home(), '.storesList.json')) as f:
-                global_storenames = json.load(f)
+                storenames_cache = json.load(f)
 
-            root = tk.Tk()
-            root.title('Select names for storenames')
-            root.geometry('800x500')
-            vars_list = dict()
-            alert_text = "##### Alert !! \n"
-            for i in range(len(storenames)):
-                if storenames[i] in global_storenames:
-                    if storenames[i] in vars_list:
-                        continue
-                    else:
-                        T = ttk.Label(root, text="Select name for {} : ".format(storenames[i])).grid(row=i+1)
-                        vars_list[storenames[i]] = list(np.arange(len(global_storenames[storenames[i]])))
-                    for j in range(len(global_storenames[storenames[i]])):
-                        vars_list[storenames[i]][j] = IntVar()
-                        chk = ttk.Checkbutton(root, text=str(global_storenames[storenames[i]][j]), variable=vars_list[storenames[i]][j]).grid(row=i+1, column=j+1)
+        def comboBoxSelected(event):
+            row, col = event.widget.grid_info()['row'], event.widget.grid_info()['column']
+            if event.widget.get()=="control":
+                label = ttk.Label(root, 
+                                text="Type appropriate region name in the text box below :").grid(row=row, column=col+1)
+            elif event.widget.get()=="signal":
+                label = ttk.Label(root, 
+                                text="Type appropriate region name in the text box below :").grid(row=row, column=col+1)
+            elif event.widget.get()=="event TTLs":
+                label = ttk.Label(root, 
+                                text="Type event name for the TTLs in the text box below :").grid(row=row, column=col+1)
+            else:
+                pass
+        
+        global hold_comboBoxValues, hold_textBoxValues
+        root = tk.Tk()
+        root.title('Select options for storenames and give appropriate names (if asked)')
+        root.geometry('1200x1000')
+        hold_comboBoxValues = dict()
+        hold_textBoxValues = dict()
 
-
-            button = ttk.Button(root, text='Show', command=checkbox_states).grid(row=len(storenames)+3, column=3)
-            root.mainloop()
-
-        else:
-            # on clicking 'Select Storenames' button, following function is executed
-
-            def comboBoxSelected(event):
-                row, col = event.widget.grid_info()['row'], event.widget.grid_info()['column']
-                if event.widget.get()=="control":
-                    label = ttk.Label(root, 
-                                    text="Type appropriate region name in the text box below :").grid(row=row, column=col+1)
-                elif event.widget.get()=="signal":
-                    label = ttk.Label(root, 
-                                    text="Type appropriate region name in the text box below :").grid(row=row, column=col+1)
-                else:
-                    label = ttk.Label(root, 
-                                    text="Type event name for the TTLs in the text box below :").grid(row=row, column=col+1)
-
-            global hold_comboBoxValues, hold_textBoxValues
-            root = tk.Tk()
-            root.title('Select options for storenames and give appropriate names')
-            root.geometry('1200x1000')
-            hold_comboBoxValues = dict()
-            hold_textBoxValues = dict()
-
-            for i in range(len(storenames)):
+        for i in range(len(storenames)):
+            if storenames[i] in storenames_cache:
                 T = ttk.Label(root, text="Select appropriate option for {} : ".format(storenames[i])).grid(row=i+1, column=1)
-                hold_comboBoxValues[storenames[i]] = StringVar()
-                hold_textBoxValues[storenames[i]] = StringVar()
-                myCombo = ttk.Combobox(root, 
-                                    textvariable=hold_comboBoxValues[storenames[i]],
+                if storenames[i] in hold_comboBoxValues and storenames[i] in hold_textBoxValues:
+                    hold_comboBoxValues[storenames[i]+'_'+str(i)] = StringVar()
+                    hold_textBoxValues[storenames[i]+'_'+str(i)] = StringVar()
+                    myCombo = ttk.Combobox(root, 
+                                        textvariable=hold_comboBoxValues[storenames[i]+'_'+str(i)],
+                                        value=storenames_cache[storenames[i]], 
+                                        width=20)
+                else:
+                    hold_comboBoxValues[storenames[i]] = StringVar()
+                    hold_textBoxValues[storenames[i]] = StringVar()
+                    myCombo = ttk.Combobox(root, 
+                                        textvariable=hold_comboBoxValues[storenames[i]],
+                                        value=storenames_cache[storenames[i]], 
+                                        width=20)
+                myCombo.grid(row=i+1, column=2)
+                myCombo.current(0)
+                myCombo.bind("<<ComboboxSelected>>", comboBoxSelected)
+            else:
+                T = ttk.Label(root, text="Select appropriate option for {} : ".format(storenames[i])).grid(row=i+1, column=1)
+                if storenames[i] in hold_comboBoxValues and storenames[i] in hold_textBoxValues:
+                    hold_comboBoxValues[storenames[i]+'_'+str(i)] = StringVar()
+                    hold_textBoxValues[storenames[i]+'_'+str(i)] = StringVar()
+                    myCombo = ttk.Combobox(root, 
+                                    textvariable=hold_comboBoxValues[storenames[i]+'_'+str(i)],
                                     value=['control', 'signal', 'event TTLs'], 
                                     width=12)
-                textBox = tk.Entry(root, 
-                                textvariable=hold_textBoxValues[storenames[i]])
+                    textBox = tk.Entry(root, 
+                                    textvariable=hold_textBoxValues[storenames[i]+'_'+str(i)])
+                else:
+                    hold_comboBoxValues[storenames[i]] = StringVar()
+                    hold_textBoxValues[storenames[i]] = StringVar()
+                    myCombo = ttk.Combobox(root, 
+                                        textvariable=hold_comboBoxValues[storenames[i]],
+                                        value=['control', 'signal', 'event TTLs'], 
+                                        width=12)
+                    textBox = tk.Entry(root, 
+                                    textvariable=hold_textBoxValues[storenames[i]])
                 myCombo.grid(row=i+1, column=2)
                 textBox.grid(row=i+1, column=4)
                 myCombo.current(0)
                 myCombo.bind("<<ComboboxSelected>>", comboBoxSelected)
 
-            button = ttk.Button(root, text='Show', command=fetchValues).grid(row=len(storenames)*2, column=2)   
-            root.mainloop()
+        button = ttk.Button(root, text='Show', command=fetchValues).grid(row=len(storenames)*2, column=2)   
+        root.mainloop()
 
 
 
@@ -418,30 +400,30 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
 
 
         if not os.path.exists(os.path.join(Path.home(), '.storesList.json')):
-            global_storenames = dict()
+            storenames_cache = dict()
 
             for i in range(arr1.shape[0]):
-                if arr1[i] in global_storenames:
-                    global_storenames[arr1[i]].append(arr2[i])
-                    global_storenames[arr1[i]] = list(set(global_storenames[arr1[i]]))
+                if arr1[i] in storenames_cache:
+                    storenames_cache[arr1[i]].append(arr2[i])
+                    storenames_cache[arr1[i]] = list(set(storenames_cache[arr1[i]]))
                 else:
-                    global_storenames[arr1[i]] = [arr2[i]]
+                    storenames_cache[arr1[i]] = [arr2[i]]
 
             with open(os.path.join(Path.home(), '.storesList.json'), 'w') as f:
-                json.dump(global_storenames, f, indent=4) 
+                json.dump(storenames_cache, f, indent=4) 
         else:
             with open(os.path.join(Path.home(), '.storesList.json')) as f:
-                global_storenames = json.load(f)
+                storenames_cache = json.load(f)
 
             for i in range(arr1.shape[0]):
-                if arr1[i] in global_storenames:
-                    global_storenames[arr1[i]].append(arr2[i])
-                    global_storenames[arr1[i]] = list(set(global_storenames[arr1[i]]))
+                if arr1[i] in storenames_cache:
+                    storenames_cache[arr1[i]].append(arr2[i])
+                    storenames_cache[arr1[i]] = list(set(storenames_cache[arr1[i]]))
                 else:
-                    global_storenames[arr1[i]] = [arr2[i]]
+                    storenames_cache[arr1[i]] = [arr2[i]]
 
             with open(os.path.join(Path.home(), '.storesList.json'), 'w') as f:
-                json.dump(global_storenames, f, indent=4)
+                json.dump(storenames_cache, f, indent=4)
 
         arr = np.asarray([arr1, arr2])
         print(arr)
