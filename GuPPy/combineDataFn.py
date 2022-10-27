@@ -7,19 +7,19 @@ import re
 import fnmatch
 
 def find_files(path, glob_path, ignore_case = False):
-    rule = re.compile(fnmatch.translate(glob_path), re.IGNORECASE) if ignore_case \
-            else re.compile(fnmatch.translate(glob_path))
-    no_bytes_path = os.listdir(os.path.expanduser(path))
-    str_path = []
+	rule = re.compile(fnmatch.translate(glob_path), re.IGNORECASE) if ignore_case \
+			else re.compile(fnmatch.translate(glob_path))
+	no_bytes_path = os.listdir(os.path.expanduser(path))
+	str_path = []
 
-    # converting byte object to string
-    for x in no_bytes_path:
-    	try:
-    		str_path.append(x.decode('utf-8'))
-    	except:
-    		str_path.append(x)
-    		
-    return [os.path.join(path,n) for n in os.listdir(os.path.expanduser(path)) if rule.match(n)]
+	# converting byte object to string
+	for x in no_bytes_path:
+		try:
+			str_path.append(x.decode('utf-8'))
+		except:
+			str_path.append(x)
+			
+	return [os.path.join(path,n) for n in os.listdir(os.path.expanduser(path)) if rule.match(n)]
 
 def read_hdf5(event, filepath, key):
 	if event:
@@ -37,7 +37,7 @@ def read_hdf5(event, filepath, key):
 
 def write_hdf5(data, event, filepath, key):
 	op = os.path.join(filepath, event+'.hdf5')
-	
+
 	if not os.path.exists(op):
 		with h5py.File(op, 'w') as f:
 			if type(data) is np.ndarray:

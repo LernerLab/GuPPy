@@ -196,7 +196,7 @@ def helper_psth(z_score, event, filepath, nSecPrev, nSecPost, timeInterval, bin_
 	# reject timestamps for which baseline cannot be calculated because of nan values
 	new_ts = []
 	for i in range(ts.shape[0]):
-		thisTime = ts[i]-1
+		thisTime = ts[i]                       # -1 not needed anymore
 		if thisTime<abs(baselineStart):
 			continue
 		else:
@@ -339,15 +339,12 @@ def helperPSTHPeakAndArea(psth_mean, timestamps, sampling_rate, peak_startPoint,
 	peak_startPoint = peak_startPoint[~np.isnan(peak_startPoint)]
 	peak_endPoint = peak_endPoint[~np.isnan(peak_endPoint)]
 
-	#print(peak_startPoint, peak_endPoint)
-
 	if peak_startPoint.shape[0]!=peak_endPoint.shape[0]:
 		raise Exception('Number of Peak Start Time and Peak End Time are unequal.')
 
 	if np.less_equal(peak_endPoint, peak_startPoint).any()==True:
 		raise Exception('Peak End Time is lesser than or equal to Peak Start Time. Please check the Peak parameters window.')
 
-	#print(peak_startPoint, peak_endPoint)
 
 	peak_area = OrderedDict()
 
