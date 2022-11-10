@@ -292,7 +292,10 @@ def execute_readtev(data, filepath, event, outputPath, numProcesses=mp.cpu_count
 	start = time.time()
 	with mp.Pool(numProcesses) as p:
 		p.starmap(readtev, zip(repeat(data), repeat(filepath), event, repeat(outputPath)))
-
+	#p = mp.Pool(mp.cpu_count())
+	#p.starmap(readtev, zip(repeat(data), repeat(filepath), event, repeat(outputPath)))
+	#p.close()
+	#p.join()
 	print("Time taken = {0:.5f}".format(time.time() - start))
 
 

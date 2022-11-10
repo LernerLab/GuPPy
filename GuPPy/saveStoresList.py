@@ -17,7 +17,7 @@ from pathlib import Path
 import holoviews as hv
 import warnings
 import tkinter as tk
-from tkinter import ttk, IntVar, StringVar
+from tkinter import ttk, StringVar
 
 #hv.extension()
 pn.extension()
