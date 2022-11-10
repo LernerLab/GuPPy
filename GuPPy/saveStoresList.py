@@ -544,8 +544,7 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
                 try:
                     df = pd.read_csv(path[i], index_col=False, dtype=float)
                 except:
-                    df = pd.read_csv(path[i], header=1, index_col=False)
-                    df = df.dropna(axis=1, how='all')
+                    df = pd.read_csv(path[i], header=1, index_col=False, nrows=10)   # to make process faster reading just first 10 rows
                     df = df.drop(['Time(s)'], axis=1)
                     event_from_filename.extend(list(df.columns))
                     flag = 'doric_csv'

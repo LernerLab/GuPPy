@@ -138,7 +138,7 @@ def read_Df(filepath, name):
 	return df
 
 def visuzlize_peaks(filepath, z_score, timestamps, peaksIndex):
-
+	
 	dirname = os.path.dirname(filepath)
 
 	basename = (os.path.basename(filepath)).split('.')[0]
@@ -167,16 +167,18 @@ def findFreqAndAmp(filepath, inputParameters, window=15, numProcesses=mp.cpu_cou
 		name_1 = basename.split('_')[-1]
 		sampling_rate = read_hdf5('timeCorrection_'+name_1, filepath, 'sampling_rate')[0]
 		z_score = read_hdf5('', path[i], 'data')
+		not_nan_indices = ~np.isnan(z_score)
+		z_score = z_score[not_nan_indices]
 		z_score_chunks, z_score_chunks_index = createChunks(z_score, sampling_rate, window)
 
-		#p = mp.Pool(mp.cpu_count())
+
 		with mp.Pool(numProcesses) as p:
 			result = p.starmap(processChunks, zip(z_score_chunks, z_score_chunks_index))
-		#p.close()
-		#p.join()
+		
 		
 		result = np.asarray(result, dtype=object)
 		ts = read_hdf5('timeCorrection_'+name_1, filepath, 'timestampNew')
+		ts = ts[not_nan_indices]
 		freq, peaksAmp, peaksInd = calculate_freq_amp(result, z_score, z_score_chunks_index, ts)
 		peaks_occurrences = np.array([ts[peaksInd], peaksAmp]).T
 		arr = np.array([[freq, np.mean(peaksAmp)]])
@@ -271,7 +273,13 @@ def executeFindFreqAndAmp(inputParameters):
 	folderNames = inputParameters['folderNames']
 	combine_data = inputParameters['combine_data']
 	moving_window = inputParameters['moving_window']
-	numberOfCores = inputParameters['numberOfCores']
+	numProcesses = inputParameters['numberOfCores']
+	if numProcesses==0:
+		numProcesses = mp.cpu_count()
+	elif numProcesses>mp.cpu_count():
+		print('Warning : # of cores parameter set is greater than the cores available \
+			   available in your machine')
+		numProcesses = mp.cpu_count()-1
 
 	if average==True:
 		if len(folderNamesForAvg)>0:
@@ -296,7 +304,7 @@ def executeFindFreqAndAmp(inputParameters):
 			for i in range(len(op)):
 				filepath = op[i][0]
 				storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',')
-				findFreqAndAmp(filepath, inputParameters, window=moving_window, numProcesses=numberOfCores)
+				findFreqAndAmp(filepath, inputParameters, window=moving_window, numProcesses=numProcesses)
 			plt.show()
 		else:
 			for i in range(len(folderNames)):
@@ -305,7 +313,7 @@ def executeFindFreqAndAmp(inputParameters):
 				for j in range(len(storesListPath)):
 					filepath = storesListPath[j]
 					storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',')
-					findFreqAndAmp(filepath, inputParameters, window=moving_window, numProcesses=numberOfCores)
+					findFreqAndAmp(filepath, inputParameters, window=moving_window, numProcesses=numProcesses)
 			plt.show()
 
 	print('Transients in z-score data found and frequency and amplitude are calculated.')

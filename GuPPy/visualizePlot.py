@@ -1,24 +1,16 @@
 import os
-import sys
-import json
 import glob
-import h5py
 import param
 import re
 import math
 import numpy as np 
 import pandas as pd
-import functools
 from random import randint
-from dask import dataframe as dd
-import multiprocessing as mp
 import holoviews as hv
 from holoviews import opts 
 from bokeh.io import export_svgs, export_png
-import hvplot.pandas
-import holoviews.plotting.bokeh
 from holoviews.plotting.util import process_cmap
-from holoviews.operation.datashader import datashade, dynspread, rasterize
+from holoviews.operation.datashader import datashade
 import datashader as ds
 import matplotlib.pyplot as plt
 from preprocess import get_all_stores_for_combining_data
@@ -59,13 +51,31 @@ def remove_cols(cols):
 def helper_plots(filepath, event, name, inputParameters):
 
 	basename = os.path.basename(filepath)
-
-	#global new_event, df, columns_dict
+	visualize_zscore_or_dff = inputParameters['visualize_zscore_or_dff']
 
 	# note when there are no behavior event TTLs
 	if len(event)==0:
 		print("\033[1m"+"There are no behavior event TTLs present to visualize.".format(event)+"\033[0m")
 		return 0
+
+	
+	if os.path.exists(os.path.join(filepath, 'cross_correlation_output')):
+		event_corr, frames = [], []
+		if visualize_zscore_or_dff=='z_score':
+			corr_fp = glob.glob(os.path.join(filepath, 'cross_correlation_output', '*_z_score_*'))
+		elif visualize_zscore_or_dff=='dff':
+			corr_fp = glob.glob(os.path.join(filepath, 'cross_correlation_output', '*_dff_*'))
+		for i in range(len(corr_fp)):
+			filename = os.path.basename(corr_fp[i]).split('.')[0]
+			event_corr.append(filename)
+			df = pd.read_hdf(corr_fp[i], key='df', mode='r')
+			frames.append(df)
+
+		df_corr = pd.concat(frames, keys=event_corr, axis=1)
+	else:
+		event_corr = []
+		df_corr = None
+
 
 	# combine all the event PSTH so that it can be viewed together
 	if name:
@@ -96,6 +106,10 @@ def helper_plots(filepath, event, name, inputParameters):
 
 		df = pd.concat(frames, keys=new_event, axis=1)
 
+	if isinstance(df_corr, pd.DataFrame):
+		new_event.extend(event_corr)
+		df = pd.concat([df,df_corr],axis=1,sort=False).reset_index()
+	
 	columns_dict = dict()
 	for i in range(len(new_event)):
 		df_1 = df[new_event[i]]
@@ -396,8 +410,8 @@ def helper_plots(filepath, event, name, inputParameters):
 		@param.depends('event_selector', 'x', 'psth_y', 'select_trials_checkbox', 'Y_Label', 'save_options', 'Y_Limit', 'X_Limit', 'Height_Plot', 'Width_Plot')
 		def plot_specific_trials(self):
 			df_psth = self.df_new[self.event_selector]
-			if self.Y_Limit==None:
-				self.Y_Limit = (np.nanmin(ypoints)-0.5, np.nanmax(ypoints)+0.5)
+			#if self.Y_Limit==None:
+			#	self.Y_Limit = (np.nanmin(ypoints)-0.5, np.nanmax(ypoints)+0.5)
 
 			if self.psth_y==None:
 				return None
