@@ -198,7 +198,7 @@ def helper_psth(z_score, event, filepath, nSecPrev, nSecPost, timeInterval, bin_
 	# reject timestamps for which baseline cannot be calculated because of nan values
 	new_ts = []
 	for i in range(ts.shape[0]):
-		thisTime = ts[i] 					 # -1 not needed anymore
+		thisTime = ts[i]                       # -1 not needed anymore
 		if thisTime<abs(baselineStart):
 			continue
 		else:
