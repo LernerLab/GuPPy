@@ -15,7 +15,9 @@ import multiprocessing as mp
 from scipy import signal as ss
 from collections import OrderedDict
 from preprocess import get_all_stores_for_combining_data
-
+from computeCorr import computeCrossCorrelation
+from computeCorr import getCorrCombinations
+from computeCorr import make_dir
 
 # function to read hdf5 file
 def read_hdf5(event, filepath, key):
@@ -470,7 +472,7 @@ def averageForGroup(folderNames, event, inputParameters):
 	# processing of all the paths
 	path_temp_len = np.asarray(path_temp_len)
 	max_len = np.argmax(path_temp_len)
-	
+
 	naming = []
 	for i in range(len(path)):
 		naming.append(path[i][2])
@@ -541,16 +543,43 @@ def averageForGroup(folderNames, event, inputParameters):
 		new_df = pd.concat(arr, axis=0)  #os.path.join(filepath, 'peak_AUC_'+name+'.csv')
 		new_df.to_csv(os.path.join(op, 'peak_AUC_{}_{}.csv'.format(temp_path[j][1], temp_path[j][2])), index=index)
 		new_df.to_hdf(os.path.join(op, 'peak_AUC_{}_{}.h5'.format(temp_path[j][1], temp_path[j][2])), key='df', mode='w', index=index)
+	
+	# read cross-correlation files and combine them. Save the final output to an average folder
+	type = []
+	for i in range(len(folderNames)):
+		_, temp_type = getCorrCombinations(folderNames[i], inputParameters)
+		type.append(temp_type)
+	
+	type = np.unique(np.array(type))
+	for i in range(len(type)):
+		corr = []
+		columns = []
+		for j in range(len(folderNames)):
+			corr_info, _ = getCorrCombinations(folderNames[j], inputParameters)
+			for k in range(1, len(corr_info)):
+				path = os.path.join(folderNames[j], 'cross_correlation_output', 'corr_'+event+'_'+type[i]+'_'+corr_info[k-1]+'_'+corr_info[k])
+				if not os.path.exists(path+'.h5'):
+					continue
+				else:
+					df = read_Df(os.path.join(folderNames[j], 'cross_correlation_output'), 'corr_'+event, type[i]+'_'+corr_info[k-1]+'_'+corr_info[k])
+					corr.append(df['mean'])
+					columns.append(os.path.basename(folderNames[j]))
+		
+		corr = np.array(corr)
+		timestamps = np.array(df['timestamps']).reshape(1,-1)
+		corr = np.concatenate((corr, timestamps), axis=0)
+		columns.append('timestamps')
+		create_Df(make_dir(op), 'corr_'+event, type[i]+'_'+corr_info[k-1]+'_'+corr_info[k], corr, columns=columns)
 
 	print("Group of data averaged.")
 
 
-def psthForEachStorename(inputParametersPath):
+def psthForEachStorename(inputParameters):
 
 	print("Computing PSTH, Peak and Area for each event...")
 
-	with open(inputParametersPath) as f:	
-		inputParameters = json.load(f)
+		
+	inputParameters = inputParameters
 
 
 	#storesList = np.genfromtxt(inputParameters['storesListPath'], dtype='str', delimiter=',')
@@ -559,6 +588,13 @@ def psthForEachStorename(inputParametersPath):
 	folderNamesForAvg = inputParameters['folderNamesForAvg']
 	average = inputParameters['averageForGroup']
 	combine_data = inputParameters['combine_data']
+	numProcesses = inputParameters['numberOfCores']
+	if numProcesses==0:
+		numProcesses = mp.cpu_count()
+	elif numProcesses>mp.cpu_count():
+		print('Warning : # of cores parameter set is greater than the cores available \
+			   available in your machine')
+		numProcesses = mp.cpu_count()-1
 
 	print("Average for group : ", average)
 
@@ -577,7 +613,6 @@ def psthForEachStorename(inputParametersPath):
 			op = makeAverageDir(inputParameters['abspath'])
 			np.savetxt(os.path.join(op, 'storesList.csv'), storesList, delimiter=",", fmt='%s')
 			for k in range(storesList.shape[1]):
-				
 				if 'control' in storesList[1,k].lower() or 'signal' in storesList[1,k].lower():
 					continue
 				else:
@@ -591,8 +626,7 @@ def psthForEachStorename(inputParametersPath):
 		if combine_data==True:
 			storesListPath = []
 			for i in range(len(folderNames)):
-				filepath = folderNames[i]
-				storesListPath.append(glob.glob(os.path.join(filepath, '*_output_*')))
+				storesListPath.append(glob.glob(os.path.join(folderNames[i], '*_output_*')))
 			storesListPath = list(np.concatenate(storesListPath).flatten())
 			op = get_all_stores_for_combining_data(storesListPath)
 			for i in range(len(op)):
@@ -603,19 +637,22 @@ def psthForEachStorename(inputParametersPath):
 				for k in range(storesList.shape[1]):
 					storenamePsth(op[i][0], storesList[1,k], inputParameters)
 					findPSTHPeakAndArea(op[i][0], storesList[1,k], inputParameters)
+					computeCrossCorrelation(op[i][0], storesList[1,k], inputParameters)
 		else:
 			for i in range(len(folderNames)):
-				filepath = folderNames[i]
-				storesListPath = glob.glob(os.path.join(filepath, '*_output_*'))
+				storesListPath = glob.glob(os.path.join(folderNames[i], '*_output_*'))
 				for j in range(len(storesListPath)):
 					filepath = storesListPath[j]
 					storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',')
 
-					with mp.Pool(mp.cpu_count()) as p:
+					with mp.Pool(numProcesses) as p:
 						p.starmap(storenamePsth, zip(repeat(filepath), storesList[1,:], repeat(inputParameters)))
 
-					with mp.Pool(mp.cpu_count()) as pq:
+					with mp.Pool(numProcesses) as pq:
 						pq.starmap(findPSTHPeakAndArea, zip(repeat(filepath), storesList[1,:], repeat(inputParameters)))
+					
+					with mp.Pool(numProcesses) as cr:
+						cr.starmap(computeCrossCorrelation, zip(repeat(filepath), storesList[1,:], repeat(inputParameters)))
 
 					#for k in range(storesList.shape[1]):
 					#	storenamePsth(filepath, storesList[1,k], inputParameters)
@@ -625,5 +662,5 @@ def psthForEachStorename(inputParametersPath):
 	print("PSTH, Area and Peak are computed for all events.")
 
 if __name__ == "__main__":
-	psthForEachStorename(sys.argv[1:][0])
+	psthForEachStorename(json.loads(sys.argv[1]))
 

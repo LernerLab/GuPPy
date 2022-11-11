@@ -629,10 +629,74 @@ def eliminateTs(filepath, timeForLightsTurnOn, event, sampling_rate, naming):
 	
 	return ts_arr
 
+# adding nan values to removed chunks 
+# when using artifacts removal method - replace with NaN
+def addingNaNValues(filepath, event, naming):
+	
+	ts = read_hdf5('timeCorrection_'+naming, filepath, 'timestampNew')
+	data = read_hdf5(event, filepath, 'data').reshape(-1)
+	coords = fetchCoords(filepath, naming, ts)
+
+	if (data==0).all()==True:
+		data = np.zeros(ts.shape[0])
+
+	arr = np.array([])
+	ts_index = np.arange(ts.shape[0])
+	for i in range(coords.shape[0]):
+
+		index = np.where((ts>coords[i,0]) & (ts<coords[i,1]))[0]
+		arr = np.concatenate((arr, index))
+	
+	nan_indices = list(set(ts_index).symmetric_difference(arr))
+	data[nan_indices] = np.nan
+
+	return data
+
+# remove event TTLs which falls in the removed chunks
+# when using artifacts removal method - replace with NaN
+def removeTTLs(filepath, event, naming):
+	tsNew = read_hdf5('timeCorrection_'+naming, filepath, 'timestampNew')
+	ts = read_hdf5(event+'_'+naming, filepath, 'ts').reshape(-1)
+	coords = fetchCoords(filepath, naming, tsNew)
+
+	ts_arr = np.array([])
+	for i in range(coords.shape[0]):
+		ts_index = np.where((ts>coords[i,0]) & (ts<coords[i,1]))[0]
+		ts_arr = np.concatenate((ts_arr, ts[ts_index]))
+	
+	return ts_arr
+
+def addingNaNtoChunksWithArtifacts(filepath, events):
+	print("Replacing chunks with artifacts by NaN values.")
+	storesList = events[1,:]
+
+	path = decide_naming_convention(filepath)
+
+	for j in range(path.shape[1]):
+		name_1 = ((os.path.basename(path[0,j])).split('.')[0]).split('_')
+		name_2 = ((os.path.basename(path[1,j])).split('.')[0]).split('_')
+		#dirname = os.path.dirname(path[i])
+		if name_1[-1]==name_2[-1]:
+			name = name_1[-1]
+			sampling_rate = read_hdf5('timeCorrection_'+name, filepath, 'sampling_rate')[0]
+			for i in range(len(storesList)):
+				if 'control_'+name.lower() in storesList[i].lower() or 'signal_'+name.lower() in storesList[i].lower():       # changes done
+					data = addingNaNValues(filepath, storesList[i], name)
+					write_hdf5(data, storesList[i], filepath, 'data')
+				else:
+					if 'control' in storesList[i].lower() or 'signal' in storesList[i].lower():
+						continue
+					else:
+						ts = removeTTLs(filepath, storesList[i], name)
+						write_hdf5(ts, storesList[i]+'_'+name, filepath, 'ts')
+				
+		else:
+			raise Exception('Error in naming convention of files or Error in storesList file')
+
 # main function to align timestamps for control, signal and event timestamps for artifacts removal
 def processTimestampsForArtifacts(filepath, timeForLightsTurnOn, events):
 
-	print("Processing timestamps to get rid of artifacts...")
+	print("Processing timestamps to get rid of artifacts using concatenate method...")
 	storesList = events[1,:]
 	
 	path = decide_naming_convention(filepath)
@@ -663,7 +727,7 @@ def processTimestampsForArtifacts(filepath, timeForLightsTurnOn, events):
 		else:
 			raise Exception('Error in naming convention of files or Error in storesList file')
 
-	print("Timestamps processed and artifacts are removed.")
+	print("Timestamps processed, artifacts are removed and good chunks are concatenated.")
 
 
 # function to compute deltaF/F using fitted control channel and filtered signal channel
@@ -735,6 +799,7 @@ def z_score_computation(dff, timestamps, inputParameters):
 def helper_z_score(control, signal, filepath, name, inputParameters):     #helper_z_score(control_smooth, signal_smooth):
 
 	removeArtifacts = inputParameters['removeArtifacts']
+	artifactsRemovalMethod = inputParameters['artifactsRemovalMethod']
 	filter_window = inputParameters['filter_window']
 
 	isosbestic_control = inputParameters['isosbestic_control']
@@ -746,8 +811,10 @@ def helper_z_score(control, signal, filepath, name, inputParameters):     #helpe
 	if (control==0).all()==True:
 		control = np.zeros(tsNew.shape[0])
 	
-	z_score_arr, norm_data_arr, control_fit_arr = np.array([]), np.array([]), np.array([])
-	temp_control_arr = np.array([])
+	z_score_arr = np.array([])
+	norm_data_arr = np.full(tsNew.shape[0], np.nan)
+	control_fit_arr = np.full(tsNew.shape[0], np.nan)
+	temp_control_arr = np.full(tsNew.shape[0], np.nan)
 
 	if removeArtifacts==True:
 		coords = fetchCoords(filepath, name, tsNew)
@@ -761,40 +828,41 @@ def helper_z_score(control, signal, filepath, name, inputParameters):     #helpe
 				signal_arr = signal[tsNew_index]
 				norm_data, control_fit = execute_controlFit_dff(control_arr, signal_arr, 
 																isosbestic_control, filter_window)
-				temp_control_arr = np.concatenate((temp_control_arr, control_arr))
+				temp_control_arr[tsNew_index] = control_arr
 				if i<coords.shape[0]-1:
 					blank_index = np.where((tsNew>coords[i,1]) & (tsNew<coords[i+1,0]))[0]
-					temp_control_arr = np.concatenate((temp_control_arr, np.zeros(blank_index.shape[0])))
+					temp_control_arr[blank_index] = np.full(blank_index.shape[0], np.nan)
 			else:
 				control_arr = control[tsNew_index]
 				signal_arr = signal[tsNew_index]
 				norm_data, control_fit = execute_controlFit_dff(control_arr, signal_arr, 
 					    									    isosbestic_control, filter_window)
-			norm_data_arr = np.concatenate((norm_data_arr, norm_data))
-			control_fit_arr = np.concatenate((control_fit_arr, control_fit))
+			norm_data_arr[tsNew_index] = norm_data 
+			control_fit_arr[tsNew_index] = control_fit 
 
-		#res = np.subtract(norm_data_arr, np.nanmean(norm_data_arr))
+		if artifactsRemovalMethod=='concatenate':
+			norm_data_arr = norm_data_arr[~np.isnan(norm_data_arr)]
+			control_fit_arr = control_fit_arr[~np.isnan(control_fit_arr)]
 		z_score = z_score_computation(norm_data_arr, tsNew, inputParameters)
 		z_score_arr = np.concatenate((z_score_arr, z_score))
-			
 	else:
+		tsNew_index = np.arange(tsNew.shape[0])
 		norm_data, control_fit = execute_controlFit_dff(control, signal, 
 														isosbestic_control, filter_window)
-		#res = np.subtract(norm_data, np.nanmean(norm_data))
 		z_score = z_score_computation(norm_data, tsNew, inputParameters)
 		z_score_arr = np.concatenate((z_score_arr, z_score))
-		norm_data_arr = np.concatenate((norm_data_arr, norm_data))
-		control_fit_arr = np.concatenate((control_fit_arr, control_fit))
+		norm_data_arr[tsNew_index] = norm_data #np.concatenate((norm_data_arr, norm_data))
+		control_fit_arr[tsNew_index] = control_fit #np.concatenate((control_fit_arr, control_fit))
 
 	# handle the case if there are chunks being cut in the front and the end
 	if isosbestic_control==False and removeArtifacts==True:
 		coords = coords.flatten()
 		# front chunk 
 		idx = np.where((tsNew>=tsNew[0]) & (tsNew<coords[0]))[0]
-		temp_control_arr = np.concatenate((np.zeros(idx.shape[0]), temp_control_arr))
+		temp_control_arr[idx] = np.full(idx.shape[0], np.nan)
 		# end chunk
 		idx = np.where((tsNew>coords[-1]) & (tsNew<=tsNew[-1]))[0]
-		temp_control_arr = np.concatenate((temp_control_arr, np.zeros(idx.shape[0])))
+		temp_control_arr[idx] = np.full(idx.shape[0], np.nan)
 		write_hdf5(temp_control_arr, 'control_'+name, filepath, 'data')
 
 	return z_score_arr, norm_data_arr, control_fit_arr
@@ -959,6 +1027,7 @@ def execute_zscore(folderNames, inputParameters):
 
 	timeForLightsTurnOn = inputParameters['timeForLightsTurnOn']
 	remove_artifacts = inputParameters['removeArtifacts']
+	artifactsRemovalMethod = inputParameters['artifactsRemovalMethod']
 	plot_zScore_dff = inputParameters['plot_zScore_dff']
 	combine_data = inputParameters['combine_data']
 	isosbestic_control = inputParameters['isosbestic_control']
@@ -980,7 +1049,10 @@ def execute_zscore(folderNames, inputParameters):
 		if remove_artifacts==True:
 			print("Removing Artifacts from the data and correcting timestamps...")
 			compute_z_score(filepath, inputParameters)
-			processTimestampsForArtifacts(filepath, timeForLightsTurnOn, storesList)
+			if artifactsRemovalMethod=='concatenate':
+				processTimestampsForArtifacts(filepath, timeForLightsTurnOn, storesList)
+			else:
+				addingNaNtoChunksWithArtifacts(filepath, storesList)
 			visualizeControlAndSignal(filepath, remove_artifacts)
 			print("Artifacts from the data are removed and timestamps are corrected.")
 		else:
@@ -999,12 +1071,11 @@ def execute_zscore(folderNames, inputParameters):
 	print("Signal data and event timestamps are extracted.")
 
 
-def extractTsAndSignal(inputParametersPath):
+def extractTsAndSignal(inputParameters):
 
 	print("Extracting signal data and event timestamps...")
 
-	with open(inputParametersPath) as f:	
-		inputParameters = json.load(f)
+	inputParameters = inputParameters
 
 	#storesList = np.genfromtxt(inputParameters['storesListPath'], dtype='str', delimiter=',')
 
