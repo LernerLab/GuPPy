@@ -4,7 +4,6 @@ import json
 import time
 import glob
 import h5py
-import warnings
 from itertools import repeat
 import numpy as np
 import pandas as pd
@@ -14,7 +13,7 @@ import multiprocessing as mp
 
 # functino to read tsq file
 def readtsq(filepath):
-	print("### Trying to read tsq file....")
+	print("### Reading tsq file....")
 	names = ('size', 'type', 'name', 'chan', 'sort_code', 'timestamp',
 	     	'fp_loc', 'strobe', 'format', 'frequency')
 	formats = (int32, int32, 'S4', uint16, uint16, float64, int64,
@@ -26,11 +25,10 @@ def readtsq(filepath):
 	if len(path)>1:
 		raise Exception('Two tsq files are present at the location.')
 	elif len(path)==0:
-		print("\033[1m"+"tsq file not found."+"\033[1m")
-		return 0, 0
+		print("\033[1m"+"No tsq file found."+"\033[1m")
+		return 0
 	else:
 		path = path[0]
-		flag = 'tsq'
 
 	# reading tsq file
 	tsq = np.fromfile(path, dtype=tsq_dtype)
@@ -39,40 +37,7 @@ def readtsq(filepath):
 	df = pd.DataFrame(tsq)
 
 	print("Data from tsq file fetched....")
-	return df, flag
-
-# function to check if doric file exists
-def check_doric(filepath):
-	print("### Checking if doric file exists...")
-	path = glob.glob(os.path.join(filepath, '*.csv')) + \
-		   glob.glob(os.path.join(filepath, '*.doric'))
-	
-	flag_arr = []
-	for i in range(len(path)):
-		ext = os.path.basename(path[i]).split('.')[-1]
-		if ext=='csv':
-			with warnings.catch_warnings():
-				warnings.simplefilter("error")
-				try:
-					df = pd.read_csv(path[i], index_col=False, dtype=float)
-				except:
-					df = pd.read_csv(path[i], header=1, index_col=False, nrows=10)
-					flag = 'doric_csv'
-					flag_arr.append(flag)
-		elif ext=='doric':
-			flag = 'doric_doric'
-			flag_arr.append(flag)
-		else:
-			pass
-
-	if len(flag_arr)>1:
-		raise Exception('Two doric files are present at the same location')
-	if len(flag_arr)==0:
-		print("\033[1m"+"Doric file not found."+"\033[1m")
-		return 0
-	print('Doric file found.')
-	return flag_arr[0]
-		
+	return df
 
 # check if a particular element is there in an array or not
 def ismember(arr, element):
@@ -222,7 +187,7 @@ def readtev(data, filepath, event, outputPath):
 
 
 	allnames = np.delete(allnames, index, 0)
-
+	
 
 	eventNew = np.array(list(event))
 
@@ -287,10 +252,10 @@ def readtev(data, filepath, event, outputPath):
 
 
 # function to execute readtev function using multiprocessing to make it faster
-def execute_readtev(data, filepath, event, outputPath, numProcesses=mp.cpu_count()):
+def execute_readtev(data, filepath, event, outputPath):
 
 	start = time.time()
-	with mp.Pool(numProcesses) as p:
+	with mp.Pool(mp.cpu_count()) as p:
 		p.starmap(readtev, zip(repeat(data), repeat(filepath), event, repeat(outputPath)))
 	#p = mp.Pool(mp.cpu_count())
 	#p.starmap(readtev, zip(repeat(data), repeat(filepath), event, repeat(outputPath)))
@@ -299,91 +264,41 @@ def execute_readtev(data, filepath, event, outputPath, numProcesses=mp.cpu_count
 	print("Time taken = {0:.5f}".format(time.time() - start))
 
 
-def execute_import_csv(filepath, event, outputPath, numProcesses=mp.cpu_count()):
+def execute_import_csv(filepath, event, outputPath):
 	#print("Reading data for event {} ...".format(event))
 
 	start = time.time()
-	with mp.Pool(numProcesses) as p:
+	with mp.Pool(mp.cpu_count()) as p:
 		p.starmap(import_csv, zip(repeat(filepath), event, repeat(outputPath)))
+	#for i in range(event.size):
+	#	import_csv(filepath, event[i], outputPath)
+
 	print("Time taken = {0:.5f}".format(time.time() - start))
 
-def execute_import_doric(filepath, storesList, flag, outputPath):
-	
-	if flag=='doric_csv':
-		path = glob.glob(os.path.join(filepath, '*.csv'))
-		if len(path)>1:
-			raise Exception('More than one Doric csv file present at the location')
-		else:
-			df = pd.read_csv(path[0], header=1, index_col=False)
-			df = df.dropna(axis=1, how='all')
-			df = df.dropna(axis=0, how='any')
-			df['Time(s)'] = df['Time(s)'] - df['Time(s)'].to_numpy()[0]	
-			for i in range(storesList.shape[1]):
-				if 'control' in storesList[1,i] or 'signal' in storesList[1,i]:
-					timestamps = np.array(df['Time(s)'])
-					sampling_rate = np.array([1/(timestamps[-1]-timestamps[-2])])
-					write_hdf5(sampling_rate, storesList[0,i], outputPath, 'sampling_rate')
-					write_hdf5(df['Time(s)'].to_numpy(), storesList[0,i], outputPath, 'timestamps')
-					write_hdf5(df[storesList[0,i]].to_numpy(), storesList[0,i], outputPath, 'data')
-				else:
-					ttl = df[storesList[0,i]]
-					indices = np.where(ttl<=0)[0]
-					diff_indices = np.where(np.diff(indices)>1)[0]
-					write_hdf5(df['Time(s)'][indices[diff_indices]+1].to_numpy(), storesList[0,i], outputPath, 'timestamps')
-	else:
-		path = glob.glob(os.path.join(filepath, '*.doric'))
-		if len(path)>1:
-			raise Exception('More than one Doric file present at the location')
-		else:
-			with h5py.File(path[0], 'r') as f:
-				keys = list(f['Traces']['Console'].keys())
-				for i in range(storesList.shape[1]):
-					if 'control' in storesList[1,i] or 'signal' in storesList[1,i]:
-						timestamps = np.array(f['Traces']['Console']['Time(s)']['Console_time(s)'])
-						sampling_rate = np.array([1/(timestamps[-1]-timestamps[-2])])
-						data = np.array(f['Traces']['Console'][storesList[0,i]][storesList[0,i]])
-						write_hdf5(sampling_rate, storesList[0,i], outputPath, 'sampling_rate')
-						write_hdf5(timestamps, storesList[0,i], outputPath, 'timestamps')
-						write_hdf5(data, storesList[0,i], outputPath, 'data')
-					else:
-						timestamps = np.array(f['Traces']['Console']['Time(s)']['Console_time(s)'])
-						ttl = np.array(f['Traces']['Console'][storesList[0,i]][storesList[0,i]])
-						indices = np.where(ttl<=0)[0]
-						diff_indices = np.where(np.diff(indices)>1)[0]
-						write_hdf5(timestamps[indices[diff_indices]+1], storesList[0,i], outputPath, 'timestamps')
+	#print("Data for event {} fetched and stored.".format(event))
 
 
 # function to read data from 'tsq' and 'tev' files
-def readRawData(inputParameters):
+def readRawData(inputParametersPath):
 
 
 	print('### Reading raw data... ###')
 
-	# get input parameters
-	inputParameters = inputParameters
+	# reading input parameters file
+	with open(inputParametersPath) as f:	
+		inputParameters = json.load(f)
 
 	#storesListPath = glob.glob(os.path.join('/Users/VENUS/Downloads/Ashley/', '*_output_*'))
 
 	folderNames = inputParameters['folderNames']
-	numProcesses = inputParameters['numberOfCores']
-	if numProcesses==0:
-		numProcesses = mp.cpu_count()
-	elif numProcesses>mp.cpu_count():
-		print('Warning : # of cores parameter set is greater than the cores available \
-			   available in your machine')
-		numProcesses = mp.cpu_count()-1
+	
 
 	for i in folderNames:
 		filepath = i
 		print(filepath)
 		storesListPath = glob.glob(os.path.join(filepath, '*_output_*'))
 		# reading tsq file
-		data, flag = readtsq(filepath)
-		# checking if doric file exists
-		if flag=='tsq':
-			pass
-		else:
-			flag = check_doric(filepath)
+		data = readtsq(filepath)
 
 		# read data corresponding to each storename selected by user while saving the storeslist file
 		for j in range(len(storesListPath)):
@@ -393,18 +308,14 @@ def readRawData(inputParameters):
 			else:
 				storesList = np.genfromtxt(os.path.join(op, 'storesList.csv'), dtype='str', delimiter=',')
 
-			if isinstance(data, pd.DataFrame) and flag=='tsq':
-				execute_readtev(data, filepath, np.unique(storesList[0,:]), op, numProcesses)
-			elif flag=='doric_csv':
-				execute_import_doric(filepath, storesList, flag, op)
-			elif flag=='doric_doric':
-				execute_import_doric(filepath, storesList, flag, op)
+			if isinstance(data, pd.DataFrame):
+				execute_readtev(data, filepath, np.unique(storesList[0,:]), op)
 			else:
-				execute_import_csv(filepath, np.unique(storesList[0,:]), op, numProcesses)
+				execute_import_csv(filepath, np.unique(storesList[0,:]), op)
 
 	print("Raw data fetched and saved.")
 
 if __name__ == "__main__":
 	print('run')
-	readRawData(json.loads(sys.argv[1]))
+	readRawData(sys.argv[1:][0])
 
