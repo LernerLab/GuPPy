@@ -78,6 +78,12 @@ panel serve --show savingInputParameters.ipynb
 
 - GuPPy was initially developed keeping our data (FP data recorded using TDT systems) in mind. GuPPy now supports data collected using Neurophotometrics, Doric system and also other data types/formats using 'csv' files as input, but these are less extensively tested because of lack of sample data. If you have any issues, please get in touch on the [chat room](https://gitter.im/LernerLab/GuPPy?utm_source=share-link&utm_medium=link&utm_campaign=share-link) or by [raising an issue](https://github.com/LernerLab/GuPPy/issues), so that we can continue to improve this tool.
 
+## Citation
+
+- If you use GuPPy for your research, please cite [Sherathiya, V.N., Schaid, M.D., Seiler, J.L. et al. GuPPy, a Python toolbox for the analysis of fiber photometry data](https://www.nature.com/articles/s41598-021-03626-9)
+
+> Sherathiya, V.N., Schaid, M.D., Seiler, J.L. et al. GuPPy, a Python toolbox for the analysis of fiber photometry data. Sci Rep 11, 24212 (2021). https://doi.org/10.1038/s41598-021-03626-9
+
 ## Contributors
 
 - [Venus Sherathiya](https://github.com/venus-sherathiya)
