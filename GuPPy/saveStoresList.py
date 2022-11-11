@@ -5,18 +5,17 @@
 
 
 import os
-import sys
 import json
 import glob
+import h5py
 import numpy as np
 import pandas as pd
 from numpy import int32, uint32, uint8, uint16, float64, int64, int32, float32
 import panel as pn
-from collections import OrderedDict
 from random import randint
 from pathlib import Path
 import holoviews as hv
-from holoviews import opts
+import warnings
 import tkinter as tk
 from tkinter import ttk, StringVar
 
@@ -85,11 +84,10 @@ def readtsq(filepath):
 
 
 # function to show GUI and save 
-def saveStorenames(inputParametersPath, data, event_name, flag, filepath):
+def saveStorenames(inputParameters, data, event_name, flag, filepath):
     
-    # reading input parameters file
-    with open(inputParametersPath) as f:
-        inputParameters = json.load(f)
+    # getting input parameters
+    inputParameters = inputParameters
 
     # reading storenames from the data fetched using 'readtsq' function
     if isinstance(data, pd.DataFrame):
@@ -218,7 +216,7 @@ def saveStorenames(inputParametersPath, data, event_name, flag, filepath):
     
     literal_input_2 = pn.widgets.Ace(value="""{}""", sizing_mode='stretch_both', theme='tomorrow', language='json', height=250)
 
-    alert = pn.pane.Alert('#### No alerts !!', alert_type='danger', height=60)
+    alert = pn.pane.Alert('#### No alerts !!', alert_type='danger', height=80)
 
 
     take_widgets = pn.WidgetBox(
@@ -231,7 +229,7 @@ def saveStorenames(inputParametersPath, data, event_name, flag, filepath):
     )
 
     
-    #storenames = []
+    storenames = []
     
     if len(allnames)==0:
         alert.object = '####Alert !! \n No storenames found. There are not any TDT files or csv files to look for storenames.'
@@ -244,8 +242,7 @@ def saveStorenames(inputParametersPath, data, event_name, flag, filepath):
         else:
             select_location.options = [show_dir(filepath)]
             #select_location.value = select_location.options[0]
-
-
+    
     def fetchValues():
         alert.object = '#### No alerts !!'
         storenames_cache = dict()
@@ -254,11 +251,11 @@ def saveStorenames(inputParametersPath, data, event_name, flag, filepath):
                 storenames_cache = json.load(f)
         comboBox_keys = list(hold_comboBoxValues.keys())
         textBox_keys = list(hold_textBoxValues.keys())
-
+        
         comboBoxValues, textBoxValues = [], []
         for i in range(len(comboBox_keys)):
             comboBoxValues.append(hold_comboBoxValues[comboBox_keys[i]].get())
-
+        
         for i in range(len(textBox_keys)):
             textBoxValues.append(hold_textBoxValues[textBox_keys[i]].get())
             if len(textBoxValues[i].split())>1:
@@ -266,10 +263,10 @@ def saveStorenames(inputParametersPath, data, event_name, flag, filepath):
             if textBoxValues[i]==None and comboBoxValues[i] not in storenames_cache:
                 print(textBoxValues[i], comboBoxValues[i])
                 alert.object = '####Alert !! \n One of the text box entry is empty.'
-
+    
         if len(comboBoxValues)!=len(textBoxValues):
             alert.object = '####Alert !! \n Number of entries in combo box and text box should be same.'
-
+        
         names_for_storenames = []
         for i in range(len(comboBoxValues)):
             if comboBoxValues[i]=='control' or comboBoxValues[i]=="signal":
@@ -278,13 +275,13 @@ def saveStorenames(inputParametersPath, data, event_name, flag, filepath):
                 names_for_storenames.append(textBoxValues[i])
             else:
                 names_for_storenames.append(comboBoxValues[i])
-
+        
         d = dict()
+        print(text.value)
         d["storenames"] = text.value
         d["names_for_storenames"] = names_for_storenames
         literal_input_2.value = str(json.dumps(d))
-
-
+    
     # on clicking 'Select Storenames' button, following function is executed
     def update_values(event):
         global storenames, vars_list
@@ -310,7 +307,7 @@ def saveStorenames(inputParametersPath, data, event_name, flag, filepath):
         if os.path.exists(os.path.join(Path.home(), '.storesList.json')):
             with open(os.path.join(Path.home(), '.storesList.json')) as f:
                 storenames_cache = json.load(f)
-        
+
         def comboBoxSelected(event):
             row, col = event.widget.grid_info()['row'], event.widget.grid_info()['column']
             if event.widget.get()=="control":
@@ -324,7 +321,7 @@ def saveStorenames(inputParametersPath, data, event_name, flag, filepath):
                                 text="Type event name for the TTLs in the text box below :").grid(row=row, column=col+1)
             else:
                 pass
-    
+        
         global hold_comboBoxValues, hold_textBoxValues
         root = tk.Tk()
         root.title('Select options for storenames and give appropriate names (if asked)')
@@ -379,7 +376,9 @@ def saveStorenames(inputParametersPath, data, event_name, flag, filepath):
 
         button = ttk.Button(root, text='Show', command=fetchValues).grid(row=len(storenames)*2, column=2)   
         root.mainloop()
-    
+
+
+
     # on clicking save button, following function is executed
     def save_button(event=None):
         global storenames
@@ -401,30 +400,30 @@ def saveStorenames(inputParametersPath, data, event_name, flag, filepath):
 
 
         if not os.path.exists(os.path.join(Path.home(), '.storesList.json')):
-            global_storenames = dict()
+            storenames_cache = dict()
 
             for i in range(arr1.shape[0]):
-                if arr1[i] in global_storenames:
-                    global_storenames[arr1[i]].append(arr2[i])
-                    global_storenames[arr1[i]] = list(set(global_storenames[arr1[i]]))
+                if arr1[i] in storenames_cache:
+                    storenames_cache[arr1[i]].append(arr2[i])
+                    storenames_cache[arr1[i]] = list(set(storenames_cache[arr1[i]]))
                 else:
-                    global_storenames[arr1[i]] = [arr2[i]]
+                    storenames_cache[arr1[i]] = [arr2[i]]
 
             with open(os.path.join(Path.home(), '.storesList.json'), 'w') as f:
-                json.dump(global_storenames, f, indent=4) 
+                json.dump(storenames_cache, f, indent=4) 
         else:
             with open(os.path.join(Path.home(), '.storesList.json')) as f:
-                global_storenames = json.load(f)
+                storenames_cache = json.load(f)
 
             for i in range(arr1.shape[0]):
-                if arr1[i] in global_storenames:
-                    global_storenames[arr1[i]].append(arr2[i])
-                    global_storenames[arr1[i]] = list(set(global_storenames[arr1[i]]))
+                if arr1[i] in storenames_cache:
+                    storenames_cache[arr1[i]].append(arr2[i])
+                    storenames_cache[arr1[i]] = list(set(storenames_cache[arr1[i]]))
                 else:
-                    global_storenames[arr1[i]] = [arr2[i]]
+                    storenames_cache[arr1[i]] = [arr2[i]]
 
             with open(os.path.join(Path.home(), '.storesList.json'), 'w') as f:
-                json.dump(global_storenames, f, indent=4)
+                json.dump(storenames_cache, f, indent=4)
 
         arr = np.asarray([arr1, arr2])
         print(arr)
@@ -506,13 +505,20 @@ def decide_indices(df, flag, num_ch=2):
 
     return df, indices_dict, num_ch
 
-# In[4]:
+def read_doric(filepath):
+    with h5py.File(filepath, 'r') as f:
+        keys = list(f['Traces']['Console'].keys())
+        keys.remove('Time(s)')
+    
+    return keys
+
 # function to see if there are 'csv' files present
 # and recognize type of 'csv' files either from
-# Neurophotometrics or custom made 'csv' files
+# Neurophotometrics, Doric systems or custom made 'csv' files
 # and read data accordingly
-def import_np_csv(filepath, isosbestic_control, num_ch):
-    path = sorted(glob.glob(os.path.join(filepath, '*.csv')))
+def import_np_doric_csv(filepath, isosbestic_control, num_ch):
+    path = sorted(glob.glob(os.path.join(filepath, '*.csv'))) + \
+           sorted(glob.glob(os.path.join(filepath, '*.doric')))
     path_chev = glob.glob(os.path.join(filepath, 'chev*'))
     path_chod = glob.glob(os.path.join(filepath, 'chod*'))
     path_chpr = glob.glob(os.path.join(filepath, 'chpr*'))
@@ -521,194 +527,210 @@ def import_np_csv(filepath, isosbestic_control, num_ch):
     path_chev_chod_event = path_chev + path_chod + path_event + path_chpr
 
     path = list(set(path)-set(path_chev_chod_event))
+    flag = 'None'
     event_from_filename = []
     flag_arr = []
     for i in range(len(path)):
         dirname = os.path.dirname(path[i])
-
-        df = pd.read_csv(path[i], dtype=float)
-
-        colnames, value = check_header(df)
-        #print(len(colnames), len(value))
-
-        # check dataframe structure and read data accordingly
-        if len(value)>0:
-            columns_isstr = False
-            df = pd.read_csv(path[i], header=None)
-            cols = np.array(list(df.columns), dtype=np.str)
+        ext = os.path.basename(path[i]).split('.')[-1]
+        print(ext)
+        if ext=='doric':
+            key_names = read_doric(path[i])
+            event_from_filename.extend(key_names)
+            flag = 'doric_doric'
         else:
-            df = df
-            columns_isstr = True
-            cols = np.array(list(df.columns), dtype=np.str)
-
-        # check the structure of dataframe and assign flag to the type of file
-        if len(cols)==1:
-            if cols[0].lower()!='timestamps':
-                raise Exception("\033[1m"+"Column name should be timestamps (all lower-cases)"+"\033[0m")
-            else:
-                flag = 'event_csv'
-        elif len(cols)==3:
-            arr1 = np.array(['timestamps', 'data', 'sampling_rate'])
-            arr2 = np.char.lower(np.array(cols))
-            if (np.sort(arr1)==np.sort(arr2)).all()==False:
-                raise Exception("\033[1m"+"Column names should be timestamps, data and sampling_rate (all lower-cases)"+"\033[0m")
-            else:
-                flag = 'data_csv'
-        elif len(cols)==2:
-            flag = 'event_or_data_np'
-        elif len(cols)>=2:
-            flag  = 'data_np'
-        else:
-            raise Exception('Number of columns in csv file does not make sense.')
-
-
-        if columns_isstr == True and ('flags' in np.char.lower(np.array(cols)) or 'ledstate' in np.char.lower(np.array(cols))):
-            flag = flag+'_v2'
-        else:
-            flag = flag
-
-
-        # used assigned flags to process the files and read the data
-        if flag=='event_or_data_np':
-            arr = list(df.iloc[:,1])
-            check_float = [True for i in arr if type(i)==np.float]
-            if len(arr)==len(check_float):
-                flag = 'data_np'
-            else:
-                flag = 'event_np'
-        else:
-            pass
-
-        flag_arr.append(flag)
+            with warnings.catch_warnings():
+                warnings.simplefilter("error")
+                try:
+                    df = pd.read_csv(path[i], index_col=False, dtype=float)
+                except:
+                    df = pd.read_csv(path[i], header=1, index_col=False, nrows=10)   # to make process faster reading just first 10 rows
+                    df = df.drop(['Time(s)'], axis=1)
+                    event_from_filename.extend(list(df.columns))
+                    flag = 'doric_csv'
         print(flag)
-        if flag=='event_csv' or flag=='data_csv':
-            name = os.path.basename(path[i]).split('.')[0]
-            event_from_filename.append(name)
-        elif flag=='data_np':
-            df, indices_dict, num_channels = decide_indices(df, flag, num_ch)
-            
-            keys = list(indices_dict.keys())
-            for k in range(len(keys)):
-                for j in range(df.shape[1]):
-                    if j==0:
-                        timestamps = df.iloc[:,j][indices_dict[keys[k]]]
-                        #timestamps_odd = df.iloc[:,j][odd_indices]
-                    else:
-                        d = dict()
-                        d['timestamps'] = timestamps 
-                        d['data'] = df.iloc[:,j][indices_dict[keys[k]]]
-                        
-                        df_ch = pd.DataFrame(d)
-                        df_ch.to_csv(os.path.join(dirname, keys[k]+str(j)+'.csv'), index=False)
-                        event_from_filename.append(keys[k]+str(j))
-                    
-        elif flag=='event_np':
-            type_val = np.array(df.iloc[:,1])
-            type_val_unique = np.unique(type_val)
-            timestamps = np.array(df.iloc[:,0])
-            for j in range(len(type_val_unique)):
-                idx = np.where(type_val==type_val_unique[j])
-                d = dict()
-                d['timestamps'] = timestamps[idx]
-                df_new = pd.DataFrame(d)
-                df_new.to_csv(os.path.join(dirname, 'event'+str(j)+'.csv'), index=False)
-                event_from_filename.append('event'+str(j))
+        if flag=='doric_csv' or flag=='doric_doric':
+            continue
         else:
-            df, indices_dict, num_channels = decide_indices(df, flag)
+            colnames, value = check_header(df)
+            #print(len(colnames), len(value))
 
-            keys = list(indices_dict.keys())
-            for k in range(len(keys)):
-                for j in range(df.shape[1]):
-                    if j==0:
-                        timestamps = df.iloc[:,j][indices_dict[keys[k]]]
-                        #timestamps_odd = df.iloc[:,j][odd_indices]
-                    else:
-                        d = dict()
-                        d['timestamps'] = timestamps
-                        d['data'] = df.iloc[:,j][indices_dict[keys[k]]]
-                        
-                        df_ch = pd.DataFrame(d)
-                        df_ch.to_csv(os.path.join(dirname, keys[k]+str(j)+'.csv'), index=False)
-                        event_from_filename.append(keys[k]+str(j))
+            # check dataframe structure and read data accordingly
+            if len(value)>0:
+                columns_isstr = False
+                df = pd.read_csv(path[i], header=None)
+                cols = np.array(list(df.columns), dtype=np.str)
+            else:
+                df = df
+                columns_isstr = True
+                cols = np.array(list(df.columns), dtype=np.str)
 
-        path_chev = glob.glob(os.path.join(filepath, 'chev*'))
-        path_chod = glob.glob(os.path.join(filepath, 'chod*'))
-        path_chpr = glob.glob(os.path.join(filepath, 'chpr*'))
-        path_event = glob.glob(os.path.join(filepath, 'event*'))
-        #path_sig = glob.glob(os.path.join(filepath, 'sig*'))
-        path_chev_chod_chpr = [path_chev, path_chod, path_chpr]
-
-        if i==len(path)-1 and ('data_np_v2' in flag or 'data_np' in flag or 'event_np' in flag):
-            num_path_chev, num_path_chod, num_path_chpr = len(path_chev), len(path_chod), len(path_chpr)
-            arr_len, no_ch = [], []
-            for i in range(len(path_chev_chod_chpr)):
-                if len(path_chev_chod_chpr[i])>0:
-                    arr_len.append(len(path_chev_chod_chpr[i]))
+            # check the structure of dataframe and assign flag to the type of file
+            if len(cols)==1:
+                if cols[0].lower()!='timestamps':
+                    raise Exception("\033[1m"+"Column name should be timestamps (all lower-cases)"+"\033[0m")
                 else:
-                    continue
-
-            unique_arr_len = np.unique(np.array(arr_len))
-            print(unique_arr_len)
-            print(unique_arr_len.shape[0])
-            if 'data_np_v2' in flag_arr:
-                divisor = 1
+                    flag = 'event_csv'
+            elif len(cols)==3:
+                arr1 = np.array(['timestamps', 'data', 'sampling_rate'])
+                arr2 = np.char.lower(np.array(cols))
+                if (np.sort(arr1)==np.sort(arr2)).all()==False:
+                    raise Exception("\033[1m"+"Column names should be timestamps, data and sampling_rate (all lower-cases)"+"\033[0m")
+                else:
+                    flag = 'data_csv'
+            elif len(cols)==2:
+                flag = 'event_or_data_np'
+            elif len(cols)>=2:
+                flag  = 'data_np'
             else:
-                divisor = 1000
+                raise Exception('Number of columns in csv file does not make sense.')
 
-            for j in range(len(path_event)):
-                df_event = pd.read_csv(path_event[j])
-                df_chev = pd.read_csv(path_chev[0])
-                df_event['timestamps'] = (df_event['timestamps']-df_chev['timestamps'][0])/divisor
-                df_event.to_csv(path_event[j], index=False)
-            
-            if unique_arr_len.shape[0]==1:
-                for j in range(len(path_chev)):
-                    if 'chev' in indices_dict.keys():
-                        df_chev = pd.read_csv(path_chev[j])
-                        df_chev['timestamps'] = (df_chev['timestamps']-df_chev['timestamps'][0])/divisor
-                        df_chev['sampling_rate'] = np.full(df_chev.shape[0], np.nan)
-                        df_chev['sampling_rate'][0] = df_chev.shape[0]/(df_chev['timestamps'].iloc[-1] - df_chev['timestamps'].iloc[0])
-                        df_chev.to_csv(path_chev[j], index=False)
 
-                    if 'chod' in indices_dict.keys():
-                        df_chod = pd.read_csv(path_chod[j])
-                        df_chod['timestamps'] = df_chev['timestamps']
-                        df_chod['sampling_rate'] = np.full(df_chod.shape[0], np.nan)
-                        df_chod['sampling_rate'][0] = df_chev['sampling_rate'][0]
-                        df_chod.to_csv(path_chod[j], index=False)
-
-                    if 'chpr' in indices_dict.keys():
-                        df_chpr = pd.read_csv(path_chpr[j])
-                        df_chpr['timestamps'] = df_chev['timestamps']
-                        df_chpr['sampling_rate'] = np.full(df_chpr.shape[0], np.nan)
-                        df_chpr['sampling_rate'][0] = df_chev['sampling_rate'][0]
-                        df_chpr.to_csv(path_chpr[j], index=False)
+            if columns_isstr == True and ('flags' in np.char.lower(np.array(cols)) or 'ledstate' in np.char.lower(np.array(cols))):
+                flag = flag+'_v2'
             else:
-                raise Exception('Number of channels should be same for all regions.')
-        else:
-            pass
+                flag = flag
+
+
+            # used assigned flags to process the files and read the data
+            if flag=='event_or_data_np':
+                arr = list(df.iloc[:,1])
+                check_float = [True for i in arr if type(i)==np.float]
+                if len(arr)==len(check_float):
+                    flag = 'data_np'
+                else:
+                    flag = 'event_np'
+            else:
+                pass
+
+            flag_arr.append(flag)
+            if flag=='event_csv' or flag=='data_csv':
+                name = os.path.basename(path[i]).split('.')[0]
+                event_from_filename.append(name)
+            elif flag=='data_np':
+                df, indices_dict, num_channels = decide_indices(df, flag, num_ch)
+                
+                keys = list(indices_dict.keys())
+                for k in range(len(keys)):
+                    for j in range(df.shape[1]):
+                        if j==0:
+                            timestamps = df.iloc[:,j][indices_dict[keys[k]]]
+                            #timestamps_odd = df.iloc[:,j][odd_indices]
+                        else:
+                            d = dict()
+                            d['timestamps'] = timestamps 
+                            d['data'] = df.iloc[:,j][indices_dict[keys[k]]]
+                            
+                            df_ch = pd.DataFrame(d)
+                            df_ch.to_csv(os.path.join(dirname, keys[k]+str(j)+'.csv'), index=False)
+                            event_from_filename.append(keys[k]+str(j))
+                        
+            elif flag=='event_np':
+                type_val = np.array(df.iloc[:,1])
+                type_val_unique = np.unique(type_val)
+                timestamps = np.array(df.iloc[:,0])
+                for j in range(len(type_val_unique)):
+                    idx = np.where(type_val==type_val_unique[j])
+                    d = dict()
+                    d['timestamps'] = timestamps[idx]
+                    df_new = pd.DataFrame(d)
+                    df_new.to_csv(os.path.join(dirname, 'event'+str(j)+'.csv'), index=False)
+                    event_from_filename.append('event'+str(j))
+            else:
+                df, indices_dict, num_channels = decide_indices(df, flag)
+
+                keys = list(indices_dict.keys())
+                for k in range(len(keys)):
+                    for j in range(df.shape[1]):
+                        if j==0:
+                            timestamps = df.iloc[:,j][indices_dict[keys[k]]]
+                            #timestamps_odd = df.iloc[:,j][odd_indices]
+                        else:
+                            d = dict()
+                            d['timestamps'] = timestamps
+                            d['data'] = df.iloc[:,j][indices_dict[keys[k]]]
+                            
+                            df_ch = pd.DataFrame(d)
+                            df_ch.to_csv(os.path.join(dirname, keys[k]+str(j)+'.csv'), index=False)
+                            event_from_filename.append(keys[k]+str(j))
+
+            path_chev = glob.glob(os.path.join(filepath, 'chev*'))
+            path_chod = glob.glob(os.path.join(filepath, 'chod*'))
+            path_chpr = glob.glob(os.path.join(filepath, 'chpr*'))
+            path_event = glob.glob(os.path.join(filepath, 'event*'))
+            #path_sig = glob.glob(os.path.join(filepath, 'sig*'))
+            path_chev_chod_chpr = [path_chev, path_chod, path_chpr]
+
+            if i==len(path)-1 and ('data_np_v2' in flag or 'data_np' in flag or 'event_np' in flag):
+                num_path_chev, num_path_chod, num_path_chpr = len(path_chev), len(path_chod), len(path_chpr)
+                arr_len, no_ch = [], []
+                for i in range(len(path_chev_chod_chpr)):
+                    if len(path_chev_chod_chpr[i])>0:
+                        arr_len.append(len(path_chev_chod_chpr[i]))
+                    else:
+                        continue
+
+                unique_arr_len = np.unique(np.array(arr_len))
+                print(unique_arr_len)
+                print(unique_arr_len.shape[0])
+                if 'data_np_v2' in flag_arr:
+                    divisor = 1
+                else:
+                    divisor = 1000
+
+                for j in range(len(path_event)):
+                    df_event = pd.read_csv(path_event[j])
+                    df_chev = pd.read_csv(path_chev[0])
+                    df_event['timestamps'] = (df_event['timestamps']-df_chev['timestamps'][0])/divisor
+                    df_event.to_csv(path_event[j], index=False)
+                
+                if unique_arr_len.shape[0]==1:
+                    for j in range(len(path_chev)):
+                        if 'chev' in indices_dict.keys():
+                            df_chev = pd.read_csv(path_chev[j])
+                            df_chev['timestamps'] = (df_chev['timestamps']-df_chev['timestamps'][0])/divisor
+                            df_chev['sampling_rate'] = np.full(df_chev.shape[0], np.nan)
+                            df_chev['sampling_rate'][0] = df_chev.shape[0]/(df_chev['timestamps'].iloc[-1] - df_chev['timestamps'].iloc[0])
+                            df_chev.to_csv(path_chev[j], index=False)
+
+                        if 'chod' in indices_dict.keys():
+                            df_chod = pd.read_csv(path_chod[j])
+                            df_chod['timestamps'] = df_chev['timestamps']
+                            df_chod['sampling_rate'] = np.full(df_chod.shape[0], np.nan)
+                            df_chod['sampling_rate'][0] = df_chev['sampling_rate'][0]
+                            df_chod.to_csv(path_chod[j], index=False)
+
+                        if 'chpr' in indices_dict.keys():
+                            df_chpr = pd.read_csv(path_chpr[j])
+                            df_chpr['timestamps'] = df_chev['timestamps']
+                            df_chpr['sampling_rate'] = np.full(df_chpr.shape[0], np.nan)
+                            df_chpr['sampling_rate'][0] = df_chev['sampling_rate'][0]
+                            df_chpr.to_csv(path_chpr[j], index=False)
+                else:
+                    raise Exception('Number of channels should be same for all regions.')
+            else:
+                pass
     
     return event_from_filename, flag_arr
 
 
 # function to read input parameters and run the saveStorenames function
-def execute(inputParametersPath):
-    inputParametersPath = inputParametersPath
-    with open(inputParametersPath) as f:
-        inputParameters = json.load(f)
-
+def execute(inputParameters):
+    
+    
+    inputParameters = inputParameters
     folderNames = inputParameters['folderNames']
     isosbestic_control = inputParameters['isosbestic_control']
     num_ch = inputParameters['noChannels']
 
     print(folderNames)
-    # In[5]:
+
 
     for i in folderNames:
         filepath = os.path.join(inputParameters['abspath'], i)
         data = readtsq(filepath)
-        event_name, flag = import_np_csv(filepath, isosbestic_control, num_ch)
-        saveStorenames(inputParametersPath, data, event_name, flag, filepath)
+        event_name, flag = import_np_doric_csv(filepath, isosbestic_control, num_ch)
+        saveStorenames(inputParameters, data, event_name, flag, filepath)
 
 
 #execute(sys.argv[1:][0])
