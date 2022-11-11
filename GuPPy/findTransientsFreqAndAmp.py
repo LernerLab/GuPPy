@@ -9,6 +9,7 @@ import pandas as pd
 import multiprocessing as mp
 from scipy.signal import argrelextrema
 import matplotlib.pyplot as plt
+from itertools import repeat
 from preprocess import get_all_stores_for_combining_data
 
 
@@ -27,14 +28,14 @@ def read_hdf5(event, filepath, key):
 	return arr
 
 
-def processChunks(arrValues, arrIndexes):
+def processChunks(arrValues, arrIndexes, highAmpFilt, transientsThresh):
     
     arrValues = arrValues[~np.isnan(arrValues)] 
     median = np.median(arrValues)			
     										
     mad = np.median(np.abs(arrValues-median))   
     										
-    firstThreshold = median + (2*mad)
+    firstThreshold = median + (highAmpFilt*mad)
     										
     										
     greaterThanMad = np.where(arrValues>firstThreshold)[0]
@@ -46,7 +47,7 @@ def processChunks(arrValues, arrIndexes):
     
     filteredOutMedian = np.median(filteredOut)
     filteredOutMad = np.median(np.abs(filteredOut-np.median(filteredOut)))
-    secondThreshold = filteredOutMedian+(3*filteredOutMad)
+    secondThreshold = filteredOutMedian+(transientsThresh*filteredOutMad)
 
     greaterThanThreshIndex = np.where(arrValues>secondThreshold)[0]
     greaterThanThreshValues = arrValues[greaterThanThreshIndex]
@@ -154,6 +155,9 @@ def findFreqAndAmp(filepath, inputParameters, window=15, numProcesses=mp.cpu_cou
 
 	print('calculating frequency and amplitude of transients in z-score data....')
 	selectForTransientsComputation = inputParameters['selectForTransientsComputation']
+	highAmpFilt = inputParameters['highAmpFilt']
+	transientsThresh = inputParameters['transientsThresh']
+	print(highAmpFilt, transientsThresh)
 
 	if selectForTransientsComputation=='z_score':
 		path = glob.glob(os.path.join(filepath, 'z_score_*'))
@@ -173,7 +177,7 @@ def findFreqAndAmp(filepath, inputParameters, window=15, numProcesses=mp.cpu_cou
 
 
 		with mp.Pool(numProcesses) as p:
-			result = p.starmap(processChunks, zip(z_score_chunks, z_score_chunks_index))
+			result = p.starmap(processChunks, zip(z_score_chunks, z_score_chunks_index, repeat(highAmpFilt), repeat(transientsThresh)))
 		
 		
 		result = np.asarray(result, dtype=object)
