@@ -157,7 +157,6 @@ def findFreqAndAmp(filepath, inputParameters, window=15, numProcesses=mp.cpu_cou
 	selectForTransientsComputation = inputParameters['selectForTransientsComputation']
 	highAmpFilt = inputParameters['highAmpFilt']
 	transientsThresh = inputParameters['transientsThresh']
-	print(highAmpFilt, transientsThresh)
 
 	if selectForTransientsComputation=='z_score':
 		path = glob.glob(os.path.join(filepath, 'z_score_*'))
