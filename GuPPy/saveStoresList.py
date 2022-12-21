@@ -154,7 +154,8 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
 
                 ### Instructions to follow : 
 
-                - See instructions in “Github Wiki” for duplicating storenames. Otherwise leave these selections blank.<br>
+                - Check Storenames to repeat checkbox and see instructions in “Github Wiki” for duplicating storenames. 
+                Otherwise do not check the Storenames to repeat checkbox.<br>
                 - Select storenames from list and click “Select Storenames” to populate area below.<br>
                 - Enter names for storenames, in order, using the following naming convention:<br>
                     Isosbestic = “control_region” (ex: Dv1A= control_DMS)<br>
@@ -190,12 +191,20 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
 
     # creating different buttons and selectors for the GUI
     cross_selector = pn.widgets.CrossSelector(name='Store Names Selection', value=[], options=allnames)
-    multi_choice = pn.widgets.MultiChoice(name='Select Storenames which you want more than once', value=[], options=allnames)
+    multi_choice = pn.widgets.MultiChoice(name='Select Storenames which you want more than once (multi-choice: multiple options selection)', value=[], options=allnames)
 
-    literal_input_1 = pn.widgets.LiteralInput(name='Number of times you want the above storename', value=[], type=list)
+    literal_input_1 = pn.widgets.LiteralInput(name='Number of times you want the above storename (list)', value=[], type=list)
     #literal_input_2 = pn.widgets.LiteralInput(name='Names for Storenames (list)', type=list)
 
-    repeat_storename_wd = pn.WidgetBox('Storenames to repeat (leave blank if not needed)', multi_choice, literal_input_1, width=600)
+    repeat_storenames = pn.widgets.Checkbox(name='Storenames to repeat', value=False)
+    repeat_storename_wd = pn.WidgetBox('', background='white', width=600)
+    def callback(target, event):
+        if event.new==True:
+            target.objects = [multi_choice, literal_input_1]
+        elif event.new==False:
+            target.clear()
+    repeat_storenames.link(repeat_storename_wd, callbacks={'value': callback})
+    #repeat_storename_wd = pn.WidgetBox('Storenames to repeat (leave blank if not needed)', multi_choice, literal_input_1, background="white", width=600)
 
     update_options = pn.widgets.Button(name='Select Storenames')
     save = pn.widgets.Button(name='Save')
@@ -307,6 +316,7 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
         if os.path.exists(os.path.join(Path.home(), '.storesList.json')):
             with open(os.path.join(Path.home(), '.storesList.json')) as f:
                 storenames_cache = json.load(f)
+        
 
         def comboBoxSelected(event):
             row, col = event.widget.grid_info()['row'], event.widget.grid_info()['column']
@@ -328,6 +338,10 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
         root.geometry('1200x1000')
         hold_comboBoxValues = dict()
         hold_textBoxValues = dict()
+
+        def stayOnTop():
+            root.lift()
+            root.after(2000, stayOnTop)
 
         for i in range(len(storenames)):
             if storenames[i] in storenames_cache:
@@ -356,7 +370,7 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
                     hold_textBoxValues[storenames[i]+'_'+str(i)] = StringVar()
                     myCombo = ttk.Combobox(root, 
                                     textvariable=hold_comboBoxValues[storenames[i]+'_'+str(i)],
-                                    value=['control', 'signal', 'event TTLs'], 
+                                    value=['', 'control', 'signal', 'event TTLs'], 
                                     width=12)
                     textBox = tk.Entry(root, 
                                     textvariable=hold_textBoxValues[storenames[i]+'_'+str(i)])
@@ -365,7 +379,7 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
                     hold_textBoxValues[storenames[i]] = StringVar()
                     myCombo = ttk.Combobox(root, 
                                         textvariable=hold_comboBoxValues[storenames[i]],
-                                        value=['control', 'signal', 'event TTLs'], 
+                                        value=['', 'control', 'signal', 'event TTLs'], 
                                         width=12)
                     textBox = tk.Entry(root, 
                                     textvariable=hold_textBoxValues[storenames[i]])
@@ -374,7 +388,9 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
                 myCombo.current(0)
                 myCombo.bind("<<ComboboxSelected>>", comboBoxSelected)
 
-        button = ttk.Button(root, text='Show', command=fetchValues).grid(row=len(storenames)*2, column=2)   
+        note = ttk.Label(root, text="Note : Click on Show button after appropriate selections and close the window.").grid(row=(len(storenames)*2)+2, column=2)
+        button = ttk.Button(root, text='Show', command=fetchValues).grid(row=(len(storenames)*2)+4, column=2)
+        stayOnTop()   
         root.mainloop()
 
 
@@ -444,14 +460,16 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
 
     if 'data_np_v2' in flag or 'data_np' in flag or 'event_np' in flag:
         widget_1 = pn.Column('# '+os.path.basename(filepath), mark_down, mark_down_np, plot_select, plot)
-        widget_2 = pn.Column(repeat_storename_wd, cross_selector, update_options, 
+        widget_2 = pn.Column(repeat_storenames, repeat_storename_wd, pn.Spacer(height=20), 
+                             cross_selector, update_options, 
                              text, literal_input_2, alert, mark_down_for_overwrite, 
                              overwrite_button, select_location, save, path)
         template.main.append(pn.Row(widget_1, widget_2))
 
     else:
         widget_1 = pn.Column('# '+os.path.basename(filepath), mark_down)
-        widget_2 = pn.Column(repeat_storename_wd, cross_selector, update_options, 
+        widget_2 = pn.Column(repeat_storenames, repeat_storename_wd, pn.Spacer(height=20), 
+                             cross_selector, update_options, 
                              text, literal_input_2, alert, mark_down_for_overwrite, 
                              overwrite_button, select_location, save, path)
         template.main.append(pn.Row(widget_1, widget_2))
