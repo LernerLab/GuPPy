@@ -175,7 +175,7 @@ def helper_plots(filepath, event, name, inputParameters):
 		save_hm = param.Action(lambda x: x.param.trigger('save_hm'), label='Save')
 		save_psth = param.Action(lambda x: x.param.trigger('save_psth'), label='Save')
 		X_Limit = param.Range(default=(-5, 10), bounds=(x_min,x_max))
-		Y_Limit = param.Range(bounds=(-20, 20.0))
+		Y_Limit = param.Range(bounds=(-50, 50.0))
 
 		#C_Limit = param.Range(bounds=(-20,20.0))
 		
