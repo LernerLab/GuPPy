@@ -17,7 +17,7 @@ from pathlib import Path
 import holoviews as hv
 import warnings
 import tkinter as tk
-from tkinter import ttk, StringVar
+from tkinter import ttk, StringVar, messagebox
 
 #hv.extension()
 pn.extension()
@@ -279,6 +279,8 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
         names_for_storenames = []
         for i in range(len(comboBoxValues)):
             if comboBoxValues[i]=='control' or comboBoxValues[i]=="signal":
+                if '_' in textBoxValues[i]:
+                    messagebox.showwarning("Warning", "Please do not use underscore in region name")
                 names_for_storenames.append("{}_{}".format(comboBoxValues[i], textBoxValues[i]))
             elif comboBoxValues[i]=='event TTLs':
                 names_for_storenames.append(textBoxValues[i])
