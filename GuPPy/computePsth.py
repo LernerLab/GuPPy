@@ -487,6 +487,7 @@ def averageForGroup(folderNames, event, inputParameters):
 	for i in range(len(new_path)):
 		psth, psth_bins = [], [] 
 		columns = []
+		bins_cols = []
 		temp_path = new_path[i]
 		for j in range(len(temp_path)):
 			#print(os.path.join(temp_path[j][0], temp_path[j][1]+'_{}.h5'.format(temp_path[j][2])))
@@ -501,7 +502,11 @@ def averageForGroup(folderNames, event, inputParameters):
 				columns.append(os.path.basename(temp_path[j][0]))
 				if len(bins_cols)>0:
 					psth_bins.append(df[bins_cols])
-					
+
+		if len(psth)==0:
+			print("Somthing is wrong with the file search pattern.")
+			continue
+
 		if len(bins_cols)>0:
 			df_bins = pd.concat(psth_bins, axis=1)
 			df_bins_mean = df_bins.groupby(by=df_bins.columns, axis=1).mean()
@@ -539,6 +544,9 @@ def averageForGroup(folderNames, event, inputParameters):
 				arr.append(df)
 				index.append(list(df.index))
 		
+		if len(arr)==0:
+			print("Somthing is wrong with the file search pattern.")
+			continue
 		index = list(np.concatenate(index))
 		new_df = pd.concat(arr, axis=0)  #os.path.join(filepath, 'peak_AUC_'+name+'.csv')
 		new_df.to_csv(os.path.join(op, 'peak_AUC_{}_{}.csv'.format(temp_path[j][1], temp_path[j][2])), index=index)
@@ -554,6 +562,7 @@ def averageForGroup(folderNames, event, inputParameters):
 	for i in range(len(type)):
 		corr = []
 		columns = []
+		df = None
 		for j in range(len(folderNames)):
 			corr_info, _ = getCorrCombinations(folderNames[j], inputParameters)
 			for k in range(1, len(corr_info)):
@@ -564,6 +573,9 @@ def averageForGroup(folderNames, event, inputParameters):
 					df = read_Df(os.path.join(folderNames[j], 'cross_correlation_output'), 'corr_'+event, type[i]+'_'+corr_info[k-1]+'_'+corr_info[k])
 					corr.append(df['mean'])
 					columns.append(os.path.basename(folderNames[j]))
+		
+		if not isinstance(df, pd.DataFrame):
+			break
 		
 		corr = np.array(corr)
 		timestamps = np.array(df['timestamps']).reshape(1,-1)
