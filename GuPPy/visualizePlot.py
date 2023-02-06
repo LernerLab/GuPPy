@@ -70,8 +70,11 @@ def helper_plots(filepath, event, name, inputParameters):
 			event_corr.append(filename)
 			df = pd.read_hdf(corr_fp[i], key='df', mode='r')
 			frames.append(df)
-
-		df_corr = pd.concat(frames, keys=event_corr, axis=1)
+		if len(frames)>0:
+			df_corr = pd.concat(frames, keys=event_corr, axis=1)
+		else:
+			event_corr = []
+			df_corr = []
 	else:
 		event_corr = []
 		df_corr = None
