@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import glob
 import time
@@ -1102,7 +1103,8 @@ def extractTsAndSignal(inputParameters):
 		
 
 	
-
+if __name__ == "__main__":
+	extractTsAndSignal(json.loads(sys.argv[1]))
 
 
 
