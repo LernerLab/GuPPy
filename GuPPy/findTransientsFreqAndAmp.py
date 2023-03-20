@@ -306,7 +306,7 @@ def executeFindFreqAndAmp(inputParameters):
 			op = get_all_stores_for_combining_data(storesListPath)
 			for i in range(len(op)):
 				filepath = op[i][0]
-				storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',')
+				storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)
 				findFreqAndAmp(filepath, inputParameters, window=moving_window, numProcesses=numProcesses)
 			plt.show()
 		else:
@@ -315,7 +315,7 @@ def executeFindFreqAndAmp(inputParameters):
 				storesListPath = glob.glob(os.path.join(filepath, '*_output_*'))
 				for j in range(len(storesListPath)):
 					filepath = storesListPath[j]
-					storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',')
+					storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)
 					findFreqAndAmp(filepath, inputParameters, window=moving_window, numProcesses=numProcesses)
 			plt.show()
 

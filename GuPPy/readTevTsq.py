@@ -166,7 +166,7 @@ def check_data(S, filepath, event, outputPath):
 	diff = np.diff(S['data'])
 	arr = np.full(diff.shape[0],1)
 
-	storesList = np.genfromtxt(os.path.join(outputPath, 'storesList.csv'), dtype='str', delimiter=',')
+	storesList = np.genfromtxt(os.path.join(outputPath, 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)
 	
 	if diff.shape[0]==0:
 		return 0
@@ -389,9 +389,9 @@ def readRawData(inputParameters):
 		for j in range(len(storesListPath)):
 			op = storesListPath[j]
 			if os.path.exists(os.path.join(op, '.cache_storesList.csv')):
-				storesList = np.genfromtxt(os.path.join(op, '.cache_storesList.csv'), dtype='str', delimiter=',')
+				storesList = np.genfromtxt(os.path.join(op, '.cache_storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)
 			else:
-				storesList = np.genfromtxt(os.path.join(op, 'storesList.csv'), dtype='str', delimiter=',')
+				storesList = np.genfromtxt(os.path.join(op, 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)
 
 			if isinstance(data, pd.DataFrame) and flag=='tsq':
 				execute_readtev(data, filepath, np.unique(storesList[0,:]), op, numProcesses)

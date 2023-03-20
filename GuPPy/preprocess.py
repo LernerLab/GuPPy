@@ -930,7 +930,7 @@ def execute_timestamp_correction(folderNames, timeForLightsTurnOn, isosbestic_co
 
 		for j in range(len(storesListPath)):
 			filepath = storesListPath[j]
-			storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',')
+			storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)
 
 			if isosbestic_control==False:
 				storesList = add_control_channel(filepath, storesList)
@@ -960,7 +960,7 @@ def check_storeslistfile(folderNames):
 		storesListPath = glob.glob(os.path.join(filepath, '*_output_*'))
 		for j in range(len(storesListPath)):
 			filepath = storesListPath[j]
-			storesList = np.concatenate((storesList, np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',')), axis=1)
+			storesList = np.concatenate((storesList, np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)), axis=1)
 
 	storesList = np.unique(storesList, axis=1)
 	
@@ -998,7 +998,7 @@ def combineData(folderNames, timeForLightsTurnOn, storesList):
 		storesListPath = glob.glob(os.path.join(filepath, '*_output_*'))
 		for j in range(len(storesListPath)):
 			filepath = storesListPath[j]
-			storesList_new = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',')
+			storesList_new = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)
 			sampling_rate_fp.append(glob.glob(os.path.join(filepath, 'timeCorrection_*')))
 
 	# check if sampling rate is same for both data
@@ -1044,7 +1044,7 @@ def execute_zscore(folderNames, inputParameters):
 	
 	for j in range(len(storesListPath)):
 		filepath = storesListPath[j]
-		storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',')
+		storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)
 
 		if remove_artifacts==True:
 			print("Removing Artifacts from the data and correcting timestamps...")

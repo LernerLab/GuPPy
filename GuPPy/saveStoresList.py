@@ -553,7 +553,6 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
     for i in range(len(path)):
         dirname = os.path.dirname(path[i])
         ext = os.path.basename(path[i]).split('.')[-1]
-        print(ext)
         if ext=='doric':
             key_names = read_doric(path[i])
             event_from_filename.extend(key_names)
@@ -568,7 +567,6 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
                     df = df.drop(['Time(s)'], axis=1)
                     event_from_filename.extend(list(df.columns))
                     flag = 'doric_csv'
-        print(flag)
         if flag=='doric_csv' or flag=='doric_doric':
             continue
         else:
@@ -584,7 +582,6 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
                 df = df
                 columns_isstr = True
                 cols = np.array(list(df.columns), dtype=np.str)
-
             # check the structure of dataframe and assign flag to the type of file
             if len(cols)==1:
                 if cols[0].lower()!='timestamps':
@@ -611,18 +608,20 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
             else:
                 flag = flag
 
-
+            print(flag)
             # used assigned flags to process the files and read the data
             if flag=='event_or_data_np':
                 arr = list(df.iloc[:,1])
                 check_float = [True for i in arr if type(i)==np.float]
-                if len(arr)==len(check_float):
+                if len(arr)==len(check_float) and columns_isstr == False:
                     flag = 'data_np'
+                elif columns_isstr == True and ('value' in np.char.lower(np.array(cols))):
+                    flag = 'event_np'
                 else:
                     flag = 'event_np'
             else:
                 pass
-
+            
             flag_arr.append(flag)
             if flag=='event_csv' or flag=='data_csv':
                 name = os.path.basename(path[i]).split('.')[0]
@@ -648,14 +647,30 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
             elif flag=='event_np':
                 type_val = np.array(df.iloc[:,1])
                 type_val_unique = np.unique(type_val)
-                timestamps = np.array(df.iloc[:,0])
-                for j in range(len(type_val_unique)):
-                    idx = np.where(type_val==type_val_unique[j])
+                if len(type_val_unique)>1:
+                    response = messagebox.askyesno('Multiple event TTLs', 'Based on the TTL file,\
+                                                                            it looks like TTLs \
+                                                                            belongs to multipe behavior type. \
+                                                                            Do you want to create multiple files for each \
+                                                                            behavior type ?')
+                else:
+                    pass
+                if response==1:
+                    timestamps = np.array(df.iloc[:,0])
+                    for j in range(len(type_val_unique)):
+                        idx = np.where(type_val==type_val_unique[j])
+                        d = dict()
+                        d['timestamps'] = timestamps[idx]
+                        df_new = pd.DataFrame(d)
+                        df_new.to_csv(os.path.join(dirname, 'event'+str(j)+'.csv'), index=False)
+                        event_from_filename.append('event'+str(j))
+                else:
+                    timestamps = np.array(df.iloc[:,0])
                     d = dict()
-                    d['timestamps'] = timestamps[idx]
+                    d['timestamps'] = timestamps
                     df_new = pd.DataFrame(d)
-                    df_new.to_csv(os.path.join(dirname, 'event'+str(j)+'.csv'), index=False)
-                    event_from_filename.append('event'+str(j))
+                    df_new.to_csv(os.path.join(dirname, 'event'+str(0)+'.csv'), index=False)
+                    event_from_filename.append('event'+str(0))
             else:
                 df, indices_dict, num_channels = decide_indices(df, flag)
 
@@ -680,7 +695,6 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
             path_event = glob.glob(os.path.join(filepath, 'event*'))
             #path_sig = glob.glob(os.path.join(filepath, 'sig*'))
             path_chev_chod_chpr = [path_chev, path_chod, path_chpr]
-
             if i==len(path)-1 and ('data_np_v2' in flag or 'data_np' in flag or 'event_np' in flag):
                 num_path_chev, num_path_chod, num_path_chpr = len(path_chev), len(path_chod), len(path_chpr)
                 arr_len, no_ch = [], []
@@ -691,8 +705,6 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
                         continue
 
                 unique_arr_len = np.unique(np.array(arr_len))
-                print(unique_arr_len)
-                print(unique_arr_len.shape[0])
                 if 'data_np_v2' in flag_arr:
                     divisor = 1
                 else:
@@ -703,7 +715,6 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
                     df_chev = pd.read_csv(path_chev[0])
                     df_event['timestamps'] = (df_event['timestamps']-df_chev['timestamps'][0])/divisor
                     df_event.to_csv(path_event[j], index=False)
-                
                 if unique_arr_len.shape[0]==1:
                     for j in range(len(path_chev)):
                         if 'chev' in indices_dict.keys():

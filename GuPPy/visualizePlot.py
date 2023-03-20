@@ -630,7 +630,7 @@ def visualizeResults(inputParameters):
 		storesListPath = np.concatenate(storesListPath)
 		storesList = np.asarray([[],[]])
 		for i in range(storesListPath.shape[0]):
-			storesList = np.concatenate((storesList, np.genfromtxt(os.path.join(storesListPath[i], 'storesList.csv'), dtype='str', delimiter=',')), axis=1)
+			storesList = np.concatenate((storesList, np.genfromtxt(os.path.join(storesListPath[i], 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)), axis=1)
 		storesList = np.unique(storesList, axis=1)
 		
 		createPlots(filepath_avg, np.unique(storesList[1,:]), inputParameters)
@@ -646,7 +646,7 @@ def visualizeResults(inputParameters):
 			for i in range(len(op)):
 				storesList = np.asarray([[],[]])
 				for j in range(len(op[i])):
-					storesList = np.concatenate((storesList, np.genfromtxt(os.path.join(op[i][j], 'storesList.csv'), dtype='str', delimiter=',')), axis=1)
+					storesList = np.concatenate((storesList, np.genfromtxt(os.path.join(op[i][j], 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)), axis=1)
 				storesList = np.unique(storesList, axis=1)
 				filepath = op[i][0]
 				createPlots(filepath, storesList[1,:], inputParameters)
@@ -658,7 +658,7 @@ def visualizeResults(inputParameters):
 				print(storesListPath)
 				for j in range(len(storesListPath)):
 					filepath = storesListPath[j]
-					storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',')
+					storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)
 					
 					createPlots(filepath, storesList[1,:], inputParameters)
 
