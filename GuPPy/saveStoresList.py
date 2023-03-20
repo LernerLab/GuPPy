@@ -654,7 +654,7 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
                                                                             Do you want to create multiple files for each \
                                                                             behavior type ?')
                 else:
-                    pass
+                    response = 0
                 if response==1:
                     timestamps = np.array(df.iloc[:,0])
                     for j in range(len(type_val_unique)):
