@@ -207,15 +207,20 @@ def helper_psth(z_score, event, filepath, nSecPrev, nSecPost, timeInterval, bin_
 
 	# reject burst of timestamps
 	ts = np.asarray(new_ts)
-	new_ts = [ts[0]]
-	for i in range(1, ts.shape[0]):
-		thisTime = ts[i]
-		prevTime = new_ts[-1]
-		diff = thisTime-prevTime
-		if diff<timeInterval:
-			continue
-		else:
-			new_ts.append(ts[i])
+	# skip the event if there are no TTLs
+	if len(ts)==0:
+		new_ts = np.array([])
+		print(f"Warning : No TTLs present for {event}. This will cause an error in Visualization step")
+	else:
+		new_ts = [ts[0]]
+		for i in range(1, ts.shape[0]):
+			thisTime = ts[i]
+			prevTime = new_ts[-1]
+			diff = thisTime-prevTime
+			if diff<timeInterval:
+				continue
+			else:
+				new_ts.append(ts[i])
 
 	# final timestamps
 	ts = np.asarray(new_ts)
