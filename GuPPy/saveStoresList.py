@@ -16,13 +16,35 @@ from random import randint
 from pathlib import Path
 import holoviews as hv
 import warnings
+import logging
 import tkinter as tk
 from tkinter import ttk, StringVar, messagebox
 
 #hv.extension()
 pn.extension()
-# In[2]:
 
+def insertLog(text, level):
+    file = os.path.join('.','..','guppy.log')
+    format = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+    infoLog = logging.FileHandler(file)
+    infoLog.setFormatter(format)
+    infoLog
+    logger = logging.getLogger(file)
+    logger.setLevel(level)
+    
+    if not logger.handlers:
+        logger.addHandler(infoLog)
+        if level == logging.DEBUG:
+            logger.debug(text)
+        if level == logging.INFO:
+            logger.info(text)
+        if level == logging.ERROR:
+            logger.exception(text)
+        if level == logging.WARNING:
+            logger.warning(text)
+    
+    infoLog.close()
+    logger.removeHandler(infoLog)
 
 # function to show location for over-writing or creating a new stores list file.
 def show_dir(filepath):
@@ -70,6 +92,8 @@ def readtsq(filepath):
                           'offsets': offsets}, align=True)
     path = glob.glob(os.path.join(filepath, '*.tsq'))
     if len(path)>1:
+        insertLog('Two tsq files are present at the location.',
+                  logging.ERROR)
         raise Exception('Two tsq files are present at the location.')
     elif len(path)==0:
         return 0
@@ -80,22 +104,21 @@ def readtsq(filepath):
     return df
 
 
-# In[3]:
-
-
 # function to show GUI and save 
 def saveStorenames(inputParameters, data, event_name, flag, filepath):
     
+    insertLog('Saving stores list file.',
+                  logging.DEBUG)
     # getting input parameters
     inputParameters = inputParameters
 
     # reading storenames from the data fetched using 'readtsq' function
     if isinstance(data, pd.DataFrame):
-        data['name'] = np.asarray(data['name'], dtype=np.str)
+        data['name'] = np.asarray(data['name'], dtype=str)
         allnames = np.unique(data['name'])
         index = []
         for i in range(len(allnames)):
-            length = len(np.str(allnames[i]))
+            length = len(str(allnames[i]))
             if length<4:
                 index.append(i)
         allnames = np.delete(allnames, index, 0)
@@ -406,12 +429,16 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
 
         if np.where(arr2=="")[0].size>0:
             alert.object = '#### Alert !! \n Empty string in the list names_for_storenames.'
+            insertLog('Empty string in the list names_for_storenames.',
+                      logging.ERROR)
             raise Exception('Empty string in the list names_for_storenames.')
         else:
             alert.object = '#### No alerts !!'
 
         if arr1.shape[0]!=arr2.shape[0]:
             alert.object = '#### Alert !! \n Length of list storenames and names_for_storenames is not equal.'
+            insertLog('Length of list storenames and names_for_storenames is not equal.',
+                      logging.ERROR)
             raise Exception('Length of list storenames and names_for_storenames is not equal.')
         else:
             alert.object = '#### No alerts !!'
@@ -450,7 +477,9 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
             
         np.savetxt(os.path.join(select_location.value, 'storesList.csv'), arr, delimiter=",", fmt='%s')
         path.value = os.path.join(select_location.value, 'storesList.csv')
-
+        insertLog(f"Storeslist file saved at {select_location.value}",
+                      logging.INFO)
+        insertLog('Storeslist : \n'+str(arr), logging.INFO)
     
 
     update_options.on_click(update_values)
@@ -484,6 +513,9 @@ def check_channels(state):
     state = state.astype(int)
     unique_state = np.unique(state[2:12])
     if unique_state.shape[0]>3:
+        insertLog("Looks like there are more than 3 channels in the file. Reading of these files\
+                        are not supported. Reach out to us if you get this error message.",
+                        logging.ERROR)
         raise Exception("Looks like there are more than 3 channels in the file. Reading of these files\
                         are not supported. Reach out to us if you get this error message.")
 
@@ -495,6 +527,10 @@ def check_channels(state):
 def decide_indices(df, flag, num_ch=2):
     ch_name = ['chev', 'chod', 'chpr']
     if len(ch_name)<num_ch:
+        insertLog('Number of channels parameters in Input Parameters GUI is more than 3. \
+                    Looks like there are more than 3 channels in the file. Reading of these files\
+                    are not supported. Reach out to us if you get this error message.',
+                    logging.ERROR)
         raise Exception('Number of channels parameters in Input Parameters GUI is more than 3. \
                          Looks like there are more than 3 channels in the file. Reading of these files\
                          are not supported. Reach out to us if you get this error message.')
@@ -512,6 +548,9 @@ def decide_indices(df, flag, num_ch=2):
             arr = ['FrameCounter', 'LedState']
             state = np.array(df['LedState'])
         else:
+            insertLog("File type shows Neurophotometrics newer version \
+                    data but column names does not have Flags or LedState",
+                    logging.ERROR)
             raise Exception("File type shows Neurophotometrics newer version \
                             data but column names does not have Flags or LedState")
 
@@ -525,10 +564,45 @@ def decide_indices(df, flag, num_ch=2):
 
     return df, indices_dict, num_ch
 
+def separate_last_element(arr):
+    l = arr[-1]
+    return arr[:-1], l
+
+def access_keys_doricV6(doric_file):
+    data = [doric_file["DataAcquisition"]]
+    res = []
+    while len(data) != 0:
+        members = len(data)
+        while members != 0:
+            members -= 1
+            data, last_element = separate_last_element(data)
+            if isinstance(last_element, h5py.Dataset) and not last_element.name.endswith("/Time"):
+                res.append(last_element.name)
+            elif isinstance(last_element, h5py.Group):
+                data.extend(reversed([last_element[k] for k in last_element.keys()])) 
+
+    keys = []
+    for element in res:
+        sep_values = element.split('/')
+        if sep_values[-1]=='Values':
+            keys.append(sep_values[-2])
+        else:
+            keys.append(sep_values[-1])
+    
+    return keys
+
+def access_keys_doricV1(doric_file):
+    keys = list(doric_file['Traces']['Console'].keys())
+    keys.remove('Time(s)')
+    
+    return keys
+
 def read_doric(filepath):
     with h5py.File(filepath, 'r') as f:
-        keys = list(f['Traces']['Console'].keys())
-        keys.remove('Time(s)')
+        if 'Traces' in list(f.keys()):
+            keys = access_keys_doricV1(f)
+        elif list(f.keys())==['Configurations', 'DataAcquisition']:
+            keys = access_keys_doricV6(f)
     
     return keys
 
@@ -537,6 +611,9 @@ def read_doric(filepath):
 # Neurophotometrics, Doric systems or custom made 'csv' files
 # and read data accordingly
 def import_np_doric_csv(filepath, isosbestic_control, num_ch):
+
+    insertLog("If it exists, importing either NPM or Doric or csv file based on the structure of file",
+              logging.DEBUG)
     path = sorted(glob.glob(os.path.join(filepath, '*.csv'))) + \
            sorted(glob.glob(os.path.join(filepath, '*.doric')))
     path_chev = glob.glob(os.path.join(filepath, 'chev*'))
@@ -579,15 +656,17 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
             if len(value)>0:
                 columns_isstr = False
                 df = pd.read_csv(path[i], header=None)
-                cols = np.array(list(df.columns), dtype=np.str)
+                cols = np.array(list(df.columns), dtype=str)
             else:
                 df = df
                 columns_isstr = True
-                cols = np.array(list(df.columns), dtype=np.str)
+                cols = np.array(list(df.columns), dtype=str)
 
             # check the structure of dataframe and assign flag to the type of file
             if len(cols)==1:
                 if cols[0].lower()!='timestamps':
+                    insertLog("\033[1m"+"Column name should be timestamps (all lower-cases)"+"\033[0m",
+                              logging.ERROR)
                     raise Exception("\033[1m"+"Column name should be timestamps (all lower-cases)"+"\033[0m")
                 else:
                     flag = 'event_csv'
@@ -595,6 +674,8 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
                 arr1 = np.array(['timestamps', 'data', 'sampling_rate'])
                 arr2 = np.char.lower(np.array(cols))
                 if (np.sort(arr1)==np.sort(arr2)).all()==False:
+                    insertLog("\033[1m"+"Column names should be timestamps, data and sampling_rate (all lower-cases)"+"\033[0m",
+                              logging.ERROR)
                     raise Exception("\033[1m"+"Column names should be timestamps, data and sampling_rate (all lower-cases)"+"\033[0m")
                 else:
                     flag = 'data_csv'
@@ -603,6 +684,8 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
             elif len(cols)>=2:
                 flag  = 'data_np'
             else:
+                insertLog('Number of columns in csv file does not make sense.',
+                          logging.ERROR)
                 raise Exception('Number of columns in csv file does not make sense.')
 
 
@@ -691,8 +774,7 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
                         continue
 
                 unique_arr_len = np.unique(np.array(arr_len))
-                print(unique_arr_len)
-                print(unique_arr_len.shape[0])
+
                 if 'data_np_v2' in flag_arr:
                     divisor = 1
                 else:
@@ -727,10 +809,13 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
                             df_chpr['sampling_rate'][0] = df_chev['sampling_rate'][0]
                             df_chpr.to_csv(path_chpr[j], index=False)
                 else:
+                    insertLog('Number of channels should be same for all regions.',
+                              logging.ERROR)
                     raise Exception('Number of channels should be same for all regions.')
             else:
                 pass
-    
+    insertLog('Importing of either NPM or Doric or csv file is done.',
+              logging.INFO)
     return event_from_filename, flag_arr
 
 
@@ -745,19 +830,17 @@ def execute(inputParameters):
 
     print(folderNames)
 
+    try:
+        for i in folderNames:
+            filepath = os.path.join(inputParameters['abspath'], i)
+            data = readtsq(filepath)
+            event_name, flag = import_np_doric_csv(filepath, isosbestic_control, num_ch)
+            saveStorenames(inputParameters, data, event_name, flag, filepath)
+        insertLog('#'*400, logging.INFO)
+    except Exception as e:
+        insertLog(str(e), logging.ERROR)
+        raise e
 
-    for i in folderNames:
-        filepath = os.path.join(inputParameters['abspath'], i)
-        data = readtsq(filepath)
-        event_name, flag = import_np_doric_csv(filepath, isosbestic_control, num_ch)
-        saveStorenames(inputParameters, data, event_name, flag, filepath)
-
-
-#execute(sys.argv[1:][0])
-
-
-
-# In[ ]:
 
 
 
