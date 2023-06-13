@@ -58,7 +58,6 @@ def read_hdf5(event, filepath, key):
 		with h5py.File(op, 'r') as f:
 			arr = np.asarray(f[key])
 	else:
-		insertLog(f"{event}.hdf5 file does not exist", logging.ERROR)
 		raise Exception('{}.hdf5 file does not exist'.format(event))
 
 	return arr

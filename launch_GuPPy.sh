@@ -26,7 +26,9 @@ if [[ "$user_input_lower" == "y" ]]; then
         if [ -n "$selected_dir" ]; then
             echo "Folder path changed to $selected_dir"
         else
-            echo "Folder path not selected"
+            echo "Folder path not set"
+            selected_dir=$HOME
+            echo "Folder path set to $selected_dir by default"
         fi
     else
         echo "'zenity' is not installed. Installing zenity"
@@ -48,6 +50,8 @@ if [[ "$user_input_lower" == "y" ]]; then
             echo "Folder path set to $selected_dir"
         else
             echo "Folder path not set"
+            selected_dir=$HOME
+            echo "Folder path set to $selected_dir by default"
         fi
     fi
 

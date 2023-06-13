@@ -1,4 +1,4 @@
-name: guppy_test
+name: guppy
 channels:
   - numba
   - pyviz

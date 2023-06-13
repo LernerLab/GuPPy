@@ -484,7 +484,7 @@ def visualize(filepath, x, y1, y2, y3, plot_name, removeArtifacts):
 	ax3.set_title(plot_name[2])
 	fig.suptitle(name)
 
-	hfont = {'fontname':'Helvetica'}
+	hfont = {'fontname':'DejaVu Sans'}
 
 	if removeArtifacts==True and os.path.exists(coords_path):
 		ax3.set_xlabel('Time(s) \n Note : Artifacts have been removed, but are not reflected in this plot.', **hfont)
