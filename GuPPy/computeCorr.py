@@ -100,8 +100,8 @@ def getCorrCombinations(filepath, inputParameters):
         names.append(basename.split('_')[-1])
         type.append((os.path.basename(path[i])).split('.')[0].split('_'+names[-1], 1)[0])
     
-    names = np.unique(np.array(names))
-    type = np.unique(np.array(type))
+    names = list(np.unique(np.array(names)))
+    type = list(np.unique(np.array(type)))
 
     corr_info = list()
     if len(names)<=1:
