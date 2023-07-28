@@ -747,22 +747,29 @@ def controlFit(control, signal):
 	arr = (p[0]*control)+p[1]
 	return arr
 
+def filterSignal(filter_window, signal):
+	if filter_window==0:
+		return signal
+	elif filter_window>1:
+		b = np.divide(np.ones((filter_window,)), filter_window)
+		a = 1
+		filtered_signal = ss.filtfilt(b, a, signal)
+		return filtered_signal
+	else:
+		raise Exception("Moving average filter window value is not correct.")
 
 # function to filter control and signal channel, also execute above two function : controlFit and deltaFF
 # function will also take care if there is only signal channel and no control channel
 # if there is only signal channel, z-score will be computed using just signal channel
 def execute_controlFit_dff(control, signal, isosbestic_control, filter_window):
 
-	b = np.divide(np.ones((filter_window,)), filter_window)
-	a = 1
-
 	if isosbestic_control==False:
-		signal_smooth = ss.filtfilt(b, a, signal)
+		signal_smooth =  filterSignal(filter_window, signal) #ss.filtfilt(b, a, signal)
 		control_fit = controlFit(control, signal_smooth)
 		norm_data = deltaFF(signal_smooth, control_fit)
 	else:
-		control_smooth = ss.filtfilt(b, a, control)
-		signal_smooth = ss.filtfilt(b, a, signal)
+		control_smooth = filterSignal(filter_window, control) #ss.filtfilt(b, a, control)
+		signal_smooth = filterSignal(filter_window, signal)    #ss.filtfilt(b, a, signal)
 		control_fit = controlFit(control_smooth, signal_smooth)
 		norm_data = deltaFF(signal_smooth, control_fit)
 	
