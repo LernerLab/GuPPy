@@ -4,7 +4,6 @@
 if [[ "$(uname)" == "Linux" ]]; then
   echo "Linux operating system detected."
   sudo apt-get update
-  cd /tmp
   apt-get install wget
   wget https://repo.anaconda.com/archive/Anaconda3-2022.05-Linux-x86_64.sh
   sha256sum Anaconda3-2022.05-Linux-x86_64.sh
