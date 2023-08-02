@@ -7,7 +7,7 @@
 GuPPy can be run on Windows, Mac or Linux.
 
 **Follow the instructions below to install GuPPy :** <br>
-- Current Users : Download new code updates by following steps 1.a to 1.c, then visit the Github Wiki page to get started on your analysis
+- Current Users : Download new code updates by following steps 1.a to 1.c. Update the requirements by following steps 1.e (follow step 1.e if user has not done it before) and 3, then visit the Github Wiki page to get started on your analysis
 - New Users : Follow all the installation steps and then visit the Github Wiki page to get started on your analysis
 
 1. Download the Guppy code <br>
@@ -26,7 +26,7 @@ GuPPy can be run on Windows, Mac or Linux.
    - Open Settings in your Windows machine. Search for "Turn Windows features on or off" in a search bar.
    - Click on "Turn Windows features on or off".
    - Windows features window as shown here will pop up. 
-   - Scroll to the extreme bottom and check the box corresponding to "Windows Subsystem for Linux" and click on <b>OK</b>. Close Settings window.
+   - Scroll to the extreme bottom and check the box corresponding to "Windows Subsystem for Linux" as shown here and click on <b>OK</b>. Close Settings window.
    - Open Microsoft Store in your Windows machine. Search for "Ubuntu" in a search bar.
    - From the options given after the search, install "Ubuntu 20.04.2"
    - After the installation of "Ubuntu 20.04.2", open it and window as shown here will pop up. Register yourself as a user
@@ -42,7 +42,7 @@ cd path_to_GuPPy_folder
 
 4. Installing or updating all the requirements<br>
    
-   a. For Windows, execute the following commands, in this specific order, on Windows PowerShell window
+   a. For Windows, execute the following two commands, in this specific order, on Windows PowerShell window
    
    ```
    bash
