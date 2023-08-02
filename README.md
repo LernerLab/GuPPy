@@ -22,7 +22,7 @@ GuPPy can be run on Windows, Mac or Linux.
        ~ Ex: /Users/LernerLab/Desktop/GuPPy-main <br>
    - Windows/Linux: Right click folder → Properties → Text next to “Location:” <br>
 
-   e. This step is to be followed only by Windows User.<br>
+   e. <b>This step is to be followed only by Windows User.</b><br>
    - Open Settings in your Windows machine. Search for "Turn Windows features on or off" in a search bar.
    - Click on "Turn Windows features on or off".
    - Windows features window as shown here will pop up. 
@@ -60,7 +60,7 @@ cd path_to_GuPPy_folder
 bash launch_GuPPy.sh
 ```
 
-<b> GuPPy is now officially downloaded and ready to use! <b> <br>
+<b> GuPPy is now officially downloaded and ready to use! </b> <br>
 
 - The full instructions along with detailed descriptions of each step to run the GuPPy tool is on [Github Wiki Page](https://github.com/LernerLab/GuPPy/wiki).
 
