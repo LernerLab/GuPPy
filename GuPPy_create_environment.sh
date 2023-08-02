@@ -1,23 +1,35 @@
 #!/bin/bash
 
+anaconda_path="$HOME/anaconda3"
+
 # Check if the OS is Linux
 if [[ "$(uname)" == "Linux" ]]; then
-	echo "Linux operating system detected."
-	sudo apt-get update
-	apt-get install wget
-	wget https://repo.anaconda.com/archive/Anaconda3-2022.05-Linux-x86_64.sh
-	sha256sum Anaconda3-2022.05-Linux-x86_64.sh
-	bash Anaconda3-2022.05-Linux-x86_64.sh
-	rm -rf Anaconda3-2022.05-Linux-x86_64.sh
+	if [ -d "$anaconda_path" ]; then
+		echo "Anaconda exists at $anaconda_path."
+	else
+		echo "Anaconda does not exist at $anaconda_path. Downloading and installing Anaconda."
+		echo "Linux operating system detected."
+		sudo apt-get update
+		apt-get install wget
+		wget https://repo.anaconda.com/archive/Anaconda3-2022.05-Linux-x86_64.sh
+		sha256sum Anaconda3-2022.05-Linux-x86_64.sh
+		bash Anaconda3-2022.05-Linux-x86_64.sh
+		rm -rf Anaconda3-2022.05-Linux-x86_64.sh
+	fi
 	conda_file="./GuPPy_environment_ubuntu.yml"
   
 # Check if the OS is macOS
 elif [[ "$(uname)" == "Darwin" ]]; then
-	echo "macOS operating system detected."
-	curl -O https://repo.anaconda.com/archive/Anaconda3-2022.05-MacOSX-x86_64.sh
-	sha256sum Anaconda3-2022.05-MacOSX-x86_64.sh
-	bash Anaconda3-2022.05-MacOSX-x86_64.sh
-	rm -rf Anaconda3-2022.05-MacOSX-x86_64.sh
+	if [ -d "$anaconda_path" ]; then
+		echo "Anaconda exists at $anaconda_path."
+	else
+		echo "Anaconda does not exist at $anaconda_path. Downloading and installing Anaconda."
+		echo "macOS operating system detected."
+		curl -O https://repo.anaconda.com/archive/Anaconda3-2022.05-MacOSX-x86_64.sh
+		sha256sum Anaconda3-2022.05-MacOSX-x86_64.sh
+		bash Anaconda3-2022.05-MacOSX-x86_64.sh
+		rm -rf Anaconda3-2022.05-MacOSX-x86_64.sh
+	fi
 	# Fetch the Conda YAML file from the specified path
 	conda_file="./GuPPy_environment_mac.yml"
 

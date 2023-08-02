@@ -16,46 +16,50 @@ GuPPy can be run on Windows, Mac or Linux.
    b. Click on Download ZIP. *(Ensure that you save this ZIP locally, not in any external cloud storage such as iCloud, OneDrive, Box, etc. We suggest saving it in your User folder on the C drive)* <br>
    
    c. Once downloaded, open the ZIP file and you should have a folder named “GuPPy-main”. Place this GuPPy-main folder wherever is most convenient (avoiding cloud storage). <br>
-   
+
    d. Inside the GuPPy-main folder there is a subfolder named “GuPPy”. Take note of the GuPPy subfolder location or path. It will be important for future steps in the GuPPy workflow <br>
    - Mac: Right click folder → Click Get Info → Text next to “Where:” <br>
        ~ Ex: /Users/LernerLab/Desktop/GuPPy-main <br>
    - Windows/Linux: Right click folder → Properties → Text next to “Location:” <br>
 
-2.  Anaconda is a distribution of the Python and R programming languages for scientific computing. Install [Anaconda](https://www.anaconda.com/products/individual#macos). Install Anaconda based on your operating system (Mac, Windows or Linux) by following the prompts when you run the downloaded installation file.
+   e. <b> This step is to be followed only by Windows User. <b>
+   - Open Settings in your Windows machine. Search for "Turn Windows features on or off" in a search bar.
+   - Click on "Turn Windows features on or off".
+   - Windows features window as shown here will pop up. 
+   - Scroll to the extreme bottom and check the box corresponding to "Windows Subsystem for Linux" and click on <b>OK<b>. Close Settings window.
+   - Open Microsoft Store in your Windows machine. Search for "Ubuntu" in a search bar.
+   - From the options given after the search, install "Ubuntu 20.04.2"
+   - After the installation of "Ubuntu 20.04.2", open it and window as shown here will pop up. Register yourself as a user
 
-3. Once installed, open an Anaconda Prompt window (for windows) or Terminal window (for Mac or Linux). You can search for "anaconda prompt" or "terminal" on your computer to open this window.
+2. Open Windows PowerShell window (for Windows) or Terminal window (for Mac or Linux).
 
-4. Find the location where GuPPy folder is located (from Step 1d) and execute the following command on the Anaconda Prompt or terminal window: 
+3. Find the location where GuPPy folder is located (from Step 1d) and execute the following command on the Anaconda Prompt or terminal window: 
 
 ```
 cd path_to_GuPPy_folder
 ```
    - Ex:  cd /Users/LernerLab/Desktop/GuPPy-main
-  
-5. Next, execute the following commands, in this specific order, on Anaconda Prompt or terminal window: <br>
-   - Note : filename in the first command should be replaced by <b>spec_file_windows10.txt</b> or <b>spec_file_mac.txt</b> or <b>spec_file_linux.txt</b> (based on your OS) <br>
-   - Some of these commands will initiate various transactions. Wait until they are all done before executing the next line <br>
-   - If the Anaconda Prompt or Terminal window asks: Proceed ([y]/n)? Respond with y <br>
-```
-conda create --name guppy --file filename
-conda activate guppy
-conda install -c anaconda ipykernel
-python -m ipykernel install --user --name=guppy
-```
-6. Open the GuPPy-main folder and click into the GuPPy subfolder. In this subfolder, there will be a file named [savingInputParameters.ipynb](https://github.com/LernerLab/GuPPy/blob/main/GuPPy/savingInputParameters.ipynb) Identify the path/location of this file as similarly described in Step 1d. 
 
-7. On the terminal window or Anaconda prompt window, use the savingInputParameters.ipynb path/location to execute the following command: 
+4. Installing or updating all the requirements<br>
+   
+   a. For Windows, execute the following commands, in this specific order, on Windows PowerShell window
+   
+   ```
+   bash
+   bash GuPPy_create_environment.sh
+   ```
 
+   b. For Mac or Linux, execute the following command on Terminal window
+
+   ```
+   bash GuPPy_create_environment.sh
+   ```
+
+5. Lastly, execute the following command to open the GuPPy User Interface:
 ```
-cd path_to_file
+bash launch_GuPPy.sh
 ```
- - Ex: cd /Users/LernerLab/Desktop/GuPPy-main/GuPPy
- 
-8. Lastly, execute the following command to open the GuPPy User Interface:
-```
-panel serve --show savingInputParameters.ipynb
-```
+
 <b> GuPPy is now officially downloaded and ready to use! <b> <br>
 
 - The full instructions along with detailed descriptions of each step to run the GuPPy tool is on [Github Wiki Page](https://github.com/LernerLab/GuPPy/wiki).
