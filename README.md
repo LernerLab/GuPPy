@@ -22,7 +22,7 @@ GuPPy can be run on Windows, Mac or Linux.
        ~ Ex: /Users/LernerLab/Desktop/GuPPy-main <br>
    - Windows/Linux: Right click folder → Properties → Text next to “Location:” <br>
 
-   e. <b>This step is to be followed only by Windows User.<b><br>
+   e. This step is to be followed only by Windows User.<br>
    - Open Settings in your Windows machine. Search for "Turn Windows features on or off" in a search bar.
    - Click on "Turn Windows features on or off".
    - Windows features window as shown here will pop up. 
