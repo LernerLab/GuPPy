@@ -26,7 +26,7 @@ GuPPy can be run on Windows, Mac or Linux.
    - Open Settings in your Windows machine. Search for "Turn Windows features on or off" in a search bar.
    - Click on "Turn Windows features on or off".
    - Windows features window as shown here will pop up. 
-   - Scroll to the extreme bottom and check the box corresponding to "Windows Subsystem for Linux" and click on <b>OK<b>. Close Settings window.
+   - Scroll to the extreme bottom and check the box corresponding to "Windows Subsystem for Linux" and click on <b>OK</b>. Close Settings window.
    - Open Microsoft Store in your Windows machine. Search for "Ubuntu" in a search bar.
    - From the options given after the search, install "Ubuntu 20.04.2"
    - After the installation of "Ubuntu 20.04.2", open it and window as shown here will pop up. Register yourself as a user
