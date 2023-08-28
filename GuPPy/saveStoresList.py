@@ -525,12 +525,26 @@ def decide_indices(df, flag, num_ch=2):
 
     return df, indices_dict, num_ch
 
+# for depth-first search
+def pop_stack(s):
+    x = s[-1]
+    return s[:-1], x
+
 def read_doric(filepath):
-    with h5py.File(filepath, 'r') as f:
-        keys = list(f['Traces']['Console'].keys())
-        keys.remove('Time(s)')
-    
-    return keys
+    with h5py.File(filepath, 'r') as f:  
+        to_visit = [f["DataAcquisition"]]
+        res = []
+        while len(to_visit) != 0:
+            level_size = len(to_visit)
+            while level_size != 0:
+                level_size -= 1
+                to_visit, obj = pop_stack(to_visit)
+                if isinstance(obj, h5py.Dataset) and not obj.name.endswith("/Time"):
+                    res.append(obj.name)
+                elif isinstance(obj, h5py.Group):
+                    to_visit.extend(reversed([obj[k] for k in obj.keys()]))
+        
+        return res
 
 # function to see if there are 'csv' files present
 # and recognize type of 'csv' files either from

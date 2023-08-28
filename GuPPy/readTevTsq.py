@@ -307,6 +307,15 @@ def execute_import_csv(filepath, event, outputPath, numProcesses=mp.cpu_count())
 		p.starmap(import_csv, zip(repeat(filepath), event, repeat(outputPath)))
 	print("Time taken = {0:.5f}".format(time.time() - start))
 
+
+def get_samplerate(doric_file, tool, timestamps):
+	global_settings = f'Configurations/{tool}/GlobalSettings'
+	if global_settings in doric_file and 'SamplingFrequency' in doric_file[global_settings].attrs.keys():
+		return np.array(doric_file[global_settings].attrs['SamplingFrequency'])
+	# else
+	return np.array([1/(timestamps[-1]-timestamps[-2])])
+
+
 def execute_import_doric(filepath, storesList, flag, outputPath):
 	
 	if flag=='doric_csv':
@@ -336,21 +345,26 @@ def execute_import_doric(filepath, storesList, flag, outputPath):
 			raise Exception('More than one Doric file present at the location')
 		else:
 			with h5py.File(path[0], 'r') as f:
-				keys = list(f['Traces']['Console'].keys())
 				for i in range(storesList.shape[1]):
+					dataset_path = storesList[0,i].split('/')
+					time_path = '/'.join(dataset_path[:-1])+"/Time"
+					timestamps = np.array(f[time_path])
+					data = np.array(f[storesList[0,i]])
+					# output_file = "_".join(dataset_path[-2:]) # needs to be of the same name in the storeList or other GuPPy steps may not find it
+					output_file = storesList[0,i]
 					if 'control' in storesList[1,i] or 'signal' in storesList[1,i]:
-						timestamps = np.array(f['Traces']['Console']['Time(s)']['Console_time(s)'])
-						sampling_rate = np.array([1/(timestamps[-1]-timestamps[-2])])
-						data = np.array(f['Traces']['Console'][storesList[0,i]][storesList[0,i]])
-						write_hdf5(sampling_rate, storesList[0,i], outputPath, 'sampling_rate')
-						write_hdf5(timestamps, storesList[0,i], outputPath, 'timestamps')
-						write_hdf5(data, storesList[0,i], outputPath, 'data')
+						hw_type = dataset_path[1] # in 1th position there should be the hardware name (e.g., 'FPConsole')
+						sampling_rate = get_samplerate(f, hw_type, timestamps)
+						write_hdf5(sampling_rate, output_file, outputPath, 'sampling_rate')
+						write_hdf5(timestamps, output_file, outputPath, 'timestamps')
+						write_hdf5(data, output_file, outputPath, 'data')
 					else:
-						timestamps = np.array(f['Traces']['Console']['Time(s)']['Console_time(s)'])
-						ttl = np.array(f['Traces']['Console'][storesList[0,i]][storesList[0,i]])
-						indices = np.where(ttl<=0)[0]
-						diff_indices = np.where(np.diff(indices)>1)[0]
-						write_hdf5(timestamps[indices[diff_indices]+1], storesList[0,i], outputPath, 'timestamps')
+						idx = np.flatnonzero(data[1:]-data[:-1] > 1)
+						ttl = timestamps[1:][idx]
+						write_hdf5(ttl, output_file, outputPath, 'timestamps')
+						# indices = np.where(ttl<=0)[0]
+						# diff_indices = np.where(np.diff(indices)>1)[0]
+						# write_hdf5(timestamps[indices[diff_indices]+1], output_file, outputPath, 'timestamps')
 
 
 # function to read data from 'tsq' and 'tev' files
