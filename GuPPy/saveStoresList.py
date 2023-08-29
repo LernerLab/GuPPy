@@ -660,7 +660,7 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
             else:
                 df = df
                 columns_isstr = True
-                cols = np.array(list(df.columns), dtype=str)
+                cols = np.array(list(df.columns), dtype=np.str)
 
             # check the structure of dataframe and assign flag to the type of file
             if len(cols)==1:
@@ -774,7 +774,6 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
                         continue
 
                 unique_arr_len = np.unique(np.array(arr_len))
-
                 if 'data_np_v2' in flag_arr:
                     divisor = 1
                 else:
