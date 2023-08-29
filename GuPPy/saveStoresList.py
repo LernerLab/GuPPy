@@ -658,7 +658,7 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
             else:
                 df = df
                 columns_isstr = True
-                cols = np.array(list(df.columns), dtype=np.str)
+                cols = np.array(list(df.columns), dtype=str)
             # check the structure of dataframe and assign flag to the type of file
             if len(cols)==1:
                 if cols[0].lower()!='timestamps':
