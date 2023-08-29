@@ -809,22 +809,29 @@ def controlFit(control, signal):
 	arr = (p[0]*control)+p[1]
 	return arr
 
+def filterSignal(filter_window, signal):
+	if filter_window==0:
+		return signal
+	elif filter_window>1:
+		b = np.divide(np.ones((filter_window,)), filter_window)
+		a = 1
+		filtered_signal = ss.filtfilt(b, a, signal)
+		return filtered_signal
+	else:
+		raise Exception("Moving average filter window value is not correct.")
 
 # function to filter control and signal channel, also execute above two function : controlFit and deltaFF
 # function will also take care if there is only signal channel and no control channel
 # if there is only signal channel, z-score will be computed using just signal channel
 def execute_controlFit_dff(control, signal, isosbestic_control, filter_window):
 
-	b = np.divide(np.ones((filter_window,)), filter_window)
-	a = 1
-
 	if isosbestic_control==False:
-		signal_smooth = ss.filtfilt(b, a, signal)
+		signal_smooth =  filterSignal(filter_window, signal) #ss.filtfilt(b, a, signal)
 		control_fit = controlFit(control, signal_smooth)
 		norm_data = deltaFF(signal_smooth, control_fit)
 	else:
-		control_smooth = ss.filtfilt(b, a, control)
-		signal_smooth = ss.filtfilt(b, a, signal)
+		control_smooth = filterSignal(filter_window, control) #ss.filtfilt(b, a, control)
+		signal_smooth = filterSignal(filter_window, signal)    #ss.filtfilt(b, a, signal)
 		control_fit = controlFit(control_smooth, signal_smooth)
 		norm_data = deltaFF(signal_smooth, control_fit)
 	
@@ -999,7 +1006,7 @@ def execute_timestamp_correction(folderNames, inputParameters):
 		insertLog(f"Timestamps corrections started for {filepath}", logging.DEBUG)
 		for j in range(len(storesListPath)):
 			filepath = storesListPath[j]
-			storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',')
+			storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)
 
 			if isosbestic_control==False:
 				storesList = add_control_channel(filepath, storesList)
@@ -1033,7 +1040,7 @@ def check_storeslistfile(folderNames):
 		storesListPath = glob.glob(os.path.join(filepath, '*_output_*'))
 		for j in range(len(storesListPath)):
 			filepath = storesListPath[j]
-			storesList = np.concatenate((storesList, np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',')), axis=1)
+			storesList = np.concatenate((storesList, np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)), axis=1)
 
 	storesList = np.unique(storesList, axis=1)
 	
@@ -1073,7 +1080,7 @@ def combineData(folderNames, inputParameters, storesList):
 		storesListPath = glob.glob(os.path.join(filepath, '*_output_*'))
 		for j in range(len(storesListPath)):
 			filepath = storesListPath[j]
-			storesList_new = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',')
+			storesList_new = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)
 			sampling_rate_fp.append(glob.glob(os.path.join(filepath, 'timeCorrection_*')))
 
 	# check if sampling rate is same for both data
@@ -1121,7 +1128,7 @@ def execute_zscore(folderNames, inputParameters):
 	
 	for j in range(len(storesListPath)):
 		filepath = storesListPath[j]
-		storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',')
+		storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)
 
 		if remove_artifacts==True:
 			print("Removing Artifacts from the data and correcting timestamps...")

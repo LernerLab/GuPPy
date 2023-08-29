@@ -235,15 +235,20 @@ def helper_psth(z_score, event, filepath, nSecPrev, nSecPost, timeInterval, bin_
 
 	# reject burst of timestamps
 	ts = np.asarray(new_ts)
-	new_ts = [ts[0]]
-	for i in range(1, ts.shape[0]):
-		thisTime = ts[i]
-		prevTime = new_ts[-1]
-		diff = thisTime-prevTime
-		if diff<timeInterval:
-			continue
-		else:
-			new_ts.append(ts[i])
+	# skip the event if there are no TTLs
+	if len(ts)==0:
+		new_ts = np.array([])
+		print(f"Warning : No TTLs present for {event}. This will cause an error in Visualization step")
+	else:
+		new_ts = [ts[0]]
+		for i in range(1, ts.shape[0]):
+			thisTime = ts[i]
+			prevTime = new_ts[-1]
+			diff = thisTime-prevTime
+			if diff<timeInterval:
+				continue
+			else:
+				new_ts.append(ts[i])
 
 	# final timestamps
 	ts = np.asarray(new_ts)
@@ -660,7 +665,7 @@ def psthForEachStorename(inputParameters):
 			storesListPath = np.concatenate(storesListPath)
 			storesList = np.asarray([[],[]])
 			for i in range(storesListPath.shape[0]):
-				storesList = np.concatenate((storesList, np.genfromtxt(os.path.join(storesListPath[i], 'storesList.csv'), dtype='str', delimiter=',')), axis=1)
+				storesList = np.concatenate((storesList, np.genfromtxt(os.path.join(storesListPath[i], 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)), axis=1)
 			storesList = np.unique(storesList, axis=1)
 			op = makeAverageDir(inputParameters['abspath'])
 			np.savetxt(os.path.join(op, 'storesList.csv'), storesList, delimiter=",", fmt='%s')
@@ -696,7 +701,7 @@ def psthForEachStorename(inputParameters):
 			for i in range(len(op)):
 				storesList = np.asarray([[],[]])
 				for j in range(len(op[i])):
-					storesList = np.concatenate((storesList, np.genfromtxt(os.path.join(op[i][j], 'storesList.csv'), dtype='str', delimiter=',')), axis=1)
+					storesList = np.concatenate((storesList, np.genfromtxt(os.path.join(op[i][j], 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)), axis=1)
 				storesList = np.unique(storesList, axis=1)
 				for k in range(storesList.shape[1]):
 					storenamePsth(op[i][0], storesList[1,k], inputParameters)
@@ -715,7 +720,7 @@ def psthForEachStorename(inputParameters):
 				storesListPath = glob.glob(os.path.join(folderNames[i], '*_output_*'))
 				for j in range(len(storesListPath)):
 					filepath = storesListPath[j]
-					storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',')
+					storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)
 
 					with mp.Pool(numProcesses) as p:
 						p.starmap(storenamePsth, zip(repeat(filepath), storesList[1,:], repeat(inputParameters)))

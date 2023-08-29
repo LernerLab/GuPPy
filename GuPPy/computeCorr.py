@@ -123,8 +123,8 @@ def getCorrCombinations(filepath, inputParameters):
         names.append(basename.split('_')[-1])
         type.append((os.path.basename(path[i])).split('.')[0].split('_'+names[-1], 1)[0])
     
-    names = np.unique(np.array(names))
-    type = np.unique(np.array(type))
+    names = list(np.unique(np.array(names)))
+    type = list(np.unique(np.array(type)))
 
     corr_info = list()
     if len(names)<=1:
@@ -145,7 +145,10 @@ def getCorrCombinations(filepath, inputParameters):
 def helperCrossCorrelation(arr_A, arr_B, sample_rate):
     cross_corr = list()
     for (a, b) in zip(arr_A, arr_B):
-        corr = signal.correlate(a, b)
+        if np.isnan(a).any() or np.isnan(b).any():
+              corr = signal.correlate(a, b, method='direct')
+        else:
+            corr = signal.correlate(a, b)
         corr_norm = corr/ np.max(np.abs(corr))
         cross_corr.append(corr_norm)
         lag = signal.correlation_lags(len(a), len(b))
@@ -154,13 +157,17 @@ def helperCrossCorrelation(arr_A, arr_B, sample_rate):
     cross_corr_arr = np.array(cross_corr, dtype='float32')
     lag_msec = lag_msec.reshape(1,-1)
     cross_corr_arr = np.concatenate((cross_corr_arr, lag_msec), axis=0)
-    
     return cross_corr_arr
 
 
 def computeCrossCorrelation(filepath, event, inputParameters):
     isCompute = inputParameters['computeCorr']
+    removeArtifacts = inputParameters['removeArtifacts']
+    artifactsRemovalMethod = inputParameters['artifactsRemovalMethod']
     if isCompute==True:
+        if removeArtifacts==True and artifactsRemovalMethod=='concatenate':
+            raise Exception("For cross-correlation, when removeArtifacts is True, artifacts removal method\
+                            should be replace with NaNs and not concatenate")
         corr_info, type = getCorrCombinations(filepath, inputParameters)
         if 'control' in event.lower() or 'signal' in event.lower():
             return
@@ -174,7 +181,11 @@ def computeCrossCorrelation(filepath, event, inputParameters):
                     sample_rate = 1/(psth_a['timestamps'][1]-psth_a['timestamps'][0])
                     psth_a = psth_a.drop(columns=['timestamps', 'err', 'mean'])
                     psth_b = psth_b.drop(columns=['timestamps', 'err', 'mean'])
-                    cols = list(psth_a.columns)
+                    cols_a, cols_b = np.array(psth_a.columns), np.array(psth_b.columns)
+                    if np.intersect1d(cols_a, cols_b).size>0:
+                        cols = list(np.intersect1d(cols_a, cols_b))
+                    else:
+                        cols = list(cols_a)
                     arr_A, arr_B = np.array(psth_a).T, np.array(psth_b).T
                     cross_corr = helperCrossCorrelation(arr_A, arr_B, sample_rate)
                     cols.append('timestamps')
