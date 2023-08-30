@@ -40,8 +40,6 @@ cd path_to_GuPPy_folder
 ```
 conda create --name guppy --file filename
 conda activate guppy
-conda install -c anaconda ipykernel
-python -m ipykernel install --user --name=guppy
 ```
 6. Lastly, execute the following command to open the GuPPy User Interface:
 ```
