@@ -43,20 +43,11 @@ conda activate guppy
 conda install -c anaconda ipykernel
 python -m ipykernel install --user --name=guppy
 ```
-6. Open the GuPPy-main folder and click into the GuPPy subfolder. In this subfolder, there will be a file named [savingInputParameters.ipynb](https://github.com/LernerLab/GuPPy/blob/main/GuPPy/savingInputParameters.ipynb) Identify the path/location of this file as similarly described in Step 1d. 
-
-7. On the terminal window or Anaconda prompt window, use the savingInputParameters.ipynb path/location to execute the following command: 
-
+6. Lastly, execute the following command to open the GuPPy User Interface:
 ```
-cd path_to_file
+panel serve --show GuPPy/savingInputParameters.ipynb
 ```
- - Ex: cd /Users/LernerLab/Desktop/GuPPy-main/GuPPy
- 
-8. Lastly, execute the following command to open the GuPPy User Interface:
-```
-panel serve --show savingInputParameters.ipynb
-```
-<b> GuPPy is now officially downloaded and ready to use! <b> <br>
+<b> GuPPy is now officially downloaded and ready to use! </b> <br>
 
 - The full instructions along with detailed descriptions of each step to run the GuPPy tool is on [Github Wiki Page](https://github.com/LernerLab/GuPPy/wiki).
 
