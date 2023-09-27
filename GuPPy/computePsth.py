@@ -202,7 +202,11 @@ def baselineCorrection(filepath, arr, timeAxis, baselineStart, baselineEnd):
 
 
 # helper function to make PSTH for each event
-def helper_psth(z_score, event, filepath, nSecPrev, nSecPost, timeInterval, bin_psth_trials, baselineStart, baselineEnd, naming, just_use_signal):
+def helper_psth(z_score, event, filepath, 
+				nSecPrev, nSecPost, timeInterval, 
+				bin_psth_trials, use_time_or_trials,
+				baselineStart, baselineEnd, 
+				naming, just_use_signal):
 
 	sampling_rate = read_hdf5('timeCorrection_'+naming, filepath, 'sampling_rate')[0]
 
@@ -276,24 +280,36 @@ def helper_psth(z_score, event, filepath, nSecPrev, nSecPost, timeInterval, bin_
 	write_hdf5(ts, event+'_'+naming, filepath, 'ts')
 	columns = list(ts)
 
-	if bin_psth_trials>0:
+	if use_time_or_trials=='Time (min)' and bin_psth_trials>0:
 		timestamps = read_hdf5('timeCorrection_'+naming, filepath, 'timestampNew')
 		timestamps = np.divide(timestamps, 60)
 		ts_min = np.divide(ts, 60)
 		bin_steps = np.arange(timestamps[0], timestamps[-1]+bin_psth_trials, bin_psth_trials)
-
-		psth_bin, psth_bin_baselineUncorrected = [], []
-		
+		indices_each_step = dict()
 		for i in range(1, bin_steps.shape[0]):
-			index = np.where((ts_min>=bin_steps[i-1]) & (ts_min<=bin_steps[i]))[0]
-
+			indices_each_step[f"{np.around(bin_steps[i-1],0)}-{np.around(bin_steps[i],0)}"] = np.where((ts_min>=bin_steps[i-1]) & (ts_min<=bin_steps[i]))[0]
+	elif use_time_or_trials=='# of trials' and bin_psth_trials>0:
+		bin_steps = np.arange(0, ts.shape[0], bin_psth_trials)
+		if bin_steps[-1]<ts.shape[0]:
+			bin_steps = np.concatenate((bin_steps, [ts.shape[0]]), axis=0)
+		indices_each_step = dict()
+		for i in range(1, bin_steps.shape[0]):
+			indices_each_step[f"{bin_steps[i-1]}-{bin_steps[i]}"] = np.arange(bin_steps[i-1], bin_steps[i])
+	else:
+		indices_each_step = dict()
+	
+	psth_bin, psth_bin_baselineUncorrected = [], []
+	if indices_each_step:
+		keys = list(indices_each_step.keys())
+		for k in keys:
 			# no trials in a given bin window, just put all the nan values
-			if index.shape[0]==0:
+			if indices_each_step[k].shape[0]==0:
 				psth_bin.append(np.full(psth.shape[1], np.nan))
 				psth_bin_baselineUncorrected.append(np.full(psth_baselineUncorrected.shape[1], np.nan))
 				psth_bin.append(np.full(psth.shape[1], np.nan))
 				psth_bin_baselineUncorrected.append(np.full(psth_baselineUncorrected.shape[1], np.nan))
 			else:
+				index = indices_each_step[k]
 				arr = psth[index,:]
 				#  mean of bins
 				psth_bin.append(np.nanmean(psth[index,:], axis=0))
@@ -303,9 +319,9 @@ def helper_psth(z_score, event, filepath, nSecPrev, nSecPost, timeInterval, bin_
 				psth_bin_baselineUncorrected.append(np.nanstd(psth_baselineUncorrected[index,:],axis=0)/math.sqrt(psth_baselineUncorrected[index,:].shape[0]))
 			
 			# adding column names
-			columns.append('bin_({}-{})'.format(np.around(bin_steps[i-1],0), np.around(bin_steps[i],0)))
-			columns.append('bin_err_({}-{})'.format(np.around(bin_steps[i-1],0), np.around(bin_steps[i],0)))
-
+			columns.append(f"bin_({k})")
+			columns.append(f"bin_err_({k})")
+		
 		psth = np.concatenate((psth, psth_bin), axis=0)
 		psth_baselineUncorrected = np.concatenate((psth_baselineUncorrected, psth_bin_baselineUncorrected), axis=0)
 
@@ -322,6 +338,7 @@ def storenamePsth(filepath, event, inputParameters):
 
 	selectForComputePsth = inputParameters['selectForComputePsth']
 	bin_psth_trials = inputParameters['bin_psth_trials']
+	use_time_or_trials = inputParameters['use_time_or_trials']
 
 	if selectForComputePsth=='z_score':
 		path = glob.glob(os.path.join(filepath, 'z_score_*'))
@@ -357,7 +374,7 @@ def storenamePsth(filepath, event, inputParameters):
 				just_use_signal = False
 			psth, psth_baselineUncorrected, cols = helper_psth(z_score, event, filepath, 
 															   nSecPrev, nSecPost, timeInterval, 
-															   bin_psth_trials, 
+															   bin_psth_trials, use_time_or_trials,
 															   baselineStart, baselineEnd, 
 															   name_1, just_use_signal)
 
