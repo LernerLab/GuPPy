@@ -4,6 +4,7 @@ import glob
 import h5py
 import json
 import math
+import logging
 import numpy as np 
 import pandas as pd 
 import multiprocessing as mp
@@ -12,6 +13,32 @@ import matplotlib.pyplot as plt
 from itertools import repeat
 from preprocess import get_all_stores_for_combining_data
 
+def insertLog(text, level):
+    file = os.path.join('.','..','guppy.log')
+    format = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+    infoLog = logging.FileHandler(file)
+    infoLog.setFormatter(format)
+    infoLog
+    logger = logging.getLogger(file)
+    logger.setLevel(level)
+    
+    if not logger.handlers:
+        logger.addHandler(infoLog)
+        if level == logging.DEBUG:
+            logger.debug(text)
+        if level == logging.INFO:
+            logger.info(text)
+        if level == logging.ERROR:
+            logger.exception(text)
+        if level == logging.WARNING:
+            logger.warning(text)
+    
+    infoLog.close()
+    logger.removeHandler(infoLog)
+
+def writeToFile(value: str):
+	with open(os.path.join(os.path.expanduser('~'), 'pbSteps.txt'), 'a') as file:
+		file.write(value)
 
 def read_hdf5(event, filepath, key):
 	if event:
@@ -23,6 +50,7 @@ def read_hdf5(event, filepath, key):
 		with h5py.File(op, 'r') as f:
 			arr = np.asarray(f[key])
 	else:
+		insertLog(f"{event}.hdf5 file does not exist", logging.ERROR)
 		raise Exception('{}.hdf5 file does not exist'.format(event))
 
 	return arr
@@ -73,7 +101,7 @@ def processChunks(arrValues, arrIndexes, highAmpFilt, transientsThresh):
 def createChunks(z_score, sampling_rate, window):
 	
 	print('Creating chunks for multiprocessing...')
-
+	insertLog('Creating chunks for multiprocessing.', logging.DEBUG)
 	windowPoints = math.ceil(sampling_rate*window)
 	remainderPoints = math.ceil((sampling_rate*window) - (z_score.shape[0]%windowPoints))
 
@@ -92,8 +120,9 @@ def createChunks(z_score, sampling_rate, window):
 		z_score_chunks = padded_z_score.reshape(int(reshape), -1)
 		z_score_chunks_index = z_score_index.reshape(int(reshape), -1)
 	else:
+		insertLog('Reshaping values should be integer.', logging.ERROR)
 		raise Exception('Reshaping values should be integer.')
-
+	insertLog('Chunks are created for multiprocessing.', logging.INFO)
 	print('Chunks are created for multiprocessing.')
 	return z_score_chunks, z_score_chunks_index
 
@@ -153,7 +182,8 @@ def visuzlize_peaks(filepath, z_score, timestamps, peaksIndex):
 
 def findFreqAndAmp(filepath, inputParameters, window=15, numProcesses=mp.cpu_count()):
 
-	print('calculating frequency and amplitude of transients in z-score data....')
+	print('Calculating frequency and amplitude of transients in z-score data....')
+	insertLog('Calculating frequency and amplitude of transients in z-score data.', logging.DEBUG)
 	selectForTransientsComputation = inputParameters['selectForTransientsComputation']
 	highAmpFilt = inputParameters['highAmpFilt']
 	transientsThresh = inputParameters['transientsThresh']
@@ -192,7 +222,7 @@ def findFreqAndAmp(filepath, inputParameters, window=15, numProcesses=mp.cpu_cou
 		create_csv(filepath, peaks_occurrences, 'transientsOccurrences_'+basename+'.csv', 
 				   index=np.arange(peaks_occurrences.shape[0]),columns=['timestamps', 'amplitude'])
 		visuzlize_peaks(path[i], z_score, ts, peaksInd)
-	
+	insertLog('Frequency and amplitude of transients in z_score data are calculated.', logging.INFO)
 	print('Frequency and amplitude of transients in z_score data are calculated.')
 		
 
@@ -208,6 +238,7 @@ def makeAverageDir(filepath):
 def averageForGroup(folderNames, inputParameters):
 
 	print('Combining results for frequency and amplitude of transients in z-score data...')
+	insertLog('Combining results for frequency and amplitude of transients in z-score data.', logging.DEBUG)
 	path = []
 	abspath = inputParameters['abspath']
 	selectForTransientsComputation = inputParameters['selectForTransientsComputation']
@@ -262,7 +293,7 @@ def averageForGroup(folderNames, inputParameters):
 		arr = np.asarray(arr)
 		create_Df(op, arr, temp_path[j][1], index=fileName, columns=['freq (events/min)', 'amplitude'])
 		create_csv(op, arr, 'freqAndAmp_'+temp_path[j][1]+'.csv', index=fileName, columns=['freq (events/min)', 'amplitude'])
-
+	insertLog('Results for frequency and amplitude of transients in z-score data are combined.', logging.INFO)
 	print('Results for frequency and amplitude of transients in z-score data are combined.')
 
 def executeFindFreqAndAmp(inputParameters):
@@ -280,6 +311,8 @@ def executeFindFreqAndAmp(inputParameters):
 	if numProcesses==0:
 		numProcesses = mp.cpu_count()
 	elif numProcesses>mp.cpu_count():
+		insertLog('Warning : # of cores parameter set is greater than the cores available \
+			   available in your machine', logging.WARNING)
 		print('Warning : # of cores parameter set is greater than the cores available \
 			   available in your machine')
 		numProcesses = mp.cpu_count()-1
@@ -292,7 +325,11 @@ def executeFindFreqAndAmp(inputParameters):
 				storesListPath.append(glob.glob(os.path.join(filepath, '*_output_*')))
 			storesListPath = np.concatenate(storesListPath)
 			averageForGroup(storesListPath, inputParameters)
+			writeToFile(str(10+((inputParameters['step']+1)*10))+'\n')
+			inputParameters['step'] += 1
 		else:
+			insertLog('Not a single folder name is provided in folderNamesForAvg in inputParamters File.', 
+	     				logging.ERROR)
 			raise Exception('Not a single folder name is provided in folderNamesForAvg in inputParamters File.')
 			
 			
@@ -308,21 +345,35 @@ def executeFindFreqAndAmp(inputParameters):
 				filepath = op[i][0]
 				storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)
 				findFreqAndAmp(filepath, inputParameters, window=moving_window, numProcesses=numProcesses)
+				writeToFile(str(10+((inputParameters['step']+1)*10))+'\n')
+				inputParameters['step'] += 1
 			plt.show()
 		else:
 			for i in range(len(folderNames)):
+				insertLog(f"Finding transients in z-score data of {folderNames[i]} and calculating frequency and amplitude.",
+	      					logging.DEBUG)
 				filepath = folderNames[i]
 				storesListPath = glob.glob(os.path.join(filepath, '*_output_*'))
 				for j in range(len(storesListPath)):
 					filepath = storesListPath[j]
 					storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)
 					findFreqAndAmp(filepath, inputParameters, window=moving_window, numProcesses=numProcesses)
+					writeToFile(str(10+((inputParameters['step']+1)*10))+'\n')
+					inputParameters['step'] += 1
+				insertLog('Transients in z-score data found and frequency and amplitude are calculated.', logging.INFO)
 			plt.show()
 
 	print('Transients in z-score data found and frequency and amplitude are calculated.')
 
 
 if __name__ == "__main__":
-	executeFindFreqAndAmp(json.loads(sys.argv[1]))
+	try:
+		executeFindFreqAndAmp(json.loads(sys.argv[1]))
+		insertLog('#'*400, logging.INFO)
+	except Exception as e:
+		with open(os.path.join(os.path.expanduser('~'), 'pbSteps.txt'), 'a') as file:
+			file.write(str(-1)+"\n")
+		insertLog(str(e), logging.ERROR)
+		raise e
 
 

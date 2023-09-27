@@ -3,6 +3,7 @@ import glob
 import param
 import re
 import math
+import logging
 import numpy as np 
 import pandas as pd
 from random import randint
@@ -17,6 +18,28 @@ from preprocess import get_all_stores_for_combining_data
 import panel as pn 
 pn.extension()
 
+def insertLog(text, level):
+    file = os.path.join('.','..','guppy.log')
+    format = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+    infoLog = logging.FileHandler(file)
+    infoLog.setFormatter(format)
+    infoLog
+    logger = logging.getLogger(file)
+    logger.setLevel(level)
+    
+    if not logger.handlers:
+        logger.addHandler(infoLog)
+        if level == logging.DEBUG:
+            logger.debug(text)
+        if level == logging.INFO:
+            logger.info(text)
+        if level == logging.ERROR:
+            logger.exception(text)
+        if level == logging.WARNING:
+            logger.warning(text)
+    
+    infoLog.close()
+    logger.removeHandler(infoLog)
 
 # read h5 file as a dataframe
 def read_Df(filepath, event, name):
@@ -55,6 +78,8 @@ def helper_plots(filepath, event, name, inputParameters):
 
 	# note when there are no behavior event TTLs
 	if len(event)==0:
+		insertLog("\033[1m"+"There are no behavior event TTLs present to visualize.".format(event)+"\033[0m", 
+	    			logging.WARNING)
 		print("\033[1m"+"There are no behavior event TTLs present to visualize.".format(event)+"\033[0m")
 		return 0
 
@@ -543,10 +568,10 @@ def helper_plots(filepath, event, name, inputParameters):
 	                	 view.plot_specific_trials)
 
 	hm_tab = pn.Column('## '+basename, pn.Row(view.param.event_selector_heatmap, view.param.color_map, 
-											view.param.save_options_heatmap, 
-											view.param.width_heatmap, view.param.height_heatmap,
-											view.param.save_hm, width=1000), 
-											pn.Row(view.heatmap, heatmap_y_parameters)) #
+											  view.param.save_options_heatmap,  
+											  view.param.width_heatmap, view.param.height_heatmap, 
+											  view.param.save_hm, width=1000),
+											  pn.Row(view.heatmap, heatmap_y_parameters)) #
 	print('app')
 
 	template = pn.template.MaterialTemplate(title='Visualization GUI')

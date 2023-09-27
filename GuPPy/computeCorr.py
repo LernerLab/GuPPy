@@ -3,11 +3,33 @@ import glob
 import re
 import math
 import h5py
+import logging
 import numpy as np
 import pandas as pd
 from scipy import signal
 
-
+def insertLog(text, level):
+    file = os.path.join('.','..','guppy.log')
+    format = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+    infoLog = logging.FileHandler(file)
+    infoLog.setFormatter(format)
+    infoLog
+    logger = logging.getLogger(file)
+    logger.setLevel(level)
+    
+    if not logger.handlers:
+        logger.addHandler(infoLog)
+        if level == logging.DEBUG:
+            logger.debug(text)
+        if level == logging.INFO:
+            logger.info(text)
+        if level == logging.ERROR:
+            logger.exception(text)
+        if level == logging.WARNING:
+            logger.warning(text)
+    
+    infoLog.close()
+    logger.removeHandler(infoLog)
 
 def make_dir(filepath):
 	op = os.path.join(filepath, "cross_correlation_output")
@@ -17,18 +39,19 @@ def make_dir(filepath):
 
 # function to read hdf5 file
 def read_hdf5(event, filepath, key):
-	if event:
-		op = os.path.join(filepath, event+'.hdf5')
-	else:
-		op = filepath
+    if event:
+        op = os.path.join(filepath, event+'.hdf5')
+    else:
+        op = filepath
 
-	if os.path.exists(op):
-		with h5py.File(op, 'r') as f:
-			arr = np.asarray(f[key])
-	else:
-		raise Exception('{}.hdf5 file does not exist'.format(event))
-
-	return arr
+    if os.path.exists(op):
+        with h5py.File(op, 'r') as f:
+            arr = np.asarray(f[key])
+    else:
+        insertLog(f"{event}.hdf5 file does not exist", logging.ERROR)
+        raise Exception('{}.hdf5 file does not exist'.format(event))
+    
+    return arr
 
 # function to read h5 file and make a dataframe from it
 def read_Df(filepath, event, name):
@@ -105,6 +128,8 @@ def getCorrCombinations(filepath, inputParameters):
 
     corr_info = list()
     if len(names)<=1:
+        insertLog("Cross-correlation cannot be computed because only one signal is present.", 
+                    logging.INFO)
         print("Cross-correlation cannot be computed because only one signal is present.")
         return corr_info, type
     elif len(names)==2:
@@ -149,6 +174,7 @@ def computeCrossCorrelation(filepath, event, inputParameters):
         else:
             for i in range(1, len(corr_info)):
                 print("Computing cross-correlation for event {}...".format(event))
+                insertLog(f"Computing cross-correlation for event {event}", logging.DEBUG)
                 for j in range(len(type)):
                     psth_a = read_Df(filepath, event+'_'+corr_info[i-1], type[j]+'_'+corr_info[i-1])
                     psth_b = read_Df(filepath, event+'_'+corr_info[i], type[j]+'_'+corr_info[i])
@@ -164,5 +190,6 @@ def computeCrossCorrelation(filepath, event, inputParameters):
                     cross_corr = helperCrossCorrelation(arr_A, arr_B, sample_rate)
                     cols.append('timestamps')
                     create_Df(make_dir(filepath), 'corr_'+event, type[j]+'_'+corr_info[i-1]+'_'+corr_info[i], cross_corr, cols)
+                insertLog(f"Cross-correlation for event {event} computed.", logging.INFO)
                 print("Cross-correlation for event {} computed.".format(event))
     
