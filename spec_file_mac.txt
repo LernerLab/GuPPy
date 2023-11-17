@@ -2,10 +2,16 @@
 # $ conda create --name <env> --file <this file>
 # platform: osx-64
 @EXPLICIT
+https://repo.anaconda.com/pkgs/main/osx-64/chardet-3.0.4-py36_1003.tar.bz2
+https://repo.anaconda.com/pkgs/main/osx-64/olefile-0.46-py36_0.tar.bz2
+https://repo.anaconda.com/pkgs/main/osx-64/pandoc-2.10-0.tar.bz2
+https://conda.anaconda.org/conda-forge/osx-64/phantomjs-2.1.1-1.tar.bz2
 https://conda.anaconda.org/anaconda/osx-64/blas-1.0-mkl.tar.bz2
 https://conda.anaconda.org/anaconda/osx-64/bzip2-1.0.8-h1de35cc_0.tar.bz2
 https://repo.anaconda.com/pkgs/main/osx-64/ca-certificates-2023.01.10-hecd8cb5_0.tar.bz2
+https://conda.anaconda.org/conda-forge/osx-64/gettext-0.19.8.1-h1f1d5ed_1.tar.bz2
 https://conda.anaconda.org/anaconda/osx-64/giflib-5.2.1-haf1e3a3_0.tar.bz2
+https://repo.anaconda.com/pkgs/main/osx-64/immutables-0.14-py36haf1e3a3_0.tar.bz2
 https://conda.anaconda.org/anaconda/osx-64/intel-openmp-2021.4.0-hecd8cb5_3538.tar.bz2
 https://conda.anaconda.org/anaconda/osx-64/jpeg-9e-hca72f7f_0.tar.bz2
 https://conda.anaconda.org/conda-forge/osx-64/libbrotlicommon-1.0.9-hb7f2c08_8.tar.bz2
@@ -18,25 +24,33 @@ https://conda.anaconda.org/conda-forge/osx-64/libzlib-1.2.13-hfd90126_4.tar.bz2
 https://conda.anaconda.org/conda-forge/osx-64/llvm-openmp-14.0.6-h61d9ccf_0.tar.bz2
 https://conda.anaconda.org/anaconda/osx-64/lzo-2.10-haf1e3a3_2.tar.bz2
 https://repo.anaconda.com/pkgs/main/osx-64/ncurses-6.4-hcec6c5f_0.tar.bz2
+https://conda.anaconda.org/conda-forge/osx-64/pixman-0.34.0-h1de35cc_1003.tar.bz2
 https://repo.anaconda.com/pkgs/main/noarch/tzdata-2023c-h04d1e81_0.tar.bz2
 https://repo.anaconda.com/pkgs/main/osx-64/xz-5.4.2-h6c40b1e_0.tar.bz2
 https://conda.anaconda.org/anaconda/osx-64/yaml-0.2.5-haf1e3a3_0.tar.bz2
 https://conda.anaconda.org/anaconda/osx-64/brotli-1.0.9-hb1e8313_2.tar.bz2
+https://repo.anaconda.com/pkgs/main/noarch/contextvars-2.4-py_0.tar.bz2
+https://conda.anaconda.org/conda-forge/osx-64/firefox-78.0esr-h4a8c4bd_0.tar.bz2
 https://conda.anaconda.org/conda-forge/osx-64/geckodriver-0.32.0-hf46a32e_0.tar.bz2
 https://conda.anaconda.org/anaconda/osx-64/icu-58.2-h0a44026_3.tar.bz2
 https://conda.anaconda.org/anaconda/osx-64/lerc-3.0-he9d5cce_0.tar.bz2
 https://conda.anaconda.org/conda-forge/osx-64/libbrotlidec-1.0.9-hb7f2c08_8.tar.bz2
 https://conda.anaconda.org/conda-forge/osx-64/libbrotlienc-1.0.9-hb7f2c08_8.tar.bz2
+https://repo.anaconda.com/pkgs/main/osx-64/libedit-3.1.20191231-h1de35cc_1.tar.bz2
 https://conda.anaconda.org/anaconda/osx-64/libffi-3.3-hb1e8313_2.tar.bz2
 https://conda.anaconda.org/conda-forge/osx-64/libgfortran5-11.3.0-h082f757_26.tar.bz2
 https://conda.anaconda.org/conda-forge/osx-64/libllvm14-14.0.6-h5b596cc_1.tar.bz2
 https://repo.anaconda.com/pkgs/main/osx-64/lz4-c-1.9.4-hcec6c5f_0.tar.bz2
 https://conda.anaconda.org/anaconda/osx-64/mkl-2021.4.0-hecd8cb5_637.tar.bz2
 https://repo.anaconda.com/pkgs/main/osx-64/openssl-1.1.1t-hca72f7f_0.tar.bz2
+https://conda.anaconda.org/conda-forge/osx-64/pcre-8.44-h4a8c4bd_0.tar.bz2
 https://repo.anaconda.com/pkgs/main/osx-64/readline-8.2-hca72f7f_0.tar.bz2
+https://conda.anaconda.org/anaconda/osx-64/snappy-1.1.8-hb1e8313_0.tar.bz2
+https://repo.anaconda.com/pkgs/main/osx-64/tbb-2020.0-h04f5b5a_0.tar.bz2
 https://conda.anaconda.org/anaconda/osx-64/zeromq-4.3.4-h23ab428_0.tar.bz2
 https://conda.anaconda.org/conda-forge/osx-64/zlib-1.2.13-hfd90126_4.tar.bz2
 https://conda.anaconda.org/conda-forge/osx-64/brotli-bin-1.0.9-hb7f2c08_8.tar.bz2
+https://conda.anaconda.org/conda-forge/osx-64/glib-2.55.0-0.tar.bz2
 https://conda.anaconda.org/anaconda/osx-64/libgfortran-5.0.0-11_2_0_h246ff09_26.tar.bz2
 https://repo.anaconda.com/pkgs/main/osx-64/libpng-1.6.39-h6c40b1e_0.tar.bz2
 https://repo.anaconda.com/pkgs/main/osx-64/libxml2-2.10.3-h930c0e2_0.tar.bz2
@@ -65,6 +79,7 @@ https://conda.anaconda.org/anaconda/noarch/defusedxml-0.7.1-pyhd3eb1b0_0.tar.bz2
 https://conda.anaconda.org/anaconda/osx-64/entrypoints-0.4-py39hecd8cb5_0.tar.bz2
 https://conda.anaconda.org/conda-forge/noarch/exceptiongroup-1.0.4-pyhd8ed1ab_0.tar.bz2
 https://conda.anaconda.org/anaconda/noarch/executing-0.8.3-pyhd3eb1b0_0.tar.bz2
+https://conda.anaconda.org/conda-forge/osx-64/fontconfig-2.13.1-h1027ab8_1000.tar.bz2
 https://repo.anaconda.com/pkgs/main/osx-64/fsspec-2023.4.0-py39hecd8cb5_0.tar.bz2
 https://conda.anaconda.org/anaconda/noarch/heapdict-1.0.1-pyhd3eb1b0_0.tar.bz2
 https://conda.anaconda.org/conda-forge/noarch/idna-3.4-pyhd8ed1ab_0.tar.bz2
@@ -107,6 +122,7 @@ https://conda.anaconda.org/anaconda/osx-64/sniffio-1.2.0-py39hecd8cb5_1.tar.bz2
 https://conda.anaconda.org/anaconda/noarch/sortedcontainers-2.4.0-pyhd3eb1b0_0.tar.bz2
 https://repo.anaconda.com/pkgs/main/osx-64/soupsieve-2.4-py39hecd8cb5_0.tar.bz2
 https://conda.anaconda.org/anaconda/noarch/tblib-1.7.0-pyhd3eb1b0_0.tar.bz2
+https://repo.anaconda.com/pkgs/main/noarch/testpath-0.4.4-py_0.tar.bz2
 https://conda.anaconda.org/conda-forge/noarch/toolz-0.12.0-pyhd8ed1ab_0.tar.bz2
 https://repo.anaconda.com/pkgs/main/osx-64/tqdm-4.65.0-py39h01d92e1_0.tar.bz2
 https://repo.anaconda.com/pkgs/main/osx-64/traitlets-5.7.1-py39hecd8cb5_0.tar.bz2
@@ -119,6 +135,7 @@ https://conda.anaconda.org/anaconda/osx-64/anyio-3.5.0-py39hecd8cb5_0.tar.bz2
 https://conda.anaconda.org/anaconda/noarch/asttokens-2.0.5-pyhd3eb1b0_0.tar.bz2
 https://repo.anaconda.com/pkgs/main/osx-64/beautifulsoup4-4.12.2-py39hecd8cb5_0.tar.bz2
 https://conda.anaconda.org/anaconda/noarch/bleach-4.1.0-pyhd3eb1b0_0.tar.bz2
+https://conda.anaconda.org/conda-forge/osx-64/cairo-1.14.12-he6fea26_5.tar.bz2
 https://repo.anaconda.com/pkgs/main/osx-64/cffi-1.15.1-py39hc55c11b_0.tar.bz2
 https://repo.anaconda.com/pkgs/main/osx-64/comm-0.1.2-py39hecd8cb5_0.tar.bz2
 https://conda.anaconda.org/conda-forge/osx-64/cytoolz-0.12.0-py39ha30fb19_1.tar.bz2
@@ -152,7 +169,9 @@ https://conda.anaconda.org/anaconda/osx-64/websocket-client-0.58.0-py39hecd8cb5_
 https://conda.anaconda.org/conda-forge/noarch/zict-2.2.0-pyhd8ed1ab_0.tar.bz2
 https://conda.anaconda.org/anaconda/osx-64/argon2-cffi-bindings-21.2.0-py39hca72f7f_0.tar.bz2
 https://conda.anaconda.org/anaconda/osx-64/brotlipy-0.7.0-py39h9ed2024_1003.tar.bz2
+https://conda.anaconda.org/conda-forge/noarch/cairocffi-1.2.0-pyhd8ed1ab_0.tar.bz2
 https://repo.anaconda.com/pkgs/main/osx-64/cryptography-39.0.1-py39hf6deb26_0.tar.bz2
+https://conda.anaconda.org/conda-forge/noarch/cssselect2-0.2.1-pyh9f0ad1d_1.tar.bz2
 https://repo.anaconda.com/pkgs/main/osx-64/dask-core-2023.4.1-py39hecd8cb5_0.tar.bz2
 https://repo.anaconda.com/pkgs/main/noarch/importlib_metadata-6.0.0-hd3eb1b0_0.tar.bz2
 https://conda.anaconda.org/conda-forge/noarch/markdown-3.4.1-pyhd8ed1ab_0.tar.bz2
@@ -163,6 +182,7 @@ https://repo.anaconda.com/pkgs/main/osx-64/terminado-0.17.1-py39hecd8cb5_0.tar.b
 https://conda.anaconda.org/conda-forge/osx-64/trio-0.22.0-py39h6e9494a_1.tar.bz2
 https://conda.anaconda.org/conda-forge/noarch/wsproto-1.2.0-pyhd8ed1ab_0.tar.bz2
 https://conda.anaconda.org/anaconda/noarch/argon2-cffi-21.3.0-pyhd3eb1b0_0.tar.bz2
+https://conda.anaconda.org/conda-forge/noarch/cairosvg-2.5.2-pyhd8ed1ab_0.tar.bz2
 https://repo.anaconda.com/pkgs/main/osx-64/ipython-8.12.0-py39hecd8cb5_0.tar.bz2
 https://repo.anaconda.com/pkgs/main/osx-64/jupyter_client-8.1.0-py39hecd8cb5_0.tar.bz2
 https://repo.anaconda.com/pkgs/main/osx-64/pyopenssl-23.0.0-py39hecd8cb5_0.tar.bz2
@@ -201,3 +221,4 @@ https://repo.anaconda.com/pkgs/main/osx-64/matplotlib-3.7.1-py39hecd8cb5_1.tar.b
 https://conda.anaconda.org/conda-forge/noarch/xarray-2022.11.0-pyhd8ed1ab_0.tar.bz2
 https://conda.anaconda.org/pyviz/noarch/datashader-0.13.0-py_0.tar.bz2
 https://conda.anaconda.org/pyviz/noarch/holoviews-1.15.0-py_0.tar.bz2
+https://conda.anaconda.org/pyviz/noarch/hvplot-0.6.0-py_0.tar.bz2
