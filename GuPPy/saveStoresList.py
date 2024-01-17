@@ -129,9 +129,9 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
 
 
     if 'data_np_v2' in flag or 'data_np' in flag or 'event_np' in flag:
-        path_chev = glob.glob(os.path.join(filepath, 'chev*'))
-        path_chod = glob.glob(os.path.join(filepath, 'chod*'))
-        path_chpr = glob.glob(os.path.join(filepath, 'chpr*'))
+        path_chev = glob.glob(os.path.join(filepath, '*chev*'))
+        path_chod = glob.glob(os.path.join(filepath, '*chod*'))
+        path_chpr = glob.glob(os.path.join(filepath, '*chpr*'))
         combine_paths = path_chev + path_chod + path_chpr
         d = dict()
         for i in range(len(combine_paths)):
@@ -524,8 +524,8 @@ def check_channels(state):
 
 # function to decide indices of interleaved channels
 # in neurophotometrics data
-def decide_indices(df, flag, num_ch=2):
-    ch_name = ['chev', 'chod', 'chpr']
+def decide_indices(file, df, flag, num_ch=2):
+    ch_name = [file+'chev', file+'chod', file+'chpr']
     if len(ch_name)<num_ch:
         insertLog('Number of channels parameters in Input Parameters GUI is more than 3. \
                     Looks like there are more than 3 channels in the file. Reading of these files\
@@ -616,9 +616,9 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
               logging.DEBUG)
     path = sorted(glob.glob(os.path.join(filepath, '*.csv'))) + \
            sorted(glob.glob(os.path.join(filepath, '*.doric')))
-    path_chev = glob.glob(os.path.join(filepath, 'chev*'))
-    path_chod = glob.glob(os.path.join(filepath, 'chod*'))
-    path_chpr = glob.glob(os.path.join(filepath, 'chpr*'))
+    path_chev = glob.glob(os.path.join(filepath, '*chev*'))
+    path_chod = glob.glob(os.path.join(filepath, '*chod*'))
+    path_chpr = glob.glob(os.path.join(filepath, '*chpr*'))
     path_event = glob.glob(os.path.join(filepath, 'event*'))
     #path_sig = glob.glob(os.path.join(filepath, 'sig*'))
     path_chev_chod_event = path_chev + path_chod + path_event + path_chpr
@@ -710,8 +710,8 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
                 name = os.path.basename(path[i]).split('.')[0]
                 event_from_filename.append(name)
             elif flag=='data_np':
-                df, indices_dict, num_channels = decide_indices(df, flag, num_ch)
-                
+                file = f'file{str(i)}_'
+                df, indices_dict, num_channels = decide_indices(file, df, flag, num_ch)
                 keys = list(indices_dict.keys())
                 for k in range(len(keys)):
                     for j in range(df.shape[1]):
@@ -755,8 +755,8 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
                     df_new.to_csv(os.path.join(dirname, 'event'+str(0)+'.csv'), index=False)
                     event_from_filename.append('event'+str(0))
             else:
-                df, indices_dict, num_channels = decide_indices(df, flag)
-
+                file = f'file{str(i)}_'
+                df, indices_dict, num_channels = decide_indices(file, df, flag)
                 keys = list(indices_dict.keys())
                 for k in range(len(keys)):
                     for j in range(df.shape[1]):
@@ -772,13 +772,13 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
                             df_ch.to_csv(os.path.join(dirname, keys[k]+str(j)+'.csv'), index=False)
                             event_from_filename.append(keys[k]+str(j))
 
-            path_chev = glob.glob(os.path.join(filepath, 'chev*'))
-            path_chod = glob.glob(os.path.join(filepath, 'chod*'))
-            path_chpr = glob.glob(os.path.join(filepath, 'chpr*'))
+            path_chev = glob.glob(os.path.join(filepath, '*chev*'))
+            path_chod = glob.glob(os.path.join(filepath, '*chod*'))
+            path_chpr = glob.glob(os.path.join(filepath, '*chpr*'))
             path_event = glob.glob(os.path.join(filepath, 'event*'))
             #path_sig = glob.glob(os.path.join(filepath, 'sig*'))
             path_chev_chod_chpr = [path_chev, path_chod, path_chpr]
-            if i==len(path)-1 and ('data_np_v2' in flag or 'data_np' in flag or 'event_np' in flag):
+            if ('data_np_v2' in flag or 'data_np' in flag or 'event_np' in flag): # i==len(path)-1 and 
                 num_path_chev, num_path_chod, num_path_chpr = len(path_chev), len(path_chod), len(path_chpr)
                 arr_len, no_ch = [], []
                 for i in range(len(path_chev_chod_chpr)):
@@ -800,21 +800,21 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
                     df_event.to_csv(path_event[j], index=False)
                 if unique_arr_len.shape[0]==1:
                     for j in range(len(path_chev)):
-                        if 'chev' in indices_dict.keys():
+                        if file+'chev' in indices_dict.keys():
                             df_chev = pd.read_csv(path_chev[j])
                             df_chev['timestamps'] = (df_chev['timestamps']-df_chev['timestamps'][0])/divisor
                             df_chev['sampling_rate'] = np.full(df_chev.shape[0], np.nan)
                             df_chev['sampling_rate'][0] = df_chev.shape[0]/(df_chev['timestamps'].iloc[-1] - df_chev['timestamps'].iloc[0])
                             df_chev.to_csv(path_chev[j], index=False)
 
-                        if 'chod' in indices_dict.keys():
+                        if file+'chod' in indices_dict.keys():
                             df_chod = pd.read_csv(path_chod[j])
                             df_chod['timestamps'] = df_chev['timestamps']
                             df_chod['sampling_rate'] = np.full(df_chod.shape[0], np.nan)
                             df_chod['sampling_rate'][0] = df_chev['sampling_rate'][0]
                             df_chod.to_csv(path_chod[j], index=False)
 
-                        if 'chpr' in indices_dict.keys():
+                        if file+'chpr' in indices_dict.keys():
                             df_chpr = pd.read_csv(path_chpr[j])
                             df_chpr['timestamps'] = df_chev['timestamps']
                             df_chpr['sampling_rate'] = np.full(df_chpr.shape[0], np.nan)
