@@ -691,7 +691,7 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
             else:
                 flag = flag
 
-            print(flag)
+
             # used assigned flags to process the files and read the data
             if flag=='event_or_data_np':
                 arr = list(df.iloc[:,1])
@@ -706,6 +706,7 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
                 pass
             
             flag_arr.append(flag)
+            print(flag)
             if flag=='event_csv' or flag=='data_csv':
                 name = os.path.basename(path[i]).split('.')[0]
                 event_from_filename.append(name)
@@ -778,7 +779,7 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
             path_event = glob.glob(os.path.join(filepath, 'event*'))
             #path_sig = glob.glob(os.path.join(filepath, 'sig*'))
             path_chev_chod_chpr = [path_chev, path_chod, path_chpr]
-            if ('data_np_v2' in flag or 'data_np' in flag or 'event_np' in flag): # i==len(path)-1 and 
+            if ('data_np_v2' in flag_arr or 'data_np' in flag_arr) and ('event_np' in flag_arr): # i==len(path)-1 and or 'event_np' in flag
                 num_path_chev, num_path_chod, num_path_chpr = len(path_chev), len(path_chod), len(path_chpr)
                 arr_len, no_ch = [], []
                 for i in range(len(path_chev_chod_chpr)):
