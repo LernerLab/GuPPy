@@ -49,6 +49,17 @@ panel serve --show GuPPy/savingInputParameters.ipynb
 
 - The full instructions along with detailed descriptions of each step to run the GuPPy tool is on [Github Wiki Page](https://github.com/LernerLab/GuPPy/wiki).
 
+## Uninstalling or removing instructions
+
+1. Open an Anaconda Prompt window (for windows) or Terminal window (for Mac or Linux).
+
+2. Execute the following command on Anaconda Prompt or terminal window: <br>
+```
+conda remove --name guppy --all
+```
+
+3. To reinstall, follow steps 1 (Download GuPPy code) and 4 to 6 from the Installation Instructions.
+
 ## Tutorial Videos
 
 - [Installation steps](https://youtu.be/7qfU8xvj2nc)
