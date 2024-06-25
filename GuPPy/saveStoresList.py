@@ -526,6 +526,58 @@ def check_channels(state):
 # in neurophotometrics data
 def decide_indices(file, df, flag, num_ch=2):
     ch_name = [file+'chev', file+'chod', file+'chpr']
+    col_names = np.array(list(df.columns))
+    col_names_ts = ['']
+    for name in col_names:
+        if 'Timestamp' in name:
+            col_names_ts.append(name)
+    print(col_names_ts)
+    
+    def comboBoxSelected(event):
+        print(event.widget.get())
+
+    window = tk.Tk()
+    window.title('Select appropriate options for timestamps')
+    window.geometry('500x200')
+    holdComboboxValues = dict()
+
+    timestamps_label = ttk.Label(window, 
+                                text="Select which timetamps to use : ").grid(row=0, column=1, pady=25, padx=25)
+    holdComboboxValues['timestamps'] = StringVar()
+    timestamps_combo = ttk.Combobox(window, 
+                                    values=col_names_ts, 
+                                    textvariable=holdComboboxValues['timestamps'])
+    timestamps_combo.grid(row=0, column=2, pady=25, padx=25)
+    timestamps_combo.current(0)
+    timestamps_combo.bind("<<ComboboxSelected>>", comboBoxSelected)
+
+    time_unit_label = ttk.Label(window, text="Select timetamps unit : ").grid(row=1, column=1, pady=25, padx=25)
+    holdComboboxValues['time_unit'] = StringVar()
+    time_unit_combo = ttk.Combobox(window, 
+                                values=['', 'seconds', 'milliseconds', 'microseconds'],
+                                textvariable=holdComboboxValues['time_unit'])
+    time_unit_combo.grid(row=1, column=2, pady=25, padx=25)
+    time_unit_combo.current(0)
+    time_unit_combo.bind("<<ComboboxSelected>>", comboBoxSelected)
+    window.mainloop()
+
+    if holdComboboxValues['timestamps'].get():
+        df.insert(1, 'Timestamp', df[holdComboboxValues['timestamps'].get()])
+        df = df.drop(col_names_ts[1:], axis=1)
+        print(df.head(5))
+    else:
+        messagebox.showerror('All options not selected', 'All the options for timestamps \
+                                                        were not selected. Please select appropriate options')
+    if holdComboboxValues['time_unit'].get():
+        if holdComboboxValues['time_unit']=='seconds':
+            df['Timestamp'] = df['Timestamp']
+        elif holdComboboxValues['time_unit']=='milliseconds':
+            df['Timestamp'] = df['Timestamp'] / 10e3
+        else:
+            df['Timestamp'] = df['Timestamp'] / 10e6
+    else:
+        messagebox.showerror('All options not selected', 'All the options for timestamps \
+                                                        were not selected. Please select appropriate options')
     if len(ch_name)<num_ch:
         insertLog('Number of channels parameters in Input Parameters GUI is more than 3. \
                     Looks like there are more than 3 channels in the file. Reading of these files\
@@ -635,15 +687,32 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
             event_from_filename.extend(key_names)
             flag = 'doric_doric'
         else:
-            with warnings.catch_warnings():
-                warnings.simplefilter("error")
+            df = pd.read_csv(path[i], header=None, nrows=2, index_col=False, dtype=str)
+            df = df.dropna(axis=1, how='all')
+            df_arr = np.array(df).flatten()
+            check_all_str = []
+            for element in df_arr:
                 try:
-                    df = pd.read_csv(path[i], index_col=False, dtype=float)
+                    float(element)
                 except:
-                    df = pd.read_csv(path[i], header=1, index_col=False, nrows=10)   # to make process faster reading just first 10 rows
-                    df = df.drop(['Time(s)'], axis=1)
-                    event_from_filename.extend(list(df.columns))
-                    flag = 'doric_csv'
+                    check_all_str.append(i)
+            if len(check_all_str)==len(df_arr):
+                df = pd.read_csv(path[i], header=1, index_col=False, nrows=10)
+                df = df.drop(['Time(s)'], axis=1)
+                event_from_filename.extend(list(df.columns))
+                flag = 'doric_csv'
+                print(flag)
+            else:
+                df = pd.read_csv(path[i], index_col=False)
+            # with warnings.catch_warnings():
+            #     warnings.simplefilter("error")
+            #     try:
+            #         df = pd.read_csv(path[i], index_col=False, dtype=float)
+            #     except:
+            #         df = pd.read_csv(path[i], header=1, index_col=False, nrows=10)   # to make process faster reading just first 10 rows
+            #         df = df.drop(['Time(s)'], axis=1)
+            #         event_from_filename.extend(list(df.columns))
+            #         flag = 'doric_csv'
         if flag=='doric_csv' or flag=='doric_doric':
             continue
         else:
@@ -746,8 +815,8 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
                         d = dict()
                         d['timestamps'] = timestamps[idx]
                         df_new = pd.DataFrame(d)
-                        df_new.to_csv(os.path.join(dirname, 'event'+str(j)+'.csv'), index=False)
-                        event_from_filename.append('event'+str(j))
+                        df_new.to_csv(os.path.join(dirname, 'event'+str(type_val_unique[j])+'.csv'), index=False)
+                        event_from_filename.append('event'+str(type_val_unique[j]))
                 else:
                     timestamps = np.array(df.iloc[:,0])
                     d = dict()
