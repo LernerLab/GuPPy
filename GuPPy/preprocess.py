@@ -1188,11 +1188,13 @@ def extractTsAndSignal(inputParameters):
 		storesListPath.append(glob.glob(os.path.join(folderNames[i], '*_output_*')))
 	storesListPath = np.concatenate(storesListPath)
 	pbMaxValue = storesListPath.shape[0] + len(folderNames)
-	writeToFile(str((pbMaxValue+1)*10)+'\n'+str(10)+'\n')
+	#writeToFile(str((pbMaxValue+1)*10)+'\n'+str(10)+'\n')
 	if combine_data==False:
+		writeToFile(str((pbMaxValue+1)*10)+'\n'+str(10)+'\n')
 		execute_timestamp_correction(folderNames, inputParameters)
 		execute_zscore(folderNames, inputParameters)
 	else:
+		writeToFile(str((pbMaxValue)*10)+'\n'+str(10)+'\n')
 		execute_timestamp_correction(folderNames, inputParameters)
 		storesList = check_storeslistfile(folderNames)
 		op_folder = combineData(folderNames, inputParameters, storesList)
