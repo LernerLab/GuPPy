@@ -483,13 +483,15 @@ def execute_import_doric(filepath, storesList, flag, outputPath):
 				
 
 # function to read data from 'tsq' and 'tev' files
-def readRawData(inputParameters):
+def readRawData(inputParametersPath):
 
 	
 	print('### Reading raw data... ###')
 	insertLog('### Reading raw data... ###', logging.DEBUG)
 	# get input parameters
-	inputParameters = inputParameters
+	with open(inputParametersPath) as f:	
+		inputParameters = json.load(f)
+
 	folderNames = inputParameters['folderNames']
 	numProcesses = inputParameters['numberOfCores']
 	storesListPath = []
@@ -544,14 +546,14 @@ def readRawData(inputParameters):
 	insertLog('Raw data fetched and saved.', logging.INFO)
 	insertLog("#" * 400, logging.INFO)
 
-if __name__ == "__main__":
-	print('run')
-	try:
-		readRawData(json.loads(sys.argv[1]))
-		insertLog('#'*400, logging.INFO)
-	except Exception as e:
-		with open(os.path.join(os.path.expanduser('~'), 'pbSteps.txt'), 'a') as file:
-			file.write(str(-1)+"\n")
-		insertLog(f"An error occurred: {e}", logging.ERROR)
-		raise e
+# if __name__ == "__main__":
+# 	print('run')
+# 	try:
+# 		readRawData(json.loads(sys.argv[1]))
+# 		insertLog('#'*400, logging.INFO)
+# 	except Exception as e:
+# 		with open(os.path.join(os.path.expanduser('~'), 'pbSteps.txt'), 'a') as file:
+# 			file.write(str(-1)+"\n")
+# 		insertLog(f"An error occurred: {e}", logging.ERROR)
+# 		raise e
 

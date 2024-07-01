@@ -15,7 +15,7 @@ from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 from matplotlib.widgets import MultiCursor
 from combineDataFn import processTimestampsForCombiningData
-plt.switch_backend('TKAgg')
+#plt.switch_backend('TKAgg')
 
 def insertLog(text, level):
     file = os.path.join('.','..','guppy.log')
@@ -437,7 +437,7 @@ def visualize_z_score(filepath):
 		ax.plot(x,y)
 		ax.set_title(basename)
 		fig.suptitle(name)
-	#plt.show()
+	plt.show()
 
 # function to plot deltaF/F
 def visualize_dff(filepath):
@@ -457,7 +457,7 @@ def visualize_dff(filepath):
 		ax.plot(x,y)
 		ax.set_title(basename)
 		fig.suptitle(name)
-	#plt.show()
+	plt.show()
 
 
 
@@ -553,7 +553,7 @@ def visualize(filepath, x, y1, y2, y3, plot_name, removeArtifacts):
 	cid = fig.canvas.mpl_connect('close_event', plt_close_event)
 	#multi = MultiCursor(fig.canvas, (ax1, ax2), color='g', lw=1, horizOn=False, vertOn=True)
 
-	#plt.show()
+	plt.show()
 	#return fig
 
 # function to plot control and signal, also provide a feature to select chunks for artifacts removal
@@ -1156,16 +1156,18 @@ def execute_zscore(folderNames, inputParameters):
 		writeToFile(str(10+((inputParameters['step']+1)*10))+'\n')
 		inputParameters['step'] += 1
 	
-	plt.show()
+	#plt.show()
 	insertLog("Signal data and event timestamps are extracted.", logging.INFO)
 	print("Signal data and event timestamps are extracted.")
 
 
-def extractTsAndSignal(inputParameters):
+def extractTsAndSignal(inputParametersPath):
 
 	print("Extracting signal data and event timestamps...")
 	insertLog("Extracting signal data and event timestamps", logging.DEBUG)
-	inputParameters = inputParameters
+
+	with open(inputParametersPath) as f:	
+		inputParameters = json.load(f)
 
 	#storesList = np.genfromtxt(inputParameters['storesListPath'], dtype='str', delimiter=',')
 
@@ -1202,15 +1204,15 @@ def extractTsAndSignal(inputParameters):
 		
 
 	
-if __name__ == "__main__":
-	try:
-		extractTsAndSignal(json.loads(sys.argv[1]))
-		insertLog('#'*400, logging.INFO)
-	except Exception as e:
-		with open(os.path.join(os.path.expanduser('~'), 'pbSteps.txt'), 'a') as file:
-			file.write(str(-1)+"\n")
-		insertLog(str(e), logging.ERROR)
-		raise e
+# if __name__ == "__main__":
+# 	try:
+# 		extractTsAndSignal(json.loads(sys.argv[1]))
+# 		insertLog('#'*400, logging.INFO)
+# 	except Exception as e:
+# 		with open(os.path.join(os.path.expanduser('~'), 'pbSteps.txt'), 'a') as file:
+# 			file.write(str(-1)+"\n")
+# 		insertLog(str(e), logging.ERROR)
+# 		raise e
 	
 
 
