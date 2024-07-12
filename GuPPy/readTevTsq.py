@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 from numpy import int32, uint32, uint8, uint16, float64, int64, int32, float32
 import multiprocessing as mp
+from tqdm import tqdm
 
 def insertLog(text, level):
     file = os.path.join('.','..','guppy.log')
@@ -322,7 +323,7 @@ def readtev(data, filepath, event, outputPath):
 	if formatNew != 5:
 		nsample = (data_size[first_row,]-10)*int(table[formatNew, 2])
 		S['data'] = np.zeros((len(fp_loc), nsample))
-		for i in range(0, len(fp_loc)):
+		for i in tqdm(range(0, len(fp_loc))):
 			with open(tevfilepath, 'rb') as fp:
 				fp.seek(fp_loc[i], os.SEEK_SET)
 				S['data'][i,:] = np.fromfile(fp, dtype=table[formatNew, 3], count=nsample).reshape(1, nsample, order='F')
