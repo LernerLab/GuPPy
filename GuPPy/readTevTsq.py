@@ -13,6 +13,7 @@ import pandas as pd
 from numpy import int32, uint32, uint8, uint16, float64, int64, int32, float32
 import multiprocessing as mp
 from tqdm import tqdm
+from pprint import pprint
 
 def insertLog(text, level):
     file = os.path.join('.','..','guppy.log')
@@ -336,6 +337,10 @@ def readtev(data, filepath, event, outputPath):
 
 
 	S['data'] = (S['data'].T).reshape(-1, order='F')
+
+	S_print = S.copy()
+	S_print.pop('data')
+	pprint(S_print)
 	
 	save_dict_to_hdf5(S, event, outputPath)
 	
@@ -546,6 +551,28 @@ def readRawData(inputParametersPath):
 	print("### Raw data fetched and saved.")
 	insertLog('Raw data fetched and saved.', logging.INFO)
 	insertLog("#" * 400, logging.INFO)
+
+# from pynwb import NWBHDF5IO
+# def read_nwb(filepath, event, outputPath, indices):
+# 	"""
+# 	Read photometry data from an NWB file and save the output to a hdf5 file.
+# 	"""
+# 	print(f"Reading NWB file {filepath} for event {event} to save to {outputPath} with indices {indices}")
+
+# 	with NWBHDF5IO(filepath, 'r') as io:
+# 		nwbfile = io.read()
+# 		fiber_photometry_response_series = nwbfile.acquisition[event].data[:, indices]
+# 		sampling_rate = fiber_photometry_response_series.rate
+
+# 	S = dict()
+# 	S['storename'] = str(event)
+# 	S['sampling_rate'] = sampling_rate
+# 	S['timestamps'] = np.arange(0, fiber_photometry_response_series.shape[0]) / sampling_rate
+# 	S['data'] = fiber_photometry_response_series
+    # save_dict_to_hdf5(S, event, outputPath)
+    # check_data(S, filepath, event, outputPath)
+    # print("Data for event {} fetched and stored.".format(event))
+    # insertLog("Data for event {} fetched and stored.".format(event), logging.INFO)
 
 # if __name__ == "__main__":
 # 	print('run')

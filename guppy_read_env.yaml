@@ -1,0 +1,14 @@
+name: guppy_read_env
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python>=3.8
+  - h5py
+  - numpy
+  - pandas
+  - tqdm
+  - ipykernel
+  - pip
+  - pip:
+    - pynwb
