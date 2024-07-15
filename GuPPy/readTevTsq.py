@@ -548,7 +548,7 @@ def readRawData(inputParametersPath):
 	insertLog('Raw data fetched and saved.', logging.INFO)
 	insertLog("#" * 400, logging.INFO)
 
-def read_nwb(filepath, outputPath, indices):
+def read_nwb(filepath, outputPath, response_series_name, indices, npoints=128):
 	"""
 	Read photometry data from an NWB file and save the output to a hdf5 file.
 	"""
@@ -557,11 +557,16 @@ def read_nwb(filepath, outputPath, indices):
 
 	with NWBHDF5IO(filepath, 'r') as io:
 		nwbfile = io.read()
-		fiber_photometry_response_series = nwbfile.acquisition['fiber_photometry_response_series']
+		fiber_photometry_response_series = nwbfile.acquisition[response_series_name]
 		data = fiber_photometry_response_series.data[:]
-		sampling_rate = fiber_photometry_response_series.rate
-		timestamps = np.arange(0, data.shape[0]) / sampling_rate
-		npoints = 128
+		sampling_rate = getattr(fiber_photometry_response_series, 'rate', default=None)
+		timestamps = getattr(fiber_photometry_response_series, 'timestamps', default=None)
+		if sampling_rate is None and timestamps is not None:
+			sampling_rate = 1 / np.median(np.diff(timestamps))
+		elif timestamps is None and sampling_rate is not None:
+			timestamps = np.arange(0, data.shape[0]) / sampling_rate
+		else:
+			raise Exception(f"Fiber photometry response series {response_series_name} must have rate or timestamps.")
 
 	for index in indices:
 		event = f'event_{index}'
@@ -570,7 +575,7 @@ def read_nwb(filepath, outputPath, indices):
 		S['sampling_rate'] = sampling_rate
 		S['timestamps'] = timestamps[::npoints]
 		S['data'] = data[:, index]
-		S['npoints'] = 128
+		S['npoints'] = npoints
 		S['channels'] = np.ones_like(S['timestamps'])
 
 		save_dict_to_hdf5(S, event, outputPath)
