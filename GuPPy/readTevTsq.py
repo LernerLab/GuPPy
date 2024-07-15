@@ -337,10 +337,6 @@ def readtev(data, filepath, event, outputPath):
 
 
 	S['data'] = (S['data'].T).reshape(-1, order='F')
-
-	S_print = S.copy()
-	S_print.pop('data')
-	pprint(S_print)
 	
 	save_dict_to_hdf5(S, event, outputPath)
 	
@@ -552,27 +548,36 @@ def readRawData(inputParametersPath):
 	insertLog('Raw data fetched and saved.', logging.INFO)
 	insertLog("#" * 400, logging.INFO)
 
-# from pynwb import NWBHDF5IO
-# def read_nwb(filepath, event, outputPath, indices):
-# 	"""
-# 	Read photometry data from an NWB file and save the output to a hdf5 file.
-# 	"""
-# 	print(f"Reading NWB file {filepath} for event {event} to save to {outputPath} with indices {indices}")
+def read_nwb(filepath, outputPath, indices):
+	"""
+	Read photometry data from an NWB file and save the output to a hdf5 file.
+	"""
+	from pynwb import NWBHDF5IO # Dynamic import is necessary since pynwb isn't available in the main environment (python 3.6)
+	print(f"Reading all events {indices} from NWB file {filepath} to save to {outputPath}")
 
-# 	with NWBHDF5IO(filepath, 'r') as io:
-# 		nwbfile = io.read()
-# 		fiber_photometry_response_series = nwbfile.acquisition[event].data[:, indices]
-# 		sampling_rate = fiber_photometry_response_series.rate
+	with NWBHDF5IO(filepath, 'r') as io:
+		nwbfile = io.read()
+		fiber_photometry_response_series = nwbfile.acquisition['fiber_photometry_response_series']
+		data = fiber_photometry_response_series.data[:]
+		sampling_rate = fiber_photometry_response_series.rate
+		timestamps = np.arange(0, data.shape[0]) / sampling_rate
+		npoints = 128
 
-# 	S = dict()
-# 	S['storename'] = str(event)
-# 	S['sampling_rate'] = sampling_rate
-# 	S['timestamps'] = np.arange(0, fiber_photometry_response_series.shape[0]) / sampling_rate
-# 	S['data'] = fiber_photometry_response_series
-    # save_dict_to_hdf5(S, event, outputPath)
-    # check_data(S, filepath, event, outputPath)
-    # print("Data for event {} fetched and stored.".format(event))
-    # insertLog("Data for event {} fetched and stored.".format(event), logging.INFO)
+	for index in indices:
+		event = f'event_{index}'
+		S = {}
+		S['storename'] = str(event)
+		S['sampling_rate'] = sampling_rate
+		S['timestamps'] = timestamps[::npoints]
+		S['data'] = data[:, index]
+		S['npoints'] = 128
+		S['channels'] = np.ones_like(S['timestamps'])
+
+		save_dict_to_hdf5(S, event, outputPath)
+		check_data(S, filepath, event, outputPath)
+		print("Data for event {} fetched and stored.".format(event))
+		insertLog("Data for event {} fetched and stored.".format(event), logging.INFO)
+
 
 # if __name__ == "__main__":
 # 	print('run')
