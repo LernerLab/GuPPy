@@ -13,7 +13,7 @@ import pandas as pd
 from numpy import int32, uint32, uint8, uint16, float64, int64, int32, float32
 import multiprocessing as mp
 from tqdm import tqdm
-from pprint import pprint
+from pathlib import Path
 
 def insertLog(text, level):
     file = os.path.join('.','..','guppy.log')
@@ -494,6 +494,8 @@ def readRawData(inputParametersPath):
 	with open(inputParametersPath) as f:	
 		inputParameters = json.load(f)
 
+	nwb_response_series_names = inputParameters['nwb_response_series_names']
+	nwb_response_series_indices = inputParameters['nwb_response_series_indices']
 	folderNames = inputParameters['folderNames']
 	numProcesses = inputParameters['numberOfCores']
 	storesListPath = []
@@ -513,6 +515,8 @@ def readRawData(inputParametersPath):
 	step = 0
 	for i in range(len(folderNames)):
 		filepath = folderNames[i]
+		nwb_response_series_name = nwb_response_series_names[i]
+		indices = nwb_response_series_indices[i]
 		print(filepath)
 		insertLog(f"### Reading raw data for folder {folderNames[i]}", logging.DEBUG)
 		storesListPath = glob.glob(os.path.join(filepath, '*_output_*'))
@@ -523,6 +527,8 @@ def readRawData(inputParametersPath):
 			pass
 		else:
 			flag = check_doric(filepath)
+			if flag == 0: # doric file(s) not found
+				flag = check_nwb(filepath)
 
 		# read data corresponding to each storename selected by user while saving the storeslist file
 		for j in range(len(storesListPath)):
@@ -538,6 +544,9 @@ def readRawData(inputParametersPath):
 				execute_import_doric(filepath, storesList, flag, op)
 			elif flag=='doric_doric':
 				execute_import_doric(filepath, storesList, flag, op)
+			elif flag=='nwb':
+				filepath = Path(filepath)
+				read_nwb(filepath, op, nwb_response_series_name, indices)
 			else:
 				execute_import_csv(filepath, np.unique(storesList[0,:]), op, numProcesses)
 
@@ -548,19 +557,38 @@ def readRawData(inputParametersPath):
 	insertLog('Raw data fetched and saved.', logging.INFO)
 	insertLog("#" * 400, logging.INFO)
 
+def check_nwb(filepath):
+	nwbfile_paths = glob.glob(os.path.join(filepath, '*.nwb'))
+	if len(nwbfile_paths) > 1:
+		insertLog('Two nwb files are present at the location.', logging.ERROR)
+		raise Exception('Two nwb files are present at the location.')
+	elif len(nwbfile_paths) == 0:
+		insertLog("\033[1m" + "NWB file not found." + "\033[0m", logging.ERROR)
+		print("\033[1m" + "NWB file not found." + "\033[0m")
+		return 0
+	else:
+		flag = 'nwb'
+		return flag
+
+
 def read_nwb(filepath, outputPath, response_series_name, indices, npoints=128):
 	"""
 	Read photometry data from an NWB file and save the output to a hdf5 file.
 	"""
 	from pynwb import NWBHDF5IO # Dynamic import is necessary since pynwb isn't available in the main environment (python 3.6)
-	print(f"Reading all events {indices} from NWB file {filepath} to save to {outputPath}")
+	nwbfilepath = glob.glob(os.path.join(filepath, '*.nwb'))
+	if len(nwbfilepath)>1:
+		raise Exception('Two nwb files are present at the location.')
+	else:
+		nwbfilepath = nwbfilepath[0]
+	print(f"Reading all events {indices} from NWB file {nwbfilepath} to save to {outputPath}")
 
-	with NWBHDF5IO(filepath, 'r') as io:
+	with NWBHDF5IO(nwbfilepath, 'r') as io:
 		nwbfile = io.read()
 		fiber_photometry_response_series = nwbfile.acquisition[response_series_name]
 		data = fiber_photometry_response_series.data[:]
-		sampling_rate = getattr(fiber_photometry_response_series, 'rate', default=None)
-		timestamps = getattr(fiber_photometry_response_series, 'timestamps', default=None)
+		sampling_rate = getattr(fiber_photometry_response_series, 'rate', None)
+		timestamps = getattr(fiber_photometry_response_series, 'timestamps', None)
 		if sampling_rate is None and timestamps is not None:
 			sampling_rate = 1 / np.median(np.diff(timestamps))
 		elif timestamps is None and sampling_rate is not None:
