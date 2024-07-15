@@ -12,6 +12,9 @@ import numpy as np
 import pandas as pd
 from numpy import int32, uint32, uint8, uint16, float64, int64, int32, float32
 import multiprocessing as mp
+from tqdm import tqdm
+from pathlib import Path
+from typing import List
 
 def insertLog(text, level):
     file = os.path.join('.','..','guppy.log')
@@ -322,7 +325,7 @@ def readtev(data, filepath, event, outputPath):
 	if formatNew != 5:
 		nsample = (data_size[first_row,]-10)*int(table[formatNew, 2])
 		S['data'] = np.zeros((len(fp_loc), nsample))
-		for i in range(0, len(fp_loc)):
+		for i in tqdm(range(0, len(fp_loc))):
 			with open(tevfilepath, 'rb') as fp:
 				fp.seek(fp_loc[i], os.SEEK_SET)
 				S['data'][i,:] = np.fromfile(fp, dtype=table[formatNew, 3], count=nsample).reshape(1, nsample, order='F')
@@ -492,6 +495,8 @@ def readRawData(inputParametersPath):
 	with open(inputParametersPath) as f:	
 		inputParameters = json.load(f)
 
+	nwb_response_series_names = inputParameters['nwb_response_series_names']
+	nwb_response_series_indices = inputParameters['nwb_response_series_indices']
 	folderNames = inputParameters['folderNames']
 	numProcesses = inputParameters['numberOfCores']
 	storesListPath = []
@@ -511,6 +516,8 @@ def readRawData(inputParametersPath):
 	step = 0
 	for i in range(len(folderNames)):
 		filepath = folderNames[i]
+		nwb_response_series_name = nwb_response_series_names[i]
+		indices = nwb_response_series_indices[i]
 		print(filepath)
 		insertLog(f"### Reading raw data for folder {folderNames[i]}", logging.DEBUG)
 		storesListPath = glob.glob(os.path.join(filepath, '*_output_*'))
@@ -521,6 +528,8 @@ def readRawData(inputParametersPath):
 			pass
 		else:
 			flag = check_doric(filepath)
+			if flag == 0: # doric file(s) not found
+				flag = check_nwb(filepath)
 
 		# read data corresponding to each storename selected by user while saving the storeslist file
 		for j in range(len(storesListPath)):
@@ -536,6 +545,9 @@ def readRawData(inputParametersPath):
 				execute_import_doric(filepath, storesList, flag, op)
 			elif flag=='doric_doric':
 				execute_import_doric(filepath, storesList, flag, op)
+			elif flag=='nwb':
+				filepath = Path(filepath)
+				read_nwb(filepath, op, nwb_response_series_name, indices)
 			else:
 				execute_import_csv(filepath, np.unique(storesList[0,:]), op, numProcesses)
 
@@ -545,6 +557,97 @@ def readRawData(inputParametersPath):
 	print("### Raw data fetched and saved.")
 	insertLog('Raw data fetched and saved.', logging.INFO)
 	insertLog("#" * 400, logging.INFO)
+
+def check_nwb(filepath: str):
+	"""
+	Check if an NWB file is present at the given location.
+	
+	Parameters
+	----------
+	filepath : str
+		Path to the folder containing the NWB file.
+	
+	Returns
+	-------
+	flag : str
+		Flag indicating the presence of an NWB file. If present, the flag is set to 'nwb'. If not present, the flag is set to 0.
+	
+	Raises
+	------
+	Exception
+		If two NWB files are present at the location.
+	"""
+	nwbfile_paths = glob.glob(os.path.join(filepath, '*.nwb'))
+	if len(nwbfile_paths) > 1:
+		insertLog('Two nwb files are present at the location.', logging.ERROR)
+		raise Exception('Two nwb files are present at the location.')
+	elif len(nwbfile_paths) == 0:
+		insertLog("\033[1m" + "NWB file not found." + "\033[0m", logging.ERROR)
+		print("\033[1m" + "NWB file not found." + "\033[0m")
+		return 0
+	else:
+		flag = 'nwb'
+		return flag
+
+
+def read_nwb(filepath: str, outputPath: str, response_series_name: str, indices: List[int], npoints: int = 128):
+	"""
+	Read photometry data from an NWB file and save the output to a hdf5 file.
+
+	Parameters
+	----------
+	filepath : str
+		Path to the folder containing the NWB file.
+	outputPath : str
+		Path to the folder where the output data will be saved.
+	response_series_name : str
+		Name of the response series in the NWB file.
+	indices : List[int]
+		List of indices of the response series to be read.
+	npoints : int, optional
+		Number of points for each chunk. Timestamps are only saved for the first point in each chunk. Default is 128.
+	
+	Raises
+	------
+	Exception
+		If two NWB files are present at the location.
+	"""
+	from pynwb import NWBHDF5IO # Dynamic import is necessary since pynwb isn't available in the main environment (python 3.6)
+	nwbfilepath = glob.glob(os.path.join(filepath, '*.nwb'))
+	if len(nwbfilepath)>1:
+		raise Exception('Two nwb files are present at the location.')
+	else:
+		nwbfilepath = nwbfilepath[0]
+	print(f"Reading all events {indices} from NWB file {nwbfilepath} to save to {outputPath}")
+
+	with NWBHDF5IO(nwbfilepath, 'r') as io:
+		nwbfile = io.read()
+		fiber_photometry_response_series = nwbfile.acquisition[response_series_name]
+		data = fiber_photometry_response_series.data[:]
+		sampling_rate = getattr(fiber_photometry_response_series, 'rate', None)
+		timestamps = getattr(fiber_photometry_response_series, 'timestamps', None)
+		if sampling_rate is None and timestamps is not None:
+			sampling_rate = 1 / np.median(np.diff(timestamps))
+		elif timestamps is None and sampling_rate is not None:
+			timestamps = np.arange(0, data.shape[0]) / sampling_rate
+		else:
+			raise Exception(f"Fiber photometry response series {response_series_name} must have rate or timestamps.")
+
+	for index in indices:
+		event = f'event_{index}'
+		S = {}
+		S['storename'] = str(event)
+		S['sampling_rate'] = sampling_rate
+		S['timestamps'] = timestamps[::npoints]
+		S['data'] = data[:, index]
+		S['npoints'] = npoints
+		S['channels'] = np.ones_like(S['timestamps'])
+
+		save_dict_to_hdf5(S, event, outputPath)
+		check_data(S, filepath, event, outputPath)
+		print("Data for event {} fetched and stored.".format(event))
+		insertLog("Data for event {} fetched and stored.".format(event), logging.INFO)
+
 
 # if __name__ == "__main__":
 # 	print('run')

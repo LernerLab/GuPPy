@@ -155,8 +155,9 @@ def add_control_channel(filepath, arr):
 	return arr
 
 # check if dealing with TDT files or csv files
+# NWB files are treated like TDT files
 def check_TDT(filepath):
-	path = glob.glob(os.path.join(filepath, '*.tsq'))
+	path = glob.glob(os.path.join(filepath, '*.tsq')) + glob.glob(os.path.join(filepath, '*.nwb'))
 	if len(path)>0:
 		return True
 	else:
