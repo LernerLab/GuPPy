@@ -14,6 +14,7 @@ from numpy import int32, uint32, uint8, uint16, float64, int64, int32, float32
 import multiprocessing as mp
 from tqdm import tqdm
 from pathlib import Path
+from typing import List
 
 def insertLog(text, level):
     file = os.path.join('.','..','guppy.log')
@@ -557,7 +558,25 @@ def readRawData(inputParametersPath):
 	insertLog('Raw data fetched and saved.', logging.INFO)
 	insertLog("#" * 400, logging.INFO)
 
-def check_nwb(filepath):
+def check_nwb(filepath: str):
+	"""
+	Check if an NWB file is present at the given location.
+	
+	Parameters
+	----------
+	filepath : str
+		Path to the folder containing the NWB file.
+	
+	Returns
+	-------
+	flag : str
+		Flag indicating the presence of an NWB file. If present, the flag is set to 'nwb'. If not present, the flag is set to 0.
+	
+	Raises
+	------
+	Exception
+		If two NWB files are present at the location.
+	"""
 	nwbfile_paths = glob.glob(os.path.join(filepath, '*.nwb'))
 	if len(nwbfile_paths) > 1:
 		insertLog('Two nwb files are present at the location.', logging.ERROR)
@@ -571,9 +590,27 @@ def check_nwb(filepath):
 		return flag
 
 
-def read_nwb(filepath, outputPath, response_series_name, indices, npoints=128):
+def read_nwb(filepath: str, outputPath: str, response_series_name: str, indices: List[int], npoints: int = 128):
 	"""
 	Read photometry data from an NWB file and save the output to a hdf5 file.
+
+	Parameters
+	----------
+	filepath : str
+		Path to the folder containing the NWB file.
+	outputPath : str
+		Path to the folder where the output data will be saved.
+	response_series_name : str
+		Name of the response series in the NWB file.
+	indices : List[int]
+		List of indices of the response series to be read.
+	npoints : int, optional
+		Number of points for each chunk. Timestamps are only saved for the first point in each chunk. Default is 128.
+	
+	Raises
+	------
+	Exception
+		If two NWB files are present at the location.
 	"""
 	from pynwb import NWBHDF5IO # Dynamic import is necessary since pynwb isn't available in the main environment (python 3.6)
 	nwbfilepath = glob.glob(os.path.join(filepath, '*.nwb'))
