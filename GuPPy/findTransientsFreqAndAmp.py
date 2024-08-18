@@ -159,7 +159,11 @@ def create_Df(filepath, arr, name, index=[], columns=[]):
 def create_csv(filepath, arr, name, index=[], columns=[]):
 	op = os.path.join(filepath, name)
 	df = pd.DataFrame(arr, index=index, columns=columns)
-	df.to_csv(op)
+
+	if len(columns)==1:
+		df.to_csv(op, index=False)
+	else:
+		df.to_csv(op)
 
 def read_Df(filepath, name):
 	op = os.path.join(filepath, 'freqAndAmp_'+name+'.h5')
@@ -221,6 +225,15 @@ def findFreqAndAmp(filepath, inputParameters, window=15, numProcesses=mp.cpu_cou
 				   index=fileName, columns=['freq (events/min)', 'amplitude'])
 		create_csv(filepath, peaks_occurrences, 'transientsOccurrences_'+basename+'.csv', 
 				   index=np.arange(peaks_occurrences.shape[0]),columns=['timestamps', 'amplitude'])
+		create_csv(os.path.dirname(filepath), peaks_occurrences[:,0], name_1+'transientsTs.csv',
+	     						   index=np.arange(peaks_occurrences.shape[0]), columns=['timestamps'])
+		storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)
+		if name_1+'transientsTs' in storesList[0,:]:
+			continue
+		else:
+			newStorenames = np.array([[name_1+'transientsTs'], [name_1+'transTs']]).reshape(2,-1)
+			newStoresList = np.concatenate((storesList, newStorenames), axis=1)
+			np.savetxt(os.path.join(filepath, 'storesList.csv'), newStoresList, delimiter=",", fmt='%s')
 		visuzlize_peaks(path[i], z_score, ts, peaksInd)
 	insertLog('Frequency and amplitude of transients in z_score data are calculated.', logging.INFO)
 	print('Frequency and amplitude of transients in z_score data are calculated.')
