@@ -13,6 +13,13 @@ import matplotlib.pyplot as plt
 from itertools import repeat
 from preprocess import get_all_stores_for_combining_data
 
+def takeOnlyDirs(paths):
+	removePaths = []
+	for p in paths:
+		if os.path.isfile(p):
+			removePaths.append(p)
+	return list(set(paths)-set(removePaths))
+
 def insertLog(text, level):
     file = os.path.join('.','..','guppy.log')
     format = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
@@ -322,7 +329,7 @@ def executeFindFreqAndAmp(inputParameters):
 			storesListPath = []
 			for i in range(len(folderNamesForAvg)):
 				filepath = folderNamesForAvg[i]
-				storesListPath.append(glob.glob(os.path.join(filepath, '*_output_*')))
+				storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, '*_output_*'))))
 			storesListPath = np.concatenate(storesListPath)
 			averageForGroup(storesListPath, inputParameters)
 			writeToFile(str(10+((inputParameters['step']+1)*10))+'\n')
@@ -338,7 +345,7 @@ def executeFindFreqAndAmp(inputParameters):
 			storesListPath = []
 			for i in range(len(folderNames)):
 				filepath = folderNames[i]
-				storesListPath.append(glob.glob(os.path.join(filepath, '*_output_*')))
+				storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, '*_output_*'))))
 			storesListPath = list(np.concatenate(storesListPath).flatten())
 			op = get_all_stores_for_combining_data(storesListPath)
 			for i in range(len(op)):
@@ -353,7 +360,7 @@ def executeFindFreqAndAmp(inputParameters):
 				insertLog(f"Finding transients in z-score data of {folderNames[i]} and calculating frequency and amplitude.",
 	      					logging.DEBUG)
 				filepath = folderNames[i]
-				storesListPath = glob.glob(os.path.join(filepath, '*_output_*'))
+				storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, '*_output_*')))
 				for j in range(len(storesListPath)):
 					filepath = storesListPath[j]
 					storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)

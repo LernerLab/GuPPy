@@ -23,6 +23,13 @@ from tkinter import ttk, StringVar, messagebox
 #hv.extension()
 pn.extension()
 
+def takeOnlyDirs(paths):
+	removePaths = []
+	for p in paths:
+		if os.path.isfile(p):
+			removePaths.append(p)
+	return list(set(paths)-set(removePaths))
+
 def insertLog(text, level):
     file = os.path.join('.','..','guppy.log')
     format = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
@@ -269,7 +276,7 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
     # on clicking overwrite_button, following function is executed
     def overwrite_button_actions(event):
         if event.new=='over_write_file':
-            select_location.options = glob.glob(os.path.join(filepath, '*_output_*'))
+            select_location.options = takeOnlyDirs(glob.glob(os.path.join(filepath, '*_output_*')))
             #select_location.value = select_location.options[0]
         else:
             select_location.options = [show_dir(filepath)]

@@ -20,6 +20,13 @@ from computeCorr import computeCrossCorrelation
 from computeCorr import getCorrCombinations
 from computeCorr import make_dir
 
+def takeOnlyDirs(paths):
+	removePaths = []
+	for p in paths:
+		if os.path.isfile(p):
+			removePaths.append(p)
+	return list(set(paths)-set(removePaths))
+
 def insertLog(text, level):
     file = os.path.join('.','..','guppy.log')
     format = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
@@ -678,7 +685,7 @@ def psthForEachStorename(inputParameters):
 			storesListPath = []
 			for i in range(len(folderNamesForAvg)):
 				filepath = folderNamesForAvg[i]
-				storesListPath.append(glob.glob(os.path.join(filepath, '*_output_*')))
+				storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, '*_output_*'))))
 			storesListPath = np.concatenate(storesListPath)
 			storesList = np.asarray([[],[]])
 			for i in range(storesListPath.shape[0]):
@@ -711,7 +718,7 @@ def psthForEachStorename(inputParameters):
 		if combine_data==True:
 			storesListPath = []
 			for i in range(len(folderNames)):
-				storesListPath.append(glob.glob(os.path.join(folderNames[i], '*_output_*')))
+				storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(folderNames[i], '*_output_*'))))
 			storesListPath = list(np.concatenate(storesListPath).flatten())
 			op = get_all_stores_for_combining_data(storesListPath)
 			writeToFile(str((len(op)+len(op)+1)*10)+'\n'+str(10)+'\n')
@@ -729,12 +736,12 @@ def psthForEachStorename(inputParameters):
 		else:
 			storesListPath = []
 			for i in range(len(folderNames)):
-				storesListPath.append(glob.glob(os.path.join(folderNames[i], '*_output_*')))
+				storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(folderNames[i], '*_output_*'))))
 			storesListPath = np.concatenate(storesListPath)
 			writeToFile(str((storesListPath.shape[0]+storesListPath.shape[0]+1)*10)+'\n'+str(10)+'\n')
 			for i in range(len(folderNames)):
 				insertLog(f"Computing PSTH, Peak and Area for each event in {folderNames[i]}", logging.DEBUG)
-				storesListPath = glob.glob(os.path.join(folderNames[i], '*_output_*'))
+				storesListPath = takeOnlyDirs(glob.glob(os.path.join(folderNames[i], '*_output_*')))
 				for j in range(len(storesListPath)):
 					filepath = storesListPath[j]
 					storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)

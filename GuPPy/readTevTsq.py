@@ -13,6 +13,13 @@ import pandas as pd
 from numpy import int32, uint32, uint8, uint16, float64, int64, int32, float32
 import multiprocessing as mp
 
+def takeOnlyDirs(paths):
+	removePaths = []
+	for p in paths:
+		if os.path.isfile(p):
+			removePaths.append(p)
+	return list(set(paths)-set(removePaths))
+
 def insertLog(text, level):
     file = os.path.join('.','..','guppy.log')
     format = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
@@ -503,7 +510,7 @@ def readRawData(inputParameters):
 		numProcesses = mp.cpu_count()-1
 	for i in range(len(folderNames)):
 		filepath = folderNames[i]
-		storesListPath.append(glob.glob(os.path.join(filepath, '*_output_*')))
+		storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, '*_output_*'))))
 	storesListPath = np.concatenate(storesListPath)
 	writeToFile(str((storesListPath.shape[0]+1)*10)+'\n'+str(10)+'\n')
 	step = 0
@@ -511,7 +518,7 @@ def readRawData(inputParameters):
 		filepath = folderNames[i]
 		print(filepath)
 		insertLog(f"### Reading raw data for folder {folderNames[i]}", logging.DEBUG)
-		storesListPath = glob.glob(os.path.join(filepath, '*_output_*'))
+		storesListPath =  takeOnlyDirs(glob.glob(os.path.join(filepath, '*_output_*')))
 		# reading tsq file
 		data, flag = readtsq(filepath)
 		# checking if doric file exists

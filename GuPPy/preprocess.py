@@ -18,6 +18,13 @@ from matplotlib.widgets import MultiCursor
 from combineDataFn import processTimestampsForCombiningData
 plt.switch_backend('TKAgg')
 
+def takeOnlyDirs(paths):
+	removePaths = []
+	for p in paths:
+		if os.path.isfile(p):
+			removePaths.append(p)
+	return list(set(paths)-set(removePaths))
+
 def insertLog(text, level):
     file = os.path.join('.','..','guppy.log')
     format = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
@@ -1011,7 +1018,7 @@ def execute_timestamp_correction(folderNames, inputParameters):
 
 	for i in range(len(folderNames)):
 		filepath = folderNames[i]
-		storesListPath = glob.glob(os.path.join(filepath, '*_output_*'))
+		storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, '*_output_*')))
 		cond = check_TDT(folderNames[i])
 		insertLog(f"Timestamps corrections started for {filepath}", logging.DEBUG)
 		for j in range(len(storesListPath)):
@@ -1047,7 +1054,7 @@ def check_storeslistfile(folderNames):
 	storesList = np.array([[],[]])
 	for i in range(len(folderNames)):
 		filepath = folderNames[i]
-		storesListPath = glob.glob(os.path.join(filepath, '*_output_*'))
+		storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, '*_output_*')))
 		for j in range(len(storesListPath)):
 			filepath = storesListPath[j]
 			storesList = np.concatenate((storesList, np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)), axis=1)
@@ -1080,14 +1087,13 @@ def combineData(folderNames, inputParameters, storesList):
 	op_folder = []
 	for i in range(len(folderNames)):
 		filepath = folderNames[i]
-		op_folder.append(glob.glob(os.path.join(filepath, '*_output_*')))
-
+		op_folder.append(takeOnlyDirs(glob.glob(os.path.join(filepath, '*_output_*'))))
 
 	op_folder = list(np.concatenate(op_folder).flatten())
 	sampling_rate_fp = []
 	for i in range(len(folderNames)):
 		filepath = folderNames[i]
-		storesListPath = glob.glob(os.path.join(filepath, '*_output_*'))
+		storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, '*_output_*')))
 		for j in range(len(storesListPath)):
 			filepath = storesListPath[j]
 			storesList_new = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)
@@ -1132,7 +1138,7 @@ def execute_zscore(folderNames, inputParameters):
 			storesListPath.append([folderNames[i][0]])
 		else:
 			filepath = folderNames[i]
-			storesListPath.append(glob.glob(os.path.join(filepath, '*_output_*')))
+			storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, '*_output_*'))))
 	
 	storesListPath = np.concatenate(storesListPath)
 	
@@ -1195,7 +1201,7 @@ def extractTsAndSignal(inputParameters):
 	print("Isosbestic Control Channel : ", isosbestic_control)
 	storesListPath = []
 	for i in range(len(folderNames)):
-		storesListPath.append(glob.glob(os.path.join(folderNames[i], '*_output_*')))
+		storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(folderNames[i], '*_output_*'))))
 	storesListPath = np.concatenate(storesListPath)
 	pbMaxValue = storesListPath.shape[0] + len(folderNames)
 	#writeToFile(str((pbMaxValue+1)*10)+'\n'+str(10)+'\n')
