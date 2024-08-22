@@ -173,6 +173,13 @@ def rowFormation(z_score, thisIndex, nTsPrev, nTsPost):
 		res = np.zeros(nTsPrev+nTsPost+1)
 		res[:mismatch] = np.nan
 		res[mismatch:] = z_score[:thisIndex+nTsPost]
+	elif nTsPrev>=thisIndex and z_score.shape[0]<(thisIndex+nTsPost):
+		mismatch1 = nTsPrev-thisIndex+1
+		mismatch2 = (thisIndex+nTsPost)-z_score.shape[0]
+		res1 = np.full(mismatch1, np.nan)
+		res2 = z_score
+		res3 = np.full(mismatch2, np.nan)
+		res = np.concatenate((res1, np.concatenate((res2, res3))))
 	else:
 		mismatch = (thisIndex+nTsPost)-z_score.shape[0]
 		res1 = np.zeros(mismatch)
