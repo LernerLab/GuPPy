@@ -7,6 +7,7 @@ import re
 import fnmatch
 import logging
 import numpy as np 
+import pandas as pd
 import h5py
 import math
 import shutil
@@ -105,10 +106,19 @@ def create_control_channel(filepath, arr, window=5001):
 			name = event_name.split('_')[-1]
 			signal = read_hdf5('signal_'+name, filepath, 'data')
 			timestampNew = read_hdf5('timeCorrection_'+name, filepath, 'timestampNew')
+			sampling_rate = np.full(timestampNew.shape, np.nan)
+			sampling_rate[0] = read_hdf5('timeCorrection_'+name, filepath, 'sampling_rate')[0]
 
 			control = helper_create_control_channel(signal, timestampNew, window)
-
+			
 			write_hdf5(control, event_name, filepath, 'data')
+			d = {
+				'timestamps': timestampNew,
+				'data': control,
+				'sampling_rate': sampling_rate
+			}
+			df = pd.DataFrame(d)
+			df.to_csv(os.path.join(os.path.dirname(filepath), event.lower()+'.csv'), index=False)
 			insertLog('Control channel from signal channel created using curve-fitting', logging.INFO)
 			print('Control channel from signal channel created using curve-fitting')
 
