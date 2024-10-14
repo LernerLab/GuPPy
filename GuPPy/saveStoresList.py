@@ -16,12 +16,32 @@ from random import randint
 from pathlib import Path
 import holoviews as hv
 import warnings
+import socket
 import logging
 import tkinter as tk
 from tkinter import ttk, StringVar, messagebox
 
 #hv.extension()
 pn.extension()
+
+def scanPortsAndFind(start_port=5000, end_port=5200, host='127.0.0.1'):
+    open_ports = []
+    for port in range(start_port, end_port + 1):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(0.5)  # Set timeout to avoid long waiting on closed ports
+        result = sock.connect_ex((host, port))
+        if result == 0:  # If the connection is successful, the port is open
+            open_ports.append(port)
+        sock.close()
+    
+    while True:
+        port = randint(start_port, end_port)
+        if port in open_ports:
+            continue
+        else:
+            break
+    
+    return port
 
 def takeOnlyDirs(paths):
 	removePaths = []
@@ -494,7 +514,7 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
     overwrite_button.on_click(overwrite_button_actions)
 
     # creating widgets, adding them to template and showing a GUI on a new browser window
-    number = randint(5000,5200)
+    number = scanPortsAndFind(start_port=5000, end_port=5200)
 
     if 'data_np_v2' in flag or 'data_np' in flag or 'event_np' in flag:
         widget_1 = pn.Column('# '+os.path.basename(filepath), mark_down, mark_down_np, plot_select, plot)

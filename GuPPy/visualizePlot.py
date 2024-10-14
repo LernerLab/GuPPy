@@ -6,6 +6,7 @@ import math
 import logging
 import numpy as np 
 import pandas as pd
+import socket
 from random import randint
 import holoviews as hv
 from holoviews import opts 
@@ -17,6 +18,26 @@ import matplotlib.pyplot as plt
 from preprocess import get_all_stores_for_combining_data
 import panel as pn 
 pn.extension()
+
+def scanPortsAndFind(start_port=5000, end_port=5200, host='127.0.0.1'):
+    open_ports = []
+    for port in range(start_port, end_port + 1):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(0.5)  # Set timeout to avoid long waiting on closed ports
+        result = sock.connect_ex((host, port))
+        if result == 0:  # If the connection is successful, the port is open
+            open_ports.append(port)
+        sock.close()
+    
+    while True:
+        port = randint(start_port, end_port)
+        if port in open_ports:
+            print('while')
+            continue
+        else:
+            break
+    
+    return port
 
 def takeOnlyDirs(paths):
 	removePaths = []
@@ -583,7 +604,7 @@ def helper_plots(filepath, event, name, inputParameters):
 
 	template = pn.template.MaterialTemplate(title='Visualization GUI')
 	
-	number = randint(5000,5200)
+	number = scanPortsAndFind(start_port=5000, end_port=5200)
 	
 	app = pn.Tabs(('PSTH', line_tab), 
 				   ('Heat Map', hm_tab))
