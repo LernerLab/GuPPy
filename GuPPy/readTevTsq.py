@@ -415,10 +415,10 @@ def access_data_doricV6(doric_file, storesList, outputPath):
 	for element in res:
 		sep_values = element.split('/')
 		if sep_values[-1]=='Values':
-			if sep_values[-2] in storesList[0,:]:
+			if f'{sep_values[-3]}/{sep_values[-2]}' in storesList[0,:]:
 				decide_path.append(element)
 		else:
-			if sep_values[-1] in storesList[0,:]:
+			if f'{sep_values[-2]}/{sep_values[-1]}' in storesList[0,:]:
 				decide_path.append(element)
 	
 	for i in range(storesList.shape[1]):
@@ -426,9 +426,8 @@ def access_data_doricV6(doric_file, storesList, outputPath):
 			regex = re.compile('(.*?)'+str(storesList[0,i])+'(.*?)')
 			idx = [i for i in range(len(decide_path)) if regex.match(decide_path[i])]
 			if len(idx)>1:
-				insertLog()
-				raise Exception('More than one string matched (which should not be the case)',
-		    					logging.ERROR)
+				insertLog('More than one string matched (which should not be the case)', logging.ERROR)
+				raise Exception('More than one string matched (which should not be the case)')
 			idx = idx[0]
 			data = np.array(doric_file[decide_path[idx]])
 			timestamps = np.array(doric_file[decide_path[idx].rsplit('/',1)[0]+'/Time'])

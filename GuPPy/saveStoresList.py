@@ -612,9 +612,9 @@ def access_keys_doricV6(doric_file):
     for element in res:
         sep_values = element.split('/')
         if sep_values[-1]=='Values':
-            keys.append(sep_values[-2])
+            keys.append(f'{sep_values[-3]}/{sep_values[-2]}')
         else:
-            keys.append(sep_values[-1])
+            keys.append(f'{sep_values[-2]}/{sep_values[-1]}')
     
     return keys
 
