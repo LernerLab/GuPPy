@@ -25,22 +25,16 @@ from tkinter import ttk, StringVar, messagebox
 pn.extension()
 
 def scanPortsAndFind(start_port=5000, end_port=5200, host='127.0.0.1'):
-    open_ports = []
-    for port in range(start_port, end_port + 1):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(0.5)  # Set timeout to avoid long waiting on closed ports
-        result = sock.connect_ex((host, port))
-        if result == 0:  # If the connection is successful, the port is open
-            open_ports.append(port)
-        sock.close()
-    
     while True:
         port = randint(start_port, end_port)
-        if port in open_ports:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(0.001)  # Set timeout to avoid long waiting on closed ports
+        result = sock.connect_ex((host, port))
+        if result == 0:  # If the connection is successful, the port is open
             continue
         else:
             break
-    
+
     return port
 
 def takeOnlyDirs(paths):
