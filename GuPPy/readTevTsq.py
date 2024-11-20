@@ -13,6 +13,13 @@ import pandas as pd
 from numpy import int32, uint32, uint8, uint16, float64, int64, int32, float32
 import multiprocessing as mp
 
+def takeOnlyDirs(paths):
+	removePaths = []
+	for p in paths:
+		if os.path.isfile(p):
+			removePaths.append(p)
+	return list(set(paths)-set(removePaths))
+
 def insertLog(text, level):
     file = os.path.join('.','..','guppy.log')
     format = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
@@ -408,10 +415,10 @@ def access_data_doricV6(doric_file, storesList, outputPath):
 	for element in res:
 		sep_values = element.split('/')
 		if sep_values[-1]=='Values':
-			if sep_values[-2] in storesList[0,:]:
+			if f'{sep_values[-3]}/{sep_values[-2]}' in storesList[0,:]:
 				decide_path.append(element)
 		else:
-			if sep_values[-1] in storesList[0,:]:
+			if f'{sep_values[-2]}/{sep_values[-1]}' in storesList[0,:]:
 				decide_path.append(element)
 	
 	for i in range(storesList.shape[1]):
@@ -419,9 +426,8 @@ def access_data_doricV6(doric_file, storesList, outputPath):
 			regex = re.compile('(.*?)'+str(storesList[0,i])+'(.*?)')
 			idx = [i for i in range(len(decide_path)) if regex.match(decide_path[i])]
 			if len(idx)>1:
-				insertLog()
-				raise Exception('More than one string matched (which should not be the case)',
-		    					logging.ERROR)
+				insertLog('More than one string matched (which should not be the case)', logging.ERROR)
+				raise Exception('More than one string matched (which should not be the case)')
 			idx = idx[0]
 			data = np.array(doric_file[decide_path[idx]])
 			timestamps = np.array(doric_file[decide_path[idx].rsplit('/',1)[0]+'/Time'])
@@ -503,7 +509,7 @@ def readRawData(inputParameters):
 		numProcesses = mp.cpu_count()-1
 	for i in range(len(folderNames)):
 		filepath = folderNames[i]
-		storesListPath.append(glob.glob(os.path.join(filepath, '*_output_*')))
+		storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, '*_output_*'))))
 	storesListPath = np.concatenate(storesListPath)
 	writeToFile(str((storesListPath.shape[0]+1)*10)+'\n'+str(10)+'\n')
 	step = 0
@@ -511,7 +517,7 @@ def readRawData(inputParameters):
 		filepath = folderNames[i]
 		print(filepath)
 		insertLog(f"### Reading raw data for folder {folderNames[i]}", logging.DEBUG)
-		storesListPath = glob.glob(os.path.join(filepath, '*_output_*'))
+		storesListPath =  takeOnlyDirs(glob.glob(os.path.join(filepath, '*_output_*')))
 		# reading tsq file
 		data, flag = readtsq(filepath)
 		# checking if doric file exists
