@@ -6,7 +6,7 @@ import time
 import re
 import fnmatch
 import logging
-import numpy as np 
+import numpy as np
 import pandas as pd
 import h5py
 import math
