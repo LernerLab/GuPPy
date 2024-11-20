@@ -80,7 +80,11 @@ def curveFitFn(x,a,b,c):
 def helper_create_control_channel(signal, timestamps, window):
 	# check if window is greater than signal shape
 	if window>signal.shape[0]:
-		window = ((window+1)/2)+1
+		window = ((signal.shape[0]+1)/2)+1
+		if window%2 != 0:
+			window = window
+		else:
+			window = window + 1
 
 	filtered_signal = ss.savgol_filter(signal, window_length=window, polyorder=3)
 
@@ -1203,13 +1207,15 @@ def extractTsAndSignal(inputParameters):
 	for i in range(len(folderNames)):
 		storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(folderNames[i], '*_output_*'))))
 	storesListPath = np.concatenate(storesListPath)
-	pbMaxValue = storesListPath.shape[0] + len(folderNames)
+	#pbMaxValue = storesListPath.shape[0] + len(folderNames)
 	#writeToFile(str((pbMaxValue+1)*10)+'\n'+str(10)+'\n')
 	if combine_data==False:
+		pbMaxValue = storesListPath.shape[0] + len(folderNames)
 		writeToFile(str((pbMaxValue+1)*10)+'\n'+str(10)+'\n')
 		execute_timestamp_correction(folderNames, inputParameters)
 		execute_zscore(folderNames, inputParameters)
 	else:
+		pbMaxValue = 1 + len(folderNames)
 		writeToFile(str((pbMaxValue)*10)+'\n'+str(10)+'\n')
 		execute_timestamp_correction(folderNames, inputParameters)
 		storesList = check_storeslistfile(folderNames)

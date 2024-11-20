@@ -19,7 +19,7 @@ def find_files(path, glob_path, ignore_case = False):
 		except:
 			str_path.append(x)
 			
-	return [os.path.join(path,n) for n in os.listdir(os.path.expanduser(path)) if rule.match(n)]
+	return [os.path.join(path,n) for n in str_path if rule.match(n)]
 
 def read_hdf5(event, filepath, key):
 	if event:
