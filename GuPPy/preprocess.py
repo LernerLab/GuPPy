@@ -12,6 +12,7 @@ import h5py
 import math
 import shutil
 from scipy import signal as ss
+import statsmodels.api as sm
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 from matplotlib.widgets import MultiCursor
@@ -824,10 +825,19 @@ def deltaFF(signal, control):
 	return normData
 
 # function to fit control channel to signal channel
-def controlFit(control, signal):
+def controlFitOLS(control, signal):
     
 	p = np.polyfit(control, signal, 1)
 	arr = (p[0]*control)+p[1]
+	return arr
+
+def controlFitIRLS(control, signal):
+	controlWithConst = sm.add_constant(control)
+	rlm_model = sm.RLM(signal, controlWithConst, M=sm.robust.norms.TukeyBiweight(c=1.4))
+	rlm_results = rlm_model.fit()
+	intercept, slope = rlm_results.params
+	print(intercept, slope)
+	arr = (slope*control)+intercept
 	return arr
 
 def filterSignal(filter_window, signal):
@@ -848,12 +858,12 @@ def execute_controlFit_dff(control, signal, isosbestic_control, filter_window):
 
 	if isosbestic_control==False:
 		signal_smooth =  filterSignal(filter_window, signal) #ss.filtfilt(b, a, signal)
-		control_fit = controlFit(control, signal_smooth)
+		control_fit = controlFitIRLS(control, signal_smooth)
 		norm_data = deltaFF(signal_smooth, control_fit)
 	else:
 		control_smooth = filterSignal(filter_window, control) #ss.filtfilt(b, a, control)
 		signal_smooth = filterSignal(filter_window, signal)    #ss.filtfilt(b, a, signal)
-		control_fit = controlFit(control_smooth, signal_smooth)
+		control_fit = controlFitIRLS(control_smooth, signal_smooth)
 		norm_data = deltaFF(signal_smooth, control_fit)
 	
 	return norm_data, control_fit
