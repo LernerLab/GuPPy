@@ -444,7 +444,8 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
     def save_button(event=None):
         global storenames
         
-        d = json.loads(literal_input_2.value)
+        d = literal_input_2.value #json.loads(literal_input_2.value)
+        print(d)
         arr1, arr2 = np.asarray(d["storenames"]), np.asarray(d["names_for_storenames"])
 
         if np.where(arr2=="")[0].size>0:

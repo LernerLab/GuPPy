@@ -166,7 +166,7 @@ def helper_plots(filepath, event, name, inputParameters):
 		columns.append('All')
 		columns_dict[new_event[i]] = columns
 
-	
+
 	# create a class to make GUI and plot different graphs
 	class Viewer(param.Parameterized):
 
@@ -309,7 +309,7 @@ def helper_plots(filepath, event, name, inputParameters):
 			self.param['psth_y'].objects = trial_ts
 			self.psth_y = [trial_ts[0]]
 
-	    # function to plot multiple PSTHs into one plot
+		# function to plot multiple PSTHs into one plot 
 		@param.depends('selector_for_multipe_events_plot', 'Y_Label', 'save_options', 'X_Limit', 'Y_Limit', 'Height_Plot', 'Width_Plot')
 		def update_selector(self):
 			data_curve, cols_curve, data_spread, cols_spread = [], [], [], []
@@ -389,21 +389,22 @@ def helper_plots(filepath, event, name, inputParameters):
 				remove_bin_trials = [options[i] for i in range(len(options)) if not regex.match(options[i])]
 
 				ndoverlay = hv.NdOverlay({c:hv.Curve((df1[self.x], df1[c])) for c in remove_bin_trials[:-2]})
-				img1 = datashade(ndoverlay, normalization='linear', aggregator=ds.count())
+				img1 = datashade(ndoverlay, cnorm='linear', aggregator=ds.count())
 				x_points = df1[self.x]
 				y_points = df1['mean']
+				ropts_curve = dict(width=int(self.Width_Plot), height=int(self.Height_Plot), line_width=4, color='black', xlim=self.X_Limit, ylim=self.Y_Limit, xlabel='Time (s)', ylabel=self.Y_Label)
 				img2 = hv.Curve((x_points, y_points))
-				img = (img1*img2).opts(opts.Curve(width=int(self.Width_Plot), height=int(self.Height_Plot), line_width=4, color='black', xlim=self.X_Limit, ylim=self.Y_Limit, xlabel='Time (s)', ylabel=self.Y_Label))
+				plot = (img1*img2).opts({'Curve': ropts_curve})
 
 				save_opts = self.save_options
 
 				op = make_dir(filepath)
 				op_filename = os.path.join(op, self.event_selector+'_'+self.y)
-				self.results_psth['plot'] = img
+				self.results_psth['plot'] = plot
 				self.results_psth['op'] = op_filename
 				#self.save_plots(img, save_opts, op_filename)
 
-				return img
+				return plot
 
 			elif self.y == 'mean' or 'bin' in self.y:
 
@@ -507,6 +508,7 @@ def helper_plots(filepath, event, name, inputParameters):
 			height = self.height_heatmap
 			width = self.width_heatmap
 			df_hm = self.df_new[self.event_selector_heatmap]
+			df_hm = df_hm.dropna(subset=['timestamps'])
 			cols = list(df_hm.columns)
 			regex = re.compile('bin_err_*')
 			drop_cols = [cols[i] for i in range(len(cols)) if regex.match(cols[i])]
@@ -548,11 +550,11 @@ def helper_plots(filepath, event, name, inputParameters):
 			else:
 				ropts = dict(width=int(width), height=int(height), ylabel='Trials', xlabel='Time (s)', fontsize=font_size, yticks=yticks, invert_yaxis=True)
 				dummy_image = hv.QuadMesh((time[0:100], event_ts_for_each_event, z_score[:,0:100])).opts(colorbar=True, cmap=process_cmap(self.color_map, provider="matplotlib"), clim=clim)
-				actual_image = hv.QuadMesh((time, event_ts_for_each_event, z_score))
+				actual_image = hv.QuadMesh((time, event_ts_for_each_event, z_score)).opts(colorbar=True, cmap=process_cmap(self.color_map, provider="matplotlib"), clim=clim)
 				
 				dynspread_img = datashade(actual_image, cmap=process_cmap(self.color_map, provider="matplotlib")).opts(**ropts)   #clims=self.C_Limit, cnorm='log'
-				image = ((dummy_image * dynspread_img).opts(opts.QuadMesh(width=int(width), height=int(height)))).opts(shared_axes=False) 
-				
+				image = (dummy_image * dynspread_img).opts(shared_axes=False)  #((dynspread_img).opts(opts.QuadMesh(width=int(width), height=int(height)))).opts(shared_axes=False) 
+				#image = (dummy_image * dynspread_img).opts(shared_axes=False) 
 				save_opts = self.save_options_heatmap
 				op = make_dir(filepath)
 				op_filename = os.path.join(op, self.event_selector_heatmap+'_'+'heatmap')
@@ -595,7 +597,7 @@ def helper_plots(filepath, event, name, inputParameters):
 											  pn.Row(view.heatmap, heatmap_y_parameters)) #
 	print('app')
 
-	template = pn.template.MaterialTemplate(title='Visualization GUI')
+	template = pn.template.BootstrapTemplate(title='Visualization GUI')
 	
 	number = scanPortsAndFind(start_port=5000, end_port=5200)
 	
