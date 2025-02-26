@@ -835,9 +835,7 @@ def controlFitIRLS(control, signal):
 	controlWithConst = sm.add_constant(control)
 	rlm_model = sm.RLM(signal, controlWithConst, M=sm.robust.norms.TukeyBiweight(c=1.4))
 	rlm_results = rlm_model.fit()
-	intercept, slope = rlm_results.params
-	print(intercept, slope)
-	arr = (slope*control)+intercept
+	arr = rlm_results.predict(controlWithConst)
 	return arr
 
 def filterSignal(filter_window, signal):
