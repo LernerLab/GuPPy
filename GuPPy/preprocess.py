@@ -6,7 +6,8 @@ import time
 import re
 import fnmatch
 import logging
-import numpy as np 
+import numpy as np
+import pandas as pd
 import h5py
 import math
 import shutil
@@ -16,6 +17,13 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import MultiCursor
 from combineDataFn import processTimestampsForCombiningData
 #plt.switch_backend('TKAgg')
+
+def takeOnlyDirs(paths):
+	removePaths = []
+	for p in paths:
+		if os.path.isfile(p):
+			removePaths.append(p)
+	return list(set(paths)-set(removePaths))
 
 def insertLog(text, level):
     file = os.path.join('.','..','guppy.log')
@@ -72,7 +80,11 @@ def curveFitFn(x,a,b,c):
 def helper_create_control_channel(signal, timestamps, window):
 	# check if window is greater than signal shape
 	if window>signal.shape[0]:
-		window = ((window+1)/2)+1
+		window = ((signal.shape[0]+1)/2)+1
+		if window%2 != 0:
+			window = window
+		else:
+			window = window + 1
 
 	filtered_signal = ss.savgol_filter(signal, window_length=window, polyorder=3)
 
@@ -105,10 +117,19 @@ def create_control_channel(filepath, arr, window=5001):
 			name = event_name.split('_')[-1]
 			signal = read_hdf5('signal_'+name, filepath, 'data')
 			timestampNew = read_hdf5('timeCorrection_'+name, filepath, 'timestampNew')
+			sampling_rate = np.full(timestampNew.shape, np.nan)
+			sampling_rate[0] = read_hdf5('timeCorrection_'+name, filepath, 'sampling_rate')[0]
 
 			control = helper_create_control_channel(signal, timestampNew, window)
 
 			write_hdf5(control, event_name, filepath, 'data')
+			d = {
+				'timestamps': timestampNew,
+				'data': control,
+				'sampling_rate': sampling_rate
+			}
+			df = pd.DataFrame(d)
+			df.to_csv(os.path.join(os.path.dirname(filepath), event.lower()+'.csv'), index=False)
 			insertLog('Control channel from signal channel created using curve-fitting', logging.INFO)
 			print('Control channel from signal channel created using curve-fitting')
 
@@ -146,7 +167,7 @@ def add_control_channel(filepath, arr):
 			new_str = 'control_'+str(name).lower()
 			find_signal = [True for i in storesList if i==new_str]
 			if len(find_signal)==0:
-				src, dst = os.path.join(filepath, arr[0,i]+'.hdf5'), os.path.join(filepath, 'cntrl'+str(i)+'.hdf5')
+				src, dst = os.path.join(filepath, arr[0,i]+'.hdf5'), os.path.join(filepath, 'cntrl'+str(i)+'.hdf5') 
 				shutil.copyfile(src,dst)
 				arr = np.concatenate((arr, [['cntrl'+str(i)],['control_'+str(arr[1,i].split('_')[-1])]]), axis=1)
 
@@ -1002,7 +1023,7 @@ def execute_timestamp_correction(folderNames, inputParameters):
 
 	for i in range(len(folderNames)):
 		filepath = folderNames[i]
-		storesListPath = glob.glob(os.path.join(filepath, '*_output_*'))
+		storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, '*_output_*')))
 		cond = check_TDT(folderNames[i])
 		insertLog(f"Timestamps corrections started for {filepath}", logging.DEBUG)
 		for j in range(len(storesListPath)):
@@ -1038,7 +1059,7 @@ def check_storeslistfile(folderNames):
 	storesList = np.array([[],[]])
 	for i in range(len(folderNames)):
 		filepath = folderNames[i]
-		storesListPath = glob.glob(os.path.join(filepath, '*_output_*'))
+		storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, '*_output_*')))
 		for j in range(len(storesListPath)):
 			filepath = storesListPath[j]
 			storesList = np.concatenate((storesList, np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)), axis=1)
@@ -1071,14 +1092,13 @@ def combineData(folderNames, inputParameters, storesList):
 	op_folder = []
 	for i in range(len(folderNames)):
 		filepath = folderNames[i]
-		op_folder.append(glob.glob(os.path.join(filepath, '*_output_*')))
-
+		op_folder.append(takeOnlyDirs(glob.glob(os.path.join(filepath, '*_output_*'))))
 
 	op_folder = list(np.concatenate(op_folder).flatten())
 	sampling_rate_fp = []
 	for i in range(len(folderNames)):
 		filepath = folderNames[i]
-		storesListPath = glob.glob(os.path.join(filepath, '*_output_*'))
+		storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, '*_output_*')))
 		for j in range(len(storesListPath)):
 			filepath = storesListPath[j]
 			storesList_new = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)
@@ -1123,7 +1143,7 @@ def execute_zscore(folderNames, inputParameters):
 			storesListPath.append([folderNames[i][0]])
 		else:
 			filepath = folderNames[i]
-			storesListPath.append(glob.glob(os.path.join(filepath, '*_output_*')))
+			storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, '*_output_*'))))
 	
 	storesListPath = np.concatenate(storesListPath)
 	
@@ -1188,15 +1208,17 @@ def extractTsAndSignal(inputParametersPath):
 	print("Isosbestic Control Channel : ", isosbestic_control)
 	storesListPath = []
 	for i in range(len(folderNames)):
-		storesListPath.append(glob.glob(os.path.join(folderNames[i], '*_output_*')))
+		storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(folderNames[i], '*_output_*'))))
 	storesListPath = np.concatenate(storesListPath)
-	pbMaxValue = storesListPath.shape[0] + len(folderNames)
+	#pbMaxValue = storesListPath.shape[0] + len(folderNames)
 	#writeToFile(str((pbMaxValue+1)*10)+'\n'+str(10)+'\n')
 	if combine_data==False:
+		pbMaxValue = storesListPath.shape[0] + len(folderNames)
 		writeToFile(str((pbMaxValue+1)*10)+'\n'+str(10)+'\n')
 		execute_timestamp_correction(folderNames, inputParameters)
 		execute_zscore(folderNames, inputParameters)
 	else:
+		pbMaxValue = 1 + len(folderNames)
 		writeToFile(str((pbMaxValue)*10)+'\n'+str(10)+'\n')
 		execute_timestamp_correction(folderNames, inputParameters)
 		storesList = check_storeslistfile(folderNames)

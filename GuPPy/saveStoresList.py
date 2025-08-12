@@ -16,12 +16,33 @@ from random import randint
 from pathlib import Path
 import holoviews as hv
 import warnings
+import socket
 import logging
 import tkinter as tk
 from tkinter import ttk, StringVar, messagebox
 
 #hv.extension()
 pn.extension()
+
+def scanPortsAndFind(start_port=5000, end_port=5200, host='127.0.0.1'):
+    while True:
+        port = randint(start_port, end_port)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(0.001)  # Set timeout to avoid long waiting on closed ports
+        result = sock.connect_ex((host, port))
+        if result == 0:  # If the connection is successful, the port is open
+            continue
+        else:
+            break
+
+    return port
+
+def takeOnlyDirs(paths):
+	removePaths = []
+	for p in paths:
+		if os.path.isfile(p):
+			removePaths.append(p)
+	return list(set(paths)-set(removePaths))
 
 def insertLog(text, level):
     file = os.path.join('.','..','guppy.log')
@@ -269,7 +290,7 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
     # on clicking overwrite_button, following function is executed
     def overwrite_button_actions(event):
         if event.new=='over_write_file':
-            select_location.options = glob.glob(os.path.join(filepath, '*_output_*'))
+            select_location.options = takeOnlyDirs(glob.glob(os.path.join(filepath, '*_output_*')))
             #select_location.value = select_location.options[0]
         else:
             select_location.options = [show_dir(filepath)]
@@ -364,10 +385,6 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
         hold_comboBoxValues = dict()
         hold_textBoxValues = dict()
 
-        def stayOnTop():
-            root.lift()
-            root.after(2000, stayOnTop)
-
         for i in range(len(storenames)):
             if storenames[i] in storenames_cache:
                 T = ttk.Label(root, text="Select appropriate option for {} : ".format(storenames[i])).grid(row=i+1, column=1)
@@ -415,7 +432,8 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
 
         note = ttk.Label(root, text="Note : Click on Show button after appropriate selections and close the window.").grid(row=(len(storenames)*2)+2, column=2)
         button = ttk.Button(root, text='Show', command=fetchValues).grid(row=(len(storenames)*2)+4, column=2)
-        stayOnTop()   
+        root.lift()
+        root.after(500, lambda: root.lift())
         root.mainloop()
 
 
@@ -487,7 +505,7 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
     overwrite_button.on_click(overwrite_button_actions)
 
     # creating widgets, adding them to template and showing a GUI on a new browser window
-    number = randint(5000,5200)
+    number = scanPortsAndFind(start_port=5000, end_port=5200)
 
     if 'data_np_v2' in flag or 'data_np' in flag or 'event_np' in flag:
         widget_1 = pn.Column('# '+os.path.basename(filepath), mark_down, mark_down_np, plot_select, plot)
@@ -521,7 +539,77 @@ def check_channels(state):
 
     return unique_state.shape[0], unique_state
     
+# function to decide NPM timestamps unit (seconds, ms or us)
+def decide_ts_unit_for_npm(df):
+    col_names = np.array(list(df.columns))
+    col_names_ts = ['']
+    for name in col_names:
+        if 'timestamp' in name.lower():
+            col_names_ts.append(name)
+    
+    ts_unit = 'seconds'
+    if len(col_names_ts)>2:
+        #def comboBoxSelected(event):
+        #    print(event.widget.get())
+        
+        window = tk.Tk()
+        window.title('Select appropriate options for timestamps')
+        window.geometry('500x200')
+        holdComboboxValues = dict()
 
+        timestamps_label = ttk.Label(window, 
+                                    text="Select which timetamps to use : ").grid(row=0, column=1, pady=25, padx=25)
+        holdComboboxValues['timestamps'] = StringVar()
+        timestamps_combo = ttk.Combobox(window, 
+                                        values=col_names_ts, 
+                                        textvariable=holdComboboxValues['timestamps'])
+        timestamps_combo.grid(row=0, column=2, pady=25, padx=25)
+        timestamps_combo.current(0)
+        #timestamps_combo.bind("<<ComboboxSelected>>", comboBoxSelected)
+
+        time_unit_label = ttk.Label(window, text="Select timetamps unit : ").grid(row=1, column=1, pady=25, padx=25)
+        holdComboboxValues['time_unit'] = StringVar()
+        time_unit_combo = ttk.Combobox(window, 
+                                    values=['', 'seconds', 'milliseconds', 'microseconds'],
+                                    textvariable=holdComboboxValues['time_unit'])
+        time_unit_combo.grid(row=1, column=2, pady=25, padx=25)
+        time_unit_combo.current(0)
+        #time_unit_combo.bind("<<ComboboxSelected>>", comboBoxSelected)
+        window.lift()
+        window.after(500, lambda: window.lift())
+        window.mainloop()
+
+        if holdComboboxValues['timestamps'].get():
+            df.insert(1, 'Timestamp', df[holdComboboxValues['timestamps'].get()])
+            df = df.drop(col_names_ts[1:], axis=1)
+        else:
+            messagebox.showerror('All options not selected', 'All the options for timestamps \
+                                                            were not selected. Please select appropriate options')
+            insertLog('All the options for timestamps \
+                        were not selected. Please select appropriate options',
+                    logging.ERROR)
+            raise Exception('All the options for timestamps \
+                            were not selected. Please select appropriate options')
+        if holdComboboxValues['time_unit'].get():
+            if holdComboboxValues['time_unit'].get()=='seconds':
+                ts_unit = holdComboboxValues['time_unit'].get()
+            elif holdComboboxValues['time_unit'].get()=='milliseconds':
+                ts_unit = holdComboboxValues['time_unit'].get()
+            else:
+                ts_unit = holdComboboxValues['time_unit'].get()
+        else:
+            messagebox.showerror('All options not selected', 'All the options for timestamps \
+                                                            were not selected. Please select appropriate options')
+            insertLog('All the options for timestamps \
+                        were not selected. Please select appropriate options',
+                    logging.ERROR)
+            raise Exception('All the options for timestamps \
+                            were not selected. Please select appropriate options')
+    else:
+        pass
+    
+    return df, ts_unit
+    
 # function to decide indices of interleaved channels
 # in neurophotometrics data
 def decide_indices(file, df, flag, num_ch=2):
@@ -585,9 +673,9 @@ def access_keys_doricV6(doric_file):
     for element in res:
         sep_values = element.split('/')
         if sep_values[-1]=='Values':
-            keys.append(sep_values[-2])
+            keys.append(f'{sep_values[-3]}/{sep_values[-2]}')
         else:
-            keys.append(sep_values[-1])
+            keys.append(f'{sep_values[-2]}/{sep_values[-1]}')
     
     return keys
 
@@ -623,7 +711,7 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
     #path_sig = glob.glob(os.path.join(filepath, 'sig*'))
     path_chev_chod_event = path_chev + path_chod + path_event + path_chpr
 
-    path = list(set(path)-set(path_chev_chod_event))
+    path = sorted(list(set(path)-set(path_chev_chod_event)))
     flag = 'None'
     event_from_filename = []
     flag_arr = []
@@ -635,15 +723,32 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
             event_from_filename.extend(key_names)
             flag = 'doric_doric'
         else:
-            with warnings.catch_warnings():
-                warnings.simplefilter("error")
+            df = pd.read_csv(path[i], header=None, nrows=2, index_col=False, dtype=str)
+            df = df.dropna(axis=1, how='all')
+            df_arr = np.array(df).flatten()
+            check_all_str = []
+            for element in df_arr:
                 try:
-                    df = pd.read_csv(path[i], index_col=False, dtype=float)
+                    float(element)
                 except:
-                    df = pd.read_csv(path[i], header=1, index_col=False, nrows=10)   # to make process faster reading just first 10 rows
-                    df = df.drop(['Time(s)'], axis=1)
-                    event_from_filename.extend(list(df.columns))
-                    flag = 'doric_csv'
+                    check_all_str.append(i)
+            if len(check_all_str)==len(df_arr):
+                df = pd.read_csv(path[i], header=1, index_col=False, nrows=10)
+                df = df.drop(['Time(s)'], axis=1)
+                event_from_filename.extend(list(df.columns))
+                flag = 'doric_csv'
+                print(flag)
+            else:
+                df = pd.read_csv(path[i], index_col=False)
+            # with warnings.catch_warnings():
+            #     warnings.simplefilter("error")
+            #     try:
+            #         df = pd.read_csv(path[i], index_col=False, dtype=float)
+            #     except:
+            #         df = pd.read_csv(path[i], header=1, index_col=False, nrows=10)   # to make process faster reading just first 10 rows
+            #         df = df.drop(['Time(s)'], axis=1)
+            #         event_from_filename.extend(list(df.columns))
+            #         flag = 'doric_csv'
         if flag=='doric_csv' or flag=='doric_doric':
             continue
         else:
@@ -731,6 +836,7 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
             elif flag=='event_np':
                 type_val = np.array(df.iloc[:,1])
                 type_val_unique = np.unique(type_val)
+                window = tk.Tk()
                 if len(type_val_unique)>1:
                     response = messagebox.askyesno('Multiple event TTLs', 'Based on the TTL file,\
                                                                             it looks like TTLs \
@@ -739,6 +845,7 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
                                                                             behavior type ?')
                 else:
                     response = 0
+                window.destroy()
                 if response==1:
                     timestamps = np.array(df.iloc[:,0])
                     for j in range(len(type_val_unique)):
@@ -746,8 +853,8 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
                         d = dict()
                         d['timestamps'] = timestamps[idx]
                         df_new = pd.DataFrame(d)
-                        df_new.to_csv(os.path.join(dirname, 'event'+str(j)+'.csv'), index=False)
-                        event_from_filename.append('event'+str(j))
+                        df_new.to_csv(os.path.join(dirname, 'event'+str(type_val_unique[j])+'.csv'), index=False)
+                        event_from_filename.append('event'+str(type_val_unique[j]))
                 else:
                     timestamps = np.array(df.iloc[:,0])
                     d = dict()
@@ -757,6 +864,7 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
                     event_from_filename.append('event'+str(0))
             else:
                 file = f'file{str(i)}_'
+                df, ts_unit = decide_ts_unit_for_npm(df)
                 df, indices_dict, num_channels = decide_indices(file, df, flag)
                 keys = list(indices_dict.keys())
                 for k in range(len(keys)):
@@ -779,7 +887,8 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
             path_event = glob.glob(os.path.join(filepath, 'event*'))
             #path_sig = glob.glob(os.path.join(filepath, 'sig*'))
             path_chev_chod_chpr = [path_chev, path_chod, path_chpr]
-            if ('data_np_v2' in flag_arr or 'data_np' in flag_arr) and ('event_np' in flag_arr): # i==len(path)-1 and or 'event_np' in flag
+            if (('data_np_v2' in flag_arr or 'data_np' in flag_arr) and ('event_np' in flag_arr) and (i==len(path)-1)) or \
+                (('data_np_v2' in flag_arr or 'data_np' in flag_arr) and (i==len(path)-1)): # i==len(path)-1 and or 'event_np' in flag
                 num_path_chev, num_path_chod, num_path_chpr = len(path_chev), len(path_chod), len(path_chpr)
                 arr_len, no_ch = [], []
                 for i in range(len(path_chev_chod_chpr)):
@@ -790,7 +899,12 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
 
                 unique_arr_len = np.unique(np.array(arr_len))
                 if 'data_np_v2' in flag_arr:
-                    divisor = 1
+                    if ts_unit == 'seconds':
+                        divisor = 1
+                    elif ts_unit == 'milliseconds':
+                        divisor = 1e3
+                    else:
+                        divisor = 1e6
                 else:
                     divisor = 1000
 
@@ -805,21 +919,21 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
                             df_chev = pd.read_csv(path_chev[j])
                             df_chev['timestamps'] = (df_chev['timestamps']-df_chev['timestamps'][0])/divisor
                             df_chev['sampling_rate'] = np.full(df_chev.shape[0], np.nan)
-                            df_chev['sampling_rate'][0] = df_chev.shape[0]/(df_chev['timestamps'].iloc[-1] - df_chev['timestamps'].iloc[0])
+                            df_chev.at[0,'sampling_rate'] = df_chev.shape[0]/(df_chev['timestamps'].iloc[-1] - df_chev['timestamps'].iloc[0])
                             df_chev.to_csv(path_chev[j], index=False)
 
                         if file+'chod' in indices_dict.keys():
                             df_chod = pd.read_csv(path_chod[j])
                             df_chod['timestamps'] = df_chev['timestamps']
                             df_chod['sampling_rate'] = np.full(df_chod.shape[0], np.nan)
-                            df_chod['sampling_rate'][0] = df_chev['sampling_rate'][0]
+                            df_chod.at[0,'sampling_rate'] = df_chev['sampling_rate'][0]
                             df_chod.to_csv(path_chod[j], index=False)
 
                         if file+'chpr' in indices_dict.keys():
                             df_chpr = pd.read_csv(path_chpr[j])
                             df_chpr['timestamps'] = df_chev['timestamps']
                             df_chpr['sampling_rate'] = np.full(df_chpr.shape[0], np.nan)
-                            df_chpr['sampling_rate'][0] = df_chev['sampling_rate'][0]
+                            df_chpr.at[0,'sampling_rate'] = df_chev['sampling_rate'][0]
                             df_chpr.to_csv(path_chpr[j], index=False)
                 else:
                     insertLog('Number of channels should be same for all regions.',

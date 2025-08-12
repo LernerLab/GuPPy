@@ -6,6 +6,7 @@ import math
 import logging
 import numpy as np 
 import pandas as pd
+import socket
 from random import randint
 import holoviews as hv
 from holoviews import opts 
@@ -17,6 +18,26 @@ import matplotlib.pyplot as plt
 from preprocess import get_all_stores_for_combining_data
 import panel as pn 
 pn.extension()
+
+def scanPortsAndFind(start_port=5000, end_port=5200, host='127.0.0.1'):
+    while True:
+        port = randint(start_port, end_port)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(0.001)  # Set timeout to avoid long waiting on closed ports
+        result = sock.connect_ex((host, port))
+        if result == 0:  # If the connection is successful, the port is open
+            continue
+        else:
+            break
+
+    return port
+
+def takeOnlyDirs(paths):
+	removePaths = []
+	for p in paths:
+		if os.path.isfile(p):
+			removePaths.append(p)
+	return list(set(paths)-set(removePaths))
 
 def insertLog(text, level):
     file = os.path.join('.','..','guppy.log')
@@ -576,7 +597,7 @@ def helper_plots(filepath, event, name, inputParameters):
 
 	template = pn.template.MaterialTemplate(title='Visualization GUI')
 	
-	number = randint(5000,5200)
+	number = scanPortsAndFind(start_port=5000, end_port=5200)
 	
 	app = pn.Tabs(('PSTH', line_tab), 
 				   ('Heat Map', hm_tab))
@@ -651,7 +672,7 @@ def visualizeResults(inputParameters):
 		storesListPath = []
 		for i in range(len(folderNamesForAvg)):
 			filepath = folderNamesForAvg[i]
-			storesListPath.append(glob.glob(os.path.join(filepath, '*_output_*')))
+			storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, '*_output_*'))))
 		storesListPath = np.concatenate(storesListPath)
 		storesList = np.asarray([[],[]])
 		for i in range(storesListPath.shape[0]):
@@ -665,7 +686,7 @@ def visualizeResults(inputParameters):
 			storesListPath = []
 			for i in range(len(folderNames)):
 				filepath = folderNames[i]
-				storesListPath.append(glob.glob(os.path.join(filepath, '*_output_*')))
+				storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, '*_output_*'))))
 			storesListPath = list(np.concatenate(storesListPath).flatten())
 			op = get_all_stores_for_combining_data(storesListPath)
 			for i in range(len(op)):
@@ -679,7 +700,7 @@ def visualizeResults(inputParameters):
 			for i in range(len(folderNames)):
 				
 				filepath = folderNames[i]
-				storesListPath = glob.glob(os.path.join(filepath, '*_output_*'))
+				storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, '*_output_*')))
 				print(storesListPath)
 				for j in range(len(storesListPath)):
 					filepath = storesListPath[j]
