@@ -185,7 +185,7 @@ def visuzlize_peaks(filepath, z_score, timestamps, peaksIndex):
 			timestamps[peaksIndex], z_score[peaksIndex], 'o')
 	ax.set_title(basename)
 	fig.suptitle(os.path.basename(dirname))
-	#plt.show()
+	plt.show()
 
 def findFreqAndAmp(filepath, inputParameters, window=15, numProcesses=mp.cpu_count()):
 
@@ -354,7 +354,7 @@ def executeFindFreqAndAmp(inputParameters):
 				findFreqAndAmp(filepath, inputParameters, window=moving_window, numProcesses=numProcesses)
 				writeToFile(str(10+((inputParameters['step']+1)*10))+'\n')
 				inputParameters['step'] += 1
-			plt.show()
+			#plt.show()
 		else:
 			for i in range(len(folderNames)):
 				insertLog(f"Finding transients in z-score data of {folderNames[i]} and calculating frequency and amplitude.",
@@ -368,19 +368,19 @@ def executeFindFreqAndAmp(inputParameters):
 					writeToFile(str(10+((inputParameters['step']+1)*10))+'\n')
 					inputParameters['step'] += 1
 				insertLog('Transients in z-score data found and frequency and amplitude are calculated.', logging.INFO)
-			plt.show()
+			#plt.show()
 
 	print('Transients in z-score data found and frequency and amplitude are calculated.')
 
 
-if __name__ == "__main__":
-	try:
-		executeFindFreqAndAmp(json.loads(sys.argv[1]))
-		insertLog('#'*400, logging.INFO)
-	except Exception as e:
-		with open(os.path.join(os.path.expanduser('~'), 'pbSteps.txt'), 'a') as file:
-			file.write(str(-1)+"\n")
-		insertLog(str(e), logging.ERROR)
-		raise e
+# if __name__ == "__main__":
+# 	try:
+# 		executeFindFreqAndAmp(json.loads(sys.argv[1]))
+# 		insertLog('#'*400, logging.INFO)
+# 	except Exception as e:
+# 		with open(os.path.join(os.path.expanduser('~'), 'pbSteps.txt'), 'a') as file:
+# 			file.write(str(-1)+"\n")
+# 		insertLog(str(e), logging.ERROR)
+# 		raise e
 
 

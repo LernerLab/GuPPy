@@ -657,12 +657,14 @@ def averageForGroup(folderNames, event, inputParameters):
 	print("Group of data averaged.")
 
 
-def psthForEachStorename(inputParameters):
+def psthForEachStorename(inputParametersPath):
 
 	print("Computing PSTH, Peak and Area for each event...")
 
-		
-	inputParameters = inputParameters
+	with open(inputParametersPath) as f:	
+		inputParameters = json.load(f)
+
+	#inputParameters = inputParameters
 
 
 	#storesList = np.genfromtxt(inputParameters['storesListPath'], dtype='str', delimiter=',')
@@ -772,17 +774,17 @@ def psthForEachStorename(inputParameters):
 	print("PSTH, Area and Peak are computed for all events.")
 	return inputParameters
 
-if __name__ == "__main__":
-	try:
-		inputParameters = psthForEachStorename(json.loads(sys.argv[1]))
-		subprocess.call(["python", 
-		   				os.path.join(inputParameters["curr_dir"],"GuPPy","findTransientsFreqAndAmp.py"), 
-						json.dumps(inputParameters)])
-		insertLog('#'*400, logging.INFO)
-	except Exception as e:
-		with open(os.path.join(os.path.expanduser('~'), 'pbSteps.txt'), 'a') as file:
-			file.write(str(-1)+"\n")
-		insertLog(str(e), logging.ERROR)
-		raise e
+# if __name__ == "__main__":
+# 	try:
+# 		inputParameters = psthForEachStorename(json.loads(sys.argv[1]))
+# 		subprocess.call(["python", 
+# 		   				os.path.join(inputParameters["curr_dir"],"GuPPy","findTransientsFreqAndAmp.py"), 
+# 						json.dumps(inputParameters)])
+# 		insertLog('#'*400, logging.INFO)
+# 	except Exception as e:
+# 		with open(os.path.join(os.path.expanduser('~'), 'pbSteps.txt'), 'a') as file:
+# 			file.write(str(-1)+"\n")
+# 		insertLog(str(e), logging.ERROR)
+# 		raise e
 
 	
