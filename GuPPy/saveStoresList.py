@@ -22,7 +22,7 @@ import tkinter as tk
 from tkinter import ttk, StringVar, messagebox
 
 #hv.extension()
-pn.extension()
+pn.extension('ace')
 
 def scanPortsAndFind(start_port=5000, end_port=5200, host='127.0.0.1'):
     while True:
@@ -229,7 +229,7 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
 
 
     # creating GUI template
-    template = pn.template.MaterialTemplate(title='Storenames GUI - {}'.format(os.path.basename(filepath), mark_down))
+    template = pn.template.BootstrapTemplate(title='Storenames GUI - {}'.format(os.path.basename(filepath), mark_down))
 
     
 
@@ -241,7 +241,7 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
     #literal_input_2 = pn.widgets.LiteralInput(name='Names for Storenames (list)', type=list)
 
     repeat_storenames = pn.widgets.Checkbox(name='Storenames to repeat', value=False)
-    repeat_storename_wd = pn.WidgetBox('', background='white', width=600)
+    repeat_storename_wd = pn.WidgetBox('', width=600)
     def callback(target, event):
         if event.new==True:
             target.objects = [multi_choice, literal_input_1]
@@ -267,7 +267,7 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
 
     overwrite_button = pn.widgets.MenuButton(name='over-write storeslist file or create a new one?  ', items=['over_write_file', 'create_new_file'], button_type='default', split=True, align='end')
     
-    literal_input_2 = pn.widgets.Ace(value="""{}""", sizing_mode='stretch_both', theme='tomorrow', language='json', height=250)
+    literal_input_2 = pn.widgets.JSONEditor(value="""{}""", height=250)
 
     alert = pn.pane.Alert('#### No alerts !!', alert_type='danger', height=80)
 
@@ -332,10 +332,10 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
                 names_for_storenames.append(comboBoxValues[i])
         
         d = dict()
-        print(text.value)
+        print("Fetch values: ", text.value)
         d["storenames"] = text.value
         d["names_for_storenames"] = names_for_storenames
-        literal_input_2.value = str(json.dumps(d))
+        literal_input_2.value = d #str(json.dumps(d))
     
     # on clicking 'Select Storenames' button, following function is executed
     def update_values(event):
@@ -357,6 +357,9 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
         
         for w in change_widgets:
             w.value = storenames
+
+            print('set values to text box')
+            print(storenames)
 
         storenames_cache = dict()
         if os.path.exists(os.path.join(Path.home(), '.storesList.json')):
@@ -432,8 +435,8 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
 
         note = ttk.Label(root, text="Note : Click on Show button after appropriate selections and close the window.").grid(row=(len(storenames)*2)+2, column=2)
         button = ttk.Button(root, text='Show', command=fetchValues).grid(row=(len(storenames)*2)+4, column=2)
-        root.lift()
-        root.after(500, lambda: root.lift())
+        # root.lift()
+        # root.after(500, lambda: root.lift())
         root.mainloop()
 
 
@@ -442,7 +445,8 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
     def save_button(event=None):
         global storenames
         
-        d = json.loads(literal_input_2.value)
+        d = literal_input_2.value #json.loads(literal_input_2.value)
+        print(d)
         arr1, arr2 = np.asarray(d["storenames"]), np.asarray(d["names_for_storenames"])
 
         if np.where(arr2=="")[0].size>0:
