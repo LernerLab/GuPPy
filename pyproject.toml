@@ -38,7 +38,18 @@ classifiers = [
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
 
 ]
-dependencies = [] # TODO: add dependencies
+dependencies = [
+    "brotlicffi",
+    "CairoSVG",
+    "datashader",
+    "h5py",
+    "hvplot",
+    "matplotlib",
+    "nbconvert",
+    "phantomjs",
+    "PySocks",
+    "selenium",
+]
 
 
 [project.urls]
