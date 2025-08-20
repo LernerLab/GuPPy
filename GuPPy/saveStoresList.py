@@ -282,6 +282,8 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
 
     
     storenames = []
+    storename_dropdowns = {}
+    storename_textboxes = {}
     
     if len(allnames)==0:
         alert.object = '####Alert !! \n No storenames found. There are not any TDT files or csv files to look for storenames.'
@@ -296,6 +298,7 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
             #select_location.value = select_location.options[0]
     
     def fetchValues(event):
+        global storenames
         alert.object = '#### No alerts !!'
         
         if not storename_dropdowns or not len(storenames) > 0:
@@ -362,7 +365,7 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
     
     # on clicking 'Select Storenames' button, following function is executed  
     def update_values(event):
-        global storenames, vars_list, storename_dropdowns, storename_textboxes
+        global storenames, vars_list
         arr = []
         for w in take_widgets:
             arr.append(w.value)
@@ -388,8 +391,8 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
         
         # Create Panel widgets for storename configuration
         config_widgets = []
-        storename_dropdowns = {}
-        storename_textboxes = {}
+        storename_dropdowns.clear()
+        storename_textboxes.clear()
         
         if len(storenames) > 0:
             config_widgets.append(pn.pane.Markdown("## Configure Storenames\nSelect appropriate options for each storename and provide names as needed:"))
