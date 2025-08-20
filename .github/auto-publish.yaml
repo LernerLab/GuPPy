@@ -3,7 +3,7 @@
 # then uploads to PyPI using official PyPA GitHub Action with stored API token.
 # For more information see: https://help.github.com/en/actions/language-and-framework-guides/using-python-with-github-actions#publishing-to-package-registries
 
-name: Upload Package to PyPI
+name: Upload Package to TestPyPI
 
 on:
   release:
@@ -28,6 +28,7 @@ jobs:
       - name: pypi-publish
         uses: pypa/gh-action-pypi-publish@v1.12.4
         with:
+          repository_url: https://test.pypi.org/legacy/
           verbose: true
           user: __token__
-          password: ${{ secrets.PYPI_API_TOKEN }}
+          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
