@@ -6,6 +6,7 @@
 name: Upload Package to TestPyPI
 
 on:
+  workflow_dispatch:
   release:
     types: [published]
 
