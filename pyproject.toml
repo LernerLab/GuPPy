@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "guppy"
-version = "2.0.0-alpha3"
+version = "2.0.0-alpha4"
 description = "Guided Photometry Analysis in Python, a free and open-source fiber photometry data analysis tool."
 readme = "README.md"
 authors = [
