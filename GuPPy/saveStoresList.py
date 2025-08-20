@@ -18,7 +18,8 @@ import holoviews as hv
 import warnings
 import socket
 import logging
-from tkinter import messagebox
+import tkinter as tk
+from tkinter import ttk, StringVar, messagebox
 
 #hv.extension()
 pn.extension('ace')
@@ -835,7 +836,7 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
             # used assigned flags to process the files and read the data
             if flag=='event_or_data_np':
                 arr = list(df.iloc[:,1])
-                check_float = [True for i in arr if type(i)==np.float]
+                check_float = [True for i in arr if isinstance(i, float)]
                 if len(arr)==len(check_float) and columns_isstr == False:
                     flag = 'data_np'
                 elif columns_isstr == True and ('value' in np.char.lower(np.array(cols))):
