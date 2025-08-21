@@ -79,12 +79,14 @@ def savingInputParameters():
 
     def extractTs():
         inputParameters = getInputParameters()
-        subprocess.call(["python", os.path.join(current_dir,"GuPPy","preprocess.py"), json.dumps(inputParameters)])
+        from .preprocess import main as preprocess_main
+        preprocess_main(inputParameters)
 
     def psthComputation():
         inputParameters = getInputParameters()
         inputParameters['curr_dir'] = current_dir
-        subprocess.call(["python", os.path.join(current_dir,"GuPPy","computePsth.py"), json.dumps(inputParameters)])
+        from .computePsth import main as computePsth_main
+        computePsth_main(inputParameters)
 
 
     def readPBIncrementValues(progressBar):

@@ -772,9 +772,9 @@ def psthForEachStorename(inputParameters):
 	print("PSTH, Area and Peak are computed for all events.")
 	return inputParameters
 
-if __name__ == "__main__":
+def main(input_parameters):
 	try:
-		inputParameters = psthForEachStorename(json.loads(sys.argv[1]))
+		inputParameters = psthForEachStorename(input_parameters)
 		subprocess.call(["python", 
 		   				os.path.join(inputParameters["curr_dir"],"GuPPy","findTransientsFreqAndAmp.py"), 
 						json.dumps(inputParameters)])
@@ -785,4 +785,6 @@ if __name__ == "__main__":
 		insertLog(str(e), logging.ERROR)
 		raise e
 
-	
+if __name__ == "__main__":
+	input_parameters = json.loads(sys.argv[1])
+	main(input_parameters=input_parameters)

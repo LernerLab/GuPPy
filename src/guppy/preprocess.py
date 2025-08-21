@@ -1224,17 +1224,16 @@ def extractTsAndSignal(inputParameters):
 		
 
 	
-if __name__ == "__main__":
+def main(input_parameters):
 	try:
-		extractTsAndSignal(json.loads(sys.argv[1]))
+		extractTsAndSignal(input_parameters)
 		insertLog('#'*400, logging.INFO)
 	except Exception as e:
 		with open(os.path.join(os.path.expanduser('~'), 'pbSteps.txt'), 'a') as file:
 			file.write(str(-1)+"\n")
 		insertLog(str(e), logging.ERROR)
 		raise e
-	
 
-
-
-			
+if __name__ == "__main__":
+	input_parameters = json.loads(sys.argv[1])
+	main(input_parameters=input_parameters)
