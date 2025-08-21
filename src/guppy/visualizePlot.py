@@ -15,8 +15,9 @@ from holoviews.plotting.util import process_cmap
 from holoviews.operation.datashader import datashade
 import datashader as ds
 import matplotlib.pyplot as plt
+from pathlib import Path
 from .preprocess import get_all_stores_for_combining_data
-import panel as pn 
+import panel as pn
 pn.extension()
 
 def scanPortsAndFind(start_port=5000, end_port=5200, host='127.0.0.1'):
@@ -40,7 +41,7 @@ def takeOnlyDirs(paths):
 	return list(set(paths)-set(removePaths))
 
 def insertLog(text, level):
-    file = os.path.join('.','..','guppy.log')
+    file = os.path.join(Path.home(), 'guppy.log')
     format = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
     infoLog = logging.FileHandler(file)
     infoLog.setFormatter(format)

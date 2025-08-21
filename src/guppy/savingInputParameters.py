@@ -11,13 +11,14 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
 from threading import Thread
+from pathlib import Path
 from .visualizePlot import visualizeResults
 from .saveStoresList import execute
 
 def savingInputParameters():
     pn.extension()
 
-    log_file = os.path.join('.','..','guppy.log')
+    log_file = os.path.join(Path.home(), 'guppy.log')
     if os.path.exists(log_file):
         os.remove(log_file)
     else:
@@ -44,7 +45,7 @@ def savingInputParameters():
     current_dir = os.getcwd()
 
     def insertLog(text, level):
-        file = os.path.join('.','..','guppy.log')
+        file = os.path.join(Path.home(), 'guppy.log')
         format = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
         infoLog = logging.FileHandler(file)
         infoLog.setFormatter(format)
@@ -61,7 +62,7 @@ def savingInputParameters():
                 logger.exception(text)
             if level == logging.WARNING:
                 logger.warning(text)
-        
+
         infoLog.close()
         logger.removeHandler(infoLog)
 

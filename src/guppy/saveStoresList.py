@@ -45,7 +45,7 @@ def takeOnlyDirs(paths):
 	return list(set(paths)-set(removePaths))
 
 def insertLog(text, level):
-    file = os.path.join('.','..','guppy.log')
+    file = os.path.join(Path.home(), 'guppy.log')
     format = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
     infoLog = logging.FileHandler(file)
     infoLog.setFormatter(format)

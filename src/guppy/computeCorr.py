@@ -7,9 +7,10 @@ import logging
 import numpy as np
 import pandas as pd
 from scipy import signal
+from pathlib import Path
 
 def insertLog(text, level):
-    file = os.path.join('.','..','guppy.log')
+    file = os.path.join(Path.home(), 'guppy.log')
     format = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
     infoLog = logging.FileHandler(file)
     infoLog.setFormatter(format)
@@ -192,4 +193,3 @@ def computeCrossCorrelation(filepath, event, inputParameters):
                     create_Df(make_dir(filepath), 'corr_'+event, type[j]+'_'+corr_info[i-1]+'_'+corr_info[i], cross_corr, cols)
                 insertLog(f"Cross-correlation for event {event} computed.", logging.INFO)
                 print("Cross-correlation for event {} computed.".format(event))
-    

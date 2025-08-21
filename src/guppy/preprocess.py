@@ -15,6 +15,7 @@ from scipy import signal as ss
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 from matplotlib.widgets import MultiCursor
+from pathlib import Path
 from .combineDataFn import processTimestampsForCombiningData
 plt.switch_backend('TKAgg')
 
@@ -26,7 +27,7 @@ def takeOnlyDirs(paths):
 	return list(set(paths)-set(removePaths))
 
 def insertLog(text, level):
-    file = os.path.join('.','..','guppy.log')
+    file = os.path.join(Path.home(), 'guppy.log')
     format = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
     infoLog = logging.FileHandler(file)
     infoLog.setFormatter(format)

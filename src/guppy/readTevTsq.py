@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 from numpy import int32, uint32, uint8, uint16, float64, int64, int32, float32
 import multiprocessing as mp
+from pathlib import Path
 
 def takeOnlyDirs(paths):
 	removePaths = []
@@ -21,7 +22,7 @@ def takeOnlyDirs(paths):
 	return list(set(paths)-set(removePaths))
 
 def insertLog(text, level):
-    file = os.path.join('.','..','guppy.log')
+    file = os.path.join(Path.home(), 'guppy.log')
     format = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
     infoLog = logging.FileHandler(file)
     infoLog.setFormatter(format)
@@ -564,4 +565,3 @@ def main(input_parameters):
 if __name__ == "__main__":
 	input_parameters = json.loads(sys.argv[1])
 	main(input_parameters=input_parameters)
-

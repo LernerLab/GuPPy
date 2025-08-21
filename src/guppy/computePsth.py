@@ -15,6 +15,7 @@ from itertools import repeat
 import multiprocessing as mp
 from scipy import signal as ss
 from collections import OrderedDict
+from pathlib import Path
 from .preprocess import get_all_stores_for_combining_data
 from .computeCorr import computeCrossCorrelation
 from .computeCorr import getCorrCombinations
@@ -28,7 +29,7 @@ def takeOnlyDirs(paths):
 	return list(set(paths)-set(removePaths))
 
 def insertLog(text, level):
-    file = os.path.join('.','..','guppy.log')
+    file = os.path.join(Path.home(), 'guppy.log')
     format = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
     infoLog = logging.FileHandler(file)
     infoLog.setFormatter(format)
