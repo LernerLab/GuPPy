@@ -22,7 +22,7 @@ import tkinter as tk
 from tkinter import ttk, StringVar, messagebox
 
 #hv.extension()
-pn.extension()
+pn.extension('ace')
 
 def scanPortsAndFind(start_port=5000, end_port=5200, host='127.0.0.1'):
     while True:
@@ -229,7 +229,7 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
 
 
     # creating GUI template
-    template = pn.template.MaterialTemplate(title='Storenames GUI - {}'.format(os.path.basename(filepath), mark_down))
+    template = pn.template.BootstrapTemplate(title='Storenames GUI - {}'.format(os.path.basename(filepath), mark_down))
 
     
 
@@ -241,7 +241,7 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
     #literal_input_2 = pn.widgets.LiteralInput(name='Names for Storenames (list)', type=list)
 
     repeat_storenames = pn.widgets.Checkbox(name='Storenames to repeat', value=False)
-    repeat_storename_wd = pn.WidgetBox('', background='white', width=600)
+    repeat_storename_wd = pn.WidgetBox('', width=600)
     def callback(target, event):
         if event.new==True:
             target.objects = [multi_choice, literal_input_1]
@@ -253,9 +253,9 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
     update_options = pn.widgets.Button(name='Select Storenames')
     save = pn.widgets.Button(name='Save')
 
-    text = pn.widgets.LiteralInput(value=[], name='Selected Store Names', type=list)
+    text = pn.widgets.LiteralInput(value=[], name='Selected Store Names', type=list, width=500)
 
-    path = pn.widgets.TextInput(name='Location to Stores List file', width=500, sizing_mode="stretch_width")
+    path = pn.widgets.TextInput(name='Location to Stores List file', width=500)
 
     mark_down_for_overwrite = pn.pane.Markdown(""" Select option from below if user wants to over-write a file or create a new file. 
                                     **Creating a new file will make a new ouput folder and will get saved at that location.**
@@ -267,7 +267,7 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
 
     overwrite_button = pn.widgets.MenuButton(name='over-write storeslist file or create a new one?  ', items=['over_write_file', 'create_new_file'], button_type='default', split=True, align='end')
     
-    literal_input_2 = pn.widgets.Ace(value="""{}""", sizing_mode='stretch_both', theme='tomorrow', language='json', height=250)
+    literal_input_2 = pn.widgets.CodeEditor(value="""{}""", sizing_mode='stretch_both', theme='tomorrow', language='json', height=250)
 
     alert = pn.pane.Alert('#### No alerts !!', alert_type='danger', height=80)
 
@@ -283,6 +283,8 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
 
     
     storenames = []
+    storename_dropdowns = {}
+    storename_textboxes = {}
     
     if len(allnames)==0:
         alert.object = '####Alert !! \n No storenames found. There are not any TDT files or csv files to look for storenames.'
@@ -296,48 +298,73 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
             select_location.options = [show_dir(filepath)]
             #select_location.value = select_location.options[0]
     
-    def fetchValues():
+    def fetchValues(event):
+        global storenames
         alert.object = '#### No alerts !!'
+        
+        if not storename_dropdowns or not len(storenames) > 0:
+            alert.object = '####Alert !! \n No storenames selected.'
+            return
+            
         storenames_cache = dict()
         if os.path.exists(os.path.join(Path.home(), '.storesList.json')):
             with open(os.path.join(Path.home(), '.storesList.json')) as f:
                 storenames_cache = json.load(f)
-        comboBox_keys = list(hold_comboBoxValues.keys())
-        textBox_keys = list(hold_textBoxValues.keys())
-        
+                
         comboBoxValues, textBoxValues = [], []
-        for i in range(len(comboBox_keys)):
-            comboBoxValues.append(hold_comboBoxValues[comboBox_keys[i]].get())
+        dropdown_keys = list(storename_dropdowns.keys())
+        textbox_keys = list(storename_textboxes.keys()) if storename_textboxes else []
         
-        for i in range(len(textBox_keys)):
-            textBoxValues.append(hold_textBoxValues[textBox_keys[i]].get())
-            if len(textBoxValues[i].split())>1:
-                alert.object = '####Alert !! \n Whitespace is not allowed in the text box entry.'
-            if textBoxValues[i]==None and comboBoxValues[i] not in storenames_cache:
-                print(textBoxValues[i], comboBoxValues[i])
-                alert.object = '####Alert !! \n One of the text box entry is empty.'
-    
-        if len(comboBoxValues)!=len(textBoxValues):
+        # Get dropdown values
+        for key in dropdown_keys:
+            comboBoxValues.append(storename_dropdowns[key].value)
+        
+        # Get textbox values (matching with dropdown keys)
+        for key in dropdown_keys:
+            if key in storename_textboxes:
+                textbox_value = storename_textboxes[key].value or ""
+                textBoxValues.append(textbox_value)
+                
+                # Validation: Check for whitespace
+                if len(textbox_value.split()) > 1:
+                    alert.object = '####Alert !! \n Whitespace is not allowed in the text box entry.'
+                    return
+                    
+                # Validation: Check for empty required fields
+                dropdown_value = storename_dropdowns[key].value
+                if not textbox_value and dropdown_value not in storenames_cache and dropdown_value in ['control', 'signal', 'event TTLs']:
+                    alert.object = '####Alert !! \n One of the text box entry is empty.'
+                    return
+            else:
+                # For cached values, use the dropdown value directly
+                textBoxValues.append(storename_dropdowns[key].value)
+        
+        if len(comboBoxValues) != len(textBoxValues):
             alert.object = '####Alert !! \n Number of entries in combo box and text box should be same.'
+            return
         
         names_for_storenames = []
         for i in range(len(comboBoxValues)):
-            if comboBoxValues[i]=='control' or comboBoxValues[i]=="signal":
+            if comboBoxValues[i] == 'control' or comboBoxValues[i] == "signal":
                 if '_' in textBoxValues[i]:
-                    messagebox.showwarning("Warning", "Please do not use underscore in region name")
+                    alert.object = '####Alert !! \n Please do not use underscore in region name.'
+                    return
                 names_for_storenames.append("{}_{}".format(comboBoxValues[i], textBoxValues[i]))
-            elif comboBoxValues[i]=='event TTLs':
+            elif comboBoxValues[i] == 'event TTLs':
                 names_for_storenames.append(textBoxValues[i])
             else:
                 names_for_storenames.append(comboBoxValues[i])
         
         d = dict()
-        print(text.value)
         d["storenames"] = text.value
         d["names_for_storenames"] = names_for_storenames
-        literal_input_2.value = str(json.dumps(d))
+        literal_input_2.value = str(json.dumps(d, indent=2))
     
-    # on clicking 'Select Storenames' button, following function is executed
+    # Panel-based storename configuration (replaces Tkinter dialog)
+    storename_config_widgets = pn.Column(visible=False)
+    show_config_button = pn.widgets.Button(name='Show Selected Configuration', button_type='primary')
+    
+    # on clicking 'Select Storenames' button, following function is executed  
     def update_values(event):
         global storenames, vars_list
         arr = []
@@ -363,78 +390,83 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
             with open(os.path.join(Path.home(), '.storesList.json')) as f:
                 storenames_cache = json.load(f)
         
-
-        def comboBoxSelected(event):
-            row, col = event.widget.grid_info()['row'], event.widget.grid_info()['column']
-            if event.widget.get()=="control":
-                label = ttk.Label(root, 
-                                text="Type appropriate region name in the text box below :").grid(row=row, column=col+1)
-            elif event.widget.get()=="signal":
-                label = ttk.Label(root, 
-                                text="Type appropriate region name in the text box below :").grid(row=row, column=col+1)
-            elif event.widget.get()=="event TTLs":
-                label = ttk.Label(root, 
-                                text="Type event name for the TTLs in the text box below :").grid(row=row, column=col+1)
-            else:
-                pass
+        # Create Panel widgets for storename configuration
+        config_widgets = []
+        storename_dropdowns.clear()
+        storename_textboxes.clear()
         
-        global hold_comboBoxValues, hold_textBoxValues
-        root = tk.Tk()
-        root.title('Select options for storenames and give appropriate names (if asked)')
-        root.geometry('1200x1000')
-        hold_comboBoxValues = dict()
-        hold_textBoxValues = dict()
-
-        for i in range(len(storenames)):
-            if storenames[i] in storenames_cache:
-                T = ttk.Label(root, text="Select appropriate option for {} : ".format(storenames[i])).grid(row=i+1, column=1)
-                if storenames[i] in hold_comboBoxValues and storenames[i] in hold_textBoxValues:
-                    hold_comboBoxValues[storenames[i]+'_'+str(i)] = StringVar()
-                    hold_textBoxValues[storenames[i]+'_'+str(i)] = StringVar()
-                    myCombo = ttk.Combobox(root, 
-                                        textvariable=hold_comboBoxValues[storenames[i]+'_'+str(i)],
-                                        value=storenames_cache[storenames[i]], 
-                                        width=20)
+        if len(storenames) > 0:
+            config_widgets.append(pn.pane.Markdown("## Configure Storenames\nSelect appropriate options for each storename and provide names as needed:"))
+            
+            for i, storename in enumerate(storenames):
+                # Create a row for each storename
+                row_widgets = []
+                
+                # Label
+                label = pn.pane.Markdown(f"**{storename}:**")
+                row_widgets.append(label)
+                
+                # Dropdown options
+                if storename in storenames_cache:
+                    options = storenames_cache[storename]
+                    default_value = options[0] if options else ''
                 else:
-                    hold_comboBoxValues[storenames[i]] = StringVar()
-                    hold_textBoxValues[storenames[i]] = StringVar()
-                    myCombo = ttk.Combobox(root, 
-                                        textvariable=hold_comboBoxValues[storenames[i]],
-                                        value=storenames_cache[storenames[i]], 
-                                        width=20)
-                myCombo.grid(row=i+1, column=2)
-                myCombo.current(0)
-                myCombo.bind("<<ComboboxSelected>>", comboBoxSelected)
-            else:
-                T = ttk.Label(root, text="Select appropriate option for {} : ".format(storenames[i])).grid(row=i+1, column=1)
-                if storenames[i] in hold_comboBoxValues and storenames[i] in hold_textBoxValues:
-                    hold_comboBoxValues[storenames[i]+'_'+str(i)] = StringVar()
-                    hold_textBoxValues[storenames[i]+'_'+str(i)] = StringVar()
-                    myCombo = ttk.Combobox(root, 
-                                    textvariable=hold_comboBoxValues[storenames[i]+'_'+str(i)],
-                                    value=['', 'control', 'signal', 'event TTLs'], 
-                                    width=12)
-                    textBox = tk.Entry(root, 
-                                    textvariable=hold_textBoxValues[storenames[i]+'_'+str(i)])
-                else:
-                    hold_comboBoxValues[storenames[i]] = StringVar()
-                    hold_textBoxValues[storenames[i]] = StringVar()
-                    myCombo = ttk.Combobox(root, 
-                                        textvariable=hold_comboBoxValues[storenames[i]],
-                                        value=['', 'control', 'signal', 'event TTLs'], 
-                                        width=12)
-                    textBox = tk.Entry(root, 
-                                    textvariable=hold_textBoxValues[storenames[i]])
-                myCombo.grid(row=i+1, column=2)
-                textBox.grid(row=i+1, column=4)
-                myCombo.current(0)
-                myCombo.bind("<<ComboboxSelected>>", comboBoxSelected)
-
-        note = ttk.Label(root, text="Note : Click on Show button after appropriate selections and close the window.").grid(row=(len(storenames)*2)+2, column=2)
-        button = ttk.Button(root, text='Show', command=fetchValues).grid(row=(len(storenames)*2)+4, column=2)
-        root.lift()
-        root.after(500, lambda: root.lift())
-        root.mainloop()
+                    options = ['', 'control', 'signal', 'event TTLs']
+                    default_value = ''
+                
+                # Create unique key for widget
+                widget_key = f"{storename}_{i}" if f"{storename}_{i}" not in storename_dropdowns else f"{storename}_{i}_{len(storename_dropdowns)}"
+                
+                dropdown = pn.widgets.Select(
+                    name='Type', 
+                    value=default_value,
+                    options=options,
+                    width=150
+                )
+                storename_dropdowns[widget_key] = dropdown
+                row_widgets.append(dropdown)
+                
+                # Text input (only show if not cached or if control/signal/event TTLs selected)
+                if storename not in storenames_cache or default_value in ['control', 'signal', 'event TTLs']:
+                    textbox = pn.widgets.TextInput(
+                        name='Name', 
+                        value='',
+                        placeholder='Enter region/event name',
+                        width=200
+                    )
+                    storename_textboxes[widget_key] = textbox
+                    row_widgets.append(textbox)
+                    
+                    # Add helper text based on selection
+                    def create_help_function(dropdown_widget, help_pane_container):
+                        @pn.depends(dropdown_widget.param.value, watch=True)
+                        def update_help(dropdown_value):
+                            if dropdown_value == 'control':
+                                help_pane_container[0] = pn.pane.Markdown("*Type appropriate region name*", styles={'color': 'gray', 'font-size': '12px'})
+                            elif dropdown_value == 'signal':
+                                help_pane_container[0] = pn.pane.Markdown("*Type appropriate region name*", styles={'color': 'gray', 'font-size': '12px'})
+                            elif dropdown_value == 'event TTLs':
+                                help_pane_container[0] = pn.pane.Markdown("*Type event name for the TTLs*", styles={'color': 'gray', 'font-size': '12px'})
+                            else:
+                                help_pane_container[0] = pn.pane.Markdown("", styles={'color': 'gray', 'font-size': '12px'})
+                        return update_help
+                    
+                    help_container = [pn.pane.Markdown("")]
+                    help_function = create_help_function(dropdown, help_container)
+                    help_function(dropdown.value)  # Initialize
+                    row_widgets.append(help_container[0])
+                
+                # Add the row to config widgets
+                config_widgets.append(pn.Row(*row_widgets, margin=(5, 0)))
+            
+            # Add show button
+            config_widgets.append(pn.Spacer(height=20))
+            config_widgets.append(show_config_button)
+            config_widgets.append(pn.pane.Markdown("*Click 'Show Selected Configuration' to apply your selections.*", styles={'font-size': '12px', 'color': 'gray'}))
+        
+        # Update the configuration panel
+        storename_config_widgets.objects = config_widgets
+        storename_config_widgets.visible = len(storenames) > 0
 
 
 
@@ -500,7 +532,9 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
         insertLog('Storeslist : \n'+str(arr), logging.INFO)
     
 
+    # Connect button callbacks
     update_options.on_click(update_values)
+    show_config_button.on_click(fetchValues)
     save.on_click(save_button)
     overwrite_button.on_click(overwrite_button_actions)
 
@@ -511,6 +545,7 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
         widget_1 = pn.Column('# '+os.path.basename(filepath), mark_down, mark_down_np, plot_select, plot)
         widget_2 = pn.Column(repeat_storenames, repeat_storename_wd, pn.Spacer(height=20), 
                              cross_selector, update_options, 
+                             storename_config_widgets, pn.Spacer(height=10),
                              text, literal_input_2, alert, mark_down_for_overwrite, 
                              overwrite_button, select_location, save, path)
         template.main.append(pn.Row(widget_1, widget_2))
@@ -519,6 +554,7 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
         widget_1 = pn.Column('# '+os.path.basename(filepath), mark_down)
         widget_2 = pn.Column(repeat_storenames, repeat_storename_wd, pn.Spacer(height=20), 
                              cross_selector, update_options, 
+                             storename_config_widgets, pn.Spacer(height=10),
                              text, literal_input_2, alert, mark_down_for_overwrite, 
                              overwrite_button, select_location, save, path)
         template.main.append(pn.Row(widget_1, widget_2))
@@ -800,7 +836,7 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
             # used assigned flags to process the files and read the data
             if flag=='event_or_data_np':
                 arr = list(df.iloc[:,1])
-                check_float = [True for i in arr if type(i)==np.float]
+                check_float = [True for i in arr if isinstance(i, float)]
                 if len(arr)==len(check_float) and columns_isstr == False:
                     flag = 'data_np'
                 elif columns_isstr == True and ('value' in np.char.lower(np.array(cols))):
@@ -967,8 +1003,3 @@ def execute(inputParameters):
     except Exception as e:
         insertLog(str(e), logging.ERROR)
         raise e
-
-
-
-
-

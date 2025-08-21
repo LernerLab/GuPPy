@@ -49,6 +49,7 @@ dependencies = [
     "phantomjs",
     "PySocks",
     "selenium",
+    "tables",
 ]
 
 
