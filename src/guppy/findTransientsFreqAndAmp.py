@@ -11,7 +11,7 @@ import multiprocessing as mp
 from scipy.signal import argrelextrema
 import matplotlib.pyplot as plt
 from itertools import repeat
-from preprocess import get_all_stores_for_combining_data
+from .preprocess import get_all_stores_for_combining_data
 
 def takeOnlyDirs(paths):
 	removePaths = []

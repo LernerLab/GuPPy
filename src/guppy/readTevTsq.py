@@ -550,14 +550,18 @@ def readRawData(inputParameters):
 	insertLog('Raw data fetched and saved.', logging.INFO)
 	insertLog("#" * 400, logging.INFO)
 
-if __name__ == "__main__":
+def main(input_parameters):
 	print('run')
 	try:
-		readRawData(json.loads(sys.argv[1]))
+		readRawData(input_parameters)
 		insertLog('#'*400, logging.INFO)
 	except Exception as e:
 		with open(os.path.join(os.path.expanduser('~'), 'pbSteps.txt'), 'a') as file:
 			file.write(str(-1)+"\n")
 		insertLog(f"An error occurred: {e}", logging.ERROR)
 		raise e
+
+if __name__ == "__main__":
+	input_parameters = json.loads(sys.argv[1])
+	main(input_parameters=input_parameters)
 

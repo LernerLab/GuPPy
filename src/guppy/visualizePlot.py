@@ -15,7 +15,7 @@ from holoviews.plotting.util import process_cmap
 from holoviews.operation.datashader import datashade
 import datashader as ds
 import matplotlib.pyplot as plt
-from preprocess import get_all_stores_for_combining_data
+from .preprocess import get_all_stores_for_combining_data
 import panel as pn 
 pn.extension()
 

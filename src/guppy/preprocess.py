@@ -15,7 +15,7 @@ from scipy import signal as ss
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 from matplotlib.widgets import MultiCursor
-from combineDataFn import processTimestampsForCombiningData
+from .combineDataFn import processTimestampsForCombiningData
 plt.switch_backend('TKAgg')
 
 def takeOnlyDirs(paths):

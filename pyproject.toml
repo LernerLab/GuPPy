@@ -52,6 +52,9 @@ dependencies = [
     "tables",
 ]
 
+[project.scripts]
+guppy = "guppy.main:main"
+
 
 [project.urls]
 "Homepage" = "https://github.com/LernerLab/GuPPy"

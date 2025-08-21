@@ -15,10 +15,10 @@ from itertools import repeat
 import multiprocessing as mp
 from scipy import signal as ss
 from collections import OrderedDict
-from preprocess import get_all_stores_for_combining_data
-from computeCorr import computeCrossCorrelation
-from computeCorr import getCorrCombinations
-from computeCorr import make_dir
+from .preprocess import get_all_stores_for_combining_data
+from .computeCorr import computeCrossCorrelation
+from .computeCorr import getCorrCombinations
+from .computeCorr import make_dir
 
 def takeOnlyDirs(paths):
 	removePaths = []
