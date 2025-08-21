@@ -11,7 +11,6 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
 from threading import Thread
-from .preprocess import extractTsAndSignal
 from .visualizePlot import visualizeResults
 from .saveStoresList import execute
 
@@ -79,14 +78,12 @@ def savingInputParameters():
 
     def extractTs():
         inputParameters = getInputParameters()
-        from .preprocess import main as preprocess_main
-        preprocess_main(inputParameters)
+        subprocess.call([sys.executable, "-m", "guppy.preprocess", json.dumps(inputParameters)])
 
     def psthComputation():
         inputParameters = getInputParameters()
         inputParameters['curr_dir'] = current_dir
-        from .computePsth import main as computePsth_main
-        computePsth_main(inputParameters)
+        subprocess.call([sys.executable, "-m", "guppy.computePsth", json.dumps(inputParameters)])
 
 
     def readPBIncrementValues(progressBar):
