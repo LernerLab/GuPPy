@@ -73,8 +73,7 @@ def savingInputParameters():
 
     def readRawData():
         inputParameters = getInputParameters()
-        from .readTevTsq import main as read_tev_tsq_main
-        read_tev_tsq_main(input_parameters=inputParameters)
+        subprocess.call([sys.executable, "-m", "guppy.readTevTsq", json.dumps(inputParameters)])
 
     def extractTs():
         inputParameters = getInputParameters()

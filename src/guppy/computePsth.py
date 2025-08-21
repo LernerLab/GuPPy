@@ -775,9 +775,7 @@ def psthForEachStorename(inputParameters):
 def main(input_parameters):
 	try:
 		inputParameters = psthForEachStorename(input_parameters)
-		subprocess.call(["python", 
-		   				os.path.join(inputParameters["curr_dir"],"GuPPy","findTransientsFreqAndAmp.py"), 
-						json.dumps(inputParameters)])
+		subprocess.call([sys.executable, "-m", "guppy.findTransientsFreqAndAmp", json.dumps(inputParameters)])
 		insertLog('#'*400, logging.INFO)
 	except Exception as e:
 		with open(os.path.join(os.path.expanduser('~'), 'pbSteps.txt'), 'a') as file:
