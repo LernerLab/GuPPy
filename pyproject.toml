@@ -39,16 +39,16 @@ classifiers = [
 
 ]
 dependencies = [
-    "brotlicffi",
-    "CairoSVG",
+    "bokeh",
     "datashader",
     "h5py",
-    "hvplot",
+    "holoviews",
     "matplotlib",
-    "nbconvert",
-    "phantomjs",
-    "PySocks",
-    "selenium",
+    "numpy",
+    "pandas",
+    "panel",
+    "param",
+    "scipy",
     "tables",
 ]
 
