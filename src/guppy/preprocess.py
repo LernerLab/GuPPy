@@ -15,7 +15,8 @@ from scipy import signal as ss
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 from matplotlib.widgets import MultiCursor
-from combineDataFn import processTimestampsForCombiningData
+from pathlib import Path
+from .combineDataFn import processTimestampsForCombiningData
 plt.switch_backend('TKAgg')
 
 def takeOnlyDirs(paths):
@@ -26,7 +27,7 @@ def takeOnlyDirs(paths):
 	return list(set(paths)-set(removePaths))
 
 def insertLog(text, level):
-    file = os.path.join('.','..','guppy.log')
+    file = os.path.join(Path.home(), 'guppy.log')
     format = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
     infoLog = logging.FileHandler(file)
     infoLog.setFormatter(format)
@@ -1224,17 +1225,16 @@ def extractTsAndSignal(inputParameters):
 		
 
 	
-if __name__ == "__main__":
+def main(input_parameters):
 	try:
-		extractTsAndSignal(json.loads(sys.argv[1]))
+		extractTsAndSignal(input_parameters)
 		insertLog('#'*400, logging.INFO)
 	except Exception as e:
 		with open(os.path.join(os.path.expanduser('~'), 'pbSteps.txt'), 'a') as file:
 			file.write(str(-1)+"\n")
 		insertLog(str(e), logging.ERROR)
 		raise e
-	
 
-
-
-			
+if __name__ == "__main__":
+	input_parameters = json.loads(sys.argv[1])
+	main(input_parameters=input_parameters)

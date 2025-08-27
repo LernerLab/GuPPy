@@ -1,0 +1,67 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "guppy"
+version = "2.0.0-alpha8"
+description = "Guided Photometry Analysis in Python, a free and open-source fiber photometry data analysis tool."
+readme = "README.md"
+authors = [
+    { name = "Venus Sherathiya", email = "venus.sherathiya@northwestern.edu" },
+    { name = "Michael Schaid" },
+    { name = "Jillian Seiler" },
+    { name = "Gabriela Lopez" },
+    { name = "Talia Lerner" },
+    { name = "Paul Adkisson" },
+    { name = "Luiz Tauffer" },
+]
+
+
+license = { file = "LICENSE" }
+keywords = [
+    "neuroscience", 
+    "fiber-photometry", 
+    "calcium-imaging", 
+    "data-analysis", 
+    "gui", 
+    "visualization", 
+    "signal-processing",
+]
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.10",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: MacOS",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+
+]
+requires-python = ">=3.10"
+dependencies = [
+    "bokeh",
+    "datashader",
+    "h5py",
+    "holoviews",
+    "matplotlib",
+    "numpy",
+    "pandas",
+    "panel",
+    "param",
+    "scipy",
+    "tables",
+]
+
+[project.scripts]
+guppy = "guppy.main:main"
+
+
+[project.urls]
+"Homepage" = "https://github.com/LernerLab/GuPPy"
+
+[tool.setuptools.packages.find]
+where = ["src"]
