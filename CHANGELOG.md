@@ -3,10 +3,15 @@
 ## Features
 
 - Modernized python packaging and distribution: [PR #129](https://github.com/LernerLab/GuPPy/pull/129)
+- Added support for Python 3.10-3.13: [PR #129](https://github.com/LernerLab/GuPPy/pull/129)
 
 ## Fixes
 
 ## Deprecations and Removals
+
+- Dropped support for Python 3.6: [PR #129](https://github.com/LernerLab/GuPPy/pull/129)
+- Restructured directory layout for improved organization: [PR #129](https://github.com/LernerLab/GuPPy/pull/129)
+- Converted savingInputParameters.ipynb to saving_input_parameters.py: [PR #129](https://github.com/LernerLab/GuPPy/pull/129)
 
 ## Improvements
 
