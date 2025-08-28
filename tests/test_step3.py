@@ -7,10 +7,17 @@ import h5py
 import pytest
 
 from guppy.testing.api import step2, step3
-from guppy.saveStoresList import import_np_doric_csv
 
 
-def test_step3(tmp_path):
+@pytest.fixture(scope="function")
+def storenames_map():
+    return {
+        "Sample_Control_Channel": "control_region",
+        "Sample_Signal_Channel": "signal_region",
+        "Sample_TTL": "ttl",
+    }
+
+def test_step3(tmp_path, storenames_map):
     """
     Full integration test for Step 3 (Read Raw Data) using real CSV sample data,
     isolated to a temporary workspace to avoid mutating shared sample data.
@@ -44,12 +51,6 @@ def test_step3(tmp_path):
     params_fp = session_copy / "GuPPyParamtersUsed.json"
     if params_fp.exists():
         params_fp.unlink()
-
-    # Derive the list of raw storenames from the copied session's files
-    events, _flags = import_np_doric_csv(str(session_copy), isosbestic_control=True, num_ch=2)
-    if not events:
-        pytest.skip("Could not derive storenames from copied sample data; events list empty")
-    storenames_map = {e: e for e in events}
 
     # Step 2: create storesList.csv in the temp copy
     step2(base_dir=str(tmp_base), selected_folders=[str(session_copy)], storenames_map=storenames_map)
