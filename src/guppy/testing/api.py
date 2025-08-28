@@ -17,6 +17,7 @@ from typing import Iterable, List
 
 from guppy.savingInputParameters import savingInputParameters
 from guppy.saveStoresList import execute
+from guppy.readTevTsq import readRawData
 
 
 
@@ -146,3 +147,68 @@ def step2(*, base_dir: str, selected_folders: Iterable[str], storenames_map: dic
 
     # Call the underlying Step 2 executor (now headless-aware)
     execute(input_params)
+
+
+def step3(*, base_dir: str, selected_folders: Iterable[str]) -> None:
+    """
+    Run pipeline Step 3 (Read Raw Data) via the actual Panel-backed logic, headlessly.
+
+    This builds the template headlessly (using ``GUPPY_BASE_DIR`` to bypass
+    the folder dialog), sets the FileSelector to ``selected_folders``, retrieves
+    the full input parameters via ``getInputParameters()``, and calls the
+    underlying worker ``guppy.readTevTsq.readRawData(input_params)`` that the
+    UI normally launches via subprocess. No GUI is spawned.
+
+    Parameters
+    ----------
+    base_dir : str
+        Root directory used to initialize the FileSelector. All ``selected_folders``
+        must reside directly under this path.
+    selected_folders : Iterable[str]
+        Absolute paths to the session directories to process.
+
+    Raises
+    ------
+    ValueError
+        If validation fails (e.g., empty iterable, invalid directories, or parent mismatch).
+    RuntimeError
+        If the template does not expose the required testing hooks/widgets.
+    """
+    # Validate base_dir
+    if not isinstance(base_dir, str) or not base_dir:
+        raise ValueError("base_dir must be a non-empty string")
+    base_dir = os.path.abspath(base_dir)
+    if not os.path.isdir(base_dir):
+        raise ValueError(f"base_dir does not exist or is not a directory: {base_dir}")
+
+    # Validate selected_folders
+    sessions = list(selected_folders or [])
+    if not sessions:
+        raise ValueError("selected_folders must be a non-empty iterable of session directories")
+    abs_sessions = [os.path.abspath(s) for s in sessions]
+    for s in abs_sessions:
+        if not os.path.isdir(s):
+            raise ValueError(f"Session path does not exist or is not a directory: {s}")
+        parent = os.path.dirname(s)
+        if parent != base_dir:
+            raise ValueError(
+                f"All selected_folders must share the same parent equal to base_dir. "
+                f"Got parent {parent!r} for session {s!r}, expected {base_dir!r}"
+            )
+
+    # Headless build: set base_dir and construct the template
+    os.environ["GUPPY_BASE_DIR"] = base_dir
+    template = savingInputParameters()
+
+    # Ensure hooks/widgets exposed
+    if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
+        raise RuntimeError("savingInputParameters did not expose 'getInputParameters' hook")
+    if not hasattr(template, "_widgets") or "files_1" not in template._widgets:
+        raise RuntimeError("savingInputParameters did not expose 'files_1' widget")
+
+    # Select folders and fetch input parameters
+    template._widgets["files_1"].value = abs_sessions
+    input_params = template._hooks["getInputParameters"]()
+
+    # Call the underlying Step 3 worker directly (no subprocess)
+    readRawData(input_params)

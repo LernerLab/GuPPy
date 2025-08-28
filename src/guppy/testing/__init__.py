@@ -1,5 +1,7 @@
-from .api import step1
+from .api import step1, step2, step3
 
 __all__ = [
     "step1",
+    "step2",
+    "step3",
 ]
