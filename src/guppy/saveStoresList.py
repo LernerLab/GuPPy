@@ -133,6 +133,16 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
     # getting input parameters
     inputParameters = inputParameters
 
+    # Headless path: if storenames_map provided, write storesList.csv without building the Panel UI
+    storenames_map = inputParameters.get("storenames_map")
+    if isinstance(storenames_map, dict) and len(storenames_map) > 0:
+        op = make_dir(filepath)
+        arr = np.asarray([list(storenames_map.keys()), list(storenames_map.values())], dtype=str)
+        np.savetxt(os.path.join(op, 'storesList.csv'), arr, delimiter=",", fmt='%s')
+        insertLog(f"Storeslist file saved at {op}", logging.INFO)
+        insertLog('Storeslist : \n'+str(arr), logging.INFO)
+        return
+
     # reading storenames from the data fetched using 'readtsq' function
     if isinstance(data, pd.DataFrame):
         data['name'] = np.asarray(data['name'], dtype=str)
