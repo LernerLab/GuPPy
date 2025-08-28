@@ -15,7 +15,7 @@ def storenames_map():
     }
 
 
-def test_step2_writes_storeslist(tmp_path, storenames_map):
+def test_step2(tmp_path, storenames_map):
     # Arrange: create base_dir with two session folders
     base_name = "data_root"
     base_dir = tmp_path / base_name
