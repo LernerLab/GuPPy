@@ -17,7 +17,50 @@ def storenames_map():
         "Sample_TTL": "ttl",
     }
 
-def test_step3(tmp_path, storenames_map):
+@pytest.mark.parametrize(
+    "session_subdir, storenames_map",
+    [
+        (
+            "SampleData_csv",
+            {
+                "Sample_Control_Channel": "control_region",
+                "Sample_Signal_Channel": "signal_region",
+                "Sample_TTL": "ttl",
+            },
+        ),
+        (
+            "SampleData_Doric",
+            {
+                "AIn-1 - Dem (ref)": "control_region",
+                "AIn-1 - Dem (da)": "signal_region",
+                "DI/O-1": "ttl",
+            },
+        ),
+        (
+            "SampleData_Clean/Photo_63_207-181030-103332",
+            {
+                "Dv1A": "control_dms",
+                "Dv2A": "signal_dms",
+                "PrtN": "port_entries_dms",
+            },
+        ),
+        (
+            "SampleData_with_artifacts/Photo_048_392-200728-121222",
+            {
+                "Dv1A": "control_dms",
+                "Dv2A": "signal_dms",
+                "PrtN": "port_entries_dms",
+            },
+        ),
+    ],
+    ids=[
+        "csv_generic",
+        "doric_csv",
+        "tdt_clean",
+        "tdt_with_artifacts",
+    ],
+)
+def test_step3(tmp_path, storenames_map, session_subdir):
     """
     Full integration test for Step 3 (Read Raw Data) using real CSV sample data,
     isolated to a temporary workspace to avoid mutating shared sample data.
@@ -31,7 +74,7 @@ def test_step3(tmp_path, storenames_map):
       the temp copy (never touching the original sample path).
     """
     src_base_dir = "/Users/pauladkisson/Documents/CatalystNeuro/Guppy/GDriveSampleData"
-    src_session = os.path.join(src_base_dir, "SampleData_csv")
+    src_session = os.path.join(src_base_dir, session_subdir)
 
     if not os.path.isdir(src_session):
         pytest.skip(f"Sample data not available at expected path: {src_session}")
@@ -39,15 +82,15 @@ def test_step3(tmp_path, storenames_map):
     # Stage a clean copy of the session into a temporary workspace
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)
-    session_copy = tmp_base / "SampleData_csv"
+    dest_name = os.path.basename(src_session)
+    session_copy = tmp_base / dest_name
     shutil.copytree(src_session, session_copy)
 
     # Remove any copied artifacts in the temp session
-    for d in glob.glob(os.path.join(session_copy, "*_output_*")):
-        try:
-            shutil.rmtree(d)
-        except FileNotFoundError:
-            pass
+    # Use a specific glob that uniquely matches this session's output directory(ies)
+    for d in glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")):
+        assert os.path.isdir(d), f"Expected output directory for cleanup, got non-directory: {d}"
+        shutil.rmtree(d)
     params_fp = session_copy / "GuPPyParamtersUsed.json"
     if params_fp.exists():
         params_fp.unlink()
