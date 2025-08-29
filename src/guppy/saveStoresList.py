@@ -586,7 +586,7 @@ def check_channels(state):
     return unique_state.shape[0], unique_state
     
 # function to decide NPM timestamps unit (seconds, ms or us)
-def decide_ts_unit_for_npm(df):
+def decide_ts_unit_for_npm(df, timestamp_col=None, time_unit=None, headless=False):
     col_names = np.array(list(df.columns))
     col_names_ts = ['']
     for name in col_names:
@@ -595,6 +595,15 @@ def decide_ts_unit_for_npm(df):
     
     ts_unit = 'seconds'
     if len(col_names_ts)>2:
+        # Headless path: auto-select column/unit without any UI
+        if headless:
+            # Choose provided column if valid, otherwise the first timestamp-like column found
+            chosen = timestamp_col if (isinstance(timestamp_col, str) and timestamp_col in df.columns) else col_names_ts[1]
+            df.insert(1, 'Timestamp', df[chosen])
+            df = df.drop(col_names_ts[1:], axis=1)
+            valid_units = {'seconds', 'milliseconds', 'microseconds'}
+            ts_unit = time_unit if (isinstance(time_unit, str) and time_unit in valid_units) else 'seconds'
+            return df, ts_unit
         #def comboBoxSelected(event):
         #    print(event.widget.get())
         
@@ -744,10 +753,19 @@ def read_doric(filepath):
 # and recognize type of 'csv' files either from
 # Neurophotometrics, Doric systems or custom made 'csv' files
 # and read data accordingly
-def import_np_doric_csv(filepath, isosbestic_control, num_ch):
+def import_np_doric_csv(filepath, isosbestic_control, num_ch, inputParameters=None):
 
     insertLog("If it exists, importing either NPM or Doric or csv file based on the structure of file",
               logging.DEBUG)
+    # Headless configuration (used to avoid any UI prompts when running tests)
+    headless = bool(os.environ.get('GUPPY_BASE_DIR'))
+    npm_timestamp_col = None
+    npm_time_unit = None
+    npm_split_events = None
+    if isinstance(inputParameters, dict):
+        npm_timestamp_col = inputParameters.get('npm_timestamp_col')
+        npm_time_unit = inputParameters.get('npm_time_unit')
+        npm_split_events = inputParameters.get('npm_split_events')
     path = sorted(glob.glob(os.path.join(filepath, '*.csv'))) + \
            sorted(glob.glob(os.path.join(filepath, '*.doric')))
     path_chev = glob.glob(os.path.join(filepath, '*chev*'))
@@ -882,16 +900,19 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
             elif flag=='event_np':
                 type_val = np.array(df.iloc[:,1])
                 type_val_unique = np.unique(type_val)
-                window = tk.Tk()
-                if len(type_val_unique)>1:
-                    response = messagebox.askyesno('Multiple event TTLs', 'Based on the TTL file,\
+                if headless:
+                    response = 1 if bool(npm_split_events) else 0
+                else:
+                    window = tk.Tk()
+                    if len(type_val_unique)>1:
+                        response = messagebox.askyesno('Multiple event TTLs', 'Based on the TTL file,\
                                                                             it looks like TTLs \
                                                                             belongs to multipe behavior type. \
                                                                             Do you want to create multiple files for each \
                                                                             behavior type ?')
-                else:
-                    response = 0
-                window.destroy()
+                    else:
+                        response = 0
+                    window.destroy()
                 if response==1:
                     timestamps = np.array(df.iloc[:,0])
                     for j in range(len(type_val_unique)):
@@ -910,7 +931,12 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch):
                     event_from_filename.append('event'+str(0))
             else:
                 file = f'file{str(i)}_'
-                df, ts_unit = decide_ts_unit_for_npm(df)
+                df, ts_unit = decide_ts_unit_for_npm(
+                    df,
+                    timestamp_col=npm_timestamp_col,
+                    time_unit=npm_time_unit,
+                    headless=headless
+                )
                 df, indices_dict, num_channels = decide_indices(file, df, flag)
                 keys = list(indices_dict.keys())
                 for k in range(len(keys)):
@@ -1007,7 +1033,7 @@ def execute(inputParameters):
         for i in folderNames:
             filepath = os.path.join(inputParameters['abspath'], i)
             data = readtsq(filepath)
-            event_name, flag = import_np_doric_csv(filepath, isosbestic_control, num_ch)
+            event_name, flag = import_np_doric_csv(filepath, isosbestic_control, num_ch, inputParameters=inputParameters)
             saveStorenames(inputParameters, data, event_name, flag, filepath)
         insertLog('#'*400, logging.INFO)
     except Exception as e:

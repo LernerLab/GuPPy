@@ -43,12 +43,21 @@ from guppy.testing.api import step2
                 "PrtN": "port_entries_dms",
             },
         ),
+        (
+            "SampleData_Neurophotometrics/1442",
+            {
+                "file0_chev1": "control_region1",
+                "file0_chod1": "signal_region1",
+                "eventTrue": "ttl_true_region1",
+            },
+        ),
     ],
     ids=[
         "csv_generic",
         "doric_csv",
         "tdt_clean",
         "tdt_with_artifacts",
+        "neurophotometrics_csv",
     ],
 )
 def test_step2(tmp_path, session_subdir, storenames_map):
