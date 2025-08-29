@@ -7,25 +7,70 @@ import pytest
 
 from guppy.testing.api import step2, step3, step4
 
-@pytest.fixture(scope="function")
-def region():
-    return "region"
-
-@pytest.fixture(scope="function")
-def ttl_display_name():
-    return "ttl"
-
-@pytest.fixture(scope="function")
-def storenames_map(region, ttl_display_name):
-    return {
-        "Sample_Control_Channel": f"control_{region}",
-        "Sample_Signal_Channel": f"signal_{region}",
-        "Sample_TTL": f"{ttl_display_name}",
-    }
-
-
+@pytest.mark.parametrize(
+    "session_subdir, storenames_map, expected_region, expected_ttl",
+    [
+        (
+            "SampleData_csv",
+            {
+                "Sample_Control_Channel": "control_region",
+                "Sample_Signal_Channel": "signal_region",
+                "Sample_TTL": "ttl",
+            },
+            "region",
+            "ttl",
+        ),
+        (
+            "SampleData_Doric",
+            {
+                "AIn-1 - Dem (ref)": "control_region",
+                "AIn-1 - Dem (da)": "signal_region",
+                "DI/O-1": "ttl",
+            },
+            "region",
+            "ttl",
+        ),
+        (
+            "SampleData_Clean/Photo_63_207-181030-103332",
+            {
+                "Dv1A": "control_dms",
+                "Dv2A": "signal_dms",
+                "PrtN": "port_entries_dms",
+            },
+            "dms",
+            "port_entries_dms",
+        ),
+        (
+            "SampleData_with_artifacts/Photo_048_392-200728-121222",
+            {
+                "Dv1A": "control_dms",
+                "Dv2A": "signal_dms",
+                "PrtN": "port_entries_dms",
+            },
+            "dms",
+            "port_entries_dms",
+        ),
+        (
+            "SampleData_Neurophotometrics/1442",
+            {
+                "file0_chev1": "control_region1",
+                "file0_chod1": "signal_region1",
+                "eventTrue": "ttl_true_region1",
+            },
+            "region1",
+            "ttl_true_region1",
+        ),
+    ],
+    ids=[
+        "csv_generic",
+        "doric_csv",
+        "tdt_clean",
+        "tdt_with_artifacts",
+        "neurophotometrics_csv",
+    ],
+)
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_step4(tmp_path, monkeypatch, region, ttl_display_name, storenames_map):
+def test_step4(tmp_path, monkeypatch, session_subdir, storenames_map, expected_region, expected_ttl):
     """
     Full integration test for Step 4 (Extract timestamps and signal) using real CSV sample data,
     isolated to a temporary workspace to avoid mutating shared sample data.
@@ -41,7 +86,7 @@ def test_step4(tmp_path, monkeypatch, region, ttl_display_name, storenames_map):
     """
     # Use the CSV sample session
     src_base_dir = "/Users/pauladkisson/Documents/CatalystNeuro/Guppy/GDriveSampleData"
-    src_session = os.path.join(src_base_dir, "SampleData_csv")
+    src_session = os.path.join(src_base_dir, session_subdir)
     if not os.path.isdir(src_session):
         pytest.skip(f"Sample data not available at expected path: {src_session}")
 
@@ -52,15 +97,14 @@ def test_step4(tmp_path, monkeypatch, region, ttl_display_name, storenames_map):
     # Stage a clean copy of the session into a temporary workspace
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)
-    session_copy = tmp_base / "SampleData_csv"
+    dest_name = os.path.basename(src_session)
+    session_copy = tmp_base / dest_name
     shutil.copytree(src_session, session_copy)
 
-    # Remove any copied artifacts in the temp session
-    for d in glob.glob(os.path.join(session_copy, "*_output_*")):
-        try:
-            shutil.rmtree(d)
-        except FileNotFoundError:
-            pass
+    # Remove any copied artifacts in the temp session (match only this session's output dirs)
+    for d in glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")):
+        assert os.path.isdir(d), f"Expected output directory for cleanup, got non-directory: {d}"
+        shutil.rmtree(d)
     params_fp = session_copy / "GuPPyParamtersUsed.json"
     if params_fp.exists():
         params_fp.unlink()
@@ -88,13 +132,13 @@ def test_step4(tmp_path, monkeypatch, region, ttl_display_name, storenames_map):
     assert os.path.exists(stores_fp), "Missing storesList.csv after Step 2/3/4"
 
     # Ensure timeCorrection_<region>.hdf5 exists with 'timestampNew'
-    timecorr = os.path.join(out_dir, f"timeCorrection_{region}.hdf5")
+    timecorr = os.path.join(out_dir, f"timeCorrection_{expected_region}.hdf5")
     assert os.path.exists(timecorr), f"Missing {timecorr}"
     with h5py.File(timecorr, "r") as f:
         assert "timestampNew" in f, f"Expected 'timestampNew' dataset in {timecorr}"
 
     # If TTLs exist, check their per-region 'ts' outputs
-    ttl_fp = os.path.join(out_dir, f"{ttl_display_name}_{region}.hdf5")
+    ttl_fp = os.path.join(out_dir, f"{expected_ttl}_{expected_region}.hdf5")
     assert os.path.exists(ttl_fp), f"Missing TTL-aligned file {ttl_fp}"
     with h5py.File(ttl_fp, "r") as f:
         assert "ts" in f, f"Expected 'ts' dataset in {ttl_fp}"
