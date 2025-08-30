@@ -12,3 +12,36 @@ on:
         required: true
         type: string
   workflow_dispatch:
+
+jobs:
+  run:
+    name: ${{ matrix.os }} Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ${{ fromJson(inputs.python-versions) }}
+        os: ${{ fromJson(inputs.os-versions) }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install pip
+        run: python -m pip install -U pip  # Official recommended way
+
+      - name: Install GuPPy
+        run: python -m pip install "."
+
+      - name: Install pytest
+        run: python -m pip install pytest
+      
+      - name: Prepare data for tests
+        uses: ./.github/actions/load-data
+        with:
+          rclone-config: ${{ secrets.RCLONE_CONFIG }}
+
+      - name: Run tests
+        run: pytest tests -vv -rsx -n auto --dist loadscope
