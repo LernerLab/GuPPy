@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import MultiCursor
 from pathlib import Path
 from .combineDataFn import processTimestampsForCombiningData
-plt.switch_backend('TKAgg')
+# plt.switch_backend('TKAgg')
 
 def takeOnlyDirs(paths):
 	removePaths = []
