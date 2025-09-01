@@ -23,7 +23,7 @@ runs:
       id: cache-datasets
       with:
         path: ./testing_data
-        key: ephys-datasets-${{ steps.ephys.outputs.DATASET_HASH }}
+        key: ${{ steps.ephys.outputs.DATASET_HASH }}
         enableCrossOsArchive: true
 
     - if: ${{ steps.cache-datasets.outputs.cache-hit != 'true' }}
