@@ -1,0 +1,33 @@
+name: 'Prepare Datasets'
+description: 'Restores data from caches or downloads it from Google Drive.'
+inputs:
+  rclone-config:
+    description: 'Rclone configuration'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Rclone
+      uses: AnimMouse/setup-rclone@v1
+      with:
+        rclone_config: ${{ inputs.rclone-config }}
+
+    - name: Get dataset version hash
+      shell: bash
+      run: |
+        HASH=$(rclone lsl remote:"SampleData" --drive-shared-with-me)
+        echo "DATASET_HASH=$HASH" >> $GITHUB_OUTPUT
+
+    - name: Cache datasets
+      uses: actions/cache@v4
+      id: cache-datasets
+      with:
+        path: ./testing_data
+        key: ephys-datasets-${{ steps.ephys.outputs.DATASET_HASH }}
+        enableCrossOsArchive: true
+
+    - if: ${{ steps.cache-datasets.outputs.cache-hit != 'true' }}
+      name: Download datasets from Google Drive
+      shell: bash
+      run: |
+        rclone copy remote:"SampleData" ./testing_data --drive-shared-with-me
