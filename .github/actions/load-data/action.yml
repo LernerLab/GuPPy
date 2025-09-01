@@ -15,7 +15,7 @@ runs:
     - name: Get dataset version hash
       shell: bash
       run: |
-        HASH=$(rclone lsl remote:"SampleData" --drive-shared-with-me)
+        HASH=$(rclone lsjson remote:"SampleData" --drive-shared-with-me --recursive)
         echo "DATASET_HASH=$HASH" >> $GITHUB_OUTPUT
 
     - name: Cache datasets
