@@ -56,6 +56,13 @@ dependencies = [
     "tables",
 ]
 
+[dependency-groups]
+test = [
+    "pytest",
+    "pytest-cov",
+    "pytest-xdist"  # Runs tests on parallel
+]
+
 [project.scripts]
 guppy = "guppy.main:main"
 

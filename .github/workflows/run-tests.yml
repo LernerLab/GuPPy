@@ -43,11 +43,10 @@ jobs:
       - name: Install pip
         run: python -m pip install -U pip  # Official recommended way
 
-      - name: Install GuPPy
-        run: python -m pip install "."
-
-      - name: Install pytest
-        run: python -m pip install pytest
+      - name: Install GuPPy with testing requirements
+        run: |
+          python -m pip install "."
+          python -m pip install --group test
       
       - name: Prepare data for tests
         uses: ./.github/actions/load-data
