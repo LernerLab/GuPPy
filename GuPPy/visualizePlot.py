@@ -96,9 +96,6 @@ def remove_cols(cols):
 # helper function to create plots
 def helper_plots(filepath, event, name, inputParameters):
 
-	event = event.replace("\\","_")
-	event = event.replace("/","_")
-
 	basename = os.path.basename(filepath)
 	visualize_zscore_or_dff = inputParameters['visualize_zscore_or_dff']
 
@@ -616,9 +613,10 @@ def helper_plots(filepath, event, name, inputParameters):
 # function to combine all the output folders together and preprocess them to use them in helper_plots function
 def createPlots(filepath, event, inputParameters):
 
-	event = event.replace("\\","_")
-	event = event.replace("/","_")
-	
+	for i in range(len(event)):
+		event[i] = event[i].replace("\\","_")
+		event[i] = event[i].replace("/","_")
+
 	average = inputParameters['visualizeAverageResults']
 	visualize_zscore_or_dff = inputParameters['visualize_zscore_or_dff']
 
