@@ -2,6 +2,7 @@ import csv
 import os
 import glob
 import shutil
+from pathlib import Path
 
 import pytest
 
@@ -70,7 +71,7 @@ def test_step2(tmp_path, session_subdir, storenames_map):
       - Asserts storesList.csv exists and exactly matches the provided mapping (2xN)
     """
     # Source sample data
-    src_base_dir = "/Users/pauladkisson/Documents/CatalystNeuro/Guppy/GDriveSampleData"
+    src_base_dir = str(Path(".") / "testing_data")
     src_session = os.path.join(src_base_dir, session_subdir)
     if not os.path.isdir(src_session):
         pytest.skip(f"Sample data not available at expected path: {src_session}")

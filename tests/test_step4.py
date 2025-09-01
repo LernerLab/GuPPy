@@ -4,6 +4,7 @@ import shutil
 
 import h5py
 import pytest
+from pathlib import Path
 
 from guppy.testing.api import step2, step3, step4
 
@@ -85,7 +86,7 @@ def test_step4(tmp_path, monkeypatch, session_subdir, storenames_map, expected_r
       - Assertions confirm creation of key HDF5 outputs expected from Step 4.
     """
     # Use the CSV sample session
-    src_base_dir = "/Users/pauladkisson/Documents/CatalystNeuro/Guppy/GDriveSampleData"
+    src_base_dir = str(Path(".") / "testing_data")
     src_session = os.path.join(src_base_dir, session_subdir)
     if not os.path.isdir(src_session):
         pytest.skip(f"Sample data not available at expected path: {src_session}")

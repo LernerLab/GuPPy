@@ -5,6 +5,7 @@ import shutil
 
 import h5py
 import pytest
+from pathlib import Path
 
 from guppy.testing.api import step2, step3
 
@@ -82,7 +83,7 @@ def test_step3(tmp_path, storenames_map, session_subdir):
     - Runs Step 3 headlessly and verifies per-storename HDF5 outputs exist in
       the temp copy (never touching the original sample path).
     """
-    src_base_dir = "/Users/pauladkisson/Documents/CatalystNeuro/Guppy/GDriveSampleData"
+    src_base_dir = str(Path(".") / "testing_data")
     src_session = os.path.join(src_base_dir, session_subdir)
 
     if not os.path.isdir(src_session):
