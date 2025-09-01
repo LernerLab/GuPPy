@@ -12,6 +12,17 @@ on:
         required: true
         type: string
   workflow_dispatch:
+    inputs:
+      python-versions:
+        description: 'List of Python versions to use in matrix, as JSON string'
+        required: true
+        type: string
+        default: '["3.10", "3.11", "3.12", "3.13"]'
+      os-versions:
+        description: 'List of OS versions to use in matrix, as JSON string'
+        required: true
+        type: string
+        default: '["ubuntu-latest", "windows-latest", "macos-latest"]'
 
 jobs:
   run:
