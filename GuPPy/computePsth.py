@@ -57,6 +57,8 @@ def writeToFile(value: str):
 # function to read hdf5 file
 def read_hdf5(event, filepath, key):
 	if event:
+		event = event.replace("\\","_")
+		event = event.replace("/","_")
 		op = os.path.join(filepath, event+'.hdf5')
 	else:
 		op = filepath
@@ -71,6 +73,8 @@ def read_hdf5(event, filepath, key):
 
 # function to write hdf5 file
 def write_hdf5(data, event, filepath, key):
+	event = event.replace("\\","_")
+	event = event.replace("/","_")
 	op = os.path.join(filepath, event+'.hdf5')
 	
 	# if file does not exist create a new file
@@ -119,6 +123,8 @@ def create_csv_area_peak(filepath, arr, name, index=[]):
 
 # function to create dataframe for each event PSTH and save it to h5 file
 def create_Df(filepath, event, name, psth, columns=[]):
+	event = event.replace("\\","_")
+	event = event.replace("/","_")
 	if name:
 		op = os.path.join(filepath, event+'_{}.h5'.format(name))
 	else:
@@ -161,6 +167,8 @@ def create_Df(filepath, event, name, psth, columns=[]):
 
 # function to read h5 file and make a dataframe from it
 def read_Df(filepath, event, name):
+	event = event.replace("\\","_")
+	event = event.replace("/","_")
 	if name:
 		op = os.path.join(filepath, event+'_{}.h5'.format(name))
 	else:
@@ -221,6 +229,9 @@ def helper_psth(z_score, event, filepath,
 				bin_psth_trials, use_time_or_trials,
 				baselineStart, baselineEnd, 
 				naming, just_use_signal):
+	
+	event = event.replace("\\","_")
+	event = event.replace("/","_")
 
 	sampling_rate = read_hdf5('timeCorrection_'+naming, filepath, 'sampling_rate')[0]
 
@@ -350,6 +361,9 @@ def helper_psth(z_score, event, filepath,
 # function to create PSTH for each event using function helper_psth and save the PSTH to h5 file
 def storenamePsth(filepath, event, inputParameters):
 
+	event = event.replace("\\","_")
+	event = event.replace("/","_")
+
 	selectForComputePsth = inputParameters['selectForComputePsth']
 	bin_psth_trials = inputParameters['bin_psth_trials']
 	use_time_or_trials = inputParameters['use_time_or_trials']
@@ -439,6 +453,9 @@ def helperPSTHPeakAndArea(psth_mean, timestamps, sampling_rate, peak_startPoint,
 
 # function to compute PSTH peak and area using the function helperPSTHPeakAndArea save the values to h5 and csv files.
 def findPSTHPeakAndArea(filepath, event, inputParameters):
+	
+	event = event.replace("\\","_")
+	event = event.replace("/","_")
 
 	#sampling_rate = read_hdf5(storesList[0,0], filepath, 'sampling_rate')
 	peak_startPoint = inputParameters['peak_startPoint']
@@ -510,6 +527,9 @@ def psth_shape_check(psth):
 
 # function to compute average of group of recordings
 def averageForGroup(folderNames, event, inputParameters):
+
+	event = event.replace("\\","_")
+	event = event.replace("/","_")
 
 	print("Averaging group of data...")
 	insertLog("Averaging group of data", logging.DEBUG)

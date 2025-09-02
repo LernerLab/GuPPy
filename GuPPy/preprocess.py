@@ -203,6 +203,8 @@ def read_hdf5(event, filepath, key):
 
 # function to write hdf5 file
 def write_hdf5(data, event, filepath, key):
+	event = event.replace("\\","_")
+	event = event.replace("/","_")
 	op = os.path.join(filepath, event+'.hdf5')
 	
 	# if file does not exist create a new file
