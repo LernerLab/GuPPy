@@ -13,9 +13,7 @@ on:
         type: string
     secrets:
       RCLONE_CONFIG:
-        description: 'RClone configuration file content'
         required: true
-        type: string
   workflow_dispatch:
     inputs:
       python-versions:
