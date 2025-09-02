@@ -69,7 +69,7 @@ def step1(*, base_dir: str, selected_folders: Iterable[str]) -> None:
     template._hooks["onclickProcess"]()
 
 
-def step2(*, base_dir: str, selected_folders: Iterable[str], storenames_map: dict[str, str]) -> None:
+def step2(*, base_dir: str, selected_folders: Iterable[str], storenames_map: dict[str, str], npm_timestamp_col: int = 0, npm_time_unit: str = "seconds", npm_split_events: bool = True) -> None:
     """
     Run pipeline Step 2 (Save Storenames) via the actual Panel-backed logic.
 
@@ -148,11 +148,16 @@ def step2(*, base_dir: str, selected_folders: Iterable[str], storenames_map: dic
     # Inject storenames mapping for headless execution
     input_params["storenames_map"] = dict(storenames_map)
 
+    # Add npm parameters
+    input_params["npm_timestamp_col"] = npm_timestamp_col
+    input_params["npm_time_unit"] = npm_time_unit
+    input_params["npm_split_events"] = npm_split_events
+
     # Call the underlying Step 2 executor (now headless-aware)
     execute(input_params)
 
 
-def step3(*, base_dir: str, selected_folders: Iterable[str]) -> None:
+def step3(*, base_dir: str, selected_folders: Iterable[str], npm_timestamp_col: int = 0, npm_time_unit: str = "seconds", npm_split_events: bool = True) -> None:
     """
     Run pipeline Step 3 (Read Raw Data) via the actual Panel-backed logic, headlessly.
 
@@ -213,11 +218,16 @@ def step3(*, base_dir: str, selected_folders: Iterable[str]) -> None:
     template._widgets["files_1"].value = abs_sessions
     input_params = template._hooks["getInputParameters"]()
 
+    # Inject explicit NPM parameters (match Step 2 style)
+    input_params["npm_timestamp_col"] = npm_timestamp_col
+    input_params["npm_time_unit"] = npm_time_unit
+    input_params["npm_split_events"] = npm_split_events
+
     # Call the underlying Step 3 worker directly (no subprocess)
     readRawData(input_params)
 
 
-def step4(*, base_dir: str, selected_folders: Iterable[str]) -> None:
+def step4(*, base_dir: str, selected_folders: Iterable[str], npm_timestamp_col: int = 0, npm_time_unit: str = "seconds", npm_split_events: bool = True) -> None:
     """
     Run pipeline Step 4 (Extract timestamps and signal) via the Panel-backed logic, headlessly.
 
@@ -278,11 +288,16 @@ def step4(*, base_dir: str, selected_folders: Iterable[str]) -> None:
     template._widgets["files_1"].value = abs_sessions
     input_params = template._hooks["getInputParameters"]()
 
+    # Inject explicit NPM parameters (match Step 2 style)
+    input_params["npm_timestamp_col"] = npm_timestamp_col
+    input_params["npm_time_unit"] = npm_time_unit
+    input_params["npm_split_events"] = npm_split_events
+
     # Call the underlying Step 4 worker directly (no subprocess)
     extractTsAndSignal(input_params)
 
 
-def step5(*, base_dir: str, selected_folders: Iterable[str]) -> None:
+def step5(*, base_dir: str, selected_folders: Iterable[str], npm_timestamp_col: int = 0, npm_time_unit: str = "seconds", npm_split_events: bool = True) -> None:
     """
     Run pipeline Step 5 (PSTH Computation) via the Panel-backed logic, headlessly.
 
@@ -342,6 +357,11 @@ def step5(*, base_dir: str, selected_folders: Iterable[str]) -> None:
     # Select folders and fetch input parameters
     template._widgets["files_1"].value = abs_sessions
     input_params = template._hooks["getInputParameters"]()
+
+    # Inject explicit NPM parameters (match Step 2 style)
+    input_params["npm_timestamp_col"] = npm_timestamp_col
+    input_params["npm_time_unit"] = npm_time_unit
+    input_params["npm_split_events"] = npm_split_events
 
     # Call the underlying Step 5 worker directly (no subprocess)
     psthForEachStorename(input_params)
