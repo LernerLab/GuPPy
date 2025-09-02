@@ -29,12 +29,8 @@ jobs:
           echo "Loaded Python versions: ${{ steps.load_python_versions.outputs.python_versions }}"
           echo "Loaded OS versions: ${{ steps.load_os_versions.outputs.os_versions }}"
 
-  assess-file-changes:
-    uses: ./.github/workflows/assess-file-changes.yml
-
   run-tests:
-    needs: [assess-file-changes, load_python_and_os_versions]
-    if: ${{ needs.assess-file-changes.outputs.SOURCE_CHANGED == 'true' }}
+    needs: [load_python_and_os_versions]
     uses: ./.github/workflows/run-tests.yml
     secrets:
       RCLONE_CONFIG: ${{ secrets.RCLONE_CONFIG }}
