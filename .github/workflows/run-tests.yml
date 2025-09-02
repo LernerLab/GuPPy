@@ -22,7 +22,7 @@ on:
         description: 'List of OS versions to use in matrix, as JSON string'
         required: true
         type: string
-        default: '["ubuntu-latest", "windows-latest", "macos-latest"]'
+        default: '["ubuntu-latest", "windows-2022", "macos-latest"]'
 
 jobs:
   run:
