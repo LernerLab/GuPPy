@@ -118,3 +118,19 @@ def test_step2(tmp_path, session_subdir, storenames_map):
     assert len(rows) == 2, f"Expected 2 rows (storenames, names_for_storenames), got {len(rows)}"
     assert rows[0] == list(storenames_map.keys()), "Row 0 (storenames) mismatch"
     assert rows[1] == list(storenames_map.values()), "Row 1 (names_for_storenames) mismatch"
+
+    # Additional NPM assertions: ensure Step 2 created the expected CSV files for Neurophotometrics
+    if session_subdir == "SampleData_Neurophotometrics/1442":
+        expected_files = [
+            "eventTrue.csv",
+            "eventFalse.csv",
+            "file0_chev1.csv",
+            "file0_chev2.csv",
+            "file0_chev3.csv",
+            "file0_chod1.csv",
+            "file0_chod2.csv",
+            "file0_chod3.csv",
+        ]
+        for rel in expected_files:
+            fp = os.path.join(session_copy, rel)
+            assert os.path.exists(fp), f"Missing expected NPM file at Step 2: {fp}"
