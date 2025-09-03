@@ -16,7 +16,7 @@ runs:
       id: hash
       shell: bash
       run: |
-        HASH=$(rclone lsjson remote:"SampleData" --drive-shared-with-me --recursive | sha256sum | cut -d' ' -f1)
+        HASH=$(rclone lsjson remote:"SampleData" --drive-shared-with-me --recursive | sed 's/,$//' | sort | sha256sum | cut -d' ' -f1)
         echo "DATASET_HASH=$HASH" >> $GITHUB_OUTPUT
 
     - name: Cache datasets
