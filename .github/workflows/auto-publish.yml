@@ -1,4 +1,4 @@
-# Automatically builds and publishes Python package to TestPyPI when a GitHub release is published.
+# Automatically builds and publishes Python package to PyPI when a GitHub release is published.
 # Uses build library to create distribution files from pyproject.toml configuration,
 # then uploads to TestPyPI using official PyPA GitHub Action with Trusted Publishing.
 # Trusted Publishing eliminates the need for API tokens by using cryptographic attestations

@@ -24,23 +24,31 @@ def savingInputParameters():
     else:
         pass
 
-    # Create the main window
-    folder_selection = tk.Tk()
-    folder_selection.title("Select the folder path where your data is located")
-    folder_selection.geometry("700x200")
-    def select_folder():
+    # Determine base folder path (headless-friendly via env var)
+    base_dir_env = os.environ.get('GUPPY_BASE_DIR')
+    is_headless = base_dir_env and os.path.isdir(base_dir_env)
+    if is_headless:
         global folder_path
-        folder_path = filedialog.askdirectory(title="Select the folder path where your data is located")
-        if folder_path:
-            print(f"Folder path set to {folder_path}")
-            folder_selection.destroy()
-        else:
-            folder_path = os.path.expanduser('~')
-            print(f"Folder path set to {folder_path}")
+        folder_path = base_dir_env
+        print(f"Folder path set to {folder_path} (from GUPPY_BASE_DIR)")
+    else:
+        # Create the main window
+        folder_selection = tk.Tk()
+        folder_selection.title("Select the folder path where your data is located")
+        folder_selection.geometry("700x200")
+        def select_folder():
+            global folder_path
+            folder_path = filedialog.askdirectory(title="Select the folder path where your data is located")
+            if folder_path:
+                print(f"Folder path set to {folder_path}")
+                folder_selection.destroy()
+            else:
+                folder_path = os.path.expanduser('~')
+                print(f"Folder path set to {folder_path}")
 
-    select_button = ttk.Button(folder_selection, text="Select a Folder", command=select_folder)
-    select_button.pack(pady=5)
-    folder_selection.mainloop()
+        select_button = ttk.Button(folder_selection, text="Select a Folder", command=select_folder)
+        select_button.pack(pady=5)
+        folder_selection.mainloop()
 
     current_dir = os.getcwd()
 
@@ -521,5 +529,14 @@ def savingInputParameters():
     template.main.append(individual)
     template.main.append(group)
     template.main.append(visualize)
+
+    # Expose minimal hooks and widgets to enable programmatic testing
+    template._hooks = {
+        "onclickProcess": onclickProcess,
+        "getInputParameters": getInputParameters,
+    }
+    template._widgets = {
+        "files_1": files_1,
+    }
 
     return template
