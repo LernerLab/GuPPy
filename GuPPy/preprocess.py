@@ -396,11 +396,21 @@ def applyCorrection(filepath, timeForLightsTurnOn, event, displayName, naming):
 			res = (arr>=timeRecStart).all()
 			if res==True:
 				arr = np.subtract(arr, timeRecStart)
-				arr = np.subtract(arr, timeForLightsTurnOn)
+				if "cam1" in event.lower():
+					arr = arr[np.where(arr>=timeForLightsTurnOn)[0]]
+				else:
+					arr = np.subtract(arr, timeForLightsTurnOn)
+			else:
+				if "cam1" in event.lower():
+					arr = arr[np.where(arr>=timeForLightsTurnOn)[0]]
+				else:
+					arr = np.subtract(arr, timeForLightsTurnOn)
+		else:
+			if "cam1" in event.lower():
+				arr = arr[np.where(arr>=timeForLightsTurnOn)[0]]
 			else:
 				arr = np.subtract(arr, timeForLightsTurnOn)
-		else:
-			arr = np.subtract(arr, timeForLightsTurnOn)
+
 		write_hdf5(arr, displayName+'_'+naming, filepath, 'ts')
 		
 	#if isosbestic_control==False and 'control' in displayName.lower():
