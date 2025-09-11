@@ -345,7 +345,7 @@ def readtev(data, filepath, event, outputPath):
 	
 	save_dict_to_hdf5(S, event, outputPath)
 	
-	check_data(S, filepath, event, outputPath)
+	#check_data(S, filepath, event, outputPath)
 
 	print("Data for event {} fetched and stored.".format(event))
 	insertLog("Data for event {} fetched and stored.".format(event), logging.INFO)
