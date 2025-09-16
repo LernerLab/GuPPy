@@ -586,7 +586,7 @@ def check_channels(state):
     return unique_state.shape[0], unique_state
     
 # function to decide NPM timestamps unit (seconds, ms or us)
-def decide_ts_unit_for_npm(df, timestamp_col=0, time_unit=None, headless=False):
+def decide_ts_unit_for_npm(df, timestamp_column_name=None, time_unit=None, headless=False):
     col_names = np.array(list(df.columns))
     col_names_ts = ['']
     for name in col_names:
@@ -597,8 +597,11 @@ def decide_ts_unit_for_npm(df, timestamp_col=0, time_unit=None, headless=False):
     if len(col_names_ts)>2:
         # Headless path: auto-select column/unit without any UI
         if headless:
-            # Choose provided column if valid, otherwise the first timestamp-like column found
-            chosen = col_names_ts[timestamp_col]
+            if timestamp_column_name is not None:
+                assert timestamp_column_name in col_names_ts, f"Provided timestamp_column_name '{timestamp_column_name}' not found in columns {col_names_ts[1:]}"
+                chosen = timestamp_column_name
+            else:
+                chosen = col_names_ts[0]
             df.insert(1, 'Timestamp', df[chosen])
             df = df.drop(col_names_ts[1:], axis=1)
             valid_units = {'seconds', 'milliseconds', 'microseconds'}
@@ -759,11 +762,11 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch, inputParameters=No
               logging.DEBUG)
     # Headless configuration (used to avoid any UI prompts when running tests)
     headless = bool(os.environ.get('GUPPY_BASE_DIR'))
-    npm_timestamp_col = None
+    npm_timestamp_column_name = None
     npm_time_unit = None
     npm_split_events = None
     if isinstance(inputParameters, dict):
-        npm_timestamp_col = inputParameters.get('npm_timestamp_col', 0)
+        npm_timestamp_column_name = inputParameters.get('npm_timestamp_column_name')
         npm_time_unit = inputParameters.get('npm_time_unit', 'seconds')
         npm_split_events = inputParameters.get('npm_split_events', True)
     path = sorted(glob.glob(os.path.join(filepath, '*.csv'))) + \
@@ -933,7 +936,7 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch, inputParameters=No
                 file = f'file{str(i)}_'
                 df, ts_unit = decide_ts_unit_for_npm(
                     df,
-                    timestamp_col=npm_timestamp_col,
+                    timestamp_column_name=npm_timestamp_column_name,
                     time_unit=npm_time_unit,
                     headless=headless
                 )

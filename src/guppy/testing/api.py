@@ -69,7 +69,7 @@ def step1(*, base_dir: str, selected_folders: Iterable[str]) -> None:
     template._hooks["onclickProcess"]()
 
 
-def step2(*, base_dir: str, selected_folders: Iterable[str], storenames_map: dict[str, str], npm_timestamp_col: int = 0, npm_time_unit: str = "seconds", npm_split_events: bool = True) -> None:
+def step2(*, base_dir: str, selected_folders: Iterable[str], storenames_map: dict[str, str], npm_timestamp_column_name: str | None = None, npm_time_unit: str = "seconds", npm_split_events: bool = True) -> None:
     """
     Run pipeline Step 2 (Save Storenames) via the actual Panel-backed logic.
 
@@ -149,7 +149,7 @@ def step2(*, base_dir: str, selected_folders: Iterable[str], storenames_map: dic
     input_params["storenames_map"] = dict(storenames_map)
 
     # Add npm parameters
-    input_params["npm_timestamp_col"] = npm_timestamp_col
+    input_params["npm_timestamp_column_name"] = npm_timestamp_column_name
     input_params["npm_time_unit"] = npm_time_unit
     input_params["npm_split_events"] = npm_split_events
 
@@ -157,7 +157,7 @@ def step2(*, base_dir: str, selected_folders: Iterable[str], storenames_map: dic
     execute(input_params)
 
 
-def step3(*, base_dir: str, selected_folders: Iterable[str], npm_timestamp_col: int = 0, npm_time_unit: str = "seconds", npm_split_events: bool = True) -> None:
+def step3(*, base_dir: str, selected_folders: Iterable[str], npm_timestamp_column_name: str | None = None, npm_time_unit: str = "seconds", npm_split_events: bool = True) -> None:
     """
     Run pipeline Step 3 (Read Raw Data) via the actual Panel-backed logic, headlessly.
 
@@ -219,7 +219,7 @@ def step3(*, base_dir: str, selected_folders: Iterable[str], npm_timestamp_col: 
     input_params = template._hooks["getInputParameters"]()
 
     # Inject explicit NPM parameters (match Step 2 style)
-    input_params["npm_timestamp_col"] = npm_timestamp_col
+    input_params["npm_timestamp_column_name"] = npm_timestamp_column_name
     input_params["npm_time_unit"] = npm_time_unit
     input_params["npm_split_events"] = npm_split_events
 
@@ -227,7 +227,7 @@ def step3(*, base_dir: str, selected_folders: Iterable[str], npm_timestamp_col: 
     readRawData(input_params)
 
 
-def step4(*, base_dir: str, selected_folders: Iterable[str], npm_timestamp_col: int = 0, npm_time_unit: str = "seconds", npm_split_events: bool = True) -> None:
+def step4(*, base_dir: str, selected_folders: Iterable[str], npm_timestamp_column_name: str | None = None, npm_time_unit: str = "seconds", npm_split_events: bool = True) -> None:
     """
     Run pipeline Step 4 (Extract timestamps and signal) via the Panel-backed logic, headlessly.
 
@@ -289,7 +289,7 @@ def step4(*, base_dir: str, selected_folders: Iterable[str], npm_timestamp_col: 
     input_params = template._hooks["getInputParameters"]()
 
     # Inject explicit NPM parameters (match Step 2 style)
-    input_params["npm_timestamp_col"] = npm_timestamp_col
+    input_params["npm_timestamp_column_name"] = npm_timestamp_column_name
     input_params["npm_time_unit"] = npm_time_unit
     input_params["npm_split_events"] = npm_split_events
 
@@ -297,7 +297,7 @@ def step4(*, base_dir: str, selected_folders: Iterable[str], npm_timestamp_col: 
     extractTsAndSignal(input_params)
 
 
-def step5(*, base_dir: str, selected_folders: Iterable[str], npm_timestamp_col: int = 0, npm_time_unit: str = "seconds", npm_split_events: bool = True) -> None:
+def step5(*, base_dir: str, selected_folders: Iterable[str], npm_timestamp_column_name: str | None = None, npm_time_unit: str = "seconds", npm_split_events: bool = True) -> None:
     """
     Run pipeline Step 5 (PSTH Computation) via the Panel-backed logic, headlessly.
 
@@ -359,7 +359,7 @@ def step5(*, base_dir: str, selected_folders: Iterable[str], npm_timestamp_col: 
     input_params = template._hooks["getInputParameters"]()
 
     # Inject explicit NPM parameters (match Step 2 style)
-    input_params["npm_timestamp_col"] = npm_timestamp_col
+    input_params["npm_timestamp_column_name"] = npm_timestamp_column_name
     input_params["npm_time_unit"] = npm_time_unit
     input_params["npm_split_events"] = npm_split_events
 
