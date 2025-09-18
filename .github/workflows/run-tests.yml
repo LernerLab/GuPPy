@@ -57,4 +57,4 @@ jobs:
           rclone-config: ${{ secrets.RCLONE_CONFIG }}
 
       - name: Run tests
-        run: pytest tests -vv -rsx -n auto --dist loadscope
+        run: pytest tests -vv -rsx # -n auto --dist loadscope # TODO: re-enable parallel execution when logging issues with Windows are resolved
