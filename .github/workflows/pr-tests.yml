@@ -1,0 +1,52 @@
+name: PR Tests
+
+on:
+  pull_request:
+    types: [synchronize, opened, reopened, ready_for_review]
+    # Synchronize, open and reopened are the default types for pull request
+    # We add ready_for_review to trigger the check for changelog and full tests when ready for review is clicked
+  merge_group:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  load_python_and_os_versions:
+    runs-on: ubuntu-latest
+    outputs:
+      ALL_PYTHON_VERSIONS: ${{ steps.load_python_versions.outputs.python_versions }}
+      ALL_OS_VERSIONS: ${{ steps.load_os_versions.outputs.os_versions }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: load_python_versions
+        run: echo "python_versions=$(cat ./.github/workflows/all_python_versions.txt)" >> "$GITHUB_OUTPUT"
+      - id: load_os_versions
+        run: echo "os_versions=$(cat ./.github/workflows/all_os_versions.txt)" >> "$GITHUB_OUTPUT"
+      - name: Debugging
+        run: |
+          echo "Loaded Python versions: ${{ steps.load_python_versions.outputs.python_versions }}"
+          echo "Loaded OS versions: ${{ steps.load_os_versions.outputs.os_versions }}"
+
+  run-tests:
+    needs: [load_python_and_os_versions]
+    uses: ./.github/workflows/run-tests.yml
+    secrets:
+      RCLONE_CONFIG: ${{ secrets.RCLONE_CONFIG }}
+    with:  #  Ternary operator: condition && value_if_true || value_if_false
+      python-versions: ${{ github.event.pull_request.draft == true && '["3.10"]' || needs.load_python_and_os_versions.outputs.ALL_PYTHON_VERSIONS }}
+      os-versions: ${{ github.event.pull_request.draft == true && '["ubuntu-latest"]' || needs.load_python_and_os_versions.outputs.ALL_OS_VERSIONS }}
+
+  check-final-status:
+    name: All tests passing
+    if: always()
+    needs:
+      - run-tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Decide whether all jobs succeeded or at least one failed
+        uses: re-actors/alls-green@release/v1
+        with:
+          allowed-skips: run-tests
+          jobs: ${{ toJSON(needs) }}
