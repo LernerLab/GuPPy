@@ -64,6 +64,8 @@ def insertLog(text, level):
 
 # read h5 file as a dataframe
 def read_Df(filepath, event, name):
+	event = event.replace("\\","_")
+	event = event.replace("/","_")
 	if name:
 		op = os.path.join(filepath, event+'_{}.h5'.format(name))
 	else:
@@ -610,6 +612,11 @@ def helper_plots(filepath, event, name, inputParameters):
 
 # function to combine all the output folders together and preprocess them to use them in helper_plots function
 def createPlots(filepath, event, inputParameters):
+
+	for i in range(len(event)):
+		event[i] = event[i].replace("\\","_")
+		event[i] = event[i].replace("/","_")
+
 	average = inputParameters['visualizeAverageResults']
 	visualize_zscore_or_dff = inputParameters['visualize_zscore_or_dff']
 
