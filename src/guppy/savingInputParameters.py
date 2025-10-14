@@ -171,7 +171,7 @@ def savingInputParameters():
                                                 values.
                                                 """, width=350)
 
-    timeForLightsTurnOn = pn.widgets.LiteralInput(name='Eliminate first few seconds (int)', value=1, type=int, width=350)
+    timeForLightsTurnOn = pn.widgets.LiteralInput(name='Eliminate first few seconds (int)', value=1, type=int, width=320)
 
     isosbestic_control = pn.widgets.Select(name='Isosbestic Control Channel? (bool)', value=True, options=[True, False], width=320)
 
@@ -179,33 +179,36 @@ def savingInputParameters():
 
     combine_data = pn.widgets.Select(name='Combine Data? (bool)', value=False, options=[True, False], width=150)
 
-    computePsth = pn.widgets.Select(name='z_score and/or \u0394F/F? (psth)', options=['z_score', 'dff', 'Both'], width=250)
+    computePsth = pn.widgets.Select(name='z_score and/or \u0394F/F? (psth)', options=['z_score', 'dff', 'Both'], width=320)
 
-    transients = pn.widgets.Select(name='z_score and/or \u0394F/F? (transients)', options=['z_score', 'dff', 'Both'], width=250)
+    transients = pn.widgets.Select(name='z_score and/or \u0394F/F? (transients)', options=['z_score', 'dff', 'Both'], width=320)
 
-    plot_zScore_dff = pn.widgets.Select(name='z-score plot and/or \u0394F/F plot?', options=['z_score', 'dff', 'Both', 'None'], value='None', width=250)
+    plot_zScore_dff = pn.widgets.Select(name='z-score plot and/or \u0394F/F plot?', options=['z_score', 'dff', 'Both', 'None'], value='None', width=320)
 
-    moving_wd = pn.widgets.LiteralInput(name='Moving Window for transients detection (s) (int)', value=15, type=int, width=250)
+    moving_wd = pn.widgets.LiteralInput(name='Moving Window for transients detection (s) (int)', value=15, type=int, width=320)
 
-    highAmpFilt = pn.widgets.LiteralInput(name='HAFT (int)', value=2, type=int, width=120)
+    highAmpFilt = pn.widgets.LiteralInput(name='HAFT (int)', value=2, type=int, width=150)
 
-    transientsThresh = pn.widgets.LiteralInput(name='TD Thresh (int)', value=3, type=int, width=120)
+    transientsThresh = pn.widgets.LiteralInput(name='TD Thresh (int)', value=3, type=int, width=150)
 
-    moving_avg_filter = pn.widgets.LiteralInput(name='Window for Moving Average filter (int)', value=100, type=int, width=250)
+    moving_avg_filter = pn.widgets.LiteralInput(name='Window for Moving Average filter (int)', 
+                                                value=100, type=int, width=320)
 
-    removeArtifacts = pn.widgets.Select(name='removeArtifacts? (bool)', value=False, options=[True, False], width=125)
+    removeArtifacts = pn.widgets.Select(name='removeArtifacts? (bool)', 
+                                        value=False, options=[True, False], width=150)
 
     artifactsRemovalMethod = pn.widgets.Select(name='removeArtifacts method', 
                                             value='concatenate', 
                                             options=['concatenate', 'replace with NaN'],
-                                            width=100)
+                                            width=150)
 
     no_channels_np = pn.widgets.LiteralInput(name='Number of channels (Neurophotometrics only)',
-                                            value=2, type=int, width=250)
+                                            value=2, type=int, width=320)
 
     z_score_computation = pn.widgets.Select(name='z-score computation Method', 
                                             options=['standard z-score', 'baseline z-score', 'modified z-score'], 
                                             value='standard z-score', width=200)
+    
     baseline_wd_strt = pn.widgets.LiteralInput(name='Baseline Window Start Time (s) (int)', value=0, type=int, width=200)
     baseline_wd_end = pn.widgets.LiteralInput(name='Baseline Window End Time (s) (int)', value=0, type=int, width=200)
 
@@ -216,7 +219,7 @@ def savingInputParameters():
                                     their data.<br>
                                     - Baseline Window Parameters should be kept 0 unless you are using baseline<br> 
                                     z-score computation method. The parameters are in seconds.
-                                    """, width=500)
+                                    """, width=580)
 
     explain_nsec = pn.pane.Markdown("""
                                     - ***Time Interval :*** To omit bursts of event timestamps, user defined time interval
@@ -225,7 +228,7 @@ def savingInputParameters():
                                     - ***Compute Cross-correlation :*** Make this parameter ```True```, when user wants
                                     to compute cross-correlation between PSTHs of two different signals or signals 
                                     recorded from different brain regions.
-                                    """, width=500)
+                                    """, width=580)
 
     nSecPrev = pn.widgets.LiteralInput(name='Seconds before 0 (int)', value=-10, type=int,  width=120)
 
@@ -233,7 +236,7 @@ def savingInputParameters():
 
     computeCorr = pn.widgets.Select(name='Compute Cross-correlation (bool)', 
                                             options=[True, False], 
-                                            value=False, width=160)
+                                            value=False, width=200)
 
     timeInterval = pn.widgets.LiteralInput(name='Time Interval (s)', value=2, type=int,  width=120)
 
@@ -241,7 +244,8 @@ def savingInputParameters():
                                         options = ['Time (min)', '# of trials'],
                                         value='Time (min)', width=120)
 
-    bin_psth_trials = pn.widgets.LiteralInput(name='Time(min) / # of trials \n for binning? (int)', value=0, type=int,  width=160)
+    bin_psth_trials = pn.widgets.LiteralInput(name='Time(min) / # of trials \n for binning? (int)', 
+                                              value=0, type=int,  width=200)
 
     explain_baseline = pn.pane.Markdown("""
                                         ***Note :***<br>
@@ -251,7 +255,7 @@ def savingInputParameters():
                                         window, it will be rejected in the PSTH computation step.<br>
                                         - Baseline parameters must be within the PSTH parameters 
                                         set in the PSTH parameters section.
-                                        """, width=500)
+                                        """, width=580)
 
     baselineCorrectionStart = pn.widgets.LiteralInput(name='Baseline Correction Start time(int)', value=-5, type=int, width=200)
 
@@ -260,24 +264,23 @@ def savingInputParameters():
     zscore_param_wd = pn.WidgetBox("### Z-score Parameters", explain_z_score,
                                                             z_score_computation,
                                                             pn.Row(baseline_wd_strt, baseline_wd_end),
-                                                            width=500, height=350)
+                                                            width=600)
 
     psth_param_wd = pn.WidgetBox("### PSTH Parameters", explain_nsec, 
                                                         pn.Row(nSecPrev, nSecPost, computeCorr), 
                                                         pn.Row(timeInterval, use_time_or_trials, bin_psth_trials), 
-                                                        width=500, height=350)
+                                                        width=600)
 
     baseline_param_wd = pn.WidgetBox("### Baseline Parameters", explain_baseline, 
                                     pn.Row(baselineCorrectionStart, baselineCorrectionEnd), 
-                                    width=500, height=300)
-
+                                    width=600)
     peak_explain = pn.pane.Markdown("""
                                     ***Note :***<br>
                                     - Peak and area are computed between the window set below.<br>
                                     - Peak and AUC parameters must be within the PSTH parameters set in the PSTH parameters section.<br>
                                     - Please make sure when user changes the parameters in the table below, click on any other cell after 
                                     changing a value in a particular cell.
-                                    """, width=500)
+                                    """, width=580)
 
 
     start_end_point_df = pd.DataFrame({'Peak Start time': [-5, 0, 5, np.nan, np.nan, 
@@ -285,25 +288,26 @@ def savingInputParameters():
                                     'Peak End time': [0, 3, 10, np.nan, np.nan, 
                                                     np.nan, np.nan, np.nan, np.nan, np.nan]})
 
-    df_widget = pn.widgets.Tabulator(start_end_point_df, name='DataFrame', show_index=False, row_height=20, width=450)
+    df_widget = pn.widgets.Tabulator(start_end_point_df, name='DataFrame', 
+                                     show_index=False, widths=280)
 
 
     peak_param_wd = pn.WidgetBox("### Peak and AUC Parameters", 
                                 peak_explain, df_widget,
-                                height=400)
+                                width=600)
 
 
 
     mark_down_2 = pn.pane.Markdown("""**Select folders for the average analysis from the file selector below**""", width=600)
 
-    files_2 = pn.widgets.FileSelector(folder_path, name='folderNamesForAvg', height=300, width=800)
+    files_2 = pn.widgets.FileSelector(folder_path, name='folderNamesForAvg', width=950)
 
-    averageForGroup = pn.widgets.Select(name='Average Group? (bool)', value=False, options=[True, False], width=400)
+    averageForGroup = pn.widgets.Select(name='Average Group? (bool)', value=False, options=[True, False], width=435)
 
     visualizeAverageResults = pn.widgets.Select(name='Visualize Average Results? (bool)', 
-                                                value=False, options=[True, False], width=400)
+                                                value=False, options=[True, False], width=435)
 
-    visualize_zscore_or_dff = pn.widgets.Select(name='z-score or \u0394F/F? (for visualization)', options=['z_score', 'dff'], width=400)
+    visualize_zscore_or_dff = pn.widgets.Select(name='z-score or \u0394F/F? (for visualization)', options=['z_score', 'dff'], width=435)
 
     individual_analysis_wd_2 = pn.Column(
                                         explain_time_artifacts, pn.Row(numberOfCores, combine_data), 
@@ -315,7 +319,7 @@ def savingInputParameters():
 
     group_analysis_wd_1 = pn.Column(mark_down_2, files_2, averageForGroup, width=800)
 
-    visualization_wd = pn.Row(visualize_zscore_or_dff, visualizeAverageResults, width=800)
+    visualization_wd = pn.Row(visualize_zscore_or_dff, pn.Spacer(width=60), visualizeAverageResults)
 
 
     def getInputParameters():
