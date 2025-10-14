@@ -126,16 +126,16 @@ def savingInputParameters():
         print("Read progress bar increment values stopped.")
         
     # progress bars = PB
-    read_progress = pn.indicators.Progress(name='Progress', value=100, max=100, width=200, sizing_mode="stretch_width")
-    extract_progress = pn.indicators.Progress(name='Progress', value=100, max=100, width=200, sizing_mode="stretch_width")
-    psth_progress = pn.indicators.Progress(name='Progress', value=100, max=100, width=200, sizing_mode="stretch_width")
+    read_progress = pn.indicators.Progress(name='Progress', value=100, max=100, width=300)
+    extract_progress = pn.indicators.Progress(name='Progress', value=100, max=100, width=300)
+    psth_progress = pn.indicators.Progress(name='Progress', value=100, max=100, width=300)
 
 
-    template = pn.template.MaterialTemplate(title='Input Parameters GUI')
+    template = pn.template.BootstrapTemplate(title='Input Parameters GUI')
 
     mark_down_1 = pn.pane.Markdown("""**Select folders for the analysis from the file selector below**""", width=600)
 
-    files_1 = pn.widgets.FileSelector(folder_path, name='folderNames', height=300, width=800)
+    files_1 = pn.widgets.FileSelector(folder_path, name='folderNames', width=950)
 
 
     explain_time_artifacts = pn.pane.Markdown("""
@@ -169,15 +169,15 @@ def savingInputParameters():
                                                 chunks and concatenate the selected good chunks together.
                                                 Selecting ```replace with NaN``` will replace bad chunks with NaN
                                                 values.
-                                                """)
+                                                """, width=350)
 
-    timeForLightsTurnOn = pn.widgets.LiteralInput(name='Eliminate first few seconds (int)', value=1, type=int, width=250)
+    timeForLightsTurnOn = pn.widgets.LiteralInput(name='Eliminate first few seconds (int)', value=1, type=int, width=350)
 
-    isosbestic_control = pn.widgets.Select(name='Isosbestic Control Channel? (bool)', value=True, options=[True, False], width=250)
+    isosbestic_control = pn.widgets.Select(name='Isosbestic Control Channel? (bool)', value=True, options=[True, False], width=320)
 
-    numberOfCores = pn.widgets.LiteralInput(name='# of cores (int)', value=2, type=int, width=100)
+    numberOfCores = pn.widgets.LiteralInput(name='# of cores (int)', value=2, type=int, width=150)
 
-    combine_data = pn.widgets.Select(name='Combine Data? (bool)', value=False, options=[True, False], width=125)
+    combine_data = pn.widgets.Select(name='Combine Data? (bool)', value=False, options=[True, False], width=150)
 
     computePsth = pn.widgets.Select(name='z_score and/or \u0394F/F? (psth)', options=['z_score', 'dff', 'Both'], width=250)
 
@@ -459,25 +459,24 @@ def savingInputParameters():
         
 
         
-    mark_down_ip = pn.pane.Markdown("""**Step 1 : Save Input Parameters**""", width=500)
+    mark_down_ip = pn.pane.Markdown("""**Step 1 : Save Input Parameters**""", width=300)
     mark_down_ip_note = pn.pane.Markdown("""***Note : ***<br>
                                             - Save Input Parameters will save input parameters used for the analysis
                                             in all the folders you selected for the analysis (useful for future
                                             reference). All analysis steps will run without saving input parameters.
-                                        """, width=500, sizing_mode="stretch_width")
-    save_button = pn.widgets.Button(name='Save to file...', button_type='primary', width=500, sizing_mode="stretch_width", align='end')
-    mark_down_storenames = pn.pane.Markdown("""**Step 2 : Open Storenames GUI <br> and save storenames**""", width=500)
-    open_storesList = pn.widgets.Button(name='Open Storenames GUI', button_type='primary', width=500, sizing_mode="stretch_width", align='end')
-    mark_down_read = pn.pane.Markdown("""**Step 3 : Read Raw Data**""", width=500)
-    read_rawData = pn.widgets.Button(name='Read Raw Data', button_type='primary', width=500, sizing_mode="stretch_width", align='end')
-    mark_down_extract = pn.pane.Markdown("""**Step 4 : Extract timestamps <br> and its correction**""", width=500)
-    extract_ts = pn.widgets.Button(name="Extract timestamps and it's correction", button_type='primary', width=500, sizing_mode="stretch_width", align='end')
-    mark_down_psth = pn.pane.Markdown("""**Step 5 : PSTH Computation**""", width=500)
-    psth_computation = pn.widgets.Button(name="PSTH Computation", button_type='primary', width=500, sizing_mode="stretch_width", align='end')
-    mark_down_visualization = pn.pane.Markdown("""**Step 6 : Visualization**""", width=500)
-    open_visualization = pn.widgets.Button(name='Open Visualization GUI', button_type='primary', width=500, sizing_mode="stretch_width", align='end')
-    open_terminal = pn.widgets.Button(name='Open Terminal', button_type='primary', width=500, sizing_mode="stretch_width", align='end')
-
+                                        """, width=300)
+    save_button = pn.widgets.Button(name='Save to file...', button_type='primary', width=300, align='end')
+    mark_down_storenames = pn.pane.Markdown("""**Step 2 : Open Storenames GUI <br> and save storenames**""", width=300)
+    open_storesList = pn.widgets.Button(name='Open Storenames GUI', button_type='primary', width=300, align='end')
+    mark_down_read = pn.pane.Markdown("""**Step 3 : Read Raw Data**""", width=300)
+    read_rawData = pn.widgets.Button(name='Read Raw Data', button_type='primary', width=300, align='end')
+    mark_down_extract = pn.pane.Markdown("""**Step 4 : Extract timestamps <br> and its correction**""", width=300)
+    extract_ts = pn.widgets.Button(name="Extract timestamps and it's correction", button_type='primary', width=300, align='end')
+    mark_down_psth = pn.pane.Markdown("""**Step 5 : PSTH Computation**""", width=300)
+    psth_computation = pn.widgets.Button(name="PSTH Computation", button_type='primary', width=300, align='end')
+    mark_down_visualization = pn.pane.Markdown("""**Step 6 : Visualization**""", width=300)
+    open_visualization = pn.widgets.Button(name='Open Visualization GUI', button_type='primary', width=300, align='end')
+    open_terminal = pn.widgets.Button(name='Open Terminal', button_type='primary', width=300, align='end')
 
     save_button.on_click(onclickProcess)
     open_storesList.on_click(onclickStoresList)
@@ -513,9 +512,9 @@ def savingInputParameters():
 
     #file_selector = pn.WidgetBox(files_1)
     styles = dict(background='WhiteSmoke')
-    individual = pn.Card(widget, title='Individual Analysis', styles=styles, width=850)
-    group = pn.Card(group_analysis_wd_1, title='Group Analysis', styles=styles, width=850)
-    visualize = pn.Card(visualization_wd, title='Visualization Parameters', styles=styles, width=850)
+    individual = pn.Card(widget, title='Individual Analysis', styles=styles, width=1000)
+    group = pn.Card(group_analysis_wd_1, title='Group Analysis', styles=styles, width=1000)
+    visualize = pn.Card(visualization_wd, title='Visualization Parameters', styles=styles, width=1000)
 
     #template.main.append(file_selector)
     template.main.append(individual)
