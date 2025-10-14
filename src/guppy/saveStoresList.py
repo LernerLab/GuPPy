@@ -22,7 +22,7 @@ import tkinter as tk
 from tkinter import ttk, StringVar, messagebox
 
 #hv.extension()
-pn.extension('ace')
+pn.extension()
 
 def scanPortsAndFind(start_port=5000, end_port=5200, host='127.0.0.1'):
     while True:
@@ -206,7 +206,7 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
                     Signal= “signal_region” (ex: Dv2A= signal_DMS)<br>
                     TTLs can be named using any convention (ex: PrtR = RewardedPortEntries) but should be kept consistent for later group analysis
                     
-                ```{.python}
+                ```
                 {"storenames": ["Dv1A", "Dv2A", 
                                 "Dv3B", "Dv4B", 
                                 "LNRW", "LNnR", 
@@ -234,10 +234,11 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
     
 
     # creating different buttons and selectors for the GUI
-    cross_selector = pn.widgets.CrossSelector(name='Store Names Selection', value=[], options=allnames)
+    cross_selector = pn.widgets.CrossSelector(name='Store Names Selection', value=[], options=allnames, width=600)
     multi_choice = pn.widgets.MultiChoice(name='Select Storenames which you want more than once (multi-choice: multiple options selection)', value=[], options=allnames)
 
-    literal_input_1 = pn.widgets.LiteralInput(name='Number of times you want the above storename (list)', value=[], type=list)
+    literal_input_1 = pn.widgets.LiteralInput(name='Number of times you want the above storename (list)', 
+                                              value=[], type=list)
     #literal_input_2 = pn.widgets.LiteralInput(name='Names for Storenames (list)', type=list)
 
     repeat_storenames = pn.widgets.Checkbox(name='Storenames to repeat', value=False)
@@ -250,26 +251,32 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
     repeat_storenames.link(repeat_storename_wd, callbacks={'value': callback})
     #repeat_storename_wd = pn.WidgetBox('Storenames to repeat (leave blank if not needed)', multi_choice, literal_input_1, background="white", width=600)
 
-    update_options = pn.widgets.Button(name='Select Storenames')
-    save = pn.widgets.Button(name='Save')
+    update_options = pn.widgets.Button(name='Select Storenames', width=600)
+    save = pn.widgets.Button(name='Save', width=600)
 
-    text = pn.widgets.LiteralInput(value=[], name='Selected Store Names', type=list, width=500)
+    text = pn.widgets.LiteralInput(value=[], name='Selected Store Names', type=list, width=600)
 
-    path = pn.widgets.TextInput(name='Location to Stores List file', width=500)
+    path = pn.widgets.TextInput(name='Location to Stores List file', width=600)
 
     mark_down_for_overwrite = pn.pane.Markdown(""" Select option from below if user wants to over-write a file or create a new file. 
                                     **Creating a new file will make a new ouput folder and will get saved at that location.**
                                     If user selects to over-write a file **Select location of the file to over-write** will provide 
-                                    the existing options of the ouput folders where user needs to over-write the file""")
+                                    the existing options of the ouput folders where user needs to over-write the file""", width=600)
 
-    select_location = pn.widgets.Select(name='Select location of the file to over-write', value='None', options=['None'], align='end')
+    select_location = pn.widgets.Select(name='Select location of the file to over-write', 
+                                        value='None', options=['None'], width=600)
 
 
-    overwrite_button = pn.widgets.MenuButton(name='over-write storeslist file or create a new one?  ', items=['over_write_file', 'create_new_file'], button_type='default', split=True, align='end')
+    overwrite_button = pn.widgets.MenuButton(name='over-write storeslist file or create a new one?  ', 
+                                             items=['over_write_file', 'create_new_file'], 
+                                             button_type='default', split=True, width=600)
     
-    literal_input_2 = pn.widgets.CodeEditor(value="""{}""", sizing_mode='stretch_both', theme='tomorrow', language='json', height=250)
+    literal_input_2 = pn.widgets.CodeEditor(value="""{}""", 
+                                            theme='tomorrow', 
+                                            language='json', 
+                                            height=250, width=600)
 
-    alert = pn.pane.Alert('#### No alerts !!', alert_type='danger', height=80)
+    alert = pn.pane.Alert('#### No alerts !!', alert_type='danger', height=80, width=600)
 
 
     take_widgets = pn.WidgetBox(
@@ -362,7 +369,7 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
     
     # Panel-based storename configuration (replaces Tkinter dialog)
     storename_config_widgets = pn.Column(visible=False)
-    show_config_button = pn.widgets.Button(name='Show Selected Configuration', button_type='primary')
+    show_config_button = pn.widgets.Button(name='Show Selected Configuration', width=600)
     
     # on clicking 'Select Storenames' button, following function is executed  
     def update_values(event):
