@@ -15,10 +15,11 @@ from itertools import repeat
 import multiprocessing as mp
 from scipy import signal as ss
 from collections import OrderedDict
-from preprocess import get_all_stores_for_combining_data
-from computeCorr import computeCrossCorrelation
-from computeCorr import getCorrCombinations
-from computeCorr import make_dir
+from pathlib import Path
+from .preprocess import get_all_stores_for_combining_data
+from .computeCorr import computeCrossCorrelation
+from .computeCorr import getCorrCombinations
+from .computeCorr import make_dir
 
 def takeOnlyDirs(paths):
 	removePaths = []
@@ -28,7 +29,7 @@ def takeOnlyDirs(paths):
 	return list(set(paths)-set(removePaths))
 
 def insertLog(text, level):
-    file = os.path.join('.','..','guppy.log')
+    file = os.path.join(Path.home(), 'guppy.log')
     format = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
     infoLog = logging.FileHandler(file)
     infoLog.setFormatter(format)
@@ -772,12 +773,10 @@ def psthForEachStorename(inputParameters):
 	print("PSTH, Area and Peak are computed for all events.")
 	return inputParameters
 
-if __name__ == "__main__":
+def main(input_parameters):
 	try:
-		inputParameters = psthForEachStorename(json.loads(sys.argv[1]))
-		subprocess.call(["python", 
-		   				os.path.join(inputParameters["curr_dir"],"GuPPy","findTransientsFreqAndAmp.py"), 
-						json.dumps(inputParameters)])
+		inputParameters = psthForEachStorename(input_parameters)
+		subprocess.call([sys.executable, "-m", "guppy.findTransientsFreqAndAmp", json.dumps(inputParameters)])
 		insertLog('#'*400, logging.INFO)
 	except Exception as e:
 		with open(os.path.join(os.path.expanduser('~'), 'pbSteps.txt'), 'a') as file:
@@ -785,4 +784,6 @@ if __name__ == "__main__":
 		insertLog(str(e), logging.ERROR)
 		raise e
 
-	
+if __name__ == "__main__":
+	input_parameters = json.loads(sys.argv[1])
+	main(input_parameters=input_parameters)

@@ -5,3 +5,4 @@ GuPPy/.DS_Store
 z-score_methods.tgn
 GuPPy/runFiberPhotometryAnalysis.ipynb
 .vscode/
+*.egg-info/

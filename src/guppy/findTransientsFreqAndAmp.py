@@ -11,7 +11,8 @@ import multiprocessing as mp
 from scipy.signal import argrelextrema
 import matplotlib.pyplot as plt
 from itertools import repeat
-from preprocess import get_all_stores_for_combining_data
+from pathlib import Path
+from .preprocess import get_all_stores_for_combining_data
 
 def takeOnlyDirs(paths):
 	removePaths = []
@@ -21,7 +22,7 @@ def takeOnlyDirs(paths):
 	return list(set(paths)-set(removePaths))
 
 def insertLog(text, level):
-    file = os.path.join('.','..','guppy.log')
+    file = os.path.join(Path.home(), 'guppy.log')
     format = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
     infoLog = logging.FileHandler(file)
     infoLog.setFormatter(format)
@@ -382,5 +383,3 @@ if __name__ == "__main__":
 			file.write(str(-1)+"\n")
 		insertLog(str(e), logging.ERROR)
 		raise e
-
-
