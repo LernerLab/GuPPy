@@ -77,7 +77,6 @@ def helper_create_control_channel(signal, timestamps, window):
 		popt, pcov = curve_fit(curveFitFn, timestamps, filtered_signal, p0)
 	except Exception as e:
 		logger.error(str(e))
-		logger.info(e)
 
 	#logger.info('Curve Fit Parameters : ', popt)
 	control = curveFitFn(timestamps,*popt)
