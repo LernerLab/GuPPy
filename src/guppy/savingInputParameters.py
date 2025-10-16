@@ -134,16 +134,16 @@ def savingInputParameters():
         print("Read progress bar increment values stopped.")
         
     # progress bars = PB
-    read_progress = pn.indicators.Progress(name='Progress', value=100, max=100, width=200, sizing_mode="stretch_width")
-    extract_progress = pn.indicators.Progress(name='Progress', value=100, max=100, width=200, sizing_mode="stretch_width")
-    psth_progress = pn.indicators.Progress(name='Progress', value=100, max=100, width=200, sizing_mode="stretch_width")
+    read_progress = pn.indicators.Progress(name='Progress', value=100, max=100, width=300)
+    extract_progress = pn.indicators.Progress(name='Progress', value=100, max=100, width=300)
+    psth_progress = pn.indicators.Progress(name='Progress', value=100, max=100, width=300)
 
 
-    template = pn.template.MaterialTemplate(title='Input Parameters GUI')
+    template = pn.template.BootstrapTemplate(title='Input Parameters GUI')
 
     mark_down_1 = pn.pane.Markdown("""**Select folders for the analysis from the file selector below**""", width=600)
 
-    files_1 = pn.widgets.FileSelector(folder_path, name='folderNames', height=300, width=800)
+    files_1 = pn.widgets.FileSelector(folder_path, name='folderNames', width=950)
 
 
     explain_time_artifacts = pn.pane.Markdown("""
@@ -177,43 +177,46 @@ def savingInputParameters():
                                                 chunks and concatenate the selected good chunks together.
                                                 Selecting ```replace with NaN``` will replace bad chunks with NaN
                                                 values.
-                                                """)
+                                                """, width=350)
 
-    timeForLightsTurnOn = pn.widgets.LiteralInput(name='Eliminate first few seconds (int)', value=1, type=int, width=250)
+    timeForLightsTurnOn = pn.widgets.LiteralInput(name='Eliminate first few seconds (int)', value=1, type=int, width=320)
 
-    isosbestic_control = pn.widgets.Select(name='Isosbestic Control Channel? (bool)', value=True, options=[True, False], width=250)
+    isosbestic_control = pn.widgets.Select(name='Isosbestic Control Channel? (bool)', value=True, options=[True, False], width=320)
 
-    numberOfCores = pn.widgets.LiteralInput(name='# of cores (int)', value=2, type=int, width=100)
+    numberOfCores = pn.widgets.LiteralInput(name='# of cores (int)', value=2, type=int, width=150)
 
-    combine_data = pn.widgets.Select(name='Combine Data? (bool)', value=False, options=[True, False], width=125)
+    combine_data = pn.widgets.Select(name='Combine Data? (bool)', value=False, options=[True, False], width=150)
 
-    computePsth = pn.widgets.Select(name='z_score and/or \u0394F/F? (psth)', options=['z_score', 'dff', 'Both'], width=250)
+    computePsth = pn.widgets.Select(name='z_score and/or \u0394F/F? (psth)', options=['z_score', 'dff', 'Both'], width=320)
 
-    transients = pn.widgets.Select(name='z_score and/or \u0394F/F? (transients)', options=['z_score', 'dff', 'Both'], width=250)
+    transients = pn.widgets.Select(name='z_score and/or \u0394F/F? (transients)', options=['z_score', 'dff', 'Both'], width=320)
 
-    plot_zScore_dff = pn.widgets.Select(name='z-score plot and/or \u0394F/F plot?', options=['z_score', 'dff', 'Both', 'None'], value='None', width=250)
+    plot_zScore_dff = pn.widgets.Select(name='z-score plot and/or \u0394F/F plot?', options=['z_score', 'dff', 'Both', 'None'], value='None', width=320)
 
-    moving_wd = pn.widgets.LiteralInput(name='Moving Window for transients detection (s) (int)', value=15, type=int, width=250)
+    moving_wd = pn.widgets.LiteralInput(name='Moving Window for transients detection (s) (int)', value=15, type=int, width=320)
 
-    highAmpFilt = pn.widgets.LiteralInput(name='HAFT (int)', value=2, type=int, width=120)
+    highAmpFilt = pn.widgets.LiteralInput(name='HAFT (int)', value=2, type=int, width=150)
 
-    transientsThresh = pn.widgets.LiteralInput(name='TD Thresh (int)', value=3, type=int, width=120)
+    transientsThresh = pn.widgets.LiteralInput(name='TD Thresh (int)', value=3, type=int, width=150)
 
-    moving_avg_filter = pn.widgets.LiteralInput(name='Window for Moving Average filter (int)', value=100, type=int, width=250)
+    moving_avg_filter = pn.widgets.LiteralInput(name='Window for Moving Average filter (int)', 
+                                                value=100, type=int, width=320)
 
-    removeArtifacts = pn.widgets.Select(name='removeArtifacts? (bool)', value=False, options=[True, False], width=125)
+    removeArtifacts = pn.widgets.Select(name='removeArtifacts? (bool)', 
+                                        value=False, options=[True, False], width=150)
 
     artifactsRemovalMethod = pn.widgets.Select(name='removeArtifacts method', 
                                             value='concatenate', 
                                             options=['concatenate', 'replace with NaN'],
-                                            width=100)
+                                            width=150)
 
     no_channels_np = pn.widgets.LiteralInput(name='Number of channels (Neurophotometrics only)',
-                                            value=2, type=int, width=250)
+                                            value=2, type=int, width=320)
 
     z_score_computation = pn.widgets.Select(name='z-score computation Method', 
                                             options=['standard z-score', 'baseline z-score', 'modified z-score'], 
                                             value='standard z-score', width=200)
+    
     baseline_wd_strt = pn.widgets.LiteralInput(name='Baseline Window Start Time (s) (int)', value=0, type=int, width=200)
     baseline_wd_end = pn.widgets.LiteralInput(name='Baseline Window End Time (s) (int)', value=0, type=int, width=200)
 
@@ -224,7 +227,7 @@ def savingInputParameters():
                                     their data.<br>
                                     - Baseline Window Parameters should be kept 0 unless you are using baseline<br> 
                                     z-score computation method. The parameters are in seconds.
-                                    """, width=500)
+                                    """, width=580)
 
     explain_nsec = pn.pane.Markdown("""
                                     - ***Time Interval :*** To omit bursts of event timestamps, user defined time interval
@@ -233,7 +236,7 @@ def savingInputParameters():
                                     - ***Compute Cross-correlation :*** Make this parameter ```True```, when user wants
                                     to compute cross-correlation between PSTHs of two different signals or signals 
                                     recorded from different brain regions.
-                                    """, width=500)
+                                    """, width=580)
 
     nSecPrev = pn.widgets.LiteralInput(name='Seconds before 0 (int)', value=-10, type=int,  width=120)
 
@@ -241,7 +244,7 @@ def savingInputParameters():
 
     computeCorr = pn.widgets.Select(name='Compute Cross-correlation (bool)', 
                                             options=[True, False], 
-                                            value=False, width=160)
+                                            value=False, width=200)
 
     timeInterval = pn.widgets.LiteralInput(name='Time Interval (s)', value=2, type=int,  width=120)
 
@@ -249,7 +252,8 @@ def savingInputParameters():
                                         options = ['Time (min)', '# of trials'],
                                         value='Time (min)', width=120)
 
-    bin_psth_trials = pn.widgets.LiteralInput(name='Time(min) / # of trials \n for binning? (int)', value=0, type=int,  width=160)
+    bin_psth_trials = pn.widgets.LiteralInput(name='Time(min) / # of trials \n for binning? (int)', 
+                                              value=0, type=int,  width=200)
 
     explain_baseline = pn.pane.Markdown("""
                                         ***Note :***<br>
@@ -259,7 +263,7 @@ def savingInputParameters():
                                         window, it will be rejected in the PSTH computation step.<br>
                                         - Baseline parameters must be within the PSTH parameters 
                                         set in the PSTH parameters section.
-                                        """, width=500)
+                                        """, width=580)
 
     baselineCorrectionStart = pn.widgets.LiteralInput(name='Baseline Correction Start time(int)', value=-5, type=int, width=200)
 
@@ -268,24 +272,23 @@ def savingInputParameters():
     zscore_param_wd = pn.WidgetBox("### Z-score Parameters", explain_z_score,
                                                             z_score_computation,
                                                             pn.Row(baseline_wd_strt, baseline_wd_end),
-                                                            width=500, height=350)
+                                                            width=600)
 
     psth_param_wd = pn.WidgetBox("### PSTH Parameters", explain_nsec, 
                                                         pn.Row(nSecPrev, nSecPost, computeCorr), 
                                                         pn.Row(timeInterval, use_time_or_trials, bin_psth_trials), 
-                                                        width=500, height=350)
+                                                        width=600)
 
     baseline_param_wd = pn.WidgetBox("### Baseline Parameters", explain_baseline, 
                                     pn.Row(baselineCorrectionStart, baselineCorrectionEnd), 
-                                    width=500, height=300)
-
+                                    width=600)
     peak_explain = pn.pane.Markdown("""
                                     ***Note :***<br>
                                     - Peak and area are computed between the window set below.<br>
                                     - Peak and AUC parameters must be within the PSTH parameters set in the PSTH parameters section.<br>
                                     - Please make sure when user changes the parameters in the table below, click on any other cell after 
                                     changing a value in a particular cell.
-                                    """, width=500)
+                                    """, width=580)
 
 
     start_end_point_df = pd.DataFrame({'Peak Start time': [-5, 0, 5, np.nan, np.nan, 
@@ -293,25 +296,26 @@ def savingInputParameters():
                                     'Peak End time': [0, 3, 10, np.nan, np.nan, 
                                                     np.nan, np.nan, np.nan, np.nan, np.nan]})
 
-    df_widget = pn.widgets.Tabulator(start_end_point_df, name='DataFrame', show_index=False, row_height=20, width=450)
+    df_widget = pn.widgets.Tabulator(start_end_point_df, name='DataFrame', 
+                                     show_index=False, widths=280)
 
 
     peak_param_wd = pn.WidgetBox("### Peak and AUC Parameters", 
                                 peak_explain, df_widget,
-                                height=400)
+                                width=600)
 
 
 
     mark_down_2 = pn.pane.Markdown("""**Select folders for the average analysis from the file selector below**""", width=600)
 
-    files_2 = pn.widgets.FileSelector(folder_path, name='folderNamesForAvg', height=300, width=800)
+    files_2 = pn.widgets.FileSelector(folder_path, name='folderNamesForAvg', width=950)
 
-    averageForGroup = pn.widgets.Select(name='Average Group? (bool)', value=False, options=[True, False], width=400)
+    averageForGroup = pn.widgets.Select(name='Average Group? (bool)', value=False, options=[True, False], width=435)
 
     visualizeAverageResults = pn.widgets.Select(name='Visualize Average Results? (bool)', 
-                                                value=False, options=[True, False], width=400)
+                                                value=False, options=[True, False], width=435)
 
-    visualize_zscore_or_dff = pn.widgets.Select(name='z-score or \u0394F/F? (for visualization)', options=['z_score', 'dff'], width=400)
+    visualize_zscore_or_dff = pn.widgets.Select(name='z-score or \u0394F/F? (for visualization)', options=['z_score', 'dff'], width=435)
 
     individual_analysis_wd_2 = pn.Column(
                                         explain_time_artifacts, pn.Row(numberOfCores, combine_data), 
@@ -323,7 +327,7 @@ def savingInputParameters():
 
     group_analysis_wd_1 = pn.Column(mark_down_2, files_2, averageForGroup, width=800)
 
-    visualization_wd = pn.Row(visualize_zscore_or_dff, visualizeAverageResults, width=800)
+    visualization_wd = pn.Row(visualize_zscore_or_dff, pn.Spacer(width=60), visualizeAverageResults)
 
 
     def getInputParameters():
@@ -467,25 +471,24 @@ def savingInputParameters():
         
 
         
-    mark_down_ip = pn.pane.Markdown("""**Step 1 : Save Input Parameters**""", width=500)
+    mark_down_ip = pn.pane.Markdown("""**Step 1 : Save Input Parameters**""", width=300)
     mark_down_ip_note = pn.pane.Markdown("""***Note : ***<br>
                                             - Save Input Parameters will save input parameters used for the analysis
                                             in all the folders you selected for the analysis (useful for future
                                             reference). All analysis steps will run without saving input parameters.
-                                        """, width=500, sizing_mode="stretch_width")
-    save_button = pn.widgets.Button(name='Save to file...', button_type='primary', width=500, sizing_mode="stretch_width", align='end')
-    mark_down_storenames = pn.pane.Markdown("""**Step 2 : Open Storenames GUI <br> and save storenames**""", width=500)
-    open_storesList = pn.widgets.Button(name='Open Storenames GUI', button_type='primary', width=500, sizing_mode="stretch_width", align='end')
-    mark_down_read = pn.pane.Markdown("""**Step 3 : Read Raw Data**""", width=500)
-    read_rawData = pn.widgets.Button(name='Read Raw Data', button_type='primary', width=500, sizing_mode="stretch_width", align='end')
-    mark_down_extract = pn.pane.Markdown("""**Step 4 : Extract timestamps <br> and its correction**""", width=500)
-    extract_ts = pn.widgets.Button(name="Extract timestamps and it's correction", button_type='primary', width=500, sizing_mode="stretch_width", align='end')
-    mark_down_psth = pn.pane.Markdown("""**Step 5 : PSTH Computation**""", width=500)
-    psth_computation = pn.widgets.Button(name="PSTH Computation", button_type='primary', width=500, sizing_mode="stretch_width", align='end')
-    mark_down_visualization = pn.pane.Markdown("""**Step 6 : Visualization**""", width=500)
-    open_visualization = pn.widgets.Button(name='Open Visualization GUI', button_type='primary', width=500, sizing_mode="stretch_width", align='end')
-    open_terminal = pn.widgets.Button(name='Open Terminal', button_type='primary', width=500, sizing_mode="stretch_width", align='end')
-
+                                        """, width=300)
+    save_button = pn.widgets.Button(name='Save to file...', button_type='primary', width=300, align='end')
+    mark_down_storenames = pn.pane.Markdown("""**Step 2 : Open Storenames GUI <br> and save storenames**""", width=300)
+    open_storesList = pn.widgets.Button(name='Open Storenames GUI', button_type='primary', width=300, align='end')
+    mark_down_read = pn.pane.Markdown("""**Step 3 : Read Raw Data**""", width=300)
+    read_rawData = pn.widgets.Button(name='Read Raw Data', button_type='primary', width=300, align='end')
+    mark_down_extract = pn.pane.Markdown("""**Step 4 : Extract timestamps <br> and its correction**""", width=300)
+    extract_ts = pn.widgets.Button(name="Extract timestamps and it's correction", button_type='primary', width=300, align='end')
+    mark_down_psth = pn.pane.Markdown("""**Step 5 : PSTH Computation**""", width=300)
+    psth_computation = pn.widgets.Button(name="PSTH Computation", button_type='primary', width=300, align='end')
+    mark_down_visualization = pn.pane.Markdown("""**Step 6 : Visualization**""", width=300)
+    open_visualization = pn.widgets.Button(name='Open Visualization GUI', button_type='primary', width=300, align='end')
+    open_terminal = pn.widgets.Button(name='Open Terminal', button_type='primary', width=300, align='end')
 
     save_button.on_click(onclickProcess)
     open_storesList.on_click(onclickStoresList)
@@ -521,9 +524,9 @@ def savingInputParameters():
 
     #file_selector = pn.WidgetBox(files_1)
     styles = dict(background='WhiteSmoke')
-    individual = pn.Card(widget, title='Individual Analysis', styles=styles, width=850)
-    group = pn.Card(group_analysis_wd_1, title='Group Analysis', styles=styles, width=850)
-    visualize = pn.Card(visualization_wd, title='Visualization Parameters', styles=styles, width=850)
+    individual = pn.Card(widget, title='Individual Analysis', styles=styles, width=1000)
+    group = pn.Card(group_analysis_wd_1, title='Group Analysis', styles=styles, width=1000)
+    visualize = pn.Card(visualization_wd, title='Visualization Parameters', styles=styles, width=1000)
 
     #template.main.append(file_selector)
     template.main.append(individual)
