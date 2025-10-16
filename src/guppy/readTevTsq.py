@@ -6,13 +6,13 @@ import time
 import glob
 import h5py
 import warnings
-import logging
 from itertools import repeat
 import numpy as np
 import pandas as pd
 from numpy import int32, uint32, uint8, uint16, float64, int64, int32, float32
 import multiprocessing as mp
 from pathlib import Path
+from .logging_config import logger
 
 def takeOnlyDirs(paths):
 	removePaths = []
@@ -21,29 +21,6 @@ def takeOnlyDirs(paths):
 			removePaths.append(p)
 	return list(set(paths)-set(removePaths))
 
-def insertLog(text, level):
-    file = os.path.join(Path.home(), 'guppy.log')
-    format = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-    infoLog = logging.FileHandler(file)
-    infoLog.setFormatter(format)
-    infoLog
-    logger = logging.getLogger(file)
-    logger.setLevel(level)
-    
-    if not logger.handlers:
-        logger.addHandler(infoLog)
-        if level == logging.DEBUG:
-            logger.debug(text)
-        if level == logging.INFO:
-            logger.info(text)
-        if level == logging.ERROR:
-            logger.exception(text)
-        if level == logging.WARNING:
-            logger.warning(text)
-    
-    infoLog.close()
-    logger.removeHandler(infoLog)
-
 def writeToFile(value: str):
 	with open(os.path.join(os.path.expanduser('~'), 'pbSteps.txt'), 'a') as file:
 		file.write(value)
@@ -51,7 +28,7 @@ def writeToFile(value: str):
 # functino to read tsq file
 def readtsq(filepath):
 	print("Trying to read tsq file.")
-	insertLog("Trying to read tsq file.", logging.DEBUG)
+	logger.debug("Trying to read tsq file.")
 	names = ('size', 'type', 'name', 'chan', 'sort_code', 'timestamp',
 	     	'fp_loc', 'strobe', 'format', 'frequency')
 	formats = (int32, int32, 'S4', uint16, uint16, float64, int64,
@@ -61,11 +38,10 @@ def readtsq(filepath):
 	                      'offsets': offsets}, align=True)
 	path = glob.glob(os.path.join(filepath, '*.tsq'))
 	if len(path)>1:
-		insertLog('Two tsq files are present at the location.',
-	    		  logging.ERROR)
+		logger.error('Two tsq files are present at the location.')
 		raise Exception('Two tsq files are present at the location.')
 	elif len(path)==0:
-		insertLog("\033[1m"+"tsq file not found."+"\033[1m", logging.INFO)
+		logger.info("\033[1m"+"tsq file not found."+"\033[1m")
 		print("\033[1m"+"tsq file not found."+"\033[1m")
 		return 0, 0
 	else:
@@ -78,14 +54,14 @@ def readtsq(filepath):
 	# creating dataframe of the data
 	df = pd.DataFrame(tsq)
 
-	insertLog("Data from tsq file fetched.", logging.INFO)
+	logger.info("Data from tsq file fetched.")
 	print("Data from tsq file fetched.")
 	return df, flag
 
 # function to check if doric file exists
 def check_doric(filepath):
 	print("Checking if doric file exists.")
-	insertLog('Checking if doric file exists', logging.DEBUG)
+	logger.debug('Checking if doric file exists')
 	path = glob.glob(os.path.join(filepath, '*.csv')) + \
 		   glob.glob(os.path.join(filepath, '*.doric'))
 	
@@ -108,13 +84,13 @@ def check_doric(filepath):
 			pass
 
 	if len(flag_arr)>1:
-		insertLog('Two doric files are present at the same location', logging.ERROR)
+		logger.error('Two doric files are present at the same location')
 		raise Exception('Two doric files are present at the same location')
 	if len(flag_arr)==0:
-		insertLog("\033[1m"+"Doric file not found."+"\033[1m", logging.ERROR)
+		logger.error("\033[1m"+"Doric file not found."+"\033[1m")
 		print("\033[1m"+"Doric file not found."+"\033[1m")
 		return 0
-	insertLog('Doric file found.', logging.INFO)
+	logger.info('Doric file found.')
 	print('Doric file found.')
 	return flag_arr[0]
 		
@@ -163,11 +139,9 @@ def write_hdf5(data, event, filepath, key):
 # function to read event timestamps csv file.
 def import_csv(filepath, event, outputPath):
 	print("\033[1m"+"Trying to read data for {} from csv file.".format(event)+"\033[0m")
-	insertLog("\033[1m"+"Trying to read data for {} from csv file.".format(event)+"\033[0m", 
-	   			logging.DEBUG)
+	logger.debug("\033[1m"+"Trying to read data for {} from csv file.".format(event)+"\033[0m")
 	if not os.path.exists(os.path.join(filepath, event+'.csv')):
-		insertLog("\033[1m"+"No csv file found for event {}".format(event)+"\033[0m", 
-	    			logging.ERROR)
+		logger.error("\033[1m"+"No csv file found for event {}".format(event)+"\033[0m")
 		raise Exception("\033[1m"+"No csv file found for event {}".format(event)+"\033[0m")
 
 	df = pd.read_csv(os.path.join(filepath, event+'.csv'), index_col=False)
@@ -178,28 +152,24 @@ def import_csv(filepath, event, outputPath):
 		arr1 = np.array(['timestamps', 'data', 'sampling_rate'])
 		arr2 = np.char.lower(np.array(key))
 		if (np.sort(arr1)==np.sort(arr2)).all()==False:
-			insertLog("\033[1m"+"Column names should be timestamps, data and sampling_rate"+"\033[0m",
-	     				logging.ERROR)
+			logger.error("\033[1m"+"Column names should be timestamps, data and sampling_rate"+"\033[0m")
 			raise Exception("\033[1m"+"Column names should be timestamps, data and sampling_rate"+"\033[0m")
 
 	if len(key)==1:
 		if key[0].lower()!='timestamps':
-			insertLog("\033[1m"+"Column names should be timestamps, data and sampling_rate"+"\033[0m",
-	     				logging.ERROR)
+			logger.error("\033[1m"+"Column names should be timestamps, data and sampling_rate"+"\033[0m")
 			raise Exception("\033[1m"+"Column name should be timestamps"+"\033[0m")
 
 	if len(key)!=3 and len(key)!=1:
-		insertLog("\033[1m"+"Number of columns in csv file should be either three or one. Three columns if \
-						the file is for control or signal data or one column if the file is for event TTLs."+"\033[0m",
-						logging.ERROR)
+		logger.error("\033[1m"+"Number of columns in csv file should be either three or one. Three columns if \
+						the file is for control or signal data or one column if the file is for event TTLs."+"\033[0m")
 		raise Exception("\033[1m"+"Number of columns in csv file should be either three or one. Three columns if \
 						the file is for control or signal data or one column if the file is for event TTLs."+"\033[0m")
 		
 	for i in range(len(key)):
 		write_hdf5(data[key[i]].dropna(), event, outputPath, key[i].lower())
 
-	insertLog("\033[1m"+"Reading data for {} from csv file is completed.".format(event)+"\033[0m",
-	   			logging.INFO)
+	logger.info("\033[1m"+"Reading data for {} from csv file is completed.".format(event)+"\033[0m")
 	print("\033[1m"+"Reading data for {} from csv file is completed.".format(event)+"\033[0m")
 
 	return data, key
@@ -232,10 +202,8 @@ def check_data(S, filepath, event, outputPath):
 	if S['sampling_rate']==0 and np.all(diff==diff[0])==False:
 		print("\033[1m"+"Data in event {} belongs to multiple behavior".format(event)+"\033[0m")
 		print("\033[1m"+"Create timestamp files for individual new event and change the stores list file."+"\033[0m")
-		insertLog("\033[1m"+"Data in event {} belongs to multiple behavior".format(event)+"\033[0m",
-	    			logging.INFO)
-		insertLog("\033[1m"+"Create timestamp files for individual new event and change the stores list file."+"\033[0m",
-	    			logging.DEBUG)
+		logger.info("\033[1m"+"Data in event {} belongs to multiple behavior".format(event)+"\033[0m")
+		logger.debug("\033[1m"+"Create timestamp files for individual new event and change the stores list file."+"\033[0m")
 		i_d = np.unique(S['data'])
 		for i in range(i_d.shape[0]):
 			new_S = dict()
@@ -257,9 +225,8 @@ def check_data(S, filepath, event, outputPath):
 			pass 
 		else:
 			np.savetxt(os.path.join(outputPath, 'storesList.csv'), storesList, delimiter=",", fmt='%s')
-		insertLog("\033[1m"+"Timestamp files for individual new event are created \
-	    			and the stores list file is changed."+"\033[0m",
-	    			logging.INFO)
+		logger.info("\033[1m"+"Timestamp files for individual new event are created \
+	    			and the stores list file is changed."+"\033[0m")
 
 			
 
@@ -267,7 +234,7 @@ def check_data(S, filepath, event, outputPath):
 def readtev(data, filepath, event, outputPath):
 
 	print("Reading data for event {} ...".format(event))
-	insertLog("Reading data for event {} ...".format(event), logging.DEBUG)
+	logger.debug("Reading data for event {} ...".format(event))
 	tevfilepath = glob.glob(os.path.join(filepath, '*.tev'))
 	if len(tevfilepath)>1:
 		raise Exception('Two tev files are present at the location.')
@@ -349,7 +316,7 @@ def readtev(data, filepath, event, outputPath):
 	check_data(S, filepath, event, outputPath)
 
 	print("Data for event {} fetched and stored.".format(event))
-	insertLog("Data for event {} fetched and stored.".format(event), logging.INFO)
+	logger.info("Data for event {} fetched and stored.".format(event))
 
 
 # function to execute readtev function using multiprocessing to make it faster
@@ -427,7 +394,7 @@ def access_data_doricV6(doric_file, storesList, outputPath):
 			regex = re.compile('(.*?)'+str(storesList[0,i])+'(.*?)')
 			idx = [i for i in range(len(decide_path)) if regex.match(decide_path[i])]
 			if len(idx)>1:
-				insertLog('More than one string matched (which should not be the case)', logging.ERROR)
+				logger.error('More than one string matched (which should not be the case)')
 				raise Exception('More than one string matched (which should not be the case)')
 			idx = idx[0]
 			data = np.array(doric_file[decide_path[idx]])
@@ -440,8 +407,7 @@ def access_data_doricV6(doric_file, storesList, outputPath):
 			regex = re.compile('(.*?)'+storesList[0,i]+'$')
 			idx = [i for i in range(len(decide_path)) if regex.match(decide_path[i])]
 			if len(idx)>1:
-				insertLog('More than one string matched (which should not be the case)',
-	      					logging.ERROR)
+				logger.error('More than one string matched (which should not be the case)')
 				raise Exception('More than one string matched (which should not be the case)')
 			idx = idx[0]
 			ttl = np.array(doric_file[decide_path[idx]])
@@ -455,8 +421,7 @@ def execute_import_doric(filepath, storesList, flag, outputPath):
 	if flag=='doric_csv':
 		path = glob.glob(os.path.join(filepath, '*.csv'))
 		if len(path)>1:
-			insertLog('An error occurred : More than one Doric csv file present at the location',
-	     				logging.ERROR)
+			logger.error('An error occurred : More than one Doric csv file present at the location')
 			raise Exception('More than one Doric csv file present at the location')
 		else:
 			df = pd.read_csv(path[0], header=1, index_col=False)
@@ -478,8 +443,7 @@ def execute_import_doric(filepath, storesList, flag, outputPath):
 	else:
 		path = glob.glob(os.path.join(filepath, '*.doric'))
 		if len(path)>1:
-			insertLog('An error occurred : More than one Doric file present at the location',
-	     				logging.ERROR)
+			logger.error('An error occurred : More than one Doric file present at the location')
 			raise Exception('More than one Doric file present at the location')
 		else:
 			with h5py.File(path[0], 'r') as f:
@@ -494,7 +458,7 @@ def readRawData(inputParameters):
 
 	
 	print('### Reading raw data... ###')
-	insertLog('### Reading raw data... ###', logging.DEBUG)
+	logger.debug('### Reading raw data... ###')
 	# get input parameters
 	inputParameters = inputParameters
 	folderNames = inputParameters['folderNames']
@@ -505,8 +469,8 @@ def readRawData(inputParameters):
 	elif numProcesses>mp.cpu_count():
 		print('Warning : # of cores parameter set is greater than the cores available \
 			   available in your machine')
-		insertLog('Warning : # of cores parameter set is greater than the cores available \
-			   available in your machine', logging.WARNING)
+		logger.warning('Warning : # of cores parameter set is greater than the cores available \
+			   available in your machine')
 		numProcesses = mp.cpu_count()-1
 	for i in range(len(folderNames)):
 		filepath = folderNames[i]
@@ -517,7 +481,7 @@ def readRawData(inputParameters):
 	for i in range(len(folderNames)):
 		filepath = folderNames[i]
 		print(filepath)
-		insertLog(f"### Reading raw data for folder {folderNames[i]}", logging.DEBUG)
+		logger.debug(f"### Reading raw data for folder {folderNames[i]}")
 		storesListPath =  takeOnlyDirs(glob.glob(os.path.join(filepath, '*_output_*')))
 		# reading tsq file
 		data, flag = readtsq(filepath)
@@ -546,20 +510,20 @@ def readRawData(inputParameters):
 
 			writeToFile(str(10+((step+1)*10))+'\n')
 			step += 1
-		insertLog(f"### Raw data for folder {folderNames[i]} fetched", logging.INFO)
+		logger.info(f"### Raw data for folder {folderNames[i]} fetched")
 	print("### Raw data fetched and saved.")
-	insertLog('Raw data fetched and saved.', logging.INFO)
-	insertLog("#" * 400, logging.INFO)
+	logger.info('Raw data fetched and saved.')
+	logger.info("#" * 400)
 
 def main(input_parameters):
 	print('run')
 	try:
 		readRawData(input_parameters)
-		insertLog('#'*400, logging.INFO)
+		logger.info('#'*400)
 	except Exception as e:
 		with open(os.path.join(os.path.expanduser('~'), 'pbSteps.txt'), 'a') as file:
 			file.write(str(-1)+"\n")
-		insertLog(f"An error occurred: {e}", logging.ERROR)
+		logger.error(f"An error occurred: {e}")
 		raise e
 
 if __name__ == "__main__":

@@ -5,7 +5,6 @@ import glob
 import time
 import re
 import fnmatch
-import logging
 import numpy as np
 import pandas as pd
 import h5py
@@ -17,6 +16,7 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import MultiCursor
 from pathlib import Path
 from .combineDataFn import processTimestampsForCombiningData
+from .logging_config import logger
 
 # Only set matplotlib backend if not in CI environment
 if not os.getenv('CI'):
@@ -28,29 +28,6 @@ def takeOnlyDirs(paths):
 		if os.path.isfile(p):
 			removePaths.append(p)
 	return list(set(paths)-set(removePaths))
-
-def insertLog(text, level):
-    file = os.path.join(Path.home(), 'guppy.log')
-    format = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-    infoLog = logging.FileHandler(file)
-    infoLog.setFormatter(format)
-    infoLog
-    logger = logging.getLogger(file)
-    logger.setLevel(level)
-    
-    if not logger.handlers:
-        logger.addHandler(infoLog)
-        if level == logging.DEBUG:
-            logger.debug(text)
-        if level == logging.INFO:
-            logger.info(text)
-        if level == logging.ERROR:
-            logger.exception(text)
-        if level == logging.WARNING:
-            logger.warning(text)
-    
-    infoLog.close()
-    logger.removeHandler(infoLog)
 
 def writeToFile(value: str):
 	with open(os.path.join(os.path.expanduser('~'), 'pbSteps.txt'), 'a') as file:
@@ -97,7 +74,7 @@ def helper_create_control_channel(signal, timestamps, window):
 	try:
 		popt, pcov = curve_fit(curveFitFn, timestamps, filtered_signal, p0)
 	except Exception as e:
-		insertLog(str(e), logging.ERROR)
+		logger.error(str(e))
 		print(e)
 
 	#print('Curve Fit Parameters : ', popt)
@@ -116,7 +93,7 @@ def create_control_channel(filepath, arr, window=5001):
 	for i in range(storesList.shape[0]):
 		event_name, event = storesList[i], storenames[i]
 		if 'control' in event_name.lower() and 'cntrl' in event.lower():
-			insertLog('Creating control channel from signal channel using curve-fitting', logging.DEBUG)
+			logger.debug('Creating control channel from signal channel using curve-fitting')
 			print('Creating control channel from signal channel using curve-fitting')
 			name = event_name.split('_')[-1]
 			signal = read_hdf5('signal_'+name, filepath, 'data')
@@ -134,7 +111,7 @@ def create_control_channel(filepath, arr, window=5001):
 			}
 			df = pd.DataFrame(d)
 			df.to_csv(os.path.join(os.path.dirname(filepath), event.lower()+'.csv'), index=False)
-			insertLog('Control channel from signal channel created using curve-fitting', logging.INFO)
+			logger.info('Control channel from signal channel created using curve-fitting')
 			print('Control channel from signal channel created using curve-fitting')
 
 
@@ -153,13 +130,11 @@ def add_control_channel(filepath, arr):
 			new_str = 'signal_'+str(name).lower()
 			find_signal = [True for i in storesList if i==new_str]
 			if len(find_signal)>1:
-				insertLog('Error in naming convention of files or Error in storesList file', logging.ERROR)
+				logger.error('Error in naming convention of files or Error in storesList file')
 				raise Exception('Error in naming convention of files or Error in storesList file')
 			if len(find_signal)==0:
-				insertLog("Isosbectic control channel parameter is set to False and still \
-							 	 storeslist file shows there is control channel present",
-								 logging.ERROR
-								 )
+				logger.error("Isosbectic control channel parameter is set to False and still \
+							 	 storeslist file shows there is control channel present")
 				raise Exception("Isosbectic control channel parameter is set to False and still \
 							 	 storeslist file shows there is control channel present")
 		else:
@@ -200,7 +175,7 @@ def read_hdf5(event, filepath, key):
 		with h5py.File(op, 'r') as f:
 			arr = np.asarray(f[key])
 	else:
-		insertLog(f"{event}.hdf5 file does not exist", logging.ERROR)
+		logger.error(f"{event}.hdf5 file does not exist")
 		raise Exception('{}.hdf5 file does not exist'.format(event))
 
 	return arr
@@ -261,8 +236,7 @@ def check_cntrl_sig_length(filepath, channels_arr, storenames, storesList):
 def timestampCorrection_csv(filepath, timeForLightsTurnOn, storesList):
 	
 	print("Correcting timestamps by getting rid of the first {} seconds and convert timestamps to seconds...".format(timeForLightsTurnOn))
-	insertLog(f"Correcting timestamps by getting rid of the first {timeForLightsTurnOn} seconds and convert timestamps to seconds",
-	   			logging.DEBUG)
+	logger.debug(f"Correcting timestamps by getting rid of the first {timeForLightsTurnOn} seconds and convert timestamps to seconds")
 	storenames = storesList[0,:]
 	storesList = storesList[1,:]
 
@@ -275,8 +249,7 @@ def timestampCorrection_csv(filepath, timeForLightsTurnOn, storesList):
 	try:
 		arr = np.asarray(arr).reshape(2,-1)
 	except:
-		insertLog('Error in saving stores list file or spelling mistake for control or signal',
-	    			logging.ERROR)
+		logger.error('Error in saving stores list file or spelling mistake for control or signal')
 		raise Exception('Error in saving stores list file or spelling mistake for control or signal')
 
 	indices = check_cntrl_sig_length(filepath, arr, storenames, storesList)
@@ -288,7 +261,7 @@ def timestampCorrection_csv(filepath, timeForLightsTurnOn, storesList):
 		idx = np.where(storesList==indices[i])[0]
 
 		if idx.shape[0]==0:
-			insertLog(f"{arr[0,i]} does not exist in the stores list file.", logging.ERROR)
+			logger.error(f"{arr[0,i]} does not exist in the stores list file.")
 			raise Exception('{} does not exist in the stores list file.'.format(arr[0,i]))
 
 		timestamp = read_hdf5(storenames[idx][0], filepath, 'timestamps')
@@ -302,10 +275,10 @@ def timestampCorrection_csv(filepath, timeForLightsTurnOn, storesList):
 			write_hdf5(np.asarray(sampling_rate), 'timeCorrection_'+name_1, filepath, 'sampling_rate')
 
 		else:
-			insertLog('Error in naming convention of files or Error in storesList file', logging.ERROR)
+			logger.error('Error in naming convention of files or Error in storesList file')
 			raise Exception('Error in naming convention of files or Error in storesList file')
 
-	insertLog("Timestamps corrected and converted to seconds.", logging.INFO)
+	logger.info("Timestamps corrected and converted to seconds.")
 	print("Timestamps corrected and converted to seconds.")
 
 
@@ -314,8 +287,7 @@ def timestampCorrection_csv(filepath, timeForLightsTurnOn, storesList):
 def timestampCorrection_tdt(filepath, timeForLightsTurnOn, storesList):
 
 	print("Correcting timestamps by getting rid of the first {} seconds and convert timestamps to seconds...".format(timeForLightsTurnOn))
-	insertLog(f"Correcting timestamps by getting rid of the first {timeForLightsTurnOn} seconds and convert timestamps to seconds",
-	   			logging.DEBUG)
+	logger.debug(f"Correcting timestamps by getting rid of the first {timeForLightsTurnOn} seconds and convert timestamps to seconds")
 	storenames = storesList[0,:]
 	storesList = storesList[1,:]
 
@@ -329,7 +301,7 @@ def timestampCorrection_tdt(filepath, timeForLightsTurnOn, storesList):
 	try:
 		arr = np.asarray(arr).reshape(2,-1)
 	except:
-		insertLog('Error in saving stores list file or spelling mistake for control or signal', logging.ERROR)
+		logger.error('Error in saving stores list file or spelling mistake for control or signal')
 		raise Exception('Error in saving stores list file or spelling mistake for control or signal')
 
 	indices = check_cntrl_sig_length(filepath, arr, storenames, storesList)
@@ -341,7 +313,7 @@ def timestampCorrection_tdt(filepath, timeForLightsTurnOn, storesList):
 		idx = np.where(storesList==indices[i])[0]
 
 		if idx.shape[0]==0:
-			insertLog(f"{arr[0,i]} does not exist in the stores list file.", logging.ERROR)
+			logger.error(f"{arr[0,i]} does not exist in the stores list file.")
 			raise Exception('{} does not exist in the stores list file.'.format(arr[0,i]))
 		
 		timestamp = read_hdf5(storenames[idx][0], filepath, 'timestamps')
@@ -365,10 +337,10 @@ def timestampCorrection_tdt(filepath, timeForLightsTurnOn, storesList):
 			write_hdf5(correctionIndex, 'timeCorrection_'+name_1, filepath, 'correctionIndex')
 			write_hdf5(np.asarray([sampling_rate]), 'timeCorrection_'+name_1, filepath, 'sampling_rate')
 		else:
-			insertLog('Error in naming convention of files or Error in storesList file', logging.ERROR)
+			logger.error('Error in naming convention of files or Error in storesList file')
 			raise Exception('Error in naming convention of files or Error in storesList file')
 
-	insertLog("Timestamps corrected and converted to seconds.", logging.INFO)
+	logger.info("Timestamps corrected and converted to seconds.")
 	print("Timestamps corrected and converted to seconds.")
 	#return timeRecStart, correctionIndex, timestampNew
 
@@ -419,7 +391,7 @@ def applyCorrection(filepath, timeForLightsTurnOn, event, displayName, naming):
 def decide_naming_convention_and_applyCorrection(filepath, timeForLightsTurnOn, event, displayName, storesList):
 
 	print("Applying correction of timestamps to the data and event timestamps...")
-	insertLog("Applying correction of timestamps to the data and event timestamps", logging.DEBUG)
+	logger.debug("Applying correction of timestamps to the data and event timestamps")
 	storesList = storesList[1,:]
 
 	arr = []
@@ -437,10 +409,10 @@ def decide_naming_convention_and_applyCorrection(filepath, timeForLightsTurnOn, 
 		if name_1==name_2:
 			applyCorrection(filepath, timeForLightsTurnOn, event, displayName, name_1)
 		else:
-			insertLog('Error in naming convention of files or Error in storesList file', logging.ERROR)
+			logger.error('Error in naming convention of files or Error in storesList file')
 			raise Exception('Error in naming convention of files or Error in storesList file')
 		
-	insertLog("Timestamps corrections applied to the data and event timestamps.", logging.INFO)
+	logger.info("Timestamps corrections applied to the data and event timestamps.")
 	print("Timestamps corrections applied to the data and event timestamps.")
 
 
@@ -530,7 +502,7 @@ def visualize(filepath, x, y1, y2, y3, plot_name, removeArtifacts):
 			ix, iy = event.xdata, event.ydata
 			print('x = %d, y = %d'%(
 			    ix, iy))
-			insertLog(f"x = {ix}, y = {iy}", logging.INFO)
+			logger.info(f"x = {ix}, y = {iy}")
 			y1_max, y1_min = np.amax(y1), np.amin(y1)
 			y2_max, y2_min = np.amax(y2), np.amin(y2)
 
@@ -555,7 +527,7 @@ def visualize(filepath, x, y1, y2, y3, plot_name, removeArtifacts):
 			if len(coords)>0:
 				print('x = %d, y = %d; deleted'%(
 			    	coords[-1][0], coords[-1][1]))
-				insertLog(f"x = {coords[-1][0]}, y = {coords[-1][1]}; deleted", logging.INFO)
+				logger.info(f"x = {coords[-1][0]}, y = {coords[-1][1]}; deleted")
 				del coords[-1]
 				ax1.lines[-1].remove()
 				ax2.lines[-1].remove()
@@ -571,7 +543,7 @@ def visualize(filepath, x, y1, y2, y3, plot_name, removeArtifacts):
 			name_1 = plot_name[0].split('_')[-1]
 			np.save(os.path.join(filepath, 'coordsForPreProcessing_'+name_1+'.npy'), coords)
 			print('Coordinates file saved at {}'.format(os.path.join(filepath, 'coordsForPreProcessing_'+name_1+'.npy')))
-			insertLog(f"Coordinates file saved at {os.path.join(filepath, 'coordsForPreProcessing_'+name_1+'.npy')}", logging.INFO)
+			logger.info(f"Coordinates file saved at {os.path.join(filepath, 'coordsForPreProcessing_'+name_1+'.npy')}")
 		fig.canvas.mpl_disconnect(cid)
 		coords = []
 
@@ -593,7 +565,7 @@ def visualizeControlAndSignal(filepath, removeArtifacts):
 	path = sorted(path_1 + path_2, key=str.casefold)
 	
 	if len(path)%2 != 0:
-		insertLog('There are not equal number of Control and Signal data', logging.ERROR)
+		logger.error('There are not equal number of Control and Signal data')
 		raise Exception('There are not equal number of Control and Signal data')
 	
 	path = np.asarray(path).reshape(2,-1)
@@ -625,7 +597,7 @@ def decide_naming_convention(filepath):
 	
 	path = sorted(path_1 + path_2, key=str.casefold)
 	if len(path)%2 != 0:
-		insertLog('There are not equal number of Control and Signal data', logging.ERROR)
+		logger.error('There are not equal number of Control and Signal data')
 		raise Exception('There are not equal number of Control and Signal data')
 	
 	path = np.asarray(path).reshape(2,-1)
@@ -644,7 +616,7 @@ def fetchCoords(filepath, naming, data):
 		coords = np.load(os.path.join(filepath, 'coordsForPreProcessing_'+naming+'.npy'))[:,0]
 
 	if coords.shape[0] % 2 != 0:
-		insertLog('Number of values in coordsForPreProcessing file is not even.', logging.ERROR)
+		logger.error('Number of values in coordsForPreProcessing file is not even.')
 		raise Exception('Number of values in coordsForPreProcessing file is not even.')
 
 	coords = coords.reshape(-1,2)
@@ -752,7 +724,7 @@ def removeTTLs(filepath, event, naming):
 def addingNaNtoChunksWithArtifacts(filepath, events):
 
 	print("Replacing chunks with artifacts by NaN values.")
-	insertLog("Replacing chunks with artifacts by NaN values.", logging.DEBUG)
+	logger.debug("Replacing chunks with artifacts by NaN values.")
 	storesList = events[1,:]
 
 	path = decide_naming_convention(filepath)
@@ -776,15 +748,15 @@ def addingNaNtoChunksWithArtifacts(filepath, events):
 						write_hdf5(ts, storesList[i]+'_'+name, filepath, 'ts')
 				
 		else:
-			insertLog('Error in naming convention of files or Error in storesList file', logging.ERROR)
+			logger.error('Error in naming convention of files or Error in storesList file')
 			raise Exception('Error in naming convention of files or Error in storesList file')
-	insertLog("Chunks with artifacts are replaced by NaN values.", logging.INFO)
+	logger.info("Chunks with artifacts are replaced by NaN values.")
 
 # main function to align timestamps for control, signal and event timestamps for artifacts removal
 def processTimestampsForArtifacts(filepath, timeForLightsTurnOn, events):
 
 	print("Processing timestamps to get rid of artifacts using concatenate method...")
-	insertLog("Processing timestamps to get rid of artifacts using concatenate method", logging.DEBUG)
+	logger.debug("Processing timestamps to get rid of artifacts using concatenate method")
 	storesList = events[1,:]
 	
 	path = decide_naming_convention(filepath)
@@ -813,9 +785,9 @@ def processTimestampsForArtifacts(filepath, timeForLightsTurnOn, events):
 			#timestamp_dict[name] = timestampNew
 			write_hdf5(timestampNew, 'timeCorrection_'+name, filepath, 'timestampNew')
 		else:
-			insertLog('Error in naming convention of files or Error in storesList file', logging.ERROR)
+			logger.error('Error in naming convention of files or Error in storesList file')
 			raise Exception('Error in naming convention of files or Error in storesList file')
-	insertLog("Timestamps processed, artifacts are removed and good chunks are concatenated.", logging.INFO)
+	logger.info("Timestamps processed, artifacts are removed and good chunks are concatenated.")
 	print("Timestamps processed, artifacts are removed and good chunks are concatenated.")
 
 
@@ -876,8 +848,8 @@ def z_score_computation(dff, timestamps, inputParameters):
 	elif zscore_method=='baseline z-score':
 		idx = np.where((timestamps>baseline_start) & (timestamps<baseline_end))[0]
 		if idx.shape[0]==0:
-			insertLog('Baseline Window Parameters for baseline z-score computation zscore_method \
-							are not correct.', logging.ERROR)
+			logger.error('Baseline Window Parameters for baseline z-score computation zscore_method \
+							are not correct.')
 			raise Exception('Baseline Window Parameters for baseline z-score computation zscore_method \
 							are not correct.')
 		else:
@@ -970,7 +942,7 @@ def helper_z_score(control, signal, filepath, name, inputParameters):     #helpe
 def compute_z_score(filepath, inputParameters):
 
 	print("Computing z-score for each of the data...")
-	insertLog(f"Computing z-score for each of the data in {filepath}", logging.DEBUG)
+	logger.debug(f"Computing z-score for each of the data in {filepath}")
 	remove_artifacts = inputParameters['removeArtifacts']
 
 
@@ -985,7 +957,7 @@ def compute_z_score(filepath, inputParameters):
 	a = 1
 
 	if len(path)%2 != 0:
-		insertLog('There are not equal number of Control and Signal data', logging.ERROR)
+		logger.error('There are not equal number of Control and Signal data')
 		raise Exception('There are not equal number of Control and Signal data')
 
 	path = np.asarray(path).reshape(2,-1)
@@ -1012,10 +984,10 @@ def compute_z_score(filepath, inputParameters):
 				write_hdf5(dff, 'dff_'+name, filepath, 'data')
 				write_hdf5(control_fit, 'cntrl_sig_fit_'+name, filepath, 'data')
 		else:
-			insertLog('Error in naming convention of files or Error in storesList file', logging.ERROR)
+			logger.error('Error in naming convention of files or Error in storesList file')
 			raise Exception('Error in naming convention of files or Error in storesList file')
 
-	insertLog(f"z-score for the data in {filepath} computed.", logging.INFO)
+	logger.info(f"z-score for the data in {filepath} computed.")
 	print("z-score for the data computed.")
 	
 
@@ -1030,7 +1002,7 @@ def execute_timestamp_correction(folderNames, inputParameters):
 		filepath = folderNames[i]
 		storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, '*_output_*')))
 		cond = check_TDT(folderNames[i])
-		insertLog(f"Timestamps corrections started for {filepath}", logging.DEBUG)
+		logger.debug(f"Timestamps corrections started for {filepath}")
 		for j in range(len(storesListPath)):
 			filepath = storesListPath[j]
 			storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)
@@ -1054,7 +1026,7 @@ def execute_timestamp_correction(folderNames, inputParameters):
 			
 			writeToFile(str(10+((inputParameters['step']+1)*10))+'\n')
 			inputParameters['step'] += 1
-		insertLog(f"Timestamps corrections finished for {filepath}", logging.INFO)
+		logger.info(f"Timestamps corrections finished for {filepath}")
 
 
 
@@ -1092,7 +1064,7 @@ def get_all_stores_for_combining_data(folderNames):
 def combineData(folderNames, inputParameters, storesList):
 
 	print("Combining Data from different data files...")
-	insertLog("Combining Data from different data files", logging.DEBUG)
+	logger.debug("Combining Data from different data files")
 	timeForLightsTurnOn = inputParameters['timeForLightsTurnOn']
 	op_folder = []
 	for i in range(len(folderNames)):
@@ -1117,7 +1089,7 @@ def combineData(folderNames, inputParameters, storesList):
 
 	res = all(i == sampling_rate[0] for i in sampling_rate)
 	if res==False:
-		insertLog('To combine the data, sampling rate for both the data should be same.', logging.ERROR)
+		logger.error('To combine the data, sampling rate for both the data should be same.')
 		raise Exception('To combine the data, sampling rate for both the data should be same.')
 	
 	# get the output folders informatinos
@@ -1125,7 +1097,7 @@ def combineData(folderNames, inputParameters, storesList):
 	
 	# processing timestamps for combining the data
 	processTimestampsForCombiningData(op, timeForLightsTurnOn, storesList, sampling_rate[0])
-	insertLog("Data is combined from different data files.", logging.INFO)
+	logger.info("Data is combined from different data files.")
 	print("Data is combined from different data files.")
 
 
@@ -1158,14 +1130,14 @@ def execute_zscore(folderNames, inputParameters):
 
 		if remove_artifacts==True:
 			print("Removing Artifacts from the data and correcting timestamps...")
-			insertLog("Removing Artifacts from the data and correcting timestamps.", logging.DEBUG)
+			logger.debug("Removing Artifacts from the data and correcting timestamps.")
 			compute_z_score(filepath, inputParameters)
 			if artifactsRemovalMethod=='concatenate':
 				processTimestampsForArtifacts(filepath, timeForLightsTurnOn, storesList)
 			else:
 				addingNaNtoChunksWithArtifacts(filepath, storesList)
 			visualizeControlAndSignal(filepath, remove_artifacts)
-			insertLog("Artifacts from the data are removed and timestamps are corrected.", logging.INFO)
+			logger.info("Artifacts from the data are removed and timestamps are corrected.")
 			print("Artifacts from the data are removed and timestamps are corrected.")
 		else:
 			compute_z_score(filepath, inputParameters)
@@ -1183,14 +1155,14 @@ def execute_zscore(folderNames, inputParameters):
 		inputParameters['step'] += 1
 	
 	plt.show()
-	insertLog("Signal data and event timestamps are extracted.", logging.INFO)
+	logger.info("Signal data and event timestamps are extracted.")
 	print("Signal data and event timestamps are extracted.")
 
 
 def extractTsAndSignal(inputParameters):
 
 	print("Extracting signal data and event timestamps...")
-	insertLog("Extracting signal data and event timestamps", logging.DEBUG)
+	logger.debug("Extracting signal data and event timestamps")
 	inputParameters = inputParameters
 
 	#storesList = np.genfromtxt(inputParameters['storesListPath'], dtype='str', delimiter=',')
@@ -1202,9 +1174,9 @@ def extractTsAndSignal(inputParameters):
 	combine_data = inputParameters['combine_data']
 	
 	inputParameters['step'] = 0
-	insertLog(f"Remove Artifacts : {remove_artifacts}", logging.INFO)
-	insertLog(f"Combine Data : {combine_data}", logging.INFO)
-	insertLog(f"Isosbestic Control Channel : {isosbestic_control}", logging.INFO)
+	logger.info(f"Remove Artifacts : {remove_artifacts}")
+	logger.info(f"Combine Data : {combine_data}")
+	logger.info(f"Isosbestic Control Channel : {isosbestic_control}")
 
 	print("Remove Artifacts : ", remove_artifacts)
 	print("Combine Data : ", combine_data)
@@ -1233,11 +1205,11 @@ def extractTsAndSignal(inputParameters):
 def main(input_parameters):
 	try:
 		extractTsAndSignal(input_parameters)
-		insertLog('#'*400, logging.INFO)
+		logger.info('#'*400)
 	except Exception as e:
 		with open(os.path.join(os.path.expanduser('~'), 'pbSteps.txt'), 'a') as file:
 			file.write(str(-1)+"\n")
-		insertLog(str(e), logging.ERROR)
+		logger.error(str(e))
 		raise e
 
 if __name__ == "__main__":

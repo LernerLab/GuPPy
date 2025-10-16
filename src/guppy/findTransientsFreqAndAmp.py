@@ -4,7 +4,6 @@ import glob
 import h5py
 import json
 import math
-import logging
 import numpy as np 
 import pandas as pd 
 import multiprocessing as mp
@@ -13,6 +12,7 @@ import matplotlib.pyplot as plt
 from itertools import repeat
 from pathlib import Path
 from .preprocess import get_all_stores_for_combining_data
+from .logging_config import logger
 
 def takeOnlyDirs(paths):
 	removePaths = []
@@ -20,29 +20,6 @@ def takeOnlyDirs(paths):
 		if os.path.isfile(p):
 			removePaths.append(p)
 	return list(set(paths)-set(removePaths))
-
-def insertLog(text, level):
-    file = os.path.join(Path.home(), 'guppy.log')
-    format = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-    infoLog = logging.FileHandler(file)
-    infoLog.setFormatter(format)
-    infoLog
-    logger = logging.getLogger(file)
-    logger.setLevel(level)
-    
-    if not logger.handlers:
-        logger.addHandler(infoLog)
-        if level == logging.DEBUG:
-            logger.debug(text)
-        if level == logging.INFO:
-            logger.info(text)
-        if level == logging.ERROR:
-            logger.exception(text)
-        if level == logging.WARNING:
-            logger.warning(text)
-    
-    infoLog.close()
-    logger.removeHandler(infoLog)
 
 def writeToFile(value: str):
 	with open(os.path.join(os.path.expanduser('~'), 'pbSteps.txt'), 'a') as file:
@@ -58,7 +35,7 @@ def read_hdf5(event, filepath, key):
 		with h5py.File(op, 'r') as f:
 			arr = np.asarray(f[key])
 	else:
-		insertLog(f"{event}.hdf5 file does not exist", logging.ERROR)
+		logger.error(f"{event}.hdf5 file does not exist")
 		raise Exception('{}.hdf5 file does not exist'.format(event))
 
 	return arr
@@ -109,7 +86,7 @@ def processChunks(arrValues, arrIndexes, highAmpFilt, transientsThresh):
 def createChunks(z_score, sampling_rate, window):
 	
 	print('Creating chunks for multiprocessing...')
-	insertLog('Creating chunks for multiprocessing.', logging.DEBUG)
+	logger.debug('Creating chunks for multiprocessing.')
 	windowPoints = math.ceil(sampling_rate*window)
 	remainderPoints = math.ceil((sampling_rate*window) - (z_score.shape[0]%windowPoints))
 
@@ -128,9 +105,9 @@ def createChunks(z_score, sampling_rate, window):
 		z_score_chunks = padded_z_score.reshape(int(reshape), -1)
 		z_score_chunks_index = z_score_index.reshape(int(reshape), -1)
 	else:
-		insertLog('Reshaping values should be integer.', logging.ERROR)
+		logger.error('Reshaping values should be integer.')
 		raise Exception('Reshaping values should be integer.')
-	insertLog('Chunks are created for multiprocessing.', logging.INFO)
+	logger.info('Chunks are created for multiprocessing.')
 	print('Chunks are created for multiprocessing.')
 	return z_score_chunks, z_score_chunks_index
 
@@ -191,7 +168,7 @@ def visuzlize_peaks(filepath, z_score, timestamps, peaksIndex):
 def findFreqAndAmp(filepath, inputParameters, window=15, numProcesses=mp.cpu_count()):
 
 	print('Calculating frequency and amplitude of transients in z-score data....')
-	insertLog('Calculating frequency and amplitude of transients in z-score data.', logging.DEBUG)
+	logger.debug('Calculating frequency and amplitude of transients in z-score data.')
 	selectForTransientsComputation = inputParameters['selectForTransientsComputation']
 	highAmpFilt = inputParameters['highAmpFilt']
 	transientsThresh = inputParameters['transientsThresh']
@@ -230,7 +207,7 @@ def findFreqAndAmp(filepath, inputParameters, window=15, numProcesses=mp.cpu_cou
 		create_csv(filepath, peaks_occurrences, 'transientsOccurrences_'+basename+'.csv', 
 				   index=np.arange(peaks_occurrences.shape[0]),columns=['timestamps', 'amplitude'])
 		visuzlize_peaks(path[i], z_score, ts, peaksInd)
-	insertLog('Frequency and amplitude of transients in z_score data are calculated.', logging.INFO)
+	logger.info('Frequency and amplitude of transients in z_score data are calculated.')
 	print('Frequency and amplitude of transients in z_score data are calculated.')
 		
 
@@ -246,7 +223,7 @@ def makeAverageDir(filepath):
 def averageForGroup(folderNames, inputParameters):
 
 	print('Combining results for frequency and amplitude of transients in z-score data...')
-	insertLog('Combining results for frequency and amplitude of transients in z-score data.', logging.DEBUG)
+	logger.debug('Combining results for frequency and amplitude of transients in z-score data.')
 	path = []
 	abspath = inputParameters['abspath']
 	selectForTransientsComputation = inputParameters['selectForTransientsComputation']
@@ -301,7 +278,7 @@ def averageForGroup(folderNames, inputParameters):
 		arr = np.asarray(arr)
 		create_Df(op, arr, temp_path[j][1], index=fileName, columns=['freq (events/min)', 'amplitude'])
 		create_csv(op, arr, 'freqAndAmp_'+temp_path[j][1]+'.csv', index=fileName, columns=['freq (events/min)', 'amplitude'])
-	insertLog('Results for frequency and amplitude of transients in z-score data are combined.', logging.INFO)
+	logger.info('Results for frequency and amplitude of transients in z-score data are combined.')
 	print('Results for frequency and amplitude of transients in z-score data are combined.')
 
 def executeFindFreqAndAmp(inputParameters):
@@ -319,8 +296,8 @@ def executeFindFreqAndAmp(inputParameters):
 	if numProcesses==0:
 		numProcesses = mp.cpu_count()
 	elif numProcesses>mp.cpu_count():
-		insertLog('Warning : # of cores parameter set is greater than the cores available \
-			   available in your machine', logging.WARNING)
+		logger.warning('Warning : # of cores parameter set is greater than the cores available \
+			   available in your machine')
 		print('Warning : # of cores parameter set is greater than the cores available \
 			   available in your machine')
 		numProcesses = mp.cpu_count()-1
@@ -336,8 +313,7 @@ def executeFindFreqAndAmp(inputParameters):
 			writeToFile(str(10+((inputParameters['step']+1)*10))+'\n')
 			inputParameters['step'] += 1
 		else:
-			insertLog('Not a single folder name is provided in folderNamesForAvg in inputParamters File.', 
-	     				logging.ERROR)
+			logger.error('Not a single folder name is provided in folderNamesForAvg in inputParamters File.')
 			raise Exception('Not a single folder name is provided in folderNamesForAvg in inputParamters File.')
 			
 			
@@ -358,8 +334,7 @@ def executeFindFreqAndAmp(inputParameters):
 			plt.show()
 		else:
 			for i in range(len(folderNames)):
-				insertLog(f"Finding transients in z-score data of {folderNames[i]} and calculating frequency and amplitude.",
-	      					logging.DEBUG)
+				logger.debug(f"Finding transients in z-score data of {folderNames[i]} and calculating frequency and amplitude.")
 				filepath = folderNames[i]
 				storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, '*_output_*')))
 				for j in range(len(storesListPath)):
@@ -368,7 +343,7 @@ def executeFindFreqAndAmp(inputParameters):
 					findFreqAndAmp(filepath, inputParameters, window=moving_window, numProcesses=numProcesses)
 					writeToFile(str(10+((inputParameters['step']+1)*10))+'\n')
 					inputParameters['step'] += 1
-				insertLog('Transients in z-score data found and frequency and amplitude are calculated.', logging.INFO)
+				logger.info('Transients in z-score data found and frequency and amplitude are calculated.')
 			plt.show()
 
 	print('Transients in z-score data found and frequency and amplitude are calculated.')
@@ -377,9 +352,9 @@ def executeFindFreqAndAmp(inputParameters):
 if __name__ == "__main__":
 	try:
 		executeFindFreqAndAmp(json.loads(sys.argv[1]))
-		insertLog('#'*400, logging.INFO)
+		logger.info('#'*400)
 	except Exception as e:
 		with open(os.path.join(os.path.expanduser('~'), 'pbSteps.txt'), 'a') as file:
 			file.write(str(-1)+"\n")
-		insertLog(str(e), logging.ERROR)
+		logger.error(str(e))
 		raise e

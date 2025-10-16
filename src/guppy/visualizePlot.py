@@ -3,7 +3,6 @@ import glob
 import param
 import re
 import math
-import logging
 import numpy as np 
 import pandas as pd
 import socket
@@ -17,6 +16,7 @@ import datashader as ds
 import matplotlib.pyplot as plt
 from pathlib import Path
 from .preprocess import get_all_stores_for_combining_data
+from .logging_config import logger
 import panel as pn
 pn.extension()
 
@@ -39,29 +39,6 @@ def takeOnlyDirs(paths):
 		if os.path.isfile(p):
 			removePaths.append(p)
 	return list(set(paths)-set(removePaths))
-
-def insertLog(text, level):
-    file = os.path.join(Path.home(), 'guppy.log')
-    format = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-    infoLog = logging.FileHandler(file)
-    infoLog.setFormatter(format)
-    infoLog
-    logger = logging.getLogger(file)
-    logger.setLevel(level)
-    
-    if not logger.handlers:
-        logger.addHandler(infoLog)
-        if level == logging.DEBUG:
-            logger.debug(text)
-        if level == logging.INFO:
-            logger.info(text)
-        if level == logging.ERROR:
-            logger.exception(text)
-        if level == logging.WARNING:
-            logger.warning(text)
-    
-    infoLog.close()
-    logger.removeHandler(infoLog)
 
 # read h5 file as a dataframe
 def read_Df(filepath, event, name):
@@ -102,8 +79,7 @@ def helper_plots(filepath, event, name, inputParameters):
 
 	# note when there are no behavior event TTLs
 	if len(event)==0:
-		insertLog("\033[1m"+"There are no behavior event TTLs present to visualize.".format(event)+"\033[0m", 
-	    			logging.WARNING)
+		logger.warning("\033[1m"+"There are no behavior event TTLs present to visualize.".format(event)+"\033[0m")
 		print("\033[1m"+"There are no behavior event TTLs present to visualize.".format(event)+"\033[0m")
 		return 0
 

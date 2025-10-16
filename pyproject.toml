@@ -52,6 +52,7 @@ dependencies = [
     "pandas",
     "panel",
     "param",
+    "platformdirs",
     "scipy",
     "tables",
 ]
