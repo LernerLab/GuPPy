@@ -2,63 +2,59 @@
 # GuPPy
  Guided Photometry Analysis in Python, a free and open-source fiber photometry data analysis tool.
 
-## Installation Instructions
+## Installation
 
 GuPPy can be run on Windows, Mac or Linux.
 
-**Follow the instructions below to install GuPPy :** <br>
-- Current Users : Download new code updates by following steps 1.a to 1.c, then visit the Github Wiki page to get started on your analysis
-- New Users : Follow all the installation steps and then visit the Github Wiki page to get started on your analysis
+### Installation via PyPI
 
-1. Download the Guppy code <br>
-   a. Press the green button labeled “Code” on the top right corner and that will initiate a pull down menu. <br>
-   
-   b. Click on Download ZIP. *(Ensure that you save this ZIP locally, not in any external cloud storage such as iCloud, OneDrive, Box, etc. We suggest saving it in your User folder on the C drive)* <br>
-   
-   c. Once downloaded, open the ZIP file and you should have a folder named “GuPPy-main”. Place this GuPPy-main folder wherever is most convenient (avoiding cloud storage). <br>
-   
-   d. Inside the GuPPy-main folder there is a subfolder named “GuPPy”. Take note of the GuPPy subfolder location or path. It will be important for future steps in the GuPPy workflow <br>
-   - Mac: Right click folder → Click Get Info → Text next to “Where:” <br>
-       ~ Ex: /Users/LernerLab/Desktop/GuPPy-main <br>
-   - Windows/Linux: Right click folder → Properties → Text next to “Location:” <br>
+To install the latest stable release of GuPPy through PyPI, simply run the following command in your terminal or command prompt:
 
-2.  Anaconda is a distribution of the Python and R programming languages for scientific computing. Install [Anaconda](https://www.anaconda.com/products/individual#macos). Install Anaconda based on your operating system (Mac, Windows or Linux) by following the prompts when you run the downloaded installation file.
+```bash
+pip install guppy
+```
 
-3. Once installed, open an Anaconda Prompt window (for windows) or Terminal window (for Mac or Linux). You can search for "anaconda prompt" or "terminal" on your computer to open this window.
+We recommend that you install the package inside a [virtual environment](https://docs.python.org/3/tutorial/venv.html). 
+A simple way of doing this is to use a [conda environment](https://docs.conda.io/projects/conda/en/latest/user-guide/concepts/environments.html) from the `conda` package manager ([installation instructions](https://docs.conda.io/en/latest/miniconda.html)). 
+Detailed instructions on how to use conda environments can be found in their [documentation](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html).
 
-4. Find the location where GuPPy folder is located (from Step 1d) and execute the following command on the Anaconda Prompt or terminal window: 
+### Installation from GitHub
 
-```
-cd path_to_GuPPy_folder
-```
-   - Ex:  cd /Users/LernerLab/Desktop/GuPPy-main
-  
-5. Next, execute the following commands, in this specific order, on Anaconda Prompt or terminal window: <br>
-   - Note : filename in the first command should be replaced by <b>spec_file_windows10.txt</b> or <b>spec_file_mac.txt</b> or <b>spec_file_linux.txt</b> (based on your OS) <br>
-   - Some of these commands will initiate various transactions. Wait until they are all done before executing the next line <br>
-   - If the Anaconda Prompt or Terminal window asks: Proceed ([y]/n)? Respond with y <br>
-```
-conda create --name guppy --file filename
-conda activate guppy
-```
-6. Lastly, execute the following command to open the GuPPy User Interface:
-```
-panel serve --show GuPPy/savingInputParameters.ipynb
-```
-<b> GuPPy is now officially downloaded and ready to use! </b> <br>
+To install the latest development version of GuPPy from GitHub, you can clone the repository and install the package manually. 
+This has the advantage of allowing you to access the latest features and bug fixes that may not yet be available in the stable release. 
+To install the conversion from GitHub you will need to use `git` ([installation instructions](https://github.com/git-guides/install-git)). 
+From a terminal or command prompt, execute the following commands:
 
+1. Clone the repository:
+```bash
+git clone https://github.com/LernerLab/GuPPy.git
+```
+
+2. Navigate into the cloned directory:
+```bash
+cd GuPPy
+```
+
+3. Install the package using pip:
+```bash
+pip install -e .
+```
+
+Note:
+This method installs the repository in [editable mode](https://pip.pypa.io/en/stable/cli/pip_install/#editable-installs).
+
+## Usage
+
+In a terminal or command prompt, you can start using GuPPy by running the following command:
+
+```bash
+guppy
+```
+
+This will launch the GuPPy user interface, where you can begin analyzing your fiber photometry data.
+
+## Wiki
 - The full instructions along with detailed descriptions of each step to run the GuPPy tool is on [Github Wiki Page](https://github.com/LernerLab/GuPPy/wiki).
-
-## Uninstalling or removing instructions
-
-1. Open an Anaconda Prompt window (for windows) or Terminal window (for Mac or Linux).
-
-2. Execute the following command on Anaconda Prompt or terminal window: <br>
-```
-conda remove --name guppy --all
-```
-
-3. To reinstall, follow steps 1 (Download GuPPy code) and 4 to 6 from the Installation Instructions.
 
 ## Tutorial Videos
 
@@ -91,5 +87,6 @@ conda remove --name guppy --all
 - Jillian Seiler
 - [Gabriela Lopez](https://github.com/glopez924)
 - [Talia Lerner](https://github.com/talialerner)
+- [Paul Adkisson](https://github.com/pauladkisson)
 
 

@@ -15,8 +15,9 @@ from holoviews.plotting.util import process_cmap
 from holoviews.operation.datashader import datashade
 import datashader as ds
 import matplotlib.pyplot as plt
-from preprocess import get_all_stores_for_combining_data
-import panel as pn 
+from pathlib import Path
+from .preprocess import get_all_stores_for_combining_data
+import panel as pn
 pn.extension()
 
 def scanPortsAndFind(start_port=5000, end_port=5200, host='127.0.0.1'):
@@ -40,7 +41,7 @@ def takeOnlyDirs(paths):
 	return list(set(paths)-set(removePaths))
 
 def insertLog(text, level):
-    file = os.path.join('.','..','guppy.log')
+    file = os.path.join(Path.home(), 'guppy.log')
     format = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
     infoLog = logging.FileHandler(file)
     infoLog.setFormatter(format)
@@ -566,6 +567,8 @@ def helper_plots(filepath, event, name, inputParameters):
 
 	view = Viewer()
 	print('view')
+
+	#PSTH plot options
 	psth_checkbox = pn.Param(view.param.select_trials_checkbox, widgets={
 		'select_trials_checkbox': {'type': pn.widgets.CheckBoxGroup, 'inline': True, 
 									'name': 'Select mean and/or just trials'}})
@@ -575,14 +578,37 @@ def helper_plots(filepath, event, name, inputParameters):
 		'heatmap_y': {'type':pn.widgets.MultiSelect, 'name':'Trial # - Timestamps', 'width':200, 'size':30}})
 	psth_y_parameters = pn.Param(view.param.psth_y, widgets={
 		'psth_y': {'type':pn.widgets.MultiSelect, 'name':'Trial # - Timestamps', 'width':200, 'size':15, 'align':'start'}})
-
-	options = pn.Column(view.param.event_selector, 
-		                pn.Row(view.param.x, view.param.y, width=400), 
-						pn.Row(view.param.X_Limit, view.param.Y_Limit, width=400),
-						pn.Row(view.param.Width_Plot, view.param.Height_Plot, view.param.Y_Label, view.param.save_options, width=400), 
-					    view.param.save_psth)
 	
-	options_selectors = pn.Row(options, parameters, width=1050)
+	event_selector = pn.Param(view.param.event_selector, widgets={
+		'event_selector': {'type':pn.widgets.Select, 'width':400}})
+	x_selector = pn.Param(view.param.x, widgets={
+		'x': {'type':pn.widgets.Select, 'width':180}})
+	y_selector = pn.Param(view.param.y, widgets={
+		'y': {'type':pn.widgets.Select, 'width':180}})
+	
+	width_plot = pn.Param(view.param.Width_Plot, widgets={
+		'Width_Plot': {'type':pn.widgets.Select, 'width':70}})
+	height_plot = pn.Param(view.param.Height_Plot, widgets={
+		'Height_Plot': {'type':pn.widgets.Select, 'width':70}})
+	ylabel = pn.Param(view.param.Y_Label, widgets={
+		'Y_Label': {'type':pn.widgets.Select, 'width':70}})
+	save_opts = pn.Param(view.param.save_options, widgets={
+		'save_options': {'type':pn.widgets.Select, 'width':70}})
+	
+	xlimit_plot = pn.Param(view.param.X_Limit, widgets={
+		'X_Limit': {'type':pn.widgets.RangeSlider, 'width':180}})
+	ylimit_plot = pn.Param(view.param.Y_Limit, widgets={
+		'Y_Limit': {'type':pn.widgets.RangeSlider, 'width':180}})
+	save_psth = pn.Param(view.param.save_psth, widgets={
+		'save_psth': {'type':pn.widgets.Button, 'width':400}})
+
+	options = pn.Column(event_selector, 
+		                pn.Row(x_selector, y_selector), 
+						pn.Row(xlimit_plot, ylimit_plot),
+						pn.Row(width_plot, height_plot, ylabel, save_opts), 
+					    save_psth)
+	
+	options_selectors = pn.Row(options, parameters)
 
 	line_tab = pn.Column('## '+basename, 
 		 				 pn.Row(options_selectors, pn.Column(psth_checkbox, psth_y_parameters), width=1200), 
@@ -590,10 +616,23 @@ def helper_plots(filepath, event, name, inputParameters):
 	                	 view.update_selector, 
 	                	 view.plot_specific_trials)
 
-	hm_tab = pn.Column('## '+basename, pn.Row(view.param.event_selector_heatmap, view.param.color_map, 
-											  view.param.save_options_heatmap,  
-											  view.param.width_heatmap, view.param.height_heatmap, 
-											  view.param.save_hm, width=1000),
+	# Heatmap plot options
+	event_selector_heatmap = pn.Param(view.param.event_selector_heatmap, widgets={
+		'event_selector_heatmap': {'type':pn.widgets.Select, 'width':150}})
+	color_map = pn.Param(view.param.color_map, widgets={
+		'color_map': {'type':pn.widgets.Select, 'width':150}})
+	width_heatmap = pn.Param(view.param.width_heatmap, widgets={
+		'width_heatmap': {'type':pn.widgets.Select, 'width':150}})
+	height_heatmap = pn.Param(view.param.height_heatmap, widgets={
+		'height_heatmap': {'type':pn.widgets.Select, 'width':150}})
+	save_hm = pn.Param(view.param.save_hm, widgets={
+		'save_hm': {'type':pn.widgets.Button, 'width':150}})
+	save_options_heatmap = pn.Param(view.param.save_options_heatmap, widgets={
+		'save_options_heatmap': {'type':pn.widgets.Select, 'width':150}})
+	
+	hm_tab = pn.Column('## '+basename, pn.Row(event_selector_heatmap, color_map, 
+										      width_heatmap, height_heatmap, 
+											  save_options_heatmap, pn.Column(pn.Spacer(height=25), save_hm)),
 											  pn.Row(view.heatmap, heatmap_y_parameters)) #
 	print('app')
 
