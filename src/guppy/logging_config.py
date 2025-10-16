@@ -6,7 +6,8 @@ log directories following OS conventions:
 - macOS: ~/Library/Logs/LernerLab/guppy/
 - Linux: ~/.local/state/LernerLab/guppy/log/
 
-The logger can be imported and used across all GuPPy modules.
+Call setup_logging() once at application startup before importing other modules.
+Each module should then create its own logger using: logger = logging.getLogger(__name__)
 """
 
 import logging
@@ -31,6 +32,8 @@ def get_log_file():
 def setup_logging(*, level=None, console_output=True):
     """Configure centralized logging for GuPPy.
     
+    This should be called once at application startup, before importing other modules.
+    
     Parameters
     ----------
     level : int, optional
@@ -38,11 +41,6 @@ def setup_logging(*, level=None, console_output=True):
         environment variable GUPPY_LOG_LEVEL or defaults to INFO.
     console_output : bool, optional
         Whether to also output logs to console. Default is True.
-    
-    Returns
-    -------
-    logging.Logger
-        Configured logger instance for GuPPy.
     """
     # Determine log level
     if level is None:
@@ -58,7 +56,7 @@ def setup_logging(*, level=None, console_output=True):
     
     # Prevent duplicate handlers if setup_logging is called multiple times
     if logger.handlers:
-        return logger
+        return
     
     # Create formatter
     formatter = logging.Formatter(
@@ -76,9 +74,3 @@ def setup_logging(*, level=None, console_output=True):
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
-    
-    return logger
-
-
-# Initialize logger at module import
-logger = setup_logging()

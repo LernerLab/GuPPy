@@ -16,9 +16,12 @@ import datashader as ds
 import matplotlib.pyplot as plt
 from pathlib import Path
 from .preprocess import get_all_stores_for_combining_data
-from .logging_config import logger
+import logging
+import panel as pn
 import panel as pn
 pn.extension()
+
+logger = logging.getLogger(__name__)
 
 def scanPortsAndFind(start_port=5000, end_port=5200, host='127.0.0.1'):
     while True:

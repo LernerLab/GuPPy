@@ -7,7 +7,9 @@ import numpy as np
 import pandas as pd
 from scipy import signal
 from pathlib import Path
-from .logging_config import logger
+import logging
+
+logger = logging.getLogger(__name__)
 
 def make_dir(filepath):
 	op = os.path.join(filepath, "cross_correlation_output")

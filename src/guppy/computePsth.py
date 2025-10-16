@@ -19,7 +19,9 @@ from .preprocess import get_all_stores_for_combining_data
 from .computeCorr import computeCrossCorrelation
 from .computeCorr import getCorrCombinations
 from .computeCorr import make_dir
-from .logging_config import logger
+import logging
+
+logger = logging.getLogger(__name__)
 
 def takeOnlyDirs(paths):
 	removePaths = []

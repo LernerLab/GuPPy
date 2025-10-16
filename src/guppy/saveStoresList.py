@@ -19,10 +19,12 @@ import warnings
 import socket
 import tkinter as tk
 from tkinter import ttk, StringVar, messagebox
-from .logging_config import logger
+import logging
 
 #hv.extension()
 pn.extension()
+
+logger = logging.getLogger(__name__)
 
 def scanPortsAndFind(start_port=5000, end_port=5200, host='127.0.0.1'):
     while True:

@@ -12,7 +12,9 @@ import pandas as pd
 from numpy import int32, uint32, uint8, uint16, float64, int64, int32, float32
 import multiprocessing as mp
 from pathlib import Path
-from .logging_config import logger
+import logging
+
+logger = logging.getLogger(__name__)
 
 def takeOnlyDirs(paths):
 	removePaths = []

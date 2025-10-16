@@ -12,7 +12,9 @@ import matplotlib.pyplot as plt
 from itertools import repeat
 from pathlib import Path
 from .preprocess import get_all_stores_for_combining_data
-from .logging_config import logger
+import logging
+
+logger = logging.getLogger(__name__)
 
 def takeOnlyDirs(paths):
 	removePaths = []

@@ -13,7 +13,9 @@ from threading import Thread
 from pathlib import Path
 from .visualizePlot import visualizeResults
 from .saveStoresList import execute
-from .logging_config import logger
+import logging
+
+logger = logging.getLogger(__name__)
 
 def savingInputParameters():
     pn.extension()

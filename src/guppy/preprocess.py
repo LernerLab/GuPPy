@@ -16,7 +16,9 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import MultiCursor
 from pathlib import Path
 from .combineDataFn import processTimestampsForCombiningData
-from .logging_config import logger
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Only set matplotlib backend if not in CI environment
 if not os.getenv('CI'):
