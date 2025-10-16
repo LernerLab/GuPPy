@@ -29,7 +29,6 @@ def writeToFile(value: str):
 
 # functino to read tsq file
 def readtsq(filepath):
-	print("Trying to read tsq file.")
 	logger.debug("Trying to read tsq file.")
 	names = ('size', 'type', 'name', 'chan', 'sort_code', 'timestamp',
 	     	'fp_loc', 'strobe', 'format', 'frequency')
@@ -44,7 +43,6 @@ def readtsq(filepath):
 		raise Exception('Two tsq files are present at the location.')
 	elif len(path)==0:
 		logger.info("\033[1m"+"tsq file not found."+"\033[1m")
-		print("\033[1m"+"tsq file not found."+"\033[1m")
 		return 0, 0
 	else:
 		path = path[0]
@@ -57,12 +55,10 @@ def readtsq(filepath):
 	df = pd.DataFrame(tsq)
 
 	logger.info("Data from tsq file fetched.")
-	print("Data from tsq file fetched.")
 	return df, flag
 
 # function to check if doric file exists
 def check_doric(filepath):
-	print("Checking if doric file exists.")
 	logger.debug('Checking if doric file exists')
 	path = glob.glob(os.path.join(filepath, '*.csv')) + \
 		   glob.glob(os.path.join(filepath, '*.doric'))
@@ -90,10 +86,8 @@ def check_doric(filepath):
 		raise Exception('Two doric files are present at the same location')
 	if len(flag_arr)==0:
 		logger.error("\033[1m"+"Doric file not found."+"\033[1m")
-		print("\033[1m"+"Doric file not found."+"\033[1m")
 		return 0
 	logger.info('Doric file found.')
-	print('Doric file found.')
 	return flag_arr[0]
 		
 
@@ -140,7 +134,6 @@ def write_hdf5(data, event, filepath, key):
 
 # function to read event timestamps csv file.
 def import_csv(filepath, event, outputPath):
-	print("\033[1m"+"Trying to read data for {} from csv file.".format(event)+"\033[0m")
 	logger.debug("\033[1m"+"Trying to read data for {} from csv file.".format(event)+"\033[0m")
 	if not os.path.exists(os.path.join(filepath, event+'.csv')):
 		logger.error("\033[1m"+"No csv file found for event {}".format(event)+"\033[0m")
@@ -172,7 +165,6 @@ def import_csv(filepath, event, outputPath):
 		write_hdf5(data[key[i]].dropna(), event, outputPath, key[i].lower())
 
 	logger.info("\033[1m"+"Reading data for {} from csv file is completed.".format(event)+"\033[0m")
-	print("\033[1m"+"Reading data for {} from csv file is completed.".format(event)+"\033[0m")
 
 	return data, key
 
@@ -190,7 +182,7 @@ def save_dict_to_hdf5(S, event, outputPath):
 
 # function to check event data (checking whether event timestamps belongs to same event or multiple events)
 def check_data(S, filepath, event, outputPath):
-	#print("Checking event storename data for creating multiple event names from single event storename...")
+	#logger.info("Checking event storename data for creating multiple event names from single event storename...")
 	new_event = event.replace("\\","")
 	new_event = event.replace("/","")
 	diff = np.diff(S['data'])
@@ -202,8 +194,6 @@ def check_data(S, filepath, event, outputPath):
 		return 0
 	
 	if S['sampling_rate']==0 and np.all(diff==diff[0])==False:
-		print("\033[1m"+"Data in event {} belongs to multiple behavior".format(event)+"\033[0m")
-		print("\033[1m"+"Create timestamp files for individual new event and change the stores list file."+"\033[0m")
 		logger.info("\033[1m"+"Data in event {} belongs to multiple behavior".format(event)+"\033[0m")
 		logger.debug("\033[1m"+"Create timestamp files for individual new event and change the stores list file."+"\033[0m")
 		i_d = np.unique(S['data'])
@@ -235,7 +225,6 @@ def check_data(S, filepath, event, outputPath):
 # function to read tev file
 def readtev(data, filepath, event, outputPath):
 
-	print("Reading data for event {} ...".format(event))
 	logger.debug("Reading data for event {} ...".format(event))
 	tevfilepath = glob.glob(os.path.join(filepath, '*.tev'))
 	if len(tevfilepath)>1:
@@ -260,16 +249,16 @@ def readtev(data, filepath, event, outputPath):
 
 	eventNew = np.array(list(event))
 
-	#print(allnames)
-	#print(eventNew)
+	#logger.info(allnames)
+	#logger.info(eventNew)
 	row = ismember(data['name'], event)
 
 
 	if sum(row)==0:
-		print("\033[1m"+"Requested store name "+event+" not found (case-sensitive)."+"\033[0m")
-		print("\033[1m"+"File contains the following TDT store names:"+"\033[0m")
-		print("\033[1m"+str(allnames)+"\033[0m")
-		print("\033[1m"+"TDT store name "+str(event)+" not found."+"\033[0m")
+		logger.info("\033[1m"+"Requested store name "+event+" not found (case-sensitive)."+"\033[0m")
+		logger.info("\033[1m"+"File contains the following TDT store names:"+"\033[0m")
+		logger.info("\033[1m"+str(allnames)+"\033[0m")
+		logger.info("\033[1m"+"TDT store name "+str(event)+" not found."+"\033[0m")
 		import_csv(filepath, event, outputPath)
 
 		return 0
@@ -317,7 +306,6 @@ def readtev(data, filepath, event, outputPath):
 	
 	check_data(S, filepath, event, outputPath)
 
-	print("Data for event {} fetched and stored.".format(event))
 	logger.info("Data for event {} fetched and stored.".format(event))
 
 
@@ -331,16 +319,16 @@ def execute_readtev(data, filepath, event, outputPath, numProcesses=mp.cpu_count
 	#p.starmap(readtev, zip(repeat(data), repeat(filepath), event, repeat(outputPath)))
 	#p.close()
 	#p.join()
-	print("Time taken = {0:.5f}".format(time.time() - start))
+	logger.info("Time taken = {0:.5f}".format(time.time() - start))
 
 
 def execute_import_csv(filepath, event, outputPath, numProcesses=mp.cpu_count()):
-	#print("Reading data for event {} ...".format(event))
+	#logger.info("Reading data for event {} ...".format(event))
 
 	start = time.time()
 	with mp.Pool(numProcesses) as p:
 		p.starmap(import_csv, zip(repeat(filepath), event, repeat(outputPath)))
-	print("Time taken = {0:.5f}".format(time.time() - start))
+	logger.info("Time taken = {0:.5f}".format(time.time() - start))
 
 def access_data_doricV1(doric_file, storesList, outputPath):
 	keys = list(doric_file['Traces']['Console'].keys())
@@ -459,7 +447,6 @@ def execute_import_doric(filepath, storesList, flag, outputPath):
 def readRawData(inputParameters):
 
 	
-	print('### Reading raw data... ###')
 	logger.debug('### Reading raw data... ###')
 	# get input parameters
 	inputParameters = inputParameters
@@ -469,8 +456,6 @@ def readRawData(inputParameters):
 	if numProcesses==0:
 		numProcesses = mp.cpu_count()
 	elif numProcesses>mp.cpu_count():
-		print('Warning : # of cores parameter set is greater than the cores available \
-			   available in your machine')
 		logger.warning('Warning : # of cores parameter set is greater than the cores available \
 			   available in your machine')
 		numProcesses = mp.cpu_count()-1
@@ -482,7 +467,6 @@ def readRawData(inputParameters):
 	step = 0
 	for i in range(len(folderNames)):
 		filepath = folderNames[i]
-		print(filepath)
 		logger.debug(f"### Reading raw data for folder {folderNames[i]}")
 		storesListPath =  takeOnlyDirs(glob.glob(os.path.join(filepath, '*_output_*')))
 		# reading tsq file
@@ -513,12 +497,11 @@ def readRawData(inputParameters):
 			writeToFile(str(10+((step+1)*10))+'\n')
 			step += 1
 		logger.info(f"### Raw data for folder {folderNames[i]} fetched")
-	print("### Raw data fetched and saved.")
 	logger.info('Raw data fetched and saved.')
 	logger.info("#" * 400)
 
 def main(input_parameters):
-	print('run')
+	logger.info('run')
 	try:
 		readRawData(input_parameters)
 		logger.info('#'*400)

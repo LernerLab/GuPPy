@@ -513,7 +513,7 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
                 json.dump(storenames_cache, f, indent=4)
 
         arr = np.asarray([arr1, arr2])
-        print(arr)
+        logger.info(arr)
         if not os.path.exists(select_location.value):
             os.mkdir(select_location.value)
             
@@ -588,7 +588,7 @@ def decide_ts_unit_for_npm(df, timestamp_column_name=None, time_unit=None, headl
             ts_unit = time_unit if (isinstance(time_unit, str) and time_unit in valid_units) else 'seconds'
             return df, ts_unit
         #def comboBoxSelected(event):
-        #    print(event.widget.get())
+        #    logger.info(event.widget.get())
         
         window = tk.Tk()
         window.title('Select appropriate options for timestamps')
@@ -779,7 +779,7 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch, inputParameters=No
                 df = df.drop(['Time(s)'], axis=1)
                 event_from_filename.extend(list(df.columns))
                 flag = 'doric_csv'
-                print(flag)
+                logger.info(flag)
             else:
                 df = pd.read_csv(path[i], index_col=False)
             # with warnings.catch_warnings():
@@ -795,7 +795,7 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch, inputParameters=No
             continue
         else:
             colnames, value = check_header(df)
-            #print(len(colnames), len(value))
+            #logger.info(len(colnames), len(value))
 
             # check dataframe structure and read data accordingly
             if len(value)>0:
@@ -850,7 +850,7 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch, inputParameters=No
                 pass
             
             flag_arr.append(flag)
-            print(flag)
+            logger.info(flag)
             if flag=='event_csv' or flag=='data_csv':
                 name = os.path.basename(path[i]).split('.')[0]
                 event_from_filename.append(name)
@@ -1000,7 +1000,7 @@ def execute(inputParameters):
     isosbestic_control = inputParameters['isosbestic_control']
     num_ch = inputParameters['noChannels']
 
-    print(folderNames)
+    logger.info(folderNames)
 
     try:
         for i in folderNames:

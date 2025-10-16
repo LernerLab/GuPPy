@@ -83,7 +83,6 @@ def helper_plots(filepath, event, name, inputParameters):
 	# note when there are no behavior event TTLs
 	if len(event)==0:
 		logger.warning("\033[1m"+"There are no behavior event TTLs present to visualize.".format(event)+"\033[0m")
-		print("\033[1m"+"There are no behavior event TTLs present to visualize.".format(event)+"\033[0m")
 		return 0
 
 	
@@ -220,7 +219,7 @@ def helper_plots(filepath, event, name, inputParameters):
 			plot = self.results_hm['plot']
 			op = self.results_hm['op']
 			save_opts = self.save_options_heatmap
-			print(save_opts)
+			logger.info(save_opts)
 			if save_opts=='save_svg_format':
 				p = hv.render(plot, backend='bokeh')
 				p.output_backend = 'svg'
@@ -360,7 +359,7 @@ def helper_plots(filepath, event, name, inputParameters):
 			df1 = self.df_new[self.event_selector]
 			#height = self.Heigth_Plot
 			#width = self.Width_Plot
-			#print(height, width)
+			#logger.info(height, width)
 			if self.y == 'All':
 				if self.Y_Limit==None:
 					self.Y_Limit = (np.nanmin(np.asarray(df1))-0.5, np.nanmax(np.asarray(df1))-0.5)
@@ -545,7 +544,6 @@ def helper_plots(filepath, event, name, inputParameters):
 
 
 	view = Viewer()
-	print('view')
 
 	#PSTH plot options
 	psth_checkbox = pn.Param(view.param.select_trials_checkbox, widgets={
@@ -613,12 +611,11 @@ def helper_plots(filepath, event, name, inputParameters):
 										      width_heatmap, height_heatmap, 
 											  save_options_heatmap, pn.Column(pn.Spacer(height=25), save_hm)),
 											  pn.Row(view.heatmap, heatmap_y_parameters)) #
-	print('app')
+	logger.info('app')
 
 	template = pn.template.MaterialTemplate(title='Visualization GUI')
 	
 	number = scanPortsAndFind(start_port=5000, end_port=5200)
-	
 	app = pn.Tabs(('PSTH', line_tab), 
 				   ('Heat Map', hm_tab))
 	
@@ -670,7 +667,7 @@ def createPlots(filepath, event, inputParameters):
 
 
 	if average==True:
-		print('average')
+		logger.info('average')
 		helper_plots(filepath, name_arr, '', inputParameters)
 	else:
 		helper_plots(filepath, event, name_arr, inputParameters)
@@ -684,7 +681,7 @@ def visualizeResults(inputParameters):
 
 
 	average = inputParameters['visualizeAverageResults']
-	print(average)
+	logger.info(average)
 
 	folderNames = inputParameters['folderNames']
 	folderNamesForAvg = inputParameters['folderNamesForAvg']
@@ -726,7 +723,6 @@ def visualizeResults(inputParameters):
 				
 				filepath = folderNames[i]
 				storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, '*_output_*')))
-				print(storesListPath)
 				for j in range(len(storesListPath)):
 					filepath = storesListPath[j]
 					storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)
@@ -734,5 +730,5 @@ def visualizeResults(inputParameters):
 					createPlots(filepath, storesList[1,:], inputParameters)
 
 
-#print(sys.argv[1:])
+#logger.info(sys.argv[1:])
 #visualizeResults(sys.argv[1:][0])

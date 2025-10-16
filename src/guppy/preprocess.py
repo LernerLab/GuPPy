@@ -77,9 +77,9 @@ def helper_create_control_channel(signal, timestamps, window):
 		popt, pcov = curve_fit(curveFitFn, timestamps, filtered_signal, p0)
 	except Exception as e:
 		logger.error(str(e))
-		print(e)
+		logger.info(e)
 
-	#print('Curve Fit Parameters : ', popt)
+	#logger.info('Curve Fit Parameters : ', popt)
 	control = curveFitFn(timestamps,*popt)
 
 	return control
@@ -96,7 +96,6 @@ def create_control_channel(filepath, arr, window=5001):
 		event_name, event = storesList[i], storenames[i]
 		if 'control' in event_name.lower() and 'cntrl' in event.lower():
 			logger.debug('Creating control channel from signal channel using curve-fitting')
-			print('Creating control channel from signal channel using curve-fitting')
 			name = event_name.split('_')[-1]
 			signal = read_hdf5('signal_'+name, filepath, 'data')
 			timestampNew = read_hdf5('timeCorrection_'+name, filepath, 'timestampNew')
@@ -114,7 +113,6 @@ def create_control_channel(filepath, arr, window=5001):
 			df = pd.DataFrame(d)
 			df.to_csv(os.path.join(os.path.dirname(filepath), event.lower()+'.csv'), index=False)
 			logger.info('Control channel from signal channel created using curve-fitting')
-			print('Control channel from signal channel created using curve-fitting')
 
 
 # function to add control channel when there is no 
@@ -237,7 +235,6 @@ def check_cntrl_sig_length(filepath, channels_arr, storenames, storesList):
 # function to correct timestamps after eliminating first few seconds of the data (for csv data)
 def timestampCorrection_csv(filepath, timeForLightsTurnOn, storesList):
 	
-	print("Correcting timestamps by getting rid of the first {} seconds and convert timestamps to seconds...".format(timeForLightsTurnOn))
 	logger.debug(f"Correcting timestamps by getting rid of the first {timeForLightsTurnOn} seconds and convert timestamps to seconds")
 	storenames = storesList[0,:]
 	storesList = storesList[1,:]
@@ -281,14 +278,12 @@ def timestampCorrection_csv(filepath, timeForLightsTurnOn, storesList):
 			raise Exception('Error in naming convention of files or Error in storesList file')
 
 	logger.info("Timestamps corrected and converted to seconds.")
-	print("Timestamps corrected and converted to seconds.")
 
 
 
 # function to correct timestamps after eliminating first few seconds of the data (for TDT data)
 def timestampCorrection_tdt(filepath, timeForLightsTurnOn, storesList):
 
-	print("Correcting timestamps by getting rid of the first {} seconds and convert timestamps to seconds...".format(timeForLightsTurnOn))
 	logger.debug(f"Correcting timestamps by getting rid of the first {timeForLightsTurnOn} seconds and convert timestamps to seconds")
 	storenames = storesList[0,:]
 	storesList = storesList[1,:]
@@ -343,7 +338,6 @@ def timestampCorrection_tdt(filepath, timeForLightsTurnOn, storesList):
 			raise Exception('Error in naming convention of files or Error in storesList file')
 
 	logger.info("Timestamps corrected and converted to seconds.")
-	print("Timestamps corrected and converted to seconds.")
 	#return timeRecStart, correctionIndex, timestampNew
 
 
@@ -392,7 +386,6 @@ def applyCorrection(filepath, timeForLightsTurnOn, event, displayName, naming):
 # and apply timestamps correction using the function applyCorrection
 def decide_naming_convention_and_applyCorrection(filepath, timeForLightsTurnOn, event, displayName, storesList):
 
-	print("Applying correction of timestamps to the data and event timestamps...")
 	logger.debug("Applying correction of timestamps to the data and event timestamps")
 	storesList = storesList[1,:]
 
@@ -415,7 +408,6 @@ def decide_naming_convention_and_applyCorrection(filepath, timeForLightsTurnOn, 
 			raise Exception('Error in naming convention of files or Error in storesList file')
 		
 	logger.info("Timestamps corrections applied to the data and event timestamps.")
-	print("Timestamps corrections applied to the data and event timestamps.")
 
 
 
@@ -502,8 +494,6 @@ def visualize(filepath, x, y1, y2, y3, plot_name, removeArtifacts):
 
 		if event.key == ' ':
 			ix, iy = event.xdata, event.ydata
-			print('x = %d, y = %d'%(
-			    ix, iy))
 			logger.info(f"x = {ix}, y = {iy}")
 			y1_max, y1_min = np.amax(y1), np.amin(y1)
 			y2_max, y2_min = np.amax(y2), np.amin(y2)
@@ -527,8 +517,6 @@ def visualize(filepath, x, y1, y2, y3, plot_name, removeArtifacts):
 
 		elif event.key == 'd':
 			if len(coords)>0:
-				print('x = %d, y = %d; deleted'%(
-			    	coords[-1][0], coords[-1][1]))
 				logger.info(f"x = {coords[-1][0]}, y = {coords[-1][1]}; deleted")
 				del coords[-1]
 				ax1.lines[-1].remove()
@@ -544,7 +532,6 @@ def visualize(filepath, x, y1, y2, y3, plot_name, removeArtifacts):
 		if coords and len(coords)>0:
 			name_1 = plot_name[0].split('_')[-1]
 			np.save(os.path.join(filepath, 'coordsForPreProcessing_'+name_1+'.npy'), coords)
-			print('Coordinates file saved at {}'.format(os.path.join(filepath, 'coordsForPreProcessing_'+name_1+'.npy')))
 			logger.info(f"Coordinates file saved at {os.path.join(filepath, 'coordsForPreProcessing_'+name_1+'.npy')}")
 		fig.canvas.mpl_disconnect(cid)
 		coords = []
@@ -655,7 +642,7 @@ def eliminateData(filepath, timeForLightsTurnOn, event, sampling_rate, naming):
 			arr = np.concatenate((arr, temp))
 			ts_arr = np.concatenate((ts_arr, new_ts+(1/sampling_rate)))
 	
-	#print(arr.shape, ts_arr.shape)
+	#logger.info(arr.shape, ts_arr.shape)
 	return arr, ts_arr
 
 
@@ -725,7 +712,6 @@ def removeTTLs(filepath, event, naming):
 
 def addingNaNtoChunksWithArtifacts(filepath, events):
 
-	print("Replacing chunks with artifacts by NaN values.")
 	logger.debug("Replacing chunks with artifacts by NaN values.")
 	storesList = events[1,:]
 
@@ -757,8 +743,7 @@ def addingNaNtoChunksWithArtifacts(filepath, events):
 # main function to align timestamps for control, signal and event timestamps for artifacts removal
 def processTimestampsForArtifacts(filepath, timeForLightsTurnOn, events):
 
-	print("Processing timestamps to get rid of artifacts using concatenate method...")
-	logger.debug("Processing timestamps to get rid of artifacts using concatenate method")
+	logger.debug("Processing timestamps to get rid of artifacts using concatenate method...")
 	storesList = events[1,:]
 	
 	path = decide_naming_convention(filepath)
@@ -790,7 +775,6 @@ def processTimestampsForArtifacts(filepath, timeForLightsTurnOn, events):
 			logger.error('Error in naming convention of files or Error in storesList file')
 			raise Exception('Error in naming convention of files or Error in storesList file')
 	logger.info("Timestamps processed, artifacts are removed and good chunks are concatenated.")
-	print("Timestamps processed, artifacts are removed and good chunks are concatenated.")
 
 
 # function to compute deltaF/F using fitted control channel and filtered signal channel
@@ -878,7 +862,7 @@ def helper_z_score(control, signal, filepath, name, inputParameters):     #helpe
 	tsNew = read_hdf5('timeCorrection_'+name, filepath, 'timestampNew')
 	coords_path = os.path.join(filepath, 'coordsForPreProcessing_'+name+'.npy')
 
-	print("Remove Artifacts : ", removeArtifacts)
+	logger.info("Remove Artifacts : ", removeArtifacts)
 
 	if (control==0).all()==True:
 		control = np.zeros(tsNew.shape[0])
@@ -943,7 +927,6 @@ def helper_z_score(control, signal, filepath, name, inputParameters):     #helpe
 # compute z-score and deltaF/F and save it to hdf5 file
 def compute_z_score(filepath, inputParameters):
 
-	print("Computing z-score for each of the data...")
 	logger.debug(f"Computing z-score for each of the data in {filepath}")
 	remove_artifacts = inputParameters['removeArtifacts']
 
@@ -990,7 +973,6 @@ def compute_z_score(filepath, inputParameters):
 			raise Exception('Error in naming convention of files or Error in storesList file')
 
 	logger.info(f"z-score for the data in {filepath} computed.")
-	print("z-score for the data computed.")
 	
 
 
@@ -1065,8 +1047,7 @@ def get_all_stores_for_combining_data(folderNames):
 # it will combine the data, do timestamps processing and save the combined data in the first output folder.
 def combineData(folderNames, inputParameters, storesList):
 
-	print("Combining Data from different data files...")
-	logger.debug("Combining Data from different data files")
+	logger.debug("Combining Data from different data files...")
 	timeForLightsTurnOn = inputParameters['timeForLightsTurnOn']
 	op_folder = []
 	for i in range(len(folderNames)):
@@ -1100,7 +1081,6 @@ def combineData(folderNames, inputParameters, storesList):
 	# processing timestamps for combining the data
 	processTimestampsForCombiningData(op, timeForLightsTurnOn, storesList, sampling_rate[0])
 	logger.info("Data is combined from different data files.")
-	print("Data is combined from different data files.")
 
 
 	return op
@@ -1131,8 +1111,7 @@ def execute_zscore(folderNames, inputParameters):
 		storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)
 
 		if remove_artifacts==True:
-			print("Removing Artifacts from the data and correcting timestamps...")
-			logger.debug("Removing Artifacts from the data and correcting timestamps.")
+			logger.debug("Removing Artifacts from the data and correcting timestamps...")
 			compute_z_score(filepath, inputParameters)
 			if artifactsRemovalMethod=='concatenate':
 				processTimestampsForArtifacts(filepath, timeForLightsTurnOn, storesList)
@@ -1140,7 +1119,6 @@ def execute_zscore(folderNames, inputParameters):
 				addingNaNtoChunksWithArtifacts(filepath, storesList)
 			visualizeControlAndSignal(filepath, remove_artifacts)
 			logger.info("Artifacts from the data are removed and timestamps are corrected.")
-			print("Artifacts from the data are removed and timestamps are corrected.")
 		else:
 			compute_z_score(filepath, inputParameters)
 			visualizeControlAndSignal(filepath, remove_artifacts)
@@ -1158,13 +1136,11 @@ def execute_zscore(folderNames, inputParameters):
 	
 	plt.show()
 	logger.info("Signal data and event timestamps are extracted.")
-	print("Signal data and event timestamps are extracted.")
 
 
 def extractTsAndSignal(inputParameters):
 
-	print("Extracting signal data and event timestamps...")
-	logger.debug("Extracting signal data and event timestamps")
+	logger.debug("Extracting signal data and event timestamps...")
 	inputParameters = inputParameters
 
 	#storesList = np.genfromtxt(inputParameters['storesListPath'], dtype='str', delimiter=',')
@@ -1179,10 +1155,6 @@ def extractTsAndSignal(inputParameters):
 	logger.info(f"Remove Artifacts : {remove_artifacts}")
 	logger.info(f"Combine Data : {combine_data}")
 	logger.info(f"Isosbestic Control Channel : {isosbestic_control}")
-
-	print("Remove Artifacts : ", remove_artifacts)
-	print("Combine Data : ", combine_data)
-	print("Isosbestic Control Channel : ", isosbestic_control)
 	storesListPath = []
 	for i in range(len(folderNames)):
 		storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(folderNames[i], '*_output_*'))))

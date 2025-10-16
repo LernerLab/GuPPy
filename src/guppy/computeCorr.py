@@ -109,7 +109,6 @@ def getCorrCombinations(filepath, inputParameters):
     corr_info = list()
     if len(names)<=1:
         logger.info("Cross-correlation cannot be computed because only one signal is present.")
-        print("Cross-correlation cannot be computed because only one signal is present.")
         return corr_info, type
     elif len(names)==2:
         corr_info = names
@@ -152,8 +151,7 @@ def computeCrossCorrelation(filepath, event, inputParameters):
             return
         else:
             for i in range(1, len(corr_info)):
-                print("Computing cross-correlation for event {}...".format(event))
-                logger.debug(f"Computing cross-correlation for event {event}")
+                logger.debug(f"Computing cross-correlation for event {event}...")
                 for j in range(len(type)):
                     psth_a = read_Df(filepath, event+'_'+corr_info[i-1], type[j]+'_'+corr_info[i-1])
                     psth_b = read_Df(filepath, event+'_'+corr_info[i], type[j]+'_'+corr_info[i])
@@ -170,4 +168,3 @@ def computeCrossCorrelation(filepath, event, inputParameters):
                     cols.append('timestamps')
                     create_Df(make_dir(filepath), 'corr_'+event, type[j]+'_'+corr_info[i-1]+'_'+corr_info[i], cross_corr, cols)
                 logger.info(f"Cross-correlation for event {event} computed.")
-                print("Cross-correlation for event {} computed.".format(event))

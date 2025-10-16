@@ -5,6 +5,9 @@ import numpy as np
 import h5py
 import re
 import fnmatch
+import logging
+
+logger = logging.getLogger(__name__)
 
 def find_files(path, glob_path, ignore_case = False):
 	rule = re.compile(fnmatch.translate(glob_path), re.IGNORECASE) if ignore_case \
@@ -109,7 +112,7 @@ def eliminateTs(filepath, timeForLightsTurnOn, event, sampling_rate, naming):
 		else:
 			ts = np.array([])
 		
-		#print("total time : ", tsNew[-1])
+		#logger.info("total time : ", tsNew[-1])
 		if len(tsNew_arr)==0:
 			sub = tsNew[0]-timeForLightsTurnOn
 			tsNew_arr = np.concatenate((tsNew_arr, tsNew-sub))
@@ -122,13 +125,13 @@ def eliminateTs(filepath, timeForLightsTurnOn, event, sampling_rate, naming):
 			tsNew_arr = np.concatenate((tsNew_arr, new_tsNew+(1/sampling_rate)))
 			ts_arr = np.concatenate((ts_arr, new_ts+(1/sampling_rate)))
 		
-		#print(event)
-		#print(ts_arr)
+		#logger.info(event)
+		#logger.info(ts_arr)
 	return ts_arr
 
 def processTimestampsForCombiningData(filepath, timeForLightsTurnOn, events, sampling_rate):
 	
-	print("Processing timestamps for combining data...")
+	logger.debug("Processing timestamps for combining data...")
 
 	storesList = events[1,:]
 	
@@ -163,39 +166,4 @@ def processTimestampsForCombiningData(filepath, timeForLightsTurnOn, events, sam
 
 		np.savetxt(os.path.join(filepath[k][0], 'combine_storesList.csv'), events, delimiter=",", fmt='%s')
 
-	print("Timestamps processed and data is combined.")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	
+	logger.info("Timestamps processed and data is combined.")

@@ -87,8 +87,7 @@ def processChunks(arrValues, arrIndexes, highAmpFilt, transientsThresh):
 
 def createChunks(z_score, sampling_rate, window):
 	
-	print('Creating chunks for multiprocessing...')
-	logger.debug('Creating chunks for multiprocessing.')
+	logger.debug('Creating chunks for multiprocessing...')
 	windowPoints = math.ceil(sampling_rate*window)
 	remainderPoints = math.ceil((sampling_rate*window) - (z_score.shape[0]%windowPoints))
 
@@ -110,7 +109,6 @@ def createChunks(z_score, sampling_rate, window):
 		logger.error('Reshaping values should be integer.')
 		raise Exception('Reshaping values should be integer.')
 	logger.info('Chunks are created for multiprocessing.')
-	print('Chunks are created for multiprocessing.')
 	return z_score_chunks, z_score_chunks_index
 
 
@@ -129,7 +127,7 @@ def calculate_freq_amp(arr, z_score, z_score_chunks_index, timestamps):
 
 	peaksInd = peaksInd.ravel()
 	peaksInd = peaksInd.astype(int)
-	#print(timestamps)
+	#logger.info(timestamps)
 	freq = peaksAmp.shape[0]/((timestamps[-1]-timestamps[0])/60)
 
 	return freq, peaksAmp, peaksInd
@@ -169,8 +167,7 @@ def visuzlize_peaks(filepath, z_score, timestamps, peaksIndex):
 
 def findFreqAndAmp(filepath, inputParameters, window=15, numProcesses=mp.cpu_count()):
 
-	print('Calculating frequency and amplitude of transients in z-score data....')
-	logger.debug('Calculating frequency and amplitude of transients in z-score data.')
+	logger.debug('Calculating frequency and amplitude of transients in z-score data....')
 	selectForTransientsComputation = inputParameters['selectForTransientsComputation']
 	highAmpFilt = inputParameters['highAmpFilt']
 	transientsThresh = inputParameters['transientsThresh']
@@ -210,7 +207,6 @@ def findFreqAndAmp(filepath, inputParameters, window=15, numProcesses=mp.cpu_cou
 				   index=np.arange(peaks_occurrences.shape[0]),columns=['timestamps', 'amplitude'])
 		visuzlize_peaks(path[i], z_score, ts, peaksInd)
 	logger.info('Frequency and amplitude of transients in z_score data are calculated.')
-	print('Frequency and amplitude of transients in z_score data are calculated.')
 		
 
 
@@ -224,8 +220,7 @@ def makeAverageDir(filepath):
 
 def averageForGroup(folderNames, inputParameters):
 
-	print('Combining results for frequency and amplitude of transients in z-score data...')
-	logger.debug('Combining results for frequency and amplitude of transients in z-score data.')
+	logger.debug('Combining results for frequency and amplitude of transients in z-score data...')
 	path = []
 	abspath = inputParameters['abspath']
 	selectForTransientsComputation = inputParameters['selectForTransientsComputation']
@@ -281,11 +276,10 @@ def averageForGroup(folderNames, inputParameters):
 		create_Df(op, arr, temp_path[j][1], index=fileName, columns=['freq (events/min)', 'amplitude'])
 		create_csv(op, arr, 'freqAndAmp_'+temp_path[j][1]+'.csv', index=fileName, columns=['freq (events/min)', 'amplitude'])
 	logger.info('Results for frequency and amplitude of transients in z-score data are combined.')
-	print('Results for frequency and amplitude of transients in z-score data are combined.')
 
 def executeFindFreqAndAmp(inputParameters):
 
-	print('Finding transients in z-score data and calculating frequency and amplitude....')
+	logger.info('Finding transients in z-score data and calculating frequency and amplitude....')
 	
 	inputParameters = inputParameters
 
@@ -299,8 +293,6 @@ def executeFindFreqAndAmp(inputParameters):
 		numProcesses = mp.cpu_count()
 	elif numProcesses>mp.cpu_count():
 		logger.warning('Warning : # of cores parameter set is greater than the cores available \
-			   available in your machine')
-		print('Warning : # of cores parameter set is greater than the cores available \
 			   available in your machine')
 		numProcesses = mp.cpu_count()-1
 
@@ -348,7 +340,7 @@ def executeFindFreqAndAmp(inputParameters):
 				logger.info('Transients in z-score data found and frequency and amplitude are calculated.')
 			plt.show()
 
-	print('Transients in z-score data found and frequency and amplitude are calculated.')
+	logger.info('Transients in z-score data found and frequency and amplitude are calculated.')
 
 
 if __name__ == "__main__":
