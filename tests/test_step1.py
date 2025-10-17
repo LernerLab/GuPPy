@@ -26,35 +26,13 @@ def default_parameters():
         "use_time_or_trials": "Time (min)",
         "baselineCorrectionStart": -5,
         "baselineCorrectionEnd": 0,
-        "peak_startPoint": [
-            -5.0,
-            0.0,
-            5.0,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan
-        ],
-        "peak_endPoint": [
-            0.0,
-            3.0,
-            10.0,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan
-        ],
+        "peak_startPoint": [-5.0, 0.0, 5.0, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan],
+        "peak_endPoint": [0.0, 3.0, 10.0, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan],
         "selectForComputePsth": "z_score",
         "selectForTransientsComputation": "z_score",
         "moving_window": 15,
         "highAmpFilt": 2,
-        "transientsThresh": 3
+        "transientsThresh": 3,
     }
 
 

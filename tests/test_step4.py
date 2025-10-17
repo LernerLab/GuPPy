@@ -1,12 +1,13 @@
-import os
 import glob
+import os
 import shutil
+from pathlib import Path
 
 import h5py
 import pytest
-from pathlib import Path
 
 from guppy.testing.api import step2, step3, step4
+
 
 @pytest.mark.parametrize(
     "session_subdir, storenames_map, expected_region, expected_ttl",
@@ -93,6 +94,7 @@ def test_step4(tmp_path, monkeypatch, session_subdir, storenames_map, expected_r
 
     # Stub matplotlib.pyplot.show to avoid GUI blocking
     import matplotlib.pyplot as plt  # noqa: F401
+
     monkeypatch.setattr("matplotlib.pyplot.show", lambda *args, **kwargs: None)
 
     # Stage a clean copy of the session into a temporary workspace

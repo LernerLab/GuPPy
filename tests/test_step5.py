@@ -1,10 +1,10 @@
-import os
 import glob
+import os
 import shutil
-
-import pytest
-import pandas as pd
 from pathlib import Path
+
+import pandas as pd
+import pytest
 
 from guppy.testing.api import step2, step3, step4, step5
 
@@ -96,6 +96,7 @@ def test_step5(tmp_path, monkeypatch, session_subdir, storenames_map, expected_r
 
     # Stub matplotlib.pyplot.show to avoid GUI blocking (used in earlier steps)
     import matplotlib.pyplot as plt  # noqa: F401
+
     monkeypatch.setattr("matplotlib.pyplot.show", lambda *args, **kwargs: None)
 
     # Stage a clean copy of the session into a temporary workspace
@@ -140,7 +141,9 @@ def test_step5(tmp_path, monkeypatch, session_subdir, storenames_map, expected_r
 
     # Expected PSTH outputs (defaults compute z_score PSTH)
     psth_h5 = os.path.join(out_dir, f"{expected_ttl}_{expected_region}_z_score_{expected_region}.h5")
-    psth_baseline_uncorr_h5 = os.path.join(out_dir, f"{expected_ttl}_{expected_region}_baselineUncorrected_z_score_{expected_region}.h5")
+    psth_baseline_uncorr_h5 = os.path.join(
+        out_dir, f"{expected_ttl}_{expected_region}_baselineUncorrected_z_score_{expected_region}.h5"
+    )
     peak_auc_h5 = os.path.join(out_dir, f"peak_AUC_{expected_ttl}_{expected_region}_z_score_{expected_region}.h5")
     peak_auc_csv = os.path.join(out_dir, f"peak_AUC_{expected_ttl}_{expected_region}_z_score_{expected_region}.csv")
 

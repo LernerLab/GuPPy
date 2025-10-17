@@ -21,12 +21,12 @@ authors = [
 
 license = { file = "LICENSE" }
 keywords = [
-    "neuroscience", 
-    "fiber-photometry", 
-    "calcium-imaging", 
-    "data-analysis", 
-    "gui", 
-    "visualization", 
+    "neuroscience",
+    "fiber-photometry",
+    "calcium-imaging",
+    "data-analysis",
+    "gui",
+    "visualization",
     "signal-processing",
 ]
 classifiers = [
@@ -106,8 +106,9 @@ extend-exclude = '''
 select = [
     "F401",  # Unused import
     "I",  # All isort rules
-    "D101",  # Missing docstring in public class
-    "D103",  # Missing docstring in public function
+    # TODO: add docstring rules after adding comprehensive docstrings to all public functions/classes
+    # "D101",  # Missing docstring in public class
+    # "D103",  # Missing docstring in public function
     "UP006", # non-pep585 annotation (tuple, list -> tuple, list)
     "UP007" # non-pep604 annotation (Union[x, y] -> X | Y )
 ]

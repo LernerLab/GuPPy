@@ -4,29 +4,30 @@
 # In[1]:
 
 
-import os
-import json
 import glob
-import h5py
-import numpy as np
-import pandas as pd
-from numpy import int32, uint32, uint8, uint16, float64, int64, int32, float32
-import panel as pn
-from random import randint
-from pathlib import Path
-import holoviews as hv
-import warnings
+import json
+import logging
+import os
 import socket
 import tkinter as tk
-from tkinter import ttk, StringVar, messagebox
-import logging
+from pathlib import Path
+from random import randint
+from tkinter import StringVar, messagebox, ttk
 
-#hv.extension()
+import h5py
+import holoviews as hv
+import numpy as np
+import pandas as pd
+import panel as pn
+from numpy import float32, float64, int32, int64, uint16
+
+# hv.extension()
 pn.extension()
 
 logger = logging.getLogger(__name__)
 
-def scanPortsAndFind(start_port=5000, end_port=5200, host='127.0.0.1'):
+
+def scanPortsAndFind(start_port=5000, end_port=5200, host="127.0.0.1"):
     while True:
         port = randint(start_port, end_port)
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -39,35 +40,39 @@ def scanPortsAndFind(start_port=5000, end_port=5200, host='127.0.0.1'):
 
     return port
 
+
 def takeOnlyDirs(paths):
-	removePaths = []
-	for p in paths:
-		if os.path.isfile(p):
-			removePaths.append(p)
-	return list(set(paths)-set(removePaths))
+    removePaths = []
+    for p in paths:
+        if os.path.isfile(p):
+            removePaths.append(p)
+    return list(set(paths) - set(removePaths))
+
 
 # function to show location for over-writing or creating a new stores list file.
 def show_dir(filepath):
     i = 1
     while True:
         basename = os.path.basename(filepath)
-        op = os.path.join(filepath, basename+'_output_'+str(i))
+        op = os.path.join(filepath, basename + "_output_" + str(i))
         if not os.path.exists(op):
             break
         i += 1
     return op
 
+
 def make_dir(filepath):
     i = 1
     while True:
         basename = os.path.basename(filepath)
-        op = os.path.join(filepath, basename+'_output_'+str(i))
+        op = os.path.join(filepath, basename + "_output_" + str(i))
         if not os.path.exists(op):
             os.mkdir(op)
             break
         i += 1
 
     return op
+
 
 def check_header(df):
     arr = list(df.columns)
@@ -77,24 +82,21 @@ def check_header(df):
             check_float.append(float(i))
         except:
             pass
-    
+
     return arr, check_float
 
 
 # function to read 'tsq' file
 def readtsq(filepath):
-    names = ('size', 'type', 'name', 'chan', 'sort_code', 'timestamp',
-            'fp_loc', 'strobe', 'format', 'frequency')
-    formats = (int32, int32, 'S4', uint16, uint16, float64, int64,
-               float64, int32, float32)
+    names = ("size", "type", "name", "chan", "sort_code", "timestamp", "fp_loc", "strobe", "format", "frequency")
+    formats = (int32, int32, "S4", uint16, uint16, float64, int64, float64, int32, float32)
     offsets = 0, 4, 8, 12, 14, 16, 24, 24, 32, 36
-    tsq_dtype = np.dtype({'names': names, 'formats': formats,
-                          'offsets': offsets}, align=True)
-    path = glob.glob(os.path.join(filepath, '*.tsq'))
-    if len(path)>1:
-        logger.error('Two tsq files are present at the location.')
-        raise Exception('Two tsq files are present at the location.')
-    elif len(path)==0:
+    tsq_dtype = np.dtype({"names": names, "formats": formats, "offsets": offsets}, align=True)
+    path = glob.glob(os.path.join(filepath, "*.tsq"))
+    if len(path) > 1:
+        logger.error("Two tsq files are present at the location.")
+        raise Exception("Two tsq files are present at the location.")
+    elif len(path) == 0:
         return 0
     else:
         path = path[0]
@@ -103,10 +105,10 @@ def readtsq(filepath):
     return df
 
 
-# function to show GUI and save 
+# function to show GUI and save
 def saveStorenames(inputParameters, data, event_name, flag, filepath):
-    
-    logger.debug('Saving stores list file.')
+
+    logger.debug("Saving stores list file.")
     # getting input parameters
     inputParameters = inputParameters
 
@@ -115,19 +117,19 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
     if isinstance(storenames_map, dict) and len(storenames_map) > 0:
         op = make_dir(filepath)
         arr = np.asarray([list(storenames_map.keys()), list(storenames_map.values())], dtype=str)
-        np.savetxt(os.path.join(op, 'storesList.csv'), arr, delimiter=",", fmt='%s')
+        np.savetxt(os.path.join(op, "storesList.csv"), arr, delimiter=",", fmt="%s")
         logger.info(f"Storeslist file saved at {op}")
-        logger.info('Storeslist : \n'+str(arr))
+        logger.info("Storeslist : \n" + str(arr))
         return
 
     # reading storenames from the data fetched using 'readtsq' function
     if isinstance(data, pd.DataFrame):
-        data['name'] = np.asarray(data['name'], dtype=str)
-        allnames = np.unique(data['name'])
+        data["name"] = np.asarray(data["name"], dtype=str)
+        allnames = np.unique(data["name"])
         index = []
         for i in range(len(allnames)):
             length = len(str(allnames[i]))
-            if length<4:
+            if length < 4:
                 index.append(i)
         allnames = np.delete(allnames, index, 0)
         allnames = list(allnames)
@@ -135,74 +137,75 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
     else:
         allnames = []
 
-
-    if 'data_np_v2' in flag or 'data_np' in flag or 'event_np' in flag:
-        path_chev = glob.glob(os.path.join(filepath, '*chev*'))
-        path_chod = glob.glob(os.path.join(filepath, '*chod*'))
-        path_chpr = glob.glob(os.path.join(filepath, '*chpr*'))
+    if "data_np_v2" in flag or "data_np" in flag or "event_np" in flag:
+        path_chev = glob.glob(os.path.join(filepath, "*chev*"))
+        path_chod = glob.glob(os.path.join(filepath, "*chod*"))
+        path_chpr = glob.glob(os.path.join(filepath, "*chpr*"))
         combine_paths = path_chev + path_chod + path_chpr
         d = dict()
         for i in range(len(combine_paths)):
-            basename = (os.path.basename(combine_paths[i])).split('.')[0]
+            basename = (os.path.basename(combine_paths[i])).split(".")[0]
             df = pd.read_csv(combine_paths[i])
-            d[basename] = {
-                    'x': np.array(df['timestamps']),
-                    'y': np.array(df['data'])
-            }
+            d[basename] = {"x": np.array(df["timestamps"]), "y": np.array(df["data"])}
         keys = list(d.keys())
-        mark_down_np = pn.pane.Markdown("""
+        mark_down_np = pn.pane.Markdown(
+            """
                                         ### Extra Instructions to follow when using Neurophotometrics data :
-                                        - Guppy will take the NPM data, which has interleaved frames 
-                                        from the signal and control channels, and divide it out into 
-                                        separate channels for each site you recordded. 
-                                        However, since NPM does not automatically annotate which 
-                                        frames belong to the signal channel and which belong to the 
+                                        - Guppy will take the NPM data, which has interleaved frames
+                                        from the signal and control channels, and divide it out into
+                                        separate channels for each site you recordded.
+                                        However, since NPM does not automatically annotate which
+                                        frames belong to the signal channel and which belong to the
                                         control channel, the user must specify this for GuPPy.
-                                        - Each of your recording sites will have a channel 
+                                        - Each of your recording sites will have a channel
                                         named “chod” and a channel named “chev”
-                                        - View the plots below and, for each site, 
+                                        - View the plots below and, for each site,
                                         determine whether the “chev” or “chod” channel is signal or control
-                                        - When you give your storenames, name the channels appropriately. 
-                                        For example, “chev1” might be “signal_A” and 
+                                        - When you give your storenames, name the channels appropriately.
+                                        For example, “chev1” might be “signal_A” and
                                         “chod1” might be “control_A” (or vice versa).
 
-                                            """)
-        plot_select = pn.widgets.Select(name='Select channel to see correspondings channels', options=keys, value=keys[0])
-        
+                                            """
+        )
+        plot_select = pn.widgets.Select(
+            name="Select channel to see correspondings channels", options=keys, value=keys[0]
+        )
+
         @pn.depends(plot_select=plot_select)
         def plot(plot_select):
-            return hv.Curve((d[plot_select]['x'], d[plot_select]['y'])).opts(width=550)
+            return hv.Curve((d[plot_select]["x"], d[plot_select]["y"])).opts(width=550)
+
     else:
         pass
 
-    # finalizing all the storenames 
+    # finalizing all the storenames
     allnames = allnames + event_name
 
-
     # instructions about how to save the storeslist file
-    mark_down = pn.pane.Markdown("""
+    mark_down = pn.pane.Markdown(
+        """
 
 
-                ### Instructions to follow : 
+                ### Instructions to follow :
 
-                - Check Storenames to repeat checkbox and see instructions in “Github Wiki” for duplicating storenames. 
+                - Check Storenames to repeat checkbox and see instructions in “Github Wiki” for duplicating storenames.
                 Otherwise do not check the Storenames to repeat checkbox.<br>
                 - Select storenames from list and click “Select Storenames” to populate area below.<br>
                 - Enter names for storenames, in order, using the following naming convention:<br>
                     Isosbestic = “control_region” (ex: Dv1A= control_DMS)<br>
                     Signal= “signal_region” (ex: Dv2A= signal_DMS)<br>
                     TTLs can be named using any convention (ex: PrtR = RewardedPortEntries) but should be kept consistent for later group analysis
-                    
+
                 ```
-                {"storenames": ["Dv1A", "Dv2A", 
-                                "Dv3B", "Dv4B", 
-                                "LNRW", "LNnR", 
-                                "PrtN", "PrtR", 
-                                "RNPS"], 
-                "names_for_storenames": ["control_DMS", "signal_DMS", 
-                                         "control_DLS", "signal_DLS", 
-                                         "RewardedNosepoke", "UnrewardedNosepoke", 
-                                         "UnrewardedPort", "RewardedPort", 
+                {"storenames": ["Dv1A", "Dv2A",
+                                "Dv3B", "Dv4B",
+                                "LNRW", "LNnR",
+                                "PrtN", "PrtR",
+                                "RNPS"],
+                "names_for_storenames": ["control_DMS", "signal_DMS",
+                                         "control_DLS", "signal_DLS",
+                                         "RewardedNosepoke", "UnrewardedNosepoke",
+                                         "UnrewardedPort", "RewardedPort",
                                          "InactiveNosepoke"]}
                 ```
                 - If user has saved storenames before, clicking "Select Storenames" button will pop up a dialog box
@@ -212,153 +215,162 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
                 - Select “create new” or “overwrite” to generate a new storenames list or replace a previous one
                 - Click Save
 
-                """, width=550)
-
+                """,
+        width=550,
+    )
 
     # creating GUI template
-    template = pn.template.BootstrapTemplate(title='Storenames GUI - {}'.format(os.path.basename(filepath), mark_down))
-
-    
+    template = pn.template.BootstrapTemplate(title="Storenames GUI - {}".format(os.path.basename(filepath), mark_down))
 
     # creating different buttons and selectors for the GUI
-    cross_selector = pn.widgets.CrossSelector(name='Store Names Selection', value=[], options=allnames, width=600)
-    multi_choice = pn.widgets.MultiChoice(name='Select Storenames which you want more than once (multi-choice: multiple options selection)', value=[], options=allnames)
+    cross_selector = pn.widgets.CrossSelector(name="Store Names Selection", value=[], options=allnames, width=600)
+    multi_choice = pn.widgets.MultiChoice(
+        name="Select Storenames which you want more than once (multi-choice: multiple options selection)",
+        value=[],
+        options=allnames,
+    )
 
-    literal_input_1 = pn.widgets.LiteralInput(name='Number of times you want the above storename (list)', 
-                                              value=[], type=list)
-    #literal_input_2 = pn.widgets.LiteralInput(name='Names for Storenames (list)', type=list)
+    literal_input_1 = pn.widgets.LiteralInput(
+        name="Number of times you want the above storename (list)", value=[], type=list
+    )
+    # literal_input_2 = pn.widgets.LiteralInput(name='Names for Storenames (list)', type=list)
 
-    repeat_storenames = pn.widgets.Checkbox(name='Storenames to repeat', value=False)
-    repeat_storename_wd = pn.WidgetBox('', width=600)
+    repeat_storenames = pn.widgets.Checkbox(name="Storenames to repeat", value=False)
+    repeat_storename_wd = pn.WidgetBox("", width=600)
+
     def callback(target, event):
-        if event.new==True:
+        if event.new == True:
             target.objects = [multi_choice, literal_input_1]
-        elif event.new==False:
+        elif event.new == False:
             target.clear()
-    repeat_storenames.link(repeat_storename_wd, callbacks={'value': callback})
-    #repeat_storename_wd = pn.WidgetBox('Storenames to repeat (leave blank if not needed)', multi_choice, literal_input_1, background="white", width=600)
 
-    update_options = pn.widgets.Button(name='Select Storenames', width=600)
-    save = pn.widgets.Button(name='Save', width=600)
+    repeat_storenames.link(repeat_storename_wd, callbacks={"value": callback})
+    # repeat_storename_wd = pn.WidgetBox('Storenames to repeat (leave blank if not needed)', multi_choice, literal_input_1, background="white", width=600)
 
-    text = pn.widgets.LiteralInput(value=[], name='Selected Store Names', type=list, width=600)
+    update_options = pn.widgets.Button(name="Select Storenames", width=600)
+    save = pn.widgets.Button(name="Save", width=600)
 
-    path = pn.widgets.TextInput(name='Location to Stores List file', width=600)
+    text = pn.widgets.LiteralInput(value=[], name="Selected Store Names", type=list, width=600)
 
-    mark_down_for_overwrite = pn.pane.Markdown(""" Select option from below if user wants to over-write a file or create a new file. 
+    path = pn.widgets.TextInput(name="Location to Stores List file", width=600)
+
+    mark_down_for_overwrite = pn.pane.Markdown(
+        """ Select option from below if user wants to over-write a file or create a new file.
                                     **Creating a new file will make a new ouput folder and will get saved at that location.**
-                                    If user selects to over-write a file **Select location of the file to over-write** will provide 
-                                    the existing options of the ouput folders where user needs to over-write the file""", width=600)
-
-    select_location = pn.widgets.Select(name='Select location of the file to over-write', 
-                                        value='None', options=['None'], width=600)
-
-
-    overwrite_button = pn.widgets.MenuButton(name='over-write storeslist file or create a new one?  ', 
-                                             items=['over_write_file', 'create_new_file'], 
-                                             button_type='default', split=True, width=600)
-    
-    literal_input_2 = pn.widgets.CodeEditor(value="""{}""", 
-                                            theme='tomorrow', 
-                                            language='json', 
-                                            height=250, width=600)
-
-    alert = pn.pane.Alert('#### No alerts !!', alert_type='danger', height=80, width=600)
-
-
-    take_widgets = pn.WidgetBox(
-        multi_choice,
-        literal_input_1   
+                                    If user selects to over-write a file **Select location of the file to over-write** will provide
+                                    the existing options of the ouput folders where user needs to over-write the file""",
+        width=600,
     )
 
-    change_widgets = pn.WidgetBox(
-        text
+    select_location = pn.widgets.Select(
+        name="Select location of the file to over-write", value="None", options=["None"], width=600
     )
 
-    
+    overwrite_button = pn.widgets.MenuButton(
+        name="over-write storeslist file or create a new one?  ",
+        items=["over_write_file", "create_new_file"],
+        button_type="default",
+        split=True,
+        width=600,
+    )
+
+    literal_input_2 = pn.widgets.CodeEditor(value="""{}""", theme="tomorrow", language="json", height=250, width=600)
+
+    alert = pn.pane.Alert("#### No alerts !!", alert_type="danger", height=80, width=600)
+
+    take_widgets = pn.WidgetBox(multi_choice, literal_input_1)
+
+    change_widgets = pn.WidgetBox(text)
+
     storenames = []
     storename_dropdowns = {}
     storename_textboxes = {}
-    
-    if len(allnames)==0:
-        alert.object = '####Alert !! \n No storenames found. There are not any TDT files or csv files to look for storenames.'
+
+    if len(allnames) == 0:
+        alert.object = (
+            "####Alert !! \n No storenames found. There are not any TDT files or csv files to look for storenames."
+        )
 
     # on clicking overwrite_button, following function is executed
     def overwrite_button_actions(event):
-        if event.new=='over_write_file':
-            select_location.options = takeOnlyDirs(glob.glob(os.path.join(filepath, '*_output_*')))
-            #select_location.value = select_location.options[0]
+        if event.new == "over_write_file":
+            select_location.options = takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*")))
+            # select_location.value = select_location.options[0]
         else:
             select_location.options = [show_dir(filepath)]
-            #select_location.value = select_location.options[0]
-    
+            # select_location.value = select_location.options[0]
+
     def fetchValues(event):
         global storenames
-        alert.object = '#### No alerts !!'
-        
+        alert.object = "#### No alerts !!"
+
         if not storename_dropdowns or not len(storenames) > 0:
-            alert.object = '####Alert !! \n No storenames selected.'
+            alert.object = "####Alert !! \n No storenames selected."
             return
-            
+
         storenames_cache = dict()
-        if os.path.exists(os.path.join(Path.home(), '.storesList.json')):
-            with open(os.path.join(Path.home(), '.storesList.json')) as f:
+        if os.path.exists(os.path.join(Path.home(), ".storesList.json")):
+            with open(os.path.join(Path.home(), ".storesList.json")) as f:
                 storenames_cache = json.load(f)
-                
+
         comboBoxValues, textBoxValues = [], []
         dropdown_keys = list(storename_dropdowns.keys())
         textbox_keys = list(storename_textboxes.keys()) if storename_textboxes else []
-        
+
         # Get dropdown values
         for key in dropdown_keys:
             comboBoxValues.append(storename_dropdowns[key].value)
-        
+
         # Get textbox values (matching with dropdown keys)
         for key in dropdown_keys:
             if key in storename_textboxes:
                 textbox_value = storename_textboxes[key].value or ""
                 textBoxValues.append(textbox_value)
-                
+
                 # Validation: Check for whitespace
                 if len(textbox_value.split()) > 1:
-                    alert.object = '####Alert !! \n Whitespace is not allowed in the text box entry.'
+                    alert.object = "####Alert !! \n Whitespace is not allowed in the text box entry."
                     return
-                    
+
                 # Validation: Check for empty required fields
                 dropdown_value = storename_dropdowns[key].value
-                if not textbox_value and dropdown_value not in storenames_cache and dropdown_value in ['control', 'signal', 'event TTLs']:
-                    alert.object = '####Alert !! \n One of the text box entry is empty.'
+                if (
+                    not textbox_value
+                    and dropdown_value not in storenames_cache
+                    and dropdown_value in ["control", "signal", "event TTLs"]
+                ):
+                    alert.object = "####Alert !! \n One of the text box entry is empty."
                     return
             else:
                 # For cached values, use the dropdown value directly
                 textBoxValues.append(storename_dropdowns[key].value)
-        
+
         if len(comboBoxValues) != len(textBoxValues):
-            alert.object = '####Alert !! \n Number of entries in combo box and text box should be same.'
+            alert.object = "####Alert !! \n Number of entries in combo box and text box should be same."
             return
-        
+
         names_for_storenames = []
         for i in range(len(comboBoxValues)):
-            if comboBoxValues[i] == 'control' or comboBoxValues[i] == "signal":
-                if '_' in textBoxValues[i]:
-                    alert.object = '####Alert !! \n Please do not use underscore in region name.'
+            if comboBoxValues[i] == "control" or comboBoxValues[i] == "signal":
+                if "_" in textBoxValues[i]:
+                    alert.object = "####Alert !! \n Please do not use underscore in region name."
                     return
                 names_for_storenames.append("{}_{}".format(comboBoxValues[i], textBoxValues[i]))
-            elif comboBoxValues[i] == 'event TTLs':
+            elif comboBoxValues[i] == "event TTLs":
                 names_for_storenames.append(textBoxValues[i])
             else:
                 names_for_storenames.append(comboBoxValues[i])
-        
+
         d = dict()
         d["storenames"] = text.value
         d["names_for_storenames"] = names_for_storenames
         literal_input_2.value = str(json.dumps(d, indent=2))
-    
+
     # Panel-based storename configuration (replaces Tkinter dialog)
     storename_config_widgets = pn.Column(visible=False)
-    show_config_button = pn.widgets.Button(name='Show Selected Configuration', width=600)
-    
-    # on clicking 'Select Storenames' button, following function is executed  
+    show_config_button = pn.widgets.Button(name="Show Selected Configuration", width=600)
+
+    # on clicking 'Select Storenames' button, following function is executed
     def update_values(event):
         global storenames, vars_list
         arr = []
@@ -371,122 +383,133 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
             for j in range(arr[1][i]):
                 new_arr.append(arr[0][i])
 
-        if len(new_arr)>0:
+        if len(new_arr) > 0:
             storenames = cross_selector.value + new_arr
         else:
             storenames = cross_selector.value
-        
+
         for w in change_widgets:
             w.value = storenames
 
         storenames_cache = dict()
-        if os.path.exists(os.path.join(Path.home(), '.storesList.json')):
-            with open(os.path.join(Path.home(), '.storesList.json')) as f:
+        if os.path.exists(os.path.join(Path.home(), ".storesList.json")):
+            with open(os.path.join(Path.home(), ".storesList.json")) as f:
                 storenames_cache = json.load(f)
-        
+
         # Create Panel widgets for storename configuration
         config_widgets = []
         storename_dropdowns.clear()
         storename_textboxes.clear()
-        
+
         if len(storenames) > 0:
-            config_widgets.append(pn.pane.Markdown("## Configure Storenames\nSelect appropriate options for each storename and provide names as needed:"))
-            
+            config_widgets.append(
+                pn.pane.Markdown(
+                    "## Configure Storenames\nSelect appropriate options for each storename and provide names as needed:"
+                )
+            )
+
             for i, storename in enumerate(storenames):
                 # Create a row for each storename
                 row_widgets = []
-                
+
                 # Label
                 label = pn.pane.Markdown(f"**{storename}:**")
                 row_widgets.append(label)
-                
+
                 # Dropdown options
                 if storename in storenames_cache:
                     options = storenames_cache[storename]
-                    default_value = options[0] if options else ''
+                    default_value = options[0] if options else ""
                 else:
-                    options = ['', 'control', 'signal', 'event TTLs']
-                    default_value = ''
-                
+                    options = ["", "control", "signal", "event TTLs"]
+                    default_value = ""
+
                 # Create unique key for widget
-                widget_key = f"{storename}_{i}" if f"{storename}_{i}" not in storename_dropdowns else f"{storename}_{i}_{len(storename_dropdowns)}"
-                
-                dropdown = pn.widgets.Select(
-                    name='Type', 
-                    value=default_value,
-                    options=options,
-                    width=150
+                widget_key = (
+                    f"{storename}_{i}"
+                    if f"{storename}_{i}" not in storename_dropdowns
+                    else f"{storename}_{i}_{len(storename_dropdowns)}"
                 )
+
+                dropdown = pn.widgets.Select(name="Type", value=default_value, options=options, width=150)
                 storename_dropdowns[widget_key] = dropdown
                 row_widgets.append(dropdown)
-                
+
                 # Text input (only show if not cached or if control/signal/event TTLs selected)
-                if storename not in storenames_cache or default_value in ['control', 'signal', 'event TTLs']:
+                if storename not in storenames_cache or default_value in ["control", "signal", "event TTLs"]:
                     textbox = pn.widgets.TextInput(
-                        name='Name', 
-                        value='',
-                        placeholder='Enter region/event name',
-                        width=200
+                        name="Name", value="", placeholder="Enter region/event name", width=200
                     )
                     storename_textboxes[widget_key] = textbox
                     row_widgets.append(textbox)
-                    
+
                     # Add helper text based on selection
                     def create_help_function(dropdown_widget, help_pane_container):
                         @pn.depends(dropdown_widget.param.value, watch=True)
                         def update_help(dropdown_value):
-                            if dropdown_value == 'control':
-                                help_pane_container[0] = pn.pane.Markdown("*Type appropriate region name*", styles={'color': 'gray', 'font-size': '12px'})
-                            elif dropdown_value == 'signal':
-                                help_pane_container[0] = pn.pane.Markdown("*Type appropriate region name*", styles={'color': 'gray', 'font-size': '12px'})
-                            elif dropdown_value == 'event TTLs':
-                                help_pane_container[0] = pn.pane.Markdown("*Type event name for the TTLs*", styles={'color': 'gray', 'font-size': '12px'})
+                            if dropdown_value == "control":
+                                help_pane_container[0] = pn.pane.Markdown(
+                                    "*Type appropriate region name*", styles={"color": "gray", "font-size": "12px"}
+                                )
+                            elif dropdown_value == "signal":
+                                help_pane_container[0] = pn.pane.Markdown(
+                                    "*Type appropriate region name*", styles={"color": "gray", "font-size": "12px"}
+                                )
+                            elif dropdown_value == "event TTLs":
+                                help_pane_container[0] = pn.pane.Markdown(
+                                    "*Type event name for the TTLs*", styles={"color": "gray", "font-size": "12px"}
+                                )
                             else:
-                                help_pane_container[0] = pn.pane.Markdown("", styles={'color': 'gray', 'font-size': '12px'})
+                                help_pane_container[0] = pn.pane.Markdown(
+                                    "", styles={"color": "gray", "font-size": "12px"}
+                                )
+
                         return update_help
-                    
+
                     help_container = [pn.pane.Markdown("")]
                     help_function = create_help_function(dropdown, help_container)
                     help_function(dropdown.value)  # Initialize
                     row_widgets.append(help_container[0])
-                
+
                 # Add the row to config widgets
                 config_widgets.append(pn.Row(*row_widgets, margin=(5, 0)))
-            
+
             # Add show button
             config_widgets.append(pn.Spacer(height=20))
             config_widgets.append(show_config_button)
-            config_widgets.append(pn.pane.Markdown("*Click 'Show Selected Configuration' to apply your selections.*", styles={'font-size': '12px', 'color': 'gray'}))
-        
+            config_widgets.append(
+                pn.pane.Markdown(
+                    "*Click 'Show Selected Configuration' to apply your selections.*",
+                    styles={"font-size": "12px", "color": "gray"},
+                )
+            )
+
         # Update the configuration panel
         storename_config_widgets.objects = config_widgets
         storename_config_widgets.visible = len(storenames) > 0
 
-
-
     # on clicking save button, following function is executed
     def save_button(event=None):
         global storenames
-        
+
         d = json.loads(literal_input_2.value)
         arr1, arr2 = np.asarray(d["storenames"]), np.asarray(d["names_for_storenames"])
 
-        if np.where(arr2=="")[0].size>0:
-            alert.object = '#### Alert !! \n Empty string in the list names_for_storenames.'
-            logger.error('Empty string in the list names_for_storenames.')
-            raise Exception('Empty string in the list names_for_storenames.')
+        if np.where(arr2 == "")[0].size > 0:
+            alert.object = "#### Alert !! \n Empty string in the list names_for_storenames."
+            logger.error("Empty string in the list names_for_storenames.")
+            raise Exception("Empty string in the list names_for_storenames.")
         else:
-            alert.object = '#### No alerts !!'
+            alert.object = "#### No alerts !!"
 
-        if arr1.shape[0]!=arr2.shape[0]:
-            alert.object = '#### Alert !! \n Length of list storenames and names_for_storenames is not equal.'
-            logger.error('Length of list storenames and names_for_storenames is not equal.')
-            raise Exception('Length of list storenames and names_for_storenames is not equal.')
+        if arr1.shape[0] != arr2.shape[0]:
+            alert.object = "#### Alert !! \n Length of list storenames and names_for_storenames is not equal."
+            logger.error("Length of list storenames and names_for_storenames is not equal.")
+            raise Exception("Length of list storenames and names_for_storenames is not equal.")
         else:
-            alert.object = '#### No alerts !!'
+            alert.object = "#### No alerts !!"
 
-
-        if not os.path.exists(os.path.join(Path.home(), '.storesList.json')):
+        if not os.path.exists(os.path.join(Path.home(), ".storesList.json")):
             storenames_cache = dict()
 
             for i in range(arr1.shape[0]):
@@ -496,10 +519,10 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
                 else:
                     storenames_cache[arr1[i]] = [arr2[i]]
 
-            with open(os.path.join(Path.home(), '.storesList.json'), 'w') as f:
-                json.dump(storenames_cache, f, indent=4) 
+            with open(os.path.join(Path.home(), ".storesList.json"), "w") as f:
+                json.dump(storenames_cache, f, indent=4)
         else:
-            with open(os.path.join(Path.home(), '.storesList.json')) as f:
+            with open(os.path.join(Path.home(), ".storesList.json")) as f:
                 storenames_cache = json.load(f)
 
             for i in range(arr1.shape[0]):
@@ -509,19 +532,18 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
                 else:
                     storenames_cache[arr1[i]] = [arr2[i]]
 
-            with open(os.path.join(Path.home(), '.storesList.json'), 'w') as f:
+            with open(os.path.join(Path.home(), ".storesList.json"), "w") as f:
                 json.dump(storenames_cache, f, indent=4)
 
         arr = np.asarray([arr1, arr2])
         logger.info(arr)
         if not os.path.exists(select_location.value):
             os.mkdir(select_location.value)
-            
-        np.savetxt(os.path.join(select_location.value, 'storesList.csv'), arr, delimiter=",", fmt='%s')
-        path.value = os.path.join(select_location.value, 'storesList.csv')
+
+        np.savetxt(os.path.join(select_location.value, "storesList.csv"), arr, delimiter=",", fmt="%s")
+        path.value = os.path.join(select_location.value, "storesList.csv")
         logger.info(f"Storeslist file saved at {select_location.value}")
-        logger.info('Storeslist : \n'+str(arr))
-    
+        logger.info("Storeslist : \n" + str(arr))
 
     # Connect button callbacks
     update_options.on_click(update_values)
@@ -532,22 +554,46 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
     # creating widgets, adding them to template and showing a GUI on a new browser window
     number = scanPortsAndFind(start_port=5000, end_port=5200)
 
-    if 'data_np_v2' in flag or 'data_np' in flag or 'event_np' in flag:
-        widget_1 = pn.Column('# '+os.path.basename(filepath), mark_down, mark_down_np, plot_select, plot)
-        widget_2 = pn.Column(repeat_storenames, repeat_storename_wd, pn.Spacer(height=20), 
-                             cross_selector, update_options, 
-                             storename_config_widgets, pn.Spacer(height=10),
-                             text, literal_input_2, alert, mark_down_for_overwrite, 
-                             overwrite_button, select_location, save, path)
+    if "data_np_v2" in flag or "data_np" in flag or "event_np" in flag:
+        widget_1 = pn.Column("# " + os.path.basename(filepath), mark_down, mark_down_np, plot_select, plot)
+        widget_2 = pn.Column(
+            repeat_storenames,
+            repeat_storename_wd,
+            pn.Spacer(height=20),
+            cross_selector,
+            update_options,
+            storename_config_widgets,
+            pn.Spacer(height=10),
+            text,
+            literal_input_2,
+            alert,
+            mark_down_for_overwrite,
+            overwrite_button,
+            select_location,
+            save,
+            path,
+        )
         template.main.append(pn.Row(widget_1, widget_2))
 
     else:
-        widget_1 = pn.Column('# '+os.path.basename(filepath), mark_down)
-        widget_2 = pn.Column(repeat_storenames, repeat_storename_wd, pn.Spacer(height=20), 
-                             cross_selector, update_options, 
-                             storename_config_widgets, pn.Spacer(height=10),
-                             text, literal_input_2, alert, mark_down_for_overwrite, 
-                             overwrite_button, select_location, save, path)
+        widget_1 = pn.Column("# " + os.path.basename(filepath), mark_down)
+        widget_2 = pn.Column(
+            repeat_storenames,
+            repeat_storename_wd,
+            pn.Spacer(height=20),
+            cross_selector,
+            update_options,
+            storename_config_widgets,
+            pn.Spacer(height=10),
+            text,
+            literal_input_2,
+            alert,
+            mark_down_for_overwrite,
+            overwrite_button,
+            select_location,
+            save,
+            path,
+        )
         template.main.append(pn.Row(widget_1, widget_2))
 
     template.show(port=number)
@@ -557,138 +603,169 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
 def check_channels(state):
     state = state.astype(int)
     unique_state = np.unique(state[2:12])
-    if unique_state.shape[0]>3:
-        logger.error("Looks like there are more than 3 channels in the file. Reading of these files\
-                        are not supported. Reach out to us if you get this error message.")
-        raise Exception("Looks like there are more than 3 channels in the file. Reading of these files\
-                        are not supported. Reach out to us if you get this error message.")
+    if unique_state.shape[0] > 3:
+        logger.error(
+            "Looks like there are more than 3 channels in the file. Reading of these files\
+                        are not supported. Reach out to us if you get this error message."
+        )
+        raise Exception(
+            "Looks like there are more than 3 channels in the file. Reading of these files\
+                        are not supported. Reach out to us if you get this error message."
+        )
 
     return unique_state.shape[0], unique_state
-    
+
+
 # function to decide NPM timestamps unit (seconds, ms or us)
 def decide_ts_unit_for_npm(df, timestamp_column_name=None, time_unit=None, headless=False):
     col_names = np.array(list(df.columns))
-    col_names_ts = ['']
+    col_names_ts = [""]
     for name in col_names:
-        if 'timestamp' in name.lower():
+        if "timestamp" in name.lower():
             col_names_ts.append(name)
-    
-    ts_unit = 'seconds'
-    if len(col_names_ts)>2:
+
+    ts_unit = "seconds"
+    if len(col_names_ts) > 2:
         # Headless path: auto-select column/unit without any UI
         if headless:
             if timestamp_column_name is not None:
-                assert timestamp_column_name in col_names_ts, f"Provided timestamp_column_name '{timestamp_column_name}' not found in columns {col_names_ts[1:]}"
+                assert (
+                    timestamp_column_name in col_names_ts
+                ), f"Provided timestamp_column_name '{timestamp_column_name}' not found in columns {col_names_ts[1:]}"
                 chosen = timestamp_column_name
             else:
                 chosen = col_names_ts[0]
-            df.insert(1, 'Timestamp', df[chosen])
+            df.insert(1, "Timestamp", df[chosen])
             df = df.drop(col_names_ts[1:], axis=1)
-            valid_units = {'seconds', 'milliseconds', 'microseconds'}
-            ts_unit = time_unit if (isinstance(time_unit, str) and time_unit in valid_units) else 'seconds'
+            valid_units = {"seconds", "milliseconds", "microseconds"}
+            ts_unit = time_unit if (isinstance(time_unit, str) and time_unit in valid_units) else "seconds"
             return df, ts_unit
-        #def comboBoxSelected(event):
+        # def comboBoxSelected(event):
         #    logger.info(event.widget.get())
-        
+
         window = tk.Tk()
-        window.title('Select appropriate options for timestamps')
-        window.geometry('500x200')
+        window.title("Select appropriate options for timestamps")
+        window.geometry("500x200")
         holdComboboxValues = dict()
 
-        timestamps_label = ttk.Label(window, 
-                                    text="Select which timetamps to use : ").grid(row=0, column=1, pady=25, padx=25)
-        holdComboboxValues['timestamps'] = StringVar()
-        timestamps_combo = ttk.Combobox(window, 
-                                        values=col_names_ts, 
-                                        textvariable=holdComboboxValues['timestamps'])
+        timestamps_label = ttk.Label(window, text="Select which timetamps to use : ").grid(
+            row=0, column=1, pady=25, padx=25
+        )
+        holdComboboxValues["timestamps"] = StringVar()
+        timestamps_combo = ttk.Combobox(window, values=col_names_ts, textvariable=holdComboboxValues["timestamps"])
         timestamps_combo.grid(row=0, column=2, pady=25, padx=25)
         timestamps_combo.current(0)
-        #timestamps_combo.bind("<<ComboboxSelected>>", comboBoxSelected)
+        # timestamps_combo.bind("<<ComboboxSelected>>", comboBoxSelected)
 
         time_unit_label = ttk.Label(window, text="Select timetamps unit : ").grid(row=1, column=1, pady=25, padx=25)
-        holdComboboxValues['time_unit'] = StringVar()
-        time_unit_combo = ttk.Combobox(window, 
-                                    values=['', 'seconds', 'milliseconds', 'microseconds'],
-                                    textvariable=holdComboboxValues['time_unit'])
+        holdComboboxValues["time_unit"] = StringVar()
+        time_unit_combo = ttk.Combobox(
+            window, values=["", "seconds", "milliseconds", "microseconds"], textvariable=holdComboboxValues["time_unit"]
+        )
         time_unit_combo.grid(row=1, column=2, pady=25, padx=25)
         time_unit_combo.current(0)
-        #time_unit_combo.bind("<<ComboboxSelected>>", comboBoxSelected)
+        # time_unit_combo.bind("<<ComboboxSelected>>", comboBoxSelected)
         window.lift()
         window.after(500, lambda: window.lift())
         window.mainloop()
 
-        if holdComboboxValues['timestamps'].get():
-            df.insert(1, 'Timestamp', df[holdComboboxValues['timestamps'].get()])
+        if holdComboboxValues["timestamps"].get():
+            df.insert(1, "Timestamp", df[holdComboboxValues["timestamps"].get()])
             df = df.drop(col_names_ts[1:], axis=1)
         else:
-            messagebox.showerror('All options not selected', 'All the options for timestamps \
-                                                            were not selected. Please select appropriate options')
-            logger.error('All the options for timestamps \
-                        were not selected. Please select appropriate options')
-            raise Exception('All the options for timestamps \
-                            were not selected. Please select appropriate options')
-        if holdComboboxValues['time_unit'].get():
-            if holdComboboxValues['time_unit'].get()=='seconds':
-                ts_unit = holdComboboxValues['time_unit'].get()
-            elif holdComboboxValues['time_unit'].get()=='milliseconds':
-                ts_unit = holdComboboxValues['time_unit'].get()
+            messagebox.showerror(
+                "All options not selected",
+                "All the options for timestamps \
+                                                            were not selected. Please select appropriate options",
+            )
+            logger.error(
+                "All the options for timestamps \
+                        were not selected. Please select appropriate options"
+            )
+            raise Exception(
+                "All the options for timestamps \
+                            were not selected. Please select appropriate options"
+            )
+        if holdComboboxValues["time_unit"].get():
+            if holdComboboxValues["time_unit"].get() == "seconds":
+                ts_unit = holdComboboxValues["time_unit"].get()
+            elif holdComboboxValues["time_unit"].get() == "milliseconds":
+                ts_unit = holdComboboxValues["time_unit"].get()
             else:
-                ts_unit = holdComboboxValues['time_unit'].get()
+                ts_unit = holdComboboxValues["time_unit"].get()
         else:
-            messagebox.showerror('All options not selected', 'All the options for timestamps \
-                                                            were not selected. Please select appropriate options')
-            logger.error('All the options for timestamps \
-                        were not selected. Please select appropriate options')
-            raise Exception('All the options for timestamps \
-                            were not selected. Please select appropriate options')
+            messagebox.showerror(
+                "All options not selected",
+                "All the options for timestamps \
+                                                            were not selected. Please select appropriate options",
+            )
+            logger.error(
+                "All the options for timestamps \
+                        were not selected. Please select appropriate options"
+            )
+            raise Exception(
+                "All the options for timestamps \
+                            were not selected. Please select appropriate options"
+            )
     else:
         pass
-    
+
     return df, ts_unit
-    
+
+
 # function to decide indices of interleaved channels
 # in neurophotometrics data
 def decide_indices(file, df, flag, num_ch=2):
-    ch_name = [file+'chev', file+'chod', file+'chpr']
-    if len(ch_name)<num_ch:
-        logger.error('Number of channels parameters in Input Parameters GUI is more than 3. \
+    ch_name = [file + "chev", file + "chod", file + "chpr"]
+    if len(ch_name) < num_ch:
+        logger.error(
+            "Number of channels parameters in Input Parameters GUI is more than 3. \
                     Looks like there are more than 3 channels in the file. Reading of these files\
-                    are not supported. Reach out to us if you get this error message.')
-        raise Exception('Number of channels parameters in Input Parameters GUI is more than 3. \
+                    are not supported. Reach out to us if you get this error message."
+        )
+        raise Exception(
+            "Number of channels parameters in Input Parameters GUI is more than 3. \
                          Looks like there are more than 3 channels in the file. Reading of these files\
-                         are not supported. Reach out to us if you get this error message.')
-    if flag=='data_np':
+                         are not supported. Reach out to us if you get this error message."
+        )
+    if flag == "data_np":
         indices_dict = dict()
         for i in range(num_ch):
             indices_dict[ch_name[i]] = np.arange(i, df.shape[0], num_ch)
 
     else:
         cols = np.array(list(df.columns))
-        if 'flags' in np.char.lower(np.array(cols)):
-            arr = ['FrameCounter', 'Flags']
-            state = np.array(df['Flags'])
-        elif 'ledstate' in np.char.lower(np.array(cols)):
-            arr = ['FrameCounter', 'LedState']
-            state = np.array(df['LedState'])
+        if "flags" in np.char.lower(np.array(cols)):
+            arr = ["FrameCounter", "Flags"]
+            state = np.array(df["Flags"])
+        elif "ledstate" in np.char.lower(np.array(cols)):
+            arr = ["FrameCounter", "LedState"]
+            state = np.array(df["LedState"])
         else:
-            logger.error("File type shows Neurophotometrics newer version \
-                    data but column names does not have Flags or LedState")
-            raise Exception("File type shows Neurophotometrics newer version \
-                            data but column names does not have Flags or LedState")
+            logger.error(
+                "File type shows Neurophotometrics newer version \
+                    data but column names does not have Flags or LedState"
+            )
+            raise Exception(
+                "File type shows Neurophotometrics newer version \
+                            data but column names does not have Flags or LedState"
+            )
 
         num_ch, ch = check_channels(state)
         indices_dict = dict()
         for i in range(num_ch):
-            first_occurrence = np.where(state==ch[i])[0]
+            first_occurrence = np.where(state == ch[i])[0]
             indices_dict[ch_name[i]] = np.arange(first_occurrence[0], df.shape[0], num_ch)
-        
+
         df = df.drop(arr, axis=1)
 
     return df, indices_dict, num_ch
 
+
 def separate_last_element(arr):
     l = arr[-1]
     return arr[:-1], l
+
 
 def access_keys_doricV6(doric_file):
     data = [doric_file["DataAcquisition"]]
@@ -701,32 +778,35 @@ def access_keys_doricV6(doric_file):
             if isinstance(last_element, h5py.Dataset) and not last_element.name.endswith("/Time"):
                 res.append(last_element.name)
             elif isinstance(last_element, h5py.Group):
-                data.extend(reversed([last_element[k] for k in last_element.keys()])) 
+                data.extend(reversed([last_element[k] for k in last_element.keys()]))
 
     keys = []
     for element in res:
-        sep_values = element.split('/')
-        if sep_values[-1]=='Values':
-            keys.append(f'{sep_values[-3]}/{sep_values[-2]}')
+        sep_values = element.split("/")
+        if sep_values[-1] == "Values":
+            keys.append(f"{sep_values[-3]}/{sep_values[-2]}")
         else:
-            keys.append(f'{sep_values[-2]}/{sep_values[-1]}')
-    
+            keys.append(f"{sep_values[-2]}/{sep_values[-1]}")
+
     return keys
+
 
 def access_keys_doricV1(doric_file):
-    keys = list(doric_file['Traces']['Console'].keys())
-    keys.remove('Time(s)')
-    
+    keys = list(doric_file["Traces"]["Console"].keys())
+    keys.remove("Time(s)")
+
     return keys
 
+
 def read_doric(filepath):
-    with h5py.File(filepath, 'r') as f:
-        if 'Traces' in list(f.keys()):
+    with h5py.File(filepath, "r") as f:
+        if "Traces" in list(f.keys()):
             keys = access_keys_doricV1(f)
-        elif list(f.keys())==['Configurations', 'DataAcquisition']:
+        elif list(f.keys()) == ["Configurations", "DataAcquisition"]:
             keys = access_keys_doricV6(f)
-    
+
     return keys
+
 
 # function to see if there are 'csv' files present
 # and recognize type of 'csv' files either from
@@ -736,37 +816,36 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch, inputParameters=No
 
     logger.debug("If it exists, importing either NPM or Doric or csv file based on the structure of file")
     # Headless configuration (used to avoid any UI prompts when running tests)
-    headless = bool(os.environ.get('GUPPY_BASE_DIR'))
+    headless = bool(os.environ.get("GUPPY_BASE_DIR"))
     npm_timestamp_column_name = None
     npm_time_unit = None
     npm_split_events = None
     if isinstance(inputParameters, dict):
-        npm_timestamp_column_name = inputParameters.get('npm_timestamp_column_name')
-        npm_time_unit = inputParameters.get('npm_time_unit', 'seconds')
-        npm_split_events = inputParameters.get('npm_split_events', True)
-    path = sorted(glob.glob(os.path.join(filepath, '*.csv'))) + \
-           sorted(glob.glob(os.path.join(filepath, '*.doric')))
-    path_chev = glob.glob(os.path.join(filepath, '*chev*'))
-    path_chod = glob.glob(os.path.join(filepath, '*chod*'))
-    path_chpr = glob.glob(os.path.join(filepath, '*chpr*'))
-    path_event = glob.glob(os.path.join(filepath, 'event*'))
-    #path_sig = glob.glob(os.path.join(filepath, 'sig*'))
+        npm_timestamp_column_name = inputParameters.get("npm_timestamp_column_name")
+        npm_time_unit = inputParameters.get("npm_time_unit", "seconds")
+        npm_split_events = inputParameters.get("npm_split_events", True)
+    path = sorted(glob.glob(os.path.join(filepath, "*.csv"))) + sorted(glob.glob(os.path.join(filepath, "*.doric")))
+    path_chev = glob.glob(os.path.join(filepath, "*chev*"))
+    path_chod = glob.glob(os.path.join(filepath, "*chod*"))
+    path_chpr = glob.glob(os.path.join(filepath, "*chpr*"))
+    path_event = glob.glob(os.path.join(filepath, "event*"))
+    # path_sig = glob.glob(os.path.join(filepath, 'sig*'))
     path_chev_chod_event = path_chev + path_chod + path_event + path_chpr
 
-    path = sorted(list(set(path)-set(path_chev_chod_event)))
-    flag = 'None'
+    path = sorted(list(set(path) - set(path_chev_chod_event)))
+    flag = "None"
     event_from_filename = []
     flag_arr = []
     for i in range(len(path)):
         dirname = os.path.dirname(path[i])
-        ext = os.path.basename(path[i]).split('.')[-1]
-        if ext=='doric':
+        ext = os.path.basename(path[i]).split(".")[-1]
+        if ext == "doric":
             key_names = read_doric(path[i])
             event_from_filename.extend(key_names)
-            flag = 'doric_doric'
+            flag = "doric_doric"
         else:
             df = pd.read_csv(path[i], header=None, nrows=2, index_col=False, dtype=str)
-            df = df.dropna(axis=1, how='all')
+            df = df.dropna(axis=1, how="all")
             df_arr = np.array(df).flatten()
             check_all_str = []
             for element in df_arr:
@@ -774,11 +853,11 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch, inputParameters=No
                     float(element)
                 except:
                     check_all_str.append(i)
-            if len(check_all_str)==len(df_arr):
+            if len(check_all_str) == len(df_arr):
                 df = pd.read_csv(path[i], header=1, index_col=False, nrows=10)
-                df = df.drop(['Time(s)'], axis=1)
+                df = df.drop(["Time(s)"], axis=1)
                 event_from_filename.extend(list(df.columns))
-                flag = 'doric_csv'
+                flag = "doric_csv"
                 logger.info(flag)
             else:
                 df = pd.read_csv(path[i], index_col=False)
@@ -791,14 +870,14 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch, inputParameters=No
             #         df = df.drop(['Time(s)'], axis=1)
             #         event_from_filename.extend(list(df.columns))
             #         flag = 'doric_csv'
-        if flag=='doric_csv' or flag=='doric_doric':
+        if flag == "doric_csv" or flag == "doric_doric":
             continue
         else:
             colnames, value = check_header(df)
-            #logger.info(len(colnames), len(value))
+            # logger.info(len(colnames), len(value))
 
             # check dataframe structure and read data accordingly
-            if len(value)>0:
+            if len(value) > 0:
                 columns_isstr = False
                 df = pd.read_csv(path[i], header=None)
                 cols = np.array(list(df.columns), dtype=str)
@@ -807,148 +886,161 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch, inputParameters=No
                 columns_isstr = True
                 cols = np.array(list(df.columns), dtype=str)
             # check the structure of dataframe and assign flag to the type of file
-            if len(cols)==1:
-                if cols[0].lower()!='timestamps':
-                    logger.error("\033[1m"+"Column name should be timestamps (all lower-cases)"+"\033[0m")
-                    raise Exception("\033[1m"+"Column name should be timestamps (all lower-cases)"+"\033[0m")
+            if len(cols) == 1:
+                if cols[0].lower() != "timestamps":
+                    logger.error("\033[1m" + "Column name should be timestamps (all lower-cases)" + "\033[0m")
+                    raise Exception("\033[1m" + "Column name should be timestamps (all lower-cases)" + "\033[0m")
                 else:
-                    flag = 'event_csv'
-            elif len(cols)==3:
-                arr1 = np.array(['timestamps', 'data', 'sampling_rate'])
+                    flag = "event_csv"
+            elif len(cols) == 3:
+                arr1 = np.array(["timestamps", "data", "sampling_rate"])
                 arr2 = np.char.lower(np.array(cols))
-                if (np.sort(arr1)==np.sort(arr2)).all()==False:
-                    logger.error("\033[1m"+"Column names should be timestamps, data and sampling_rate (all lower-cases)"+"\033[0m")
-                    raise Exception("\033[1m"+"Column names should be timestamps, data and sampling_rate (all lower-cases)"+"\033[0m")
+                if (np.sort(arr1) == np.sort(arr2)).all() == False:
+                    logger.error(
+                        "\033[1m"
+                        + "Column names should be timestamps, data and sampling_rate (all lower-cases)"
+                        + "\033[0m"
+                    )
+                    raise Exception(
+                        "\033[1m"
+                        + "Column names should be timestamps, data and sampling_rate (all lower-cases)"
+                        + "\033[0m"
+                    )
                 else:
-                    flag = 'data_csv'
-            elif len(cols)==2:
-                flag = 'event_or_data_np'
-            elif len(cols)>=2:
-                flag  = 'data_np'
+                    flag = "data_csv"
+            elif len(cols) == 2:
+                flag = "event_or_data_np"
+            elif len(cols) >= 2:
+                flag = "data_np"
             else:
-                logger.error('Number of columns in csv file does not make sense.')
-                raise Exception('Number of columns in csv file does not make sense.')
+                logger.error("Number of columns in csv file does not make sense.")
+                raise Exception("Number of columns in csv file does not make sense.")
 
-
-            if columns_isstr == True and ('flags' in np.char.lower(np.array(cols)) or 'ledstate' in np.char.lower(np.array(cols))):
-                flag = flag+'_v2'
+            if columns_isstr == True and (
+                "flags" in np.char.lower(np.array(cols)) or "ledstate" in np.char.lower(np.array(cols))
+            ):
+                flag = flag + "_v2"
             else:
                 flag = flag
 
-
             # used assigned flags to process the files and read the data
-            if flag=='event_or_data_np':
-                arr = list(df.iloc[:,1])
+            if flag == "event_or_data_np":
+                arr = list(df.iloc[:, 1])
                 check_float = [True for i in arr if isinstance(i, float)]
-                if len(arr)==len(check_float) and columns_isstr == False:
-                    flag = 'data_np'
-                elif columns_isstr == True and ('value' in np.char.lower(np.array(cols))):
-                    flag = 'event_np'
+                if len(arr) == len(check_float) and columns_isstr == False:
+                    flag = "data_np"
+                elif columns_isstr == True and ("value" in np.char.lower(np.array(cols))):
+                    flag = "event_np"
                 else:
-                    flag = 'event_np'
+                    flag = "event_np"
             else:
                 pass
-            
+
             flag_arr.append(flag)
             logger.info(flag)
-            if flag=='event_csv' or flag=='data_csv':
-                name = os.path.basename(path[i]).split('.')[0]
+            if flag == "event_csv" or flag == "data_csv":
+                name = os.path.basename(path[i]).split(".")[0]
                 event_from_filename.append(name)
-            elif flag=='data_np':
-                file = f'file{str(i)}_'
+            elif flag == "data_np":
+                file = f"file{str(i)}_"
                 df, indices_dict, num_channels = decide_indices(file, df, flag, num_ch)
                 keys = list(indices_dict.keys())
                 for k in range(len(keys)):
                     for j in range(df.shape[1]):
-                        if j==0:
-                            timestamps = df.iloc[:,j][indices_dict[keys[k]]]
-                            #timestamps_odd = df.iloc[:,j][odd_indices]
+                        if j == 0:
+                            timestamps = df.iloc[:, j][indices_dict[keys[k]]]
+                            # timestamps_odd = df.iloc[:,j][odd_indices]
                         else:
                             d = dict()
-                            d['timestamps'] = timestamps 
-                            d['data'] = df.iloc[:,j][indices_dict[keys[k]]]
-                            
+                            d["timestamps"] = timestamps
+                            d["data"] = df.iloc[:, j][indices_dict[keys[k]]]
+
                             df_ch = pd.DataFrame(d)
-                            df_ch.to_csv(os.path.join(dirname, keys[k]+str(j)+'.csv'), index=False)
-                            event_from_filename.append(keys[k]+str(j))
-                        
-            elif flag=='event_np':
-                type_val = np.array(df.iloc[:,1])
+                            df_ch.to_csv(os.path.join(dirname, keys[k] + str(j) + ".csv"), index=False)
+                            event_from_filename.append(keys[k] + str(j))
+
+            elif flag == "event_np":
+                type_val = np.array(df.iloc[:, 1])
                 type_val_unique = np.unique(type_val)
                 if headless:
                     response = 1 if bool(npm_split_events) else 0
                 else:
                     window = tk.Tk()
-                    if len(type_val_unique)>1:
-                        response = messagebox.askyesno('Multiple event TTLs', 'Based on the TTL file,\
+                    if len(type_val_unique) > 1:
+                        response = messagebox.askyesno(
+                            "Multiple event TTLs",
+                            "Based on the TTL file,\
                                                                             it looks like TTLs \
                                                                             belongs to multipe behavior type. \
                                                                             Do you want to create multiple files for each \
-                                                                            behavior type ?')
+                                                                            behavior type ?",
+                        )
                     else:
                         response = 0
                     window.destroy()
-                if response==1:
-                    timestamps = np.array(df.iloc[:,0])
+                if response == 1:
+                    timestamps = np.array(df.iloc[:, 0])
                     for j in range(len(type_val_unique)):
-                        idx = np.where(type_val==type_val_unique[j])
+                        idx = np.where(type_val == type_val_unique[j])
                         d = dict()
-                        d['timestamps'] = timestamps[idx]
+                        d["timestamps"] = timestamps[idx]
                         df_new = pd.DataFrame(d)
-                        df_new.to_csv(os.path.join(dirname, 'event'+str(type_val_unique[j])+'.csv'), index=False)
-                        event_from_filename.append('event'+str(type_val_unique[j]))
+                        df_new.to_csv(os.path.join(dirname, "event" + str(type_val_unique[j]) + ".csv"), index=False)
+                        event_from_filename.append("event" + str(type_val_unique[j]))
                 else:
-                    timestamps = np.array(df.iloc[:,0])
+                    timestamps = np.array(df.iloc[:, 0])
                     d = dict()
-                    d['timestamps'] = timestamps
+                    d["timestamps"] = timestamps
                     df_new = pd.DataFrame(d)
-                    df_new.to_csv(os.path.join(dirname, 'event'+str(0)+'.csv'), index=False)
-                    event_from_filename.append('event'+str(0))
+                    df_new.to_csv(os.path.join(dirname, "event" + str(0) + ".csv"), index=False)
+                    event_from_filename.append("event" + str(0))
             else:
-                file = f'file{str(i)}_'
+                file = f"file{str(i)}_"
                 df, ts_unit = decide_ts_unit_for_npm(
-                    df,
-                    timestamp_column_name=npm_timestamp_column_name,
-                    time_unit=npm_time_unit,
-                    headless=headless
+                    df, timestamp_column_name=npm_timestamp_column_name, time_unit=npm_time_unit, headless=headless
                 )
                 df, indices_dict, num_channels = decide_indices(file, df, flag)
                 keys = list(indices_dict.keys())
                 for k in range(len(keys)):
                     for j in range(df.shape[1]):
-                        if j==0:
-                            timestamps = df.iloc[:,j][indices_dict[keys[k]]]
-                            #timestamps_odd = df.iloc[:,j][odd_indices]
+                        if j == 0:
+                            timestamps = df.iloc[:, j][indices_dict[keys[k]]]
+                            # timestamps_odd = df.iloc[:,j][odd_indices]
                         else:
                             d = dict()
-                            d['timestamps'] = timestamps
-                            d['data'] = df.iloc[:,j][indices_dict[keys[k]]]
-                            
-                            df_ch = pd.DataFrame(d)
-                            df_ch.to_csv(os.path.join(dirname, keys[k]+str(j)+'.csv'), index=False)
-                            event_from_filename.append(keys[k]+str(j))
+                            d["timestamps"] = timestamps
+                            d["data"] = df.iloc[:, j][indices_dict[keys[k]]]
 
-            path_chev = glob.glob(os.path.join(filepath, '*chev*'))
-            path_chod = glob.glob(os.path.join(filepath, '*chod*'))
-            path_chpr = glob.glob(os.path.join(filepath, '*chpr*'))
-            path_event = glob.glob(os.path.join(filepath, 'event*'))
-            #path_sig = glob.glob(os.path.join(filepath, 'sig*'))
+                            df_ch = pd.DataFrame(d)
+                            df_ch.to_csv(os.path.join(dirname, keys[k] + str(j) + ".csv"), index=False)
+                            event_from_filename.append(keys[k] + str(j))
+
+            path_chev = glob.glob(os.path.join(filepath, "*chev*"))
+            path_chod = glob.glob(os.path.join(filepath, "*chod*"))
+            path_chpr = glob.glob(os.path.join(filepath, "*chpr*"))
+            path_event = glob.glob(os.path.join(filepath, "event*"))
+            # path_sig = glob.glob(os.path.join(filepath, 'sig*'))
             path_chev_chod_chpr = [path_chev, path_chod, path_chpr]
-            if (('data_np_v2' in flag_arr or 'data_np' in flag_arr) and ('event_np' in flag_arr) and (i==len(path)-1)) or \
-                (('data_np_v2' in flag_arr or 'data_np' in flag_arr) and (i==len(path)-1)): # i==len(path)-1 and or 'event_np' in flag
+            if (
+                ("data_np_v2" in flag_arr or "data_np" in flag_arr)
+                and ("event_np" in flag_arr)
+                and (i == len(path) - 1)
+            ) or (
+                ("data_np_v2" in flag_arr or "data_np" in flag_arr) and (i == len(path) - 1)
+            ):  # i==len(path)-1 and or 'event_np' in flag
                 num_path_chev, num_path_chod, num_path_chpr = len(path_chev), len(path_chod), len(path_chpr)
                 arr_len, no_ch = [], []
                 for i in range(len(path_chev_chod_chpr)):
-                    if len(path_chev_chod_chpr[i])>0:
+                    if len(path_chev_chod_chpr[i]) > 0:
                         arr_len.append(len(path_chev_chod_chpr[i]))
                     else:
                         continue
 
                 unique_arr_len = np.unique(np.array(arr_len))
-                if 'data_np_v2' in flag_arr:
-                    if ts_unit == 'seconds':
+                if "data_np_v2" in flag_arr:
+                    if ts_unit == "seconds":
                         divisor = 1
-                    elif ts_unit == 'milliseconds':
+                    elif ts_unit == "milliseconds":
                         divisor = 1e3
                     else:
                         divisor = 1e6
@@ -958,57 +1050,60 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch, inputParameters=No
                 for j in range(len(path_event)):
                     df_event = pd.read_csv(path_event[j])
                     df_chev = pd.read_csv(path_chev[0])
-                    df_event['timestamps'] = (df_event['timestamps']-df_chev['timestamps'][0])/divisor
+                    df_event["timestamps"] = (df_event["timestamps"] - df_chev["timestamps"][0]) / divisor
                     df_event.to_csv(path_event[j], index=False)
-                if unique_arr_len.shape[0]==1:
+                if unique_arr_len.shape[0] == 1:
                     for j in range(len(path_chev)):
-                        if file+'chev' in indices_dict.keys():
+                        if file + "chev" in indices_dict.keys():
                             df_chev = pd.read_csv(path_chev[j])
-                            df_chev['timestamps'] = (df_chev['timestamps']-df_chev['timestamps'][0])/divisor
-                            df_chev['sampling_rate'] = np.full(df_chev.shape[0], np.nan)
-                            df_chev.at[0,'sampling_rate'] = df_chev.shape[0]/(df_chev['timestamps'].iloc[-1] - df_chev['timestamps'].iloc[0])
+                            df_chev["timestamps"] = (df_chev["timestamps"] - df_chev["timestamps"][0]) / divisor
+                            df_chev["sampling_rate"] = np.full(df_chev.shape[0], np.nan)
+                            df_chev.at[0, "sampling_rate"] = df_chev.shape[0] / (
+                                df_chev["timestamps"].iloc[-1] - df_chev["timestamps"].iloc[0]
+                            )
                             df_chev.to_csv(path_chev[j], index=False)
 
-                        if file+'chod' in indices_dict.keys():
+                        if file + "chod" in indices_dict.keys():
                             df_chod = pd.read_csv(path_chod[j])
-                            df_chod['timestamps'] = df_chev['timestamps']
-                            df_chod['sampling_rate'] = np.full(df_chod.shape[0], np.nan)
-                            df_chod.at[0,'sampling_rate'] = df_chev['sampling_rate'][0]
+                            df_chod["timestamps"] = df_chev["timestamps"]
+                            df_chod["sampling_rate"] = np.full(df_chod.shape[0], np.nan)
+                            df_chod.at[0, "sampling_rate"] = df_chev["sampling_rate"][0]
                             df_chod.to_csv(path_chod[j], index=False)
 
-                        if file+'chpr' in indices_dict.keys():
+                        if file + "chpr" in indices_dict.keys():
                             df_chpr = pd.read_csv(path_chpr[j])
-                            df_chpr['timestamps'] = df_chev['timestamps']
-                            df_chpr['sampling_rate'] = np.full(df_chpr.shape[0], np.nan)
-                            df_chpr.at[0,'sampling_rate'] = df_chev['sampling_rate'][0]
+                            df_chpr["timestamps"] = df_chev["timestamps"]
+                            df_chpr["sampling_rate"] = np.full(df_chpr.shape[0], np.nan)
+                            df_chpr.at[0, "sampling_rate"] = df_chev["sampling_rate"][0]
                             df_chpr.to_csv(path_chpr[j], index=False)
                 else:
-                    logger.error('Number of channels should be same for all regions.')
-                    raise Exception('Number of channels should be same for all regions.')
+                    logger.error("Number of channels should be same for all regions.")
+                    raise Exception("Number of channels should be same for all regions.")
             else:
                 pass
-    logger.info('Importing of either NPM or Doric or csv file is done.')
+    logger.info("Importing of either NPM or Doric or csv file is done.")
     return event_from_filename, flag_arr
 
 
 # function to read input parameters and run the saveStorenames function
 def execute(inputParameters):
-    
-    
+
     inputParameters = inputParameters
-    folderNames = inputParameters['folderNames']
-    isosbestic_control = inputParameters['isosbestic_control']
-    num_ch = inputParameters['noChannels']
+    folderNames = inputParameters["folderNames"]
+    isosbestic_control = inputParameters["isosbestic_control"]
+    num_ch = inputParameters["noChannels"]
 
     logger.info(folderNames)
 
     try:
         for i in folderNames:
-            filepath = os.path.join(inputParameters['abspath'], i)
+            filepath = os.path.join(inputParameters["abspath"], i)
             data = readtsq(filepath)
-            event_name, flag = import_np_doric_csv(filepath, isosbestic_control, num_ch, inputParameters=inputParameters)
+            event_name, flag = import_np_doric_csv(
+                filepath, isosbestic_control, num_ch, inputParameters=inputParameters
+            )
             saveStorenames(inputParameters, data, event_name, flag, filepath)
-        logger.info('#'*400)
+        logger.info("#" * 400)
     except Exception as e:
         logger.error(str(e))
         raise e

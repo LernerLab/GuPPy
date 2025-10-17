@@ -14,15 +14,15 @@ To install the latest stable release of GuPPy through PyPI, simply run the follo
 pip install guppy
 ```
 
-We recommend that you install the package inside a [virtual environment](https://docs.python.org/3/tutorial/venv.html). 
-A simple way of doing this is to use a [conda environment](https://docs.conda.io/projects/conda/en/latest/user-guide/concepts/environments.html) from the `conda` package manager ([installation instructions](https://docs.conda.io/en/latest/miniconda.html)). 
+We recommend that you install the package inside a [virtual environment](https://docs.python.org/3/tutorial/venv.html).
+A simple way of doing this is to use a [conda environment](https://docs.conda.io/projects/conda/en/latest/user-guide/concepts/environments.html) from the `conda` package manager ([installation instructions](https://docs.conda.io/en/latest/miniconda.html)).
 Detailed instructions on how to use conda environments can be found in their [documentation](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html).
 
 ### Installation from GitHub
 
-To install the latest development version of GuPPy from GitHub, you can clone the repository and install the package manually. 
-This has the advantage of allowing you to access the latest features and bug fixes that may not yet be available in the stable release. 
-To install the conversion from GitHub you will need to use `git` ([installation instructions](https://github.com/git-guides/install-git)). 
+To install the latest development version of GuPPy from GitHub, you can clone the repository and install the package manually.
+This has the advantage of allowing you to access the latest features and bug fixes that may not yet be available in the stable release.
+To install the conversion from GitHub you will need to use `git` ([installation instructions](https://github.com/git-guides/install-git)).
 From a terminal or command prompt, execute the following commands:
 
 1. Clone the repository:
@@ -88,5 +88,3 @@ This will launch the GuPPy user interface, where you can begin analyzing your fi
 - [Gabriela Lopez](https://github.com/glopez924)
 - [Talia Lerner](https://github.com/talialerner)
 - [Paul Adkisson](https://github.com/pauladkisson)
-
-

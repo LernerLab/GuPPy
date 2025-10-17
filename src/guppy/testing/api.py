@@ -10,21 +10,15 @@ This module is intentionally minimal and non-invasive.
 
 from __future__ import annotations
 
-import json
 import os
-import numpy as np
-from typing import Iterable, List
+from typing import Iterable
 
-from guppy.savingInputParameters import savingInputParameters
-from guppy.saveStoresList import execute
-from guppy.readTevTsq import readRawData
-from guppy.preprocess import extractTsAndSignal
 from guppy.computePsth import psthForEachStorename
 from guppy.findTransientsFreqAndAmp import executeFindFreqAndAmp
-
-
-
-
+from guppy.preprocess import extractTsAndSignal
+from guppy.readTevTsq import readRawData
+from guppy.saveStoresList import execute
+from guppy.savingInputParameters import savingInputParameters
 
 
 def step1(*, base_dir: str, selected_folders: Iterable[str]) -> None:
@@ -69,7 +63,15 @@ def step1(*, base_dir: str, selected_folders: Iterable[str]) -> None:
     template._hooks["onclickProcess"]()
 
 
-def step2(*, base_dir: str, selected_folders: Iterable[str], storenames_map: dict[str, str], npm_timestamp_column_name: str | None = None, npm_time_unit: str = "seconds", npm_split_events: bool = True) -> None:
+def step2(
+    *,
+    base_dir: str,
+    selected_folders: Iterable[str],
+    storenames_map: dict[str, str],
+    npm_timestamp_column_name: str | None = None,
+    npm_time_unit: str = "seconds",
+    npm_split_events: bool = True,
+) -> None:
     """
     Run pipeline Step 2 (Save Storenames) via the actual Panel-backed logic.
 
@@ -157,7 +159,14 @@ def step2(*, base_dir: str, selected_folders: Iterable[str], storenames_map: dic
     execute(input_params)
 
 
-def step3(*, base_dir: str, selected_folders: Iterable[str], npm_timestamp_column_name: str | None = None, npm_time_unit: str = "seconds", npm_split_events: bool = True) -> None:
+def step3(
+    *,
+    base_dir: str,
+    selected_folders: Iterable[str],
+    npm_timestamp_column_name: str | None = None,
+    npm_time_unit: str = "seconds",
+    npm_split_events: bool = True,
+) -> None:
     """
     Run pipeline Step 3 (Read Raw Data) via the actual Panel-backed logic, headlessly.
 
@@ -227,7 +236,14 @@ def step3(*, base_dir: str, selected_folders: Iterable[str], npm_timestamp_colum
     readRawData(input_params)
 
 
-def step4(*, base_dir: str, selected_folders: Iterable[str], npm_timestamp_column_name: str | None = None, npm_time_unit: str = "seconds", npm_split_events: bool = True) -> None:
+def step4(
+    *,
+    base_dir: str,
+    selected_folders: Iterable[str],
+    npm_timestamp_column_name: str | None = None,
+    npm_time_unit: str = "seconds",
+    npm_split_events: bool = True,
+) -> None:
     """
     Run pipeline Step 4 (Extract timestamps and signal) via the Panel-backed logic, headlessly.
 
@@ -297,7 +313,14 @@ def step4(*, base_dir: str, selected_folders: Iterable[str], npm_timestamp_colum
     extractTsAndSignal(input_params)
 
 
-def step5(*, base_dir: str, selected_folders: Iterable[str], npm_timestamp_column_name: str | None = None, npm_time_unit: str = "seconds", npm_split_events: bool = True) -> None:
+def step5(
+    *,
+    base_dir: str,
+    selected_folders: Iterable[str],
+    npm_timestamp_column_name: str | None = None,
+    npm_time_unit: str = "seconds",
+    npm_split_events: bool = True,
+) -> None:
     """
     Run pipeline Step 5 (PSTH Computation) via the Panel-backed logic, headlessly.
 

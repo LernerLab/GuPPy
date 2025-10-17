@@ -13,12 +13,13 @@ Each module should then create its own logger using: logger = logging.getLogger(
 import logging
 import os
 from pathlib import Path
+
 from platformdirs import user_log_dir
 
 
 def get_log_file():
     """Get the platform-appropriate log file path.
-    
+
     Returns
     -------
     Path
@@ -31,9 +32,9 @@ def get_log_file():
 
 def setup_logging(*, level=None, console_output=True):
     """Configure centralized logging for GuPPy.
-    
+
     This should be called once at application startup, before importing other modules.
-    
+
     Parameters
     ----------
     level : int, optional
@@ -44,31 +45,28 @@ def setup_logging(*, level=None, console_output=True):
     """
     # Determine log level
     if level is None:
-        env_level = os.environ.get('GUPPY_LOG_LEVEL', 'INFO').upper()
+        env_level = os.environ.get("GUPPY_LOG_LEVEL", "INFO").upper()
         level = getattr(logging, env_level, logging.INFO)
-    
+
     # Get log file path
     log_file = get_log_file()
-    
+
     # Configure root logger for guppy
     logger = logging.getLogger("guppy")
     logger.setLevel(level)
-    
+
     # Prevent duplicate handlers if setup_logging is called multiple times
     if logger.handlers:
         return
-    
+
     # Create formatter
-    formatter = logging.Formatter(
-        '%(asctime)s %(name)s %(levelname)s %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
-    
+    formatter = logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+
     # File handler
     file_handler = logging.FileHandler(log_file)
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
-    
+
     # Console handler (optional)
     if console_output:
         console_handler = logging.StreamHandler()

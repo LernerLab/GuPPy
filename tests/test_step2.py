@@ -1,6 +1,6 @@
 import csv
-import os
 import glob
+import os
 import shutil
 from pathlib import Path
 

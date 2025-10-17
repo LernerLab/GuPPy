@@ -1,11 +1,11 @@
-import os
 import csv
 import glob
+import os
 import shutil
+from pathlib import Path
 
 import h5py
 import pytest
-from pathlib import Path
 
 from guppy.testing.api import step2, step3
 
@@ -17,6 +17,7 @@ def storenames_map():
         "Sample_Signal_Channel": "signal_region",
         "Sample_TTL": "ttl",
     }
+
 
 @pytest.mark.parametrize(
     "session_subdir, storenames_map",
