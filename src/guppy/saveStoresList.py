@@ -256,9 +256,9 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
 
     mark_down_for_overwrite = pn.pane.Markdown(
         """ Select option from below if user wants to over-write a file or create a new file.
-                                    **Creating a new file will make a new ouput folder and will get saved at that location.**
+                                    **Creating a new file will make a new output folder and will get saved at that location.**
                                     If user selects to over-write a file **Select location of the file to over-write** will provide
-                                    the existing options of the ouput folders where user needs to over-write the file""",
+                                    the existing options of the output folders where user needs to over-write the file""",
         width=600,
     )
 
@@ -648,7 +648,7 @@ def decide_ts_unit_for_npm(df, timestamp_column_name=None, time_unit=None, headl
         window.geometry("500x200")
         holdComboboxValues = dict()
 
-        timestamps_label = ttk.Label(window, text="Select which timetamps to use : ").grid(
+        timestamps_label = ttk.Label(window, text="Select which timestamps to use : ").grid(
             row=0, column=1, pady=25, padx=25
         )
         holdComboboxValues["timestamps"] = StringVar()
@@ -657,7 +657,7 @@ def decide_ts_unit_for_npm(df, timestamp_column_name=None, time_unit=None, headl
         timestamps_combo.current(0)
         # timestamps_combo.bind("<<ComboboxSelected>>", comboBoxSelected)
 
-        time_unit_label = ttk.Label(window, text="Select timetamps unit : ").grid(row=1, column=1, pady=25, padx=25)
+        time_unit_label = ttk.Label(window, text="Select timestamps unit : ").grid(row=1, column=1, pady=25, padx=25)
         holdComboboxValues["time_unit"] = StringVar()
         time_unit_combo = ttk.Combobox(
             window, values=["", "seconds", "milliseconds", "microseconds"], textvariable=holdComboboxValues["time_unit"]
@@ -971,7 +971,7 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch, inputParameters=No
                             "Multiple event TTLs",
                             "Based on the TTL file,\
                                                                             it looks like TTLs \
-                                                                            belongs to multipe behavior type. \
+                                                                            belongs to multiple behavior type. \
                                                                             Do you want to create multiple files for each \
                                                                             behavior type ?",
                         )

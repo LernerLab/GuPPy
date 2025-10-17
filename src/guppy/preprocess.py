@@ -421,7 +421,7 @@ def decide_naming_convention_and_applyCorrection(filepath, timeForLightsTurnOn, 
     logger.info("Timestamps corrections applied to the data and event timestamps.")
 
 
-# functino to plot z_score
+# function to plot z_score
 def visualize_z_score(filepath):
 
     name = os.path.basename(filepath)
@@ -588,7 +588,7 @@ def visualizeControlAndSignal(filepath, removeArtifacts):
         visualize(filepath, ts, control, signal, cntrl_sig_fit, plot_name, removeArtifacts)
 
 
-# functino to check if the naming convention for saving storeslist file was followed or not
+# function to check if the naming convention for saving storeslist file was followed or not
 def decide_naming_convention(filepath):
     path_1 = find_files(filepath, "control_*", ignore_case=True)  # glob.glob(os.path.join(filepath, 'control*'))
 

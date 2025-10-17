@@ -30,7 +30,7 @@ def writeToFile(value: str):
         file.write(value)
 
 
-# functino to read tsq file
+# function to read tsq file
 def readtsq(filepath):
     logger.debug("Trying to read tsq file.")
     names = ("size", "type", "name", "chan", "sort_code", "timestamp", "fp_loc", "strobe", "format", "frequency")

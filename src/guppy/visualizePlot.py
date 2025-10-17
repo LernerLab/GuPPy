@@ -841,12 +841,12 @@ def createPlots(filepath, event, inputParameters):
     name_arr = []
     event_arr = []
 
-    indx = []
+    index = []
     for i in range(len(event)):
         if "control" in event[i].lower() or "signal" in event[i].lower():
-            indx.append(i)
+            index.append(i)
 
-    event = np.delete(event, indx)
+    event = np.delete(event, index)
 
     for i in range(len(path)):
         name = (os.path.basename(path[i])).split(".")
