@@ -64,6 +64,10 @@ test = [
     "pytest-xdist"  # Runs tests on parallel
 ]
 
+dev = [
+    "pre-commit",
+]
+
 [project.scripts]
 guppy = "guppy.main:main"
 
@@ -73,3 +77,51 @@ guppy = "guppy.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.black]
+line-length = 120
+target-version = ['py310', 'py311', 'py312', 'py313']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  \.toml
+  |\.yml
+  |\.txt
+  |\.sh
+  |\.git
+  |\.ini
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+
+[tool.ruff]
+
+[tool.ruff.lint]
+select = [
+    "F401",  # Unused import
+    "I",  # All isort rules
+    "D101",  # Missing docstring in public class
+    "D103",  # Missing docstring in public function
+    "UP006", # non-pep585 annotation (tuple, list -> tuple, list)
+    "UP007" # non-pep604 annotation (Union[x, y] -> X | Y )
+]
+fixable = ["ALL"]
+
+[tool.ruff.lint.per-file-ignores]
+"**__init__.py" = ["F401", "I"] # We are not enforcing import rules in __init__'s
+
+[tool.ruff.lint.isort]
+relative-imports-order = "closest-to-furthest"
+known-first-party = ["guppy"]
+
+
+[tool.codespell]
+skip = '.git*,*.pdf,*.css,*.svg'
+check-hidden = true
+ignore-words-list = 'assertin,sortings'
