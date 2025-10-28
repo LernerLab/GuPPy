@@ -13,7 +13,7 @@ from guppy.testing.api import step2, step3, step4, step5
     "session_subdir, storenames_map, expected_region, expected_ttl",
     [
         (
-            "SampleData_csv",
+            "SampleData_csv/sample_data_csv_1",
             {
                 "Sample_Control_Channel": "control_region",
                 "Sample_Signal_Channel": "signal_region",
@@ -23,7 +23,7 @@ from guppy.testing.api import step2, step3, step4, step5
             "ttl",
         ),
         (
-            "SampleData_Doric",
+            "SampleData_Doric/sample_doric_2",
             {
                 "AIn-1 - Dem (ref)": "control_region",
                 "AIn-1 - Dem (da)": "signal_region",
@@ -53,7 +53,7 @@ from guppy.testing.api import step2, step3, step4, step5
             "port_entries_dms",
         ),
         (
-            "SampleData_Neurophotometrics/1442",
+            "SampleData_Neurophotometrics/sampleData_NPM_4",
             {
                 "file0_chev1": "control_region1",
                 "file0_chod1": "signal_region1",

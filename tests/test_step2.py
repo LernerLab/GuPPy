@@ -21,7 +21,7 @@ from guppy.testing.api import step2
             },
         ),
         (
-            "SampleData_Doric/sample_doric_1",
+            "SampleData_Doric/sample_doric_2",
             {
                 "AIn-1 - Dem (ref)": "control_region",
                 "AIn-1 - Dem (da)": "signal_region",

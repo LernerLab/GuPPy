@@ -22,7 +22,7 @@ def storenames_map():
     "session_subdir, storenames_map",
     [
         (
-            "SampleData_csv",
+            "SampleData_csv/sample_data_csv_1",
             {
                 "Sample_Control_Channel": "control_region",
                 "Sample_Signal_Channel": "signal_region",
@@ -30,7 +30,7 @@ def storenames_map():
             },
         ),
         (
-            "SampleData_Doric",
+            "SampleData_Doric/sample_doric_2",
             {
                 "AIn-1 - Dem (ref)": "control_region",
                 "AIn-1 - Dem (da)": "signal_region",
@@ -54,7 +54,7 @@ def storenames_map():
             },
         ),
         (
-            "SampleData_Neurophotometrics/1442",
+            "SampleData_Neurophotometrics/sampleData_NPM_4",
             {
                 "file0_chev1": "control_region1",
                 "file0_chod1": "signal_region1",
