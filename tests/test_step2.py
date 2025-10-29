@@ -21,11 +21,41 @@ from guppy.testing.api import step2
             },
         ),
         (
+            "SampleData_Doric/sample_doric_1",
+            {
+                "AIn-1 - Raw": "control_region",
+                "AIn-2 - Raw": "signal_region",
+                "DI--O-1": "ttl",
+            },
+        ),
+        (
             "SampleData_Doric/sample_doric_2",
             {
                 "AIn-1 - Dem (ref)": "control_region",
                 "AIn-1 - Dem (da)": "signal_region",
                 "DI/O-1": "ttl",
+            },
+        ),
+        (
+            "SampleData_Doric/sample_doric_3",
+            {
+                "CAM1_EXC1/ROI01": "control_region",
+                "CAM1_EXC2/ROI01": "signal_region",
+                "DigitalIO/CAM1": "ttl",
+            },
+        ),
+        (
+            "SampleData_Doric/sample_doric_4",
+            {
+                "Series0001/AIN01xAOUT01-LockIn": "control_region",
+                "Series0001/AIN01xAOUT02-LockIn": "signal_region",
+            },
+        ),
+        (
+            "SampleData_Doric/sample_doric_5",
+            {
+                "Series0001/AIN01xAOUT01-LockIn": "control_region",
+                "Series0001/AIN01xAOUT02-LockIn": "signal_region",
             },
         ),
         (
@@ -44,6 +74,22 @@ from guppy.testing.api import step2
                 "PrtN": "port_entries_dms",
             },
         ),
+        # TODO: Add sampleData_NPM_1 after fixing Doric vs. NPM determination bug.
+        (
+            "SampleData_Neurophotometrics/sampleData_NPM_2",
+            {
+                "file0_chev6": "control_region",
+                "file1_chev6": "signal_region",
+            },
+        ),
+        (
+            "SampleData_Neurophotometrics/sampleData_NPM_3", # TODO: Add headless path for timestamp specification
+            {
+                "file0_chev3": "control_region3",
+                "file0_chod3": "signal_region3",
+                "event3": "ttl_region3",
+            },
+        ),
         (
             "SampleData_Neurophotometrics/sampleData_NPM_4",
             {
@@ -52,13 +98,28 @@ from guppy.testing.api import step2
                 "eventTrue": "ttl_true_region1",
             },
         ),
+        (
+            "SampleData_Neurophotometrics/sampleData_NPM_5",
+            {
+                "file0_chev1": "control_region1",
+                "file0_chod1": "signal_region1",
+                "event0": "ttl_region1",
+            },
+        ),
     ],
     ids=[
         "csv_generic",
-        "doric_csv",
+        "sample_doric_1",
+        "sample_doric_2",
+        "sample_doric_3",
+        "sample_doric_4",
+        "sample_doric_5",
         "tdt_clean",
         "tdt_with_artifacts",
-        "neurophotometrics_csv",
+        "sample_npm_2",
+        "sample_npm_3",
+        "sample_npm_4",
+        "sample_npm_5",
     ],
 )
 def test_step2(tmp_path, session_subdir, storenames_map):
