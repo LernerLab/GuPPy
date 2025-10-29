@@ -188,7 +188,72 @@ def test_step2(tmp_path, session_subdir, storenames_map):
     assert rows[1] == list(storenames_map.values()), "Row 1 (names_for_storenames) mismatch"
 
     # Additional NPM assertions: ensure Step 2 created the expected CSV files for Neurophotometrics
-    if session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_4":
+    if session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_1":
+        expected_files = [
+            "bl72bl82_12feb2024_fp.csv",
+            "bl72bl82_12feb2024_stimuli.csv",
+            "eventAfVf.csv",
+            "eventAfVm.csv",
+            "eventAfVn.csv",
+            "eventAfVu.csv",
+            "eventAmVf.csv",
+            "eventAmVm.csv",
+            "eventAmVn.csv",
+            "eventAmVu.csv",
+            "eventAnVf.csv",
+            "eventAnVm.csv",
+            "eventAnVu.csv",
+            "eventAuVf.csv",
+            "eventAuVm.csv",
+            "eventAuVn.csv",
+            "eventAuVu.csv",
+            "eventblankvideo.csv",
+            "eventpinknoise.csv",
+            "eventtone.csv",
+            "eventwhitenoise.csv",
+            "file0_chev1.csv",
+            "file0_chod1.csv",
+        ]
+        for rel in expected_files:
+            fp = os.path.join(session_copy, rel)
+            assert os.path.exists(fp), f"Missing expected NPM file at Step 2: {fp}"
+    elif session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_2":
+        expected_files = [
+            "file0_chev1.csv",
+            "file0_chev2.csv",
+            "file0_chev3.csv",
+            "file0_chev4.csv",
+            "file0_chev5.csv",
+            "file0_chev6.csv",
+            "file0_chev7.csv",
+            "file1_chev1.csv",
+            "file1_chev2.csv",
+            "file1_chev3.csv",
+            "file1_chev4.csv",
+            "file1_chev5.csv",
+            "file1_chev6.csv",
+            "file1_chev7.csv",
+            "FiberData415.csv",
+            "FiberData470.csv",
+        ]
+        for rel in expected_files:
+            fp = os.path.join(session_copy, rel)
+            assert os.path.exists(fp), f"Missing expected NPM file at Step 2: {fp}"
+    elif session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_3":
+        expected_files = [
+            "event1.csv",
+            "event3.csv",
+            "file0_chev1.csv",
+            "file0_chev2.csv",
+            "file0_chev3.csv",
+            "file0_chod1.csv",
+            "file0_chod2.csv",
+            "file0_chod3.csv",
+        ]
+        for rel in expected_files:
+            fp = os.path.join(session_copy, rel)
+            assert os.path.exists(fp), f"Missing expected NPM file at Step 2: {fp}"
+    elif session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_4":
         expected_files = [
             "eventTrue.csv",
             "eventFalse.csv",
@@ -198,6 +263,21 @@ def test_step2(tmp_path, session_subdir, storenames_map):
             "file0_chod1.csv",
             "file0_chod2.csv",
             "file0_chod3.csv",
+        ]
+        for rel in expected_files:
+            fp = os.path.join(session_copy, rel)
+            assert os.path.exists(fp), f"Missing expected NPM file at Step 2: {fp}"
+    elif session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_5":
+        expected_files = [
+            "event0.csv",
+            "file0_chev1.csv",
+            "file0_chev2.csv",
+            "file0_chev3.csv",
+            "file0_chod1.csv",
+            "file0_chod2.csv",
+            "file0_chod3.csv",
+            "PagCeAVgatFear_1512_1.csv",
+            "PagCeAVgatFear_1512_ts0.csv",
         ]
         for rel in expected_files:
             fp = os.path.join(session_copy, rel)
