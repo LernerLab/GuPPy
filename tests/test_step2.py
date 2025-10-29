@@ -83,7 +83,7 @@ from guppy.testing.api import step2
             },
         ),
         (
-            "SampleData_Neurophotometrics/sampleData_NPM_3", # TODO: Add headless path for timestamp specification
+            "SampleData_Neurophotometrics/sampleData_NPM_3",
             {
                 "file0_chev3": "control_region3",
                 "file0_chod3": "signal_region3",
@@ -131,6 +131,13 @@ def test_step2(tmp_path, session_subdir, storenames_map):
       - Calls step2 headlessly with an explicit, deterministic storenames_map
       - Asserts storesList.csv exists and exactly matches the provided mapping (2xN)
     """
+    if session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_3":
+        npm_timestamp_column_name = "SystemTimestamp"
+        npm_time_unit = "milliseconds"
+    else:
+        npm_timestamp_column_name = None
+        npm_time_unit = None
+
     # Source sample data
     src_base_dir = str(Path(".") / "testing_data")
     src_session = os.path.join(src_base_dir, session_subdir)
@@ -155,7 +162,7 @@ def test_step2(tmp_path, session_subdir, storenames_map):
         params_fp.unlink()
 
     # Run Step 2 headlessly using the explicit mapping
-    step2(base_dir=str(tmp_base), selected_folders=[str(session_copy)], storenames_map=storenames_map)
+    step2(base_dir=str(tmp_base), selected_folders=[str(session_copy)], storenames_map=storenames_map, npm_timestamp_column_name=npm_timestamp_column_name, npm_time_unit=npm_time_unit)
 
     # Validate storesList.csv exists and matches the mapping exactly (order-preserved)
     basename = os.path.basename(session_copy)
@@ -181,7 +188,7 @@ def test_step2(tmp_path, session_subdir, storenames_map):
     assert rows[1] == list(storenames_map.values()), "Row 1 (names_for_storenames) mismatch"
 
     # Additional NPM assertions: ensure Step 2 created the expected CSV files for Neurophotometrics
-    if session_subdir == "SampleData_Neurophotometrics/1442":
+    if session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_4":
         expected_files = [
             "eventTrue.csv",
             "eventFalse.csv",
