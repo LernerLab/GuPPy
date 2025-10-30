@@ -132,7 +132,7 @@ def test_step2(tmp_path, session_subdir, storenames_map):
       - Asserts storesList.csv exists and exactly matches the provided mapping (2xN)
     """
     if session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_3":
-        npm_timestamp_column_name = "SystemTimestamp"
+        npm_timestamp_column_name = "ComputerTimestamp"
         npm_time_unit = "milliseconds"
     else:
         npm_timestamp_column_name = None

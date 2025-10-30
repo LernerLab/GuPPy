@@ -30,11 +30,41 @@ def storenames_map():
             },
         ),
         (
+            "SampleData_Doric/sample_doric_1",
+            {
+                "AIn-1 - Raw": "control_region",
+                "AIn-2 - Raw": "signal_region",
+                "DI--O-1": "ttl",
+            },
+        ),
+        (
             "SampleData_Doric/sample_doric_2",
             {
                 "AIn-1 - Dem (ref)": "control_region",
                 "AIn-1 - Dem (da)": "signal_region",
                 "DI/O-1": "ttl",
+            },
+        ),
+        (
+            "SampleData_Doric/sample_doric_3",
+            {
+                "CAM1_EXC1/ROI01": "control_region",
+                "CAM1_EXC2/ROI01": "signal_region",
+                "DigitalIO/CAM1": "ttl",
+            },
+        ),
+        (
+            "SampleData_Doric/sample_doric_4",
+            {
+                "Series0001/AIN01xAOUT01-LockIn": "control_region",
+                "Series0001/AIN01xAOUT02-LockIn": "signal_region",
+            },
+        ),
+        (
+            "SampleData_Doric/sample_doric_5",
+            {
+                "Series0001/AIN01xAOUT01-LockIn": "control_region",
+                "Series0001/AIN01xAOUT02-LockIn": "signal_region",
             },
         ),
         (
@@ -54,6 +84,21 @@ def storenames_map():
             },
         ),
         (
+            "SampleData_Neurophotometrics/sampleData_NPM_2",
+            {
+                "file0_chev6": "control_region",
+                "file1_chev6": "signal_region",
+            },
+        ),
+        (
+            "SampleData_Neurophotometrics/sampleData_NPM_3",
+            {
+                "file0_chev3": "control_region3",
+                "file0_chod3": "signal_region3",
+                "event3": "ttl_region3",
+            },
+        ),
+        (
             "SampleData_Neurophotometrics/sampleData_NPM_4",
             {
                 "file0_chev1": "control_region1",
@@ -61,13 +106,28 @@ def storenames_map():
                 "eventTrue": "ttl_true_region1",
             },
         ),
+        (
+            "SampleData_Neurophotometrics/sampleData_NPM_5",
+            {
+                "file0_chev1": "control_region1",
+                "file0_chod1": "signal_region1",
+                "event0": "ttl_region1",
+            },
+        ),
     ],
     ids=[
         "csv_generic",
-        "doric_csv",
+        "sample_doric_1",
+        "sample_doric_2",
+        "sample_doric_3",
+        "sample_doric_4",
+        "sample_doric_5",
         "tdt_clean",
         "tdt_with_artifacts",
-        "neurophotometrics_csv",
+        "sample_npm_2",
+        "sample_npm_3",
+        "sample_npm_4",
+        "sample_npm_5",
     ],
 )
 def test_step3(tmp_path, storenames_map, session_subdir):
@@ -83,6 +143,13 @@ def test_step3(tmp_path, storenames_map, session_subdir):
     - Runs Step 3 headlessly and verifies per-storename HDF5 outputs exist in
       the temp copy (never touching the original sample path).
     """
+    if session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_3":
+        npm_timestamp_column_name = "ComputerTimestamp"
+        npm_time_unit = "milliseconds"
+    else:
+        npm_timestamp_column_name = None
+        npm_time_unit = None
+
     src_base_dir = str(Path(".") / "testing_data")
     src_session = os.path.join(src_base_dir, session_subdir)
 
@@ -106,10 +173,10 @@ def test_step3(tmp_path, storenames_map, session_subdir):
         params_fp.unlink()
 
     # Step 2: create storesList.csv in the temp copy
-    step2(base_dir=str(tmp_base), selected_folders=[str(session_copy)], storenames_map=storenames_map)
+    step2(base_dir=str(tmp_base), selected_folders=[str(session_copy)], storenames_map=storenames_map, npm_timestamp_column_name=npm_timestamp_column_name, npm_time_unit=npm_time_unit)
 
     # Step 3: read raw data in the temp copy
-    step3(base_dir=str(tmp_base), selected_folders=[str(session_copy)])
+    step3(base_dir=str(tmp_base), selected_folders=[str(session_copy)], npm_timestamp_column_name=npm_timestamp_column_name, npm_time_unit=npm_time_unit)
 
     # Validate outputs exist in the temp copy
     basename = os.path.basename(session_copy)
