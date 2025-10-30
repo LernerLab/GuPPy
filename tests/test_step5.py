@@ -168,6 +168,10 @@ def test_step5(tmp_path, monkeypatch, session_subdir, storenames_map, expected_r
     else:
         npm_timestamp_column_name = None
         npm_time_unit = None
+    if session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_5":
+        npm_split_events = False
+    else:
+        npm_split_events = True
 
     # Use the sample session
     src_base_dir = str(Path(".") / "testing_data")
@@ -195,16 +199,16 @@ def test_step5(tmp_path, monkeypatch, session_subdir, storenames_map, expected_r
         params_fp.unlink()
 
     # Step 2: create storesList.csv in the temp copy with explicit naming
-    step2(base_dir=str(tmp_base), selected_folders=[str(session_copy)], storenames_map=storenames_map, npm_timestamp_column_name=npm_timestamp_column_name, npm_time_unit=npm_time_unit)
+    step2(base_dir=str(tmp_base), selected_folders=[str(session_copy)], storenames_map=storenames_map, npm_timestamp_column_name=npm_timestamp_column_name, npm_time_unit=npm_time_unit, npm_split_events=npm_split_events)
 
     # Step 3: read raw data in the temp copy
-    step3(base_dir=str(tmp_base), selected_folders=[str(session_copy)], npm_timestamp_column_name=npm_timestamp_column_name, npm_time_unit=npm_time_unit)
+    step3(base_dir=str(tmp_base), selected_folders=[str(session_copy)], npm_timestamp_column_name=npm_timestamp_column_name, npm_time_unit=npm_time_unit, npm_split_events=npm_split_events)
 
     # Step 4: extract timestamps and signal in the temp copy
-    step4(base_dir=str(tmp_base), selected_folders=[str(session_copy)], npm_timestamp_column_name=npm_timestamp_column_name, npm_time_unit=npm_time_unit)
+    step4(base_dir=str(tmp_base), selected_folders=[str(session_copy)], npm_timestamp_column_name=npm_timestamp_column_name, npm_time_unit=npm_time_unit, npm_split_events=npm_split_events)
 
     # Step 5: compute PSTH in the temp copy (headless)
-    step5(base_dir=str(tmp_base), selected_folders=[str(session_copy)], npm_timestamp_column_name=npm_timestamp_column_name, npm_time_unit=npm_time_unit)
+    step5(base_dir=str(tmp_base), selected_folders=[str(session_copy)], npm_timestamp_column_name=npm_timestamp_column_name, npm_time_unit=npm_time_unit, npm_split_events=npm_split_events)
 
     # Locate output directory
     basename = os.path.basename(session_copy)

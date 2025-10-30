@@ -149,6 +149,10 @@ def test_step3(tmp_path, storenames_map, session_subdir):
     else:
         npm_timestamp_column_name = None
         npm_time_unit = None
+    if session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_5":
+        npm_split_events = False
+    else:
+        npm_split_events = True
 
     src_base_dir = str(Path(".") / "testing_data")
     src_session = os.path.join(src_base_dir, session_subdir)
@@ -173,10 +177,10 @@ def test_step3(tmp_path, storenames_map, session_subdir):
         params_fp.unlink()
 
     # Step 2: create storesList.csv in the temp copy
-    step2(base_dir=str(tmp_base), selected_folders=[str(session_copy)], storenames_map=storenames_map, npm_timestamp_column_name=npm_timestamp_column_name, npm_time_unit=npm_time_unit)
+    step2(base_dir=str(tmp_base), selected_folders=[str(session_copy)], storenames_map=storenames_map, npm_timestamp_column_name=npm_timestamp_column_name, npm_time_unit=npm_time_unit, npm_split_events=npm_split_events)
 
     # Step 3: read raw data in the temp copy
-    step3(base_dir=str(tmp_base), selected_folders=[str(session_copy)], npm_timestamp_column_name=npm_timestamp_column_name, npm_time_unit=npm_time_unit)
+    step3(base_dir=str(tmp_base), selected_folders=[str(session_copy)], npm_timestamp_column_name=npm_timestamp_column_name, npm_time_unit=npm_time_unit, npm_split_events=npm_split_events)
 
     # Validate outputs exist in the temp copy
     basename = os.path.basename(session_copy)
