@@ -2,9 +2,9 @@
 
 This module provides a standardized logging setup that writes to platform-appropriate
 log directories following OS conventions:
-- Windows: 
+- Windows: C:/Users/<username>/AppData/Local/LernerLab/guppy/Logs/guppy.log
 - macOS: /Users/<username>/Library/Logs/guppy/guppy.log
-- Linux: 
+- Linux: /home/<username>/.local/state/guppy/log/guppy.log
 
 Call setup_logging() once at application startup before importing other modules.
 Each module should then create its own logger using: logger = logging.getLogger(__name__)
