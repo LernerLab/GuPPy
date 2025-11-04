@@ -2,158 +2,169 @@ import fnmatch
 import logging
 import os
 import re
-import fnmatch
-import logging
 
 logger = logging.getLogger(__name__)
 
-def find_files(path, glob_path, ignore_case = False):
-	rule = re.compile(fnmatch.translate(glob_path), re.IGNORECASE) if ignore_case \
-			else re.compile(fnmatch.translate(glob_path))
-	no_bytes_path = os.listdir(os.path.expanduser(path))
-	str_path = []
 
-	# converting byte object to string
-	for x in no_bytes_path:
-		try:
-			str_path.append(x.decode('utf-8'))
-		except:
-			str_path.append(x)
-			
-	return [os.path.join(path,n) for n in str_path if rule.match(n)]
+def find_files(path, glob_path, ignore_case=False):
+    rule = (
+        re.compile(fnmatch.translate(glob_path), re.IGNORECASE)
+        if ignore_case
+        else re.compile(fnmatch.translate(glob_path))
+    )
+    no_bytes_path = os.listdir(os.path.expanduser(path))
+    str_path = []
+
+    # converting byte object to string
+    for x in no_bytes_path:
+        try:
+            str_path.append(x.decode("utf-8"))
+        except:
+            str_path.append(x)
+
+    return [os.path.join(path, n) for n in str_path if rule.match(n)]
+
 
 def read_hdf5(event, filepath, key):
-	if event:
-		op = os.path.join(filepath, event+'.hdf5')
-	else:
-		op = filepath
+    if event:
+        op = os.path.join(filepath, event + ".hdf5")
+    else:
+        op = filepath
 
-	if os.path.exists(op):
-		with h5py.File(op, 'r') as f:
-			arr = np.asarray(f[key])
-	else:
-		raise Exception('{}.hdf5 file does not exist'.format(event))
+    if os.path.exists(op):
+        with h5py.File(op, "r") as f:
+            arr = np.asarray(f[key])
+    else:
+        raise Exception("{}.hdf5 file does not exist".format(event))
 
-	return arr
+    return arr
+
 
 def write_hdf5(data, event, filepath, key):
-	op = os.path.join(filepath, event+'.hdf5')
+    op = os.path.join(filepath, event + ".hdf5")
 
-	if not os.path.exists(op):
-		with h5py.File(op, 'w') as f:
-			if type(data) is np.ndarray:
-				f.create_dataset(key, data=data, maxshape=(None,), chunks=True)
-			else:
-				f.create_dataset(key, data=data)
-	else:
-		with h5py.File(op, 'r+') as f:
-			if key in list(f.keys()):
-				if type(data) is np.ndarray:
-					f[key].resize(data.shape)
-					arr = f[key]
-					arr[:] = data
-				else:
-					arr = f[key]
-					arr = data
-			else:
-				f.create_dataset(key, data=data, maxshape=(None,), chunks=True)
+    if not os.path.exists(op):
+        with h5py.File(op, "w") as f:
+            if type(data) is np.ndarray:
+                f.create_dataset(key, data=data, maxshape=(None,), chunks=True)
+            else:
+                f.create_dataset(key, data=data)
+    else:
+        with h5py.File(op, "r+") as f:
+            if key in list(f.keys()):
+                if type(data) is np.ndarray:
+                    f[key].resize(data.shape)
+                    arr = f[key]
+                    arr[:] = data
+                else:
+                    arr = f[key]
+                    arr = data
+            else:
+                f.create_dataset(key, data=data, maxshape=(None,), chunks=True)
 
 
 def decide_naming_convention(filepath):
-	path_1 = find_files(filepath, 'control*', ignore_case=True) #glob.glob(os.path.join(filepath, 'control*'))
-	
-	path_2 = find_files(filepath, 'signal*', ignore_case=True) #glob.glob(os.path.join(filepath, 'signal*'))
-	
-	path = sorted(path_1 + path_2, key=str.casefold)
+    path_1 = find_files(filepath, "control*", ignore_case=True)  # glob.glob(os.path.join(filepath, 'control*'))
 
-	if len(path)%2 != 0:
-		raise Exception('There are not equal number of Control and Signal data')
-	
-	path = np.asarray(path).reshape(2,-1)
+    path_2 = find_files(filepath, "signal*", ignore_case=True)  # glob.glob(os.path.join(filepath, 'signal*'))
 
-	return path
+    path = sorted(path_1 + path_2, key=str.casefold)
+
+    if len(path) % 2 != 0:
+        raise Exception("There are not equal number of Control and Signal data")
+
+    path = np.asarray(path).reshape(2, -1)
+
+    return path
 
 
 def eliminateData(filepath, timeForLightsTurnOn, event, sampling_rate, naming):
-	
-	arr = np.array([])
-	ts_arr = np.array([])
-	for i in range(len(filepath)):
-		ts = read_hdf5('timeCorrection_'+naming, filepath[i], 'timestampNew')
-		data = read_hdf5(event, filepath[i], 'data').reshape(-1)
 
-		#index = np.where((ts>coords[i,0]) & (ts<coords[i,1]))[0]
+    arr = np.array([])
+    ts_arr = np.array([])
+    for i in range(len(filepath)):
+        ts = read_hdf5("timeCorrection_" + naming, filepath[i], "timestampNew")
+        data = read_hdf5(event, filepath[i], "data").reshape(-1)
 
-		if len(arr)==0:
-			arr = np.concatenate((arr, data))
-			sub = ts[0]-timeForLightsTurnOn
-			new_ts = ts-sub
-			ts_arr = np.concatenate((ts_arr, new_ts))
-		else:
-			temp = data
-			temp_ts = ts
-			new_ts = temp_ts - (temp_ts[0]-ts_arr[-1])
-			arr = np.concatenate((arr, temp))
-			ts_arr = np.concatenate((ts_arr, new_ts+(1/sampling_rate)))
-	
-	return arr, ts_arr
+        # index = np.where((ts>coords[i,0]) & (ts<coords[i,1]))[0]
+
+        if len(arr) == 0:
+            arr = np.concatenate((arr, data))
+            sub = ts[0] - timeForLightsTurnOn
+            new_ts = ts - sub
+            ts_arr = np.concatenate((ts_arr, new_ts))
+        else:
+            temp = data
+            temp_ts = ts
+            new_ts = temp_ts - (temp_ts[0] - ts_arr[-1])
+            arr = np.concatenate((arr, temp))
+            ts_arr = np.concatenate((ts_arr, new_ts + (1 / sampling_rate)))
+
+    return arr, ts_arr
 
 
 def eliminateTs(filepath, timeForLightsTurnOn, event, sampling_rate, naming):
 
-	ts_arr = np.array([])
-	tsNew_arr = np.array([])
-	for i in range(len(filepath)):
-		tsNew = read_hdf5('timeCorrection_'+naming, filepath[i], 'timestampNew')
-		if os.path.exists(os.path.join(filepath[i], event+'_'+naming+'.hdf5')):
-			ts = read_hdf5(event+'_'+naming, filepath[i], 'ts').reshape(-1)
-		else:
-			ts = np.array([])
-		
-		#logger.info("total time : ", tsNew[-1])
-		if len(tsNew_arr)==0:
-			sub = tsNew[0]-timeForLightsTurnOn
-			tsNew_arr = np.concatenate((tsNew_arr, tsNew-sub))
-			ts_arr = np.concatenate((ts_arr, ts-sub))
-		else:
-			temp_tsNew = tsNew
-			temp_ts = ts
-			new_ts = temp_ts - (temp_tsNew[0]-tsNew_arr[-1])
-			new_tsNew = temp_tsNew - (temp_tsNew[0]-tsNew_arr[-1])
-			tsNew_arr = np.concatenate((tsNew_arr, new_tsNew+(1/sampling_rate)))
-			ts_arr = np.concatenate((ts_arr, new_ts+(1/sampling_rate)))
-		
-		#logger.info(event)
-		#logger.info(ts_arr)
-	return ts_arr
+    ts_arr = np.array([])
+    tsNew_arr = np.array([])
+    for i in range(len(filepath)):
+        tsNew = read_hdf5("timeCorrection_" + naming, filepath[i], "timestampNew")
+        if os.path.exists(os.path.join(filepath[i], event + "_" + naming + ".hdf5")):
+            ts = read_hdf5(event + "_" + naming, filepath[i], "ts").reshape(-1)
+        else:
+            ts = np.array([])
+
+        # logger.info("total time : ", tsNew[-1])
+        if len(tsNew_arr) == 0:
+            sub = tsNew[0] - timeForLightsTurnOn
+            tsNew_arr = np.concatenate((tsNew_arr, tsNew - sub))
+            ts_arr = np.concatenate((ts_arr, ts - sub))
+        else:
+            temp_tsNew = tsNew
+            temp_ts = ts
+            new_ts = temp_ts - (temp_tsNew[0] - tsNew_arr[-1])
+            new_tsNew = temp_tsNew - (temp_tsNew[0] - tsNew_arr[-1])
+            tsNew_arr = np.concatenate((tsNew_arr, new_tsNew + (1 / sampling_rate)))
+            ts_arr = np.concatenate((ts_arr, new_ts + (1 / sampling_rate)))
+
+        # logger.info(event)
+        # logger.info(ts_arr)
+    return ts_arr
+
 
 def processTimestampsForCombiningData(filepath, timeForLightsTurnOn, events, sampling_rate):
-	
-	logger.debug("Processing timestamps for combining data...")
 
-	storesList = events[1,:]
-	
-	for k in range(len(filepath)):
+    logger.debug("Processing timestamps for combining data...")
 
-		path = decide_naming_convention(filepath[k][0])
-		
-		for j in range(path.shape[1]):
-			name_1 = ((os.path.basename(path[0,j])).split('.')[0]).split('_')
-			name_2 = ((os.path.basename(path[1,j])).split('.')[0]).split('_')
-			#dirname = os.path.dirname(path[i])
-			if name_1[-1]==name_2[-1]:
-				name = name_1[-1]
+    storesList = events[1, :]
 
-				for i in range(len(storesList)):
-					if 'control_'+name.lower() in storesList[i].lower() or 'signal_'+name.lower() in storesList[i].lower():
-						data, timestampNew = eliminateData(filepath[k], timeForLightsTurnOn, storesList[i], sampling_rate, name)
-						write_hdf5(data, storesList[i], filepath[k][0], 'data')
-					else:
-						if 'control' in storesList[i].lower() or 'signal' in storesList[i].lower():
-							continue
-						else:
-							ts = eliminateTs(filepath[k], timeForLightsTurnOn, storesList[i], sampling_rate, name)
-							write_hdf5(ts, storesList[i]+'_'+name, filepath[k][0], 'ts')
+    for k in range(len(filepath)):
+
+        path = decide_naming_convention(filepath[k][0])
+
+        for j in range(path.shape[1]):
+            name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")
+            name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")
+            # dirname = os.path.dirname(path[i])
+            if name_1[-1] == name_2[-1]:
+                name = name_1[-1]
+
+                for i in range(len(storesList)):
+                    if (
+                        "control_" + name.lower() in storesList[i].lower()
+                        or "signal_" + name.lower() in storesList[i].lower()
+                    ):
+                        data, timestampNew = eliminateData(
+                            filepath[k], timeForLightsTurnOn, storesList[i], sampling_rate, name
+                        )
+                        write_hdf5(data, storesList[i], filepath[k][0], "data")
+                    else:
+                        if "control" in storesList[i].lower() or "signal" in storesList[i].lower():
+                            continue
+                        else:
+                            ts = eliminateTs(filepath[k], timeForLightsTurnOn, storesList[i], sampling_rate, name)
+                            write_hdf5(ts, storesList[i] + "_" + name, filepath[k][0], "ts")
+
 
 import h5py
 import numpy as np

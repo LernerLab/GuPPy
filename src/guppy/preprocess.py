@@ -15,7 +15,6 @@ from scipy import signal as ss
 from scipy.optimize import curve_fit
 
 from .combineDataFn import processTimestampsForCombiningData
-import logging
 
 logger = logging.getLogger(__name__)
 
