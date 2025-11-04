@@ -14,6 +14,9 @@ import pandas as pd
 from scipy.signal import argrelextrema
 
 from .preprocess import get_all_stores_for_combining_data
+import logging
+
+logger = logging.getLogger(__name__)
 
 logger = logging.getLogger(__name__)
 
