@@ -1,6 +1,6 @@
 import csv
-import os
 import glob
+import os
 import shutil
 from pathlib import Path
 
@@ -166,7 +166,14 @@ def test_step2(tmp_path, session_subdir, storenames_map):
         params_fp.unlink()
 
     # Run Step 2 headlessly using the explicit mapping
-    step2(base_dir=str(tmp_base), selected_folders=[str(session_copy)], storenames_map=storenames_map, npm_timestamp_column_name=npm_timestamp_column_name, npm_time_unit=npm_time_unit, npm_split_events=npm_split_events)
+    step2(
+        base_dir=str(tmp_base),
+        selected_folders=[str(session_copy)],
+        storenames_map=storenames_map,
+        npm_timestamp_column_name=npm_timestamp_column_name,
+        npm_time_unit=npm_time_unit,
+        npm_split_events=npm_split_events,
+    )
 
     # Validate storesList.csv exists and matches the mapping exactly (order-preserved)
     basename = os.path.basename(session_copy)
