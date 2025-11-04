@@ -6,7 +6,6 @@ import json
 import panel as pn 
 import numpy as np
 import pandas as pd
-import logging
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
@@ -14,15 +13,12 @@ from threading import Thread
 from pathlib import Path
 from .visualizePlot import visualizeResults
 from .saveStoresList import execute
+import logging
+
+logger = logging.getLogger(__name__)
 
 def savingInputParameters():
     pn.extension()
-
-    log_file = os.path.join(Path.home(), 'guppy.log')
-    if os.path.exists(log_file):
-        os.remove(log_file)
-    else:
-        pass
 
     # Determine base folder path (headless-friendly via env var)
     base_dir_env = os.environ.get('GUPPY_BASE_DIR')
@@ -30,7 +26,7 @@ def savingInputParameters():
     if is_headless:
         global folder_path
         folder_path = base_dir_env
-        print(f"Folder path set to {folder_path} (from GUPPY_BASE_DIR)")
+        logger.info(f"Folder path set to {folder_path} (from GUPPY_BASE_DIR)")
     else:
         # Create the main window
         folder_selection = tk.Tk()
@@ -40,39 +36,17 @@ def savingInputParameters():
             global folder_path
             folder_path = filedialog.askdirectory(title="Select the folder path where your data is located")
             if folder_path:
-                print(f"Folder path set to {folder_path}")
+                logger.info(f"Folder path set to {folder_path}")
                 folder_selection.destroy()
             else:
                 folder_path = os.path.expanduser('~')
-                print(f"Folder path set to {folder_path}")
+                logger.info(f"Folder path set to {folder_path}")
 
         select_button = ttk.Button(folder_selection, text="Select a Folder", command=select_folder)
         select_button.pack(pady=5)
         folder_selection.mainloop()
 
     current_dir = os.getcwd()
-
-    def insertLog(text, level):
-        file = os.path.join(Path.home(), 'guppy.log')
-        format = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-        infoLog = logging.FileHandler(file)
-        infoLog.setFormatter(format)
-        logger = logging.getLogger(file)
-        logger.setLevel(level)
-        
-        if not logger.handlers:
-            logger.addHandler(infoLog)
-            if level == logging.DEBUG:
-                logger.debug(text)
-            if level == logging.INFO:
-                logger.info(text)
-            if level == logging.ERROR:
-                logger.exception(text)
-            if level == logging.WARNING:
-                logger.warning(text)
-
-        infoLog.close()
-        logger.removeHandler(infoLog)
 
     def make_dir(filepath):
         op = os.path.join(filepath, 'inputParameters')
@@ -95,7 +69,7 @@ def savingInputParameters():
 
 
     def readPBIncrementValues(progressBar):
-        print("Read progress bar increment values function started...")
+        logger.info("Read progress bar increment values function started...")
         file_path = os.path.join(os.path.expanduser('~'), 'pbSteps.txt')
         if os.path.exists(file_path):
             os.remove(file_path)
@@ -125,13 +99,13 @@ def savingInputParameters():
                 time.sleep(0.001) 
             except Exception as e:
                 # Handle other exceptions that may occur
-                print(f"An error occurred while reading the file: {e}")
+                logger.info(f"An error occurred while reading the file: {e}")
                 break
             if increment==maximum:
                 os.remove(file_path)
                 break
 
-        print("Read progress bar increment values stopped.")
+        logger.info("Read progress bar increment values stopped.")
         
     # progress bars = PB
     read_progress = pn.indicators.Progress(name='Progress', value=100, max=100, width=300)
@@ -376,8 +350,7 @@ def savingInputParameters():
         abspath = np.asarray(abspath)
         abspath = np.unique(abspath)
         if len(abspath)>1:
-            insertLog('All the folders selected should be at the same location', 
-                    logging.ERROR)
+            logger.error('All the folders selected should be at the same location')
             raise Exception('All the folders selected should be at the same location')
         
         return abspath
@@ -385,8 +358,7 @@ def savingInputParameters():
     def getAbsPath():
         arr_1, arr_2 = files_1.value, files_2.value 
         if len(arr_1)==0 and len(arr_2)==0:
-            insertLog('No folder is selected for analysis',
-                    logging.ERROR)
+            logger.error('No folder is selected for analysis')
             raise Exception('No folder is selected for analysis')
         
         abspath = []
@@ -397,15 +369,13 @@ def savingInputParameters():
         
         abspath = np.unique(abspath)
         if len(abspath)>1:
-            insertLog('All the folders selected should be at the same location',
-                    logging.ERROR)
+            logger.error('All the folders selected should be at the same location')
             raise Exception('All the folders selected should be at the same location')
         return abspath
 
     def onclickProcess(event=None):
         
-        insertLog('Saving Input Parameters file.',
-                logging.DEBUG)
+        logger.debug('Saving Input Parameters file.')
         abspath = getAbsPath()
         analysisParameters = {
             "combine_data": combine_data.value,
@@ -435,13 +405,12 @@ def savingInputParameters():
         for folder in files_1.value:
             with open(os.path.join(folder, 'GuPPyParamtersUsed.json'), 'w') as f:
                 json.dump(analysisParameters, f, indent=4)
-            insertLog(f"Input Parameters file saved at {folder}",
-                    logging.INFO)
+            logger.info(f"Input Parameters file saved at {folder}")
         
-        insertLog('#'*400, logging.INFO)
+        logger.info('#'*400)
                 
         #path.value = (os.path.join(op, 'inputParameters.json')).replace('\\', '/')
-        print('Input Parameters File Saved.')
+        logger.info('Input Parameters File Saved.')
 
     def onclickStoresList(event=None):
         inputParameters = getInputParameters()

@@ -17,12 +17,14 @@ from pathlib import Path
 import holoviews as hv
 import warnings
 import socket
-import logging
 import tkinter as tk
 from tkinter import ttk, StringVar, messagebox
+import logging
 
 #hv.extension()
 pn.extension()
+
+logger = logging.getLogger(__name__)
 
 def scanPortsAndFind(start_port=5000, end_port=5200, host='127.0.0.1'):
     while True:
@@ -43,29 +45,6 @@ def takeOnlyDirs(paths):
 		if os.path.isfile(p):
 			removePaths.append(p)
 	return list(set(paths)-set(removePaths))
-
-def insertLog(text, level):
-    file = os.path.join(Path.home(), 'guppy.log')
-    format = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-    infoLog = logging.FileHandler(file)
-    infoLog.setFormatter(format)
-    infoLog
-    logger = logging.getLogger(file)
-    logger.setLevel(level)
-    
-    if not logger.handlers:
-        logger.addHandler(infoLog)
-        if level == logging.DEBUG:
-            logger.debug(text)
-        if level == logging.INFO:
-            logger.info(text)
-        if level == logging.ERROR:
-            logger.exception(text)
-        if level == logging.WARNING:
-            logger.warning(text)
-    
-    infoLog.close()
-    logger.removeHandler(infoLog)
 
 # function to show location for over-writing or creating a new stores list file.
 def show_dir(filepath):
@@ -113,8 +92,7 @@ def readtsq(filepath):
                           'offsets': offsets}, align=True)
     path = glob.glob(os.path.join(filepath, '*.tsq'))
     if len(path)>1:
-        insertLog('Two tsq files are present at the location.',
-                  logging.ERROR)
+        logger.error('Two tsq files are present at the location.')
         raise Exception('Two tsq files are present at the location.')
     elif len(path)==0:
         return 0
@@ -128,8 +106,7 @@ def readtsq(filepath):
 # function to show GUI and save 
 def saveStorenames(inputParameters, data, event_name, flag, filepath):
     
-    insertLog('Saving stores list file.',
-                  logging.DEBUG)
+    logger.debug('Saving stores list file.')
     # getting input parameters
     inputParameters = inputParameters
 
@@ -139,8 +116,8 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
         op = make_dir(filepath)
         arr = np.asarray([list(storenames_map.keys()), list(storenames_map.values())], dtype=str)
         np.savetxt(os.path.join(op, 'storesList.csv'), arr, delimiter=",", fmt='%s')
-        insertLog(f"Storeslist file saved at {op}", logging.INFO)
-        insertLog('Storeslist : \n'+str(arr), logging.INFO)
+        logger.info(f"Storeslist file saved at {op}")
+        logger.info('Storeslist : \n'+str(arr))
         return
 
     # reading storenames from the data fetched using 'readtsq' function
@@ -496,16 +473,14 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
 
         if np.where(arr2=="")[0].size>0:
             alert.object = '#### Alert !! \n Empty string in the list names_for_storenames.'
-            insertLog('Empty string in the list names_for_storenames.',
-                      logging.ERROR)
+            logger.error('Empty string in the list names_for_storenames.')
             raise Exception('Empty string in the list names_for_storenames.')
         else:
             alert.object = '#### No alerts !!'
 
         if arr1.shape[0]!=arr2.shape[0]:
             alert.object = '#### Alert !! \n Length of list storenames and names_for_storenames is not equal.'
-            insertLog('Length of list storenames and names_for_storenames is not equal.',
-                      logging.ERROR)
+            logger.error('Length of list storenames and names_for_storenames is not equal.')
             raise Exception('Length of list storenames and names_for_storenames is not equal.')
         else:
             alert.object = '#### No alerts !!'
@@ -538,15 +513,14 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
                 json.dump(storenames_cache, f, indent=4)
 
         arr = np.asarray([arr1, arr2])
-        print(arr)
+        logger.info(arr)
         if not os.path.exists(select_location.value):
             os.mkdir(select_location.value)
             
         np.savetxt(os.path.join(select_location.value, 'storesList.csv'), arr, delimiter=",", fmt='%s')
         path.value = os.path.join(select_location.value, 'storesList.csv')
-        insertLog(f"Storeslist file saved at {select_location.value}",
-                      logging.INFO)
-        insertLog('Storeslist : \n'+str(arr), logging.INFO)
+        logger.info(f"Storeslist file saved at {select_location.value}")
+        logger.info('Storeslist : \n'+str(arr))
     
 
     # Connect button callbacks
@@ -584,9 +558,8 @@ def check_channels(state):
     state = state.astype(int)
     unique_state = np.unique(state[2:12])
     if unique_state.shape[0]>3:
-        insertLog("Looks like there are more than 3 channels in the file. Reading of these files\
-                        are not supported. Reach out to us if you get this error message.",
-                        logging.ERROR)
+        logger.error("Looks like there are more than 3 channels in the file. Reading of these files\
+                        are not supported. Reach out to us if you get this error message.")
         raise Exception("Looks like there are more than 3 channels in the file. Reading of these files\
                         are not supported. Reach out to us if you get this error message.")
 
@@ -615,7 +588,7 @@ def decide_ts_unit_for_npm(df, timestamp_column_name=None, time_unit=None, headl
             ts_unit = time_unit if (isinstance(time_unit, str) and time_unit in valid_units) else 'seconds'
             return df, ts_unit
         #def comboBoxSelected(event):
-        #    print(event.widget.get())
+        #    logger.info(event.widget.get())
         
         window = tk.Tk()
         window.title('Select appropriate options for timestamps')
@@ -650,9 +623,8 @@ def decide_ts_unit_for_npm(df, timestamp_column_name=None, time_unit=None, headl
         else:
             messagebox.showerror('All options not selected', 'All the options for timestamps \
                                                             were not selected. Please select appropriate options')
-            insertLog('All the options for timestamps \
-                        were not selected. Please select appropriate options',
-                    logging.ERROR)
+            logger.error('All the options for timestamps \
+                        were not selected. Please select appropriate options')
             raise Exception('All the options for timestamps \
                             were not selected. Please select appropriate options')
         if holdComboboxValues['time_unit'].get():
@@ -665,9 +637,8 @@ def decide_ts_unit_for_npm(df, timestamp_column_name=None, time_unit=None, headl
         else:
             messagebox.showerror('All options not selected', 'All the options for timestamps \
                                                             were not selected. Please select appropriate options')
-            insertLog('All the options for timestamps \
-                        were not selected. Please select appropriate options',
-                    logging.ERROR)
+            logger.error('All the options for timestamps \
+                        were not selected. Please select appropriate options')
             raise Exception('All the options for timestamps \
                             were not selected. Please select appropriate options')
     else:
@@ -680,10 +651,9 @@ def decide_ts_unit_for_npm(df, timestamp_column_name=None, time_unit=None, headl
 def decide_indices(file, df, flag, num_ch=2):
     ch_name = [file+'chev', file+'chod', file+'chpr']
     if len(ch_name)<num_ch:
-        insertLog('Number of channels parameters in Input Parameters GUI is more than 3. \
+        logger.error('Number of channels parameters in Input Parameters GUI is more than 3. \
                     Looks like there are more than 3 channels in the file. Reading of these files\
-                    are not supported. Reach out to us if you get this error message.',
-                    logging.ERROR)
+                    are not supported. Reach out to us if you get this error message.')
         raise Exception('Number of channels parameters in Input Parameters GUI is more than 3. \
                          Looks like there are more than 3 channels in the file. Reading of these files\
                          are not supported. Reach out to us if you get this error message.')
@@ -701,9 +671,8 @@ def decide_indices(file, df, flag, num_ch=2):
             arr = ['FrameCounter', 'LedState']
             state = np.array(df['LedState'])
         else:
-            insertLog("File type shows Neurophotometrics newer version \
-                    data but column names does not have Flags or LedState",
-                    logging.ERROR)
+            logger.error("File type shows Neurophotometrics newer version \
+                    data but column names does not have Flags or LedState")
             raise Exception("File type shows Neurophotometrics newer version \
                             data but column names does not have Flags or LedState")
 
@@ -765,8 +734,7 @@ def read_doric(filepath):
 # and read data accordingly
 def import_np_doric_csv(filepath, isosbestic_control, num_ch, inputParameters=None):
 
-    insertLog("If it exists, importing either NPM or Doric or csv file based on the structure of file",
-              logging.DEBUG)
+    logger.debug("If it exists, importing either NPM or Doric or csv file based on the structure of file")
     # Headless configuration (used to avoid any UI prompts when running tests)
     headless = bool(os.environ.get('GUPPY_BASE_DIR'))
     npm_timestamp_column_name = None
@@ -811,7 +779,7 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch, inputParameters=No
                 df = df.drop(['Time(s)'], axis=1)
                 event_from_filename.extend(list(df.columns))
                 flag = 'doric_csv'
-                print(flag)
+                logger.info(flag)
             else:
                 df = pd.read_csv(path[i], index_col=False)
             # with warnings.catch_warnings():
@@ -827,7 +795,7 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch, inputParameters=No
             continue
         else:
             colnames, value = check_header(df)
-            #print(len(colnames), len(value))
+            #logger.info(len(colnames), len(value))
 
             # check dataframe structure and read data accordingly
             if len(value)>0:
@@ -841,8 +809,7 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch, inputParameters=No
             # check the structure of dataframe and assign flag to the type of file
             if len(cols)==1:
                 if cols[0].lower()!='timestamps':
-                    insertLog("\033[1m"+"Column name should be timestamps (all lower-cases)"+"\033[0m",
-                              logging.ERROR)
+                    logger.error("\033[1m"+"Column name should be timestamps (all lower-cases)"+"\033[0m")
                     raise Exception("\033[1m"+"Column name should be timestamps (all lower-cases)"+"\033[0m")
                 else:
                     flag = 'event_csv'
@@ -850,8 +817,7 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch, inputParameters=No
                 arr1 = np.array(['timestamps', 'data', 'sampling_rate'])
                 arr2 = np.char.lower(np.array(cols))
                 if (np.sort(arr1)==np.sort(arr2)).all()==False:
-                    insertLog("\033[1m"+"Column names should be timestamps, data and sampling_rate (all lower-cases)"+"\033[0m",
-                              logging.ERROR)
+                    logger.error("\033[1m"+"Column names should be timestamps, data and sampling_rate (all lower-cases)"+"\033[0m")
                     raise Exception("\033[1m"+"Column names should be timestamps, data and sampling_rate (all lower-cases)"+"\033[0m")
                 else:
                     flag = 'data_csv'
@@ -860,8 +826,7 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch, inputParameters=No
             elif len(cols)>=2:
                 flag  = 'data_np'
             else:
-                insertLog('Number of columns in csv file does not make sense.',
-                          logging.ERROR)
+                logger.error('Number of columns in csv file does not make sense.')
                 raise Exception('Number of columns in csv file does not make sense.')
 
 
@@ -885,7 +850,7 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch, inputParameters=No
                 pass
             
             flag_arr.append(flag)
-            print(flag)
+            logger.info(flag)
             if flag=='event_csv' or flag=='data_csv':
                 name = os.path.basename(path[i]).split('.')[0]
                 event_from_filename.append(name)
@@ -1018,13 +983,11 @@ def import_np_doric_csv(filepath, isosbestic_control, num_ch, inputParameters=No
                             df_chpr.at[0,'sampling_rate'] = df_chev['sampling_rate'][0]
                             df_chpr.to_csv(path_chpr[j], index=False)
                 else:
-                    insertLog('Number of channels should be same for all regions.',
-                              logging.ERROR)
+                    logger.error('Number of channels should be same for all regions.')
                     raise Exception('Number of channels should be same for all regions.')
             else:
                 pass
-    insertLog('Importing of either NPM or Doric or csv file is done.',
-              logging.INFO)
+    logger.info('Importing of either NPM or Doric or csv file is done.')
     return event_from_filename, flag_arr
 
 
@@ -1037,7 +1000,7 @@ def execute(inputParameters):
     isosbestic_control = inputParameters['isosbestic_control']
     num_ch = inputParameters['noChannels']
 
-    print(folderNames)
+    logger.info(folderNames)
 
     try:
         for i in folderNames:
@@ -1045,7 +1008,7 @@ def execute(inputParameters):
             data = readtsq(filepath)
             event_name, flag = import_np_doric_csv(filepath, isosbestic_control, num_ch, inputParameters=inputParameters)
             saveStorenames(inputParameters, data, event_name, flag, filepath)
-        insertLog('#'*400, logging.INFO)
+        logger.info('#'*400)
     except Exception as e:
-        insertLog(str(e), logging.ERROR)
+        logger.error(str(e))
         raise e

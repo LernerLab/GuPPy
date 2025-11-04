@@ -8,7 +8,6 @@ import re
 import h5py
 import math
 import subprocess
-import logging
 import numpy as np 
 import pandas as pd
 from itertools import repeat
@@ -20,6 +19,9 @@ from .preprocess import get_all_stores_for_combining_data
 from .computeCorr import computeCrossCorrelation
 from .computeCorr import getCorrCombinations
 from .computeCorr import make_dir
+import logging
+
+logger = logging.getLogger(__name__)
 
 def takeOnlyDirs(paths):
 	removePaths = []
@@ -27,29 +29,6 @@ def takeOnlyDirs(paths):
 		if os.path.isfile(p):
 			removePaths.append(p)
 	return list(set(paths)-set(removePaths))
-
-def insertLog(text, level):
-    file = os.path.join(Path.home(), 'guppy.log')
-    format = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-    infoLog = logging.FileHandler(file)
-    infoLog.setFormatter(format)
-    infoLog
-    logger = logging.getLogger(file)
-    logger.setLevel(level)
-    
-    if not logger.handlers:
-        logger.addHandler(infoLog)
-        if level == logging.DEBUG:
-            logger.debug(text)
-        if level == logging.INFO:
-            logger.info(text)
-        if level == logging.ERROR:
-            logger.exception(text)
-        if level == logging.WARNING:
-            logger.warning(text)
-    
-    infoLog.close()
-    logger.removeHandler(infoLog)
 
 def writeToFile(value: str):
 	with open(os.path.join(os.path.expanduser('~'), 'pbSteps.txt'), 'a') as file:
@@ -214,7 +193,7 @@ def baselineCorrection(filepath, arr, timeAxis, baselineStart, baselineEnd):
 	baselineStrtPt = np.where(timeAxis>=baselineStart)[0]
 	baselineEndPt = np.where(timeAxis>=baselineEnd)[0]
 
-	#print(baselineStrtPt[0], baselineEndPt[0])
+	#logger.info(baselineStrtPt[0], baselineEndPt[0])
 	if baselineStart==0 and baselineEnd==0:
 		return arr
 	
@@ -247,7 +226,7 @@ def helper_psth(z_score, event, filepath,
 
 	# avoid writing same data to same file in multi-processing
 	#if not os.path.exists(os.path.join(filepath, 'ts_psth.h5')):
-	#	print('file not exists')
+	#	logger.info('file not exists')
 	#	create_Df(filepath, 'ts_psth', '', timeAxis)
 	#	time.sleep(2)
 
@@ -268,7 +247,7 @@ def helper_psth(z_score, event, filepath,
 	# skip the event if there are no TTLs
 	if len(ts)==0:
 		new_ts = np.array([])
-		print(f"Warning : No TTLs present for {event}. This will cause an error in Visualization step")
+		logger.info(f"Warning : No TTLs present for {event}. This will cause an error in Visualization step")
 	else:
 		new_ts = [ts[0]]
 		for i in range(1, ts.shape[0]):
@@ -389,8 +368,7 @@ def storenamePsth(filepath, event, inputParameters):
 		return 0
 	else:
 		for i in range(len(path)):
-			print("Computing PSTH for event {}...".format(event))
-			insertLog(f"Computing PSTH for event {event}", logging.DEBUG)
+			logger.info(f"Computing PSTH for event {event}...")
 			basename = (os.path.basename(path[i])).split('.')[0]
 			name_1 = basename.split('_')[-1]
 			control = read_hdf5('control_'+name_1, os.path.dirname(path[i]), 'data')
@@ -409,8 +387,7 @@ def storenamePsth(filepath, event, inputParameters):
 
 			create_Df(filepath, event+'_'+name_1+'_baselineUncorrected', basename, psth_baselineUncorrected, columns=cols)     # extra
 			create_Df(filepath, event+'_'+name_1, basename, psth, columns=cols)
-			insertLog(f"PSTH for event {event} computed.", logging.INFO)
-			print("PSTH for event {} computed.".format(event))
+			logger.info(f"PSTH for event {event} computed.")
 
 
 def helperPSTHPeakAndArea(psth_mean, timestamps, sampling_rate, peak_startPoint, peak_endPoint):
@@ -422,11 +399,11 @@ def helperPSTHPeakAndArea(psth_mean, timestamps, sampling_rate, peak_startPoint,
 	peak_endPoint = peak_endPoint[~np.isnan(peak_endPoint)]
 
 	if peak_startPoint.shape[0]!=peak_endPoint.shape[0]:
-		insertLog('Number of Peak Start Time and Peak End Time are unequal.', logging.ERROR)
+		logger.error('Number of Peak Start Time and Peak End Time are unequal.')
 		raise Exception('Number of Peak Start Time and Peak End Time are unequal.')
 
 	if np.less_equal(peak_endPoint, peak_startPoint).any()==True:
-		insertLog('Peak End Time is lesser than or equal to Peak Start Time. Please check the Peak parameters window.', logging.ERROR)
+		logger.error('Peak End Time is lesser than or equal to Peak Start Time. Please check the Peak parameters window.')
 		raise Exception('Peak End Time is lesser than or equal to Peak Start Time. Please check the Peak parameters window.')
 
 
@@ -476,8 +453,7 @@ def findPSTHPeakAndArea(filepath, event, inputParameters):
 		return 0
 	else:
 		for i in range(len(path)):
-			print('Computing peak and area for PSTH mean signal for event {}...'.format(event))
-			insertLog(f"Computing peak and area for PSTH mean signal for event {event}", logging.DEBUG)
+			logger.info(f"Computing peak and area for PSTH mean signal for event {event}...")
 			basename = (os.path.basename(path[i])).split('.')[0]
 			name_1 = basename.split('_')[-1]
 			sampling_rate = read_hdf5('timeCorrection_'+name_1, filepath, 'sampling_rate')[0]
@@ -496,8 +472,7 @@ def findPSTHPeakAndArea(filepath, event, inputParameters):
 			index = [fileName[0]+'_'+s for s in psth_mean_bin_names]
 			create_Df_area_peak(filepath, peak_area, event+'_'+name_1+'_'+basename, index=index) # columns=['peak', 'area']
 			create_csv_area_peak(filepath, peak_area, event+'_'+name_1+'_'+basename, index=index)
-			insertLog(f"Peak and Area for PSTH mean signal for event {event} computed.", logging.INFO)
-			print('Peak and Area for PSTH mean signal for event {} computed.'.format(event))
+			logger.info(f"Peak and Area for PSTH mean signal for event {event} computed.")
 
 def makeAverageDir(filepath):
 
@@ -532,8 +507,7 @@ def averageForGroup(folderNames, event, inputParameters):
 	event = event.replace("\\","_")
 	event = event.replace("/","_")
 
-	print("Averaging group of data...")
-	insertLog("Averaging group of data", logging.DEBUG)
+	logger.debug("Averaging group of data...")
 	path = []
 	abspath = inputParameters['abspath']
 	selectForComputePsth = inputParameters['selectForComputePsth']
@@ -579,7 +553,7 @@ def averageForGroup(folderNames, event, inputParameters):
 		bins_cols = []
 		temp_path = new_path[i]
 		for j in range(len(temp_path)):
-			#print(os.path.join(temp_path[j][0], temp_path[j][1]+'_{}.h5'.format(temp_path[j][2])))
+			#logger.info(os.path.join(temp_path[j][0], temp_path[j][1]+'_{}.h5'.format(temp_path[j][2])))
 			if not os.path.exists(os.path.join(temp_path[j][0], temp_path[j][1]+'_{}.h5'.format(temp_path[j][2]))):
 				continue
 			else:
@@ -593,8 +567,7 @@ def averageForGroup(folderNames, event, inputParameters):
 					psth_bins.append(df[bins_cols])
 
 		if len(psth)==0:
-			insertLog('Somthing is wrong with the file search pattern.', logging.WARNING)
-			print("Somthing is wrong with the file search pattern.")
+			logger.warning('Somthing is wrong with the file search pattern.')
 			continue
 
 		if len(bins_cols)>0:
@@ -635,8 +608,7 @@ def averageForGroup(folderNames, event, inputParameters):
 				index.append(list(df.index))
 		
 		if len(arr)==0:
-			insertLog('Somthing is wrong with the file search pattern.', logging.WARNING)
-			print("Somthing is wrong with the file search pattern.")
+			logger.warning('Somthing is wrong with the file search pattern.')
 			continue
 		index = list(np.concatenate(index))
 		new_df = pd.concat(arr, axis=0)  #os.path.join(filepath, 'peak_AUC_'+name+'.csv')
@@ -674,15 +646,12 @@ def averageForGroup(folderNames, event, inputParameters):
 		columns.append('timestamps')
 		create_Df(make_dir(op), 'corr_'+event, type[i]+'_'+corr_info[k-1]+'_'+corr_info[k], corr, columns=columns)
 
-	insertLog('Group of data averaged.', logging.INFO)
-	print("Group of data averaged.")
+	logger.info('Group of data averaged.')
 
 
 def psthForEachStorename(inputParameters):
 
-	print("Computing PSTH, Peak and Area for each event...")
-
-		
+	logger.info("Computing PSTH, Peak and Area for each event...")
 	inputParameters = inputParameters
 
 
@@ -697,15 +666,11 @@ def psthForEachStorename(inputParameters):
 	if numProcesses==0:
 		numProcesses = mp.cpu_count()
 	elif numProcesses>mp.cpu_count():
-		insertLog('Warning : # of cores parameter set is greater than the cores available \
-			   available in your machine', logging.WARNING)
-		print('Warning : # of cores parameter set is greater than the cores available \
+		logger.warning('Warning : # of cores parameter set is greater than the cores available \
 			   available in your machine')
 		numProcesses = mp.cpu_count()-1
 
-
-	print("Average for group : ", average)
-	insertLog(f"Average for group : {average}", logging.INFO)
+	logger.info(f"Average for group : {average}")
 
 	# for average following if statement will be executed
 	if average==True:
@@ -737,8 +702,7 @@ def psthForEachStorename(inputParameters):
 				inputParameters['step'] += 1
 
 		else:
-			insertLog('Not a single folder name is provided in folderNamesForAvg in inputParamters File.',
-	     				logging.ERROR)
+			logger.error('Not a single folder name is provided in folderNamesForAvg in inputParamters File.')
 			raise Exception('Not a single folder name is provided in folderNamesForAvg in inputParamters File.')
 
 	# for individual analysis following else statement will be executed
@@ -768,7 +732,7 @@ def psthForEachStorename(inputParameters):
 			storesListPath = np.concatenate(storesListPath)
 			writeToFile(str((storesListPath.shape[0]+storesListPath.shape[0]+1)*10)+'\n'+str(10)+'\n')
 			for i in range(len(folderNames)):
-				insertLog(f"Computing PSTH, Peak and Area for each event in {folderNames[i]}", logging.DEBUG)
+				logger.debug(f"Computing PSTH, Peak and Area for each event in {folderNames[i]}")
 				storesListPath = takeOnlyDirs(glob.glob(os.path.join(folderNames[i], '*_output_*')))
 				for j in range(len(storesListPath)):
 					filepath = storesListPath[j]
@@ -789,19 +753,19 @@ def psthForEachStorename(inputParameters):
 
 					writeToFile(str(10+((inputParameters['step']+1)*10))+'\n')
 					inputParameters['step'] += 1
-				insertLog(f"PSTH, Area and Peak are computed for all events in {folderNames[i]}.", logging.INFO)
-	print("PSTH, Area and Peak are computed for all events.")
+				logger.info(f"PSTH, Area and Peak are computed for all events in {folderNames[i]}.")
+	logger.info("PSTH, Area and Peak are computed for all events.")
 	return inputParameters
 
 def main(input_parameters):
 	try:
 		inputParameters = psthForEachStorename(input_parameters)
 		subprocess.call([sys.executable, "-m", "guppy.findTransientsFreqAndAmp", json.dumps(inputParameters)])
-		insertLog('#'*400, logging.INFO)
+		logger.info('#'*400)
 	except Exception as e:
 		with open(os.path.join(os.path.expanduser('~'), 'pbSteps.txt'), 'a') as file:
 			file.write(str(-1)+"\n")
-		insertLog(str(e), logging.ERROR)
+		logger.error(str(e))
 		raise e
 
 if __name__ == "__main__":
