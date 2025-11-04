@@ -2,9 +2,9 @@
 
 This module provides a standardized logging setup that writes to platform-appropriate
 log directories following OS conventions:
-- Windows: %APPDATA%/LernerLab/guppy/Logs/
-- macOS: ~/Library/Logs/LernerLab/guppy/
-- Linux: ~/.local/state/LernerLab/guppy/log/
+- Windows: C:/Users/<username>/AppData/Local/LernerLab/guppy/Logs/guppy.log
+- macOS: /Users/<username>/Library/Logs/guppy/guppy.log
+- Linux: /home/<username>/.local/state/guppy/log/guppy.log
 
 Call setup_logging() once at application startup before importing other modules.
 Each module should then create its own logger using: logger = logging.getLogger(__name__)
@@ -13,8 +13,9 @@ Each module should then create its own logger using: logger = logging.getLogger(
 import logging
 import os
 from pathlib import Path
-
-from platformdirs import user_log_dir
+from platformdirs import user_log_dir, user_desktop_dir
+import shutil
+from datetime import datetime
 
 
 def get_log_file():
@@ -72,3 +73,24 @@ def setup_logging(*, level=None, console_output=True):
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
+
+
+def export_log_file():
+    """Export the GuPPy log file to Desktop with a timestamped name.
+    
+    The log file is copied from its hidden platform-specific location to the user's
+    Desktop with a clear, timestamped filename (e.g., guppy_log_20251028_165530.log).
+    If the log file does not exist, an error message is printed.
+    """
+    log_file = get_log_file()
+    if not log_file.exists():
+        print(f"Error: Log file not found at {log_file}")
+        print("The log file may not exist yet. Try running GuPPy first to generate logs.")
+        return
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    export_filename = f"guppy_log_{timestamp}.log"
+    desktop_dir = Path(user_desktop_dir())
+    export_path = desktop_dir / export_filename
+    shutil.copy2(log_file, export_path)
+    print(f"Log file successfully exported to {export_path}")
