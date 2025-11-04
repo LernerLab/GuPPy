@@ -581,7 +581,7 @@ def decide_ts_unit_for_npm(df, timestamp_column_name=None, time_unit=None, headl
                 assert timestamp_column_name in col_names_ts, f"Provided timestamp_column_name '{timestamp_column_name}' not found in columns {col_names_ts[1:]}"
                 chosen = timestamp_column_name
             else:
-                chosen = col_names_ts[0]
+                chosen = col_names_ts[1]
             df.insert(1, 'Timestamp', df[chosen])
             df = df.drop(col_names_ts[1:], axis=1)
             valid_units = {'seconds', 'milliseconds', 'microseconds'}
