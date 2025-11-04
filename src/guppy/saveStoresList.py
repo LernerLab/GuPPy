@@ -635,7 +635,7 @@ def decide_ts_unit_for_npm(df, timestamp_column_name=None, time_unit=None, headl
                 chosen = timestamp_column_name
             else:
                 chosen = col_names_ts[1]
-            df.insert(1, 'Timestamp', df[chosen])
+            df.insert(1, "Timestamp", df[chosen])
             df = df.drop(col_names_ts[1:], axis=1)
             valid_units = {"seconds", "milliseconds", "microseconds"}
             ts_unit = time_unit if (isinstance(time_unit, str) and time_unit in valid_units) else "seconds"

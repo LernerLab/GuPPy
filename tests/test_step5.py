@@ -200,16 +200,41 @@ def test_step5(tmp_path, monkeypatch, session_subdir, storenames_map, expected_r
         params_fp.unlink()
 
     # Step 2: create storesList.csv in the temp copy with explicit naming
-    step2(base_dir=str(tmp_base), selected_folders=[str(session_copy)], storenames_map=storenames_map, npm_timestamp_column_name=npm_timestamp_column_name, npm_time_unit=npm_time_unit, npm_split_events=npm_split_events)
+    step2(
+        base_dir=str(tmp_base),
+        selected_folders=[str(session_copy)],
+        storenames_map=storenames_map,
+        npm_timestamp_column_name=npm_timestamp_column_name,
+        npm_time_unit=npm_time_unit,
+        npm_split_events=npm_split_events,
+    )
 
     # Step 3: read raw data in the temp copy
-    step3(base_dir=str(tmp_base), selected_folders=[str(session_copy)], npm_timestamp_column_name=npm_timestamp_column_name, npm_time_unit=npm_time_unit, npm_split_events=npm_split_events)
+    step3(
+        base_dir=str(tmp_base),
+        selected_folders=[str(session_copy)],
+        npm_timestamp_column_name=npm_timestamp_column_name,
+        npm_time_unit=npm_time_unit,
+        npm_split_events=npm_split_events,
+    )
 
     # Step 4: extract timestamps and signal in the temp copy
-    step4(base_dir=str(tmp_base), selected_folders=[str(session_copy)], npm_timestamp_column_name=npm_timestamp_column_name, npm_time_unit=npm_time_unit, npm_split_events=npm_split_events)
+    step4(
+        base_dir=str(tmp_base),
+        selected_folders=[str(session_copy)],
+        npm_timestamp_column_name=npm_timestamp_column_name,
+        npm_time_unit=npm_time_unit,
+        npm_split_events=npm_split_events,
+    )
 
     # Step 5: compute PSTH in the temp copy (headless)
-    step5(base_dir=str(tmp_base), selected_folders=[str(session_copy)], npm_timestamp_column_name=npm_timestamp_column_name, npm_time_unit=npm_time_unit, npm_split_events=npm_split_events)
+    step5(
+        base_dir=str(tmp_base),
+        selected_folders=[str(session_copy)],
+        npm_timestamp_column_name=npm_timestamp_column_name,
+        npm_time_unit=npm_time_unit,
+        npm_split_events=npm_split_events,
+    )
 
     # Locate output directory
     basename = os.path.basename(session_copy)
@@ -227,13 +252,17 @@ def test_step5(tmp_path, monkeypatch, session_subdir, storenames_map, expected_r
     # Expected PSTH outputs (defaults compute z_score PSTH) - only for datasets with TTLs
     if expected_ttl is not None:
         psth_h5 = os.path.join(out_dir, f"{expected_ttl}_{expected_region}_z_score_{expected_region}.h5")
-        psth_baseline_uncorr_h5 = os.path.join(out_dir, f"{expected_ttl}_{expected_region}_baselineUncorrected_z_score_{expected_region}.h5")
+        psth_baseline_uncorr_h5 = os.path.join(
+            out_dir, f"{expected_ttl}_{expected_region}_baselineUncorrected_z_score_{expected_region}.h5"
+        )
         peak_auc_h5 = os.path.join(out_dir, f"peak_AUC_{expected_ttl}_{expected_region}_z_score_{expected_region}.h5")
         peak_auc_csv = os.path.join(out_dir, f"peak_AUC_{expected_ttl}_{expected_region}_z_score_{expected_region}.csv")
 
         # Assert file creation
         assert os.path.exists(psth_h5), f"Missing PSTH HDF5: {psth_h5}"
-        assert os.path.exists(psth_baseline_uncorr_h5), f"Missing baseline-uncorrected PSTH HDF5: {psth_baseline_uncorr_h5}"
+        assert os.path.exists(
+            psth_baseline_uncorr_h5
+        ), f"Missing baseline-uncorrected PSTH HDF5: {psth_baseline_uncorr_h5}"
         assert os.path.exists(peak_auc_h5), f"Missing PSTH Peak/AUC HDF5: {peak_auc_h5}"
         assert os.path.exists(peak_auc_csv), f"Missing PSTH Peak/AUC CSV: {peak_auc_csv}"
 

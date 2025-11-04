@@ -12,10 +12,11 @@ Each module should then create its own logger using: logger = logging.getLogger(
 
 import logging
 import os
-from pathlib import Path
-from platformdirs import user_log_dir, user_desktop_dir
 import shutil
 from datetime import datetime
+from pathlib import Path
+
+from platformdirs import user_desktop_dir, user_log_dir
 
 
 def get_log_file():
@@ -77,7 +78,7 @@ def setup_logging(*, level=None, console_output=True):
 
 def export_log_file():
     """Export the GuPPy log file to Desktop with a timestamped name.
-    
+
     The log file is copied from its hidden platform-specific location to the user's
     Desktop with a clear, timestamped filename (e.g., guppy_log_20251028_165530.log).
     If the log file does not exist, an error message is printed.
@@ -87,7 +88,7 @@ def export_log_file():
         print(f"Error: Log file not found at {log_file}")
         print("The log file may not exist yet. Try running GuPPy first to generate logs.")
         return
-    
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     export_filename = f"guppy_log_{timestamp}.log"
     desktop_dir = Path(user_desktop_dir())

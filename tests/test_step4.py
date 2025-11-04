@@ -198,13 +198,32 @@ def test_step4(tmp_path, monkeypatch, session_subdir, storenames_map, expected_r
         params_fp.unlink()
 
     # Step 2: create storesList.csv in the temp copy
-    step2(base_dir=str(tmp_base), selected_folders=[str(session_copy)], storenames_map=storenames_map, npm_timestamp_column_name=npm_timestamp_column_name, npm_time_unit=npm_time_unit, npm_split_events=npm_split_events)
+    step2(
+        base_dir=str(tmp_base),
+        selected_folders=[str(session_copy)],
+        storenames_map=storenames_map,
+        npm_timestamp_column_name=npm_timestamp_column_name,
+        npm_time_unit=npm_time_unit,
+        npm_split_events=npm_split_events,
+    )
 
     # Step 3: read raw data in the temp copy
-    step3(base_dir=str(tmp_base), selected_folders=[str(session_copy)], npm_timestamp_column_name=npm_timestamp_column_name, npm_time_unit=npm_time_unit, npm_split_events=npm_split_events)
+    step3(
+        base_dir=str(tmp_base),
+        selected_folders=[str(session_copy)],
+        npm_timestamp_column_name=npm_timestamp_column_name,
+        npm_time_unit=npm_time_unit,
+        npm_split_events=npm_split_events,
+    )
 
     # Step 4: extract timestamps and signal in the temp copy
-    step4(base_dir=str(tmp_base), selected_folders=[str(session_copy)], npm_timestamp_column_name=npm_timestamp_column_name, npm_time_unit=npm_time_unit, npm_split_events=npm_split_events)
+    step4(
+        base_dir=str(tmp_base),
+        selected_folders=[str(session_copy)],
+        npm_timestamp_column_name=npm_timestamp_column_name,
+        npm_time_unit=npm_time_unit,
+        npm_split_events=npm_split_events,
+    )
 
     # Validate outputs exist in the temp copy
     basename = os.path.basename(session_copy)
