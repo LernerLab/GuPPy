@@ -17,7 +17,10 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import MultiCursor
 from pathlib import Path
 from .combineDataFn import processTimestampsForCombiningData
-plt.switch_backend('TKAgg')
+
+# Only set matplotlib backend if not in CI environment
+if not os.getenv('CI'):
+	plt.switch_backend('TKAgg')
 
 def takeOnlyDirs(paths):
 	removePaths = []

@@ -6,3 +6,6 @@ z-score_methods.tgn
 GuPPy/runFiberPhotometryAnalysis.ipynb
 .vscode/
 *.egg-info/
+.clinerules/
+
+testing_data/
