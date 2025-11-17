@@ -589,7 +589,7 @@ def execute(inputParameters):
     try:
         for i in folderNames:
             filepath = os.path.join(inputParameters["abspath"], i)
-            modality = "npm" # TODO: ask for modality from the user
+            modality = inputParameters.get("modality", "tdt")
             if modality == "tdt":
                 data = readtsq(filepath)
                 event_name, flag = [], []
@@ -603,7 +603,7 @@ def execute(inputParameters):
                 data = 0
                 event_name, flag = import_npm(filepath, num_ch)
             else:
-                raise ValueError("Modality not recognized. Please use 'tdt' or 'csv'.")
+                raise ValueError("Modality not recognized. Please use 'tdt', 'csv', 'doric', or 'npm'.")
             
             saveStorenames(inputParameters, data, event_name, flag, filepath)
         logger.info("#" * 400)
