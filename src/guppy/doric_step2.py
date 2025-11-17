@@ -1,15 +1,10 @@
 import glob
 import logging
 import os
-import tkinter as tk
-from tkinter import StringVar, messagebox, ttk
 
 import h5py
 import numpy as np
 import pandas as pd
-import panel as pn
-
-pn.extension()
 
 logger = logging.getLogger(__name__)
 
