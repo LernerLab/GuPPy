@@ -587,10 +587,10 @@ def execute(inputParameters):
     try:
         for i in folderNames:
             filepath = os.path.join(inputParameters["abspath"], i)
-            modality = "csv" # TODO: ask for modality from the user
+            modality = "tdt" # TODO: ask for modality from the user
             if modality == "tdt":
                 data = readtsq(filepath)
-                event_name, flag = None, None
+                event_name, flag = [], []
             elif modality == "csv":
                 data = 0
                 event_name, flag = import_csv_step2(filepath)
