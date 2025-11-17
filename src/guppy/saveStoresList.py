@@ -21,8 +21,10 @@ import pandas as pd
 import panel as pn
 from numpy import float32, float64, int32, int64, uint16
 
+from guppy.readTevTsq import import_csv
 from guppy.tdt_step2 import readtsq
 from guppy.np_doric_csv_step2 import import_np_doric_csv
+from guppy.csv_step2 import import_csv_step2
 
 # hv.extension()
 pn.extension()
@@ -585,10 +587,16 @@ def execute(inputParameters):
     try:
         for i in folderNames:
             filepath = os.path.join(inputParameters["abspath"], i)
-            data = readtsq(filepath)
-            event_name, flag = import_np_doric_csv(
-                filepath, isosbestic_control, num_ch, inputParameters=inputParameters
-            )
+            modality = "csv" # TODO: ask for modality from the user
+            if modality == "tdt":
+                data = readtsq(filepath)
+                event_name, flag = None, None
+            elif modality == "csv":
+                data = 0
+                event_name, flag = import_csv_step2(filepath)
+            else:
+                raise ValueError("Modality not recognized. Please use 'tdt' or 'csv'.")
+            
             saveStorenames(inputParameters, data, event_name, flag, filepath)
         logger.info("#" * 400)
     except Exception as e:
