@@ -20,7 +20,7 @@ def storenames_map():
 
 
 @pytest.mark.parametrize(
-    "session_subdir, storenames_map",
+    "session_subdir, storenames_map, modality",
     [
         (
             "SampleData_csv/sample_data_csv_1",
@@ -29,6 +29,7 @@ def storenames_map():
                 "Sample_Signal_Channel": "signal_region",
                 "Sample_TTL": "ttl",
             },
+            "csv",
         ),
         (
             "SampleData_Doric/sample_doric_1",
@@ -37,6 +38,7 @@ def storenames_map():
                 "AIn-2 - Raw": "signal_region",
                 "DI--O-1": "ttl",
             },
+            "doric",
         ),
         (
             "SampleData_Doric/sample_doric_2",
@@ -45,6 +47,7 @@ def storenames_map():
                 "AIn-1 - Dem (da)": "signal_region",
                 "DI/O-1": "ttl",
             },
+            "doric",
         ),
         (
             "SampleData_Doric/sample_doric_3",
@@ -53,6 +56,7 @@ def storenames_map():
                 "CAM1_EXC2/ROI01": "signal_region",
                 "DigitalIO/CAM1": "ttl",
             },
+            "doric",
         ),
         (
             "SampleData_Doric/sample_doric_4",
@@ -60,6 +64,7 @@ def storenames_map():
                 "Series0001/AIN01xAOUT01-LockIn": "control_region",
                 "Series0001/AIN01xAOUT02-LockIn": "signal_region",
             },
+            "doric",
         ),
         (
             "SampleData_Doric/sample_doric_5",
@@ -67,6 +72,7 @@ def storenames_map():
                 "Series0001/AIN01xAOUT01-LockIn": "control_region",
                 "Series0001/AIN01xAOUT02-LockIn": "signal_region",
             },
+            "doric",
         ),
         (
             "SampleData_Clean/Photo_63_207-181030-103332",
@@ -75,6 +81,7 @@ def storenames_map():
                 "Dv2A": "signal_dms",
                 "PrtN": "port_entries_dms",
             },
+            "tdt",
         ),
         (
             "SampleData_with_artifacts/Photo_048_392-200728-121222",
@@ -83,6 +90,7 @@ def storenames_map():
                 "Dv2A": "signal_dms",
                 "PrtN": "port_entries_dms",
             },
+            "tdt",
         ),
         (
             "SampleData_Neurophotometrics/sampleData_NPM_2",
@@ -90,6 +98,7 @@ def storenames_map():
                 "file0_chev6": "control_region",
                 "file1_chev6": "signal_region",
             },
+            "npm",
         ),
         (
             "SampleData_Neurophotometrics/sampleData_NPM_3",
@@ -98,6 +107,7 @@ def storenames_map():
                 "file0_chod3": "signal_region3",
                 "event3": "ttl_region3",
             },
+            "npm",
         ),
         (
             "SampleData_Neurophotometrics/sampleData_NPM_4",
@@ -106,6 +116,7 @@ def storenames_map():
                 "file0_chod1": "signal_region1",
                 "eventTrue": "ttl_true_region1",
             },
+            "npm",
         ),
         (
             "SampleData_Neurophotometrics/sampleData_NPM_5",
@@ -114,6 +125,7 @@ def storenames_map():
                 "file0_chod1": "signal_region1",
                 "event0": "ttl_region1",
             },
+            "npm",
         ),
     ],
     ids=[
@@ -131,7 +143,7 @@ def storenames_map():
         "sample_npm_5",
     ],
 )
-def test_step3(tmp_path, storenames_map, session_subdir):
+def test_step3(tmp_path, storenames_map, session_subdir, modality):
     """
     Full integration test for Step 3 (Read Raw Data) using real CSV sample data,
     isolated to a temporary workspace to avoid mutating shared sample data.
@@ -182,6 +194,7 @@ def test_step3(tmp_path, storenames_map, session_subdir):
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
         storenames_map=storenames_map,
+        modality=modality,
         npm_timestamp_column_name=npm_timestamp_column_name,
         npm_time_unit=npm_time_unit,
         npm_split_events=npm_split_events,
@@ -191,6 +204,7 @@ def test_step3(tmp_path, storenames_map, session_subdir):
     step3(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
+        modality=modality,
         npm_timestamp_column_name=npm_timestamp_column_name,
         npm_time_unit=npm_time_unit,
         npm_split_events=npm_split_events,

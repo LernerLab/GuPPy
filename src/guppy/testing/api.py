@@ -68,6 +68,7 @@ def step2(
     base_dir: str,
     selected_folders: Iterable[str],
     storenames_map: dict[str, str],
+    modality: str = "tdt",
     npm_timestamp_column_name: str | None = None,
     npm_time_unit: str = "seconds",
     npm_split_events: bool = True,
@@ -150,6 +151,9 @@ def step2(
     # Inject storenames mapping for headless execution
     input_params["storenames_map"] = dict(storenames_map)
 
+    # Inject modality
+    input_params["modality"] = modality
+
     # Add npm parameters
     input_params["npm_timestamp_column_name"] = npm_timestamp_column_name
     input_params["npm_time_unit"] = npm_time_unit
@@ -163,6 +167,7 @@ def step3(
     *,
     base_dir: str,
     selected_folders: Iterable[str],
+    modality: str = "tdt",
     npm_timestamp_column_name: str | None = None,
     npm_time_unit: str = "seconds",
     npm_split_events: bool = True,
@@ -240,6 +245,7 @@ def step4(
     *,
     base_dir: str,
     selected_folders: Iterable[str],
+    modality: str = "tdt",
     npm_timestamp_column_name: str | None = None,
     npm_time_unit: str = "seconds",
     npm_split_events: bool = True,
@@ -317,6 +323,7 @@ def step5(
     *,
     base_dir: str,
     selected_folders: Iterable[str],
+    modality: str = "tdt",
     npm_timestamp_column_name: str | None = None,
     npm_time_unit: str = "seconds",
     npm_split_events: bool = True,
