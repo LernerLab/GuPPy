@@ -583,13 +583,13 @@ def execute(inputParameters):
     folderNames = inputParameters["folderNames"]
     isosbestic_control = inputParameters["isosbestic_control"]
     num_ch = inputParameters["noChannels"]
+    modality = inputParameters.get("modality", "tdt")
 
     logger.info(folderNames)
 
     try:
         for i in folderNames:
             filepath = os.path.join(inputParameters["abspath"], i)
-            modality = inputParameters.get("modality", "tdt")
             if modality == "tdt":
                 data = readtsq(filepath)
                 event_name, flag = [], []
