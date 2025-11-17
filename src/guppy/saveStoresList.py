@@ -25,6 +25,7 @@ from guppy.readTevTsq import import_csv
 from guppy.tdt_step2 import readtsq
 from guppy.np_doric_csv_step2 import import_np_doric_csv
 from guppy.csv_step2 import import_csv_step2
+from guppy.doric_step2 import import_doric
 
 # hv.extension()
 pn.extension()
@@ -587,13 +588,16 @@ def execute(inputParameters):
     try:
         for i in folderNames:
             filepath = os.path.join(inputParameters["abspath"], i)
-            modality = "tdt" # TODO: ask for modality from the user
+            modality = "doric" # TODO: ask for modality from the user
             if modality == "tdt":
                 data = readtsq(filepath)
                 event_name, flag = [], []
             elif modality == "csv":
                 data = 0
                 event_name, flag = import_csv_step2(filepath)
+            elif modality == "doric":
+                data = 0
+                event_name, flag = import_doric(filepath)
             else:
                 raise ValueError("Modality not recognized. Please use 'tdt' or 'csv'.")
             
