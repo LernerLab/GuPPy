@@ -23,7 +23,6 @@ from numpy import float32, float64, int32, int64, uint16
 
 from guppy.readTevTsq import import_csv
 from guppy.tdt_step2 import readtsq
-from guppy.np_doric_csv_step2 import import_np_doric_csv
 from guppy.csv_step2 import import_csv_step2
 from guppy.doric_step2 import import_doric
 from guppy.npm_step2 import import_npm
