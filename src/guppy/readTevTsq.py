@@ -42,6 +42,7 @@ def readRawData(inputParameters):
     inputParameters = inputParameters
     folderNames = inputParameters["folderNames"]
     numProcesses = inputParameters["numberOfCores"]
+    modality = inputParameters["modality"]
     storesListPath = []
     if numProcesses == 0:
         numProcesses = mp.cpu_count()
@@ -61,7 +62,6 @@ def readRawData(inputParameters):
         filepath = folderNames[i]
         logger.debug(f"### Reading raw data for folder {folderNames[i]}")
         storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*")))
-        modality = "csv"
 
         # read data corresponding to each storename selected by user while saving the storeslist file
         for j in range(len(storesListPath)):

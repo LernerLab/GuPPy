@@ -237,6 +237,9 @@ def step3(
     input_params["npm_time_unit"] = npm_time_unit
     input_params["npm_split_events"] = npm_split_events
 
+    # Inject modality
+    input_params["modality"] = modality
+
     # Call the underlying Step 3 worker directly (no subprocess)
     readRawData(input_params)
 
@@ -315,6 +318,9 @@ def step4(
     input_params["npm_time_unit"] = npm_time_unit
     input_params["npm_split_events"] = npm_split_events
 
+    # Inject modality
+    input_params["modality"] = modality
+
     # Call the underlying Step 4 worker directly (no subprocess)
     extractTsAndSignal(input_params)
 
@@ -392,6 +398,9 @@ def step5(
     input_params["npm_timestamp_column_name"] = npm_timestamp_column_name
     input_params["npm_time_unit"] = npm_time_unit
     input_params["npm_split_events"] = npm_split_events
+
+    # Inject modality
+    input_params["modality"] = modality
 
     # Call the underlying Step 5 worker directly (no subprocess)
     psthForEachStorename(input_params)
