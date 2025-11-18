@@ -2,6 +2,7 @@ import glob
 import logging
 import os
 import re
+import warnings
 
 import h5py
 import numpy as np
@@ -11,8 +12,39 @@ from guppy.common_step3 import write_hdf5
 
 logger = logging.getLogger(__name__)
 
+def check_doric(filepath):
+    logger.debug("Checking if doric file exists")
+    path = glob.glob(os.path.join(filepath, "*.csv")) + glob.glob(os.path.join(filepath, "*.doric"))
+
+    flag_arr = []
+    for i in range(len(path)):
+        ext = os.path.basename(path[i]).split(".")[-1]
+        if ext == "csv":
+            with warnings.catch_warnings():
+                warnings.simplefilter("error")
+                try:
+                    df = pd.read_csv(path[i], index_col=False, dtype=float)
+                except:
+                    df = pd.read_csv(path[i], header=1, index_col=False, nrows=10)
+                    flag = "doric_csv"
+                    flag_arr.append(flag)
+        elif ext == "doric":
+            flag = "doric_doric"
+            flag_arr.append(flag)
+        else:
+            pass
+
+    if len(flag_arr) > 1:
+        logger.error("Two doric files are present at the same location")
+        raise Exception("Two doric files are present at the same location")
+    if len(flag_arr) == 0:
+        logger.error("\033[1m" + "Doric file not found." + "\033[1m")
+        return 0
+    logger.info("Doric file found.")
+    return flag_arr[0]
 
 def execute_import_doric(filepath, storesList, flag, outputPath):
+    flag = check_doric(filepath)
 
     if flag == "doric_csv":
         path = glob.glob(os.path.join(filepath, "*.csv"))
