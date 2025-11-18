@@ -21,7 +21,6 @@ import pandas as pd
 import panel as pn
 from numpy import float32, float64, int32, int64, uint16
 
-from guppy.readTevTsq import import_csv
 from guppy.tdt_step2 import readtsq
 from guppy.csv_step2 import import_csv_step2
 from guppy.doric_step2 import import_doric
