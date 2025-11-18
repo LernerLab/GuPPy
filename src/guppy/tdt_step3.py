@@ -18,8 +18,36 @@ from guppy.common_step3 import write_hdf5
 
 logger = logging.getLogger(__name__)
 
+# function to read tsq file
+def readtsq(filepath):
+    logger.debug("Trying to read tsq file.")
+    names = ("size", "type", "name", "chan", "sort_code", "timestamp", "fp_loc", "strobe", "format", "frequency")
+    formats = (int32, int32, "S4", uint16, uint16, float64, int64, float64, int32, float32)
+    offsets = 0, 4, 8, 12, 14, 16, 24, 24, 32, 36
+    tsq_dtype = np.dtype({"names": names, "formats": formats, "offsets": offsets}, align=True)
+    path = glob.glob(os.path.join(filepath, "*.tsq"))
+    if len(path) > 1:
+        logger.error("Two tsq files are present at the location.")
+        raise Exception("Two tsq files are present at the location.")
+    elif len(path) == 0:
+        logger.info("\033[1m" + "tsq file not found." + "\033[1m")
+        return 0, 0
+    else:
+        path = path[0]
+        flag = "tsq"
+
+    # reading tsq file
+    tsq = np.fromfile(path, dtype=tsq_dtype)
+
+    # creating dataframe of the data
+    df = pd.DataFrame(tsq)
+
+    logger.info("Data from tsq file fetched.")
+    return df, flag
+
 # function to execute readtev function using multiprocessing to make it faster
-def execute_readtev(data, filepath, event, outputPath, numProcesses=mp.cpu_count()):
+def execute_readtev(filepath, event, outputPath, numProcesses=mp.cpu_count()):
+    data, _ = readtsq(filepath)
 
     start = time.time()
     with mp.Pool(numProcesses) as p:
@@ -60,13 +88,13 @@ def readtev(data, filepath, event, outputPath):
     row = ismember(data["name"], event)
 
     if sum(row) == 0:
-        logger.info("\033[1m" + "Requested store name " + event + " not found (case-sensitive)." + "\033[0m")
-        logger.info("\033[1m" + "File contains the following TDT store names:" + "\033[0m")
-        logger.info("\033[1m" + str(allnames) + "\033[0m")
-        logger.info("\033[1m" + "TDT store name " + str(event) + " not found." + "\033[0m")
-        import_csv(filepath, event, outputPath)
+        logger.error("\033[1m" + "Requested store name " + event + " not found (case-sensitive)." + "\033[0m")
+        logger.error("\033[1m" + "File contains the following TDT store names:" + "\033[0m")
+        logger.error("\033[1m" + str(allnames) + "\033[0m")
+        logger.error("\033[1m" + "TDT store name " + str(event) + " not found." + "\033[0m")
+        raise ValueError("Requested store name not found.")
 
-        return 0
+
 
     allIndexesWhereEventIsPresent = np.where(row == 1)
     first_row = allIndexesWhereEventIsPresent[0][0]

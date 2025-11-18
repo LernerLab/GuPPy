@@ -33,34 +33,6 @@ def writeToFile(value: str):
         file.write(value)
 
 
-# function to read tsq file
-def readtsq(filepath):
-    logger.debug("Trying to read tsq file.")
-    names = ("size", "type", "name", "chan", "sort_code", "timestamp", "fp_loc", "strobe", "format", "frequency")
-    formats = (int32, int32, "S4", uint16, uint16, float64, int64, float64, int32, float32)
-    offsets = 0, 4, 8, 12, 14, 16, 24, 24, 32, 36
-    tsq_dtype = np.dtype({"names": names, "formats": formats, "offsets": offsets}, align=True)
-    path = glob.glob(os.path.join(filepath, "*.tsq"))
-    if len(path) > 1:
-        logger.error("Two tsq files are present at the location.")
-        raise Exception("Two tsq files are present at the location.")
-    elif len(path) == 0:
-        logger.info("\033[1m" + "tsq file not found." + "\033[1m")
-        return 0, 0
-    else:
-        path = path[0]
-        flag = "tsq"
-
-    # reading tsq file
-    tsq = np.fromfile(path, dtype=tsq_dtype)
-
-    # creating dataframe of the data
-    df = pd.DataFrame(tsq)
-
-    logger.info("Data from tsq file fetched.")
-    return df, flag
-
-
 # function to check if doric file exists
 def check_doric(filepath):
     logger.debug("Checking if doric file exists")
@@ -294,13 +266,7 @@ def readRawData(inputParameters):
         filepath = folderNames[i]
         logger.debug(f"### Reading raw data for folder {folderNames[i]}")
         storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*")))
-        # reading tsq file
-        data, flag = readtsq(filepath)
-        # checking if doric file exists
-        if flag == "tsq":
-            pass
-        else:
-            flag = check_doric(filepath)
+        modality = "tdt"
 
         # read data corresponding to each storename selected by user while saving the storeslist file
         for j in range(len(storesListPath)):
@@ -314,14 +280,14 @@ def readRawData(inputParameters):
                     2, -1
                 )
 
-            if isinstance(data, pd.DataFrame) and flag == "tsq":
-                execute_readtev(data, filepath, np.unique(storesList[0, :]), op, numProcesses)
-            elif flag == "doric_csv":
-                execute_import_doric(filepath, storesList, flag, op)
-            elif flag == "doric_doric":
-                execute_import_doric(filepath, storesList, flag, op)
-            else:
+            if modality == "tdt":
+                execute_readtev(filepath, np.unique(storesList[0, :]), op, numProcesses)
+            elif modality == "doric":
+                execute_import_doric(filepath, storesList, modality, op)
+            elif modality == "csv" or modality == "npm":
                 execute_import_csv(filepath, np.unique(storesList[0, :]), op, numProcesses)
+            else:
+                raise ValueError("Modality not recognized. Please use 'tdt', 'csv', 'doric', or 'npm'.")
 
             writeToFile(str(10 + ((step + 1) * 10)) + "\n")
             step += 1
