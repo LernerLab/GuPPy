@@ -3,21 +3,13 @@ import json
 import logging
 import multiprocessing as mp
 import os
-import re
 import sys
-import time
-import warnings
-from itertools import repeat
 
-import h5py
 import numpy as np
-import pandas as pd
-from numpy import float32, float64, int32, int64, uint16
 
-from guppy.common_step3 import write_hdf5
-from guppy.tdt_step3 import execute_readtev
-from guppy.doric_step3 import execute_import_doric
 from guppy.csv_step3 import execute_import_csv
+from guppy.doric_step3 import execute_import_doric
+from guppy.tdt_step3 import execute_readtev
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +25,7 @@ def takeOnlyDirs(paths):
 def writeToFile(value: str):
     with open(os.path.join(os.path.expanduser("~"), "pbSteps.txt"), "a") as file:
         file.write(value)
+
 
 # function to read data from 'tsq' and 'tev' files
 def readRawData(inputParameters):

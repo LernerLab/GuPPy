@@ -12,6 +12,7 @@ from guppy.common_step3 import write_hdf5
 
 logger = logging.getLogger(__name__)
 
+
 def check_doric(filepath):
     logger.debug("Checking if doric file exists")
     path = glob.glob(os.path.join(filepath, "*.csv")) + glob.glob(os.path.join(filepath, "*.doric"))
@@ -42,6 +43,7 @@ def check_doric(filepath):
         return 0
     logger.info("Doric file found.")
     return flag_arr[0]
+
 
 def execute_import_doric(filepath, storesList, flag, outputPath):
     flag = check_doric(filepath)
@@ -81,7 +83,6 @@ def execute_import_doric(filepath, storesList, flag, outputPath):
                     keys = access_data_doricV1(f, storesList, outputPath)
                 elif list(f.keys()) == ["Configurations", "DataAcquisition"]:
                     keys = access_data_doricV6(f, storesList, outputPath)
-
 
 
 def access_data_doricV6(doric_file, storesList, outputPath):

@@ -1,20 +1,11 @@
-import glob
-import json
 import logging
-import multiprocessing as mp
 import os
-import re
-import sys
-import time
-import warnings
-from itertools import repeat
 
 import h5py
 import numpy as np
-import pandas as pd
-from numpy import float32, float64, int32, int64, uint16
 
 logger = logging.getLogger(__name__)
+
 
 # function to write data to a hdf5 file
 def write_hdf5(data, event, filepath, key):

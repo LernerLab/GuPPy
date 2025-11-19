@@ -1,11 +1,13 @@
 import glob
 import logging
 import os
+
 import numpy as np
-from numpy import float32, float64, int32, int64, uint16
 import pandas as pd
+from numpy import float32, float64, int32, int64, uint16
 
 logger = logging.getLogger(__name__)
+
 
 # function to read 'tsq' file
 def readtsq(filepath):

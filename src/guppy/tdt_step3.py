@@ -1,15 +1,10 @@
 import glob
-import json
 import logging
 import multiprocessing as mp
 import os
-import re
-import sys
 import time
-import warnings
 from itertools import repeat
 
-import h5py
 import numpy as np
 import pandas as pd
 from numpy import float32, float64, int32, int64, uint16
@@ -17,6 +12,7 @@ from numpy import float32, float64, int32, int64, uint16
 from guppy.common_step3 import write_hdf5
 
 logger = logging.getLogger(__name__)
+
 
 # function to read tsq file
 def readtsq(filepath):
@@ -44,6 +40,7 @@ def readtsq(filepath):
 
     logger.info("Data from tsq file fetched.")
     return df, flag
+
 
 # function to execute readtev function using multiprocessing to make it faster
 def execute_readtev(filepath, event, outputPath, numProcesses=mp.cpu_count()):
@@ -94,8 +91,6 @@ def readtev(data, filepath, event, outputPath):
         logger.error("\033[1m" + "TDT store name " + str(event) + " not found." + "\033[0m")
         raise ValueError("Requested store name not found.")
 
-
-
     allIndexesWhereEventIsPresent = np.where(row == 1)
     first_row = allIndexesWhereEventIsPresent[0][0]
 
@@ -144,6 +139,7 @@ def readtev(data, filepath, event, outputPath):
     check_data(S, filepath, event, outputPath)
 
     logger.info("Data for event {} fetched and stored.".format(event))
+
 
 # check if a particular element is there in an array or not
 def ismember(arr, element):

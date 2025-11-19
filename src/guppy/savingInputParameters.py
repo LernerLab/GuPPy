@@ -554,7 +554,9 @@ def savingInputParameters():
 
     psth_baseline_param = pn.Column(zscore_param_wd, psth_param_wd, baseline_param_wd, peak_param_wd)
 
-    widget = pn.Column(mark_down_1, files_1, explain_modality, modality_selector, pn.Row(individual_analysis_wd_2, psth_baseline_param))
+    widget = pn.Column(
+        mark_down_1, files_1, explain_modality, modality_selector, pn.Row(individual_analysis_wd_2, psth_baseline_param)
+    )
 
     # file_selector = pn.WidgetBox(files_1)
     styles = dict(background="WhiteSmoke")

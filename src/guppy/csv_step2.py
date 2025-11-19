@@ -1,10 +1,12 @@
 import glob
 import logging
 import os
+
 import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
+
 
 def check_header(df):
     arr = list(df.columns)
@@ -16,6 +18,7 @@ def check_header(df):
             pass
 
     return arr, check_float
+
 
 def import_csv_step2(filepath):
     logger.debug("If it exists, importing either NPM or Doric or csv file based on the structure of file")
@@ -37,7 +40,9 @@ def import_csv_step2(filepath):
                 float(element)
             except:
                 check_all_str.append(i)
-        assert len(check_all_str) != len(df_arr), "This file appears to be doric .csv. This function only supports standard .csv files."
+        assert len(check_all_str) != len(
+            df_arr
+        ), "This file appears to be doric .csv. This function only supports standard .csv files."
         df = pd.read_csv(path[i], index_col=False)
 
         _, value = check_header(df)
@@ -75,9 +80,13 @@ def import_csv_step2(filepath):
             else:
                 flag = "data_csv"
         elif len(cols) == 2:
-            raise ValueError("Data appears to be Neurophotometrics csv. Please use import_npm_csv function to import the data.")
+            raise ValueError(
+                "Data appears to be Neurophotometrics csv. Please use import_npm_csv function to import the data."
+            )
         elif len(cols) >= 2:
-            raise ValueError("Data appears to be Neurophotometrics csv. Please use import_npm_csv function to import the data.")
+            raise ValueError(
+                "Data appears to be Neurophotometrics csv. Please use import_npm_csv function to import the data."
+            )
         else:
             logger.error("Number of columns in csv file does not make sense.")
             raise Exception("Number of columns in csv file does not make sense.")
@@ -91,7 +100,9 @@ def import_csv_step2(filepath):
 
         flag_arr.append(flag)
         logger.info(flag)
-        assert flag == "event_csv" or flag == "data_csv", "This function only supports standard event_csv and data_csv files."
+        assert (
+            flag == "event_csv" or flag == "data_csv"
+        ), "This function only supports standard event_csv and data_csv files."
         name = os.path.basename(path[i]).split(".")[0]
         event_from_filename.append(name)
 

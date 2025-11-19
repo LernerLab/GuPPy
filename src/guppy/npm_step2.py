@@ -12,6 +12,7 @@ pn.extension()
 
 logger = logging.getLogger(__name__)
 
+
 def import_npm(filepath, num_ch, inputParameters=None):
 
     logger.debug("If it exists, importing NPM file based on the structure of file")
@@ -49,7 +50,9 @@ def import_npm(filepath, num_ch, inputParameters=None):
                 float(element)
             except:
                 check_all_str.append(i)
-        assert len(check_all_str) != len(df_arr), "This file appears to be doric .csv. This function only supports NPM .csv files."
+        assert len(check_all_str) != len(
+            df_arr
+        ), "This file appears to be doric .csv. This function only supports NPM .csv files."
         df = pd.read_csv(path[i], index_col=False)
         _, value = check_header(df)
 
@@ -174,9 +177,7 @@ def import_npm(filepath, num_ch, inputParameters=None):
         # path_sig = glob.glob(os.path.join(filepath, 'sig*'))
         path_chev_chod_chpr = [path_chev, path_chod, path_chpr]
         if (
-            ("data_np_v2" in flag_arr or "data_np" in flag_arr)
-            and ("event_np" in flag_arr)
-            and (i == len(path) - 1)
+            ("data_np_v2" in flag_arr or "data_np" in flag_arr) and ("event_np" in flag_arr) and (i == len(path) - 1)
         ) or (
             ("data_np_v2" in flag_arr or "data_np" in flag_arr) and (i == len(path) - 1)
         ):  # i==len(path)-1 and or 'event_np' in flag
@@ -233,6 +234,7 @@ def import_npm(filepath, num_ch, inputParameters=None):
                 raise Exception("Number of channels should be same for all regions.")
     logger.info("Importing of NPM file is done.")
     return event_from_filename, flag_arr
+
 
 def check_header(df):
     arr = list(df.columns)
@@ -293,6 +295,7 @@ def decide_indices(file, df, flag, num_ch=2):
         df = df.drop(arr, axis=1)
 
     return df, indices_dict, num_ch
+
 
 # check flag consistency in neurophotometrics data
 def check_channels(state):

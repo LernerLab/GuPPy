@@ -8,6 +8,7 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+
 def import_doric(filepath):
 
     logger.debug("If it exists, importing Doric file based on the structure of file")
@@ -33,7 +34,9 @@ def import_doric(filepath):
                     float(element)
                 except:
                     check_all_str.append(i)
-            assert len(check_all_str) == len(df_arr), "This file appears to be standard .csv. This function only supports doric .csv files."
+            assert len(check_all_str) == len(
+                df_arr
+            ), "This file appears to be standard .csv. This function only supports doric .csv files."
             df = pd.read_csv(path[i], header=1, index_col=False, nrows=10)
             df = df.drop(["Time(s)"], axis=1)
             event_from_filename.extend(list(df.columns))
@@ -51,6 +54,7 @@ def read_doric(filepath):
             keys = access_keys_doricV6(f)
 
     return keys
+
 
 def access_keys_doricV6(doric_file):
     data = [doric_file["DataAcquisition"]]
@@ -81,6 +85,7 @@ def access_keys_doricV1(doric_file):
     keys.remove("Time(s)")
 
     return keys
+
 
 def separate_last_element(arr):
     l = arr[-1]

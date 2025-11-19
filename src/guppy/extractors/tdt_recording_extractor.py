@@ -1,16 +1,18 @@
 import glob
 import logging
-import os
-import numpy as np
-from numpy import float32, float64, int32, int64, uint16
-import pandas as pd
 import multiprocessing as mp
+import os
 import time
 from itertools import repeat
+
+import numpy as np
+import pandas as pd
+from numpy import float32, float64, int32, int64, uint16
 
 from guppy.common_step3 import write_hdf5
 
 logger = logging.getLogger(__name__)
+
 
 # function to execute readtev function using multiprocessing to make it faster
 def execute_readtev(folder_path, events, outputPath, numProcesses=mp.cpu_count()):
@@ -20,10 +22,12 @@ def execute_readtev(folder_path, events, outputPath, numProcesses=mp.cpu_count()
         p.starmap(read_tdt_and_save_hdf5, zip(repeat(extractor), events, repeat(outputPath)))
     logger.info("Time taken = {0:.5f}".format(time.time() - start))
 
+
 def read_tdt_and_save_hdf5(extractor, event, outputPath):
     S = extractor.readtev(event=event)
     extractor.save_dict_to_hdf5(S=S, event=event, outputPath=outputPath)
     logger.info("Data for event {} fetched and stored.".format(event))
+
 
 class TdtRecordingExtractor:
 
@@ -94,8 +98,6 @@ class TdtRecordingExtractor:
             logger.error("\033[1m" + "TDT store name " + str(event) + " not found." + "\033[0m")
             raise ValueError("Requested store name not found.")
 
-
-
         allIndexesWhereEventIsPresent = np.where(row == 1)
         first_row = allIndexesWhereEventIsPresent[0][0]
 
@@ -142,10 +144,9 @@ class TdtRecordingExtractor:
         return S
 
     # check if a particular element is there in an array or not
-    def ismember(self, arr, element): # TODO: replace this function with more standard usage
+    def ismember(self, arr, element):  # TODO: replace this function with more standard usage
         res = [1 if i == element else 0 for i in arr]
         return np.asarray(res)
-
 
     # function to save data read from tev file to hdf5 file
     def save_dict_to_hdf5(self, S, event, outputPath):
@@ -157,16 +158,17 @@ class TdtRecordingExtractor:
         write_hdf5(S["npoints"], event, outputPath, "npoints")
         write_hdf5(S["channels"], event, outputPath, "channels")
 
-
     # function to check event data (checking whether event timestamps belongs to same event or multiple events)
-    def check_data(self, S, event, outputPath): # TODO: fold this function into the main read/get function
+    def check_data(self, S, event, outputPath):  # TODO: fold this function into the main read/get function
         # logger.info("Checking event storename data for creating multiple event names from single event storename...")
         new_event = event.replace("\\", "")
         new_event = event.replace("/", "")
         diff = np.diff(S["data"])
         arr = np.full(diff.shape[0], 1)
 
-        storesList = np.genfromtxt(os.path.join(outputPath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
+        storesList = np.genfromtxt(os.path.join(outputPath, "storesList.csv"), dtype="str", delimiter=",").reshape(
+            2, -1
+        )
 
         if diff.shape[0] == 0:
             return 0
@@ -174,7 +176,9 @@ class TdtRecordingExtractor:
         if S["sampling_rate"] == 0 and np.all(diff == diff[0]) == False:
             logger.info("\033[1m" + "Data in event {} belongs to multiple behavior".format(event) + "\033[0m")
             logger.debug(
-                "\033[1m" + "Create timestamp files for individual new event and change the stores list file." + "\033[0m"
+                "\033[1m"
+                + "Create timestamp files for individual new event and change the stores list file."
+                + "\033[0m"
             )
             i_d = np.unique(S["data"])
             for i in range(i_d.shape[0]):
@@ -199,4 +203,6 @@ class TdtRecordingExtractor:
                 pass
             else:
                 np.savetxt(os.path.join(outputPath, "storesList.csv"), storesList, delimiter=",", fmt="%s")
-            logger.info("\033[1m Timestamp files for individual new event are created and the stores list file is changed.\033[0m")
+            logger.info(
+                "\033[1m Timestamp files for individual new event are created and the stores list file is changed.\033[0m"
+            )
