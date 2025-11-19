@@ -13,7 +13,7 @@ from guppy.common_step3 import write_hdf5
 logger = logging.getLogger(__name__)
 
 
-def execute_import_doric(folder_path, storesList, flag, outputPath):
+def execute_import_doric(folder_path, storesList, outputPath):
     extractor = DoricRecordingExtractor(folder_path=folder_path)
     flag = extractor.check_doric(folder_path)
 

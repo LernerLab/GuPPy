@@ -67,14 +67,13 @@ def readRawData(inputParameters):
                     2, -1
                 )
 
+            events = np.unique(storesList[0, :])
             if modality == "tdt":
-                events = np.unique(storesList[0, :])
                 execute_readtev(filepath, events, op, numProcesses)
-
             elif modality == "doric":
-                execute_import_doric(filepath, storesList, modality, op)
+                execute_import_doric(filepath, storesList, op)
             elif modality == "csv":
-                execute_import_csv(filepath, np.unique(storesList[0, :]), op, numProcesses)
+                execute_import_csv(filepath, events, op, numProcesses)
             elif modality == "npm":
                 raise NotImplementedError("NPM modality is not yet implemented.")
             else:
