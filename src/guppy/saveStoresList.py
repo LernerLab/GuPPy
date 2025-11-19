@@ -20,9 +20,9 @@ import panel as pn
 from guppy.extractors import (
     CsvRecordingExtractor,
     DoricRecordingExtractor,
+    NpmRecordingExtractor,
     TdtRecordingExtractor,
 )
-from guppy.npm_step2 import import_npm
 
 # hv.extension()
 pn.extension()
@@ -603,7 +603,9 @@ def execute(inputParameters):
 
             elif modality == "npm":
                 data = 0
-                event_name, flag = import_npm(filepath, num_ch)
+                extractor = NpmRecordingExtractor(folder_path=filepath, num_ch=num_ch, inputParameters=inputParameters)
+                event_name = extractor.events
+                flag = extractor.flags
             else:
                 raise ValueError("Modality not recognized. Please use 'tdt', 'csv', 'doric', or 'npm'.")
 
