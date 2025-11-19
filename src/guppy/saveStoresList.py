@@ -21,7 +21,7 @@ import pandas as pd
 import panel as pn
 from numpy import float32, float64, int32, int64, uint16
 
-from guppy.tdt_step2 import readtsq
+from guppy.extractors import TdtRecordingExtractor
 from guppy.csv_step2 import import_csv_step2
 from guppy.doric_step2 import import_doric
 from guppy.npm_step2 import import_npm
@@ -589,7 +589,8 @@ def execute(inputParameters):
         for i in folderNames:
             filepath = os.path.join(inputParameters["abspath"], i)
             if modality == "tdt":
-                data = readtsq(filepath)
+                extractor = TdtRecordingExtractor(folder_path=filepath)
+                data = extractor.header_df
                 event_name, flag = [], []
             elif modality == "csv":
                 data = 0

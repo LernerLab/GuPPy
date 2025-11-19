@@ -16,6 +16,7 @@ from numpy import float32, float64, int32, int64, uint16
 
 from guppy.common_step3 import write_hdf5
 from guppy.tdt_step3 import execute_readtev
+from guppy.extractors import TdtRecordingExtractor
 from guppy.doric_step3 import execute_import_doric
 from guppy.csv_step3 import execute_import_csv
 
@@ -76,7 +77,15 @@ def readRawData(inputParameters):
                 )
 
             if modality == "tdt":
-                execute_readtev(filepath, np.unique(storesList[0, :]), op, numProcesses)
+                # execute_readtev(filepath, np.unique(storesList[0, :]), op, numProcesses)
+                extractor = TdtRecordingExtractor(folder_path=filepath)
+                event = np.unique(storesList[0, :])
+                for e in event:
+                    S = extractor.readtev(event=e)
+                    extractor.save_dict_to_hdf5(S=S, event=e, outputPath=op)
+                    extractor.check_data(S=S, event=e, outputPath=op)
+                    logger.info("Data for event {} fetched and stored.".format(e))
+
             elif modality == "doric":
                 execute_import_doric(filepath, storesList, modality, op)
             elif modality == "csv" or modality == "npm":
