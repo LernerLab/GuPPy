@@ -7,9 +7,8 @@ import sys
 
 import numpy as np
 
-from guppy.csv_step3 import execute_import_csv
 from guppy.doric_step3 import execute_import_doric
-from guppy.tdt_step3 import execute_readtev
+from guppy.extractors import execute_import_csv, execute_readtev
 
 logger = logging.getLogger(__name__)
 
@@ -74,8 +73,10 @@ def readRawData(inputParameters):
 
             elif modality == "doric":
                 execute_import_doric(filepath, storesList, modality, op)
-            elif modality == "csv" or modality == "npm":
+            elif modality == "csv":
                 execute_import_csv(filepath, np.unique(storesList[0, :]), op, numProcesses)
+            elif modality == "npm":
+                raise NotImplementedError("NPM modality is not yet implemented.")
             else:
                 raise ValueError("Modality not recognized. Please use 'tdt', 'csv', 'doric', or 'npm'.")
 
