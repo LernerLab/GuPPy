@@ -17,8 +17,11 @@ import numpy as np
 import pandas as pd
 import panel as pn
 
-from guppy.doric_step2 import import_doric
-from guppy.extractors import CsvRecordingExtractor, TdtRecordingExtractor
+from guppy.extractors import (
+    CsvRecordingExtractor,
+    DoricRecordingExtractor,
+    TdtRecordingExtractor,
+)
 from guppy.npm_step2 import import_npm
 
 # hv.extension()
@@ -594,7 +597,10 @@ def execute(inputParameters):
 
             elif modality == "doric":
                 data = 0
-                event_name, flag = import_doric(filepath)
+                extractor = DoricRecordingExtractor(folder_path=filepath)
+                event_name = extractor.events
+                flag = extractor.flags
+
             elif modality == "npm":
                 data = 0
                 event_name, flag = import_npm(filepath, num_ch)
