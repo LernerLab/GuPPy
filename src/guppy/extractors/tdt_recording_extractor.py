@@ -12,6 +12,19 @@ from guppy.common_step3 import write_hdf5
 
 logger = logging.getLogger(__name__)
 
+# function to execute readtev function using multiprocessing to make it faster
+def execute_readtev(folder_path, events, outputPath, numProcesses=mp.cpu_count()):
+    extractor = TdtRecordingExtractor(folder_path=folder_path)
+    start = time.time()
+    with mp.Pool(numProcesses) as p:
+        p.starmap(read_tdt_and_save_hdf5, zip(repeat(extractor), events, repeat(outputPath)))
+    logger.info("Time taken = {0:.5f}".format(time.time() - start))
+
+def read_tdt_and_save_hdf5(extractor, event, outputPath):
+    S = extractor.readtev(event=event)
+    extractor.save_dict_to_hdf5(S=S, event=event, outputPath=outputPath)
+    logger.info("Data for event {} fetched and stored.".format(event))
+
 class TdtRecordingExtractor:
 
     def __init__(self, folder_path):
@@ -43,14 +56,6 @@ class TdtRecordingExtractor:
 
         logger.info("Data from tsq file fetched.")
         return df, flag
-    
-    # function to execute readtev function using multiprocessing to make it faster
-    def execute_readtev(self, filepath, event, outputPath, numProcesses=mp.cpu_count()):
-        start = time.time()
-        with mp.Pool(numProcesses) as p:
-            p.starmap(self.readtev, zip(repeat(self.header_df), repeat(filepath), event, repeat(outputPath)))
-        logger.info("Time taken = {0:.5f}".format(time.time() - start))
-
 
     # function to read tev file
     def readtev(self, event):
@@ -154,7 +159,7 @@ class TdtRecordingExtractor:
 
 
     # function to check event data (checking whether event timestamps belongs to same event or multiple events)
-    def check_data(self, S, event, outputPath):
+    def check_data(self, S, event, outputPath): # TODO: fold this function into the main read/get function
         # logger.info("Checking event storename data for creating multiple event names from single event storename...")
         new_event = event.replace("\\", "")
         new_event = event.replace("/", "")
