@@ -9,21 +9,16 @@ import json
 import logging
 import os
 import socket
-import tkinter as tk
 from pathlib import Path
 from random import randint
-from tkinter import StringVar, messagebox, ttk
 
-import h5py
 import holoviews as hv
 import numpy as np
 import pandas as pd
 import panel as pn
-from numpy import float32, float64, int32, int64, uint16
 
-from guppy.extractors import TdtRecordingExtractor
-from guppy.csv_step2 import import_csv_step2
 from guppy.doric_step2 import import_doric
+from guppy.extractors import CsvRecordingExtractor, TdtRecordingExtractor
 from guppy.npm_step2 import import_npm
 
 # hv.extension()
@@ -573,7 +568,6 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
     template.show(port=number)
 
 
-
 # function to read input parameters and run the saveStorenames function
 def execute(inputParameters):
 
@@ -594,7 +588,10 @@ def execute(inputParameters):
                 event_name, flag = [], []
             elif modality == "csv":
                 data = 0
-                event_name, flag = import_csv_step2(filepath)
+                extractor = CsvRecordingExtractor(folder_path=filepath)
+                event_name = extractor.events
+                flag = extractor.flags
+
             elif modality == "doric":
                 data = 0
                 event_name, flag = import_doric(filepath)
@@ -603,7 +600,7 @@ def execute(inputParameters):
                 event_name, flag = import_npm(filepath, num_ch)
             else:
                 raise ValueError("Modality not recognized. Please use 'tdt', 'csv', 'doric', or 'npm'.")
-            
+
             saveStorenames(inputParameters, data, event_name, flag, filepath)
         logger.info("#" * 400)
     except Exception as e:
