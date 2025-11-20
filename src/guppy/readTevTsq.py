@@ -7,8 +7,12 @@ import sys
 
 import numpy as np
 
-from guppy.doric_step3 import execute_import_doric
-from guppy.extractors import execute_import_csv, execute_readtev
+from guppy.extractors import (
+    execute_import_csv,
+    execute_import_doric,
+    execute_import_npm,
+    execute_readtev,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +39,7 @@ def readRawData(inputParameters):
     folderNames = inputParameters["folderNames"]
     numProcesses = inputParameters["numberOfCores"]
     modality = inputParameters["modality"]
+    num_ch = inputParameters["noChannels"]
     storesListPath = []
     if numProcesses == 0:
         numProcesses = mp.cpu_count()
@@ -75,7 +80,7 @@ def readRawData(inputParameters):
             elif modality == "csv":
                 execute_import_csv(filepath, events, op, numProcesses)
             elif modality == "npm":
-                raise NotImplementedError("NPM modality is not yet implemented.")
+                execute_import_npm(filepath, num_ch, inputParameters, events, op, numProcesses)
             else:
                 raise ValueError("Modality not recognized. Please use 'tdt', 'csv', 'doric', or 'npm'.")
 

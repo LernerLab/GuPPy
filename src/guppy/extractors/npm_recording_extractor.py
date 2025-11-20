@@ -1,20 +1,37 @@
 import glob
 import logging
+import multiprocessing as mp
 import os
+import time
 import tkinter as tk
+from itertools import repeat
 from tkinter import StringVar, messagebox, ttk
 
 import numpy as np
 import pandas as pd
 import panel as pn
 
+from guppy.common_step3 import write_hdf5
+
 pn.extension()
 
 logger = logging.getLogger(__name__)
 
 
-def execute_import_npm():
-    raise NotImplementedError("This function is a placeholder for execute_import_npm functionality.")
+def execute_import_npm(folder_path, num_ch, inputParameters, events, outputPath, numProcesses=mp.cpu_count()):
+    logger.info("Reading data for event {} ...".format(events))
+
+    extractor = NpmRecordingExtractor(folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters)
+    start = time.time()
+    with mp.Pool(numProcesses) as p:
+        p.starmap(read_npm_and_save_hdf5, zip(repeat(extractor), events, repeat(outputPath)))
+    logger.info("Time taken = {0:.5f}".format(time.time() - start))
+
+
+def read_npm_and_save_hdf5(extractor, event, outputPath):
+    df = extractor.read_npm(event=event)
+    extractor.save_to_hdf5(df=df, event=event, outputPath=outputPath)
+    logger.info("Data for event {} fetched and stored.".format(event))
 
 
 class NpmRecordingExtractor:
@@ -427,3 +444,47 @@ class NpmRecordingExtractor:
             pass
 
         return df, ts_unit
+
+    def read_npm(self, event):
+        logger.debug("\033[1m" + "Trying to read data for {} from csv file.".format(event) + "\033[0m")
+        if not os.path.exists(os.path.join(self.folder_path, event + ".csv")):
+            logger.error("\033[1m" + "No csv file found for event {}".format(event) + "\033[0m")
+            raise Exception("\033[1m" + "No csv file found for event {}".format(event) + "\033[0m")
+
+        df = pd.read_csv(os.path.join(self.folder_path, event + ".csv"), index_col=False)
+        return df
+
+    def save_to_hdf5(self, df, event, outputPath):
+        key = list(df.columns)
+
+        # TODO: clean up these if branches
+        if len(key) == 3:
+            arr1 = np.array(["timestamps", "data", "sampling_rate"])
+            arr2 = np.char.lower(np.array(key))
+            if (np.sort(arr1) == np.sort(arr2)).all() == False:
+                logger.error("\033[1m" + "Column names should be timestamps, data and sampling_rate" + "\033[0m")
+                raise Exception("\033[1m" + "Column names should be timestamps, data and sampling_rate" + "\033[0m")
+
+        if len(key) == 1:
+            if key[0].lower() != "timestamps":
+                logger.error("\033[1m" + "Column names should be timestamps, data and sampling_rate" + "\033[0m")
+                raise Exception("\033[1m" + "Column name should be timestamps" + "\033[0m")
+
+        if len(key) != 3 and len(key) != 1:
+            logger.error(
+                "\033[1m"
+                + "Number of columns in csv file should be either three or one. Three columns if \
+                            the file is for control or signal data or one column if the file is for event TTLs."
+                + "\033[0m"
+            )
+            raise Exception(
+                "\033[1m"
+                + "Number of columns in csv file should be either three or one. Three columns if \
+                            the file is for control or signal data or one column if the file is for event TTLs."
+                + "\033[0m"
+            )
+
+        for i in range(len(key)):
+            write_hdf5(df[key[i]].dropna(), event, outputPath, key[i].lower())
+
+        logger.info("\033[1m" + "Reading data for {} from csv file is completed.".format(event) + "\033[0m")
