@@ -95,7 +95,7 @@ from guppy.testing.api import step2, step3, step4, step5
                 "PAB/": "ttl",
             },
             "region",
-            "ttl",
+            ["PAB_0", "PAB_16", "PAB_2064"],  # This session has an event which gets split into three sub-events.
             "tdt",
         ),
         (
@@ -278,7 +278,13 @@ def test_step5(tmp_path, monkeypatch, session_subdir, storenames_map, expected_r
     assert os.path.exists(stores_fp), "Missing storesList.csv after Steps 2-5"
 
     # Expected PSTH outputs (defaults compute z_score PSTH) - only for datasets with TTLs
-    if expected_ttl is not None:
+    if expected_ttl is None:
+        expected_ttls = []
+    elif isinstance(expected_ttl, str):
+        expected_ttls = [expected_ttl]
+    else:
+        expected_ttls = expected_ttl
+    for expected_ttl in expected_ttls:
         psth_h5 = os.path.join(out_dir, f"{expected_ttl}_{expected_region}_z_score_{expected_region}.h5")
         psth_baseline_uncorr_h5 = os.path.join(
             out_dir, f"{expected_ttl}_{expected_region}_baselineUncorrected_z_score_{expected_region}.h5"
