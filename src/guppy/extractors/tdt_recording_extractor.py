@@ -160,8 +160,9 @@ class TdtRecordingExtractor:
         return False
 
     def split_event_data(self, S, event, outputPath):
-        event = event.replace("\\", "")
-        event = event.replace("/", "")
+        # Note that new_event is only used for the new storesList and event is still used for the old storesList
+        new_event = event.replace("\\", "")
+        new_event = event.replace("/", "")
         logger.info("Checking event storename data for creating multiple event names from single event storename...")
         storesList = np.genfromtxt(os.path.join(outputPath, "storesList.csv"), dtype="str", delimiter=",").reshape(
             2, -1
@@ -175,15 +176,15 @@ class TdtRecordingExtractor:
             new_S = dict()
             idx = np.where(S["data"] == i_d[i])[0]
             new_S["timestamps"] = S["timestamps"][idx]
-            new_S["storename"] = event + str(int(i_d[i]))
+            new_S["storename"] = new_event + str(int(i_d[i]))
             new_S["sampling_rate"] = S["sampling_rate"]
             new_S["data"] = S["data"]
             new_S["npoints"] = S["npoints"]
             new_S["channels"] = S["channels"]
             storesList = np.concatenate(
-                (storesList, [[event + str(int(i_d[i]))], [event + "_" + str(int(i_d[i]))]]), axis=1
+                (storesList, [[new_event + str(int(i_d[i]))], [new_event + "_" + str(int(i_d[i]))]]), axis=1
             )
-            self.save_dict_to_hdf5(new_S, event + str(int(i_d[i])), outputPath)
+            self.save_dict_to_hdf5(new_S, new_event + str(int(i_d[i])), outputPath)
 
         idx = np.where(storesList[0] == event)[0]
         storesList = np.delete(storesList, idx, axis=1)
