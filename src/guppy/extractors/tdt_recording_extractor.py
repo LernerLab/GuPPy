@@ -3,6 +3,7 @@ import logging
 import multiprocessing as mp
 import os
 import time
+from itertools import repeat
 
 import numpy as np
 import pandas as pd
@@ -13,28 +14,16 @@ from guppy.common_step3 import write_hdf5
 logger = logging.getLogger(__name__)
 
 
-# # function to execute readtev function using multiprocessing to make it faster
-# def execute_readtev(folder_path, events, outputPath, numProcesses=mp.cpu_count()):
-#     extractor = TdtRecordingExtractor(folder_path=folder_path)
-#     start = time.time()
-#     with mp.Pool(numProcesses) as p:
-#         p.starmap(read_tdt_and_save_hdf5, zip(repeat(extractor), events, repeat(outputPath)))
-#     logger.info("Time taken = {0:.5f}".format(time.time() - start))
-
-
-# def read_tdt_and_save_hdf5(extractor, event, outputPath):
-#     S = extractor.readtev(event=event)
-#     extractor.save_dict_to_hdf5(S=S, outputPath=outputPath)
-#     if extractor.event_needs_splitting(data=S["data"], sampling_rate=S["sampling_rate"]):
-#         extractor.split_event_data(S, event, outputPath)
-#     logger.info("Data for event {} fetched and stored.".format(event))
+def read_and_save_tdt(extractor, event, outputPath):
+    output_dicts = extractor.read(events=[event], outputPath=outputPath)
+    extractor.save(output_dicts=output_dicts, outputPath=outputPath)
 
 
 def execute_readtev(folder_path, events, outputPath, numProcesses=mp.cpu_count()):
     extractor = TdtRecordingExtractor(folder_path=folder_path)
     start = time.time()
-    output_dicts = extractor.read(events=events, outputPath=outputPath)
-    extractor.save(output_dicts=output_dicts, outputPath=outputPath)
+    with mp.Pool(numProcesses) as p:
+        p.starmap(read_and_save_tdt, zip(repeat(extractor), events, repeat(outputPath)))
     logger.info("Time taken = {0:.5f}".format(time.time() - start))
 
 
