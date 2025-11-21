@@ -150,7 +150,6 @@ class TdtRecordingExtractor:
         res = [1 if i == element else 0 for i in arr]
         return np.asarray(res)
 
-    # TODO: this is broken, and I need to fix it.
     def event_needs_splitting(self, data, sampling_rate):
         diff = np.diff(data)
         if diff.shape[0] == 0:
