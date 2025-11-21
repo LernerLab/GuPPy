@@ -26,6 +26,8 @@ def execute_readtev(folder_path, events, outputPath, numProcesses=mp.cpu_count()
 def read_tdt_and_save_hdf5(extractor, event, outputPath):
     S = extractor.readtev(event=event)
     extractor.save_dict_to_hdf5(S=S, event=event, outputPath=outputPath)
+    if extractor.event_needs_splitting(data=S["data"], sampling_rate=S["sampling_rate"]):
+        extractor.split_event_data(S, event, outputPath)
     logger.info("Data for event {} fetched and stored.".format(event))
 
 
@@ -147,6 +149,53 @@ class TdtRecordingExtractor:
     def ismember(self, arr, element):  # TODO: replace this function with more standard usage
         res = [1 if i == element else 0 for i in arr]
         return np.asarray(res)
+
+    # TODO: this is broken, and I need to fix it.
+    def event_needs_splitting(self, data, sampling_rate):
+        diff = np.diff(data)
+        if diff.shape[0] == 0:
+            return False
+        if sampling_rate == 0 and not (np.all(diff == diff[0])):
+            return True
+        return False
+
+    def split_event_data(self, S, event, outputPath):
+        event = event.replace("\\", "")
+        event = event.replace("/", "")
+        logger.info("Checking event storename data for creating multiple event names from single event storename...")
+        storesList = np.genfromtxt(os.path.join(outputPath, "storesList.csv"), dtype="str", delimiter=",").reshape(
+            2, -1
+        )
+        logger.info("\033[1m" + "Data in event {} belongs to multiple behavior".format(event) + "\033[0m")
+        logger.debug(
+            "\033[1m" + "Create timestamp files for individual new event and change the stores list file." + "\033[0m"
+        )
+        i_d = np.unique(S["data"])
+        for i in range(i_d.shape[0]):
+            new_S = dict()
+            idx = np.where(S["data"] == i_d[i])[0]
+            new_S["timestamps"] = S["timestamps"][idx]
+            new_S["storename"] = event + str(int(i_d[i]))
+            new_S["sampling_rate"] = S["sampling_rate"]
+            new_S["data"] = S["data"]
+            new_S["npoints"] = S["npoints"]
+            new_S["channels"] = S["channels"]
+            storesList = np.concatenate(
+                (storesList, [[event + str(int(i_d[i]))], [event + "_" + str(int(i_d[i]))]]), axis=1
+            )
+            self.save_dict_to_hdf5(new_S, event + str(int(i_d[i])), outputPath)
+
+        idx = np.where(storesList[0] == event)[0]
+        storesList = np.delete(storesList, idx, axis=1)
+        if not os.path.exists(os.path.join(outputPath, ".cache_storesList.csv")):
+            os.rename(os.path.join(outputPath, "storesList.csv"), os.path.join(outputPath, ".cache_storesList.csv"))
+        if idx.shape[0] == 0:
+            pass
+        else:
+            np.savetxt(os.path.join(outputPath, "storesList.csv"), storesList, delimiter=",", fmt="%s")
+        logger.info(
+            "\033[1m Timestamp files for individual new event are created and the stores list file is changed.\033[0m"
+        )
 
     # function to save data read from tev file to hdf5 file
     def save_dict_to_hdf5(self, S, event, outputPath):
