@@ -92,10 +92,11 @@ from guppy.testing.api import step2, step3, step4, step5
             {
                 "405R": "control_region",
                 "490R": "signal_region",
-                "Tick": "ttl",
+                "PAB/": "ttl",
             },
             "region",
             "ttl",
+            "tdt",
         ),
         (
             "SampleData_with_artifacts/Photo_048_392-200728-121222",

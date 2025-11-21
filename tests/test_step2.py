@@ -87,8 +87,9 @@ from guppy.testing.api import step2
             {
                 "405R": "control_region",
                 "490R": "signal_region",
-                "Tick": "ttl",
+                "PAB/": "ttl",
             },
+            "tdt",
         ),
         # TODO: Add sampleData_NPM_1 after fixing Doric vs. NPM determination bug.
         (

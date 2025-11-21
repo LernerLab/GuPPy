@@ -88,8 +88,9 @@ def storenames_map():
             {
                 "405R": "control_region",
                 "490R": "signal_region",
-                "Tick": "ttl",
+                "PAB/": "ttl",
             },
+            "tdt",
         ),
         (
             "SampleData_with_artifacts/Photo_048_392-200728-121222",
