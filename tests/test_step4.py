@@ -95,7 +95,7 @@ from guppy.testing.api import step2, step3, step4
                 "PAB/": "ttl",
             },
             "region",
-            "ttl",
+            ["PAB_0", "PAB_16", "PAB_2064"],  # This session has an event which gets split into three sub-events.
             "tdt",
         ),
         (
@@ -272,7 +272,13 @@ def test_step4(tmp_path, monkeypatch, session_subdir, storenames_map, expected_r
         assert "timestampNew" in f, f"Expected 'timestampNew' dataset in {timecorr}"
 
     # If TTLs exist, check their per-region 'ts' outputs
-    if expected_ttl is not None:
+    if expected_ttl is None:
+        expected_ttls = []
+    elif isinstance(expected_ttl, str):
+        expected_ttls = [expected_ttl]
+    else:
+        expected_ttls = expected_ttl
+    for expected_ttl in expected_ttls:
         ttl_fp = os.path.join(out_dir, f"{expected_ttl}_{expected_region}.hdf5")
         assert os.path.exists(ttl_fp), f"Missing TTL-aligned file {ttl_fp}"
         with h5py.File(ttl_fp, "r") as f:
