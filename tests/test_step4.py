@@ -161,7 +161,7 @@ from guppy.testing.api import step2, step3, step4
         "sample_doric_4",
         "sample_doric_5",
         "tdt_clean",
-        "tdt_check_data",
+        "tdt_split_event",
         "tdt_with_artifacts",
         "sample_npm_2",
         "sample_npm_3",
