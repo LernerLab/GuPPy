@@ -34,8 +34,7 @@ def execute_readtev(folder_path, events, outputPath, numProcesses=mp.cpu_count()
     extractor = TdtRecordingExtractor(folder_path=folder_path)
     start = time.time()
     output_dicts = extractor.read(events=events, outputPath=outputPath)
-    for S in output_dicts:
-        extractor.save_dict_to_hdf5(S=S, outputPath=outputPath)
+    extractor.save(output_dicts=output_dicts, outputPath=outputPath)
     logger.info("Time taken = {0:.5f}".format(time.time() - start))
 
 
@@ -236,3 +235,7 @@ class TdtRecordingExtractor:
         write_hdf5(S["data"], event, outputPath, "data")
         write_hdf5(S["npoints"], event, outputPath, "npoints")
         write_hdf5(S["channels"], event, outputPath, "channels")
+
+    def save(self, output_dicts, outputPath):
+        for S in output_dicts:
+            self.save_dict_to_hdf5(S=S, outputPath=outputPath)
