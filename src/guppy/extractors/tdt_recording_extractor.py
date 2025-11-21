@@ -200,6 +200,9 @@ class TdtRecordingExtractor:
 
         return event_dicts
 
+    # This function saves a new storesList.csv file, which is a bit of a side effect in the overall read path,
+    # which is supposed to just return a list of dictionaries.
+    # TODO: long term I'd like to move these storesList shenanigans somewhere else, likely outside of the extractor.
     def split_event_storesList(self, S, event, outputPath):
         # Note that new_event is only used for the new storesList and event is still used for the old storesList
         new_event = event.replace("\\", "")
