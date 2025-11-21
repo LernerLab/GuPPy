@@ -171,6 +171,7 @@ class TdtRecordingExtractor:
         return np.asarray(res)
 
     def event_needs_splitting(self, data, sampling_rate):
+        logger.info("Checking event storename data for creating multiple event names from single event storename...")
         diff = np.diff(data)
         if diff.shape[0] == 0:
             return False
@@ -182,11 +183,8 @@ class TdtRecordingExtractor:
         # Note that new_event is only used for the new storesList and event is still used for the old storesList
         new_event = event.replace("\\", "")
         new_event = event.replace("/", "")
-        logger.info("Checking event storename data for creating multiple event names from single event storename...")
         logger.info("\033[1m" + "Data in event {} belongs to multiple behavior".format(event) + "\033[0m")
-        logger.debug(
-            "\033[1m" + "Create timestamp files for individual new event and change the stores list file." + "\033[0m"
-        )
+        logger.debug("\033[1m" + "Create timestamp files for individual new event." + "\033[0m")
         i_d = np.unique(S["data"])
         event_dicts = [S]
         for i in range(i_d.shape[0]):
@@ -199,9 +197,7 @@ class TdtRecordingExtractor:
             new_S["npoints"] = S["npoints"]
             new_S["channels"] = S["channels"]
             event_dicts.append(new_S)
-        logger.info(
-            "\033[1m Timestamp files for individual new event are created and the stores list file is changed.\033[0m"
-        )
+        logger.info("\033[1m Timestamp files for individual new event are created.\033[0m")
 
         return event_dicts
 
@@ -209,14 +205,11 @@ class TdtRecordingExtractor:
         # Note that new_event is only used for the new storesList and event is still used for the old storesList
         new_event = event.replace("\\", "")
         new_event = event.replace("/", "")
-        logger.info("Checking event storename data for creating multiple event names from single event storename...")
         storesList = np.genfromtxt(os.path.join(outputPath, "storesList.csv"), dtype="str", delimiter=",").reshape(
             2, -1
         )
-        logger.info("\033[1m" + "Data in event {} belongs to multiple behavior".format(event) + "\033[0m")
-        logger.debug(
-            "\033[1m" + "Create timestamp files for individual new event and change the stores list file." + "\033[0m"
-        )
+        logger.info("\033[1m" + "StoresList in event {} belongs to multiple behavior".format(event) + "\033[0m")
+        logger.debug("\033[1m" + "Change the stores list file for individual new event." + "\033[0m")
         i_d = np.unique(S["data"])
         for i in range(i_d.shape[0]):
             storesList = np.concatenate(
@@ -231,9 +224,7 @@ class TdtRecordingExtractor:
             pass
         else:
             np.savetxt(os.path.join(outputPath, "storesList.csv"), storesList, delimiter=",", fmt="%s")
-        logger.info(
-            "\033[1m Timestamp files for individual new event are created and the stores list file is changed.\033[0m"
-        )
+        logger.info("\033[1m The stores list file is changed.\033[0m")
 
     # function to save data read from tev file to hdf5 file
     def save_dict_to_hdf5(self, S, outputPath):
