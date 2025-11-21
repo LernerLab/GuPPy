@@ -82,6 +82,14 @@ from guppy.testing.api import step2
             },
             "tdt",
         ),
+        (
+            "SampleData_Clean/Photometry-161823",
+            {
+                "405R": "control_region",
+                "490R": "signal_region",
+                "Tick": "ttl",
+            },
+        ),
         # TODO: Add sampleData_NPM_1 after fixing Doric vs. NPM determination bug.
         (
             "SampleData_Neurophotometrics/sampleData_NPM_2",
@@ -127,6 +135,7 @@ from guppy.testing.api import step2
         "sample_doric_4",
         "sample_doric_5",
         "tdt_clean",
+        "tdt_check_data",
         "tdt_with_artifacts",
         "sample_npm_2",
         "sample_npm_3",

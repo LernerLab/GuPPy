@@ -84,6 +84,14 @@ def storenames_map():
             "tdt",
         ),
         (
+            "SampleData_Clean/Photometry-161823",
+            {
+                "405R": "control_region",
+                "490R": "signal_region",
+                "Tick": "ttl",
+            },
+        ),
+        (
             "SampleData_with_artifacts/Photo_048_392-200728-121222",
             {
                 "Dv1A": "control_dms",
@@ -136,6 +144,7 @@ def storenames_map():
         "sample_doric_4",
         "sample_doric_5",
         "tdt_clean",
+        "tdt_check_data",
         "tdt_with_artifacts",
         "sample_npm_2",
         "sample_npm_3",
