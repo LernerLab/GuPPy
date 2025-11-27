@@ -187,6 +187,68 @@ def visuzlize_peaks(filepath, z_score, timestamps, peaksIndex):
 	fig.suptitle(os.path.basename(dirname))
 	#plt.show()
 
+def find_next_start_and_stop(curr_pos, arr1, arr2, end_time):
+    next_start = arr1[curr_pos]
+    increment = 1
+    while True:
+        if curr_pos+increment>=arr1.size:
+            found = np.where(arr2>arr1[curr_pos])[0]
+        else:
+            found = np.where((arr2>arr1[curr_pos]) & (arr2<arr1[curr_pos+increment]))[0]
+        
+        if curr_pos+increment>=arr1.size and found.size==0:
+            next_stop = end_time
+            #print(next_start, next_stop, found, curr_pos)
+            break
+        elif found.size==0:
+            increment += 1
+            continue
+        else:
+            next_stop = arr2[found[0]]
+            #print(next_start, next_stop, found, curr_pos)
+            break
+    return next_start, next_stop
+
+def compute_region_intervals(A2B, B2A, start_time=0., end_time=None):
+	A2B = np.asarray(A2B, dtype=float)
+	B2A = np.asarray(B2A, dtype=float)
+
+	interval_a, interval_b = [],[]
+	start = min(np.min(A2B), np.min(B2A))
+	if start in A2B:
+		current_region = "A"
+		interval_a.append((start_time, start))
+	else:
+		current_region = "B"
+		interval_b.append((start_time, start))
+
+	while True:
+		if current_region == "A":
+			i = np.where(A2B==interval_a[-1][-1])[0]
+			if i.size==0:
+				break
+			next_start, next_stop = find_next_start_and_stop(i[0], A2B, B2A, end_time)
+			interval_b.append((next_start, next_stop))
+			current_region = "B"
+		elif current_region == "B":
+			i = np.where(B2A==interval_b[-1][-1])[0]
+			if i.size==0:
+				break
+			next_start, next_stop = find_next_start_and_stop(i[0], B2A, A2B, end_time)
+			interval_a.append((next_start, next_stop))
+			current_region = "A"
+
+	return interval_a, interval_b
+
+def get_regions_for_transients(ts, region_intervals):
+	region_string = np.full(ts.shape[0], 'None', dtype=object)
+	for region in region_intervals:
+		for interval in region:
+			start, stop = interval
+			indices = np.where((ts>=start) & (ts<=stop))[0]
+			region_string[indices] = 'A' if region==region_intervals[0] else 'B'
+	return region_string
+
 def findFreqAndAmp(filepath, inputParameters, window=15, numProcesses=mp.cpu_count()):
 
 	print('Calculating frequency and amplitude of transients in z-score data....')
@@ -218,16 +280,20 @@ def findFreqAndAmp(filepath, inputParameters, window=15, numProcesses=mp.cpu_cou
 		
 		result = np.asarray(result, dtype=object)
 		ts = read_hdf5('timeCorrection_'+name_1, filepath, 'timestampNew')
+		A2B = read_hdf5('crossCheckers_'+name_1, filepath, 'ts')
+		B2A = read_hdf5('crossStripes_'+name_1, filepath, 'ts')
 		ts = ts[not_nan_indices]
+		region_a, region_b = compute_region_intervals(A2B, B2A, start_time=ts[0], end_time=ts[-1])
 		freq, peaksAmp, peaksInd = calculate_freq_amp(result, z_score, z_score_chunks_index, ts)
-		peaks_occurrences = np.array([ts[peaksInd], peaksAmp]).T
+		region_string = get_regions_for_transients(ts[peaksInd], (region_a, region_b))
+		peaks_occurrences = np.array([ts[peaksInd], peaksAmp, region_string]).T
 		arr = np.array([[freq, np.mean(peaksAmp)]])
 		fileName = [os.path.basename(os.path.dirname(filepath))]
 		create_Df(filepath, arr, basename, index=fileName ,columns=['freq (events/min)', 'amplitude'])
 		create_csv(filepath, arr, 'freqAndAmp_'+basename+'.csv', 
 				   index=fileName, columns=['freq (events/min)', 'amplitude'])
 		create_csv(filepath, peaks_occurrences, 'transientsOccurrences_'+basename+'.csv', 
-				   index=np.arange(peaks_occurrences.shape[0]),columns=['timestamps', 'amplitude'])
+				   index=np.arange(peaks_occurrences.shape[0]),columns=['timestamps', 'amplitude', 'region_name'])
 		visuzlize_peaks(path[i], z_score, ts, peaksInd)
 	insertLog('Frequency and amplitude of transients in z_score data are calculated.', logging.INFO)
 	print('Frequency and amplitude of transients in z_score data are calculated.')
