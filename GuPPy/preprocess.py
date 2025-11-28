@@ -88,16 +88,17 @@ def helper_create_control_channel(signal, timestamps, window):
 
 	filtered_signal = ss.savgol_filter(signal, window_length=window, polyorder=3)
 
-	p0 = [5,50,60]
+	# p0 = [5,50,60]
 
-	try:
-		popt, pcov = curve_fit(curveFitFn, timestamps, filtered_signal, p0)
-	except Exception as e:
-		insertLog(str(e), logging.ERROR)
-		print(e)
+	# try:
+	# 	popt, pcov = curve_fit(curveFitFn, timestamps, filtered_signal, p0)
+	# except Exception as e:
+	# 	insertLog(str(e), logging.ERROR)
+	# 	print(e)
 
-	#print('Curve Fit Parameters : ', popt)
-	control = curveFitFn(timestamps,*popt)
+	# #print('Curve Fit Parameters : ', popt)
+	# control = curveFitFn(timestamps,*popt)
+	control = filtered_signal
 
 	return control
 
@@ -918,7 +919,7 @@ def helper_z_score(control, signal, filepath, name, inputParameters):     #helpe
 		for i in range(coords.shape[0]):
 			tsNew_index = np.where((tsNew>coords[i,0]) & (tsNew<coords[i,1]))[0]
 			if isosbestic_control==False:
-				control_arr = helper_create_control_channel(signal[tsNew_index], tsNew[tsNew_index], window=101)
+				control_arr = helper_create_control_channel(signal[tsNew_index], tsNew[tsNew_index], window=5001)
 				signal_arr = signal[tsNew_index]
 				norm_data, control_fit = execute_controlFit_dff(control_arr, signal_arr, 
 																isosbestic_control, filter_window)
@@ -1046,7 +1047,7 @@ def execute_timestamp_correction(folderNames, inputParameters):
 
 			# check if isosbestic control is false and also if new control channel is added
 			if isosbestic_control==False:
-				create_control_channel(filepath, storesList, window=101)
+				create_control_channel(filepath, storesList, window=5001)
 			
 			writeToFile(str(10+((inputParameters['step']+1)*10))+'\n')
 			inputParameters['step'] += 1
@@ -1182,6 +1183,69 @@ def execute_zscore(folderNames, inputParameters):
 	insertLog("Signal data and event timestamps are extracted.", logging.INFO)
 	print("Signal data and event timestamps are extracted.")
 
+def combine_ttls_for_artifact_removal(arr1, arr2, start_time=0., end_time=None):
+	arr1 = np.asarray(arr1, dtype=float)
+	arr2 = np.asarray(arr2, dtype=float)
+
+	if start_time>0.:
+		arr1 = arr1 + start_time
+		arr2 = arr2 + start_time
+	start = min(np.min(arr1), np.min(arr2))
+	intervals = []
+	if start in arr1:
+		current_ttl = 'violet'
+		intervals.append([start_time, start])
+	else:
+		current_ttl = 'green'
+		intervals.append([start_time, start])
+
+	while True:
+		if current_ttl=='violet':
+			start += 1.
+			next_ttls = arr2[arr2>start]
+			if next_ttls.size==0:
+				intervals.append([start, end_time])
+				break
+			next_ttl = np.min(next_ttls)
+			intervals.append([start, next_ttl])
+			start = next_ttl
+			current_ttl = 'green'
+		else:
+			start += 5.
+			next_ttls = arr1[arr1>start]
+			if next_ttls.size==0:
+				intervals.append([start, end_time])
+				break
+			next_ttl = np.min(next_ttls)
+			intervals.append([start, next_ttl])
+			start = next_ttl
+			current_ttl = 'violet'
+	
+	intervals = np.sort(np.array(intervals).flatten())
+	new_intervals = []
+	for interval in intervals:
+		new_intervals.append((interval, -1.))
+	#print(new_intervals)
+	return new_intervals
+
+	
+def create_coords_file_for_artifact_removal(folderNames):
+	for i in range(len(folderNames)):
+		filepath = folderNames[i]
+		storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, '*_output_*')))
+		for j in range(len(storesListPath)):
+			filepath = storesListPath[j]
+			storesList = np.genfromtxt(os.path.join(filepath, 'storesList.csv'), dtype='str', delimiter=',').reshape(2,-1)
+			# hard coded line
+			pdco_idx = np.where(storesList[0,:]=='560D')[0][0]
+			pdco_label = storesList[1,pdco_idx].split('_')[-1]
+			violet_ttls = read_hdf5('violet_'+str(pdco_label), filepath, 'ts')
+			green_ttls = read_hdf5('green_'+str(pdco_label), filepath, 'ts')
+			timestamps = read_hdf5('timeCorrection_'+str(pdco_label), filepath, 'timestampNew')
+			start_time = timestamps[0]
+			end_time = timestamps[-1]
+			intervals = combine_ttls_for_artifact_removal(violet_ttls, green_ttls, start_time, end_time)
+			np.save(os.path.join(filepath, 'coordsForPreProcessing_'+str(pdco_label)+'.npy'), intervals)
 
 def extractTsAndSignal(inputParameters):
 
@@ -1215,6 +1279,7 @@ def extractTsAndSignal(inputParameters):
 		pbMaxValue = storesListPath.shape[0] + len(folderNames)
 		writeToFile(str((pbMaxValue+1)*10)+'\n'+str(10)+'\n')
 		execute_timestamp_correction(folderNames, inputParameters)
+		create_coords_file_for_artifact_removal(folderNames)
 		execute_zscore(folderNames, inputParameters)
 	else:
 		pbMaxValue = 1 + len(folderNames)
