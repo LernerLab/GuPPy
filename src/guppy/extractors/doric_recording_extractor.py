@@ -18,7 +18,8 @@ def execute_import_doric(folder_path, storesList, outputPath):
     flag = extractor.check_doric(folder_path)
 
     if flag == "doric_csv":
-        extractor.read_doric_csv(folder_path, storesList, outputPath)
+        output_dicts = extractor.read_doric_csv(folder_path, storesList, outputPath)
+        extractor.save_doric_csv(output_dicts, outputPath)
     elif flag == "doric_doric":
         output_dicts = extractor.read_doric_doric(folder_path, storesList, outputPath)
         extractor.save_doric_doric(output_dicts, outputPath)
@@ -147,25 +148,31 @@ class DoricRecordingExtractor:
         if len(path) > 1:
             logger.error("An error occurred : More than one Doric csv file present at the location")
             raise Exception("More than one Doric csv file present at the location")
-        else:
-            df = pd.read_csv(path[0], header=1, index_col=False)
-            df = df.dropna(axis=1, how="all")
-            df = df.dropna(axis=0, how="any")
-            df["Time(s)"] = df["Time(s)"] - df["Time(s)"].to_numpy()[0]
-            for i in range(storesList.shape[1]):
-                if "control" in storesList[1, i] or "signal" in storesList[1, i]:
-                    timestamps = np.array(df["Time(s)"])
-                    sampling_rate = np.array([1 / (timestamps[-1] - timestamps[-2])])
-                    write_hdf5(sampling_rate, storesList[0, i], outputPath, "sampling_rate")
-                    write_hdf5(df["Time(s)"].to_numpy(), storesList[0, i], outputPath, "timestamps")
-                    write_hdf5(df[storesList[0, i]].to_numpy(), storesList[0, i], outputPath, "data")
-                else:
-                    ttl = df[storesList[0, i]]
-                    indices = np.where(ttl <= 0)[0]
-                    diff_indices = np.where(np.diff(indices) > 1)[0]
-                    write_hdf5(
-                        df["Time(s)"][indices[diff_indices] + 1].to_numpy(), storesList[0, i], outputPath, "timestamps"
-                    )
+
+        df = pd.read_csv(path[0], header=1, index_col=False)
+        df = df.dropna(axis=1, how="all")
+        df = df.dropna(axis=0, how="any")
+        df["Time(s)"] = df["Time(s)"] - df["Time(s)"].to_numpy()[0]
+
+        output_dicts = []
+        for i in range(storesList.shape[1]):
+            if "control" in storesList[1, i] or "signal" in storesList[1, i]:
+                timestamps = np.array(df["Time(s)"])
+                sampling_rate = np.array([1 / (timestamps[-1] - timestamps[-2])])
+                data = np.array(df[storesList[0, i]])
+                storename = storesList[0, i]
+                S = {"storename": storename, "sampling_rate": sampling_rate, "timestamps": timestamps, "data": data}
+                output_dicts.append(S)
+            else:
+                ttl = df[storesList[0, i]]
+                indices = np.where(ttl <= 0)[0]
+                diff_indices = np.where(np.diff(indices) > 1)[0]
+                timestamps = df["Time(s)"][indices[diff_indices] + 1].to_numpy()
+                storename = storesList[0, i]
+                S = {"storename": storename, "timestamps": timestamps}
+                output_dicts.append(S)
+
+        return output_dicts
 
     def read_doric_doric(self, filepath, storesList, outputPath):
         path = glob.glob(os.path.join(filepath, "*.doric"))
@@ -271,5 +278,9 @@ class DoricRecordingExtractor:
         # write_hdf5(S["channels"], event, outputPath, "channels")
 
     def save_doric_doric(self, output_dicts, outputPath):
+        for S in output_dicts:
+            self.save_dict_to_hdf5(S=S, outputPath=outputPath)
+
+    def save_doric_csv(self, output_dicts, outputPath):
         for S in output_dicts:
             self.save_dict_to_hdf5(S=S, outputPath=outputPath)
