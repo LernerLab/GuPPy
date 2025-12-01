@@ -20,7 +20,8 @@ def execute_import_doric(folder_path, storesList, outputPath):
     if flag == "doric_csv":
         extractor.read_doric_csv(folder_path, storesList, outputPath)
     elif flag == "doric_doric":
-        extractor.read_doric_doric(folder_path, storesList, outputPath)
+        output_dicts = extractor.read_doric_doric(folder_path, storesList, outputPath)
+        extractor.save_doric_doric(output_dicts, outputPath)
     else:
         logger.error("Doric file not found or not recognized.")
         raise FileNotFoundError("Doric file not found or not recognized.")
@@ -171,12 +172,12 @@ class DoricRecordingExtractor:
         if len(path) > 1:
             logger.error("An error occurred : More than one Doric file present at the location")
             raise Exception("More than one Doric file present at the location")
-        else:
-            with h5py.File(path[0], "r") as f:
-                if "Traces" in list(f.keys()):
-                    keys = self.access_data_doricV1(f, storesList, outputPath)
-                elif list(f.keys()) == ["Configurations", "DataAcquisition"]:
-                    keys = self.access_data_doricV6(f, storesList, outputPath)
+        with h5py.File(path[0], "r") as f:
+            if "Traces" in list(f.keys()):
+                output_dicts = self.access_data_doricV1(f, storesList, outputPath)
+            elif list(f.keys()) == ["Configurations", "DataAcquisition"]:
+                output_dicts = self.access_data_doricV6(f, storesList, outputPath)
+        return output_dicts
 
     def access_data_doricV6(self, doric_file, storesList, outputPath):
         data = [doric_file["DataAcquisition"]]
@@ -201,6 +202,7 @@ class DoricRecordingExtractor:
                 if f"{sep_values[-2]}/{sep_values[-1]}" in storesList[0, :]:
                     decide_path.append(element)
 
+        output_dicts = []
         for i in range(storesList.shape[1]):
             if "control" in storesList[1, i] or "signal" in storesList[1, i]:
                 regex = re.compile("(.*?)" + str(storesList[0, i]) + "(.*?)")
@@ -212,9 +214,9 @@ class DoricRecordingExtractor:
                 data = np.array(doric_file[decide_path[idx]])
                 timestamps = np.array(doric_file[decide_path[idx].rsplit("/", 1)[0] + "/Time"])
                 sampling_rate = np.array([1 / (timestamps[-1] - timestamps[-2])])
-                write_hdf5(sampling_rate, storesList[0, i], outputPath, "sampling_rate")
-                write_hdf5(timestamps, storesList[0, i], outputPath, "timestamps")
-                write_hdf5(data, storesList[0, i], outputPath, "data")
+                storename = storesList[0, i]
+                S = {"storename": storename, "sampling_rate": sampling_rate, "timestamps": timestamps, "data": data}
+                output_dicts.append(S)
             else:
                 regex = re.compile("(.*?)" + storesList[0, i] + "$")
                 idx = [i for i in range(len(decide_path)) if regex.match(decide_path[i])]
@@ -226,21 +228,48 @@ class DoricRecordingExtractor:
                 timestamps = np.array(doric_file[decide_path[idx].rsplit("/", 1)[0] + "/Time"])
                 indices = np.where(ttl <= 0)[0]
                 diff_indices = np.where(np.diff(indices) > 1)[0]
-                write_hdf5(timestamps[indices[diff_indices] + 1], storesList[0, i], outputPath, "timestamps")
+                timestamps = timestamps[indices[diff_indices] + 1]
+                storename = storesList[0, i]
+                S = {"storename": storename, "timestamps": timestamps}
+                output_dicts.append(S)
+
+        return output_dicts
 
     def access_data_doricV1(self, doric_file, storesList, outputPath):
         keys = list(doric_file["Traces"]["Console"].keys())
+        output_dicts = []
         for i in range(storesList.shape[1]):
             if "control" in storesList[1, i] or "signal" in storesList[1, i]:
                 timestamps = np.array(doric_file["Traces"]["Console"]["Time(s)"]["Console_time(s)"])
                 sampling_rate = np.array([1 / (timestamps[-1] - timestamps[-2])])
                 data = np.array(doric_file["Traces"]["Console"][storesList[0, i]][storesList[0, i]])
-                write_hdf5(sampling_rate, storesList[0, i], outputPath, "sampling_rate")
-                write_hdf5(timestamps, storesList[0, i], outputPath, "timestamps")
-                write_hdf5(data, storesList[0, i], outputPath, "data")
+                storename = storesList[0, i]
+                S = {"storename": storename, "sampling_rate": sampling_rate, "timestamps": timestamps, "data": data}
+                output_dicts.append(S)
             else:
                 timestamps = np.array(doric_file["Traces"]["Console"]["Time(s)"]["Console_time(s)"])
                 ttl = np.array(doric_file["Traces"]["Console"][storesList[0, i]][storesList[0, i]])
                 indices = np.where(ttl <= 0)[0]
                 diff_indices = np.where(np.diff(indices) > 1)[0]
-                write_hdf5(timestamps[indices[diff_indices] + 1], storesList[0, i], outputPath, "timestamps")
+                timestamps = timestamps[indices[diff_indices] + 1]
+                storename = storesList[0, i]
+                S = {"storename": storename, "timestamps": timestamps}
+                output_dicts.append(S)
+
+        return output_dicts
+
+    def save_dict_to_hdf5(self, S, outputPath):
+        event = S["storename"]
+        # write_hdf5(S["storename"], event, outputPath, "storename")
+        write_hdf5(S["timestamps"], event, outputPath, "timestamps")
+
+        if "sampling_rate" in S:
+            write_hdf5(S["sampling_rate"], event, outputPath, "sampling_rate")
+        if "data" in S:
+            write_hdf5(S["data"], event, outputPath, "data")
+        # write_hdf5(S["npoints"], event, outputPath, "npoints")
+        # write_hdf5(S["channels"], event, outputPath, "channels")
+
+    def save_doric_doric(self, output_dicts, outputPath):
+        for S in output_dicts:
+            self.save_dict_to_hdf5(S=S, outputPath=outputPath)
