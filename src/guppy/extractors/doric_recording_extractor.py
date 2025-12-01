@@ -258,15 +258,12 @@ class DoricRecordingExtractor:
 
     def save_dict_to_hdf5(self, S, outputPath):
         event = S["storename"]
-        # write_hdf5(S["storename"], event, outputPath, "storename")
         write_hdf5(S["timestamps"], event, outputPath, "timestamps")
 
         if "sampling_rate" in S:
             write_hdf5(S["sampling_rate"], event, outputPath, "sampling_rate")
         if "data" in S:
             write_hdf5(S["data"], event, outputPath, "data")
-        # write_hdf5(S["npoints"], event, outputPath, "npoints")
-        # write_hdf5(S["channels"], event, outputPath, "channels")
 
     def read(self, storesList):
         flag = self.check_doric()
