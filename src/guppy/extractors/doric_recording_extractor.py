@@ -15,17 +15,8 @@ logger = logging.getLogger(__name__)
 
 def execute_import_doric(folder_path, storesList, outputPath):
     extractor = DoricRecordingExtractor(folder_path=folder_path)
-    flag = extractor.check_doric(folder_path)
-
-    if flag == "doric_csv":
-        output_dicts = extractor.read_doric_csv(folder_path, storesList, outputPath)
-        extractor.save_doric_csv(output_dicts, outputPath)
-    elif flag == "doric_doric":
-        output_dicts = extractor.read_doric_doric(folder_path, storesList, outputPath)
-        extractor.save_doric_doric(output_dicts, outputPath)
-    else:
-        logger.error("Doric file not found or not recognized.")
-        raise FileNotFoundError("Doric file not found or not recognized.")
+    output_dicts = extractor.read(storesList=storesList, outputPath=outputPath, folder_path=folder_path)
+    extractor.save(output_dicts=output_dicts, outputPath=outputPath)
 
 
 class DoricRecordingExtractor:
@@ -277,10 +268,18 @@ class DoricRecordingExtractor:
         # write_hdf5(S["npoints"], event, outputPath, "npoints")
         # write_hdf5(S["channels"], event, outputPath, "channels")
 
-    def save_doric_doric(self, output_dicts, outputPath):
-        for S in output_dicts:
-            self.save_dict_to_hdf5(S=S, outputPath=outputPath)
+    def read(self, storesList, outputPath, folder_path):
+        flag = self.check_doric(folder_path)
+        if flag == "doric_csv":
+            output_dicts = self.read_doric_csv(folder_path, storesList, outputPath)
+        elif flag == "doric_doric":
+            output_dicts = self.read_doric_doric(folder_path, storesList, outputPath)
+        else:
+            logger.error("Doric file not found or not recognized.")
+            raise FileNotFoundError("Doric file not found or not recognized.")
 
-    def save_doric_csv(self, output_dicts, outputPath):
+        return output_dicts
+
+    def save(self, output_dicts, outputPath):
         for S in output_dicts:
             self.save_dict_to_hdf5(S=S, outputPath=outputPath)
