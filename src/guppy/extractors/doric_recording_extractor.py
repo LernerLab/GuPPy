@@ -20,6 +20,7 @@ def execute_import_doric(folder_path, storesList, outputPath):
 
 
 class DoricRecordingExtractor:
+    # TODO: consolidate duplicate flag logic between the `__init__` and the `check_doric` method.
 
     def __init__(self, folder_path):
         self.folder_path = folder_path
