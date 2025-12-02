@@ -354,7 +354,7 @@ class NpmRecordingExtractor:
                                 data but column names does not have Flags or LedState"
                 )
 
-            num_ch, ch = self.check_channels(state)
+            num_ch, ch = cls.check_channels(state)
             indices_dict = dict()
             for i in range(num_ch):
                 first_occurrence = np.where(state == ch[i])[0]
@@ -365,7 +365,8 @@ class NpmRecordingExtractor:
         return df, indices_dict, num_ch
 
     # check flag consistency in neurophotometrics data
-    def check_channels(self, state):
+    @classmethod
+    def check_channels(cls, state):
         state = state.astype(int)
         unique_state = np.unique(state[2:12])
         if unique_state.shape[0] > 3:
