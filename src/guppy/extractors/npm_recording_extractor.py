@@ -44,6 +44,60 @@ class NpmRecordingExtractor:
             folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
         )
 
+    @classmethod
+    def has_multiple_event_ttls(cls, folder_path):
+        path = sorted(glob.glob(os.path.join(folder_path, "*.csv")))
+        path_chev = glob.glob(os.path.join(folder_path, "*chev*"))
+        path_chod = glob.glob(os.path.join(folder_path, "*chod*"))
+        path_chpr = glob.glob(os.path.join(folder_path, "*chpr*"))
+        path_event = glob.glob(os.path.join(folder_path, "event*"))
+        path_chev_chod_event = path_chev + path_chod + path_event + path_chpr
+
+        path = sorted(list(set(path) - set(path_chev_chod_event)))
+        for i in range(len(path)):
+            df = pd.read_csv(path[i], index_col=False)
+            _, value = cls.check_header(df)
+
+            # check dataframe structure and read data accordingly
+            if len(value) > 0:
+                columns_isstr = False
+                df = pd.read_csv(path[i], header=None)
+                cols = np.array(list(df.columns), dtype=str)
+            else:
+                df = df
+                columns_isstr = True
+                cols = np.array(list(df.columns), dtype=str)
+            if len(cols) == 2:
+                flag = "event_or_data_np"
+            elif len(cols) >= 2:
+                flag = "data_np"
+                return False
+            else:
+                logger.error("Number of columns in csv file does not make sense.")
+                raise Exception("Number of columns in csv file does not make sense.")
+
+            # used assigned flags to process the files and read the data
+            if flag == "event_or_data_np":
+                arr = list(df.iloc[:, 1])
+                check_float = [True for i in arr if isinstance(i, float)]
+                if len(arr) == len(check_float) and columns_isstr == False:
+                    flag = "data_np"
+                elif columns_isstr == True and ("value" in np.char.lower(np.array(cols))):
+                    flag = "event_np"
+                else:
+                    flag = "event_np"
+
+            if flag == "data_np":
+                return False
+
+            elif flag == "event_np":
+                type_val = np.array(df.iloc[:, 1])
+                type_val_unique = np.unique(type_val)
+                if len(type_val_unique) > 1:
+                    return True
+
+        return False
+
     def import_npm(self, folder_path, num_ch, inputParameters=None):
 
         logger.debug("If it exists, importing NPM file based on the structure of file")
@@ -51,7 +105,7 @@ class NpmRecordingExtractor:
         headless = bool(os.environ.get("GUPPY_BASE_DIR"))
         npm_timestamp_column_name = None
         npm_time_unit = None
-        npm_split_events = None
+        npm_split_events = False
         if isinstance(inputParameters, dict):
             npm_timestamp_column_name = inputParameters.get("npm_timestamp_column_name")
             npm_time_unit = inputParameters.get("npm_time_unit", "seconds")
@@ -150,23 +204,7 @@ class NpmRecordingExtractor:
             elif flag == "event_np":
                 type_val = np.array(df.iloc[:, 1])
                 type_val_unique = np.unique(type_val)
-                if headless:
-                    response = 1 if bool(npm_split_events) else 0
-                else:
-                    window = tk.Tk()
-                    if len(type_val_unique) > 1:
-                        response = messagebox.askyesno(
-                            "Multiple event TTLs",
-                            "Based on the TTL file,\
-                                                                            it looks like TTLs \
-                                                                            belongs to multiple behavior type. \
-                                                                            Do you want to create multiple files for each \
-                                                                            behavior type ?",
-                        )
-                    else:
-                        response = 0
-                    window.destroy()
-                if response == 1:
+                if npm_split_events:
                     timestamps = np.array(df.iloc[:, 0])
                     for j in range(len(type_val_unique)):
                         idx = np.where(type_val == type_val_unique[j])
@@ -270,7 +308,8 @@ class NpmRecordingExtractor:
         logger.info("Importing of NPM file is done.")
         return event_from_filename, flag_arr
 
-    def check_header(self, df):
+    @classmethod
+    def check_header(cls, df):
         arr = list(df.columns)
         check_float = []
         for i in arr:

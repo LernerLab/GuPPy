@@ -602,6 +602,22 @@ def execute(inputParameters):
                 flag = extractor.flags
 
             elif modality == "npm":
+                import tkinter as tk
+                from tkinter import messagebox
+
+                headless = bool(os.environ.get("GUPPY_BASE_DIR"))
+                if not headless and NpmRecordingExtractor.has_multiple_event_ttls(folder_path=filepath):
+                    window = tk.Tk()
+                    response = messagebox.askyesno(
+                        "Multiple event TTLs",
+                        "Based on the TTL file,\
+                        it looks like TTLs \
+                        belongs to multiple behavior type. \
+                        Do you want to create multiple files for each \
+                        behavior type ?",
+                    )
+                    window.destroy()
+                    inputParameters["npm_split_events"] = response
                 data = 0
                 extractor = NpmRecordingExtractor(folder_path=filepath, num_ch=num_ch, inputParameters=inputParameters)
                 event_name = extractor.events
