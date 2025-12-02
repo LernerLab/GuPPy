@@ -622,7 +622,7 @@ def execute(inputParameters):
                     ts_unit_needs, col_names_ts = NpmRecordingExtractor.needs_ts_unit(
                         folder_path=filepath, num_ch=num_ch
                     )
-                    ts_units = []
+                    ts_units, npm_timestamp_column_names = [], []
                     for need in ts_unit_needs:
                         if not need:
                             continue
@@ -659,8 +659,7 @@ def execute(inputParameters):
                         window.mainloop()
 
                         if holdComboboxValues["timestamps"].get():
-                            df.insert(1, "Timestamp", df[holdComboboxValues["timestamps"].get()])
-                            df = df.drop(col_names_ts[1:], axis=1)
+                            npm_timestamp_column_name = holdComboboxValues["timestamps"].get()
                         else:
                             messagebox.showerror(
                                 "All options not selected",
@@ -697,9 +696,12 @@ def execute(inputParameters):
                                             were not selected. Please select appropriate options"
                             )
                         ts_units.append(ts_unit)
-                    inputParameters["npm_timestamps_unit"] = ts_units[
-                        0
-                    ]  # TODO: Update Input Parameters to handle multiple ts_units
+                        npm_timestamp_column_names.append(npm_timestamp_column_name)
+                    # TODO: Update Input Parameters to handle multiple ts_units
+                    inputParameters["npm_timestamps_unit"] = ts_units[0] if ts_units else None
+                    inputParameters["npm_timestamp_column_name"] = (
+                        npm_timestamp_column_names[0] if npm_timestamp_column_names else None
+                    )
                 data = 0
                 extractor = NpmRecordingExtractor(folder_path=filepath, num_ch=num_ch, inputParameters=inputParameters)
                 event_name = extractor.events

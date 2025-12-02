@@ -402,6 +402,7 @@ class NpmRecordingExtractor:
             # check dataframe structure and read data accordingly
             if len(value) > 0:
                 df = pd.read_csv(path[i], header=None)
+                cols = np.array(list(df.columns), dtype=str)
             else:
                 df = df
                 columns_isstr = True
@@ -459,6 +460,7 @@ class NpmRecordingExtractor:
         for name in col_names:
             if "timestamp" in name.lower():
                 col_names_ts.append(name)
+        timestamp_column_name = timestamp_column_name if timestamp_column_name is not None else col_names_ts[1]
 
         assert (
             timestamp_column_name in col_names_ts
