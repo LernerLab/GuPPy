@@ -71,7 +71,6 @@ class NpmRecordingExtractor:
                 flag = "event_or_data_np"
             elif len(cols) >= 2:
                 flag = "data_np"
-                return False
             else:
                 logger.error("Number of columns in csv file does not make sense.")
                 raise Exception("Number of columns in csv file does not make sense.")
@@ -87,10 +86,7 @@ class NpmRecordingExtractor:
                 else:
                     flag = "event_np"
 
-            if flag == "data_np":
-                return False
-
-            elif flag == "event_np":
+            if flag == "event_np":
                 type_val = np.array(df.iloc[:, 1])
                 type_val_unique = np.unique(type_val)
                 if len(type_val_unique) > 1:
