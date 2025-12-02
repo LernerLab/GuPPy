@@ -603,7 +603,7 @@ def execute(inputParameters):
 
             elif modality == "npm":
                 import tkinter as tk
-                from tkinter import messagebox
+                from tkinter import StringVar, messagebox, ttk
 
                 headless = bool(os.environ.get("GUPPY_BASE_DIR"))
                 if not headless and NpmRecordingExtractor.has_multiple_event_ttls(folder_path=filepath):
@@ -618,6 +618,88 @@ def execute(inputParameters):
                     )
                     window.destroy()
                     inputParameters["npm_split_events"] = response
+                if not headless:
+                    ts_unit_needs, col_names_ts = NpmRecordingExtractor.needs_ts_unit(
+                        folder_path=filepath, num_ch=num_ch
+                    )
+                    ts_units = []
+                    for need in ts_unit_needs:
+                        if not need:
+                            continue
+                        window = tk.Tk()
+                        window.title("Select appropriate options for timestamps")
+                        window.geometry("500x200")
+                        holdComboboxValues = dict()
+
+                        timestamps_label = ttk.Label(window, text="Select which timestamps to use : ").grid(
+                            row=0, column=1, pady=25, padx=25
+                        )
+                        holdComboboxValues["timestamps"] = StringVar()
+                        timestamps_combo = ttk.Combobox(
+                            window, values=col_names_ts, textvariable=holdComboboxValues["timestamps"]
+                        )
+                        timestamps_combo.grid(row=0, column=2, pady=25, padx=25)
+                        timestamps_combo.current(0)
+                        # timestamps_combo.bind("<<ComboboxSelected>>", comboBoxSelected)
+
+                        time_unit_label = ttk.Label(window, text="Select timestamps unit : ").grid(
+                            row=1, column=1, pady=25, padx=25
+                        )
+                        holdComboboxValues["time_unit"] = StringVar()
+                        time_unit_combo = ttk.Combobox(
+                            window,
+                            values=["", "seconds", "milliseconds", "microseconds"],
+                            textvariable=holdComboboxValues["time_unit"],
+                        )
+                        time_unit_combo.grid(row=1, column=2, pady=25, padx=25)
+                        time_unit_combo.current(0)
+                        # time_unit_combo.bind("<<ComboboxSelected>>", comboBoxSelected)
+                        window.lift()
+                        window.after(500, lambda: window.lift())
+                        window.mainloop()
+
+                        if holdComboboxValues["timestamps"].get():
+                            df.insert(1, "Timestamp", df[holdComboboxValues["timestamps"].get()])
+                            df = df.drop(col_names_ts[1:], axis=1)
+                        else:
+                            messagebox.showerror(
+                                "All options not selected",
+                                "All the options for timestamps \
+                                                                            were not selected. Please select appropriate options",
+                            )
+                            logger.error(
+                                "All the options for timestamps \
+                                        were not selected. Please select appropriate options"
+                            )
+                            raise Exception(
+                                "All the options for timestamps \
+                                            were not selected. Please select appropriate options"
+                            )
+                        if holdComboboxValues["time_unit"].get():
+                            if holdComboboxValues["time_unit"].get() == "seconds":
+                                ts_unit = holdComboboxValues["time_unit"].get()
+                            elif holdComboboxValues["time_unit"].get() == "milliseconds":
+                                ts_unit = holdComboboxValues["time_unit"].get()
+                            else:
+                                ts_unit = holdComboboxValues["time_unit"].get()
+                        else:
+                            messagebox.showerror(
+                                "All options not selected",
+                                "All the options for timestamps \
+                                                                            were not selected. Please select appropriate options",
+                            )
+                            logger.error(
+                                "All the options for timestamps \
+                                        were not selected. Please select appropriate options"
+                            )
+                            raise Exception(
+                                "All the options for timestamps \
+                                            were not selected. Please select appropriate options"
+                            )
+                        ts_units.append(ts_unit)
+                    inputParameters["npm_timestamps_unit"] = ts_units[
+                        0
+                    ]  # TODO: Update Input Parameters to handle multiple ts_units
                 data = 0
                 extractor = NpmRecordingExtractor(folder_path=filepath, num_ch=num_ch, inputParameters=inputParameters)
                 event_name = extractor.events

@@ -36,7 +36,7 @@ def read_and_save_npm(extractor, event, outputPath):
 
 class NpmRecordingExtractor:
 
-    def __init__(self, folder_path, num_ch, inputParameters=None):
+    def __init__(self, folder_path, num_ch, inputParameters=None):  # TODO: make inputParameters mandatory
         self.folder_path = folder_path
         self.num_ch = num_ch
         self.inputParameters = inputParameters
@@ -218,9 +218,8 @@ class NpmRecordingExtractor:
                     event_from_filename.append("event" + str(0))
             else:
                 file = f"file{str(i)}_"
-                df, ts_unit = self.decide_ts_unit_for_npm(
-                    df, timestamp_column_name=npm_timestamp_column_name, time_unit=npm_time_unit, headless=headless
-                )
+                ts_unit = npm_time_unit
+                df = self.update_df_with_timestamp_columns(df, timestamp_column_name=npm_timestamp_column_name)
                 df, indices_dict, _ = self.decide_indices(file, df, flag)
                 keys = list(indices_dict.keys())
                 for k in range(len(keys)):
@@ -318,7 +317,8 @@ class NpmRecordingExtractor:
 
     # function to decide indices of interleaved channels
     # in neurophotometrics data
-    def decide_indices(self, file, df, flag, num_ch=2):
+    @classmethod
+    def decide_indices(cls, file, df, flag, num_ch=2):
         ch_name = [file + "chev", file + "chod", file + "chpr"]
         if len(ch_name) < num_ch:
             logger.error(
@@ -379,6 +379,89 @@ class NpmRecordingExtractor:
             )
 
         return unique_state.shape[0], unique_state
+
+    @classmethod
+    def needs_ts_unit(cls, folder_path, num_ch):
+        path = sorted(glob.glob(os.path.join(folder_path, "*.csv"))) + sorted(
+            glob.glob(os.path.join(folder_path, "*.doric"))
+        )
+        path_chev = glob.glob(os.path.join(folder_path, "*chev*"))
+        path_chod = glob.glob(os.path.join(folder_path, "*chod*"))
+        path_chpr = glob.glob(os.path.join(folder_path, "*chpr*"))
+        path_event = glob.glob(os.path.join(folder_path, "event*"))
+        # path_sig = glob.glob(os.path.join(filepath, 'sig*')) # TODO: what is this for?
+        path_chev_chod_event = path_chev + path_chod + path_event + path_chpr
+
+        path = sorted(list(set(path) - set(path_chev_chod_event)))
+        ts_unit_needs = []
+        for i in range(len(path)):
+            df = pd.read_csv(path[i], index_col=False)
+            _, value = cls.check_header(df)
+
+            # check dataframe structure and read data accordingly
+            if len(value) > 0:
+                df = pd.read_csv(path[i], header=None)
+            else:
+                df = df
+                columns_isstr = True
+                cols = np.array(list(df.columns), dtype=str)
+            # check the structure of dataframe and assign flag to the type of file
+            if len(cols) == 2:
+                flag = "event_or_data_np"
+            elif len(cols) >= 2:
+                flag = "data_np"
+            else:
+                logger.error("Number of columns in csv file does not make sense.")
+                raise Exception("Number of columns in csv file does not make sense.")
+
+            if columns_isstr == True and (
+                "flags" in np.char.lower(np.array(cols)) or "ledstate" in np.char.lower(np.array(cols))
+            ):
+                flag = flag + "_v2"
+            else:
+                flag = flag
+
+            # used assigned flags to process the files and read the data
+            if flag == "event_or_data_np":
+                arr = list(df.iloc[:, 1])
+                check_float = [True for i in arr if isinstance(i, float)]
+                if len(arr) == len(check_float) and columns_isstr == False:
+                    flag = "data_np"
+                elif columns_isstr == True and ("value" in np.char.lower(np.array(cols))):
+                    flag = "event_np"
+                else:
+                    flag = "event_np"
+
+            if flag == "data_np":
+                file = f"file{str(i)}_"
+                df, _, _ = cls.decide_indices(file, df, flag, num_ch)
+
+            col_names = np.array(list(df.columns))
+            col_names_ts = [""]
+            for name in col_names:
+                if "timestamp" in name.lower():
+                    col_names_ts.append(name)
+
+            if len(col_names_ts) > 2:
+                ts_unit_needs.append(True)
+            else:
+                ts_unit_needs.append(False)
+
+        return ts_unit_needs, col_names_ts
+
+    def update_df_with_timestamp_columns(self, df, timestamp_column_name):
+        col_names = np.array(list(df.columns))
+        col_names_ts = [""]
+        for name in col_names:
+            if "timestamp" in name.lower():
+                col_names_ts.append(name)
+
+        assert (
+            timestamp_column_name in col_names_ts
+        ), f"Provided timestamp_column_name '{timestamp_column_name}' not found in columns {col_names_ts[1:]}"
+        df.insert(1, "Timestamp", df[timestamp_column_name])
+        df = df.drop(col_names_ts[1:], axis=1)
+        return df
 
     # function to decide NPM timestamps unit (seconds, ms or us)
     def decide_ts_unit_for_npm(self, df, timestamp_column_name=None, time_unit=None, headless=False):
