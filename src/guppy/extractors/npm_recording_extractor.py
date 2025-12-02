@@ -54,6 +54,7 @@ class NpmRecordingExtractor:
         path_chev_chod_event = path_chev + path_chod + path_event + path_chpr
 
         path = sorted(list(set(path) - set(path_chev_chod_event)))
+        multiple_event_ttls = []
         for i in range(len(path)):
             df = pd.read_csv(path[i], index_col=False)
             _, value = cls.check_header(df)
@@ -90,9 +91,13 @@ class NpmRecordingExtractor:
                 type_val = np.array(df.iloc[:, 1])
                 type_val_unique = np.unique(type_val)
                 if len(type_val_unique) > 1:
-                    return True
+                    multiple_event_ttls.append(True)
+                else:
+                    multiple_event_ttls.append(False)
+            else:
+                multiple_event_ttls.append(False)
 
-        return False
+        return multiple_event_ttls
 
     def import_npm(self, folder_path, num_ch, inputParameters=None):
 

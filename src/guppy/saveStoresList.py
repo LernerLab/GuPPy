@@ -606,19 +606,28 @@ def execute(inputParameters):
                 from tkinter import StringVar, messagebox, ttk
 
                 headless = bool(os.environ.get("GUPPY_BASE_DIR"))
-                if not headless and NpmRecordingExtractor.has_multiple_event_ttls(folder_path=filepath):
-                    window = tk.Tk()
-                    response = messagebox.askyesno(
-                        "Multiple event TTLs",
-                        "Based on the TTL file,\
-                        it looks like TTLs \
-                        belongs to multiple behavior type. \
-                        Do you want to create multiple files for each \
-                        behavior type ?",
-                    )
-                    window.destroy()
-                    inputParameters["npm_split_events"] = response
                 if not headless:
+                    # Resolve multiple event TTLs
+                    multiple_event_ttls = NpmRecordingExtractor.has_multiple_event_ttls(folder_path=filepath)
+                    responses = []
+                    for has_multiple in multiple_event_ttls:
+                        if not has_multiple:
+                            continue
+                        window = tk.Tk()
+                        response = messagebox.askyesno(
+                            "Multiple event TTLs",
+                            "Based on the TTL file,\
+                            it looks like TTLs \
+                            belongs to multiple behavior type. \
+                            Do you want to create multiple files for each \
+                            behavior type ?",
+                        )
+                        window.destroy()
+                        responses.append(response)
+                    # TODO: Update Input Parameters to handle multiple event splits
+                    inputParameters["npm_split_events"] = responses[0] if responses else False
+
+                    # Resolve timestamp units and columns
                     ts_unit_needs, col_names_ts = NpmRecordingExtractor.needs_ts_unit(
                         folder_path=filepath, num_ch=num_ch
                     )
