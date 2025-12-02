@@ -394,6 +394,7 @@ class NpmRecordingExtractor:
 
         path = sorted(list(set(path) - set(path_chev_chod_event)))
         ts_unit_needs = []
+        col_names_ts = [""]
         for i in range(len(path)):
             df = pd.read_csv(path[i], index_col=False)
             _, value = cls.check_header(df)
@@ -436,8 +437,11 @@ class NpmRecordingExtractor:
                 file = f"file{str(i)}_"
                 df, _, _ = cls.decide_indices(file, df, flag, num_ch)
 
+            if flag == "event_np" or flag == "data_np":
+                ts_unit_needs.append(False)
+                continue
+
             col_names = np.array(list(df.columns))
-            col_names_ts = [""]
             for name in col_names:
                 if "timestamp" in name.lower():
                     col_names_ts.append(name)
