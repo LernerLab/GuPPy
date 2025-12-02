@@ -104,13 +104,11 @@ class NpmRecordingExtractor:
         logger.debug("If it exists, importing NPM file based on the structure of file")
         # Headless configuration (used to avoid any UI prompts when running tests)
         headless = bool(os.environ.get("GUPPY_BASE_DIR"))
-        npm_timestamp_column_name = None
-        npm_time_unit = None
-        npm_split_events = False
         if isinstance(inputParameters, dict):
-            npm_timestamp_column_name = inputParameters.get("npm_timestamp_column_name")
-            npm_time_unit = inputParameters.get("npm_time_unit", "seconds")
-            npm_split_events = inputParameters.get("npm_split_events", True)
+            npm_timestamp_column_names = inputParameters.get("npm_timestamp_column_names")
+            npm_time_units = inputParameters.get("npm_time_units")
+            # TODO: come up with a better name for npm_split_events that can be appropriately pluralized for a list
+            npm_split_events = inputParameters.get("npm_split_events")
         path = sorted(glob.glob(os.path.join(folder_path, "*.csv"))) + sorted(
             glob.glob(os.path.join(folder_path, "*.doric"))
         )
@@ -126,6 +124,19 @@ class NpmRecordingExtractor:
         event_from_filename = []
         flag_arr = []
         for i in range(len(path)):
+            if npm_timestamp_column_names is None:
+                npm_timestamp_column_name = None
+            else:
+                npm_timestamp_column_name = npm_timestamp_column_names[i]
+            if npm_time_units is None:
+                npm_time_unit = "seconds"
+            else:
+                npm_time_unit = npm_time_units[i]
+            if npm_split_events is None:
+                split_events = False
+            else:
+                split_events = npm_split_events[i]
+
             dirname = os.path.dirname(path[i])
             ext = os.path.basename(path[i]).split(".")[-1]
             assert ext != "doric", "Doric files are not supported by import_npm function."
@@ -205,7 +216,7 @@ class NpmRecordingExtractor:
             elif flag == "event_np":
                 type_val = np.array(df.iloc[:, 1])
                 type_val_unique = np.unique(type_val)
-                if npm_split_events:
+                if split_events:
                     timestamps = np.array(df.iloc[:, 0])
                     for j in range(len(type_val_unique)):
                         idx = np.where(type_val == type_val_unique[j])

@@ -612,6 +612,7 @@ def execute(inputParameters):
                     responses = []
                     for has_multiple in multiple_event_ttls:
                         if not has_multiple:
+                            responses.append(False)
                             continue
                         window = tk.Tk()
                         response = messagebox.askyesno(
@@ -624,8 +625,7 @@ def execute(inputParameters):
                         )
                         window.destroy()
                         responses.append(response)
-                    # TODO: Update Input Parameters to handle multiple event splits
-                    inputParameters["npm_split_events"] = responses[0] if responses else False
+                    inputParameters["npm_split_events"] = responses
 
                     # Resolve timestamp units and columns
                     ts_unit_needs, col_names_ts = NpmRecordingExtractor.needs_ts_unit(
@@ -634,6 +634,8 @@ def execute(inputParameters):
                     ts_units, npm_timestamp_column_names = [], []
                     for need in ts_unit_needs:
                         if not need:
+                            ts_units.append("seconds")
+                            npm_timestamp_column_names.append(None)
                             continue
                         window = tk.Tk()
                         window.title("Select appropriate options for timestamps")
@@ -707,9 +709,9 @@ def execute(inputParameters):
                         ts_units.append(ts_unit)
                         npm_timestamp_column_names.append(npm_timestamp_column_name)
                     # TODO: Update Input Parameters to handle multiple ts_units
-                    inputParameters["npm_timestamps_unit"] = ts_units[0] if ts_units else None
-                    inputParameters["npm_timestamp_column_name"] = (
-                        npm_timestamp_column_names[0] if npm_timestamp_column_names else None
+                    inputParameters["npm_timestamps_units"] = ts_units if ts_units else None
+                    inputParameters["npm_timestamp_column_names"] = (
+                        npm_timestamp_column_names if npm_timestamp_column_names else None
                     )
                 data = 0
                 extractor = NpmRecordingExtractor(folder_path=filepath, num_ch=num_ch, inputParameters=inputParameters)
