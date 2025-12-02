@@ -19,13 +19,13 @@ def execute_import_csv(filepath, events, outputPath, numProcesses=mp.cpu_count()
     extractor = CsvRecordingExtractor(folder_path=filepath)
     start = time.time()
     with mp.Pool(numProcesses) as p:
-        p.starmap(read_csv_and_save_hdf5, zip(repeat(extractor), events, repeat(outputPath)))
+        p.starmap(read_and_save_csv, zip(repeat(extractor), events, repeat(outputPath)))
     logger.info("Time taken = {0:.5f}".format(time.time() - start))
 
 
-def read_csv_and_save_hdf5(extractor, event, outputPath):
-    df = extractor.read_csv(event=event)
-    extractor.save_to_hdf5(df=df, event=event, outputPath=outputPath)
+def read_and_save_csv(extractor, event, outputPath):
+    output_dicts = extractor.read(events=[event], outputPath=outputPath)
+    extractor.save(output_dicts=output_dicts, outputPath=outputPath)
     logger.info("Data for event {} fetched and stored.".format(event))
 
 
@@ -178,3 +178,18 @@ class CsvRecordingExtractor:
             write_hdf5(df[key[i]].dropna(), event, outputPath, key[i].lower())
 
         logger.info("\033[1m" + "Reading data for {} from csv file is completed.".format(event) + "\033[0m")
+
+    def read(self, events, outputPath):
+        output_dicts = []
+        for event in events:
+            df = self.read_csv(event=event)
+            S = df.to_dict()
+            S["storename"] = event
+            output_dicts.append(S)
+        return output_dicts
+
+    def save(self, output_dicts, outputPath):
+        for S in output_dicts:
+            event = S.pop("storename")
+            df = pd.DataFrame.from_dict(S)
+            self.save_to_hdf5(df=df, event=event, outputPath=outputPath)
