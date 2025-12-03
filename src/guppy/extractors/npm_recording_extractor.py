@@ -3,9 +3,7 @@ import logging
 import multiprocessing as mp
 import os
 import time
-import tkinter as tk
 from itertools import repeat
-from tkinter import StringVar, messagebox, ttk
 
 import numpy as np
 import pandas as pd
@@ -36,7 +34,7 @@ def read_and_save_npm(extractor, event, outputPath):
 
 class NpmRecordingExtractor:
 
-    def __init__(self, folder_path, num_ch, inputParameters=None):
+    def __init__(self, folder_path, num_ch, inputParameters=None):  # TODO: make inputParameters mandatory
         self.folder_path = folder_path
         self.num_ch = num_ch
         self.inputParameters = inputParameters
@@ -44,18 +42,70 @@ class NpmRecordingExtractor:
             folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
         )
 
+    @classmethod
+    def has_multiple_event_ttls(cls, folder_path):
+        path = sorted(glob.glob(os.path.join(folder_path, "*.csv")))
+        path_chev = glob.glob(os.path.join(folder_path, "*chev*"))
+        path_chod = glob.glob(os.path.join(folder_path, "*chod*"))
+        path_chpr = glob.glob(os.path.join(folder_path, "*chpr*"))
+        path_event = glob.glob(os.path.join(folder_path, "event*"))
+        path_chev_chod_event = path_chev + path_chod + path_event + path_chpr
+
+        path = sorted(list(set(path) - set(path_chev_chod_event)))
+        multiple_event_ttls = []
+        for i in range(len(path)):
+            df = pd.read_csv(path[i], index_col=False)
+            _, value = cls.check_header(df)
+
+            # check dataframe structure and read data accordingly
+            if len(value) > 0:
+                columns_isstr = False
+                df = pd.read_csv(path[i], header=None)
+                cols = np.array(list(df.columns), dtype=str)
+            else:
+                columns_isstr = True
+                cols = np.array(list(df.columns), dtype=str)
+            if len(cols) == 2:
+                flag = "event_or_data_np"
+            elif len(cols) > 2:
+                flag = "data_np"
+            else:
+                logger.error("Number of columns in csv file does not make sense.")
+                raise Exception("Number of columns in csv file does not make sense.")
+
+            # used assigned flags to process the files and read the data
+            if flag == "event_or_data_np":
+                arr = list(df.iloc[:, 1])
+                check_float = [True for i in arr if isinstance(i, float)]
+                if len(arr) == len(check_float) and columns_isstr == False:
+                    flag = "data_np"
+                elif columns_isstr == True and ("value" in np.char.lower(np.array(cols))):
+                    flag = "event_np"
+                else:
+                    flag = "event_np"
+
+            if flag == "event_np":
+                type_val = np.array(df.iloc[:, 1])
+                type_val_unique = np.unique(type_val)
+                if len(type_val_unique) > 1:
+                    multiple_event_ttls.append(True)
+                else:
+                    multiple_event_ttls.append(False)
+            else:
+                multiple_event_ttls.append(False)
+
+        return multiple_event_ttls
+
     def import_npm(self, folder_path, num_ch, inputParameters=None):
 
         logger.debug("If it exists, importing NPM file based on the structure of file")
         # Headless configuration (used to avoid any UI prompts when running tests)
         headless = bool(os.environ.get("GUPPY_BASE_DIR"))
-        npm_timestamp_column_name = None
-        npm_time_unit = None
-        npm_split_events = None
         if isinstance(inputParameters, dict):
-            npm_timestamp_column_name = inputParameters.get("npm_timestamp_column_name")
-            npm_time_unit = inputParameters.get("npm_time_unit", "seconds")
-            npm_split_events = inputParameters.get("npm_split_events", True)
+            npm_timestamp_column_names = inputParameters.get("npm_timestamp_column_names")
+            npm_time_units = inputParameters.get("npm_time_units")
+            # TODO: come up with a better name for npm_split_events that can be appropriately pluralized for a list
+            npm_split_events = inputParameters.get("npm_split_events")
         path = sorted(glob.glob(os.path.join(folder_path, "*.csv"))) + sorted(
             glob.glob(os.path.join(folder_path, "*.doric"))
         )
@@ -71,6 +121,20 @@ class NpmRecordingExtractor:
         event_from_filename = []
         flag_arr = []
         for i in range(len(path)):
+            # TODO: validate npm_timestamp_column_names, npm_time_units, npm_split_events lengths
+            if npm_timestamp_column_names is None:
+                npm_timestamp_column_name = None
+            else:
+                npm_timestamp_column_name = npm_timestamp_column_names[i]
+            if npm_time_units is None:
+                npm_time_unit = "seconds"
+            else:
+                npm_time_unit = npm_time_units[i]
+            if npm_split_events is None:
+                split_events = False
+            else:
+                split_events = npm_split_events[i]
+
             dirname = os.path.dirname(path[i])
             ext = os.path.basename(path[i]).split(".")[-1]
             assert ext != "doric", "Doric files are not supported by import_npm function."
@@ -103,7 +167,7 @@ class NpmRecordingExtractor:
             assert len(cols) != 3, "File appears to be data .csv. This function only supports NPM .csv files."
             if len(cols) == 2:
                 flag = "event_or_data_np"
-            elif len(cols) >= 2:
+            elif len(cols) > 2:
                 flag = "data_np"
             else:
                 logger.error("Number of columns in csv file does not make sense.")
@@ -150,23 +214,7 @@ class NpmRecordingExtractor:
             elif flag == "event_np":
                 type_val = np.array(df.iloc[:, 1])
                 type_val_unique = np.unique(type_val)
-                if headless:
-                    response = 1 if bool(npm_split_events) else 0
-                else:
-                    window = tk.Tk()
-                    if len(type_val_unique) > 1:
-                        response = messagebox.askyesno(
-                            "Multiple event TTLs",
-                            "Based on the TTL file,\
-                                                                            it looks like TTLs \
-                                                                            belongs to multiple behavior type. \
-                                                                            Do you want to create multiple files for each \
-                                                                            behavior type ?",
-                        )
-                    else:
-                        response = 0
-                    window.destroy()
-                if response == 1:
+                if split_events:
                     timestamps = np.array(df.iloc[:, 0])
                     for j in range(len(type_val_unique)):
                         idx = np.where(type_val == type_val_unique[j])
@@ -184,9 +232,8 @@ class NpmRecordingExtractor:
                     event_from_filename.append("event" + str(0))
             else:
                 file = f"file{str(i)}_"
-                df, ts_unit = self.decide_ts_unit_for_npm(
-                    df, timestamp_column_name=npm_timestamp_column_name, time_unit=npm_time_unit, headless=headless
-                )
+                ts_unit = npm_time_unit
+                df = self.update_df_with_timestamp_columns(df, timestamp_column_name=npm_timestamp_column_name)
                 df, indices_dict, _ = self.decide_indices(file, df, flag)
                 keys = list(indices_dict.keys())
                 for k in range(len(keys)):
@@ -270,7 +317,8 @@ class NpmRecordingExtractor:
         logger.info("Importing of NPM file is done.")
         return event_from_filename, flag_arr
 
-    def check_header(self, df):
+    @classmethod
+    def check_header(cls, df):
         arr = list(df.columns)
         check_float = []
         for i in arr:
@@ -283,7 +331,8 @@ class NpmRecordingExtractor:
 
     # function to decide indices of interleaved channels
     # in neurophotometrics data
-    def decide_indices(self, file, df, flag, num_ch=2):
+    @classmethod
+    def decide_indices(cls, file, df, flag, num_ch=2):
         ch_name = [file + "chev", file + "chod", file + "chpr"]
         if len(ch_name) < num_ch:
             logger.error(
@@ -319,7 +368,7 @@ class NpmRecordingExtractor:
                                 data but column names does not have Flags or LedState"
                 )
 
-            num_ch, ch = self.check_channels(state)
+            num_ch, ch = cls.check_channels(state)
             indices_dict = dict()
             for i in range(num_ch):
                 first_occurrence = np.where(state == ch[i])[0]
@@ -330,7 +379,8 @@ class NpmRecordingExtractor:
         return df, indices_dict, num_ch
 
     # check flag consistency in neurophotometrics data
-    def check_channels(self, state):
+    @classmethod
+    def check_channels(cls, state):
         state = state.astype(int)
         unique_state = np.unique(state[2:12])
         if unique_state.shape[0] > 3:
@@ -345,105 +395,94 @@ class NpmRecordingExtractor:
 
         return unique_state.shape[0], unique_state
 
-    # function to decide NPM timestamps unit (seconds, ms or us)
-    def decide_ts_unit_for_npm(self, df, timestamp_column_name=None, time_unit=None, headless=False):
+    @classmethod
+    def needs_ts_unit(cls, folder_path, num_ch):
+        path = sorted(glob.glob(os.path.join(folder_path, "*.csv"))) + sorted(
+            glob.glob(os.path.join(folder_path, "*.doric"))
+        )
+        path_chev = glob.glob(os.path.join(folder_path, "*chev*"))
+        path_chod = glob.glob(os.path.join(folder_path, "*chod*"))
+        path_chpr = glob.glob(os.path.join(folder_path, "*chpr*"))
+        path_event = glob.glob(os.path.join(folder_path, "event*"))
+        # path_sig = glob.glob(os.path.join(filepath, 'sig*')) # TODO: what is this for?
+        path_chev_chod_event = path_chev + path_chod + path_event + path_chpr
+
+        path = sorted(list(set(path) - set(path_chev_chod_event)))
+        ts_unit_needs = []
+        col_names_ts = [""]
+        for i in range(len(path)):
+            df = pd.read_csv(path[i], index_col=False)
+            _, value = cls.check_header(df)
+
+            # check dataframe structure and read data accordingly
+            if len(value) > 0:
+                df = pd.read_csv(path[i], header=None)
+                cols = np.array(list(df.columns), dtype=str)
+                columns_isstr = False
+            else:
+                columns_isstr = True
+                cols = np.array(list(df.columns), dtype=str)
+            # check the structure of dataframe and assign flag to the type of file
+            if len(cols) == 2:
+                flag = "event_or_data_np"
+            elif len(cols) > 2:
+                flag = "data_np"
+            else:
+                logger.error("Number of columns in csv file does not make sense.")
+                raise Exception("Number of columns in csv file does not make sense.")
+
+            if columns_isstr == True and (
+                "flags" in np.char.lower(np.array(cols)) or "ledstate" in np.char.lower(np.array(cols))
+            ):
+                flag = flag + "_v2"
+
+            # used assigned flags to process the files and read the data
+            if flag == "event_or_data_np":
+                arr = list(df.iloc[:, 1])
+                check_float = [True for i in arr if isinstance(i, float)]
+                if len(arr) == len(check_float) and columns_isstr == False:
+                    flag = "data_np"
+                elif columns_isstr == True and ("value" in np.char.lower(np.array(cols))):
+                    flag = "event_np"
+                else:
+                    flag = "event_np"
+
+            if flag == "data_np":
+                file = f"file{str(i)}_"
+                df, _, _ = cls.decide_indices(file, df, flag, num_ch)
+
+            if flag == "event_np" or flag == "data_np":
+                ts_unit_needs.append(False)
+                continue
+
+            col_names = np.array(list(df.columns))
+            for name in col_names:
+                if "timestamp" in name.lower():
+                    col_names_ts.append(name)
+
+            if len(col_names_ts) > 2:
+                ts_unit_needs.append(True)
+            else:
+                ts_unit_needs.append(False)
+
+        return ts_unit_needs, col_names_ts
+
+    def update_df_with_timestamp_columns(self, df, timestamp_column_name):
         col_names = np.array(list(df.columns))
         col_names_ts = [""]
         for name in col_names:
             if "timestamp" in name.lower():
                 col_names_ts.append(name)
+        if len(col_names_ts) <= 2:
+            return df
 
-        ts_unit = "seconds"
-        if len(col_names_ts) > 2:
-            # Headless path: auto-select column/unit without any UI
-            if headless:
-                if timestamp_column_name is not None:
-                    assert (
-                        timestamp_column_name in col_names_ts
-                    ), f"Provided timestamp_column_name '{timestamp_column_name}' not found in columns {col_names_ts[1:]}"
-                    chosen = timestamp_column_name
-                else:
-                    chosen = col_names_ts[1]
-                df.insert(1, "Timestamp", df[chosen])
-                df = df.drop(col_names_ts[1:], axis=1)
-                valid_units = {"seconds", "milliseconds", "microseconds"}
-                ts_unit = time_unit if (isinstance(time_unit, str) and time_unit in valid_units) else "seconds"
-                return df, ts_unit
-            # def comboBoxSelected(event):
-            #    logger.info(event.widget.get())
-
-            window = tk.Tk()
-            window.title("Select appropriate options for timestamps")
-            window.geometry("500x200")
-            holdComboboxValues = dict()
-
-            timestamps_label = ttk.Label(window, text="Select which timestamps to use : ").grid(
-                row=0, column=1, pady=25, padx=25
-            )
-            holdComboboxValues["timestamps"] = StringVar()
-            timestamps_combo = ttk.Combobox(window, values=col_names_ts, textvariable=holdComboboxValues["timestamps"])
-            timestamps_combo.grid(row=0, column=2, pady=25, padx=25)
-            timestamps_combo.current(0)
-            # timestamps_combo.bind("<<ComboboxSelected>>", comboBoxSelected)
-
-            time_unit_label = ttk.Label(window, text="Select timestamps unit : ").grid(
-                row=1, column=1, pady=25, padx=25
-            )
-            holdComboboxValues["time_unit"] = StringVar()
-            time_unit_combo = ttk.Combobox(
-                window,
-                values=["", "seconds", "milliseconds", "microseconds"],
-                textvariable=holdComboboxValues["time_unit"],
-            )
-            time_unit_combo.grid(row=1, column=2, pady=25, padx=25)
-            time_unit_combo.current(0)
-            # time_unit_combo.bind("<<ComboboxSelected>>", comboBoxSelected)
-            window.lift()
-            window.after(500, lambda: window.lift())
-            window.mainloop()
-
-            if holdComboboxValues["timestamps"].get():
-                df.insert(1, "Timestamp", df[holdComboboxValues["timestamps"].get()])
-                df = df.drop(col_names_ts[1:], axis=1)
-            else:
-                messagebox.showerror(
-                    "All options not selected",
-                    "All the options for timestamps \
-                                                                were not selected. Please select appropriate options",
-                )
-                logger.error(
-                    "All the options for timestamps \
-                            were not selected. Please select appropriate options"
-                )
-                raise Exception(
-                    "All the options for timestamps \
-                                were not selected. Please select appropriate options"
-                )
-            if holdComboboxValues["time_unit"].get():
-                if holdComboboxValues["time_unit"].get() == "seconds":
-                    ts_unit = holdComboboxValues["time_unit"].get()
-                elif holdComboboxValues["time_unit"].get() == "milliseconds":
-                    ts_unit = holdComboboxValues["time_unit"].get()
-                else:
-                    ts_unit = holdComboboxValues["time_unit"].get()
-            else:
-                messagebox.showerror(
-                    "All options not selected",
-                    "All the options for timestamps \
-                                                                were not selected. Please select appropriate options",
-                )
-                logger.error(
-                    "All the options for timestamps \
-                            were not selected. Please select appropriate options"
-                )
-                raise Exception(
-                    "All the options for timestamps \
-                                were not selected. Please select appropriate options"
-                )
-        else:
-            pass
-
-        return df, ts_unit
+        timestamp_column_name = timestamp_column_name if timestamp_column_name is not None else col_names_ts[1]
+        assert (
+            timestamp_column_name in col_names_ts
+        ), f"Provided timestamp_column_name '{timestamp_column_name}' not found in columns {col_names_ts[1:]}"
+        df.insert(1, "Timestamp", df[timestamp_column_name])
+        df = df.drop(col_names_ts[1:], axis=1)
+        return df
 
     def read_npm(self, event):
         logger.debug("\033[1m" + "Trying to read data for {} from csv file.".format(event) + "\033[0m")

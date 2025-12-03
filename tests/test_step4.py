@@ -185,15 +185,15 @@ def test_step4(tmp_path, monkeypatch, session_subdir, storenames_map, expected_r
       - Assertions confirm creation of key HDF5 outputs expected from Step 4.
     """
     if session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_3":
-        npm_timestamp_column_name = "ComputerTimestamp"
-        npm_time_unit = "milliseconds"
+        npm_timestamp_column_names = ["ComputerTimestamp", None]
+        npm_time_units = ["milliseconds", "seconds"]
+        npm_split_events = [False, True]
     else:
-        npm_timestamp_column_name = None
-        npm_time_unit = None
+        npm_timestamp_column_names = None
+        npm_time_units = None
+        npm_split_events = [True, True]
     if session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_5":
-        npm_split_events = False
-    else:
-        npm_split_events = True
+        npm_split_events = None
 
     # Use the CSV sample session
     src_base_dir = str(Path(".") / "testing_data")
@@ -227,8 +227,8 @@ def test_step4(tmp_path, monkeypatch, session_subdir, storenames_map, expected_r
         selected_folders=[str(session_copy)],
         storenames_map=storenames_map,
         modality=modality,
-        npm_timestamp_column_name=npm_timestamp_column_name,
-        npm_time_unit=npm_time_unit,
+        npm_timestamp_column_names=npm_timestamp_column_names,
+        npm_time_units=npm_time_units,
         npm_split_events=npm_split_events,
     )
 
@@ -237,8 +237,8 @@ def test_step4(tmp_path, monkeypatch, session_subdir, storenames_map, expected_r
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
         modality=modality,
-        npm_timestamp_column_name=npm_timestamp_column_name,
-        npm_time_unit=npm_time_unit,
+        npm_timestamp_column_names=npm_timestamp_column_names,
+        npm_time_units=npm_time_units,
         npm_split_events=npm_split_events,
     )
 
@@ -247,8 +247,8 @@ def test_step4(tmp_path, monkeypatch, session_subdir, storenames_map, expected_r
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
         modality=modality,
-        npm_timestamp_column_name=npm_timestamp_column_name,
-        npm_time_unit=npm_time_unit,
+        npm_timestamp_column_names=npm_timestamp_column_names,
+        npm_time_units=npm_time_units,
         npm_split_events=npm_split_events,
     )
 
