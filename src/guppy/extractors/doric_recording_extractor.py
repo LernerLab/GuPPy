@@ -3,23 +3,28 @@ import logging
 import os
 import re
 import warnings
+from typing import Any
 
 import h5py
 import numpy as np
 import pandas as pd
 
-from guppy.common_step3 import write_hdf5
+from guppy.extractors import BaseRecordingExtractor
 
 logger = logging.getLogger(__name__)
 
 
 def execute_import_doric(folder_path, storesList, outputPath):
+    # Parse storesList into events and event_types
+    events = list(storesList[0, :])
+    event_types = {storesList[0, i]: storesList[1, i] for i in range(storesList.shape[1])}
+
     extractor = DoricRecordingExtractor(folder_path=folder_path)
-    output_dicts = extractor.read(storesList=storesList)
+    output_dicts = extractor.read(events=events, outputPath=outputPath, event_types=event_types)
     extractor.save(output_dicts=output_dicts, outputPath=outputPath)
 
 
-class DoricRecordingExtractor:
+class DoricRecordingExtractor(BaseRecordingExtractor):
     # TODO: consolidate duplicate flag logic between the `__init__` and the `check_doric` method.
 
     def __init__(self, folder_path):
@@ -36,7 +41,7 @@ class DoricRecordingExtractor:
         for i in range(len(path)):
             ext = os.path.basename(path[i]).split(".")[-1]
             if ext == "doric":
-                key_names = self.read_doric(path[i])
+                key_names = self._read_doric(path[i])
                 event_from_filename.extend(key_names)
                 flag = "doric_doric"
             else:
@@ -59,26 +64,34 @@ class DoricRecordingExtractor:
                 logger.info(flag)
         logger.info("Importing of Doric file is done.")
 
-        self.events = event_from_filename
-        self.flags = flag_arr
+        self._events = event_from_filename
+        self._flags = flag_arr
 
-    def read_doric(self, filepath):
+    @property
+    def events(self) -> list[str]:
+        return self._events
+
+    @property
+    def flags(self) -> list:
+        return self._flags
+
+    def _read_doric(self, filepath):
         with h5py.File(filepath, "r") as f:
             if "Traces" in list(f.keys()):
-                keys = self.access_keys_doricV1(f)
+                keys = self._access_keys_doricV1(f)
             elif list(f.keys()) == ["Configurations", "DataAcquisition"]:
-                keys = self.access_keys_doricV6(f)
+                keys = self._access_keys_doricV6(f)
 
         return keys
 
-    def access_keys_doricV6(self, doric_file):
+    def _access_keys_doricV6(self, doric_file):
         data = [doric_file["DataAcquisition"]]
         res = []
         while len(data) != 0:
             members = len(data)
             while members != 0:
                 members -= 1
-                data, last_element = self.separate_last_element(data)
+                data, last_element = self._separate_last_element(data)
                 if isinstance(last_element, h5py.Dataset) and not last_element.name.endswith("/Time"):
                     res.append(last_element.name)
                 elif isinstance(last_element, h5py.Group):
@@ -94,17 +107,17 @@ class DoricRecordingExtractor:
 
         return keys
 
-    def access_keys_doricV1(self, doric_file):
+    def _access_keys_doricV1(self, doric_file):
         keys = list(doric_file["Traces"]["Console"].keys())
         keys.remove("Time(s)")
 
         return keys
 
-    def separate_last_element(self, arr):
+    def _separate_last_element(self, arr):
         l = arr[-1]
         return arr[:-1], l
 
-    def check_doric(self):
+    def _check_doric(self):
         logger.debug("Checking if doric file exists")
         path = glob.glob(os.path.join(self.folder_path, "*.csv")) + glob.glob(os.path.join(self.folder_path, "*.doric"))
 
@@ -135,7 +148,7 @@ class DoricRecordingExtractor:
         logger.info("Doric file found.")
         return flag_arr[0]
 
-    def read_doric_csv(self, storesList):
+    def _read_doric_csv(self, events, event_types):
         path = glob.glob(os.path.join(self.folder_path, "*.csv"))
         if len(path) > 1:
             logger.error("An error occurred : More than one Doric csv file present at the location")
@@ -147,45 +160,46 @@ class DoricRecordingExtractor:
         df["Time(s)"] = df["Time(s)"] - df["Time(s)"].to_numpy()[0]
 
         output_dicts = []
-        for i in range(storesList.shape[1]):
-            if "control" in storesList[1, i] or "signal" in storesList[1, i]:
+        for event in events:
+            event_type = event_types[event]
+            if "control" in event_type or "signal" in event_type:
                 timestamps = np.array(df["Time(s)"])
                 sampling_rate = np.array([1 / (timestamps[-1] - timestamps[-2])])
-                data = np.array(df[storesList[0, i]])
-                storename = storesList[0, i]
+                data = np.array(df[event])
+                storename = event
                 S = {"storename": storename, "sampling_rate": sampling_rate, "timestamps": timestamps, "data": data}
                 output_dicts.append(S)
             else:
-                ttl = df[storesList[0, i]]
+                ttl = df[event]
                 indices = np.where(ttl <= 0)[0]
                 diff_indices = np.where(np.diff(indices) > 1)[0]
                 timestamps = df["Time(s)"][indices[diff_indices] + 1].to_numpy()
-                storename = storesList[0, i]
+                storename = event
                 S = {"storename": storename, "timestamps": timestamps}
                 output_dicts.append(S)
 
         return output_dicts
 
-    def read_doric_doric(self, storesList):
+    def _read_doric_doric(self, events, event_types):
         path = glob.glob(os.path.join(self.folder_path, "*.doric"))
         if len(path) > 1:
             logger.error("An error occurred : More than one Doric file present at the location")
             raise Exception("More than one Doric file present at the location")
         with h5py.File(path[0], "r") as f:
             if "Traces" in list(f.keys()):
-                output_dicts = self.access_data_doricV1(f, storesList)
+                output_dicts = self._access_data_doricV1(f, events, event_types)
             elif list(f.keys()) == ["Configurations", "DataAcquisition"]:
-                output_dicts = self.access_data_doricV6(f, storesList)
+                output_dicts = self._access_data_doricV6(f, events, event_types)
         return output_dicts
 
-    def access_data_doricV6(self, doric_file, storesList):
+    def _access_data_doricV6(self, doric_file, events, event_types):
         data = [doric_file["DataAcquisition"]]
         res = []
         while len(data) != 0:
             members = len(data)
             while members != 0:
                 members -= 1
-                data, last_element = self.separate_last_element(data)
+                data, last_element = self._separate_last_element(data)
                 if isinstance(last_element, h5py.Dataset) and not last_element.name.endswith("/Time"):
                     res.append(last_element.name)
                 elif isinstance(last_element, h5py.Group):
@@ -195,16 +209,17 @@ class DoricRecordingExtractor:
         for element in res:
             sep_values = element.split("/")
             if sep_values[-1] == "Values":
-                if f"{sep_values[-3]}/{sep_values[-2]}" in storesList[0, :]:
+                if f"{sep_values[-3]}/{sep_values[-2]}" in events:
                     decide_path.append(element)
             else:
-                if f"{sep_values[-2]}/{sep_values[-1]}" in storesList[0, :]:
+                if f"{sep_values[-2]}/{sep_values[-1]}" in events:
                     decide_path.append(element)
 
         output_dicts = []
-        for i in range(storesList.shape[1]):
-            if "control" in storesList[1, i] or "signal" in storesList[1, i]:
-                regex = re.compile("(.*?)" + str(storesList[0, i]) + "(.*?)")
+        for event in events:
+            event_type = event_types[event]
+            if "control" in event_type or "signal" in event_type:
+                regex = re.compile("(.*?)" + str(event) + "(.*?)")
                 idx = [i for i in range(len(decide_path)) if regex.match(decide_path[i])]
                 if len(idx) > 1:
                     logger.error("More than one string matched (which should not be the case)")
@@ -213,11 +228,11 @@ class DoricRecordingExtractor:
                 data = np.array(doric_file[decide_path[idx]])
                 timestamps = np.array(doric_file[decide_path[idx].rsplit("/", 1)[0] + "/Time"])
                 sampling_rate = np.array([1 / (timestamps[-1] - timestamps[-2])])
-                storename = storesList[0, i]
+                storename = event
                 S = {"storename": storename, "sampling_rate": sampling_rate, "timestamps": timestamps, "data": data}
                 output_dicts.append(S)
             else:
-                regex = re.compile("(.*?)" + storesList[0, i] + "$")
+                regex = re.compile("(.*?)" + event + "$")
                 idx = [i for i in range(len(decide_path)) if regex.match(decide_path[i])]
                 if len(idx) > 1:
                     logger.error("More than one string matched (which should not be the case)")
@@ -228,56 +243,57 @@ class DoricRecordingExtractor:
                 indices = np.where(ttl <= 0)[0]
                 diff_indices = np.where(np.diff(indices) > 1)[0]
                 timestamps = timestamps[indices[diff_indices] + 1]
-                storename = storesList[0, i]
+                storename = event
                 S = {"storename": storename, "timestamps": timestamps}
                 output_dicts.append(S)
 
         return output_dicts
 
-    def access_data_doricV1(self, doric_file, storesList):
+    def _access_data_doricV1(self, doric_file, events, event_types):
         keys = list(doric_file["Traces"]["Console"].keys())
         output_dicts = []
-        for i in range(storesList.shape[1]):
-            if "control" in storesList[1, i] or "signal" in storesList[1, i]:
+        for event in events:
+            event_type = event_types[event]
+            if "control" in event_type or "signal" in event_type:
                 timestamps = np.array(doric_file["Traces"]["Console"]["Time(s)"]["Console_time(s)"])
                 sampling_rate = np.array([1 / (timestamps[-1] - timestamps[-2])])
-                data = np.array(doric_file["Traces"]["Console"][storesList[0, i]][storesList[0, i]])
-                storename = storesList[0, i]
+                data = np.array(doric_file["Traces"]["Console"][event][event])
+                storename = event
                 S = {"storename": storename, "sampling_rate": sampling_rate, "timestamps": timestamps, "data": data}
                 output_dicts.append(S)
             else:
                 timestamps = np.array(doric_file["Traces"]["Console"]["Time(s)"]["Console_time(s)"])
-                ttl = np.array(doric_file["Traces"]["Console"][storesList[0, i]][storesList[0, i]])
+                ttl = np.array(doric_file["Traces"]["Console"][event][event])
                 indices = np.where(ttl <= 0)[0]
                 diff_indices = np.where(np.diff(indices) > 1)[0]
                 timestamps = timestamps[indices[diff_indices] + 1]
-                storename = storesList[0, i]
+                storename = event
                 S = {"storename": storename, "timestamps": timestamps}
                 output_dicts.append(S)
 
         return output_dicts
 
-    def save_dict_to_hdf5(self, S, outputPath):
-        event = S["storename"]
-        write_hdf5(S["timestamps"], event, outputPath, "timestamps")
-
-        if "sampling_rate" in S:
-            write_hdf5(S["sampling_rate"], event, outputPath, "sampling_rate")
-        if "data" in S:
-            write_hdf5(S["data"], event, outputPath, "data")
-
-    def read(self, storesList):
-        flag = self.check_doric()
+    def read(self, *, events: list[str], outputPath: str, **kwargs) -> list[dict[str, Any]]:
+        event_types = kwargs["event_types"]
+        flag = self._check_doric()
         if flag == "doric_csv":
-            output_dicts = self.read_doric_csv(storesList)
+            output_dicts = self._read_doric_csv(events, event_types)
         elif flag == "doric_doric":
-            output_dicts = self.read_doric_doric(storesList)
+            output_dicts = self._read_doric_doric(events, event_types)
         else:
             logger.error("Doric file not found or not recognized.")
             raise FileNotFoundError("Doric file not found or not recognized.")
 
         return output_dicts
 
-    def save(self, output_dicts, outputPath):
+    def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str, **kwargs) -> None:
         for S in output_dicts:
-            self.save_dict_to_hdf5(S=S, outputPath=outputPath)
+            storename = S["storename"]
+            self._write_hdf5(data=S["timestamps"], storename=storename, output_path=outputPath, key="timestamps")
+
+            if "sampling_rate" in S:
+                self._write_hdf5(
+                    data=S["sampling_rate"], storename=storename, output_path=outputPath, key="sampling_rate"
+                )
+            if "data" in S:
+                self._write_hdf5(data=S["data"], storename=storename, output_path=outputPath, key="data")
