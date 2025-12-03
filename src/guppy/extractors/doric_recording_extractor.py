@@ -15,33 +15,48 @@ logger = logging.getLogger(__name__)
 
 
 def execute_import_doric(folder_path, storesList, outputPath):
-    # Parse storesList into events and event_types
     events = list(storesList[0, :])
-    event_types = {storesList[0, i]: storesList[1, i] for i in range(storesList.shape[1])}
+    event_name_to_event_type = {storesList[0, i]: storesList[1, i] for i in range(storesList.shape[1])}
 
-    extractor = DoricRecordingExtractor(folder_path=folder_path)
-    output_dicts = extractor.read(events=events, outputPath=outputPath, event_types=event_types)
+    extractor = DoricRecordingExtractor(folder_path=folder_path, event_name_to_event_type=event_name_to_event_type)
+    output_dicts = extractor.read(events=events, outputPath=outputPath)
     extractor.save(output_dicts=output_dicts, outputPath=outputPath)
 
 
 class DoricRecordingExtractor(BaseRecordingExtractor):
     # TODO: consolidate duplicate flag logic between the `__init__` and the `check_doric` method.
 
-    def __init__(self, folder_path):
-        self.folder_path = folder_path
-        logger.debug("If it exists, importing Doric file based on the structure of file")
-        path = sorted(glob.glob(os.path.join(self.folder_path, "*.csv"))) + sorted(
-            glob.glob(os.path.join(self.folder_path, "*.doric"))
+    @classmethod
+    def discover_events_and_flags(cls, folder_path):
+        """
+        Discover available events and file format flags from Doric files.
+
+        Parameters
+        ----------
+        folder_path : str
+            Path to the folder containing Doric files
+
+        Returns
+        -------
+        events : list
+            List of discovered event names
+        flags : list
+            List of format flags (e.g., 'doric_csv', 'doric_doric')
+        """
+        logger.debug("Discovering Doric events from file headers")
+        path = sorted(glob.glob(os.path.join(folder_path, "*.csv"))) + sorted(
+            glob.glob(os.path.join(folder_path, "*.doric"))
         )
 
         path = sorted(list(set(path)))
         flag = "None"
         event_from_filename = []
         flag_arr = []
+
         for i in range(len(path)):
             ext = os.path.basename(path[i]).split(".")[-1]
             if ext == "doric":
-                key_names = self._read_doric(path[i])
+                key_names = cls._read_doric_file(path[i])
                 event_from_filename.extend(key_names)
                 flag = "doric_doric"
             else:
@@ -62,10 +77,14 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                 event_from_filename.extend(list(df.columns))
                 flag = "doric_csv"
                 logger.info(flag)
-        logger.info("Importing of Doric file is done.")
 
-        self._events = event_from_filename
-        self._flags = flag_arr
+        logger.info("Doric event discovery complete.")
+        return event_from_filename, flag_arr
+
+    def __init__(self, folder_path, event_name_to_event_type):
+        self.folder_path = folder_path
+        self._event_name_to_event_type = event_name_to_event_type
+        self._events, self._flags = self.discover_events_and_flags(folder_path)
 
     @property
     def events(self) -> list[str]:
@@ -75,23 +94,26 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
     def flags(self) -> list:
         return self._flags
 
-    def _read_doric(self, filepath):
+    @staticmethod
+    def _read_doric_file(filepath):
+        """Static helper to read Doric file headers for event discovery."""
         with h5py.File(filepath, "r") as f:
             if "Traces" in list(f.keys()):
-                keys = self._access_keys_doricV1(f)
+                keys = DoricRecordingExtractor._access_keys_doricV1(f)
             elif list(f.keys()) == ["Configurations", "DataAcquisition"]:
-                keys = self._access_keys_doricV6(f)
+                keys = DoricRecordingExtractor._access_keys_doricV6(f)
 
         return keys
 
-    def _access_keys_doricV6(self, doric_file):
+    @staticmethod
+    def _access_keys_doricV6(doric_file):
         data = [doric_file["DataAcquisition"]]
         res = []
         while len(data) != 0:
             members = len(data)
             while members != 0:
                 members -= 1
-                data, last_element = self._separate_last_element(data)
+                data, last_element = DoricRecordingExtractor._separate_last_element(data)
                 if isinstance(last_element, h5py.Dataset) and not last_element.name.endswith("/Time"):
                     res.append(last_element.name)
                 elif isinstance(last_element, h5py.Group):
@@ -107,13 +129,15 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
 
         return keys
 
-    def _access_keys_doricV1(self, doric_file):
+    @staticmethod
+    def _access_keys_doricV1(doric_file):
         keys = list(doric_file["Traces"]["Console"].keys())
         keys.remove("Time(s)")
 
         return keys
 
-    def _separate_last_element(self, arr):
+    @staticmethod
+    def _separate_last_element(arr):
         l = arr[-1]
         return arr[:-1], l
 
@@ -148,7 +172,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
         logger.info("Doric file found.")
         return flag_arr[0]
 
-    def _read_doric_csv(self, events, event_types):
+    def _read_doric_csv(self, events):
         path = glob.glob(os.path.join(self.folder_path, "*.csv"))
         if len(path) > 1:
             logger.error("An error occurred : More than one Doric csv file present at the location")
@@ -161,7 +185,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
 
         output_dicts = []
         for event in events:
-            event_type = event_types[event]
+            event_type = self._event_name_to_event_type[event]
             if "control" in event_type or "signal" in event_type:
                 timestamps = np.array(df["Time(s)"])
                 sampling_rate = np.array([1 / (timestamps[-1] - timestamps[-2])])
@@ -180,19 +204,19 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
 
         return output_dicts
 
-    def _read_doric_doric(self, events, event_types):
+    def _read_doric_doric(self, events):
         path = glob.glob(os.path.join(self.folder_path, "*.doric"))
         if len(path) > 1:
             logger.error("An error occurred : More than one Doric file present at the location")
             raise Exception("More than one Doric file present at the location")
         with h5py.File(path[0], "r") as f:
             if "Traces" in list(f.keys()):
-                output_dicts = self._access_data_doricV1(f, events, event_types)
+                output_dicts = self._access_data_doricV1(f, events)
             elif list(f.keys()) == ["Configurations", "DataAcquisition"]:
-                output_dicts = self._access_data_doricV6(f, events, event_types)
+                output_dicts = self._access_data_doricV6(f, events)
         return output_dicts
 
-    def _access_data_doricV6(self, doric_file, events, event_types):
+    def _access_data_doricV6(self, doric_file, events):
         data = [doric_file["DataAcquisition"]]
         res = []
         while len(data) != 0:
@@ -217,7 +241,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
 
         output_dicts = []
         for event in events:
-            event_type = event_types[event]
+            event_type = self._event_name_to_event_type[event]
             if "control" in event_type or "signal" in event_type:
                 regex = re.compile("(.*?)" + str(event) + "(.*?)")
                 idx = [i for i in range(len(decide_path)) if regex.match(decide_path[i])]
@@ -249,11 +273,11 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
 
         return output_dicts
 
-    def _access_data_doricV1(self, doric_file, events, event_types):
+    def _access_data_doricV1(self, doric_file, events):
         keys = list(doric_file["Traces"]["Console"].keys())
         output_dicts = []
         for event in events:
-            event_type = event_types[event]
+            event_type = self._event_name_to_event_type[event]
             if "control" in event_type or "signal" in event_type:
                 timestamps = np.array(doric_file["Traces"]["Console"]["Time(s)"]["Console_time(s)"])
                 sampling_rate = np.array([1 / (timestamps[-1] - timestamps[-2])])
@@ -274,12 +298,11 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
         return output_dicts
 
     def read(self, *, events: list[str], outputPath: str, **kwargs) -> list[dict[str, Any]]:
-        event_types = kwargs["event_types"]
         flag = self._check_doric()
         if flag == "doric_csv":
-            output_dicts = self._read_doric_csv(events, event_types)
+            output_dicts = self._read_doric_csv(events)
         elif flag == "doric_doric":
-            output_dicts = self._read_doric_doric(events, event_types)
+            output_dicts = self._read_doric_doric(events)
         else:
             logger.error("Doric file not found or not recognized.")
             raise FileNotFoundError("Doric file not found or not recognized.")

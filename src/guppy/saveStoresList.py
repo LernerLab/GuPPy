@@ -584,9 +584,7 @@ def execute(inputParameters):
                 flags = extractor.flags
 
             elif modality == "doric":
-                extractor = DoricRecordingExtractor(folder_path=folder_path)
-                events = extractor.events
-                flags = extractor.flags
+                events, flags = DoricRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
 
             elif modality == "npm":
                 headless = bool(os.environ.get("GUPPY_BASE_DIR"))
