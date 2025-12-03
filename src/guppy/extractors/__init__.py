@@ -1,3 +1,4 @@
+from .base_recording_extractor import BaseRecordingExtractor
 from .tdt_recording_extractor import TdtRecordingExtractor, execute_readtev
 from .csv_recording_extractor import CsvRecordingExtractor, execute_import_csv
 from .doric_recording_extractor import DoricRecordingExtractor, execute_import_doric
