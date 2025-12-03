@@ -67,7 +67,7 @@ class NpmRecordingExtractor:
                 cols = np.array(list(df.columns), dtype=str)
             if len(cols) == 2:
                 flag = "event_or_data_np"
-            elif len(cols) >= 2:
+            elif len(cols) > 2:
                 flag = "data_np"
             else:
                 logger.error("Number of columns in csv file does not make sense.")
