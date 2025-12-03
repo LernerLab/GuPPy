@@ -160,6 +160,8 @@ def test_step2(tmp_path, session_subdir, storenames_map, modality):
     else:
         npm_timestamp_column_names = None
         npm_time_units = None
+        npm_split_events = [True, True]
+    if session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_5":
         npm_split_events = None
     # Source sample data
     src_base_dir = str(Path(".") / "testing_data")
