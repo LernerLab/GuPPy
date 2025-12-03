@@ -420,6 +420,7 @@ class NpmRecordingExtractor:
             if len(value) > 0:
                 df = pd.read_csv(path[i], header=None)
                 cols = np.array(list(df.columns), dtype=str)
+                columns_isstr = False
             else:
                 df = df
                 columns_isstr = True

@@ -709,7 +709,7 @@ def execute(inputParameters):
                         ts_units.append(ts_unit)
                         npm_timestamp_column_names.append(npm_timestamp_column_name)
                     # TODO: Update Input Parameters to handle multiple ts_units
-                    inputParameters["npm_timestamps_units"] = ts_units if ts_units else None
+                    inputParameters["npm_time_units"] = ts_units if ts_units else None
                     inputParameters["npm_timestamp_column_names"] = (
                         npm_timestamp_column_names if npm_timestamp_column_names else None
                     )

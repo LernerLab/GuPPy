@@ -154,16 +154,13 @@ def test_step2(tmp_path, session_subdir, storenames_map, modality):
       - Asserts storesList.csv exists and exactly matches the provided mapping (2xN)
     """
     if session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_3":
-        npm_timestamp_column_name = "ComputerTimestamp"
-        npm_time_unit = "milliseconds"
+        npm_timestamp_column_names = ["ComputerTimestamp", None]
+        npm_time_units = ["milliseconds", "seconds"]
+        npm_split_events = [False, True]
     else:
-        npm_timestamp_column_name = None
-        npm_time_unit = None
-    if session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_5":
-        npm_split_events = False
-    else:
-        npm_split_events = True
-
+        npm_timestamp_column_names = None
+        npm_time_units = None
+        npm_split_events = None
     # Source sample data
     src_base_dir = str(Path(".") / "testing_data")
     src_session = os.path.join(src_base_dir, session_subdir)
@@ -193,8 +190,8 @@ def test_step2(tmp_path, session_subdir, storenames_map, modality):
         selected_folders=[str(session_copy)],
         storenames_map=storenames_map,
         modality=modality,
-        npm_timestamp_column_name=npm_timestamp_column_name,
-        npm_time_unit=npm_time_unit,
+        npm_timestamp_column_names=npm_timestamp_column_names,
+        npm_time_units=npm_time_units,
         npm_split_events=npm_split_events,
     )
 
