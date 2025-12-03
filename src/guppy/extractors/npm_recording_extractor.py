@@ -435,7 +435,6 @@ class NpmRecordingExtractor:
             ):
                 flag = flag + "_v2"
             else:
-                flag = flag
 
             # used assigned flags to process the files and read the data
             if flag == "event_or_data_np":
