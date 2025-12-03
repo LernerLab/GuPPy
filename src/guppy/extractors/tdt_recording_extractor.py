@@ -4,12 +4,13 @@ import multiprocessing as mp
 import os
 import time
 from itertools import repeat
+from typing import Any
 
 import numpy as np
 import pandas as pd
 from numpy import float32, float64, int32, int64, uint16
 
-from guppy.common_step3 import write_hdf5
+from guppy.extractors import BaseRecordingExtractor
 
 logger = logging.getLogger(__name__)
 
@@ -27,13 +28,37 @@ def execute_readtev(folder_path, events, outputPath, numProcesses=mp.cpu_count()
     logger.info("Time taken = {0:.5f}".format(time.time() - start))
 
 
-class TdtRecordingExtractor:
+class TdtRecordingExtractor(BaseRecordingExtractor):
 
     def __init__(self, folder_path):
         self.folder_path = folder_path
-        self.header_df, _ = self.readtsq(folder_path)
+        self._header_df, _ = self._readtsq(folder_path)
 
-    def readtsq(self, folder_path):
+        # Populate events from header_df
+        if isinstance(self._header_df, pd.DataFrame):
+            self._header_df["name"] = np.asarray(self._header_df["name"], dtype=str)
+            allnames = np.unique(self._header_df["name"])
+            index = []
+            for i in range(len(allnames)):
+                length = len(str(allnames[i]))
+                if length < 4:
+                    index.append(i)
+            allnames = np.delete(allnames, index, 0)
+            self._events = list(allnames)
+        else:
+            self._events = []
+
+        self._flags = []
+
+    @property
+    def events(self) -> list[str]:
+        return self._events
+
+    @property
+    def flags(self) -> list:
+        return self._flags
+
+    def _readtsq(self, folder_path):
         logger.debug("Trying to read tsq file.")
         names = ("size", "type", "name", "chan", "sort_code", "timestamp", "fp_loc", "strobe", "format", "frequency")
         formats = (int32, int32, "S4", uint16, uint16, float64, int64, float64, int32, float32)
@@ -59,9 +84,8 @@ class TdtRecordingExtractor:
         logger.info("Data from tsq file fetched.")
         return df, flag
 
-    # function to read tev file
-    def readtev(self, event):
-        data = self.header_df
+    def _readtev(self, event):
+        data = self._header_df
         filepath = self.folder_path
 
         logger.debug("Reading data for event {} ...".format(event))
@@ -87,7 +111,7 @@ class TdtRecordingExtractor:
 
         # logger.info(allnames)
         # logger.info(eventNew)
-        row = self.ismember(data["name"], event)
+        row = self._ismember(data["name"], event)
 
         if sum(row) == 0:
             logger.error("\033[1m" + "Requested store name " + event + " not found (case-sensitive)." + "\033[0m")
@@ -141,24 +165,23 @@ class TdtRecordingExtractor:
 
         return S
 
-    def read(self, events, outputPath):
+    def read(self, *, events: list[str], outputPath: str, **kwargs) -> list[dict[str, Any]]:
         output_dicts = []
         for event in events:
-            S = self.readtev(event=event)
-            if self.event_needs_splitting(data=S["data"], sampling_rate=S["sampling_rate"]):
-                event_dicts = self.split_event_data(S, event)
-                self.split_event_storesList(S, event, outputPath)
+            S = self._readtev(event=event)
+            if self._event_needs_splitting(data=S["data"], sampling_rate=S["sampling_rate"]):
+                event_dicts = self._split_event_data(S, event)
+                self._split_event_storesList(S, event, outputPath)
             else:
                 event_dicts = [S]
             output_dicts.extend(event_dicts)
         return output_dicts
 
-    # check if a particular element is there in an array or not
-    def ismember(self, arr, element):  # TODO: replace this function with more standard usage
+    def _ismember(self, arr, element):
         res = [1 if i == element else 0 for i in arr]
         return np.asarray(res)
 
-    def event_needs_splitting(self, data, sampling_rate):
+    def _event_needs_splitting(self, data, sampling_rate):
         logger.info("Checking event storename data for creating multiple event names from single event storename...")
         diff = np.diff(data)
         if diff.shape[0] == 0:
@@ -167,7 +190,7 @@ class TdtRecordingExtractor:
             return True
         return False
 
-    def split_event_data(self, S, event):
+    def _split_event_data(self, S, event):
         # Note that new_event is only used for the new storesList and event is still used for the old storesList
         new_event = event.replace("\\", "")
         new_event = event.replace("/", "")
@@ -189,10 +212,7 @@ class TdtRecordingExtractor:
 
         return event_dicts
 
-    # This function saves a new storesList.csv file, which is a bit of a side effect in the overall read path,
-    # which is supposed to just return a list of dictionaries.
-    # TODO: long term I'd like to move these storesList shenanigans somewhere else, likely outside of the extractor.
-    def split_event_storesList(self, S, event, outputPath):
+    def _split_event_storesList(self, S, event, outputPath):
         # Note that new_event is only used for the new storesList and event is still used for the old storesList
         new_event = event.replace("\\", "")
         new_event = event.replace("/", "")
@@ -217,17 +237,15 @@ class TdtRecordingExtractor:
             np.savetxt(os.path.join(outputPath, "storesList.csv"), storesList, delimiter=",", fmt="%s")
         logger.info("\033[1m The stores list file is changed.\033[0m")
 
-    # function to save data read from tev file to hdf5 file
-    def save_dict_to_hdf5(self, S, outputPath):
+    def _save_dict_to_hdf5(self, S, outputPath):
         event = S["storename"]
-        write_hdf5(S["storename"], event, outputPath, "storename")
-        write_hdf5(S["sampling_rate"], event, outputPath, "sampling_rate")
-        write_hdf5(S["timestamps"], event, outputPath, "timestamps")
+        self._write_hdf5(S["storename"], event, outputPath, "storename")
+        self._write_hdf5(S["sampling_rate"], event, outputPath, "sampling_rate")
+        self._write_hdf5(S["timestamps"], event, outputPath, "timestamps")
+        self._write_hdf5(S["data"], event, outputPath, "data")
+        self._write_hdf5(S["npoints"], event, outputPath, "npoints")
+        self._write_hdf5(S["channels"], event, outputPath, "channels")
 
-        write_hdf5(S["data"], event, outputPath, "data")
-        write_hdf5(S["npoints"], event, outputPath, "npoints")
-        write_hdf5(S["channels"], event, outputPath, "channels")
-
-    def save(self, output_dicts, outputPath):
+    def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str, **kwargs) -> None:
         for S in output_dicts:
-            self.save_dict_to_hdf5(S=S, outputPath=outputPath)
+            self._save_dict_to_hdf5(S=S, outputPath=outputPath)

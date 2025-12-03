@@ -80,7 +80,7 @@ def make_dir(filepath):
 
 
 # function to show GUI and save
-def saveStorenames(inputParameters, data, event_name, flag, filepath):
+def saveStorenames(inputParameters, event_name, flag, filepath):
 
     logger.debug("Saving stores list file.")
     # getting input parameters
@@ -96,20 +96,8 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
         logger.info("Storeslist : \n" + str(arr))
         return
 
-    # reading storenames from the data fetched using 'readtsq' function
-    if isinstance(data, pd.DataFrame):
-        data["name"] = np.asarray(data["name"], dtype=str)
-        allnames = np.unique(data["name"])
-        index = []
-        for i in range(len(allnames)):
-            length = len(str(allnames[i]))
-            if length < 4:
-                index.append(i)
-        allnames = np.delete(allnames, index, 0)
-        allnames = list(allnames)
-
-    else:
-        allnames = []
+    # Get storenames from extractor's events property
+    allnames = event_name
 
     if "data_np_v2" in flag or "data_np" in flag or "event_np" in flag:
         path_chev = glob.glob(os.path.join(filepath, "*chev*"))
@@ -151,9 +139,6 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
 
     else:
         pass
-
-    # finalizing all the storenames
-    allnames = allnames + event_name
 
     # instructions about how to save the storeslist file
     mark_down = pn.pane.Markdown(
@@ -589,16 +574,14 @@ def execute(inputParameters):
             filepath = os.path.join(inputParameters["abspath"], i)
             if modality == "tdt":
                 extractor = TdtRecordingExtractor(folder_path=filepath)
-                data = extractor.header_df
-                event_name, flag = [], []
+                event_name = extractor.events
+                flag = extractor.flags
             elif modality == "csv":
-                data = 0
                 extractor = CsvRecordingExtractor(folder_path=filepath)
                 event_name = extractor.events
                 flag = extractor.flags
 
             elif modality == "doric":
-                data = 0
                 extractor = DoricRecordingExtractor(folder_path=filepath)
                 event_name = extractor.events
                 flag = extractor.flags
@@ -621,14 +604,13 @@ def execute(inputParameters):
                         npm_timestamp_column_names if npm_timestamp_column_names else None
                     )
 
-                data = 0
                 extractor = NpmRecordingExtractor(folder_path=filepath, num_ch=num_ch, inputParameters=inputParameters)
                 event_name = extractor.events
                 flag = extractor.flags
             else:
                 raise ValueError("Modality not recognized. Please use 'tdt', 'csv', 'doric', or 'npm'.")
 
-            saveStorenames(inputParameters, data, event_name, flag, filepath)
+            saveStorenames(inputParameters, event_name, flag, filepath)
         logger.info("#" * 400)
     except Exception as e:
         logger.error(str(e))
