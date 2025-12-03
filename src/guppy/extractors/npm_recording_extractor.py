@@ -4,12 +4,13 @@ import multiprocessing as mp
 import os
 import time
 from itertools import repeat
+from typing import Any
 
 import numpy as np
 import pandas as pd
 import panel as pn
 
-from guppy.common_step3 import write_hdf5
+from guppy.extractors import BaseRecordingExtractor
 
 pn.extension()
 
@@ -32,15 +33,23 @@ def read_and_save_npm(extractor, event, outputPath):
     logger.info("Data for event {} fetched and stored.".format(event))
 
 
-class NpmRecordingExtractor:
+class NpmRecordingExtractor(BaseRecordingExtractor):
 
     def __init__(self, folder_path, num_ch, inputParameters=None):  # TODO: make inputParameters mandatory
         self.folder_path = folder_path
         self.num_ch = num_ch
         self.inputParameters = inputParameters
-        self.events, self.flags = self.import_npm(
+        self._events, self._flags = self._import_npm(
             folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
         )
+
+    @property
+    def events(self) -> list[str]:
+        return self._events
+
+    @property
+    def flags(self) -> list:
+        return self._flags
 
     @classmethod
     def has_multiple_event_ttls(cls, folder_path):
@@ -96,7 +105,7 @@ class NpmRecordingExtractor:
 
         return multiple_event_ttls
 
-    def import_npm(self, folder_path, num_ch, inputParameters=None):
+    def _import_npm(self, folder_path, num_ch, inputParameters=None):
 
         logger.debug("If it exists, importing NPM file based on the structure of file")
         # Headless configuration (used to avoid any UI prompts when running tests)
@@ -233,7 +242,7 @@ class NpmRecordingExtractor:
             else:
                 file = f"file{str(i)}_"
                 ts_unit = npm_time_unit
-                df = self.update_df_with_timestamp_columns(df, timestamp_column_name=npm_timestamp_column_name)
+                df = self._update_df_with_timestamp_columns(df, timestamp_column_name=npm_timestamp_column_name)
                 df, indices_dict, _ = self.decide_indices(file, df, flag)
                 keys = list(indices_dict.keys())
                 for k in range(len(keys)):
@@ -467,7 +476,7 @@ class NpmRecordingExtractor:
 
         return ts_unit_needs, col_names_ts
 
-    def update_df_with_timestamp_columns(self, df, timestamp_column_name):
+    def _update_df_with_timestamp_columns(self, df, timestamp_column_name):
         col_names = np.array(list(df.columns))
         col_names_ts = [""]
         for name in col_names:
@@ -484,7 +493,7 @@ class NpmRecordingExtractor:
         df = df.drop(col_names_ts[1:], axis=1)
         return df
 
-    def read_npm(self, event):
+    def _read_npm(self, event):
         logger.debug("\033[1m" + "Trying to read data for {} from csv file.".format(event) + "\033[0m")
         if not os.path.exists(os.path.join(self.folder_path, event + ".csv")):
             logger.error("\033[1m" + "No csv file found for event {}".format(event) + "\033[0m")
@@ -493,7 +502,7 @@ class NpmRecordingExtractor:
         df = pd.read_csv(os.path.join(self.folder_path, event + ".csv"), index_col=False)
         return df
 
-    def save_to_hdf5(self, df, event, outputPath):
+    def _save_to_hdf5(self, df, event, outputPath):
         key = list(df.columns)
 
         # TODO: clean up these if branches
@@ -524,21 +533,21 @@ class NpmRecordingExtractor:
             )
 
         for i in range(len(key)):
-            write_hdf5(df[key[i]].dropna(), event, outputPath, key[i].lower())
+            self._write_hdf5(data=df[key[i]].dropna(), storename=event, output_path=outputPath, key=key[i].lower())
 
         logger.info("\033[1m" + "Reading data for {} from csv file is completed.".format(event) + "\033[0m")
 
-    def read(self, events, outputPath):
+    def read(self, *, events: list[str], outputPath: str, **kwargs) -> list[dict[str, Any]]:
         output_dicts = []
         for event in events:
-            df = self.read_npm(event=event)
+            df = self._read_npm(event=event)
             S = df.to_dict()
             S["storename"] = event
             output_dicts.append(S)
         return output_dicts
 
-    def save(self, output_dicts, outputPath):
+    def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str, **kwargs) -> None:
         for S in output_dicts:
             event = S.pop("storename")
             df = pd.DataFrame.from_dict(S)
-            self.save_to_hdf5(df=df, event=event, outputPath=outputPath)
+            self._save_to_hdf5(df=df, event=event, outputPath=outputPath)
