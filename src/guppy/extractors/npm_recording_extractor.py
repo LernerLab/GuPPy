@@ -121,6 +121,7 @@ class NpmRecordingExtractor:
         event_from_filename = []
         flag_arr = []
         for i in range(len(path)):
+            # TODO: validate npm_timestamp_column_names, npm_time_units, npm_split_events lengths
             if npm_timestamp_column_names is None:
                 npm_timestamp_column_name = None
             else:
@@ -166,7 +167,7 @@ class NpmRecordingExtractor:
             assert len(cols) != 3, "File appears to be data .csv. This function only supports NPM .csv files."
             if len(cols) == 2:
                 flag = "event_or_data_np"
-            elif len(cols) >= 2:
+            elif len(cols) > 2:
                 flag = "data_np"
             else:
                 logger.error("Number of columns in csv file does not make sense.")
@@ -424,7 +425,7 @@ class NpmRecordingExtractor:
             # check the structure of dataframe and assign flag to the type of file
             if len(cols) == 2:
                 flag = "event_or_data_np"
-            elif len(cols) >= 2:
+            elif len(cols) > 2:
                 flag = "data_np"
             else:
                 logger.error("Number of columns in csv file does not make sense.")
@@ -434,7 +435,6 @@ class NpmRecordingExtractor:
                 "flags" in np.char.lower(np.array(cols)) or "ledstate" in np.char.lower(np.array(cols))
             ):
                 flag = flag + "_v2"
-            else:
 
             # used assigned flags to process the files and read the data
             if flag == "event_or_data_np":
