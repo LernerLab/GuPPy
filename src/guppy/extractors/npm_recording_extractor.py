@@ -3,9 +3,7 @@ import logging
 import multiprocessing as mp
 import os
 import time
-import tkinter as tk
 from itertools import repeat
-from tkinter import StringVar, messagebox, ttk
 
 import numpy as np
 import pandas as pd
@@ -488,106 +486,6 @@ class NpmRecordingExtractor:
         df.insert(1, "Timestamp", df[timestamp_column_name])
         df = df.drop(col_names_ts[1:], axis=1)
         return df
-
-    # function to decide NPM timestamps unit (seconds, ms or us)
-    def decide_ts_unit_for_npm(self, df, timestamp_column_name=None, time_unit=None, headless=False):
-        col_names = np.array(list(df.columns))
-        col_names_ts = [""]
-        for name in col_names:
-            if "timestamp" in name.lower():
-                col_names_ts.append(name)
-
-        ts_unit = "seconds"
-        if len(col_names_ts) > 2:
-            # Headless path: auto-select column/unit without any UI
-            if headless:
-                if timestamp_column_name is not None:
-                    assert (
-                        timestamp_column_name in col_names_ts
-                    ), f"Provided timestamp_column_name '{timestamp_column_name}' not found in columns {col_names_ts[1:]}"
-                    chosen = timestamp_column_name
-                else:
-                    chosen = col_names_ts[1]
-                df.insert(1, "Timestamp", df[chosen])
-                df = df.drop(col_names_ts[1:], axis=1)
-                valid_units = {"seconds", "milliseconds", "microseconds"}
-                ts_unit = time_unit if (isinstance(time_unit, str) and time_unit in valid_units) else "seconds"
-                return df, ts_unit
-            # def comboBoxSelected(event):
-            #    logger.info(event.widget.get())
-
-            window = tk.Tk()
-            window.title("Select appropriate options for timestamps")
-            window.geometry("500x200")
-            holdComboboxValues = dict()
-
-            timestamps_label = ttk.Label(window, text="Select which timestamps to use : ").grid(
-                row=0, column=1, pady=25, padx=25
-            )
-            holdComboboxValues["timestamps"] = StringVar()
-            timestamps_combo = ttk.Combobox(window, values=col_names_ts, textvariable=holdComboboxValues["timestamps"])
-            timestamps_combo.grid(row=0, column=2, pady=25, padx=25)
-            timestamps_combo.current(0)
-            # timestamps_combo.bind("<<ComboboxSelected>>", comboBoxSelected)
-
-            time_unit_label = ttk.Label(window, text="Select timestamps unit : ").grid(
-                row=1, column=1, pady=25, padx=25
-            )
-            holdComboboxValues["time_unit"] = StringVar()
-            time_unit_combo = ttk.Combobox(
-                window,
-                values=["", "seconds", "milliseconds", "microseconds"],
-                textvariable=holdComboboxValues["time_unit"],
-            )
-            time_unit_combo.grid(row=1, column=2, pady=25, padx=25)
-            time_unit_combo.current(0)
-            # time_unit_combo.bind("<<ComboboxSelected>>", comboBoxSelected)
-            window.lift()
-            window.after(500, lambda: window.lift())
-            window.mainloop()
-
-            if holdComboboxValues["timestamps"].get():
-                df.insert(1, "Timestamp", df[holdComboboxValues["timestamps"].get()])
-                df = df.drop(col_names_ts[1:], axis=1)
-            else:
-                messagebox.showerror(
-                    "All options not selected",
-                    "All the options for timestamps \
-                                                                were not selected. Please select appropriate options",
-                )
-                logger.error(
-                    "All the options for timestamps \
-                            were not selected. Please select appropriate options"
-                )
-                raise Exception(
-                    "All the options for timestamps \
-                                were not selected. Please select appropriate options"
-                )
-            if holdComboboxValues["time_unit"].get():
-                if holdComboboxValues["time_unit"].get() == "seconds":
-                    ts_unit = holdComboboxValues["time_unit"].get()
-                elif holdComboboxValues["time_unit"].get() == "milliseconds":
-                    ts_unit = holdComboboxValues["time_unit"].get()
-                else:
-                    ts_unit = holdComboboxValues["time_unit"].get()
-            else:
-                messagebox.showerror(
-                    "All options not selected",
-                    "All the options for timestamps \
-                                                                were not selected. Please select appropriate options",
-                )
-                logger.error(
-                    "All the options for timestamps \
-                            were not selected. Please select appropriate options"
-                )
-                raise Exception(
-                    "All the options for timestamps \
-                                were not selected. Please select appropriate options"
-                )
-        else:
-            pass
-
-        return df, ts_unit
 
     def read_npm(self, event):
         logger.debug("\033[1m" + "Trying to read data for {} from csv file.".format(event) + "\033[0m")
