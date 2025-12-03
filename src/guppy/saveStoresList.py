@@ -644,11 +644,13 @@ def get_multi_event_responses(multiple_event_ttls):
         window = tk.Tk()
         response = messagebox.askyesno(
             "Multiple event TTLs",
-            "Based on the TTL file,\
-            it looks like TTLs \
-            belongs to multiple behavior type. \
-            Do you want to create multiple files for each \
-            behavior type ?",
+            (
+                "Based on the TTL file, "
+                "it looks like TTLs "
+                "belong to multiple behavior types. "
+                "Do you want to create multiple files for each "
+                "behavior type?"
+            ),
         )
         window.destroy()
         responses.append(response)
