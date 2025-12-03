@@ -4,11 +4,12 @@ import multiprocessing as mp
 import os
 import time
 from itertools import repeat
+from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from guppy.common_step3 import write_hdf5
+from guppy.extractors import BaseRecordingExtractor
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ def read_and_save_csv(extractor, event, outputPath):
     logger.info("Data for event {} fetched and stored.".format(event))
 
 
-class CsvRecordingExtractor:
+class CsvRecordingExtractor(BaseRecordingExtractor):
 
     def __init__(self, folder_path):
         self.folder_path = folder_path
@@ -58,7 +59,7 @@ class CsvRecordingExtractor:
             ), "This file appears to be doric .csv. This function only supports standard .csv files."
             df = pd.read_csv(path[i], index_col=False)
 
-            _, value = self.check_header(df)
+            _, value = self._check_header(df)
 
             # check dataframe structure and read data accordingly
             if len(value) > 0:
@@ -121,10 +122,18 @@ class CsvRecordingExtractor:
 
         logger.info("Importing of csv file is done.")
 
-        self.events = event_from_filename
-        self.flags = flag_arr
+        self._events = event_from_filename
+        self._flags = flag_arr
 
-    def check_header(self, df):
+    @property
+    def events(self) -> list[str]:
+        return self._events
+
+    @property
+    def flags(self) -> list:
+        return self._flags
+
+    def _check_header(self, df):
         arr = list(df.columns)
         check_float = []
         for i in arr:
@@ -135,7 +144,7 @@ class CsvRecordingExtractor:
 
         return arr, check_float
 
-    def read_csv(self, event):
+    def _read_csv(self, event):
         logger.debug("\033[1m" + "Trying to read data for {} from csv file.".format(event) + "\033[0m")
         if not os.path.exists(os.path.join(self.folder_path, event + ".csv")):
             logger.error("\033[1m" + "No csv file found for event {}".format(event) + "\033[0m")
@@ -144,7 +153,7 @@ class CsvRecordingExtractor:
         df = pd.read_csv(os.path.join(self.folder_path, event + ".csv"), index_col=False)
         return df
 
-    def save_to_hdf5(self, df, event, outputPath):
+    def _save_to_hdf5(self, df, event, outputPath):
         key = list(df.columns)
 
         # TODO: clean up these if branches
@@ -175,21 +184,21 @@ class CsvRecordingExtractor:
             )
 
         for i in range(len(key)):
-            write_hdf5(df[key[i]].dropna(), event, outputPath, key[i].lower())
+            self._write_hdf5(df[key[i]].dropna(), event, outputPath, key[i].lower())
 
         logger.info("\033[1m" + "Reading data for {} from csv file is completed.".format(event) + "\033[0m")
 
-    def read(self, events, outputPath):
+    def read(self, *, events: list[str], outputPath: str, **kwargs) -> list[dict[str, Any]]:
         output_dicts = []
         for event in events:
-            df = self.read_csv(event=event)
+            df = self._read_csv(event=event)
             S = df.to_dict()
             S["storename"] = event
             output_dicts.append(S)
         return output_dicts
 
-    def save(self, output_dicts, outputPath):
+    def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str, **kwargs) -> None:
         for S in output_dicts:
             event = S.pop("storename")
             df = pd.DataFrame.from_dict(S)
-            self.save_to_hdf5(df=df, event=event, outputPath=outputPath)
+            self._save_to_hdf5(df=df, event=event, outputPath=outputPath)
