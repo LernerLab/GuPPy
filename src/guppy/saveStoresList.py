@@ -80,7 +80,7 @@ def make_dir(filepath):
 
 
 # function to show GUI and save
-def saveStorenames(inputParameters, event_name, flag, filepath):
+def saveStorenames(inputParameters, events, flags, folder_path):
 
     logger.debug("Saving stores list file.")
     # getting input parameters
@@ -89,7 +89,7 @@ def saveStorenames(inputParameters, event_name, flag, filepath):
     # Headless path: if storenames_map provided, write storesList.csv without building the Panel UI
     storenames_map = inputParameters.get("storenames_map")
     if isinstance(storenames_map, dict) and len(storenames_map) > 0:
-        op = make_dir(filepath)
+        op = make_dir(folder_path)
         arr = np.asarray([list(storenames_map.keys()), list(storenames_map.values())], dtype=str)
         np.savetxt(os.path.join(op, "storesList.csv"), arr, delimiter=",", fmt="%s")
         logger.info(f"Storeslist file saved at {op}")
@@ -97,12 +97,12 @@ def saveStorenames(inputParameters, event_name, flag, filepath):
         return
 
     # Get storenames from extractor's events property
-    allnames = event_name
+    allnames = events
 
-    if "data_np_v2" in flag or "data_np" in flag or "event_np" in flag:
-        path_chev = glob.glob(os.path.join(filepath, "*chev*"))
-        path_chod = glob.glob(os.path.join(filepath, "*chod*"))
-        path_chpr = glob.glob(os.path.join(filepath, "*chpr*"))
+    if "data_np_v2" in flags or "data_np" in flags or "event_np" in flags:
+        path_chev = glob.glob(os.path.join(folder_path, "*chev*"))
+        path_chod = glob.glob(os.path.join(folder_path, "*chod*"))
+        path_chpr = glob.glob(os.path.join(folder_path, "*chpr*"))
         combine_paths = path_chev + path_chod + path_chpr
         d = dict()
         for i in range(len(combine_paths)):
@@ -179,7 +179,9 @@ def saveStorenames(inputParameters, event_name, flag, filepath):
     )
 
     # creating GUI template
-    template = pn.template.BootstrapTemplate(title="Storenames GUI - {}".format(os.path.basename(filepath), mark_down))
+    template = pn.template.BootstrapTemplate(
+        title="Storenames GUI - {}".format(os.path.basename(folder_path), mark_down)
+    )
 
     # creating different buttons and selectors for the GUI
     cross_selector = pn.widgets.CrossSelector(name="Store Names Selection", value=[], options=allnames, width=600)
@@ -253,10 +255,10 @@ def saveStorenames(inputParameters, event_name, flag, filepath):
     # on clicking overwrite_button, following function is executed
     def overwrite_button_actions(event):
         if event.new == "over_write_file":
-            select_location.options = takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*")))
+            select_location.options = takeOnlyDirs(glob.glob(os.path.join(folder_path, "*_output_*")))
             # select_location.value = select_location.options[0]
         else:
-            select_location.options = [show_dir(filepath)]
+            select_location.options = [show_dir(folder_path)]
             # select_location.value = select_location.options[0]
 
     def fetchValues(event):
@@ -513,8 +515,8 @@ def saveStorenames(inputParameters, event_name, flag, filepath):
     # creating widgets, adding them to template and showing a GUI on a new browser window
     number = scanPortsAndFind(start_port=5000, end_port=5200)
 
-    if "data_np_v2" in flag or "data_np" in flag or "event_np" in flag:
-        widget_1 = pn.Column("# " + os.path.basename(filepath), mark_down, mark_down_np, plot_select, plot)
+    if "data_np_v2" in flags or "data_np" in flags or "event_np" in flags:
+        widget_1 = pn.Column("# " + os.path.basename(folder_path), mark_down, mark_down_np, plot_select, plot)
         widget_2 = pn.Column(
             repeat_storenames,
             repeat_storename_wd,
@@ -535,7 +537,7 @@ def saveStorenames(inputParameters, event_name, flag, filepath):
         template.main.append(pn.Row(widget_1, widget_2))
 
     else:
-        widget_1 = pn.Column("# " + os.path.basename(filepath), mark_down)
+        widget_1 = pn.Column("# " + os.path.basename(folder_path), mark_down)
         widget_2 = pn.Column(
             repeat_storenames,
             repeat_storename_wd,
@@ -571,32 +573,32 @@ def execute(inputParameters):
 
     try:
         for i in folderNames:
-            filepath = os.path.join(inputParameters["abspath"], i)
+            folder_path = os.path.join(inputParameters["abspath"], i)
             if modality == "tdt":
-                extractor = TdtRecordingExtractor(folder_path=filepath)
-                event_name = extractor.events
-                flag = extractor.flags
+                extractor = TdtRecordingExtractor(folder_path=folder_path)
+                events = extractor.events
+                flags = extractor.flags
             elif modality == "csv":
-                extractor = CsvRecordingExtractor(folder_path=filepath)
-                event_name = extractor.events
-                flag = extractor.flags
+                extractor = CsvRecordingExtractor(folder_path=folder_path)
+                events = extractor.events
+                flags = extractor.flags
 
             elif modality == "doric":
-                extractor = DoricRecordingExtractor(folder_path=filepath)
-                event_name = extractor.events
-                flag = extractor.flags
+                extractor = DoricRecordingExtractor(folder_path=folder_path)
+                events = extractor.events
+                flags = extractor.flags
 
             elif modality == "npm":
                 headless = bool(os.environ.get("GUPPY_BASE_DIR"))
                 if not headless:
                     # Resolve multiple event TTLs
-                    multiple_event_ttls = NpmRecordingExtractor.has_multiple_event_ttls(folder_path=filepath)
+                    multiple_event_ttls = NpmRecordingExtractor.has_multiple_event_ttls(folder_path=folder_path)
                     responses = get_multi_event_responses(multiple_event_ttls)
                     inputParameters["npm_split_events"] = responses
 
                     # Resolve timestamp units and columns
                     ts_unit_needs, col_names_ts = NpmRecordingExtractor.needs_ts_unit(
-                        folder_path=filepath, num_ch=num_ch
+                        folder_path=folder_path, num_ch=num_ch
                     )
                     ts_units, npm_timestamp_column_names = get_timestamp_configuration(ts_unit_needs, col_names_ts)
                     inputParameters["npm_time_units"] = ts_units if ts_units else None
@@ -604,13 +606,15 @@ def execute(inputParameters):
                         npm_timestamp_column_names if npm_timestamp_column_names else None
                     )
 
-                extractor = NpmRecordingExtractor(folder_path=filepath, num_ch=num_ch, inputParameters=inputParameters)
-                event_name = extractor.events
-                flag = extractor.flags
+                extractor = NpmRecordingExtractor(
+                    folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
+                )
+                events = extractor.events
+                flags = extractor.flags
             else:
                 raise ValueError("Modality not recognized. Please use 'tdt', 'csv', 'doric', or 'npm'.")
 
-            saveStorenames(inputParameters, event_name, flag, filepath)
+            saveStorenames(inputParameters, events, flags, folder_path)
         logger.info("#" * 400)
     except Exception as e:
         logger.error(str(e))
