@@ -419,7 +419,6 @@ class NpmRecordingExtractor:
                 cols = np.array(list(df.columns), dtype=str)
                 columns_isstr = False
             else:
-                df = df
                 columns_isstr = True
                 cols = np.array(list(df.columns), dtype=str)
             # check the structure of dataframe and assign flag to the type of file
