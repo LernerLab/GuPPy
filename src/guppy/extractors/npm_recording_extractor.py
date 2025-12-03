@@ -63,7 +63,6 @@ class NpmRecordingExtractor:
                 df = pd.read_csv(path[i], header=None)
                 cols = np.array(list(df.columns), dtype=str)
             else:
-                df = df
                 columns_isstr = True
                 cols = np.array(list(df.columns), dtype=str)
             if len(cols) == 2:
