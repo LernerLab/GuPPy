@@ -84,15 +84,6 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
     def __init__(self, folder_path, event_name_to_event_type):
         self.folder_path = folder_path
         self._event_name_to_event_type = event_name_to_event_type
-        self._events, self._flags = self.discover_events_and_flags(folder_path)
-
-    @property
-    def events(self) -> list[str]:
-        return self._events
-
-    @property
-    def flags(self) -> list:
-        return self._flags
 
     @staticmethod
     def _read_doric_file(filepath):
