@@ -24,7 +24,7 @@ def execute_import_doric(folder_path, storesList, outputPath):
 
 
 class DoricRecordingExtractor(BaseRecordingExtractor):
-    # TODO: consolidate duplicate flag logic between the `__init__` and the `check_doric` method.
+    # TODO: consolidate duplicate flag logic between the `discover_events_and_flags` and the `check_doric` method.
 
     @classmethod
     def discover_events_and_flags(cls, folder_path):
