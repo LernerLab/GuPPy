@@ -29,6 +29,11 @@ class BaseRecordingExtractor(ABC):
         flags : list of str
             Format indicators or file type flags.
         """
+        # NOTE: This method signature is intentionally minimal and flexible.
+        # Different formats have different discovery requirements:
+        # - TDT/CSV/Doric: need only folder_path parameter
+        # - NPM: needs folder_path, num_ch, and optional inputParameters for interleaved channels
+        # Each child class defines its own signature with the parameters it needs.
         pass
 
     @abstractmethod
