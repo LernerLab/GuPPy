@@ -1,11 +1,17 @@
 """Base class for recording extractors."""
 
+import logging
+import multiprocessing as mp
 import os
+import time
 from abc import ABC, abstractmethod
+from itertools import repeat
 from typing import Any
 
 import h5py
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 class BaseRecordingExtractor(ABC):
@@ -116,3 +122,18 @@ class BaseRecordingExtractor(ABC):
                         f.create_dataset(key, data=data, maxshape=(None,), chunks=True)
                     else:
                         f.create_dataset(key, data=data)
+
+
+def read_and_save_event(extractor, event, outputPath):
+    output_dicts = extractor.read(events=[event], outputPath=outputPath)
+    extractor.save(output_dicts=output_dicts, outputPath=outputPath)
+    logger.info("Data for event {} fetched and stored.".format(event))
+
+
+def read_and_save_all_events(extractor, events, outputPath, numProcesses=mp.cpu_count()):
+    logger.info("Reading data for event {} ...".format(events))
+
+    start = time.time()
+    with mp.Pool(numProcesses) as p:
+        p.starmap(read_and_save_event, zip(repeat(extractor), events, repeat(outputPath)))
+    logger.info("Time taken = {0:.5f}".format(time.time() - start))

@@ -14,15 +14,6 @@ from guppy.extractors import BaseRecordingExtractor
 logger = logging.getLogger(__name__)
 
 
-def execute_import_doric(folder_path, storesList, outputPath):
-    events = list(storesList[0, :])
-    event_name_to_event_type = {storesList[0, i]: storesList[1, i] for i in range(storesList.shape[1])}
-
-    extractor = DoricRecordingExtractor(folder_path=folder_path, event_name_to_event_type=event_name_to_event_type)
-    output_dicts = extractor.read(events=events, outputPath=outputPath)
-    extractor.save(output_dicts=output_dicts, outputPath=outputPath)
-
-
 class DoricRecordingExtractor(BaseRecordingExtractor):
     # TODO: consolidate duplicate flag logic between the `discover_events_and_flags` and the `check_doric` method.
 

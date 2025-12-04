@@ -1,9 +1,6 @@
 import glob
 import logging
-import multiprocessing as mp
 import os
-import time
-from itertools import repeat
 from typing import Any
 
 import numpy as np
@@ -12,22 +9,6 @@ import pandas as pd
 from guppy.extractors import BaseRecordingExtractor
 
 logger = logging.getLogger(__name__)
-
-
-def execute_import_csv(filepath, events, outputPath, numProcesses=mp.cpu_count()):
-    logger.info("Reading data for event {} ...".format(events))
-
-    extractor = CsvRecordingExtractor(folder_path=filepath)
-    start = time.time()
-    with mp.Pool(numProcesses) as p:
-        p.starmap(read_and_save_csv, zip(repeat(extractor), events, repeat(outputPath)))
-    logger.info("Time taken = {0:.5f}".format(time.time() - start))
-
-
-def read_and_save_csv(extractor, event, outputPath):
-    output_dicts = extractor.read(events=[event], outputPath=outputPath)
-    extractor.save(output_dicts=output_dicts, outputPath=outputPath)
-    logger.info("Data for event {} fetched and stored.".format(event))
 
 
 class CsvRecordingExtractor(BaseRecordingExtractor):

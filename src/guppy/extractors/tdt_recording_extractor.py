@@ -1,9 +1,6 @@
 import glob
 import logging
-import multiprocessing as mp
 import os
-import time
-from itertools import repeat
 from typing import Any
 
 import numpy as np
@@ -13,19 +10,6 @@ from numpy import float32, float64, int32, int64, uint16
 from guppy.extractors import BaseRecordingExtractor
 
 logger = logging.getLogger(__name__)
-
-
-def read_and_save_tdt(extractor, event, outputPath):
-    output_dicts = extractor.read(events=[event], outputPath=outputPath)
-    extractor.save(output_dicts=output_dicts, outputPath=outputPath)
-
-
-def execute_readtev(folder_path, events, outputPath, numProcesses=mp.cpu_count()):
-    extractor = TdtRecordingExtractor(folder_path=folder_path)
-    start = time.time()
-    with mp.Pool(numProcesses) as p:
-        p.starmap(read_and_save_tdt, zip(repeat(extractor), events, repeat(outputPath)))
-    logger.info("Time taken = {0:.5f}".format(time.time() - start))
 
 
 class TdtRecordingExtractor(BaseRecordingExtractor):

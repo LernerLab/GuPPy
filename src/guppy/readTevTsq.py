@@ -8,10 +8,11 @@ import sys
 import numpy as np
 
 from guppy.extractors import (
-    execute_import_csv,
-    execute_import_doric,
-    execute_import_npm,
-    execute_readtev,
+    CsvRecordingExtractor,
+    DoricRecordingExtractor,
+    NpmRecordingExtractor,
+    TdtRecordingExtractor,
+    read_and_save_all_events,
 )
 
 logger = logging.getLogger(__name__)
@@ -74,15 +75,19 @@ def readRawData(inputParameters):
 
             events = np.unique(storesList[0, :])
             if modality == "tdt":
-                execute_readtev(filepath, events, op, numProcesses)
+                extractor = TdtRecordingExtractor(folder_path=filepath)
             elif modality == "doric":
-                execute_import_doric(filepath, storesList, op)
+                event_name_to_event_type = {storesList[0, i]: storesList[1, i] for i in range(storesList.shape[1])}
+                extractor = DoricRecordingExtractor(
+                    folder_path=filepath, event_name_to_event_type=event_name_to_event_type
+                )
             elif modality == "csv":
-                execute_import_csv(filepath, events, op, numProcesses)
+                extractor = CsvRecordingExtractor(folder_path=filepath)
             elif modality == "npm":
-                execute_import_npm(filepath, events, op, numProcesses)
+                extractor = NpmRecordingExtractor(folder_path=filepath)
             else:
                 raise ValueError("Modality not recognized. Please use 'tdt', 'csv', 'doric', or 'npm'.")
+            read_and_save_all_events(extractor, events, op, numProcesses)
 
             writeToFile(str(10 + ((step + 1) * 10)) + "\n")
             step += 1
