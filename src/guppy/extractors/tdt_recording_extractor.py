@@ -178,7 +178,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
 
         return S
 
-    def read(self, *, events: list[str], outputPath: str, **kwargs) -> list[dict[str, Any]]:
+    def read(self, *, events: list[str], outputPath: str) -> list[dict[str, Any]]:
         output_dicts = []
         for event in events:
             S = self._readtev(event=event)
@@ -259,6 +259,6 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         self._write_hdf5(S["npoints"], event, outputPath, "npoints")
         self._write_hdf5(S["channels"], event, outputPath, "channels")
 
-    def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str, **kwargs) -> None:
+    def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str) -> None:
         for S in output_dicts:
             self._save_dict_to_hdf5(S=S, outputPath=outputPath)

@@ -288,7 +288,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
 
         return output_dicts
 
-    def read(self, *, events: list[str], outputPath: str, **kwargs) -> list[dict[str, Any]]:
+    def read(self, *, events: list[str], outputPath: str) -> list[dict[str, Any]]:
         flag = self._check_doric()
         if flag == "doric_csv":
             output_dicts = self._read_doric_csv(events)
@@ -300,7 +300,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
 
         return output_dicts
 
-    def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str, **kwargs) -> None:
+    def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str) -> None:
         for S in output_dicts:
             storename = S["storename"]
             self._write_hdf5(data=S["timestamps"], storename=storename, output_path=outputPath, key="timestamps")

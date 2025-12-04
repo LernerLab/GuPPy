@@ -37,7 +37,7 @@ class BaseRecordingExtractor(ABC):
         pass
 
     @abstractmethod
-    def read(self, *, events: list[str], outputPath: str, **kwargs) -> list[dict[str, Any]]:
+    def read(self, *, events: list[str], outputPath: str) -> list[dict[str, Any]]:
         """
         Read data from source files for specified events.
 
@@ -47,8 +47,6 @@ class BaseRecordingExtractor(ABC):
             List of event/store names to extract from the data.
         outputPath : str
             Path to the output directory.
-        **kwargs
-            Additional extractor-specific parameters.
 
         Returns
         -------
@@ -60,7 +58,7 @@ class BaseRecordingExtractor(ABC):
         pass
 
     @abstractmethod
-    def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str, **kwargs) -> None:
+    def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str) -> None:
         """
         Save extracted data dictionaries to HDF5 format.
 
@@ -70,8 +68,6 @@ class BaseRecordingExtractor(ABC):
             List of data dictionaries from read().
         outputPath : str
             Path to the output directory.
-        **kwargs
-            Additional extractor-specific parameters.
         """
         pass
 

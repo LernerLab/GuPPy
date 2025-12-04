@@ -196,7 +196,7 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
 
         logger.info("\033[1m" + "Reading data for {} from csv file is completed.".format(event) + "\033[0m")
 
-    def read(self, *, events: list[str], outputPath: str, **kwargs) -> list[dict[str, Any]]:
+    def read(self, *, events: list[str], outputPath: str) -> list[dict[str, Any]]:
         output_dicts = []
         for event in events:
             df = self._read_csv(event=event)
@@ -205,7 +205,7 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
             output_dicts.append(S)
         return output_dicts
 
-    def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str, **kwargs) -> None:
+    def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str) -> None:
         for S in output_dicts:
             event = S.pop("storename")
             df = pd.DataFrame.from_dict(S)
