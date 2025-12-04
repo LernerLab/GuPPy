@@ -16,29 +16,18 @@ class BaseRecordingExtractor(ABC):
     data from various acquisition formats (TDT, Doric, CSV, NPM, etc.).
     """
 
-    @property
+    @classmethod
     @abstractmethod
-    def events(self) -> list[str]:
+    def discover_events_and_flags(cls) -> tuple[list[str], list[str]]:
         """
-        List of available event/store names in the data.
+        Discover available events and format flags from data files.
 
         Returns
         -------
-        list of str
-            Names of all events or stores available in the dataset.
-        """
-        pass
-
-    @property
-    @abstractmethod
-    def flags(self) -> list:
-        """
-        Format indicators or file type flags.
-
-        Returns
-        -------
-        list
-            Flags indicating file types or data formats.
+        events : list of str
+            Names of all events/stores available in the dataset.
+        flags : list of str
+            Format indicators or file type flags.
         """
         pass
 

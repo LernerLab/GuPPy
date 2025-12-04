@@ -17,10 +17,10 @@ pn.extension()
 logger = logging.getLogger(__name__)
 
 
-def execute_import_npm(folder_path, num_ch, inputParameters, events, outputPath, numProcesses=mp.cpu_count()):
+def execute_import_npm(folder_path, events, outputPath, numProcesses=mp.cpu_count()):
     logger.info("Reading data for event {} ...".format(events))
 
-    extractor = NpmRecordingExtractor(folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters)
+    extractor = NpmRecordingExtractor(folder_path=folder_path)
     start = time.time()
     with mp.Pool(numProcesses) as p:
         p.starmap(read_and_save_npm, zip(repeat(extractor), events, repeat(outputPath)))
@@ -35,81 +35,29 @@ def read_and_save_npm(extractor, event, outputPath):
 
 class NpmRecordingExtractor(BaseRecordingExtractor):
 
-    def __init__(self, folder_path, num_ch, inputParameters=None):  # TODO: make inputParameters mandatory
-        self.folder_path = folder_path
-        self.num_ch = num_ch
-        self.inputParameters = inputParameters
-        self._events, self._flags = self._import_npm(
-            folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
-        )
-
-    @property
-    def events(self) -> list[str]:
-        return self._events
-
-    @property
-    def flags(self) -> list:
-        return self._flags
-
+    # TODO: make inputParameters mandatory
     @classmethod
-    def has_multiple_event_ttls(cls, folder_path):
-        path = sorted(glob.glob(os.path.join(folder_path, "*.csv")))
-        path_chev = glob.glob(os.path.join(folder_path, "*chev*"))
-        path_chod = glob.glob(os.path.join(folder_path, "*chod*"))
-        path_chpr = glob.glob(os.path.join(folder_path, "*chpr*"))
-        path_event = glob.glob(os.path.join(folder_path, "event*"))
-        path_chev_chod_event = path_chev + path_chod + path_event + path_chpr
+    def discover_events_and_flags(cls, folder_path, num_ch, inputParameters=None) -> tuple[list[str], list[str]]:
+        """
+        Discover available events and format flags from NPM files.
 
-        path = sorted(list(set(path) - set(path_chev_chod_event)))
-        multiple_event_ttls = []
-        for i in range(len(path)):
-            df = pd.read_csv(path[i], index_col=False)
-            _, value = cls.check_header(df)
+        Parameters
+        ----------
+        folder_path : str
+            Path to the folder containing NPM files.
+        num_ch : int
+            Number of channels in the recording.
+        inputParameters : dict, optional
+            Input parameters containing NPM-specific configuration.
 
-            # check dataframe structure and read data accordingly
-            if len(value) > 0:
-                columns_isstr = False
-                df = pd.read_csv(path[i], header=None)
-                cols = np.array(list(df.columns), dtype=str)
-            else:
-                columns_isstr = True
-                cols = np.array(list(df.columns), dtype=str)
-            if len(cols) == 2:
-                flag = "event_or_data_np"
-            elif len(cols) > 2:
-                flag = "data_np"
-            else:
-                logger.error("Number of columns in csv file does not make sense.")
-                raise Exception("Number of columns in csv file does not make sense.")
-
-            # used assigned flags to process the files and read the data
-            if flag == "event_or_data_np":
-                arr = list(df.iloc[:, 1])
-                check_float = [True for i in arr if isinstance(i, float)]
-                if len(arr) == len(check_float) and columns_isstr == False:
-                    flag = "data_np"
-                elif columns_isstr == True and ("value" in np.char.lower(np.array(cols))):
-                    flag = "event_np"
-                else:
-                    flag = "event_np"
-
-            if flag == "event_np":
-                type_val = np.array(df.iloc[:, 1])
-                type_val_unique = np.unique(type_val)
-                if len(type_val_unique) > 1:
-                    multiple_event_ttls.append(True)
-                else:
-                    multiple_event_ttls.append(False)
-            else:
-                multiple_event_ttls.append(False)
-
-        return multiple_event_ttls
-
-    def _import_npm(self, folder_path, num_ch, inputParameters=None):
-
+        Returns
+        -------
+        events : list of str
+            Names of all events/stores available in the dataset.
+        flags : list of str
+            Format indicators or file type flags.
+        """
         logger.debug("If it exists, importing NPM file based on the structure of file")
-        # Headless configuration (used to avoid any UI prompts when running tests)
-        headless = bool(os.environ.get("GUPPY_BASE_DIR"))
         if isinstance(inputParameters, dict):
             npm_timestamp_column_names = inputParameters.get("npm_timestamp_column_names")
             npm_time_units = inputParameters.get("npm_time_units")
@@ -160,7 +108,7 @@ class NpmRecordingExtractor(BaseRecordingExtractor):
                 df_arr
             ), "This file appears to be doric .csv. This function only supports NPM .csv files."
             df = pd.read_csv(path[i], index_col=False)
-            _, value = self.check_header(df)
+            _, value = cls.check_header(df)
 
             # check dataframe structure and read data accordingly
             if len(value) > 0:
@@ -204,7 +152,7 @@ class NpmRecordingExtractor(BaseRecordingExtractor):
             logger.info(flag)
             if flag == "data_np":
                 file = f"file{str(i)}_"
-                df, indices_dict, _ = self.decide_indices(file, df, flag, num_ch)
+                df, indices_dict, _ = cls.decide_indices(file, df, flag, num_ch)
                 keys = list(indices_dict.keys())
                 for k in range(len(keys)):
                     for j in range(df.shape[1]):
@@ -242,8 +190,8 @@ class NpmRecordingExtractor(BaseRecordingExtractor):
             else:
                 file = f"file{str(i)}_"
                 ts_unit = npm_time_unit
-                df = self._update_df_with_timestamp_columns(df, timestamp_column_name=npm_timestamp_column_name)
-                df, indices_dict, _ = self.decide_indices(file, df, flag)
+                df = cls._update_df_with_timestamp_columns(df, timestamp_column_name=npm_timestamp_column_name)
+                df, indices_dict, _ = cls.decide_indices(file, df, flag)
                 keys = list(indices_dict.keys())
                 for k in range(len(keys)):
                     for j in range(df.shape[1]):
@@ -325,6 +273,63 @@ class NpmRecordingExtractor(BaseRecordingExtractor):
                     raise Exception("Number of channels should be same for all regions.")
         logger.info("Importing of NPM file is done.")
         return event_from_filename, flag_arr
+
+    def __init__(self, folder_path):
+        self.folder_path = folder_path
+
+    @classmethod
+    def has_multiple_event_ttls(cls, folder_path):
+        path = sorted(glob.glob(os.path.join(folder_path, "*.csv")))
+        path_chev = glob.glob(os.path.join(folder_path, "*chev*"))
+        path_chod = glob.glob(os.path.join(folder_path, "*chod*"))
+        path_chpr = glob.glob(os.path.join(folder_path, "*chpr*"))
+        path_event = glob.glob(os.path.join(folder_path, "event*"))
+        path_chev_chod_event = path_chev + path_chod + path_event + path_chpr
+
+        path = sorted(list(set(path) - set(path_chev_chod_event)))
+        multiple_event_ttls = []
+        for i in range(len(path)):
+            df = pd.read_csv(path[i], index_col=False)
+            _, value = cls.check_header(df)
+
+            # check dataframe structure and read data accordingly
+            if len(value) > 0:
+                columns_isstr = False
+                df = pd.read_csv(path[i], header=None)
+                cols = np.array(list(df.columns), dtype=str)
+            else:
+                columns_isstr = True
+                cols = np.array(list(df.columns), dtype=str)
+            if len(cols) == 2:
+                flag = "event_or_data_np"
+            elif len(cols) > 2:
+                flag = "data_np"
+            else:
+                logger.error("Number of columns in csv file does not make sense.")
+                raise Exception("Number of columns in csv file does not make sense.")
+
+            # used assigned flags to process the files and read the data
+            if flag == "event_or_data_np":
+                arr = list(df.iloc[:, 1])
+                check_float = [True for i in arr if isinstance(i, float)]
+                if len(arr) == len(check_float) and columns_isstr == False:
+                    flag = "data_np"
+                elif columns_isstr == True and ("value" in np.char.lower(np.array(cols))):
+                    flag = "event_np"
+                else:
+                    flag = "event_np"
+
+            if flag == "event_np":
+                type_val = np.array(df.iloc[:, 1])
+                type_val_unique = np.unique(type_val)
+                if len(type_val_unique) > 1:
+                    multiple_event_ttls.append(True)
+                else:
+                    multiple_event_ttls.append(False)
+            else:
+                multiple_event_ttls.append(False)
+
+        return multiple_event_ttls
 
     @classmethod
     def check_header(cls, df):
@@ -476,7 +481,8 @@ class NpmRecordingExtractor(BaseRecordingExtractor):
 
         return ts_unit_needs, col_names_ts
 
-    def _update_df_with_timestamp_columns(self, df, timestamp_column_name):
+    @staticmethod
+    def _update_df_with_timestamp_columns(df, timestamp_column_name):
         col_names = np.array(list(df.columns))
         col_names_ts = [""]
         for name in col_names:

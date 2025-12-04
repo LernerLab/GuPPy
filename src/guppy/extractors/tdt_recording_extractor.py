@@ -30,35 +30,48 @@ def execute_readtev(folder_path, events, outputPath, numProcesses=mp.cpu_count()
 
 class TdtRecordingExtractor(BaseRecordingExtractor):
 
-    def __init__(self, folder_path):
-        self.folder_path = folder_path
-        self._header_df, _ = self._readtsq(folder_path)
+    @classmethod
+    def discover_events_and_flags(cls, folder_path) -> tuple[list[str], list[str]]:
+        """
+        Discover available events and format flags from TDT files.
+
+        Parameters
+        ----------
+        folder_path : str
+            Path to the folder containing TDT files.
+
+        Returns
+        -------
+        events : list of str
+            Names of all events/stores available in the dataset.
+        flags : list of str
+            Format indicators or file type flags.
+        """
+        header_df, _ = cls._readtsq(folder_path)
 
         # Populate events from header_df
-        if isinstance(self._header_df, pd.DataFrame):
-            self._header_df["name"] = np.asarray(self._header_df["name"], dtype=str)
-            allnames = np.unique(self._header_df["name"])
+        if isinstance(header_df, pd.DataFrame):
+            header_df["name"] = np.asarray(header_df["name"], dtype=str)
+            allnames = np.unique(header_df["name"])
             index = []
             for i in range(len(allnames)):
                 length = len(str(allnames[i]))
                 if length < 4:
                     index.append(i)
             allnames = np.delete(allnames, index, 0)
-            self._events = list(allnames)
+            events = list(allnames)
         else:
-            self._events = []
+            events = []
 
-        self._flags = []
+        flags = []
+        return events, flags
 
-    @property
-    def events(self) -> list[str]:
-        return self._events
+    def __init__(self, folder_path):
+        self.folder_path = folder_path
+        self._header_df, _ = self._readtsq(folder_path)
 
-    @property
-    def flags(self) -> list:
-        return self._flags
-
-    def _readtsq(self, folder_path):
+    @staticmethod
+    def _readtsq(folder_path):
         logger.debug("Trying to read tsq file.")
         names = ("size", "type", "name", "chan", "sort_code", "timestamp", "fp_loc", "strobe", "format", "frequency")
         formats = (int32, int32, "S4", uint16, uint16, float64, int64, float64, int32, float32)

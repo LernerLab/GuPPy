@@ -575,13 +575,9 @@ def execute(inputParameters):
         for i in folderNames:
             folder_path = os.path.join(inputParameters["abspath"], i)
             if modality == "tdt":
-                extractor = TdtRecordingExtractor(folder_path=folder_path)
-                events = extractor.events
-                flags = extractor.flags
+                events, flags = TdtRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
             elif modality == "csv":
-                extractor = CsvRecordingExtractor(folder_path=folder_path)
-                events = extractor.events
-                flags = extractor.flags
+                events, flags = CsvRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
 
             elif modality == "doric":
                 events, flags = DoricRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
@@ -604,11 +600,9 @@ def execute(inputParameters):
                         npm_timestamp_column_names if npm_timestamp_column_names else None
                     )
 
-                extractor = NpmRecordingExtractor(
+                events, flags = NpmRecordingExtractor.discover_events_and_flags(
                     folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
                 )
-                events = extractor.events
-                flags = extractor.flags
             else:
                 raise ValueError("Modality not recognized. Please use 'tdt', 'csv', 'doric', or 'npm'.")
 

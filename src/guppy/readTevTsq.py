@@ -80,7 +80,7 @@ def readRawData(inputParameters):
             elif modality == "csv":
                 execute_import_csv(filepath, events, op, numProcesses)
             elif modality == "npm":
-                execute_import_npm(filepath, num_ch, inputParameters, events, op, numProcesses)
+                execute_import_npm(filepath, events, op, numProcesses)
             else:
                 raise ValueError("Modality not recognized. Please use 'tdt', 'csv', 'doric', or 'npm'.")
 

@@ -32,11 +32,25 @@ def read_and_save_csv(extractor, event, outputPath):
 
 class CsvRecordingExtractor(BaseRecordingExtractor):
 
-    def __init__(self, folder_path):
-        self.folder_path = folder_path
+    @classmethod
+    def discover_events_and_flags(cls, folder_path) -> tuple[list[str], list[str]]:
+        """
+        Discover available events and format flags from CSV files.
 
+        Parameters
+        ----------
+        folder_path : str
+            Path to the folder containing CSV files.
+
+        Returns
+        -------
+        events : list of str
+            Names of all events/stores available in the dataset.
+        flags : list of str
+            Format indicators or file type flags.
+        """
         logger.debug("If it exists, importing either NPM or Doric or csv file based on the structure of file")
-        path = sorted(glob.glob(os.path.join(self.folder_path, "*.csv")))
+        path = sorted(glob.glob(os.path.join(folder_path, "*.csv")))
 
         path = sorted(list(set(path)))
         flag = "None"
@@ -59,7 +73,7 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
             ), "This file appears to be doric .csv. This function only supports standard .csv files."
             df = pd.read_csv(path[i], index_col=False)
 
-            _, value = self._check_header(df)
+            _, value = cls._check_header(df)
 
             # check dataframe structure and read data accordingly
             if len(value) > 0:
@@ -121,19 +135,13 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
             event_from_filename.append(name)
 
         logger.info("Importing of csv file is done.")
+        return event_from_filename, flag_arr
 
-        self._events = event_from_filename
-        self._flags = flag_arr
+    def __init__(self, folder_path):
+        self.folder_path = folder_path
 
-    @property
-    def events(self) -> list[str]:
-        return self._events
-
-    @property
-    def flags(self) -> list:
-        return self._flags
-
-    def _check_header(self, df):
+    @staticmethod
+    def _check_header(df):
         arr = list(df.columns)
         check_float = []
         for i in arr:
