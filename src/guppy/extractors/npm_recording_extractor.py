@@ -4,13 +4,12 @@ import multiprocessing as mp
 import os
 import time
 from itertools import repeat
-from typing import Any
 
 import numpy as np
 import pandas as pd
 import panel as pn
 
-from guppy.extractors import BaseRecordingExtractor
+from guppy.extractors import CsvRecordingExtractor
 
 pn.extension()
 
@@ -33,7 +32,9 @@ def read_and_save_npm(extractor, event, outputPath):
     logger.info("Data for event {} fetched and stored.".format(event))
 
 
-class NpmRecordingExtractor(BaseRecordingExtractor):
+class NpmRecordingExtractor(CsvRecordingExtractor):
+    # Inherits from CsvRecordingExtractor to reuse identical read/save logic.
+    # Only overrides discover_events_and_flags() and adds NPM-specific helper methods.
 
     # TODO: make inputParameters mandatory
     @classmethod
@@ -108,7 +109,7 @@ class NpmRecordingExtractor(BaseRecordingExtractor):
                 df_arr
             ), "This file appears to be doric .csv. This function only supports NPM .csv files."
             df = pd.read_csv(path[i], index_col=False)
-            _, value = cls.check_header(df)
+            _, value = cls._check_header(df)
 
             # check dataframe structure and read data accordingly
             if len(value) > 0:
@@ -274,9 +275,6 @@ class NpmRecordingExtractor(BaseRecordingExtractor):
         logger.info("Importing of NPM file is done.")
         return event_from_filename, flag_arr
 
-    def __init__(self, folder_path):
-        self.folder_path = folder_path
-
     @classmethod
     def has_multiple_event_ttls(cls, folder_path):
         path = sorted(glob.glob(os.path.join(folder_path, "*.csv")))
@@ -290,7 +288,7 @@ class NpmRecordingExtractor(BaseRecordingExtractor):
         multiple_event_ttls = []
         for i in range(len(path)):
             df = pd.read_csv(path[i], index_col=False)
-            _, value = cls.check_header(df)
+            _, value = cls._check_header(df)
 
             # check dataframe structure and read data accordingly
             if len(value) > 0:
@@ -330,18 +328,6 @@ class NpmRecordingExtractor(BaseRecordingExtractor):
                 multiple_event_ttls.append(False)
 
         return multiple_event_ttls
-
-    @classmethod
-    def check_header(cls, df):
-        arr = list(df.columns)
-        check_float = []
-        for i in arr:
-            try:
-                check_float.append(float(i))
-            except:
-                pass
-
-        return arr, check_float
 
     # function to decide indices of interleaved channels
     # in neurophotometrics data
@@ -426,7 +412,7 @@ class NpmRecordingExtractor(BaseRecordingExtractor):
         col_names_ts = [""]
         for i in range(len(path)):
             df = pd.read_csv(path[i], index_col=False)
-            _, value = cls.check_header(df)
+            _, value = cls._check_header(df)
 
             # check dataframe structure and read data accordingly
             if len(value) > 0:
@@ -498,62 +484,3 @@ class NpmRecordingExtractor(BaseRecordingExtractor):
         df.insert(1, "Timestamp", df[timestamp_column_name])
         df = df.drop(col_names_ts[1:], axis=1)
         return df
-
-    def _read_npm(self, event):
-        logger.debug("\033[1m" + "Trying to read data for {} from csv file.".format(event) + "\033[0m")
-        if not os.path.exists(os.path.join(self.folder_path, event + ".csv")):
-            logger.error("\033[1m" + "No csv file found for event {}".format(event) + "\033[0m")
-            raise Exception("\033[1m" + "No csv file found for event {}".format(event) + "\033[0m")
-
-        df = pd.read_csv(os.path.join(self.folder_path, event + ".csv"), index_col=False)
-        return df
-
-    def _save_to_hdf5(self, df, event, outputPath):
-        key = list(df.columns)
-
-        # TODO: clean up these if branches
-        if len(key) == 3:
-            arr1 = np.array(["timestamps", "data", "sampling_rate"])
-            arr2 = np.char.lower(np.array(key))
-            if (np.sort(arr1) == np.sort(arr2)).all() == False:
-                logger.error("\033[1m" + "Column names should be timestamps, data and sampling_rate" + "\033[0m")
-                raise Exception("\033[1m" + "Column names should be timestamps, data and sampling_rate" + "\033[0m")
-
-        if len(key) == 1:
-            if key[0].lower() != "timestamps":
-                logger.error("\033[1m" + "Column names should be timestamps, data and sampling_rate" + "\033[0m")
-                raise Exception("\033[1m" + "Column name should be timestamps" + "\033[0m")
-
-        if len(key) != 3 and len(key) != 1:
-            logger.error(
-                "\033[1m"
-                + "Number of columns in csv file should be either three or one. Three columns if \
-                            the file is for control or signal data or one column if the file is for event TTLs."
-                + "\033[0m"
-            )
-            raise Exception(
-                "\033[1m"
-                + "Number of columns in csv file should be either three or one. Three columns if \
-                            the file is for control or signal data or one column if the file is for event TTLs."
-                + "\033[0m"
-            )
-
-        for i in range(len(key)):
-            self._write_hdf5(data=df[key[i]].dropna(), storename=event, output_path=outputPath, key=key[i].lower())
-
-        logger.info("\033[1m" + "Reading data for {} from csv file is completed.".format(event) + "\033[0m")
-
-    def read(self, *, events: list[str], outputPath: str) -> list[dict[str, Any]]:
-        output_dicts = []
-        for event in events:
-            df = self._read_npm(event=event)
-            S = df.to_dict()
-            S["storename"] = event
-            output_dicts.append(S)
-        return output_dicts
-
-    def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str) -> None:
-        for S in output_dicts:
-            event = S.pop("storename")
-            df = pd.DataFrame.from_dict(S)
-            self._save_to_hdf5(df=df, event=event, outputPath=outputPath)
