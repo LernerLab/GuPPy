@@ -16,9 +16,10 @@ from .analysis.io_utils import (
     check_storeslistfile,
     check_TDT,
     find_files,
+    get_all_stores_for_combining_data,  # noqa: F401 -- Necessary for other modules that depend on preprocess.py
     read_hdf5,
     takeOnlyDirs,
-)  # Necessary for other modules that depend on preprocess.py
+)
 from .analysis.timestamp_correction import (
     add_control_channel,
     create_control_channel,
