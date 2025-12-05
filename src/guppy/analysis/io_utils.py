@@ -161,3 +161,26 @@ def get_all_stores_for_combining_data(folderNames):
             op.append(temp)
 
     return op
+
+
+# Category: Routing
+# Reason: Orchestrates reading and merging storeslist files from multiple sessions - loops through folders and consolidates results
+# for combining data, reading storeslist file from both data and create a new storeslist array
+def check_storeslistfile(folderNames):
+    storesList = np.array([[], []])
+    for i in range(len(folderNames)):
+        filepath = folderNames[i]
+        storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*")))
+        for j in range(len(storesListPath)):
+            filepath = storesListPath[j]
+            storesList = np.concatenate(
+                (
+                    storesList,
+                    np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1),
+                ),
+                axis=1,
+            )
+
+    storesList = np.unique(storesList, axis=1)
+
+    return storesList
