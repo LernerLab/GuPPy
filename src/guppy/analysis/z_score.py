@@ -15,8 +15,6 @@ from .io_utils import (
 logger = logging.getLogger(__name__)
 
 
-# Category: Routing
-# Reason: Orchestrates z-score computation for all channels in a session - loops through control/signal pairs, calls helper_z_score, writes results
 # compute z-score and deltaF/F and save it to hdf5 file
 def compute_z_score(filepath, inputParameters):
 
@@ -65,8 +63,6 @@ def compute_z_score(filepath, inputParameters):
     logger.info(f"z-score for the data in {filepath} computed.")
 
 
-# Category: Routing
-# Reason: Orchestrates z-score computation for one channel - handles artifact removal logic, coordinates calls to execute_controlFit_dff and z_score_computation
 # helper function to compute z-score and deltaF/F
 def helper_z_score(control, signal, filepath, name, inputParameters):  # helper_z_score(control_smooth, signal_smooth):
 
@@ -141,8 +137,6 @@ def helper_z_score(control, signal, filepath, name, inputParameters):  # helper_
     return z_score_arr, norm_data_arr, control_fit_arr
 
 
-# Category: Routing
-# Reason: Orchestrates signal processing pipeline - sequences calls to filterSignal, controlFit, and deltaFF with conditional logic
 # function to filter control and signal channel, also execute above two function : controlFit and deltaFF
 # function will also take care if there is only signal channel and no control channel
 # if there is only signal channel, z-score will be computed using just signal channel
@@ -161,8 +155,6 @@ def execute_controlFit_dff(control, signal, isosbestic_control, filter_window):
     return norm_data, control_fit
 
 
-# Category: Analysis
-# Reason: Pure mathematical computation - calculates deltaF/F from signal and control arrays with simple formula
 # function to compute deltaF/F using fitted control channel and filtered signal channel
 def deltaFF(signal, control):
 
@@ -174,8 +166,6 @@ def deltaFF(signal, control):
     return normData
 
 
-# Category: Analysis
-# Reason: Pure algorithmic function - performs polynomial linear regression to fit control to signal
 # function to fit control channel to signal channel
 def controlFit(control, signal):
 
@@ -184,8 +174,6 @@ def controlFit(control, signal):
     return arr
 
 
-# Category: Analysis
-# Reason: Pure signal processing function - applies moving average filter using scipy filtfilt
 def filterSignal(filter_window, signal):
     if filter_window == 0:
         return signal
@@ -198,8 +186,6 @@ def filterSignal(filter_window, signal):
         raise Exception("Moving average filter window value is not correct.")
 
 
-# Category: Analysis
-# Reason: Pure statistical computation - calculates z-score from deltaF/F using different methods (standard, baseline, robust)
 # function to compute z-score based on z-score computation method
 def z_score_computation(dff, timestamps, inputParameters):
 

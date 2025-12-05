@@ -35,8 +35,6 @@ def helper_create_control_channel(signal, timestamps, window):
     return control
 
 
-# Category: Analysis
-# Reason: Pure mathematical function for exponential curve fitting - no dependencies, pure computation
 # curve fit exponential function
 def curveFitFn(x, a, b, c):
     return a + (b * np.exp(-(1 / c) * x))

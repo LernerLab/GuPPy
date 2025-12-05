@@ -17,8 +17,6 @@ from .io_utils import (
 logger = logging.getLogger(__name__)
 
 
-# Category: Routing
-# Reason: Orchestrates data combination workflow - validates sampling rates, coordinates processTimestampsForCombiningData, manages multi-session I/O
 # function to combine data when there are two different data files for the same recording session
 # it will combine the data, do timestamps processing and save the combined data in the first output folder.
 def combineData(folderNames, inputParameters, storesList):

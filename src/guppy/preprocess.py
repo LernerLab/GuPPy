@@ -35,15 +35,11 @@ if not os.getenv("CI"):
     plt.switch_backend("TKAgg")
 
 
-# Category: Visualization/User Input
-# Reason: Writes progress updates to file for GUI progress bar - couples backend to GUI feedback mechanism
 def writeToFile(value: str):
     with open(os.path.join(os.path.expanduser("~"), "pbSteps.txt"), "a") as file:
         file.write(value)
 
 
-# Category: Visualization/User Input
-# Reason: Creates matplotlib plots to display z-score results - pure visualization with no computation
 # function to plot z_score
 def visualize_z_score(filepath):
 
@@ -66,8 +62,6 @@ def visualize_z_score(filepath):
     # plt.show()
 
 
-# Category: Visualization/User Input
-# Reason: Creates matplotlib plots to display deltaF/F results - pure visualization with no computation
 # function to plot deltaF/F
 def visualize_dff(filepath):
     name = os.path.basename(filepath)
@@ -89,8 +83,6 @@ def visualize_dff(filepath):
     # plt.show()
 
 
-# Category: Visualization/User Input
-# Reason: Interactive matplotlib GUI with keyboard event handlers for artifact selection - core user input mechanism that saves coordinates to disk
 def visualize(filepath, x, y1, y2, y3, plot_name, removeArtifacts):
 
     # plotting control and signal data
@@ -180,8 +172,6 @@ def visualize(filepath, x, y1, y2, y3, plot_name, removeArtifacts):
     # return fig
 
 
-# Category: Visualization/User Input
-# Reason: Orchestrates visualization of all control/signal pairs - reads data and delegates to visualize() for user interaction
 # function to plot control and signal, also provide a feature to select chunks for artifacts removal
 def visualizeControlAndSignal(filepath, removeArtifacts):
     path_1 = find_files(filepath, "control_*", ignore_case=True)  # glob.glob(os.path.join(filepath, 'control*'))
@@ -217,8 +207,6 @@ def visualizeControlAndSignal(filepath, removeArtifacts):
         visualize(filepath, ts, control, signal, cntrl_sig_fit, plot_name, removeArtifacts)
 
 
-# Category: Routing
-# Reason: Top-level orchestrator for timestamp correction across all sessions - loops through folders, coordinates timestamp correction workflow
 # function to execute timestamps corrections using functions timestampCorrection and decide_naming_convention_and_applyCorrection
 def execute_timestamp_correction(folderNames, inputParameters):
 
@@ -258,8 +246,6 @@ def execute_timestamp_correction(folderNames, inputParameters):
         logger.info(f"Timestamps corrections finished for {filepath}")
 
 
-# Category: Routing
-# Reason: Top-level orchestrator for z-score computation and artifact removal - coordinates compute_z_score, artifact processing, and visualization calls
 # function to compute z-score and deltaF/F using functions : compute_z_score and/or processTimestampsForArtifacts
 def execute_zscore(folderNames, inputParameters):
 
@@ -312,8 +298,6 @@ def execute_zscore(folderNames, inputParameters):
     logger.info("Signal data and event timestamps are extracted.")
 
 
-# Category: Routing
-# Reason: Main entry point for Step 4 - orchestrates entire preprocessing workflow including timestamp correction, data combination, and z-score computation
 def extractTsAndSignal(inputParameters):
 
     logger.debug("Extracting signal data and event timestamps...")
@@ -351,8 +335,6 @@ def extractTsAndSignal(inputParameters):
         execute_zscore(op_folder, inputParameters)
 
 
-# Category: Routing
-# Reason: Top-level entry point wrapper - handles error catching and calls extractTsAndSignal
 def main(input_parameters):
     try:
         extractTsAndSignal(input_parameters)

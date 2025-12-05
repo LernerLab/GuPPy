@@ -13,8 +13,6 @@ from .io_utils import (
 logger = logging.getLogger(__name__)
 
 
-# Category: Routing
-# Reason: Orchestrates NaN replacement for all stores - loops through channels and coordinates calls to addingNaNValues and removeTTLs
 def addingNaNtoChunksWithArtifacts(filepath, events):
 
     logger.debug("Replacing chunks with artifacts by NaN values.")
@@ -49,8 +47,6 @@ def addingNaNtoChunksWithArtifacts(filepath, events):
     logger.info("Chunks with artifacts are replaced by NaN values.")
 
 
-# Category: Routing
-# Reason: Orchestrates timestamp concatenation for artifact removal - loops through stores, coordinates eliminateData/eliminateTs calls and writes results
 # main function to align timestamps for control, signal and event timestamps for artifacts removal
 def processTimestampsForArtifacts(filepath, timeForLightsTurnOn, events):
 
@@ -92,8 +88,6 @@ def processTimestampsForArtifacts(filepath, timeForLightsTurnOn, events):
     logger.info("Timestamps processed, artifacts are removed and good chunks are concatenated.")
 
 
-# Category: Analysis
-# Reason: Pure algorithmic function - concatenates data chunks based on coordinate boundaries, adjusts timestamps mathematically
 # helper function to process control and signal timestamps
 def eliminateData(filepath, timeForLightsTurnOn, event, sampling_rate, naming):
 
@@ -127,8 +121,6 @@ def eliminateData(filepath, timeForLightsTurnOn, event, sampling_rate, naming):
     return arr, ts_arr
 
 
-# Category: Analysis
-# Reason: Pure algorithmic function - processes event timestamps based on coordinate boundaries, aligns with data timeline
 # helper function to align event timestamps with the control and signal timestamps
 def eliminateTs(filepath, timeForLightsTurnOn, event, sampling_rate, naming):
 
@@ -157,8 +149,6 @@ def eliminateTs(filepath, timeForLightsTurnOn, event, sampling_rate, naming):
     return ts_arr
 
 
-# Category: Analysis
-# Reason: Pure algorithmic function - replaces specified data chunks with NaN based on coordinate boundaries
 # adding nan values to removed chunks
 # when using artifacts removal method - replace with NaN
 def addingNaNValues(filepath, event, naming):
@@ -183,8 +173,6 @@ def addingNaNValues(filepath, event, naming):
     return data
 
 
-# Category: Analysis
-# Reason: Pure algorithmic function - filters event timestamps to exclude artifact regions based on coordinates
 # remove event TTLs which falls in the removed chunks
 # when using artifacts removal method - replace with NaN
 def removeTTLs(filepath, event, naming):

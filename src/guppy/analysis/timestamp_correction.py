@@ -15,8 +15,6 @@ from .io_utils import (
 logger = logging.getLogger(__name__)
 
 
-# Category: Routing
-# Reason: Orchestrates validation logic, file copying, and storesList updates - coordinates multiple operations and file manipulations
 # function to add control channel when there is no
 # isosbestic control channel and update the storeslist file
 def add_control_channel(filepath, arr):
@@ -63,8 +61,6 @@ def add_control_channel(filepath, arr):
     return arr
 
 
-# Category: Routing
-# Reason: Orchestrates timestamp correction workflow - loops through stores, coordinates reading/writing, calls validation and correction logic
 # function to correct timestamps after eliminating first few seconds of the data (for csv data)
 def timestampCorrection_csv(filepath, timeForLightsTurnOn, storesList):
 
@@ -115,8 +111,6 @@ def timestampCorrection_csv(filepath, timeForLightsTurnOn, storesList):
     logger.info("Timestamps corrected and converted to seconds.")
 
 
-# Category: Routing
-# Reason: Orchestrates timestamp correction workflow for TDT format - loops through stores, coordinates timestamp expansion algorithm with I/O
 # function to correct timestamps after eliminating first few seconds of the data (for TDT data)
 def timestampCorrection_tdt(filepath, timeForLightsTurnOn, storesList):
 
@@ -179,8 +173,6 @@ def timestampCorrection_tdt(filepath, timeForLightsTurnOn, storesList):
     # return timeRecStart, correctionIndex, timestampNew
 
 
-# Category: Routing
-# Reason: Orchestrates naming validation and correction application - loops through channel pairs and delegates to applyCorrection
 # function to check if naming convention was followed while saving storeslist file
 # and apply timestamps correction using the function applyCorrection
 def decide_naming_convention_and_applyCorrection(filepath, timeForLightsTurnOn, event, displayName, storesList):
@@ -209,8 +201,6 @@ def decide_naming_convention_and_applyCorrection(filepath, timeForLightsTurnOn, 
     logger.info("Timestamps corrections applied to the data and event timestamps.")
 
 
-# Category: Routing
-# Reason: Orchestrates applying timestamp corrections - reads correction indices, applies different logic based on data type, writes results
 # function to apply correction to control, signal and event timestamps
 def applyCorrection(filepath, timeForLightsTurnOn, event, displayName, naming):
 
@@ -252,8 +242,6 @@ def applyCorrection(filepath, timeForLightsTurnOn, event, displayName, naming):
     # 	write_hdf5(control, displayName, filepath, 'data')
 
 
-# Category: Routing
-# Reason: Orchestrates reading HDF5 files, calling helper_create_control_channel, and writing results - coordinates I/O with computation
 # main function to create control channel using
 # signal channel and save it to a file
 def create_control_channel(filepath, arr, window=5001):
@@ -280,8 +268,6 @@ def create_control_channel(filepath, arr, window=5001):
             logger.info("Control channel from signal channel created using curve-fitting")
 
 
-# Category: Analysis
-# Reason: Data validation function - compares array lengths and returns indices for processing
 # function to check control and signal channel has same length
 # if not, take a smaller length and do pre-processing
 def check_cntrl_sig_length(filepath, channels_arr, storenames, storesList):

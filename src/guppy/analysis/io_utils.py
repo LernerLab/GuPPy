@@ -10,8 +10,6 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
-# Category: Analysis
-# Reason: Utility function for path filtering - pure data transformation with no GUI or orchestration
 def takeOnlyDirs(paths):
     removePaths = []
     for p in paths:
@@ -20,8 +18,6 @@ def takeOnlyDirs(paths):
     return list(set(paths) - set(removePaths))
 
 
-# Category: Analysis
-# Reason: File system utility for case-insensitive file discovery - pure I/O helper with no orchestration
 # find files by ignoring the case sensitivity
 def find_files(path, glob_path, ignore_case=False):
     rule = (
@@ -42,8 +38,6 @@ def find_files(path, glob_path, ignore_case=False):
     return [os.path.join(path, n) for n in str_path if rule.match(n)]
 
 
-# Category: Analysis
-# Reason: Simple file type detection utility - pure file system check with no orchestration
 # check if dealing with TDT files or csv files
 def check_TDT(filepath):
     path = glob.glob(os.path.join(filepath, "*.tsq"))
@@ -53,8 +47,6 @@ def check_TDT(filepath):
         return False
 
 
-# Category: Analysis
-# Reason: I/O utility function for reading HDF5 files - pure file access with no business logic or orchestration
 # function to read hdf5 file
 def read_hdf5(event, filepath, key):
     if event:
@@ -74,8 +66,6 @@ def read_hdf5(event, filepath, key):
     return arr
 
 
-# Category: Analysis
-# Reason: I/O utility function for writing HDF5 files - pure file access with no business logic or orchestration
 # function to write hdf5 file
 def write_hdf5(data, event, filepath, key):
     event = event.replace("\\", "_")
@@ -108,8 +98,6 @@ def write_hdf5(data, event, filepath, key):
                     f.create_dataset(key, data=data)
 
 
-# Category: Analysis
-# Reason: Validation utility - checks file naming conventions and returns structured path array with no orchestration
 # function to check if the naming convention for saving storeslist file was followed or not
 def decide_naming_convention(filepath):
     path_1 = find_files(filepath, "control_*", ignore_case=True)  # glob.glob(os.path.join(filepath, 'control*'))
@@ -126,8 +114,6 @@ def decide_naming_convention(filepath):
     return path
 
 
-# Category: Analysis
-# Reason: I/O utility that loads artifact coordinates from .npy file or provides default - pure file loading with simple logic
 # function to read coordinates file which was saved by selecting chunks for artifacts removal
 def fetchCoords(filepath, naming, data):
 
@@ -147,8 +133,6 @@ def fetchCoords(filepath, naming, data):
     return coords
 
 
-# Category: Routing
-# Reason: Organizes output folders for data combination - loops through numbered outputs and groups related folders
 def get_all_stores_for_combining_data(folderNames):
     op = []
     for i in range(100):
@@ -163,8 +147,6 @@ def get_all_stores_for_combining_data(folderNames):
     return op
 
 
-# Category: Routing
-# Reason: Orchestrates reading and merging storeslist files from multiple sessions - loops through folders and consolidates results
 # for combining data, reading storeslist file from both data and create a new storeslist array
 def check_storeslistfile(folderNames):
     storesList = np.array([[], []])
