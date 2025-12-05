@@ -1,5 +1,3 @@
-# TODO: remove redundant function implementations such as eliminateData, eliminateTs, read_hdf5, et cetera.
-
 import glob
 import logging
 import os
