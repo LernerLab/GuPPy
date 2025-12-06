@@ -2,6 +2,7 @@ import glob
 import json
 import logging
 import os
+import shutil
 import sys
 
 import matplotlib.pyplot as plt
@@ -21,9 +22,9 @@ from .analysis.io_utils import (
     takeOnlyDirs,
 )
 from .analysis.timestamp_correction import (
-    add_control_channel,
     create_control_channel,
     decide_naming_convention_and_applyCorrection,
+    read_control_and_signal,
     timestampCorrection_csv,
     timestampCorrection_tdt,
 )
@@ -208,6 +209,54 @@ def visualizeControlAndSignal(filepath, removeArtifacts):
         visualize(filepath, ts, control, signal, cntrl_sig_fit, plot_name, removeArtifacts)
 
 
+# This function just creates placeholder Control-HDF5 files that are then immediately overwritten later on in the pipeline.
+# TODO: Refactor this function to avoid unnecessary file creation.
+# function to add control channel when there is no
+# isosbestic control channel and update the storeslist file
+def add_control_channel(filepath, arr):
+
+    storenames = arr[0, :]
+    storesList = np.char.lower(arr[1, :])
+
+    keep_control = np.array([])
+    # check a case if there is isosbestic control channel present
+    for i in range(storesList.shape[0]):
+        if "control" in storesList[i].lower():
+            name = storesList[i].split("_")[-1]
+            new_str = "signal_" + str(name).lower()
+            find_signal = [True for i in storesList if i == new_str]
+            if len(find_signal) > 1:
+                logger.error("Error in naming convention of files or Error in storesList file")
+                raise Exception("Error in naming convention of files or Error in storesList file")
+            if len(find_signal) == 0:
+                logger.error(
+                    "Isosbectic control channel parameter is set to False and still \
+							 	 storeslist file shows there is control channel present"
+                )
+                raise Exception(
+                    "Isosbectic control channel parameter is set to False and still \
+							 	 storeslist file shows there is control channel present"
+                )
+        else:
+            continue
+
+    for i in range(storesList.shape[0]):
+        if "signal" in storesList[i].lower():
+            name = storesList[i].split("_")[-1]
+            new_str = "control_" + str(name).lower()
+            find_signal = [True for i in storesList if i == new_str]
+            if len(find_signal) == 0:
+                src, dst = os.path.join(filepath, arr[0, i] + ".hdf5"), os.path.join(
+                    filepath, "cntrl" + str(i) + ".hdf5"
+                )
+                shutil.copyfile(src, dst)
+                arr = np.concatenate((arr, [["cntrl" + str(i)], ["control_" + str(arr[1, i].split("_")[-1])]]), axis=1)
+
+    np.savetxt(os.path.join(filepath, "storesList.csv"), arr, delimiter=",", fmt="%s")
+
+    return arr
+
+
 # function to execute timestamps corrections using functions timestampCorrection and decide_naming_convention_and_applyCorrection
 def execute_timestamp_correction(folderNames, inputParameters):
 
@@ -231,7 +280,12 @@ def execute_timestamp_correction(folderNames, inputParameters):
             if cond == True:
                 timestampCorrection_tdt(filepath, timeForLightsTurnOn, storesList)
             else:
-                timestampCorrection_csv(filepath, timeForLightsTurnOn, storesList)
+
+                control_and_signal_dicts = read_control_and_signal(filepath, storesList)
+                name_to_data, name_to_timestamps, name_to_sampling_rate = control_and_signal_dicts
+                timestampCorrection_csv(
+                    filepath, timeForLightsTurnOn, storesList, name_to_data, name_to_timestamps, name_to_sampling_rate
+                )
 
             for k in range(storesList.shape[1]):
                 decide_naming_convention_and_applyCorrection(

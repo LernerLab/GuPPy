@@ -1,6 +1,5 @@
 import logging
 import os
-import shutil
 
 import numpy as np
 import pandas as pd
@@ -15,91 +14,37 @@ from .io_utils import (
 logger = logging.getLogger(__name__)
 
 
-# function to add control channel when there is no
-# isosbestic control channel and update the storeslist file
-def add_control_channel(filepath, arr):
-
-    storenames = arr[0, :]
-    storesList = np.char.lower(arr[1, :])
-
-    keep_control = np.array([])
-    # check a case if there is isosbestic control channel present
-    for i in range(storesList.shape[0]):
-        if "control" in storesList[i].lower():
-            name = storesList[i].split("_")[-1]
-            new_str = "signal_" + str(name).lower()
-            find_signal = [True for i in storesList if i == new_str]
-            if len(find_signal) > 1:
-                logger.error("Error in naming convention of files or Error in storesList file")
-                raise Exception("Error in naming convention of files or Error in storesList file")
-            if len(find_signal) == 0:
-                logger.error(
-                    "Isosbectic control channel parameter is set to False and still \
-							 	 storeslist file shows there is control channel present"
-                )
-                raise Exception(
-                    "Isosbectic control channel parameter is set to False and still \
-							 	 storeslist file shows there is control channel present"
-                )
-        else:
-            continue
-
-    for i in range(storesList.shape[0]):
-        if "signal" in storesList[i].lower():
-            name = storesList[i].split("_")[-1]
-            new_str = "control_" + str(name).lower()
-            find_signal = [True for i in storesList if i == new_str]
-            if len(find_signal) == 0:
-                src, dst = os.path.join(filepath, arr[0, i] + ".hdf5"), os.path.join(
-                    filepath, "cntrl" + str(i) + ".hdf5"
-                )
-                shutil.copyfile(src, dst)
-                arr = np.concatenate((arr, [["cntrl" + str(i)], ["control_" + str(arr[1, i].split("_")[-1])]]), axis=1)
-
-    np.savetxt(os.path.join(filepath, "storesList.csv"), arr, delimiter=",", fmt="%s")
-
-    return arr
-
-
 # function to correct timestamps after eliminating first few seconds of the data (for csv data)
-def timestampCorrection_csv(filepath, timeForLightsTurnOn, storesList):
-
+def timestampCorrection_csv(
+    filepath, timeForLightsTurnOn, storesList, name_to_data, name_to_timestamps, name_to_sampling_rate
+):
     logger.debug(
         f"Correcting timestamps by getting rid of the first {timeForLightsTurnOn} seconds and convert timestamps to seconds"
     )
     storenames = storesList[0, :]
-    storesList = storesList[1, :]
+    names_for_storenames = storesList[1, :]
+    arr = get_control_and_signal_channel_names(storesList)
 
-    arr = []
-    for i in range(storesList.shape[0]):
-        if "control" in storesList[i].lower() or "signal" in storesList[i].lower():
-            arr.append(storesList[i])
-
-    arr = sorted(arr, key=str.casefold)
-    try:
-        arr = np.asarray(arr).reshape(2, -1)
-    except:
-        logger.error("Error in saving stores list file or spelling mistake for control or signal")
-        raise Exception("Error in saving stores list file or spelling mistake for control or signal")
-
-    indices = check_cntrl_sig_length(filepath, arr, storenames, storesList)
+    indices = check_cntrl_sig_length(arr, name_to_data)
 
     for i in range(arr.shape[1]):
         name_1 = arr[0, i].split("_")[-1]
         name_2 = arr[1, i].split("_")[-1]
         # dirname = os.path.dirname(path[i])
-        idx = np.where(storesList == indices[i])[0]
+        idx = np.where(names_for_storenames == indices[i])[0]
 
         if idx.shape[0] == 0:
             logger.error(f"{arr[0,i]} does not exist in the stores list file.")
             raise Exception("{} does not exist in the stores list file.".format(arr[0, i]))
 
-        timestamp = read_hdf5(storenames[idx][0], filepath, "timestamps")
-        sampling_rate = read_hdf5(storenames[idx][0], filepath, "sampling_rate")
+        name = names_for_storenames[idx][0]
+        timestamp = name_to_timestamps[name]
+        sampling_rate = name_to_sampling_rate[name]
 
         if name_1 == name_2:
             correctionIndex = np.where(timestamp >= timeForLightsTurnOn)[0]
             timestampNew = timestamp[correctionIndex]
+            # TODO: Pull out write operations into preprocess.py
             write_hdf5(timestampNew, "timeCorrection_" + name_1, filepath, "timestampNew")
             write_hdf5(correctionIndex, "timeCorrection_" + name_1, filepath, "correctionIndex")
             write_hdf5(np.asarray(sampling_rate), "timeCorrection_" + name_1, filepath, "sampling_rate")
@@ -270,19 +215,72 @@ def create_control_channel(filepath, arr, window=5001):
 
 # function to check control and signal channel has same length
 # if not, take a smaller length and do pre-processing
-def check_cntrl_sig_length(filepath, channels_arr, storenames, storesList):
+def check_cntrl_sig_length(channels_arr, name_to_data):
 
     indices = []
     for i in range(channels_arr.shape[1]):
-        idx_c = np.where(storesList == channels_arr[0, i])[0]
-        idx_s = np.where(storesList == channels_arr[1, i])[0]
-        control = read_hdf5(storenames[idx_c[0]], filepath, "data")
-        signal = read_hdf5(storenames[idx_s[0]], filepath, "data")
+        control_name = channels_arr[0, i]
+        signal_name = channels_arr[1, i]
+        control = name_to_data[control_name]
+        signal = name_to_data[signal_name]
         if control.shape[0] < signal.shape[0]:
-            indices.append(storesList[idx_c[0]])
+            indices.append(control_name)
         elif control.shape[0] > signal.shape[0]:
-            indices.append(storesList[idx_s[0]])
+            indices.append(signal_name)
         else:
-            indices.append(storesList[idx_s[0]])
+            indices.append(signal_name)
 
     return indices
+
+
+def get_control_and_signal_channel_names(storesList):
+    storenames = storesList[0, :]
+    names_for_storenames = storesList[1, :]
+
+    channels_arr = []
+    for i in range(names_for_storenames.shape[0]):
+        if "control" in names_for_storenames[i].lower() or "signal" in names_for_storenames[i].lower():
+            channels_arr.append(names_for_storenames[i])
+
+    channels_arr = sorted(channels_arr, key=str.casefold)
+    try:
+        channels_arr = np.asarray(channels_arr).reshape(2, -1)
+    except:
+        logger.error("Error in saving stores list file or spelling mistake for control or signal")
+        raise Exception("Error in saving stores list file or spelling mistake for control or signal")
+
+    return channels_arr
+
+
+def read_control_and_signal(filepath, storesList):
+    channels_arr = get_control_and_signal_channel_names(storesList)
+    storenames = storesList[0, :]
+    names_for_storenames = storesList[1, :]
+
+    name_to_data = {}
+    name_to_timestamps = {}
+    name_to_sampling_rate = {}
+
+    for i in range(channels_arr.shape[1]):
+        control_name = channels_arr[0, i]
+        signal_name = channels_arr[1, i]
+        idx_c = np.where(storesList == control_name)[0]
+        idx_s = np.where(storesList == signal_name)[0]
+        control_storename = storenames[idx_c[0]]
+        signal_storename = storenames[idx_s[0]]
+
+        control_data = read_hdf5(control_storename, filepath, "data")
+        signal_data = read_hdf5(signal_storename, filepath, "data")
+        control_timestamps = read_hdf5(control_storename, filepath, "timestamps")
+        signal_timestamps = read_hdf5(signal_storename, filepath, "timestamps")
+        control_sampling_rate = read_hdf5(control_storename, filepath, "sampling_rate")
+        signal_sampling_rate = read_hdf5(signal_storename, filepath, "sampling_rate")
+
+        name_to_data[control_name] = control_data
+        name_to_data[signal_name] = signal_data
+        name_to_timestamps[control_name] = control_timestamps
+        name_to_timestamps[signal_name] = signal_timestamps
+        name_to_sampling_rate[control_name] = control_sampling_rate
+        name_to_sampling_rate[signal_name] = signal_sampling_rate
+
+    return name_to_data, name_to_timestamps, name_to_sampling_rate
