@@ -30,6 +30,10 @@ def timestampCorrection_csv(
     for i in range(arr.shape[1]):
         name_1 = arr[0, i].split("_")[-1]
         name_2 = arr[1, i].split("_")[-1]
+        if name_1 != name_2:
+            logger.error("Error in naming convention of files or Error in storesList file")
+            raise Exception("Error in naming convention of files or Error in storesList file")
+
         # dirname = os.path.dirname(path[i])
         idx = np.where(names_for_storenames == indices[i])[0]
 
@@ -41,17 +45,12 @@ def timestampCorrection_csv(
         timestamp = name_to_timestamps[name]
         sampling_rate = name_to_sampling_rate[name]
 
-        if name_1 == name_2:
-            correctionIndex = np.where(timestamp >= timeForLightsTurnOn)[0]
-            timestampNew = timestamp[correctionIndex]
-            # TODO: Pull out write operations into preprocess.py
-            write_hdf5(timestampNew, "timeCorrection_" + name_1, filepath, "timestampNew")
-            write_hdf5(correctionIndex, "timeCorrection_" + name_1, filepath, "correctionIndex")
-            write_hdf5(np.asarray(sampling_rate), "timeCorrection_" + name_1, filepath, "sampling_rate")
-
-        else:
-            logger.error("Error in naming convention of files or Error in storesList file")
-            raise Exception("Error in naming convention of files or Error in storesList file")
+        correctionIndex = np.where(timestamp >= timeForLightsTurnOn)[0]
+        timestampNew = timestamp[correctionIndex]
+        # TODO: Pull out write operations into preprocess.py
+        write_hdf5(timestampNew, "timeCorrection_" + name_1, filepath, "timestampNew")
+        write_hdf5(correctionIndex, "timeCorrection_" + name_1, filepath, "correctionIndex")
+        write_hdf5(np.asarray(sampling_rate), "timeCorrection_" + name_1, filepath, "sampling_rate")
 
     logger.info("Timestamps corrected and converted to seconds.")
 
