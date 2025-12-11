@@ -15,12 +15,11 @@ logger = logging.getLogger(__name__)
 
 
 # function to correct timestamps after eliminating first few seconds of the data (for csv data)
-def timestampCorrection_csv(
-    filepath, timeForLightsTurnOn, storesList, name_to_data, name_to_timestamps, name_to_sampling_rate
-):
+def timestampCorrection_csv(timeForLightsTurnOn, storesList, name_to_data, name_to_timestamps):
     logger.debug(
         f"Correcting timestamps by getting rid of the first {timeForLightsTurnOn} seconds and convert timestamps to seconds"
     )
+    name_to_timestamps = name_to_timestamps.copy()
     storenames = storesList[0, :]
     names_for_storenames = storesList[1, :]
     arr = get_control_and_signal_channel_names(storesList)
@@ -43,16 +42,27 @@ def timestampCorrection_csv(
 
         name = names_for_storenames[idx][0]
         timestamp = name_to_timestamps[name]
-        sampling_rate = name_to_sampling_rate[name]
 
         correctionIndex = np.where(timestamp >= timeForLightsTurnOn)[0]
         timestampNew = timestamp[correctionIndex]
-        # TODO: Pull out write operations into preprocess.py
-        write_hdf5(timestampNew, "timeCorrection_" + name_1, filepath, "timestampNew")
-        write_hdf5(correctionIndex, "timeCorrection_" + name_1, filepath, "correctionIndex")
-        write_hdf5(np.asarray(sampling_rate), "timeCorrection_" + name_1, filepath, "sampling_rate")
+        name_to_timestamps[name] = timestampNew
 
     logger.info("Timestamps corrected and converted to seconds.")
+    return name_to_timestamps
+
+
+def write_corrected_timestamps(filepath, corrected_name_to_timestamps, name_to_timestamps, name_to_sampling_rate):
+    for name, timestamps in name_to_timestamps.items():
+        corrected_timestamps = corrected_name_to_timestamps[name]
+        correctionIndex = np.where(timestamps >= corrected_timestamps[0])[0]
+        sampling_rate = name_to_sampling_rate[name]
+        name_1 = name.split("_")[-1]
+        assert np.array_equal(
+            corrected_timestamps, timestamps[correctionIndex]
+        ), "Timestamps do not match after correction"
+        write_hdf5(corrected_timestamps, "timeCorrection_" + name_1, filepath, "timestampNew")
+        write_hdf5(correctionIndex, "timeCorrection_" + name_1, filepath, "correctionIndex")
+        write_hdf5(np.asarray(sampling_rate), "timeCorrection_" + name_1, filepath, "sampling_rate")
 
 
 # function to correct timestamps after eliminating first few seconds of the data (for TDT data)

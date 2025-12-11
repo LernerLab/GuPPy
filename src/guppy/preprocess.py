@@ -27,6 +27,7 @@ from .analysis.timestamp_correction import (
     read_control_and_signal,
     timestampCorrection_csv,
     timestampCorrection_tdt,
+    write_corrected_timestamps,
 )
 from .analysis.z_score import compute_z_score
 
@@ -280,11 +281,13 @@ def execute_timestamp_correction(folderNames, inputParameters):
             if cond == True:
                 timestampCorrection_tdt(filepath, timeForLightsTurnOn, storesList)
             else:
-
                 control_and_signal_dicts = read_control_and_signal(filepath, storesList)
                 name_to_data, name_to_timestamps, name_to_sampling_rate = control_and_signal_dicts
-                timestampCorrection_csv(
-                    filepath, timeForLightsTurnOn, storesList, name_to_data, name_to_timestamps, name_to_sampling_rate
+                corrected_name_to_timestamps = timestampCorrection_csv(
+                    timeForLightsTurnOn, storesList, name_to_data, name_to_timestamps
+                )
+                write_corrected_timestamps(
+                    filepath, corrected_name_to_timestamps, name_to_timestamps, name_to_sampling_rate
                 )
 
             for k in range(storesList.shape[1]):
