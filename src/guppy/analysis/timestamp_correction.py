@@ -20,6 +20,7 @@ def timestampCorrection_csv(timeForLightsTurnOn, storesList, name_to_data, name_
         f"Correcting timestamps by getting rid of the first {timeForLightsTurnOn} seconds and convert timestamps to seconds"
     )
     name_to_timestamps = name_to_timestamps.copy()
+    name_to_correctionIndex = {}
     storenames = storesList[0, :]
     names_for_storenames = storesList[1, :]
     arr = get_control_and_signal_channel_names(storesList)
@@ -46,85 +47,78 @@ def timestampCorrection_csv(timeForLightsTurnOn, storesList, name_to_data, name_
         correctionIndex = np.where(timestamp >= timeForLightsTurnOn)[0]
         timestampNew = timestamp[correctionIndex]
         name_to_timestamps[name] = timestampNew
+        name_to_correctionIndex[name] = correctionIndex
 
     logger.info("Timestamps corrected and converted to seconds.")
-    return name_to_timestamps
+    return name_to_timestamps, name_to_correctionIndex
 
 
-def write_corrected_timestamps(filepath, corrected_name_to_timestamps, name_to_timestamps, name_to_sampling_rate):
-    for name, timestamps in name_to_timestamps.items():
+def write_corrected_timestamps(
+    filepath, corrected_name_to_timestamps, name_to_timestamps, name_to_sampling_rate, name_to_correctionIndex
+):
+    for name, correctionIndex in name_to_correctionIndex.items():
+        timestamps = name_to_timestamps[name]
         corrected_timestamps = corrected_name_to_timestamps[name]
-        correctionIndex = np.where(timestamps >= corrected_timestamps[0])[0]
         sampling_rate = name_to_sampling_rate[name]
+        if sampling_rate.shape == ():  # numpy scalar
+            sampling_rate = np.asarray([sampling_rate])
         name_1 = name.split("_")[-1]
-        assert np.array_equal(
-            corrected_timestamps, timestamps[correctionIndex]
-        ), "Timestamps do not match after correction"
+        write_hdf5(np.asarray([timestamps[0]]), "timeCorrection_" + name_1, filepath, "timeRecStart")
         write_hdf5(corrected_timestamps, "timeCorrection_" + name_1, filepath, "timestampNew")
         write_hdf5(correctionIndex, "timeCorrection_" + name_1, filepath, "correctionIndex")
-        write_hdf5(np.asarray(sampling_rate), "timeCorrection_" + name_1, filepath, "sampling_rate")
+        write_hdf5(sampling_rate, "timeCorrection_" + name_1, filepath, "sampling_rate")
 
 
 # function to correct timestamps after eliminating first few seconds of the data (for TDT data)
-def timestampCorrection_tdt(filepath, timeForLightsTurnOn, storesList):
-
+def timestampCorrection_tdt(
+    filepath, timeForLightsTurnOn, storesList, name_to_timestamps, name_to_data, name_to_sampling_rate, name_to_npoints
+):
     logger.debug(
         f"Correcting timestamps by getting rid of the first {timeForLightsTurnOn} seconds and convert timestamps to seconds"
     )
+    name_to_timestamps = name_to_timestamps.copy()
+    name_to_correctionIndex = {}
     storenames = storesList[0, :]
-    storesList = storesList[1, :]
+    names_for_storenames = storesList[1, :]
+    arr = get_control_and_signal_channel_names(storesList)
 
-    arr = []
-    for i in range(storesList.shape[0]):
-        if "control" in storesList[i].lower() or "signal" in storesList[i].lower():
-            arr.append(storesList[i])
-
-    arr = sorted(arr, key=str.casefold)
-
-    try:
-        arr = np.asarray(arr).reshape(2, -1)
-    except:
-        logger.error("Error in saving stores list file or spelling mistake for control or signal")
-        raise Exception("Error in saving stores list file or spelling mistake for control or signal")
-
-    indices = check_cntrl_sig_length(filepath, arr, storenames, storesList)
+    indices = check_cntrl_sig_length(arr, name_to_data)
 
     for i in range(arr.shape[1]):
         name_1 = arr[0, i].split("_")[-1]
         name_2 = arr[1, i].split("_")[-1]
+        if name_1 != name_2:
+            logger.error("Error in naming convention of files or Error in storesList file")
+            raise Exception("Error in naming convention of files or Error in storesList file")
+
         # dirname = os.path.dirname(path[i])
-        idx = np.where(storesList == indices[i])[0]
+        idx = np.where(names_for_storenames == indices[i])[0]
 
         if idx.shape[0] == 0:
             logger.error(f"{arr[0,i]} does not exist in the stores list file.")
             raise Exception("{} does not exist in the stores list file.".format(arr[0, i]))
 
-        timestamp = read_hdf5(storenames[idx][0], filepath, "timestamps")
-        npoints = read_hdf5(storenames[idx][0], filepath, "npoints")
-        sampling_rate = read_hdf5(storenames[idx][0], filepath, "sampling_rate")
+        name = names_for_storenames[idx][0]
+        timestamp = name_to_timestamps[name]
+        sampling_rate = name_to_sampling_rate[name]
+        npoints = name_to_npoints[name]
 
-        if name_1 == name_2:
-            timeRecStart = timestamp[0]
-            timestamps = np.subtract(timestamp, timeRecStart)
-            adder = np.arange(npoints) / sampling_rate
-            lengthAdder = adder.shape[0]
-            timestampNew = np.zeros((len(timestamps), lengthAdder))
-            for i in range(lengthAdder):
-                timestampNew[:, i] = np.add(timestamps, adder[i])
-            timestampNew = (timestampNew.T).reshape(-1, order="F")
-            correctionIndex = np.where(timestampNew >= timeForLightsTurnOn)[0]
-            timestampNew = timestampNew[correctionIndex]
+        timeRecStart = timestamp[0]
+        timestamps = np.subtract(timestamp, timeRecStart)
+        adder = np.arange(npoints) / sampling_rate
+        lengthAdder = adder.shape[0]
+        timestampNew = np.zeros((len(timestamps), lengthAdder))
+        for i in range(lengthAdder):
+            timestampNew[:, i] = np.add(timestamps, adder[i])
+        timestampNew = (timestampNew.T).reshape(-1, order="F")
+        correctionIndex = np.where(timestampNew >= timeForLightsTurnOn)[0]
+        timestampNew = timestampNew[correctionIndex]
 
-            write_hdf5(np.asarray([timeRecStart]), "timeCorrection_" + name_1, filepath, "timeRecStart")
-            write_hdf5(timestampNew, "timeCorrection_" + name_1, filepath, "timestampNew")
-            write_hdf5(correctionIndex, "timeCorrection_" + name_1, filepath, "correctionIndex")
-            write_hdf5(np.asarray([sampling_rate]), "timeCorrection_" + name_1, filepath, "sampling_rate")
-        else:
-            logger.error("Error in naming convention of files or Error in storesList file")
-            raise Exception("Error in naming convention of files or Error in storesList file")
+        name_to_timestamps[name] = timestampNew
+        name_to_correctionIndex[name] = correctionIndex
 
     logger.info("Timestamps corrected and converted to seconds.")
-    # return timeRecStart, correctionIndex, timestampNew
+    return name_to_timestamps, name_to_correctionIndex
 
 
 # function to check if naming convention was followed while saving storeslist file
@@ -269,6 +263,7 @@ def read_control_and_signal(filepath, storesList):
     name_to_data = {}
     name_to_timestamps = {}
     name_to_sampling_rate = {}
+    name_to_npoints = {}
 
     for i in range(channels_arr.shape[1]):
         control_name = channels_arr[0, i]
@@ -284,6 +279,12 @@ def read_control_and_signal(filepath, storesList):
         signal_timestamps = read_hdf5(signal_storename, filepath, "timestamps")
         control_sampling_rate = read_hdf5(control_storename, filepath, "sampling_rate")
         signal_sampling_rate = read_hdf5(signal_storename, filepath, "sampling_rate")
+        try:  # TODO: define npoints for csv datasets
+            control_npoints = read_hdf5(control_storename, filepath, "npoints")
+            signal_npoints = read_hdf5(signal_storename, filepath, "npoints")
+        except KeyError:  # npoints is not defined for csv datasets
+            control_npoints = None
+            signal_npoints = None
 
         name_to_data[control_name] = control_data
         name_to_data[signal_name] = signal_data
@@ -291,5 +292,7 @@ def read_control_and_signal(filepath, storesList):
         name_to_timestamps[signal_name] = signal_timestamps
         name_to_sampling_rate[control_name] = control_sampling_rate
         name_to_sampling_rate[signal_name] = signal_sampling_rate
+        name_to_npoints[control_name] = control_npoints
+        name_to_npoints[signal_name] = signal_npoints
 
-    return name_to_data, name_to_timestamps, name_to_sampling_rate
+    return name_to_data, name_to_timestamps, name_to_sampling_rate, name_to_npoints

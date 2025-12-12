@@ -279,15 +279,36 @@ def execute_timestamp_correction(folderNames, inputParameters):
                 storesList = add_control_channel(filepath, storesList)
 
             if cond == True:
-                timestampCorrection_tdt(filepath, timeForLightsTurnOn, storesList)
+                control_and_signal_dicts = read_control_and_signal(filepath, storesList)
+                name_to_data, name_to_timestamps, name_to_sampling_rate, name_to_npoints = control_and_signal_dicts
+                corrected_name_to_timestamps, name_to_correctionIndex = timestampCorrection_tdt(
+                    filepath,
+                    timeForLightsTurnOn,
+                    storesList,
+                    name_to_timestamps,
+                    name_to_data,
+                    name_to_sampling_rate,
+                    name_to_npoints,
+                )
+                write_corrected_timestamps(
+                    filepath,
+                    corrected_name_to_timestamps,
+                    name_to_timestamps,
+                    name_to_sampling_rate,
+                    name_to_correctionIndex,
+                )
             else:
                 control_and_signal_dicts = read_control_and_signal(filepath, storesList)
-                name_to_data, name_to_timestamps, name_to_sampling_rate = control_and_signal_dicts
-                corrected_name_to_timestamps = timestampCorrection_csv(
+                name_to_data, name_to_timestamps, name_to_sampling_rate, _ = control_and_signal_dicts
+                corrected_name_to_timestamps, name_to_correctionIndex = timestampCorrection_csv(
                     timeForLightsTurnOn, storesList, name_to_data, name_to_timestamps
                 )
                 write_corrected_timestamps(
-                    filepath, corrected_name_to_timestamps, name_to_timestamps, name_to_sampling_rate
+                    filepath,
+                    corrected_name_to_timestamps,
+                    name_to_timestamps,
+                    name_to_sampling_rate,
+                    name_to_correctionIndex,
                 )
 
             for k in range(storesList.shape[1]):
