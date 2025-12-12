@@ -94,25 +94,16 @@ def timestampCorrection(
 def decide_naming_convention_and_applyCorrection(filepath, timeForLightsTurnOn, event, displayName, storesList):
 
     logger.debug("Applying correction of timestamps to the data and event timestamps")
-    storesList = storesList[1, :]
-
-    arr = []
-    for i in range(storesList.shape[0]):
-        if "control" in storesList[i].lower() or "signal" in storesList[i].lower():
-            arr.append(storesList[i])
-
-    arr = sorted(arr, key=str.casefold)
-    arr = np.asarray(arr).reshape(2, -1)
+    arr = get_control_and_signal_channel_names(storesList)
 
     for i in range(arr.shape[1]):
         name_1 = arr[0, i].split("_")[-1]
         name_2 = arr[1, i].split("_")[-1]
-        # dirname = os.path.dirname(path[i])
-        if name_1 == name_2:
-            applyCorrection(filepath, timeForLightsTurnOn, event, displayName, name_1)
-        else:
+        if name_1 != name_2:
             logger.error("Error in naming convention of files or Error in storesList file")
             raise Exception("Error in naming convention of files or Error in storesList file")
+        else:
+            applyCorrection(filepath, timeForLightsTurnOn, event, displayName, name_1)
 
     logger.info("Timestamps corrections applied to the data and event timestamps.")
 
@@ -152,10 +143,6 @@ def applyCorrection(filepath, timeForLightsTurnOn, event, displayName, naming):
         else:
             arr = np.subtract(arr, timeForLightsTurnOn)
         write_hdf5(arr, displayName + "_" + naming, filepath, "ts")
-
-    # if isosbestic_control==False and 'control' in displayName.lower():
-    # 	control = create_control_channel(filepath, displayName)
-    # 	write_hdf5(control, displayName, filepath, 'data')
 
 
 # main function to create control channel using
