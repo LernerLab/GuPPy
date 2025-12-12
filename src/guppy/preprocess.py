@@ -25,8 +25,7 @@ from .analysis.timestamp_correction import (
     create_control_channel,
     decide_naming_convention_and_applyCorrection,
     read_control_and_signal,
-    timestampCorrection_csv,
-    timestampCorrection_tdt,
+    timestampCorrection,
     write_corrected_timestamps,
 )
 from .analysis.z_score import compute_z_score
@@ -267,7 +266,7 @@ def execute_timestamp_correction(folderNames, inputParameters):
     for i in range(len(folderNames)):
         filepath = folderNames[i]
         storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*")))
-        cond = check_TDT(folderNames[i])
+        mode = "tdt" if check_TDT(folderNames[i]) else "csv"
         logger.debug(f"Timestamps corrections started for {filepath}")
         for j in range(len(storesListPath)):
             filepath = storesListPath[j]
@@ -278,37 +277,24 @@ def execute_timestamp_correction(folderNames, inputParameters):
             if isosbestic_control == False:
                 storesList = add_control_channel(filepath, storesList)
 
-            if cond == True:
-                control_and_signal_dicts = read_control_and_signal(filepath, storesList)
-                name_to_data, name_to_timestamps, name_to_sampling_rate, name_to_npoints = control_and_signal_dicts
-                corrected_name_to_timestamps, name_to_correctionIndex = timestampCorrection_tdt(
-                    timeForLightsTurnOn,
-                    storesList,
-                    name_to_timestamps,
-                    name_to_data,
-                    name_to_sampling_rate,
-                    name_to_npoints,
-                )
-                write_corrected_timestamps(
-                    filepath,
-                    corrected_name_to_timestamps,
-                    name_to_timestamps,
-                    name_to_sampling_rate,
-                    name_to_correctionIndex,
-                )
-            else:
-                control_and_signal_dicts = read_control_and_signal(filepath, storesList)
-                name_to_data, name_to_timestamps, name_to_sampling_rate, _ = control_and_signal_dicts
-                corrected_name_to_timestamps, name_to_correctionIndex = timestampCorrection_csv(
-                    timeForLightsTurnOn, storesList, name_to_data, name_to_timestamps
-                )
-                write_corrected_timestamps(
-                    filepath,
-                    corrected_name_to_timestamps,
-                    name_to_timestamps,
-                    name_to_sampling_rate,
-                    name_to_correctionIndex,
-                )
+            control_and_signal_dicts = read_control_and_signal(filepath, storesList)
+            name_to_data, name_to_timestamps, name_to_sampling_rate, name_to_npoints = control_and_signal_dicts
+            corrected_name_to_timestamps, name_to_correctionIndex = timestampCorrection(
+                timeForLightsTurnOn,
+                storesList,
+                name_to_timestamps,
+                name_to_data,
+                name_to_sampling_rate,
+                name_to_npoints,
+                mode=mode,
+            )
+            write_corrected_timestamps(
+                filepath,
+                corrected_name_to_timestamps,
+                name_to_timestamps,
+                name_to_sampling_rate,
+                name_to_correctionIndex,
+            )
 
             for k in range(storesList.shape[1]):
                 decide_naming_convention_and_applyCorrection(

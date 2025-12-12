@@ -14,45 +14,6 @@ from .io_utils import (
 logger = logging.getLogger(__name__)
 
 
-# function to correct timestamps after eliminating first few seconds of the data (for csv data)
-def timestampCorrection_csv(timeForLightsTurnOn, storesList, name_to_data, name_to_timestamps):
-    logger.debug(
-        f"Correcting timestamps by getting rid of the first {timeForLightsTurnOn} seconds and convert timestamps to seconds"
-    )
-    name_to_timestamps = name_to_timestamps.copy()
-    name_to_correctionIndex = {}
-    storenames = storesList[0, :]
-    names_for_storenames = storesList[1, :]
-    arr = get_control_and_signal_channel_names(storesList)
-
-    indices = check_cntrl_sig_length(arr, name_to_data)
-
-    for i in range(arr.shape[1]):
-        name_1 = arr[0, i].split("_")[-1]
-        name_2 = arr[1, i].split("_")[-1]
-        if name_1 != name_2:
-            logger.error("Error in naming convention of files or Error in storesList file")
-            raise Exception("Error in naming convention of files or Error in storesList file")
-
-        # dirname = os.path.dirname(path[i])
-        idx = np.where(names_for_storenames == indices[i])[0]
-
-        if idx.shape[0] == 0:
-            logger.error(f"{arr[0,i]} does not exist in the stores list file.")
-            raise Exception("{} does not exist in the stores list file.".format(arr[0, i]))
-
-        name = names_for_storenames[idx][0]
-        timestamp = name_to_timestamps[name]
-
-        correctionIndex = np.where(timestamp >= timeForLightsTurnOn)[0]
-        timestampNew = timestamp[correctionIndex]
-        name_to_timestamps[name] = timestampNew
-        name_to_correctionIndex[name] = correctionIndex
-
-    logger.info("Timestamps corrected and converted to seconds.")
-    return name_to_timestamps, name_to_correctionIndex
-
-
 def write_corrected_timestamps(
     filepath, corrected_name_to_timestamps, name_to_timestamps, name_to_sampling_rate, name_to_correctionIndex
 ):
@@ -69,13 +30,16 @@ def write_corrected_timestamps(
         write_hdf5(sampling_rate, "timeCorrection_" + name_1, filepath, "sampling_rate")
 
 
-# function to correct timestamps after eliminating first few seconds of the data (for TDT data)
-def timestampCorrection_tdt(
-    timeForLightsTurnOn, storesList, name_to_timestamps, name_to_data, name_to_sampling_rate, name_to_npoints
+# function to correct timestamps after eliminating first few seconds of the data (for csv or TDT data depending on mode)
+def timestampCorrection(
+    timeForLightsTurnOn, storesList, name_to_timestamps, name_to_data, name_to_sampling_rate, name_to_npoints, mode
 ):
     logger.debug(
         f"Correcting timestamps by getting rid of the first {timeForLightsTurnOn} seconds and convert timestamps to seconds"
     )
+    if mode not in ["tdt", "csv"]:
+        logger.error("Mode should be either 'tdt' or 'csv'")
+        raise ValueError("Mode should be either 'tdt' or 'csv'")
     name_to_timestamps = name_to_timestamps.copy()
     name_to_correctionIndex = {}
     storenames = storesList[0, :]
@@ -103,16 +67,20 @@ def timestampCorrection_tdt(
         sampling_rate = name_to_sampling_rate[name]
         npoints = name_to_npoints[name]
 
-        timeRecStart = timestamp[0]
-        timestamps = np.subtract(timestamp, timeRecStart)
-        adder = np.arange(npoints) / sampling_rate
-        lengthAdder = adder.shape[0]
-        timestampNew = np.zeros((len(timestamps), lengthAdder))
-        for i in range(lengthAdder):
-            timestampNew[:, i] = np.add(timestamps, adder[i])
-        timestampNew = (timestampNew.T).reshape(-1, order="F")
-        correctionIndex = np.where(timestampNew >= timeForLightsTurnOn)[0]
-        timestampNew = timestampNew[correctionIndex]
+        if mode == "tdt":
+            timeRecStart = timestamp[0]
+            timestamps = np.subtract(timestamp, timeRecStart)
+            adder = np.arange(npoints) / sampling_rate
+            lengthAdder = adder.shape[0]
+            timestampNew = np.zeros((len(timestamps), lengthAdder))
+            for i in range(lengthAdder):
+                timestampNew[:, i] = np.add(timestamps, adder[i])
+            timestampNew = (timestampNew.T).reshape(-1, order="F")
+            correctionIndex = np.where(timestampNew >= timeForLightsTurnOn)[0]
+            timestampNew = timestampNew[correctionIndex]
+        elif mode == "csv":
+            correctionIndex = np.where(timestamp >= timeForLightsTurnOn)[0]
+            timestampNew = timestamp[correctionIndex]
 
         name_to_timestamps[name] = timestampNew
         name_to_correctionIndex[name] = correctionIndex
