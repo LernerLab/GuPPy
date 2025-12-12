@@ -91,7 +91,19 @@ def timestampCorrection(
 
 # function to check if naming convention was followed while saving storeslist file
 # and apply timestamps correction using the function applyCorrection
-def decide_naming_convention_and_applyCorrection(filepath, timeForLightsTurnOn, event, displayName, storesList):
+def decide_naming_convention_and_applyCorrection(
+    filepath,
+    timeForLightsTurnOn,
+    event,
+    displayName,
+    storesList,
+    name_1_to_corrected_timestamps,
+    name_1_to_timestamps,
+    name_1_to_sampling_rate,
+    name_1_to_correctionIndex,
+    data,
+    ttl_timestamps,
+):
 
     logger.debug("Applying correction of timestamps to the data and event timestamps")
     arr = get_control_and_signal_channel_names(storesList)
@@ -103,36 +115,61 @@ def decide_naming_convention_and_applyCorrection(filepath, timeForLightsTurnOn, 
             logger.error("Error in naming convention of files or Error in storesList file")
             raise Exception("Error in naming convention of files or Error in storesList file")
         else:
-            applyCorrection(filepath, timeForLightsTurnOn, event, displayName, name_1)
+            corrected_timestamps = name_1_to_corrected_timestamps[name_1]
+            timestamps = name_1_to_timestamps[name_1]
+            timeRecStart = timestamps[0]
+            sampling_rate = name_1_to_sampling_rate[name_1]
+            correctionIndex = name_1_to_correctionIndex[name_1]
+            applyCorrection(
+                filepath,
+                timeForLightsTurnOn,
+                event,
+                displayName,
+                name_1,
+                corrected_timestamps,
+                sampling_rate,
+                correctionIndex,
+                timeRecStart,
+                data,
+                ttl_timestamps,
+            )
 
     logger.info("Timestamps corrections applied to the data and event timestamps.")
 
 
 # function to apply correction to control, signal and event timestamps
-def applyCorrection(filepath, timeForLightsTurnOn, event, displayName, naming):
+def applyCorrection(
+    filepath,
+    timeForLightsTurnOn,
+    event,
+    displayName,
+    naming,
+    corrected_timestamps,
+    sampling_rate,
+    correctionIndex,
+    timeRecStart,
+    data,
+    ttl_timestamps,
+):
 
     cond = check_TDT(os.path.dirname(filepath))
 
-    if cond == True:
-        timeRecStart = read_hdf5("timeCorrection_" + naming, filepath, "timeRecStart")[0]
-
-    timestampNew = read_hdf5("timeCorrection_" + naming, filepath, "timestampNew")
-    correctionIndex = read_hdf5("timeCorrection_" + naming, filepath, "correctionIndex")
-
+    timestampNew = corrected_timestamps
     if "control" in displayName.lower() or "signal" in displayName.lower():
-        split_name = displayName.split("_")[-1]
-        if split_name == naming:
-            pass
-        else:
-            correctionIndex = read_hdf5("timeCorrection_" + split_name, filepath, "correctionIndex")
-        arr = read_hdf5(event, filepath, "data")
+        # TODO: double-check that this code is not reachable
+        # split_name = displayName.split("_")[-1]
+        # if split_name == naming:
+        #     pass
+        # else:
+        #     correctionIndex = read_hdf5("timeCorrection_" + split_name, filepath, "correctionIndex")
+        arr = data
         if (arr == 0).all() == True:
             arr = arr
         else:
             arr = arr[correctionIndex]
         write_hdf5(arr, displayName, filepath, "data")
     else:
-        arr = read_hdf5(event, filepath, "timestamps")
+        arr = ttl_timestamps
         if cond == True:
             res = (arr >= timeRecStart).all()
             if res == True:
@@ -251,3 +288,18 @@ def read_control_and_signal(filepath, storesList):
         name_to_npoints[signal_name] = signal_npoints
 
     return name_to_data, name_to_timestamps, name_to_sampling_rate, name_to_npoints
+
+
+def read_ttl(filepath, storesList):
+    channels_arr = get_control_and_signal_channel_names(storesList)
+    storenames = storesList[0, :]
+    names_for_storenames = storesList[1, :]
+
+    name_to_timestamps = {}
+    for storename, name in zip(storenames, names_for_storenames):
+        if storename in channels_arr:
+            continue
+        timestamps = read_hdf5(storename, filepath, "timestamps")
+        name_to_timestamps[name] = timestamps
+
+    return name_to_timestamps
