@@ -71,7 +71,7 @@ def write_corrected_timestamps(
 
 # function to correct timestamps after eliminating first few seconds of the data (for TDT data)
 def timestampCorrection_tdt(
-    filepath, timeForLightsTurnOn, storesList, name_to_timestamps, name_to_data, name_to_sampling_rate, name_to_npoints
+    timeForLightsTurnOn, storesList, name_to_timestamps, name_to_data, name_to_sampling_rate, name_to_npoints
 ):
     logger.debug(
         f"Correcting timestamps by getting rid of the first {timeForLightsTurnOn} seconds and convert timestamps to seconds"
