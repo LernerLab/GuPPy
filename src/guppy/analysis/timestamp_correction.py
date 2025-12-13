@@ -30,9 +30,13 @@ def write_corrected_timestamps(
         write_hdf5(sampling_rate, "timeCorrection_" + name_1, filepath, "sampling_rate")
 
 
+def write_corrected_data(filepath, name_to_corrected_data):
+    for name, data in name_to_corrected_data.items():
+        write_hdf5(data, name, filepath, "data")
+
+
 # function to correct timestamps after eliminating first few seconds of the data (for csv or TDT data depending on mode)
 def timestampCorrection(
-    filepath,
     timeForLightsTurnOn,
     storesList,
     name_to_timestamps,
@@ -47,19 +51,20 @@ def timestampCorrection(
     if mode not in ["tdt", "csv"]:
         logger.error("Mode should be either 'tdt' or 'csv'")
         raise ValueError("Mode should be either 'tdt' or 'csv'")
-    name_to_timestamps = name_to_timestamps.copy()
+    name_to_corrected_timestamps = {}
     name_to_correctionIndex = {}
+    name_to_corrected_data = {}
     storenames = storesList[0, :]
     names_for_storenames = storesList[1, :]
-    arr = get_control_and_signal_channel_names(storesList)
+    data = get_control_and_signal_channel_names(storesList)
 
-    indices = check_cntrl_sig_length(arr, name_to_data)
+    indices = check_cntrl_sig_length(data, name_to_data)
 
-    for i in range(arr.shape[1]):
-        control_name = arr[0, i]
-        signal_name = arr[1, i]
-        name_1 = arr[0, i].split("_")[-1]
-        name_2 = arr[1, i].split("_")[-1]
+    for i in range(data.shape[1]):
+        control_name = data[0, i]
+        signal_name = data[1, i]
+        name_1 = data[0, i].split("_")[-1]
+        name_2 = data[1, i].split("_")[-1]
         if name_1 != name_2:
             logger.error("Error in naming convention of files or Error in storesList file")
             raise Exception("Error in naming convention of files or Error in storesList file")
@@ -68,8 +73,8 @@ def timestampCorrection(
         idx = np.where(names_for_storenames == indices[i])[0]
 
         if idx.shape[0] == 0:
-            logger.error(f"{arr[0,i]} does not exist in the stores list file.")
-            raise Exception("{} does not exist in the stores list file.".format(arr[0, i]))
+            logger.error(f"{data[0,i]} does not exist in the stores list file.")
+            raise Exception("{} does not exist in the stores list file.".format(data[0, i]))
 
         name = names_for_storenames[idx][0]
         timestamp = name_to_timestamps[name]
@@ -91,25 +96,17 @@ def timestampCorrection(
             correctionIndex = np.where(timestamp >= timeForLightsTurnOn)[0]
             timestampNew = timestamp[correctionIndex]
 
-        name_to_timestamps[name] = timestampNew
-        name_to_correctionIndex[name] = correctionIndex
-
-        arr = name_to_data[control_name]
-        if (arr == 0).all() == True:
-            arr = arr
-        else:
-            arr = arr[correctionIndex]
-        write_hdf5(arr, control_name, filepath, "data")
-
-        arr = name_to_data[signal_name]
-        if (arr == 0).all() == True:
-            arr = arr
-        else:
-            arr = arr[correctionIndex]
-        write_hdf5(arr, signal_name, filepath, "data")
+        for displayName in [control_name, signal_name]:
+            name_to_corrected_timestamps[displayName] = timestampNew
+            name_to_correctionIndex[displayName] = correctionIndex
+            data = name_to_data[displayName]
+            if (data == 0).all() == True:
+                name_to_corrected_data[displayName] = data
+            else:
+                name_to_corrected_data[displayName] = data[correctionIndex]
 
     logger.info("Timestamps corrected and converted to seconds.")
-    return name_to_timestamps, name_to_correctionIndex
+    return name_to_corrected_timestamps, name_to_correctionIndex, name_to_corrected_data
 
 
 # function to check if naming convention was followed while saving storeslist file
