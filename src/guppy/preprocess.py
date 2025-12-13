@@ -314,31 +314,6 @@ def execute_timestamp_correction(folderNames, inputParameters):
                 name_to_data,
             )
 
-            # name_1_to_corrected_timestamps = {
-            #     name.split("_")[-1]: ts for name, ts in name_to_corrected_timestamps.items()
-            # }
-            # name_1_to_timestamps = {name.split("_")[-1]: ts for name, ts in name_to_timestamps.items()}
-            # name_1_to_sampling_rate = {name.split("_")[-1]: sr for name, sr in name_to_sampling_rate.items()}
-            # name_1_to_correctionIndex = {name.split("_")[-1]: idx for name, idx in name_to_correctionIndex.items()}
-            # for k in range(storesList.shape[1]): # TODO: Refactor nested loops for clarity
-            #     data = name_to_data[storesList[1, k]] if storesList[1, k] in name_to_data else None
-            #     ttl_timestamps = (
-            #         name_to_timestamps_ttl[storesList[1, k]] if storesList[1, k] in name_to_timestamps_ttl else None
-            #     )
-            #     decide_naming_convention_and_applyCorrection(
-            #         filepath,
-            #         timeForLightsTurnOn,
-            #         storesList[0, k],
-            #         storesList[1, k],
-            #         storesList,
-            #         name_1_to_corrected_timestamps,
-            #         name_1_to_timestamps,
-            #         name_1_to_sampling_rate,
-            #         name_1_to_correctionIndex,
-            #         data,
-            #         ttl_timestamps,
-            #     )
-
             # check if isosbestic control is false and also if new control channel is added
             if isosbestic_control == False:
                 create_control_channel(filepath, storesList, window=101)
