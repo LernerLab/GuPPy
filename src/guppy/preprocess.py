@@ -23,7 +23,8 @@ from .analysis.io_utils import (
 )
 from .analysis.timestamp_correction import (
     create_control_channel,
-    decide_naming_convention_and_applyCorrection,
+    decide_naming_and_applyCorrection_signal_and_control,
+    decide_naming_and_applyCorrection_ttl,
     read_control_and_signal,
     read_ttl,
     timestampCorrection,
@@ -280,7 +281,7 @@ def execute_timestamp_correction(folderNames, inputParameters):
 
             control_and_signal_dicts = read_control_and_signal(filepath, storesList)
             name_to_data, name_to_timestamps, name_to_sampling_rate, name_to_npoints = control_and_signal_dicts
-            corrected_name_to_timestamps, name_to_correctionIndex = timestampCorrection(
+            name_to_corrected_timestamps, name_to_correctionIndex = timestampCorrection(
                 timeForLightsTurnOn,
                 storesList,
                 name_to_timestamps,
@@ -291,37 +292,52 @@ def execute_timestamp_correction(folderNames, inputParameters):
             )
             write_corrected_timestamps(
                 filepath,
-                corrected_name_to_timestamps,
+                name_to_corrected_timestamps,
                 name_to_timestamps,
                 name_to_sampling_rate,
                 name_to_correctionIndex,
             )
-            name_1_to_corrected_timestamps = {
-                name.split("_")[-1]: ts for name, ts in corrected_name_to_timestamps.items()
-            }
-            name_1_to_timestamps = {name.split("_")[-1]: ts for name, ts in name_to_timestamps.items()}
-            name_1_to_sampling_rate = {name.split("_")[-1]: sr for name, sr in name_to_sampling_rate.items()}
-            name_1_to_correctionIndex = {name.split("_")[-1]: idx for name, idx in name_to_correctionIndex.items()}
 
             name_to_timestamps_ttl = read_ttl(filepath, storesList)
-            for k in range(storesList.shape[1]):
-                data = name_to_data[storesList[1, k]] if storesList[1, k] in name_to_data else None
-                ttl_timestamps = (
-                    name_to_timestamps_ttl[storesList[1, k]] if storesList[1, k] in name_to_timestamps_ttl else None
-                )
-                decide_naming_convention_and_applyCorrection(
-                    filepath,
-                    timeForLightsTurnOn,
-                    storesList[0, k],
-                    storesList[1, k],
-                    storesList,
-                    name_1_to_corrected_timestamps,
-                    name_1_to_timestamps,
-                    name_1_to_sampling_rate,
-                    name_1_to_correctionIndex,
-                    data,
-                    ttl_timestamps,
-                )
+            decide_naming_and_applyCorrection_signal_and_control(
+                filepath,
+                storesList,
+                name_to_correctionIndex,
+                name_to_data,
+            )
+            decide_naming_and_applyCorrection_ttl(
+                filepath,
+                timeForLightsTurnOn,
+                storesList,
+                name_to_timestamps_ttl,
+                name_to_timestamps,
+                name_to_data,
+            )
+
+            # name_1_to_corrected_timestamps = {
+            #     name.split("_")[-1]: ts for name, ts in name_to_corrected_timestamps.items()
+            # }
+            # name_1_to_timestamps = {name.split("_")[-1]: ts for name, ts in name_to_timestamps.items()}
+            # name_1_to_sampling_rate = {name.split("_")[-1]: sr for name, sr in name_to_sampling_rate.items()}
+            # name_1_to_correctionIndex = {name.split("_")[-1]: idx for name, idx in name_to_correctionIndex.items()}
+            # for k in range(storesList.shape[1]): # TODO: Refactor nested loops for clarity
+            #     data = name_to_data[storesList[1, k]] if storesList[1, k] in name_to_data else None
+            #     ttl_timestamps = (
+            #         name_to_timestamps_ttl[storesList[1, k]] if storesList[1, k] in name_to_timestamps_ttl else None
+            #     )
+            #     decide_naming_convention_and_applyCorrection(
+            #         filepath,
+            #         timeForLightsTurnOn,
+            #         storesList[0, k],
+            #         storesList[1, k],
+            #         storesList,
+            #         name_1_to_corrected_timestamps,
+            #         name_1_to_timestamps,
+            #         name_1_to_sampling_rate,
+            #         name_1_to_correctionIndex,
+            #         data,
+            #         ttl_timestamps,
+            #     )
 
             # check if isosbestic control is false and also if new control channel is added
             if isosbestic_control == False:

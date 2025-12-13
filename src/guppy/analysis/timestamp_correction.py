@@ -137,6 +137,116 @@ def decide_naming_convention_and_applyCorrection(
     logger.info("Timestamps corrections applied to the data and event timestamps.")
 
 
+def decide_naming_and_applyCorrection_signal_and_control(
+    filepath,
+    storesList,
+    name_to_correctionIndex,
+    name_to_data,
+):
+    logger.debug("Applying correction of timestamps to the data and event timestamps")
+    storenames = storesList[0, :]
+    names_for_storenames = storesList[1, :]
+    arr = get_control_and_signal_channel_names(storesList)
+    indices = check_cntrl_sig_length(arr, name_to_data)
+
+    for i in range(arr.shape[1]):
+        name_1 = arr[0, i].split("_")[-1]
+        name_2 = arr[1, i].split("_")[-1]
+        if name_1 != name_2:
+            logger.error("Error in naming convention of files or Error in storesList file")
+            raise Exception("Error in naming convention of files or Error in storesList file")
+
+        idx = np.where(names_for_storenames == indices[i])[0]
+        if idx.shape[0] == 0:
+            logger.error(f"{arr[0,i]} does not exist in the stores list file.")
+            raise Exception("{} does not exist in the stores list file.".format(arr[0, i]))
+
+        name = names_for_storenames[idx][0]
+        correctionIndex = name_to_correctionIndex[name]
+        control_name = arr[0, i]
+        signal_name = arr[1, i]
+        control_data = name_to_data[control_name]
+        signal_data = name_to_data[signal_name]
+        applyCorrection_signal_and_control(filepath, control_name, correctionIndex, control_data)
+        applyCorrection_signal_and_control(filepath, signal_name, correctionIndex, signal_data)
+
+    logger.info("Timestamps corrections applied to the data and event timestamps.")
+
+
+def applyCorrection_signal_and_control(filepath, displayName, correctionIndex, data):
+    arr = data
+    if (arr == 0).all() == True:
+        arr = arr
+    else:
+        arr = arr[correctionIndex]
+    write_hdf5(arr, displayName, filepath, "data")
+
+
+def decide_naming_and_applyCorrection_ttl(
+    filepath,
+    timeForLightsTurnOn,
+    storesList,
+    name_to_timestamps_ttl,
+    name_to_timestamps,
+    name_to_data,
+):
+    logger.debug("Applying correction of timestamps to the data and event timestamps")
+    storenames = storesList[0, :]
+    names_for_storenames = storesList[1, :]
+    arr = get_control_and_signal_channel_names(storesList)
+    indices = check_cntrl_sig_length(arr, name_to_data)
+
+    for ttl_name, ttl_timestamps in name_to_timestamps_ttl.items():
+        displayName = ttl_name
+        for i in range(arr.shape[1]):
+            name_1 = arr[0, i].split("_")[-1]
+            name_2 = arr[1, i].split("_")[-1]
+            if name_1 != name_2:
+                logger.error("Error in naming convention of files or Error in storesList file")
+                raise Exception("Error in naming convention of files or Error in storesList file")
+
+            idx = np.where(names_for_storenames == indices[i])[0]
+            if idx.shape[0] == 0:
+                logger.error(f"{arr[0,i]} does not exist in the stores list file.")
+                raise Exception("{} does not exist in the stores list file.".format(arr[0, i]))
+
+            name = names_for_storenames[idx][0]
+            timestamps = name_to_timestamps[name]
+            timeRecStart = timestamps[0]
+            applyCorrection_ttl(
+                filepath,
+                timeForLightsTurnOn,
+                displayName,
+                name_1,
+                timeRecStart,
+                ttl_timestamps,
+            )
+
+    logger.info("Timestamps corrections applied to the data and event timestamps.")
+
+
+def applyCorrection_ttl(
+    filepath,
+    timeForLightsTurnOn,
+    displayName,
+    naming,
+    timeRecStart,
+    ttl_timestamps,
+):
+    cond = check_TDT(os.path.dirname(filepath))
+    arr = ttl_timestamps
+    if cond == True:
+        res = (arr >= timeRecStart).all()
+        if res == True:
+            arr = np.subtract(arr, timeRecStart)
+            arr = np.subtract(arr, timeForLightsTurnOn)
+        else:
+            arr = np.subtract(arr, timeForLightsTurnOn)
+    else:
+        arr = np.subtract(arr, timeForLightsTurnOn)
+    write_hdf5(arr, displayName + "_" + naming, filepath, "ts")
+
+
 # function to apply correction to control, signal and event timestamps
 def applyCorrection(
     filepath,
@@ -297,7 +407,7 @@ def read_ttl(filepath, storesList):
 
     name_to_timestamps = {}
     for storename, name in zip(storenames, names_for_storenames):
-        if storename in channels_arr:
+        if name in channels_arr:
             continue
         timestamps = read_hdf5(storename, filepath, "timestamps")
         name_to_timestamps[name] = timestamps
