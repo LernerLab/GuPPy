@@ -23,7 +23,6 @@ from .analysis.io_utils import (
 )
 from .analysis.timestamp_correction import (
     create_control_channel,
-    decide_naming_and_applyCorrection_signal_and_control,
     decide_naming_and_applyCorrection_ttl,
     read_control_and_signal,
     read_ttl,
@@ -282,6 +281,7 @@ def execute_timestamp_correction(folderNames, inputParameters):
             control_and_signal_dicts = read_control_and_signal(filepath, storesList)
             name_to_data, name_to_timestamps, name_to_sampling_rate, name_to_npoints = control_and_signal_dicts
             name_to_corrected_timestamps, name_to_correctionIndex = timestampCorrection(
+                filepath,
                 timeForLightsTurnOn,
                 storesList,
                 name_to_timestamps,
@@ -299,12 +299,6 @@ def execute_timestamp_correction(folderNames, inputParameters):
             )
 
             name_to_timestamps_ttl = read_ttl(filepath, storesList)
-            decide_naming_and_applyCorrection_signal_and_control(
-                filepath,
-                storesList,
-                name_to_correctionIndex,
-                name_to_data,
-            )
             decide_naming_and_applyCorrection_ttl(
                 filepath,
                 timeForLightsTurnOn,

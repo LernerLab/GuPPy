@@ -32,7 +32,14 @@ def write_corrected_timestamps(
 
 # function to correct timestamps after eliminating first few seconds of the data (for csv or TDT data depending on mode)
 def timestampCorrection(
-    timeForLightsTurnOn, storesList, name_to_timestamps, name_to_data, name_to_sampling_rate, name_to_npoints, mode
+    filepath,
+    timeForLightsTurnOn,
+    storesList,
+    name_to_timestamps,
+    name_to_data,
+    name_to_sampling_rate,
+    name_to_npoints,
+    mode,
 ):
     logger.debug(
         f"Correcting timestamps by getting rid of the first {timeForLightsTurnOn} seconds and convert timestamps to seconds"
@@ -49,6 +56,8 @@ def timestampCorrection(
     indices = check_cntrl_sig_length(arr, name_to_data)
 
     for i in range(arr.shape[1]):
+        control_name = arr[0, i]
+        signal_name = arr[1, i]
         name_1 = arr[0, i].split("_")[-1]
         name_2 = arr[1, i].split("_")[-1]
         if name_1 != name_2:
@@ -84,6 +93,20 @@ def timestampCorrection(
 
         name_to_timestamps[name] = timestampNew
         name_to_correctionIndex[name] = correctionIndex
+
+        arr = name_to_data[control_name]
+        if (arr == 0).all() == True:
+            arr = arr
+        else:
+            arr = arr[correctionIndex]
+        write_hdf5(arr, control_name, filepath, "data")
+
+        arr = name_to_data[signal_name]
+        if (arr == 0).all() == True:
+            arr = arr
+        else:
+            arr = arr[correctionIndex]
+        write_hdf5(arr, signal_name, filepath, "data")
 
     logger.info("Timestamps corrected and converted to seconds.")
     return name_to_timestamps, name_to_correctionIndex
