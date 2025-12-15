@@ -270,15 +270,49 @@ def execute_timestamp_correction(folderNames, inputParameters):
         logger.info(f"Timestamps corrections finished for {filepath}")
 
 
-# function to compute z-score and deltaF/F using functions : compute_z_score and/or processTimestampsForArtifacts
+# function to compute z-score and deltaF/F
 def execute_zscore(folderNames, inputParameters):
 
-    timeForLightsTurnOn = inputParameters["timeForLightsTurnOn"]
-    remove_artifacts = inputParameters["removeArtifacts"]
-    artifactsRemovalMethod = inputParameters["artifactsRemovalMethod"]
     plot_zScore_dff = inputParameters["plot_zScore_dff"]
     combine_data = inputParameters["combine_data"]
-    isosbestic_control = inputParameters["isosbestic_control"]
+
+    storesListPath = []
+    for i in range(len(folderNames)):
+        if combine_data == True:
+            storesListPath.append([folderNames[i][0]])
+        else:
+            filepath = folderNames[i]
+            storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+
+    storesListPath = np.concatenate(storesListPath)
+
+    for j in range(len(storesListPath)):
+        filepath = storesListPath[j]
+
+        compute_z_score(filepath, inputParameters)
+        visualizeControlAndSignal(filepath, removeArtifacts=False)
+
+        if plot_zScore_dff == "z_score":
+            visualize_z_score(filepath)
+        if plot_zScore_dff == "dff":
+            visualize_dff(filepath)
+        if plot_zScore_dff == "Both":
+            visualize_z_score(filepath)
+            visualize_dff(filepath)
+
+        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
+        inputParameters["step"] += 1
+
+    plt.show()
+    logger.info("Z-score computation completed.")
+
+
+# function to remove artifacts from z-score data
+def execute_artifact_removal(folderNames, inputParameters):
+
+    timeForLightsTurnOn = inputParameters["timeForLightsTurnOn"]
+    artifactsRemovalMethod = inputParameters["artifactsRemovalMethod"]
+    combine_data = inputParameters["combine_data"]
 
     storesListPath = []
     for i in range(len(folderNames)):
@@ -294,32 +328,18 @@ def execute_zscore(folderNames, inputParameters):
         filepath = storesListPath[j]
         storesList = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
 
-        if remove_artifacts == True:
-            logger.debug("Removing Artifacts from the data and correcting timestamps...")
-            compute_z_score(filepath, inputParameters)
-            if artifactsRemovalMethod == "concatenate":
-                processTimestampsForArtifacts(filepath, timeForLightsTurnOn, storesList)
-            else:
-                addingNaNtoChunksWithArtifacts(filepath, storesList)
-            visualizeControlAndSignal(filepath, remove_artifacts)
-            logger.info("Artifacts from the data are removed and timestamps are corrected.")
+        logger.debug("Removing artifacts from the data...")
+        if artifactsRemovalMethod == "concatenate":
+            processTimestampsForArtifacts(filepath, timeForLightsTurnOn, storesList)
         else:
-            compute_z_score(filepath, inputParameters)
-            visualizeControlAndSignal(filepath, remove_artifacts)
-
-        if plot_zScore_dff == "z_score":
-            visualize_z_score(filepath)
-        if plot_zScore_dff == "dff":
-            visualize_dff(filepath)
-        if plot_zScore_dff == "Both":
-            visualize_z_score(filepath)
-            visualize_dff(filepath)
+            addingNaNtoChunksWithArtifacts(filepath, storesList)
+        visualizeControlAndSignal(filepath, removeArtifacts=True)
+        logger.info("Artifacts removed and timestamps corrected.")
 
         writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
         inputParameters["step"] += 1
 
-    plt.show()
-    logger.info("Signal data and event timestamps are extracted.")
+    logger.info("Artifact removal completed.")
 
 
 def extractTsAndSignal(inputParameters):
@@ -350,6 +370,8 @@ def extractTsAndSignal(inputParameters):
         writeToFile(str((pbMaxValue + 1) * 10) + "\n" + str(10) + "\n")
         execute_timestamp_correction(folderNames, inputParameters)
         execute_zscore(folderNames, inputParameters)
+        if remove_artifacts == True:
+            execute_artifact_removal(folderNames, inputParameters)
     else:
         pbMaxValue = 1 + len(folderNames)
         writeToFile(str((pbMaxValue) * 10) + "\n" + str(10) + "\n")
@@ -357,6 +379,8 @@ def extractTsAndSignal(inputParameters):
         storesList = check_storeslistfile(folderNames)
         op_folder = combineData(folderNames, inputParameters, storesList)
         execute_zscore(op_folder, inputParameters)
+        if remove_artifacts == True:
+            execute_artifact_removal(op_folder, inputParameters)
 
 
 def main(input_parameters):
