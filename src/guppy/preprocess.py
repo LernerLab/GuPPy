@@ -275,6 +275,7 @@ def execute_zscore(folderNames, inputParameters):
 
     plot_zScore_dff = inputParameters["plot_zScore_dff"]
     combine_data = inputParameters["combine_data"]
+    remove_artifacts = inputParameters["removeArtifacts"]
 
     storesListPath = []
     for i in range(len(folderNames)):
@@ -290,7 +291,8 @@ def execute_zscore(folderNames, inputParameters):
         filepath = storesListPath[j]
 
         compute_z_score(filepath, inputParameters)
-        visualizeControlAndSignal(filepath, removeArtifacts=False)
+        if not remove_artifacts:
+            visualizeControlAndSignal(filepath, removeArtifacts=remove_artifacts)
 
         if plot_zScore_dff == "z_score":
             visualize_z_score(filepath)
@@ -334,11 +336,11 @@ def execute_artifact_removal(folderNames, inputParameters):
         else:
             addingNaNtoChunksWithArtifacts(filepath, storesList)
         visualizeControlAndSignal(filepath, removeArtifacts=True)
-        logger.info("Artifacts removed and timestamps corrected.")
 
         writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
         inputParameters["step"] += 1
 
+    plt.show()
     logger.info("Artifact removal completed.")
 
 
