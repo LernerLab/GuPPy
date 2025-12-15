@@ -2,9 +2,7 @@ import logging
 import os
 
 import numpy as np
-import pandas as pd
 
-from .control_channel import helper_create_control_channel
 from .io_utils import (
     check_TDT,
     read_hdf5,
@@ -318,32 +316,6 @@ def applyCorrection(
         else:
             arr = np.subtract(arr, timeForLightsTurnOn)
         write_hdf5(arr, displayName + "_" + naming, filepath, "ts")
-
-
-# main function to create control channel using
-# signal channel and save it to a file
-def create_control_channel(filepath, arr, window=5001):
-
-    storenames = arr[0, :]
-    storesList = arr[1, :]
-
-    for i in range(storesList.shape[0]):
-        event_name, event = storesList[i], storenames[i]
-        if "control" in event_name.lower() and "cntrl" in event.lower():
-            logger.debug("Creating control channel from signal channel using curve-fitting")
-            name = event_name.split("_")[-1]
-            signal = read_hdf5("signal_" + name, filepath, "data")
-            timestampNew = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
-            sampling_rate = np.full(timestampNew.shape, np.nan)
-            sampling_rate[0] = read_hdf5("timeCorrection_" + name, filepath, "sampling_rate")[0]
-
-            control = helper_create_control_channel(signal, timestampNew, window)
-
-            write_hdf5(control, event_name, filepath, "data")
-            d = {"timestamps": timestampNew, "data": control, "sampling_rate": sampling_rate}
-            df = pd.DataFrame(d)
-            df.to_csv(os.path.join(os.path.dirname(filepath), event.lower() + ".csv"), index=False)
-            logger.info("Control channel from signal channel created using curve-fitting")
 
 
 # function to check control and signal channel has same length
