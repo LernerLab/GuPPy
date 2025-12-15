@@ -29,6 +29,7 @@ from .analysis.timestamp_correction import (
     timestampCorrection,
     write_corrected_data,
     write_corrected_timestamps,
+    write_corrected_ttl_timestamps,
 )
 from .analysis.z_score import compute_z_score
 
@@ -300,15 +301,15 @@ def execute_timestamp_correction(folderNames, inputParameters):
             write_corrected_data(filepath, name_to_corrected_data)
 
             name_to_timestamps_ttl = read_ttl(filepath, storesList)
-            decide_naming_and_applyCorrection_ttl(
-                filepath,
+            compound_name_to_corrected_ttl_timestamps = decide_naming_and_applyCorrection_ttl(
                 timeForLightsTurnOn,
                 storesList,
                 name_to_timestamps_ttl,
                 name_to_timestamps,
                 name_to_data,
+                mode=mode,
             )
-
+            write_corrected_ttl_timestamps(filepath, compound_name_to_corrected_ttl_timestamps)
             # check if isosbestic control is false and also if new control channel is added
             if isosbestic_control == False:
                 create_control_channel(filepath, storesList, window=101)

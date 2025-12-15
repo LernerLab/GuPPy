@@ -203,12 +203,12 @@ def applyCorrection_signal_and_control(filepath, displayName, correctionIndex, d
 
 
 def decide_naming_and_applyCorrection_ttl(
-    filepath,
     timeForLightsTurnOn,
     storesList,
     name_to_timestamps_ttl,
     name_to_timestamps,
     name_to_data,
+    mode,
 ):
     logger.debug("Applying correction of timestamps to the data and event timestamps")
     storenames = storesList[0, :]
@@ -216,8 +216,8 @@ def decide_naming_and_applyCorrection_ttl(
     arr = get_control_and_signal_channel_names(storesList)
     indices = check_cntrl_sig_length(arr, name_to_data)
 
+    compound_name_to_corrected_ttl_timestamps = {}
     for ttl_name, ttl_timestamps in name_to_timestamps_ttl.items():
-        displayName = ttl_name
         for i in range(arr.shape[1]):
             name_1 = arr[0, i].split("_")[-1]
             name_2 = arr[1, i].split("_")[-1]
@@ -233,38 +233,46 @@ def decide_naming_and_applyCorrection_ttl(
             name = names_for_storenames[idx][0]
             timestamps = name_to_timestamps[name]
             timeRecStart = timestamps[0]
-            applyCorrection_ttl(
-                filepath,
+            corrected_ttl_timestamps = applyCorrection_ttl(
                 timeForLightsTurnOn,
-                displayName,
-                name_1,
                 timeRecStart,
                 ttl_timestamps,
+                mode,
             )
+            compound_name = ttl_name + "_" + name_1
+            compound_name_to_corrected_ttl_timestamps[compound_name] = corrected_ttl_timestamps
 
     logger.info("Timestamps corrections applied to the data and event timestamps.")
+    return compound_name_to_corrected_ttl_timestamps
 
 
 def applyCorrection_ttl(
-    filepath,
     timeForLightsTurnOn,
-    displayName,
-    naming,
     timeRecStart,
     ttl_timestamps,
+    mode,
 ):
-    cond = check_TDT(os.path.dirname(filepath))
-    arr = ttl_timestamps
-    if cond == True:
-        res = (arr >= timeRecStart).all()
+    corrected_ttl_timestamps = ttl_timestamps
+    if mode == "tdt":
+        res = (corrected_ttl_timestamps >= timeRecStart).all()
         if res == True:
-            arr = np.subtract(arr, timeRecStart)
-            arr = np.subtract(arr, timeForLightsTurnOn)
+            corrected_ttl_timestamps = np.subtract(corrected_ttl_timestamps, timeRecStart)
+            corrected_ttl_timestamps = np.subtract(corrected_ttl_timestamps, timeForLightsTurnOn)
         else:
-            arr = np.subtract(arr, timeForLightsTurnOn)
-    else:
-        arr = np.subtract(arr, timeForLightsTurnOn)
-    write_hdf5(arr, displayName + "_" + naming, filepath, "ts")
+            corrected_ttl_timestamps = np.subtract(corrected_ttl_timestamps, timeForLightsTurnOn)
+    elif mode == "csv":
+        corrected_ttl_timestamps = np.subtract(corrected_ttl_timestamps, timeForLightsTurnOn)
+    return corrected_ttl_timestamps
+
+
+def write_corrected_ttl_timestamps(
+    filepath,
+    compound_name_to_corrected_ttl_timestamps,
+):
+    logger.debug("Applying correction of timestamps to the data and event timestamps")
+    for compound_name, corrected_ttl_timestamps in compound_name_to_corrected_ttl_timestamps.items():
+        write_hdf5(corrected_ttl_timestamps, compound_name, filepath, "ts")
+    logger.info("Timestamps corrections applied to the data and event timestamps.")
 
 
 # function to apply correction to control, signal and event timestamps
