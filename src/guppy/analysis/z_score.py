@@ -80,42 +80,34 @@ def helper_z_score(control, signal, filepath, name, inputParameters):  # helper_
 
     if removeArtifacts == True:
         coords = fetchCoords(filepath, name, tsNew)
-
-        # for artifacts removal, each chunk which was selected by user is being processed individually and then
-        # z-score is calculated
-        for i in range(coords.shape[0]):
-            tsNew_index = np.where((tsNew > coords[i, 0]) & (tsNew < coords[i, 1]))[0]
-            if isosbestic_control == False:
-                control_arr = helper_create_control_channel(signal[tsNew_index], tsNew[tsNew_index], window=101)
-                signal_arr = signal[tsNew_index]
-                norm_data, control_fit = execute_controlFit_dff(
-                    control_arr, signal_arr, isosbestic_control, filter_window
-                )
-                temp_control_arr[tsNew_index] = control_arr
-                if i < coords.shape[0] - 1:
-                    blank_index = np.where((tsNew > coords[i, 1]) & (tsNew < coords[i + 1, 0]))[0]
-                    temp_control_arr[blank_index] = np.full(blank_index.shape[0], np.nan)
-            else:
-                control_arr = control[tsNew_index]
-                signal_arr = signal[tsNew_index]
-                norm_data, control_fit = execute_controlFit_dff(
-                    control_arr, signal_arr, isosbestic_control, filter_window
-                )
-            norm_data_arr[tsNew_index] = norm_data
-            control_fit_arr[tsNew_index] = control_fit
-
-        if artifactsRemovalMethod == "concatenate":
-            norm_data_arr = norm_data_arr[~np.isnan(norm_data_arr)]
-            control_fit_arr = control_fit_arr[~np.isnan(control_fit_arr)]
-        z_score = z_score_computation(norm_data_arr, tsNew, inputParameters)
-        z_score_arr = np.concatenate((z_score_arr, z_score))
     else:
-        tsNew_index = np.arange(tsNew.shape[0])
-        norm_data, control_fit = execute_controlFit_dff(control, signal, isosbestic_control, filter_window)
-        z_score = z_score_computation(norm_data, tsNew, inputParameters)
-        z_score_arr = np.concatenate((z_score_arr, z_score))
-        norm_data_arr[tsNew_index] = norm_data  # np.concatenate((norm_data_arr, norm_data))
-        control_fit_arr[tsNew_index] = control_fit  # np.concatenate((control_fit_arr, control_fit))
+        dt = tsNew[1] - tsNew[0]
+        coords = np.array([[tsNew[0] - dt, tsNew[-1] + dt]])
+
+    # for artifacts removal, each chunk which was selected by user is being processed individually and then
+    # z-score is calculated
+    for i in range(coords.shape[0]):
+        tsNew_index = np.where((tsNew > coords[i, 0]) & (tsNew < coords[i, 1]))[0]
+        if isosbestic_control == False:
+            control_arr = helper_create_control_channel(signal[tsNew_index], tsNew[tsNew_index], window=101)
+            signal_arr = signal[tsNew_index]
+            norm_data, control_fit = execute_controlFit_dff(control_arr, signal_arr, isosbestic_control, filter_window)
+            temp_control_arr[tsNew_index] = control_arr
+            if i < coords.shape[0] - 1:
+                blank_index = np.where((tsNew > coords[i, 1]) & (tsNew < coords[i + 1, 0]))[0]
+                temp_control_arr[blank_index] = np.full(blank_index.shape[0], np.nan)
+        else:
+            control_arr = control[tsNew_index]
+            signal_arr = signal[tsNew_index]
+            norm_data, control_fit = execute_controlFit_dff(control_arr, signal_arr, isosbestic_control, filter_window)
+        norm_data_arr[tsNew_index] = norm_data
+        control_fit_arr[tsNew_index] = control_fit
+
+    if artifactsRemovalMethod == "concatenate":
+        norm_data_arr = norm_data_arr[~np.isnan(norm_data_arr)]
+        control_fit_arr = control_fit_arr[~np.isnan(control_fit_arr)]
+    z_score = z_score_computation(norm_data_arr, tsNew, inputParameters)
+    z_score_arr = np.concatenate((z_score_arr, z_score))
 
     # handle the case if there are chunks being cut in the front and the end
     if isosbestic_control == False and removeArtifacts == True:
