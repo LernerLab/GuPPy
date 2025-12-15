@@ -166,3 +166,22 @@ def check_storeslistfile(folderNames):
     storesList = np.unique(storesList, axis=1)
 
     return storesList
+
+
+def get_control_and_signal_channel_names(storesList):
+    storenames = storesList[0, :]
+    names_for_storenames = storesList[1, :]
+
+    channels_arr = []
+    for i in range(names_for_storenames.shape[0]):
+        if "control" in names_for_storenames[i].lower() or "signal" in names_for_storenames[i].lower():
+            channels_arr.append(names_for_storenames[i])
+
+    channels_arr = sorted(channels_arr, key=str.casefold)
+    try:
+        channels_arr = np.asarray(channels_arr).reshape(2, -1)
+    except:
+        logger.error("Error in saving stores list file or spelling mistake for control or signal")
+        raise Exception("Error in saving stores list file or spelling mistake for control or signal")
+
+    return channels_arr
