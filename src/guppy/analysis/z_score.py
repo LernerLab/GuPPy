@@ -19,7 +19,6 @@ logger = logging.getLogger(__name__)
 def compute_z_score(filepath, inputParameters):
 
     logger.debug(f"Computing z-score for each of the data in {filepath}")
-    remove_artifacts = inputParameters["removeArtifacts"]
 
     path_1 = find_files(filepath, "control_*", ignore_case=True)  # glob.glob(os.path.join(filepath, 'control*'))
     path_2 = find_files(filepath, "signal_*", ignore_case=True)  # glob.glob(os.path.join(filepath, 'signal*'))
@@ -48,14 +47,9 @@ def compute_z_score(filepath, inputParameters):
             # signal_smooth = ss.filtfilt(b, a, signal)
             # _score, dff = helper_z_score(control_smooth, signal_smooth)
             z_score, dff, control_fit = helper_z_score(control, signal, filepath, name, inputParameters)
-            if remove_artifacts == True:
-                write_hdf5(z_score, "z_score_" + name, filepath, "data")
-                write_hdf5(dff, "dff_" + name, filepath, "data")
-                write_hdf5(control_fit, "cntrl_sig_fit_" + name, filepath, "data")
-            else:
-                write_hdf5(z_score, "z_score_" + name, filepath, "data")
-                write_hdf5(dff, "dff_" + name, filepath, "data")
-                write_hdf5(control_fit, "cntrl_sig_fit_" + name, filepath, "data")
+            write_hdf5(z_score, "z_score_" + name, filepath, "data")
+            write_hdf5(dff, "dff_" + name, filepath, "data")
+            write_hdf5(control_fit, "cntrl_sig_fit_" + name, filepath, "data")
         else:
             logger.error("Error in naming convention of files or Error in storesList file")
             raise Exception("Error in naming convention of files or Error in storesList file")
