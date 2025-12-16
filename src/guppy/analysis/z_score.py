@@ -35,26 +35,25 @@ def compute_z_score(filepath, inputParameters):
     for i in range(path.shape[1]):
         name_1 = ((os.path.basename(path[0, i])).split(".")[0]).split("_")
         name_2 = ((os.path.basename(path[1, i])).split(".")[0]).split("_")
-
-        if name_1[-1] == name_2[-1]:
-            name = name_1[-1]
-            control = read_hdf5("", path[0, i], "data").reshape(-1)
-            signal = read_hdf5("", path[1, i], "data").reshape(-1)
-            tsNew = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
-
-            coords = get_coords(filepath, name, tsNew, removeArtifacts)
-            z_score, dff, control_fit, temp_control_arr = helper_z_score(
-                control, signal, tsNew, filepath, name, inputParameters, coords
-            )
-
-            write_hdf5(z_score, "z_score_" + name, filepath, "data")
-            write_hdf5(dff, "dff_" + name, filepath, "data")
-            write_hdf5(control_fit, "cntrl_sig_fit_" + name, filepath, "data")
-            if temp_control_arr is not None:
-                write_hdf5(temp_control_arr, "control_" + name, filepath, "data")
-        else:
+        if name_1[-1] != name_2[-1]:
             logger.error("Error in naming convention of files or Error in storesList file")
             raise Exception("Error in naming convention of files or Error in storesList file")
+
+        name = name_1[-1]
+        control = read_hdf5("", path[0, i], "data").reshape(-1)
+        signal = read_hdf5("", path[1, i], "data").reshape(-1)
+        tsNew = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
+
+        coords = get_coords(filepath, name, tsNew, removeArtifacts)
+        z_score, dff, control_fit, temp_control_arr = helper_z_score(
+            control, signal, tsNew, filepath, name, inputParameters, coords
+        )
+
+        write_hdf5(z_score, "z_score_" + name, filepath, "data")
+        write_hdf5(dff, "dff_" + name, filepath, "data")
+        write_hdf5(control_fit, "cntrl_sig_fit_" + name, filepath, "data")
+        if temp_control_arr is not None:
+            write_hdf5(temp_control_arr, "control_" + name, filepath, "data")
 
     logger.info(f"z-score for the data in {filepath} computed.")
 
