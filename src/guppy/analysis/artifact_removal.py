@@ -41,7 +41,8 @@ def addingNaNtoChunksWithArtifacts(filepath, events):
                     if "control" in storesList[i].lower() or "signal" in storesList[i].lower():
                         continue
                     else:
-                        ts = removeTTLs(filepath, storesList[i], name)
+                        ts = read_hdf5(storesList[i] + "_" + name, filepath, "ts").reshape(-1)
+                        ts = removeTTLs(ts=ts, coords=coords)
                         write_hdf5(ts, storesList[i] + "_" + name, filepath, "ts")
 
         else:
@@ -174,11 +175,7 @@ def addingNaNValues(*, data, ts, coords):
 
 # remove event TTLs which falls in the removed chunks
 # when using artifacts removal method - replace with NaN
-def removeTTLs(filepath, event, naming):
-    tsNew = read_hdf5("timeCorrection_" + naming, filepath, "timestampNew")
-    ts = read_hdf5(event + "_" + naming, filepath, "ts").reshape(-1)
-    coords = fetchCoords(filepath, naming, tsNew)
-
+def removeTTLs(*, ts, coords):
     ts_arr = np.array([])
     for i in range(coords.shape[0]):
         ts_index = np.where((ts > coords[i, 0]) & (ts < coords[i, 1]))[0]
