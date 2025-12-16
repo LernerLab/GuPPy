@@ -133,6 +133,15 @@ def fetchCoords(filepath, naming, data):
     return coords
 
 
+def get_coords(filepath, name, tsNew, removeArtifacts):  # TODO: Make less redundant with fetchCoords
+    if removeArtifacts == True:
+        coords = fetchCoords(filepath, name, tsNew)
+    else:
+        dt = tsNew[1] - tsNew[0]
+        coords = np.array([[tsNew[0] - dt, tsNew[-1] + dt]])
+    return coords
+
+
 def get_all_stores_for_combining_data(folderNames):
     op = []
     for i in range(100):

@@ -18,15 +18,18 @@ from .analysis.io_utils import (
     check_TDT,
     find_files,
     get_all_stores_for_combining_data,  # noqa: F401 -- Necessary for other modules that depend on preprocess.py
+    get_coords,
     read_hdf5,
     takeOnlyDirs,
 )
 from .analysis.standard_io import (
     read_control_and_signal,
+    read_corrected_data,
     read_ttl,
     write_corrected_data,
     write_corrected_timestamps,
     write_corrected_ttl_timestamps,
+    write_zscore,
 )
 from .analysis.timestamp_correction import correct_timestamps
 from .analysis.z_score import compute_z_score
@@ -276,6 +279,11 @@ def execute_zscore(folderNames, inputParameters):
     plot_zScore_dff = inputParameters["plot_zScore_dff"]
     combine_data = inputParameters["combine_data"]
     remove_artifacts = inputParameters["removeArtifacts"]
+    artifactsRemovalMethod = inputParameters["artifactsRemovalMethod"]
+    filter_window = inputParameters["filter_window"]
+    isosbestic_control = inputParameters["isosbestic_control"]
+    zscore_method = inputParameters["zscore_method"]
+    baseline_start, baseline_end = inputParameters["baselineWindowStart"], inputParameters["baselineWindowEnd"]
 
     storesListPath = []
     for i in range(len(folderNames)):
@@ -284,13 +292,45 @@ def execute_zscore(folderNames, inputParameters):
         else:
             filepath = folderNames[i]
             storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
-
     storesListPath = np.concatenate(storesListPath)
 
     for j in range(len(storesListPath)):
         filepath = storesListPath[j]
+        logger.debug(f"Computing z-score for each of the data in {filepath}")
+        path_1 = find_files(filepath, "control_*", ignore_case=True)  # glob.glob(os.path.join(filepath, 'control*'))
+        path_2 = find_files(filepath, "signal_*", ignore_case=True)  # glob.glob(os.path.join(filepath, 'signal*'))
+        path = sorted(path_1 + path_2, key=str.casefold)
+        if len(path) % 2 != 0:
+            logger.error("There are not equal number of Control and Signal data")
+            raise Exception("There are not equal number of Control and Signal data")
+        path = np.asarray(path).reshape(2, -1)
 
-        compute_z_score(filepath, inputParameters)
+        for i in range(path.shape[1]):
+            name_1 = ((os.path.basename(path[0, i])).split(".")[0]).split("_")
+            name_2 = ((os.path.basename(path[1, i])).split(".")[0]).split("_")
+            if name_1[-1] != name_2[-1]:
+                logger.error("Error in naming convention of files or Error in storesList file")
+                raise Exception("Error in naming convention of files or Error in storesList file")
+            name = name_1[-1]
+
+            control, signal, tsNew = read_corrected_data(path[0, i], path[1, i], filepath, name)
+            coords = get_coords(filepath, name, tsNew, remove_artifacts)
+            z_score, dff, control_fit, temp_control_arr = compute_z_score(
+                control,
+                signal,
+                tsNew,
+                coords,
+                artifactsRemovalMethod,
+                filter_window,
+                isosbestic_control,
+                zscore_method,
+                baseline_start,
+                baseline_end,
+            )
+            write_zscore(filepath, name, z_score, dff, control_fit, temp_control_arr)
+
+        logger.info(f"z-score for the data in {filepath} computed.")
+
         if not remove_artifacts:
             visualizeControlAndSignal(filepath, removeArtifacts=remove_artifacts)
 

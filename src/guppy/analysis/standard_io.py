@@ -98,3 +98,19 @@ def write_corrected_ttl_timestamps(
     for compound_name, corrected_ttl_timestamps in compound_name_to_corrected_ttl_timestamps.items():
         write_hdf5(corrected_ttl_timestamps, compound_name, filepath, "ts")
     logger.info("Timestamps corrections applied to the data and event timestamps.")
+
+
+def read_corrected_data(control_path, signal_path, filepath, name):
+    control = read_hdf5("", control_path, "data").reshape(-1)
+    signal = read_hdf5("", signal_path, "data").reshape(-1)
+    tsNew = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
+
+    return control, signal, tsNew
+
+
+def write_zscore(filepath, name, z_score, dff, control_fit, temp_control_arr):
+    write_hdf5(z_score, "z_score_" + name, filepath, "data")
+    write_hdf5(dff, "dff_" + name, filepath, "data")
+    write_hdf5(control_fit, "cntrl_sig_fit_" + name, filepath, "data")
+    if temp_control_arr is not None:
+        write_hdf5(temp_control_arr, "control_" + name, filepath, "data")
