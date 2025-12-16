@@ -18,6 +18,10 @@ logger = logging.getLogger(__name__)
 # compute z-score and deltaF/F and save it to hdf5 file
 def compute_z_score(filepath, inputParameters):
 
+    artifactsRemovalMethod = inputParameters["artifactsRemovalMethod"]
+    filter_window = inputParameters["filter_window"]
+    isosbestic_control = inputParameters["isosbestic_control"]
+
     logger.debug(f"Computing z-score for each of the data in {filepath}")
 
     path_1 = find_files(filepath, "control_*", ignore_case=True)  # glob.glob(os.path.join(filepath, 'control*'))
@@ -45,7 +49,9 @@ def compute_z_score(filepath, inputParameters):
         tsNew = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
 
         coords = get_coords(filepath, name, tsNew, removeArtifacts)
-        z_score, dff, control_fit, temp_control_arr = helper_z_score(control, signal, tsNew, inputParameters, coords)
+        z_score, dff, control_fit, temp_control_arr = helper_z_score(
+            control, signal, tsNew, inputParameters, coords, artifactsRemovalMethod, filter_window, isosbestic_control
+        )
 
         write_hdf5(z_score, "z_score_" + name, filepath, "data")
         write_hdf5(dff, "dff_" + name, filepath, "data")
@@ -66,12 +72,9 @@ def get_coords(filepath, name, tsNew, removeArtifacts):  # TODO: Make less redun
 
 
 # helper function to compute z-score and deltaF/F
-def helper_z_score(control, signal, tsNew, inputParameters, coords):
-
-    artifactsRemovalMethod = inputParameters["artifactsRemovalMethod"]
-    filter_window = inputParameters["filter_window"]
-    isosbestic_control = inputParameters["isosbestic_control"]
-
+def helper_z_score(
+    control, signal, tsNew, inputParameters, coords, artifactsRemovalMethod, filter_window, isosbestic_control
+):
     if (control == 0).all() == True:
         control = np.zeros(tsNew.shape[0])
 
