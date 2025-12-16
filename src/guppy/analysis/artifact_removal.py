@@ -27,12 +27,15 @@ def addingNaNtoChunksWithArtifacts(filepath, events):
         if name_1[-1] == name_2[-1]:
             name = name_1[-1]
             sampling_rate = read_hdf5("timeCorrection_" + name, filepath, "sampling_rate")[0]
+            ts = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
+            coords = fetchCoords(filepath, name, ts)
             for i in range(len(storesList)):
                 if (
                     "control_" + name.lower() in storesList[i].lower()
                     or "signal_" + name.lower() in storesList[i].lower()
                 ):  # changes done
-                    data = addingNaNValues(filepath, storesList[i], name)
+                    data = read_hdf5(storesList[i], filepath, "data").reshape(-1)
+                    data = addingNaNValues(data=data, ts=ts, coords=coords)
                     write_hdf5(data, storesList[i], filepath, "data")
                 else:
                     if "control" in storesList[i].lower() or "signal" in storesList[i].lower():
@@ -151,11 +154,7 @@ def eliminateTs(filepath, timeForLightsTurnOn, event, sampling_rate, naming):
 
 # adding nan values to removed chunks
 # when using artifacts removal method - replace with NaN
-def addingNaNValues(filepath, event, naming):
-
-    ts = read_hdf5("timeCorrection_" + naming, filepath, "timestampNew")
-    data = read_hdf5(event, filepath, "data").reshape(-1)
-    coords = fetchCoords(filepath, naming, ts)
+def addingNaNValues(*, data, ts, coords):
 
     if (data == 0).all() == True:
         data = np.zeros(ts.shape[0])
