@@ -46,7 +46,14 @@ def compute_z_score(filepath, inputParameters):
             # control_smooth = ss.filtfilt(b, a, control)
             # signal_smooth = ss.filtfilt(b, a, signal)
             # _score, dff = helper_z_score(control_smooth, signal_smooth)
-            z_score, dff, control_fit = helper_z_score(control, signal, filepath, name, inputParameters)
+            tsNew = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
+            removeArtifacts = inputParameters["removeArtifacts"]
+            if removeArtifacts == True:
+                coords = fetchCoords(filepath, name, tsNew)
+            else:
+                dt = tsNew[1] - tsNew[0]
+                coords = np.array([[tsNew[0] - dt, tsNew[-1] + dt]])
+            z_score, dff, control_fit = helper_z_score(control, signal, filepath, name, inputParameters, coords)
             write_hdf5(z_score, "z_score_" + name, filepath, "data")
             write_hdf5(dff, "dff_" + name, filepath, "data")
             write_hdf5(control_fit, "cntrl_sig_fit_" + name, filepath, "data")
@@ -58,17 +65,16 @@ def compute_z_score(filepath, inputParameters):
 
 
 # helper function to compute z-score and deltaF/F
-def helper_z_score(control, signal, filepath, name, inputParameters):  # helper_z_score(control_smooth, signal_smooth):
+def helper_z_score(
+    control, signal, filepath, name, inputParameters, coords
+):  # helper_z_score(control_smooth, signal_smooth):
 
-    removeArtifacts = inputParameters["removeArtifacts"]
     artifactsRemovalMethod = inputParameters["artifactsRemovalMethod"]
     filter_window = inputParameters["filter_window"]
 
     isosbestic_control = inputParameters["isosbestic_control"]
     tsNew = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
     coords_path = os.path.join(filepath, "coordsForPreProcessing_" + name + ".npy")
-
-    logger.info("Remove Artifacts : ", removeArtifacts)
 
     if (control == 0).all() == True:
         control = np.zeros(tsNew.shape[0])
@@ -77,12 +83,6 @@ def helper_z_score(control, signal, filepath, name, inputParameters):  # helper_
     norm_data_arr = np.full(tsNew.shape[0], np.nan)
     control_fit_arr = np.full(tsNew.shape[0], np.nan)
     temp_control_arr = np.full(tsNew.shape[0], np.nan)
-
-    if removeArtifacts == True:
-        coords = fetchCoords(filepath, name, tsNew)
-    else:
-        dt = tsNew[1] - tsNew[0]
-        coords = np.array([[tsNew[0] - dt, tsNew[-1] + dt]])
 
     # for artifacts removal, each chunk which was selected by user is being processed individually and then
     # z-score is calculated
