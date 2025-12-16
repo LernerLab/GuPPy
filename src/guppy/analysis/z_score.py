@@ -43,11 +43,15 @@ def compute_z_score(filepath, inputParameters):
             tsNew = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
 
             coords = get_coords(filepath, name, tsNew, removeArtifacts)
-            z_score, dff, control_fit = helper_z_score(control, signal, tsNew, filepath, name, inputParameters, coords)
+            z_score, dff, control_fit, temp_control_arr = helper_z_score(
+                control, signal, tsNew, filepath, name, inputParameters, coords
+            )
 
             write_hdf5(z_score, "z_score_" + name, filepath, "data")
             write_hdf5(dff, "dff_" + name, filepath, "data")
             write_hdf5(control_fit, "cntrl_sig_fit_" + name, filepath, "data")
+            if temp_control_arr is not None:
+                write_hdf5(temp_control_arr, "control_" + name, filepath, "data")
         else:
             logger.error("Error in naming convention of files or Error in storesList file")
             raise Exception("Error in naming convention of files or Error in storesList file")
@@ -115,9 +119,10 @@ def helper_z_score(
         # end chunk
         idx = np.where((tsNew > coords[-1]) & (tsNew <= tsNew[-1]))[0]
         temp_control_arr[idx] = np.full(idx.shape[0], np.nan)
-        write_hdf5(temp_control_arr, "control_" + name, filepath, "data")
+    else:
+        temp_control_arr = None
 
-    return z_score_arr, norm_data_arr, control_fit_arr
+    return z_score_arr, norm_data_arr, control_fit_arr, temp_control_arr
 
 
 # function to filter control and signal channel, also execute above two function : controlFit and deltaFF
