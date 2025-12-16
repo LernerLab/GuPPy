@@ -110,7 +110,7 @@ def helper_z_score(control, signal, filepath, name, inputParameters):  # helper_
     z_score_arr = np.concatenate((z_score_arr, z_score))
 
     # handle the case if there are chunks being cut in the front and the end
-    if isosbestic_control == False and removeArtifacts == True:
+    if isosbestic_control == False:
         coords = coords.flatten()
         # front chunk
         idx = np.where((tsNew >= tsNew[0]) & (tsNew < coords[0]))[0]
