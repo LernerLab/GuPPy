@@ -13,41 +13,38 @@ from .io_utils import (
 logger = logging.getLogger(__name__)
 
 
-def addingNaNtoChunksWithArtifacts(filepath, events):
+def addingNaNtoChunksWithArtifacts(filepath, storesList):
 
     logger.debug("Replacing chunks with artifacts by NaN values.")
-    storesList = events[1, :]
+    names_for_storenames = storesList[1, :]
 
     path = decide_naming_convention(filepath)
 
     for j in range(path.shape[1]):
         name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")
         name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")
-        # dirname = os.path.dirname(path[i])
-        if name_1[-1] == name_2[-1]:
-            name = name_1[-1]
-            sampling_rate = read_hdf5("timeCorrection_" + name, filepath, "sampling_rate")[0]
-            ts = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
-            coords = fetchCoords(filepath, name, ts)
-            for i in range(len(storesList)):
-                if (
-                    "control_" + name.lower() in storesList[i].lower()
-                    or "signal_" + name.lower() in storesList[i].lower()
-                ):  # changes done
-                    data = read_hdf5(storesList[i], filepath, "data").reshape(-1)
-                    data = addingNaNValues(data=data, ts=ts, coords=coords)
-                    write_hdf5(data, storesList[i], filepath, "data")
-                else:
-                    if "control" in storesList[i].lower() or "signal" in storesList[i].lower():
-                        continue
-                    else:
-                        ts = read_hdf5(storesList[i] + "_" + name, filepath, "ts").reshape(-1)
-                        ts = removeTTLs(ts=ts, coords=coords)
-                        write_hdf5(ts, storesList[i] + "_" + name, filepath, "ts")
-
-        else:
+        if name_1[-1] != name_2[-1]:
             logger.error("Error in naming convention of files or Error in storesList file")
             raise Exception("Error in naming convention of files or Error in storesList file")
+        name = name_1[-1]
+
+        sampling_rate = read_hdf5("timeCorrection_" + name, filepath, "sampling_rate")[0]
+        ts = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
+        coords = fetchCoords(filepath, name, ts)
+        for i in range(len(names_for_storenames)):
+            if (
+                "control_" + name.lower() in names_for_storenames[i].lower()
+                or "signal_" + name.lower() in names_for_storenames[i].lower()
+            ):  # changes done
+                data = read_hdf5(names_for_storenames[i], filepath, "data").reshape(-1)
+                data = addingNaNValues(data=data, ts=ts, coords=coords)
+                write_hdf5(data, names_for_storenames[i], filepath, "data")
+            else:
+                if "control" in names_for_storenames[i].lower() or "signal" in names_for_storenames[i].lower():
+                    continue
+                ts = read_hdf5(names_for_storenames[i] + "_" + name, filepath, "ts").reshape(-1)
+                ts = removeTTLs(ts=ts, coords=coords)
+                write_hdf5(ts, names_for_storenames[i] + "_" + name, filepath, "ts")
     logger.info("Chunks with artifacts are replaced by NaN values.")
 
 
