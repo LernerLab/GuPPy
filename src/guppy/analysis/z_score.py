@@ -75,6 +75,8 @@ def get_coords(filepath, name, tsNew, removeArtifacts):  # TODO: Make less redun
 def helper_z_score(
     control, signal, tsNew, inputParameters, coords, artifactsRemovalMethod, filter_window, isosbestic_control
 ):
+    zscore_method = inputParameters["zscore_method"]
+    baseline_start, baseline_end = inputParameters["baselineWindowStart"], inputParameters["baselineWindowEnd"]
     if (control == 0).all() == True:
         control = np.zeros(tsNew.shape[0])
 
@@ -105,7 +107,7 @@ def helper_z_score(
     if artifactsRemovalMethod == "concatenate":
         norm_data_arr = norm_data_arr[~np.isnan(norm_data_arr)]
         control_fit_arr = control_fit_arr[~np.isnan(control_fit_arr)]
-    z_score = z_score_computation(norm_data_arr, tsNew, inputParameters)
+    z_score = z_score_computation(norm_data_arr, tsNew, zscore_method, baseline_start, baseline_end)
     z_score_arr = np.concatenate((z_score_arr, z_score))
 
     # handle the case if there are chunks being cut in the front and the end
@@ -173,11 +175,7 @@ def filterSignal(filter_window, signal):
 
 
 # function to compute z-score based on z-score computation method
-def z_score_computation(dff, timestamps, inputParameters):
-
-    zscore_method = inputParameters["zscore_method"]
-    baseline_start, baseline_end = inputParameters["baselineWindowStart"], inputParameters["baselineWindowEnd"]
-
+def z_score_computation(dff, timestamps, zscore_method, baseline_start, baseline_end):
     if zscore_method == "standard z-score":
         numerator = np.subtract(dff, np.nanmean(dff))
         zscore = np.divide(numerator, np.nanstd(dff))
