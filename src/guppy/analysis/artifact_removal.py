@@ -73,15 +73,31 @@ def processTimestampsForArtifacts(filepath, timeForLightsTurnOn, events):
                     "control_" + name.lower() in storesList[i].lower()
                     or "signal_" + name.lower() in storesList[i].lower()
                 ):  # changes done
+                    ts = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
+                    data = read_hdf5(storesList[i], filepath, "data").reshape(-1)
+                    coords = fetchCoords(filepath, name, ts)
                     data, timestampNew = eliminateData(
-                        filepath, timeForLightsTurnOn, storesList[i], sampling_rate, name
+                        data=data,
+                        ts=ts,
+                        coords=coords,
+                        timeForLightsTurnOn=timeForLightsTurnOn,
+                        sampling_rate=sampling_rate,
                     )
                     write_hdf5(data, storesList[i], filepath, "data")
                 else:
                     if "control" in storesList[i].lower() or "signal" in storesList[i].lower():
                         continue
                     else:
-                        ts = eliminateTs(filepath, timeForLightsTurnOn, storesList[i], sampling_rate, name)
+                        tsNew = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
+                        ts = read_hdf5(storesList[i] + "_" + name, filepath, "ts").reshape(-1)
+                        coords = fetchCoords(filepath, name, tsNew)
+                        ts = eliminateTs(
+                            ts=ts,
+                            tsNew=tsNew,
+                            coords=coords,
+                            timeForLightsTurnOn=timeForLightsTurnOn,
+                            sampling_rate=sampling_rate,
+                        )
                         write_hdf5(ts, storesList[i] + "_" + name, filepath, "ts")
 
             # timestamp_dict[name] = timestampNew
@@ -93,11 +109,7 @@ def processTimestampsForArtifacts(filepath, timeForLightsTurnOn, events):
 
 
 # helper function to process control and signal timestamps
-def eliminateData(filepath, timeForLightsTurnOn, event, sampling_rate, naming):
-
-    ts = read_hdf5("timeCorrection_" + naming, filepath, "timestampNew")
-    data = read_hdf5(event, filepath, "data").reshape(-1)
-    coords = fetchCoords(filepath, naming, ts)
+def eliminateData(*, data, ts, coords, timeForLightsTurnOn, sampling_rate):
 
     if (data == 0).all() == True:
         data = np.zeros(ts.shape[0])
@@ -126,11 +138,7 @@ def eliminateData(filepath, timeForLightsTurnOn, event, sampling_rate, naming):
 
 
 # helper function to align event timestamps with the control and signal timestamps
-def eliminateTs(filepath, timeForLightsTurnOn, event, sampling_rate, naming):
-
-    tsNew = read_hdf5("timeCorrection_" + naming, filepath, "timestampNew")
-    ts = read_hdf5(event + "_" + naming, filepath, "ts").reshape(-1)
-    coords = fetchCoords(filepath, naming, tsNew)
+def eliminateTs(*, ts, tsNew, coords, timeForLightsTurnOn, sampling_rate):
 
     ts_arr = np.array([])
     tsNew_arr = np.array([])
