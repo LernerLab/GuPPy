@@ -9,11 +9,21 @@ from .io_utils import (
     read_hdf5,
     write_hdf5,
 )
+from .standard_io import (
+    read_control_and_signal,
+    read_coords_pairwise,
+    read_corrected_timestamps_pairwise,
+    read_corrected_ttl_timestamps,
+)
 
 logger = logging.getLogger(__name__)
 
 
 def addingNaNtoChunksWithArtifacts(filepath, storesList):
+    name_to_data, _, _, _ = read_control_and_signal(filepath, storesList)
+    pair_name_to_tsNew = read_corrected_timestamps_pairwise(filepath)
+    pair_name_to_coords = read_coords_pairwise(filepath, pair_name_to_tsNew)
+    compound_name_to_ttl_timestamps = read_corrected_ttl_timestamps(filepath, storesList, pair_name_to_tsNew)
 
     logger.debug("Replacing chunks with artifacts by NaN values.")
     names_for_storenames = storesList[1, :]
@@ -26,25 +36,27 @@ def addingNaNtoChunksWithArtifacts(filepath, storesList):
         if name_1[-1] != name_2[-1]:
             logger.error("Error in naming convention of files or Error in storesList file")
             raise Exception("Error in naming convention of files or Error in storesList file")
-        name = name_1[-1]
+        pair_name = name_1[-1]
 
-        sampling_rate = read_hdf5("timeCorrection_" + name, filepath, "sampling_rate")[0]
-        ts = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
-        coords = fetchCoords(filepath, name, ts)
+        tsNew = pair_name_to_tsNew[pair_name]
+        coords = pair_name_to_coords[pair_name]
         for i in range(len(names_for_storenames)):
             if (
-                "control_" + name.lower() in names_for_storenames[i].lower()
-                or "signal_" + name.lower() in names_for_storenames[i].lower()
+                "control_" + pair_name.lower() in names_for_storenames[i].lower()
+                or "signal_" + pair_name.lower() in names_for_storenames[i].lower()
             ):  # changes done
-                data = read_hdf5(names_for_storenames[i], filepath, "data").reshape(-1)
-                data = addingNaNValues(data=data, ts=ts, coords=coords)
+                # data = read_hdf5(names_for_storenames[i], filepath, "data").reshape(-1)
+                data = name_to_data[names_for_storenames[i]].reshape(-1)
+                data = addingNaNValues(data=data, ts=tsNew, coords=coords)
                 write_hdf5(data, names_for_storenames[i], filepath, "data")
             else:
                 if "control" in names_for_storenames[i].lower() or "signal" in names_for_storenames[i].lower():
                     continue
-                ts = read_hdf5(names_for_storenames[i] + "_" + name, filepath, "ts").reshape(-1)
+                ttl_name = names_for_storenames[i]
+                compound_name = ttl_name + "_" + pair_name
+                ts = compound_name_to_ttl_timestamps[compound_name].reshape(-1)
                 ts = removeTTLs(ts=ts, coords=coords)
-                write_hdf5(ts, names_for_storenames[i] + "_" + name, filepath, "ts")
+                write_hdf5(ts, names_for_storenames[i] + "_" + pair_name, filepath, "ts")
     logger.info("Chunks with artifacts are replaced by NaN values.")
 
 

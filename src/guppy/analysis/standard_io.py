@@ -1,8 +1,11 @@
 import logging
+import os
 
 import numpy as np
 
 from .io_utils import (
+    decide_naming_convention,
+    fetchCoords,
     get_control_and_signal_channel_names,
     read_hdf5,
     write_hdf5,
@@ -114,3 +117,59 @@ def write_zscore(filepath, name, z_score, dff, control_fit, temp_control_arr):
     write_hdf5(control_fit, "cntrl_sig_fit_" + name, filepath, "data")
     if temp_control_arr is not None:
         write_hdf5(temp_control_arr, "control_" + name, filepath, "data")
+
+
+def read_corrected_timestamps_pairwise(filepath):
+    pair_name_to_tsNew = {}
+    path = decide_naming_convention(filepath)
+    for j in range(path.shape[1]):
+        name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")
+        name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")
+        if name_1[-1] != name_2[-1]:
+            logger.error("Error in naming convention of files or Error in storesList file")
+            raise Exception("Error in naming convention of files or Error in storesList file")
+        name = name_1[-1]
+
+        tsNew = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
+        pair_name_to_tsNew[name] = tsNew
+    return pair_name_to_tsNew
+
+
+def read_coords_pairwise(filepath, pair_name_to_tsNew):
+    pair_name_to_coords = {}
+    path = decide_naming_convention(filepath)
+    for j in range(path.shape[1]):
+        name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")
+        name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")
+        if name_1[-1] != name_2[-1]:
+            logger.error("Error in naming convention of files or Error in storesList file")
+            raise Exception("Error in naming convention of files or Error in storesList file")
+        pair_name = name_1[-1]
+
+        tsNew = pair_name_to_tsNew[pair_name]
+        coords = fetchCoords(filepath, pair_name, tsNew)
+        pair_name_to_coords[pair_name] = coords
+    return pair_name_to_coords
+
+
+def read_corrected_ttl_timestamps(filepath, storesList):
+    compound_name_to_ttl_timestamps = {}
+    storenames = storesList[0, :]
+    names_for_storenames = storesList[1, :]
+    arr = get_control_and_signal_channel_names(storesList)
+
+    for storename, name in zip(storenames, names_for_storenames):
+        if name in arr:
+            continue
+        ttl_name = name
+        for i in range(arr.shape[1]):
+            name_1 = arr[0, i].split("_")[-1]
+            name_2 = arr[1, i].split("_")[-1]
+            if name_1 != name_2:
+                logger.error("Error in naming convention of files or Error in storesList file")
+                raise Exception("Error in naming convention of files or Error in storesList file")
+            compound_name = ttl_name + "_" + name_1
+            ts = read_hdf5(compound_name, filepath, "ts")
+            compound_name_to_ttl_timestamps[compound_name] = ts
+
+    return compound_name_to_ttl_timestamps
