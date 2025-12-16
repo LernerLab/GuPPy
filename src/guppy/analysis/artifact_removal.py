@@ -9,22 +9,13 @@ from .io_utils import (
     read_hdf5,
     write_hdf5,
 )
-from .standard_io import (
-    read_control_and_signal,
-    read_coords_pairwise,
-    read_corrected_timestamps_pairwise,
-    read_corrected_ttl_timestamps,
-)
 
 logger = logging.getLogger(__name__)
 
 
-def addingNaNtoChunksWithArtifacts(filepath, storesList):
-    name_to_data, _, _, _ = read_control_and_signal(filepath, storesList)
-    pair_name_to_tsNew = read_corrected_timestamps_pairwise(filepath)
-    pair_name_to_coords = read_coords_pairwise(filepath, pair_name_to_tsNew)
-    compound_name_to_ttl_timestamps = read_corrected_ttl_timestamps(filepath, storesList, pair_name_to_tsNew)
-
+def addingNaNtoChunksWithArtifacts(
+    filepath, storesList, pair_name_to_tsNew, pair_name_to_coords, name_to_data, compound_name_to_ttl_timestamps
+):
     logger.debug("Replacing chunks with artifacts by NaN values.")
     names_for_storenames = storesList[1, :]
 
@@ -45,7 +36,6 @@ def addingNaNtoChunksWithArtifacts(filepath, storesList):
                 "control_" + pair_name.lower() in names_for_storenames[i].lower()
                 or "signal_" + pair_name.lower() in names_for_storenames[i].lower()
             ):  # changes done
-                # data = read_hdf5(names_for_storenames[i], filepath, "data").reshape(-1)
                 data = name_to_data[names_for_storenames[i]].reshape(-1)
                 data = addingNaNValues(data=data, ts=tsNew, coords=coords)
                 write_hdf5(data, names_for_storenames[i], filepath, "data")

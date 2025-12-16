@@ -24,7 +24,10 @@ from .analysis.io_utils import (
 )
 from .analysis.standard_io import (
     read_control_and_signal,
+    read_coords_pairwise,
     read_corrected_data,
+    read_corrected_timestamps_pairwise,
+    read_corrected_ttl_timestamps,
     read_ttl,
     write_corrected_data,
     write_corrected_timestamps,
@@ -374,7 +377,18 @@ def execute_artifact_removal(folderNames, inputParameters):
         if artifactsRemovalMethod == "concatenate":
             processTimestampsForArtifacts(filepath, timeForLightsTurnOn, storesList)
         else:
-            addingNaNtoChunksWithArtifacts(filepath, storesList)
+            name_to_data, _, _, _ = read_control_and_signal(filepath, storesList)
+            pair_name_to_tsNew = read_corrected_timestamps_pairwise(filepath)
+            pair_name_to_coords = read_coords_pairwise(filepath, pair_name_to_tsNew)
+            compound_name_to_ttl_timestamps = read_corrected_ttl_timestamps(filepath, storesList)
+            addingNaNtoChunksWithArtifacts(
+                filepath,
+                storesList,
+                pair_name_to_tsNew,
+                pair_name_to_coords,
+                name_to_data,
+                compound_name_to_ttl_timestamps,
+            )
         visualizeControlAndSignal(filepath, removeArtifacts=True)
 
         writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
