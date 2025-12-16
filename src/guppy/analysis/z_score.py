@@ -21,6 +21,8 @@ def compute_z_score(filepath, inputParameters):
     artifactsRemovalMethod = inputParameters["artifactsRemovalMethod"]
     filter_window = inputParameters["filter_window"]
     isosbestic_control = inputParameters["isosbestic_control"]
+    zscore_method = inputParameters["zscore_method"]
+    baseline_start, baseline_end = inputParameters["baselineWindowStart"], inputParameters["baselineWindowEnd"]
 
     logger.debug(f"Computing z-score for each of the data in {filepath}")
 
@@ -50,7 +52,16 @@ def compute_z_score(filepath, inputParameters):
 
         coords = get_coords(filepath, name, tsNew, removeArtifacts)
         z_score, dff, control_fit, temp_control_arr = helper_z_score(
-            control, signal, tsNew, inputParameters, coords, artifactsRemovalMethod, filter_window, isosbestic_control
+            control,
+            signal,
+            tsNew,
+            coords,
+            artifactsRemovalMethod,
+            filter_window,
+            isosbestic_control,
+            zscore_method,
+            baseline_start,
+            baseline_end,
         )
 
         write_hdf5(z_score, "z_score_" + name, filepath, "data")
@@ -73,10 +84,17 @@ def get_coords(filepath, name, tsNew, removeArtifacts):  # TODO: Make less redun
 
 # helper function to compute z-score and deltaF/F
 def helper_z_score(
-    control, signal, tsNew, inputParameters, coords, artifactsRemovalMethod, filter_window, isosbestic_control
+    control,
+    signal,
+    tsNew,
+    coords,
+    artifactsRemovalMethod,
+    filter_window,
+    isosbestic_control,
+    zscore_method,
+    baseline_start,
+    baseline_end,
 ):
-    zscore_method = inputParameters["zscore_method"]
-    baseline_start, baseline_end = inputParameters["baselineWindowStart"], inputParameters["baselineWindowEnd"]
     if (control == 0).all() == True:
         control = np.zeros(tsNew.shape[0])
 
