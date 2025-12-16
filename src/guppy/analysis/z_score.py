@@ -45,9 +45,7 @@ def compute_z_score(filepath, inputParameters):
         tsNew = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
 
         coords = get_coords(filepath, name, tsNew, removeArtifacts)
-        z_score, dff, control_fit, temp_control_arr = helper_z_score(
-            control, signal, tsNew, filepath, name, inputParameters, coords
-        )
+        z_score, dff, control_fit, temp_control_arr = helper_z_score(control, signal, tsNew, inputParameters, coords)
 
         write_hdf5(z_score, "z_score_" + name, filepath, "data")
         write_hdf5(dff, "dff_" + name, filepath, "data")
@@ -68,9 +66,7 @@ def get_coords(filepath, name, tsNew, removeArtifacts):  # TODO: Make less redun
 
 
 # helper function to compute z-score and deltaF/F
-def helper_z_score(
-    control, signal, tsNew, filepath, name, inputParameters, coords
-):  # helper_z_score(control_smooth, signal_smooth):
+def helper_z_score(control, signal, tsNew, inputParameters, coords):
 
     artifactsRemovalMethod = inputParameters["artifactsRemovalMethod"]
     filter_window = inputParameters["filter_window"]
