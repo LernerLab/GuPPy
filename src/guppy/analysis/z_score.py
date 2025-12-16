@@ -25,35 +25,26 @@ def compute_z_score(filepath, inputParameters):
 
     path = sorted(path_1 + path_2, key=str.casefold)
 
-    b = np.divide(np.ones((100,)), 100)
-    a = 1
-
     if len(path) % 2 != 0:
         logger.error("There are not equal number of Control and Signal data")
         raise Exception("There are not equal number of Control and Signal data")
 
     path = np.asarray(path).reshape(2, -1)
+    removeArtifacts = inputParameters["removeArtifacts"]
 
     for i in range(path.shape[1]):
         name_1 = ((os.path.basename(path[0, i])).split(".")[0]).split("_")
         name_2 = ((os.path.basename(path[1, i])).split(".")[0]).split("_")
-        # dirname = os.path.dirname(path[i])
 
         if name_1[-1] == name_2[-1]:
             name = name_1[-1]
             control = read_hdf5("", path[0, i], "data").reshape(-1)
             signal = read_hdf5("", path[1, i], "data").reshape(-1)
-            # control_smooth = ss.filtfilt(b, a, control)
-            # signal_smooth = ss.filtfilt(b, a, signal)
-            # _score, dff = helper_z_score(control_smooth, signal_smooth)
             tsNew = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
-            removeArtifacts = inputParameters["removeArtifacts"]
-            if removeArtifacts == True:
-                coords = fetchCoords(filepath, name, tsNew)
-            else:
-                dt = tsNew[1] - tsNew[0]
-                coords = np.array([[tsNew[0] - dt, tsNew[-1] + dt]])
-            z_score, dff, control_fit = helper_z_score(control, signal, filepath, name, inputParameters, coords)
+
+            coords = get_coords(filepath, name, tsNew, removeArtifacts)
+            z_score, dff, control_fit = helper_z_score(control, signal, tsNew, filepath, name, inputParameters, coords)
+
             write_hdf5(z_score, "z_score_" + name, filepath, "data")
             write_hdf5(dff, "dff_" + name, filepath, "data")
             write_hdf5(control_fit, "cntrl_sig_fit_" + name, filepath, "data")
@@ -64,17 +55,23 @@ def compute_z_score(filepath, inputParameters):
     logger.info(f"z-score for the data in {filepath} computed.")
 
 
+def get_coords(filepath, name, tsNew, removeArtifacts):  # TODO: Make less redundant with fetchCoords
+    if removeArtifacts == True:
+        coords = fetchCoords(filepath, name, tsNew)
+    else:
+        dt = tsNew[1] - tsNew[0]
+        coords = np.array([[tsNew[0] - dt, tsNew[-1] + dt]])
+    return coords
+
+
 # helper function to compute z-score and deltaF/F
 def helper_z_score(
-    control, signal, filepath, name, inputParameters, coords
+    control, signal, tsNew, filepath, name, inputParameters, coords
 ):  # helper_z_score(control_smooth, signal_smooth):
 
     artifactsRemovalMethod = inputParameters["artifactsRemovalMethod"]
     filter_window = inputParameters["filter_window"]
-
     isosbestic_control = inputParameters["isosbestic_control"]
-    tsNew = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
-    coords_path = os.path.join(filepath, "coordsForPreProcessing_" + name + ".npy")
 
     if (control == 0).all() == True:
         control = np.zeros(tsNew.shape[0])
