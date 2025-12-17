@@ -90,7 +90,6 @@ def processTimestampsForArtifacts(
                 )
                 name_to_corrected_data[names_for_storenames[i]] = data
                 pair_name_to_corrected_timestamps[pair_name] = timestampNew
-                # write_hdf5(data, names_for_storenames[i], filepath, "data")
             else:
                 if "control" in names_for_storenames[i].lower() or "signal" in names_for_storenames[i].lower():
                     continue
@@ -104,9 +103,7 @@ def processTimestampsForArtifacts(
                     sampling_rate=sampling_rate,
                 )
                 compound_name_to_corrected_ttl_timestamps[compound_name] = ts
-                # write_hdf5(ts, names_for_storenames[i] + "_" + pair_name, filepath, "ts")
 
-        # write_hdf5(timestampNew, "timeCorrection_" + pair_name, filepath, "timestampNew")
     logger.info("Timestamps processed, artifacts are removed and good chunks are concatenated.")
 
     return (
