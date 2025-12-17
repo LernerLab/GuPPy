@@ -21,6 +21,8 @@ def addingNaNtoChunksWithArtifacts(
 
     path = decide_naming_convention(filepath)
 
+    name_to_corrected_data = {}
+    compound_name_to_corrected_ttl_timestamps = {}
     for j in range(path.shape[1]):
         name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")
         name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")
@@ -38,7 +40,7 @@ def addingNaNtoChunksWithArtifacts(
             ):  # changes done
                 data = name_to_data[names_for_storenames[i]].reshape(-1)
                 data = addingNaNValues(data=data, ts=tsNew, coords=coords)
-                write_hdf5(data, names_for_storenames[i], filepath, "data")
+                name_to_corrected_data[names_for_storenames[i]] = data
             else:
                 if "control" in names_for_storenames[i].lower() or "signal" in names_for_storenames[i].lower():
                     continue
@@ -46,8 +48,10 @@ def addingNaNtoChunksWithArtifacts(
                 compound_name = ttl_name + "_" + pair_name
                 ts = compound_name_to_ttl_timestamps[compound_name].reshape(-1)
                 ts = removeTTLs(ts=ts, coords=coords)
-                write_hdf5(ts, names_for_storenames[i] + "_" + pair_name, filepath, "ts")
+                compound_name_to_corrected_ttl_timestamps[compound_name] = ts
     logger.info("Chunks with artifacts are replaced by NaN values.")
+
+    return name_to_corrected_data, compound_name_to_corrected_ttl_timestamps
 
 
 # main function to align timestamps for control, signal and event timestamps for artifacts removal

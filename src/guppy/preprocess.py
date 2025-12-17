@@ -33,6 +33,8 @@ from .analysis.standard_io import (
     write_corrected_data,
     write_corrected_timestamps,
     write_corrected_ttl_timestamps,
+    write_nan_corrected_data,
+    write_nan_corrected_ttl_timestamps,
     write_zscore,
 )
 from .analysis.timestamp_correction import correct_timestamps
@@ -382,7 +384,7 @@ def execute_artifact_removal(folderNames, inputParameters):
             pair_name_to_tsNew = read_corrected_timestamps_pairwise(filepath)
             pair_name_to_coords = read_coords_pairwise(filepath, pair_name_to_tsNew)
             compound_name_to_ttl_timestamps = read_corrected_ttl_timestamps(filepath, storesList)
-            addingNaNtoChunksWithArtifacts(
+            name_to_data, compound_name_to_ttl_timestamps = addingNaNtoChunksWithArtifacts(
                 filepath,
                 storesList,
                 pair_name_to_tsNew,
@@ -390,6 +392,9 @@ def execute_artifact_removal(folderNames, inputParameters):
                 name_to_data,
                 compound_name_to_ttl_timestamps,
             )
+            write_nan_corrected_data(filepath, name_to_data)
+            write_nan_corrected_ttl_timestamps(filepath, compound_name_to_ttl_timestamps)
+
         visualizeControlAndSignal(filepath, removeArtifacts=True)
 
         writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")

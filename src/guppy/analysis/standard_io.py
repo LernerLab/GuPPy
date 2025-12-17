@@ -188,3 +188,16 @@ def read_corrected_ttl_timestamps(filepath, storesList):
             compound_name_to_ttl_timestamps[compound_name] = ts
 
     return compound_name_to_ttl_timestamps
+
+
+def write_nan_corrected_data(filepath, name_to_corrected_data):
+    for name, data in name_to_corrected_data.items():
+        write_hdf5(data, name, filepath, "data")
+
+
+def write_nan_corrected_ttl_timestamps(
+    filepath,
+    compound_name_to_corrected_ttl_timestamps,
+):
+    for compound_name, corrected_ttl_timestamps in compound_name_to_corrected_ttl_timestamps.items():
+        write_hdf5(corrected_ttl_timestamps, compound_name, filepath, "ts")
