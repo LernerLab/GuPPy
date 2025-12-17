@@ -193,19 +193,18 @@ def read_corrected_ttl_timestamps(filepath, storesList):
     return compound_name_to_ttl_timestamps
 
 
-def write_nan_corrected_data(filepath, name_to_corrected_data):
-    for name, data in name_to_corrected_data.items():
-        write_hdf5(data, name, filepath, "data")
-
-
-def write_nan_corrected_ttl_timestamps(
-    filepath,
-    compound_name_to_corrected_ttl_timestamps,
-):
-    for compound_name, corrected_ttl_timestamps in compound_name_to_corrected_ttl_timestamps.items():
-        write_hdf5(corrected_ttl_timestamps, compound_name, filepath, "ts")
-
-
-def write_concat_corrected_timestamps(filepath, pair_name_to_corrected_timestamps):
+def write_artifact_corrected_timestamps(filepath, pair_name_to_corrected_timestamps):
     for pair_name, timestamps in pair_name_to_corrected_timestamps.items():
         write_hdf5(timestamps, "timeCorrection_" + pair_name, filepath, "timestampNew")
+
+
+def write_artifact_removal(
+    filepath,
+    name_to_corrected_data,
+    pair_name_to_corrected_timestamps,
+    compound_name_to_corrected_ttl_timestamps=None,
+):
+    write_corrected_data(filepath, name_to_corrected_data)
+    write_corrected_ttl_timestamps(filepath, compound_name_to_corrected_ttl_timestamps)
+    if pair_name_to_corrected_timestamps is not None:
+        write_artifact_corrected_timestamps(filepath, pair_name_to_corrected_timestamps)
