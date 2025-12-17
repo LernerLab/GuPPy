@@ -7,10 +7,7 @@ import sys
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .analysis.artifact_removal import (
-    addingNaNtoChunksWithArtifacts,
-    processTimestampsForArtifacts,
-)
+from .analysis.artifact_removal import remove_artifacts
 from .analysis.combine_data import combineData
 from .analysis.control_channel import add_control_channel, create_control_channel
 from .analysis.io_utils import (
@@ -381,25 +378,16 @@ def execute_artifact_removal(folderNames, inputParameters):
         compound_name_to_ttl_timestamps = read_corrected_ttl_timestamps(filepath, storesList)
 
         logger.debug("Removing artifacts from the data...")
-        if artifactsRemovalMethod == "concatenate":
-            name_to_data, pair_name_to_timestamps, compound_name_to_ttl_timestamps = processTimestampsForArtifacts(
-                timeForLightsTurnOn,
-                storesList,
-                pair_name_to_tsNew,
-                pair_name_to_sampling_rate,
-                pair_name_to_coords,
-                name_to_data,
-                compound_name_to_ttl_timestamps,
-            )
-        else:
-            name_to_data, compound_name_to_ttl_timestamps = addingNaNtoChunksWithArtifacts(
-                storesList,
-                pair_name_to_tsNew,
-                pair_name_to_coords,
-                name_to_data,
-                compound_name_to_ttl_timestamps,
-            )
-            pair_name_to_timestamps = None
+        name_to_data, pair_name_to_timestamps, compound_name_to_ttl_timestamps = remove_artifacts(
+            timeForLightsTurnOn,
+            storesList,
+            pair_name_to_tsNew,
+            pair_name_to_sampling_rate,
+            pair_name_to_coords,
+            name_to_data,
+            compound_name_to_ttl_timestamps,
+            method=artifactsRemovalMethod,
+        )
 
         write_artifact_removal(filepath, name_to_data, pair_name_to_timestamps, compound_name_to_ttl_timestamps)
         visualizeControlAndSignal(filepath, removeArtifacts=True)

@@ -5,6 +5,46 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
+def remove_artifacts(
+    timeForLightsTurnOn,
+    storesList,
+    pair_name_to_tsNew,
+    pair_name_to_sampling_rate,
+    pair_name_to_coords,
+    name_to_data,
+    compound_name_to_ttl_timestamps,
+    method,
+):
+    if method == "concatenate":
+        name_to_corrected_data, pair_name_to_corrected_timestamps, compound_name_to_corrected_ttl_timestamps = (
+            processTimestampsForArtifacts(
+                timeForLightsTurnOn,
+                storesList,
+                pair_name_to_tsNew,
+                pair_name_to_sampling_rate,
+                pair_name_to_coords,
+                name_to_data,
+                compound_name_to_ttl_timestamps,
+            )
+        )
+        logger.info("Artifacts removed using concatenate method.")
+    elif method == "replace with NaN":
+        name_to_corrected_data, compound_name_to_corrected_ttl_timestamps = addingNaNtoChunksWithArtifacts(
+            storesList,
+            pair_name_to_tsNew,
+            pair_name_to_coords,
+            name_to_data,
+            compound_name_to_ttl_timestamps,
+        )
+        pair_name_to_corrected_timestamps = None
+        logger.info("Artifacts removed using NaN replacement method.")
+    else:
+        logger.error("Invalid artifact removal method specified.")
+        raise ValueError("Invalid artifact removal method specified.")
+
+    return name_to_corrected_data, pair_name_to_corrected_timestamps, compound_name_to_corrected_ttl_timestamps
+
+
 def addingNaNtoChunksWithArtifacts(
     storesList, pair_name_to_tsNew, pair_name_to_coords, name_to_data, compound_name_to_ttl_timestamps
 ):
