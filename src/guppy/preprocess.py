@@ -26,6 +26,7 @@ from .analysis.standard_io import (
     read_control_and_signal,
     read_coords_pairwise,
     read_corrected_data,
+    read_corrected_data_dict,
     read_corrected_timestamps_pairwise,
     read_corrected_ttl_timestamps,
     read_ttl,
@@ -377,7 +378,7 @@ def execute_artifact_removal(folderNames, inputParameters):
         if artifactsRemovalMethod == "concatenate":
             processTimestampsForArtifacts(filepath, timeForLightsTurnOn, storesList)
         else:
-            name_to_data, _, _, _ = read_control_and_signal(filepath, storesList)
+            name_to_data = read_corrected_data_dict(filepath, storesList)
             pair_name_to_tsNew = read_corrected_timestamps_pairwise(filepath)
             pair_name_to_coords = read_coords_pairwise(filepath, pair_name_to_tsNew)
             compound_name_to_ttl_timestamps = read_corrected_ttl_timestamps(filepath, storesList)

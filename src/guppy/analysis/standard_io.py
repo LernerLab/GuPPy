@@ -152,6 +152,21 @@ def read_coords_pairwise(filepath, pair_name_to_tsNew):
     return pair_name_to_coords
 
 
+def read_corrected_data_dict(filepath, storesList):  # TODO: coordinate with read_corrected_data
+    name_to_corrected_data = {}
+    storenames = storesList[0, :]
+    names_for_storenames = storesList[1, :]
+    control_and_signal_names = get_control_and_signal_channel_names(storesList)
+
+    for storename, name in zip(storenames, names_for_storenames):
+        if name not in control_and_signal_names:
+            continue
+        data = read_hdf5(name, filepath, "data").reshape(-1)
+        name_to_corrected_data[name] = data
+
+    return name_to_corrected_data
+
+
 def read_corrected_ttl_timestamps(filepath, storesList):
     compound_name_to_ttl_timestamps = {}
     storenames = storesList[0, :]
