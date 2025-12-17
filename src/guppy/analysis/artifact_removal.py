@@ -1,11 +1,6 @@
 import logging
-import os
 
 import numpy as np
-
-from .io_utils import (
-    decide_naming_convention,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +40,6 @@ def addingNaNtoChunksWithArtifacts(
 
 # main function to align timestamps for control, signal and event timestamps for artifacts removal
 def processTimestampsForArtifacts(
-    filepath,
     timeForLightsTurnOn,
     storesList,
     pair_name_to_tsNew,
@@ -54,23 +48,14 @@ def processTimestampsForArtifacts(
     name_to_data,
     compound_name_to_ttl_timestamps,
 ):
-
     logger.debug("Processing timestamps to get rid of artifacts using concatenate method...")
     names_for_storenames = storesList[1, :]
-
-    path = decide_naming_convention(filepath)
+    pair_names = pair_name_to_tsNew.keys()
 
     name_to_corrected_data = {}
     pair_name_to_corrected_timestamps = {}
     compound_name_to_corrected_ttl_timestamps = {}
-    for j in range(path.shape[1]):
-        name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")
-        name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")
-        if name_1[-1] != name_2[-1]:
-            logger.error("Error in naming convention of files or Error in storesList file")
-            raise Exception("Error in naming convention of files or Error in storesList file")
-        pair_name = name_1[-1]
-
+    for pair_name in pair_names:
         sampling_rate = pair_name_to_sampling_rate[pair_name]
         tsNew = pair_name_to_tsNew[pair_name]
         coords = pair_name_to_coords[pair_name]
