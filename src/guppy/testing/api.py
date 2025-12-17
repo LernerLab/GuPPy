@@ -68,9 +68,10 @@ def step2(
     base_dir: str,
     selected_folders: Iterable[str],
     storenames_map: dict[str, str],
-    npm_timestamp_column_name: str | None = None,
-    npm_time_unit: str = "seconds",
-    npm_split_events: bool = True,
+    modality: str = "tdt",
+    npm_timestamp_column_names: list[str | None] | None = None,
+    npm_time_units: list[str] | None = None,
+    npm_split_events: list[bool] | None = None,
 ) -> None:
     """
     Run pipeline Step 2 (Save Storenames) via the actual Panel-backed logic.
@@ -93,6 +94,14 @@ def step2(
     storenames_map : dict[str, str]
         Mapping from raw storenames (e.g., "Dv1A") to semantic names
         (e.g., "control_DMS"). Insertion order is preserved.
+    modality : str
+        Data acquisition modality (e.g., 'tdt', 'csv', 'doric', 'npm').
+    npm_timestamp_column_names : list[str | None] | None
+        List of timestamp column names for NPM files, one per CSV file. None if not applicable.
+    npm_time_units : list[str] | None
+        List of time units for NPM files, one per CSV file (e.g., 'seconds', 'milliseconds'). None if not applicable.
+    npm_split_events : list[bool] | None
+        List of booleans indicating whether to split events for NPM files, one per CSV file. None if not applicable.
 
     Raises
     ------
@@ -150,9 +159,12 @@ def step2(
     # Inject storenames mapping for headless execution
     input_params["storenames_map"] = dict(storenames_map)
 
+    # Inject modality
+    input_params["modality"] = modality
+
     # Add npm parameters
-    input_params["npm_timestamp_column_name"] = npm_timestamp_column_name
-    input_params["npm_time_unit"] = npm_time_unit
+    input_params["npm_timestamp_column_names"] = npm_timestamp_column_names
+    input_params["npm_time_units"] = npm_time_units
     input_params["npm_split_events"] = npm_split_events
 
     # Call the underlying Step 2 executor (now headless-aware)
@@ -163,9 +175,10 @@ def step3(
     *,
     base_dir: str,
     selected_folders: Iterable[str],
-    npm_timestamp_column_name: str | None = None,
-    npm_time_unit: str = "seconds",
-    npm_split_events: bool = True,
+    modality: str = "tdt",
+    npm_timestamp_column_names: list[str | None] | None = None,
+    npm_time_units: list[str] | None = None,
+    npm_split_events: list[bool] | None = None,
 ) -> None:
     """
     Run pipeline Step 3 (Read Raw Data) via the actual Panel-backed logic, headlessly.
@@ -183,6 +196,14 @@ def step3(
         must reside directly under this path.
     selected_folders : Iterable[str]
         Absolute paths to the session directories to process.
+    modality : str
+        Data acquisition modality (e.g., 'tdt', 'csv', 'doric', 'npm').
+    npm_timestamp_column_names : list[str | None] | None
+        List of timestamp column names for NPM files, one per CSV file. None if not applicable.
+    npm_time_units : list[str] | None
+        List of time units for NPM files, one per CSV file (e.g., 'seconds', 'milliseconds'). None if not applicable.
+    npm_split_events : list[bool] | None
+        List of booleans indicating whether to split events for NPM files, one per CSV file. None if not applicable.
 
     Raises
     ------
@@ -227,10 +248,13 @@ def step3(
     template._widgets["files_1"].value = abs_sessions
     input_params = template._hooks["getInputParameters"]()
 
-    # Inject explicit NPM parameters (match Step 2 style)
-    input_params["npm_timestamp_column_name"] = npm_timestamp_column_name
-    input_params["npm_time_unit"] = npm_time_unit
+    # Inject explicit NPM parameters
+    input_params["npm_timestamp_column_names"] = npm_timestamp_column_names
+    input_params["npm_time_units"] = npm_time_units
     input_params["npm_split_events"] = npm_split_events
+
+    # Inject modality
+    input_params["modality"] = modality
 
     # Call the underlying Step 3 worker directly (no subprocess)
     readRawData(input_params)
@@ -240,9 +264,10 @@ def step4(
     *,
     base_dir: str,
     selected_folders: Iterable[str],
-    npm_timestamp_column_name: str | None = None,
-    npm_time_unit: str = "seconds",
-    npm_split_events: bool = True,
+    modality: str = "tdt",
+    npm_timestamp_column_names: list[str | None] | None = None,
+    npm_time_units: list[str] | None = None,
+    npm_split_events: list[bool] | None = None,
 ) -> None:
     """
     Run pipeline Step 4 (Extract timestamps and signal) via the Panel-backed logic, headlessly.
@@ -260,6 +285,14 @@ def step4(
         must reside directly under this path.
     selected_folders : Iterable[str]
         Absolute paths to the session directories to process.
+    modality : str
+        Data acquisition modality (e.g., 'tdt', 'csv', 'doric', 'npm').
+    npm_timestamp_column_names : list[str | None] | None
+        List of timestamp column names for NPM files, one per CSV file. None if not applicable.
+    npm_time_units : list[str] | None
+        List of time units for NPM files, one per CSV file (e.g., 'seconds', 'milliseconds'). None if not applicable.
+    npm_split_events : list[bool] | None
+        List of booleans indicating whether to split events for NPM files, one per CSV file. None if not applicable.
 
     Raises
     ------
@@ -304,10 +337,13 @@ def step4(
     template._widgets["files_1"].value = abs_sessions
     input_params = template._hooks["getInputParameters"]()
 
-    # Inject explicit NPM parameters (match Step 2 style)
-    input_params["npm_timestamp_column_name"] = npm_timestamp_column_name
-    input_params["npm_time_unit"] = npm_time_unit
+    # Inject explicit NPM parameters
+    input_params["npm_timestamp_column_names"] = npm_timestamp_column_names
+    input_params["npm_time_units"] = npm_time_units
     input_params["npm_split_events"] = npm_split_events
+
+    # Inject modality
+    input_params["modality"] = modality
 
     # Call the underlying Step 4 worker directly (no subprocess)
     extractTsAndSignal(input_params)
@@ -317,9 +353,10 @@ def step5(
     *,
     base_dir: str,
     selected_folders: Iterable[str],
-    npm_timestamp_column_name: str | None = None,
-    npm_time_unit: str = "seconds",
-    npm_split_events: bool = True,
+    modality: str = "tdt",
+    npm_timestamp_column_names: list[str | None] | None = None,
+    npm_time_units: list[str] | None = None,
+    npm_split_events: list[bool] | None = None,
 ) -> None:
     """
     Run pipeline Step 5 (PSTH Computation) via the Panel-backed logic, headlessly.
@@ -337,6 +374,14 @@ def step5(
         must reside directly under this path.
     selected_folders : Iterable[str]
         Absolute paths to the session directories to process.
+    modality : str
+        Data acquisition modality (e.g., 'tdt', 'csv', 'doric', 'npm').
+    npm_timestamp_column_names : list[str | None] | None
+        List of timestamp column names for NPM files, one per CSV file. None if not applicable.
+    npm_time_units : list[str] | None
+        List of time units for NPM files, one per CSV file (e.g., 'seconds', 'milliseconds'). None if not applicable.
+    npm_split_events : list[bool] | None
+        List of booleans indicating whether to split events for NPM files, one per CSV file. None if not applicable.
 
     Raises
     ------
@@ -381,10 +426,13 @@ def step5(
     template._widgets["files_1"].value = abs_sessions
     input_params = template._hooks["getInputParameters"]()
 
-    # Inject explicit NPM parameters (match Step 2 style)
-    input_params["npm_timestamp_column_name"] = npm_timestamp_column_name
-    input_params["npm_time_unit"] = npm_time_unit
+    # Inject explicit NPM parameters
+    input_params["npm_timestamp_column_names"] = npm_timestamp_column_names
+    input_params["npm_time_units"] = npm_time_units
     input_params["npm_split_events"] = npm_split_events
+
+    # Inject modality
+    input_params["modality"] = modality
 
     # Call the underlying Step 5 worker directly (no subprocess)
     psthForEachStorename(input_params)

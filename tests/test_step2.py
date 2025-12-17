@@ -10,7 +10,7 @@ from guppy.testing.api import step2
 
 
 @pytest.mark.parametrize(
-    "session_subdir, storenames_map",
+    "session_subdir, storenames_map, modality",
     [
         (
             "SampleData_csv/sample_data_csv_1",
@@ -19,6 +19,7 @@ from guppy.testing.api import step2
                 "Sample_Signal_Channel": "signal_region",
                 "Sample_TTL": "ttl",
             },
+            "csv",
         ),
         (
             "SampleData_Doric/sample_doric_1",
@@ -27,6 +28,7 @@ from guppy.testing.api import step2
                 "AIn-2 - Raw": "signal_region",
                 "DI--O-1": "ttl",
             },
+            "doric",
         ),
         (
             "SampleData_Doric/sample_doric_2",
@@ -35,6 +37,7 @@ from guppy.testing.api import step2
                 "AIn-1 - Dem (da)": "signal_region",
                 "DI/O-1": "ttl",
             },
+            "doric",
         ),
         (
             "SampleData_Doric/sample_doric_3",
@@ -43,6 +46,7 @@ from guppy.testing.api import step2
                 "CAM1_EXC2/ROI01": "signal_region",
                 "DigitalIO/CAM1": "ttl",
             },
+            "doric",
         ),
         (
             "SampleData_Doric/sample_doric_4",
@@ -50,6 +54,7 @@ from guppy.testing.api import step2
                 "Series0001/AIN01xAOUT01-LockIn": "control_region",
                 "Series0001/AIN01xAOUT02-LockIn": "signal_region",
             },
+            "doric",
         ),
         (
             "SampleData_Doric/sample_doric_5",
@@ -57,6 +62,7 @@ from guppy.testing.api import step2
                 "Series0001/AIN01xAOUT01-LockIn": "control_region",
                 "Series0001/AIN01xAOUT02-LockIn": "signal_region",
             },
+            "doric",
         ),
         (
             "SampleData_Clean/Photo_63_207-181030-103332",
@@ -65,6 +71,7 @@ from guppy.testing.api import step2
                 "Dv2A": "signal_dms",
                 "PrtN": "port_entries_dms",
             },
+            "tdt",
         ),
         (
             "SampleData_with_artifacts/Photo_048_392-200728-121222",
@@ -73,14 +80,16 @@ from guppy.testing.api import step2
                 "Dv2A": "signal_dms",
                 "PrtN": "port_entries_dms",
             },
+            "tdt",
         ),
         (
             "SampleData_Clean/Photometry-161823",
             {
                 "405R": "control_region",
                 "490R": "signal_region",
-                "Tick": "ttl",
+                "PAB/": "ttl",
             },
+            "tdt",
         ),
         # TODO: Add sampleData_NPM_1 after fixing Doric vs. NPM determination bug.
         (
@@ -89,6 +98,7 @@ from guppy.testing.api import step2
                 "file0_chev6": "control_region",
                 "file1_chev6": "signal_region",
             },
+            "npm",
         ),
         (
             "SampleData_Neurophotometrics/sampleData_NPM_3",
@@ -97,6 +107,7 @@ from guppy.testing.api import step2
                 "file0_chod3": "signal_region3",
                 "event3": "ttl_region3",
             },
+            "npm",
         ),
         (
             "SampleData_Neurophotometrics/sampleData_NPM_4",
@@ -105,6 +116,7 @@ from guppy.testing.api import step2
                 "file0_chod1": "signal_region1",
                 "eventTrue": "ttl_true_region1",
             },
+            "npm",
         ),
         (
             "SampleData_Neurophotometrics/sampleData_NPM_5",
@@ -113,6 +125,7 @@ from guppy.testing.api import step2
                 "file0_chod1": "signal_region1",
                 "event0": "ttl_region1",
             },
+            "npm",
         ),
     ],
     ids=[
@@ -123,7 +136,7 @@ from guppy.testing.api import step2
         "sample_doric_4",
         "sample_doric_5",
         "tdt_clean",
-        "tdt_check_data",
+        "tdt_split_event",
         "tdt_with_artifacts",
         "sample_npm_2",
         "sample_npm_3",
@@ -131,7 +144,7 @@ from guppy.testing.api import step2
         "sample_npm_5",
     ],
 )
-def test_step2(tmp_path, session_subdir, storenames_map):
+def test_step2(tmp_path, session_subdir, storenames_map, modality):
     """
     Step 2 integration test (Save Storenames) using real sample data, isolated to a temporary workspace.
     For each dataset:
@@ -141,16 +154,15 @@ def test_step2(tmp_path, session_subdir, storenames_map):
       - Asserts storesList.csv exists and exactly matches the provided mapping (2xN)
     """
     if session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_3":
-        npm_timestamp_column_name = "ComputerTimestamp"
-        npm_time_unit = "milliseconds"
+        npm_timestamp_column_names = ["ComputerTimestamp", None]
+        npm_time_units = ["milliseconds", "seconds"]
+        npm_split_events = [False, True]
     else:
-        npm_timestamp_column_name = None
-        npm_time_unit = None
+        npm_timestamp_column_names = None
+        npm_time_units = None
+        npm_split_events = [True, True]
     if session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_5":
-        npm_split_events = False
-    else:
-        npm_split_events = True
-
+        npm_split_events = None
     # Source sample data
     src_base_dir = str(Path(".") / "testing_data")
     src_session = os.path.join(src_base_dir, session_subdir)
@@ -179,8 +191,9 @@ def test_step2(tmp_path, session_subdir, storenames_map):
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
         storenames_map=storenames_map,
-        npm_timestamp_column_name=npm_timestamp_column_name,
-        npm_time_unit=npm_time_unit,
+        modality=modality,
+        npm_timestamp_column_names=npm_timestamp_column_names,
+        npm_time_units=npm_time_units,
         npm_split_events=npm_split_events,
     )
 

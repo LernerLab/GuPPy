@@ -14,12 +14,17 @@ from pathlib import Path
 from random import randint
 from tkinter import StringVar, messagebox, ttk
 
-import h5py
 import holoviews as hv
 import numpy as np
 import pandas as pd
 import panel as pn
-from numpy import float32, float64, int32, int64, uint16
+
+from guppy.extractors import (
+    CsvRecordingExtractor,
+    DoricRecordingExtractor,
+    NpmRecordingExtractor,
+    TdtRecordingExtractor,
+)
 
 # hv.extension()
 pn.extension()
@@ -74,39 +79,8 @@ def make_dir(filepath):
     return op
 
 
-def check_header(df):
-    arr = list(df.columns)
-    check_float = []
-    for i in arr:
-        try:
-            check_float.append(float(i))
-        except:
-            pass
-
-    return arr, check_float
-
-
-# function to read 'tsq' file
-def readtsq(filepath):
-    names = ("size", "type", "name", "chan", "sort_code", "timestamp", "fp_loc", "strobe", "format", "frequency")
-    formats = (int32, int32, "S4", uint16, uint16, float64, int64, float64, int32, float32)
-    offsets = 0, 4, 8, 12, 14, 16, 24, 24, 32, 36
-    tsq_dtype = np.dtype({"names": names, "formats": formats, "offsets": offsets}, align=True)
-    path = glob.glob(os.path.join(filepath, "*.tsq"))
-    if len(path) > 1:
-        logger.error("Two tsq files are present at the location.")
-        raise Exception("Two tsq files are present at the location.")
-    elif len(path) == 0:
-        return 0
-    else:
-        path = path[0]
-    tsq = np.fromfile(path, dtype=tsq_dtype)
-    df = pd.DataFrame(tsq)
-    return df
-
-
 # function to show GUI and save
-def saveStorenames(inputParameters, data, event_name, flag, filepath):
+def saveStorenames(inputParameters, events, flags, folder_path):
 
     logger.debug("Saving stores list file.")
     # getting input parameters
@@ -115,32 +89,20 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
     # Headless path: if storenames_map provided, write storesList.csv without building the Panel UI
     storenames_map = inputParameters.get("storenames_map")
     if isinstance(storenames_map, dict) and len(storenames_map) > 0:
-        op = make_dir(filepath)
+        op = make_dir(folder_path)
         arr = np.asarray([list(storenames_map.keys()), list(storenames_map.values())], dtype=str)
         np.savetxt(os.path.join(op, "storesList.csv"), arr, delimiter=",", fmt="%s")
         logger.info(f"Storeslist file saved at {op}")
         logger.info("Storeslist : \n" + str(arr))
         return
 
-    # reading storenames from the data fetched using 'readtsq' function
-    if isinstance(data, pd.DataFrame):
-        data["name"] = np.asarray(data["name"], dtype=str)
-        allnames = np.unique(data["name"])
-        index = []
-        for i in range(len(allnames)):
-            length = len(str(allnames[i]))
-            if length < 4:
-                index.append(i)
-        allnames = np.delete(allnames, index, 0)
-        allnames = list(allnames)
+    # Get storenames from extractor's events property
+    allnames = events
 
-    else:
-        allnames = []
-
-    if "data_np_v2" in flag or "data_np" in flag or "event_np" in flag:
-        path_chev = glob.glob(os.path.join(filepath, "*chev*"))
-        path_chod = glob.glob(os.path.join(filepath, "*chod*"))
-        path_chpr = glob.glob(os.path.join(filepath, "*chpr*"))
+    if "data_np_v2" in flags or "data_np" in flags or "event_np" in flags:
+        path_chev = glob.glob(os.path.join(folder_path, "*chev*"))
+        path_chod = glob.glob(os.path.join(folder_path, "*chod*"))
+        path_chpr = glob.glob(os.path.join(folder_path, "*chpr*"))
         combine_paths = path_chev + path_chod + path_chpr
         d = dict()
         for i in range(len(combine_paths)):
@@ -177,9 +139,6 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
 
     else:
         pass
-
-    # finalizing all the storenames
-    allnames = allnames + event_name
 
     # instructions about how to save the storeslist file
     mark_down = pn.pane.Markdown(
@@ -220,7 +179,9 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
     )
 
     # creating GUI template
-    template = pn.template.BootstrapTemplate(title="Storenames GUI - {}".format(os.path.basename(filepath), mark_down))
+    template = pn.template.BootstrapTemplate(
+        title="Storenames GUI - {}".format(os.path.basename(folder_path), mark_down)
+    )
 
     # creating different buttons and selectors for the GUI
     cross_selector = pn.widgets.CrossSelector(name="Store Names Selection", value=[], options=allnames, width=600)
@@ -294,10 +255,10 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
     # on clicking overwrite_button, following function is executed
     def overwrite_button_actions(event):
         if event.new == "over_write_file":
-            select_location.options = takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*")))
+            select_location.options = takeOnlyDirs(glob.glob(os.path.join(folder_path, "*_output_*")))
             # select_location.value = select_location.options[0]
         else:
-            select_location.options = [show_dir(filepath)]
+            select_location.options = [show_dir(folder_path)]
             # select_location.value = select_location.options[0]
 
     def fetchValues(event):
@@ -554,8 +515,8 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
     # creating widgets, adding them to template and showing a GUI on a new browser window
     number = scanPortsAndFind(start_port=5000, end_port=5200)
 
-    if "data_np_v2" in flag or "data_np" in flag or "event_np" in flag:
-        widget_1 = pn.Column("# " + os.path.basename(filepath), mark_down, mark_down_np, plot_select, plot)
+    if "data_np_v2" in flags or "data_np" in flags or "event_np" in flags:
+        widget_1 = pn.Column("# " + os.path.basename(folder_path), mark_down, mark_down_np, plot_select, plot)
         widget_2 = pn.Column(
             repeat_storenames,
             repeat_storename_wd,
@@ -576,7 +537,7 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
         template.main.append(pn.Row(widget_1, widget_2))
 
     else:
-        widget_1 = pn.Column("# " + os.path.basename(filepath), mark_down)
+        widget_1 = pn.Column("# " + os.path.basename(folder_path), mark_down)
         widget_2 = pn.Column(
             repeat_storenames,
             repeat_storename_wd,
@@ -599,50 +560,88 @@ def saveStorenames(inputParameters, data, event_name, flag, filepath):
     template.show(port=number)
 
 
-# check flag consistency in neurophotometrics data
-def check_channels(state):
-    state = state.astype(int)
-    unique_state = np.unique(state[2:12])
-    if unique_state.shape[0] > 3:
-        logger.error(
-            "Looks like there are more than 3 channels in the file. Reading of these files\
-                        are not supported. Reach out to us if you get this error message."
-        )
-        raise Exception(
-            "Looks like there are more than 3 channels in the file. Reading of these files\
-                        are not supported. Reach out to us if you get this error message."
-        )
+# function to read input parameters and run the saveStorenames function
+def execute(inputParameters):
 
-    return unique_state.shape[0], unique_state
+    inputParameters = inputParameters
+    folderNames = inputParameters["folderNames"]
+    isosbestic_control = inputParameters["isosbestic_control"]
+    num_ch = inputParameters["noChannels"]
+    modality = inputParameters.get("modality", "tdt")
 
+    logger.info(folderNames)
 
-# function to decide NPM timestamps unit (seconds, ms or us)
-def decide_ts_unit_for_npm(df, timestamp_column_name=None, time_unit=None, headless=False):
-    col_names = np.array(list(df.columns))
-    col_names_ts = [""]
-    for name in col_names:
-        if "timestamp" in name.lower():
-            col_names_ts.append(name)
+    try:
+        for i in folderNames:
+            folder_path = os.path.join(inputParameters["abspath"], i)
+            if modality == "tdt":
+                events, flags = TdtRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+            elif modality == "csv":
+                events, flags = CsvRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
 
-    ts_unit = "seconds"
-    if len(col_names_ts) > 2:
-        # Headless path: auto-select column/unit without any UI
-        if headless:
-            if timestamp_column_name is not None:
-                assert (
-                    timestamp_column_name in col_names_ts
-                ), f"Provided timestamp_column_name '{timestamp_column_name}' not found in columns {col_names_ts[1:]}"
-                chosen = timestamp_column_name
+            elif modality == "doric":
+                events, flags = DoricRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+
+            elif modality == "npm":
+                headless = bool(os.environ.get("GUPPY_BASE_DIR"))
+                if not headless:
+                    # Resolve multiple event TTLs
+                    multiple_event_ttls = NpmRecordingExtractor.has_multiple_event_ttls(folder_path=folder_path)
+                    responses = get_multi_event_responses(multiple_event_ttls)
+                    inputParameters["npm_split_events"] = responses
+
+                    # Resolve timestamp units and columns
+                    ts_unit_needs, col_names_ts = NpmRecordingExtractor.needs_ts_unit(
+                        folder_path=folder_path, num_ch=num_ch
+                    )
+                    ts_units, npm_timestamp_column_names = get_timestamp_configuration(ts_unit_needs, col_names_ts)
+                    inputParameters["npm_time_units"] = ts_units if ts_units else None
+                    inputParameters["npm_timestamp_column_names"] = (
+                        npm_timestamp_column_names if npm_timestamp_column_names else None
+                    )
+
+                events, flags = NpmRecordingExtractor.discover_events_and_flags(
+                    folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
+                )
             else:
-                chosen = col_names_ts[1]
-            df.insert(1, "Timestamp", df[chosen])
-            df = df.drop(col_names_ts[1:], axis=1)
-            valid_units = {"seconds", "milliseconds", "microseconds"}
-            ts_unit = time_unit if (isinstance(time_unit, str) and time_unit in valid_units) else "seconds"
-            return df, ts_unit
-        # def comboBoxSelected(event):
-        #    logger.info(event.widget.get())
+                raise ValueError("Modality not recognized. Please use 'tdt', 'csv', 'doric', or 'npm'.")
 
+            saveStorenames(inputParameters, events, flags, folder_path)
+        logger.info("#" * 400)
+    except Exception as e:
+        logger.error(str(e))
+        raise e
+
+
+def get_multi_event_responses(multiple_event_ttls):
+    responses = []
+    for has_multiple in multiple_event_ttls:
+        if not has_multiple:
+            responses.append(False)
+            continue
+        window = tk.Tk()
+        response = messagebox.askyesno(
+            "Multiple event TTLs",
+            (
+                "Based on the TTL file, "
+                "it looks like TTLs "
+                "belong to multiple behavior types. "
+                "Do you want to create multiple files for each "
+                "behavior type?"
+            ),
+        )
+        window.destroy()
+        responses.append(response)
+    return responses
+
+
+def get_timestamp_configuration(ts_unit_needs, col_names_ts):
+    ts_units, npm_timestamp_column_names = [], []
+    for need in ts_unit_needs:
+        if not need:
+            ts_units.append("seconds")
+            npm_timestamp_column_names.append(None)
+            continue
         window = tk.Tk()
         window.title("Select appropriate options for timestamps")
         window.geometry("500x200")
@@ -660,7 +659,9 @@ def decide_ts_unit_for_npm(df, timestamp_column_name=None, time_unit=None, headl
         time_unit_label = ttk.Label(window, text="Select timestamps unit : ").grid(row=1, column=1, pady=25, padx=25)
         holdComboboxValues["time_unit"] = StringVar()
         time_unit_combo = ttk.Combobox(
-            window, values=["", "seconds", "milliseconds", "microseconds"], textvariable=holdComboboxValues["time_unit"]
+            window,
+            values=["", "seconds", "milliseconds", "microseconds"],
+            textvariable=holdComboboxValues["time_unit"],
         )
         time_unit_combo.grid(row=1, column=2, pady=25, padx=25)
         time_unit_combo.current(0)
@@ -670,8 +671,7 @@ def decide_ts_unit_for_npm(df, timestamp_column_name=None, time_unit=None, headl
         window.mainloop()
 
         if holdComboboxValues["timestamps"].get():
-            df.insert(1, "Timestamp", df[holdComboboxValues["timestamps"].get()])
-            df = df.drop(col_names_ts[1:], axis=1)
+            npm_timestamp_column_name = holdComboboxValues["timestamps"].get()
         else:
             messagebox.showerror(
                 "All options not selected",
@@ -707,403 +707,6 @@ def decide_ts_unit_for_npm(df, timestamp_column_name=None, time_unit=None, headl
                 "All the options for timestamps \
                             were not selected. Please select appropriate options"
             )
-    else:
-        pass
-
-    return df, ts_unit
-
-
-# function to decide indices of interleaved channels
-# in neurophotometrics data
-def decide_indices(file, df, flag, num_ch=2):
-    ch_name = [file + "chev", file + "chod", file + "chpr"]
-    if len(ch_name) < num_ch:
-        logger.error(
-            "Number of channels parameters in Input Parameters GUI is more than 3. \
-                    Looks like there are more than 3 channels in the file. Reading of these files\
-                    are not supported. Reach out to us if you get this error message."
-        )
-        raise Exception(
-            "Number of channels parameters in Input Parameters GUI is more than 3. \
-                         Looks like there are more than 3 channels in the file. Reading of these files\
-                         are not supported. Reach out to us if you get this error message."
-        )
-    if flag == "data_np":
-        indices_dict = dict()
-        for i in range(num_ch):
-            indices_dict[ch_name[i]] = np.arange(i, df.shape[0], num_ch)
-
-    else:
-        cols = np.array(list(df.columns))
-        if "flags" in np.char.lower(np.array(cols)):
-            arr = ["FrameCounter", "Flags"]
-            state = np.array(df["Flags"])
-        elif "ledstate" in np.char.lower(np.array(cols)):
-            arr = ["FrameCounter", "LedState"]
-            state = np.array(df["LedState"])
-        else:
-            logger.error(
-                "File type shows Neurophotometrics newer version \
-                    data but column names does not have Flags or LedState"
-            )
-            raise Exception(
-                "File type shows Neurophotometrics newer version \
-                            data but column names does not have Flags or LedState"
-            )
-
-        num_ch, ch = check_channels(state)
-        indices_dict = dict()
-        for i in range(num_ch):
-            first_occurrence = np.where(state == ch[i])[0]
-            indices_dict[ch_name[i]] = np.arange(first_occurrence[0], df.shape[0], num_ch)
-
-        df = df.drop(arr, axis=1)
-
-    return df, indices_dict, num_ch
-
-
-def separate_last_element(arr):
-    l = arr[-1]
-    return arr[:-1], l
-
-
-def access_keys_doricV6(doric_file):
-    data = [doric_file["DataAcquisition"]]
-    res = []
-    while len(data) != 0:
-        members = len(data)
-        while members != 0:
-            members -= 1
-            data, last_element = separate_last_element(data)
-            if isinstance(last_element, h5py.Dataset) and not last_element.name.endswith("/Time"):
-                res.append(last_element.name)
-            elif isinstance(last_element, h5py.Group):
-                data.extend(reversed([last_element[k] for k in last_element.keys()]))
-
-    keys = []
-    for element in res:
-        sep_values = element.split("/")
-        if sep_values[-1] == "Values":
-            keys.append(f"{sep_values[-3]}/{sep_values[-2]}")
-        else:
-            keys.append(f"{sep_values[-2]}/{sep_values[-1]}")
-
-    return keys
-
-
-def access_keys_doricV1(doric_file):
-    keys = list(doric_file["Traces"]["Console"].keys())
-    keys.remove("Time(s)")
-
-    return keys
-
-
-def read_doric(filepath):
-    with h5py.File(filepath, "r") as f:
-        if "Traces" in list(f.keys()):
-            keys = access_keys_doricV1(f)
-        elif list(f.keys()) == ["Configurations", "DataAcquisition"]:
-            keys = access_keys_doricV6(f)
-
-    return keys
-
-
-# function to see if there are 'csv' files present
-# and recognize type of 'csv' files either from
-# Neurophotometrics, Doric systems or custom made 'csv' files
-# and read data accordingly
-def import_np_doric_csv(filepath, isosbestic_control, num_ch, inputParameters=None):
-
-    logger.debug("If it exists, importing either NPM or Doric or csv file based on the structure of file")
-    # Headless configuration (used to avoid any UI prompts when running tests)
-    headless = bool(os.environ.get("GUPPY_BASE_DIR"))
-    npm_timestamp_column_name = None
-    npm_time_unit = None
-    npm_split_events = None
-    if isinstance(inputParameters, dict):
-        npm_timestamp_column_name = inputParameters.get("npm_timestamp_column_name")
-        npm_time_unit = inputParameters.get("npm_time_unit", "seconds")
-        npm_split_events = inputParameters.get("npm_split_events", True)
-    path = sorted(glob.glob(os.path.join(filepath, "*.csv"))) + sorted(glob.glob(os.path.join(filepath, "*.doric")))
-    path_chev = glob.glob(os.path.join(filepath, "*chev*"))
-    path_chod = glob.glob(os.path.join(filepath, "*chod*"))
-    path_chpr = glob.glob(os.path.join(filepath, "*chpr*"))
-    path_event = glob.glob(os.path.join(filepath, "event*"))
-    # path_sig = glob.glob(os.path.join(filepath, 'sig*'))
-    path_chev_chod_event = path_chev + path_chod + path_event + path_chpr
-
-    path = sorted(list(set(path) - set(path_chev_chod_event)))
-    flag = "None"
-    event_from_filename = []
-    flag_arr = []
-    for i in range(len(path)):
-        dirname = os.path.dirname(path[i])
-        ext = os.path.basename(path[i]).split(".")[-1]
-        if ext == "doric":
-            key_names = read_doric(path[i])
-            event_from_filename.extend(key_names)
-            flag = "doric_doric"
-        else:
-            df = pd.read_csv(path[i], header=None, nrows=2, index_col=False, dtype=str)
-            df = df.dropna(axis=1, how="all")
-            df_arr = np.array(df).flatten()
-            check_all_str = []
-            for element in df_arr:
-                try:
-                    float(element)
-                except:
-                    check_all_str.append(i)
-            if len(check_all_str) == len(df_arr):
-                df = pd.read_csv(path[i], header=1, index_col=False, nrows=10)
-                df = df.drop(["Time(s)"], axis=1)
-                event_from_filename.extend(list(df.columns))
-                flag = "doric_csv"
-                logger.info(flag)
-            else:
-                df = pd.read_csv(path[i], index_col=False)
-            # with warnings.catch_warnings():
-            #     warnings.simplefilter("error")
-            #     try:
-            #         df = pd.read_csv(path[i], index_col=False, dtype=float)
-            #     except:
-            #         df = pd.read_csv(path[i], header=1, index_col=False, nrows=10)   # to make process faster reading just first 10 rows
-            #         df = df.drop(['Time(s)'], axis=1)
-            #         event_from_filename.extend(list(df.columns))
-            #         flag = 'doric_csv'
-        if flag == "doric_csv" or flag == "doric_doric":
-            continue
-        else:
-            colnames, value = check_header(df)
-            # logger.info(len(colnames), len(value))
-
-            # check dataframe structure and read data accordingly
-            if len(value) > 0:
-                columns_isstr = False
-                df = pd.read_csv(path[i], header=None)
-                cols = np.array(list(df.columns), dtype=str)
-            else:
-                df = df
-                columns_isstr = True
-                cols = np.array(list(df.columns), dtype=str)
-            # check the structure of dataframe and assign flag to the type of file
-            if len(cols) == 1:
-                if cols[0].lower() != "timestamps":
-                    logger.error("\033[1m" + "Column name should be timestamps (all lower-cases)" + "\033[0m")
-                    raise Exception("\033[1m" + "Column name should be timestamps (all lower-cases)" + "\033[0m")
-                else:
-                    flag = "event_csv"
-            elif len(cols) == 3:
-                arr1 = np.array(["timestamps", "data", "sampling_rate"])
-                arr2 = np.char.lower(np.array(cols))
-                if (np.sort(arr1) == np.sort(arr2)).all() == False:
-                    logger.error(
-                        "\033[1m"
-                        + "Column names should be timestamps, data and sampling_rate (all lower-cases)"
-                        + "\033[0m"
-                    )
-                    raise Exception(
-                        "\033[1m"
-                        + "Column names should be timestamps, data and sampling_rate (all lower-cases)"
-                        + "\033[0m"
-                    )
-                else:
-                    flag = "data_csv"
-            elif len(cols) == 2:
-                flag = "event_or_data_np"
-            elif len(cols) >= 2:
-                flag = "data_np"
-            else:
-                logger.error("Number of columns in csv file does not make sense.")
-                raise Exception("Number of columns in csv file does not make sense.")
-
-            if columns_isstr == True and (
-                "flags" in np.char.lower(np.array(cols)) or "ledstate" in np.char.lower(np.array(cols))
-            ):
-                flag = flag + "_v2"
-            else:
-                flag = flag
-
-            # used assigned flags to process the files and read the data
-            if flag == "event_or_data_np":
-                arr = list(df.iloc[:, 1])
-                check_float = [True for i in arr if isinstance(i, float)]
-                if len(arr) == len(check_float) and columns_isstr == False:
-                    flag = "data_np"
-                elif columns_isstr == True and ("value" in np.char.lower(np.array(cols))):
-                    flag = "event_np"
-                else:
-                    flag = "event_np"
-            else:
-                pass
-
-            flag_arr.append(flag)
-            logger.info(flag)
-            if flag == "event_csv" or flag == "data_csv":
-                name = os.path.basename(path[i]).split(".")[0]
-                event_from_filename.append(name)
-            elif flag == "data_np":
-                file = f"file{str(i)}_"
-                df, indices_dict, num_channels = decide_indices(file, df, flag, num_ch)
-                keys = list(indices_dict.keys())
-                for k in range(len(keys)):
-                    for j in range(df.shape[1]):
-                        if j == 0:
-                            timestamps = df.iloc[:, j][indices_dict[keys[k]]]
-                            # timestamps_odd = df.iloc[:,j][odd_indices]
-                        else:
-                            d = dict()
-                            d["timestamps"] = timestamps
-                            d["data"] = df.iloc[:, j][indices_dict[keys[k]]]
-
-                            df_ch = pd.DataFrame(d)
-                            df_ch.to_csv(os.path.join(dirname, keys[k] + str(j) + ".csv"), index=False)
-                            event_from_filename.append(keys[k] + str(j))
-
-            elif flag == "event_np":
-                type_val = np.array(df.iloc[:, 1])
-                type_val_unique = np.unique(type_val)
-                if headless:
-                    response = 1 if bool(npm_split_events) else 0
-                else:
-                    window = tk.Tk()
-                    if len(type_val_unique) > 1:
-                        response = messagebox.askyesno(
-                            "Multiple event TTLs",
-                            "Based on the TTL file,\
-                                                                            it looks like TTLs \
-                                                                            belongs to multiple behavior type. \
-                                                                            Do you want to create multiple files for each \
-                                                                            behavior type ?",
-                        )
-                    else:
-                        response = 0
-                    window.destroy()
-                if response == 1:
-                    timestamps = np.array(df.iloc[:, 0])
-                    for j in range(len(type_val_unique)):
-                        idx = np.where(type_val == type_val_unique[j])
-                        d = dict()
-                        d["timestamps"] = timestamps[idx]
-                        df_new = pd.DataFrame(d)
-                        df_new.to_csv(os.path.join(dirname, "event" + str(type_val_unique[j]) + ".csv"), index=False)
-                        event_from_filename.append("event" + str(type_val_unique[j]))
-                else:
-                    timestamps = np.array(df.iloc[:, 0])
-                    d = dict()
-                    d["timestamps"] = timestamps
-                    df_new = pd.DataFrame(d)
-                    df_new.to_csv(os.path.join(dirname, "event" + str(0) + ".csv"), index=False)
-                    event_from_filename.append("event" + str(0))
-            else:
-                file = f"file{str(i)}_"
-                df, ts_unit = decide_ts_unit_for_npm(
-                    df, timestamp_column_name=npm_timestamp_column_name, time_unit=npm_time_unit, headless=headless
-                )
-                df, indices_dict, num_channels = decide_indices(file, df, flag)
-                keys = list(indices_dict.keys())
-                for k in range(len(keys)):
-                    for j in range(df.shape[1]):
-                        if j == 0:
-                            timestamps = df.iloc[:, j][indices_dict[keys[k]]]
-                            # timestamps_odd = df.iloc[:,j][odd_indices]
-                        else:
-                            d = dict()
-                            d["timestamps"] = timestamps
-                            d["data"] = df.iloc[:, j][indices_dict[keys[k]]]
-
-                            df_ch = pd.DataFrame(d)
-                            df_ch.to_csv(os.path.join(dirname, keys[k] + str(j) + ".csv"), index=False)
-                            event_from_filename.append(keys[k] + str(j))
-
-            path_chev = glob.glob(os.path.join(filepath, "*chev*"))
-            path_chod = glob.glob(os.path.join(filepath, "*chod*"))
-            path_chpr = glob.glob(os.path.join(filepath, "*chpr*"))
-            path_event = glob.glob(os.path.join(filepath, "event*"))
-            # path_sig = glob.glob(os.path.join(filepath, 'sig*'))
-            path_chev_chod_chpr = [path_chev, path_chod, path_chpr]
-            if (
-                ("data_np_v2" in flag_arr or "data_np" in flag_arr)
-                and ("event_np" in flag_arr)
-                and (i == len(path) - 1)
-            ) or (
-                ("data_np_v2" in flag_arr or "data_np" in flag_arr) and (i == len(path) - 1)
-            ):  # i==len(path)-1 and or 'event_np' in flag
-                num_path_chev, num_path_chod, num_path_chpr = len(path_chev), len(path_chod), len(path_chpr)
-                arr_len, no_ch = [], []
-                for i in range(len(path_chev_chod_chpr)):
-                    if len(path_chev_chod_chpr[i]) > 0:
-                        arr_len.append(len(path_chev_chod_chpr[i]))
-                    else:
-                        continue
-
-                unique_arr_len = np.unique(np.array(arr_len))
-                if "data_np_v2" in flag_arr:
-                    if ts_unit == "seconds":
-                        divisor = 1
-                    elif ts_unit == "milliseconds":
-                        divisor = 1e3
-                    else:
-                        divisor = 1e6
-                else:
-                    divisor = 1000
-
-                for j in range(len(path_event)):
-                    df_event = pd.read_csv(path_event[j])
-                    df_chev = pd.read_csv(path_chev[0])
-                    df_event["timestamps"] = (df_event["timestamps"] - df_chev["timestamps"][0]) / divisor
-                    df_event.to_csv(path_event[j], index=False)
-                if unique_arr_len.shape[0] == 1:
-                    for j in range(len(path_chev)):
-                        if file + "chev" in indices_dict.keys():
-                            df_chev = pd.read_csv(path_chev[j])
-                            df_chev["timestamps"] = (df_chev["timestamps"] - df_chev["timestamps"][0]) / divisor
-                            df_chev["sampling_rate"] = np.full(df_chev.shape[0], np.nan)
-                            df_chev.at[0, "sampling_rate"] = df_chev.shape[0] / (
-                                df_chev["timestamps"].iloc[-1] - df_chev["timestamps"].iloc[0]
-                            )
-                            df_chev.to_csv(path_chev[j], index=False)
-
-                        if file + "chod" in indices_dict.keys():
-                            df_chod = pd.read_csv(path_chod[j])
-                            df_chod["timestamps"] = df_chev["timestamps"]
-                            df_chod["sampling_rate"] = np.full(df_chod.shape[0], np.nan)
-                            df_chod.at[0, "sampling_rate"] = df_chev["sampling_rate"][0]
-                            df_chod.to_csv(path_chod[j], index=False)
-
-                        if file + "chpr" in indices_dict.keys():
-                            df_chpr = pd.read_csv(path_chpr[j])
-                            df_chpr["timestamps"] = df_chev["timestamps"]
-                            df_chpr["sampling_rate"] = np.full(df_chpr.shape[0], np.nan)
-                            df_chpr.at[0, "sampling_rate"] = df_chev["sampling_rate"][0]
-                            df_chpr.to_csv(path_chpr[j], index=False)
-                else:
-                    logger.error("Number of channels should be same for all regions.")
-                    raise Exception("Number of channels should be same for all regions.")
-            else:
-                pass
-    logger.info("Importing of either NPM or Doric or csv file is done.")
-    return event_from_filename, flag_arr
-
-
-# function to read input parameters and run the saveStorenames function
-def execute(inputParameters):
-
-    inputParameters = inputParameters
-    folderNames = inputParameters["folderNames"]
-    isosbestic_control = inputParameters["isosbestic_control"]
-    num_ch = inputParameters["noChannels"]
-
-    logger.info(folderNames)
-
-    try:
-        for i in folderNames:
-            filepath = os.path.join(inputParameters["abspath"], i)
-            data = readtsq(filepath)
-            event_name, flag = import_np_doric_csv(
-                filepath, isosbestic_control, num_ch, inputParameters=inputParameters
-            )
-            saveStorenames(inputParameters, data, event_name, flag, filepath)
-        logger.info("#" * 400)
-    except Exception as e:
-        logger.error(str(e))
-        raise e
+        ts_units.append(ts_unit)
+        npm_timestamp_column_names.append(npm_timestamp_column_name)
+    return ts_units, npm_timestamp_column_names

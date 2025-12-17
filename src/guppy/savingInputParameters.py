@@ -119,6 +119,21 @@ def savingInputParameters():
 
     files_1 = pn.widgets.FileSelector(folder_path, name="folderNames", width=950)
 
+    explain_modality = pn.pane.Markdown(
+        """
+        **Data Modality:** Select the type of data acquisition system used for your recordings:
+        - **tdt**: Tucker-Davis Technologies system
+        - **csv**: Generic CSV format
+        - **doric**: Doric Photometry system
+        - **npm**: Neurophotometrics system
+        """,
+        width=600,
+    )
+
+    modality_selector = pn.widgets.Select(
+        name="Data Modality", value="tdt", options=["tdt", "csv", "doric", "npm"], width=320
+    )
+
     explain_time_artifacts = pn.pane.Markdown(
         """
                                                 - ***Number of cores :*** Number of cores used for analysis. Try to
@@ -357,6 +372,7 @@ def savingInputParameters():
         inputParameters = {
             "abspath": abspath[0],
             "folderNames": files_1.value,
+            "modality": modality_selector.value,
             "numberOfCores": numberOfCores.value,
             "combine_data": combine_data.value,
             "isosbestic_control": isosbestic_control.value,
@@ -538,7 +554,9 @@ def savingInputParameters():
 
     psth_baseline_param = pn.Column(zscore_param_wd, psth_param_wd, baseline_param_wd, peak_param_wd)
 
-    widget = pn.Column(mark_down_1, files_1, pn.Row(individual_analysis_wd_2, psth_baseline_param))
+    widget = pn.Column(
+        mark_down_1, files_1, explain_modality, modality_selector, pn.Row(individual_analysis_wd_2, psth_baseline_param)
+    )
 
     # file_selector = pn.WidgetBox(files_1)
     styles = dict(background="WhiteSmoke")
