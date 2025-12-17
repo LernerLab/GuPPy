@@ -204,3 +204,8 @@ def write_nan_corrected_ttl_timestamps(
 ):
     for compound_name, corrected_ttl_timestamps in compound_name_to_corrected_ttl_timestamps.items():
         write_hdf5(corrected_ttl_timestamps, compound_name, filepath, "ts")
+
+
+def write_concat_corrected_timestamps(filepath, pair_name_to_corrected_timestamps):
+    for pair_name, timestamps in pair_name_to_corrected_timestamps.items():
+        write_hdf5(timestamps, "timeCorrection_" + pair_name, filepath, "timestampNew")

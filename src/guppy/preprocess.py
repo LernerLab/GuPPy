@@ -30,6 +30,7 @@ from .analysis.standard_io import (
     read_corrected_timestamps_pairwise,
     read_corrected_ttl_timestamps,
     read_ttl,
+    write_concat_corrected_timestamps,
     write_corrected_data,
     write_corrected_timestamps,
     write_corrected_ttl_timestamps,
@@ -382,7 +383,7 @@ def execute_artifact_removal(folderNames, inputParameters):
             pair_name_to_tsNew, pair_name_to_sampling_rate = read_corrected_timestamps_pairwise(filepath)
             pair_name_to_coords = read_coords_pairwise(filepath, pair_name_to_tsNew)
             compound_name_to_ttl_timestamps = read_corrected_ttl_timestamps(filepath, storesList)
-            processTimestampsForArtifacts(
+            name_to_data, pair_name_to_timestamps, compound_name_to_ttl_timestamps = processTimestampsForArtifacts(
                 filepath,
                 timeForLightsTurnOn,
                 storesList,
@@ -392,6 +393,9 @@ def execute_artifact_removal(folderNames, inputParameters):
                 name_to_data,
                 compound_name_to_ttl_timestamps,
             )
+            write_nan_corrected_data(filepath, name_to_data)
+            write_concat_corrected_timestamps(filepath, pair_name_to_timestamps)
+            write_nan_corrected_ttl_timestamps(filepath, compound_name_to_ttl_timestamps)
         else:
             name_to_data = read_corrected_data_dict(filepath, storesList)
             pair_name_to_tsNew, _ = read_corrected_timestamps_pairwise(filepath)
