@@ -121,6 +121,7 @@ def write_zscore(filepath, name, z_score, dff, control_fit, temp_control_arr):
 
 def read_corrected_timestamps_pairwise(filepath):
     pair_name_to_tsNew = {}
+    pair_name_to_sampling_rate = {}
     path = decide_naming_convention(filepath)
     for j in range(path.shape[1]):
         name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")
@@ -131,8 +132,10 @@ def read_corrected_timestamps_pairwise(filepath):
         name = name_1[-1]
 
         tsNew = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
+        sampling_rate = read_hdf5("timeCorrection_" + name, filepath, "sampling_rate")[0]
         pair_name_to_tsNew[name] = tsNew
-    return pair_name_to_tsNew
+        pair_name_to_sampling_rate[name] = sampling_rate
+    return pair_name_to_tsNew, pair_name_to_sampling_rate
 
 
 def read_coords_pairwise(filepath, pair_name_to_tsNew):

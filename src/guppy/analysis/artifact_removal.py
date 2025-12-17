@@ -5,7 +5,6 @@ import numpy as np
 
 from .io_utils import (
     decide_naming_convention,
-    read_hdf5,
     write_hdf5,
 )
 
@@ -51,6 +50,7 @@ def processTimestampsForArtifacts(
     timeForLightsTurnOn,
     storesList,
     pair_name_to_tsNew,
+    pair_name_to_sampling_rate,
     pair_name_to_coords,
     name_to_data,
     compound_name_to_ttl_timestamps,
@@ -65,10 +65,9 @@ def processTimestampsForArtifacts(
     for j in range(path.shape[1]):
         name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")
         name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")
-        # dirname = os.path.dirname(path[i])
         if name_1[-1] == name_2[-1]:
             name = name_1[-1]
-            sampling_rate = read_hdf5("timeCorrection_" + name, filepath, "sampling_rate")[0]
+            sampling_rate = pair_name_to_sampling_rate[name]
 
             for i in range(len(names_for_storenames)):
                 if (
