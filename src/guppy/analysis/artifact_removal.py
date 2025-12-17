@@ -14,23 +14,15 @@ logger = logging.getLogger(__name__)
 
 
 def addingNaNtoChunksWithArtifacts(
-    filepath, storesList, pair_name_to_tsNew, pair_name_to_coords, name_to_data, compound_name_to_ttl_timestamps
+    storesList, pair_name_to_tsNew, pair_name_to_coords, name_to_data, compound_name_to_ttl_timestamps
 ):
     logger.debug("Replacing chunks with artifacts by NaN values.")
     names_for_storenames = storesList[1, :]
-
-    path = decide_naming_convention(filepath)
+    pair_names = pair_name_to_tsNew.keys()
 
     name_to_corrected_data = {}
     compound_name_to_corrected_ttl_timestamps = {}
-    for j in range(path.shape[1]):
-        name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")
-        name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")
-        if name_1[-1] != name_2[-1]:
-            logger.error("Error in naming convention of files or Error in storesList file")
-            raise Exception("Error in naming convention of files or Error in storesList file")
-        pair_name = name_1[-1]
-
+    for pair_name in pair_names:
         tsNew = pair_name_to_tsNew[pair_name]
         coords = pair_name_to_coords[pair_name]
         for i in range(len(names_for_storenames)):

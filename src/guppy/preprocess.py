@@ -385,7 +385,6 @@ def execute_artifact_removal(folderNames, inputParameters):
             pair_name_to_coords = read_coords_pairwise(filepath, pair_name_to_tsNew)
             compound_name_to_ttl_timestamps = read_corrected_ttl_timestamps(filepath, storesList)
             name_to_data, compound_name_to_ttl_timestamps = addingNaNtoChunksWithArtifacts(
-                filepath,
                 storesList,
                 pair_name_to_tsNew,
                 pair_name_to_coords,
