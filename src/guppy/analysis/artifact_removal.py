@@ -61,52 +61,47 @@ def processTimestampsForArtifacts(
 
     path = decide_naming_convention(filepath)
 
-    timestamp_dict = dict()
     for j in range(path.shape[1]):
         name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")
         name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")
-        if name_1[-1] == name_2[-1]:
-            name = name_1[-1]
-            sampling_rate = pair_name_to_sampling_rate[name]
-
-            for i in range(len(names_for_storenames)):
-                if (
-                    "control_" + name.lower() in names_for_storenames[i].lower()
-                    or "signal_" + name.lower() in names_for_storenames[i].lower()
-                ):  # changes done
-                    ts = pair_name_to_tsNew[name]
-                    data = name_to_data[names_for_storenames[i]]
-                    coords = pair_name_to_coords[name]
-                    data, timestampNew = eliminateData(
-                        data=data,
-                        ts=ts,
-                        coords=coords,
-                        timeForLightsTurnOn=timeForLightsTurnOn,
-                        sampling_rate=sampling_rate,
-                    )
-                    write_hdf5(data, names_for_storenames[i], filepath, "data")
-                else:
-                    if "control" in names_for_storenames[i].lower() or "signal" in names_for_storenames[i].lower():
-                        continue
-                    else:
-                        compound_name = names_for_storenames[i] + "_" + name
-                        tsNew = pair_name_to_tsNew[name]
-                        ts = compound_name_to_ttl_timestamps[compound_name]
-                        coords = pair_name_to_coords[name]
-                        ts = eliminateTs(
-                            ts=ts,
-                            tsNew=tsNew,
-                            coords=coords,
-                            timeForLightsTurnOn=timeForLightsTurnOn,
-                            sampling_rate=sampling_rate,
-                        )
-                        write_hdf5(ts, names_for_storenames[i] + "_" + name, filepath, "ts")
-
-            # timestamp_dict[name] = timestampNew
-            write_hdf5(timestampNew, "timeCorrection_" + name, filepath, "timestampNew")
-        else:
+        if name_1[-1] != name_2[-1]:
             logger.error("Error in naming convention of files or Error in storesList file")
             raise Exception("Error in naming convention of files or Error in storesList file")
+        name = name_1[-1]
+
+        sampling_rate = pair_name_to_sampling_rate[name]
+        tsNew = pair_name_to_tsNew[name]
+        coords = pair_name_to_coords[name]
+
+        for i in range(len(names_for_storenames)):
+            if (
+                "control_" + name.lower() in names_for_storenames[i].lower()
+                or "signal_" + name.lower() in names_for_storenames[i].lower()
+            ):  # changes done
+                data = name_to_data[names_for_storenames[i]]
+                data, timestampNew = eliminateData(
+                    data=data,
+                    ts=tsNew,
+                    coords=coords,
+                    timeForLightsTurnOn=timeForLightsTurnOn,
+                    sampling_rate=sampling_rate,
+                )
+                write_hdf5(data, names_for_storenames[i], filepath, "data")
+            else:
+                if "control" in names_for_storenames[i].lower() or "signal" in names_for_storenames[i].lower():
+                    continue
+                compound_name = names_for_storenames[i] + "_" + name
+                ts = compound_name_to_ttl_timestamps[compound_name]
+                ts = eliminateTs(
+                    ts=ts,
+                    tsNew=tsNew,
+                    coords=coords,
+                    timeForLightsTurnOn=timeForLightsTurnOn,
+                    sampling_rate=sampling_rate,
+                )
+                write_hdf5(ts, names_for_storenames[i] + "_" + name, filepath, "ts")
+
+        write_hdf5(timestampNew, "timeCorrection_" + name, filepath, "timestampNew")
     logger.info("Timestamps processed, artifacts are removed and good chunks are concatenated.")
 
 
