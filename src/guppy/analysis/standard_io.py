@@ -27,8 +27,8 @@ def read_control_and_signal(filepath, storesList):
     for i in range(channels_arr.shape[1]):
         control_name = channels_arr[0, i]
         signal_name = channels_arr[1, i]
-        idx_c = np.where(storesList == control_name)[0]
-        idx_s = np.where(storesList == signal_name)[0]
+        idx_c = np.where(names_for_storenames == control_name)[0]
+        idx_s = np.where(names_for_storenames == signal_name)[0]
         control_storename = storenames[idx_c[0]]
         signal_storename = storenames[idx_s[0]]
 
