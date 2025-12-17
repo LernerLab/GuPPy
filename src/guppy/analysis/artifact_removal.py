@@ -47,10 +47,10 @@ def addingNaNtoChunksWithArtifacts(
 
 
 # main function to align timestamps for control, signal and event timestamps for artifacts removal
-def processTimestampsForArtifacts(filepath, timeForLightsTurnOn, events):
+def processTimestampsForArtifacts(filepath, timeForLightsTurnOn, storesList):
 
     logger.debug("Processing timestamps to get rid of artifacts using concatenate method...")
-    storesList = events[1, :]
+    names_for_storenames = storesList[1, :]
 
     path = decide_naming_convention(filepath)
 
@@ -63,13 +63,13 @@ def processTimestampsForArtifacts(filepath, timeForLightsTurnOn, events):
             name = name_1[-1]
             sampling_rate = read_hdf5("timeCorrection_" + name, filepath, "sampling_rate")[0]
 
-            for i in range(len(storesList)):
+            for i in range(len(names_for_storenames)):
                 if (
-                    "control_" + name.lower() in storesList[i].lower()
-                    or "signal_" + name.lower() in storesList[i].lower()
+                    "control_" + name.lower() in names_for_storenames[i].lower()
+                    or "signal_" + name.lower() in names_for_storenames[i].lower()
                 ):  # changes done
                     ts = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
-                    data = read_hdf5(storesList[i], filepath, "data").reshape(-1)
+                    data = read_hdf5(names_for_storenames[i], filepath, "data").reshape(-1)
                     coords = fetchCoords(filepath, name, ts)
                     data, timestampNew = eliminateData(
                         data=data,
@@ -78,13 +78,13 @@ def processTimestampsForArtifacts(filepath, timeForLightsTurnOn, events):
                         timeForLightsTurnOn=timeForLightsTurnOn,
                         sampling_rate=sampling_rate,
                     )
-                    write_hdf5(data, storesList[i], filepath, "data")
+                    write_hdf5(data, names_for_storenames[i], filepath, "data")
                 else:
-                    if "control" in storesList[i].lower() or "signal" in storesList[i].lower():
+                    if "control" in names_for_storenames[i].lower() or "signal" in names_for_storenames[i].lower():
                         continue
                     else:
                         tsNew = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
-                        ts = read_hdf5(storesList[i] + "_" + name, filepath, "ts").reshape(-1)
+                        ts = read_hdf5(names_for_storenames[i] + "_" + name, filepath, "ts").reshape(-1)
                         coords = fetchCoords(filepath, name, tsNew)
                         ts = eliminateTs(
                             ts=ts,
@@ -93,7 +93,7 @@ def processTimestampsForArtifacts(filepath, timeForLightsTurnOn, events):
                             timeForLightsTurnOn=timeForLightsTurnOn,
                             sampling_rate=sampling_rate,
                         )
-                        write_hdf5(ts, storesList[i] + "_" + name, filepath, "ts")
+                        write_hdf5(ts, names_for_storenames[i] + "_" + name, filepath, "ts")
 
             # timestamp_dict[name] = timestampNew
             write_hdf5(timestampNew, "timeCorrection_" + name, filepath, "timestampNew")
