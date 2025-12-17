@@ -378,7 +378,19 @@ def execute_artifact_removal(folderNames, inputParameters):
 
         logger.debug("Removing artifacts from the data...")
         if artifactsRemovalMethod == "concatenate":
-            processTimestampsForArtifacts(filepath, timeForLightsTurnOn, storesList)
+            name_to_data = read_corrected_data_dict(filepath, storesList)
+            pair_name_to_tsNew = read_corrected_timestamps_pairwise(filepath)
+            pair_name_to_coords = read_coords_pairwise(filepath, pair_name_to_tsNew)
+            compound_name_to_ttl_timestamps = read_corrected_ttl_timestamps(filepath, storesList)
+            processTimestampsForArtifacts(
+                filepath,
+                timeForLightsTurnOn,
+                storesList,
+                pair_name_to_tsNew,
+                pair_name_to_coords,
+                name_to_data,
+                compound_name_to_ttl_timestamps,
+            )
         else:
             name_to_data = read_corrected_data_dict(filepath, storesList)
             pair_name_to_tsNew = read_corrected_timestamps_pairwise(filepath)

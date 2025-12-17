@@ -5,7 +5,6 @@ import numpy as np
 
 from .io_utils import (
     decide_naming_convention,
-    fetchCoords,
     read_hdf5,
     write_hdf5,
 )
@@ -47,7 +46,15 @@ def addingNaNtoChunksWithArtifacts(
 
 
 # main function to align timestamps for control, signal and event timestamps for artifacts removal
-def processTimestampsForArtifacts(filepath, timeForLightsTurnOn, storesList):
+def processTimestampsForArtifacts(
+    filepath,
+    timeForLightsTurnOn,
+    storesList,
+    pair_name_to_tsNew,
+    pair_name_to_coords,
+    name_to_data,
+    compound_name_to_ttl_timestamps,
+):
 
     logger.debug("Processing timestamps to get rid of artifacts using concatenate method...")
     names_for_storenames = storesList[1, :]
@@ -68,9 +75,9 @@ def processTimestampsForArtifacts(filepath, timeForLightsTurnOn, storesList):
                     "control_" + name.lower() in names_for_storenames[i].lower()
                     or "signal_" + name.lower() in names_for_storenames[i].lower()
                 ):  # changes done
-                    ts = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
-                    data = read_hdf5(names_for_storenames[i], filepath, "data").reshape(-1)
-                    coords = fetchCoords(filepath, name, ts)
+                    ts = pair_name_to_tsNew[name]
+                    data = name_to_data[names_for_storenames[i]]
+                    coords = pair_name_to_coords[name]
                     data, timestampNew = eliminateData(
                         data=data,
                         ts=ts,
@@ -83,9 +90,10 @@ def processTimestampsForArtifacts(filepath, timeForLightsTurnOn, storesList):
                     if "control" in names_for_storenames[i].lower() or "signal" in names_for_storenames[i].lower():
                         continue
                     else:
-                        tsNew = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
-                        ts = read_hdf5(names_for_storenames[i] + "_" + name, filepath, "ts").reshape(-1)
-                        coords = fetchCoords(filepath, name, tsNew)
+                        compound_name = names_for_storenames[i] + "_" + name
+                        tsNew = pair_name_to_tsNew[name]
+                        ts = compound_name_to_ttl_timestamps[compound_name]
+                        coords = pair_name_to_coords[name]
                         ts = eliminateTs(
                             ts=ts,
                             tsNew=tsNew,
