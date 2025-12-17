@@ -64,15 +64,15 @@ def timestampCorrection(
     name_to_corrected_data = {}
     storenames = storesList[0, :]
     names_for_storenames = storesList[1, :]
-    data = get_control_and_signal_channel_names(storesList)
+    channels_arr = get_control_and_signal_channel_names(storesList)
 
-    indices = check_cntrl_sig_length(data, name_to_data)
+    indices = check_cntrl_sig_length(channels_arr, name_to_data)
 
-    for i in range(data.shape[1]):
-        control_name = data[0, i]
-        signal_name = data[1, i]
-        name_1 = data[0, i].split("_")[-1]
-        name_2 = data[1, i].split("_")[-1]
+    for i in range(channels_arr.shape[1]):
+        control_name = channels_arr[0, i]
+        signal_name = channels_arr[1, i]
+        name_1 = channels_arr[0, i].split("_")[-1]
+        name_2 = channels_arr[1, i].split("_")[-1]
         if name_1 != name_2:
             logger.error("Error in naming convention of files or Error in storesList file")
             raise Exception("Error in naming convention of files or Error in storesList file")
@@ -81,8 +81,8 @@ def timestampCorrection(
         idx = np.where(names_for_storenames == indices[i])[0]
 
         if idx.shape[0] == 0:
-            logger.error(f"{data[0,i]} does not exist in the stores list file.")
-            raise Exception("{} does not exist in the stores list file.".format(data[0, i]))
+            logger.error(f"{channels_arr[0,i]} does not exist in the stores list file.")
+            raise Exception("{} does not exist in the stores list file.".format(channels_arr[0, i]))
 
         name = names_for_storenames[idx][0]
         timestamp = name_to_timestamps[name]
