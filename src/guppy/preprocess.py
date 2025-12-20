@@ -402,7 +402,6 @@ def execute_artifact_removal(folderNames, inputParameters):
 # function to combine data when there are two different data files for the same recording session
 # it will combine the data, do timestamps processing and save the combined data in the first output folder.
 def execute_combine_data(folderNames, inputParameters, storesList):
-
     logger.debug("Combining Data from different data files...")
     timeForLightsTurnOn = inputParameters["timeForLightsTurnOn"]
     op_folder = []
