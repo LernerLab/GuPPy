@@ -66,8 +66,6 @@ def eliminateData(filepath, timeForLightsTurnOn, event, sampling_rate, naming):
     for i in range(len(filepath)):
         ts = read_hdf5("timeCorrection_" + naming, filepath[i], "timestampNew")
         data = read_hdf5(event, filepath[i], "data").reshape(-1)
-        print(f"{ts.shape = }")
-        print(f"{data.shape = }")
 
         # index = np.where((ts>coords[i,0]) & (ts<coords[i,1]))[0]
 
