@@ -66,6 +66,8 @@ def eliminateData(filepath, timeForLightsTurnOn, event, sampling_rate, naming):
     for i in range(len(filepath)):
         ts = read_hdf5("timeCorrection_" + naming, filepath[i], "timestampNew")
         data = read_hdf5(event, filepath[i], "data").reshape(-1)
+        print(f"{ts.shape = }")
+        print(f"{data.shape = }")
 
         # index = np.where((ts>coords[i,0]) & (ts<coords[i,1]))[0]
 
@@ -123,6 +125,7 @@ def processTimestampsForCombiningData(filepath, timeForLightsTurnOn, events, sam
 
         path = decide_naming_convention(filepath[k][0])
 
+        pair_name_to_tsNew = {}
         for j in range(path.shape[1]):
             name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")
             name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")
@@ -139,9 +142,12 @@ def processTimestampsForCombiningData(filepath, timeForLightsTurnOn, events, sam
                             filepath[k], timeForLightsTurnOn, storesList[i], sampling_rate, name
                         )
                         write_hdf5(data, storesList[i], filepath[k][0], "data")
+                        pair_name_to_tsNew[name] = timestampNew
                     else:
                         if "control" in storesList[i].lower() or "signal" in storesList[i].lower():
                             continue
                         else:
                             ts = eliminateTs(filepath[k], timeForLightsTurnOn, storesList[i], sampling_rate, name)
                             write_hdf5(ts, storesList[i] + "_" + name, filepath[k][0], "ts")
+        for pair_name, tsNew in pair_name_to_tsNew.items():
+            write_hdf5(tsNew, "timeCorrection_" + pair_name, filepath[k][0], "timestampNew")
