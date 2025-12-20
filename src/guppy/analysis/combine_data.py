@@ -38,11 +38,14 @@ def eliminateData(filepath_to_timestamps, filepath_to_data, timeForLightsTurnOn,
     return arr, ts_arr
 
 
-def eliminateTs(filepath, timeForLightsTurnOn, event, sampling_rate, naming):
+def eliminateTs(filepath_to_timestamps, filepath_to_ttl_timestamps, timeForLightsTurnOn, event, sampling_rate, naming):
 
     ts_arr = np.array([])
     tsNew_arr = np.array([])
-    for i in range(len(filepath)):
+    filepaths = list(filepath_to_timestamps.keys())
+    for filepath in filepaths:
+        ts = filepath_to_timestamps[filepath]
+        tsNew = filepath_to_ttl_timestamps[filepath]
         # tsNew = read_hdf5("timeCorrection_" + naming, filepath[i], "timestampNew")
         # if os.path.exists(os.path.join(filepath[i], event + "_" + naming + ".hdf5")):
         #     ts = read_hdf5(event + "_" + naming, filepath[i], "ts").reshape(-1)
