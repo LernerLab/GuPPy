@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from .analysis.artifact_removal import remove_artifacts
-from .analysis.combine_data import combineData
+from .analysis.combine_data import combine_data
 from .analysis.control_channel import add_control_channel, create_control_channel
 from .analysis.io_utils import (
     check_storeslistfile,
@@ -399,6 +399,50 @@ def execute_artifact_removal(folderNames, inputParameters):
     logger.info("Artifact removal completed.")
 
 
+# function to combine data when there are two different data files for the same recording session
+# it will combine the data, do timestamps processing and save the combined data in the first output folder.
+def execute_combine_data(folderNames, inputParameters, storesList):
+
+    logger.debug("Combining Data from different data files...")
+    timeForLightsTurnOn = inputParameters["timeForLightsTurnOn"]
+    op_folder = []
+    for i in range(len(folderNames)):
+        filepath = folderNames[i]
+        op_folder.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+
+    op_folder = list(np.concatenate(op_folder).flatten())
+    sampling_rate_fp = []
+    for i in range(len(folderNames)):
+        filepath = folderNames[i]
+        storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*")))
+        for j in range(len(storesListPath)):
+            filepath = storesListPath[j]
+            storesList_new = np.genfromtxt(
+                os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=","
+            ).reshape(2, -1)
+            sampling_rate_fp.append(glob.glob(os.path.join(filepath, "timeCorrection_*")))
+
+    # check if sampling rate is same for both data
+    sampling_rate_fp = np.concatenate(sampling_rate_fp)
+    sampling_rate = []
+    for i in range(sampling_rate_fp.shape[0]):
+        sampling_rate.append(read_hdf5("", sampling_rate_fp[i], "sampling_rate"))
+
+    res = all(i == sampling_rate[0] for i in sampling_rate)
+    if res == False:
+        logger.error("To combine the data, sampling rate for both the data should be same.")
+        raise Exception("To combine the data, sampling rate for both the data should be same.")
+
+    # get the output folders informatinos
+    op = get_all_stores_for_combining_data(op_folder)
+
+    # processing timestamps for combining the data
+    combine_data(op, timeForLightsTurnOn, storesList, sampling_rate[0])
+    logger.info("Data is combined from different data files.")
+
+    return op
+
+
 def extractTsAndSignal(inputParameters):
 
     logger.debug("Extracting signal data and event timestamps...")
@@ -434,7 +478,7 @@ def extractTsAndSignal(inputParameters):
         writeToFile(str((pbMaxValue) * 10) + "\n" + str(10) + "\n")
         execute_timestamp_correction(folderNames, inputParameters)
         storesList = check_storeslistfile(folderNames)
-        op_folder = combineData(folderNames, inputParameters, storesList)
+        op_folder = execute_combine_data(folderNames, inputParameters, storesList)
         execute_zscore(op_folder, inputParameters)
         if remove_artifacts == True:
             execute_artifact_removal(op_folder, inputParameters)

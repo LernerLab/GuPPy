@@ -1,4 +1,3 @@
-import glob
 import logging
 import os
 
@@ -6,57 +5,11 @@ import numpy as np
 
 from .io_utils import (
     decide_naming_convention,
-    get_all_stores_for_combining_data,
     read_hdf5,
-    takeOnlyDirs,
     write_hdf5,
 )
 
 logger = logging.getLogger(__name__)
-
-
-# function to combine data when there are two different data files for the same recording session
-# it will combine the data, do timestamps processing and save the combined data in the first output folder.
-def combineData(folderNames, inputParameters, storesList):
-
-    logger.debug("Combining Data from different data files...")
-    timeForLightsTurnOn = inputParameters["timeForLightsTurnOn"]
-    op_folder = []
-    for i in range(len(folderNames)):
-        filepath = folderNames[i]
-        op_folder.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
-
-    op_folder = list(np.concatenate(op_folder).flatten())
-    sampling_rate_fp = []
-    for i in range(len(folderNames)):
-        filepath = folderNames[i]
-        storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*")))
-        for j in range(len(storesListPath)):
-            filepath = storesListPath[j]
-            storesList_new = np.genfromtxt(
-                os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=","
-            ).reshape(2, -1)
-            sampling_rate_fp.append(glob.glob(os.path.join(filepath, "timeCorrection_*")))
-
-    # check if sampling rate is same for both data
-    sampling_rate_fp = np.concatenate(sampling_rate_fp)
-    sampling_rate = []
-    for i in range(sampling_rate_fp.shape[0]):
-        sampling_rate.append(read_hdf5("", sampling_rate_fp[i], "sampling_rate"))
-
-    res = all(i == sampling_rate[0] for i in sampling_rate)
-    if res == False:
-        logger.error("To combine the data, sampling rate for both the data should be same.")
-        raise Exception("To combine the data, sampling rate for both the data should be same.")
-
-    # get the output folders informatinos
-    op = get_all_stores_for_combining_data(op_folder)
-
-    # processing timestamps for combining the data
-    processTimestampsForCombiningData(op, timeForLightsTurnOn, storesList, sampling_rate[0])
-    logger.info("Data is combined from different data files.")
-
-    return op
 
 
 def eliminateData(filepath, timeForLightsTurnOn, event, sampling_rate, naming):
@@ -113,7 +66,7 @@ def eliminateTs(filepath, timeForLightsTurnOn, event, sampling_rate, naming):
     return ts_arr
 
 
-def processTimestampsForCombiningData(filepath, timeForLightsTurnOn, events, sampling_rate):
+def combine_data(filepath, timeForLightsTurnOn, events, sampling_rate):
 
     logger.debug("Processing timestamps for combining data...")
 
