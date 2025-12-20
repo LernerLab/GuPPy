@@ -43,11 +43,11 @@ def eliminateTs(filepath, timeForLightsTurnOn, event, sampling_rate, naming):
     ts_arr = np.array([])
     tsNew_arr = np.array([])
     for i in range(len(filepath)):
-        tsNew = read_hdf5("timeCorrection_" + naming, filepath[i], "timestampNew")
-        if os.path.exists(os.path.join(filepath[i], event + "_" + naming + ".hdf5")):
-            ts = read_hdf5(event + "_" + naming, filepath[i], "ts").reshape(-1)
-        else:
-            ts = np.array([])
+        # tsNew = read_hdf5("timeCorrection_" + naming, filepath[i], "timestampNew")
+        # if os.path.exists(os.path.join(filepath[i], event + "_" + naming + ".hdf5")):
+        #     ts = read_hdf5(event + "_" + naming, filepath[i], "ts").reshape(-1)
+        # else:
+        #     ts = np.array([])
 
         # logger.info("total time : ", tsNew[-1])
         if len(tsNew_arr) == 0:
@@ -114,8 +114,24 @@ def combine_data(filepath: list[list[str]], timeForLightsTurnOn, names_for_store
                 else:
                     if "control" in names_for_storenames[i].lower() or "signal" in names_for_storenames[i].lower():
                         continue
+                    filepath_to_timestamps = {}
+                    filepath_to_ttl_timestamps = {}
+                    for filepath in single_output_filepaths:
+                        tsNew = read_hdf5("timeCorrection_" + pair_name, filepath, "timestampNew")
+                        if os.path.exists(os.path.join(filepath, names_for_storenames[i] + "_" + pair_name + ".hdf5")):
+                            ts = read_hdf5(names_for_storenames[i] + "_" + pair_name, filepath, "ts").reshape(-1)
+                        else:
+                            ts = np.array([])
+                        filepath_to_timestamps[filepath] = tsNew
+                        filepath_to_ttl_timestamps[filepath] = ts
+
                     ts = eliminateTs(
-                        single_output_filepaths, timeForLightsTurnOn, names_for_storenames[i], sampling_rate, pair_name
+                        filepath_to_timestamps,
+                        filepath_to_ttl_timestamps,
+                        timeForLightsTurnOn,
+                        names_for_storenames[i],
+                        sampling_rate,
+                        pair_name,
                     )
                     write_hdf5(ts, names_for_storenames[i] + "_" + pair_name, single_output_filepaths[0], "ts")
         for pair_name, tsNew in pair_name_to_tsNew.items():
