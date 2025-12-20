@@ -12,15 +12,16 @@ from .io_utils import (
 logger = logging.getLogger(__name__)
 
 
-def eliminateData(filepaths, timeForLightsTurnOn, event, sampling_rate, naming):
+def eliminateData(filepath_to_timestamps, filepath_to_data, timeForLightsTurnOn, event, sampling_rate, naming):
 
     arr = np.array([])
     ts_arr = np.array([])
-    for i in range(len(filepaths)):
-        ts = read_hdf5("timeCorrection_" + naming, filepaths[i], "timestampNew")
-        data = read_hdf5(event, filepaths[i], "data").reshape(-1)
-
-        # index = np.where((ts>coords[i,0]) & (ts<coords[i,1]))[0]
+    filepaths = list(filepath_to_timestamps.keys())
+    for filepath in filepaths:
+        ts = filepath_to_timestamps[filepath]
+        data = filepath_to_data[filepath]
+        # ts = read_hdf5("timeCorrection_" + naming, filepaths[i], "timestampNew")
+        # data = read_hdf5(event, filepaths[i], "data").reshape(-1)
 
         if len(arr) == 0:
             arr = np.concatenate((arr, data))
@@ -82,7 +83,6 @@ def combine_data(filepath: list[list[str]], timeForLightsTurnOn, events, samplin
         for j in range(path.shape[1]):
             name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")
             name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")
-            # dirname = os.path.dirname(path[i])
             if name_1[-1] == name_2[-1]:
                 name = name_1[-1]
 
@@ -91,8 +91,21 @@ def combine_data(filepath: list[list[str]], timeForLightsTurnOn, events, samplin
                         "control_" + name.lower() in storesList[i].lower()
                         or "signal_" + name.lower() in storesList[i].lower()
                     ):
+                        filepath_to_timestamps = {}
+                        filepath_to_data = {}
+                        for filepath in single_output_filepaths:
+                            ts = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
+                            data = read_hdf5(storesList[i], filepath, "data").reshape(-1)
+                            filepath_to_timestamps[filepath] = ts
+                            filepath_to_data[filepath] = data
+
                         data, timestampNew = eliminateData(
-                            single_output_filepaths, timeForLightsTurnOn, storesList[i], sampling_rate, name
+                            filepath_to_timestamps,
+                            filepath_to_data,
+                            timeForLightsTurnOn,
+                            storesList[i],
+                            sampling_rate,
+                            name,
                         )
                         write_hdf5(data, storesList[i], single_output_filepaths[0], "data")
                         pair_name_to_tsNew[name] = timestampNew
