@@ -281,3 +281,12 @@ def read_ttl_timestamps_for_combining_data(filepaths_to_combine, storesList):
                 compound_name_to_filepath_to_ttl_timestamps[compound_name][filepath] = ts
 
     return compound_name_to_filepath_to_ttl_timestamps
+
+
+def write_combined_data(output_filepath, pair_name_to_tsNew, display_name_to_data, compound_name_to_ttl_timestamps):
+    for pair_name, tsNew in pair_name_to_tsNew.items():
+        write_hdf5(tsNew, "timeCorrection_" + pair_name, output_filepath, "timestampNew")
+    for display_name, data in display_name_to_data.items():
+        write_hdf5(data, display_name, output_filepath, "data")
+    for compound_name, ts in compound_name_to_ttl_timestamps.items():
+        write_hdf5(ts, compound_name, output_filepath, "ts")

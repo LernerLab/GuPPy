@@ -31,6 +31,7 @@ from .analysis.standard_io import (
     read_ttl,
     read_ttl_timestamps_for_combining_data,
     write_artifact_removal,
+    write_combined_data,
     write_corrected_data,
     write_corrected_timestamps,
     write_corrected_ttl_timestamps,
@@ -445,7 +446,7 @@ def execute_combine_data(folderNames, inputParameters, storesList):
         compound_name_to_filepath_to_ttl_timestamps = read_ttl_timestamps_for_combining_data(
             filepaths_to_combine, storesList
         )
-        combine_data(
+        pair_name_to_tsNew, display_name_to_data, compound_name_to_ttl_timestamps = combine_data(
             filepaths_to_combine,
             pair_name_to_filepath_to_timestamps,
             display_name_to_filepath_to_data,
@@ -454,6 +455,8 @@ def execute_combine_data(folderNames, inputParameters, storesList):
             storesList,
             sampling_rate[0],
         )
+        output_filepath = filepaths_to_combine[0]
+        write_combined_data(output_filepath, pair_name_to_tsNew, display_name_to_data, compound_name_to_ttl_timestamps)
     logger.info("Data is combined from different data files.")
 
     return op

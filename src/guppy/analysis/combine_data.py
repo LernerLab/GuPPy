@@ -5,7 +5,6 @@ import numpy as np
 
 from .io_utils import (
     decide_naming_convention,
-    write_hdf5,
 )
 
 logger = logging.getLogger(__name__)
@@ -76,6 +75,8 @@ def combine_data(
     path = decide_naming_convention(filepaths_to_combine[0])
 
     pair_name_to_tsNew = {}
+    display_name_to_data = {}
+    compound_name_to_ttl_timestamps = {}
     for j in range(path.shape[1]):
         name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")[-1]
         name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")[-1]
@@ -98,8 +99,8 @@ def combine_data(
                     timeForLightsTurnOn,
                     sampling_rate,
                 )
-                write_hdf5(data, display_name, filepaths_to_combine[0], "data")
                 pair_name_to_tsNew[pair_name] = timestampNew
+                display_name_to_data[display_name] = data
             else:
                 if "control" in names_for_storenames[i].lower() or "signal" in names_for_storenames[i].lower():
                     continue
@@ -113,6 +114,6 @@ def combine_data(
                     timeForLightsTurnOn,
                     sampling_rate,
                 )
-                write_hdf5(ts, compound_name, filepaths_to_combine[0], "ts")
-    for pair_name, tsNew in pair_name_to_tsNew.items():
-        write_hdf5(tsNew, "timeCorrection_" + pair_name, filepaths_to_combine[0], "timestampNew")
+                compound_name_to_ttl_timestamps[compound_name] = ts
+
+    return pair_name_to_tsNew, display_name_to_data, compound_name_to_ttl_timestamps
