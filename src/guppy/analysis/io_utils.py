@@ -6,6 +6,7 @@ import re
 
 import h5py
 import numpy as np
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -194,3 +195,23 @@ def get_control_and_signal_channel_names(storesList):
         raise Exception("Error in saving stores list file or spelling mistake for control or signal")
 
     return channels_arr
+
+
+# function to read h5 file and make a dataframe from it
+def read_Df(filepath, event, name):
+    event = event.replace("\\", "_")
+    event = event.replace("/", "_")
+    if name:
+        op = os.path.join(filepath, event + "_{}.h5".format(name))
+    else:
+        op = os.path.join(filepath, event + ".h5")
+    df = pd.read_hdf(op, key="df", mode="r")
+
+    return df
+
+
+def make_dir_for_cross_correlation(filepath):
+    op = os.path.join(filepath, "cross_correlation_output")
+    if not os.path.exists(op):
+        os.mkdir(op)
+    return op
