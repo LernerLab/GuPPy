@@ -436,7 +436,8 @@ def execute_combine_data(folderNames, inputParameters, storesList):
     op = get_all_stores_for_combining_data(op_folder)
 
     # processing timestamps for combining the data
-    combine_data(op, timeForLightsTurnOn, storesList, sampling_rate[0])
+    for filepaths_to_combine in op:
+        combine_data(filepaths_to_combine, timeForLightsTurnOn, storesList, sampling_rate[0])
     logger.info("Data is combined from different data files.")
 
     return op
