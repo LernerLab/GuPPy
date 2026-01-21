@@ -668,8 +668,6 @@ def psthForEachStorename(inputParameters):
 
     # storesList = np.genfromtxt(inputParameters['storesListPath'], dtype='str', delimiter=',')
 
-    folderNames = inputParameters["folderNames"]
-    folderNamesForAvg = inputParameters["folderNamesForAvg"]
     average = inputParameters["averageForGroup"]
     combine_data = inputParameters["combine_data"]
     numProcesses = inputParameters["numberOfCores"]
@@ -687,110 +685,119 @@ def psthForEachStorename(inputParameters):
 
     # for average following if statement will be executed
     if average == True:
-        if len(folderNamesForAvg) > 0:
-            storesListPath = []
-            for i in range(len(folderNamesForAvg)):
-                filepath = folderNamesForAvg[i]
-                storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
-            storesListPath = np.concatenate(storesListPath)
-            storesList = np.asarray([[], []])
-            for i in range(storesListPath.shape[0]):
-                storesList = np.concatenate(
-                    (
-                        storesList,
-                        np.genfromtxt(
-                            os.path.join(storesListPath[i], "storesList.csv"), dtype="str", delimiter=","
-                        ).reshape(2, -1),
-                    ),
-                    axis=1,
-                )
-            storesList = np.unique(storesList, axis=1)
-            op = makeAverageDir(inputParameters["abspath"])
-            np.savetxt(os.path.join(op, "storesList.csv"), storesList, delimiter=",", fmt="%s")
-            pbMaxValue = 0
-            for j in range(storesList.shape[1]):
-                if "control" in storesList[1, j].lower() or "signal" in storesList[1, j].lower():
-                    continue
-                else:
-                    pbMaxValue += 1
-            writeToFile(str((1 + pbMaxValue + 1) * 10) + "\n" + str(10) + "\n")
-            for k in range(storesList.shape[1]):
-                if "control" in storesList[1, k].lower() or "signal" in storesList[1, k].lower():
-                    continue
-                else:
-                    averageForGroup(storesListPath, storesList[1, k], inputParameters)
-                writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
-                inputParameters["step"] += 1
-
-        else:
-            logger.error("Not a single folder name is provided in folderNamesForAvg in inputParamters File.")
-            raise Exception("Not a single folder name is provided in folderNamesForAvg in inputParamters File.")
+        execute_average_for_group(inputParameters)
 
     # for individual analysis following else statement will be executed
     else:
         if combine_data == True:
-            storesListPath = []
-            for i in range(len(folderNames)):
-                storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(folderNames[i], "*_output_*"))))
-            storesListPath = list(np.concatenate(storesListPath).flatten())
-            op = get_all_stores_for_combining_data(storesListPath)
-            writeToFile(str((len(op) + len(op) + 1) * 10) + "\n" + str(10) + "\n")
-            for i in range(len(op)):
-                storesList = np.asarray([[], []])
-                for j in range(len(op[i])):
-                    storesList = np.concatenate(
-                        (
-                            storesList,
-                            np.genfromtxt(os.path.join(op[i][j], "storesList.csv"), dtype="str", delimiter=",").reshape(
-                                2, -1
-                            ),
-                        ),
-                        axis=1,
-                    )
-                storesList = np.unique(storesList, axis=1)
-                for k in range(storesList.shape[1]):
-                    storenamePsth(op[i][0], storesList[1, k], inputParameters)
-                    findPSTHPeakAndArea(op[i][0], storesList[1, k], inputParameters)
-                    computeCrossCorrelation(op[i][0], storesList[1, k], inputParameters)
-                writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
-                inputParameters["step"] += 1
+            execute_psth_combined(inputParameters)
         else:
-            storesListPath = []
-            for i in range(len(folderNames)):
-                storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(folderNames[i], "*_output_*"))))
-            storesListPath = np.concatenate(storesListPath)
-            writeToFile(str((storesListPath.shape[0] + storesListPath.shape[0] + 1) * 10) + "\n" + str(10) + "\n")
-            for i in range(len(folderNames)):
-                logger.debug(f"Computing PSTH, Peak and Area for each event in {folderNames[i]}")
-                storesListPath = takeOnlyDirs(glob.glob(os.path.join(folderNames[i], "*_output_*")))
-                for j in range(len(storesListPath)):
-                    filepath = storesListPath[j]
-                    storesList = np.genfromtxt(
-                        os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=","
-                    ).reshape(2, -1)
-
-                    with mp.Pool(numProcesses) as p:
-                        p.starmap(storenamePsth, zip(repeat(filepath), storesList[1, :], repeat(inputParameters)))
-
-                    with mp.Pool(numProcesses) as pq:
-                        pq.starmap(
-                            findPSTHPeakAndArea, zip(repeat(filepath), storesList[1, :], repeat(inputParameters))
-                        )
-
-                    with mp.Pool(numProcesses) as cr:
-                        cr.starmap(
-                            computeCrossCorrelation, zip(repeat(filepath), storesList[1, :], repeat(inputParameters))
-                        )
-
-                    # for k in range(storesList.shape[1]):
-                    # 	storenamePsth(filepath, storesList[1,k], inputParameters)
-                    # 	findPSTHPeakAndArea(filepath, storesList[1,k], inputParameters)
-
-                    writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
-                    inputParameters["step"] += 1
-                logger.info(f"PSTH, Area and Peak are computed for all events in {folderNames[i]}.")
+            execute_psth(inputParameters)
     logger.info("PSTH, Area and Peak are computed for all events.")
     return inputParameters
+
+
+def execute_psth(inputParameters):
+    folderNames = inputParameters["folderNames"]
+    numProcesses = inputParameters["numberOfCores"]
+    storesListPath = []
+    for i in range(len(folderNames)):
+        storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(folderNames[i], "*_output_*"))))
+    storesListPath = np.concatenate(storesListPath)
+    writeToFile(str((storesListPath.shape[0] + storesListPath.shape[0] + 1) * 10) + "\n" + str(10) + "\n")
+    for i in range(len(folderNames)):
+        logger.debug(f"Computing PSTH, Peak and Area for each event in {folderNames[i]}")
+        storesListPath = takeOnlyDirs(glob.glob(os.path.join(folderNames[i], "*_output_*")))
+        for j in range(len(storesListPath)):
+            filepath = storesListPath[j]
+            storesList = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(
+                2, -1
+            )
+
+            with mp.Pool(numProcesses) as p:
+                p.starmap(storenamePsth, zip(repeat(filepath), storesList[1, :], repeat(inputParameters)))
+
+            with mp.Pool(numProcesses) as pq:
+                pq.starmap(findPSTHPeakAndArea, zip(repeat(filepath), storesList[1, :], repeat(inputParameters)))
+
+            with mp.Pool(numProcesses) as cr:
+                cr.starmap(computeCrossCorrelation, zip(repeat(filepath), storesList[1, :], repeat(inputParameters)))
+
+                # for k in range(storesList.shape[1]):
+                # 	storenamePsth(filepath, storesList[1,k], inputParameters)
+                # 	findPSTHPeakAndArea(filepath, storesList[1,k], inputParameters)
+
+            writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
+            inputParameters["step"] += 1
+        logger.info(f"PSTH, Area and Peak are computed for all events in {folderNames[i]}.")
+
+
+def execute_psth_combined(inputParameters):
+    folderNames = inputParameters["folderNames"]
+    storesListPath = []
+    for i in range(len(folderNames)):
+        storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(folderNames[i], "*_output_*"))))
+    storesListPath = list(np.concatenate(storesListPath).flatten())
+    op = get_all_stores_for_combining_data(storesListPath)
+    writeToFile(str((len(op) + len(op) + 1) * 10) + "\n" + str(10) + "\n")
+    for i in range(len(op)):
+        storesList = np.asarray([[], []])
+        for j in range(len(op[i])):
+            storesList = np.concatenate(
+                (
+                    storesList,
+                    np.genfromtxt(os.path.join(op[i][j], "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1),
+                ),
+                axis=1,
+            )
+        storesList = np.unique(storesList, axis=1)
+        for k in range(storesList.shape[1]):
+            storenamePsth(op[i][0], storesList[1, k], inputParameters)
+            findPSTHPeakAndArea(op[i][0], storesList[1, k], inputParameters)
+            computeCrossCorrelation(op[i][0], storesList[1, k], inputParameters)
+        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
+        inputParameters["step"] += 1
+
+
+def execute_average_for_group(inputParameters):
+    folderNamesForAvg = inputParameters["folderNamesForAvg"]
+    if len(folderNamesForAvg) == 0:
+        logger.error("Not a single folder name is provided in folderNamesForAvg in inputParamters File.")
+        raise Exception("Not a single folder name is provided in folderNamesForAvg in inputParamters File.")
+
+    storesListPath = []
+    for i in range(len(folderNamesForAvg)):
+        filepath = folderNamesForAvg[i]
+        storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+    storesListPath = np.concatenate(storesListPath)
+    storesList = np.asarray([[], []])
+    for i in range(storesListPath.shape[0]):
+        storesList = np.concatenate(
+            (
+                storesList,
+                np.genfromtxt(os.path.join(storesListPath[i], "storesList.csv"), dtype="str", delimiter=",").reshape(
+                    2, -1
+                ),
+            ),
+            axis=1,
+        )
+    storesList = np.unique(storesList, axis=1)
+    op = makeAverageDir(inputParameters["abspath"])
+    np.savetxt(os.path.join(op, "storesList.csv"), storesList, delimiter=",", fmt="%s")
+    pbMaxValue = 0
+    for j in range(storesList.shape[1]):
+        if "control" in storesList[1, j].lower() or "signal" in storesList[1, j].lower():
+            continue
+        else:
+            pbMaxValue += 1
+    writeToFile(str((1 + pbMaxValue + 1) * 10) + "\n" + str(10) + "\n")
+    for k in range(storesList.shape[1]):
+        if "control" in storesList[1, k].lower() or "signal" in storesList[1, k].lower():
+            continue
+        else:
+            averageForGroup(storesListPath, storesList[1, k], inputParameters)
+        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
+        inputParameters["step"] += 1
 
 
 def main(input_parameters):
