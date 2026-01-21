@@ -26,7 +26,10 @@ from .analysis.standard_io import (
     read_corrected_data_dict,
     read_corrected_timestamps_pairwise,
     read_corrected_ttl_timestamps,
+    read_data_for_combining_data,
+    read_timestamps_for_combining_data,
     read_ttl,
+    read_ttl_timestamps_for_combining_data,
     write_artifact_removal,
     write_corrected_data,
     write_corrected_timestamps,
@@ -437,7 +440,20 @@ def execute_combine_data(folderNames, inputParameters, storesList):
 
     # processing timestamps for combining the data
     for filepaths_to_combine in op:
-        combine_data(filepaths_to_combine, timeForLightsTurnOn, storesList, sampling_rate[0])
+        pair_name_to_filepath_to_timestamps = read_timestamps_for_combining_data(filepaths_to_combine)
+        display_name_to_filepath_to_data = read_data_for_combining_data(filepaths_to_combine, storesList)
+        compound_name_to_filepath_to_ttl_timestamps = read_ttl_timestamps_for_combining_data(
+            filepaths_to_combine, storesList
+        )
+        combine_data(
+            filepaths_to_combine,
+            pair_name_to_filepath_to_timestamps,
+            display_name_to_filepath_to_data,
+            compound_name_to_filepath_to_ttl_timestamps,
+            timeForLightsTurnOn,
+            storesList,
+            sampling_rate[0],
+        )
     logger.info("Data is combined from different data files.")
 
     return op

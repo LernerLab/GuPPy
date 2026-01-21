@@ -208,3 +208,76 @@ def write_artifact_removal(
     write_corrected_ttl_timestamps(filepath, compound_name_to_corrected_ttl_timestamps)
     if pair_name_to_corrected_timestamps is not None:
         write_artifact_corrected_timestamps(filepath, pair_name_to_corrected_timestamps)
+
+
+def read_timestamps_for_combining_data(filepaths_to_combine):
+    path = decide_naming_convention(filepaths_to_combine[0])
+    pair_name_to_filepath_to_timestamps: dict[str, dict[str, np.ndarray]] = {}
+    for j in range(path.shape[1]):
+        name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")[-1]
+        name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")[-1]
+        if name_1 != name_2:
+            logger.error("Error in naming convention of files or Error in storesList file")
+            raise Exception("Error in naming convention of files or Error in storesList file")
+        pair_name = name_1
+        pair_name_to_filepath_to_timestamps[pair_name] = {}
+        for filepath in filepaths_to_combine:
+            tsNew = read_hdf5("timeCorrection_" + pair_name, filepath, "timestampNew")
+            pair_name_to_filepath_to_timestamps[pair_name][filepath] = tsNew
+
+    return pair_name_to_filepath_to_timestamps
+
+
+def read_data_for_combining_data(filepaths_to_combine, storesList):
+    names_for_storenames = storesList[1, :]
+    path = decide_naming_convention(filepaths_to_combine[0])
+    display_name_to_filepath_to_data: dict[str, dict[str, np.ndarray]] = {}
+    for j in range(path.shape[1]):
+        name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")[-1]
+        name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")[-1]
+        if name_1 != name_2:
+            logger.error("Error in naming convention of files or Error in storesList file")
+            raise Exception("Error in naming convention of files or Error in storesList file")
+        pair_name = name_1
+        for i in range(len(names_for_storenames)):
+            if not (
+                "control_" + pair_name.lower() in names_for_storenames[i].lower()
+                or "signal_" + pair_name.lower() in names_for_storenames[i].lower()
+            ):
+                continue
+            display_name = names_for_storenames[i]
+            display_name_to_filepath_to_data[display_name] = {}
+            for filepath in filepaths_to_combine:
+                data = read_hdf5(display_name, filepath, "data").reshape(-1)
+                display_name_to_filepath_to_data[display_name][filepath] = data
+
+    return display_name_to_filepath_to_data
+
+
+def read_ttl_timestamps_for_combining_data(filepaths_to_combine, storesList):
+    names_for_storenames = storesList[1, :]
+    path = decide_naming_convention(filepaths_to_combine[0])
+    compound_name_to_filepath_to_ttl_timestamps: dict[str, dict[str, np.ndarray]] = {}
+    for j in range(path.shape[1]):
+        name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")[-1]
+        name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")[-1]
+        if name_1 != name_2:
+            logger.error("Error in naming convention of files or Error in storesList file")
+            raise Exception("Error in naming convention of files or Error in storesList file")
+        pair_name = name_1
+        for i in range(len(names_for_storenames)):
+            if (
+                "control_" + pair_name.lower() in names_for_storenames[i].lower()
+                or "signal_" + pair_name.lower() in names_for_storenames[i].lower()
+            ):
+                continue
+            compound_name = names_for_storenames[i] + "_" + pair_name
+            compound_name_to_filepath_to_ttl_timestamps[compound_name] = {}
+            for filepath in filepaths_to_combine:
+                if os.path.exists(os.path.join(filepath, names_for_storenames[i] + "_" + pair_name + ".hdf5")):
+                    ts = read_hdf5(names_for_storenames[i] + "_" + pair_name, filepath, "ts").reshape(-1)
+                else:
+                    ts = np.array([])
+                compound_name_to_filepath_to_ttl_timestamps[compound_name][filepath] = ts
+
+    return compound_name_to_filepath_to_ttl_timestamps
