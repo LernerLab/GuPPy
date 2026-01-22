@@ -3,7 +3,7 @@ import math
 
 import numpy as np
 
-from .io_utils import read_hdf5, write_hdf5
+from .io_utils import write_hdf5
 
 logger = logging.getLogger(__name__)
 
@@ -22,12 +22,13 @@ def compute_psth(
     baselineEnd,
     naming,
     just_use_signal,
+    sampling_rate,
+    ts,
+    corrected_timestamps,
 ):
 
     event = event.replace("\\", "_")
     event = event.replace("/", "_")
-
-    sampling_rate = read_hdf5("timeCorrection_" + naming, filepath, "sampling_rate")[0]
 
     # calculate time before event timestamp and time after event timestamp
     nTsPrev = int(round(nSecPrev * sampling_rate))
@@ -37,14 +38,6 @@ def compute_psth(
     increment = ((-1 * nSecPrev) + nSecPost) / totalTs
     timeAxis = np.linspace(nSecPrev, nSecPost + increment, totalTs + 1)
     timeAxisNew = np.concatenate((timeAxis, timeAxis[::-1]))
-
-    # avoid writing same data to same file in multi-processing
-    # if not os.path.exists(os.path.join(filepath, 'ts_psth.h5')):
-    # 	logger.info('file not exists')
-    # 	create_Df(filepath, 'ts_psth', '', timeAxis)
-    # 	time.sleep(2)
-
-    ts = read_hdf5(event + "_" + naming, filepath, "ts")
 
     # reject timestamps for which baseline cannot be calculated because of nan values
     new_ts = []
@@ -93,16 +86,15 @@ def compute_psth(
             arr = arr
 
         psth_baselineUncorrected[i, :] = arr  # extra
-        psth[i, :] = baselineCorrection(filepath, arr, timeAxis, baselineStart, baselineEnd)
+        psth[i, :] = baselineCorrection(arr, timeAxis, baselineStart, baselineEnd)
 
     write_hdf5(ts, event + "_" + naming, filepath, "ts")
     columns = list(ts)
 
     if use_time_or_trials == "Time (min)" and bin_psth_trials > 0:
-        timestamps = read_hdf5("timeCorrection_" + naming, filepath, "timestampNew")
-        timestamps = np.divide(timestamps, 60)
+        corrected_timestamps = np.divide(corrected_timestamps, 60)
         ts_min = np.divide(ts, 60)
-        bin_steps = np.arange(timestamps[0], timestamps[-1] + bin_psth_trials, bin_psth_trials)
+        bin_steps = np.arange(corrected_timestamps[0], corrected_timestamps[-1] + bin_psth_trials, bin_psth_trials)
         indices_each_step = dict()
         for i in range(1, bin_steps.shape[0]):
             indices_each_step[f"{np.around(bin_steps[i-1],0)}-{np.around(bin_steps[i],0)}"] = np.where(
@@ -184,14 +176,10 @@ def rowFormation(z_score, thisIndex, nTsPrev, nTsPost):
 
 
 # function to calculate baseline for each PSTH trial and do baseline correction
-def baselineCorrection(filepath, arr, timeAxis, baselineStart, baselineEnd):
-
-    # timeAxis = read_Df(filepath, 'ts_psth', '')
-    # timeAxis = np.asarray(timeAxis).reshape(-1)
+def baselineCorrection(arr, timeAxis, baselineStart, baselineEnd):
     baselineStrtPt = np.where(timeAxis >= baselineStart)[0]
     baselineEndPt = np.where(timeAxis >= baselineEnd)[0]
 
-    # logger.info(baselineStrtPt[0], baselineEndPt[0])
     if baselineStart == 0 and baselineEnd == 0:
         return arr
 

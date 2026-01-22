@@ -112,6 +112,13 @@ def execute_compute_psth(filepath, event, inputParameters):
         else:
             z_score = read_hdf5("", path[i], "data")
             just_use_signal = False
+
+        sampling_rate = read_hdf5("timeCorrection_" + name_1, filepath, "sampling_rate")[0]
+        ts = read_hdf5(event + "_" + name_1, filepath, "ts")
+        if use_time_or_trials == "Time (min)" and bin_psth_trials > 0:
+            corrected_timestamps = read_hdf5("timeCorrection_" + name_1, filepath, "timestampNew")
+        else:
+            corrected_timestamps = None
         psth, psth_baselineUncorrected, cols = compute_psth(
             z_score,
             event,
@@ -125,6 +132,9 @@ def execute_compute_psth(filepath, event, inputParameters):
             baselineEnd,
             name_1,
             just_use_signal,
+            sampling_rate,
+            ts,
+            corrected_timestamps,
         )
 
         create_Df(
