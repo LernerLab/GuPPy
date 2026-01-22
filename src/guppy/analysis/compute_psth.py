@@ -3,8 +3,6 @@ import math
 
 import numpy as np
 
-from .io_utils import write_hdf5
-
 logger = logging.getLogger(__name__)
 
 
@@ -88,7 +86,6 @@ def compute_psth(
         psth_baselineUncorrected[i, :] = arr  # extra
         psth[i, :] = baselineCorrection(arr, timeAxis, baselineStart, baselineEnd)
 
-    write_hdf5(ts, event + "_" + naming, filepath, "ts")
     columns = list(ts)
 
     if use_time_or_trials == "Time (min)" and bin_psth_trials > 0:
@@ -145,7 +142,7 @@ def compute_psth(
     psth_baselineUncorrected = np.concatenate((psth_baselineUncorrected, timeAxis), axis=0)
     columns.append("timestamps")
 
-    return psth, psth_baselineUncorrected, columns
+    return psth, psth_baselineUncorrected, columns, ts
 
 
 # function to create PSTH trials corresponding to each event timestamp

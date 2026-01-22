@@ -18,6 +18,7 @@ from .analysis.io_utils import (
     get_all_stores_for_combining_data,
     makeAverageDir,
     read_hdf5,
+    write_hdf5,
 )
 from .analysis.psth_average import averageForGroup
 from .analysis.psth_peak_and_area import findPSTHPeakAndArea
@@ -119,7 +120,7 @@ def execute_compute_psth(filepath, event, inputParameters):
             corrected_timestamps = read_hdf5("timeCorrection_" + name_1, filepath, "timestampNew")
         else:
             corrected_timestamps = None
-        psth, psth_baselineUncorrected, cols = compute_psth(
+        psth, psth_baselineUncorrected, cols, ts = compute_psth(
             z_score,
             event,
             filepath,
@@ -136,6 +137,7 @@ def execute_compute_psth(filepath, event, inputParameters):
             ts,
             corrected_timestamps,
         )
+        write_hdf5(ts, event + "_" + name_1, filepath, "ts")
 
         create_Df(
             filepath,
