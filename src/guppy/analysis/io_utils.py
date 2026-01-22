@@ -215,3 +215,12 @@ def make_dir_for_cross_correlation(filepath):
     if not os.path.exists(op):
         os.mkdir(op)
     return op
+
+
+def makeAverageDir(filepath):
+
+    op = os.path.join(filepath, "average")
+    if not os.path.exists(op):
+        os.mkdir(op)
+
+    return op
