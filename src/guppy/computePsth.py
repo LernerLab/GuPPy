@@ -10,14 +10,18 @@ import sys
 from itertools import repeat
 
 import numpy as np
+from scipy import signal as ss
 
+from .analysis.compute_psth import compute_psth
 from .analysis.cross_correlation import computeCrossCorrelation
 from .analysis.io_utils import (
     get_all_stores_for_combining_data,
     makeAverageDir,
+    read_hdf5,
 )
+from .analysis.psth_average import averageForGroup
 from .analysis.psth_peak_and_area import findPSTHPeakAndArea
-from .analysis.storename_psth import storenamePsth
+from .analysis.psth_utils import create_Df
 
 logger = logging.getLogger(__name__)
 
@@ -66,12 +70,75 @@ def psthForEachStorename(inputParameters):
         if combine_data == True:
             execute_psth_combined(inputParameters)
         else:
-            execute_psth(inputParameters)
+            orchestrate_psth(inputParameters)
     logger.info("PSTH, Area and Peak are computed for all events.")
     return inputParameters
 
 
-def execute_psth(inputParameters):
+# function to create PSTH for each event using function helper_psth and save the PSTH to h5 file
+def execute_compute_psth(filepath, event, inputParameters):
+
+    event = event.replace("\\", "_")
+    event = event.replace("/", "_")
+    if "control" in event.lower() or "signal" in event.lower():
+        return 0
+
+    selectForComputePsth = inputParameters["selectForComputePsth"]
+    bin_psth_trials = inputParameters["bin_psth_trials"]
+    use_time_or_trials = inputParameters["use_time_or_trials"]
+    nSecPrev, nSecPost = inputParameters["nSecPrev"], inputParameters["nSecPost"]
+    baselineStart, baselineEnd = inputParameters["baselineCorrectionStart"], inputParameters["baselineCorrectionEnd"]
+    timeInterval = inputParameters["timeInterval"]
+
+    if selectForComputePsth == "z_score":
+        path = glob.glob(os.path.join(filepath, "z_score_*"))
+    elif selectForComputePsth == "dff":
+        path = glob.glob(os.path.join(filepath, "dff_*"))
+    else:
+        path = glob.glob(os.path.join(filepath, "z_score_*")) + glob.glob(os.path.join(filepath, "dff_*"))
+
+    b = np.divide(np.ones((100,)), 100)
+    a = 1
+
+    for i in range(len(path)):
+        logger.info(f"Computing PSTH for event {event}...")
+        basename = (os.path.basename(path[i])).split(".")[0]
+        name_1 = basename.split("_")[-1]
+        control = read_hdf5("control_" + name_1, os.path.dirname(path[i]), "data")
+        if (control == 0).all() == True:
+            signal = read_hdf5("signal_" + name_1, os.path.dirname(path[i]), "data")
+            z_score = ss.filtfilt(b, a, signal)
+            just_use_signal = True
+        else:
+            z_score = read_hdf5("", path[i], "data")
+            just_use_signal = False
+        psth, psth_baselineUncorrected, cols = compute_psth(
+            z_score,
+            event,
+            filepath,
+            nSecPrev,
+            nSecPost,
+            timeInterval,
+            bin_psth_trials,
+            use_time_or_trials,
+            baselineStart,
+            baselineEnd,
+            name_1,
+            just_use_signal,
+        )
+
+        create_Df(
+            filepath,
+            event + "_" + name_1 + "_baselineUncorrected",
+            basename,
+            psth_baselineUncorrected,
+            columns=cols,
+        )  # extra
+        create_Df(filepath, event + "_" + name_1, basename, psth, columns=cols)
+        logger.info(f"PSTH for event {event} computed.")
+
+
+def orchestrate_psth(inputParameters):
     folderNames = inputParameters["folderNames"]
     numProcesses = inputParameters["numberOfCores"]
     storesListPath = []
@@ -89,7 +156,7 @@ def execute_psth(inputParameters):
             )
 
             with mp.Pool(numProcesses) as p:
-                p.starmap(storenamePsth, zip(repeat(filepath), storesList[1, :], repeat(inputParameters)))
+                p.starmap(execute_compute_psth, zip(repeat(filepath), storesList[1, :], repeat(inputParameters)))
 
             with mp.Pool(numProcesses) as pq:
                 pq.starmap(findPSTHPeakAndArea, zip(repeat(filepath), storesList[1, :], repeat(inputParameters)))
@@ -126,7 +193,7 @@ def execute_psth_combined(inputParameters):
             )
         storesList = np.unique(storesList, axis=1)
         for k in range(storesList.shape[1]):
-            storenamePsth(op[i][0], storesList[1, k], inputParameters)
+            execute_compute_psth(op[i][0], storesList[1, k], inputParameters)
             findPSTHPeakAndArea(op[i][0], storesList[1, k], inputParameters)
             computeCrossCorrelation(op[i][0], storesList[1, k], inputParameters)
         writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")

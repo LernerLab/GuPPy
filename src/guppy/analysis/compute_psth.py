@@ -1,82 +1,15 @@
-import glob
 import logging
 import math
-import os
 
 import numpy as np
-from scipy import signal as ss
 
 from .io_utils import read_hdf5, write_hdf5
-from .psth_utils import create_Df
 
 logger = logging.getLogger(__name__)
 
 
-# function to create PSTH for each event using function helper_psth and save the PSTH to h5 file
-def storenamePsth(filepath, event, inputParameters):
-
-    event = event.replace("\\", "_")
-    event = event.replace("/", "_")
-    if "control" in event.lower() or "signal" in event.lower():
-        return 0
-
-    selectForComputePsth = inputParameters["selectForComputePsth"]
-    bin_psth_trials = inputParameters["bin_psth_trials"]
-    use_time_or_trials = inputParameters["use_time_or_trials"]
-    nSecPrev, nSecPost = inputParameters["nSecPrev"], inputParameters["nSecPost"]
-    baselineStart, baselineEnd = inputParameters["baselineCorrectionStart"], inputParameters["baselineCorrectionEnd"]
-    timeInterval = inputParameters["timeInterval"]
-
-    if selectForComputePsth == "z_score":
-        path = glob.glob(os.path.join(filepath, "z_score_*"))
-    elif selectForComputePsth == "dff":
-        path = glob.glob(os.path.join(filepath, "dff_*"))
-    else:
-        path = glob.glob(os.path.join(filepath, "z_score_*")) + glob.glob(os.path.join(filepath, "dff_*"))
-
-    b = np.divide(np.ones((100,)), 100)
-    a = 1
-
-    for i in range(len(path)):
-        logger.info(f"Computing PSTH for event {event}...")
-        basename = (os.path.basename(path[i])).split(".")[0]
-        name_1 = basename.split("_")[-1]
-        control = read_hdf5("control_" + name_1, os.path.dirname(path[i]), "data")
-        if (control == 0).all() == True:
-            signal = read_hdf5("signal_" + name_1, os.path.dirname(path[i]), "data")
-            z_score = ss.filtfilt(b, a, signal)
-            just_use_signal = True
-        else:
-            z_score = read_hdf5("", path[i], "data")
-            just_use_signal = False
-        psth, psth_baselineUncorrected, cols = helper_psth(
-            z_score,
-            event,
-            filepath,
-            nSecPrev,
-            nSecPost,
-            timeInterval,
-            bin_psth_trials,
-            use_time_or_trials,
-            baselineStart,
-            baselineEnd,
-            name_1,
-            just_use_signal,
-        )
-
-        create_Df(
-            filepath,
-            event + "_" + name_1 + "_baselineUncorrected",
-            basename,
-            psth_baselineUncorrected,
-            columns=cols,
-        )  # extra
-        create_Df(filepath, event + "_" + name_1, basename, psth, columns=cols)
-        logger.info(f"PSTH for event {event} computed.")
-
-
 # helper function to make PSTH for each event
-def helper_psth(
+def compute_psth(
     z_score,
     event,
     filepath,
