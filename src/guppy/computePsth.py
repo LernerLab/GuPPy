@@ -14,7 +14,7 @@ import numpy as np
 from scipy import signal as ss
 
 from .analysis.compute_psth import compute_psth
-from .analysis.cross_correlation import compute_cross_correlation, getCorrCombinations
+from .analysis.cross_correlation import compute_cross_correlation
 from .analysis.io_utils import (
     get_all_stores_for_combining_data,
     make_dir_for_cross_correlation,
@@ -25,7 +25,11 @@ from .analysis.io_utils import (
 )
 from .analysis.psth_average import averageForGroup
 from .analysis.psth_peak_and_area import compute_psth_peak_and_area
-from .analysis.psth_utils import create_Df_for_cross_correlation, create_Df_for_psth
+from .analysis.psth_utils import (
+    create_Df_for_cross_correlation,
+    create_Df_for_psth,
+    getCorrCombinations,
+)
 from .analysis.standard_io import (
     write_peak_and_area_to_csv,
     write_peak_and_area_to_hdf5,

@@ -7,14 +7,13 @@ import re
 import numpy as np
 import pandas as pd
 
-from .cross_correlation import getCorrCombinations
 from .io_utils import (
     make_dir_for_cross_correlation,
     makeAverageDir,
     read_Df,
     write_hdf5,
 )
-from .psth_utils import create_Df_for_psth
+from .psth_utils import create_Df_for_psth, getCorrCombinations
 
 logger = logging.getLogger(__name__)
 
