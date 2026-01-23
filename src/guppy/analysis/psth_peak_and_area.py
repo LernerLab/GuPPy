@@ -17,6 +17,8 @@ def findPSTHPeakAndArea(filepath, event, inputParameters):
 
     event = event.replace("\\", "_")
     event = event.replace("/", "_")
+    if "control" in event.lower() or "signal" in event.lower():
+        return 0
 
     # sampling_rate = read_hdf5(storesList[0,0], filepath, 'sampling_rate')
     peak_startPoint = inputParameters["peak_startPoint"]
@@ -30,34 +32,31 @@ def findPSTHPeakAndArea(filepath, event, inputParameters):
     else:
         path = glob.glob(os.path.join(filepath, "z_score_*")) + glob.glob(os.path.join(filepath, "dff_*"))
 
-    if "control" in event.lower() or "signal" in event.lower():
-        return 0
-    else:
-        for i in range(len(path)):
-            logger.info(f"Computing peak and area for PSTH mean signal for event {event}...")
-            basename = (os.path.basename(path[i])).split(".")[0]
-            name_1 = basename.split("_")[-1]
-            sampling_rate = read_hdf5("timeCorrection_" + name_1, filepath, "sampling_rate")[0]
-            psth = read_Df(filepath, event + "_" + name_1, basename)
-            cols = list(psth.columns)
-            regex = re.compile("bin_[(]")
-            bin_names = [cols[i] for i in range(len(cols)) if regex.match(cols[i])]
-            regex_trials = re.compile("[+-]?([0-9]*[.])?[0-9]+")
-            trials_names = [cols[i] for i in range(len(cols)) if regex_trials.match(cols[i])]
-            psth_mean_bin_names = trials_names + bin_names + ["mean"]
-            psth_mean_bin_mean = np.asarray(psth[psth_mean_bin_names])
-            timestamps = np.asarray(psth["timestamps"]).ravel()  # np.asarray(read_Df(filepath, 'ts_psth', '')).ravel()
-            peak_area = helperPSTHPeakAndArea(
-                psth_mean_bin_mean, timestamps, sampling_rate, peak_startPoint, peak_endPoint
-            )  # peak, area =
-            # arr = np.array([[peak, area]])
-            fileName = [os.path.basename(os.path.dirname(filepath))]
-            index = [fileName[0] + "_" + s for s in psth_mean_bin_names]
-            create_Df_area_peak(
-                filepath, peak_area, event + "_" + name_1 + "_" + basename, index=index
-            )  # columns=['peak', 'area']
-            create_csv_area_peak(filepath, peak_area, event + "_" + name_1 + "_" + basename, index=index)
-            logger.info(f"Peak and Area for PSTH mean signal for event {event} computed.")
+    for i in range(len(path)):
+        logger.info(f"Computing peak and area for PSTH mean signal for event {event}...")
+        basename = (os.path.basename(path[i])).split(".")[0]
+        name_1 = basename.split("_")[-1]
+        sampling_rate = read_hdf5("timeCorrection_" + name_1, filepath, "sampling_rate")[0]
+        psth = read_Df(filepath, event + "_" + name_1, basename)
+        cols = list(psth.columns)
+        regex = re.compile("bin_[(]")
+        bin_names = [cols[i] for i in range(len(cols)) if regex.match(cols[i])]
+        regex_trials = re.compile("[+-]?([0-9]*[.])?[0-9]+")
+        trials_names = [cols[i] for i in range(len(cols)) if regex_trials.match(cols[i])]
+        psth_mean_bin_names = trials_names + bin_names + ["mean"]
+        psth_mean_bin_mean = np.asarray(psth[psth_mean_bin_names])
+        timestamps = np.asarray(psth["timestamps"]).ravel()  # np.asarray(read_Df(filepath, 'ts_psth', '')).ravel()
+        peak_area = helperPSTHPeakAndArea(
+            psth_mean_bin_mean, timestamps, sampling_rate, peak_startPoint, peak_endPoint
+        )  # peak, area =
+        # arr = np.array([[peak, area]])
+        fileName = [os.path.basename(os.path.dirname(filepath))]
+        index = [fileName[0] + "_" + s for s in psth_mean_bin_names]
+        create_Df_area_peak(
+            filepath, peak_area, event + "_" + name_1 + "_" + basename, index=index
+        )  # columns=['peak', 'area']
+        create_csv_area_peak(filepath, peak_area, event + "_" + name_1 + "_" + basename, index=index)
+        logger.info(f"Peak and Area for PSTH mean signal for event {event} computed.")
 
 
 def helperPSTHPeakAndArea(psth_mean, timestamps, sampling_rate, peak_startPoint, peak_endPoint):
