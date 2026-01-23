@@ -1,56 +1,11 @@
 import glob
 import logging
-import math
 import os
-import re
 
 import numpy as np
-import pandas as pd
 from scipy import signal
 
-from .io_utils import make_dir_for_cross_correlation, read_Df, read_hdf5
-
 logger = logging.getLogger(__name__)
-
-
-def computeCrossCorrelation(filepath, event, inputParameters):
-    isCompute = inputParameters["computeCorr"]
-    removeArtifacts = inputParameters["removeArtifacts"]
-    artifactsRemovalMethod = inputParameters["artifactsRemovalMethod"]
-    if isCompute == True:
-        if removeArtifacts == True and artifactsRemovalMethod == "concatenate":
-            raise Exception(
-                "For cross-correlation, when removeArtifacts is True, artifacts removal method\
-                            should be replace with NaNs and not concatenate"
-            )
-        corr_info, type = getCorrCombinations(filepath, inputParameters)
-        if "control" in event.lower() or "signal" in event.lower():
-            return
-        else:
-            for i in range(1, len(corr_info)):
-                logger.debug(f"Computing cross-correlation for event {event}...")
-                for j in range(len(type)):
-                    psth_a = read_Df(filepath, event + "_" + corr_info[i - 1], type[j] + "_" + corr_info[i - 1])
-                    psth_b = read_Df(filepath, event + "_" + corr_info[i], type[j] + "_" + corr_info[i])
-                    sample_rate = 1 / (psth_a["timestamps"][1] - psth_a["timestamps"][0])
-                    psth_a = psth_a.drop(columns=["timestamps", "err", "mean"])
-                    psth_b = psth_b.drop(columns=["timestamps", "err", "mean"])
-                    cols_a, cols_b = np.array(psth_a.columns), np.array(psth_b.columns)
-                    if np.intersect1d(cols_a, cols_b).size > 0:
-                        cols = list(np.intersect1d(cols_a, cols_b))
-                    else:
-                        cols = list(cols_a)
-                    arr_A, arr_B = np.array(psth_a).T, np.array(psth_b).T
-                    cross_corr = helperCrossCorrelation(arr_A, arr_B, sample_rate)
-                    cols.append("timestamps")
-                    create_Df(
-                        make_dir_for_cross_correlation(filepath),
-                        "corr_" + event,
-                        type[j] + "_" + corr_info[i - 1] + "_" + corr_info[i],
-                        cross_corr,
-                        cols,
-                    )
-                logger.info(f"Cross-correlation for event {event} computed.")
 
 
 def getCorrCombinations(filepath, inputParameters):
@@ -85,51 +40,7 @@ def getCorrCombinations(filepath, inputParameters):
     return corr_info, type
 
 
-# same function used to store PSTH in computePsth file
-# Here, cross correlation dataframe is saved instead of PSTH
-# cross correlation dataframe has the same structure as PSTH file
-def create_Df(filepath, event, name, psth, columns=[]):
-    if name:
-        op = os.path.join(filepath, event + "_{}.h5".format(name))
-    else:
-        op = os.path.join(filepath, event + ".h5")
-
-    # check if file already exists
-    # if os.path.exists(op):
-    # 	return 0
-
-    # removing psth binned trials
-    columns = list(np.array(columns, dtype="str"))
-    regex = re.compile("bin_*")
-    single_trials_index = [i for i in range(len(columns)) if not regex.match(columns[i])]
-    single_trials_index = [i for i in range(len(columns)) if columns[i] != "timestamps"]
-
-    psth = psth.T
-    if psth.ndim > 1:
-        mean = np.nanmean(psth[:, single_trials_index], axis=1).reshape(-1, 1)
-        err = np.nanstd(psth[:, single_trials_index], axis=1) / math.sqrt(psth[:, single_trials_index].shape[1])
-        err = err.reshape(-1, 1)
-        psth = np.hstack((psth, mean))
-        psth = np.hstack((psth, err))
-        # timestamps = np.asarray(read_Df(filepath, 'ts_psth', ''))
-        # psth = np.hstack((psth, timestamps))
-    try:
-        ts = read_hdf5(event, filepath, "ts")
-        ts = np.append(ts, ["mean", "err"])
-    except:
-        ts = None
-
-    if len(columns) == 0:
-        df = pd.DataFrame(psth, index=None, columns=ts, dtype="float32")
-    else:
-        columns = np.asarray(columns)
-        columns = np.append(columns, ["mean", "err"])
-        df = pd.DataFrame(psth, index=None, columns=columns, dtype="float32")
-
-    df.to_hdf(op, key="df", mode="w")
-
-
-def helperCrossCorrelation(arr_A, arr_B, sample_rate):
+def compute_cross_correlation(arr_A, arr_B, sample_rate):
     cross_corr = list()
     for a, b in zip(arr_A, arr_B):
         if np.isnan(a).any() or np.isnan(b).any():

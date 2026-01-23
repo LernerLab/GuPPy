@@ -14,7 +14,7 @@ from .io_utils import (
     read_Df,
     write_hdf5,
 )
-from .psth_utils import create_Df
+from .psth_utils import create_Df_for_psth
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +111,7 @@ def averageForGroup(folderNames, event, inputParameters):
         timestamps = np.asarray(df["timestamps"]).reshape(1, -1)
         psth = np.concatenate((psth, timestamps), axis=0)
         columns = columns + ["timestamps"]
-        create_Df(op, temp_path[j][1], temp_path[j][2], psth, columns=columns)
+        create_Df_for_psth(op, temp_path[j][1], temp_path[j][2], psth, columns=columns)
 
     # read PSTH peak and area for each event and combine them. Save the final output to an average folder
     for i in range(len(new_path)):
@@ -178,7 +178,7 @@ def averageForGroup(folderNames, event, inputParameters):
         timestamps = np.array(df["timestamps"]).reshape(1, -1)
         corr = np.concatenate((corr, timestamps), axis=0)
         columns.append("timestamps")
-        create_Df(
+        create_Df_for_psth(
             make_dir_for_cross_correlation(op),
             "corr_" + event,
             type[i] + "_" + corr_info[k - 1] + "_" + corr_info[k],

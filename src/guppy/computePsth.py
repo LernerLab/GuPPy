@@ -14,9 +14,10 @@ import numpy as np
 from scipy import signal as ss
 
 from .analysis.compute_psth import compute_psth
-from .analysis.cross_correlation import computeCrossCorrelation
+from .analysis.cross_correlation import compute_cross_correlation, getCorrCombinations
 from .analysis.io_utils import (
     get_all_stores_for_combining_data,
+    make_dir_for_cross_correlation,
     makeAverageDir,
     read_Df,
     read_hdf5,
@@ -24,7 +25,7 @@ from .analysis.io_utils import (
 )
 from .analysis.psth_average import averageForGroup
 from .analysis.psth_peak_and_area import compute_psth_peak_and_area
-from .analysis.psth_utils import create_Df
+from .analysis.psth_utils import create_Df_for_cross_correlation, create_Df_for_psth
 from .analysis.standard_io import (
     write_peak_and_area_to_csv,
     write_peak_and_area_to_hdf5,
@@ -145,14 +146,14 @@ def execute_compute_psth(filepath, event, inputParameters):
         )
         write_hdf5(ts, event + "_" + name_1, filepath, "ts")
 
-        create_Df(
+        create_Df_for_psth(
             filepath,
             event + "_" + name_1 + "_baselineUncorrected",
             basename,
             psth_baselineUncorrected,
             columns=cols,
         )  # extra
-        create_Df(filepath, event + "_" + name_1, basename, psth, columns=cols)
+        create_Df_for_psth(filepath, event + "_" + name_1, basename, psth, columns=cols)
         logger.info(f"PSTH for event {event} computed.")
 
 
@@ -203,6 +204,46 @@ def execute_compute_psth_peak_and_area(filepath, event, inputParameters):
         logger.info(f"Peak and Area for PSTH mean signal for event {event} computed.")
 
 
+def execute_compute_cross_correlation(filepath, event, inputParameters):
+    isCompute = inputParameters["computeCorr"]
+    removeArtifacts = inputParameters["removeArtifacts"]
+    artifactsRemovalMethod = inputParameters["artifactsRemovalMethod"]
+    if isCompute == True:
+        if removeArtifacts == True and artifactsRemovalMethod == "concatenate":
+            raise Exception(
+                "For cross-correlation, when removeArtifacts is True, artifacts removal method\
+                            should be replace with NaNs and not concatenate"
+            )
+        corr_info, type = getCorrCombinations(filepath, inputParameters)
+        if "control" in event.lower() or "signal" in event.lower():
+            return
+        else:
+            for i in range(1, len(corr_info)):
+                logger.debug(f"Computing cross-correlation for event {event}...")
+                for j in range(len(type)):
+                    psth_a = read_Df(filepath, event + "_" + corr_info[i - 1], type[j] + "_" + corr_info[i - 1])
+                    psth_b = read_Df(filepath, event + "_" + corr_info[i], type[j] + "_" + corr_info[i])
+                    sample_rate = 1 / (psth_a["timestamps"][1] - psth_a["timestamps"][0])
+                    psth_a = psth_a.drop(columns=["timestamps", "err", "mean"])
+                    psth_b = psth_b.drop(columns=["timestamps", "err", "mean"])
+                    cols_a, cols_b = np.array(psth_a.columns), np.array(psth_b.columns)
+                    if np.intersect1d(cols_a, cols_b).size > 0:
+                        cols = list(np.intersect1d(cols_a, cols_b))
+                    else:
+                        cols = list(cols_a)
+                    arr_A, arr_B = np.array(psth_a).T, np.array(psth_b).T
+                    cross_corr = compute_cross_correlation(arr_A, arr_B, sample_rate)
+                    cols.append("timestamps")
+                    create_Df_for_cross_correlation(
+                        make_dir_for_cross_correlation(filepath),
+                        "corr_" + event,
+                        type[j] + "_" + corr_info[i - 1] + "_" + corr_info[i],
+                        cross_corr,
+                        cols,
+                    )
+                logger.info(f"Cross-correlation for event {event} computed.")
+
+
 def orchestrate_psth(inputParameters):
     folderNames = inputParameters["folderNames"]
     numProcesses = inputParameters["numberOfCores"]
@@ -229,7 +270,9 @@ def orchestrate_psth(inputParameters):
                 )
 
             with mp.Pool(numProcesses) as cr:
-                cr.starmap(computeCrossCorrelation, zip(repeat(filepath), storesList[1, :], repeat(inputParameters)))
+                cr.starmap(
+                    execute_compute_cross_correlation, zip(repeat(filepath), storesList[1, :], repeat(inputParameters))
+                )
 
                 # for k in range(storesList.shape[1]):
                 # 	storenamePsth(filepath, storesList[1,k], inputParameters)
@@ -262,7 +305,7 @@ def execute_psth_combined(inputParameters):
         for k in range(storesList.shape[1]):
             execute_compute_psth(op[i][0], storesList[1, k], inputParameters)
             execute_compute_psth_peak_and_area(op[i][0], storesList[1, k], inputParameters)
-            computeCrossCorrelation(op[i][0], storesList[1, k], inputParameters)
+            execute_compute_cross_correlation(op[i][0], storesList[1, k], inputParameters)
         writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
         inputParameters["step"] += 1
 
