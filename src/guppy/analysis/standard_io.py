@@ -2,6 +2,7 @@ import logging
 import os
 
 import numpy as np
+import pandas as pd
 
 from .io_utils import (
     decide_naming_convention,
@@ -290,3 +291,20 @@ def write_combined_data(output_filepath, pair_name_to_tsNew, display_name_to_dat
         write_hdf5(data, display_name, output_filepath, "data")
     for compound_name, ts in compound_name_to_ttl_timestamps.items():
         write_hdf5(ts, compound_name, output_filepath, "ts")
+
+
+def write_peak_and_area_to_hdf5(filepath, arr, name, index=[]):
+
+    op = os.path.join(filepath, "peak_AUC_" + name + ".h5")
+    dirname = os.path.dirname(filepath)
+
+    df = pd.DataFrame(arr, index=index)
+
+    df.to_hdf(op, key="df", mode="w")
+
+
+def write_peak_and_area_to_csv(filepath, arr, name, index=[]):
+    op = os.path.join(filepath, "peak_AUC_" + name + ".csv")
+    df = pd.DataFrame(arr, index=index)
+
+    df.to_csv(op)

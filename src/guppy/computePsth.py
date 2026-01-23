@@ -5,6 +5,7 @@ import json
 import logging
 import multiprocessing as mp
 import os
+import re
 import subprocess
 import sys
 from itertools import repeat
@@ -17,12 +18,17 @@ from .analysis.cross_correlation import computeCrossCorrelation
 from .analysis.io_utils import (
     get_all_stores_for_combining_data,
     makeAverageDir,
+    read_Df,
     read_hdf5,
     write_hdf5,
 )
 from .analysis.psth_average import averageForGroup
-from .analysis.psth_peak_and_area import findPSTHPeakAndArea
+from .analysis.psth_peak_and_area import compute_psth_peak_and_area
 from .analysis.psth_utils import create_Df
+from .analysis.standard_io import (
+    write_peak_and_area_to_csv,
+    write_peak_and_area_to_hdf5,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -150,6 +156,53 @@ def execute_compute_psth(filepath, event, inputParameters):
         logger.info(f"PSTH for event {event} computed.")
 
 
+# function to compute PSTH peak and area using the function helperPSTHPeakAndArea save the values to h5 and csv files.
+def execute_compute_psth_peak_and_area(filepath, event, inputParameters):
+
+    event = event.replace("\\", "_")
+    event = event.replace("/", "_")
+    if "control" in event.lower() or "signal" in event.lower():
+        return 0
+
+    # sampling_rate = read_hdf5(storesList[0,0], filepath, 'sampling_rate')
+    peak_startPoint = inputParameters["peak_startPoint"]
+    peak_endPoint = inputParameters["peak_endPoint"]
+    selectForComputePsth = inputParameters["selectForComputePsth"]
+
+    if selectForComputePsth == "z_score":
+        path = glob.glob(os.path.join(filepath, "z_score_*"))
+    elif selectForComputePsth == "dff":
+        path = glob.glob(os.path.join(filepath, "dff_*"))
+    else:
+        path = glob.glob(os.path.join(filepath, "z_score_*")) + glob.glob(os.path.join(filepath, "dff_*"))
+
+    for i in range(len(path)):
+        logger.info(f"Computing peak and area for PSTH mean signal for event {event}...")
+        basename = (os.path.basename(path[i])).split(".")[0]
+        name_1 = basename.split("_")[-1]
+        sampling_rate = read_hdf5("timeCorrection_" + name_1, filepath, "sampling_rate")[0]
+        psth = read_Df(filepath, event + "_" + name_1, basename)
+        cols = list(psth.columns)
+        regex = re.compile("bin_[(]")
+        bin_names = [cols[i] for i in range(len(cols)) if regex.match(cols[i])]
+        regex_trials = re.compile("[+-]?([0-9]*[.])?[0-9]+")
+        trials_names = [cols[i] for i in range(len(cols)) if regex_trials.match(cols[i])]
+        psth_mean_bin_names = trials_names + bin_names + ["mean"]
+        psth_mean_bin_mean = np.asarray(psth[psth_mean_bin_names])
+        timestamps = np.asarray(psth["timestamps"]).ravel()  # np.asarray(read_Df(filepath, 'ts_psth', '')).ravel()
+        peak_area = compute_psth_peak_and_area(
+            psth_mean_bin_mean, timestamps, sampling_rate, peak_startPoint, peak_endPoint
+        )  # peak, area =
+        # arr = np.array([[peak, area]])
+        fileName = [os.path.basename(os.path.dirname(filepath))]
+        index = [fileName[0] + "_" + s for s in psth_mean_bin_names]
+        write_peak_and_area_to_hdf5(
+            filepath, peak_area, event + "_" + name_1 + "_" + basename, index=index
+        )  # columns=['peak', 'area']
+        write_peak_and_area_to_csv(filepath, peak_area, event + "_" + name_1 + "_" + basename, index=index)
+        logger.info(f"Peak and Area for PSTH mean signal for event {event} computed.")
+
+
 def orchestrate_psth(inputParameters):
     folderNames = inputParameters["folderNames"]
     numProcesses = inputParameters["numberOfCores"]
@@ -171,7 +224,9 @@ def orchestrate_psth(inputParameters):
                 p.starmap(execute_compute_psth, zip(repeat(filepath), storesList[1, :], repeat(inputParameters)))
 
             with mp.Pool(numProcesses) as pq:
-                pq.starmap(findPSTHPeakAndArea, zip(repeat(filepath), storesList[1, :], repeat(inputParameters)))
+                pq.starmap(
+                    execute_compute_psth_peak_and_area, zip(repeat(filepath), storesList[1, :], repeat(inputParameters))
+                )
 
             with mp.Pool(numProcesses) as cr:
                 cr.starmap(computeCrossCorrelation, zip(repeat(filepath), storesList[1, :], repeat(inputParameters)))
@@ -206,7 +261,7 @@ def execute_psth_combined(inputParameters):
         storesList = np.unique(storesList, axis=1)
         for k in range(storesList.shape[1]):
             execute_compute_psth(op[i][0], storesList[1, k], inputParameters)
-            findPSTHPeakAndArea(op[i][0], storesList[1, k], inputParameters)
+            execute_compute_psth_peak_and_area(op[i][0], storesList[1, k], inputParameters)
             computeCrossCorrelation(op[i][0], storesList[1, k], inputParameters)
         writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
         inputParameters["step"] += 1
