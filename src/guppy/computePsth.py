@@ -51,42 +51,6 @@ def writeToFile(value: str):
         file.write(value)
 
 
-def psthForEachStorename(inputParameters):
-
-    logger.info("Computing PSTH, Peak and Area for each event...")
-    inputParameters = inputParameters
-
-    # storesList = np.genfromtxt(inputParameters['storesListPath'], dtype='str', delimiter=',')
-
-    average = inputParameters["averageForGroup"]
-    combine_data = inputParameters["combine_data"]
-    numProcesses = inputParameters["numberOfCores"]
-    inputParameters["step"] = 0
-    if numProcesses == 0:
-        numProcesses = mp.cpu_count()
-    elif numProcesses > mp.cpu_count():
-        logger.warning(
-            "Warning : # of cores parameter set is greater than the cores available \
-			   available in your machine"
-        )
-        numProcesses = mp.cpu_count() - 1
-
-    logger.info(f"Average for group : {average}")
-
-    # for average following if statement will be executed
-    if average == True:
-        execute_average_for_group(inputParameters)
-
-    # for individual analysis following else statement will be executed
-    else:
-        if combine_data == True:
-            execute_psth_combined(inputParameters)
-        else:
-            orchestrate_psth(inputParameters)
-    logger.info("PSTH, Area and Peak are computed for all events.")
-    return inputParameters
-
-
 # function to create PSTH for each event using function helper_psth and save the PSTH to h5 file
 def execute_compute_psth(filepath, event, inputParameters):
 
@@ -353,6 +317,42 @@ def execute_average_for_group(inputParameters):
             averageForGroup(storesListPath, storesList[1, k], inputParameters)
         writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
         inputParameters["step"] += 1
+
+
+def psthForEachStorename(inputParameters):
+
+    logger.info("Computing PSTH, Peak and Area for each event...")
+    inputParameters = inputParameters
+
+    # storesList = np.genfromtxt(inputParameters['storesListPath'], dtype='str', delimiter=',')
+
+    average = inputParameters["averageForGroup"]
+    combine_data = inputParameters["combine_data"]
+    numProcesses = inputParameters["numberOfCores"]
+    inputParameters["step"] = 0
+    if numProcesses == 0:
+        numProcesses = mp.cpu_count()
+    elif numProcesses > mp.cpu_count():
+        logger.warning(
+            "Warning : # of cores parameter set is greater than the cores available \
+			   available in your machine"
+        )
+        numProcesses = mp.cpu_count() - 1
+
+    logger.info(f"Average for group : {average}")
+
+    # for average following if statement will be executed
+    if average == True:
+        execute_average_for_group(inputParameters)
+
+    # for individual analysis following else statement will be executed
+    else:
+        if combine_data == True:
+            execute_psth_combined(inputParameters)
+        else:
+            orchestrate_psth(inputParameters)
+    logger.info("PSTH, Area and Peak are computed for all events.")
+    return inputParameters
 
 
 def main(input_parameters):
