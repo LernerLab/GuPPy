@@ -7,15 +7,12 @@ import os
 import sys
 from itertools import repeat
 
-import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.signal import argrelextrema
 
-from .preprocess import get_all_stores_for_combining_data
-
-logger = logging.getLogger(__name__)
+from .analysis.io_utils import get_all_stores_for_combining_data, read_hdf5
 
 logger = logging.getLogger(__name__)
 
@@ -31,22 +28,6 @@ def takeOnlyDirs(paths):
 def writeToFile(value: str):
     with open(os.path.join(os.path.expanduser("~"), "pbSteps.txt"), "a") as file:
         file.write(value)
-
-
-def read_hdf5(event, filepath, key):
-    if event:
-        op = os.path.join(filepath, event + ".hdf5")
-    else:
-        op = filepath
-
-    if os.path.exists(op):
-        with h5py.File(op, "r") as f:
-            arr = np.asarray(f[key])
-    else:
-        logger.error(f"{event}.hdf5 file does not exist")
-        raise Exception("{}.hdf5 file does not exist".format(event))
-
-    return arr
 
 
 def processChunks(arrValues, arrIndexes, highAmpFilt, transientsThresh):
