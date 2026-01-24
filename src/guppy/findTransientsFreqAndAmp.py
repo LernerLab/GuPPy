@@ -83,8 +83,9 @@ def findFreqAndAmp(filepath, inputParameters, window=15, numProcesses=mp.cpu_cou
         name_1 = basename.split("_")[-1]
         sampling_rate = read_hdf5("timeCorrection_" + name_1, filepath, "sampling_rate")[0]
         z_score = read_hdf5("", path[i], "data")
+        ts = read_hdf5("timeCorrection_" + name_1, filepath, "timestampNew")
         z_score, ts, peaksInd, peaks_occurrences, arr = analyze_transients(
-            filepath, window, numProcesses, highAmpFilt, transientsThresh, name_1, sampling_rate, z_score
+            ts, window, numProcesses, highAmpFilt, transientsThresh, sampling_rate, z_score
         )
         fileName = [os.path.basename(os.path.dirname(filepath))]
         create_Df(filepath, arr, basename, index=fileName, columns=["freq (events/min)", "amplitude"])

@@ -6,12 +6,10 @@ from itertools import repeat
 import numpy as np
 from scipy.signal import argrelextrema
 
-from .io_utils import read_hdf5
-
 logger = logging.getLogger(__name__)
 
 
-def analyze_transients(filepath, window, numProcesses, highAmpFilt, transientsThresh, name_1, sampling_rate, z_score):
+def analyze_transients(ts, window, numProcesses, highAmpFilt, transientsThresh, sampling_rate, z_score):
     not_nan_indices = ~np.isnan(z_score)
     z_score = z_score[not_nan_indices]
     z_score_chunks, z_score_chunks_index = createChunks(z_score, sampling_rate, window)
@@ -22,7 +20,6 @@ def analyze_transients(filepath, window, numProcesses, highAmpFilt, transientsTh
         )
 
     result = np.asarray(result, dtype=object)
-    ts = read_hdf5("timeCorrection_" + name_1, filepath, "timestampNew")
     ts = ts[not_nan_indices]
     freq, peaksAmp, peaksInd = calculate_freq_amp(result, z_score, z_score_chunks_index, ts)
     peaks_occurrences = np.array([ts[peaksInd], peaksAmp]).T
