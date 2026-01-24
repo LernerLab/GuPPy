@@ -308,3 +308,26 @@ def write_peak_and_area_to_csv(filepath, arr, name, index=[]):
     df = pd.DataFrame(arr, index=index)
 
     df.to_csv(op)
+
+
+def write_freq_and_amp_to_hdf5(filepath, arr, name, index=[], columns=[]):
+
+    op = os.path.join(filepath, "freqAndAmp_" + name + ".h5")
+    dirname = os.path.dirname(filepath)
+
+    df = pd.DataFrame(arr, index=index, columns=columns)
+
+    df.to_hdf(op, key="df", mode="w")
+
+
+def write_freq_and_amp_to_csv(filepath, arr, name, index=[], columns=[]):
+    op = os.path.join(filepath, name)
+    df = pd.DataFrame(arr, index=index, columns=columns)
+    df.to_csv(op)
+
+
+def read_freq_and_amp_from_hdf5(filepath, name):
+    op = os.path.join(filepath, "freqAndAmp_" + name + ".h5")
+    df = pd.read_hdf(op, key="df", mode="r")
+
+    return df

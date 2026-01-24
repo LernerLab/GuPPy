@@ -7,48 +7,26 @@ import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 
-from .analysis.io_utils import get_all_stores_for_combining_data, read_hdf5
+from .analysis.io_utils import (
+    get_all_stores_for_combining_data,
+    makeAverageDir,
+    read_hdf5,
+    takeOnlyDirs,
+)
+from .analysis.standard_io import (
+    read_freq_and_amp_from_hdf5,
+    write_freq_and_amp_to_csv,
+    write_freq_and_amp_to_hdf5,
+)
 from .analysis.transients import analyze_transients
 
 logger = logging.getLogger(__name__)
 
 
-def takeOnlyDirs(paths):
-    removePaths = []
-    for p in paths:
-        if os.path.isfile(p):
-            removePaths.append(p)
-    return list(set(paths) - set(removePaths))
-
-
 def writeToFile(value: str):
     with open(os.path.join(os.path.expanduser("~"), "pbSteps.txt"), "a") as file:
         file.write(value)
-
-
-def create_Df(filepath, arr, name, index=[], columns=[]):
-
-    op = os.path.join(filepath, "freqAndAmp_" + name + ".h5")
-    dirname = os.path.dirname(filepath)
-
-    df = pd.DataFrame(arr, index=index, columns=columns)
-
-    df.to_hdf(op, key="df", mode="w")
-
-
-def create_csv(filepath, arr, name, index=[], columns=[]):
-    op = os.path.join(filepath, name)
-    df = pd.DataFrame(arr, index=index, columns=columns)
-    df.to_csv(op)
-
-
-def read_Df(filepath, name):
-    op = os.path.join(filepath, "freqAndAmp_" + name + ".h5")
-    df = pd.read_hdf(op, key="df", mode="r")
-
-    return df
 
 
 def visuzlize_peaks(filepath, z_score, timestamps, peaksIndex):
@@ -88,11 +66,11 @@ def findFreqAndAmp(filepath, inputParameters, window=15, numProcesses=mp.cpu_cou
             ts, window, numProcesses, highAmpFilt, transientsThresh, sampling_rate, z_score
         )
         fileName = [os.path.basename(os.path.dirname(filepath))]
-        create_Df(filepath, arr, basename, index=fileName, columns=["freq (events/min)", "amplitude"])
-        create_csv(
+        write_freq_and_amp_to_hdf5(filepath, arr, basename, index=fileName, columns=["freq (events/min)", "amplitude"])
+        write_freq_and_amp_to_csv(
             filepath, arr, "freqAndAmp_" + basename + ".csv", index=fileName, columns=["freq (events/min)", "amplitude"]
         )
-        create_csv(
+        write_freq_and_amp_to_csv(
             filepath,
             peaks_occurrences,
             "transientsOccurrences_" + basename + ".csv",
@@ -101,15 +79,6 @@ def findFreqAndAmp(filepath, inputParameters, window=15, numProcesses=mp.cpu_cou
         )
         visuzlize_peaks(path[i], z_score, ts, peaksInd)
     logger.info("Frequency and amplitude of transients in z_score data are calculated.")
-
-
-def makeAverageDir(filepath):
-
-    op = os.path.join(filepath, "average")
-    if not os.path.exists(op):
-        os.mkdir(op)
-
-    return op
 
 
 def averageForGroup(folderNames, inputParameters):
@@ -161,13 +130,13 @@ def averageForGroup(folderNames, inputParameters):
             if not os.path.exists(os.path.join(temp_path[j][0], "freqAndAmp_" + temp_path[j][1] + ".h5")):
                 continue
             else:
-                df = read_Df(temp_path[j][0], temp_path[j][1])
+                df = read_freq_and_amp_from_hdf5(temp_path[j][0], temp_path[j][1])
                 arr.append(np.array([df["freq (events/min)"][0], df["amplitude"][0]]))
                 fileName.append(os.path.basename(temp_path[j][0]))
 
         arr = np.asarray(arr)
-        create_Df(op, arr, temp_path[j][1], index=fileName, columns=["freq (events/min)", "amplitude"])
-        create_csv(
+        write_freq_and_amp_to_hdf5(op, arr, temp_path[j][1], index=fileName, columns=["freq (events/min)", "amplitude"])
+        write_freq_and_amp_to_csv(
             op,
             arr,
             "freqAndAmp_" + temp_path[j][1] + ".csv",
