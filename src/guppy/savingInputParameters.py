@@ -4,14 +4,13 @@ import os
 import subprocess
 import sys
 import time
-import tkinter as tk
 from threading import Thread
-from tkinter import filedialog, ttk
 
 import numpy as np
 import pandas as pd
 import panel as pn
 
+from .frontend.path_selection import get_folder_path
 from .saveStoresList import execute
 from .visualizePlot import visualizeResults
 
@@ -20,34 +19,8 @@ logger = logging.getLogger(__name__)
 
 def savingInputParameters():
     pn.extension()
-
-    # Determine base folder path (headless-friendly via env var)
-    base_dir_env = os.environ.get("GUPPY_BASE_DIR")
-    is_headless = base_dir_env and os.path.isdir(base_dir_env)
-    if is_headless:
-        global folder_path
-        folder_path = base_dir_env
-        logger.info(f"Folder path set to {folder_path} (from GUPPY_BASE_DIR)")
-    else:
-        # Create the main window
-        folder_selection = tk.Tk()
-        folder_selection.title("Select the folder path where your data is located")
-        folder_selection.geometry("700x200")
-
-        def select_folder():
-            global folder_path
-            folder_path = filedialog.askdirectory(title="Select the folder path where your data is located")
-            if folder_path:
-                logger.info(f"Folder path set to {folder_path}")
-                folder_selection.destroy()
-            else:
-                folder_path = os.path.expanduser("~")
-                logger.info(f"Folder path set to {folder_path}")
-
-        select_button = ttk.Button(folder_selection, text="Select a Folder", command=select_folder)
-        select_button.pack(pady=5)
-        folder_selection.mainloop()
-
+    global folder_path
+    folder_path = get_folder_path()
     current_dir = os.getcwd()
 
     def make_dir(filepath):
