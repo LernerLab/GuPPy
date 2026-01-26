@@ -3,7 +3,6 @@ import logging
 import os
 import subprocess
 import sys
-import time
 from threading import Thread
 
 import numpy as np
@@ -11,6 +10,7 @@ import pandas as pd
 import panel as pn
 
 from .frontend.path_selection import get_folder_path
+from .frontend.progress import readPBIncrementValues
 from .saveStoresList import execute
 from .visualizePlot import visualizeResults
 
@@ -22,64 +22,6 @@ def savingInputParameters():
     global folder_path
     folder_path = get_folder_path()
     current_dir = os.getcwd()
-
-    def make_dir(filepath):
-        op = os.path.join(filepath, "inputParameters")
-        if not os.path.exists(op):
-            os.mkdir(op)
-        return op
-
-    def readRawData():
-        inputParameters = getInputParameters()
-        subprocess.call([sys.executable, "-m", "guppy.readTevTsq", json.dumps(inputParameters)])
-
-    def extractTs():
-        inputParameters = getInputParameters()
-        subprocess.call([sys.executable, "-m", "guppy.preprocess", json.dumps(inputParameters)])
-
-    def psthComputation():
-        inputParameters = getInputParameters()
-        inputParameters["curr_dir"] = current_dir
-        subprocess.call([sys.executable, "-m", "guppy.computePsth", json.dumps(inputParameters)])
-
-    def readPBIncrementValues(progressBar):
-        logger.info("Read progress bar increment values function started...")
-        file_path = os.path.join(os.path.expanduser("~"), "pbSteps.txt")
-        if os.path.exists(file_path):
-            os.remove(file_path)
-        increment, maximum = 0, 100
-        progressBar.value = increment
-        progressBar.bar_color = "success"
-        while True:
-            try:
-                with open(file_path, "r") as file:
-                    content = file.readlines()
-                    if len(content) == 0:
-                        pass
-                    else:
-                        maximum = int(content[0])
-                        increment = int(content[-1])
-
-                        if increment == -1:
-                            progressBar.bar_color = "danger"
-                            os.remove(file_path)
-                            break
-                        progressBar.max = maximum
-                        progressBar.value = increment
-                time.sleep(0.001)
-            except FileNotFoundError:
-                time.sleep(0.001)
-            except PermissionError:
-                time.sleep(0.001)
-            except Exception as e:
-                # Handle other exceptions that may occur
-                logger.info(f"An error occurred while reading the file: {e}")
-                break
-            if increment == maximum:
-                os.remove(file_path)
-                break
-
-        logger.info("Read progress bar increment values stopped.")
 
     # progress bars = PB
     read_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
@@ -379,6 +321,19 @@ def savingInputParameters():
             "visualizeAverageResults": visualizeAverageResults.value,
         }
         return inputParameters
+
+    def readRawData():
+        inputParameters = getInputParameters()
+        subprocess.call([sys.executable, "-m", "guppy.readTevTsq", json.dumps(inputParameters)])
+
+    def extractTs():
+        inputParameters = getInputParameters()
+        subprocess.call([sys.executable, "-m", "guppy.preprocess", json.dumps(inputParameters)])
+
+    def psthComputation():
+        inputParameters = getInputParameters()
+        inputParameters["curr_dir"] = current_dir
+        subprocess.call([sys.executable, "-m", "guppy.computePsth", json.dumps(inputParameters)])
 
     def checkSameLocation(arr, abspath):
         # abspath = []
