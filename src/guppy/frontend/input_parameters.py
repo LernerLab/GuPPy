@@ -1,4 +1,5 @@
 import logging
+import os
 
 import numpy as np
 import pandas as pd
@@ -7,21 +8,48 @@ import panel as pn
 logger = logging.getLogger(__name__)
 
 
+def checkSameLocation(arr, abspath):
+    # abspath = []
+    for i in range(len(arr)):
+        abspath.append(os.path.dirname(arr[i]))
+    abspath = np.asarray(abspath)
+    abspath = np.unique(abspath)
+    if len(abspath) > 1:
+        logger.error("All the folders selected should be at the same location")
+        raise Exception("All the folders selected should be at the same location")
+
+    return abspath
+
+
+def getAbsPath(files_1, files_2):
+    arr_1, arr_2 = files_1.value, files_2.value
+    if len(arr_1) == 0 and len(arr_2) == 0:
+        logger.error("No folder is selected for analysis")
+        raise Exception("No folder is selected for analysis")
+
+    abspath = []
+    if len(arr_1) > 0:
+        abspath = checkSameLocation(arr_1, abspath)
+    else:
+        abspath = checkSameLocation(arr_2, abspath)
+
+    abspath = np.unique(abspath)
+    if len(abspath) > 1:
+        logger.error("All the folders selected should be at the same location")
+        raise Exception("All the folders selected should be at the same location")
+    return abspath
+
+
 class InputParametersGUI:
-    def __init__(self, folder_path):
-        read_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
-        extract_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
-        psth_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
-
-        template = pn.template.BootstrapTemplate(title="Input Parameters GUI")
-
-        mark_down_1 = pn.pane.Markdown(
+    def __init__(self, *, template, folder_path):
+        self.template = template
+        self.mark_down_1 = pn.pane.Markdown(
             """**Select folders for the analysis from the file selector below**""", width=600
         )
 
-        files_1 = pn.widgets.FileSelector(folder_path, name="folderNames", width=950)
+        self.files_1 = pn.widgets.FileSelector(folder_path, name="folderNames", width=950)
 
-        explain_modality = pn.pane.Markdown(
+        self.explain_modality = pn.pane.Markdown(
             """
             **Data Modality:** Select the type of data acquisition system used for your recordings:
             - **tdt**: Tucker-Davis Technologies system
@@ -32,11 +60,11 @@ class InputParametersGUI:
             width=600,
         )
 
-        modality_selector = pn.widgets.Select(
+        self.modality_selector = pn.widgets.Select(
             name="Data Modality", value="tdt", options=["tdt", "csv", "doric", "npm"], width=320
         )
 
-        explain_time_artifacts = pn.pane.Markdown(
+        self.explain_time_artifacts = pn.pane.Markdown(
             """
                                                     - ***Number of cores :*** Number of cores used for analysis. Try to
                                                     keep it less than the number of cores in your machine.
@@ -72,72 +100,74 @@ class InputParametersGUI:
             width=350,
         )
 
-        timeForLightsTurnOn = pn.widgets.LiteralInput(
+        self.timeForLightsTurnOn = pn.widgets.LiteralInput(
             name="Eliminate first few seconds (int)", value=1, type=int, width=320
         )
 
-        isosbestic_control = pn.widgets.Select(
+        self.isosbestic_control = pn.widgets.Select(
             name="Isosbestic Control Channel? (bool)", value=True, options=[True, False], width=320
         )
 
-        numberOfCores = pn.widgets.LiteralInput(name="# of cores (int)", value=2, type=int, width=150)
+        self.numberOfCores = pn.widgets.LiteralInput(name="# of cores (int)", value=2, type=int, width=150)
 
-        combine_data = pn.widgets.Select(name="Combine Data? (bool)", value=False, options=[True, False], width=150)
+        self.combine_data = pn.widgets.Select(
+            name="Combine Data? (bool)", value=False, options=[True, False], width=150
+        )
 
-        computePsth = pn.widgets.Select(
+        self.computePsth = pn.widgets.Select(
             name="z_score and/or \u0394F/F? (psth)", options=["z_score", "dff", "Both"], width=320
         )
 
-        transients = pn.widgets.Select(
+        self.transients = pn.widgets.Select(
             name="z_score and/or \u0394F/F? (transients)", options=["z_score", "dff", "Both"], width=320
         )
 
-        plot_zScore_dff = pn.widgets.Select(
+        self.plot_zScore_dff = pn.widgets.Select(
             name="z-score plot and/or \u0394F/F plot?",
             options=["z_score", "dff", "Both", "None"],
             value="None",
             width=320,
         )
 
-        moving_wd = pn.widgets.LiteralInput(
+        self.moving_wd = pn.widgets.LiteralInput(
             name="Moving Window for transients detection (s) (int)", value=15, type=int, width=320
         )
 
-        highAmpFilt = pn.widgets.LiteralInput(name="HAFT (int)", value=2, type=int, width=150)
+        self.highAmpFilt = pn.widgets.LiteralInput(name="HAFT (int)", value=2, type=int, width=150)
 
-        transientsThresh = pn.widgets.LiteralInput(name="TD Thresh (int)", value=3, type=int, width=150)
+        self.transientsThresh = pn.widgets.LiteralInput(name="TD Thresh (int)", value=3, type=int, width=150)
 
-        moving_avg_filter = pn.widgets.LiteralInput(
+        self.moving_avg_filter = pn.widgets.LiteralInput(
             name="Window for Moving Average filter (int)", value=100, type=int, width=320
         )
 
-        removeArtifacts = pn.widgets.Select(
+        self.removeArtifacts = pn.widgets.Select(
             name="removeArtifacts? (bool)", value=False, options=[True, False], width=150
         )
 
-        artifactsRemovalMethod = pn.widgets.Select(
+        self.artifactsRemovalMethod = pn.widgets.Select(
             name="removeArtifacts method", value="concatenate", options=["concatenate", "replace with NaN"], width=150
         )
 
-        no_channels_np = pn.widgets.LiteralInput(
+        self.no_channels_np = pn.widgets.LiteralInput(
             name="Number of channels (Neurophotometrics only)", value=2, type=int, width=320
         )
 
-        z_score_computation = pn.widgets.Select(
+        self.z_score_computation = pn.widgets.Select(
             name="z-score computation Method",
             options=["standard z-score", "baseline z-score", "modified z-score"],
             value="standard z-score",
             width=200,
         )
 
-        baseline_wd_strt = pn.widgets.LiteralInput(
+        self.baseline_wd_strt = pn.widgets.LiteralInput(
             name="Baseline Window Start Time (s) (int)", value=0, type=int, width=200
         )
-        baseline_wd_end = pn.widgets.LiteralInput(
+        self.baseline_wd_end = pn.widgets.LiteralInput(
             name="Baseline Window End Time (s) (int)", value=0, type=int, width=200
         )
 
-        explain_z_score = pn.pane.Markdown(
+        self.explain_z_score = pn.pane.Markdown(
             """
                                         ***Note :***<br>
                                         - Details about z-score computation methods are explained in Github wiki.<br>
@@ -149,7 +179,7 @@ class InputParametersGUI:
             width=580,
         )
 
-        explain_nsec = pn.pane.Markdown(
+        self.explain_nsec = pn.pane.Markdown(
             """
                                         - ***Time Interval :*** To omit bursts of event timestamps, user defined time interval
                                         is set so that if the time difference between two timestamps is less than this defined time
@@ -161,25 +191,25 @@ class InputParametersGUI:
             width=580,
         )
 
-        nSecPrev = pn.widgets.LiteralInput(name="Seconds before 0 (int)", value=-10, type=int, width=120)
+        self.nSecPrev = pn.widgets.LiteralInput(name="Seconds before 0 (int)", value=-10, type=int, width=120)
 
-        nSecPost = pn.widgets.LiteralInput(name="Seconds after 0 (int)", value=20, type=int, width=120)
+        self.nSecPost = pn.widgets.LiteralInput(name="Seconds after 0 (int)", value=20, type=int, width=120)
 
-        computeCorr = pn.widgets.Select(
+        self.computeCorr = pn.widgets.Select(
             name="Compute Cross-correlation (bool)", options=[True, False], value=False, width=200
         )
 
-        timeInterval = pn.widgets.LiteralInput(name="Time Interval (s)", value=2, type=int, width=120)
+        self.timeInterval = pn.widgets.LiteralInput(name="Time Interval (s)", value=2, type=int, width=120)
 
-        use_time_or_trials = pn.widgets.Select(
+        self.use_time_or_trials = pn.widgets.Select(
             name="Bin PSTH trials (str)", options=["Time (min)", "# of trials"], value="Time (min)", width=120
         )
 
-        bin_psth_trials = pn.widgets.LiteralInput(
+        self.bin_psth_trials = pn.widgets.LiteralInput(
             name="Time(min) / # of trials \n for binning? (int)", value=0, type=int, width=200
         )
 
-        explain_baseline = pn.pane.Markdown(
+        self.explain_baseline = pn.pane.Markdown(
             """
                                             ***Note :***<br>
                                             - If user does not want to do baseline correction,
@@ -192,37 +222,37 @@ class InputParametersGUI:
             width=580,
         )
 
-        baselineCorrectionStart = pn.widgets.LiteralInput(
+        self.baselineCorrectionStart = pn.widgets.LiteralInput(
             name="Baseline Correction Start time(int)", value=-5, type=int, width=200
         )
 
-        baselineCorrectionEnd = pn.widgets.LiteralInput(
+        self.baselineCorrectionEnd = pn.widgets.LiteralInput(
             name="Baseline Correction End time(int)", value=0, type=int, width=200
         )
 
-        zscore_param_wd = pn.WidgetBox(
+        self.zscore_param_wd = pn.WidgetBox(
             "### Z-score Parameters",
-            explain_z_score,
-            z_score_computation,
-            pn.Row(baseline_wd_strt, baseline_wd_end),
+            self.explain_z_score,
+            self.z_score_computation,
+            pn.Row(self.baseline_wd_strt, self.baseline_wd_end),
             width=600,
         )
 
-        psth_param_wd = pn.WidgetBox(
+        self.psth_param_wd = pn.WidgetBox(
             "### PSTH Parameters",
-            explain_nsec,
-            pn.Row(nSecPrev, nSecPost, computeCorr),
-            pn.Row(timeInterval, use_time_or_trials, bin_psth_trials),
+            self.explain_nsec,
+            pn.Row(self.nSecPrev, self.nSecPost, self.computeCorr),
+            pn.Row(self.timeInterval, self.use_time_or_trials, self.bin_psth_trials),
             width=600,
         )
 
-        baseline_param_wd = pn.WidgetBox(
+        self.baseline_param_wd = pn.WidgetBox(
             "### Baseline Parameters",
-            explain_baseline,
-            pn.Row(baselineCorrectionStart, baselineCorrectionEnd),
+            self.explain_baseline,
+            pn.Row(self.baselineCorrectionStart, self.baselineCorrectionEnd),
             width=600,
         )
-        peak_explain = pn.pane.Markdown(
+        self.peak_explain = pn.pane.Markdown(
             """
                                         ***Note :***<br>
                                         - Peak and area are computed between the window set below.<br>
@@ -233,88 +263,113 @@ class InputParametersGUI:
             width=580,
         )
 
-        start_end_point_df = pd.DataFrame(
+        self.start_end_point_df = pd.DataFrame(
             {
                 "Peak Start time": [-5, 0, 5, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan],
                 "Peak End time": [0, 3, 10, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan],
             }
         )
 
-        df_widget = pn.widgets.Tabulator(start_end_point_df, name="DataFrame", show_index=False, widths=280)
+        self.df_widget = pn.widgets.Tabulator(self.start_end_point_df, name="DataFrame", show_index=False, widths=280)
 
-        peak_param_wd = pn.WidgetBox("### Peak and AUC Parameters", peak_explain, df_widget, width=600)
+        self.peak_param_wd = pn.WidgetBox("### Peak and AUC Parameters", self.peak_explain, self.df_widget, width=600)
 
-        mark_down_2 = pn.pane.Markdown(
+        self.mark_down_2 = pn.pane.Markdown(
             """**Select folders for the average analysis from the file selector below**""", width=600
         )
 
-        files_2 = pn.widgets.FileSelector(folder_path, name="folderNamesForAvg", width=950)
+        self.files_2 = pn.widgets.FileSelector(folder_path, name="folderNamesForAvg", width=950)
 
-        averageForGroup = pn.widgets.Select(name="Average Group? (bool)", value=False, options=[True, False], width=435)
+        self.averageForGroup = pn.widgets.Select(
+            name="Average Group? (bool)", value=False, options=[True, False], width=435
+        )
 
-        visualizeAverageResults = pn.widgets.Select(
+        self.visualizeAverageResults = pn.widgets.Select(
             name="Visualize Average Results? (bool)", value=False, options=[True, False], width=435
         )
 
-        visualize_zscore_or_dff = pn.widgets.Select(
+        self.visualize_zscore_or_dff = pn.widgets.Select(
             name="z-score or \u0394F/F? (for visualization)", options=["z_score", "dff"], width=435
         )
 
-        individual_analysis_wd_2 = pn.Column(
-            explain_time_artifacts,
-            pn.Row(numberOfCores, combine_data),
-            isosbestic_control,
-            timeForLightsTurnOn,
-            moving_avg_filter,
-            computePsth,
-            transients,
-            plot_zScore_dff,
-            moving_wd,
-            pn.Row(highAmpFilt, transientsThresh),
-            no_channels_np,
-            pn.Row(removeArtifacts, artifactsRemovalMethod),
+        self.individual_analysis_wd_2 = pn.Column(
+            self.explain_time_artifacts,
+            pn.Row(self.numberOfCores, self.combine_data),
+            self.isosbestic_control,
+            self.timeForLightsTurnOn,
+            self.moving_avg_filter,
+            self.computePsth,
+            self.transients,
+            self.plot_zScore_dff,
+            self.moving_wd,
+            pn.Row(self.highAmpFilt, self.transientsThresh),
+            self.no_channels_np,
+            pn.Row(self.removeArtifacts, self.artifactsRemovalMethod),
         )
 
-        group_analysis_wd_1 = pn.Column(mark_down_2, files_2, averageForGroup, width=800)
+        self.group_analysis_wd_1 = pn.Column(self.mark_down_2, self.files_2, self.averageForGroup, width=800)
 
-        visualization_wd = pn.Row(visualize_zscore_or_dff, pn.Spacer(width=60), visualizeAverageResults)
+        self.visualization_wd = pn.Row(self.visualize_zscore_or_dff, pn.Spacer(width=60), self.visualizeAverageResults)
+
+        self.psth_baseline_param = pn.Column(
+            self.zscore_param_wd, self.psth_param_wd, self.baseline_param_wd, self.peak_param_wd
+        )
+
+        self.widget = pn.Column(
+            self.mark_down_1,
+            self.files_1,
+            self.explain_modality,
+            self.modality_selector,
+            pn.Row(self.individual_analysis_wd_2, self.psth_baseline_param),
+        )
+
+        styles = dict(background="WhiteSmoke")
+        self.individual = pn.Card(self.widget, title="Individual Analysis", styles=styles, width=1000)
+        self.group = pn.Card(self.group_analysis_wd_1, title="Group Analysis", styles=styles, width=1000)
+        self.visualize = pn.Card(self.visualization_wd, title="Visualization Parameters", styles=styles, width=1000)
+        self.add_to_template()
+
+    def add_to_template(self):
+        self.template.main.append(self.individual)
+        self.template.main.append(self.group)
+        self.template.main.append(self.visualize)
 
     def getInputParameters(self):
-        abspath = getAbsPath()
+        abspath = getAbsPath(self.files_1, self.files_2)
         inputParameters = {
             "abspath": abspath[0],
-            "folderNames": files_1.value,
-            "modality": modality_selector.value,
-            "numberOfCores": numberOfCores.value,
-            "combine_data": combine_data.value,
-            "isosbestic_control": isosbestic_control.value,
-            "timeForLightsTurnOn": timeForLightsTurnOn.value,
-            "filter_window": moving_avg_filter.value,
-            "removeArtifacts": removeArtifacts.value,
-            "artifactsRemovalMethod": artifactsRemovalMethod.value,
-            "noChannels": no_channels_np.value,
-            "zscore_method": z_score_computation.value,
-            "baselineWindowStart": baseline_wd_strt.value,
-            "baselineWindowEnd": baseline_wd_end.value,
-            "nSecPrev": nSecPrev.value,
-            "nSecPost": nSecPost.value,
-            "computeCorr": computeCorr.value,
-            "timeInterval": timeInterval.value,
-            "bin_psth_trials": bin_psth_trials.value,
-            "use_time_or_trials": use_time_or_trials.value,
-            "baselineCorrectionStart": baselineCorrectionStart.value,
-            "baselineCorrectionEnd": baselineCorrectionEnd.value,
-            "peak_startPoint": list(df_widget.value["Peak Start time"]),  # startPoint.value,
-            "peak_endPoint": list(df_widget.value["Peak End time"]),  # endPoint.value,
-            "selectForComputePsth": computePsth.value,
-            "selectForTransientsComputation": transients.value,
-            "moving_window": moving_wd.value,
-            "highAmpFilt": highAmpFilt.value,
-            "transientsThresh": transientsThresh.value,
-            "plot_zScore_dff": plot_zScore_dff.value,
-            "visualize_zscore_or_dff": visualize_zscore_or_dff.value,
-            "folderNamesForAvg": files_2.value,
-            "averageForGroup": averageForGroup.value,
-            "visualizeAverageResults": visualizeAverageResults.value,
+            "folderNames": self.files_1.value,
+            "modality": self.modality_selector.value,
+            "numberOfCores": self.numberOfCores.value,
+            "combine_data": self.combine_data.value,
+            "isosbestic_control": self.isosbestic_control.value,
+            "timeForLightsTurnOn": self.timeForLightsTurnOn.value,
+            "filter_window": self.moving_avg_filter.value,
+            "removeArtifacts": self.removeArtifacts.value,
+            "artifactsRemovalMethod": self.artifactsRemovalMethod.value,
+            "noChannels": self.no_channels_np.value,
+            "zscore_method": self.z_score_computation.value,
+            "baselineWindowStart": self.baseline_wd_strt.value,
+            "baselineWindowEnd": self.baseline_wd_end.value,
+            "nSecPrev": self.nSecPrev.value,
+            "nSecPost": self.nSecPost.value,
+            "computeCorr": self.computeCorr.value,
+            "timeInterval": self.timeInterval.value,
+            "bin_psth_trials": self.bin_psth_trials.value,
+            "use_time_or_trials": self.use_time_or_trials.value,
+            "baselineCorrectionStart": self.baselineCorrectionStart.value,
+            "baselineCorrectionEnd": self.baselineCorrectionEnd.value,
+            "peak_startPoint": list(self.df_widget.value["Peak Start time"]),  # startPoint.value,
+            "peak_endPoint": list(self.df_widget.value["Peak End time"]),  # endPoint.value,
+            "selectForComputePsth": self.computePsth.value,
+            "selectForTransientsComputation": self.transients.value,
+            "moving_window": self.moving_wd.value,
+            "highAmpFilt": self.highAmpFilt.value,
+            "transientsThresh": self.transientsThresh.value,
+            "plot_zScore_dff": self.plot_zScore_dff.value,
+            "visualize_zscore_or_dff": self.visualize_zscore_or_dff.value,
+            "folderNamesForAvg": self.files_2.value,
+            "averageForGroup": self.averageForGroup.value,
+            "visualizeAverageResults": self.visualizeAverageResults.value,
         }
         return inputParameters

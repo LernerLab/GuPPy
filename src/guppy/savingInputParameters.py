@@ -5,15 +5,32 @@ import subprocess
 import sys
 from threading import Thread
 
-import numpy as np
 import panel as pn
 
+from .frontend.input_parameters import InputParametersGUI
 from .frontend.path_selection import get_folder_path
 from .frontend.progress import readPBIncrementValues
+from .frontend.sidebar import Sidebar
 from .saveStoresList import execute
 from .visualizePlot import visualizeResults
 
 logger = logging.getLogger(__name__)
+
+
+def readRawData(input_parameters_gui):
+    inputParameters = input_parameters_gui.getInputParameters()
+    subprocess.call([sys.executable, "-m", "guppy.readTevTsq", json.dumps(inputParameters)])
+
+
+def extractTs(input_parameters_gui):
+    inputParameters = input_parameters_gui.getInputParameters()
+    subprocess.call([sys.executable, "-m", "guppy.preprocess", json.dumps(inputParameters)])
+
+
+def psthComputation(input_parameters_gui, current_dir):
+    inputParameters = input_parameters_gui.getInputParameters()
+    inputParameters["curr_dir"] = current_dir
+    subprocess.call([sys.executable, "-m", "guppy.computePsth", json.dumps(inputParameters)])
 
 
 def savingInputParameters():
@@ -22,79 +39,41 @@ def savingInputParameters():
     folder_path = get_folder_path()
     current_dir = os.getcwd()
 
-    def readRawData():
-        inputParameters = getInputParameters()
-        subprocess.call([sys.executable, "-m", "guppy.readTevTsq", json.dumps(inputParameters)])
+    template = pn.template.BootstrapTemplate(title="Input Parameters GUI")
+    input_parameters_gui = InputParametersGUI(folder_path=folder_path, template=template)
+    sidebar = Sidebar(template=template)
 
-    def extractTs():
-        inputParameters = getInputParameters()
-        subprocess.call([sys.executable, "-m", "guppy.preprocess", json.dumps(inputParameters)])
-
-    def psthComputation():
-        inputParameters = getInputParameters()
-        inputParameters["curr_dir"] = current_dir
-        subprocess.call([sys.executable, "-m", "guppy.computePsth", json.dumps(inputParameters)])
-
-    def checkSameLocation(arr, abspath):
-        # abspath = []
-        for i in range(len(arr)):
-            abspath.append(os.path.dirname(arr[i]))
-        abspath = np.asarray(abspath)
-        abspath = np.unique(abspath)
-        if len(abspath) > 1:
-            logger.error("All the folders selected should be at the same location")
-            raise Exception("All the folders selected should be at the same location")
-
-        return abspath
-
-    def getAbsPath():
-        arr_1, arr_2 = files_1.value, files_2.value
-        if len(arr_1) == 0 and len(arr_2) == 0:
-            logger.error("No folder is selected for analysis")
-            raise Exception("No folder is selected for analysis")
-
-        abspath = []
-        if len(arr_1) > 0:
-            abspath = checkSameLocation(arr_1, abspath)
-        else:
-            abspath = checkSameLocation(arr_2, abspath)
-
-        abspath = np.unique(abspath)
-        if len(abspath) > 1:
-            logger.error("All the folders selected should be at the same location")
-            raise Exception("All the folders selected should be at the same location")
-        return abspath
-
+    # ------------------------------------------------------------------------------------------------------------------
+    # onclick closure functions for sidebar buttons
     def onclickProcess(event=None):
-
+        inputParameters = input_parameters_gui.getInputParameters()
         logger.debug("Saving Input Parameters file.")
-        abspath = getAbsPath()
         analysisParameters = {
-            "combine_data": combine_data.value,
-            "isosbestic_control": isosbestic_control.value,
-            "timeForLightsTurnOn": timeForLightsTurnOn.value,
-            "filter_window": moving_avg_filter.value,
-            "removeArtifacts": removeArtifacts.value,
-            "noChannels": no_channels_np.value,
-            "zscore_method": z_score_computation.value,
-            "baselineWindowStart": baseline_wd_strt.value,
-            "baselineWindowEnd": baseline_wd_end.value,
-            "nSecPrev": nSecPrev.value,
-            "nSecPost": nSecPost.value,
-            "timeInterval": timeInterval.value,
-            "bin_psth_trials": bin_psth_trials.value,
-            "use_time_or_trials": use_time_or_trials.value,
-            "baselineCorrectionStart": baselineCorrectionStart.value,
-            "baselineCorrectionEnd": baselineCorrectionEnd.value,
-            "peak_startPoint": list(df_widget.value["Peak Start time"]),  # startPoint.value,
-            "peak_endPoint": list(df_widget.value["Peak End time"]),  # endPoint.value,
-            "selectForComputePsth": computePsth.value,
-            "selectForTransientsComputation": transients.value,
-            "moving_window": moving_wd.value,
-            "highAmpFilt": highAmpFilt.value,
-            "transientsThresh": transientsThresh.value,
+            "combine_data": inputParameters["combine_data"],
+            "isosbestic_control": inputParameters["isosbestic_control"],
+            "timeForLightsTurnOn": inputParameters["timeForLightsTurnOn"],
+            "filter_window": inputParameters["filter_window"],
+            "removeArtifacts": inputParameters["removeArtifacts"],
+            "noChannels": inputParameters["noChannels"],
+            "zscore_method": inputParameters["zscore_method"],
+            "baselineWindowStart": inputParameters["baselineWindowStart"],
+            "baselineWindowEnd": inputParameters["baselineWindowEnd"],
+            "nSecPrev": inputParameters["nSecPrev"],
+            "nSecPost": inputParameters["nSecPost"],
+            "timeInterval": inputParameters["timeInterval"],
+            "bin_psth_trials": inputParameters["bin_psth_trials"],
+            "use_time_or_trials": inputParameters["use_time_or_trials"],
+            "baselineCorrectionStart": inputParameters["baselineCorrectionStart"],
+            "baselineCorrectionEnd": inputParameters["baselineCorrectionEnd"],
+            "peak_startPoint": inputParameters["peak_startPoint"],
+            "peak_endPoint": inputParameters["peak_endPoint"],
+            "selectForComputePsth": inputParameters["selectForComputePsth"],
+            "selectForTransientsComputation": inputParameters["selectForTransientsComputation"],
+            "moving_window": inputParameters["moving_window"],
+            "highAmpFilt": inputParameters["highAmpFilt"],
+            "transientsThresh": inputParameters["transientsThresh"],
         }
-        for folder in files_1.value:
+        for folder in inputParameters["folderNames"]:
             with open(os.path.join(folder, "GuPPyParamtersUsed.json"), "w") as f:
                 json.dump(analysisParameters, f, indent=4)
             logger.info(f"Input Parameters file saved at {folder}")
@@ -105,105 +84,51 @@ def savingInputParameters():
         logger.info("Input Parameters File Saved.")
 
     def onclickStoresList(event=None):
-        inputParameters = getInputParameters()
+        inputParameters = input_parameters_gui.getInputParameters()
         execute(inputParameters)
 
     def onclickVisualization(event=None):
-        inputParameters = getInputParameters()
+        inputParameters = input_parameters_gui.getInputParameters()
         visualizeResults(inputParameters)
 
     def onclickreaddata(event=None):
-        thread = Thread(target=readRawData)
+        thread = Thread(target=readRawData, args=(input_parameters_gui,))
         thread.start()
-        readPBIncrementValues(read_progress)
+        readPBIncrementValues(sidebar.read_progress)
         thread.join()
 
     def onclickextractts(event=None):
-        thread = Thread(target=extractTs)
+        thread = Thread(target=extractTs, args=(input_parameters_gui,))
         thread.start()
-        readPBIncrementValues(extract_progress)
+        readPBIncrementValues(sidebar.extract_progress)
         thread.join()
 
     def onclickpsth(event=None):
-        thread = Thread(target=psthComputation)
+        thread = Thread(target=psthComputation, args=(input_parameters_gui, current_dir))
         thread.start()
-        readPBIncrementValues(psth_progress)
+        readPBIncrementValues(sidebar.psth_progress)
         thread.join()
 
-    mark_down_ip = pn.pane.Markdown("""**Step 1 : Save Input Parameters**""", width=300)
-    mark_down_ip_note = pn.pane.Markdown(
-        """***Note : ***<br>
-                                            - Save Input Parameters will save input parameters used for the analysis
-                                            in all the folders you selected for the analysis (useful for future
-                                            reference). All analysis steps will run without saving input parameters.
-                                        """,
-        width=300,
-    )
-    save_button = pn.widgets.Button(name="Save to file...", button_type="primary", width=300, align="end")
-    mark_down_storenames = pn.pane.Markdown("""**Step 2 : Open Storenames GUI <br> and save storenames**""", width=300)
-    open_storesList = pn.widgets.Button(name="Open Storenames GUI", button_type="primary", width=300, align="end")
-    mark_down_read = pn.pane.Markdown("""**Step 3 : Read Raw Data**""", width=300)
-    read_rawData = pn.widgets.Button(name="Read Raw Data", button_type="primary", width=300, align="end")
-    mark_down_extract = pn.pane.Markdown("""**Step 4 : Extract timestamps <br> and its correction**""", width=300)
-    extract_ts = pn.widgets.Button(
-        name="Extract timestamps and it's correction", button_type="primary", width=300, align="end"
-    )
-    mark_down_psth = pn.pane.Markdown("""**Step 5 : PSTH Computation**""", width=300)
-    psth_computation = pn.widgets.Button(name="PSTH Computation", button_type="primary", width=300, align="end")
-    mark_down_visualization = pn.pane.Markdown("""**Step 6 : Visualization**""", width=300)
-    open_visualization = pn.widgets.Button(name="Open Visualization GUI", button_type="primary", width=300, align="end")
-    open_terminal = pn.widgets.Button(name="Open Terminal", button_type="primary", width=300, align="end")
+    # ------------------------------------------------------------------------------------------------------------------
 
-    save_button.on_click(onclickProcess)
-    open_storesList.on_click(onclickStoresList)
-    read_rawData.on_click(onclickreaddata)
-    extract_ts.on_click(onclickextractts)
-    psth_computation.on_click(onclickpsth)
-    open_visualization.on_click(onclickVisualization)
-
-    template.sidebar.append(mark_down_ip)
-    template.sidebar.append(mark_down_ip_note)
-    template.sidebar.append(save_button)
-    # template.sidebar.append(path)
-    template.sidebar.append(mark_down_storenames)
-    template.sidebar.append(open_storesList)
-    template.sidebar.append(mark_down_read)
-    template.sidebar.append(read_rawData)
-    template.sidebar.append(read_progress)
-    template.sidebar.append(mark_down_extract)
-    template.sidebar.append(extract_ts)
-    template.sidebar.append(extract_progress)
-    template.sidebar.append(mark_down_psth)
-    template.sidebar.append(psth_computation)
-    template.sidebar.append(psth_progress)
-    template.sidebar.append(mark_down_visualization)
-    template.sidebar.append(open_visualization)
-    # template.sidebar.append(open_terminal)
-
-    psth_baseline_param = pn.Column(zscore_param_wd, psth_param_wd, baseline_param_wd, peak_param_wd)
-
-    widget = pn.Column(
-        mark_down_1, files_1, explain_modality, modality_selector, pn.Row(individual_analysis_wd_2, psth_baseline_param)
-    )
-
-    # file_selector = pn.WidgetBox(files_1)
-    styles = dict(background="WhiteSmoke")
-    individual = pn.Card(widget, title="Individual Analysis", styles=styles, width=1000)
-    group = pn.Card(group_analysis_wd_1, title="Group Analysis", styles=styles, width=1000)
-    visualize = pn.Card(visualization_wd, title="Visualization Parameters", styles=styles, width=1000)
-
-    # template.main.append(file_selector)
-    template.main.append(individual)
-    template.main.append(group)
-    template.main.append(visualize)
+    button_name_to_onclick_fn = {
+        "save_button": onclickProcess,
+        "open_storesList": onclickStoresList,
+        "read_rawData": onclickreaddata,
+        "extract_ts": onclickextractts,
+        "psth_computation": onclickpsth,
+        "open_visualization": onclickVisualization,
+    }
+    sidebar.attach_callbacks(button_name_to_onclick_fn=button_name_to_onclick_fn)
+    sidebar.add_to_template()
 
     # Expose minimal hooks and widgets to enable programmatic testing
     template._hooks = {
         "onclickProcess": onclickProcess,
-        "getInputParameters": getInputParameters,
+        "getInputParameters": input_parameters_gui.getInputParameters,
     }
     template._widgets = {
-        "files_1": files_1,
+        "files_1": input_parameters_gui.files_1,
     }
 
     return template
