@@ -15,10 +15,10 @@ from typing import Iterable
 
 from guppy.computePsth import psthForEachStorename
 from guppy.findTransientsFreqAndAmp import executeFindFreqAndAmp
+from guppy.orchestration.home import build_homepage
 from guppy.preprocess import extractTsAndSignal
 from guppy.readTevTsq import readRawData
 from guppy.saveStoresList import execute
-from guppy.savingInputParameters import savingInputParameters
 
 
 def step1(*, base_dir: str, selected_folders: Iterable[str]) -> None:
@@ -50,7 +50,7 @@ def step1(*, base_dir: str, selected_folders: Iterable[str]) -> None:
     os.environ["GUPPY_BASE_DIR"] = base_dir
 
     # Build the template headlessly
-    template = savingInputParameters()
+    template = build_homepage()
 
     # Sanity checks: ensure hooks/widgets exposed
     if not hasattr(template, "_hooks") or "onclickProcess" not in template._hooks:
@@ -144,7 +144,7 @@ def step2(
 
     # Headless build: set base_dir and construct the template
     os.environ["GUPPY_BASE_DIR"] = base_dir
-    template = savingInputParameters()
+    template = build_homepage()
 
     # Ensure hooks/widgets exposed
     if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
@@ -236,7 +236,7 @@ def step3(
 
     # Headless build: set base_dir and construct the template
     os.environ["GUPPY_BASE_DIR"] = base_dir
-    template = savingInputParameters()
+    template = build_homepage()
 
     # Ensure hooks/widgets exposed
     if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
@@ -328,7 +328,7 @@ def step4(
 
     # Headless build: set base_dir and construct the template
     os.environ["GUPPY_BASE_DIR"] = base_dir
-    template = savingInputParameters()
+    template = build_homepage()
 
     # Ensure hooks/widgets exposed
     if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
@@ -420,7 +420,7 @@ def step5(
 
     # Headless build: set base_dir and construct the template
     os.environ["GUPPY_BASE_DIR"] = base_dir
-    template = savingInputParameters()
+    template = build_homepage()
 
     # Ensure hooks/widgets exposed
     if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:

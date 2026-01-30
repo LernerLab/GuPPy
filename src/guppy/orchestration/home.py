@@ -7,12 +7,12 @@ from threading import Thread
 
 import panel as pn
 
-from .frontend.input_parameters import ParameterForm
-from .frontend.path_selection import get_folder_path
-from .frontend.progress import readPBIncrementValues
-from .frontend.sidebar import Sidebar
-from .saveStoresList import execute
-from .visualizePlot import visualizeResults
+from ..frontend.input_parameters import ParameterForm
+from ..frontend.path_selection import get_folder_path
+from ..frontend.progress import readPBIncrementValues
+from ..frontend.sidebar import Sidebar
+from ..saveStoresList import execute
+from ..visualizePlot import visualizeResults
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ def psthComputation(parameter_form, current_dir):
     subprocess.call([sys.executable, "-m", "guppy.computePsth", json.dumps(inputParameters)])
 
 
-def savingInputParameters():
+def build_homepage():
     pn.extension()
     global folder_path
     folder_path = get_folder_path()

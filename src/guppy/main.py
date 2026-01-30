@@ -11,12 +11,12 @@ import argparse
 
 import panel as pn
 
-from .savingInputParameters import savingInputParameters
+from .orchestration.home import build_homepage
 
 
 def serve_app():
     """Serve the GuPPy application using Panel."""
-    template = savingInputParameters()
+    template = build_homepage()
     pn.serve(template, show=True)
 
 
