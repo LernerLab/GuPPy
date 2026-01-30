@@ -40,7 +40,7 @@ def getAbsPath(files_1, files_2):
     return abspath
 
 
-class InputParametersGUI:
+class ParameterForm:
     def __init__(self, *, template, folder_path):
         self.template = template
         self.folder_path = folder_path

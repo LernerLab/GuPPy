@@ -7,7 +7,7 @@ from threading import Thread
 
 import panel as pn
 
-from .frontend.input_parameters import InputParametersGUI
+from .frontend.input_parameters import ParameterForm
 from .frontend.path_selection import get_folder_path
 from .frontend.progress import readPBIncrementValues
 from .frontend.sidebar import Sidebar
@@ -17,18 +17,18 @@ from .visualizePlot import visualizeResults
 logger = logging.getLogger(__name__)
 
 
-def readRawData(input_parameters_gui):
-    inputParameters = input_parameters_gui.getInputParameters()
+def readRawData(parameter_form):
+    inputParameters = parameter_form.getInputParameters()
     subprocess.call([sys.executable, "-m", "guppy.readTevTsq", json.dumps(inputParameters)])
 
 
-def extractTs(input_parameters_gui):
-    inputParameters = input_parameters_gui.getInputParameters()
+def extractTs(parameter_form):
+    inputParameters = parameter_form.getInputParameters()
     subprocess.call([sys.executable, "-m", "guppy.preprocess", json.dumps(inputParameters)])
 
 
-def psthComputation(input_parameters_gui, current_dir):
-    inputParameters = input_parameters_gui.getInputParameters()
+def psthComputation(parameter_form, current_dir):
+    inputParameters = parameter_form.getInputParameters()
     inputParameters["curr_dir"] = current_dir
     subprocess.call([sys.executable, "-m", "guppy.computePsth", json.dumps(inputParameters)])
 
@@ -40,13 +40,13 @@ def savingInputParameters():
     current_dir = os.getcwd()
 
     template = pn.template.BootstrapTemplate(title="Input Parameters GUI")
-    input_parameters_gui = InputParametersGUI(folder_path=folder_path, template=template)
+    parameter_form = ParameterForm(folder_path=folder_path, template=template)
     sidebar = Sidebar(template=template)
 
     # ------------------------------------------------------------------------------------------------------------------
     # onclick closure functions for sidebar buttons
     def onclickProcess(event=None):
-        inputParameters = input_parameters_gui.getInputParameters()
+        inputParameters = parameter_form.getInputParameters()
         logger.debug("Saving Input Parameters file.")
         analysisParameters = {
             "combine_data": inputParameters["combine_data"],
@@ -84,27 +84,27 @@ def savingInputParameters():
         logger.info("Input Parameters File Saved.")
 
     def onclickStoresList(event=None):
-        inputParameters = input_parameters_gui.getInputParameters()
+        inputParameters = parameter_form.getInputParameters()
         execute(inputParameters)
 
     def onclickVisualization(event=None):
-        inputParameters = input_parameters_gui.getInputParameters()
+        inputParameters = parameter_form.getInputParameters()
         visualizeResults(inputParameters)
 
     def onclickreaddata(event=None):
-        thread = Thread(target=readRawData, args=(input_parameters_gui,))
+        thread = Thread(target=readRawData, args=(parameter_form,))
         thread.start()
         readPBIncrementValues(sidebar.read_progress)
         thread.join()
 
     def onclickextractts(event=None):
-        thread = Thread(target=extractTs, args=(input_parameters_gui,))
+        thread = Thread(target=extractTs, args=(parameter_form,))
         thread.start()
         readPBIncrementValues(sidebar.extract_progress)
         thread.join()
 
     def onclickpsth(event=None):
-        thread = Thread(target=psthComputation, args=(input_parameters_gui, current_dir))
+        thread = Thread(target=psthComputation, args=(parameter_form, current_dir))
         thread.start()
         readPBIncrementValues(sidebar.psth_progress)
         thread.join()
@@ -125,10 +125,10 @@ def savingInputParameters():
     # Expose minimal hooks and widgets to enable programmatic testing
     template._hooks = {
         "onclickProcess": onclickProcess,
-        "getInputParameters": input_parameters_gui.getInputParameters,
+        "getInputParameters": parameter_form.getInputParameters,
     }
     template._widgets = {
-        "files_1": input_parameters_gui.files_1,
+        "files_1": parameter_form.files_1,
     }
 
     return template
