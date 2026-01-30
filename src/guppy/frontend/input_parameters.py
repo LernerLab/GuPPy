@@ -43,11 +43,20 @@ def getAbsPath(files_1, files_2):
 class InputParametersGUI:
     def __init__(self, *, template, folder_path):
         self.template = template
+        self.folder_path = folder_path
+        self.styles = dict(background="WhiteSmoke")
+        self.setup_individual_parameters()
+        self.setup_group_parameters()
+        self.setup_visualization_parameters()
+        self.add_to_template()
+
+    def setup_individual_parameters(self):
+        # Individual analysis components
         self.mark_down_1 = pn.pane.Markdown(
             """**Select folders for the analysis from the file selector below**""", width=600
         )
 
-        self.files_1 = pn.widgets.FileSelector(folder_path, name="folderNames", width=950)
+        self.files_1 = pn.widgets.FileSelector(self.folder_path, name="folderNames", width=950)
 
         self.explain_modality = pn.pane.Markdown(
             """
@@ -66,37 +75,37 @@ class InputParametersGUI:
 
         self.explain_time_artifacts = pn.pane.Markdown(
             """
-                                                    - ***Number of cores :*** Number of cores used for analysis. Try to
-                                                    keep it less than the number of cores in your machine.
-                                                    - ***Combine Data? :*** Make this parameter ``` True ``` if user wants to combine
-                                                    the data, especially when there is two different
-                                                    data files for the same recording session.<br>
-                                                    - ***Isosbestic Control Channel? :*** Make this parameter ``` False ``` if user
-                                                    does not want to use isosbestic control channel in the analysis.<br>
-                                                    - ***Eliminate first few seconds :*** It is the parameter to cut out first x seconds
-                                                    from the data. Default is 1 seconds.<br>
-                                                    - ***Window for Moving Average filter :*** The filtering of signals
-                                                    is done using moving average filter. Default window used for moving
-                                                    average filter is 100 datapoints. Change it based on the requirement.<br>
-                                                    - ***Moving Window (transients detection) :*** Transients in the z-score
-                                                    and/or \u0394F/F are detected using this moving window.
-                                                    Default is 15 seconds. Change it based on the requirement.<br>
-                                                    - ***High Amplitude filtering threshold (HAFT) (transients detection) :*** High amplitude
-                                                    events greater than x times the MAD above the median are filtered out. Here, x is
-                                                    high amplitude filtering threshold. Default is 2.
-                                                    - ***Transients detection threshold (TD Thresh):*** Peaks with local maxima greater than x times
-                                                    the MAD above the median of the trace (after filtering high amplitude events) are detected
-                                                    as transients. Here, x is transients detection threshold. Default is 3.
-                                                    - ***Number of channels (Neurophotometrics only) :*** Number of
-                                                    channels used while recording, when data files has no column names mentioning "Flags"
-                                                    or "LedState".
-                                                    - ***removeArtifacts? :*** Make this parameter ``` True``` if there are
-                                                    artifacts and user wants to remove the artifacts.
-                                                    - ***removeArtifacts method :*** Selecting ```concatenate``` will remove bad
-                                                    chunks and concatenate the selected good chunks together.
-                                                    Selecting ```replace with NaN``` will replace bad chunks with NaN
-                                                    values.
-                                                    """,
+                                - ***Number of cores :*** Number of cores used for analysis. Try to
+                                keep it less than the number of cores in your machine.
+                                - ***Combine Data? :*** Make this parameter ``` True ``` if user wants to combine
+                                the data, especially when there is two different
+                                data files for the same recording session.<br>
+                                - ***Isosbestic Control Channel? :*** Make this parameter ``` False ``` if user
+                                does not want to use isosbestic control channel in the analysis.<br>
+                                - ***Eliminate first few seconds :*** It is the parameter to cut out first x seconds
+                                from the data. Default is 1 seconds.<br>
+                                - ***Window for Moving Average filter :*** The filtering of signals
+                                is done using moving average filter. Default window used for moving
+                                average filter is 100 datapoints. Change it based on the requirement.<br>
+                                - ***Moving Window (transients detection) :*** Transients in the z-score
+                                and/or \u0394F/F are detected using this moving window.
+                                Default is 15 seconds. Change it based on the requirement.<br>
+                                - ***High Amplitude filtering threshold (HAFT) (transients detection) :*** High amplitude
+                                events greater than x times the MAD above the median are filtered out. Here, x is
+                                high amplitude filtering threshold. Default is 2.
+                                - ***Transients detection threshold (TD Thresh):*** Peaks with local maxima greater than x times
+                                the MAD above the median of the trace (after filtering high amplitude events) are detected
+                                as transients. Here, x is transients detection threshold. Default is 3.
+                                - ***Number of channels (Neurophotometrics only) :*** Number of
+                                channels used while recording, when data files has no column names mentioning "Flags"
+                                or "LedState".
+                                - ***removeArtifacts? :*** Make this parameter ``` True``` if there are
+                                artifacts and user wants to remove the artifacts.
+                                - ***removeArtifacts method :*** Selecting ```concatenate``` will remove bad
+                                chunks and concatenate the selected good chunks together.
+                                Selecting ```replace with NaN``` will replace bad chunks with NaN
+                                values.
+                                """,
             width=350,
         )
 
@@ -169,25 +178,25 @@ class InputParametersGUI:
 
         self.explain_z_score = pn.pane.Markdown(
             """
-                                        ***Note :***<br>
-                                        - Details about z-score computation methods are explained in Github wiki.<br>
-                                        - The details will make user understand what computation method to use for
-                                        their data.<br>
-                                        - Baseline Window Parameters should be kept 0 unless you are using baseline<br>
-                                        z-score computation method. The parameters are in seconds.
-                                        """,
+                        ***Note :***<br>
+                        - Details about z-score computation methods are explained in Github wiki.<br>
+                        - The details will make user understand what computation method to use for
+                        their data.<br>
+                        - Baseline Window Parameters should be kept 0 unless you are using baseline<br>
+                        z-score computation method. The parameters are in seconds.
+                        """,
             width=580,
         )
 
         self.explain_nsec = pn.pane.Markdown(
             """
-                                        - ***Time Interval :*** To omit bursts of event timestamps, user defined time interval
-                                        is set so that if the time difference between two timestamps is less than this defined time
-                                        interval, it will be deleted for the calculation of PSTH.
-                                        - ***Compute Cross-correlation :*** Make this parameter ```True```, when user wants
-                                        to compute cross-correlation between PSTHs of two different signals or signals
-                                        recorded from different brain regions.
-                                        """,
+                        - ***Time Interval :*** To omit bursts of event timestamps, user defined time interval
+                        is set so that if the time difference between two timestamps is less than this defined time
+                        interval, it will be deleted for the calculation of PSTH.
+                        - ***Compute Cross-correlation :*** Make this parameter ```True```, when user wants
+                        to compute cross-correlation between PSTHs of two different signals or signals
+                        recorded from different brain regions.
+                        """,
             width=580,
         )
 
@@ -211,14 +220,14 @@ class InputParametersGUI:
 
         self.explain_baseline = pn.pane.Markdown(
             """
-                                            ***Note :***<br>
-                                            - If user does not want to do baseline correction,
-                                            put both parameters 0.<br>
-                                            - If the first event timestamp is less than the length of baseline
-                                            window, it will be rejected in the PSTH computation step.<br>
-                                            - Baseline parameters must be within the PSTH parameters
-                                            set in the PSTH parameters section.
-                                            """,
+                            ***Note :***<br>
+                            - If user does not want to do baseline correction,
+                            put both parameters 0.<br>
+                            - If the first event timestamp is less than the length of baseline
+                            window, it will be rejected in the PSTH computation step.<br>
+                            - Baseline parameters must be within the PSTH parameters
+                            set in the PSTH parameters section.
+                            """,
             width=580,
         )
 
@@ -254,12 +263,12 @@ class InputParametersGUI:
         )
         self.peak_explain = pn.pane.Markdown(
             """
-                                        ***Note :***<br>
-                                        - Peak and area are computed between the window set below.<br>
-                                        - Peak and AUC parameters must be within the PSTH parameters set in the PSTH parameters section.<br>
-                                        - Please make sure when user changes the parameters in the table below, click on any other cell after
-                                        changing a value in a particular cell.
-                                        """,
+                        ***Note :***<br>
+                        - Peak and area are computed between the window set below.<br>
+                        - Peak and AUC parameters must be within the PSTH parameters set in the PSTH parameters section.<br>
+                        - Please make sure when user changes the parameters in the table below, click on any other cell after
+                        changing a value in a particular cell.
+                        """,
             width=580,
         )
 
@@ -273,24 +282,6 @@ class InputParametersGUI:
         self.df_widget = pn.widgets.Tabulator(self.start_end_point_df, name="DataFrame", show_index=False, widths=280)
 
         self.peak_param_wd = pn.WidgetBox("### Peak and AUC Parameters", self.peak_explain, self.df_widget, width=600)
-
-        self.mark_down_2 = pn.pane.Markdown(
-            """**Select folders for the average analysis from the file selector below**""", width=600
-        )
-
-        self.files_2 = pn.widgets.FileSelector(folder_path, name="folderNamesForAvg", width=950)
-
-        self.averageForGroup = pn.widgets.Select(
-            name="Average Group? (bool)", value=False, options=[True, False], width=435
-        )
-
-        self.visualizeAverageResults = pn.widgets.Select(
-            name="Visualize Average Results? (bool)", value=False, options=[True, False], width=435
-        )
-
-        self.visualize_zscore_or_dff = pn.widgets.Select(
-            name="z-score or \u0394F/F? (for visualization)", options=["z_score", "dff"], width=435
-        )
 
         self.individual_analysis_wd_2 = pn.Column(
             self.explain_time_artifacts,
@@ -307,10 +298,6 @@ class InputParametersGUI:
             pn.Row(self.removeArtifacts, self.artifactsRemovalMethod),
         )
 
-        self.group_analysis_wd_1 = pn.Column(self.mark_down_2, self.files_2, self.averageForGroup, width=800)
-
-        self.visualization_wd = pn.Row(self.visualize_zscore_or_dff, pn.Spacer(width=60), self.visualizeAverageResults)
-
         self.psth_baseline_param = pn.Column(
             self.zscore_param_wd, self.psth_param_wd, self.baseline_param_wd, self.peak_param_wd
         )
@@ -322,12 +309,35 @@ class InputParametersGUI:
             self.modality_selector,
             pn.Row(self.individual_analysis_wd_2, self.psth_baseline_param),
         )
+        self.individual = pn.Card(self.widget, title="Individual Analysis", styles=self.styles, width=1000)
 
-        styles = dict(background="WhiteSmoke")
-        self.individual = pn.Card(self.widget, title="Individual Analysis", styles=styles, width=1000)
-        self.group = pn.Card(self.group_analysis_wd_1, title="Group Analysis", styles=styles, width=1000)
-        self.visualize = pn.Card(self.visualization_wd, title="Visualization Parameters", styles=styles, width=1000)
-        self.add_to_template()
+    def setup_group_parameters(self):
+        self.mark_down_2 = pn.pane.Markdown(
+            """**Select folders for the average analysis from the file selector below**""", width=600
+        )
+
+        self.files_2 = pn.widgets.FileSelector(self.folder_path, name="folderNamesForAvg", width=950)
+
+        self.averageForGroup = pn.widgets.Select(
+            name="Average Group? (bool)", value=False, options=[True, False], width=435
+        )
+
+        self.group_analysis_wd_1 = pn.Column(self.mark_down_2, self.files_2, self.averageForGroup, width=800)
+        self.group = pn.Card(self.group_analysis_wd_1, title="Group Analysis", styles=self.styles, width=1000)
+
+    def setup_visualization_parameters(self):
+        self.visualizeAverageResults = pn.widgets.Select(
+            name="Visualize Average Results? (bool)", value=False, options=[True, False], width=435
+        )
+
+        self.visualize_zscore_or_dff = pn.widgets.Select(
+            name="z-score or \u0394F/F? (for visualization)", options=["z_score", "dff"], width=435
+        )
+
+        self.visualization_wd = pn.Row(self.visualize_zscore_or_dff, pn.Spacer(width=60), self.visualizeAverageResults)
+        self.visualize = pn.Card(
+            self.visualization_wd, title="Visualization Parameters", styles=self.styles, width=1000
+        )
 
     def add_to_template(self):
         self.template.main.append(self.individual)
