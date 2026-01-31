@@ -1,3 +1,4 @@
+import json
 import logging
 
 import panel as pn
@@ -78,3 +79,12 @@ class StorenamesSelector:
             target.objects = [self.multi_choice, self.literal_input_1]
         elif event.new == False:
             target.clear()
+
+    def set_select_location_options(self, options):
+        self.select_location.options = options
+
+    def set_alert_message(self, message):
+        self.alert.object = message
+
+    def set_literal_input_2(self, d):  # TODO: come up with a better name for this method.
+        self.literal_input_2.value = str(json.dumps(d, indent=2))

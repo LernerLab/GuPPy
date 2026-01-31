@@ -66,6 +66,64 @@ def make_dir(filepath):
     return op
 
 
+def _fetchValues(text, storenames, storename_dropdowns, storename_textboxes, d):
+    if not storename_dropdowns or not len(storenames) > 0:
+        return "####Alert !! \n No storenames selected."
+
+    storenames_cache = dict()
+    if os.path.exists(os.path.join(Path.home(), ".storesList.json")):
+        with open(os.path.join(Path.home(), ".storesList.json")) as f:
+            storenames_cache = json.load(f)
+
+    comboBoxValues, textBoxValues = [], []
+    dropdown_keys = list(storename_dropdowns.keys())
+    textbox_keys = list(storename_textboxes.keys()) if storename_textboxes else []
+
+    # Get dropdown values
+    for key in dropdown_keys:
+        comboBoxValues.append(storename_dropdowns[key].value)
+
+    # Get textbox values (matching with dropdown keys)
+    for key in dropdown_keys:
+        if key in storename_textboxes:
+            textbox_value = storename_textboxes[key].value or ""
+            textBoxValues.append(textbox_value)
+
+            # Validation: Check for whitespace
+            if len(textbox_value.split()) > 1:
+                return "####Alert !! \n Whitespace is not allowed in the text box entry."
+
+            # Validation: Check for empty required fields
+            dropdown_value = storename_dropdowns[key].value
+            if (
+                not textbox_value
+                and dropdown_value not in storenames_cache
+                and dropdown_value in ["control", "signal", "event TTLs"]
+            ):
+                return "####Alert !! \n One of the text box entry is empty."
+        else:
+            # For cached values, use the dropdown value directly
+            textBoxValues.append(storename_dropdowns[key].value)
+
+    if len(comboBoxValues) != len(textBoxValues):
+        return "####Alert !! \n Number of entries in combo box and text box should be same."
+
+    names_for_storenames = []
+    for i in range(len(comboBoxValues)):
+        if comboBoxValues[i] == "control" or comboBoxValues[i] == "signal":
+            if "_" in textBoxValues[i]:
+                return "####Alert !! \n Please do not use underscore in region name."
+            names_for_storenames.append("{}_{}".format(comboBoxValues[i], textBoxValues[i]))
+        elif comboBoxValues[i] == "event TTLs":
+            names_for_storenames.append(textBoxValues[i])
+        else:
+            names_for_storenames.append(comboBoxValues[i])
+
+    d["storenames"] = text.value
+    d["names_for_storenames"] = names_for_storenames
+    return "#### No alerts !!"
+
+
 # function to show GUI and save
 def saveStorenames(inputParameters, events, flags, folder_path):
 
@@ -94,85 +152,35 @@ def saveStorenames(inputParameters, events, flags, folder_path):
 
     storenames_instructions = StorenamesInstructions()
     storenames_selector = StorenamesSelector(allnames=allnames)
+    alert = storenames_selector.alert
 
     storenames = []
     storename_dropdowns = {}
     storename_textboxes = {}
 
+    # ------------------------------------------------------------------------------------------------------------------
+    # onclick closure functions
     # on clicking overwrite_button, following function is executed
     def overwrite_button_actions(event):
         if event.new == "over_write_file":
-            select_location.options = takeOnlyDirs(glob.glob(os.path.join(folder_path, "*_output_*")))
-            # select_location.value = select_location.options[0]
+            options = takeOnlyDirs(glob.glob(os.path.join(folder_path, "*_output_*")))
+            storenames_selector.set_select_location_options(options=options)
         else:
-            select_location.options = [show_dir(folder_path)]
-            # select_location.value = select_location.options[0]
+            options = [show_dir(folder_path)]
+            storenames_selector.set_select_location_options(options=options)
 
     def fetchValues(event):
-        global storenames
-        alert.object = "#### No alerts !!"
-
-        if not storename_dropdowns or not len(storenames) > 0:
-            alert.object = "####Alert !! \n No storenames selected."
-            return
-
-        storenames_cache = dict()
-        if os.path.exists(os.path.join(Path.home(), ".storesList.json")):
-            with open(os.path.join(Path.home(), ".storesList.json")) as f:
-                storenames_cache = json.load(f)
-
-        comboBoxValues, textBoxValues = [], []
-        dropdown_keys = list(storename_dropdowns.keys())
-        textbox_keys = list(storename_textboxes.keys()) if storename_textboxes else []
-
-        # Get dropdown values
-        for key in dropdown_keys:
-            comboBoxValues.append(storename_dropdowns[key].value)
-
-        # Get textbox values (matching with dropdown keys)
-        for key in dropdown_keys:
-            if key in storename_textboxes:
-                textbox_value = storename_textboxes[key].value or ""
-                textBoxValues.append(textbox_value)
-
-                # Validation: Check for whitespace
-                if len(textbox_value.split()) > 1:
-                    alert.object = "####Alert !! \n Whitespace is not allowed in the text box entry."
-                    return
-
-                # Validation: Check for empty required fields
-                dropdown_value = storename_dropdowns[key].value
-                if (
-                    not textbox_value
-                    and dropdown_value not in storenames_cache
-                    and dropdown_value in ["control", "signal", "event TTLs"]
-                ):
-                    alert.object = "####Alert !! \n One of the text box entry is empty."
-                    return
-            else:
-                # For cached values, use the dropdown value directly
-                textBoxValues.append(storename_dropdowns[key].value)
-
-        if len(comboBoxValues) != len(textBoxValues):
-            alert.object = "####Alert !! \n Number of entries in combo box and text box should be same."
-            return
-
-        names_for_storenames = []
-        for i in range(len(comboBoxValues)):
-            if comboBoxValues[i] == "control" or comboBoxValues[i] == "signal":
-                if "_" in textBoxValues[i]:
-                    alert.object = "####Alert !! \n Please do not use underscore in region name."
-                    return
-                names_for_storenames.append("{}_{}".format(comboBoxValues[i], textBoxValues[i]))
-            elif comboBoxValues[i] == "event TTLs":
-                names_for_storenames.append(textBoxValues[i])
-            else:
-                names_for_storenames.append(comboBoxValues[i])
-
         d = dict()
-        d["storenames"] = text.value
-        d["names_for_storenames"] = names_for_storenames
-        literal_input_2.value = str(json.dumps(d, indent=2))
+        alert_message = _fetchValues(
+            text=storenames_selector.text,
+            storenames=storenames,
+            storename_dropdowns=storename_dropdowns,
+            storename_textboxes=storename_textboxes,
+            d=d,
+        )
+        storenames_selector.set_alert_message(alert_message)
+        storenames_selector.set_literal_input_2(d=d)
+        global storenames
 
     # Panel-based storename configuration (replaces Tkinter dialog)
     storename_config_widgets = pn.Column(visible=False)
@@ -304,18 +312,20 @@ def saveStorenames(inputParameters, events, flags, folder_path):
         arr1, arr2 = np.asarray(d["storenames"]), np.asarray(d["names_for_storenames"])
 
         if np.where(arr2 == "")[0].size > 0:
-            alert.object = "#### Alert !! \n Empty string in the list names_for_storenames."
+            storenames_selector.set_alert_message("#### Alert !! \n Empty string in the list names_for_storenames.")
             logger.error("Empty string in the list names_for_storenames.")
             raise Exception("Empty string in the list names_for_storenames.")
         else:
-            alert.object = "#### No alerts !!"
+            storenames_selector.set_alert_message("#### No alerts !!")
 
         if arr1.shape[0] != arr2.shape[0]:
-            alert.object = "#### Alert !! \n Length of list storenames and names_for_storenames is not equal."
+            storenames_selector.set_alert_message(
+                "#### Alert !! \n Length of list storenames and names_for_storenames is not equal."
+            )
             logger.error("Length of list storenames and names_for_storenames is not equal.")
             raise Exception("Length of list storenames and names_for_storenames is not equal.")
         else:
-            alert.object = "#### No alerts !!"
+            storenames_selector.set_alert_message("#### No alerts !!")
 
         if not os.path.exists(os.path.join(Path.home(), ".storesList.json")):
             storenames_cache = dict()
