@@ -74,6 +74,28 @@ class StorenamesSelector:
 
         self.change_widgets = pn.WidgetBox(self.text)
 
+        # Panel-based storename configuration (replaces Tkinter dialog)
+        self.storename_config_widgets = pn.Column(visible=False)
+        self.show_config_button = pn.widgets.Button(name="Show Selected Configuration", width=600)
+
+        self.widget_2 = pn.Column(
+            self.repeat_storenames,
+            self.repeat_storename_wd,
+            pn.Spacer(height=20),
+            self.cross_selector,
+            self.update_options,
+            self.storename_config_widgets,
+            pn.Spacer(height=10),
+            self.text,
+            self.literal_input_2,
+            self.alert,
+            self.mark_down_for_overwrite,
+            self.overwrite_button,
+            self.select_location,
+            self.save,
+            self.path,
+        )
+
     def callback(self, target, event):
         if event.new == True:
             target.objects = [self.multi_choice, self.literal_input_1]
