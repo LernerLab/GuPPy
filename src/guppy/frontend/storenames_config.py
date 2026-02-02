@@ -19,6 +19,7 @@ class StorenamesConfig:
         storenames_cache,
     ):
         self.config_widgets = []
+        self._dropdown_help_map = {}
         storename_dropdowns.clear()
         storename_textboxes.clear()
 
@@ -43,6 +44,23 @@ class StorenamesConfig:
                 styles={"font-size": "12px", "color": "gray"},
             )
         )
+
+    def _on_dropdown_value_change(self, event):
+        help_pane = self._dropdown_help_map.get(event.obj)
+        if help_pane is None:
+            return
+        dropdown_value = event.new
+        help_pane.object = self._get_help_text(dropdown_value=dropdown_value)
+
+    def _get_help_text(self, dropdown_value):
+        if dropdown_value == "control":
+            return "*Type appropriate region name*"
+        elif dropdown_value == "signal":
+            return "*Type appropriate region name*"
+        elif dropdown_value == "event TTLs":
+            return "*Type event name for the TTLs*"
+        else:
+            return ""
 
     def setup_storename(self, i, storename, storename_dropdowns, storename_textboxes, storenames_cache):
         # Create a row for each storename
@@ -78,30 +96,11 @@ class StorenamesConfig:
             row_widgets.append(textbox)
 
             # Add helper text based on selection
-            def create_help_function(dropdown_widget, help_pane_container):
-                @pn.depends(dropdown_widget.param.value, watch=True)
-                def update_help(dropdown_value):
-                    if dropdown_value == "control":
-                        help_pane_container[0] = pn.pane.Markdown(
-                            "*Type appropriate region name*", styles={"color": "gray", "font-size": "12px"}
-                        )
-                    elif dropdown_value == "signal":
-                        help_pane_container[0] = pn.pane.Markdown(
-                            "*Type appropriate region name*", styles={"color": "gray", "font-size": "12px"}
-                        )
-                    elif dropdown_value == "event TTLs":
-                        help_pane_container[0] = pn.pane.Markdown(
-                            "*Type event name for the TTLs*", styles={"color": "gray", "font-size": "12px"}
-                        )
-                    else:
-                        help_pane_container[0] = pn.pane.Markdown("", styles={"color": "gray", "font-size": "12px"})
-
-                return update_help
-
-            help_container = [pn.pane.Markdown("")]
-            help_function = create_help_function(dropdown, help_container)
-            help_function(dropdown.value)  # Initialize
-            row_widgets.append(help_container[0])
+            initial_help_text = self._get_help_text(default_value)
+            help_pane = pn.pane.Markdown(initial_help_text, styles={"color": "gray", "font-size": "12px"})
+            self._dropdown_help_map[dropdown] = help_pane
+            dropdown.param.watch(self._on_dropdown_value_change, "value")
+            row_widgets.append(help_pane)
 
         # Add the row to config widgets
         self.config_widgets.append(pn.Row(*row_widgets, margin=(5, 0)))
