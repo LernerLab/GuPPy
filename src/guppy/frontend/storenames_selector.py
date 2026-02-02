@@ -3,7 +3,8 @@ import logging
 
 import panel as pn
 
-# hv.extension()
+from .storenames_config import StorenamesConfig
+
 pn.extension()
 
 logger = logging.getLogger(__name__)
@@ -135,3 +136,17 @@ class StorenamesSelector:
         for button_name, onclick_fn in button_name_to_onclick_fn.items():
             button = getattr(self, button_name)
             button.on_click(onclick_fn)
+
+    def configure_storenames(self, storename_dropdowns, storename_textboxes, storenames, storenames_cache):
+        # Create Panel widgets for storename configuration
+        self.storenames_config = StorenamesConfig(
+            show_config_button=self.show_config_button,
+            storename_dropdowns=storename_dropdowns,
+            storename_textboxes=storename_textboxes,
+            storenames=storenames,
+            storenames_cache=storenames_cache,
+        )
+
+        # Update the configuration panel
+        self.storename_config_widgets.objects = self.storenames_config.config_widgets
+        self.storename_config_widgets.visible = len(storenames) > 0

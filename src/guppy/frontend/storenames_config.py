@@ -2,8 +2,6 @@ import logging
 
 import panel as pn
 
-from .storenames_selector import StorenamesSelector
-
 pn.extension()
 
 logger = logging.getLogger(__name__)
@@ -12,7 +10,7 @@ logger = logging.getLogger(__name__)
 class StorenamesConfig:
     def __init__(
         self,
-        storenames_selector: StorenamesSelector,
+        show_config_button,
         storename_dropdowns,
         storename_textboxes,
         storenames,
@@ -37,7 +35,7 @@ class StorenamesConfig:
 
         # Add show button
         self.config_widgets.append(pn.Spacer(height=20))
-        self.config_widgets.append(storenames_selector.show_config_button)
+        self.config_widgets.append(show_config_button)
         self.config_widgets.append(
             pn.pane.Markdown(
                 "*Click 'Show Selected Configuration' to apply your selections.*",

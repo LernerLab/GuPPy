@@ -9,7 +9,6 @@ from random import randint
 import numpy as np
 import panel as pn
 
-from .storenames_config import StorenamesConfig
 from .storenames_instructions import StorenamesInstructions, StorenamesInstructionsNPM
 from .storenames_selector import StorenamesSelector
 
@@ -181,26 +180,19 @@ def saveStorenames(inputParameters, events, flags, folder_path):
         storenames_selector.set_alert_message(alert_message)
         storenames_selector.set_literal_input_2(d=d)
 
-    # TODO: Refactor frontend into dedicated class
     # on clicking 'Select Storenames' button, following function is executed
     def update_values(event):
         global storenames, vars_list
-        # arr = []
-        # for w in take_widgets:
-        #     arr.append(w.value)
+
         arr = storenames_selector.get_take_widgets()
-
         new_arr = []
-
         for i in range(len(arr[1])):
             for j in range(arr[1][i]):
                 new_arr.append(arr[0][i])
-
         if len(new_arr) > 0:
             storenames = storenames_selector.get_cross_selector() + new_arr
         else:
             storenames = storenames_selector.get_cross_selector()
-
         storenames_selector.set_change_widgets(storenames)
 
         storenames_cache = dict()
@@ -208,18 +200,12 @@ def saveStorenames(inputParameters, events, flags, folder_path):
             with open(os.path.join(Path.home(), ".storesList.json")) as f:
                 storenames_cache = json.load(f)
 
-        # Create Panel widgets for storename configuration
-        storenames_config = StorenamesConfig(
-            storenames_selector=storenames_selector,
+        storenames_selector.configure_storenames(
             storename_dropdowns=storename_dropdowns,
             storename_textboxes=storename_textboxes,
             storenames=storenames,
             storenames_cache=storenames_cache,
         )
-
-        # Update the configuration panel
-        storenames_selector.storename_config_widgets.objects = storenames_config.config_widgets
-        storenames_selector.storename_config_widgets.visible = len(storenames) > 0
 
     # on clicking save button, following function is executed
     def save_button(event=None):
