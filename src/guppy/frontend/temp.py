@@ -123,24 +123,18 @@ def _fetchValues(text, storenames, storename_dropdowns, storename_textboxes, d):
     return "#### No alerts !!"
 
 
-def _save(d, select_location, storenames_selector):
+def _save(d, select_location):
     arr1, arr2 = np.asarray(d["storenames"]), np.asarray(d["names_for_storenames"])
 
     if np.where(arr2 == "")[0].size > 0:
-        storenames_selector.set_alert_message("#### Alert !! \n Empty string in the list names_for_storenames.")
+        alert_message = "#### Alert !! \n Empty string in the list names_for_storenames."
         logger.error("Empty string in the list names_for_storenames.")
-        raise Exception("Empty string in the list names_for_storenames.")
-    else:
-        storenames_selector.set_alert_message("#### No alerts !!")
+        return alert_message
 
     if arr1.shape[0] != arr2.shape[0]:
-        storenames_selector.set_alert_message(
-            "#### Alert !! \n Length of list storenames and names_for_storenames is not equal."
-        )
+        alert_message = "#### Alert !! \n Length of list storenames and names_for_storenames is not equal."
         logger.error("Length of list storenames and names_for_storenames is not equal.")
-        raise Exception("Length of list storenames and names_for_storenames is not equal.")
-    else:
-        storenames_selector.set_alert_message("#### No alerts !!")
+        return alert_message
 
     if not os.path.exists(os.path.join(Path.home(), ".storesList.json")):
         storenames_cache = dict()
@@ -176,6 +170,7 @@ def _save(d, select_location, storenames_selector):
     np.savetxt(os.path.join(select_location, "storesList.csv"), arr, delimiter=",", fmt="%s")
     logger.info(f"Storeslist file saved at {select_location}")
     logger.info("Storeslist : \n" + str(arr))
+    return "#### No alerts !!"
 
 
 # function to show GUI and save
@@ -267,7 +262,8 @@ def saveStorenames(inputParameters, events, flags, folder_path):
         global storenames
         d = storenames_selector.get_literal_input_2()
         select_location = storenames_selector.get_select_location()
-        _save(d=d, select_location=select_location, storenames_selector=storenames_selector)
+        alert_message = _save(d=d, select_location=select_location)
+        storenames_selector.set_alert_message(alert_message)
         storenames_selector.set_path(os.path.join(select_location, "storesList.csv"))
 
     # ------------------------------------------------------------------------------------------------------------------
