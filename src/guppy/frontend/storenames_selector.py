@@ -80,11 +80,36 @@ class StorenamesSelector:
         elif event.new == False:
             target.clear()
 
+    def get_select_location(self):
+        return self.select_location.value
+
     def set_select_location_options(self, options):
         self.select_location.options = options
 
     def set_alert_message(self, message):
         self.alert.object = message
 
+    def get_literal_input_2(self):  # TODO: come up with a better name for this method.
+        d = json.loads(self.literal_input_2.value)
+        return d
+
     def set_literal_input_2(self, d):  # TODO: come up with a better name for this method.
         self.literal_input_2.value = str(json.dumps(d, indent=2))
+
+    def get_take_widgets(self):
+        return [w.value for w in self.take_widgets]
+
+    def set_change_widgets(self, value):
+        for w in self.change_widgets:
+            w.value = value
+
+    def get_cross_selector(self):
+        return self.cross_selector.value
+
+    def set_path(self, value):
+        self.path.value = value
+
+    def attach_callbacks(self, button_name_to_onclick_fn: dict):
+        for button_name, onclick_fn in button_name_to_onclick_fn.items():
+            button = getattr(self, button_name)
+            button.on_click(onclick_fn)

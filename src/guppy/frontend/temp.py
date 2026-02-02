@@ -170,6 +170,7 @@ def saveStorenames(inputParameters, events, flags, folder_path):
             storenames_selector.set_select_location_options(options=options)
 
     def fetchValues(event):
+        global storenames
         d = dict()
         alert_message = _fetchValues(
             text=storenames_selector.text,
@@ -180,18 +181,19 @@ def saveStorenames(inputParameters, events, flags, folder_path):
         )
         storenames_selector.set_alert_message(alert_message)
         storenames_selector.set_literal_input_2(d=d)
-        global storenames
 
     # Panel-based storename configuration (replaces Tkinter dialog)
     storename_config_widgets = pn.Column(visible=False)
     show_config_button = pn.widgets.Button(name="Show Selected Configuration", width=600)
 
+    # TODO: Refactor frontend into dedicated class
     # on clicking 'Select Storenames' button, following function is executed
     def update_values(event):
         global storenames, vars_list
-        arr = []
-        for w in take_widgets:
-            arr.append(w.value)
+        # arr = []
+        # for w in take_widgets:
+        #     arr.append(w.value)
+        arr = storenames_selector.get_take_widgets()
 
         new_arr = []
 
@@ -200,12 +202,11 @@ def saveStorenames(inputParameters, events, flags, folder_path):
                 new_arr.append(arr[0][i])
 
         if len(new_arr) > 0:
-            storenames = cross_selector.value + new_arr
+            storenames = storenames_selector.get_cross_selector() + new_arr
         else:
-            storenames = cross_selector.value
+            storenames = storenames_selector.get_cross_selector()
 
-        for w in change_widgets:
-            w.value = storenames
+        storenames_selector.set_change_widgets(storenames)
 
         storenames_cache = dict()
         if os.path.exists(os.path.join(Path.home(), ".storesList.json")):
@@ -308,7 +309,7 @@ def saveStorenames(inputParameters, events, flags, folder_path):
     def save_button(event=None):
         global storenames
 
-        d = json.loads(literal_input_2.value)
+        d = storenames_selector.get_literal_input_2()
         arr1, arr2 = np.asarray(d["storenames"]), np.asarray(d["names_for_storenames"])
 
         if np.where(arr2 == "")[0].size > 0:
@@ -355,23 +356,27 @@ def saveStorenames(inputParameters, events, flags, folder_path):
 
         arr = np.asarray([arr1, arr2])
         logger.info(arr)
-        if not os.path.exists(select_location.value):
-            os.mkdir(select_location.value)
+        select_location = storenames_selector.get_select_location()
+        if not os.path.exists(select_location):
+            os.mkdir(select_location)
 
-        np.savetxt(os.path.join(select_location.value, "storesList.csv"), arr, delimiter=",", fmt="%s")
-        path.value = os.path.join(select_location.value, "storesList.csv")
-        logger.info(f"Storeslist file saved at {select_location.value}")
+        np.savetxt(os.path.join(select_location, "storesList.csv"), arr, delimiter=",", fmt="%s")
+        storenames_selector.set_path(os.path.join(select_location, "storesList.csv"))
+        logger.info(f"Storeslist file saved at {select_location}")
         logger.info("Storeslist : \n" + str(arr))
 
+    # ------------------------------------------------------------------------------------------------------------------
+
     # Connect button callbacks
-    update_options.on_click(update_values)
     show_config_button.on_click(fetchValues)
-    save.on_click(save_button)
-    overwrite_button.on_click(overwrite_button_actions)
+    button_name_to_onclick_fn = {
+        "update_options": update_values,
+        "save": save_button,
+        "overwrite_button": overwrite_button_actions,
+    }
+    storenames_selector.attach_callbacks(button_name_to_onclick_fn)
 
-    # creating widgets, adding them to template and showing a GUI on a new browser window
-    number = scanPortsAndFind(start_port=5000, end_port=5200)
-
+    # TODO: Refactor this into appropriate class methods
     if "data_np_v2" in flags or "data_np" in flags or "event_np" in flags:
         widget_1 = pn.Column(
             "# " + os.path.basename(folder_path),
@@ -381,43 +386,45 @@ def saveStorenames(inputParameters, events, flags, folder_path):
             npm_channel_selector.plot_pane,
         )
         widget_2 = pn.Column(
-            repeat_storenames,
-            repeat_storename_wd,
+            storenames_selector.repeat_storenames,
+            storenames_selector.repeat_storename_wd,
             pn.Spacer(height=20),
-            cross_selector,
-            update_options,
+            storenames_selector.cross_selector,
+            storenames_selector.update_options,
             storename_config_widgets,
             pn.Spacer(height=10),
-            text,
-            literal_input_2,
+            storenames_selector.text,
+            storenames_selector.literal_input_2,
             alert,
-            mark_down_for_overwrite,
-            overwrite_button,
-            select_location,
-            save,
-            path,
+            storenames_selector.mark_down_for_overwrite,
+            storenames_selector.overwrite_button,
+            storenames_selector.select_location,
+            storenames_selector.save,
+            storenames_selector.path,
         )
         template.main.append(pn.Row(widget_1, widget_2))
 
     else:
         widget_1 = pn.Column("# " + os.path.basename(folder_path), storenames_instructions.mark_down)
         widget_2 = pn.Column(
-            repeat_storenames,
-            repeat_storename_wd,
+            storenames_selector.repeat_storenames,
+            storenames_selector.repeat_storename_wd,
             pn.Spacer(height=20),
-            cross_selector,
-            update_options,
+            storenames_selector.cross_selector,
+            storenames_selector.update_options,
             storename_config_widgets,
             pn.Spacer(height=10),
-            text,
-            literal_input_2,
+            storenames_selector.text,
+            storenames_selector.literal_input_2,
             alert,
-            mark_down_for_overwrite,
-            overwrite_button,
-            select_location,
-            save,
-            path,
+            storenames_selector.mark_down_for_overwrite,
+            storenames_selector.overwrite_button,
+            storenames_selector.select_location,
+            storenames_selector.save,
+            storenames_selector.path,
         )
         template.main.append(pn.Row(widget_1, widget_2))
 
+    # creating widgets, adding them to template and showing a GUI on a new browser window
+    number = scanPortsAndFind(start_port=5000, end_port=5200)
     template.show(port=number)
