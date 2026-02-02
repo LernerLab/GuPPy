@@ -8,11 +8,11 @@ from threading import Thread
 import panel as pn
 
 from .save_parameters import save_parameters
+from .storenames import orchestrate_storenames_page
 from ..frontend.input_parameters import ParameterForm
 from ..frontend.path_selection import get_folder_path
 from ..frontend.progress import readPBIncrementValues
 from ..frontend.sidebar import Sidebar
-from ..saveStoresList import execute
 from ..visualizePlot import visualizeResults
 
 logger = logging.getLogger(__name__)
@@ -50,9 +50,9 @@ def build_homepage():
         inputParameters = parameter_form.getInputParameters()
         save_parameters(inputParameters=inputParameters)
 
-    def onclickStoresList(event=None):
+    def onclickStorenames(event=None):
         inputParameters = parameter_form.getInputParameters()
-        execute(inputParameters)
+        orchestrate_storenames_page(inputParameters)
 
     def onclickVisualization(event=None):
         inputParameters = parameter_form.getInputParameters()
@@ -80,7 +80,7 @@ def build_homepage():
 
     button_name_to_onclick_fn = {
         "save_button": onclickProcess,
-        "open_storesList": onclickStoresList,
+        "open_storenames": onclickStorenames,
         "read_rawData": onclickreaddata,
         "extract_ts": onclickextractts,
         "psth_computation": onclickpsth,

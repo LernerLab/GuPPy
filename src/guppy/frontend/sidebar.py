@@ -33,7 +33,7 @@ class Sidebar:
         self.mark_down_visualization = pn.pane.Markdown("""**Step 6 : Visualization**""", width=300)
 
     def setup_buttons(self):
-        self.open_storesList = pn.widgets.Button(
+        self.open_storenames = pn.widgets.Button(
             name="Open Storenames GUI", button_type="primary", width=300, align="end"
         )
         self.read_rawData = pn.widgets.Button(name="Read Raw Data", button_type="primary", width=300, align="end")
@@ -63,7 +63,7 @@ class Sidebar:
         self.template.sidebar.append(self.mark_down_ip_note)
         self.template.sidebar.append(self.save_button)
         self.template.sidebar.append(self.mark_down_storenames)
-        self.template.sidebar.append(self.open_storesList)
+        self.template.sidebar.append(self.open_storenames)
         self.template.sidebar.append(self.mark_down_read)
         self.template.sidebar.append(self.read_rawData)
         self.template.sidebar.append(self.read_progress)

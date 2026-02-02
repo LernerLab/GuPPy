@@ -16,9 +16,9 @@ from typing import Iterable
 from guppy.computePsth import psthForEachStorename
 from guppy.findTransientsFreqAndAmp import executeFindFreqAndAmp
 from guppy.orchestration.home import build_homepage
+from guppy.orchestration.storenames import orchestrate_storenames_page
 from guppy.preprocess import extractTsAndSignal
 from guppy.readTevTsq import readRawData
-from guppy.saveStoresList import execute
 
 
 def step1(*, base_dir: str, selected_folders: Iterable[str]) -> None:
@@ -168,7 +168,7 @@ def step2(
     input_params["npm_split_events"] = npm_split_events
 
     # Call the underlying Step 2 executor (now headless-aware)
-    execute(input_params)
+    orchestrate_storenames_page(input_params)
 
 
 def step3(
