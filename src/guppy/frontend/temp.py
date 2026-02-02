@@ -371,8 +371,7 @@ def saveStorenames(inputParameters, events, flags, folder_path):
     }
     storenames_selector.attach_callbacks(button_name_to_onclick_fn)
 
-    # TODO: Refactor this into appropriate class methods
-    template.main.append(pn.Row(storenames_instructions.widget_1, storenames_selector.widget_2))
+    template.main.append(pn.Row(storenames_instructions.widget, storenames_selector.widget))
 
     # creating widgets, adding them to template and showing a GUI on a new browser window
     number = scanPortsAndFind(start_port=5000, end_port=5200)

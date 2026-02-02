@@ -53,7 +53,7 @@ class StorenamesInstructions:
             width=550,
         )
 
-        self.widget_1 = pn.Column("# " + os.path.basename(folder_path), self.mark_down)
+        self.widget = pn.Column("# " + os.path.basename(folder_path), self.mark_down)
 
 
 class StorenamesInstructionsNPM(StorenamesInstructions):
@@ -94,7 +94,7 @@ class StorenamesInstructionsNPM(StorenamesInstructions):
         self.plot_pane = pn.pane.HoloViews(self._make_plot(self.plot_select.value), width=550)
         self.plot_select.param.watch(self._on_plot_select_change, "value")
 
-        self.widget_1 = pn.Column(
+        self.widget = pn.Column(
             "# " + os.path.basename(folder_path),
             self.mark_down,
             self.mark_down_np,

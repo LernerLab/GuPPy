@@ -78,7 +78,7 @@ class StorenamesSelector:
         self.storename_config_widgets = pn.Column(visible=False)
         self.show_config_button = pn.widgets.Button(name="Show Selected Configuration", width=600)
 
-        self.widget_2 = pn.Column(
+        self.widget = pn.Column(
             self.repeat_storenames,
             self.repeat_storename_wd,
             pn.Spacer(height=20),
