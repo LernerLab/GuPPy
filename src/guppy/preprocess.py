@@ -41,7 +41,7 @@ from .analysis.standard_io import (
 from .analysis.timestamp_correction import correct_timestamps
 from .analysis.z_score import compute_z_score
 from .frontend.progress import writeToFile
-from .visualization.preprocessing import visualize_preprocessing
+from .visualization.preprocessing import visualize, visualize_preprocessing
 
 logger = logging.getLogger(__name__)
 
@@ -63,95 +63,6 @@ def execute_preprocessing_visualization(filepath, visualization_type: Literal["z
         x = read_hdf5("timeCorrection_" + name_1, filepath, "timestampNew")
         y = read_hdf5("", path[i], "data")
         fig, ax = visualize_preprocessing(suptitle=name, title=basename, x=x, y=y)
-
-
-def visualize(filepath, x, y1, y2, y3, plot_name, removeArtifacts):
-
-    # plotting control and signal data
-
-    if (y1 == 0).all() == True:
-        y1 = np.zeros(x.shape[0])
-
-    coords_path = os.path.join(filepath, "coordsForPreProcessing_" + plot_name[0].split("_")[-1] + ".npy")
-    name = os.path.basename(filepath)
-    fig = plt.figure()
-    ax1 = fig.add_subplot(311)
-    (line1,) = ax1.plot(x, y1)
-    ax1.set_title(plot_name[0])
-    ax2 = fig.add_subplot(312)
-    (line2,) = ax2.plot(x, y2)
-    ax2.set_title(plot_name[1])
-    ax3 = fig.add_subplot(313)
-    (line3,) = ax3.plot(x, y2)
-    (line3,) = ax3.plot(x, y3)
-    ax3.set_title(plot_name[2])
-    fig.suptitle(name)
-
-    hfont = {"fontname": "DejaVu Sans"}
-
-    if removeArtifacts == True and os.path.exists(coords_path):
-        ax3.set_xlabel("Time(s) \n Note : Artifacts have been removed, but are not reflected in this plot.", **hfont)
-    else:
-        ax3.set_xlabel("Time(s)", **hfont)
-
-    global coords
-    coords = []
-
-    # clicking 'space' key on keyboard will draw a line on the plot so that user can see what chunks are selected
-    # and clicking 'd' key on keyboard will deselect the selected point
-    def onclick(event):
-        # global ix, iy
-
-        if event.key == " ":
-            ix, iy = event.xdata, event.ydata
-            logger.info(f"x = {ix}, y = {iy}")
-            y1_max, y1_min = np.amax(y1), np.amin(y1)
-            y2_max, y2_min = np.amax(y2), np.amin(y2)
-
-            # ax1.plot([ix,ix], [y1_max, y1_min], 'k--')
-            # ax2.plot([ix,ix], [y2_max, y2_min], 'k--')
-
-            ax1.axvline(ix, c="black", ls="--")
-            ax2.axvline(ix, c="black", ls="--")
-            ax3.axvline(ix, c="black", ls="--")
-
-            fig.canvas.draw()
-
-            global coords
-            coords.append((ix, iy))
-
-            # if len(coords) == 2:
-            #    fig.canvas.mpl_disconnect(cid)
-
-            return coords
-
-        elif event.key == "d":
-            if len(coords) > 0:
-                logger.info(f"x = {coords[-1][0]}, y = {coords[-1][1]}; deleted")
-                del coords[-1]
-                ax1.lines[-1].remove()
-                ax2.lines[-1].remove()
-                ax3.lines[-1].remove()
-                fig.canvas.draw()
-
-            return coords
-
-    # close the plot will save coordinates for all the selected chunks in the data
-    def plt_close_event(event):
-        global coords
-        if coords and len(coords) > 0:
-            name_1 = plot_name[0].split("_")[-1]
-            np.save(os.path.join(filepath, "coordsForPreProcessing_" + name_1 + ".npy"), coords)
-            logger.info(f"Coordinates file saved at {os.path.join(filepath, 'coordsForPreProcessing_'+name_1+'.npy')}")
-        fig.canvas.mpl_disconnect(cid)
-        coords = []
-
-    cid = fig.canvas.mpl_connect("key_press_event", onclick)
-    cid = fig.canvas.mpl_connect("close_event", plt_close_event)
-    # multi = MultiCursor(fig.canvas, (ax1, ax2), color='g', lw=1, horizOn=False, vertOn=True)
-
-    # plt.show()
-    # return fig
 
 
 # function to plot control and signal, also provide a feature to select chunks for artifacts removal
