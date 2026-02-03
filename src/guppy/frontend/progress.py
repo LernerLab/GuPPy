@@ -43,3 +43,8 @@ def readPBIncrementValues(progressBar):
             break
 
     logger.info("Read progress bar increment values stopped.")
+
+
+def writeToFile(value: str):
+    with open(os.path.join(os.path.expanduser("~"), "pbSteps.txt"), "a") as file:
+        file.write(value)

@@ -19,13 +19,9 @@ from .analysis.standard_io import (
 )
 from .analysis.transients import analyze_transients
 from .analysis.transients_average import averageForGroup
+from .frontend.progress import writeToFile
 
 logger = logging.getLogger(__name__)
-
-
-def writeToFile(value: str):
-    with open(os.path.join(os.path.expanduser("~"), "pbSteps.txt"), "a") as file:
-        file.write(value)
 
 
 def visuzlize_peaks(filepath, z_score, timestamps, peaksIndex):

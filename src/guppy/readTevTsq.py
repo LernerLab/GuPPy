@@ -14,6 +14,7 @@ from guppy.extractors import (
     TdtRecordingExtractor,
     read_and_save_all_events,
 )
+from guppy.frontend.progress import writeToFile
 
 logger = logging.getLogger(__name__)
 
@@ -24,11 +25,6 @@ def takeOnlyDirs(paths):
         if os.path.isfile(p):
             removePaths.append(p)
     return list(set(paths) - set(removePaths))
-
-
-def writeToFile(value: str):
-    with open(os.path.join(os.path.expanduser("~"), "pbSteps.txt"), "a") as file:
-        file.write(value)
 
 
 # function to read data from 'tsq' and 'tev' files

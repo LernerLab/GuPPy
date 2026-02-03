@@ -39,17 +39,13 @@ from .analysis.standard_io import (
 )
 from .analysis.timestamp_correction import correct_timestamps
 from .analysis.z_score import compute_z_score
+from .frontend.progress import writeToFile
 
 logger = logging.getLogger(__name__)
 
 # Only set matplotlib backend if not in CI environment
 if not os.getenv("CI"):
     plt.switch_backend("TKAgg")
-
-
-def writeToFile(value: str):
-    with open(os.path.join(os.path.expanduser("~"), "pbSteps.txt"), "a") as file:
-        file.write(value)
 
 
 # function to plot z_score
