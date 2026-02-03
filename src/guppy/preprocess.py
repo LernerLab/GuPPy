@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import sys
+from typing import Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -40,6 +41,7 @@ from .analysis.standard_io import (
 from .analysis.timestamp_correction import correct_timestamps
 from .analysis.z_score import compute_z_score
 from .frontend.progress import writeToFile
+from .visualization.preprocessing import visualize_preprocessing
 
 logger = logging.getLogger(__name__)
 
@@ -48,12 +50,10 @@ if not os.getenv("CI"):
     plt.switch_backend("TKAgg")
 
 
-# function to plot z_score
-def visualize_z_score(filepath):
-
+def execute_preprocessing_visualization(filepath, visualization_type: Literal["z_score", "dff"]):
     name = os.path.basename(filepath)
 
-    path = glob.glob(os.path.join(filepath, "z_score_*"))
+    path = glob.glob(os.path.join(filepath, f"{visualization_type}_*"))
 
     path = sorted(path)
 
@@ -62,33 +62,7 @@ def visualize_z_score(filepath):
         name_1 = basename.split("_")[-1]
         x = read_hdf5("timeCorrection_" + name_1, filepath, "timestampNew")
         y = read_hdf5("", path[i], "data")
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        ax.plot(x, y)
-        ax.set_title(basename)
-        fig.suptitle(name)
-    # plt.show()
-
-
-# function to plot deltaF/F
-def visualize_dff(filepath):
-    name = os.path.basename(filepath)
-
-    path = glob.glob(os.path.join(filepath, "dff_*"))
-
-    path = sorted(path)
-
-    for i in range(len(path)):
-        basename = (os.path.basename(path[i])).split(".")[0]
-        name_1 = basename.split("_")[-1]
-        x = read_hdf5("timeCorrection_" + name_1, filepath, "timestampNew")
-        y = read_hdf5("", path[i], "data")
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        ax.plot(x, y)
-        ax.set_title(basename)
-        fig.suptitle(name)
-    # plt.show()
+        fig, ax = visualize_preprocessing(suptitle=name, title=basename, x=x, y=y)
 
 
 def visualize(filepath, x, y1, y2, y3, plot_name, removeArtifacts):
@@ -337,12 +311,12 @@ def execute_zscore(folderNames, inputParameters):
             visualizeControlAndSignal(filepath, removeArtifacts=remove_artifacts)
 
         if plot_zScore_dff == "z_score":
-            visualize_z_score(filepath)
+            execute_preprocessing_visualization(filepath, visualization_type="z_score")
         if plot_zScore_dff == "dff":
-            visualize_dff(filepath)
+            execute_preprocessing_visualization(filepath, visualization_type="dff")
         if plot_zScore_dff == "Both":
-            visualize_z_score(filepath)
-            visualize_dff(filepath)
+            execute_preprocessing_visualization(filepath, visualization_type="z_score")
+            execute_preprocessing_visualization(filepath, visualization_type="dff")
 
         writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
         inputParameters["step"] += 1
