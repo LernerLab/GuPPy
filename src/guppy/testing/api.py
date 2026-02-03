@@ -16,9 +16,9 @@ from typing import Iterable
 from guppy.computePsth import psthForEachStorename
 from guppy.findTransientsFreqAndAmp import executeFindFreqAndAmp
 from guppy.orchestration.home import build_homepage
+from guppy.orchestration.read_raw_data import orchestrate_read_raw_data
 from guppy.orchestration.storenames import orchestrate_storenames_page
 from guppy.preprocess import extractTsAndSignal
-from guppy.readTevTsq import readRawData
 
 
 def step1(*, base_dir: str, selected_folders: Iterable[str]) -> None:
@@ -257,7 +257,7 @@ def step3(
     input_params["modality"] = modality
 
     # Call the underlying Step 3 worker directly (no subprocess)
-    readRawData(input_params)
+    orchestrate_read_raw_data(input_params)
 
 
 def step4(

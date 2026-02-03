@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 def readRawData(parameter_form):
     inputParameters = parameter_form.getInputParameters()
-    subprocess.call([sys.executable, "-m", "guppy.readTevTsq", json.dumps(inputParameters)])
+    subprocess.call([sys.executable, "-m", "guppy.orchestration.read_raw_data", json.dumps(inputParameters)])
 
 
 def extractTs(parameter_form):
