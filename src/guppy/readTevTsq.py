@@ -15,16 +15,9 @@ from guppy.extractors import (
     read_and_save_all_events,
 )
 from guppy.frontend.progress import writeToFile
+from guppy.utils.utils import takeOnlyDirs
 
 logger = logging.getLogger(__name__)
-
-
-def takeOnlyDirs(paths):
-    removePaths = []
-    for p in paths:
-        if os.path.isfile(p):
-            removePaths.append(p)
-    return list(set(paths) - set(removePaths))
 
 
 # function to read data from 'tsq' and 'tev' files

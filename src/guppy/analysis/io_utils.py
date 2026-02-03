@@ -8,15 +8,9 @@ import h5py
 import numpy as np
 import pandas as pd
 
+from ..utils.utils import takeOnlyDirs
+
 logger = logging.getLogger(__name__)
-
-
-def takeOnlyDirs(paths):
-    removePaths = []
-    for p in paths:
-        if os.path.isfile(p):
-            removePaths.append(p)
-    return list(set(paths) - set(removePaths))
 
 
 # find files by ignoring the case sensitivity

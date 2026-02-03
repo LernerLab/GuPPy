@@ -35,16 +35,9 @@ from .analysis.standard_io import (
     write_peak_and_area_to_hdf5,
 )
 from .frontend.progress import writeToFile
+from .utils.utils import takeOnlyDirs
 
 logger = logging.getLogger(__name__)
-
-
-def takeOnlyDirs(paths):
-    removePaths = []
-    for p in paths:
-        if os.path.isfile(p):
-            removePaths.append(p)
-    return list(set(paths) - set(removePaths))
 
 
 # function to create PSTH for each event using function helper_psth and save the PSTH to h5 file

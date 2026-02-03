@@ -24,6 +24,7 @@ from guppy.frontend.storenames_instructions import (
     StorenamesInstructionsNPM,
 )
 from guppy.frontend.storenames_selector import StorenamesSelector
+from guppy.utils.utils import takeOnlyDirs
 
 pn.extension()
 
@@ -42,14 +43,6 @@ def scanPortsAndFind(start_port=5000, end_port=5200, host="127.0.0.1"):
             break
 
     return port
-
-
-def takeOnlyDirs(paths):
-    removePaths = []
-    for p in paths:
-        if os.path.isfile(p):
-            removePaths.append(p)
-    return list(set(paths) - set(removePaths))
 
 
 # function to show location for over-writing or creating a new stores list file.

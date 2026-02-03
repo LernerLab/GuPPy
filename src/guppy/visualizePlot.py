@@ -19,6 +19,7 @@ from holoviews.operation.datashader import datashade
 from holoviews.plotting.util import process_cmap
 
 from .preprocess import get_all_stores_for_combining_data
+from .utils.utils import takeOnlyDirs
 
 pn.extension()
 
@@ -37,14 +38,6 @@ def scanPortsAndFind(start_port=5000, end_port=5200, host="127.0.0.1"):
             break
 
     return port
-
-
-def takeOnlyDirs(paths):
-    removePaths = []
-    for p in paths:
-        if os.path.isfile(p):
-            removePaths.append(p)
-    return list(set(paths) - set(removePaths))
 
 
 # read h5 file as a dataframe
