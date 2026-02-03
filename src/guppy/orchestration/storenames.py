@@ -6,6 +6,7 @@ import socket
 from pathlib import Path
 from random import randint
 
+import holoviews as hv  # noqa: F401
 import numpy as np
 import panel as pn
 
