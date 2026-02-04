@@ -40,8 +40,9 @@ from .analysis.standard_io import (
 )
 from .analysis.timestamp_correction import correct_timestamps
 from .analysis.z_score import compute_z_score
+from .frontend.artifact_removal import ArtifactRemovalWidget
 from .frontend.progress import writeToFile
-from .visualization.preprocessing import visualize, visualize_preprocessing
+from .visualization.preprocessing import visualize_preprocessing
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +98,7 @@ def visualizeControlAndSignal(filepath, removeArtifacts):
             (os.path.basename(path[1, i])).split(".")[0],
             (os.path.basename(cntrl_sig_fit_path)).split(".")[0],
         ]
-        visualize(filepath, ts, control, signal, cntrl_sig_fit, plot_name, removeArtifacts)
+        widget = ArtifactRemovalWidget(filepath, ts, control, signal, cntrl_sig_fit, plot_name, removeArtifacts)
 
 
 # function to execute timestamps corrections using functions timestampCorrection and decide_naming_convention_and_applyCorrection
