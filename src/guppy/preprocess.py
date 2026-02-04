@@ -221,10 +221,34 @@ def execute_zscore(folderNames, inputParameters):
             write_zscore(filepath, name, z_score, dff, control_fit, temp_control_arr)
 
         logger.info(f"z-score for the data in {filepath} computed.")
+        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
+        inputParameters["step"] += 1
+
+    plt.show()
+    logger.info("Z-score computation completed.")
+
+
+def visualize_z_score(inputParameters, folderNames):
+    plot_zScore_dff = inputParameters["plot_zScore_dff"]
+    combine_data = inputParameters["combine_data"]
+    remove_artifacts = inputParameters["removeArtifacts"]
+
+    storesListPath = []
+    for i in range(len(folderNames)):
+        if combine_data == True:
+            storesListPath.append([folderNames[i][0]])
+        else:
+            filepath = folderNames[i]
+            storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+    storesListPath = np.concatenate(storesListPath)
+
+    widgets = []
+    for j in range(len(storesListPath)):
+        filepath = storesListPath[j]
 
         if not remove_artifacts:
             # a reference to widgets has to persist in the same scope as plt.show() is called
-            widgets = visualizeControlAndSignal(filepath, removeArtifacts=remove_artifacts)
+            widgets.extend(visualizeControlAndSignal(filepath, removeArtifacts=remove_artifacts))
 
         if plot_zScore_dff == "z_score":
             execute_preprocessing_visualization(filepath, visualization_type="z_score")
@@ -234,11 +258,8 @@ def execute_zscore(folderNames, inputParameters):
             execute_preprocessing_visualization(filepath, visualization_type="z_score")
             execute_preprocessing_visualization(filepath, visualization_type="dff")
 
-        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
-        inputParameters["step"] += 1
-
     plt.show()
-    logger.info("Z-score computation completed.")
+    logger.info("Visualization of z-score and dF/F completed.")
 
 
 # function to remove artifacts from z-score data
@@ -376,6 +397,7 @@ def extractTsAndSignal(inputParameters):
         writeToFile(str((pbMaxValue + 1) * 10) + "\n" + str(10) + "\n")
         execute_timestamp_correction(folderNames, inputParameters)
         execute_zscore(folderNames, inputParameters)
+        visualize_z_score(inputParameters, folderNames)
         if remove_artifacts == True:
             execute_artifact_removal(folderNames, inputParameters)
     else:
@@ -385,6 +407,7 @@ def extractTsAndSignal(inputParameters):
         storesList = check_storeslistfile(folderNames)
         op_folder = execute_combine_data(folderNames, inputParameters, storesList)
         execute_zscore(op_folder, inputParameters)
+        visualize_z_score(inputParameters, op_folder)
         if remove_artifacts == True:
             execute_artifact_removal(op_folder, inputParameters)
 
