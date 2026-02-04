@@ -223,6 +223,7 @@ def execute_zscore(folderNames, inputParameters):
         logger.info(f"z-score for the data in {filepath} computed.")
 
         if not remove_artifacts:
+            # a reference to widgets has to persist in the same scope as plt.show() is called
             widgets = visualizeControlAndSignal(filepath, removeArtifacts=remove_artifacts)
 
         if plot_zScore_dff == "z_score":
