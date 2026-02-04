@@ -80,6 +80,7 @@ def visualizeControlAndSignal(filepath, removeArtifacts):
 
     path = np.asarray(path).reshape(2, -1)
 
+    widgets = []
     for i in range(path.shape[1]):
 
         name_1 = ((os.path.basename(path[0, i])).split(".")[0]).split("_")
@@ -99,6 +100,8 @@ def visualizeControlAndSignal(filepath, removeArtifacts):
             (os.path.basename(cntrl_sig_fit_path)).split(".")[0],
         ]
         widget = ArtifactRemovalWidget(filepath, ts, control, signal, cntrl_sig_fit, plot_name, removeArtifacts)
+        widgets.append(widget)
+    return widgets
 
 
 # function to execute timestamps corrections using functions timestampCorrection and decide_naming_convention_and_applyCorrection
@@ -220,7 +223,7 @@ def execute_zscore(folderNames, inputParameters):
         logger.info(f"z-score for the data in {filepath} computed.")
 
         if not remove_artifacts:
-            visualizeControlAndSignal(filepath, removeArtifacts=remove_artifacts)
+            widgets = visualizeControlAndSignal(filepath, removeArtifacts=remove_artifacts)
 
         if plot_zScore_dff == "z_score":
             execute_preprocessing_visualization(filepath, visualization_type="z_score")
