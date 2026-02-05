@@ -7,6 +7,9 @@
 
 ## Fixes
 
+- Fixed bug with group analysis by updating pandas syntax: [PR #192](https://github.com/LernerLab/GuPPy/pull/192)
+
+
 ## Deprecations and Removals
 
 - Dropped support for Python 3.6: [PR #129](https://github.com/LernerLab/GuPPy/pull/129)
