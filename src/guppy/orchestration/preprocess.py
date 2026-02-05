@@ -8,10 +8,10 @@ from typing import Literal
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .analysis.artifact_removal import remove_artifacts
-from .analysis.combine_data import combine_data
-from .analysis.control_channel import add_control_channel, create_control_channel
-from .analysis.io_utils import (
+from ..analysis.artifact_removal import remove_artifacts
+from ..analysis.combine_data import combine_data
+from ..analysis.control_channel import add_control_channel, create_control_channel
+from ..analysis.io_utils import (
     check_storeslistfile,
     check_TDT,
     find_files,
@@ -20,7 +20,7 @@ from .analysis.io_utils import (
     read_hdf5,
     takeOnlyDirs,
 )
-from .analysis.standard_io import (
+from ..analysis.standard_io import (
     read_control_and_signal,
     read_coords_pairwise,
     read_corrected_data,
@@ -38,11 +38,11 @@ from .analysis.standard_io import (
     write_corrected_ttl_timestamps,
     write_zscore,
 )
-from .analysis.timestamp_correction import correct_timestamps
-from .analysis.z_score import compute_z_score
-from .frontend.artifact_removal import ArtifactRemovalWidget
-from .frontend.progress import writeToFile
-from .visualization.preprocessing import visualize_preprocessing
+from ..analysis.timestamp_correction import correct_timestamps
+from ..analysis.z_score import compute_z_score
+from ..frontend.artifact_removal import ArtifactRemovalWidget
+from ..frontend.progress import writeToFile
+from ..visualization.preprocessing import visualize_preprocessing
 
 logger = logging.getLogger(__name__)
 

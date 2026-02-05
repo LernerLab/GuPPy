@@ -16,9 +16,9 @@ from typing import Iterable
 from guppy.computePsth import psthForEachStorename
 from guppy.findTransientsFreqAndAmp import executeFindFreqAndAmp
 from guppy.orchestration.home import build_homepage
+from guppy.orchestration.preprocess import extractTsAndSignal
 from guppy.orchestration.read_raw_data import orchestrate_read_raw_data
 from guppy.orchestration.storenames import orchestrate_storenames_page
-from guppy.preprocess import extractTsAndSignal
 
 
 def step1(*, base_dir: str, selected_folders: Iterable[str]) -> None:

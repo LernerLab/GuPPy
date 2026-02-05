@@ -18,7 +18,7 @@ from holoviews import opts
 from holoviews.operation.datashader import datashade
 from holoviews.plotting.util import process_cmap
 
-from .preprocess import get_all_stores_for_combining_data
+from .orchestration.preprocess import get_all_stores_for_combining_data
 from .utils.utils import takeOnlyDirs
 
 pn.extension()
