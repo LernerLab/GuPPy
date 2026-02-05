@@ -23,9 +23,9 @@ def readRawData(parameter_form):
     subprocess.call([sys.executable, "-m", "guppy.orchestration.read_raw_data", json.dumps(inputParameters)])
 
 
-def extractTs(parameter_form):
+def preprocess(parameter_form):
     inputParameters = parameter_form.getInputParameters()
-    subprocess.call([sys.executable, "-m", "guppy.preprocess", json.dumps(inputParameters)])
+    subprocess.call([sys.executable, "-m", "guppy.orchestration.preprocess", json.dumps(inputParameters)])
 
 
 def psthComputation(parameter_form, current_dir):
@@ -64,8 +64,8 @@ def build_homepage():
         readPBIncrementValues(sidebar.read_progress)
         thread.join()
 
-    def onclickextractts(event=None):
-        thread = Thread(target=extractTs, args=(parameter_form,))
+    def onclickpreprocess(event=None):
+        thread = Thread(target=preprocess, args=(parameter_form,))
         thread.start()
         readPBIncrementValues(sidebar.extract_progress)
         thread.join()
@@ -82,7 +82,7 @@ def build_homepage():
         "save_button": onclickProcess,
         "open_storenames": onclickStorenames,
         "read_rawData": onclickreaddata,
-        "extract_ts": onclickextractts,
+        "preprocess": onclickpreprocess,
         "psth_computation": onclickpsth,
         "open_visualization": onclickVisualization,
     }

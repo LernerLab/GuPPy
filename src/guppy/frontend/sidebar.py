@@ -26,9 +26,7 @@ class Sidebar:
             """**Step 2 : Open Storenames GUI <br> and save storenames**""", width=300
         )
         self.mark_down_read = pn.pane.Markdown("""**Step 3 : Read Raw Data**""", width=300)
-        self.mark_down_extract = pn.pane.Markdown(
-            """**Step 4 : Extract timestamps <br> and its correction**""", width=300
-        )
+        self.mark_down_preprocess = pn.pane.Markdown("""**Step 4 : Preprocess and Remove Artifacts**""", width=300)
         self.mark_down_psth = pn.pane.Markdown("""**Step 5 : PSTH Computation**""", width=300)
         self.mark_down_visualization = pn.pane.Markdown("""**Step 6 : Visualization**""", width=300)
 
@@ -37,8 +35,8 @@ class Sidebar:
             name="Open Storenames GUI", button_type="primary", width=300, align="end"
         )
         self.read_rawData = pn.widgets.Button(name="Read Raw Data", button_type="primary", width=300, align="end")
-        self.extract_ts = pn.widgets.Button(
-            name="Extract timestamps and it's correction", button_type="primary", width=300, align="end"
+        self.preprocess = pn.widgets.Button(
+            name="Preprocess and Remove Artifacts", button_type="primary", width=300, align="end"
         )
         self.psth_computation = pn.widgets.Button(
             name="PSTH Computation", button_type="primary", width=300, align="end"
@@ -67,8 +65,8 @@ class Sidebar:
         self.template.sidebar.append(self.mark_down_read)
         self.template.sidebar.append(self.read_rawData)
         self.template.sidebar.append(self.read_progress)
-        self.template.sidebar.append(self.mark_down_extract)
-        self.template.sidebar.append(self.extract_ts)
+        self.template.sidebar.append(self.mark_down_preprocess)
+        self.template.sidebar.append(self.preprocess)
         self.template.sidebar.append(self.extract_progress)
         self.template.sidebar.append(self.mark_down_psth)
         self.template.sidebar.append(self.psth_computation)
