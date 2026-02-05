@@ -43,9 +43,6 @@ def remove_cols(cols):
     return cols
 
 
-# def look_psth_bins(event, name):
-
-
 # helper function to create plots
 def helper_plots(filepath, event, name, inputParameters):
 
