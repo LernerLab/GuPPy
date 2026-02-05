@@ -137,20 +137,6 @@ def get_coords(filepath, name, tsNew, removeArtifacts):  # TODO: Make less redun
     return coords
 
 
-def get_all_stores_for_combining_data(folderNames):
-    op = []
-    for i in range(100):
-        temp = []
-        match = r"[\s\S]*" + "_output_" + str(i)
-        for j in folderNames:
-            temp.append(re.findall(match, j))
-        temp = sorted(list(np.concatenate(temp).flatten()), key=str.casefold)
-        if len(temp) > 0:
-            op.append(temp)
-
-    return op
-
-
 # for combining data, reading storeslist file from both data and create a new storeslist array
 def check_storeslistfile(folderNames):
     storesList = np.array([[], []])

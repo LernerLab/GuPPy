@@ -15,7 +15,6 @@ from ..analysis.io_utils import (
     check_storeslistfile,
     check_TDT,
     find_files,
-    get_all_stores_for_combining_data,  # noqa: F401 -- Necessary for other modules that depend on preprocess.py
     get_coords,
     read_hdf5,
     takeOnlyDirs,
@@ -42,6 +41,7 @@ from ..analysis.timestamp_correction import correct_timestamps
 from ..analysis.z_score import compute_z_score
 from ..frontend.artifact_removal import ArtifactRemovalWidget
 from ..frontend.progress import writeToFile
+from ..utils.utils import get_all_stores_for_combining_data
 from ..visualization.preprocessing import visualize_preprocessing
 
 logger = logging.getLogger(__name__)

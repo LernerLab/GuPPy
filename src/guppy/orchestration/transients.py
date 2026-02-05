@@ -9,9 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from ..analysis.io_utils import (
-    get_all_stores_for_combining_data,
     read_hdf5,
-    takeOnlyDirs,
 )
 from ..analysis.standard_io import (
     read_transients_from_hdf5,
@@ -22,6 +20,7 @@ from ..analysis.standard_io import (
 from ..analysis.transients import analyze_transients
 from ..analysis.transients_average import averageForGroup
 from ..frontend.progress import writeToFile
+from ..utils.utils import get_all_stores_for_combining_data, takeOnlyDirs
 from ..visualization.transients import visualize_peaks
 
 logger = logging.getLogger(__name__)

@@ -16,7 +16,6 @@ from scipy import signal as ss
 from ..analysis.compute_psth import compute_psth
 from ..analysis.cross_correlation import compute_cross_correlation
 from ..analysis.io_utils import (
-    get_all_stores_for_combining_data,
     make_dir_for_cross_correlation,
     makeAverageDir,
     read_Df,
@@ -35,7 +34,7 @@ from ..analysis.standard_io import (
     write_peak_and_area_to_hdf5,
 )
 from ..frontend.progress import writeToFile
-from ..utils.utils import takeOnlyDirs
+from ..utils.utils import get_all_stores_for_combining_data, takeOnlyDirs
 
 logger = logging.getLogger(__name__)
 
