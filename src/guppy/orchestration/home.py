@@ -31,7 +31,7 @@ def preprocess(parameter_form):
 def psthComputation(parameter_form, current_dir):
     inputParameters = parameter_form.getInputParameters()
     inputParameters["curr_dir"] = current_dir
-    subprocess.call([sys.executable, "-m", "guppy.computePsth", json.dumps(inputParameters)])
+    subprocess.call([sys.executable, "-m", "guppy.orchestration.psth", json.dumps(inputParameters)])
 
 
 def build_homepage():

@@ -8,21 +8,21 @@ import sys
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .analysis.io_utils import (
+from ..analysis.io_utils import (
     get_all_stores_for_combining_data,
     read_hdf5,
     takeOnlyDirs,
 )
-from .analysis.standard_io import (
+from ..analysis.standard_io import (
     read_transients_from_hdf5,
     write_freq_and_amp_to_csv,
     write_freq_and_amp_to_hdf5,
     write_transients_to_hdf5,
 )
-from .analysis.transients import analyze_transients
-from .analysis.transients_average import averageForGroup
-from .frontend.progress import writeToFile
-from .visualization.transients import visualize_peaks
+from ..analysis.transients import analyze_transients
+from ..analysis.transients_average import averageForGroup
+from ..frontend.progress import writeToFile
+from ..visualization.transients import visualize_peaks
 
 logger = logging.getLogger(__name__)
 

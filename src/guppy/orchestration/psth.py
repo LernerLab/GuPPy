@@ -13,9 +13,9 @@ from itertools import repeat
 import numpy as np
 from scipy import signal as ss
 
-from .analysis.compute_psth import compute_psth
-from .analysis.cross_correlation import compute_cross_correlation
-from .analysis.io_utils import (
+from ..analysis.compute_psth import compute_psth
+from ..analysis.cross_correlation import compute_cross_correlation
+from ..analysis.io_utils import (
     get_all_stores_for_combining_data,
     make_dir_for_cross_correlation,
     makeAverageDir,
@@ -23,19 +23,19 @@ from .analysis.io_utils import (
     read_hdf5,
     write_hdf5,
 )
-from .analysis.psth_average import averageForGroup
-from .analysis.psth_peak_and_area import compute_psth_peak_and_area
-from .analysis.psth_utils import (
+from ..analysis.psth_average import averageForGroup
+from ..analysis.psth_peak_and_area import compute_psth_peak_and_area
+from ..analysis.psth_utils import (
     create_Df_for_cross_correlation,
     create_Df_for_psth,
     getCorrCombinations,
 )
-from .analysis.standard_io import (
+from ..analysis.standard_io import (
     write_peak_and_area_to_csv,
     write_peak_and_area_to_hdf5,
 )
-from .frontend.progress import writeToFile
-from .utils.utils import takeOnlyDirs
+from ..frontend.progress import writeToFile
+from ..utils.utils import takeOnlyDirs
 
 logger = logging.getLogger(__name__)
 
@@ -347,7 +347,7 @@ def psthForEachStorename(inputParameters):
 def main(input_parameters):
     try:
         inputParameters = psthForEachStorename(input_parameters)
-        subprocess.call([sys.executable, "-m", "guppy.findTransientsFreqAndAmp", json.dumps(inputParameters)])
+        subprocess.call([sys.executable, "-m", "guppy.orchestration.transients", json.dumps(inputParameters)])
         logger.info("#" * 400)
     except Exception as e:
         with open(os.path.join(os.path.expanduser("~"), "pbSteps.txt"), "a") as file:
