@@ -14,8 +14,10 @@ from .analysis.io_utils import (
     takeOnlyDirs,
 )
 from .analysis.standard_io import (
+    read_transients_from_hdf5,
     write_freq_and_amp_to_csv,
     write_freq_and_amp_to_hdf5,
+    write_transients_to_hdf5,
 )
 from .analysis.transients import analyze_transients
 from .analysis.transients_average import averageForGroup
@@ -60,10 +62,31 @@ def findFreqAndAmp(filepath, inputParameters, window=15, numProcesses=mp.cpu_cou
             index=np.arange(peaks_occurrences.shape[0]),
             columns=["timestamps", "amplitude"],
         )
+        write_transients_to_hdf5(filepath, basename, z_score, ts, peaksInd)
+    logger.info("Frequency and amplitude of transients in z_score data are calculated.")
+
+
+def execute_visualize_peaks(filepath, inputParameters):
+
+    selectForTransientsComputation = inputParameters["selectForTransientsComputation"]
+
+    if selectForTransientsComputation == "z_score":
+        path = glob.glob(os.path.join(filepath, "z_score_*"))
+    elif selectForTransientsComputation == "dff":
+        path = glob.glob(os.path.join(filepath, "dff_*"))
+    else:
+        path = glob.glob(os.path.join(filepath, "z_score_*")) + glob.glob(os.path.join(filepath, "dff_*"))
+
+    for i in range(len(path)):
+        basename = (os.path.basename(path[i])).split(".")[0]
+        z_score, ts, peaksInd = read_transients_from_hdf5(filepath, basename)
+
         suptitle = os.path.basename(os.path.dirname(path[i]))
         title = (os.path.basename(path[i])).split(".")[0]
         visualize_peaks(title, suptitle, z_score, ts, peaksInd)
+
     logger.info("Frequency and amplitude of transients in z_score data are calculated.")
+    # plt.show()
 
 
 def executeFindFreqAndAmp(inputParameters):
@@ -109,6 +132,7 @@ def execute_find_freq_and_amp(inputParameters, folderNames, moving_window, numPr
                 2, -1
             )
             findFreqAndAmp(filepath, inputParameters, window=moving_window, numProcesses=numProcesses)
+            execute_visualize_peaks(filepath, inputParameters)
             writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
             inputParameters["step"] += 1
         logger.info("Transients in z-score data found and frequency and amplitude are calculated.")
