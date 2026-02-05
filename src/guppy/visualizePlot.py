@@ -3,8 +3,6 @@ import logging
 import math
 import os
 import re
-import socket
-from random import randint
 
 import datashader as ds
 import holoviews as hv
@@ -18,25 +16,12 @@ from holoviews import opts
 from holoviews.operation.datashader import datashade
 from holoviews.plotting.util import process_cmap
 
+from .frontend.frontend_utils import scanPortsAndFind
 from .utils.utils import get_all_stores_for_combining_data, takeOnlyDirs
 
 pn.extension()
 
 logger = logging.getLogger(__name__)
-
-
-def scanPortsAndFind(start_port=5000, end_port=5200, host="127.0.0.1"):
-    while True:
-        port = randint(start_port, end_port)
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(0.001)  # Set timeout to avoid long waiting on closed ports
-        result = sock.connect_ex((host, port))
-        if result == 0:  # If the connection is successful, the port is open
-            continue
-        else:
-            break
-
-    return port
 
 
 # read h5 file as a dataframe
