@@ -301,13 +301,32 @@ def execute_artifact_removal(folderNames, inputParameters):
         )
 
         write_artifact_removal(filepath, name_to_data, pair_name_to_timestamps, compound_name_to_ttl_timestamps)
-        visualizeControlAndSignal(filepath, removeArtifacts=True)
 
         writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
         inputParameters["step"] += 1
 
-    plt.show()
+    visualize_artifact_removal(folderNames, inputParameters)
     logger.info("Artifact removal completed.")
+
+
+def visualize_artifact_removal(folderNames, inputParameters):
+    combine_data = inputParameters["combine_data"]
+
+    storesListPath = []
+    for i in range(len(folderNames)):
+        if combine_data == True:
+            storesListPath.append([folderNames[i][0]])
+        else:
+            filepath = folderNames[i]
+            storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+
+    storesListPath = np.concatenate(storesListPath)
+
+    for j in range(len(storesListPath)):
+        filepath = storesListPath[j]
+        visualizeControlAndSignal(filepath, removeArtifacts=True)
+    plt.show()
+    logger.info("Visualization of artifact removal completed.")
 
 
 # function to combine data when there are two different data files for the same recording session
