@@ -18,7 +18,6 @@ from ..analysis.cross_correlation import compute_cross_correlation
 from ..analysis.io_utils import (
     make_dir_for_cross_correlation,
     makeAverageDir,
-    read_Df,
     read_hdf5,
     write_hdf5,
 )
@@ -34,7 +33,7 @@ from ..analysis.standard_io import (
     write_peak_and_area_to_hdf5,
 )
 from ..frontend.progress import writeToFile
-from ..utils.utils import get_all_stores_for_combining_data, takeOnlyDirs
+from ..utils.utils import get_all_stores_for_combining_data, read_Df, takeOnlyDirs
 
 logger = logging.getLogger(__name__)
 

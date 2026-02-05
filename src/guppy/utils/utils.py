@@ -3,6 +3,7 @@ import os
 import re
 
 import numpy as np
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -27,3 +28,16 @@ def get_all_stores_for_combining_data(folderNames):
             op.append(temp)
 
     return op
+
+
+# function to read h5 file and make a dataframe from it
+def read_Df(filepath, event, name):
+    event = event.replace("\\", "_")
+    event = event.replace("/", "_")
+    if name:
+        op = os.path.join(filepath, event + "_{}.h5".format(name))
+    else:
+        op = os.path.join(filepath, event + ".h5")
+    df = pd.read_hdf(op, key="df", mode="r")
+
+    return df

@@ -17,24 +17,11 @@ from holoviews.operation.datashader import datashade
 from holoviews.plotting.util import process_cmap
 
 from .frontend.frontend_utils import scanPortsAndFind
-from .utils.utils import get_all_stores_for_combining_data, takeOnlyDirs
+from .utils.utils import get_all_stores_for_combining_data, read_Df, takeOnlyDirs
 
 pn.extension()
 
 logger = logging.getLogger(__name__)
-
-
-# read h5 file as a dataframe
-def read_Df(filepath, event, name):
-    event = event.replace("\\", "_")
-    event = event.replace("/", "_")
-    if name:
-        op = os.path.join(filepath, event + "_{}.h5".format(name))
-    else:
-        op = os.path.join(filepath, event + ".h5")
-    df = pd.read_hdf(op, key="df", mode="r")
-
-    return df
 
 
 # make a new directory for saving plots
