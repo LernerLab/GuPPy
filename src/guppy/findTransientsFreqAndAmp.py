@@ -20,21 +20,9 @@ from .analysis.standard_io import (
 from .analysis.transients import analyze_transients
 from .analysis.transients_average import averageForGroup
 from .frontend.progress import writeToFile
+from .visualization.transients import visualize_peaks
 
 logger = logging.getLogger(__name__)
-
-
-def visuzlize_peaks(filepath, z_score, timestamps, peaksIndex):
-
-    dirname = os.path.dirname(filepath)
-
-    basename = (os.path.basename(filepath)).split(".")[0]
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    ax.plot(timestamps, z_score, "-", timestamps[peaksIndex], z_score[peaksIndex], "o")
-    ax.set_title(basename)
-    fig.suptitle(os.path.basename(dirname))
-    # plt.show()
 
 
 def findFreqAndAmp(filepath, inputParameters, window=15, numProcesses=mp.cpu_count()):
@@ -72,7 +60,9 @@ def findFreqAndAmp(filepath, inputParameters, window=15, numProcesses=mp.cpu_cou
             index=np.arange(peaks_occurrences.shape[0]),
             columns=["timestamps", "amplitude"],
         )
-        visuzlize_peaks(path[i], z_score, ts, peaksInd)
+        suptitle = os.path.basename(os.path.dirname(path[i]))
+        title = (os.path.basename(path[i])).split(".")[0]
+        visualize_peaks(title, suptitle, z_score, ts, peaksInd)
     logger.info("Frequency and amplitude of transients in z_score data are calculated.")
 
 
