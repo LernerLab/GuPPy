@@ -66,7 +66,7 @@ def averageForGroup(folderNames, inputParameters):
                 continue
             else:
                 df = read_freq_and_amp_from_hdf5(temp_path[j][0], temp_path[j][1])
-                arr.append(np.array([df["freq (events/min)"][0], df["amplitude"][0]]))
+                arr.append(np.array([df["freq (events/min)"].iloc[0], df["amplitude"].iloc[0]]))
                 fileName.append(os.path.basename(temp_path[j][0]))
 
         arr = np.asarray(arr)
