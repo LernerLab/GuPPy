@@ -248,10 +248,7 @@ class Viewer(param.Parameterized):
         "event_selector", "x", "y", "Y_Label", "save_options", "Y_Limit", "X_Limit", "Height_Plot", "Width_Plot"
     )
     def contPlot(self):
-        print(f"{self.event_selector = }")
-        print(f"{self.df_new = }")
         df1 = self.df_new[self.event_selector]
-        print(f"{df1.columns = }")
         # height = self.Heigth_Plot
         # width = self.Width_Plot
         # logger.info(height, width)
@@ -339,7 +336,6 @@ class Viewer(param.Parameterized):
             return plot
 
         else:
-            print(f"{self.x = }")
             xpoints = df1[self.x]
             ypoints = df1[self.y]
             if self.Y_Limit == None:
