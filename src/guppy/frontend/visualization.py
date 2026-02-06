@@ -40,6 +40,15 @@ def make_dir(filepath):
 
 # create a class to make GUI and plot different graphs
 class Viewer(param.Parameterized):
+    event_selector_objects = param.List(default=None)
+    event_selector_heatmap_objects = param.List(default=None)
+    selector_for_multipe_events_plot_objects = param.List(default=None)
+    color_map_objects = param.List(default=None)
+    x_objects = param.List(default=None)
+    y_objects = param.List(default=None)
+    heatmap_y_objects = param.List(default=None)
+    psth_y_objects = param.List(default=None)
+
     filepath = param.Path(default=None)
     # create different options and selectors
     event_selector = param.ObjectSelector(default=None)
@@ -76,6 +85,24 @@ class Viewer(param.Parameterized):
 
     def __init__(self, **params):
         super().__init__(**params)
+        # Bind selector objects from companion params
+        self.param.event_selector.objects = self.event_selector_objects
+        self.param.event_selector_heatmap.objects = self.event_selector_heatmap_objects
+        self.param.selector_for_multipe_events_plot.objects = self.selector_for_multipe_events_plot_objects
+        self.param.color_map.objects = self.color_map_objects
+        self.param.x.objects = self.x_objects
+        self.param.y.objects = self.y_objects
+        self.param.heatmap_y.objects = self.heatmap_y_objects
+        self.param.psth_y.objects = self.psth_y_objects
+
+        # Set defaults
+        self.event_selector = self.event_selector_objects[0]
+        self.event_selector_heatmap = self.event_selector_heatmap_objects[0]
+        self.selector_for_multipe_events_plot = [self.selector_for_multipe_events_plot_objects[0]]
+        self.x = self.x_objects[0]
+        self.y = self.y_objects[-2]
+        self.heatmap_y = [self.heatmap_y_objects[-1]]
+
         self.param.X_Limit.bounds = (self.x_min, self.x_max)
 
     # function to save heatmaps when save button on heatmap tab is clicked
@@ -131,8 +158,8 @@ class Viewer(param.Parameterized):
     # function to change Y values based on event selection
     @param.depends("event_selector", watch=True)
     def _update_x_y(self):
-        x_value = self.columns[self.event_selector]
-        y_value = self.columns[self.event_selector]
+        x_value = self.columns_dict[self.event_selector]
+        y_value = self.columns_dict[self.event_selector]
         self.param["x"].objects = [x_value[-4]]
         self.param["y"].objects = remove_cols(y_value)
         self.x = x_value[-4]
@@ -140,7 +167,7 @@ class Viewer(param.Parameterized):
 
     @param.depends("event_selector_heatmap", watch=True)
     def _update_df(self):
-        cols = self.columns[self.event_selector_heatmap]
+        cols = self.columns_dict[self.event_selector_heatmap]
         trial_no = range(1, len(remove_cols(cols)[:-2]) + 1)
         trial_ts = ["{} - {}".format(i, j) for i, j in zip(trial_no, remove_cols(cols)[:-2])] + ["All"]
         self.param["heatmap_y"].objects = trial_ts
@@ -148,7 +175,7 @@ class Viewer(param.Parameterized):
 
     @param.depends("event_selector", watch=True)
     def _update_psth_y(self):
-        cols = self.columns[self.event_selector]
+        cols = self.columns_dict[self.event_selector]
         trial_no = range(1, len(remove_cols(cols)[:-2]) + 1)
         trial_ts = ["{} - {}".format(i, j) for i, j in zip(trial_no, remove_cols(cols)[:-2])]
         self.param["psth_y"].objects = trial_ts

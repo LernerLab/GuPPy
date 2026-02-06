@@ -119,19 +119,19 @@ def helper_plots(filepath, event, name, inputParameters):
     ] + ["All"]
 
     view = Viewer(
-        event_selector=new_event,
-        event_selector_heatmap=heatmap_options,
-        selector_for_multipe_events_plot=multiple_plots_options,
+        event_selector_objects=new_event,
+        event_selector_heatmap_objects=heatmap_options,
+        selector_for_multipe_events_plot_objects=multiple_plots_options,
         columns_dict=columns_dict,
         df_new=df,
         x_min=x_min,
         x_max=x_max,
-        color_map=colormaps,
+        color_map_objects=colormaps,
         filepath=filepath,
-        x=x,
-        y=y,
-        heatmap_y=trial_ts,
-        psth_y=trial_ts[:-1],
+        x_objects=x,
+        y_objects=y,
+        heatmap_y_objects=trial_ts,
+        psth_y_objects=trial_ts[:-1],
     )
 
     # PSTH plot options
