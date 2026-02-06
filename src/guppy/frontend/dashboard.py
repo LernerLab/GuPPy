@@ -3,7 +3,6 @@ import logging
 import panel as pn
 
 from .frontend_utils import scanPortsAndFind
-from .visualization import Viewer
 
 pn.extension()
 
@@ -13,74 +12,23 @@ logger = logging.getLogger(__name__)
 class VisualizationDashboard:
     """Dashboard for interactive PSTH and heatmap visualization.
 
-    Composes a ``Viewer`` instance with Panel widgets and a tabbed layout.
-    Data loading and preparation are handled externally; this class
-    receives already-prepared data and is responsible for widget creation,
-    layout assembly, and serving the application.
+    Wraps a ``Viewer`` instance with Panel widgets and a tabbed layout.
+    Data loading, preparation, and Viewer instantiation are handled
+    externally; this class is responsible for widget creation, layout
+    assembly, and serving the application.
 
     Parameters
     ----------
+    viewer : Viewer
+        A fully configured Viewer instance that provides reactive plot
+        methods and param-based controls.
     basename : str
         Session name displayed as the tab title.
-    filepath : str
-        Output directory path (used by Viewer for saving plots).
-    df : pandas.DataFrame
-        Concatenated multi-indexed DataFrame of PSTH data.
-    columns_dict : dict
-        Mapping of event names to their available column names.
-    event_options : list
-        Event names for the PSTH event selector.
-    heatmap_options : list
-        Event names for the heatmap event selector.
-    multiple_plots_options : list
-        Options for the multi-event overlay selector.
-    colormaps : list
-        Ordered list of matplotlib colormap names.
-    x_options : list
-        X-axis column options.
-    y_options : list
-        Y-axis column options.
-    trial_options : list
-        Trial labels (including "All" as last element).
-    x_min : float
-        Lower bound for the X-axis range slider.
-    x_max : float
-        Upper bound for the X-axis range slider.
     """
 
-    def __init__(
-        self,
-        *,
-        basename,
-        filepath,
-        df,
-        columns_dict,
-        event_options,
-        heatmap_options,
-        multiple_plots_options,
-        colormaps,
-        x_options,
-        y_options,
-        trial_options,
-        x_min,
-        x_max,
-    ):
+    def __init__(self, *, viewer, basename):
+        self.viewer = viewer
         self.basename = basename
-        self.viewer = Viewer(
-            event_selector_objects=event_options,
-            event_selector_heatmap_objects=heatmap_options,
-            selector_for_multipe_events_plot_objects=multiple_plots_options,
-            columns_dict=columns_dict,
-            df_new=df,
-            x_min=x_min,
-            x_max=x_max,
-            color_map_objects=colormaps,
-            filepath=filepath,
-            x_objects=x_options,
-            y_objects=y_options,
-            heatmap_y_objects=trial_options,
-            psth_y_objects=trial_options[:-1],
-        )
         self._psth_tab = self._build_psth_tab()
         self._heatmap_tab = self._build_heatmap_tab()
 
