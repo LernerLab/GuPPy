@@ -7,9 +7,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from .frontend.parameterized_plotter import ParameterizedPlotter, remove_cols
-from .frontend.visualization_dashboard import VisualizationDashboard
-from .utils.utils import get_all_stores_for_combining_data, read_Df, takeOnlyDirs
+from ..frontend.parameterized_plotter import ParameterizedPlotter, remove_cols
+from ..frontend.visualization_dashboard import VisualizationDashboard
+from ..utils.utils import get_all_stores_for_combining_data, read_Df, takeOnlyDirs
 
 logger = logging.getLogger(__name__)
 

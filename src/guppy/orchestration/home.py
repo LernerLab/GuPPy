@@ -9,11 +9,11 @@ import panel as pn
 
 from .save_parameters import save_parameters
 from .storenames import orchestrate_storenames_page
+from .visualize import visualizeResults
 from ..frontend.input_parameters import ParameterForm
 from ..frontend.path_selection import get_folder_path
 from ..frontend.progress import readPBIncrementValues
 from ..frontend.sidebar import Sidebar
-from ..visualizePlot import visualizeResults
 
 logger = logging.getLogger(__name__)
 
