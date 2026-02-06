@@ -7,8 +7,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from .frontend.dashboard import VisualizationDashboard
-from .frontend.visualization import Viewer, remove_cols
+from .frontend.parameterized_plotter import ParameterizedPlotter, remove_cols
+from .frontend.visualization_dashboard import VisualizationDashboard
 from .utils.utils import get_all_stores_for_combining_data, read_Df, takeOnlyDirs
 
 logger = logging.getLogger(__name__)
@@ -115,7 +115,7 @@ def helper_plots(filepath, event, name, inputParameters):
         "{} - {}".format(i, j) for i, j in zip(trial_no, remove_cols(columns_dict[heatmap_options[0]])[:-2])
     ] + ["All"]
 
-    viewer = Viewer(
+    plotter = ParameterizedPlotter(
         event_selector_objects=new_event,
         event_selector_heatmap_objects=heatmap_options,
         selector_for_multipe_events_plot_objects=multiple_plots_options,
@@ -130,7 +130,7 @@ def helper_plots(filepath, event, name, inputParameters):
         heatmap_y_objects=trial_ts,
         psth_y_objects=trial_ts[:-1],
     )
-    dashboard = VisualizationDashboard(viewer=viewer, basename=basename)
+    dashboard = VisualizationDashboard(plotter=plotter, basename=basename)
     dashboard.show()
 
 
