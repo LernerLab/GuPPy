@@ -268,6 +268,7 @@ def step4(
     npm_timestamp_column_names: list[str | None] | None = None,
     npm_time_units: list[str] | None = None,
     npm_split_events: list[bool] | None = None,
+    combine_data: bool = False,
 ) -> None:
     """
     Run pipeline Step 4 (Extract timestamps and signal) via the Panel-backed logic, headlessly.
@@ -293,6 +294,8 @@ def step4(
         List of time units for NPM files, one per CSV file (e.g., 'seconds', 'milliseconds'). None if not applicable.
     npm_split_events : list[bool] | None
         List of booleans indicating whether to split events for NPM files, one per CSV file. None if not applicable.
+    combine_data : bool
+        Whether to enable data combining logic in Step 4.
 
     Raises
     ------
@@ -344,6 +347,9 @@ def step4(
 
     # Inject modality
     input_params["modality"] = modality
+
+    # Inject combine_data
+    input_params["combine_data"] = combine_data
 
     # Call the underlying Step 4 worker directly (no subprocess)
     extractTsAndSignal(input_params)

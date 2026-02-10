@@ -1,22 +1,44 @@
-import fnmatch
 import glob
 import json
 import logging
 import os
-import re
-import shutil
 import sys
 
-import h5py
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-from scipy import signal as ss
-from scipy.optimize import curve_fit
 
-from .combineDataFn import processTimestampsForCombiningData
-
-logger = logging.getLogger(__name__)
+from .analysis.artifact_removal import remove_artifacts
+from .analysis.combine_data import combine_data
+from .analysis.control_channel import add_control_channel, create_control_channel
+from .analysis.io_utils import (
+    check_storeslistfile,
+    check_TDT,
+    find_files,
+    get_all_stores_for_combining_data,  # noqa: F401 -- Necessary for other modules that depend on preprocess.py
+    get_coords,
+    read_hdf5,
+    takeOnlyDirs,
+)
+from .analysis.standard_io import (
+    read_control_and_signal,
+    read_coords_pairwise,
+    read_corrected_data,
+    read_corrected_data_dict,
+    read_corrected_timestamps_pairwise,
+    read_corrected_ttl_timestamps,
+    read_data_for_combining_data,
+    read_timestamps_for_combining_data,
+    read_ttl,
+    read_ttl_timestamps_for_combining_data,
+    write_artifact_removal,
+    write_combined_data,
+    write_corrected_data,
+    write_corrected_timestamps,
+    write_corrected_ttl_timestamps,
+    write_zscore,
+)
+from .analysis.timestamp_correction import correct_timestamps
+from .analysis.z_score import compute_z_score
 
 logger = logging.getLogger(__name__)
 
@@ -25,402 +47,9 @@ if not os.getenv("CI"):
     plt.switch_backend("TKAgg")
 
 
-def takeOnlyDirs(paths):
-    removePaths = []
-    for p in paths:
-        if os.path.isfile(p):
-            removePaths.append(p)
-    return list(set(paths) - set(removePaths))
-
-
 def writeToFile(value: str):
     with open(os.path.join(os.path.expanduser("~"), "pbSteps.txt"), "a") as file:
         file.write(value)
-
-
-# find files by ignoring the case sensitivity
-def find_files(path, glob_path, ignore_case=False):
-    rule = (
-        re.compile(fnmatch.translate(glob_path), re.IGNORECASE)
-        if ignore_case
-        else re.compile(fnmatch.translate(glob_path))
-    )
-
-    no_bytes_path = os.listdir(os.path.expanduser(path))
-    str_path = []
-
-    # converting byte object to string
-    for x in no_bytes_path:
-        try:
-            str_path.append(x.decode("utf-8"))
-        except:
-            str_path.append(x)
-    return [os.path.join(path, n) for n in str_path if rule.match(n)]
-
-
-# curve fit exponential function
-def curveFitFn(x, a, b, c):
-    return a + (b * np.exp(-(1 / c) * x))
-
-
-# helper function to create control channel using signal channel
-# by curve fitting signal channel to exponential function
-# when there is no isosbestic control channel is present
-def helper_create_control_channel(signal, timestamps, window):
-    # check if window is greater than signal shape
-    if window > signal.shape[0]:
-        window = ((signal.shape[0] + 1) / 2) + 1
-        if window % 2 != 0:
-            window = window
-        else:
-            window = window + 1
-
-    filtered_signal = ss.savgol_filter(signal, window_length=window, polyorder=3)
-
-    p0 = [5, 50, 60]
-
-    try:
-        popt, pcov = curve_fit(curveFitFn, timestamps, filtered_signal, p0)
-    except Exception as e:
-        logger.error(str(e))
-
-    # logger.info('Curve Fit Parameters : ', popt)
-    control = curveFitFn(timestamps, *popt)
-
-    return control
-
-
-# main function to create control channel using
-# signal channel and save it to a file
-def create_control_channel(filepath, arr, window=5001):
-
-    storenames = arr[0, :]
-    storesList = arr[1, :]
-
-    for i in range(storesList.shape[0]):
-        event_name, event = storesList[i], storenames[i]
-        if "control" in event_name.lower() and "cntrl" in event.lower():
-            logger.debug("Creating control channel from signal channel using curve-fitting")
-            name = event_name.split("_")[-1]
-            signal = read_hdf5("signal_" + name, filepath, "data")
-            timestampNew = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
-            sampling_rate = np.full(timestampNew.shape, np.nan)
-            sampling_rate[0] = read_hdf5("timeCorrection_" + name, filepath, "sampling_rate")[0]
-
-            control = helper_create_control_channel(signal, timestampNew, window)
-
-            write_hdf5(control, event_name, filepath, "data")
-            d = {"timestamps": timestampNew, "data": control, "sampling_rate": sampling_rate}
-            df = pd.DataFrame(d)
-            df.to_csv(os.path.join(os.path.dirname(filepath), event.lower() + ".csv"), index=False)
-            logger.info("Control channel from signal channel created using curve-fitting")
-
-
-# function to add control channel when there is no
-# isosbestic control channel and update the storeslist file
-def add_control_channel(filepath, arr):
-
-    storenames = arr[0, :]
-    storesList = np.char.lower(arr[1, :])
-
-    keep_control = np.array([])
-    # check a case if there is isosbestic control channel present
-    for i in range(storesList.shape[0]):
-        if "control" in storesList[i].lower():
-            name = storesList[i].split("_")[-1]
-            new_str = "signal_" + str(name).lower()
-            find_signal = [True for i in storesList if i == new_str]
-            if len(find_signal) > 1:
-                logger.error("Error in naming convention of files or Error in storesList file")
-                raise Exception("Error in naming convention of files or Error in storesList file")
-            if len(find_signal) == 0:
-                logger.error(
-                    "Isosbectic control channel parameter is set to False and still \
-							 	 storeslist file shows there is control channel present"
-                )
-                raise Exception(
-                    "Isosbectic control channel parameter is set to False and still \
-							 	 storeslist file shows there is control channel present"
-                )
-        else:
-            continue
-
-    for i in range(storesList.shape[0]):
-        if "signal" in storesList[i].lower():
-            name = storesList[i].split("_")[-1]
-            new_str = "control_" + str(name).lower()
-            find_signal = [True for i in storesList if i == new_str]
-            if len(find_signal) == 0:
-                src, dst = os.path.join(filepath, arr[0, i] + ".hdf5"), os.path.join(
-                    filepath, "cntrl" + str(i) + ".hdf5"
-                )
-                shutil.copyfile(src, dst)
-                arr = np.concatenate((arr, [["cntrl" + str(i)], ["control_" + str(arr[1, i].split("_")[-1])]]), axis=1)
-
-    np.savetxt(os.path.join(filepath, "storesList.csv"), arr, delimiter=",", fmt="%s")
-
-    return arr
-
-
-# check if dealing with TDT files or csv files
-def check_TDT(filepath):
-    path = glob.glob(os.path.join(filepath, "*.tsq"))
-    if len(path) > 0:
-        return True
-    else:
-        return False
-
-
-# function to read hdf5 file
-def read_hdf5(event, filepath, key):
-    if event:
-        event = event.replace("\\", "_")
-        event = event.replace("/", "_")
-        op = os.path.join(filepath, event + ".hdf5")
-    else:
-        op = filepath
-
-    if os.path.exists(op):
-        with h5py.File(op, "r") as f:
-            arr = np.asarray(f[key])
-    else:
-        logger.error(f"{event}.hdf5 file does not exist")
-        raise Exception("{}.hdf5 file does not exist".format(event))
-
-    return arr
-
-
-# function to write hdf5 file
-def write_hdf5(data, event, filepath, key):
-    event = event.replace("\\", "_")
-    event = event.replace("/", "_")
-    op = os.path.join(filepath, event + ".hdf5")
-
-    # if file does not exist create a new file
-    if not os.path.exists(op):
-        with h5py.File(op, "w") as f:
-            if type(data) is np.ndarray:
-                f.create_dataset(key, data=data, maxshape=(None,), chunks=True)
-            else:
-                f.create_dataset(key, data=data)
-
-    # if file already exists, append data to it or add a new key to it
-    else:
-        with h5py.File(op, "r+") as f:
-            if key in list(f.keys()):
-                if type(data) is np.ndarray:
-                    f[key].resize(data.shape)
-                    arr = f[key]
-                    arr[:] = data
-                else:
-                    arr = f[key]
-                    arr = data
-            else:
-                if type(data) is np.ndarray:
-                    f.create_dataset(key, data=data, maxshape=(None,), chunks=True)
-                else:
-                    f.create_dataset(key, data=data)
-
-
-# function to check control and signal channel has same length
-# if not, take a smaller length and do pre-processing
-def check_cntrl_sig_length(filepath, channels_arr, storenames, storesList):
-
-    indices = []
-    for i in range(channels_arr.shape[1]):
-        idx_c = np.where(storesList == channels_arr[0, i])[0]
-        idx_s = np.where(storesList == channels_arr[1, i])[0]
-        control = read_hdf5(storenames[idx_c[0]], filepath, "data")
-        signal = read_hdf5(storenames[idx_s[0]], filepath, "data")
-        if control.shape[0] < signal.shape[0]:
-            indices.append(storesList[idx_c[0]])
-        elif control.shape[0] > signal.shape[0]:
-            indices.append(storesList[idx_s[0]])
-        else:
-            indices.append(storesList[idx_s[0]])
-
-    return indices
-
-
-# function to correct timestamps after eliminating first few seconds of the data (for csv data)
-def timestampCorrection_csv(filepath, timeForLightsTurnOn, storesList):
-
-    logger.debug(
-        f"Correcting timestamps by getting rid of the first {timeForLightsTurnOn} seconds and convert timestamps to seconds"
-    )
-    storenames = storesList[0, :]
-    storesList = storesList[1, :]
-
-    arr = []
-    for i in range(storesList.shape[0]):
-        if "control" in storesList[i].lower() or "signal" in storesList[i].lower():
-            arr.append(storesList[i])
-
-    arr = sorted(arr, key=str.casefold)
-    try:
-        arr = np.asarray(arr).reshape(2, -1)
-    except:
-        logger.error("Error in saving stores list file or spelling mistake for control or signal")
-        raise Exception("Error in saving stores list file or spelling mistake for control or signal")
-
-    indices = check_cntrl_sig_length(filepath, arr, storenames, storesList)
-
-    for i in range(arr.shape[1]):
-        name_1 = arr[0, i].split("_")[-1]
-        name_2 = arr[1, i].split("_")[-1]
-        # dirname = os.path.dirname(path[i])
-        idx = np.where(storesList == indices[i])[0]
-
-        if idx.shape[0] == 0:
-            logger.error(f"{arr[0,i]} does not exist in the stores list file.")
-            raise Exception("{} does not exist in the stores list file.".format(arr[0, i]))
-
-        timestamp = read_hdf5(storenames[idx][0], filepath, "timestamps")
-        sampling_rate = read_hdf5(storenames[idx][0], filepath, "sampling_rate")
-
-        if name_1 == name_2:
-            correctionIndex = np.where(timestamp >= timeForLightsTurnOn)[0]
-            timestampNew = timestamp[correctionIndex]
-            write_hdf5(timestampNew, "timeCorrection_" + name_1, filepath, "timestampNew")
-            write_hdf5(correctionIndex, "timeCorrection_" + name_1, filepath, "correctionIndex")
-            write_hdf5(np.asarray(sampling_rate), "timeCorrection_" + name_1, filepath, "sampling_rate")
-
-        else:
-            logger.error("Error in naming convention of files or Error in storesList file")
-            raise Exception("Error in naming convention of files or Error in storesList file")
-
-    logger.info("Timestamps corrected and converted to seconds.")
-
-
-# function to correct timestamps after eliminating first few seconds of the data (for TDT data)
-def timestampCorrection_tdt(filepath, timeForLightsTurnOn, storesList):
-
-    logger.debug(
-        f"Correcting timestamps by getting rid of the first {timeForLightsTurnOn} seconds and convert timestamps to seconds"
-    )
-    storenames = storesList[0, :]
-    storesList = storesList[1, :]
-
-    arr = []
-    for i in range(storesList.shape[0]):
-        if "control" in storesList[i].lower() or "signal" in storesList[i].lower():
-            arr.append(storesList[i])
-
-    arr = sorted(arr, key=str.casefold)
-
-    try:
-        arr = np.asarray(arr).reshape(2, -1)
-    except:
-        logger.error("Error in saving stores list file or spelling mistake for control or signal")
-        raise Exception("Error in saving stores list file or spelling mistake for control or signal")
-
-    indices = check_cntrl_sig_length(filepath, arr, storenames, storesList)
-
-    for i in range(arr.shape[1]):
-        name_1 = arr[0, i].split("_")[-1]
-        name_2 = arr[1, i].split("_")[-1]
-        # dirname = os.path.dirname(path[i])
-        idx = np.where(storesList == indices[i])[0]
-
-        if idx.shape[0] == 0:
-            logger.error(f"{arr[0,i]} does not exist in the stores list file.")
-            raise Exception("{} does not exist in the stores list file.".format(arr[0, i]))
-
-        timestamp = read_hdf5(storenames[idx][0], filepath, "timestamps")
-        npoints = read_hdf5(storenames[idx][0], filepath, "npoints")
-        sampling_rate = read_hdf5(storenames[idx][0], filepath, "sampling_rate")
-
-        if name_1 == name_2:
-            timeRecStart = timestamp[0]
-            timestamps = np.subtract(timestamp, timeRecStart)
-            adder = np.arange(npoints) / sampling_rate
-            lengthAdder = adder.shape[0]
-            timestampNew = np.zeros((len(timestamps), lengthAdder))
-            for i in range(lengthAdder):
-                timestampNew[:, i] = np.add(timestamps, adder[i])
-            timestampNew = (timestampNew.T).reshape(-1, order="F")
-            correctionIndex = np.where(timestampNew >= timeForLightsTurnOn)[0]
-            timestampNew = timestampNew[correctionIndex]
-
-            write_hdf5(np.asarray([timeRecStart]), "timeCorrection_" + name_1, filepath, "timeRecStart")
-            write_hdf5(timestampNew, "timeCorrection_" + name_1, filepath, "timestampNew")
-            write_hdf5(correctionIndex, "timeCorrection_" + name_1, filepath, "correctionIndex")
-            write_hdf5(np.asarray([sampling_rate]), "timeCorrection_" + name_1, filepath, "sampling_rate")
-        else:
-            logger.error("Error in naming convention of files or Error in storesList file")
-            raise Exception("Error in naming convention of files or Error in storesList file")
-
-    logger.info("Timestamps corrected and converted to seconds.")
-    # return timeRecStart, correctionIndex, timestampNew
-
-
-# function to apply correction to control, signal and event timestamps
-def applyCorrection(filepath, timeForLightsTurnOn, event, displayName, naming):
-
-    cond = check_TDT(os.path.dirname(filepath))
-
-    if cond == True:
-        timeRecStart = read_hdf5("timeCorrection_" + naming, filepath, "timeRecStart")[0]
-
-    timestampNew = read_hdf5("timeCorrection_" + naming, filepath, "timestampNew")
-    correctionIndex = read_hdf5("timeCorrection_" + naming, filepath, "correctionIndex")
-
-    if "control" in displayName.lower() or "signal" in displayName.lower():
-        split_name = displayName.split("_")[-1]
-        if split_name == naming:
-            pass
-        else:
-            correctionIndex = read_hdf5("timeCorrection_" + split_name, filepath, "correctionIndex")
-        arr = read_hdf5(event, filepath, "data")
-        if (arr == 0).all() == True:
-            arr = arr
-        else:
-            arr = arr[correctionIndex]
-        write_hdf5(arr, displayName, filepath, "data")
-    else:
-        arr = read_hdf5(event, filepath, "timestamps")
-        if cond == True:
-            res = (arr >= timeRecStart).all()
-            if res == True:
-                arr = np.subtract(arr, timeRecStart)
-                arr = np.subtract(arr, timeForLightsTurnOn)
-            else:
-                arr = np.subtract(arr, timeForLightsTurnOn)
-        else:
-            arr = np.subtract(arr, timeForLightsTurnOn)
-        write_hdf5(arr, displayName + "_" + naming, filepath, "ts")
-
-    # if isosbestic_control==False and 'control' in displayName.lower():
-    # 	control = create_control_channel(filepath, displayName)
-    # 	write_hdf5(control, displayName, filepath, 'data')
-
-
-# function to check if naming convention was followed while saving storeslist file
-# and apply timestamps correction using the function applyCorrection
-def decide_naming_convention_and_applyCorrection(filepath, timeForLightsTurnOn, event, displayName, storesList):
-
-    logger.debug("Applying correction of timestamps to the data and event timestamps")
-    storesList = storesList[1, :]
-
-    arr = []
-    for i in range(storesList.shape[0]):
-        if "control" in storesList[i].lower() or "signal" in storesList[i].lower():
-            arr.append(storesList[i])
-
-    arr = sorted(arr, key=str.casefold)
-    arr = np.asarray(arr).reshape(2, -1)
-
-    for i in range(arr.shape[1]):
-        name_1 = arr[0, i].split("_")[-1]
-        name_2 = arr[1, i].split("_")[-1]
-        # dirname = os.path.dirname(path[i])
-        if name_1 == name_2:
-            applyCorrection(filepath, timeForLightsTurnOn, event, displayName, name_1)
-        else:
-            logger.error("Error in naming convention of files or Error in storesList file")
-            raise Exception("Error in naming convention of files or Error in storesList file")
-
-    logger.info("Timestamps corrections applied to the data and event timestamps.")
 
 
 # function to plot z_score
@@ -590,421 +219,6 @@ def visualizeControlAndSignal(filepath, removeArtifacts):
         visualize(filepath, ts, control, signal, cntrl_sig_fit, plot_name, removeArtifacts)
 
 
-# function to check if the naming convention for saving storeslist file was followed or not
-def decide_naming_convention(filepath):
-    path_1 = find_files(filepath, "control_*", ignore_case=True)  # glob.glob(os.path.join(filepath, 'control*'))
-
-    path_2 = find_files(filepath, "signal_*", ignore_case=True)  # glob.glob(os.path.join(filepath, 'signal*'))
-
-    path = sorted(path_1 + path_2, key=str.casefold)
-    if len(path) % 2 != 0:
-        logger.error("There are not equal number of Control and Signal data")
-        raise Exception("There are not equal number of Control and Signal data")
-
-    path = np.asarray(path).reshape(2, -1)
-
-    return path
-
-
-# function to read coordinates file which was saved by selecting chunks for artifacts removal
-def fetchCoords(filepath, naming, data):
-
-    path = os.path.join(filepath, "coordsForPreProcessing_" + naming + ".npy")
-
-    if not os.path.exists(path):
-        coords = np.array([0, data[-1]])
-    else:
-        coords = np.load(os.path.join(filepath, "coordsForPreProcessing_" + naming + ".npy"))[:, 0]
-
-    if coords.shape[0] % 2 != 0:
-        logger.error("Number of values in coordsForPreProcessing file is not even.")
-        raise Exception("Number of values in coordsForPreProcessing file is not even.")
-
-    coords = coords.reshape(-1, 2)
-
-    return coords
-
-
-# helper function to process control and signal timestamps
-def eliminateData(filepath, timeForLightsTurnOn, event, sampling_rate, naming):
-
-    ts = read_hdf5("timeCorrection_" + naming, filepath, "timestampNew")
-    data = read_hdf5(event, filepath, "data").reshape(-1)
-    coords = fetchCoords(filepath, naming, ts)
-
-    if (data == 0).all() == True:
-        data = np.zeros(ts.shape[0])
-
-    arr = np.array([])
-    ts_arr = np.array([])
-    for i in range(coords.shape[0]):
-
-        index = np.where((ts > coords[i, 0]) & (ts < coords[i, 1]))[0]
-
-        if len(arr) == 0:
-            arr = np.concatenate((arr, data[index]))
-            sub = ts[index][0] - timeForLightsTurnOn
-            new_ts = ts[index] - sub
-            ts_arr = np.concatenate((ts_arr, new_ts))
-        else:
-            temp = data[index]
-            # new = temp + (arr[-1]-temp[0])
-            temp_ts = ts[index]
-            new_ts = temp_ts - (temp_ts[0] - ts_arr[-1])
-            arr = np.concatenate((arr, temp))
-            ts_arr = np.concatenate((ts_arr, new_ts + (1 / sampling_rate)))
-
-    # logger.info(arr.shape, ts_arr.shape)
-    return arr, ts_arr
-
-
-# helper function to align event timestamps with the control and signal timestamps
-def eliminateTs(filepath, timeForLightsTurnOn, event, sampling_rate, naming):
-
-    tsNew = read_hdf5("timeCorrection_" + naming, filepath, "timestampNew")
-    ts = read_hdf5(event + "_" + naming, filepath, "ts").reshape(-1)
-    coords = fetchCoords(filepath, naming, tsNew)
-
-    ts_arr = np.array([])
-    tsNew_arr = np.array([])
-    for i in range(coords.shape[0]):
-        tsNew_index = np.where((tsNew > coords[i, 0]) & (tsNew < coords[i, 1]))[0]
-        ts_index = np.where((ts > coords[i, 0]) & (ts < coords[i, 1]))[0]
-
-        if len(tsNew_arr) == 0:
-            sub = tsNew[tsNew_index][0] - timeForLightsTurnOn
-            tsNew_arr = np.concatenate((tsNew_arr, tsNew[tsNew_index] - sub))
-            ts_arr = np.concatenate((ts_arr, ts[ts_index] - sub))
-        else:
-            temp_tsNew = tsNew[tsNew_index]
-            temp_ts = ts[ts_index]
-            new_ts = temp_ts - (temp_tsNew[0] - tsNew_arr[-1])
-            new_tsNew = temp_tsNew - (temp_tsNew[0] - tsNew_arr[-1])
-            tsNew_arr = np.concatenate((tsNew_arr, new_tsNew + (1 / sampling_rate)))
-            ts_arr = np.concatenate((ts_arr, new_ts + (1 / sampling_rate)))
-
-    return ts_arr
-
-
-# adding nan values to removed chunks
-# when using artifacts removal method - replace with NaN
-def addingNaNValues(filepath, event, naming):
-
-    ts = read_hdf5("timeCorrection_" + naming, filepath, "timestampNew")
-    data = read_hdf5(event, filepath, "data").reshape(-1)
-    coords = fetchCoords(filepath, naming, ts)
-
-    if (data == 0).all() == True:
-        data = np.zeros(ts.shape[0])
-
-    arr = np.array([])
-    ts_index = np.arange(ts.shape[0])
-    for i in range(coords.shape[0]):
-
-        index = np.where((ts > coords[i, 0]) & (ts < coords[i, 1]))[0]
-        arr = np.concatenate((arr, index))
-
-    nan_indices = list(set(ts_index).symmetric_difference(arr))
-    data[nan_indices] = np.nan
-
-    return data
-
-
-# remove event TTLs which falls in the removed chunks
-# when using artifacts removal method - replace with NaN
-def removeTTLs(filepath, event, naming):
-    tsNew = read_hdf5("timeCorrection_" + naming, filepath, "timestampNew")
-    ts = read_hdf5(event + "_" + naming, filepath, "ts").reshape(-1)
-    coords = fetchCoords(filepath, naming, tsNew)
-
-    ts_arr = np.array([])
-    for i in range(coords.shape[0]):
-        ts_index = np.where((ts > coords[i, 0]) & (ts < coords[i, 1]))[0]
-        ts_arr = np.concatenate((ts_arr, ts[ts_index]))
-
-    return ts_arr
-
-
-def addingNaNtoChunksWithArtifacts(filepath, events):
-
-    logger.debug("Replacing chunks with artifacts by NaN values.")
-    storesList = events[1, :]
-
-    path = decide_naming_convention(filepath)
-
-    for j in range(path.shape[1]):
-        name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")
-        name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")
-        # dirname = os.path.dirname(path[i])
-        if name_1[-1] == name_2[-1]:
-            name = name_1[-1]
-            sampling_rate = read_hdf5("timeCorrection_" + name, filepath, "sampling_rate")[0]
-            for i in range(len(storesList)):
-                if (
-                    "control_" + name.lower() in storesList[i].lower()
-                    or "signal_" + name.lower() in storesList[i].lower()
-                ):  # changes done
-                    data = addingNaNValues(filepath, storesList[i], name)
-                    write_hdf5(data, storesList[i], filepath, "data")
-                else:
-                    if "control" in storesList[i].lower() or "signal" in storesList[i].lower():
-                        continue
-                    else:
-                        ts = removeTTLs(filepath, storesList[i], name)
-                        write_hdf5(ts, storesList[i] + "_" + name, filepath, "ts")
-
-        else:
-            logger.error("Error in naming convention of files or Error in storesList file")
-            raise Exception("Error in naming convention of files or Error in storesList file")
-    logger.info("Chunks with artifacts are replaced by NaN values.")
-
-
-# main function to align timestamps for control, signal and event timestamps for artifacts removal
-def processTimestampsForArtifacts(filepath, timeForLightsTurnOn, events):
-
-    logger.debug("Processing timestamps to get rid of artifacts using concatenate method...")
-    storesList = events[1, :]
-
-    path = decide_naming_convention(filepath)
-
-    timestamp_dict = dict()
-    for j in range(path.shape[1]):
-        name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")
-        name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")
-        # dirname = os.path.dirname(path[i])
-        if name_1[-1] == name_2[-1]:
-            name = name_1[-1]
-            sampling_rate = read_hdf5("timeCorrection_" + name, filepath, "sampling_rate")[0]
-
-            for i in range(len(storesList)):
-                if (
-                    "control_" + name.lower() in storesList[i].lower()
-                    or "signal_" + name.lower() in storesList[i].lower()
-                ):  # changes done
-                    data, timestampNew = eliminateData(
-                        filepath, timeForLightsTurnOn, storesList[i], sampling_rate, name
-                    )
-                    write_hdf5(data, storesList[i], filepath, "data")
-                else:
-                    if "control" in storesList[i].lower() or "signal" in storesList[i].lower():
-                        continue
-                    else:
-                        ts = eliminateTs(filepath, timeForLightsTurnOn, storesList[i], sampling_rate, name)
-                        write_hdf5(ts, storesList[i] + "_" + name, filepath, "ts")
-
-            # timestamp_dict[name] = timestampNew
-            write_hdf5(timestampNew, "timeCorrection_" + name, filepath, "timestampNew")
-        else:
-            logger.error("Error in naming convention of files or Error in storesList file")
-            raise Exception("Error in naming convention of files or Error in storesList file")
-    logger.info("Timestamps processed, artifacts are removed and good chunks are concatenated.")
-
-
-# function to compute deltaF/F using fitted control channel and filtered signal channel
-def deltaFF(signal, control):
-
-    res = np.subtract(signal, control)
-    normData = np.divide(res, control)
-    # deltaFF = normData
-    normData = normData * 100
-
-    return normData
-
-
-# function to fit control channel to signal channel
-def controlFit(control, signal):
-
-    p = np.polyfit(control, signal, 1)
-    arr = (p[0] * control) + p[1]
-    return arr
-
-
-def filterSignal(filter_window, signal):
-    if filter_window == 0:
-        return signal
-    elif filter_window > 1:
-        b = np.divide(np.ones((filter_window,)), filter_window)
-        a = 1
-        filtered_signal = ss.filtfilt(b, a, signal)
-        return filtered_signal
-    else:
-        raise Exception("Moving average filter window value is not correct.")
-
-
-# function to filter control and signal channel, also execute above two function : controlFit and deltaFF
-# function will also take care if there is only signal channel and no control channel
-# if there is only signal channel, z-score will be computed using just signal channel
-def execute_controlFit_dff(control, signal, isosbestic_control, filter_window):
-
-    if isosbestic_control == False:
-        signal_smooth = filterSignal(filter_window, signal)  # ss.filtfilt(b, a, signal)
-        control_fit = controlFit(control, signal_smooth)
-        norm_data = deltaFF(signal_smooth, control_fit)
-    else:
-        control_smooth = filterSignal(filter_window, control)  # ss.filtfilt(b, a, control)
-        signal_smooth = filterSignal(filter_window, signal)  # ss.filtfilt(b, a, signal)
-        control_fit = controlFit(control_smooth, signal_smooth)
-        norm_data = deltaFF(signal_smooth, control_fit)
-
-    return norm_data, control_fit
-
-
-# function to compute z-score based on z-score computation method
-def z_score_computation(dff, timestamps, inputParameters):
-
-    zscore_method = inputParameters["zscore_method"]
-    baseline_start, baseline_end = inputParameters["baselineWindowStart"], inputParameters["baselineWindowEnd"]
-
-    if zscore_method == "standard z-score":
-        numerator = np.subtract(dff, np.nanmean(dff))
-        zscore = np.divide(numerator, np.nanstd(dff))
-    elif zscore_method == "baseline z-score":
-        idx = np.where((timestamps > baseline_start) & (timestamps < baseline_end))[0]
-        if idx.shape[0] == 0:
-            logger.error(
-                "Baseline Window Parameters for baseline z-score computation zscore_method \
-							are not correct."
-            )
-            raise Exception(
-                "Baseline Window Parameters for baseline z-score computation zscore_method \
-							are not correct."
-            )
-        else:
-            baseline_mean = np.nanmean(dff[idx])
-            baseline_std = np.nanstd(dff[idx])
-            numerator = np.subtract(dff, baseline_mean)
-            zscore = np.divide(numerator, baseline_std)
-    else:
-        median = np.median(dff)
-        mad = np.median(np.abs(dff - median))
-        numerator = 0.6745 * (dff - median)
-        zscore = np.divide(numerator, mad)
-
-    return zscore
-
-
-# helper function to compute z-score and deltaF/F
-def helper_z_score(control, signal, filepath, name, inputParameters):  # helper_z_score(control_smooth, signal_smooth):
-
-    removeArtifacts = inputParameters["removeArtifacts"]
-    artifactsRemovalMethod = inputParameters["artifactsRemovalMethod"]
-    filter_window = inputParameters["filter_window"]
-
-    isosbestic_control = inputParameters["isosbestic_control"]
-    tsNew = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
-    coords_path = os.path.join(filepath, "coordsForPreProcessing_" + name + ".npy")
-
-    logger.info("Remove Artifacts : ", removeArtifacts)
-
-    if (control == 0).all() == True:
-        control = np.zeros(tsNew.shape[0])
-
-    z_score_arr = np.array([])
-    norm_data_arr = np.full(tsNew.shape[0], np.nan)
-    control_fit_arr = np.full(tsNew.shape[0], np.nan)
-    temp_control_arr = np.full(tsNew.shape[0], np.nan)
-
-    if removeArtifacts == True:
-        coords = fetchCoords(filepath, name, tsNew)
-
-        # for artifacts removal, each chunk which was selected by user is being processed individually and then
-        # z-score is calculated
-        for i in range(coords.shape[0]):
-            tsNew_index = np.where((tsNew > coords[i, 0]) & (tsNew < coords[i, 1]))[0]
-            if isosbestic_control == False:
-                control_arr = helper_create_control_channel(signal[tsNew_index], tsNew[tsNew_index], window=101)
-                signal_arr = signal[tsNew_index]
-                norm_data, control_fit = execute_controlFit_dff(
-                    control_arr, signal_arr, isosbestic_control, filter_window
-                )
-                temp_control_arr[tsNew_index] = control_arr
-                if i < coords.shape[0] - 1:
-                    blank_index = np.where((tsNew > coords[i, 1]) & (tsNew < coords[i + 1, 0]))[0]
-                    temp_control_arr[blank_index] = np.full(blank_index.shape[0], np.nan)
-            else:
-                control_arr = control[tsNew_index]
-                signal_arr = signal[tsNew_index]
-                norm_data, control_fit = execute_controlFit_dff(
-                    control_arr, signal_arr, isosbestic_control, filter_window
-                )
-            norm_data_arr[tsNew_index] = norm_data
-            control_fit_arr[tsNew_index] = control_fit
-
-        if artifactsRemovalMethod == "concatenate":
-            norm_data_arr = norm_data_arr[~np.isnan(norm_data_arr)]
-            control_fit_arr = control_fit_arr[~np.isnan(control_fit_arr)]
-        z_score = z_score_computation(norm_data_arr, tsNew, inputParameters)
-        z_score_arr = np.concatenate((z_score_arr, z_score))
-    else:
-        tsNew_index = np.arange(tsNew.shape[0])
-        norm_data, control_fit = execute_controlFit_dff(control, signal, isosbestic_control, filter_window)
-        z_score = z_score_computation(norm_data, tsNew, inputParameters)
-        z_score_arr = np.concatenate((z_score_arr, z_score))
-        norm_data_arr[tsNew_index] = norm_data  # np.concatenate((norm_data_arr, norm_data))
-        control_fit_arr[tsNew_index] = control_fit  # np.concatenate((control_fit_arr, control_fit))
-
-    # handle the case if there are chunks being cut in the front and the end
-    if isosbestic_control == False and removeArtifacts == True:
-        coords = coords.flatten()
-        # front chunk
-        idx = np.where((tsNew >= tsNew[0]) & (tsNew < coords[0]))[0]
-        temp_control_arr[idx] = np.full(idx.shape[0], np.nan)
-        # end chunk
-        idx = np.where((tsNew > coords[-1]) & (tsNew <= tsNew[-1]))[0]
-        temp_control_arr[idx] = np.full(idx.shape[0], np.nan)
-        write_hdf5(temp_control_arr, "control_" + name, filepath, "data")
-
-    return z_score_arr, norm_data_arr, control_fit_arr
-
-
-# compute z-score and deltaF/F and save it to hdf5 file
-def compute_z_score(filepath, inputParameters):
-
-    logger.debug(f"Computing z-score for each of the data in {filepath}")
-    remove_artifacts = inputParameters["removeArtifacts"]
-
-    path_1 = find_files(filepath, "control_*", ignore_case=True)  # glob.glob(os.path.join(filepath, 'control*'))
-    path_2 = find_files(filepath, "signal_*", ignore_case=True)  # glob.glob(os.path.join(filepath, 'signal*'))
-
-    path = sorted(path_1 + path_2, key=str.casefold)
-
-    b = np.divide(np.ones((100,)), 100)
-    a = 1
-
-    if len(path) % 2 != 0:
-        logger.error("There are not equal number of Control and Signal data")
-        raise Exception("There are not equal number of Control and Signal data")
-
-    path = np.asarray(path).reshape(2, -1)
-
-    for i in range(path.shape[1]):
-        name_1 = ((os.path.basename(path[0, i])).split(".")[0]).split("_")
-        name_2 = ((os.path.basename(path[1, i])).split(".")[0]).split("_")
-        # dirname = os.path.dirname(path[i])
-
-        if name_1[-1] == name_2[-1]:
-            name = name_1[-1]
-            control = read_hdf5("", path[0, i], "data").reshape(-1)
-            signal = read_hdf5("", path[1, i], "data").reshape(-1)
-            # control_smooth = ss.filtfilt(b, a, control)
-            # signal_smooth = ss.filtfilt(b, a, signal)
-            # _score, dff = helper_z_score(control_smooth, signal_smooth)
-            z_score, dff, control_fit = helper_z_score(control, signal, filepath, name, inputParameters)
-            if remove_artifacts == True:
-                write_hdf5(z_score, "z_score_" + name, filepath, "data")
-                write_hdf5(dff, "dff_" + name, filepath, "data")
-                write_hdf5(control_fit, "cntrl_sig_fit_" + name, filepath, "data")
-            else:
-                write_hdf5(z_score, "z_score_" + name, filepath, "data")
-                write_hdf5(dff, "dff_" + name, filepath, "data")
-                write_hdf5(control_fit, "cntrl_sig_fit_" + name, filepath, "data")
-        else:
-            logger.error("Error in naming convention of files or Error in storesList file")
-            raise Exception("Error in naming convention of files or Error in storesList file")
-
-    logger.info(f"z-score for the data in {filepath} computed.")
-
-
 # function to execute timestamps corrections using functions timestampCorrection and decide_naming_convention_and_applyCorrection
 def execute_timestamp_correction(folderNames, inputParameters):
 
@@ -1014,7 +228,7 @@ def execute_timestamp_correction(folderNames, inputParameters):
     for i in range(len(folderNames)):
         filepath = folderNames[i]
         storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*")))
-        cond = check_TDT(folderNames[i])
+        mode = "tdt" if check_TDT(folderNames[i]) else "csv"
         logger.debug(f"Timestamps corrections started for {filepath}")
         for j in range(len(storesListPath)):
             filepath = storesListPath[j]
@@ -1025,15 +239,36 @@ def execute_timestamp_correction(folderNames, inputParameters):
             if isosbestic_control == False:
                 storesList = add_control_channel(filepath, storesList)
 
-            if cond == True:
-                timestampCorrection_tdt(filepath, timeForLightsTurnOn, storesList)
-            else:
-                timestampCorrection_csv(filepath, timeForLightsTurnOn, storesList)
+            control_and_signal_dicts = read_control_and_signal(filepath, storesList)
+            name_to_data, name_to_timestamps, name_to_sampling_rate, name_to_npoints = control_and_signal_dicts
+            name_to_timestamps_ttl = read_ttl(filepath, storesList)
 
-            for k in range(storesList.shape[1]):
-                decide_naming_convention_and_applyCorrection(
-                    filepath, timeForLightsTurnOn, storesList[0, k], storesList[1, k], storesList
-                )
+            timestamps_dicts = correct_timestamps(
+                timeForLightsTurnOn,
+                storesList,
+                name_to_timestamps,
+                name_to_data,
+                name_to_sampling_rate,
+                name_to_npoints,
+                name_to_timestamps_ttl,
+                mode=mode,
+            )
+            (
+                name_to_corrected_timestamps,
+                name_to_correctionIndex,
+                name_to_corrected_data,
+                compound_name_to_corrected_ttl_timestamps,
+            ) = timestamps_dicts
+
+            write_corrected_timestamps(
+                filepath,
+                name_to_corrected_timestamps,
+                name_to_timestamps,
+                name_to_sampling_rate,
+                name_to_correctionIndex,
+            )
+            write_corrected_data(filepath, name_to_corrected_data)
+            write_corrected_ttl_timestamps(filepath, compound_name_to_corrected_ttl_timestamps)
 
             # check if isosbestic control is false and also if new control channel is added
             if isosbestic_control == False:
@@ -1044,45 +279,133 @@ def execute_timestamp_correction(folderNames, inputParameters):
         logger.info(f"Timestamps corrections finished for {filepath}")
 
 
-# for combining data, reading storeslist file from both data and create a new storeslist array
-def check_storeslistfile(folderNames):
-    storesList = np.array([[], []])
+# function to compute z-score and deltaF/F
+def execute_zscore(folderNames, inputParameters):
+
+    plot_zScore_dff = inputParameters["plot_zScore_dff"]
+    combine_data = inputParameters["combine_data"]
+    remove_artifacts = inputParameters["removeArtifacts"]
+    artifactsRemovalMethod = inputParameters["artifactsRemovalMethod"]
+    filter_window = inputParameters["filter_window"]
+    isosbestic_control = inputParameters["isosbestic_control"]
+    zscore_method = inputParameters["zscore_method"]
+    baseline_start, baseline_end = inputParameters["baselineWindowStart"], inputParameters["baselineWindowEnd"]
+
+    storesListPath = []
     for i in range(len(folderNames)):
-        filepath = folderNames[i]
-        storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*")))
-        for j in range(len(storesListPath)):
-            filepath = storesListPath[j]
-            storesList = np.concatenate(
-                (
-                    storesList,
-                    np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1),
-                ),
-                axis=1,
+        if combine_data == True:
+            storesListPath.append([folderNames[i][0]])
+        else:
+            filepath = folderNames[i]
+            storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+    storesListPath = np.concatenate(storesListPath)
+
+    for j in range(len(storesListPath)):
+        filepath = storesListPath[j]
+        logger.debug(f"Computing z-score for each of the data in {filepath}")
+        path_1 = find_files(filepath, "control_*", ignore_case=True)  # glob.glob(os.path.join(filepath, 'control*'))
+        path_2 = find_files(filepath, "signal_*", ignore_case=True)  # glob.glob(os.path.join(filepath, 'signal*'))
+        path = sorted(path_1 + path_2, key=str.casefold)
+        if len(path) % 2 != 0:
+            logger.error("There are not equal number of Control and Signal data")
+            raise Exception("There are not equal number of Control and Signal data")
+        path = np.asarray(path).reshape(2, -1)
+
+        for i in range(path.shape[1]):
+            name_1 = ((os.path.basename(path[0, i])).split(".")[0]).split("_")
+            name_2 = ((os.path.basename(path[1, i])).split(".")[0]).split("_")
+            if name_1[-1] != name_2[-1]:
+                logger.error("Error in naming convention of files or Error in storesList file")
+                raise Exception("Error in naming convention of files or Error in storesList file")
+            name = name_1[-1]
+
+            control, signal, tsNew = read_corrected_data(path[0, i], path[1, i], filepath, name)
+            coords = get_coords(filepath, name, tsNew, remove_artifacts)
+            z_score, dff, control_fit, temp_control_arr = compute_z_score(
+                control,
+                signal,
+                tsNew,
+                coords,
+                artifactsRemovalMethod,
+                filter_window,
+                isosbestic_control,
+                zscore_method,
+                baseline_start,
+                baseline_end,
             )
+            write_zscore(filepath, name, z_score, dff, control_fit, temp_control_arr)
 
-    storesList = np.unique(storesList, axis=1)
+        logger.info(f"z-score for the data in {filepath} computed.")
 
-    return storesList
+        if not remove_artifacts:
+            visualizeControlAndSignal(filepath, removeArtifacts=remove_artifacts)
+
+        if plot_zScore_dff == "z_score":
+            visualize_z_score(filepath)
+        if plot_zScore_dff == "dff":
+            visualize_dff(filepath)
+        if plot_zScore_dff == "Both":
+            visualize_z_score(filepath)
+            visualize_dff(filepath)
+
+        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
+        inputParameters["step"] += 1
+
+    plt.show()
+    logger.info("Z-score computation completed.")
 
 
-def get_all_stores_for_combining_data(folderNames):
-    op = []
-    for i in range(100):
-        temp = []
-        match = r"[\s\S]*" + "_output_" + str(i)
-        for j in folderNames:
-            temp.append(re.findall(match, j))
-        temp = sorted(list(np.concatenate(temp).flatten()), key=str.casefold)
-        if len(temp) > 0:
-            op.append(temp)
+# function to remove artifacts from z-score data
+def execute_artifact_removal(folderNames, inputParameters):
 
-    return op
+    timeForLightsTurnOn = inputParameters["timeForLightsTurnOn"]
+    artifactsRemovalMethod = inputParameters["artifactsRemovalMethod"]
+    combine_data = inputParameters["combine_data"]
+
+    storesListPath = []
+    for i in range(len(folderNames)):
+        if combine_data == True:
+            storesListPath.append([folderNames[i][0]])
+        else:
+            filepath = folderNames[i]
+            storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+
+    storesListPath = np.concatenate(storesListPath)
+
+    for j in range(len(storesListPath)):
+        filepath = storesListPath[j]
+        storesList = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
+
+        name_to_data = read_corrected_data_dict(filepath, storesList)
+        pair_name_to_tsNew, pair_name_to_sampling_rate = read_corrected_timestamps_pairwise(filepath)
+        pair_name_to_coords = read_coords_pairwise(filepath, pair_name_to_tsNew)
+        compound_name_to_ttl_timestamps = read_corrected_ttl_timestamps(filepath, storesList)
+
+        logger.debug("Removing artifacts from the data...")
+        name_to_data, pair_name_to_timestamps, compound_name_to_ttl_timestamps = remove_artifacts(
+            timeForLightsTurnOn,
+            storesList,
+            pair_name_to_tsNew,
+            pair_name_to_sampling_rate,
+            pair_name_to_coords,
+            name_to_data,
+            compound_name_to_ttl_timestamps,
+            method=artifactsRemovalMethod,
+        )
+
+        write_artifact_removal(filepath, name_to_data, pair_name_to_timestamps, compound_name_to_ttl_timestamps)
+        visualizeControlAndSignal(filepath, removeArtifacts=True)
+
+        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
+        inputParameters["step"] += 1
+
+    plt.show()
+    logger.info("Artifact removal completed.")
 
 
 # function to combine data when there are two different data files for the same recording session
 # it will combine the data, do timestamps processing and save the combined data in the first output folder.
-def combineData(folderNames, inputParameters, storesList):
-
+def execute_combine_data(folderNames, inputParameters, storesList):
     logger.debug("Combining Data from different data files...")
     timeForLightsTurnOn = inputParameters["timeForLightsTurnOn"]
     op_folder = []
@@ -1117,62 +440,26 @@ def combineData(folderNames, inputParameters, storesList):
     op = get_all_stores_for_combining_data(op_folder)
 
     # processing timestamps for combining the data
-    processTimestampsForCombiningData(op, timeForLightsTurnOn, storesList, sampling_rate[0])
+    for filepaths_to_combine in op:
+        pair_name_to_filepath_to_timestamps = read_timestamps_for_combining_data(filepaths_to_combine)
+        display_name_to_filepath_to_data = read_data_for_combining_data(filepaths_to_combine, storesList)
+        compound_name_to_filepath_to_ttl_timestamps = read_ttl_timestamps_for_combining_data(
+            filepaths_to_combine, storesList
+        )
+        pair_name_to_tsNew, display_name_to_data, compound_name_to_ttl_timestamps = combine_data(
+            filepaths_to_combine,
+            pair_name_to_filepath_to_timestamps,
+            display_name_to_filepath_to_data,
+            compound_name_to_filepath_to_ttl_timestamps,
+            timeForLightsTurnOn,
+            storesList,
+            sampling_rate[0],
+        )
+        output_filepath = filepaths_to_combine[0]
+        write_combined_data(output_filepath, pair_name_to_tsNew, display_name_to_data, compound_name_to_ttl_timestamps)
     logger.info("Data is combined from different data files.")
 
     return op
-
-
-# function to compute z-score and deltaF/F using functions : compute_z_score and/or processTimestampsForArtifacts
-def execute_zscore(folderNames, inputParameters):
-
-    timeForLightsTurnOn = inputParameters["timeForLightsTurnOn"]
-    remove_artifacts = inputParameters["removeArtifacts"]
-    artifactsRemovalMethod = inputParameters["artifactsRemovalMethod"]
-    plot_zScore_dff = inputParameters["plot_zScore_dff"]
-    combine_data = inputParameters["combine_data"]
-    isosbestic_control = inputParameters["isosbestic_control"]
-
-    storesListPath = []
-    for i in range(len(folderNames)):
-        if combine_data == True:
-            storesListPath.append([folderNames[i][0]])
-        else:
-            filepath = folderNames[i]
-            storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
-
-    storesListPath = np.concatenate(storesListPath)
-
-    for j in range(len(storesListPath)):
-        filepath = storesListPath[j]
-        storesList = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
-
-        if remove_artifacts == True:
-            logger.debug("Removing Artifacts from the data and correcting timestamps...")
-            compute_z_score(filepath, inputParameters)
-            if artifactsRemovalMethod == "concatenate":
-                processTimestampsForArtifacts(filepath, timeForLightsTurnOn, storesList)
-            else:
-                addingNaNtoChunksWithArtifacts(filepath, storesList)
-            visualizeControlAndSignal(filepath, remove_artifacts)
-            logger.info("Artifacts from the data are removed and timestamps are corrected.")
-        else:
-            compute_z_score(filepath, inputParameters)
-            visualizeControlAndSignal(filepath, remove_artifacts)
-
-        if plot_zScore_dff == "z_score":
-            visualize_z_score(filepath)
-        if plot_zScore_dff == "dff":
-            visualize_dff(filepath)
-        if plot_zScore_dff == "Both":
-            visualize_z_score(filepath)
-            visualize_dff(filepath)
-
-        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
-        inputParameters["step"] += 1
-
-    plt.show()
-    logger.info("Signal data and event timestamps are extracted.")
 
 
 def extractTsAndSignal(inputParameters):
@@ -1203,13 +490,17 @@ def extractTsAndSignal(inputParameters):
         writeToFile(str((pbMaxValue + 1) * 10) + "\n" + str(10) + "\n")
         execute_timestamp_correction(folderNames, inputParameters)
         execute_zscore(folderNames, inputParameters)
+        if remove_artifacts == True:
+            execute_artifact_removal(folderNames, inputParameters)
     else:
         pbMaxValue = 1 + len(folderNames)
         writeToFile(str((pbMaxValue) * 10) + "\n" + str(10) + "\n")
         execute_timestamp_correction(folderNames, inputParameters)
         storesList = check_storeslistfile(folderNames)
-        op_folder = combineData(folderNames, inputParameters, storesList)
+        op_folder = execute_combine_data(folderNames, inputParameters, storesList)
         execute_zscore(op_folder, inputParameters)
+        if remove_artifacts == True:
+            execute_artifact_removal(op_folder, inputParameters)
 
 
 def main(input_parameters):
