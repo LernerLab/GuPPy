@@ -14,6 +14,8 @@ on:
     secrets:
       RCLONE_CONFIG:
         required: true
+      CODECOV_TOKEN:
+        required: true
   workflow_dispatch:
     inputs:
       python-versions:
@@ -57,4 +59,9 @@ jobs:
           rclone-config: ${{ secrets.RCLONE_CONFIG }}
 
       - name: Run tests
-        run: pytest tests -vv -rsx -n auto --dist loadscope
+        run: pytest tests -vv -rsx -n auto --dist loadscope --cov=guppy --cov-branch --cov-report=xml
+      - name: Upload full coverage to Codecov
+        if: ${{ matrix.python-version == '3.10' && matrix.os == 'ubuntu-latest' }}
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
