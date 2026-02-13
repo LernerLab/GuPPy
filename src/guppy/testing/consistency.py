@@ -264,6 +264,61 @@ def _compare_csv(
         mismatches.append(f"{rel_path}: CSV content differs — {exc}")
 
 
+def compare_npm_session_files(
+    *, actual_session_dir: str, expected_session_dir: str, rtol: float = 1e-5, atol: float = 1e-8
+) -> None:
+    """
+    Assert that every top-level CSV file in ``expected_session_dir`` exists in
+    ``actual_session_dir`` and is numerically identical.
+
+    This function is specific to the NPM modality, which writes intermediate
+    CSV files (e.g. ``file0_chev1.csv``, ``event0.csv``) directly into the
+    session folder alongside the ``_output_*`` subdirectory.  Only flat files
+    are examined; subdirectories (including ``_output_*``) are ignored.
+
+    Parameters
+    ----------
+    actual_session_dir : str
+        Path to the session folder produced by the current code under test.
+    expected_session_dir : str
+        Path to the reference session folder (e.g. from GuPPy v1.3.0).
+    rtol : float
+        Relative tolerance for numeric comparisons (default 1e-5).
+    atol : float
+        Absolute tolerance for numeric comparisons (default 1e-8).
+
+    Raises
+    ------
+    AssertionError
+        If any expected CSV is missing from ``actual_session_dir`` or if the
+        content of a shared file does not match.
+    """
+    actual_session_dir = os.path.abspath(actual_session_dir)
+    expected_session_dir = os.path.abspath(expected_session_dir)
+
+    expected_csvs = [
+        fname
+        for fname in os.listdir(expected_session_dir)
+        if os.path.isfile(os.path.join(expected_session_dir, fname)) and Path(fname).suffix.lower() == ".csv"
+    ]
+
+    mismatches: list[str] = []
+
+    for fname in sorted(expected_csvs):
+        actual_path = os.path.join(actual_session_dir, fname)
+        expected_path = os.path.join(expected_session_dir, fname)
+
+        if not os.path.exists(actual_path):
+            mismatches.append(f"MISSING in actual session dir: {fname}")
+            continue
+
+        _compare_csv(actual_path, expected_path, fname, mismatches, rtol, atol)
+
+    if mismatches:
+        summary = "\n".join(mismatches)
+        raise AssertionError(f"NPM session file comparison failed:\n{summary}")
+
+
 def _compare_json(
     actual_path: str,
     expected_path: str,
