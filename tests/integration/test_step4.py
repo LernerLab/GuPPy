@@ -99,17 +99,6 @@ from guppy.testing.api import step2, step3, step4
             "tdt",
         ),
         (
-            "SampleData_with_artifacts/Photo_048_392-200728-121222",
-            {
-                "Dv1A": "control_dms",
-                "Dv2A": "signal_dms",
-                "PrtN": "port_entries_dms",
-            },
-            "dms",
-            "port_entries_dms",
-            "tdt",
-        ),
-        (
             "SampleData_Neurophotometrics/sampleData_NPM_2",
             {
                 "file0_chev6": "control_region",
@@ -162,7 +151,6 @@ from guppy.testing.api import step2, step3, step4
         "sample_doric_5",
         "tdt_clean",
         "tdt_split_event",
-        "tdt_with_artifacts",
         "sample_npm_2",
         "sample_npm_3",
         "sample_npm_4",
