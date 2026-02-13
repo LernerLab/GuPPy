@@ -10,8 +10,11 @@ This module is intentionally minimal and non-invasive.
 
 from __future__ import annotations
 
+import glob
 import os
 from typing import Iterable
+
+import numpy as np
 
 from guppy.orchestration.home import build_homepage
 from guppy.orchestration.preprocess import extractTsAndSignal
@@ -269,6 +272,9 @@ def step4(
     npm_time_units: list[str] | None = None,
     npm_split_events: list[bool] | None = None,
     combine_data: bool = False,
+    remove_artifacts: bool = False,
+    artifact_removal_method: str | None = None,
+    artifact_coords: dict[str, np.ndarray] | None = None,
 ) -> None:
     """
     Run pipeline Step 4 (Extract timestamps and signal) via the Panel-backed logic, headlessly.
@@ -296,6 +302,16 @@ def step4(
         List of booleans indicating whether to split events for NPM files, one per CSV file. None if not applicable.
     combine_data : bool
         Whether to enable data combining logic in Step 4.
+    remove_artifacts : bool
+        Whether to run artifact removal.
+    artifact_removal_method : str | None
+        Artifact removal method to use ('concatenate' or 'replace with NaN').
+        Only applied when ``remove_artifacts`` is True.
+    artifact_coords : dict[str, np.ndarray] | None
+        Mapping of pair name to coordinates array (shape ``(N_clicks, 2)``, x/time in
+        column 0) to write as ``coordsForPreProcessing_<pair_name>.npy`` into every
+        ``_output_*`` directory before artifact removal runs. Bypasses the interactive
+        artifact-selection UI. Ignored when ``remove_artifacts`` is False.
 
     Raises
     ------
@@ -350,6 +366,20 @@ def step4(
 
     # Inject combine_data
     input_params["combine_data"] = combine_data
+
+    # Inject artifact removal parameters
+    input_params["removeArtifacts"] = remove_artifacts
+    if artifact_removal_method is not None:
+        input_params["artifactsRemovalMethod"] = artifact_removal_method
+
+    # Write artifact coordinates into each output directory so that the artifact
+    # removal worker can find them without the interactive selection UI.
+    if remove_artifacts and artifact_coords:
+        for session in abs_sessions:
+            for output_dir in glob.glob(os.path.join(session, "*_output_*")):
+                if os.path.isdir(output_dir):
+                    for pair_name, coords in artifact_coords.items():
+                        np.save(os.path.join(output_dir, f"coordsForPreProcessing_{pair_name}.npy"), coords)
 
     # Call the underlying Step 4 worker directly (no subprocess)
     extractTsAndSignal(input_params)
