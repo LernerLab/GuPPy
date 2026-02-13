@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,15 @@ import pandas as pd
 
 # Subdirectories to skip entirely (plots are not numerically reproducible).
 _SKIP_DIRS = {"saved_plots"}
+
+# Matches PSTH timestamp labels in two forms:
+#   bare float:     "138.238440990448"
+#   prefixed float: "sample_data_csv_1_409.86189556121826"
+_FLOAT_PAT = r"[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?"
+_BARE_FLOAT_RE = re.compile(rf"^({_FLOAT_PAT})$")
+_PREFIXED_FLOAT_RE = re.compile(rf"^(.+)_({_FLOAT_PAT})$")
+# Union used only for probing whether a value is a PSTH label at all.
+_PSTH_LABEL_RE = re.compile(rf"^{_FLOAT_PAT}$|^.+_{_FLOAT_PAT}$")
 
 
 def compare_output_folders(*, actual_dir: str, expected_dir: str) -> None:
@@ -78,6 +88,45 @@ def compare_output_folders(*, actual_dir: str, expected_dir: str) -> None:
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+# HDF5 dataset names that store pandas axis/column metadata and may contain
+# PSTH timestamp labels.
+_PANDAS_AXIS_KEYS = {"axis0", "axis1", "block0_items"}
+
+
+def _normalize_psth_label(label: str) -> str:
+    """
+    Canonicalize a single PSTH timestamp label.
+
+    Two forms are handled:
+    - Bare float (``"138.238440990448"``): reformatted directly.
+    - Prefixed float (``"sample_data_csv_1_409.86189556121826"``): the float
+      suffix after the last ``_`` is reformatted.
+
+    Both are rounded to 10 significant figures to eliminate platform-level
+    float-repr noise.  Labels that match neither form are returned unchanged.
+    """
+    if _BARE_FLOAT_RE.match(label):
+        return f"{float(label):.10g}"
+    m = _PREFIXED_FLOAT_RE.match(label)
+    if m:
+        return f"{m.group(1)}_{float(m.group(2)):.10g}"
+    return label
+
+
+def _normalize_psth_index(idx: pd.Index) -> pd.Index:
+    """Apply :func:`_normalize_psth_label` to every element of a pandas Index."""
+    return pd.Index([_normalize_psth_label(str(lbl)) for lbl in idx])
+
+
+def _normalize_psth_str_array(arr: np.ndarray) -> np.ndarray:
+    """Apply :func:`_normalize_psth_label` to every element of a string/bytes array."""
+    flat = []
+    for item in arr.flat:
+        if isinstance(item, (bytes, np.bytes_)):
+            item = item.decode("utf-8", errors="replace")
+        flat.append(_normalize_psth_label(str(item)))
+    return np.array(flat, dtype=object).reshape(arr.shape)
 
 
 def _collect_relative_paths(root: str) -> list[str]:
@@ -153,8 +202,25 @@ def _compare_hdf5_dataset(
         )
         return
 
-    # String / bytes datasets: exact equality.
+    # String / bytes datasets: exact equality, with targeted tolerance for
+    # pandas axis metadata that encodes PSTH floating-point timestamps.
     if expected_data.dtype.kind in {"S", "U", "O"}:
+        item_name = item_path.split("/")[-1]
+        filename = Path(rel_path).name
+        is_psth_file = "z_score" in filename or "peak_AUC" in filename
+        if is_psth_file and item_name in _PANDAS_AXIS_KEYS and expected_data.size > 0:
+            # Probe the first element: if it looks like a PSTH timestamp label,
+            # normalize float-repr noise before comparing.
+            first = expected_data.flat[0]
+            if isinstance(first, (bytes, np.bytes_)):
+                first = first.decode("utf-8", errors="replace")
+            if _PSTH_LABEL_RE.match(str(first)):
+                if not np.array_equal(
+                    _normalize_psth_str_array(actual_data),
+                    _normalize_psth_str_array(expected_data),
+                ):
+                    mismatches.append(f"{rel_path}: '{item_path}' string data differs")
+                return
         if not np.array_equal(actual_data, expected_data):
             mismatches.append(f"{rel_path}: '{item_path}' string data differs")
         return
@@ -173,6 +239,13 @@ def _compare_csv(
     """Compare two CSV files as DataFrames."""
     actual_df = pd.read_csv(actual_path, index_col=0)
     expected_df = pd.read_csv(expected_path, index_col=0)
+
+    # peak_AUC CSVs use PSTH timestamp labels as row indices; normalize
+    # float-repr noise before comparing.
+    if "peak_AUC" in Path(rel_path).name:
+        actual_df.index = _normalize_psth_index(actual_df.index)
+        expected_df.index = _normalize_psth_index(expected_df.index)
+
     try:
         pd.testing.assert_frame_equal(actual_df, expected_df, check_exact=False, rtol=1e-5, atol=1e-8, check_names=True)
     except AssertionError as exc:
