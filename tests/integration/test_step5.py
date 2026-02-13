@@ -188,8 +188,7 @@ def test_step5(tmp_path, monkeypatch, session_subdir, storenames_map, expected_r
     # Use the sample session
     src_base_dir = str(Path(".") / "testing_data")
     src_session = os.path.join(src_base_dir, session_subdir)
-    if not os.path.isdir(src_session):
-        pytest.skip(f"Sample data not available at expected path: {src_session}")
+    assert os.path.isdir(src_session), f"Sample data not available at expected path: {src_session}"
 
     # Stub matplotlib.pyplot.show to avoid GUI blocking (used in earlier steps)
     import matplotlib.pyplot as plt  # noqa: F401

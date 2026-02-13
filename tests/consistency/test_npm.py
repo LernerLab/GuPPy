@@ -95,12 +95,10 @@ def test_consistency(
     folder (e.g. ``file0_chev1.csv``, ``event0.csv``).
     """
     src_session = TESTING_DATA / session_subdir
-    if not src_session.is_dir():
-        pytest.skip(f"Sample data not found: {src_session}")
+    assert src_session.is_dir(), f"Sample data not found: {src_session}"
 
     standard_output_dir = TESTING_DATA / standard_output_subdir
-    if not standard_output_dir.is_dir():
-        pytest.skip(f"Standard output not found: {standard_output_dir}")
+    assert standard_output_dir.is_dir(), f"Standard output not found: {standard_output_dir}"
 
     monkeypatch.setattr("matplotlib.pyplot.show", lambda *args, **kwargs: None)
 

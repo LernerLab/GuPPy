@@ -39,13 +39,11 @@ def test_consistency(tmp_path, monkeypatch):
     """
     src_sessions = [TESTING_DATA / s for s in SESSION_SUBDIRS]
     for src in src_sessions:
-        if not src.is_dir():
-            pytest.skip(f"Sample data not found: {src}")
+        assert src.is_dir(), f"Sample data not found: {src}"
 
     standard_output_dirs = [TESTING_DATA / s for s in STANDARD_OUTPUT_SUBDIRS]
     for ref in standard_output_dirs:
-        if not ref.is_dir():
-            pytest.skip(f"Standard output not found: {ref}")
+        assert ref.is_dir(), f"Standard output not found: {ref}"
 
     monkeypatch.setattr("matplotlib.pyplot.show", lambda *args, **kwargs: None)
 

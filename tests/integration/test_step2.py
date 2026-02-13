@@ -156,8 +156,7 @@ def test_step2(tmp_path, session_subdir, storenames_map, modality):
     # Source sample data
     src_base_dir = str(Path(".") / "testing_data")
     src_session = os.path.join(src_base_dir, session_subdir)
-    if not os.path.isdir(src_session):
-        pytest.skip(f"Sample data not available at expected path: {src_session}")
+    assert os.path.isdir(src_session), f"Sample data not available at expected path: {src_session}"
 
     # Stage a clean copy of the session into a temporary workspace
     tmp_base = tmp_path / "data_root"

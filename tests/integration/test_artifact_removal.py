@@ -54,8 +54,7 @@ def test_artifact_removal(tmp_path, monkeypatch, artifact_removal_method, coords
     that key output files are created.
     """
     src_session = TESTING_DATA / SESSION_SUBDIR
-    if not src_session.is_dir():
-        pytest.skip(f"Sample data not available at expected path: {src_session}")
+    assert src_session.is_dir(), f"Sample data not available at expected path: {src_session}"
 
     import matplotlib.pyplot as plt  # noqa: F401
 
