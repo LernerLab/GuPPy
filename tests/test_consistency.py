@@ -10,9 +10,10 @@ from guppy.testing.api import step2, step3, step4, step5
 
 TESTING_DATA = Path(".") / "testing_data"
 
-# Each entry: (session_subdir, standard_output_subdir, storenames_map, modality, extra_kwargs)
+# Each entry: (session_subdir, standard_output_subdir, storenames_map, modality, extra_kwargs, compare_kwargs)
 # standard_output_subdir is relative to testing_data/
 # extra_kwargs: forwarded to step2–step5 (used for NPM-specific parameters)
+# compare_kwargs: forwarded to compare_output_folders (e.g. wider rtol/atol for known dependency drift)
 CONSISTENCY_CASES = [
     (
         "SampleData_Clean/Photo_63_207-181030-103332",
@@ -23,6 +24,7 @@ CONSISTENCY_CASES = [
             "PrtN": "port_entries_dms",
         },
         "tdt",
+        {},
         {},
     ),
     (
@@ -35,6 +37,7 @@ CONSISTENCY_CASES = [
         },
         "tdt",
         {},
+        {},
     ),
     (
         "SampleData_csv/sample_data_csv_1",
@@ -45,6 +48,7 @@ CONSISTENCY_CASES = [
             "Sample_TTL": "ttl",
         },
         "csv",
+        {},
         {},
     ),
     (
@@ -57,6 +61,9 @@ CONSISTENCY_CASES = [
         },
         "doric",
         {},
+        # scipy 1.5→1.17 and numpy 1.18→2.x cause up to ~1% drift in filtfilt/polyfit;
+        # widened tolerance accommodates known dependency changes without masking real regressions.
+        {"rtol": 1e-2, "atol": 2e-3},
     ),
     (
         "SampleData_Doric/sample_doric_2",
@@ -67,6 +74,7 @@ CONSISTENCY_CASES = [
             "DI/O-1": "ttl",
         },
         "doric",
+        {},
         {},
     ),
     (
@@ -79,6 +87,7 @@ CONSISTENCY_CASES = [
         },
         "doric",
         {},
+        {},
     ),
     (
         "SampleData_Doric/sample_doric_4",
@@ -88,6 +97,7 @@ CONSISTENCY_CASES = [
             "Series0001/AIN01xAOUT02-LockIn": "signal_region",
         },
         "doric",
+        {},
         {},
     ),
     (
@@ -99,6 +109,7 @@ CONSISTENCY_CASES = [
         },
         "doric",
         {},
+        {},
     ),
     (
         "SampleData_Neurophotometrics/sampleData_NPM_2",
@@ -109,6 +120,7 @@ CONSISTENCY_CASES = [
         },
         "npm",
         {"npm_split_events": [True, True]},
+        {},
     ),
     (
         "SampleData_Neurophotometrics/sampleData_NPM_3",
@@ -124,6 +136,7 @@ CONSISTENCY_CASES = [
             "npm_time_units": ["milliseconds", "seconds"],
             "npm_split_events": [False, True],
         },
+        {},
     ),
     (
         "SampleData_Neurophotometrics/sampleData_NPM_4",
@@ -135,6 +148,7 @@ CONSISTENCY_CASES = [
         },
         "npm",
         {"npm_split_events": [True, True]},
+        {},
     ),
     (
         "SampleData_Neurophotometrics/sampleData_NPM_5",
@@ -146,12 +160,13 @@ CONSISTENCY_CASES = [
         },
         "npm",
         {"npm_split_events": None},
+        {},
     ),
 ]
 
 
 @pytest.mark.parametrize(
-    "session_subdir, standard_output_subdir, storenames_map, modality, extra_kwargs",
+    "session_subdir, standard_output_subdir, storenames_map, modality, extra_kwargs, compare_kwargs",
     CONSISTENCY_CASES,
     ids=[
         "tdt_clean",
@@ -170,7 +185,14 @@ CONSISTENCY_CASES = [
 )
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_consistency(
-    tmp_path, monkeypatch, session_subdir, standard_output_subdir, storenames_map, modality, extra_kwargs
+    tmp_path,
+    monkeypatch,
+    session_subdir,
+    standard_output_subdir,
+    storenames_map,
+    modality,
+    extra_kwargs,
+    compare_kwargs,
 ):
     """
     Consistency test: run the full pipeline (Steps 2-5) and assert that the output
@@ -224,4 +246,5 @@ def test_consistency(
     compare_output_folders(
         actual_dir=actual_output_dir,
         expected_dir=str(standard_output_dir),
+        **compare_kwargs,
     )

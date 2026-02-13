@@ -31,7 +31,7 @@ _PREFIXED_FLOAT_RE = re.compile(rf"^(.+)_({_FLOAT_PAT})$")
 _PSTH_LABEL_RE = re.compile(rf"^{_FLOAT_PAT}$|^.+_{_FLOAT_PAT}$")
 
 
-def compare_output_folders(*, actual_dir: str, expected_dir: str) -> None:
+def compare_output_folders(*, actual_dir: str, expected_dir: str, rtol: float = 1e-5, atol: float = 1e-8) -> None:
     """
     Assert that every file in ``expected_dir`` exists in ``actual_dir`` and is
     numerically identical.
@@ -48,6 +48,10 @@ def compare_output_folders(*, actual_dir: str, expected_dir: str) -> None:
         Path to the output folder produced by the current code under test.
     expected_dir : str
         Path to the reference output folder (e.g. from GuPPy v1.3.0).
+    rtol : float
+        Relative tolerance for numeric comparisons (default 1e-5).
+    atol : float
+        Absolute tolerance for numeric comparisons (default 1e-8).
 
     Raises
     ------
@@ -73,9 +77,9 @@ def compare_output_folders(*, actual_dir: str, expected_dir: str) -> None:
 
         ext = Path(rel_path).suffix.lower()
         if ext in {".hdf5", ".h5"}:
-            _compare_hdf5(actual_path, expected_path, rel_path, mismatches)
+            _compare_hdf5(actual_path, expected_path, rel_path, mismatches, rtol, atol)
         elif ext == ".csv":
-            _compare_csv(actual_path, expected_path, rel_path, mismatches)
+            _compare_csv(actual_path, expected_path, rel_path, mismatches, rtol, atol)
         elif ext == ".json":
             _compare_json(actual_path, expected_path, rel_path, mismatches)
         # Unknown extensions are skipped silently.
@@ -146,10 +150,12 @@ def _compare_hdf5(
     expected_path: str,
     rel_path: str,
     mismatches: list[str],
+    rtol: float,
+    atol: float,
 ) -> None:
     """Compare all datasets in two HDF5 files, accumulating mismatches."""
     with h5py.File(actual_path, "r") as actual_f, h5py.File(expected_path, "r") as expected_f:
-        _walk_hdf5_group(actual_f, expected_f, rel_path, "", mismatches)
+        _walk_hdf5_group(actual_f, expected_f, rel_path, "", mismatches, rtol, atol)
 
 
 def _walk_hdf5_group(
@@ -158,6 +164,8 @@ def _walk_hdf5_group(
     rel_path: str,
     group_path: str,
     mismatches: list[str],
+    rtol: float,
+    atol: float,
 ) -> None:
     """Recursively walk HDF5 groups, comparing all datasets."""
     for key in expected_group.keys():
@@ -173,12 +181,12 @@ def _walk_hdf5_group(
             if not isinstance(actual_item, h5py.Group):
                 mismatches.append(f"{rel_path}: '{item_path}' is a group in expected but a dataset in actual")
             else:
-                _walk_hdf5_group(actual_item, expected_item, rel_path, item_path, mismatches)
+                _walk_hdf5_group(actual_item, expected_item, rel_path, item_path, mismatches, rtol, atol)
         elif isinstance(expected_item, h5py.Dataset):
             if not isinstance(actual_item, h5py.Dataset):
                 mismatches.append(f"{rel_path}: '{item_path}' is a dataset in expected but a group in actual")
             else:
-                _compare_hdf5_dataset(actual_item, expected_item, rel_path, item_path, mismatches)
+                _compare_hdf5_dataset(actual_item, expected_item, rel_path, item_path, mismatches, rtol, atol)
 
 
 def _compare_hdf5_dataset(
@@ -187,6 +195,8 @@ def _compare_hdf5_dataset(
     rel_path: str,
     item_path: str,
     mismatches: list[str],
+    rtol: float,
+    atol: float,
 ) -> None:
     """Compare two HDF5 datasets, handling numeric and string dtypes."""
     actual_data = actual_ds[()]
@@ -226,7 +236,7 @@ def _compare_hdf5_dataset(
         return
 
     # Numeric datasets: tolerance-based comparison with NaN == NaN.
-    if not np.allclose(actual_data, expected_data, rtol=1e-5, atol=1e-8, equal_nan=True):
+    if not np.allclose(actual_data, expected_data, rtol=rtol, atol=atol, equal_nan=True):
         mismatches.append(f"{rel_path}: '{item_path}' numeric data differs")
 
 
@@ -235,6 +245,8 @@ def _compare_csv(
     expected_path: str,
     rel_path: str,
     mismatches: list[str],
+    rtol: float,
+    atol: float,
 ) -> None:
     """Compare two CSV files as DataFrames."""
     actual_df = pd.read_csv(actual_path, index_col=0)
@@ -247,7 +259,7 @@ def _compare_csv(
         expected_df.index = _normalize_psth_index(expected_df.index)
 
     try:
-        pd.testing.assert_frame_equal(actual_df, expected_df, check_exact=False, rtol=1e-5, atol=1e-8, check_names=True)
+        pd.testing.assert_frame_equal(actual_df, expected_df, check_exact=False, rtol=rtol, atol=atol, check_names=True)
     except AssertionError as exc:
         mismatches.append(f"{rel_path}: CSV content differs — {exc}")
 
