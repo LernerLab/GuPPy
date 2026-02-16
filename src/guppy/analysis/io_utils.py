@@ -157,13 +157,10 @@ def check_storeslistfile(folderNames):
     return storesList
 
 
-def write_combined_stores_list(folderNames, storesList):
-    for i in range(len(folderNames)):
-        filepath = folderNames[i]
-        storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*")))
-        for j in range(len(storesListPath)):
-            filepath = storesListPath[j]
-            np.savetxt(os.path.join(filepath, "combine_storesList.csv"), storesList, fmt="%s", delimiter=",")
+def write_combined_stores_list(op, storesList):
+    for k in range(len(op)):
+        filepath = op[k][0]
+        np.savetxt(os.path.join(filepath, "combine_storesList.csv"), storesList, fmt="%s", delimiter=",")
 
 
 def get_control_and_signal_channel_names(storesList):

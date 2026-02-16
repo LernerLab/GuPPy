@@ -426,7 +426,7 @@ def extractTsAndSignal(inputParameters):
         execute_timestamp_correction(folderNames, inputParameters)
         storesList = check_storeslistfile(folderNames)
         op_folder = execute_combine_data(folderNames, inputParameters, storesList)
-        write_combined_stores_list(folderNames, storesList)
+        write_combined_stores_list(op_folder, storesList)
         execute_zscore(op_folder, inputParameters)
         visualize_z_score(inputParameters, op_folder)
         if remove_artifacts == True:
