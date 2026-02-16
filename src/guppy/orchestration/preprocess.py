@@ -18,6 +18,7 @@ from ..analysis.io_utils import (
     get_coords,
     read_hdf5,
     takeOnlyDirs,
+    write_combined_stores_list,
 )
 from ..analysis.standard_io import (
     read_control_and_signal,
@@ -425,6 +426,7 @@ def extractTsAndSignal(inputParameters):
         execute_timestamp_correction(folderNames, inputParameters)
         storesList = check_storeslistfile(folderNames)
         op_folder = execute_combine_data(folderNames, inputParameters, storesList)
+        write_combined_stores_list(folderNames, storesList)
         execute_zscore(op_folder, inputParameters)
         visualize_z_score(inputParameters, op_folder)
         if remove_artifacts == True:
