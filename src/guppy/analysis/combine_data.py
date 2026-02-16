@@ -54,9 +54,7 @@ def eliminateTs(filepath_to_timestamps, filepath_to_ttl_timestamps, timeForLight
             tsNew_arr = np.concatenate((tsNew_arr, new_tsNew + (1 / sampling_rate)))
             ts_arr = np.concatenate((ts_arr, new_ts + (1 / sampling_rate)))
 
-        # logger.info(event)
-        # logger.info(ts_arr)
-    return ts_arr
+    return ts_arr, tsNew_arr
 
 
 def combine_data(
@@ -108,12 +106,12 @@ def combine_data(
                 filepath_to_timestamps = pair_name_to_filepath_to_timestamps[pair_name]
                 filepath_to_ttl_timestamps = compound_name_to_filepath_to_ttl_timestamps[compound_name]
 
-                ts = eliminateTs(
+                ts, tsNew = eliminateTs(
                     filepath_to_timestamps,
                     filepath_to_ttl_timestamps,
                     timeForLightsTurnOn,
                     sampling_rate,
                 )
-                compound_name_to_ttl_timestamps[compound_name] = ts
+                compound_name_to_ttl_timestamps[compound_name] = tsNew
 
     return pair_name_to_tsNew, display_name_to_data, compound_name_to_ttl_timestamps
