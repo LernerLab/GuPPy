@@ -40,8 +40,8 @@ def eliminateTs(filepath_to_timestamps, filepath_to_ttl_timestamps, timeForLight
     tsNew_arr = np.array([])
     filepaths = list(filepath_to_timestamps.keys())
     for filepath in filepaths:
-        ts = filepath_to_timestamps[filepath]
-        tsNew = filepath_to_ttl_timestamps[filepath]
+        tsNew = filepath_to_timestamps[filepath]
+        ts = filepath_to_ttl_timestamps[filepath]
         if len(tsNew_arr) == 0:
             sub = tsNew[0] - timeForLightsTurnOn
             tsNew_arr = np.concatenate((tsNew_arr, tsNew - sub))
@@ -54,7 +54,7 @@ def eliminateTs(filepath_to_timestamps, filepath_to_ttl_timestamps, timeForLight
             tsNew_arr = np.concatenate((tsNew_arr, new_tsNew + (1 / sampling_rate)))
             ts_arr = np.concatenate((ts_arr, new_ts + (1 / sampling_rate)))
 
-    return ts_arr, tsNew_arr
+    return ts_arr
 
 
 def combine_data(
@@ -106,12 +106,12 @@ def combine_data(
                 filepath_to_timestamps = pair_name_to_filepath_to_timestamps[pair_name]
                 filepath_to_ttl_timestamps = compound_name_to_filepath_to_ttl_timestamps[compound_name]
 
-                ts, tsNew = eliminateTs(
+                ts = eliminateTs(
                     filepath_to_timestamps,
                     filepath_to_ttl_timestamps,
                     timeForLightsTurnOn,
                     sampling_rate,
                 )
-                compound_name_to_ttl_timestamps[compound_name] = tsNew
+                compound_name_to_ttl_timestamps[compound_name] = ts
 
     return pair_name_to_tsNew, display_name_to_data, compound_name_to_ttl_timestamps
