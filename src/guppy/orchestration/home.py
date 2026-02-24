@@ -11,7 +11,6 @@ from .save_parameters import save_parameters
 from .storenames import orchestrate_storenames_page
 from .visualize import visualizeResults
 from ..frontend.input_parameters import ParameterForm
-from ..frontend.path_selection import get_folder_path
 from ..frontend.progress import readPBIncrementValues
 from ..frontend.sidebar import Sidebar
 
@@ -36,12 +35,10 @@ def psthComputation(parameter_form, current_dir):
 
 def build_homepage():
     pn.extension()
-    global folder_path
-    folder_path = get_folder_path()
     current_dir = os.getcwd()
 
     template = pn.template.BootstrapTemplate(title="Input Parameters GUI")
-    parameter_form = ParameterForm(folder_path=folder_path, template=template)
+    parameter_form = ParameterForm(template=template)
     sidebar = Sidebar(template=template)
 
     # ------------------------------------------------------------------------------------------------------------------

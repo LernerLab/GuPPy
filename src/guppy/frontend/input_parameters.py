@@ -8,6 +8,14 @@ import panel as pn
 logger = logging.getLogger(__name__)
 
 
+def _default_root_path():
+    # Respect GUPPY_BASE_DIR env var for headless/test mode; otherwise use the home directory.
+    base_dir_env = os.environ.get("GUPPY_BASE_DIR")
+    if base_dir_env and os.path.isdir(base_dir_env):
+        return base_dir_env
+    return os.path.expanduser("~")
+
+
 def checkSameLocation(arr, abspath):
     # abspath = []
     for i in range(len(arr)):
@@ -41,9 +49,9 @@ def getAbsPath(files_1, files_2):
 
 
 class ParameterForm:
-    def __init__(self, *, template, folder_path):
+    def __init__(self, *, template):
         self.template = template
-        self.folder_path = folder_path
+        self.folder_path = _default_root_path()
         self.styles = dict(background="WhiteSmoke")
         self.setup_individual_parameters()
         self.setup_group_parameters()
@@ -56,7 +64,7 @@ class ParameterForm:
             """**Select folders for the analysis from the file selector below**""", width=600
         )
 
-        self.files_1 = pn.widgets.FileSelector(self.folder_path, name="folderNames", width=950)
+        self.files_1 = pn.widgets.FileSelector(self.folder_path, root_directory="/", name="folderNames", width=950)
 
         self.explain_modality = pn.pane.Markdown(
             """
@@ -316,7 +324,9 @@ class ParameterForm:
             """**Select folders for the average analysis from the file selector below**""", width=600
         )
 
-        self.files_2 = pn.widgets.FileSelector(self.folder_path, name="folderNamesForAvg", width=950)
+        self.files_2 = pn.widgets.FileSelector(
+            self.folder_path, root_directory="/", name="folderNamesForAvg", width=950
+        )
 
         self.averageForGroup = pn.widgets.Select(
             name="Average Group? (bool)", value=False, options=[True, False], width=435
