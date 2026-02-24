@@ -60,40 +60,26 @@ def _fetchValues(text, storenames, storename_dropdowns, storename_textboxes, d):
     if not storename_dropdowns or not len(storenames) > 0:
         return "####Alert !! \n No storenames selected."
 
-    storenames_cache = dict()
-    if os.path.exists(os.path.join(Path.home(), ".storesList.json")):
-        with open(os.path.join(Path.home(), ".storesList.json")) as f:
-            storenames_cache = json.load(f)
-
     comboBoxValues, textBoxValues = [], []
     dropdown_keys = list(storename_dropdowns.keys())
-    textbox_keys = list(storename_textboxes.keys()) if storename_textboxes else []
 
     # Get dropdown values
     for key in dropdown_keys:
         comboBoxValues.append(storename_dropdowns[key].value)
 
-    # Get textbox values (matching with dropdown keys)
+    # Get textbox values (all storenames always have a textbox)
     for key in dropdown_keys:
-        if key in storename_textboxes:
-            textbox_value = storename_textboxes[key].value or ""
-            textBoxValues.append(textbox_value)
+        textbox_value = storename_textboxes[key].value or ""
+        textBoxValues.append(textbox_value)
 
-            # Validation: Check for whitespace
-            if len(textbox_value.split()) > 1:
-                return "####Alert !! \n Whitespace is not allowed in the text box entry."
+        # Validation: Check for whitespace
+        if len(textbox_value.split()) > 1:
+            return "####Alert !! \n Whitespace is not allowed in the text box entry."
 
-            # Validation: Check for empty required fields
-            dropdown_value = storename_dropdowns[key].value
-            if (
-                not textbox_value
-                and dropdown_value not in storenames_cache
-                and dropdown_value in ["control", "signal", "event TTLs"]
-            ):
-                return "####Alert !! \n One of the text box entry is empty."
-        else:
-            # For cached values, use the dropdown value directly
-            textBoxValues.append(storename_dropdowns[key].value)
+        # Validation: Check for empty required fields
+        dropdown_value = storename_dropdowns[key].value
+        if not textbox_value and dropdown_value in ["control", "signal", "event TTLs"]:
+            return "####Alert !! \n One of the text box entry is empty."
 
     if len(comboBoxValues) != len(textBoxValues):
         return "####Alert !! \n Number of entries in combo box and text box should be same."

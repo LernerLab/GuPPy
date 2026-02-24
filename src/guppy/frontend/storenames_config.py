@@ -60,6 +60,17 @@ class StorenamesConfig:
         else:
             return ""
 
+    def _parse_cached_value(self, cached_value):
+        # Split an assembled cache entry back into (type, name) for pre-populating widgets
+        if cached_value.startswith("control_"):
+            return "control", cached_value[len("control_") :]
+        elif cached_value.startswith("signal_"):
+            return "signal", cached_value[len("signal_") :]
+        elif cached_value:
+            return "event TTLs", cached_value
+        else:
+            return "", ""
+
     def setup_storename(self, i, storename, storename_dropdowns, storename_textboxes, storenames_cache):
         # Create a row for each storename
         row_widgets = []
@@ -68,13 +79,12 @@ class StorenamesConfig:
         label = pn.pane.Markdown(f"**{storename}:**")
         row_widgets.append(label)
 
-        # Dropdown options
-        if storename in storenames_cache:
-            options = storenames_cache[storename]
-            default_value = options[0] if options else ""
+        # Pre-populate from cache if available; otherwise start blank
+        options = ["", "control", "signal", "event TTLs"]
+        if storename in storenames_cache and storenames_cache[storename]:
+            default_type, default_name = self._parse_cached_value(storenames_cache[storename][0])
         else:
-            options = ["", "control", "signal", "event TTLs"]
-            default_value = ""
+            default_type, default_name = "", ""
 
         # Create unique key for widget
         widget_key = (
@@ -83,22 +93,22 @@ class StorenamesConfig:
             else f"{storename}_{i}_{len(storename_dropdowns)}"
         )
 
-        dropdown = pn.widgets.Select(name="Type", value=default_value, options=options, width=150)
+        dropdown = pn.widgets.Select(name="Type", value=default_type, options=options, width=150)
         storename_dropdowns[widget_key] = dropdown
         row_widgets.append(dropdown)
 
-        # Text input (only show if not cached or if control/signal/event TTLs selected)
-        if storename not in storenames_cache or default_value in ["control", "signal", "event TTLs"]:
-            textbox = pn.widgets.TextInput(name="Name", value="", placeholder="Enter region/event name", width=200)
-            storename_textboxes[widget_key] = textbox
-            row_widgets.append(textbox)
+        # Always show textbox and help pane so every row has a uniform layout
+        textbox = pn.widgets.TextInput(
+            name="Name", value=default_name, placeholder="Enter region/event name", width=200
+        )
+        storename_textboxes[widget_key] = textbox
+        row_widgets.append(textbox)
 
-            # Add helper text based on selection
-            initial_help_text = self._get_help_text(default_value)
-            help_pane = pn.pane.Markdown(initial_help_text, styles={"color": "gray", "font-size": "12px"})
-            self._dropdown_help_map[dropdown] = help_pane
-            dropdown.param.watch(self._on_dropdown_value_change, "value")
-            row_widgets.append(help_pane)
+        initial_help_text = self._get_help_text(default_type)
+        help_pane = pn.pane.Markdown(initial_help_text, styles={"color": "gray", "font-size": "12px"})
+        self._dropdown_help_map[dropdown] = help_pane
+        dropdown.param.watch(self._on_dropdown_value_change, "value")
+        row_widgets.append(help_pane)
 
         # Add the row to config widgets
         self.config_widgets.append(pn.Row(*row_widgets, margin=(5, 0)))
