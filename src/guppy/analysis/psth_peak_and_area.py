@@ -40,7 +40,9 @@ def compute_psth_peak_and_area(psth_mean, timestamps, sampling_rate, peak_startP
             peakPoint_neg = startPtForPeak[0] + np.argmin(psth_mean[startPtForPeak[0] : endPtForPeak[0], :], axis=0)
             peak_and_area["peak_pos_" + str(i + 1)] = np.amax(psth_mean[peakPoint_pos], axis=0)
             peak_and_area["peak_neg_" + str(i + 1)] = np.amin(psth_mean[peakPoint_neg], axis=0)
-            peak_and_area["area_" + str(i + 1)] = np.trapz(psth_mean[startPtForPeak[0] : endPtForPeak[0], :], axis=0)
+            peak_and_area["area_" + str(i + 1)] = np.trapezoid(
+                psth_mean[startPtForPeak[0] : endPtForPeak[0], :], axis=0
+            )
         else:
             peak_and_area["peak_" + str(i + 1)] = np.nan
             peak_and_area["area_" + str(i + 1)] = np.nan
