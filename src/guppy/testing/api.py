@@ -275,6 +275,9 @@ def step4(
     remove_artifacts: bool = False,
     artifact_removal_method: str | None = None,
     artifact_coords: dict[str, np.ndarray] | None = None,
+    zscore_method: str = "standard z-score",
+    baseline_window_start: int = 0,
+    baseline_window_end: int = 0,
 ) -> None:
     """
     Run pipeline Step 4 (Extract timestamps and signal) via the Panel-backed logic, headlessly.
@@ -312,6 +315,15 @@ def step4(
         column 0) to write as ``coordsForPreProcessing_<pair_name>.npy`` into every
         ``_output_*`` directory before artifact removal runs. Bypasses the interactive
         artifact-selection UI. Ignored when ``remove_artifacts`` is False.
+    zscore_method : str
+        Z-score computation method. One of ``'standard z-score'``, ``'baseline z-score'``,
+        or ``'modified z-score'``. Defaults to ``'standard z-score'``.
+    baseline_window_start : int
+        Start of the baseline window in seconds. Only used when ``zscore_method`` is
+        ``'baseline z-score'``. Defaults to 0.
+    baseline_window_end : int
+        End of the baseline window in seconds. Only used when ``zscore_method`` is
+        ``'baseline z-score'``. Defaults to 0.
 
     Raises
     ------
@@ -371,6 +383,11 @@ def step4(
     input_params["removeArtifacts"] = remove_artifacts
     if artifact_removal_method is not None:
         input_params["artifactsRemovalMethod"] = artifact_removal_method
+
+    # Inject z-score parameters
+    input_params["zscore_method"] = zscore_method
+    input_params["baselineWindowStart"] = baseline_window_start
+    input_params["baselineWindowEnd"] = baseline_window_end
 
     # Write artifact coordinates into each output directory so that the artifact
     # removal worker can find them without the interactive selection UI.
