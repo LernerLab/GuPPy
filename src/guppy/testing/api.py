@@ -418,6 +418,8 @@ def step5(
     npm_time_units: list[str] | None = None,
     npm_split_events: list[bool] | None = None,
     compute_corr: bool = False,
+    average_for_group: bool = False,
+    group_folders: list[str] | None = None,
 ) -> None:
     """
     Run pipeline Step 5 (PSTH Computation) via the Panel-backed logic, headlessly.
@@ -445,6 +447,14 @@ def step5(
         List of booleans indicating whether to split events for NPM files, one per CSV file. None if not applicable.
     compute_corr : bool
         Whether to compute cross-correlation between signals. Defaults to False.
+    average_for_group : bool
+        Whether to run group-level averaging across sessions instead of per-session PSTH
+        computation. When ``True``, individual PSTH files must already exist in each session's
+        output directory, and results are written to ``<base_dir>/average/``. Defaults to False.
+    group_folders : list[str] | None
+        Absolute paths to the session directories to include in group averaging. Only used
+        when ``average_for_group`` is ``True``. Injected as ``folderNamesForAvg`` in
+        ``input_params``. Defaults to ``None`` (treated as empty list).
 
     Raises
     ------
@@ -499,6 +509,10 @@ def step5(
 
     # Inject cross-correlation flag
     input_params["computeCorr"] = compute_corr
+
+    # Inject group analysis parameters
+    input_params["averageForGroup"] = average_for_group
+    input_params["folderNamesForAvg"] = [os.path.abspath(f) for f in group_folders] if group_folders else []
 
     # Call the underlying Step 5 worker directly (no subprocess)
     psthForEachStorename(input_params)
