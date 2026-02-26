@@ -278,6 +278,7 @@ def step4(
     zscore_method: str = "standard z-score",
     baseline_window_start: int = 0,
     baseline_window_end: int = 0,
+    isosbestic_control: bool = True,
 ) -> None:
     """
     Run pipeline Step 4 (Extract timestamps and signal) via the Panel-backed logic, headlessly.
@@ -324,6 +325,9 @@ def step4(
     baseline_window_end : int
         End of the baseline window in seconds. Only used when ``zscore_method`` is
         ``'baseline z-score'``. Defaults to 0.
+    isosbestic_control : bool
+        Whether a separate isosbestic control channel is present. When ``False``, GuPPy
+        synthesizes a control channel from the signal. Defaults to ``True``.
 
     Raises
     ------
@@ -388,6 +392,9 @@ def step4(
     input_params["zscore_method"] = zscore_method
     input_params["baselineWindowStart"] = baseline_window_start
     input_params["baselineWindowEnd"] = baseline_window_end
+
+    # Inject isosbestic_control
+    input_params["isosbestic_control"] = isosbestic_control
 
     # Write artifact coordinates into each output directory so that the artifact
     # removal worker can find them without the interactive selection UI.
