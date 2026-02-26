@@ -1,4 +1,3 @@
-# TODO: Figure out why this test is failing
 import glob
 import os
 import shutil
