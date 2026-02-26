@@ -417,6 +417,7 @@ def step5(
     npm_timestamp_column_names: list[str | None] | None = None,
     npm_time_units: list[str] | None = None,
     npm_split_events: list[bool] | None = None,
+    compute_corr: bool = False,
 ) -> None:
     """
     Run pipeline Step 5 (PSTH Computation) via the Panel-backed logic, headlessly.
@@ -442,6 +443,8 @@ def step5(
         List of time units for NPM files, one per CSV file (e.g., 'seconds', 'milliseconds'). None if not applicable.
     npm_split_events : list[bool] | None
         List of booleans indicating whether to split events for NPM files, one per CSV file. None if not applicable.
+    compute_corr : bool
+        Whether to compute cross-correlation between signals. Defaults to False.
 
     Raises
     ------
@@ -493,6 +496,9 @@ def step5(
 
     # Inject modality
     input_params["modality"] = modality
+
+    # Inject cross-correlation flag
+    input_params["computeCorr"] = compute_corr
 
     # Call the underlying Step 5 worker directly (no subprocess)
     psthForEachStorename(input_params)
