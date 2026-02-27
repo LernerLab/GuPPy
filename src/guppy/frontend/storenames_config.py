@@ -95,20 +95,22 @@ class StorenamesConfig:
 
         dropdown = pn.widgets.Select(name="Type", value=default_type, options=options, width=150)
         storename_dropdowns[widget_key] = dropdown
-        row_widgets.append(dropdown)
 
         # Always show textbox and help pane so every row has a uniform layout
         textbox = pn.widgets.TextInput(
             name="Name", value=default_name, placeholder="Enter region/event name", width=200
         )
         storename_textboxes[widget_key] = textbox
-        row_widgets.append(textbox)
 
         initial_help_text = self._get_help_text(default_type)
-        help_pane = pn.pane.Markdown(initial_help_text, styles={"color": "gray", "font-size": "12px"})
+        help_pane = pn.pane.Markdown(
+            initial_help_text, styles={"color": "gray", "font-size": "12px"}, height=20, margin=(0, 0, 0, 0)
+        )
         self._dropdown_help_map[dropdown] = help_pane
         dropdown.param.watch(self._on_dropdown_value_change, "value")
-        row_widgets.append(help_pane)
+        # Wrap dropdown in a column with a same-height spacer so it bottom-aligns with the textbox
+        row_widgets.append(pn.Column(pn.Spacer(height=20), dropdown))
+        row_widgets.append(pn.Column(help_pane, textbox))
 
         # Add the row to config widgets
         self.config_widgets.append(pn.Row(*row_widgets, margin=(5, 0)))
