@@ -420,6 +420,8 @@ def step5(
     compute_corr: bool = False,
     average_for_group: bool = False,
     group_folders: list[str] | None = None,
+    select_for_compute_psth: str = "z_score",
+    select_for_transients: str = "z_score",
 ) -> None:
     """
     Run pipeline Step 5 (PSTH Computation) via the Panel-backed logic, headlessly.
@@ -455,6 +457,12 @@ def step5(
         Absolute paths to the session directories to include in group averaging. Only used
         when ``average_for_group`` is ``True``. Injected as ``folderNamesForAvg`` in
         ``input_params``. Defaults to ``None`` (treated as empty list).
+    select_for_compute_psth : str
+        Signal type to use for PSTH computation. One of ``'z_score'``, ``'dff'``, or
+        ``'Both'``. Defaults to ``'z_score'``.
+    select_for_transients : str
+        Signal type to use for transient detection. One of ``'z_score'``, ``'dff'``, or
+        ``'Both'``. Defaults to ``'z_score'``.
 
     Raises
     ------
@@ -513,6 +521,10 @@ def step5(
     # Inject group analysis parameters
     input_params["averageForGroup"] = average_for_group
     input_params["folderNamesForAvg"] = [os.path.abspath(f) for f in group_folders] if group_folders else []
+
+    # Inject signal-type selection parameters
+    input_params["selectForComputePsth"] = select_for_compute_psth
+    input_params["selectForTransientsComputation"] = select_for_transients
 
     # Call the underlying Step 5 worker directly (no subprocess)
     psthForEachStorename(input_params)
