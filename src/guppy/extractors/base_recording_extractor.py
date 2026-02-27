@@ -141,6 +141,73 @@ def read_and_save_all_events(extractor, events, outputPath, numProcesses=mp.cpu_
     logger.info("Time taken = {0:.5f}".format(time.time() - start))
 
 
+def _classify_csv_file(path):
+    """
+    Classify a single CSV file as belonging to one of three modalities.
+
+    Parameters
+    ----------
+    path : str
+        Absolute path to a CSV file.
+
+    Returns
+    -------
+    str
+        One of ``"doric"``, ``"npm"``, or ``"csv"``.
+    """
+    df = pd.read_csv(path, header=None, nrows=2, index_col=False, dtype=str)
+    df = df.dropna(axis=1, how="all")
+    df_arr = np.array(df).flatten()
+    non_numeric = [el for el in df_arr if not _is_float(el)]
+
+    # Doric CSV files have a 2-line all-string header (metadata + units rows) with no
+    # numeric values in the first two rows at all.
+    if len(non_numeric) == len(df_arr):
+        return "doric"
+
+    # File has string headers (or numeric-only headers) — inspect column names to distinguish npm from csv.
+    df = pd.read_csv(path, index_col=False)
+    colnames = list(df.columns)
+
+    # Doric v2 files store numeric values as column headers; treat them as headerless.
+    if all(_is_float(c) for c in colnames):
+        df = pd.read_csv(path, header=None)
+        cols = np.array(list(df.columns), dtype=str)
+    else:
+        cols = np.array(colnames, dtype=str)
+
+    if len(cols) == 1:
+        if cols[0].lower() != "timestamps":
+            logger.error("\033[1m" + "Column name should be timestamps (all lower-cases)" + "\033[0m")
+            raise Exception("\033[1m" + "Column name should be timestamps (all lower-cases)" + "\033[0m")
+        return "csv"
+    elif len(cols) == 3:
+        arr1 = np.array(["timestamps", "data", "sampling_rate"])
+        arr2 = np.char.lower(cols)
+        if (np.sort(arr1) == np.sort(arr2)).all():
+            return "csv"
+        logger.error(
+            "\033[1m" + "Column names should be timestamps, data and sampling_rate (all lower-cases)" + "\033[0m"
+        )
+        raise Exception(
+            "\033[1m" + "Column names should be timestamps, data and sampling_rate (all lower-cases)" + "\033[0m"
+        )
+    elif len(cols) >= 2:
+        return "npm"
+    else:
+        logger.error("Number of columns in csv file does not make sense.")
+        raise Exception("Number of columns in csv file does not make sense.")
+
+
+def _is_float(value):
+    """Return True if *value* can be interpreted as a float."""
+    try:
+        float(value)
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
 def detect_modality(folder_path):
     # Check for TDT .tsq files
     paths = glob.glob(os.path.join(folder_path, "*.tsq"))
@@ -155,67 +222,18 @@ def detect_modality(folder_path):
     if len(paths) >= 1:
         return "doric"
 
-    # Check for .csv files which could indicate doric, csv, or npm modalities.
+    # Classify every CSV file individually, then resolve to a single folder modality.
+    # npm > doric > csv: NPM processing generates valid csv-format files, so any
+    # original NPM file (multi-column, non-csv-format) must take precedence.
     paths = glob.glob(os.path.join(folder_path, "*.csv"))
     if len(paths) == 0:
         logger.error("\033[1m" + "No .tsq, .doric, or .csv files found to determine modality." + "\033[0m")
         raise Exception("No .tsq, .doric, or .csv files found to determine modality.")
-    for path in paths:
-        df = pd.read_csv(path, header=None, nrows=2, index_col=False, dtype=str)
-        df = df.dropna(axis=1, how="all")
-        df_arr = np.array(df).flatten()
-        check_all_str = []
-        for i, element in enumerate(df_arr):
-            try:
-                float(element)
-            except:
-                check_all_str.append(i)
-        if len(check_all_str) == len(df_arr):
-            return "doric"
-        else:
-            df = pd.read_csv(path, index_col=False)
-            colnames = list(df.columns)
-            value = []
-            for i in colnames:
-                try:
-                    value.append(float(i))
-                except:
-                    pass
 
-            # check dataframe structure and read data accordingly
-            if len(value) > 0:
-                columns_isstr = False
-                df = pd.read_csv(path, header=None)
-                cols = np.array(list(df.columns), dtype=str)
-            else:
-                columns_isstr = True
-                cols = np.array(list(df.columns), dtype=str)
+    file_labels = {_classify_csv_file(path) for path in paths}
 
-            # check the structure of dataframe and assign flag to the type of file
-            if len(cols) == 1:
-                if cols[0].lower() != "timestamps":
-                    logger.error("\033[1m" + "Column name should be timestamps (all lower-cases)" + "\033[0m")
-                    raise Exception("\033[1m" + "Column name should be timestamps (all lower-cases)" + "\033[0m")
-                else:
-                    return "csv"
-            elif len(cols) == 3:
-                arr1 = np.array(["timestamps", "data", "sampling_rate"])
-                arr2 = np.char.lower(np.array(cols))
-                if (np.sort(arr1) == np.sort(arr2)).all() == False:
-                    logger.error(
-                        "\033[1m"
-                        + "Column names should be timestamps, data and sampling_rate (all lower-cases)"
-                        + "\033[0m"
-                    )
-                    raise Exception(
-                        "\033[1m"
-                        + "Column names should be timestamps, data and sampling_rate (all lower-cases)"
-                        + "\033[0m"
-                    )
-                else:
-                    return "csv"
-            elif len(cols) >= 2:
-                return "npm"
-            else:
-                logger.error("Number of columns in csv file does not make sense.")
-                raise Exception("Number of columns in csv file does not make sense.")
+    if "npm" in file_labels:
+        return "npm"
+    if "doric" in file_labels:
+        return "doric"
+    return "csv"
