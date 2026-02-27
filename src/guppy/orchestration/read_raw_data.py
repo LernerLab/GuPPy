@@ -12,6 +12,7 @@ from guppy.extractors import (
     DoricRecordingExtractor,
     NpmRecordingExtractor,
     TdtRecordingExtractor,
+    detect_modality,
     read_and_save_all_events,
 )
 from guppy.frontend.progress import writeToFile
@@ -28,7 +29,7 @@ def orchestrate_read_raw_data(inputParameters):
     inputParameters = inputParameters
     folderNames = inputParameters["folderNames"]
     numProcesses = inputParameters["numberOfCores"]
-    modality = inputParameters["modality"]
+    # modality = inputParameters["modality"]
     num_ch = inputParameters["noChannels"]
     storesListPath = []
     if numProcesses == 0:
@@ -47,6 +48,7 @@ def orchestrate_read_raw_data(inputParameters):
     step = 0
     for i in range(len(folderNames)):
         filepath = folderNames[i]
+        modality = detect_modality(filepath)
         logger.debug(f"### Reading raw data for folder {folderNames[i]}")
         storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*")))
 

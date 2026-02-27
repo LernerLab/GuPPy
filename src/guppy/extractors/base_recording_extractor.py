@@ -1,5 +1,6 @@
 """Base class for recording extractors."""
 
+import glob
 import logging
 import multiprocessing as mp
 import os
@@ -10,6 +11,7 @@ from typing import Any
 
 import h5py
 import numpy as np
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -137,3 +139,83 @@ def read_and_save_all_events(extractor, events, outputPath, numProcesses=mp.cpu_
     with mp.Pool(numProcesses) as p:
         p.starmap(read_and_save_event, zip(repeat(extractor), events, repeat(outputPath)))
     logger.info("Time taken = {0:.5f}".format(time.time() - start))
+
+
+def detect_modality(folder_path):
+    # Check for TDT .tsq files
+    paths = glob.glob(os.path.join(folder_path, "*.tsq"))
+    if len(paths) > 1:
+        logger.error("Two tsq files are present at the location.")
+        raise Exception("Two tsq files are present at the location.")
+    elif len(paths) == 1:
+        return "tdt"
+
+    # Check for doric .doric files
+    paths = glob.glob(os.path.join(folder_path, "*.doric"))
+    if len(paths) >= 1:
+        return "doric"
+
+    # Check for .csv files which could indicate doric, csv, or npm modalities.
+    paths = glob.glob(os.path.join(folder_path, "*.csv"))
+    if len(paths) == 0:
+        logger.error("\033[1m" + "No .tsq, .doric, or .csv files found to determine modality." + "\033[0m")
+        raise Exception("No .tsq, .doric, or .csv files found to determine modality.")
+    for path in paths:
+        df = pd.read_csv(path, header=None, nrows=2, index_col=False, dtype=str)
+        df = df.dropna(axis=1, how="all")
+        df_arr = np.array(df).flatten()
+        check_all_str = []
+        for i, element in enumerate(df_arr):
+            try:
+                float(element)
+            except:
+                check_all_str.append(i)
+        if len(check_all_str) == len(df_arr):
+            return "doric"
+        else:
+            df = pd.read_csv(path, index_col=False)
+            colnames = list(df.columns)
+            value = []
+            for i in colnames:
+                try:
+                    value.append(float(i))
+                except:
+                    pass
+
+            # check dataframe structure and read data accordingly
+            if len(value) > 0:
+                columns_isstr = False
+                df = pd.read_csv(path, header=None)
+                cols = np.array(list(df.columns), dtype=str)
+            else:
+                columns_isstr = True
+                cols = np.array(list(df.columns), dtype=str)
+
+            # check the structure of dataframe and assign flag to the type of file
+            if len(cols) == 1:
+                if cols[0].lower() != "timestamps":
+                    logger.error("\033[1m" + "Column name should be timestamps (all lower-cases)" + "\033[0m")
+                    raise Exception("\033[1m" + "Column name should be timestamps (all lower-cases)" + "\033[0m")
+                else:
+                    return "csv"
+            elif len(cols) == 3:
+                arr1 = np.array(["timestamps", "data", "sampling_rate"])
+                arr2 = np.char.lower(np.array(cols))
+                if (np.sort(arr1) == np.sort(arr2)).all() == False:
+                    logger.error(
+                        "\033[1m"
+                        + "Column names should be timestamps, data and sampling_rate (all lower-cases)"
+                        + "\033[0m"
+                    )
+                    raise Exception(
+                        "\033[1m"
+                        + "Column names should be timestamps, data and sampling_rate (all lower-cases)"
+                        + "\033[0m"
+                    )
+                else:
+                    return "csv"
+            elif len(cols) >= 2:
+                return "npm"
+            else:
+                logger.error("Number of columns in csv file does not make sense.")
+                raise Exception("Number of columns in csv file does not make sense.")
