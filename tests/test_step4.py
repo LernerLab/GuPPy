@@ -10,7 +10,7 @@ from guppy.testing.api import step2, step3, step4
 
 
 @pytest.mark.parametrize(
-    "session_subdir, storenames_map, expected_region, expected_ttl, modality",
+    "session_subdir, storenames_map, expected_region, expected_ttl",
     [
         (
             "SampleData_csv/sample_data_csv_1",
@@ -21,7 +21,6 @@ from guppy.testing.api import step2, step3, step4
             },
             "region",
             "ttl",
-            "csv",
         ),
         (
             "SampleData_Doric/sample_doric_1",
@@ -32,7 +31,6 @@ from guppy.testing.api import step2, step3, step4
             },
             "region",
             "ttl",
-            "doric",
         ),
         (
             "SampleData_Doric/sample_doric_2",
@@ -43,7 +41,6 @@ from guppy.testing.api import step2, step3, step4
             },
             "region",
             "ttl",
-            "doric",
         ),
         (
             "SampleData_Doric/sample_doric_3",
@@ -54,7 +51,6 @@ from guppy.testing.api import step2, step3, step4
             },
             "region",
             "ttl",
-            "doric",
         ),
         (
             "SampleData_Doric/sample_doric_4",
@@ -64,7 +60,6 @@ from guppy.testing.api import step2, step3, step4
             },
             "region",
             None,
-            "doric",
         ),
         (
             "SampleData_Doric/sample_doric_5",
@@ -74,7 +69,6 @@ from guppy.testing.api import step2, step3, step4
             },
             "region",
             None,
-            "doric",
         ),
         (
             "SampleData_Clean/Photo_63_207-181030-103332",
@@ -85,7 +79,6 @@ from guppy.testing.api import step2, step3, step4
             },
             "dms",
             "port_entries_dms",
-            "tdt",
         ),
         (
             "SampleData_Clean/Photometry-161823",
@@ -96,7 +89,6 @@ from guppy.testing.api import step2, step3, step4
             },
             "region",
             ["PAB_0", "PAB_16", "PAB_2064"],  # This session has an event which gets split into three sub-events.
-            "tdt",
         ),
         (
             "SampleData_with_artifacts/Photo_048_392-200728-121222",
@@ -107,7 +99,6 @@ from guppy.testing.api import step2, step3, step4
             },
             "dms",
             "port_entries_dms",
-            "tdt",
         ),
         (
             "SampleData_Neurophotometrics/sampleData_NPM_2",
@@ -117,7 +108,6 @@ from guppy.testing.api import step2, step3, step4
             },
             "region",
             None,
-            "npm",
         ),
         (
             "SampleData_Neurophotometrics/sampleData_NPM_3",
@@ -128,7 +118,6 @@ from guppy.testing.api import step2, step3, step4
             },
             "region3",
             "ttl_region3",
-            "npm",
         ),
         (
             "SampleData_Neurophotometrics/sampleData_NPM_4",
@@ -139,7 +128,6 @@ from guppy.testing.api import step2, step3, step4
             },
             "region1",
             "ttl_true_region1",
-            "npm",
         ),
         (
             "SampleData_Neurophotometrics/sampleData_NPM_5",
@@ -150,7 +138,6 @@ from guppy.testing.api import step2, step3, step4
             },
             "region1",
             "ttl_region1",
-            "npm",
         ),
     ],
     ids=[
@@ -170,7 +157,7 @@ from guppy.testing.api import step2, step3, step4
     ],
 )
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_step4(tmp_path, monkeypatch, session_subdir, storenames_map, expected_region, expected_ttl, modality):
+def test_step4(tmp_path, monkeypatch, session_subdir, storenames_map, expected_region, expected_ttl):
     """
     Full integration test for Step 4 (Extract timestamps and signal) using real CSV sample data,
     isolated to a temporary workspace to avoid mutating shared sample data.
@@ -226,7 +213,6 @@ def test_step4(tmp_path, monkeypatch, session_subdir, storenames_map, expected_r
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
         storenames_map=storenames_map,
-        modality=modality,
         npm_timestamp_column_names=npm_timestamp_column_names,
         npm_time_units=npm_time_units,
         npm_split_events=npm_split_events,
@@ -236,7 +222,6 @@ def test_step4(tmp_path, monkeypatch, session_subdir, storenames_map, expected_r
     step3(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
-        modality=modality,
         npm_timestamp_column_names=npm_timestamp_column_names,
         npm_time_units=npm_time_units,
         npm_split_events=npm_split_events,
@@ -246,7 +231,6 @@ def test_step4(tmp_path, monkeypatch, session_subdir, storenames_map, expected_r
     step4(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
-        modality=modality,
         npm_timestamp_column_names=npm_timestamp_column_names,
         npm_time_units=npm_time_units,
         npm_split_events=npm_split_events,
