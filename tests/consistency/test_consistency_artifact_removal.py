@@ -67,7 +67,6 @@ CONSISTENCY_CASES = [
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_consistency(
     tmp_path,
-    monkeypatch,
     session_subdir,
     standard_output_subdir,
     artifact_removal_method,
@@ -88,8 +87,6 @@ def test_consistency(
 
     standard_output_dir = TESTING_DATA / standard_output_subdir
     assert standard_output_dir.is_dir(), f"Standard output not found: {standard_output_dir}"
-
-    monkeypatch.setattr("matplotlib.pyplot.show", lambda *args, **kwargs: None)
 
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)

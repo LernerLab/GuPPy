@@ -20,7 +20,7 @@ STORENAMES_MAP = {
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_consistency_no_isosbestic(tmp_path, monkeypatch):
+def test_consistency_no_isosbestic(tmp_path):
     """
     Consistency test: run the full pipeline (Steps 2-5) without an isosbestic control
     channel and assert that the output is numerically identical (within tolerance) to
@@ -34,8 +34,6 @@ def test_consistency_no_isosbestic(tmp_path, monkeypatch):
 
     standard_output_dir = TESTING_DATA / STANDARD_OUTPUT_SUBDIR
     assert standard_output_dir.is_dir(), f"Standard output not found: {standard_output_dir}"
-
-    monkeypatch.setattr("matplotlib.pyplot.show", lambda *args, **kwargs: None)
 
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)

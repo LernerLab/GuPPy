@@ -46,7 +46,7 @@ _COORDS_NAN = np.array(
     ids=["concatenate", "nan"],
 )
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_artifact_removal(tmp_path, monkeypatch, artifact_removal_method, coords):
+def test_artifact_removal(tmp_path, artifact_removal_method, coords):
     """
     Integration test for artifact removal.
 
@@ -55,10 +55,6 @@ def test_artifact_removal(tmp_path, monkeypatch, artifact_removal_method, coords
     """
     src_session = TESTING_DATA / SESSION_SUBDIR
     assert src_session.is_dir(), f"Sample data not available at expected path: {src_session}"
-
-    import matplotlib.pyplot as plt  # noqa: F401
-
-    monkeypatch.setattr("matplotlib.pyplot.show", lambda *args, **kwargs: None)
 
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)

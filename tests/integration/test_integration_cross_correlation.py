@@ -10,7 +10,7 @@ from guppy.testing.api import step2, step3, step4, step5
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_cross_correlation(tmp_path, monkeypatch):
+def test_cross_correlation(tmp_path):
     """
     Integration test for Step 5 cross-correlation computation.
 
@@ -41,10 +41,6 @@ def test_cross_correlation(tmp_path, monkeypatch):
     src_base_dir = str(Path(".") / "testing_data")
     src_session = os.path.join(src_base_dir, session_subdir)
     assert os.path.isdir(src_session), f"Sample data not available at expected path: {src_session}"
-
-    import matplotlib.pyplot as plt  # noqa: F401
-
-    monkeypatch.setattr("matplotlib.pyplot.show", lambda *args, **kwargs: None)
 
     # Stage a clean copy of the session into a temporary workspace
     tmp_base = tmp_path / "data_root"
