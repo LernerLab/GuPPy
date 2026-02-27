@@ -309,7 +309,8 @@ def orchestrate_storenames_page(inputParameters):
     try:
         for i in folderNames:
             folder_path = os.path.join(inputParameters["abspath"], i)
-            modality = detect_modality(folder_path)
+            requested_modality = inputParameters.get("modality", "auto")
+            modality = detect_modality(folder_path) if requested_modality == "auto" else requested_modality
             events, flags = read_header(inputParameters, num_ch, modality, folder_path, headless)
             build_storenames_page(inputParameters, events, flags, folder_path)
         logger.info("#" * 400)

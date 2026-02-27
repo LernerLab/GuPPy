@@ -68,7 +68,7 @@ def step2(
     base_dir: str,
     selected_folders: Iterable[str],
     storenames_map: dict[str, str],
-    modality: str = "tdt",
+    modality: str = "auto",
     npm_timestamp_column_names: list[str | None] | None = None,
     npm_time_units: list[str] | None = None,
     npm_split_events: list[bool] | None = None,
@@ -95,7 +95,8 @@ def step2(
         Mapping from raw storenames (e.g., "Dv1A") to semantic names
         (e.g., "control_DMS"). Insertion order is preserved.
     modality : str
-        Data acquisition modality (e.g., 'tdt', 'csv', 'doric', 'npm').
+        Data acquisition modality. Use ``'auto'`` (default) to detect from folder contents,
+        or specify explicitly: ``'tdt'``, ``'csv'``, ``'doric'``, or ``'npm'``.
     npm_timestamp_column_names : list[str | None] | None
         List of timestamp column names for NPM files, one per CSV file. None if not applicable.
     npm_time_units : list[str] | None
@@ -175,7 +176,7 @@ def step3(
     *,
     base_dir: str,
     selected_folders: Iterable[str],
-    modality: str = "tdt",
+    modality: str = "auto",
     npm_timestamp_column_names: list[str | None] | None = None,
     npm_time_units: list[str] | None = None,
     npm_split_events: list[bool] | None = None,
@@ -197,7 +198,8 @@ def step3(
     selected_folders : Iterable[str]
         Absolute paths to the session directories to process.
     modality : str
-        Data acquisition modality (e.g., 'tdt', 'csv', 'doric', 'npm').
+        Data acquisition modality. Use ``'auto'`` (default) to detect from folder contents,
+        or specify explicitly: ``'tdt'``, ``'csv'``, ``'doric'``, or ``'npm'``.
     npm_timestamp_column_names : list[str | None] | None
         List of timestamp column names for NPM files, one per CSV file. None if not applicable.
     npm_time_units : list[str] | None
@@ -264,7 +266,7 @@ def step4(
     *,
     base_dir: str,
     selected_folders: Iterable[str],
-    modality: str = "tdt",
+    modality: str = "auto",
     npm_timestamp_column_names: list[str | None] | None = None,
     npm_time_units: list[str] | None = None,
     npm_split_events: list[bool] | None = None,
@@ -287,7 +289,8 @@ def step4(
     selected_folders : Iterable[str]
         Absolute paths to the session directories to process.
     modality : str
-        Data acquisition modality (e.g., 'tdt', 'csv', 'doric', 'npm').
+        Data acquisition modality. Use ``'auto'`` (default) to detect from folder contents,
+        or specify explicitly: ``'tdt'``, ``'csv'``, ``'doric'``, or ``'npm'``.
     npm_timestamp_column_names : list[str | None] | None
         List of timestamp column names for NPM files, one per CSV file. None if not applicable.
     npm_time_units : list[str] | None
@@ -359,7 +362,7 @@ def step5(
     *,
     base_dir: str,
     selected_folders: Iterable[str],
-    modality: str = "tdt",
+    modality: str = "auto",
     npm_timestamp_column_names: list[str | None] | None = None,
     npm_time_units: list[str] | None = None,
     npm_split_events: list[bool] | None = None,
@@ -381,7 +384,8 @@ def step5(
     selected_folders : Iterable[str]
         Absolute paths to the session directories to process.
     modality : str
-        Data acquisition modality (e.g., 'tdt', 'csv', 'doric', 'npm').
+        Data acquisition modality. Use ``'auto'`` (default) to detect from folder contents,
+        or specify explicitly: ``'tdt'``, ``'csv'``, ``'doric'``, or ``'npm'``.
     npm_timestamp_column_names : list[str | None] | None
         List of timestamp column names for NPM files, one per CSV file. None if not applicable.
     npm_time_units : list[str] | None

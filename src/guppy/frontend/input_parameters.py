@@ -69,6 +69,7 @@ class ParameterForm:
         self.explain_modality = pn.pane.Markdown(
             """
             **Data Modality:** Select the type of data acquisition system used for your recordings:
+            - **auto**: Automatically detect from folder contents (recommended)
             - **tdt**: Tucker-Davis Technologies system
             - **csv**: Generic CSV format
             - **doric**: Doric Photometry system
@@ -78,7 +79,7 @@ class ParameterForm:
         )
 
         self.modality_selector = pn.widgets.Select(
-            name="Data Modality", value="tdt", options=["tdt", "csv", "doric", "npm"], width=320
+            name="Data Modality", value="auto", options=["auto", "tdt", "csv", "doric", "npm"], width=320
         )
 
         self.explain_time_artifacts = pn.pane.Markdown(

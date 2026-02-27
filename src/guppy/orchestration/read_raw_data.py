@@ -48,7 +48,8 @@ def orchestrate_read_raw_data(inputParameters):
     step = 0
     for i in range(len(folderNames)):
         filepath = folderNames[i]
-        modality = detect_modality(filepath)
+        requested_modality = inputParameters.get("modality", "auto")
+        modality = detect_modality(filepath) if requested_modality == "auto" else requested_modality
         logger.debug(f"### Reading raw data for folder {folderNames[i]}")
         storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*")))
 
