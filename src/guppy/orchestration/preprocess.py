@@ -3,23 +3,23 @@ import json
 import logging
 import os
 import sys
+from typing import Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .analysis.artifact_removal import remove_artifacts
-from .analysis.combine_data import combine_data
-from .analysis.control_channel import add_control_channel, create_control_channel
-from .analysis.io_utils import (
+from ..analysis.artifact_removal import remove_artifacts
+from ..analysis.combine_data import combine_data
+from ..analysis.control_channel import add_control_channel, create_control_channel
+from ..analysis.io_utils import (
     check_storeslistfile,
     check_TDT,
     find_files,
-    get_all_stores_for_combining_data,  # noqa: F401 -- Necessary for other modules that depend on preprocess.py
     get_coords,
     read_hdf5,
     takeOnlyDirs,
 )
-from .analysis.standard_io import (
+from ..analysis.standard_io import (
     read_control_and_signal,
     read_coords_pairwise,
     read_corrected_data,
@@ -37,8 +37,12 @@ from .analysis.standard_io import (
     write_corrected_ttl_timestamps,
     write_zscore,
 )
-from .analysis.timestamp_correction import correct_timestamps
-from .analysis.z_score import compute_z_score
+from ..analysis.timestamp_correction import correct_timestamps
+from ..analysis.z_score import compute_z_score
+from ..frontend.artifact_removal import ArtifactRemovalWidget
+from ..frontend.progress import writeToFile
+from ..utils.utils import get_all_stores_for_combining_data
+from ..visualization.preprocessing import visualize_preprocessing
 
 logger = logging.getLogger(__name__)
 
@@ -47,17 +51,10 @@ if not os.getenv("CI"):
     plt.switch_backend("TKAgg")
 
 
-def writeToFile(value: str):
-    with open(os.path.join(os.path.expanduser("~"), "pbSteps.txt"), "a") as file:
-        file.write(value)
-
-
-# function to plot z_score
-def visualize_z_score(filepath):
-
+def execute_preprocessing_visualization(filepath, visualization_type: Literal["z_score", "dff"]):
     name = os.path.basename(filepath)
 
-    path = glob.glob(os.path.join(filepath, "z_score_*"))
+    path = glob.glob(os.path.join(filepath, f"{visualization_type}_*"))
 
     path = sorted(path)
 
@@ -66,122 +63,7 @@ def visualize_z_score(filepath):
         name_1 = basename.split("_")[-1]
         x = read_hdf5("timeCorrection_" + name_1, filepath, "timestampNew")
         y = read_hdf5("", path[i], "data")
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        ax.plot(x, y)
-        ax.set_title(basename)
-        fig.suptitle(name)
-    # plt.show()
-
-
-# function to plot deltaF/F
-def visualize_dff(filepath):
-    name = os.path.basename(filepath)
-
-    path = glob.glob(os.path.join(filepath, "dff_*"))
-
-    path = sorted(path)
-
-    for i in range(len(path)):
-        basename = (os.path.basename(path[i])).split(".")[0]
-        name_1 = basename.split("_")[-1]
-        x = read_hdf5("timeCorrection_" + name_1, filepath, "timestampNew")
-        y = read_hdf5("", path[i], "data")
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        ax.plot(x, y)
-        ax.set_title(basename)
-        fig.suptitle(name)
-    # plt.show()
-
-
-def visualize(filepath, x, y1, y2, y3, plot_name, removeArtifacts):
-
-    # plotting control and signal data
-
-    if (y1 == 0).all() == True:
-        y1 = np.zeros(x.shape[0])
-
-    coords_path = os.path.join(filepath, "coordsForPreProcessing_" + plot_name[0].split("_")[-1] + ".npy")
-    name = os.path.basename(filepath)
-    fig = plt.figure()
-    ax1 = fig.add_subplot(311)
-    (line1,) = ax1.plot(x, y1)
-    ax1.set_title(plot_name[0])
-    ax2 = fig.add_subplot(312)
-    (line2,) = ax2.plot(x, y2)
-    ax2.set_title(plot_name[1])
-    ax3 = fig.add_subplot(313)
-    (line3,) = ax3.plot(x, y2)
-    (line3,) = ax3.plot(x, y3)
-    ax3.set_title(plot_name[2])
-    fig.suptitle(name)
-
-    hfont = {"fontname": "DejaVu Sans"}
-
-    if removeArtifacts == True and os.path.exists(coords_path):
-        ax3.set_xlabel("Time(s) \n Note : Artifacts have been removed, but are not reflected in this plot.", **hfont)
-    else:
-        ax3.set_xlabel("Time(s)", **hfont)
-
-    global coords
-    coords = []
-
-    # clicking 'space' key on keyboard will draw a line on the plot so that user can see what chunks are selected
-    # and clicking 'd' key on keyboard will deselect the selected point
-    def onclick(event):
-        # global ix, iy
-
-        if event.key == " ":
-            ix, iy = event.xdata, event.ydata
-            logger.info(f"x = {ix}, y = {iy}")
-            y1_max, y1_min = np.amax(y1), np.amin(y1)
-            y2_max, y2_min = np.amax(y2), np.amin(y2)
-
-            # ax1.plot([ix,ix], [y1_max, y1_min], 'k--')
-            # ax2.plot([ix,ix], [y2_max, y2_min], 'k--')
-
-            ax1.axvline(ix, c="black", ls="--")
-            ax2.axvline(ix, c="black", ls="--")
-            ax3.axvline(ix, c="black", ls="--")
-
-            fig.canvas.draw()
-
-            global coords
-            coords.append((ix, iy))
-
-            # if len(coords) == 2:
-            #    fig.canvas.mpl_disconnect(cid)
-
-            return coords
-
-        elif event.key == "d":
-            if len(coords) > 0:
-                logger.info(f"x = {coords[-1][0]}, y = {coords[-1][1]}; deleted")
-                del coords[-1]
-                ax1.lines[-1].remove()
-                ax2.lines[-1].remove()
-                ax3.lines[-1].remove()
-                fig.canvas.draw()
-
-            return coords
-
-    # close the plot will save coordinates for all the selected chunks in the data
-    def plt_close_event(event):
-        global coords
-        if coords and len(coords) > 0:
-            name_1 = plot_name[0].split("_")[-1]
-            np.save(os.path.join(filepath, "coordsForPreProcessing_" + name_1 + ".npy"), coords)
-            logger.info(f"Coordinates file saved at {os.path.join(filepath, 'coordsForPreProcessing_'+name_1+'.npy')}")
-        fig.canvas.mpl_disconnect(cid)
-        coords = []
-
-    cid = fig.canvas.mpl_connect("key_press_event", onclick)
-    cid = fig.canvas.mpl_connect("close_event", plt_close_event)
-    # multi = MultiCursor(fig.canvas, (ax1, ax2), color='g', lw=1, horizOn=False, vertOn=True)
-
-    # plt.show()
-    # return fig
+        fig, ax = visualize_preprocessing(suptitle=name, title=basename, x=x, y=y)
 
 
 # function to plot control and signal, also provide a feature to select chunks for artifacts removal
@@ -198,6 +80,7 @@ def visualizeControlAndSignal(filepath, removeArtifacts):
 
     path = np.asarray(path).reshape(2, -1)
 
+    widgets = []
     for i in range(path.shape[1]):
 
         name_1 = ((os.path.basename(path[0, i])).split(".")[0]).split("_")
@@ -216,7 +99,9 @@ def visualizeControlAndSignal(filepath, removeArtifacts):
             (os.path.basename(path[1, i])).split(".")[0],
             (os.path.basename(cntrl_sig_fit_path)).split(".")[0],
         ]
-        visualize(filepath, ts, control, signal, cntrl_sig_fit, plot_name, removeArtifacts)
+        widget = ArtifactRemovalWidget(filepath, ts, control, signal, cntrl_sig_fit, plot_name, removeArtifacts)
+        widgets.append(widget)
+    return widgets
 
 
 # function to execute timestamps corrections using functions timestampCorrection and decide_naming_convention_and_applyCorrection
@@ -336,23 +221,45 @@ def execute_zscore(folderNames, inputParameters):
             write_zscore(filepath, name, z_score, dff, control_fit, temp_control_arr)
 
         logger.info(f"z-score for the data in {filepath} computed.")
-
-        if not remove_artifacts:
-            visualizeControlAndSignal(filepath, removeArtifacts=remove_artifacts)
-
-        if plot_zScore_dff == "z_score":
-            visualize_z_score(filepath)
-        if plot_zScore_dff == "dff":
-            visualize_dff(filepath)
-        if plot_zScore_dff == "Both":
-            visualize_z_score(filepath)
-            visualize_dff(filepath)
-
         writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
         inputParameters["step"] += 1
 
     plt.show()
     logger.info("Z-score computation completed.")
+
+
+def visualize_z_score(inputParameters, folderNames):
+    plot_zScore_dff = inputParameters["plot_zScore_dff"]
+    combine_data = inputParameters["combine_data"]
+    remove_artifacts = inputParameters["removeArtifacts"]
+
+    storesListPath = []
+    for i in range(len(folderNames)):
+        if combine_data == True:
+            storesListPath.append([folderNames[i][0]])
+        else:
+            filepath = folderNames[i]
+            storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+    storesListPath = np.concatenate(storesListPath)
+
+    widgets = []
+    for j in range(len(storesListPath)):
+        filepath = storesListPath[j]
+
+        if not remove_artifacts:
+            # a reference to widgets has to persist in the same scope as plt.show() is called
+            widgets.extend(visualizeControlAndSignal(filepath, removeArtifacts=remove_artifacts))
+
+        if plot_zScore_dff == "z_score":
+            execute_preprocessing_visualization(filepath, visualization_type="z_score")
+        if plot_zScore_dff == "dff":
+            execute_preprocessing_visualization(filepath, visualization_type="dff")
+        if plot_zScore_dff == "Both":
+            execute_preprocessing_visualization(filepath, visualization_type="z_score")
+            execute_preprocessing_visualization(filepath, visualization_type="dff")
+
+    plt.show()
+    logger.info("Visualization of z-score and dF/F completed.")
 
 
 # function to remove artifacts from z-score data
@@ -394,13 +301,32 @@ def execute_artifact_removal(folderNames, inputParameters):
         )
 
         write_artifact_removal(filepath, name_to_data, pair_name_to_timestamps, compound_name_to_ttl_timestamps)
-        visualizeControlAndSignal(filepath, removeArtifacts=True)
 
         writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
         inputParameters["step"] += 1
 
-    plt.show()
+    visualize_artifact_removal(folderNames, inputParameters)
     logger.info("Artifact removal completed.")
+
+
+def visualize_artifact_removal(folderNames, inputParameters):
+    combine_data = inputParameters["combine_data"]
+
+    storesListPath = []
+    for i in range(len(folderNames)):
+        if combine_data == True:
+            storesListPath.append([folderNames[i][0]])
+        else:
+            filepath = folderNames[i]
+            storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+
+    storesListPath = np.concatenate(storesListPath)
+
+    for j in range(len(storesListPath)):
+        filepath = storesListPath[j]
+        visualizeControlAndSignal(filepath, removeArtifacts=True)
+    plt.show()
+    logger.info("Visualization of artifact removal completed.")
 
 
 # function to combine data when there are two different data files for the same recording session
@@ -490,6 +416,7 @@ def extractTsAndSignal(inputParameters):
         writeToFile(str((pbMaxValue + 1) * 10) + "\n" + str(10) + "\n")
         execute_timestamp_correction(folderNames, inputParameters)
         execute_zscore(folderNames, inputParameters)
+        visualize_z_score(inputParameters, folderNames)
         if remove_artifacts == True:
             execute_artifact_removal(folderNames, inputParameters)
     else:
@@ -499,6 +426,7 @@ def extractTsAndSignal(inputParameters):
         storesList = check_storeslistfile(folderNames)
         op_folder = execute_combine_data(folderNames, inputParameters, storesList)
         execute_zscore(op_folder, inputParameters)
+        visualize_z_score(inputParameters, op_folder)
         if remove_artifacts == True:
             execute_artifact_removal(op_folder, inputParameters)
 

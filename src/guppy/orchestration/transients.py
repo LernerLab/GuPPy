@@ -8,37 +8,22 @@ import sys
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .analysis.io_utils import (
-    get_all_stores_for_combining_data,
+from ..analysis.io_utils import (
     read_hdf5,
-    takeOnlyDirs,
 )
-from .analysis.standard_io import (
+from ..analysis.standard_io import (
+    read_transients_from_hdf5,
     write_freq_and_amp_to_csv,
     write_freq_and_amp_to_hdf5,
+    write_transients_to_hdf5,
 )
-from .analysis.transients import analyze_transients
-from .analysis.transients_average import averageForGroup
+from ..analysis.transients import analyze_transients
+from ..analysis.transients_average import averageForGroup
+from ..frontend.progress import writeToFile
+from ..utils.utils import get_all_stores_for_combining_data, takeOnlyDirs
+from ..visualization.transients import visualize_peaks
 
 logger = logging.getLogger(__name__)
-
-
-def writeToFile(value: str):
-    with open(os.path.join(os.path.expanduser("~"), "pbSteps.txt"), "a") as file:
-        file.write(value)
-
-
-def visuzlize_peaks(filepath, z_score, timestamps, peaksIndex):
-
-    dirname = os.path.dirname(filepath)
-
-    basename = (os.path.basename(filepath)).split(".")[0]
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    ax.plot(timestamps, z_score, "-", timestamps[peaksIndex], z_score[peaksIndex], "o")
-    ax.set_title(basename)
-    fig.suptitle(os.path.basename(dirname))
-    # plt.show()
 
 
 def findFreqAndAmp(filepath, inputParameters, window=15, numProcesses=mp.cpu_count()):
@@ -76,8 +61,66 @@ def findFreqAndAmp(filepath, inputParameters, window=15, numProcesses=mp.cpu_cou
             index=np.arange(peaks_occurrences.shape[0]),
             columns=["timestamps", "amplitude"],
         )
-        visuzlize_peaks(path[i], z_score, ts, peaksInd)
+        write_transients_to_hdf5(filepath, basename, z_score, ts, peaksInd)
     logger.info("Frequency and amplitude of transients in z_score data are calculated.")
+
+
+def execute_visualize_peaks(folderNames, inputParameters):
+    selectForTransientsComputation = inputParameters["selectForTransientsComputation"]
+    for i in range(len(folderNames)):
+        logger.debug(f"Finding transients in z-score data of {folderNames[i]} and calculating frequency and amplitude.")
+        filepath = folderNames[i]
+        storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*")))
+        for j in range(len(storesListPath)):
+            filepath = storesListPath[j]
+            if selectForTransientsComputation == "z_score":
+                path = glob.glob(os.path.join(filepath, "z_score_*"))
+            elif selectForTransientsComputation == "dff":
+                path = glob.glob(os.path.join(filepath, "dff_*"))
+            else:
+                path = glob.glob(os.path.join(filepath, "z_score_*")) + glob.glob(os.path.join(filepath, "dff_*"))
+
+            for i in range(len(path)):
+                basename = (os.path.basename(path[i])).split(".")[0]
+                z_score, ts, peaksInd = read_transients_from_hdf5(filepath, basename)
+
+                suptitle = os.path.basename(os.path.dirname(path[i]))
+                title = (os.path.basename(path[i])).split(".")[0]
+                visualize_peaks(title, suptitle, z_score, ts, peaksInd)
+
+    logger.info("Frequency and amplitude of transients in z_score data are visualized.")
+    plt.show()
+
+
+def execute_visualize_peaks_combined(folderNames, inputParameters):
+    selectForTransientsComputation = inputParameters["selectForTransientsComputation"]
+
+    storesListPath = []
+    for i in range(len(folderNames)):
+        filepath = folderNames[i]
+        storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+    storesListPath = list(np.concatenate(storesListPath).flatten())
+    op = get_all_stores_for_combining_data(storesListPath)
+    for i in range(len(op)):
+        filepath = op[i][0]
+
+        if selectForTransientsComputation == "z_score":
+            path = glob.glob(os.path.join(filepath, "z_score_*"))
+        elif selectForTransientsComputation == "dff":
+            path = glob.glob(os.path.join(filepath, "dff_*"))
+        else:
+            path = glob.glob(os.path.join(filepath, "z_score_*")) + glob.glob(os.path.join(filepath, "dff_*"))
+
+        for i in range(len(path)):
+            basename = (os.path.basename(path[i])).split(".")[0]
+            z_score, ts, peaksInd = read_transients_from_hdf5(filepath, basename)
+
+            suptitle = os.path.basename(os.path.dirname(path[i]))
+            title = (os.path.basename(path[i])).split(".")[0]
+            visualize_peaks(title, suptitle, z_score, ts, peaksInd)
+
+    logger.info("Frequency and amplitude of transients in z_score data are calculated.")
+    plt.show()
 
 
 def executeFindFreqAndAmp(inputParameters):
@@ -106,8 +149,10 @@ def executeFindFreqAndAmp(inputParameters):
     else:
         if combine_data == True:
             execute_find_freq_and_amp_combined(inputParameters, folderNames, moving_window, numProcesses)
+            execute_visualize_peaks_combined(folderNames, inputParameters)
         else:
             execute_find_freq_and_amp(inputParameters, folderNames, moving_window, numProcesses)
+            execute_visualize_peaks(folderNames, inputParameters)
 
     logger.info("Transients in z-score data found and frequency and amplitude are calculated.")
 
@@ -126,7 +171,6 @@ def execute_find_freq_and_amp(inputParameters, folderNames, moving_window, numPr
             writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
             inputParameters["step"] += 1
         logger.info("Transients in z-score data found and frequency and amplitude are calculated.")
-    plt.show()
 
 
 def execute_find_freq_and_amp_combined(inputParameters, folderNames, moving_window, numProcesses):
@@ -142,7 +186,6 @@ def execute_find_freq_and_amp_combined(inputParameters, folderNames, moving_wind
         findFreqAndAmp(filepath, inputParameters, window=moving_window, numProcesses=numProcesses)
         writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
         inputParameters["step"] += 1
-    plt.show()
 
 
 def execute_average_for_group(inputParameters, folderNamesForAvg):
