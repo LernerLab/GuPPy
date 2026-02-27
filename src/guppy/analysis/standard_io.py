@@ -331,3 +331,18 @@ def read_freq_and_amp_from_hdf5(filepath, name):
     df = pd.read_hdf(op, key="df", mode="r")
 
     return df
+
+
+def write_transients_to_hdf5(filepath, name, z_score, ts, peaksInd):
+    event = f"transient_outputs_{name}"
+    write_hdf5(z_score, event, filepath, "z_score")
+    write_hdf5(ts, event, filepath, "timestamps")
+    write_hdf5(peaksInd, event, filepath, "peaksInd")
+
+
+def read_transients_from_hdf5(filepath, name):
+    event = f"transient_outputs_{name}"
+    z_score = read_hdf5(event, filepath, "z_score")
+    ts = read_hdf5(event, filepath, "timestamps")
+    peaksInd = read_hdf5(event, filepath, "peaksInd")
+    return z_score, ts, peaksInd

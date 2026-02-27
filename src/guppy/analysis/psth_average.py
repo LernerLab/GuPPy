@@ -10,10 +10,10 @@ import pandas as pd
 from .io_utils import (
     make_dir_for_cross_correlation,
     makeAverageDir,
-    read_Df,
     write_hdf5,
 )
 from .psth_utils import create_Df_for_psth, getCorrCombinations
+from ..utils.utils import read_Df
 
 logger = logging.getLogger(__name__)
 

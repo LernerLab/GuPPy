@@ -14,25 +14,14 @@ from guppy.extractors import (
     TdtRecordingExtractor,
     read_and_save_all_events,
 )
+from guppy.frontend.progress import writeToFile
+from guppy.utils.utils import takeOnlyDirs
 
 logger = logging.getLogger(__name__)
 
 
-def takeOnlyDirs(paths):
-    removePaths = []
-    for p in paths:
-        if os.path.isfile(p):
-            removePaths.append(p)
-    return list(set(paths) - set(removePaths))
-
-
-def writeToFile(value: str):
-    with open(os.path.join(os.path.expanduser("~"), "pbSteps.txt"), "a") as file:
-        file.write(value)
-
-
 # function to read data from 'tsq' and 'tev' files
-def readRawData(inputParameters):
+def orchestrate_read_raw_data(inputParameters):
 
     logger.debug("### Reading raw data... ###")
     # get input parameters
@@ -99,7 +88,7 @@ def readRawData(inputParameters):
 def main(input_parameters):
     logger.info("run")
     try:
-        readRawData(input_parameters)
+        orchestrate_read_raw_data(input_parameters)
         logger.info("#" * 400)
     except Exception as e:
         with open(os.path.join(os.path.expanduser("~"), "pbSteps.txt"), "a") as file:

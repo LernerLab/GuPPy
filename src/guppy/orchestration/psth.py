@@ -13,42 +13,29 @@ from itertools import repeat
 import numpy as np
 from scipy import signal as ss
 
-from .analysis.compute_psth import compute_psth
-from .analysis.cross_correlation import compute_cross_correlation
-from .analysis.io_utils import (
-    get_all_stores_for_combining_data,
+from ..analysis.compute_psth import compute_psth
+from ..analysis.cross_correlation import compute_cross_correlation
+from ..analysis.io_utils import (
     make_dir_for_cross_correlation,
     makeAverageDir,
-    read_Df,
     read_hdf5,
     write_hdf5,
 )
-from .analysis.psth_average import averageForGroup
-from .analysis.psth_peak_and_area import compute_psth_peak_and_area
-from .analysis.psth_utils import (
+from ..analysis.psth_average import averageForGroup
+from ..analysis.psth_peak_and_area import compute_psth_peak_and_area
+from ..analysis.psth_utils import (
     create_Df_for_cross_correlation,
     create_Df_for_psth,
     getCorrCombinations,
 )
-from .analysis.standard_io import (
+from ..analysis.standard_io import (
     write_peak_and_area_to_csv,
     write_peak_and_area_to_hdf5,
 )
+from ..frontend.progress import writeToFile
+from ..utils.utils import get_all_stores_for_combining_data, read_Df, takeOnlyDirs
 
 logger = logging.getLogger(__name__)
-
-
-def takeOnlyDirs(paths):
-    removePaths = []
-    for p in paths:
-        if os.path.isfile(p):
-            removePaths.append(p)
-    return list(set(paths) - set(removePaths))
-
-
-def writeToFile(value: str):
-    with open(os.path.join(os.path.expanduser("~"), "pbSteps.txt"), "a") as file:
-        file.write(value)
 
 
 # function to create PSTH for each event using function helper_psth and save the PSTH to h5 file
@@ -358,7 +345,7 @@ def psthForEachStorename(inputParameters):
 def main(input_parameters):
     try:
         inputParameters = psthForEachStorename(input_parameters)
-        subprocess.call([sys.executable, "-m", "guppy.findTransientsFreqAndAmp", json.dumps(inputParameters)])
+        subprocess.call([sys.executable, "-m", "guppy.orchestration.transients", json.dumps(inputParameters)])
         logger.info("#" * 400)
     except Exception as e:
         with open(os.path.join(os.path.expanduser("~"), "pbSteps.txt"), "a") as file:

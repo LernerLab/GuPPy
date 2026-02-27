@@ -6,17 +6,10 @@ import re
 
 import h5py
 import numpy as np
-import pandas as pd
+
+from ..utils.utils import takeOnlyDirs
 
 logger = logging.getLogger(__name__)
-
-
-def takeOnlyDirs(paths):
-    removePaths = []
-    for p in paths:
-        if os.path.isfile(p):
-            removePaths.append(p)
-    return list(set(paths) - set(removePaths))
 
 
 # find files by ignoring the case sensitivity
@@ -143,20 +136,6 @@ def get_coords(filepath, name, tsNew, removeArtifacts):  # TODO: Make less redun
     return coords
 
 
-def get_all_stores_for_combining_data(folderNames):
-    op = []
-    for i in range(100):
-        temp = []
-        match = r"[\s\S]*" + "_output_" + str(i)
-        for j in folderNames:
-            temp.append(re.findall(match, j))
-        temp = sorted(list(np.concatenate(temp).flatten()), key=str.casefold)
-        if len(temp) > 0:
-            op.append(temp)
-
-    return op
-
-
 # for combining data, reading storeslist file from both data and create a new storeslist array
 def check_storeslistfile(folderNames):
     storesList = np.array([[], []])
@@ -195,19 +174,6 @@ def get_control_and_signal_channel_names(storesList):
         raise Exception("Error in saving stores list file or spelling mistake for control or signal")
 
     return channels_arr
-
-
-# function to read h5 file and make a dataframe from it
-def read_Df(filepath, event, name):
-    event = event.replace("\\", "_")
-    event = event.replace("/", "_")
-    if name:
-        op = os.path.join(filepath, event + "_{}.h5".format(name))
-    else:
-        op = os.path.join(filepath, event + ".h5")
-    df = pd.read_hdf(op, key="df", mode="r")
-
-    return df
 
 
 def make_dir_for_cross_correlation(filepath):
