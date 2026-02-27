@@ -217,7 +217,7 @@ def _compare_hdf5_dataset(
     if expected_data.dtype.kind in {"S", "U", "O"}:
         item_name = item_path.split("/")[-1]
         filename = Path(rel_path).name
-        is_psth_file = "z_score" in filename or "peak_AUC" in filename
+        is_psth_file = "z_score" in filename or "peak_AUC" in filename or "dff" in filename
         if is_psth_file and item_name in _PANDAS_AXIS_KEYS and expected_data.size > 0:
             # Probe the first element: if it looks like a PSTH timestamp label,
             # normalize float-repr noise before comparing.
