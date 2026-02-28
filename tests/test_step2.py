@@ -82,7 +82,13 @@ from guppy.testing.api import step2
                 "PAB/": "ttl",
             },
         ),
-        # TODO: Add sampleData_NPM_1 after fixing Doric vs. NPM determination bug.
+        (
+            "SampleData_Neurophotometrics/sampleData_NPM_1",
+            {
+                "file0_chev1": "signal_region",
+                "file0_chod1": "control_region",
+            },
+        ),
         (
             "SampleData_Neurophotometrics/sampleData_NPM_2",
             {
@@ -125,6 +131,7 @@ from guppy.testing.api import step2
         "tdt_clean",
         "tdt_split_event",
         "tdt_with_artifacts",
+        "sample_npm_1",
         "sample_npm_2",
         "sample_npm_3",
         "sample_npm_4",
@@ -140,7 +147,11 @@ def test_step2(tmp_path, session_subdir, storenames_map):
       - Calls step2 headlessly with an explicit, deterministic storenames_map
       - Asserts storesList.csv exists and exactly matches the provided mapping (2xN)
     """
-    if session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_3":
+    if session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_1":
+        npm_timestamp_column_names = None
+        npm_time_units = None
+        npm_split_events = [False, True]
+    elif session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_3":
         npm_timestamp_column_names = ["ComputerTimestamp", None]
         npm_time_units = ["milliseconds", "seconds"]
         npm_split_events = [False, True]

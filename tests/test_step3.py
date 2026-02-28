@@ -93,6 +93,13 @@ def storenames_map():
             },
         ),
         (
+            "SampleData_Neurophotometrics/sampleData_NPM_1",
+            {
+                "file0_chev1": "signal_region",
+                "file0_chod1": "control_region",
+            },
+        ),
+        (
             "SampleData_Neurophotometrics/sampleData_NPM_2",
             {
                 "file0_chev6": "control_region",
@@ -134,6 +141,7 @@ def storenames_map():
         "tdt_clean",
         "tdt_split_event",
         "tdt_with_artifacts",
+        "sample_npm_1",
         "sample_npm_2",
         "sample_npm_3",
         "sample_npm_4",
@@ -153,7 +161,11 @@ def test_step3(tmp_path, storenames_map, session_subdir):
     - Runs Step 3 headlessly and verifies per-storename HDF5 outputs exist in
       the temp copy (never touching the original sample path).
     """
-    if session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_3":
+    if session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_1":
+        npm_timestamp_column_names = None
+        npm_time_units = None
+        npm_split_events = [False, True]
+    elif session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_3":
         npm_timestamp_column_names = ["ComputerTimestamp", None]
         npm_time_units = ["milliseconds", "seconds"]
         npm_split_events = [False, True]
