@@ -101,6 +101,15 @@ from guppy.testing.api import step2, step3, step4
             "port_entries_dms",
         ),
         (
+            "SampleData_Neurophotometrics/sampleData_NPM_1",
+            {
+                "file0_chev1": "signal_region",
+                "file0_chod1": "control_region",
+            },
+            "region",
+            None,
+        ),
+        (
             "SampleData_Neurophotometrics/sampleData_NPM_2",
             {
                 "file0_chev6": "control_region",
@@ -150,6 +159,7 @@ from guppy.testing.api import step2, step3, step4
         "tdt_clean",
         "tdt_split_event",
         "tdt_with_artifacts",
+        "sample_npm_1",
         "sample_npm_2",
         "sample_npm_3",
         "sample_npm_4",
@@ -171,7 +181,11 @@ def test_step4(tmp_path, monkeypatch, session_subdir, storenames_map, expected_r
       - matplotlib plotting in preprocess uses a GUI backend; to avoid blocking, we stub plt.show().
       - Assertions confirm creation of key HDF5 outputs expected from Step 4.
     """
-    if session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_3":
+    if session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_1":
+        npm_timestamp_column_names = None
+        npm_time_units = None
+        npm_split_events = [False, True]
+    elif session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_3":
         npm_timestamp_column_names = ["ComputerTimestamp", None]
         npm_time_units = ["milliseconds", "seconds"]
         npm_split_events = [False, True]
