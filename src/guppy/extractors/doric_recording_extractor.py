@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 from guppy.extractors import BaseRecordingExtractor
+from guppy.extractors.detect_acquisition_formats import _is_event_csv
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,8 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
         path = sorted(glob.glob(os.path.join(folder_path, "*.csv"))) + sorted(
             glob.glob(os.path.join(folder_path, "*.doric"))
         )
-
+        # Exclude event CSV files (single 'timestamps' column) — those belong to CsvRecordingExtractor
+        path = [p for p in path if not (p.endswith(".csv") and _is_event_csv(p))]
         path = sorted(list(set(path)))
         flag = "None"
         event_from_filename = []

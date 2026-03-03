@@ -7,6 +7,7 @@ import pandas as pd
 import panel as pn
 
 from guppy.extractors import CsvRecordingExtractor
+from guppy.extractors.detect_acquisition_formats import _is_event_csv
 
 pn.extension()
 
@@ -56,6 +57,8 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         path_chev_chod_event = path_chev + path_chod + path_event + path_chpr
 
         path = sorted(list(set(path) - set(path_chev_chod_event)))
+        # Exclude event CSV files (single 'timestamps' column) — those belong to CsvRecordingExtractor
+        path = [p for p in path if not (p.endswith(".csv") and _is_event_csv(p))]
         flag = "None"
         event_from_filename = []
         flag_arr = []
