@@ -5,7 +5,6 @@ import multiprocessing as mp
 import os
 import time
 from abc import ABC, abstractmethod
-from itertools import repeat
 from typing import Any
 
 import h5py
@@ -130,10 +129,12 @@ def read_and_save_event(extractor, event, outputPath):
     logger.info("Data for event {} fetched and stored.".format(event))
 
 
-def read_and_save_all_events(extractor, events, outputPath, numProcesses=mp.cpu_count()):
+def read_and_save_all_events(event_to_extractor, outputPath, numProcesses=mp.cpu_count()):
+    events = list(event_to_extractor.keys())
     logger.info("Reading data for event {} ...".format(events))
 
     start = time.time()
+    args = [(extractor, event, outputPath) for event, extractor in event_to_extractor.items()]
     with mp.Pool(numProcesses) as p:
-        p.starmap(read_and_save_event, zip(repeat(extractor), events, repeat(outputPath)))
+        p.starmap(read_and_save_event, args)
     logger.info("Time taken = {0:.5f}".format(time.time() - start))

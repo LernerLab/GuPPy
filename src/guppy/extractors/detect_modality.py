@@ -124,13 +124,13 @@ def detect_modality(folder_path):
     return "csv"
 
 
-def detect_ttl_modalities(folder_path):
+def detect_all_formats(folder_path):
     """
-    Detect which modalities can supply TTL/event data for the given session folder.
+    Detect all acquisition formats present in a session folder.
 
-    This is independent of the data modality returned by :func:`detect_modality`.
-    Any combination of modalities is possible — for example, a TDT session that also
-    has a CSV event file returns ``{"tdt", "csv"}``.
+    Returns every format that can supply data — photometry channels, TTL/event
+    timestamps, or both. This is a superset of :func:`detect_modality`, which
+    returns only the primary (photometry) format.
 
     Parameters
     ----------
@@ -140,34 +140,34 @@ def detect_ttl_modalities(folder_path):
     Returns
     -------
     set of str
-        Modality strings for all TTL/event sources found in the folder.
+        Format strings for all sources found in the folder.
         Possible elements: ``"tdt"``, ``"doric"``, ``"csv"``, ``"npm"``.
     """
-    ttl_modalities = set()
+    formats = set()
 
-    # TDT .tsq files can contain TTL event stores alongside photometry stores
+    # TDT .tsq files provide both photometry stores and TTL event stores
     if glob.glob(os.path.join(folder_path, "*.tsq")):
-        ttl_modalities.add("tdt")
+        formats.add("tdt")
 
-    # Doric .doric files can contain digital TTL channels
+    # Doric .doric files provide both photometry channels and digital TTL channels
     if glob.glob(os.path.join(folder_path, "*.doric")):
-        ttl_modalities.add("doric")
+        formats.add("doric")
 
     csv_paths = glob.glob(os.path.join(folder_path, "*.csv"))
 
-    # Multi-column NPM CSV files can contain event columns as TTL sources
+    # Multi-column NPM CSV files provide photometry channels and event columns
     non_event_csv_paths = [p for p in csv_paths if not _is_event_csv(p)]
     has_npm_data = False
     if non_event_csv_paths:
         labels = {_classify_csv_file(p) for p in non_event_csv_paths}
         if "npm" in labels:
-            ttl_modalities.add("npm")
+            formats.add("npm")
             has_npm_data = True
 
-    # Single-column timestamp CSVs are an external CSV event source, but only when no NPM
-    # data is present. NPM split-events processing generates structurally identical files
-    # that must be routed through NpmRecordingExtractor, not CsvRecordingExtractor.
+    # Single-column timestamp CSVs provide external event timestamps, but only when no
+    # NPM data is present. NPM split-events processing generates structurally identical
+    # files that must be routed through NpmRecordingExtractor, not CsvRecordingExtractor.
     if not has_npm_data and any(_is_event_csv(p) for p in csv_paths):
-        ttl_modalities.add("csv")
+        formats.add("csv")
 
-    return ttl_modalities
+    return formats

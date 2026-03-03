@@ -13,8 +13,8 @@ from guppy.extractors import (
     DoricRecordingExtractor,
     NpmRecordingExtractor,
     TdtRecordingExtractor,
+    detect_all_formats,
     detect_modality,
-    detect_ttl_modalities,
 )
 from guppy.frontend.frontend_utils import scanPortsAndFind
 from guppy.frontend.npm_gui_prompts import (
@@ -264,71 +264,52 @@ def build_storenames_page(inputParameters, events, flags, folder_path):
 
 
 def read_header(inputParameters, num_ch, modality, folder_path, headless):
-    if modality == "tdt":
-        events, flags = TdtRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
-    elif modality == "csv":
-        events, flags = CsvRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+    # NPM GUI prompts (non-headless only) must run before NPM discovery so that
+    # inputParameters is populated with split_events, time_units, etc. They apply
+    # only when NPM is the primary (photometry) format — not for a secondary NPM source.
+    if modality == "npm" and not headless:
+        multiple_event_ttls = NpmRecordingExtractor.has_multiple_event_ttls(folder_path=folder_path)
+        responses = get_multi_event_responses(multiple_event_ttls)
+        inputParameters["npm_split_events"] = responses
 
-    elif modality == "doric":
-        events, flags = DoricRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
-
-    elif modality == "npm":
-        if not headless:
-            # Resolve multiple event TTLs
-            multiple_event_ttls = NpmRecordingExtractor.has_multiple_event_ttls(folder_path=folder_path)
-            responses = get_multi_event_responses(multiple_event_ttls)
-            inputParameters["npm_split_events"] = responses
-
-            # Resolve timestamp units and columns
-            ts_unit_needs, col_names_ts = NpmRecordingExtractor.needs_ts_unit(folder_path=folder_path, num_ch=num_ch)
-            ts_units, npm_timestamp_column_names = get_timestamp_configuration(ts_unit_needs, col_names_ts)
-            inputParameters["npm_time_units"] = ts_units if ts_units else None
-            inputParameters["npm_timestamp_column_names"] = (
-                npm_timestamp_column_names if npm_timestamp_column_names else None
-            )
-
-        events, flags = NpmRecordingExtractor.discover_events_and_flags(
-            folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
+        ts_unit_needs, col_names_ts = NpmRecordingExtractor.needs_ts_unit(folder_path=folder_path, num_ch=num_ch)
+        ts_units, npm_timestamp_column_names = get_timestamp_configuration(ts_unit_needs, col_names_ts)
+        inputParameters["npm_time_units"] = ts_units if ts_units else None
+        inputParameters["npm_timestamp_column_names"] = (
+            npm_timestamp_column_names if npm_timestamp_column_names else None
         )
-    else:
-        raise ValueError("Modality not recognized. Please use 'auto', 'tdt', 'csv', 'doric', or 'npm'.")
 
-    # Add events from any TTL modalities that differ from the data modality (e.g. CSV event
-    # files alongside a TDT or Doric session). Only event_csv entries are included to avoid
-    # surfacing data_csv files that belong to the primary extractor.
-    ttl_modalities = detect_ttl_modalities(folder_path)
-    existing_events = set(events)
-    for ttl_mod in ttl_modalities - {modality}:
-        if ttl_mod == "csv":
-            ttl_events, ttl_flags = CsvRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
-            for event, flag in zip(ttl_events, ttl_flags):
-                if "event_csv" in flag and event not in existing_events:
-                    events = events + [event]
-                    flags = flags + [flag]
-                    existing_events.add(event)
-        elif ttl_mod == "tdt":
-            ttl_events, ttl_flags = TdtRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
-            for event, flag in zip(ttl_events, ttl_flags):
-                if event not in existing_events:
-                    events = events + [event]
-                    flags = flags + [flag]
-                    existing_events.add(event)
-        elif ttl_mod == "doric":
-            ttl_events, ttl_flags = DoricRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
-            for event, flag in zip(ttl_events, ttl_flags):
-                if event not in existing_events:
-                    events = events + [event]
-                    flags = flags + [flag]
-                    existing_events.add(event)
-        elif ttl_mod == "npm":
-            ttl_events, ttl_flags = NpmRecordingExtractor.discover_events_and_flags(
+    # Discover events from every format present in the folder, primary format first so
+    # it wins any name collisions. For non-primary CSV sources, only surface event_csv
+    # entries to avoid exposing data_csv photometry files that belong to the primary format.
+    all_formats = detect_all_formats(folder_path)
+    events, flags = [], []
+    existing_events = set()
+
+    for fmt in [modality] + [f for f in all_formats if f != modality]:
+        if fmt == "tdt":
+            fmt_events, fmt_flags = TdtRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+        elif fmt == "doric":
+            fmt_events, fmt_flags = DoricRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+        elif fmt == "csv":
+            fmt_events, fmt_flags = CsvRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+        elif fmt == "npm":
+            fmt_events, fmt_flags = NpmRecordingExtractor.discover_events_and_flags(
                 folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
             )
-            for event, flag in zip(ttl_events, ttl_flags):
-                if event not in existing_events:
-                    events = events + [event]
-                    flags = flags + [flag]
-                    existing_events.add(event)
+        else:
+            raise ValueError(f"Format not recognized: '{fmt}'. Expected one of 'tdt', 'csv', 'doric', 'npm'.")
+
+        is_primary = fmt == modality
+        for event, flag in zip(fmt_events, fmt_flags):
+            if event in existing_events:
+                continue
+            # For non-primary CSV sources, skip data_csv files — they belong to the primary extractor
+            if not is_primary and fmt == "csv" and "event_csv" not in flag:
+                continue
+            events.append(event)
+            flags.append(flag)
+            existing_events.add(event)
 
     return events, flags
 

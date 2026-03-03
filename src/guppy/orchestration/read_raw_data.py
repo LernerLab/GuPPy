@@ -12,8 +12,8 @@ from guppy.extractors import (
     DoricRecordingExtractor,
     NpmRecordingExtractor,
     TdtRecordingExtractor,
+    detect_all_formats,
     detect_modality,
-    detect_ttl_modalities,
     read_and_save_all_events,
 )
 from guppy.frontend.progress import writeToFile
@@ -22,19 +22,18 @@ from guppy.utils.utils import takeOnlyDirs
 logger = logging.getLogger(__name__)
 
 
-def _build_event_to_extractor(*, data_modality, ttl_modalities, folder_path, storesList, inputParameters):
+def _build_event_to_extractor(*, primary_modality, folder_path, storesList, inputParameters):
     """
     Build a mapping from event name to the extractor instance that owns it.
 
-    Used when TTL modalities differ from the data modality so each event in
-    storesList can be routed to the correct extractor.
+    Iterates over all acquisition formats present in the folder (via
+    :func:`detect_all_formats`), registers the primary (photometry) format first so
+    it wins any name collisions, then registers events from remaining formats.
 
     Parameters
     ----------
-    data_modality : str
+    primary_modality : str
         The modality of the photometry (control/signal) data.
-    ttl_modalities : set of str
-        All modalities that supply TTL/event data in this folder.
     folder_path : str
         Path to the session folder.
     storesList : np.ndarray, shape (2, n)
@@ -49,63 +48,40 @@ def _build_event_to_extractor(*, data_modality, ttl_modalities, folder_path, sto
     """
     event_to_extractor = {}
     num_ch = inputParameters["noChannels"]
+    all_formats = detect_all_formats(folder_path)
+    # Doric extractor requires a store-name→event-type mapping built from storesList
+    event_name_to_event_type = {storesList[0, col]: storesList[1, col] for col in range(storesList.shape[1])}
 
-    # Register all events discoverable by the data modality extractor
-    if data_modality == "tdt":
-        data_extractor = TdtRecordingExtractor(folder_path=folder_path)
-        data_events, _ = TdtRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
-    elif data_modality == "doric":
-        event_name_to_event_type = {storesList[0, col]: storesList[1, col] for col in range(storesList.shape[1])}
-        data_extractor = DoricRecordingExtractor(
-            folder_path=folder_path, event_name_to_event_type=event_name_to_event_type
-        )
-        data_events, _ = DoricRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
-    elif data_modality == "csv":
-        data_extractor = CsvRecordingExtractor(folder_path=folder_path)
-        data_events, _ = CsvRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
-    elif data_modality == "npm":
-        data_extractor = NpmRecordingExtractor(folder_path=folder_path)
-        data_events, _ = NpmRecordingExtractor.discover_events_and_flags(
-            folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
-        )
-    else:
-        raise ValueError(f"Data modality not recognized: '{data_modality}'.")
-
-    for event in data_events:
-        event_to_extractor[event] = data_extractor
-
-    # Register events from TTL-only modalities (those not already covered by data extractor)
-    for ttl_mod in ttl_modalities - {data_modality}:
-        if ttl_mod == "csv":
-            ttl_extractor = CsvRecordingExtractor(folder_path=folder_path)
-            ttl_events, ttl_flags = CsvRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
-            for event, flag in zip(ttl_events, ttl_flags):
-                # Only route event_csv files; data_csv files in a mixed folder belong to the data extractor
-                if "event_csv" in flag and event not in event_to_extractor:
-                    event_to_extractor[event] = ttl_extractor
-        elif ttl_mod == "tdt":
-            ttl_extractor = TdtRecordingExtractor(folder_path=folder_path)
-            ttl_events, _ = TdtRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
-            for event in ttl_events:
-                if event not in event_to_extractor:
-                    event_to_extractor[event] = ttl_extractor
-        elif ttl_mod == "doric":
-            event_name_to_event_type = {storesList[0, col]: storesList[1, col] for col in range(storesList.shape[1])}
-            ttl_extractor = DoricRecordingExtractor(
+    for fmt in [primary_modality] + [f for f in all_formats if f != primary_modality]:
+        if fmt == "tdt":
+            extractor = TdtRecordingExtractor(folder_path=folder_path)
+            fmt_events, _ = TdtRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+        elif fmt == "doric":
+            extractor = DoricRecordingExtractor(
                 folder_path=folder_path, event_name_to_event_type=event_name_to_event_type
             )
-            ttl_events, _ = DoricRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
-            for event in ttl_events:
+            fmt_events, _ = DoricRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+        elif fmt == "csv":
+            extractor = CsvRecordingExtractor(folder_path=folder_path)
+            fmt_events, fmt_flags = CsvRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+            is_primary = fmt == primary_modality
+            for event, flag in zip(fmt_events, fmt_flags):
                 if event not in event_to_extractor:
-                    event_to_extractor[event] = ttl_extractor
-        elif ttl_mod == "npm":
-            ttl_extractor = NpmRecordingExtractor(folder_path=folder_path)
-            ttl_events, _ = NpmRecordingExtractor.discover_events_and_flags(
+                    # For non-primary CSV sources, only route event_csv files
+                    if is_primary or "event_csv" in flag:
+                        event_to_extractor[event] = extractor
+            continue
+        elif fmt == "npm":
+            extractor = NpmRecordingExtractor(folder_path=folder_path)
+            fmt_events, _ = NpmRecordingExtractor.discover_events_and_flags(
                 folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
             )
-            for event in ttl_events:
-                if event not in event_to_extractor:
-                    event_to_extractor[event] = ttl_extractor
+        else:
+            raise ValueError(f"Format not recognized: '{fmt}'. Expected one of 'tdt', 'csv', 'doric', 'npm'.")
+
+        for event in fmt_events:
+            if event not in event_to_extractor:
+                event_to_extractor[event] = extractor
 
     return event_to_extractor
 
@@ -155,50 +131,23 @@ def orchestrate_read_raw_data(inputParameters):
                 )
 
             events = np.unique(storesList[0, :])
-            ttl_modalities = detect_ttl_modalities(filepath)
-
-            if ttl_modalities == {modality}:
-                # Fast path: a single extractor covers both photometry and TTL (unchanged behavior)
-                if modality == "tdt":
-                    extractor = TdtRecordingExtractor(folder_path=filepath)
-                elif modality == "doric":
-                    event_name_to_event_type = {storesList[0, i]: storesList[1, i] for i in range(storesList.shape[1])}
-                    extractor = DoricRecordingExtractor(
-                        folder_path=filepath, event_name_to_event_type=event_name_to_event_type
+            event_to_extractor = _build_event_to_extractor(
+                primary_modality=modality,
+                folder_path=filepath,
+                storesList=storesList,
+                inputParameters=inputParameters,
+            )
+            # Restrict to only the events named in storesList
+            store_event_to_extractor = {}
+            for event in events:
+                ext = event_to_extractor.get(event)
+                if ext is None:
+                    raise ValueError(
+                        f"Event '{event}' not found in any extractor for folder {filepath}. "
+                        f"Primary modality: '{modality}'."
                     )
-                elif modality == "csv":
-                    extractor = CsvRecordingExtractor(folder_path=filepath)
-                elif modality == "npm":
-                    extractor = NpmRecordingExtractor(folder_path=filepath)
-                else:
-                    raise ValueError("Modality not recognized. Please use 'auto', 'tdt', 'csv', 'doric', or 'npm'.")
-                read_and_save_all_events(extractor, events, op, numProcesses)
-            else:
-                # Mixed path: TTL sources differ from the data modality; route per-event
-                event_to_extractor = _build_event_to_extractor(
-                    data_modality=modality,
-                    ttl_modalities=ttl_modalities,
-                    folder_path=filepath,
-                    storesList=storesList,
-                    inputParameters=inputParameters,
-                )
-                # Group events by their assigned extractor, preserving insertion order
-                seen_ids = {}
-                partitions = []
-                for event in events:
-                    ext = event_to_extractor.get(event)
-                    if ext is None:
-                        raise ValueError(
-                            f"Event '{event}' not found in any extractor for folder {filepath}. "
-                            f"Data modality: '{modality}', TTL modalities: {ttl_modalities}."
-                        )
-                    ext_id = id(ext)
-                    if ext_id not in seen_ids:
-                        seen_ids[ext_id] = len(partitions)
-                        partitions.append((ext, []))
-                    partitions[seen_ids[ext_id]][1].append(event)
-                for ext, ext_events in partitions:
-                    read_and_save_all_events(ext, ext_events, op, numProcesses)
+                store_event_to_extractor[event] = ext
+            read_and_save_all_events(store_event_to_extractor, op, numProcesses)
 
             writeToFile(str(10 + ((step + 1) * 10)) + "\n")
             step += 1
