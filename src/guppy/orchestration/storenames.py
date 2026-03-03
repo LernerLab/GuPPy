@@ -14,7 +14,6 @@ from guppy.extractors import (
     NpmRecordingExtractor,
     TdtRecordingExtractor,
     detect_all_formats,
-    detect_modality,
 )
 from guppy.frontend.frontend_utils import scanPortsAndFind
 from guppy.frontend.npm_gui_prompts import (
@@ -263,11 +262,12 @@ def build_storenames_page(inputParameters, events, flags, folder_path):
     template.show(port=number)
 
 
-def read_header(inputParameters, num_ch, modality, folder_path, headless):
+def read_header(inputParameters, num_ch, folder_path, headless):
+    all_formats = detect_all_formats(folder_path)
+
     # NPM GUI prompts (non-headless only) must run before NPM discovery so that
-    # inputParameters is populated with split_events, time_units, etc. They apply
-    # only when NPM is the primary (photometry) format — not for a secondary NPM source.
-    if modality == "npm" and not headless:
+    # inputParameters is populated with split_events, time_units, etc.
+    if "npm" in all_formats and not headless:
         multiple_event_ttls = NpmRecordingExtractor.has_multiple_event_ttls(folder_path=folder_path)
         responses = get_multi_event_responses(multiple_event_ttls)
         inputParameters["npm_split_events"] = responses
@@ -279,14 +279,14 @@ def read_header(inputParameters, num_ch, modality, folder_path, headless):
             npm_timestamp_column_names if npm_timestamp_column_names else None
         )
 
-    # Discover events from every format present in the folder, primary format first so
-    # it wins any name collisions. For non-primary CSV sources, only surface event_csv
-    # entries to avoid exposing data_csv photometry files that belong to the primary format.
-    all_formats = detect_all_formats(folder_path)
+    # Discover events from every format present in the folder. When CSV shares a folder
+    # with other formats, it is an event-only source — filter to event_csv entries only
+    # to avoid surfacing data_csv photometry files that belong to another extractor.
+    is_mixed = len(all_formats) > 1
     events, flags = [], []
     existing_events = set()
 
-    for fmt in [modality] + [f for f in all_formats if f != modality]:
+    for fmt in sorted(all_formats):
         if fmt == "tdt":
             fmt_events, fmt_flags = TdtRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
         elif fmt == "doric":
@@ -300,12 +300,10 @@ def read_header(inputParameters, num_ch, modality, folder_path, headless):
         else:
             raise ValueError(f"Format not recognized: '{fmt}'. Expected one of 'tdt', 'csv', 'doric', 'npm'.")
 
-        is_primary = fmt == modality
         for event, flag in zip(fmt_events, fmt_flags):
             if event in existing_events:
                 continue
-            # For non-primary CSV sources, skip data_csv files — they belong to the primary extractor
-            if not is_primary and fmt == "csv" and "event_csv" not in flag:
+            if is_mixed and fmt == "csv" and "event_csv" not in flag:
                 continue
             events.append(event)
             flags.append(flag)
@@ -329,9 +327,7 @@ def orchestrate_storenames_page(inputParameters):
     try:
         for i in folderNames:
             folder_path = os.path.join(inputParameters["abspath"], i)
-            requested_modality = inputParameters.get("modality", "auto")
-            modality = detect_modality(folder_path) if requested_modality == "auto" else requested_modality
-            events, flags = read_header(inputParameters, num_ch, modality, folder_path, headless)
+            events, flags = read_header(inputParameters, num_ch, folder_path, headless)
             build_storenames_page(inputParameters, events, flags, folder_path)
         logger.info("#" * 400)
     except Exception as e:

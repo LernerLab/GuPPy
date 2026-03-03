@@ -13,7 +13,6 @@ from guppy.extractors import (
     NpmRecordingExtractor,
     TdtRecordingExtractor,
     detect_all_formats,
-    detect_modality,
     read_and_save_all_events,
 )
 from guppy.frontend.progress import writeToFile
@@ -22,18 +21,16 @@ from guppy.utils.utils import takeOnlyDirs
 logger = logging.getLogger(__name__)
 
 
-def _build_event_to_extractor(*, primary_modality, folder_path, storesList, inputParameters):
+def _build_event_to_extractor(*, folder_path, storesList, inputParameters):
     """
     Build a mapping from event name to the extractor instance that owns it.
 
     Iterates over all acquisition formats present in the folder (via
-    :func:`detect_all_formats`), registers the primary (photometry) format first so
-    it wins any name collisions, then registers events from remaining formats.
+    :func:`detect_all_formats`). When CSV shares a folder with other formats it is
+    treated as an event-only source; only event_csv files are registered.
 
     Parameters
     ----------
-    primary_modality : str
-        The modality of the photometry (control/signal) data.
     folder_path : str
         Path to the session folder.
     storesList : np.ndarray, shape (2, n)
@@ -49,10 +46,11 @@ def _build_event_to_extractor(*, primary_modality, folder_path, storesList, inpu
     event_to_extractor = {}
     num_ch = inputParameters["noChannels"]
     all_formats = detect_all_formats(folder_path)
+    is_mixed = len(all_formats) > 1
     # Doric extractor requires a store-name→event-type mapping built from storesList
     event_name_to_event_type = {storesList[0, col]: storesList[1, col] for col in range(storesList.shape[1])}
 
-    for fmt in [primary_modality] + [f for f in all_formats if f != primary_modality]:
+    for fmt in sorted(all_formats):
         if fmt == "tdt":
             extractor = TdtRecordingExtractor(folder_path=folder_path)
             fmt_events, _ = TdtRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
@@ -64,11 +62,9 @@ def _build_event_to_extractor(*, primary_modality, folder_path, storesList, inpu
         elif fmt == "csv":
             extractor = CsvRecordingExtractor(folder_path=folder_path)
             fmt_events, fmt_flags = CsvRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
-            is_primary = fmt == primary_modality
             for event, flag in zip(fmt_events, fmt_flags):
                 if event not in event_to_extractor:
-                    # For non-primary CSV sources, only route event_csv files
-                    if is_primary or "event_csv" in flag:
+                    if not is_mixed or "event_csv" in flag:
                         event_to_extractor[event] = extractor
             continue
         elif fmt == "npm":
@@ -113,8 +109,6 @@ def orchestrate_read_raw_data(inputParameters):
     step = 0
     for i in range(len(folderNames)):
         filepath = folderNames[i]
-        requested_modality = inputParameters.get("modality", "auto")
-        modality = detect_modality(filepath) if requested_modality == "auto" else requested_modality
         logger.debug(f"### Reading raw data for folder {folderNames[i]}")
         storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*")))
 
@@ -132,7 +126,6 @@ def orchestrate_read_raw_data(inputParameters):
 
             events = np.unique(storesList[0, :])
             event_to_extractor = _build_event_to_extractor(
-                primary_modality=modality,
                 folder_path=filepath,
                 storesList=storesList,
                 inputParameters=inputParameters,
@@ -142,10 +135,7 @@ def orchestrate_read_raw_data(inputParameters):
             for event in events:
                 ext = event_to_extractor.get(event)
                 if ext is None:
-                    raise ValueError(
-                        f"Event '{event}' not found in any extractor for folder {filepath}. "
-                        f"Primary modality: '{modality}'."
-                    )
+                    raise ValueError(f"Event '{event}' not found in any extractor for folder {filepath}.")
                 store_event_to_extractor[event] = ext
             read_and_save_all_events(store_event_to_extractor, op, numProcesses)
 

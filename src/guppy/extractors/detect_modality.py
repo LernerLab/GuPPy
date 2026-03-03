@@ -155,7 +155,7 @@ def detect_all_formats(folder_path):
 
     csv_paths = glob.glob(os.path.join(folder_path, "*.csv"))
 
-    # Multi-column NPM CSV files provide photometry channels and event columns
+    # Multi-column CSV files can be NPM or Doric CSV exports — classify each one
     non_event_csv_paths = [p for p in csv_paths if not _is_event_csv(p)]
     has_npm_data = False
     if non_event_csv_paths:
@@ -163,6 +163,8 @@ def detect_all_formats(folder_path):
         if "npm" in labels:
             formats.add("npm")
             has_npm_data = True
+        if "doric" in labels:
+            formats.add("doric")
 
     # Single-column timestamp CSVs provide external event timestamps, but only when no
     # NPM data is present. NPM split-events processing generates structurally identical
