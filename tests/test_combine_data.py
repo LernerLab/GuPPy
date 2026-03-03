@@ -12,8 +12,8 @@ from guppy.testing.api import step2, step3, step4, step5
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_combine_data(tmp_path, monkeypatch):
     session_subdirs = [
-        "SampleData_Clean/Photo_63_207-181030-103332",
         "SampleData_with_artifacts/Photo_048_392-200728-121222",
+        "SampleData_Clean/Photo_63_207-181030-103332",
     ]
     storenames_map = {
         "Dv1A": "control_dms",
