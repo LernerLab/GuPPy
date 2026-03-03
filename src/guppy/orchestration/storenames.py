@@ -13,7 +13,7 @@ from guppy.extractors import (
     DoricRecordingExtractor,
     NpmRecordingExtractor,
     TdtRecordingExtractor,
-    detect_all_formats,
+    detect_acquisition_formats,
 )
 from guppy.frontend.frontend_utils import scanPortsAndFind
 from guppy.frontend.npm_gui_prompts import (
@@ -263,7 +263,7 @@ def build_storenames_page(inputParameters, events, flags, folder_path):
 
 
 def read_header(inputParameters, num_ch, folder_path, headless):
-    all_formats = detect_all_formats(folder_path)
+    all_formats = detect_acquisition_formats(folder_path)
 
     # NPM GUI prompts (non-headless only) must run before NPM discovery so that
     # inputParameters is populated with split_events, time_units, etc.

@@ -12,7 +12,7 @@ from guppy.extractors import (
     DoricRecordingExtractor,
     NpmRecordingExtractor,
     TdtRecordingExtractor,
-    detect_all_formats,
+    detect_acquisition_formats,
     read_and_save_all_events,
 )
 from guppy.frontend.progress import writeToFile
@@ -45,7 +45,7 @@ def _build_event_to_extractor(*, folder_path, storesList, inputParameters):
     """
     event_to_extractor = {}
     num_ch = inputParameters["noChannels"]
-    all_formats = detect_all_formats(folder_path)
+    all_formats = detect_acquisition_formats(folder_path)
     # Doric extractor requires a store-name→event-type mapping built from storesList
     event_name_to_event_type = {storesList[0, col]: storesList[1, col] for col in range(storesList.shape[1])}
 
