@@ -129,3 +129,51 @@ def test_mixed_modality_doric_csv_ttl(tmp_path, monkeypatch):
     step5(base_dir=base_dir, selected_folders=selected_folders)
 
     _assert_intra_session_outputs(session_copy, expected_region="region", expected_ttl="ttl_region")
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+def test_mixed_modality_npm_csv_ttl(tmp_path, monkeypatch):
+    """
+    Intra-session mixed modality: NPM photometry channels + external CSV event TTL.
+
+    A single NPM session is staged in a temporary workspace. A synthesized CSV TTL file
+    (single 'timestamps' column, relative seconds matching the NPM recording's output domain)
+    is written into the session folder alongside the NPM data files. detect_acquisition_formats
+    detects both 'npm' and 'csv' formats: NPM-generated split-event files (named event*.csv)
+    are suppressed as before, while the external CSV (named csv_event.csv) is passed through
+    to CsvRecordingExtractor.
+
+    NPM_1 photometry timestamps are rescaled to relative seconds (~0–1858 s). The external
+    event CSV uses timestamps in that same relative domain so PSTH alignment succeeds.
+    """
+    src_base_dir = str(Path(".") / "testing_data")
+    tmp_base = tmp_path / "data_root"
+    tmp_base.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr("matplotlib.pyplot.show", lambda *args, **kwargs: None)
+
+    session_copy = _stage_session(src_base_dir, "SampleData_Neurophotometrics/sampleData_NPM_1", tmp_base)
+
+    # Five timestamps in relative seconds matching the NPM_1 output domain (0–~1858 s),
+    # spaced ~5 min apart. CsvRecordingExtractor reads these as-is without rescaling.
+    csv_ttl_timestamps = np.array([300.0, 600.0, 900.0, 1200.0, 1500.0])
+    np.savetxt(session_copy / "csv_event.csv", csv_ttl_timestamps, header="timestamps", comments="", fmt="%.6f")
+
+    base_dir = str(tmp_base)
+    selected_folders = [str(session_copy)]
+
+    step2(
+        base_dir=base_dir,
+        selected_folders=selected_folders,
+        storenames_map={
+            "file0_chev1": "signal_region",
+            "file0_chod1": "control_region",
+            "csv_event": "ttl_region",
+        },
+        npm_split_events=[False, True],
+    )
+    step3(base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[False, True])
+    step4(base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[False, True])
+    step5(base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[False, True])
+
+    _assert_intra_session_outputs(session_copy, expected_region="region", expected_ttl="ttl_region")

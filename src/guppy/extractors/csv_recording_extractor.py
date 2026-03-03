@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 
 from guppy.extractors import BaseRecordingExtractor
+from guppy.extractors.detect_acquisition_formats import _classify_csv_file
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,9 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
         """
         logger.debug("If it exists, importing either NPM or Doric or csv file based on the structure of file")
         path = sorted(glob.glob(os.path.join(folder_path, "*.csv")))
-
+        # Only process files classified as standard CSV (event_csv or data_csv).
+        # Skips NPM multi-column files and Doric CSV files when coexisting in the same folder.
+        path = [p for p in path if _classify_csv_file(p) == "csv"]
         path = sorted(list(set(path)))
         flag = "None"
         event_from_filename = []

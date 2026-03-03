@@ -136,9 +136,16 @@ def detect_acquisition_formats(folder_path):
         if not has_npm_data and "csv" in labels:
             formats.add("csv")
 
-    # Single-column timestamp CSVs provide external event timestamps. NPM split-events
-    # processing generates structurally identical files, so suppress when NPM is present.
-    if not has_npm_data and any(_is_event_csv(p) for p in csv_paths):
+    # Single-column timestamp CSVs provide external event timestamps. When NPM data is
+    # present, suppress only the NPM-generated split-event files (named event*.csv), since
+    # those are owned by NpmRecordingExtractor. External event CSVs with other names are
+    # still detected as "csv" and handled by CsvRecordingExtractor.
+    event_csv_paths = [p for p in csv_paths if _is_event_csv(p)]
+    if has_npm_data:
+        external_event_csv_paths = [p for p in event_csv_paths if not os.path.basename(p).startswith("event")]
+    else:
+        external_event_csv_paths = event_csv_paths
+    if external_event_csv_paths:
         formats.add("csv")
 
     return formats
