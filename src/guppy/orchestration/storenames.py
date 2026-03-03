@@ -14,6 +14,7 @@ from guppy.extractors import (
     NpmRecordingExtractor,
     TdtRecordingExtractor,
     detect_modality,
+    detect_ttl_modalities,
 )
 from guppy.frontend.frontend_utils import scanPortsAndFind
 from guppy.frontend.npm_gui_prompts import (
@@ -290,7 +291,45 @@ def read_header(inputParameters, num_ch, modality, folder_path, headless):
             folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
         )
     else:
-        raise ValueError("Modality not recognized. Please use 'tdt', 'csv', 'doric', or 'npm'.")
+        raise ValueError("Modality not recognized. Please use 'auto', 'tdt', 'csv', 'doric', or 'npm'.")
+
+    # Add events from any TTL modalities that differ from the data modality (e.g. CSV event
+    # files alongside a TDT or Doric session). Only event_csv entries are included to avoid
+    # surfacing data_csv files that belong to the primary extractor.
+    ttl_modalities = detect_ttl_modalities(folder_path)
+    existing_events = set(events)
+    for ttl_mod in ttl_modalities - {modality}:
+        if ttl_mod == "csv":
+            ttl_events, ttl_flags = CsvRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+            for event, flag in zip(ttl_events, ttl_flags):
+                if "event_csv" in flag and event not in existing_events:
+                    events = events + [event]
+                    flags = flags + [flag]
+                    existing_events.add(event)
+        elif ttl_mod == "tdt":
+            ttl_events, ttl_flags = TdtRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+            for event, flag in zip(ttl_events, ttl_flags):
+                if event not in existing_events:
+                    events = events + [event]
+                    flags = flags + [flag]
+                    existing_events.add(event)
+        elif ttl_mod == "doric":
+            ttl_events, ttl_flags = DoricRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+            for event, flag in zip(ttl_events, ttl_flags):
+                if event not in existing_events:
+                    events = events + [event]
+                    flags = flags + [flag]
+                    existing_events.add(event)
+        elif ttl_mod == "npm":
+            ttl_events, ttl_flags = NpmRecordingExtractor.discover_events_and_flags(
+                folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
+            )
+            for event, flag in zip(ttl_events, ttl_flags):
+                if event not in existing_events:
+                    events = events + [event]
+                    flags = flags + [flag]
+                    existing_events.add(event)
+
     return events, flags
 
 
