@@ -155,7 +155,7 @@ def detect_all_formats(folder_path):
 
     csv_paths = glob.glob(os.path.join(folder_path, "*.csv"))
 
-    # Multi-column CSV files can be NPM or Doric CSV exports — classify each one
+    # Multi-column CSV files can be NPM, Doric CSV exports, or 3-column data_csv files
     non_event_csv_paths = [p for p in csv_paths if not _is_event_csv(p)]
     has_npm_data = False
     if non_event_csv_paths:
@@ -165,10 +165,11 @@ def detect_all_formats(folder_path):
             has_npm_data = True
         if "doric" in labels:
             formats.add("doric")
+        if not has_npm_data and "csv" in labels:
+            formats.add("csv")
 
-    # Single-column timestamp CSVs provide external event timestamps, but only when no
-    # NPM data is present. NPM split-events processing generates structurally identical
-    # files that must be routed through NpmRecordingExtractor, not CsvRecordingExtractor.
+    # Single-column timestamp CSVs provide external event timestamps. NPM split-events
+    # processing generates structurally identical files, so suppress when NPM is present.
     if not has_npm_data and any(_is_event_csv(p) for p in csv_paths):
         formats.add("csv")
 

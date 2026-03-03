@@ -46,7 +46,6 @@ def _build_event_to_extractor(*, folder_path, storesList, inputParameters):
     event_to_extractor = {}
     num_ch = inputParameters["noChannels"]
     all_formats = detect_all_formats(folder_path)
-    is_mixed = len(all_formats) > 1
     # Doric extractor requires a store-name→event-type mapping built from storesList
     event_name_to_event_type = {storesList[0, col]: storesList[1, col] for col in range(storesList.shape[1])}
 
@@ -61,12 +60,7 @@ def _build_event_to_extractor(*, folder_path, storesList, inputParameters):
             fmt_events, _ = DoricRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
         elif fmt == "csv":
             extractor = CsvRecordingExtractor(folder_path=folder_path)
-            fmt_events, fmt_flags = CsvRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
-            for event, flag in zip(fmt_events, fmt_flags):
-                if event not in event_to_extractor:
-                    if not is_mixed or "event_csv" in flag:
-                        event_to_extractor[event] = extractor
-            continue
+            fmt_events, _ = CsvRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
         elif fmt == "npm":
             extractor = NpmRecordingExtractor(folder_path=folder_path)
             fmt_events, _ = NpmRecordingExtractor.discover_events_and_flags(

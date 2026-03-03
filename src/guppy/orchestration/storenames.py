@@ -279,10 +279,6 @@ def read_header(inputParameters, num_ch, folder_path, headless):
             npm_timestamp_column_names if npm_timestamp_column_names else None
         )
 
-    # Discover events from every format present in the folder. When CSV shares a folder
-    # with other formats, it is an event-only source — filter to event_csv entries only
-    # to avoid surfacing data_csv photometry files that belong to another extractor.
-    is_mixed = len(all_formats) > 1
     events, flags = [], []
     existing_events = set()
 
@@ -301,13 +297,10 @@ def read_header(inputParameters, num_ch, folder_path, headless):
             raise ValueError(f"Format not recognized: '{fmt}'. Expected one of 'tdt', 'csv', 'doric', 'npm'.")
 
         for event, flag in zip(fmt_events, fmt_flags):
-            if event in existing_events:
-                continue
-            if is_mixed and fmt == "csv" and "event_csv" not in flag:
-                continue
-            events.append(event)
-            flags.append(flag)
-            existing_events.add(event)
+            if event not in existing_events:
+                events.append(event)
+                flags.append(flag)
+                existing_events.add(event)
 
     return events, flags
 
