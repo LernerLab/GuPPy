@@ -70,7 +70,6 @@ def test_consistency_zscore_method(
     common_kwargs = dict(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
-        modality="csv",
     )
 
     step2(**common_kwargs, storenames_map=STORENAMES_MAP)

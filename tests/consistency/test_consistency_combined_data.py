@@ -63,11 +63,11 @@ def test_consistency(tmp_path, monkeypatch):
 
     selected_folders = [str(s) for s in session_copies]
 
-    step2(base_dir=str(tmp_base), selected_folders=selected_folders, modality="tdt", storenames_map=STORENAMES_MAP)
-    step3(base_dir=str(tmp_base), selected_folders=selected_folders, modality="tdt")
-    step4(base_dir=str(tmp_base), selected_folders=selected_folders, modality="tdt", combine_data=True)
+    step2(base_dir=str(tmp_base), selected_folders=selected_folders, storenames_map=STORENAMES_MAP)
+    step3(base_dir=str(tmp_base), selected_folders=selected_folders)
+    step4(base_dir=str(tmp_base), selected_folders=selected_folders, combine_data=True)
     # Step 5 is called on the second session only; it receives the full combined PSTH outputs.
-    step5(base_dir=str(tmp_base), selected_folders=[selected_folders[1]], modality="tdt")
+    step5(base_dir=str(tmp_base), selected_folders=[selected_folders[1]])
 
     for session_copy, standard_output_dir in zip(session_copies, standard_output_dirs):
         dest_name = session_copy.name

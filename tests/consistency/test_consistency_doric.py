@@ -19,7 +19,6 @@ CONSISTENCY_CASES = [
             "AIn-2 - Raw": "signal_region",
             "DI--O-1": "ttl",
         },
-        "doric",
         {},
         # scipy 1.5→1.17 and numpy 1.18→2.x cause up to ~1% drift in filtfilt/polyfit;
         # widened tolerance accommodates known dependency changes without masking real regressions.
@@ -33,7 +32,6 @@ CONSISTENCY_CASES = [
             "AIn-1 - Dem (da)": "signal_region",
             "DI/O-1": "ttl",
         },
-        "doric",
         {},
         {},
     ),
@@ -45,7 +43,6 @@ CONSISTENCY_CASES = [
             "CAM1_EXC2/ROI01": "signal_region",
             "DigitalIO/CAM1": "ttl",
         },
-        "doric",
         {},
         {},
     ),
@@ -56,7 +53,6 @@ CONSISTENCY_CASES = [
             "Series0001/AIN01xAOUT01-LockIn": "control_region",
             "Series0001/AIN01xAOUT02-LockIn": "signal_region",
         },
-        "doric",
         {},
         {},
     ),
@@ -67,7 +63,6 @@ CONSISTENCY_CASES = [
             "Series0001/AIN01xAOUT01-LockIn": "control_region",
             "Series0001/AIN01xAOUT02-LockIn": "signal_region",
         },
-        "doric",
         {},
         {},
     ),
@@ -75,7 +70,7 @@ CONSISTENCY_CASES = [
 
 
 @pytest.mark.parametrize(
-    "session_subdir, standard_output_subdir, storenames_map, modality, extra_kwargs, compare_kwargs",
+    "session_subdir, standard_output_subdir, storenames_map, extra_kwargs, compare_kwargs",
     CONSISTENCY_CASES,
     ids=[
         "sample_doric_1",
@@ -92,7 +87,6 @@ def test_consistency(
     session_subdir,
     standard_output_subdir,
     storenames_map,
-    modality,
     extra_kwargs,
     compare_kwargs,
 ):
@@ -123,7 +117,6 @@ def test_consistency(
     common_kwargs = dict(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
-        modality=modality,
     )
 
     step2(**common_kwargs, storenames_map=storenames_map, **extra_kwargs)

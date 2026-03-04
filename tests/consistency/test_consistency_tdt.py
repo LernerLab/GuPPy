@@ -19,7 +19,6 @@ CONSISTENCY_CASES = [
             "Dv2A": "signal_DMS",
             "PrtN": "port_entries_dms",
         },
-        "tdt",
         {},
         {},
     ),
@@ -31,7 +30,6 @@ CONSISTENCY_CASES = [
             "490R": "signal_region",
             "PAB/": "ttl",
         },
-        "tdt",
         {},
         {},
     ),
@@ -39,7 +37,7 @@ CONSISTENCY_CASES = [
 
 
 @pytest.mark.parametrize(
-    "session_subdir, standard_output_subdir, storenames_map, modality, extra_kwargs, compare_kwargs",
+    "session_subdir, standard_output_subdir, storenames_map, extra_kwargs, compare_kwargs",
     CONSISTENCY_CASES,
     ids=[
         "tdt_clean",
@@ -52,7 +50,6 @@ def test_consistency(
     session_subdir,
     standard_output_subdir,
     storenames_map,
-    modality,
     extra_kwargs,
     compare_kwargs,
 ):
@@ -81,7 +78,6 @@ def test_consistency(
     common_kwargs = dict(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
-        modality=modality,
     )
 
     step2(**common_kwargs, storenames_map=storenames_map, **extra_kwargs)

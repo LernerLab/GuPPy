@@ -18,7 +18,6 @@ CONSISTENCY_CASES = [
             "file0_chev6": "control_region",
             "file1_chev6": "signal_region",
         },
-        "npm",
         {"npm_split_events": [True, True]},
         {},
     ),
@@ -30,7 +29,6 @@ CONSISTENCY_CASES = [
             "file0_chod3": "signal_region3",
             "event3": "ttl_region3",
         },
-        "npm",
         {
             "npm_timestamp_column_names": ["ComputerTimestamp", None],
             "npm_time_units": ["milliseconds", "seconds"],
@@ -46,7 +44,6 @@ CONSISTENCY_CASES = [
             "file0_chod1": "signal_region1",
             "eventTrue": "ttl_true_region1",
         },
-        "npm",
         {"npm_split_events": [True, True]},
         {},
     ),
@@ -58,7 +55,6 @@ CONSISTENCY_CASES = [
             "file0_chod1": "signal_region1",
             "event0": "ttl_region1",
         },
-        "npm",
         {"npm_split_events": None},
         {},
     ),
@@ -66,7 +62,7 @@ CONSISTENCY_CASES = [
 
 
 @pytest.mark.parametrize(
-    "session_subdir, standard_output_subdir, storenames_map, modality, extra_kwargs, compare_kwargs",
+    "session_subdir, standard_output_subdir, storenames_map, extra_kwargs, compare_kwargs",
     CONSISTENCY_CASES,
     ids=[
         "sample_npm_2",
@@ -82,7 +78,6 @@ def test_consistency(
     session_subdir,
     standard_output_subdir,
     storenames_map,
-    modality,
     extra_kwargs,
     compare_kwargs,
 ):
@@ -117,7 +112,6 @@ def test_consistency(
     common_kwargs = dict(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
-        modality=modality,
     )
 
     step2(**common_kwargs, storenames_map=storenames_map, **extra_kwargs)

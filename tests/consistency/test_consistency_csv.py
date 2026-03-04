@@ -19,7 +19,6 @@ CONSISTENCY_CASES = [
             "Sample_Signal_Channel": "signal_region",
             "Sample_TTL": "ttl",
         },
-        "csv",
         {},
         {},
     ),
@@ -27,7 +26,7 @@ CONSISTENCY_CASES = [
 
 
 @pytest.mark.parametrize(
-    "session_subdir, standard_output_subdir, storenames_map, modality, extra_kwargs, compare_kwargs",
+    "session_subdir, standard_output_subdir, storenames_map, extra_kwargs, compare_kwargs",
     CONSISTENCY_CASES,
     ids=[
         "csv_generic",
@@ -40,7 +39,6 @@ def test_consistency(
     session_subdir,
     standard_output_subdir,
     storenames_map,
-    modality,
     extra_kwargs,
     compare_kwargs,
 ):
@@ -71,7 +69,6 @@ def test_consistency(
     common_kwargs = dict(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
-        modality=modality,
     )
 
     step2(**common_kwargs, storenames_map=storenames_map, **extra_kwargs)

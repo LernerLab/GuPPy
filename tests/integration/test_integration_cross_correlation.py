@@ -36,8 +36,6 @@ def test_cross_correlation(tmp_path):
         "Dv4B": "signal_dls",
         "PrtN": "port_entries",
     }
-    modality = "tdt"
-
     src_base_dir = str(Path(".") / "testing_data")
     src_session = os.path.join(src_base_dir, session_subdir)
     assert os.path.isdir(src_session), f"Sample data not available at expected path: {src_session}"
@@ -61,22 +59,18 @@ def test_cross_correlation(tmp_path):
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
         storenames_map=storenames_map,
-        modality=modality,
     )
     step3(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
-        modality=modality,
     )
     step4(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
-        modality=modality,
     )
     step5(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
-        modality=modality,
         compute_corr=True,
     )
 
