@@ -40,8 +40,8 @@ def eliminateTs(filepath_to_timestamps, filepath_to_ttl_timestamps, timeForLight
     tsNew_arr = np.array([])
     filepaths = list(filepath_to_timestamps.keys())
     for filepath in filepaths:
-        ts = filepath_to_timestamps[filepath]
-        tsNew = filepath_to_ttl_timestamps[filepath]
+        tsNew = filepath_to_timestamps[filepath]
+        ts = filepath_to_ttl_timestamps[filepath]
         if len(tsNew_arr) == 0:
             sub = tsNew[0] - timeForLightsTurnOn
             tsNew_arr = np.concatenate((tsNew_arr, tsNew - sub))

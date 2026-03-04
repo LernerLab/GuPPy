@@ -12,13 +12,68 @@ from guppy.extractors import (
     DoricRecordingExtractor,
     NpmRecordingExtractor,
     TdtRecordingExtractor,
-    detect_modality,
+    detect_acquisition_formats,
     read_and_save_all_events,
 )
 from guppy.frontend.progress import writeToFile
 from guppy.utils.utils import takeOnlyDirs
 
 logger = logging.getLogger(__name__)
+
+
+def _build_event_to_extractor(*, folder_path, storesList, inputParameters):
+    """
+    Build a mapping from event name to the extractor instance that owns it.
+
+    Iterates over all acquisition formats present in the folder (via
+    :func:`detect_all_formats`). When CSV shares a folder with other formats it is
+    treated as an event-only source; only event_csv files are registered.
+
+    Parameters
+    ----------
+    folder_path : str
+        Path to the session folder.
+    storesList : np.ndarray, shape (2, n)
+        Row 0: original store names. Row 1: semantic labels.
+    inputParameters : dict
+        Full pipeline input parameters (needed for NPM extractor configuration).
+
+    Returns
+    -------
+    dict
+        Maps each event name (str) to the extractor instance responsible for it.
+    """
+    event_to_extractor = {}
+    num_ch = inputParameters["noChannels"]
+    all_formats = detect_acquisition_formats(folder_path)
+    # Doric extractor requires a store-name→event-type mapping built from storesList
+    event_name_to_event_type = {storesList[0, col]: storesList[1, col] for col in range(storesList.shape[1])}
+
+    for fmt in sorted(all_formats):
+        if fmt == "tdt":
+            extractor = TdtRecordingExtractor(folder_path=folder_path)
+            fmt_events, _ = TdtRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+        elif fmt == "doric":
+            extractor = DoricRecordingExtractor(
+                folder_path=folder_path, event_name_to_event_type=event_name_to_event_type
+            )
+            fmt_events, _ = DoricRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+        elif fmt == "csv":
+            extractor = CsvRecordingExtractor(folder_path=folder_path)
+            fmt_events, _ = CsvRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+        elif fmt == "npm":
+            extractor = NpmRecordingExtractor(folder_path=folder_path)
+            fmt_events, _ = NpmRecordingExtractor.discover_events_and_flags(
+                folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
+            )
+        else:
+            raise ValueError(f"Format not recognized: '{fmt}'. Expected one of 'tdt', 'csv', 'doric', 'npm'.")
+
+        for event in fmt_events:
+            if event not in event_to_extractor:
+                event_to_extractor[event] = extractor
+
+    return event_to_extractor
 
 
 # function to read data from 'tsq' and 'tev' files
@@ -29,7 +84,6 @@ def orchestrate_read_raw_data(inputParameters):
     inputParameters = inputParameters
     folderNames = inputParameters["folderNames"]
     numProcesses = inputParameters["numberOfCores"]
-    # modality = inputParameters["modality"]
     num_ch = inputParameters["noChannels"]
     storesListPath = []
     if numProcesses == 0:
@@ -48,8 +102,6 @@ def orchestrate_read_raw_data(inputParameters):
     step = 0
     for i in range(len(folderNames)):
         filepath = folderNames[i]
-        requested_modality = inputParameters.get("modality", "auto")
-        modality = detect_modality(filepath) if requested_modality == "auto" else requested_modality
         logger.debug(f"### Reading raw data for folder {folderNames[i]}")
         storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*")))
 
@@ -66,20 +118,19 @@ def orchestrate_read_raw_data(inputParameters):
                 )
 
             events = np.unique(storesList[0, :])
-            if modality == "tdt":
-                extractor = TdtRecordingExtractor(folder_path=filepath)
-            elif modality == "doric":
-                event_name_to_event_type = {storesList[0, i]: storesList[1, i] for i in range(storesList.shape[1])}
-                extractor = DoricRecordingExtractor(
-                    folder_path=filepath, event_name_to_event_type=event_name_to_event_type
-                )
-            elif modality == "csv":
-                extractor = CsvRecordingExtractor(folder_path=filepath)
-            elif modality == "npm":
-                extractor = NpmRecordingExtractor(folder_path=filepath)
-            else:
-                raise ValueError("Modality not recognized. Please use 'tdt', 'csv', 'doric', or 'npm'.")
-            read_and_save_all_events(extractor, events, op, numProcesses)
+            event_to_extractor = _build_event_to_extractor(
+                folder_path=filepath,
+                storesList=storesList,
+                inputParameters=inputParameters,
+            )
+            # Restrict to only the events named in storesList
+            store_event_to_extractor = {}
+            for event in events:
+                ext = event_to_extractor.get(event)
+                if ext is None:
+                    raise ValueError(f"Event '{event}' not found in any extractor for folder {filepath}.")
+                store_event_to_extractor[event] = ext
+            read_and_save_all_events(store_event_to_extractor, op, numProcesses)
 
             writeToFile(str(10 + ((step + 1) * 10)) + "\n")
             step += 1

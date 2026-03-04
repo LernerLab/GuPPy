@@ -66,22 +66,6 @@ class ParameterForm:
 
         self.files_1 = pn.widgets.FileSelector(self.folder_path, root_directory="/", name="folderNames", width=950)
 
-        self.explain_modality = pn.pane.Markdown(
-            """
-            **Data Modality:** Select the type of data acquisition system used for your recordings:
-            - **auto**: Automatically detect from folder contents (recommended)
-            - **tdt**: Tucker-Davis Technologies system
-            - **csv**: Generic CSV format
-            - **doric**: Doric Photometry system
-            - **npm**: Neurophotometrics system
-            """,
-            width=600,
-        )
-
-        self.modality_selector = pn.widgets.Select(
-            name="Data Modality", value="auto", options=["auto", "tdt", "csv", "doric", "npm"], width=320
-        )
-
         self.explain_time_artifacts = pn.pane.Markdown(
             """
                                 - ***Number of cores :*** Number of cores used for analysis. Try to
@@ -314,8 +298,6 @@ class ParameterForm:
         self.widget = pn.Column(
             self.mark_down_1,
             self.files_1,
-            self.explain_modality,
-            self.modality_selector,
             pn.Row(self.individual_analysis_wd_2, self.psth_baseline_param),
         )
         self.individual = pn.Card(self.widget, title="Individual Analysis", styles=self.styles, width=1000)
@@ -360,7 +342,6 @@ class ParameterForm:
         inputParameters = {
             "abspath": abspath[0],
             "folderNames": self.files_1.value,
-            "modality": self.modality_selector.value,
             "numberOfCores": self.numberOfCores.value,
             "combine_data": self.combine_data.value,
             "isosbestic_control": self.isosbestic_control.value,

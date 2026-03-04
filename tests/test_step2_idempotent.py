@@ -15,7 +15,7 @@ def test_step2_npm_idempotent(tmp_path):
 
     After the first run, split_events creates new CSV files (e.g. eventTrue.csv,
     file0_chev1.csv) whose column structure matches the raw-CSV modality signature.
-    Without a fix, detect_modality misidentifies the folder as "csv" on the second
+    Without a fix, detect_acquisition_formats misidentifies the folder as "csv" on the second
     run, causing the wrong extractor to be used and the step to fail.
     """
     session_subdir = "SampleData_Neurophotometrics/sampleData_NPM_4"

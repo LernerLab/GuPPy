@@ -12,8 +12,8 @@ from guppy.testing.api import step2, step3, step4, step5
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_combine_data(tmp_path, monkeypatch):
     session_subdirs = [
-        "SampleData_Clean/Photo_63_207-181030-103332",
         "SampleData_with_artifacts/Photo_048_392-200728-121222",
+        "SampleData_Clean/Photo_63_207-181030-103332",
     ]
     storenames_map = {
         "Dv1A": "control_dms",
@@ -22,7 +22,6 @@ def test_combine_data(tmp_path, monkeypatch):
     }
     expected_region = "dms"
     expected_ttl = "port_entries_dms"
-    modality = "tdt"
 
     npm_timestamp_column_names = None
     npm_time_units = None
@@ -67,7 +66,6 @@ def test_combine_data(tmp_path, monkeypatch):
         base_dir=base_dir,
         selected_folders=selected_folders,
         storenames_map=storenames_map,
-        modality=modality,
         npm_timestamp_column_names=npm_timestamp_column_names,
         npm_time_units=npm_time_units,
         npm_split_events=npm_split_events,
@@ -77,7 +75,6 @@ def test_combine_data(tmp_path, monkeypatch):
     step3(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        modality=modality,
         npm_timestamp_column_names=npm_timestamp_column_names,
         npm_time_units=npm_time_units,
         npm_split_events=npm_split_events,
@@ -87,7 +84,6 @@ def test_combine_data(tmp_path, monkeypatch):
     step4(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        modality=modality,
         npm_timestamp_column_names=npm_timestamp_column_names,
         npm_time_units=npm_time_units,
         npm_split_events=npm_split_events,
@@ -98,7 +94,6 @@ def test_combine_data(tmp_path, monkeypatch):
     step5(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
-        modality=modality,
         npm_timestamp_column_names=npm_timestamp_column_names,
         npm_time_units=npm_time_units,
         npm_split_events=npm_split_events,
