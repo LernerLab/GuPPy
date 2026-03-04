@@ -282,25 +282,27 @@ def read_header(inputParameters, num_ch, folder_path, headless):
     events, flags = [], []
     existing_events = set()
 
-    for fmt in sorted(all_formats):
-        if fmt == "tdt":
+    for format in sorted(all_formats):
+        if format == "tdt":
             fmt_events, fmt_flags = TdtRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
-        elif fmt == "doric":
+        elif format == "doric":
             fmt_events, fmt_flags = DoricRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
-        elif fmt == "csv":
+        elif format == "csv":
             fmt_events, fmt_flags = CsvRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
-        elif fmt == "npm":
+        elif format == "npm":
             fmt_events, fmt_flags = NpmRecordingExtractor.discover_events_and_flags(
                 folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
             )
         else:
-            raise ValueError(f"Format not recognized: '{fmt}'. Expected one of 'tdt', 'csv', 'doric', 'npm'.")
+            raise ValueError(f"Format not recognized: '{format}'. Expected one of 'tdt', 'csv', 'doric', 'npm'.")
 
-        for event, flag in zip(fmt_events, fmt_flags, strict=True):
+        for event in fmt_events:
             if event not in existing_events:
                 events.append(event)
-                flags.append(flag)
                 existing_events.add(event)
+
+        for flag in fmt_flags:
+            flags.append(flag)
 
     return events, flags
 
