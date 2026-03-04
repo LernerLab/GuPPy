@@ -1,0 +1,45 @@
+name: Daily workflows
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 8 * * *" # Daily at 12AM PST, 2AM CST to avoid working hours
+
+jobs:
+  load_python_and_os_versions:
+    runs-on: ubuntu-latest
+    outputs:
+      ALL_PYTHON_VERSIONS: ${{ steps.load_python_versions.outputs.python_versions }}
+      ALL_OS_VERSIONS: ${{ steps.load_os_versions.outputs.os_versions }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: load_python_versions
+        run: echo "python_versions=$(cat ./.github/workflows/all_python_versions.txt)" >> "$GITHUB_OUTPUT"
+      - id: load_os_versions
+        run: echo "os_versions=$(cat ./.github/workflows/all_os_versions.txt)" >> "$GITHUB_OUTPUT"
+
+  run-daily-tests:
+    needs: load_python_and_os_versions
+    uses: ./.github/workflows/run-tests.yml
+    secrets:
+      RCLONE_CONFIG: ${{ secrets.RCLONE_CONFIG }}
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+    with:  #  Ternary operator: condition && value_if_true || value_if_false
+      python-versions: ${{ github.event.pull_request.draft == true && '["3.10"]' || needs.load_python_and_os_versions.outputs.ALL_PYTHON_VERSIONS }}
+      os-versions: ${{ github.event.pull_request.draft == true && '["ubuntu-latest"]' || needs.load_python_and_os_versions.outputs.ALL_OS_VERSIONS }}
+
+  notify-test-failure:
+    runs-on: ubuntu-latest
+    needs: [run-daily-tests]
+    if: ${{ always() && needs.run-daily-tests.result == 'failure' }}
+    steps:
+      - uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: GuPPy Daily Test Failure
+          to: ${{ secrets.DAILY_FAILURE_EMAIL_LIST }}
+          from: GuPPy
+          body: "The daily test workflow failed, please check status at https://github.com/LernerLab/GuPPy/actions/workflows/dailies.yml"
