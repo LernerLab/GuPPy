@@ -84,7 +84,6 @@ def orchestrate_read_raw_data(inputParameters):
     inputParameters = inputParameters
     folderNames = inputParameters["folderNames"]
     numProcesses = inputParameters["numberOfCores"]
-    # modality = inputParameters["modality"]
     num_ch = inputParameters["noChannels"]
     storesListPath = []
     if numProcesses == 0:

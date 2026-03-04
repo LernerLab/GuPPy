@@ -296,7 +296,7 @@ def read_header(inputParameters, num_ch, folder_path, headless):
         else:
             raise ValueError(f"Format not recognized: '{fmt}'. Expected one of 'tdt', 'csv', 'doric', 'npm'.")
 
-        for event, flag in zip(fmt_events, fmt_flags):
+        for event, flag in zip(fmt_events, fmt_flags, strict=True):
             if event not in existing_events:
                 events.append(event)
                 flags.append(flag)
@@ -312,7 +312,6 @@ def orchestrate_storenames_page(inputParameters):
     folderNames = inputParameters["folderNames"]
     isosbestic_control = inputParameters["isosbestic_control"]
     num_ch = inputParameters["noChannels"]
-    # modality = inputParameters.get("modality", "tdt")
     headless = bool(os.environ.get("GUPPY_BASE_DIR"))
 
     logger.info(folderNames)
