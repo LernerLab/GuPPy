@@ -1,11 +1,11 @@
-# Automatically builds and publishes Python package to TestPyPI when a GitHub release is published.
+# Automatically builds and publishes Python package to PyPI when a GitHub release is published.
 # Uses build library to create distribution files from pyproject.toml configuration,
-# then uploads to TestPyPI using official PyPA GitHub Action with Trusted Publishing.
+# then uploads to PyPI using official PyPA GitHub Action with Trusted Publishing.
 # Trusted Publishing eliminates the need for API tokens by using cryptographic attestations
 # to verify the package was built by this specific GitHub workflow.
 # For more information see: https://help.github.com/en/actions/language-and-framework-guides/using-python-with-github-actions#publishing-to-package-registries
 
-name: Upload Package to TestPyPI
+name: Upload Package to PyPI
 
 on:
   workflow_dispatch:
@@ -33,6 +33,5 @@ jobs:
       - name: pypi-publish
         uses: pypa/gh-action-pypi-publish@v1.12.4
         with:
-          repository-url: https://test.pypi.org/legacy/
           verbose: true
           attestations: true
