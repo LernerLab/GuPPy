@@ -26,6 +26,7 @@
 - Refactored frontend code into modular components under `src/guppy/frontend/`: [PR #191](https://github.com/LernerLab/GuPPy/pull/191)
 - Added code coverage reporting via Codecov to CI workflows: [PR #194](https://github.com/LernerLab/GuPPy/pull/194)
 - Added GitHub Actions workflow to automatically detect changes to the source code and require updating the changelog for any PR that modifies code: [PR #233](https://github.com/LernerLab/GuPPy/pull/233)
+- Restored automatic data modality detection and mixed-modality TTL/signal support with a modular, separation-of-concerns architecture: [PR #226](https://github.com/LernerLab/GuPPy/pull/226)
 
 # GuPPy-v1.3.0 (August 12th, 2025)
 
