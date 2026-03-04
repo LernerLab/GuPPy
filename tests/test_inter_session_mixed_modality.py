@@ -10,7 +10,7 @@ from guppy.testing.api import step2, step3, step4, step5
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_mixed_modality(tmp_path, monkeypatch):
+def test_mixed_modality(tmp_path):
     """
     Integration test for auto modality detection across sessions with different acquisition formats.
 
@@ -39,11 +39,6 @@ def test_mixed_modality(tmp_path, monkeypatch):
     src_base_dir = str(Path(".") / "testing_data")
     npm_src = os.path.join(src_base_dir, npm_session_subdir)
     doric_src = os.path.join(src_base_dir, doric_session_subdir)
-
-    # Stub matplotlib.pyplot.show to avoid GUI blocking
-    import matplotlib.pyplot as plt  # noqa: F401
-
-    monkeypatch.setattr("matplotlib.pyplot.show", lambda *args, **kwargs: None)
 
     # Stage a clean copy of each session into a shared temporary workspace
     tmp_base = tmp_path / "data_root"
@@ -124,7 +119,7 @@ def _stage_session(src_base_dir, session_subdir, tmp_base):
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_mixed_modality_tdt_doric(tmp_path, monkeypatch):
+def test_mixed_modality_tdt_doric(tmp_path):
     """
     Inter-session mixed modality: TDT session + Doric session processed together.
 
@@ -134,8 +129,6 @@ def test_mixed_modality_tdt_doric(tmp_path, monkeypatch):
     src_base_dir = str(Path(".") / "testing_data")
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)
-
-    monkeypatch.setattr("matplotlib.pyplot.show", lambda *args, **kwargs: None)
 
     tdt_session = _stage_session(src_base_dir, "SampleData_Clean/Photo_63_207-181030-103332", tmp_base)
     doric_session = _stage_session(src_base_dir, "SampleData_Doric/sample_doric_3", tmp_base)
@@ -167,7 +160,7 @@ def test_mixed_modality_tdt_doric(tmp_path, monkeypatch):
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_mixed_modality_tdt_npm(tmp_path, monkeypatch):
+def test_mixed_modality_tdt_npm(tmp_path):
     """
     Inter-session mixed modality: TDT session + NPM session processed together.
 
@@ -178,8 +171,6 @@ def test_mixed_modality_tdt_npm(tmp_path, monkeypatch):
     src_base_dir = str(Path(".") / "testing_data")
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)
-
-    monkeypatch.setattr("matplotlib.pyplot.show", lambda *args, **kwargs: None)
 
     tdt_session = _stage_session(src_base_dir, "SampleData_Clean/Photo_63_207-181030-103332", tmp_base)
     npm_session = _stage_session(src_base_dir, "SampleData_Neurophotometrics/sampleData_NPM_4", tmp_base)
@@ -212,7 +203,7 @@ def test_mixed_modality_tdt_npm(tmp_path, monkeypatch):
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_mixed_modality_tdt_csv_data(tmp_path, monkeypatch):
+def test_mixed_modality_tdt_csv_data(tmp_path):
     """
     Inter-session mixed modality: TDT session + CSV data session processed together.
 
@@ -222,8 +213,6 @@ def test_mixed_modality_tdt_csv_data(tmp_path, monkeypatch):
     src_base_dir = str(Path(".") / "testing_data")
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)
-
-    monkeypatch.setattr("matplotlib.pyplot.show", lambda *args, **kwargs: None)
 
     tdt_session = _stage_session(src_base_dir, "SampleData_Clean/Photo_63_207-181030-103332", tmp_base)
     csv_session = _stage_session(src_base_dir, "SampleData_csv/sample_data_csv_1", tmp_base)

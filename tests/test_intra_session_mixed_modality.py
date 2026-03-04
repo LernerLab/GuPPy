@@ -50,7 +50,7 @@ def _assert_intra_session_outputs(session_copy, expected_region, expected_ttl):
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_mixed_modality_tdt_csv_ttl(tmp_path, monkeypatch):
+def test_mixed_modality_tdt_csv_ttl(tmp_path):
     """
     Intra-session mixed modality: TDT photometry channels + CSV event TTL.
 
@@ -62,8 +62,6 @@ def test_mixed_modality_tdt_csv_ttl(tmp_path, monkeypatch):
     src_base_dir = str(Path(".") / "testing_data")
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)
-
-    monkeypatch.setattr("matplotlib.pyplot.show", lambda *args, **kwargs: None)
 
     session_copy = _stage_session(src_base_dir, "SampleData_Clean/Photo_63_207-181030-103332", tmp_base)
 
@@ -88,7 +86,7 @@ def test_mixed_modality_tdt_csv_ttl(tmp_path, monkeypatch):
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_mixed_modality_doric_csv_ttl(tmp_path, monkeypatch):
+def test_mixed_modality_doric_csv_ttl(tmp_path):
     """
     Intra-session mixed modality: Doric photometry channels + CSV event TTL.
 
@@ -103,8 +101,6 @@ def test_mixed_modality_doric_csv_ttl(tmp_path, monkeypatch):
     src_base_dir = str(Path(".") / "testing_data")
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)
-
-    monkeypatch.setattr("matplotlib.pyplot.show", lambda *args, **kwargs: None)
 
     session_copy = _stage_session(src_base_dir, "SampleData_Doric/sample_doric_3", tmp_base)
 
@@ -132,7 +128,7 @@ def test_mixed_modality_doric_csv_ttl(tmp_path, monkeypatch):
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_mixed_modality_npm_csv_ttl(tmp_path, monkeypatch):
+def test_mixed_modality_npm_csv_ttl(tmp_path):
     """
     Intra-session mixed modality: NPM photometry channels + external CSV event TTL.
 
@@ -149,8 +145,6 @@ def test_mixed_modality_npm_csv_ttl(tmp_path, monkeypatch):
     src_base_dir = str(Path(".") / "testing_data")
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)
-
-    monkeypatch.setattr("matplotlib.pyplot.show", lambda *args, **kwargs: None)
 
     session_copy = _stage_session(src_base_dir, "SampleData_Neurophotometrics/sampleData_NPM_1", tmp_base)
 
