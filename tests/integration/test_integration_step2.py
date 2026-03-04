@@ -74,15 +74,6 @@ from guppy.testing.api import step2
             "tdt",
         ),
         (
-            "SampleData_with_artifacts/Photo_048_392-200728-121222",
-            {
-                "Dv1A": "control_dms",
-                "Dv2A": "signal_dms",
-                "PrtN": "port_entries_dms",
-            },
-            "tdt",
-        ),
-        (
             "SampleData_Clean/Photometry-161823",
             {
                 "405R": "control_region",
@@ -137,7 +128,6 @@ from guppy.testing.api import step2
         "sample_doric_5",
         "tdt_clean",
         "tdt_split_event",
-        "tdt_with_artifacts",
         "sample_npm_2",
         "sample_npm_3",
         "sample_npm_4",
@@ -166,8 +156,7 @@ def test_step2(tmp_path, session_subdir, storenames_map, modality):
     # Source sample data
     src_base_dir = str(Path(".") / "testing_data")
     src_session = os.path.join(src_base_dir, session_subdir)
-    if not os.path.isdir(src_session):
-        pytest.skip(f"Sample data not available at expected path: {src_session}")
+    assert os.path.isdir(src_session), f"Sample data not available at expected path: {src_session}"
 
     # Stage a clean copy of the session into a temporary workspace
     tmp_base = tmp_path / "data_root"

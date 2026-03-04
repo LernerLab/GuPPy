@@ -18,6 +18,7 @@ from ..analysis.io_utils import (
     get_coords,
     read_hdf5,
     takeOnlyDirs,
+    write_combined_stores_list,
 )
 from ..analysis.standard_io import (
     read_control_and_signal,
@@ -46,8 +47,9 @@ from ..visualization.preprocessing import visualize_preprocessing
 
 logger = logging.getLogger(__name__)
 
-# Only set matplotlib backend if not in CI environment
-if not os.getenv("CI"):
+# Only set matplotlib backend if not in CI or headless (GUPPY_BASE_DIR) environment
+headless = bool(os.environ.get("GUPPY_BASE_DIR"))
+if not os.getenv("CI") and not headless:
     plt.switch_backend("TKAgg")
 
 
@@ -224,7 +226,9 @@ def execute_zscore(folderNames, inputParameters):
         writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
         inputParameters["step"] += 1
 
-    plt.show()
+    headless = bool(os.environ.get("GUPPY_BASE_DIR"))
+    if not headless:
+        plt.show()
     logger.info("Z-score computation completed.")
 
 
@@ -305,7 +309,9 @@ def execute_artifact_removal(folderNames, inputParameters):
         writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
         inputParameters["step"] += 1
 
-    visualize_artifact_removal(folderNames, inputParameters)
+    headless = bool(os.environ.get("GUPPY_BASE_DIR"))
+    if not headless:
+        visualize_artifact_removal(folderNames, inputParameters)
     logger.info("Artifact removal completed.")
 
 
@@ -416,7 +422,9 @@ def extractTsAndSignal(inputParameters):
         writeToFile(str((pbMaxValue + 1) * 10) + "\n" + str(10) + "\n")
         execute_timestamp_correction(folderNames, inputParameters)
         execute_zscore(folderNames, inputParameters)
-        visualize_z_score(inputParameters, folderNames)
+        headless = bool(os.environ.get("GUPPY_BASE_DIR"))
+        if not headless:
+            visualize_z_score(inputParameters, folderNames)
         if remove_artifacts == True:
             execute_artifact_removal(folderNames, inputParameters)
     else:
@@ -425,8 +433,11 @@ def extractTsAndSignal(inputParameters):
         execute_timestamp_correction(folderNames, inputParameters)
         storesList = check_storeslistfile(folderNames)
         op_folder = execute_combine_data(folderNames, inputParameters, storesList)
+        write_combined_stores_list(op_folder, storesList)
         execute_zscore(op_folder, inputParameters)
-        visualize_z_score(inputParameters, op_folder)
+        headless = bool(os.environ.get("GUPPY_BASE_DIR"))
+        if not headless:
+            visualize_z_score(inputParameters, op_folder)
         if remove_artifacts == True:
             execute_artifact_removal(op_folder, inputParameters)
 

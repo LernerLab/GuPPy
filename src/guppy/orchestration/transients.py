@@ -147,12 +147,15 @@ def executeFindFreqAndAmp(inputParameters):
     if average == True:
         execute_average_for_group(inputParameters, folderNamesForAvg)
     else:
+        headless = bool(os.environ.get("GUPPY_BASE_DIR"))
         if combine_data == True:
             execute_find_freq_and_amp_combined(inputParameters, folderNames, moving_window, numProcesses)
-            execute_visualize_peaks_combined(folderNames, inputParameters)
+            if not headless:
+                execute_visualize_peaks_combined(folderNames, inputParameters)
         else:
             execute_find_freq_and_amp(inputParameters, folderNames, moving_window, numProcesses)
-            execute_visualize_peaks(folderNames, inputParameters)
+            if not headless:
+                execute_visualize_peaks(folderNames, inputParameters)
 
     logger.info("Transients in z-score data found and frequency and amplitude are calculated.")
 
