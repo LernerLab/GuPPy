@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 
 [project]
-name = "guppy"
-version = "2.0.0-alpha8"
+name = "guppy-neuro"
+version = "2.0.0-alpha9"
 description = "Guided Photometry Analysis in Python, a free and open-source fiber photometry data analysis tool."
 readme = "README.md"
 authors = [
@@ -14,7 +14,7 @@ authors = [
     { name = "Jillian Seiler" },
     { name = "Gabriela Lopez" },
     { name = "Talia Lerner" },
-    { name = "Paul Adkisson" },
+    { name = "Paul Adkisson-Floro" },
     { name = "Luiz Tauffer" },
 ]
 
