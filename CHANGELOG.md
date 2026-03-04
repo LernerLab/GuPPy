@@ -5,6 +5,7 @@
 - Modernized python packaging and distribution: [PR #129](https://github.com/LernerLab/GuPPy/pull/129)
 - Added support for Python 3.10-3.13: [PR #129](https://github.com/LernerLab/GuPPy/pull/129)
 - Added pytest-based headless test suite for pipeline steps 1–5 with CI workflows: [PR #153](https://github.com/LernerLab/GuPPy/pull/153)
+- Added daily tests to the automatic CI/CD pipeline: [PR #234](https://github.com/LernerLab/GuPPy/pull/234)
 
 ## Fixes
 
