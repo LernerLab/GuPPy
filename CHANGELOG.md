@@ -4,11 +4,11 @@
 
 - Modernized python packaging and distribution: [PR #129](https://github.com/LernerLab/GuPPy/pull/129)
 - Added support for Python 3.10-3.13: [PR #129](https://github.com/LernerLab/GuPPy/pull/129)
+- Added pytest-based headless test suite for pipeline steps 1–5 with CI workflows: [PR #153](https://github.com/LernerLab/GuPPy/pull/153)
 
 ## Fixes
 
 - Fixed bug with group analysis by updating pandas syntax: [PR #192](https://github.com/LernerLab/GuPPy/pull/192)
-
 
 ## Deprecations and Removals
 
@@ -17,6 +17,15 @@
 - Converted savingInputParameters.ipynb to saving_input_parameters.py: [PR #129](https://github.com/LernerLab/GuPPy/pull/129)
 
 ## Improvements
+
+- Replaced scattered print statements with centralized structured logging: [PR #160](https://github.com/LernerLab/GuPPy/pull/160)
+- Added pre-commit hooks for automated code formatting and linting (Black + Ruff): [PR #161](https://github.com/LernerLab/GuPPy/pull/161)
+- Expanded test suite with an additional example session across steps 2–5: [PR #179](https://github.com/LernerLab/GuPPy/pull/179)
+- Introduced `BaseRecordingExtractor` and format-specific subclasses for TDT, Doric, NPM, and CSV data ingestion: [PR #171](https://github.com/LernerLab/GuPPy/pull/171)
+- Refactored monolithic analysis code into modular components under `src/guppy/analysis/`: [PR #190](https://github.com/LernerLab/GuPPy/pull/190)
+- Refactored frontend code into modular components under `src/guppy/frontend/`: [PR #191](https://github.com/LernerLab/GuPPy/pull/191)
+- Added code coverage reporting via Codecov to CI workflows: [PR #194](https://github.com/LernerLab/GuPPy/pull/194)
+- Added GitHub Actions workflow to automatically detect changes to the source code and require updating the changelog for any PR that modifies code: [PR #233](https://github.com/LernerLab/GuPPy/pull/233)
 
 # GuPPy-v1.3.0 (August 12th, 2025)
 
