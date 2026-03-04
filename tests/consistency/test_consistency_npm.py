@@ -19,7 +19,6 @@ CONSISTENCY_CASES = [
             "file1_chev6": "signal_region",
         },
         {"npm_split_events": [True, True]},
-        {},
     ),
     (
         "SampleData_Neurophotometrics/sampleData_NPM_3",
@@ -34,7 +33,6 @@ CONSISTENCY_CASES = [
             "npm_time_units": ["milliseconds", "seconds"],
             "npm_split_events": [False, True],
         },
-        {},
     ),
     (
         "SampleData_Neurophotometrics/sampleData_NPM_4",
@@ -45,7 +43,6 @@ CONSISTENCY_CASES = [
             "eventTrue": "ttl_true_region1",
         },
         {"npm_split_events": [True, True]},
-        {},
     ),
     (
         "SampleData_Neurophotometrics/sampleData_NPM_5",
@@ -56,13 +53,12 @@ CONSISTENCY_CASES = [
             "event0": "ttl_region1",
         },
         {"npm_split_events": None},
-        {},
     ),
 ]
 
 
 @pytest.mark.parametrize(
-    "session_subdir, standard_output_subdir, storenames_map, extra_kwargs, compare_kwargs",
+    "session_subdir, standard_output_subdir, storenames_map, extra_kwargs",
     CONSISTENCY_CASES,
     ids=[
         "sample_npm_2",
@@ -78,7 +74,6 @@ def test_consistency(
     standard_output_subdir,
     storenames_map,
     extra_kwargs,
-    compare_kwargs,
 ):
     """
     Consistency test: run the full pipeline (Steps 2-5) and assert that the output
@@ -123,7 +118,6 @@ def test_consistency(
     compare_output_folders(
         actual_dir=actual_output_dir,
         expected_dir=str(standard_output_dir),
-        **compare_kwargs,
     )
 
     # NPM also writes intermediate CSVs into the session folder itself; compare
@@ -132,5 +126,4 @@ def test_consistency(
     compare_npm_session_files(
         actual_session_dir=str(session_copy),
         expected_session_dir=str(standard_session_dir),
-        **compare_kwargs,
     )

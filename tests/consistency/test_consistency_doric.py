@@ -19,7 +19,6 @@ CONSISTENCY_CASES = [
             "AIn-2 - Raw": "signal_region",
             "DI--O-1": "ttl",
         },
-        {},
         # scipy 1.5→1.17 and numpy 1.18→2.x cause up to ~1% drift in filtfilt/polyfit;
         # widened tolerance accommodates known dependency changes without masking real regressions.
         {"rtol": 1e-2, "atol": 2e-3},
@@ -33,7 +32,6 @@ CONSISTENCY_CASES = [
             "DI/O-1": "ttl",
         },
         {},
-        {},
     ),
     (
         "SampleData_Doric/sample_doric_3",
@@ -44,7 +42,6 @@ CONSISTENCY_CASES = [
             "DigitalIO/CAM1": "ttl",
         },
         {},
-        {},
     ),
     (
         "SampleData_Doric/sample_doric_4",
@@ -53,7 +50,6 @@ CONSISTENCY_CASES = [
             "Series0001/AIN01xAOUT01-LockIn": "control_region",
             "Series0001/AIN01xAOUT02-LockIn": "signal_region",
         },
-        {},
         {},
     ),
     (
@@ -64,13 +60,12 @@ CONSISTENCY_CASES = [
             "Series0001/AIN01xAOUT02-LockIn": "signal_region",
         },
         {},
-        {},
     ),
 ]
 
 
 @pytest.mark.parametrize(
-    "session_subdir, standard_output_subdir, storenames_map, extra_kwargs, compare_kwargs",
+    "session_subdir, standard_output_subdir, storenames_map, compare_kwargs",
     CONSISTENCY_CASES,
     ids=[
         "sample_doric_1",
@@ -86,7 +81,6 @@ def test_consistency(
     session_subdir,
     standard_output_subdir,
     storenames_map,
-    extra_kwargs,
     compare_kwargs,
 ):
     """
@@ -116,10 +110,10 @@ def test_consistency(
         selected_folders=[str(session_copy)],
     )
 
-    step2(**common_kwargs, storenames_map=storenames_map, **extra_kwargs)
-    step3(**common_kwargs, **extra_kwargs)
-    step4(**common_kwargs, **extra_kwargs)
-    step5(**common_kwargs, **extra_kwargs)
+    step2(**common_kwargs, storenames_map=storenames_map)
+    step3(**common_kwargs)
+    step4(**common_kwargs)
+    step5(**common_kwargs)
 
     output_dirs = sorted(glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")))
     assert output_dirs, f"No output directory found under {session_copy}"
