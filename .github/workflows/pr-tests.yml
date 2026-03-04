@@ -29,6 +29,22 @@ jobs:
           echo "Loaded Python versions: ${{ steps.load_python_versions.outputs.python_versions }}"
           echo "Loaded OS versions: ${{ steps.load_os_versions.outputs.os_versions }}"
 
+  assess-file-changes:
+    uses: ./.github/workflows/assess-file-changes.yml
+
+  detect-changelog-updates:
+    needs: assess-file-changes
+    if: ${{ needs.assess-file-changes.outputs.SOURCE_CHANGED == 'true' && github.event.pull_request.draft == false }}
+    name: Auto-detecting CHANGELOG.md updates
+    runs-on: ubuntu-latest
+    steps:
+      - if: ${{ needs.assess-file-changes.outputs.CHANGELOG_UPDATED == 'true' }}
+        run: echo "CHANGELOG.md has been updated."
+      - if: ${{ needs.assess-file-changes.outputs.CHANGELOG_UPDATED == 'false' }}
+        run: |
+          echo "CHANGELOG.md has not been updated."
+          0
+
   run-tests:
     needs: [load_python_and_os_versions]
     uses: ./.github/workflows/run-tests.yml
