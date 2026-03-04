@@ -167,7 +167,7 @@ from guppy.testing.api import step2, step3, step4, step5
     ],
 )
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_step5(tmp_path, monkeypatch, session_subdir, storenames_map, expected_region, expected_ttl):
+def test_step5(tmp_path, session_subdir, storenames_map, expected_region, expected_ttl):
     """
     Full integration test for Step 5 (PSTH Computation) using real CSV sample data,
     isolated to a temporary workspace to avoid mutating shared sample data.
@@ -178,10 +178,8 @@ def test_step5(tmp_path, monkeypatch, session_subdir, storenames_map, expected_r
       - Step 4: extract timestamps/signal, z-score/dFF, time corrections
       - Step 5: compute PSTH and peak/AUC outputs
 
-    Notes:
-      - matplotlib plotting in earlier steps may use a GUI backend; stub plt.show() to avoid blocking.
-      - Assertions confirm creation and basic readability of PSTH-related outputs from Step 5.
-      - Defaults are used for input parameters; PSTH computation defaults to z_score.
+    Assertions confirm creation and basic readability of PSTH-related outputs from Step 5.
+    Defaults are used for input parameters; PSTH computation defaults to z_score.
     """
     if session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_1":
         npm_timestamp_column_names = None
@@ -201,13 +199,7 @@ def test_step5(tmp_path, monkeypatch, session_subdir, storenames_map, expected_r
     # Use the sample session
     src_base_dir = str(Path(".") / "testing_data")
     src_session = os.path.join(src_base_dir, session_subdir)
-    if not os.path.isdir(src_session):
-        pytest.skip(f"Sample data not available at expected path: {src_session}")
-
-    # Stub matplotlib.pyplot.show to avoid GUI blocking (used in earlier steps)
-    import matplotlib.pyplot as plt  # noqa: F401
-
-    monkeypatch.setattr("matplotlib.pyplot.show", lambda *args, **kwargs: None)
+    assert os.path.isdir(src_session), f"Sample data not available at expected path: {src_session}"
 
     # Stage a clean copy of the session into a temporary workspace
     tmp_base = tmp_path / "data_root"

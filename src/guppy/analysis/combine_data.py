@@ -54,8 +54,6 @@ def eliminateTs(filepath_to_timestamps, filepath_to_ttl_timestamps, timeForLight
             tsNew_arr = np.concatenate((tsNew_arr, new_tsNew + (1 / sampling_rate)))
             ts_arr = np.concatenate((ts_arr, new_ts + (1 / sampling_rate)))
 
-        # logger.info(event)
-        # logger.info(ts_arr)
     return ts_arr
 
 

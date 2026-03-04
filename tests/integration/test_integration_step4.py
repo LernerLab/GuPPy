@@ -167,7 +167,7 @@ from guppy.testing.api import step2, step3, step4
     ],
 )
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_step4(tmp_path, monkeypatch, session_subdir, storenames_map, expected_region, expected_ttl):
+def test_step4(tmp_path, session_subdir, storenames_map, expected_region, expected_ttl):
     """
     Full integration test for Step 4 (Extract timestamps and signal) using real CSV sample data,
     isolated to a temporary workspace to avoid mutating shared sample data.
@@ -177,9 +177,7 @@ def test_step4(tmp_path, monkeypatch, session_subdir, storenames_map, expected_r
       - Step 3: read raw data (per-storename HDF5 files)
       - Step 4: extract timestamps/signal, compute z-score/dFF, time corrections, etc.
 
-    Notes:
-      - matplotlib plotting in preprocess uses a GUI backend; to avoid blocking, we stub plt.show().
-      - Assertions confirm creation of key HDF5 outputs expected from Step 4.
+    Assertions confirm creation of key HDF5 outputs expected from Step 4.
     """
     if session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_1":
         npm_timestamp_column_names = None
@@ -199,13 +197,7 @@ def test_step4(tmp_path, monkeypatch, session_subdir, storenames_map, expected_r
     # Use the CSV sample session
     src_base_dir = str(Path(".") / "testing_data")
     src_session = os.path.join(src_base_dir, session_subdir)
-    if not os.path.isdir(src_session):
-        pytest.skip(f"Sample data not available at expected path: {src_session}")
-
-    # Stub matplotlib.pyplot.show to avoid GUI blocking
-    import matplotlib.pyplot as plt  # noqa: F401
-
-    monkeypatch.setattr("matplotlib.pyplot.show", lambda *args, **kwargs: None)
+    assert os.path.isdir(src_session), f"Sample data not available at expected path: {src_session}"
 
     # Stage a clean copy of the session into a temporary workspace
     tmp_base = tmp_path / "data_root"

@@ -10,8 +10,11 @@ This module is intentionally minimal and non-invasive.
 
 from __future__ import annotations
 
+import glob
 import os
 from typing import Iterable
+
+import numpy as np
 
 from guppy.orchestration.home import build_homepage
 from guppy.orchestration.preprocess import extractTsAndSignal
@@ -256,6 +259,13 @@ def step4(
     npm_time_units: list[str] | None = None,
     npm_split_events: list[bool] | None = None,
     combine_data: bool = False,
+    remove_artifacts: bool = False,
+    artifact_removal_method: str | None = None,
+    artifact_coords: dict[str, np.ndarray] | None = None,
+    zscore_method: str = "standard z-score",
+    baseline_window_start: int = 0,
+    baseline_window_end: int = 0,
+    isosbestic_control: bool = True,
 ) -> None:
     """
     Run pipeline Step 4 (Extract timestamps and signal) via the Panel-backed logic, headlessly.
@@ -281,6 +291,28 @@ def step4(
         List of booleans indicating whether to split events for NPM files, one per CSV file. None if not applicable.
     combine_data : bool
         Whether to enable data combining logic in Step 4.
+    remove_artifacts : bool
+        Whether to run artifact removal.
+    artifact_removal_method : str | None
+        Artifact removal method to use ('concatenate' or 'replace with NaN').
+        Only applied when ``remove_artifacts`` is True.
+    artifact_coords : dict[str, np.ndarray] | None
+        Mapping of pair name to coordinates array (shape ``(N_clicks, 2)``, x/time in
+        column 0) to write as ``coordsForPreProcessing_<pair_name>.npy`` into every
+        ``_output_*`` directory before artifact removal runs. Bypasses the interactive
+        artifact-selection UI. Ignored when ``remove_artifacts`` is False.
+    zscore_method : str
+        Z-score computation method. One of ``'standard z-score'``, ``'baseline z-score'``,
+        or ``'modified z-score'``. Defaults to ``'standard z-score'``.
+    baseline_window_start : int
+        Start of the baseline window in seconds. Only used when ``zscore_method`` is
+        ``'baseline z-score'``. Defaults to 0.
+    baseline_window_end : int
+        End of the baseline window in seconds. Only used when ``zscore_method`` is
+        ``'baseline z-score'``. Defaults to 0.
+    isosbestic_control : bool
+        Whether a separate isosbestic control channel is present. When ``False``, GuPPy
+        synthesizes a control channel from the signal. Defaults to ``True``.
 
     Raises
     ------
@@ -333,6 +365,28 @@ def step4(
     # Inject combine_data
     input_params["combine_data"] = combine_data
 
+    # Inject artifact removal parameters
+    input_params["removeArtifacts"] = remove_artifacts
+    if artifact_removal_method is not None:
+        input_params["artifactsRemovalMethod"] = artifact_removal_method
+
+    # Inject z-score parameters
+    input_params["zscore_method"] = zscore_method
+    input_params["baselineWindowStart"] = baseline_window_start
+    input_params["baselineWindowEnd"] = baseline_window_end
+
+    # Inject isosbestic_control
+    input_params["isosbestic_control"] = isosbestic_control
+
+    # Write artifact coordinates into each output directory so that the artifact
+    # removal worker can find them without the interactive selection UI.
+    if remove_artifacts and artifact_coords:
+        for session in abs_sessions:
+            for output_dir in glob.glob(os.path.join(session, "*_output_*")):
+                if os.path.isdir(output_dir):
+                    for pair_name, coords in artifact_coords.items():
+                        np.save(os.path.join(output_dir, f"coordsForPreProcessing_{pair_name}.npy"), coords)
+
     # Call the underlying Step 4 worker directly (no subprocess)
     extractTsAndSignal(input_params)
 
@@ -344,6 +398,11 @@ def step5(
     npm_timestamp_column_names: list[str | None] | None = None,
     npm_time_units: list[str] | None = None,
     npm_split_events: list[bool] | None = None,
+    compute_corr: bool = False,
+    average_for_group: bool = False,
+    group_folders: list[str] | None = None,
+    select_for_compute_psth: str = "z_score",
+    select_for_transients: str = "z_score",
 ) -> None:
     """
     Run pipeline Step 5 (PSTH Computation) via the Panel-backed logic, headlessly.
@@ -367,6 +426,22 @@ def step5(
         List of time units for NPM files, one per CSV file (e.g., 'seconds', 'milliseconds'). None if not applicable.
     npm_split_events : list[bool] | None
         List of booleans indicating whether to split events for NPM files, one per CSV file. None if not applicable.
+    compute_corr : bool
+        Whether to compute cross-correlation between signals. Defaults to False.
+    average_for_group : bool
+        Whether to run group-level averaging across sessions instead of per-session PSTH
+        computation. When ``True``, individual PSTH files must already exist in each session's
+        output directory, and results are written to ``<base_dir>/average/``. Defaults to False.
+    group_folders : list[str] | None
+        Absolute paths to the session directories to include in group averaging. Only used
+        when ``average_for_group`` is ``True``. Injected as ``folderNamesForAvg`` in
+        ``input_params``. Defaults to ``None`` (treated as empty list).
+    select_for_compute_psth : str
+        Signal type to use for PSTH computation. One of ``'z_score'``, ``'dff'``, or
+        ``'Both'``. Defaults to ``'z_score'``.
+    select_for_transients : str
+        Signal type to use for transient detection. One of ``'z_score'``, ``'dff'``, or
+        ``'Both'``. Defaults to ``'z_score'``.
 
     Raises
     ------
@@ -415,6 +490,17 @@ def step5(
     input_params["npm_timestamp_column_names"] = npm_timestamp_column_names
     input_params["npm_time_units"] = npm_time_units
     input_params["npm_split_events"] = npm_split_events
+
+    # Inject cross-correlation flag
+    input_params["computeCorr"] = compute_corr
+
+    # Inject group analysis parameters
+    input_params["averageForGroup"] = average_for_group
+    input_params["folderNamesForAvg"] = [os.path.abspath(f) for f in group_folders] if group_folders else []
+
+    # Inject signal-type selection parameters
+    input_params["selectForComputePsth"] = select_for_compute_psth
+    input_params["selectForTransientsComputation"] = select_for_transients
 
     # Call the underlying Step 5 worker directly (no subprocess)
     psthForEachStorename(input_params)
