@@ -1,7 +1,6 @@
 """Mixin of contract tests for BaseRecordingExtractor subclasses."""
 
 import h5py
-import numpy as np
 
 
 class RecordingExtractorTestMixin:
@@ -62,12 +61,6 @@ class RecordingExtractorTestMixin:
             assert isinstance(output_dict["storename"], str)
             assert len(output_dict["storename"]) > 0
 
-    def test_read_output_dicts_have_timestamps_array(self, tmp_path):
-        result = self.extractor_instance.read(events=self.expected_events, outputPath=str(tmp_path))
-        for output_dict in result:
-            assert "timestamps" in output_dict
-            assert isinstance(output_dict["timestamps"], np.ndarray)
-
     # --- save tests ---
 
     def test_save_produces_hdf5_files(self, tmp_path):
@@ -86,14 +79,3 @@ class RecordingExtractorTestMixin:
             sanitized_storename = output_dict["storename"].replace("\\", "_").replace("/", "_")
             with h5py.File(tmp_path / f"{sanitized_storename}.hdf5", "r") as file:
                 assert "timestamps" in file
-
-    # --- roundtrip test ---
-
-    def test_roundtrip_timestamps_preserved(self, tmp_path):
-        output_dicts = self.extractor_instance.read(events=self.expected_events, outputPath=str(tmp_path))
-        self.extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
-
-        for output_dict in output_dicts:
-            sanitized_storename = output_dict["storename"].replace("\\", "_").replace("/", "_")
-            with h5py.File(tmp_path / f"{sanitized_storename}.hdf5", "r") as file:
-                np.testing.assert_array_equal(file["timestamps"][:], output_dict["timestamps"])

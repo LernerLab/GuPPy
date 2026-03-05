@@ -1,3 +1,4 @@
+import copy
 import glob
 import logging
 import os
@@ -191,6 +192,7 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
 
     def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str) -> None:
         for S in output_dicts:
-            event = S.pop("storename")
-            df = pd.DataFrame.from_dict(S)
+            working_dict = copy.deepcopy(S)
+            event = working_dict.pop("storename")
+            df = pd.DataFrame.from_dict(working_dict)
             self._save_to_hdf5(df=df, event=event, outputPath=outputPath)

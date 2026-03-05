@@ -18,9 +18,8 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
     # Inherits from CsvRecordingExtractor to reuse identical read/save logic.
     # Only overrides discover_events_and_flags() and adds NPM-specific helper methods.
 
-    # TODO: make inputParameters mandatory
     @classmethod
-    def discover_events_and_flags(cls, folder_path, num_ch, inputParameters=None) -> tuple[list[str], list[str]]:
+    def discover_events_and_flags(cls, folder_path, num_ch, inputParameters) -> tuple[list[str], list[str]]:
         """
         Discover available events and format flags from NPM files.
 
