@@ -1,6 +1,7 @@
 """Mixin of contract tests for BaseRecordingExtractor subclasses."""
 
 import h5py
+import numpy as np
 
 
 class RecordingExtractorTestMixin:
@@ -18,12 +19,20 @@ class RecordingExtractorTestMixin:
     discover_kwargs : dict
         Extra keyword arguments for ``discover_events_and_flags()`` beyond
         ``folder_path``. Use ``{}`` for TDT/Doric/CSV; NPM needs ``{"num_ch": N}``.
-
     extractor_instance : BaseRecordingExtractor
         An initialized instance of the extractor under test. Can be a class
         variable when the extractor has no mutable state, or set in
         ``setup_method`` when a fresh instance per test is needed.
+
+    Child test classes must also implement the ``expected_timestamps`` property,
+    which returns the timestamps array for ``expected_events[0]`` as it should
+    appear in the saved HDF5 file. Each format may require different logic (e.g.
+    reading from a CSV, calling ``extractor_instance.read()``, etc.).
     """
+
+    @property
+    def expected_timestamps(self):
+        raise NotImplementedError("Child test classes must implement the expected_timestamps property.")
 
     # --- discover tests ---
 
@@ -79,3 +88,14 @@ class RecordingExtractorTestMixin:
             sanitized_storename = output_dict["storename"].replace("\\", "_").replace("/", "_")
             with h5py.File(tmp_path / f"{sanitized_storename}.hdf5", "r") as file:
                 assert "timestamps" in file
+
+    # --- roundtrip test ---
+
+    def test_roundtrip_timestamps_preserved(self, tmp_path):
+        first_event = self.expected_events[0]
+        output_dicts = self.extractor_instance.read(events=[first_event], outputPath=str(tmp_path))
+        self.extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
+
+        sanitized_storename = first_event.replace("\\", "_").replace("/", "_")
+        with h5py.File(tmp_path / f"{sanitized_storename}.hdf5", "r") as file:
+            np.testing.assert_array_equal(file["timestamps"][:], self.expected_timestamps)

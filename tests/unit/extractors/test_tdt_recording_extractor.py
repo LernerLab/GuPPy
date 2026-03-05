@@ -1,6 +1,7 @@
 """Contract tests for TdtRecordingExtractor."""
 
 import os
+import tempfile
 
 from guppy.extractors.tdt_recording_extractor import TdtRecordingExtractor
 
@@ -15,3 +16,9 @@ class TestTdtRecordingExtractor(RecordingExtractorTestMixin):
     extractor_instance = TdtRecordingExtractor(folder_path)
     expected_events = ["Dv1A", "Dv2A"]
     discover_kwargs = {}
+
+    @property
+    def expected_timestamps(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self.extractor_instance.read(events=[self.expected_events[0]], outputPath=tmp)
+        return result[0]["timestamps"]

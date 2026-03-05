@@ -2,6 +2,8 @@
 
 import os
 
+import numpy as np
+
 from guppy.extractors.npm_recording_extractor import NpmRecordingExtractor
 
 from .recording_extractor_test_mixin import RecordingExtractorTestMixin
@@ -15,3 +17,10 @@ class TestNpmRecordingExtractor(RecordingExtractorTestMixin):
     extractor_instance = NpmRecordingExtractor(folder_path)
     expected_events = ["file0_chev1", "file0_chod1"]
     discover_kwargs = {"num_ch": 2, "inputParameters": {}}
+
+    @property
+    def expected_timestamps(self):
+        # discover must run first to create the intermediate CSV files that read() depends on
+        NpmRecordingExtractor.discover_events_and_flags(self.folder_path, num_ch=2, inputParameters={})
+        result = self.extractor_instance.read(events=[self.expected_events[0]], outputPath="")
+        return np.array(list(result[0]["timestamps"].values()))

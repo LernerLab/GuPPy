@@ -21,3 +21,8 @@ class TestDoricRecordingExtractor(RecordingExtractorTestMixin):
     extractor_instance = DoricRecordingExtractor(folder_path, _EVENT_NAME_TO_EVENT_TYPE)
     expected_events = ["AIn-1 - Raw", "AIn-2 - Raw"]
     discover_kwargs = {}
+
+    @property
+    def expected_timestamps(self):
+        result = self.extractor_instance.read(events=[self.expected_events[0]], outputPath="")
+        return result[0]["timestamps"]

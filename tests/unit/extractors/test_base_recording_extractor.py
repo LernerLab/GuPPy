@@ -149,3 +149,7 @@ class TestBaseRecordingExtractor(RecordingExtractorTestMixin):
     extractor_instance = MockRecordingExtractor(folder_path)
     expected_events = ["mock_signal", "mock_control"]
     discover_kwargs = {}
+
+    @property
+    def expected_timestamps(self):
+        return np.arange(100, dtype=float) / 100.0
