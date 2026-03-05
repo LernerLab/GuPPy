@@ -72,7 +72,7 @@ def test_write_hdf5_sanitizes_backslash_in_storename(tmp_path):
     BaseRecordingExtractor._write_hdf5(np.array([1.0]), "a\\b", str(tmp_path), "timestamps")
 
     assert (tmp_path / "a_b.hdf5").exists()
-    assert not any("\\" in str(path) for path in tmp_path.iterdir())
+    assert not any("\\" in path.name for path in tmp_path.iterdir())
 
 
 def test_write_hdf5_sanitizes_forward_slash_in_storename(tmp_path):
