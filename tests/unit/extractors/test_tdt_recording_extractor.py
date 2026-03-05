@@ -25,8 +25,7 @@ from .recording_extractor_test_mixin import RecordingExtractorTestMixin
     ],
 )
 def test_ismember_returns_indicator_array(arr, element, expected):
-    extractor = object.__new__(TdtRecordingExtractor)
-    result = extractor._ismember(arr, element)
+    result = TdtRecordingExtractor._ismember(arr, element)
     np.testing.assert_array_equal(result, expected)
 
 
@@ -46,8 +45,7 @@ def test_ismember_returns_indicator_array(arr, element, expected):
     ],
 )
 def test_event_needs_splitting(data, sampling_rate, expected):
-    extractor = object.__new__(TdtRecordingExtractor)
-    assert extractor._event_needs_splitting(data=data, sampling_rate=sampling_rate) == expected
+    assert TdtRecordingExtractor._event_needs_splitting(data=data, sampling_rate=sampling_rate) == expected
 
 
 _TESTING_DATA = os.path.join(os.path.dirname(__file__), "..", "..", "..", "testing_data")
