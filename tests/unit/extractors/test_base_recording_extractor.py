@@ -143,7 +143,7 @@ def test_read_and_save_all_events_with_different_extractor_instances(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-class TestMockRecordingExtractorContract(RecordingExtractorTestMixin):
+class TestBaseRecordingExtractor(RecordingExtractorTestMixin):
     extractor_class = MockRecordingExtractor
     folder_path = "mock_folder"
     extractor_instance = MockRecordingExtractor(folder_path)
