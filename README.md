@@ -54,10 +54,14 @@ guppy
 
 This will launch the GuPPy user interface, where you can begin analyzing your fiber photometry data.
 
-## Wiki
+## Documentation
+
+> **Note:** The Wiki and video tutorials below refer to GuPPy v1.3.0 and earlier. Updated documentation for v2.0 is coming soon.
+
+### Wiki
 - The full instructions along with detailed descriptions of each step to run the GuPPy tool is on [Github Wiki Page](https://github.com/LernerLab/GuPPy/wiki).
 
-## Tutorial Videos
+### Tutorial Videos
 
 - [Installation steps](https://youtu.be/7qfU8xvj2nc)
 - [Explaining Input Parameters GUI](https://youtu.be/aO7_QqbYZ84)
