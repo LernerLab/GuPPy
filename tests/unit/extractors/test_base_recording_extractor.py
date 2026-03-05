@@ -125,6 +125,19 @@ def test_read_and_save_all_events_all_hdf5_have_timestamps_dataset(tmp_path):
             assert "timestamps" in file
 
 
+def test_read_and_save_all_events_with_different_extractor_instances(tmp_path):
+    signal_extractor = MockRecordingExtractor("mock_folder_1")
+    control_extractor = MockRecordingExtractor("mock_folder_2")
+    event_to_extractor = {"mock_signal": signal_extractor, "mock_control": control_extractor}
+    read_and_save_all_events(event_to_extractor, str(tmp_path), numProcesses=2)
+
+    assert (tmp_path / "mock_signal.hdf5").exists()
+    assert (tmp_path / "mock_control.hdf5").exists()
+    for event in event_to_extractor:
+        with h5py.File(tmp_path / f"{event}.hdf5", "r") as file:
+            assert "timestamps" in file
+
+
 # ---------------------------------------------------------------------------
 # Concrete test class: MockRecordingExtractor
 # ---------------------------------------------------------------------------
