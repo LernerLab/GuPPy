@@ -147,9 +147,28 @@ class TestBaseRecordingExtractor(RecordingExtractorTestMixin):
     extractor_class = MockRecordingExtractor
     folder_path = "mock_folder"
     extractor_instance = MockRecordingExtractor(folder_path)
-    expected_events = ["mock_signal", "mock_control"]
+    expected_events = ["mock_signal", "mock_control", "mock_ttl"]
     discover_kwargs = {}
+    control_event = "mock_control"
+    signal_event = "mock_signal"
+    ttl_event = "mock_ttl"
 
     @property
-    def expected_timestamps(self):
+    def expected_control_timestamps(self):
+        return np.arange(100, dtype=float) / 100.0
+
+    @property
+    def expected_control_data(self):
+        return np.linspace(0.0, 1.0, 100)
+
+    @property
+    def expected_signal_timestamps(self):
+        return np.arange(100, dtype=float) / 100.0
+
+    @property
+    def expected_signal_data(self):
+        return np.linspace(0.0, 1.0, 100)
+
+    @property
+    def expected_ttl_timestamps(self):
         return np.arange(100, dtype=float) / 100.0
