@@ -10,7 +10,7 @@ from guppy.testing.api import step2, step3, step4
 
 
 @pytest.mark.parametrize(
-    "session_subdir, storenames_map, expected_region, expected_ttl, modality",
+    "session_subdir, storenames_map, expected_region, expected_ttl",
     [
         (
             "SampleData_csv/sample_data_csv_1",
@@ -21,7 +21,6 @@ from guppy.testing.api import step2, step3, step4
             },
             "region",
             "ttl",
-            "csv",
         ),
         (
             "SampleData_Doric/sample_doric_1",
@@ -32,7 +31,6 @@ from guppy.testing.api import step2, step3, step4
             },
             "region",
             "ttl",
-            "doric",
         ),
         (
             "SampleData_Doric/sample_doric_2",
@@ -43,7 +41,6 @@ from guppy.testing.api import step2, step3, step4
             },
             "region",
             "ttl",
-            "doric",
         ),
         (
             "SampleData_Doric/sample_doric_3",
@@ -54,7 +51,6 @@ from guppy.testing.api import step2, step3, step4
             },
             "region",
             "ttl",
-            "doric",
         ),
         (
             "SampleData_Doric/sample_doric_4",
@@ -64,7 +60,6 @@ from guppy.testing.api import step2, step3, step4
             },
             "region",
             None,
-            "doric",
         ),
         (
             "SampleData_Doric/sample_doric_5",
@@ -74,7 +69,6 @@ from guppy.testing.api import step2, step3, step4
             },
             "region",
             None,
-            "doric",
         ),
         (
             "SampleData_Clean/Photo_63_207-181030-103332",
@@ -85,7 +79,6 @@ from guppy.testing.api import step2, step3, step4
             },
             "dms",
             "port_entries_dms",
-            "tdt",
         ),
         (
             "SampleData_Clean/Photometry-161823",
@@ -96,7 +89,25 @@ from guppy.testing.api import step2, step3, step4
             },
             "region",
             ["PAB_0", "PAB_16", "PAB_2064"],  # This session has an event which gets split into three sub-events.
-            "tdt",
+        ),
+        (
+            "SampleData_with_artifacts/Photo_048_392-200728-121222",
+            {
+                "Dv1A": "control_dms",
+                "Dv2A": "signal_dms",
+                "PrtN": "port_entries_dms",
+            },
+            "dms",
+            "port_entries_dms",
+        ),
+        (
+            "SampleData_Neurophotometrics/sampleData_NPM_1",
+            {
+                "file0_chev1": "signal_region",
+                "file0_chod1": "control_region",
+            },
+            "region",
+            None,
         ),
         (
             "SampleData_Neurophotometrics/sampleData_NPM_2",
@@ -106,7 +117,6 @@ from guppy.testing.api import step2, step3, step4
             },
             "region",
             None,
-            "npm",
         ),
         (
             "SampleData_Neurophotometrics/sampleData_NPM_3",
@@ -117,7 +127,6 @@ from guppy.testing.api import step2, step3, step4
             },
             "region3",
             "ttl_region3",
-            "npm",
         ),
         (
             "SampleData_Neurophotometrics/sampleData_NPM_4",
@@ -128,7 +137,6 @@ from guppy.testing.api import step2, step3, step4
             },
             "region1",
             "ttl_true_region1",
-            "npm",
         ),
         (
             "SampleData_Neurophotometrics/sampleData_NPM_5",
@@ -139,7 +147,6 @@ from guppy.testing.api import step2, step3, step4
             },
             "region1",
             "ttl_region1",
-            "npm",
         ),
     ],
     ids=[
@@ -151,6 +158,8 @@ from guppy.testing.api import step2, step3, step4
         "sample_doric_5",
         "tdt_clean",
         "tdt_split_event",
+        "tdt_with_artifacts",
+        "sample_npm_1",
         "sample_npm_2",
         "sample_npm_3",
         "sample_npm_4",
@@ -158,7 +167,7 @@ from guppy.testing.api import step2, step3, step4
     ],
 )
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_step4(tmp_path, session_subdir, storenames_map, expected_region, expected_ttl, modality):
+def test_step4(tmp_path, session_subdir, storenames_map, expected_region, expected_ttl):
     """
     Full integration test for Step 4 (Extract timestamps and signal) using real CSV sample data,
     isolated to a temporary workspace to avoid mutating shared sample data.
@@ -170,7 +179,11 @@ def test_step4(tmp_path, session_subdir, storenames_map, expected_region, expect
 
     Assertions confirm creation of key HDF5 outputs expected from Step 4.
     """
-    if session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_3":
+    if session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_1":
+        npm_timestamp_column_names = None
+        npm_time_units = None
+        npm_split_events = [False, True]
+    elif session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_3":
         npm_timestamp_column_names = ["ComputerTimestamp", None]
         npm_time_units = ["milliseconds", "seconds"]
         npm_split_events = [False, True]
@@ -206,7 +219,6 @@ def test_step4(tmp_path, session_subdir, storenames_map, expected_region, expect
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
         storenames_map=storenames_map,
-        modality=modality,
         npm_timestamp_column_names=npm_timestamp_column_names,
         npm_time_units=npm_time_units,
         npm_split_events=npm_split_events,
@@ -216,7 +228,6 @@ def test_step4(tmp_path, session_subdir, storenames_map, expected_region, expect
     step3(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
-        modality=modality,
         npm_timestamp_column_names=npm_timestamp_column_names,
         npm_time_units=npm_time_units,
         npm_split_events=npm_split_events,
@@ -226,7 +237,6 @@ def test_step4(tmp_path, session_subdir, storenames_map, expected_region, expect
     step4(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
-        modality=modality,
         npm_timestamp_column_names=npm_timestamp_column_names,
         npm_time_units=npm_time_units,
         npm_split_events=npm_split_events,

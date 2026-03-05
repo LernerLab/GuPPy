@@ -18,9 +18,7 @@ CONSISTENCY_CASES = [
             "file0_chev6": "control_region",
             "file1_chev6": "signal_region",
         },
-        "npm",
         {"npm_split_events": [True, True]},
-        {},
     ),
     (
         "SampleData_Neurophotometrics/sampleData_NPM_3",
@@ -30,13 +28,11 @@ CONSISTENCY_CASES = [
             "file0_chod3": "signal_region3",
             "event3": "ttl_region3",
         },
-        "npm",
         {
             "npm_timestamp_column_names": ["ComputerTimestamp", None],
             "npm_time_units": ["milliseconds", "seconds"],
             "npm_split_events": [False, True],
         },
-        {},
     ),
     (
         "SampleData_Neurophotometrics/sampleData_NPM_4",
@@ -46,9 +42,7 @@ CONSISTENCY_CASES = [
             "file0_chod1": "signal_region1",
             "eventTrue": "ttl_true_region1",
         },
-        "npm",
         {"npm_split_events": [True, True]},
-        {},
     ),
     (
         "SampleData_Neurophotometrics/sampleData_NPM_5",
@@ -58,15 +52,13 @@ CONSISTENCY_CASES = [
             "file0_chod1": "signal_region1",
             "event0": "ttl_region1",
         },
-        "npm",
         {"npm_split_events": None},
-        {},
     ),
 ]
 
 
 @pytest.mark.parametrize(
-    "session_subdir, standard_output_subdir, storenames_map, modality, extra_kwargs, compare_kwargs",
+    "session_subdir, standard_output_subdir, storenames_map, extra_kwargs",
     CONSISTENCY_CASES,
     ids=[
         "sample_npm_2",
@@ -78,13 +70,10 @@ CONSISTENCY_CASES = [
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_consistency(
     tmp_path,
-    monkeypatch,
     session_subdir,
     standard_output_subdir,
     storenames_map,
-    modality,
     extra_kwargs,
-    compare_kwargs,
 ):
     """
     Consistency test: run the full pipeline (Steps 2-5) and assert that the output
@@ -99,8 +88,6 @@ def test_consistency(
 
     standard_output_dir = TESTING_DATA / standard_output_subdir
     assert standard_output_dir.is_dir(), f"Standard output not found: {standard_output_dir}"
-
-    monkeypatch.setattr("matplotlib.pyplot.show", lambda *args, **kwargs: None)
 
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)
@@ -117,7 +104,6 @@ def test_consistency(
     common_kwargs = dict(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
-        modality=modality,
     )
 
     step2(**common_kwargs, storenames_map=storenames_map, **extra_kwargs)
@@ -132,7 +118,6 @@ def test_consistency(
     compare_output_folders(
         actual_dir=actual_output_dir,
         expected_dir=str(standard_output_dir),
-        **compare_kwargs,
     )
 
     # NPM also writes intermediate CSVs into the session folder itself; compare
@@ -141,5 +126,4 @@ def test_consistency(
     compare_npm_session_files(
         actual_session_dir=str(session_copy),
         expected_session_dir=str(standard_session_dir),
-        **compare_kwargs,
     )

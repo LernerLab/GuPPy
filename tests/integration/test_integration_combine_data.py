@@ -22,7 +22,6 @@ def test_combine_data(tmp_path):
     }
     expected_region = "dms"
     expected_ttl = "port_entries_dms"
-    modality = "tdt"
 
     npm_timestamp_column_names = None
     npm_time_units = None
@@ -61,7 +60,6 @@ def test_combine_data(tmp_path):
         base_dir=base_dir,
         selected_folders=selected_folders,
         storenames_map=storenames_map,
-        modality=modality,
         npm_timestamp_column_names=npm_timestamp_column_names,
         npm_time_units=npm_time_units,
         npm_split_events=npm_split_events,
@@ -71,7 +69,6 @@ def test_combine_data(tmp_path):
     step3(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        modality=modality,
         npm_timestamp_column_names=npm_timestamp_column_names,
         npm_time_units=npm_time_units,
         npm_split_events=npm_split_events,
@@ -81,7 +78,6 @@ def test_combine_data(tmp_path):
     step4(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        modality=modality,
         npm_timestamp_column_names=npm_timestamp_column_names,
         npm_time_units=npm_time_units,
         npm_split_events=npm_split_events,
@@ -92,7 +88,6 @@ def test_combine_data(tmp_path):
     step5(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
-        modality=modality,
         npm_timestamp_column_names=npm_timestamp_column_names,
         npm_time_units=npm_time_units,
         npm_split_events=npm_split_events,

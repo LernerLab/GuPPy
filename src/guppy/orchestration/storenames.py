@@ -13,6 +13,7 @@ from guppy.extractors import (
     DoricRecordingExtractor,
     NpmRecordingExtractor,
     TdtRecordingExtractor,
+    detect_acquisition_formats,
 )
 from guppy.frontend.frontend_utils import scanPortsAndFind
 from guppy.frontend.npm_gui_prompts import (
@@ -261,35 +262,48 @@ def build_storenames_page(inputParameters, events, flags, folder_path):
     template.show(port=number)
 
 
-def read_header(inputParameters, num_ch, modality, folder_path, headless):
-    if modality == "tdt":
-        events, flags = TdtRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
-    elif modality == "csv":
-        events, flags = CsvRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+def read_header(inputParameters, num_ch, folder_path, headless):
+    all_formats = detect_acquisition_formats(folder_path)
 
-    elif modality == "doric":
-        events, flags = DoricRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+    # NPM GUI prompts (non-headless only) must run before NPM discovery so that
+    # inputParameters is populated with split_events, time_units, etc.
+    if "npm" in all_formats and not headless:
+        multiple_event_ttls = NpmRecordingExtractor.has_multiple_event_ttls(folder_path=folder_path)
+        responses = get_multi_event_responses(multiple_event_ttls)
+        inputParameters["npm_split_events"] = responses
 
-    elif modality == "npm":
-        if not headless:
-            # Resolve multiple event TTLs
-            multiple_event_ttls = NpmRecordingExtractor.has_multiple_event_ttls(folder_path=folder_path)
-            responses = get_multi_event_responses(multiple_event_ttls)
-            inputParameters["npm_split_events"] = responses
-
-            # Resolve timestamp units and columns
-            ts_unit_needs, col_names_ts = NpmRecordingExtractor.needs_ts_unit(folder_path=folder_path, num_ch=num_ch)
-            ts_units, npm_timestamp_column_names = get_timestamp_configuration(ts_unit_needs, col_names_ts)
-            inputParameters["npm_time_units"] = ts_units if ts_units else None
-            inputParameters["npm_timestamp_column_names"] = (
-                npm_timestamp_column_names if npm_timestamp_column_names else None
-            )
-
-        events, flags = NpmRecordingExtractor.discover_events_and_flags(
-            folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
+        ts_unit_needs, col_names_ts = NpmRecordingExtractor.needs_ts_unit(folder_path=folder_path, num_ch=num_ch)
+        ts_units, npm_timestamp_column_names = get_timestamp_configuration(ts_unit_needs, col_names_ts)
+        inputParameters["npm_time_units"] = ts_units if ts_units else None
+        inputParameters["npm_timestamp_column_names"] = (
+            npm_timestamp_column_names if npm_timestamp_column_names else None
         )
-    else:
-        raise ValueError("Modality not recognized. Please use 'tdt', 'csv', 'doric', or 'npm'.")
+
+    events, flags = [], []
+    existing_events = set()
+
+    for format in sorted(all_formats):
+        if format == "tdt":
+            fmt_events, fmt_flags = TdtRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+        elif format == "doric":
+            fmt_events, fmt_flags = DoricRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+        elif format == "csv":
+            fmt_events, fmt_flags = CsvRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+        elif format == "npm":
+            fmt_events, fmt_flags = NpmRecordingExtractor.discover_events_and_flags(
+                folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
+            )
+        else:
+            raise ValueError(f"Format not recognized: '{format}'. Expected one of 'tdt', 'csv', 'doric', 'npm'.")
+
+        for event in fmt_events:
+            if event not in existing_events:
+                events.append(event)
+                existing_events.add(event)
+
+        for flag in fmt_flags:
+            flags.append(flag)
+
     return events, flags
 
 
@@ -300,7 +314,6 @@ def orchestrate_storenames_page(inputParameters):
     folderNames = inputParameters["folderNames"]
     isosbestic_control = inputParameters["isosbestic_control"]
     num_ch = inputParameters["noChannels"]
-    modality = inputParameters.get("modality", "tdt")
     headless = bool(os.environ.get("GUPPY_BASE_DIR"))
 
     logger.info(folderNames)
@@ -308,7 +321,7 @@ def orchestrate_storenames_page(inputParameters):
     try:
         for i in folderNames:
             folder_path = os.path.join(inputParameters["abspath"], i)
-            events, flags = read_header(inputParameters, num_ch, modality, folder_path, headless)
+            events, flags = read_header(inputParameters, num_ch, folder_path, headless)
             build_storenames_page(inputParameters, events, flags, folder_path)
         logger.info("#" * 400)
     except Exception as e:

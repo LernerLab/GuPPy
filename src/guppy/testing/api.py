@@ -71,7 +71,6 @@ def step2(
     base_dir: str,
     selected_folders: Iterable[str],
     storenames_map: dict[str, str],
-    modality: str = "tdt",
     npm_timestamp_column_names: list[str | None] | None = None,
     npm_time_units: list[str] | None = None,
     npm_split_events: list[bool] | None = None,
@@ -97,8 +96,6 @@ def step2(
     storenames_map : dict[str, str]
         Mapping from raw storenames (e.g., "Dv1A") to semantic names
         (e.g., "control_DMS"). Insertion order is preserved.
-    modality : str
-        Data acquisition modality (e.g., 'tdt', 'csv', 'doric', 'npm').
     npm_timestamp_column_names : list[str | None] | None
         List of timestamp column names for NPM files, one per CSV file. None if not applicable.
     npm_time_units : list[str] | None
@@ -162,9 +159,6 @@ def step2(
     # Inject storenames mapping for headless execution
     input_params["storenames_map"] = dict(storenames_map)
 
-    # Inject modality
-    input_params["modality"] = modality
-
     # Add npm parameters
     input_params["npm_timestamp_column_names"] = npm_timestamp_column_names
     input_params["npm_time_units"] = npm_time_units
@@ -178,7 +172,6 @@ def step3(
     *,
     base_dir: str,
     selected_folders: Iterable[str],
-    modality: str = "tdt",
     npm_timestamp_column_names: list[str | None] | None = None,
     npm_time_units: list[str] | None = None,
     npm_split_events: list[bool] | None = None,
@@ -199,8 +192,6 @@ def step3(
         must reside directly under this path.
     selected_folders : Iterable[str]
         Absolute paths to the session directories to process.
-    modality : str
-        Data acquisition modality (e.g., 'tdt', 'csv', 'doric', 'npm').
     npm_timestamp_column_names : list[str | None] | None
         List of timestamp column names for NPM files, one per CSV file. None if not applicable.
     npm_time_units : list[str] | None
@@ -256,9 +247,6 @@ def step3(
     input_params["npm_time_units"] = npm_time_units
     input_params["npm_split_events"] = npm_split_events
 
-    # Inject modality
-    input_params["modality"] = modality
-
     # Call the underlying Step 3 worker directly (no subprocess)
     orchestrate_read_raw_data(input_params)
 
@@ -267,7 +255,6 @@ def step4(
     *,
     base_dir: str,
     selected_folders: Iterable[str],
-    modality: str = "tdt",
     npm_timestamp_column_names: list[str | None] | None = None,
     npm_time_units: list[str] | None = None,
     npm_split_events: list[bool] | None = None,
@@ -296,8 +283,6 @@ def step4(
         must reside directly under this path.
     selected_folders : Iterable[str]
         Absolute paths to the session directories to process.
-    modality : str
-        Data acquisition modality (e.g., 'tdt', 'csv', 'doric', 'npm').
     npm_timestamp_column_names : list[str | None] | None
         List of timestamp column names for NPM files, one per CSV file. None if not applicable.
     npm_time_units : list[str] | None
@@ -377,9 +362,6 @@ def step4(
     input_params["npm_time_units"] = npm_time_units
     input_params["npm_split_events"] = npm_split_events
 
-    # Inject modality
-    input_params["modality"] = modality
-
     # Inject combine_data
     input_params["combine_data"] = combine_data
 
@@ -413,7 +395,6 @@ def step5(
     *,
     base_dir: str,
     selected_folders: Iterable[str],
-    modality: str = "tdt",
     npm_timestamp_column_names: list[str | None] | None = None,
     npm_time_units: list[str] | None = None,
     npm_split_events: list[bool] | None = None,
@@ -439,8 +420,6 @@ def step5(
         must reside directly under this path.
     selected_folders : Iterable[str]
         Absolute paths to the session directories to process.
-    modality : str
-        Data acquisition modality (e.g., 'tdt', 'csv', 'doric', 'npm').
     npm_timestamp_column_names : list[str | None] | None
         List of timestamp column names for NPM files, one per CSV file. None if not applicable.
     npm_time_units : list[str] | None
@@ -511,9 +490,6 @@ def step5(
     input_params["npm_timestamp_column_names"] = npm_timestamp_column_names
     input_params["npm_time_units"] = npm_time_units
     input_params["npm_split_events"] = npm_split_events
-
-    # Inject modality
-    input_params["modality"] = modality
 
     # Inject cross-correlation flag
     input_params["computeCorr"] = compute_corr

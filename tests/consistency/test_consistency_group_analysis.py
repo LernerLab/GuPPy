@@ -63,7 +63,6 @@ def test_consistency_group_analysis(tmp_path):
     common_kwargs = dict(
         base_dir=str(tmp_base),
         selected_folders=selected_folders,
-        modality="tdt",
     )
 
     step2(**common_kwargs, storenames_map=STORENAMES_MAP)

@@ -44,20 +44,18 @@ CONSISTENCY_CASES = [
         "StandardOutputs_with_artifacts/Photo_048_392-200728-121222_concatenate/Photo_048_392-200728-121222_output_1",
         "concatenate",
         _COORDS_CONCATENATE,
-        {},
     ),
     (
         "SampleData_with_artifacts/Photo_048_392-200728-121222",
         "StandardOutputs_with_artifacts/Photo_048_392-200728-121222_nan/Photo_048_392-200728-121222_output_1",
         "replace with NaN",
         _COORDS_NAN,
-        {},
     ),
 ]
 
 
 @pytest.mark.parametrize(
-    "session_subdir, standard_output_subdir, artifact_removal_method, coords, compare_kwargs",
+    "session_subdir, standard_output_subdir, artifact_removal_method, coords",
     CONSISTENCY_CASES,
     ids=[
         "artifacts_concatenate",
@@ -71,7 +69,6 @@ def test_consistency(
     standard_output_subdir,
     artifact_removal_method,
     coords,
-    compare_kwargs,
 ):
     """
     Consistency test for artifact removal: run the full pipeline (Steps 2-5) with
@@ -103,7 +100,6 @@ def test_consistency(
     common_kwargs = dict(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
-        modality="tdt",
     )
 
     step2(**common_kwargs, storenames_map=STORENAMES_MAP)
@@ -123,5 +119,4 @@ def test_consistency(
     compare_output_folders(
         actual_dir=actual_output_dir,
         expected_dir=str(standard_output_dir),
-        **compare_kwargs,
     )
