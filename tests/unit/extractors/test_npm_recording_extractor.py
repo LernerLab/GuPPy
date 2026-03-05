@@ -3,10 +3,98 @@
 import os
 
 import numpy as np
+import pandas as pd
+import pytest
 
 from guppy.extractors.npm_recording_extractor import NpmRecordingExtractor
 
 from .recording_extractor_test_mixin import RecordingExtractorTestMixin
+
+# ---------------------------------------------------------------------------
+# check_channels
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "state, expected_num_channels",
+    [
+        # 1 unique value in state[2:12]
+        ([0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 1),
+        # 2 unique values in state[2:12]
+        ([0, 0, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2], 2),
+        # 3 unique values in state[2:12]
+        ([0, 0, 1, 2, 4, 1, 2, 4, 1, 2, 4, 1], 3),
+    ],
+)
+def test_check_channels_returns_correct_num_channels(state, expected_num_channels):
+    state_array = np.array(state)
+    num_channels, unique_channels = NpmRecordingExtractor.check_channels(state_array)
+    assert num_channels == expected_num_channels
+    assert len(unique_channels) == expected_num_channels
+
+
+def test_check_channels_raises_for_more_than_three_channels():
+    state = np.array([0, 0, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2])
+    with pytest.raises(Exception):
+        NpmRecordingExtractor.check_channels(state)
+
+
+# ---------------------------------------------------------------------------
+# decide_indices
+# ---------------------------------------------------------------------------
+
+
+def test_decide_indices_data_np_flag_partitions_rows_by_channel():
+    dataframe = pd.DataFrame({"col1": range(6), "col2": range(6, 12)})
+    file = "file0_"
+    result_df, indices_dict, num_channels = NpmRecordingExtractor.decide_indices(file, dataframe, "data_np", num_ch=2)
+    np.testing.assert_array_equal(indices_dict["file0_chev"], [0, 2, 4])
+    np.testing.assert_array_equal(indices_dict["file0_chod"], [1, 3, 5])
+    assert num_channels == 2
+
+
+# ---------------------------------------------------------------------------
+# _update_df_with_timestamp_columns
+# ---------------------------------------------------------------------------
+
+
+def test_update_df_with_timestamp_columns_single_timestamp_column_unchanged():
+    # Only one timestamp column → function returns df unchanged (no insertion)
+    dataframe = pd.DataFrame({"FrameCounter": [1, 2], "Timestamp_ms": [0.1, 0.2], "Values": [10, 20]})
+    result = NpmRecordingExtractor._update_df_with_timestamp_columns(dataframe, None)
+    assert list(result.columns) == ["FrameCounter", "Timestamp_ms", "Values"]
+
+
+def test_update_df_with_timestamp_columns_multiple_timestamps_uses_first_by_default():
+    # Multiple timestamp columns → function inserts canonical "Timestamp" from the first one and drops both originals
+    dataframe = pd.DataFrame(
+        {
+            "FrameCounter": [1, 2],
+            "Timestamp_ms": [0.1, 0.2],
+            "Timestamp_s": [0.0001, 0.0002],
+            "Values": [10, 20],
+        }
+    )
+    result = NpmRecordingExtractor._update_df_with_timestamp_columns(dataframe, None)
+    assert "Timestamp" in result.columns
+    assert "Timestamp_ms" not in result.columns
+    assert "Timestamp_s" not in result.columns
+
+
+def test_update_df_with_timestamp_columns_explicit_column_name_used():
+    dataframe = pd.DataFrame(
+        {
+            "FrameCounter": [1, 2],
+            "Timestamp_ms": [0.1, 0.2],
+            "Timestamp_s": [0.0001, 0.0002],
+            "Values": [10, 20],
+        }
+    )
+    result = NpmRecordingExtractor._update_df_with_timestamp_columns(dataframe, "Timestamp_s")
+    assert "Timestamp" in result.columns
+    assert "Timestamp_s" not in result.columns
+    np.testing.assert_array_equal(result["Timestamp"].to_numpy(), [0.0001, 0.0002])
+
 
 _TESTING_DATA = os.path.join(os.path.dirname(__file__), "..", "..", "..", "testing_data")
 

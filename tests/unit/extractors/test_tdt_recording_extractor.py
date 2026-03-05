@@ -3,9 +3,52 @@
 import os
 import tempfile
 
+import numpy as np
+import pytest
+
 from guppy.extractors.tdt_recording_extractor import TdtRecordingExtractor
 
 from .recording_extractor_test_mixin import RecordingExtractorTestMixin
+
+# ---------------------------------------------------------------------------
+# _ismember
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "arr, element, expected",
+    [
+        (["a", "b", "a", "c"], "a", [1, 0, 1, 0]),
+        (["x", "y", "z"], "x", [1, 0, 0]),
+        (["x", "y", "z"], "w", [0, 0, 0]),
+        ([], "a", []),
+    ],
+)
+def test_ismember_returns_indicator_array(arr, element, expected):
+    extractor = object.__new__(TdtRecordingExtractor)
+    result = extractor._ismember(arr, element)
+    np.testing.assert_array_equal(result, expected)
+
+
+# ---------------------------------------------------------------------------
+# _event_needs_splitting
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "data, sampling_rate, expected",
+    [
+        (np.array([1.0, 2.0, 3.0]), 0, False),  # uniform diffs at sampling_rate=0 → no split
+        (np.array([1.0, 2.0, 5.0]), 0, True),  # non-uniform diffs at sampling_rate=0 → split
+        (np.array([1.0, 2.0, 5.0]), 250.0, False),  # nonzero sampling_rate → never split
+        (np.array([1.0]), 0, False),  # single element → no diff → no split
+        (np.array([]), 0, False),  # empty → no diff → no split
+    ],
+)
+def test_event_needs_splitting(data, sampling_rate, expected):
+    extractor = object.__new__(TdtRecordingExtractor)
+    assert extractor._event_needs_splitting(data=data, sampling_rate=sampling_rate) == expected
+
 
 _TESTING_DATA = os.path.join(os.path.dirname(__file__), "..", "..", "..", "testing_data")
 

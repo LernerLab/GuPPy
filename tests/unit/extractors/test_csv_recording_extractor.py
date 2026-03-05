@@ -3,10 +3,31 @@
 import os
 
 import pandas as pd
+import pytest
 
 from guppy.extractors.csv_recording_extractor import CsvRecordingExtractor
 
 from .recording_extractor_test_mixin import RecordingExtractorTestMixin
+
+# ---------------------------------------------------------------------------
+# _check_header
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "columns, expected_floats",
+    [
+        (["0", "1", "2"], [0.0, 1.0, 2.0]),  # all numeric headers
+        (["timestamps", "data", "sampling_rate"], []),  # all string headers
+        (["0", "timestamps", "2"], [0.0, 2.0]),  # mixed headers
+    ],
+)
+def test_check_header_returns_all_columns_and_numeric_conversions(columns, expected_floats):
+    dataframe = pd.DataFrame(columns=columns)
+    all_columns, float_conversions = CsvRecordingExtractor._check_header(dataframe)
+    assert all_columns == columns
+    assert float_conversions == expected_floats
+
 
 _TESTING_DATA = os.path.join(os.path.dirname(__file__), "..", "..", "..", "testing_data")
 
