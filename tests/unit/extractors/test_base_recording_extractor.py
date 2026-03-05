@@ -3,7 +3,11 @@
 import h5py
 import numpy as np
 
-from guppy.extractors.base_recording_extractor import BaseRecordingExtractor
+from guppy.extractors.base_recording_extractor import (
+    BaseRecordingExtractor,
+    read_and_save_all_events,
+    read_and_save_event,
+)
 from guppy.testing.mock_recording_extractor import MockRecordingExtractor
 
 from .recording_extractor_test_mixin import RecordingExtractorTestMixin
@@ -75,6 +79,50 @@ def test_write_hdf5_sanitizes_forward_slash_in_storename(tmp_path):
     BaseRecordingExtractor._write_hdf5(np.array([1.0]), "DI/O-1", str(tmp_path), "timestamps")
 
     assert (tmp_path / "DI_O-1.hdf5").exists()
+
+
+# ---------------------------------------------------------------------------
+# read_and_save_event unit tests
+# ---------------------------------------------------------------------------
+
+
+def test_read_and_save_event_produces_hdf5_file(tmp_path):
+    extractor = MockRecordingExtractor("mock_folder")
+    read_and_save_event(extractor, "mock_signal", str(tmp_path))
+
+    assert (tmp_path / "mock_signal.hdf5").exists()
+
+
+def test_read_and_save_event_hdf5_has_timestamps_dataset(tmp_path):
+    extractor = MockRecordingExtractor("mock_folder")
+    read_and_save_event(extractor, "mock_signal", str(tmp_path))
+
+    with h5py.File(tmp_path / "mock_signal.hdf5", "r") as file:
+        assert "timestamps" in file
+
+
+# ---------------------------------------------------------------------------
+# read_and_save_all_events unit tests
+# ---------------------------------------------------------------------------
+
+
+def test_read_and_save_all_events_produces_hdf5_files_for_all_events(tmp_path):
+    extractor = MockRecordingExtractor("mock_folder")
+    event_to_extractor = {"mock_signal": extractor, "mock_control": extractor}
+    read_and_save_all_events(event_to_extractor, str(tmp_path), numProcesses=2)
+
+    assert (tmp_path / "mock_signal.hdf5").exists()
+    assert (tmp_path / "mock_control.hdf5").exists()
+
+
+def test_read_and_save_all_events_all_hdf5_have_timestamps_dataset(tmp_path):
+    extractor = MockRecordingExtractor("mock_folder")
+    event_to_extractor = {"mock_signal": extractor, "mock_control": extractor}
+    read_and_save_all_events(event_to_extractor, str(tmp_path), numProcesses=2)
+
+    for event in event_to_extractor:
+        with h5py.File(tmp_path / f"{event}.hdf5", "r") as file:
+            assert "timestamps" in file
 
 
 # ---------------------------------------------------------------------------
