@@ -126,3 +126,7 @@ known-first-party = ["guppy"]
 skip = '.git*,*.pdf,*.css,*.svg'
 check-hidden = true
 ignore-words-list = 'assertin,sortings'
+
+[tool.coverage.run]
+concurrency = ["multiprocessing"]
+sigterm = true
