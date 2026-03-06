@@ -96,6 +96,77 @@ def test_update_df_with_timestamp_columns_explicit_column_name_used():
     np.testing.assert_array_equal(result["Timestamp"].to_numpy(), [0.0001, 0.0002])
 
 
+# ---------------------------------------------------------------------------
+# has_multiple_event_ttls
+# ---------------------------------------------------------------------------
+
+
+def test_has_multiple_event_ttls_data_file_returns_false(tmp_path):
+    # Multi-column file → classified as data_np, not an event file → False
+    dataframe = pd.DataFrame({"FrameCounter": [1, 2], "LedState": [1, 2], "Signal": [0.1, 0.2]})
+    dataframe.to_csv(tmp_path / "data.csv", index=False)
+    result = NpmRecordingExtractor.has_multiple_event_ttls(folder_path=str(tmp_path))
+    assert result == [False]
+
+
+def test_has_multiple_event_ttls_single_ttl_event_file_returns_false(tmp_path):
+    # 2-column event file with a single unique TTL value → False
+    dataframe = pd.DataFrame({"timestamp": [0.1, 0.2, 0.3], "value": [1, 1, 1]})
+    dataframe.to_csv(tmp_path / "stimuli.csv", index=False)
+    result = NpmRecordingExtractor.has_multiple_event_ttls(folder_path=str(tmp_path))
+    assert result == [False]
+
+
+def test_has_multiple_event_ttls_multiple_ttl_event_file_returns_true(tmp_path):
+    # 2-column event file with multiple unique TTL values → True
+    dataframe = pd.DataFrame({"timestamp": [0.1, 0.2, 0.3], "value": [1, 3, 1]})
+    dataframe.to_csv(tmp_path / "stimuli.csv", index=False)
+    result = NpmRecordingExtractor.has_multiple_event_ttls(folder_path=str(tmp_path))
+    assert result == [True]
+
+
+# ---------------------------------------------------------------------------
+# needs_ts_unit
+# ---------------------------------------------------------------------------
+
+
+def test_needs_ts_unit_event_file_returns_false(tmp_path):
+    # 2-column event file → classified as event_np and skipped → False
+    dataframe = pd.DataFrame({"timestamp": [0.1, 0.2], "value": [1, 1]})
+    dataframe.to_csv(tmp_path / "stimuli.csv", index=False)
+    ts_unit_needs, col_names_ts = NpmRecordingExtractor.needs_ts_unit(folder_path=str(tmp_path), num_ch=2)
+    assert ts_unit_needs == [False]
+    assert col_names_ts == [""]
+
+
+def test_needs_ts_unit_single_timestamp_column_returns_false(tmp_path):
+    # data_np_v2 file with only one timestamp column → does not exceed threshold → False
+    dataframe = pd.DataFrame(
+        {"FrameCounter": [1, 2], "Timestamp": [0.1, 0.2], "LedState": [1, 2], "Signal": [0.5, 0.6]}
+    )
+    dataframe.to_csv(tmp_path / "data.csv", index=False)
+    ts_unit_needs, col_names_ts = NpmRecordingExtractor.needs_ts_unit(folder_path=str(tmp_path), num_ch=2)
+    assert ts_unit_needs == [False]
+    assert col_names_ts == ["", "Timestamp"]
+
+
+def test_needs_ts_unit_multiple_timestamp_columns_returns_true(tmp_path):
+    # data_np_v2 file with two timestamp columns → exceeds threshold → True
+    dataframe = pd.DataFrame(
+        {
+            "FrameCounter": [1, 2],
+            "SystemTimestamp": [0.1, 0.2],
+            "LedState": [1, 2],
+            "ComputerTimestamp": [0.001, 0.002],
+            "Signal": [0.5, 0.6],
+        }
+    )
+    dataframe.to_csv(tmp_path / "data.csv", index=False)
+    ts_unit_needs, col_names_ts = NpmRecordingExtractor.needs_ts_unit(folder_path=str(tmp_path), num_ch=2)
+    assert ts_unit_needs == [True]
+    assert col_names_ts == ["", "SystemTimestamp", "ComputerTimestamp"]
+
+
 _TESTING_DATA = os.path.join(os.path.dirname(__file__), "..", "..", "..", "testing_data")
 
 
