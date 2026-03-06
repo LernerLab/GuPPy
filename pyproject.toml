@@ -130,3 +130,4 @@ ignore-words-list = 'assertin,sortings'
 [tool.coverage.run]
 concurrency = ["multiprocessing"]
 sigterm = true
+branch = true
