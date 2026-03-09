@@ -174,11 +174,13 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
             output_dicts.extend(event_dicts)
         return output_dicts
 
-    def _ismember(self, arr, element):
+    @staticmethod
+    def _ismember(arr, element):
         res = [1 if i == element else 0 for i in arr]
         return np.asarray(res)
 
-    def _event_needs_splitting(self, data, sampling_rate):
+    @staticmethod
+    def _event_needs_splitting(data, sampling_rate):
         logger.info("Checking event storename data for creating multiple event names from single event storename...")
         diff = np.diff(data)
         if diff.shape[0] == 0:
