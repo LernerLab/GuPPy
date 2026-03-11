@@ -2,6 +2,7 @@
 
 import h5py
 import numpy as np
+import pytest
 
 from guppy.extractors.base_recording_extractor import (
     BaseRecordingExtractor,
@@ -153,22 +154,22 @@ class TestBaseRecordingExtractor(RecordingExtractorTestMixin):
     signal_event = "mock_signal"
     ttl_event = "mock_ttl"
 
-    @property
+    @pytest.fixture
     def expected_control_timestamps(self):
         return np.arange(100, dtype=float) / 100.0
 
-    @property
+    @pytest.fixture
     def expected_control_data(self):
         return np.linspace(0.0, 1.0, 100)
 
-    @property
+    @pytest.fixture
     def expected_signal_timestamps(self):
         return np.arange(100, dtype=float) / 100.0
 
-    @property
+    @pytest.fixture
     def expected_signal_data(self):
         return np.linspace(0.0, 1.0, 100)
 
-    @property
+    @pytest.fixture
     def expected_ttl_timestamps(self):
         return np.arange(100, dtype=float) / 100.0

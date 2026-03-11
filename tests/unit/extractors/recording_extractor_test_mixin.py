@@ -2,6 +2,7 @@
 
 import h5py
 import numpy as np
+import pytest
 
 
 class RecordingExtractorTestMixin:
@@ -30,30 +31,30 @@ class RecordingExtractorTestMixin:
     ttl_event : str
         Event name for the TTL/event channel (timestamps only).
 
-    Child test classes must also implement these properties, each returning the
+    Child test classes must also implement these fixtures, each returning the
     array as it should appear in the saved HDF5 file:
 
     expected_control_timestamps, expected_control_data,
     expected_signal_timestamps, expected_signal_data, expected_ttl_timestamps.
     """
 
-    @property
+    @pytest.fixture
     def expected_control_timestamps(self):
         raise NotImplementedError("Child test classes must implement expected_control_timestamps.")
 
-    @property
+    @pytest.fixture
     def expected_control_data(self):
         raise NotImplementedError("Child test classes must implement expected_control_data.")
 
-    @property
+    @pytest.fixture
     def expected_signal_timestamps(self):
         raise NotImplementedError("Child test classes must implement expected_signal_timestamps.")
 
-    @property
+    @pytest.fixture
     def expected_signal_data(self):
         raise NotImplementedError("Child test classes must implement expected_signal_data.")
 
-    @property
+    @pytest.fixture
     def expected_ttl_timestamps(self):
         raise NotImplementedError("Child test classes must implement expected_ttl_timestamps.")
 
@@ -114,42 +115,42 @@ class RecordingExtractorTestMixin:
 
     # --- roundtrip tests ---
 
-    def test_roundtrip_control_timestamps_preserved(self, tmp_path):
+    def test_roundtrip_control_timestamps_preserved(self, tmp_path, expected_control_timestamps):
         output_dicts = self.extractor_instance.read(events=[self.control_event], outputPath=str(tmp_path))
         self.extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
 
         sanitized_storename = self.control_event.replace("\\", "_").replace("/", "_")
         with h5py.File(tmp_path / f"{sanitized_storename}.hdf5", "r") as file:
-            np.testing.assert_array_equal(file["timestamps"][:], self.expected_control_timestamps)
+            np.testing.assert_array_equal(file["timestamps"][:], expected_control_timestamps)
 
-    def test_roundtrip_control_data_preserved(self, tmp_path):
+    def test_roundtrip_control_data_preserved(self, tmp_path, expected_control_data):
         output_dicts = self.extractor_instance.read(events=[self.control_event], outputPath=str(tmp_path))
         self.extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
 
         sanitized_storename = self.control_event.replace("\\", "_").replace("/", "_")
         with h5py.File(tmp_path / f"{sanitized_storename}.hdf5", "r") as file:
-            np.testing.assert_array_equal(file["data"][:], self.expected_control_data)
+            np.testing.assert_array_equal(file["data"][:], expected_control_data)
 
-    def test_roundtrip_signal_timestamps_preserved(self, tmp_path):
+    def test_roundtrip_signal_timestamps_preserved(self, tmp_path, expected_signal_timestamps):
         output_dicts = self.extractor_instance.read(events=[self.signal_event], outputPath=str(tmp_path))
         self.extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
 
         sanitized_storename = self.signal_event.replace("\\", "_").replace("/", "_")
         with h5py.File(tmp_path / f"{sanitized_storename}.hdf5", "r") as file:
-            np.testing.assert_array_equal(file["timestamps"][:], self.expected_signal_timestamps)
+            np.testing.assert_array_equal(file["timestamps"][:], expected_signal_timestamps)
 
-    def test_roundtrip_signal_data_preserved(self, tmp_path):
+    def test_roundtrip_signal_data_preserved(self, tmp_path, expected_signal_data):
         output_dicts = self.extractor_instance.read(events=[self.signal_event], outputPath=str(tmp_path))
         self.extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
 
         sanitized_storename = self.signal_event.replace("\\", "_").replace("/", "_")
         with h5py.File(tmp_path / f"{sanitized_storename}.hdf5", "r") as file:
-            np.testing.assert_array_equal(file["data"][:], self.expected_signal_data)
+            np.testing.assert_array_equal(file["data"][:], expected_signal_data)
 
-    def test_roundtrip_ttl_timestamps_preserved(self, tmp_path):
+    def test_roundtrip_ttl_timestamps_preserved(self, tmp_path, expected_ttl_timestamps):
         output_dicts = self.extractor_instance.read(events=[self.ttl_event], outputPath=str(tmp_path))
         self.extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
 
         sanitized_storename = self.ttl_event.replace("\\", "_").replace("/", "_")
         with h5py.File(tmp_path / f"{sanitized_storename}.hdf5", "r") as file:
-            np.testing.assert_array_equal(file["timestamps"][:], self.expected_ttl_timestamps)
+            np.testing.assert_array_equal(file["timestamps"][:], expected_ttl_timestamps)

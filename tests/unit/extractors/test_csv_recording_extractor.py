@@ -42,27 +42,27 @@ class TestCsvRecordingExtractor(RecordingExtractorTestMixin):
     signal_event = "Sample_Signal_Channel"
     ttl_event = "Sample_TTL"
 
-    @property
+    @pytest.fixture
     def expected_control_timestamps(self):
         csv_path = os.path.join(self.folder_path, "Sample_Control_Channel.csv")
         return pd.read_csv(csv_path)["timestamps"].to_numpy()
 
-    @property
+    @pytest.fixture
     def expected_control_data(self):
         csv_path = os.path.join(self.folder_path, "Sample_Control_Channel.csv")
         return pd.read_csv(csv_path)["data"].to_numpy()
 
-    @property
+    @pytest.fixture
     def expected_signal_timestamps(self):
         csv_path = os.path.join(self.folder_path, "Sample_Signal_Channel.csv")
         return pd.read_csv(csv_path)["timestamps"].to_numpy()
 
-    @property
+    @pytest.fixture
     def expected_signal_data(self):
         csv_path = os.path.join(self.folder_path, "Sample_Signal_Channel.csv")
         return pd.read_csv(csv_path)["data"].to_numpy()
 
-    @property
+    @pytest.fixture
     def expected_ttl_timestamps(self):
         csv_path = os.path.join(self.folder_path, "Sample_TTL.csv")
         return pd.read_csv(csv_path)["timestamps"].to_numpy()

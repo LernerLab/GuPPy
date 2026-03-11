@@ -105,27 +105,27 @@ class TestDoricRecordingExtractor(RecordingExtractorTestMixin):
     signal_event = "AIn-2 - Raw"
     ttl_event = "DI--O-1"
 
-    @property
+    @pytest.fixture
     def expected_control_timestamps(self):
         result = self.extractor_instance.read(events=["AIn-1 - Raw"], outputPath="")
         return result[0]["timestamps"]
 
-    @property
+    @pytest.fixture
     def expected_control_data(self):
         result = self.extractor_instance.read(events=["AIn-1 - Raw"], outputPath="")
         return result[0]["data"]
 
-    @property
+    @pytest.fixture
     def expected_signal_timestamps(self):
         result = self.extractor_instance.read(events=["AIn-2 - Raw"], outputPath="")
         return result[0]["timestamps"]
 
-    @property
+    @pytest.fixture
     def expected_signal_data(self):
         result = self.extractor_instance.read(events=["AIn-2 - Raw"], outputPath="")
         return result[0]["data"]
 
-    @property
+    @pytest.fixture
     def expected_ttl_timestamps(self):
         result = self.extractor_instance.read(events=["DI--O-1"], outputPath="")
         return result[0]["timestamps"]

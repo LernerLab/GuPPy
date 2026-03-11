@@ -1,7 +1,6 @@
 """Contract tests for TdtRecordingExtractor."""
 
 import os
-import tempfile
 
 import numpy as np
 import pytest
@@ -61,34 +60,29 @@ class TestTdtRecordingExtractor(RecordingExtractorTestMixin):
     signal_event = "Dv2A"
     ttl_event = "PrtN"
 
-    @property
-    def expected_control_timestamps(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            result = self.extractor_instance.read(events=["Dv1A"], outputPath=tmp)
+    @pytest.fixture
+    def expected_control_timestamps(self, tmp_path):
+        result = self.extractor_instance.read(events=["Dv1A"], outputPath=str(tmp_path))
         return result[0]["timestamps"]
 
-    @property
-    def expected_control_data(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            result = self.extractor_instance.read(events=["Dv1A"], outputPath=tmp)
+    @pytest.fixture
+    def expected_control_data(self, tmp_path):
+        result = self.extractor_instance.read(events=["Dv1A"], outputPath=str(tmp_path))
         return result[0]["data"]
 
-    @property
-    def expected_signal_timestamps(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            result = self.extractor_instance.read(events=["Dv2A"], outputPath=tmp)
+    @pytest.fixture
+    def expected_signal_timestamps(self, tmp_path):
+        result = self.extractor_instance.read(events=["Dv2A"], outputPath=str(tmp_path))
         return result[0]["timestamps"]
 
-    @property
-    def expected_signal_data(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            result = self.extractor_instance.read(events=["Dv2A"], outputPath=tmp)
+    @pytest.fixture
+    def expected_signal_data(self, tmp_path):
+        result = self.extractor_instance.read(events=["Dv2A"], outputPath=str(tmp_path))
         return result[0]["data"]
 
-    @property
-    def expected_ttl_timestamps(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            result = self.extractor_instance.read(events=["PrtN"], outputPath=tmp)
+    @pytest.fixture
+    def expected_ttl_timestamps(self, tmp_path):
+        result = self.extractor_instance.read(events=["PrtN"], outputPath=str(tmp_path))
         return result[0]["timestamps"]
 
     def test_stub_data_matches_original(self, tmp_path):
