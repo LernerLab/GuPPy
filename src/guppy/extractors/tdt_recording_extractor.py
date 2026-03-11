@@ -320,7 +320,9 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         return original_to_new_fp_loc
 
     @staticmethod
-    def _stub_tsq_file(header_df, stubbed_tsq_file_path, stream_name_to_num_segments, original_to_new_fp_loc):
+    def _stub_tsq_file(
+        header_df, stubbed_tsq_file_path, stream_name_to_num_segments, original_to_new_fp_loc, stub_duration_in_seconds
+    ):
         """
         Write a truncated TSQ header file matching the stubbed TEV file.
 
@@ -334,6 +336,8 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
             Mapping of stream name (str) to number of segments to retain.
         original_to_new_fp_loc : dict
             Mapping from original file-pointer positions to their new positions, as returned by _stub_tev_file.
+        stub_duration_in_seconds : float
+            Desired duration of retained data in seconds. TTL/epoc events beyond this time are excluded.
         """
         names = ("size", "type", "name", "chan", "sort_code", "timestamp", "fp_loc", "strobe", "format", "frequency")
         formats = (int32, int32, "S4", uint16, uint16, float64, int64, float64, int32, float32)
@@ -348,12 +352,18 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
 
         stream_names_bytes = {name.encode() for name in stream_name_to_num_segments}
 
+        # TDT timestamps are Unix epoch seconds, not session-relative.
+        # Compute the TTL cutoff as the first continuous stream timestamp plus the desired stub duration.
+        first_continuous_timestamp = header_df[header_df["frequency"] > 0]["timestamp"].min()
+        ttl_cutoff_timestamp = first_continuous_timestamp + stub_duration_in_seconds
+
         rows_to_keep = []
         stream_name_to_num_kept = {name.encode(): 0 for name in stream_name_to_num_segments}
         for row in tqdm(tsq_data):
             stream_name = row["name"]
             if stream_name not in stream_names_bytes:
-                rows_to_keep.append(True)
+                is_sentinel = len(stream_name.rstrip(b"\x00")) < 4
+                rows_to_keep.append(is_sentinel or row["timestamp"] <= ttl_cutoff_timestamp)
                 continue
             number_kept = stream_name_to_num_kept[stream_name]
             number_of_segments = stream_name_to_num_segments[stream_name.decode()]
@@ -464,4 +474,5 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
             stubbed_tsq_file_path=stubbed_tsq_file_path,
             stream_name_to_num_segments=stream_name_to_num_segments,
             original_to_new_fp_loc=original_to_new_fp_loc,
+            stub_duration_in_seconds=stub_duration_in_seconds,
         )
