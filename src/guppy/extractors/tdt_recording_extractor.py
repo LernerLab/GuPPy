@@ -1,11 +1,14 @@
 import glob
 import logging
 import os
+import shutil
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
 from numpy import float32, float64, int32, int64, uint16
+from tqdm import tqdm
 
 from guppy.extractors import BaseRecordingExtractor
 
@@ -248,3 +251,179 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
     def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str) -> None:
         for S in output_dicts:
             self._save_dict_to_hdf5(S=S, outputPath=outputPath)
+
+    @staticmethod
+    def _stub_tev_file(tev_file_path, header_df, stubbed_tev_file_path, stream_name_to_num_segments):
+        """
+        Write a truncated TEV file containing only the first N data segments per stream.
+
+        Parameters
+        ----------
+        tev_file_path : Path or str
+            Path to the source TEV binary data file.
+        header_df : pd.DataFrame
+            TSQ header DataFrame as returned by _readtsq (already loaded).
+        stubbed_tev_file_path : Path or str
+            Destination path for the stubbed TEV file.
+        stream_name_to_num_segments : dict
+            Mapping of stream name (str) to number of segments to retain.
+
+        Returns
+        -------
+        original_to_new_fp_loc : dict
+            Mapping from original file-pointer positions to their new positions in the stubbed TEV.
+        """
+        stream_names_bytes = {name.encode() for name in stream_name_to_num_segments}
+        with open(tev_file_path, "r+b") as file:
+            content = file.read()
+        if os.path.exists(stubbed_tev_file_path):
+            os.remove(stubbed_tev_file_path)
+
+        all_starts, all_stops, all_stream_names = [], [], []
+        for stream_name_bytes in stream_names_bytes:
+            row_mask = header_df["name"] == stream_name_bytes
+            indexes = np.where(row_mask)[0]
+            first_row = indexes[0]
+            number_of_samples = header_df["size"][first_row] - 10
+            file_positions = np.asarray(header_df["fp_loc"][indexes])
+            for position in file_positions:
+                all_starts.append(position)
+                all_stops.append(position + number_of_samples * 4)
+                all_stream_names.append(stream_name_bytes)
+
+        sort_index = np.argsort(all_starts)
+        all_starts = np.array(all_starts)[sort_index]
+        all_stops = np.array(all_stops)[sort_index]
+        all_stream_names = np.array(all_stream_names)[sort_index]
+
+        previous_stop = 0
+        write_position = 0
+        original_to_new_fp_loc = {}
+        stream_name_to_num_written = {name.encode(): 0 for name in stream_name_to_num_segments}
+        for start, stop, stream_name_bytes in zip(all_starts, all_stops, all_stream_names):
+            with open(stubbed_tev_file_path, "a+b") as file:
+                gap = content[previous_stop:start]
+                file.write(gap)
+                write_position += len(gap)
+                number_written = stream_name_to_num_written[stream_name_bytes]
+                number_of_segments = stream_name_to_num_segments[stream_name_bytes.decode()]
+                if number_written < number_of_segments:
+                    original_to_new_fp_loc[start] = write_position
+                    segment = content[start:stop]
+                    file.write(segment)
+                    write_position += len(segment)
+                    stream_name_to_num_written[stream_name_bytes] += 1
+            previous_stop = stop
+        with open(stubbed_tev_file_path, "a+b") as file:
+            file.write(content[previous_stop:])
+        return original_to_new_fp_loc
+
+    @staticmethod
+    def _stub_tsq_file(header_df, stubbed_tsq_file_path, stream_name_to_num_segments, original_to_new_fp_loc):
+        """
+        Write a truncated TSQ header file matching the stubbed TEV file.
+
+        Parameters
+        ----------
+        header_df : pd.DataFrame
+            TSQ header DataFrame as returned by _readtsq (already loaded).
+        stubbed_tsq_file_path : Path or str
+            Destination path for the stubbed TSQ file.
+        stream_name_to_num_segments : dict
+            Mapping of stream name (str) to number of segments to retain.
+        original_to_new_fp_loc : dict
+            Mapping from original file-pointer positions to their new positions, as returned by _stub_tev_file.
+        """
+        names = ("size", "type", "name", "chan", "sort_code", "timestamp", "fp_loc", "strobe", "format", "frequency")
+        formats = (int32, int32, "S4", uint16, uint16, float64, int64, float64, int32, float32)
+        offsets = 0, 4, 8, 12, 14, 16, 24, 24, 32, 36
+        tsq_dtype = np.dtype({"names": names, "formats": formats, "offsets": offsets}, align=True)
+
+        # Reconstruct numpy structured array from the already-loaded DataFrame (avoids re-reading from disk).
+        # fp_loc and strobe overlap at offset 24; writing fp_loc covers both.
+        tsq_data = np.zeros(len(header_df), dtype=tsq_dtype)
+        for field_name in ("size", "type", "name", "chan", "sort_code", "timestamp", "fp_loc", "format", "frequency"):
+            tsq_data[field_name] = header_df[field_name].values
+
+        stream_names_bytes = {name.encode() for name in stream_name_to_num_segments}
+
+        rows_to_keep = []
+        stream_name_to_num_kept = {name.encode(): 0 for name in stream_name_to_num_segments}
+        for row in tqdm(tsq_data):
+            stream_name = row["name"]
+            if stream_name not in stream_names_bytes:
+                rows_to_keep.append(True)
+                continue
+            number_kept = stream_name_to_num_kept[stream_name]
+            number_of_segments = stream_name_to_num_segments[stream_name.decode()]
+            if number_kept < number_of_segments:
+                rows_to_keep.append(True)
+                stream_name_to_num_kept[stream_name] += 1
+            else:
+                rows_to_keep.append(False)
+        rows_to_keep = np.array(rows_to_keep)
+        stubbed_tsq_data = tsq_data[rows_to_keep]
+
+        # correct timestamps: last metadata record should match the last stream timestamp
+        first_stream_name_bytes = next(iter(stream_names_bytes))
+        stubbed_last_timestamp = stubbed_tsq_data["timestamp"][stubbed_tsq_data["name"] == first_stream_name_bytes][-1]
+        stubbed_tsq_data["timestamp"][stubbed_tsq_data["name"] == b"\x02"] = stubbed_last_timestamp
+
+        # correct fp_loc: positions shifted because removed segments shrank the TEV file
+        stream_mask = np.isin(stubbed_tsq_data["name"], list(stream_names_bytes))
+        stubbed_tsq_data["fp_loc"][stream_mask] = [
+            original_to_new_fp_loc[location] for location in stubbed_tsq_data["fp_loc"][stream_mask]
+        ]
+
+        # correct size: first record's size field encodes total file size in bytes
+        record_size = tsq_dtype.itemsize
+        stubbed_tsq_data["size"][0] = len(stubbed_tsq_data) * record_size
+
+        stubbed_tsq_data.tofile(stubbed_tsq_file_path)
+
+    def stub(self, *, stub_folder_path, stream_name_to_num_segments):
+        """
+        Create a stubbed copy of the TDT tank folder with truncated TEV and TSQ files.
+
+        Copies the entire tank folder to `stub_folder_path`, then replaces the TEV and
+        TSQ binary files with truncated versions that retain only the first N data segments
+        per stream. All other files (metadata, text listings, etc.) are copied unchanged.
+
+        Parameters
+        ----------
+        stub_folder_path : str or Path
+            Destination directory for the stubbed tank. Created if it does not exist;
+            overwritten if it already exists.
+        stream_name_to_num_segments : dict
+            Mapping of TDT store name (str, e.g. ``"Dv1A"``) to the number of data
+            segments to retain in the stubbed files.
+        """
+        stub_folder_path = Path(stub_folder_path)
+        source_folder_path = Path(self.folder_path)
+
+        if stub_folder_path.exists():
+            shutil.rmtree(stub_folder_path)
+        shutil.copytree(source_folder_path, stub_folder_path)
+
+        tev_file_path = glob.glob(os.path.join(self.folder_path, "*.tev"))[0]
+        tsq_file_path = glob.glob(os.path.join(self.folder_path, "*.tsq"))[0]
+
+        stubbed_tev_file_path = stub_folder_path / Path(tev_file_path).name
+        stubbed_tsq_file_path = stub_folder_path / Path(tsq_file_path).name
+
+        # Remove originals from stub folder so we can write the truncated replacements
+        os.remove(stubbed_tev_file_path)
+        os.remove(stubbed_tsq_file_path)
+
+        original_to_new_fp_loc = self._stub_tev_file(
+            tev_file_path=tev_file_path,
+            header_df=self._header_df,
+            stubbed_tev_file_path=stubbed_tev_file_path,
+            stream_name_to_num_segments=stream_name_to_num_segments,
+        )
+        self._stub_tsq_file(
+            header_df=self._header_df,
+            stubbed_tsq_file_path=stubbed_tsq_file_path,
+            stream_name_to_num_segments=stream_name_to_num_segments,
+            original_to_new_fp_loc=original_to_new_fp_loc,
+        )
