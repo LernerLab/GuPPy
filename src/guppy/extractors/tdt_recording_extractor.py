@@ -424,40 +424,40 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
             stream_name_to_num_segments[stream_name_bytes.decode()] = number_of_segments
         return stream_name_to_num_segments
 
-    def stub(self, *, stub_folder_path, stub_duration_in_seconds=1.0):
+    def stub(self, *, folder_path, duration_in_seconds=1.0):
         """
         Create a stubbed copy of the TDT tank folder with truncated TEV and TSQ files.
 
-        Copies the entire tank folder to `stub_folder_path`, then replaces the TEV and
+        Copies the entire tank folder to `folder_path`, then replaces the TEV and
         TSQ binary files with truncated versions that retain only the first N data segments
         per continuous stream. The number of segments retained per stream is computed
-        automatically from `stub_duration_in_seconds` and each stream's sampling rate.
+        automatically from `duration_in_seconds` and each stream's sampling rate.
         TTL/epoc streams (sampling_rate == 0) are preserved in full.
 
         Parameters
         ----------
-        stub_folder_path : str or Path
+        folder_path : str or Path
             Destination directory for the stubbed tank. Created if it does not exist;
             overwritten if it already exists.
-        stub_duration_in_seconds : float, optional
+        duration_in_seconds : float, optional
             Approximate duration of data to retain in seconds. Default is 1.0.
         """
         stream_name_to_num_segments = self._compute_stream_name_to_num_segments(
             header_df=self._header_df,
-            stub_duration_in_seconds=stub_duration_in_seconds,
+            stub_duration_in_seconds=duration_in_seconds,
         )
-        stub_folder_path = Path(stub_folder_path)
+        folder_path = Path(folder_path)
         source_folder_path = Path(self.folder_path)
 
-        if stub_folder_path.exists():
-            shutil.rmtree(stub_folder_path)
-        shutil.copytree(source_folder_path, stub_folder_path)
+        if folder_path.exists():
+            shutil.rmtree(folder_path)
+        shutil.copytree(source_folder_path, folder_path)
 
         tev_file_path = glob.glob(os.path.join(self.folder_path, "*.tev"))[0]
         tsq_file_path = glob.glob(os.path.join(self.folder_path, "*.tsq"))[0]
 
-        stubbed_tev_file_path = stub_folder_path / Path(tev_file_path).name
-        stubbed_tsq_file_path = stub_folder_path / Path(tsq_file_path).name
+        stubbed_tev_file_path = folder_path / Path(tev_file_path).name
+        stubbed_tsq_file_path = folder_path / Path(tsq_file_path).name
 
         # Remove originals from stub folder so we can write the truncated replacements
         os.remove(stubbed_tev_file_path)
@@ -474,5 +474,5 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
             stubbed_tsq_file_path=stubbed_tsq_file_path,
             stream_name_to_num_segments=stream_name_to_num_segments,
             original_to_new_fp_loc=original_to_new_fp_loc,
-            stub_duration_in_seconds=stub_duration_in_seconds,
+            stub_duration_in_seconds=duration_in_seconds,
         )
