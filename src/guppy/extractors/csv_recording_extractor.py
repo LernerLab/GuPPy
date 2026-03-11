@@ -2,6 +2,8 @@ import copy
 import glob
 import logging
 import os
+import shutil
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -189,6 +191,46 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
             S["storename"] = event
             output_dicts.append(S)
         return output_dicts
+
+    def stub(self, *, folder_path, duration_in_seconds=1.0):
+        """
+        Create a stubbed copy of the CSV folder with truncated data files.
+
+        Copies the entire folder to `folder_path`, then replaces each CSV file
+        with a version truncated to `duration_in_seconds`. The cutoff timestamp
+        is computed as the first timestamp in the first data CSV plus
+        `duration_in_seconds`. Both data CSVs (3-column) and event CSVs
+        (1-column) are filtered to rows at or before the cutoff.
+
+        Parameters
+        ----------
+        folder_path : str or Path
+            Destination directory for the stubbed folder. Created if it does
+            not exist; overwritten if it already exists.
+        duration_in_seconds : float, optional
+            Approximate duration of data to retain in seconds. Default is 1.0.
+        """
+        folder_path = Path(folder_path)
+        if folder_path.exists():
+            shutil.rmtree(folder_path)
+        shutil.copytree(self.folder_path, folder_path)
+
+        event_names, flags = CsvRecordingExtractor.discover_events_and_flags(self.folder_path)
+
+        first_data_timestamp = None
+        for event_name, flag in zip(event_names, flags):
+            if flag == "data_csv":
+                dataframe = pd.read_csv(Path(self.folder_path) / f"{event_name}.csv", index_col=False)
+                first_data_timestamp = dataframe["timestamps"].iloc[0]
+                break
+
+        cutoff_timestamp = first_data_timestamp + duration_in_seconds
+
+        for event_name, flag in zip(event_names, flags):
+            csv_path = folder_path / f"{event_name}.csv"
+            dataframe = pd.read_csv(csv_path, index_col=False)
+            dataframe = dataframe[dataframe["timestamps"] <= cutoff_timestamp]
+            dataframe.to_csv(csv_path, index=False)
 
     def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str) -> None:
         for S in output_dicts:
