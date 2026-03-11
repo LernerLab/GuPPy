@@ -9,7 +9,13 @@ from guppy.extractors.base_recording_extractor import (
     read_and_save_all_events,
     read_and_save_event,
 )
-from guppy.testing.mock_recording_extractor import MockRecordingExtractor
+from guppy.testing.mock_recording_extractor import (
+    _MOCK_DURATION_IN_SECONDS,
+    _MOCK_SAMPLING_RATE,
+    MockRecordingExtractor,
+)
+
+NUMBER_OF_SAMPLES = int(_MOCK_DURATION_IN_SECONDS * _MOCK_SAMPLING_RATE)
 
 from .recording_extractor_test_mixin import RecordingExtractorTestMixin
 
@@ -153,23 +159,24 @@ class TestBaseRecordingExtractor(RecordingExtractorTestMixin):
     control_event = "mock_control"
     signal_event = "mock_signal"
     ttl_event = "mock_ttl"
+    stub_ttl_test_duration_in_seconds = 0.5
 
     @pytest.fixture
     def expected_control_timestamps(self):
-        return np.arange(100, dtype=float) / 100.0
+        return np.arange(NUMBER_OF_SAMPLES, dtype=float) / _MOCK_SAMPLING_RATE
 
     @pytest.fixture
     def expected_control_data(self):
-        return np.linspace(0.0, 1.0, 100)
+        return np.linspace(0.0, 1.0, NUMBER_OF_SAMPLES)
 
     @pytest.fixture
     def expected_signal_timestamps(self):
-        return np.arange(100, dtype=float) / 100.0
+        return np.arange(NUMBER_OF_SAMPLES, dtype=float) / _MOCK_SAMPLING_RATE
 
     @pytest.fixture
     def expected_signal_data(self):
-        return np.linspace(0.0, 1.0, 100)
+        return np.linspace(0.0, 1.0, NUMBER_OF_SAMPLES)
 
     @pytest.fixture
     def expected_ttl_timestamps(self):
-        return np.arange(100, dtype=float) / 100.0
+        return np.arange(NUMBER_OF_SAMPLES, dtype=float) / _MOCK_SAMPLING_RATE

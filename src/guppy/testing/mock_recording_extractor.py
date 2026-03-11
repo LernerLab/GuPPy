@@ -6,7 +6,7 @@ from guppy.extractors.base_recording_extractor import BaseRecordingExtractor
 
 _MOCK_EVENTS = ["mock_signal", "mock_control", "mock_ttl"]
 _MOCK_SAMPLING_RATE = 100.0
-_MOCK_NUM_SAMPLES = 100
+_MOCK_DURATION_IN_SECONDS = 3.0
 
 
 class MockRecordingExtractor(BaseRecordingExtractor):
@@ -21,6 +21,8 @@ class MockRecordingExtractor(BaseRecordingExtractor):
     folder_path : str
         Ignored; present to match the constructor pattern of real extractors.
     """
+
+    _stub_folder_path_to_duration: dict[str, float] = {}
 
     def __init__(self, folder_path: str) -> None:
         self.folder_path = folder_path
@@ -63,20 +65,41 @@ class MockRecordingExtractor(BaseRecordingExtractor):
             ``storename`` (str), ``timestamps`` (ndarray), ``data`` (ndarray),
             ``sampling_rate`` (float).
         """
+        duration = MockRecordingExtractor._stub_folder_path_to_duration.get(str(self.folder_path))
+        original_number_of_samples = int(_MOCK_DURATION_IN_SECONDS * _MOCK_SAMPLING_RATE)
+        if duration is not None:
+            number_of_samples = int(duration * _MOCK_SAMPLING_RATE)
+        else:
+            number_of_samples = original_number_of_samples
         output_dicts = []
         for event in events:
             output_dicts.append(
                 {
                     "storename": event,
-                    "timestamps": np.arange(_MOCK_NUM_SAMPLES, dtype=float) / _MOCK_SAMPLING_RATE,
-                    "data": np.linspace(0.0, 1.0, _MOCK_NUM_SAMPLES),
+                    "timestamps": np.arange(number_of_samples, dtype=float) / _MOCK_SAMPLING_RATE,
+                    "data": np.linspace(0.0, 1.0, original_number_of_samples)[:number_of_samples],
                     "sampling_rate": _MOCK_SAMPLING_RATE,
                 }
             )
         return output_dicts
 
     def stub(self, *, folder_path, duration_in_seconds=1.0):
-        raise NotImplementedError("stub() is not implemented for MockRecordingExtractor")
+        """
+        Register a stub duration for ``folder_path`` without writing any files.
+
+        Subsequent ``read()`` calls on a ``MockRecordingExtractor`` initialised
+        with ``folder_path`` will generate arrays of the appropriate length.
+
+        Parameters
+        ----------
+        folder_path : str or Path
+            The path that will be passed to the constructor of the stubbed
+            extractor. The directory is not created.
+        duration_in_seconds : float, optional
+            Duration of mock data to generate on subsequent ``read()`` calls.
+            Default is 1.0.
+        """
+        MockRecordingExtractor._stub_folder_path_to_duration[str(folder_path)] = duration_in_seconds
 
     def save(self, *, output_dicts: list[dict], outputPath: str) -> None:
         """

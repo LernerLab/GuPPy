@@ -160,69 +160,65 @@ class RecordingExtractorTestMixin:
 
     # --- stub tests ---
 
-    def _read_event_from_hdf5(self, tmp_path, extractor_instance, event):
-        tmp_path.mkdir(parents=True, exist_ok=True)
-        output_dicts = extractor_instance.read(events=[event], outputPath=str(tmp_path))
-        extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
-        sanitized_name = event.replace("\\", "_").replace("/", "_")
-        with h5py.File(tmp_path / f"{sanitized_name}.hdf5", "r") as hdf5_file:
-            return {key: hdf5_file[key][()] for key in hdf5_file.keys()}
-
     def test_stub_data_matches_original(self, tmp_path):
-        original = self._read_event_from_hdf5(tmp_path / "original", self.extractor_instance, self.control_event)
+        original_result = self.extractor_instance.read(events=[self.control_event], outputPath=str(tmp_path))
+        original_data = original_result[0]["data"]
+        original_timestamps = original_result[0]["timestamps"]
 
         stub_folder_path = tmp_path / "stubbed"
         self.extractor_instance.stub(folder_path=stub_folder_path)
         stubbed_extractor = self.extractor_class(folder_path=stub_folder_path)
-        stubbed = self._read_event_from_hdf5(tmp_path / "stub_output", stubbed_extractor, self.control_event)
+        stubbed_result = stubbed_extractor.read(events=[self.control_event], outputPath=str(tmp_path))
 
-        np.testing.assert_array_equal(stubbed["data"], original["data"][: len(stubbed["data"])])
-        np.testing.assert_array_equal(stubbed["timestamps"], original["timestamps"][: len(stubbed["timestamps"])])
+        np.testing.assert_array_equal(stubbed_result[0]["data"], original_data[: len(stubbed_result[0]["data"])])
+        np.testing.assert_array_equal(
+            stubbed_result[0]["timestamps"], original_timestamps[: len(stubbed_result[0]["timestamps"])]
+        )
 
     def test_stub_idempotent(self, tmp_path):
         stub_folder_path = tmp_path / "stubbed"
 
         self.extractor_instance.stub(folder_path=stub_folder_path)
-        first = self._read_event_from_hdf5(
-            tmp_path / "output_1", self.extractor_class(folder_path=stub_folder_path), self.control_event
+        first_result = self.extractor_class(folder_path=stub_folder_path).read(
+            events=[self.control_event], outputPath=str(tmp_path)
         )
 
         self.extractor_instance.stub(folder_path=stub_folder_path)
-        second = self._read_event_from_hdf5(
-            tmp_path / "output_2", self.extractor_class(folder_path=stub_folder_path), self.control_event
+        second_result = self.extractor_class(folder_path=stub_folder_path).read(
+            events=[self.control_event], outputPath=str(tmp_path)
         )
 
-        np.testing.assert_array_equal(first["data"], second["data"])
+        np.testing.assert_array_equal(first_result[0]["data"], second_result[0]["data"])
 
     def test_stub_ttl_timestamps_within_duration(self, tmp_path):
-        original_control = self._read_event_from_hdf5(
-            tmp_path / "original_control", self.extractor_instance, self.control_event
-        )
-        first_continuous_timestamp = original_control["timestamps"][0]
+        original_control_result = self.extractor_instance.read(events=[self.control_event], outputPath=str(tmp_path))
+        first_continuous_timestamp = original_control_result[0]["timestamps"][0]
         cutoff_timestamp = first_continuous_timestamp + self.stub_ttl_test_duration_in_seconds
 
-        original_ttl = self._read_event_from_hdf5(tmp_path / "original_ttl", self.extractor_instance, self.ttl_event)
+        original_ttl_result = self.extractor_instance.read(events=[self.ttl_event], outputPath=str(tmp_path))
 
         stub_folder_path = tmp_path / "stubbed"
         self.extractor_instance.stub(
             folder_path=stub_folder_path, duration_in_seconds=self.stub_ttl_test_duration_in_seconds
         )
         stubbed_extractor = self.extractor_class(folder_path=stub_folder_path)
-        stubbed_ttl = self._read_event_from_hdf5(tmp_path / "stub_ttl_output", stubbed_extractor, self.ttl_event)
+        stubbed_ttl_result = stubbed_extractor.read(events=[self.ttl_event], outputPath=str(tmp_path))
 
-        assert np.all(stubbed_ttl["timestamps"] <= cutoff_timestamp)
-        assert len(stubbed_ttl["timestamps"]) < len(original_ttl["timestamps"])
-        assert np.all(np.isin(stubbed_ttl["timestamps"], original_ttl["timestamps"]))
+        assert np.all(stubbed_ttl_result[0]["timestamps"] <= cutoff_timestamp)
+        assert len(stubbed_ttl_result[0]["timestamps"]) < len(original_ttl_result[0]["timestamps"])
+        assert np.all(np.isin(stubbed_ttl_result[0]["timestamps"], original_ttl_result[0]["timestamps"]))
 
     @pytest.mark.parametrize("stub_duration_in_seconds", [0.5, 1.0, 2.0])
     def test_stub_duration(self, tmp_path, stub_duration_in_seconds):
         stub_folder_path = tmp_path / "stubbed"
         self.extractor_instance.stub(folder_path=stub_folder_path, duration_in_seconds=stub_duration_in_seconds)
         stubbed_extractor = self.extractor_class(folder_path=stub_folder_path)
-        stubbed = self._read_event_from_hdf5(tmp_path / "stub_output", stubbed_extractor, self.control_event)
+        stubbed_result = stubbed_extractor.read(events=[self.control_event], outputPath=str(tmp_path))
 
-        duration_in_seconds = stubbed["timestamps"][-1] - stubbed["timestamps"][0]
+        duration_in_seconds = stubbed_result[0]["timestamps"][-1] - stubbed_result[0]["timestamps"][0]
         assert duration_in_seconds == pytest.approx(stub_duration_in_seconds, abs=0.2)
 
-        duration_from_samples_in_seconds = len(stubbed["data"]) / float(np.atleast_1d(stubbed["sampling_rate"])[0])
+        duration_from_samples_in_seconds = len(stubbed_result[0]["data"]) / float(
+            np.atleast_1d(stubbed_result[0]["sampling_rate"])[0]
+        )
         assert duration_from_samples_in_seconds == pytest.approx(stub_duration_in_seconds, abs=0.2)

@@ -179,34 +179,35 @@ class TestNpmRecordingExtractor(RecordingExtractorTestMixin):
     control_event = "file0_chod1"
     signal_event = "file0_chev1"
     ttl_event = "event0"
+    stub_ttl_test_duration_in_seconds = 100.0
 
     @pytest.fixture
     def expected_control_timestamps(self):
         # discover must run first to create the intermediate CSV files that read() depends on
         NpmRecordingExtractor.discover_events_and_flags(self.folder_path, num_ch=2, inputParameters={})
         result = self.extractor_instance.read(events=["file0_chod1"], outputPath="")
-        return np.array(list(result[0]["timestamps"].values()))
+        return result[0]["timestamps"]
 
     @pytest.fixture
     def expected_control_data(self):
         NpmRecordingExtractor.discover_events_and_flags(self.folder_path, num_ch=2, inputParameters={})
         result = self.extractor_instance.read(events=["file0_chod1"], outputPath="")
-        return np.array(list(result[0]["data"].values()))
+        return result[0]["data"]
 
     @pytest.fixture
     def expected_signal_timestamps(self):
         NpmRecordingExtractor.discover_events_and_flags(self.folder_path, num_ch=2, inputParameters={})
         result = self.extractor_instance.read(events=["file0_chev1"], outputPath="")
-        return np.array(list(result[0]["timestamps"].values()))
+        return result[0]["timestamps"]
 
     @pytest.fixture
     def expected_signal_data(self):
         NpmRecordingExtractor.discover_events_and_flags(self.folder_path, num_ch=2, inputParameters={})
         result = self.extractor_instance.read(events=["file0_chev1"], outputPath="")
-        return np.array(list(result[0]["data"].values()))
+        return result[0]["data"]
 
     @pytest.fixture
     def expected_ttl_timestamps(self):
         NpmRecordingExtractor.discover_events_and_flags(self.folder_path, num_ch=2, inputParameters={})
         result = self.extractor_instance.read(events=["event0"], outputPath="")
-        return np.array(list(result[0]["timestamps"].values()))
+        return result[0]["timestamps"]
