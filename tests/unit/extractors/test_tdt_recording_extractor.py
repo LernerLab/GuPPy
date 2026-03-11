@@ -91,10 +91,7 @@ class TestTdtRecordingExtractor(RecordingExtractorTestMixin):
         original_timestamps = original_result[0]["timestamps"]
 
         stub_folder_path = tmp_path / "stubbed"
-        self.extractor_instance.stub(
-            stub_folder_path=stub_folder_path,
-            stub_duration_in_seconds=1.0,
-        )
+        self.extractor_instance.stub(stub_folder_path=stub_folder_path)
         stubbed_extractor = TdtRecordingExtractor(folder_path=stub_folder_path)
         stubbed_result = stubbed_extractor.read(events=["Dv1A"], outputPath=str(tmp_path))
         stubbed_data = stubbed_result[0]["data"]
@@ -106,19 +103,13 @@ class TestTdtRecordingExtractor(RecordingExtractorTestMixin):
     def test_stub_idempotent(self, tmp_path):
         stub_folder_path = tmp_path / "stubbed"
 
-        self.extractor_instance.stub(
-            stub_folder_path=stub_folder_path,
-            stub_duration_in_seconds=1.0,
-        )
+        self.extractor_instance.stub(stub_folder_path=stub_folder_path)
         first_result = TdtRecordingExtractor(folder_path=stub_folder_path).read(
             events=["Dv1A"], outputPath=str(tmp_path)
         )
         first_data = first_result[0]["data"]
 
-        self.extractor_instance.stub(
-            stub_folder_path=stub_folder_path,
-            stub_duration_in_seconds=1.0,
-        )
+        self.extractor_instance.stub(stub_folder_path=stub_folder_path)
         second_result = TdtRecordingExtractor(folder_path=stub_folder_path).read(
             events=["Dv1A"], outputPath=str(tmp_path)
         )
