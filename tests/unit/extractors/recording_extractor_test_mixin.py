@@ -1,7 +1,5 @@
 """Mixin of contract tests for BaseRecordingExtractor subclasses."""
 
-from typing import ClassVar
-
 import h5py
 import numpy as np
 import pytest
@@ -32,6 +30,9 @@ class RecordingExtractorTestMixin:
         Event name for the signal channel (timestamps + data).
     ttl_event : str
         Event name for the TTL/event channel (timestamps only).
+    stub_ttl_test_duration_in_seconds : float
+        Duration in seconds passed to ``stub()`` for the TTL pruning test.
+        Choose a value that captures some but not all TTL events in the test data.
 
     Child test classes must also implement these fixtures, each returning the
     array as it should appear in the saved HDF5 file:
@@ -39,8 +40,6 @@ class RecordingExtractorTestMixin:
     expected_control_timestamps, expected_control_data,
     expected_signal_timestamps, expected_signal_data, expected_ttl_timestamps.
     """
-
-    stub_ttl_test_duration_in_seconds: ClassVar[float]
 
     @pytest.fixture
     def expected_control_timestamps(self):
