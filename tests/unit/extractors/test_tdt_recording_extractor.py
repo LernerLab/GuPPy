@@ -117,6 +117,29 @@ class TestTdtRecordingExtractor(RecordingExtractorTestMixin):
 
         np.testing.assert_array_equal(first_data, second_data)
 
+    def test_stub_ttl_timestamps_within_duration(self, tmp_path):
+        stub_duration_in_seconds = 100.0
+        stub_folder_path = tmp_path / "stubbed"
+        self.extractor_instance.stub(
+            stub_folder_path=stub_folder_path,
+            stub_duration_in_seconds=stub_duration_in_seconds,
+        )
+        stubbed_extractor = TdtRecordingExtractor(folder_path=stub_folder_path)
+
+        original_control_result = self.extractor_instance.read(events=[self.control_event], outputPath=str(tmp_path))
+        first_continuous_timestamp = original_control_result[0]["timestamps"][0]
+        cutoff_timestamp = first_continuous_timestamp + stub_duration_in_seconds
+
+        original_ttl_result = self.extractor_instance.read(events=[self.ttl_event], outputPath=str(tmp_path))
+        original_ttl_timestamps = original_ttl_result[0]["timestamps"]
+
+        stubbed_ttl_result = stubbed_extractor.read(events=[self.ttl_event], outputPath=str(tmp_path))
+        stubbed_ttl_timestamps = stubbed_ttl_result[0]["timestamps"]
+
+        assert np.all(stubbed_ttl_timestamps <= cutoff_timestamp)
+        assert len(stubbed_ttl_timestamps) < len(original_ttl_timestamps)
+        assert np.all(np.isin(stubbed_ttl_timestamps, original_ttl_timestamps))
+
     @pytest.mark.parametrize("stub_duration_in_seconds", [0.5, 1.0, 2.0])
     def test_stub_duration(self, tmp_path, stub_duration_in_seconds):
         stub_folder_path = tmp_path / "stubbed"
