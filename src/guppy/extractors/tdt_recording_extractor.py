@@ -1,5 +1,6 @@
 import glob
 import logging
+import math
 import os
 import shutil
 from pathlib import Path
@@ -381,23 +382,60 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
 
         stubbed_tsq_data.tofile(stubbed_tsq_file_path)
 
-    def stub(self, *, stub_folder_path, stream_name_to_num_segments):
+    @staticmethod
+    def _compute_stream_name_to_num_segments(header_df, stub_duration_in_seconds):
+        """
+        Compute the number of TEV segments to retain per stream for a given stub duration.
+
+        Only continuous data streams (sampling_rate > 0) are included. TTL/epoc streams
+        and sentinel records (sampling_rate == 0) are excluded; their rows will be
+        preserved in full by the stub helpers.
+
+        Parameters
+        ----------
+        header_df : pd.DataFrame
+            TSQ header DataFrame as returned by _readtsq.
+        stub_duration_in_seconds : float
+            Desired duration of retained data in seconds.
+
+        Returns
+        -------
+        stream_name_to_num_segments : dict
+            Mapping of stream name (str) to number of segments to retain.
+        """
+        stream_name_to_num_segments = {}
+        for stream_name_bytes in header_df["name"].unique():
+            first_row_index = header_df.index[header_df["name"] == stream_name_bytes][0]
+            sampling_rate = header_df["frequency"][first_row_index]
+            if sampling_rate == 0:
+                continue
+            samples_per_segment = header_df["size"][first_row_index] - 10
+            number_of_segments = max(1, math.ceil(stub_duration_in_seconds * sampling_rate / samples_per_segment))
+            stream_name_to_num_segments[stream_name_bytes.decode()] = number_of_segments
+        return stream_name_to_num_segments
+
+    def stub(self, *, stub_folder_path, stub_duration_in_seconds=1.0):
         """
         Create a stubbed copy of the TDT tank folder with truncated TEV and TSQ files.
 
         Copies the entire tank folder to `stub_folder_path`, then replaces the TEV and
         TSQ binary files with truncated versions that retain only the first N data segments
-        per stream. All other files (metadata, text listings, etc.) are copied unchanged.
+        per continuous stream. The number of segments retained per stream is computed
+        automatically from `stub_duration_in_seconds` and each stream's sampling rate.
+        TTL/epoc streams (sampling_rate == 0) are preserved in full.
 
         Parameters
         ----------
         stub_folder_path : str or Path
             Destination directory for the stubbed tank. Created if it does not exist;
             overwritten if it already exists.
-        stream_name_to_num_segments : dict
-            Mapping of TDT store name (str, e.g. ``"Dv1A"``) to the number of data
-            segments to retain in the stubbed files.
+        stub_duration_in_seconds : float, optional
+            Approximate duration of data to retain in seconds. Default is 1.0.
         """
+        stream_name_to_num_segments = self._compute_stream_name_to_num_segments(
+            header_df=self._header_df,
+            stub_duration_in_seconds=stub_duration_in_seconds,
+        )
         stub_folder_path = Path(stub_folder_path)
         source_folder_path = Path(self.folder_path)
 

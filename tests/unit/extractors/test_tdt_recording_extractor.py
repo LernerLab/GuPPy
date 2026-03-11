@@ -93,7 +93,7 @@ class TestTdtRecordingExtractor(RecordingExtractorTestMixin):
         stub_folder_path = tmp_path / "stubbed"
         self.extractor_instance.stub(
             stub_folder_path=stub_folder_path,
-            stream_name_to_num_segments={"Dv1A": 2},
+            stub_duration_in_seconds=1.0,
         )
         stubbed_extractor = TdtRecordingExtractor(folder_path=stub_folder_path)
         stubbed_result = stubbed_extractor.read(events=["Dv1A"], outputPath=str(tmp_path))
@@ -105,11 +105,10 @@ class TestTdtRecordingExtractor(RecordingExtractorTestMixin):
 
     def test_stub_idempotent(self, tmp_path):
         stub_folder_path = tmp_path / "stubbed"
-        stream_name_to_num_segments = {"Dv1A": 2}
 
         self.extractor_instance.stub(
             stub_folder_path=stub_folder_path,
-            stream_name_to_num_segments=stream_name_to_num_segments,
+            stub_duration_in_seconds=1.0,
         )
         first_result = TdtRecordingExtractor(folder_path=stub_folder_path).read(
             events=["Dv1A"], outputPath=str(tmp_path)
@@ -118,7 +117,7 @@ class TestTdtRecordingExtractor(RecordingExtractorTestMixin):
 
         self.extractor_instance.stub(
             stub_folder_path=stub_folder_path,
-            stream_name_to_num_segments=stream_name_to_num_segments,
+            stub_duration_in_seconds=1.0,
         )
         second_result = TdtRecordingExtractor(folder_path=stub_folder_path).read(
             events=["Dv1A"], outputPath=str(tmp_path)
@@ -126,3 +125,22 @@ class TestTdtRecordingExtractor(RecordingExtractorTestMixin):
         second_data = second_result[0]["data"]
 
         np.testing.assert_array_equal(first_data, second_data)
+
+    @pytest.mark.parametrize("stub_duration_in_seconds", [0.5, 1.0, 2.0])
+    def test_stub_duration(self, tmp_path, stub_duration_in_seconds):
+        stub_folder_path = tmp_path / "stubbed"
+        self.extractor_instance.stub(
+            stub_folder_path=stub_folder_path,
+            stub_duration_in_seconds=stub_duration_in_seconds,
+        )
+        stubbed_extractor = TdtRecordingExtractor(folder_path=stub_folder_path)
+        stubbed_result = stubbed_extractor.read(events=["Dv1A"], outputPath=str(tmp_path))
+        stubbed_data = stubbed_result[0]["data"]
+        stubbed_timestamps = stubbed_result[0]["timestamps"]
+        sampling_rate = stubbed_result[0]["sampling_rate"]
+
+        duration_in_seconds = stubbed_timestamps[-1] - stubbed_timestamps[0]
+        assert duration_in_seconds == pytest.approx(stub_duration_in_seconds, abs=0.2)
+
+        duration_from_samples_in_seconds = len(stubbed_data) / sampling_rate
+        assert duration_from_samples_in_seconds == pytest.approx(stub_duration_in_seconds, abs=0.2)
