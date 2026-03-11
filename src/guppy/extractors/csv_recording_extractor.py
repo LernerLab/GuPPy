@@ -1,4 +1,3 @@
-import copy
 import glob
 import logging
 import os
@@ -186,10 +185,24 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
     def read(self, *, events: list[str], outputPath: str) -> list[dict[str, Any]]:
         output_dicts = []
         for event in events:
-            df = self._read_csv(event=event)
-            S = df.to_dict()
-            S["storename"] = event
-            output_dicts.append(S)
+            dataframe = self._read_csv(event=event)
+            columns_lowercase = [col.lower() for col in dataframe.columns]
+            if "data" in columns_lowercase:
+                output_dicts.append(
+                    {
+                        "storename": event,
+                        "timestamps": dataframe["timestamps"].dropna().to_numpy(),
+                        "data": dataframe["data"].dropna().to_numpy(),
+                        "sampling_rate": dataframe["sampling_rate"].dropna().to_numpy()[:1],
+                    }
+                )
+            else:
+                output_dicts.append(
+                    {
+                        "storename": event,
+                        "timestamps": dataframe["timestamps"].dropna().to_numpy(),
+                    }
+                )
         return output_dicts
 
     def stub(self, *, folder_path, duration_in_seconds=1.0):
@@ -233,8 +246,9 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
             dataframe.to_csv(csv_path, index=False)
 
     def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str) -> None:
-        for S in output_dicts:
-            working_dict = copy.deepcopy(S)
-            event = working_dict.pop("storename")
-            df = pd.DataFrame.from_dict(working_dict)
-            self._save_to_hdf5(df=df, event=event, outputPath=outputPath)
+        for output_dict in output_dicts:
+            storename = output_dict["storename"]
+            for key, value in output_dict.items():
+                if key == "storename":
+                    continue
+                self._write_hdf5(value, storename, outputPath, key)
