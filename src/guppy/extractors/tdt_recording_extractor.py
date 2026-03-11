@@ -432,7 +432,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         TSQ binary files with truncated versions that retain only the first N data segments
         per continuous stream. The number of segments retained per stream is computed
         automatically from `duration_in_seconds` and each stream's sampling rate.
-        TTL/epoc streams (sampling_rate == 0) are preserved in full.
+        TTL/epoc streams (sampling_rate == 0) are trimmed to `duration_in_seconds`.
 
         Parameters
         ----------
