@@ -1,0 +1,137 @@
+"""Generate stubbed testing data from the full testing_data directory.
+
+Run from the project root:
+    python scripts/create_stubbed_testing_data.py
+
+Stub durations are hard-coded per session. For sessions with TTL events, the
+duration was chosen to be just past the first TTL event in the full recording.
+Sessions without TTL events use 1.0 second.
+
+Note: NpmRecordingExtractor.stub() is currently not fully implemented — NPM
+sessions will fail until a proper stub method is added to NpmRecordingExtractor.
+"""
+
+from pathlib import Path
+
+from guppy.extractors.csv_recording_extractor import CsvRecordingExtractor
+from guppy.extractors.doric_recording_extractor import DoricRecordingExtractor
+from guppy.extractors.npm_recording_extractor import NpmRecordingExtractor
+from guppy.extractors.tdt_recording_extractor import TdtRecordingExtractor
+
+PROJECT_ROOT = Path(__file__).parent.parent
+TESTING_DATA = PROJECT_ROOT / "testing_data"
+STUBBED_TESTING_DATA = PROJECT_ROOT / "stubbed_testing_data"
+
+
+# ---------------------------------------------------------------------------
+# Session configurations
+# ---------------------------------------------------------------------------
+# Each entry: (extractor_instance, stub_duration_in_seconds, destination_path)
+# Durations were determined by running the full recording and finding the first
+# TTL event timestamp, then adding a 0.1 s buffer.
+
+
+def _sessions():
+    tdt = TESTING_DATA / "SampleData_Clean"
+    artifacts = TESTING_DATA / "SampleData_with_artifacts"
+    doric = TESTING_DATA / "SampleData_Doric"
+    npm = TESTING_DATA / "SampleData_Neurophotometrics"
+    csv = TESTING_DATA / "SampleData_csv"
+
+    dest_tdt = STUBBED_TESTING_DATA / "tdt"
+    dest_doric = STUBBED_TESTING_DATA / "doric"
+    dest_npm = STUBBED_TESTING_DATA / "npm"
+    dest_csv = STUBBED_TESTING_DATA / "csv"
+
+    return [
+        # TDT — first TTL (PrtN) at ~78.8 s
+        (
+            TdtRecordingExtractor(str(tdt / "Photo_63_207-181030-103332")),
+            79.0,
+            dest_tdt / "Photo_63_207-181030-103332",
+        ),
+        # TDT — first TTL (PAB/) at ~160.7 s
+        (
+            TdtRecordingExtractor(str(tdt / "Photometry-161823")),
+            161.0,
+            dest_tdt / "Photometry-161823",
+        ),
+        # TDT — first TTL (PrtN) at ~55.6 s
+        (
+            TdtRecordingExtractor(str(artifacts / "Photo_048_392-200728-121222")),
+            56.0,
+            dest_tdt / "Photo_048_392-200728-121222",
+        ),
+        # Doric V1 — first TTL (DI--O-1) at ~39.2 s
+        (
+            DoricRecordingExtractor(
+                str(doric / "sample_doric_1"),
+                {"AIn-1 - Raw": "control", "AIn-2 - Raw": "signal", "DI--O-1": "ttl"},
+            ),
+            40.0,
+            dest_doric / "sample_doric_1",
+        ),
+        # Doric CSV — first TTL (DI/O-1) at ~15.9 s
+        (
+            DoricRecordingExtractor(
+                str(doric / "sample_doric_2"),
+                {"AIn-1 - Dem (ref)": "control", "AIn-1 - Dem (da)": "signal", "DI/O-1": "ttl"},
+            ),
+            16.0,
+            dest_doric / "sample_doric_2",
+        ),
+        # Doric V6 — first TTL (DigitalIO/CAM1) at ~0.03 s
+        (
+            DoricRecordingExtractor(
+                str(doric / "sample_doric_3"),
+                {"CAM1_EXC1/ROI01": "control", "CAM1_EXC2/ROI01": "signal", "DigitalIO/CAM1": "ttl"},
+            ),
+            1.0,
+            dest_doric / "sample_doric_3",
+        ),
+        # Doric V1 — no TTL events
+        (
+            DoricRecordingExtractor(
+                str(doric / "sample_doric_4"),
+                {"Series0001/AIN01xAOUT01-LockIn": "control", "Series0001/AIN01xAOUT02-LockIn": "signal"},
+            ),
+            1.0,
+            dest_doric / "sample_doric_4",
+        ),
+        # Doric V1 — no TTL events
+        (
+            DoricRecordingExtractor(
+                str(doric / "sample_doric_5"),
+                {"Series0001/AIN01xAOUT01-LockIn": "control", "Series0001/AIN01xAOUT02-LockIn": "signal"},
+            ),
+            1.0,
+            dest_doric / "sample_doric_5",
+        ),
+        # CSV — first TTL (Sample_TTL) at ~139.2 s
+        (CsvRecordingExtractor(str(csv / "sample_data_csv_1")), 140.0, dest_csv / "sample_data_csv_1"),
+        # NPM — NpmRecordingExtractor.stub() is not yet fully implemented; these will fail
+        (NpmRecordingExtractor(str(npm / "sampleData_NPM_1")), 1.0, dest_npm / "sampleData_NPM_1"),
+        (NpmRecordingExtractor(str(npm / "sampleData_NPM_2")), 1.0, dest_npm / "sampleData_NPM_2"),
+        (NpmRecordingExtractor(str(npm / "sampleData_NPM_3")), 1.0, dest_npm / "sampleData_NPM_3"),
+        (NpmRecordingExtractor(str(npm / "sampleData_NPM_4")), 1.0, dest_npm / "sampleData_NPM_4"),
+        (NpmRecordingExtractor(str(npm / "sampleData_NPM_5")), 1.0, dest_npm / "sampleData_NPM_5"),
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+
+def main():
+    print(f"Writing stubbed data to: {STUBBED_TESTING_DATA}\n")
+    for extractor, duration, destination in _sessions():
+        modality = type(extractor).__name__.replace("RecordingExtractor", "")
+        print(f"  {modality:5s} {destination.name} ({duration}s) ...", end=" ", flush=True)
+        extractor.stub(folder_path=destination, duration_in_seconds=duration)
+        print("done")
+    print("\nDone.")
+
+
+if __name__ == "__main__":
+    main()
