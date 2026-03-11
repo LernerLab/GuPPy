@@ -333,7 +333,9 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                     source_file=source_file, doric_path=doric_path, duration_in_seconds=duration_in_seconds
                 )
             else:
-                raise NotImplementedError("stub() does not yet support Doric V6 HDF5 format")
+                self._stub_doric_hdf5_v6(
+                    source_file=source_file, doric_path=doric_path, duration_in_seconds=duration_in_seconds
+                )
 
     def _stub_doric_hdf5_v1(self, *, source_file, doric_path, duration_in_seconds):
         timestamps = np.array(source_file["Traces"]["Console"]["Time(s)"]["Console_time(s)"])
@@ -357,6 +359,36 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                 channel_group.create_dataset(key, data=channel_data[key][:cutoff_index])
 
         os.replace(temporary_path, doric_path)
+
+    def _stub_doric_hdf5_v6(self, *, source_file, doric_path, duration_in_seconds):
+        temporary_path = doric_path + ".tmp"
+        with h5py.File(temporary_path, "w") as destination_file:
+            if "Configurations" in source_file:
+                source_file.copy("Configurations", destination_file)
+            self._copy_group_truncated(
+                source_group=source_file["DataAcquisition"],
+                destination_group=destination_file.require_group("DataAcquisition"),
+                duration_in_seconds=duration_in_seconds,
+            )
+        os.replace(temporary_path, doric_path)
+
+    def _copy_group_truncated(self, *, source_group, destination_group, duration_in_seconds):
+        if "Time" in source_group:
+            time_data = source_group["Time"][:]
+            cutoff_index = int(np.searchsorted(time_data, time_data[0] + duration_in_seconds, side="right"))
+            for key in source_group:
+                destination_group.create_dataset(key, data=source_group[key][:cutoff_index])
+        else:
+            for key in source_group:
+                item = source_group[key]
+                if isinstance(item, h5py.Group):
+                    self._copy_group_truncated(
+                        source_group=item,
+                        destination_group=destination_group.require_group(key),
+                        duration_in_seconds=duration_in_seconds,
+                    )
+                else:
+                    destination_group.create_dataset(key, data=item[:])
 
     def _stub_doric_csv(self, *, folder_path, duration_in_seconds):
         csv_paths = glob.glob(os.path.join(folder_path, "*.csv"))
