@@ -85,7 +85,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         return df, flag
 
     def _readtev(self, event):
-        data = self._header_df
+        data = self._header_df.copy()
         filepath = self.folder_path
 
         logger.debug("Reading data for event {} ...".format(event))

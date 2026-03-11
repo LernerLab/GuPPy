@@ -90,3 +90,45 @@ class TestTdtRecordingExtractor(RecordingExtractorTestMixin):
         with tempfile.TemporaryDirectory() as tmp:
             result = self.extractor_instance.read(events=["PrtN"], outputPath=tmp)
         return result[0]["timestamps"]
+
+    def test_stub_data_matches_original(self, tmp_path):
+        original_result = self.extractor_instance.read(events=["Dv1A"], outputPath=str(tmp_path))
+        original_data = original_result[0]["data"]
+        original_timestamps = original_result[0]["timestamps"]
+
+        stub_folder_path = tmp_path / "stubbed"
+        self.extractor_instance.stub(
+            stub_folder_path=stub_folder_path,
+            stream_name_to_num_segments={"Dv1A": 2},
+        )
+        stubbed_extractor = TdtRecordingExtractor(folder_path=stub_folder_path)
+        stubbed_result = stubbed_extractor.read(events=["Dv1A"], outputPath=str(tmp_path))
+        stubbed_data = stubbed_result[0]["data"]
+        stubbed_timestamps = stubbed_result[0]["timestamps"]
+
+        np.testing.assert_array_equal(stubbed_data, original_data[: len(stubbed_data)])
+        np.testing.assert_array_equal(stubbed_timestamps, original_timestamps[: len(stubbed_timestamps)])
+
+    def test_stub_idempotent(self, tmp_path):
+        stub_folder_path = tmp_path / "stubbed"
+        stream_name_to_num_segments = {"Dv1A": 2}
+
+        self.extractor_instance.stub(
+            stub_folder_path=stub_folder_path,
+            stream_name_to_num_segments=stream_name_to_num_segments,
+        )
+        first_result = TdtRecordingExtractor(folder_path=stub_folder_path).read(
+            events=["Dv1A"], outputPath=str(tmp_path)
+        )
+        first_data = first_result[0]["data"]
+
+        self.extractor_instance.stub(
+            stub_folder_path=stub_folder_path,
+            stream_name_to_num_segments=stream_name_to_num_segments,
+        )
+        second_result = TdtRecordingExtractor(folder_path=stub_folder_path).read(
+            events=["Dv1A"], outputPath=str(tmp_path)
+        )
+        second_data = second_result[0]["data"]
+
+        np.testing.assert_array_equal(first_data, second_data)
