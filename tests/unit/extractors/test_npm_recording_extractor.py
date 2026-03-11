@@ -1,6 +1,7 @@
 """Contract tests for NpmRecordingExtractor."""
 
 import os
+import shutil
 
 import numpy as np
 import pandas as pd
@@ -181,33 +182,48 @@ class TestNpmRecordingExtractor(RecordingExtractorTestMixin):
     ttl_event = "event0"
     stub_ttl_test_duration_in_seconds = 100.0
 
+    # NPM's discover_events_and_flags writes intermediate per-channel CSVs (e.g.
+    # file0_chev1.csv, file0_chod1.csv) into folder_path as a side effect. Without
+    # isolation, parallel workers race on those files: one worker truncates a file to
+    # begin writing while another reads it, causing EmptyDataError. Each test therefore
+    # receives its own copy of the source folder so discovers and reads never collide.
+
     @pytest.fixture
-    def expected_control_timestamps(self):
-        # discover must run first to create the intermediate CSV files that read() depends on
-        NpmRecordingExtractor.discover_events_and_flags(self.folder_path, num_ch=2, inputParameters={})
-        result = self.extractor_instance.read(events=["file0_chod1"], outputPath="")
+    def isolated_folder_path(self, tmp_path):
+        destination = tmp_path / "npm_data"
+        shutil.copytree(self.folder_path, destination)
+        return destination
+
+    @pytest.fixture
+    def isolated_extractor_instance(self, isolated_folder_path):
+        return NpmRecordingExtractor(isolated_folder_path)
+
+    @pytest.fixture
+    def expected_control_timestamps(self, isolated_folder_path, isolated_extractor_instance):
+        NpmRecordingExtractor.discover_events_and_flags(isolated_folder_path, num_ch=2, inputParameters={})
+        result = isolated_extractor_instance.read(events=["file0_chod1"], outputPath="")
         return result[0]["timestamps"]
 
     @pytest.fixture
-    def expected_control_data(self):
-        NpmRecordingExtractor.discover_events_and_flags(self.folder_path, num_ch=2, inputParameters={})
-        result = self.extractor_instance.read(events=["file0_chod1"], outputPath="")
+    def expected_control_data(self, isolated_folder_path, isolated_extractor_instance):
+        NpmRecordingExtractor.discover_events_and_flags(isolated_folder_path, num_ch=2, inputParameters={})
+        result = isolated_extractor_instance.read(events=["file0_chod1"], outputPath="")
         return result[0]["data"]
 
     @pytest.fixture
-    def expected_signal_timestamps(self):
-        NpmRecordingExtractor.discover_events_and_flags(self.folder_path, num_ch=2, inputParameters={})
-        result = self.extractor_instance.read(events=["file0_chev1"], outputPath="")
+    def expected_signal_timestamps(self, isolated_folder_path, isolated_extractor_instance):
+        NpmRecordingExtractor.discover_events_and_flags(isolated_folder_path, num_ch=2, inputParameters={})
+        result = isolated_extractor_instance.read(events=["file0_chev1"], outputPath="")
         return result[0]["timestamps"]
 
     @pytest.fixture
-    def expected_signal_data(self):
-        NpmRecordingExtractor.discover_events_and_flags(self.folder_path, num_ch=2, inputParameters={})
-        result = self.extractor_instance.read(events=["file0_chev1"], outputPath="")
+    def expected_signal_data(self, isolated_folder_path, isolated_extractor_instance):
+        NpmRecordingExtractor.discover_events_and_flags(isolated_folder_path, num_ch=2, inputParameters={})
+        result = isolated_extractor_instance.read(events=["file0_chev1"], outputPath="")
         return result[0]["data"]
 
     @pytest.fixture
-    def expected_ttl_timestamps(self):
-        NpmRecordingExtractor.discover_events_and_flags(self.folder_path, num_ch=2, inputParameters={})
-        result = self.extractor_instance.read(events=["event0"], outputPath="")
+    def expected_ttl_timestamps(self, isolated_folder_path, isolated_extractor_instance):
+        NpmRecordingExtractor.discover_events_and_flags(isolated_folder_path, num_ch=2, inputParameters={})
+        result = isolated_extractor_instance.read(events=["event0"], outputPath="")
         return result[0]["timestamps"]

@@ -1,5 +1,7 @@
 """Mixin of contract tests for BaseRecordingExtractor subclasses."""
 
+from pathlib import Path
+
 import h5py
 import numpy as np
 import pytest
@@ -61,37 +63,52 @@ class RecordingExtractorTestMixin:
     def expected_ttl_timestamps(self):
         raise NotImplementedError("Child test classes must implement expected_ttl_timestamps.")
 
+    # These two fixtures exist so that NPM can override them to provide per-test
+    # isolated copies of the data folder. NPM's discover_events_and_flags writes
+    # intermediate per-channel CSVs into folder_path as a side effect; when tests
+    # run in parallel, multiple workers race on those files and produce
+    # EmptyDataError. All other extractors have read-only discover implementations
+    # and can safely use the shared static folder.
+
+    @pytest.fixture
+    def isolated_folder_path(self):
+        return Path(self.folder_path)
+
+    @pytest.fixture
+    def isolated_extractor_instance(self, isolated_folder_path):
+        return self.extractor_instance
+
     # --- discover tests ---
 
-    def test_discover_returns_two_element_tuple(self):
-        result = self.extractor_class.discover_events_and_flags(self.folder_path, **self.discover_kwargs)
+    def test_discover_returns_two_element_tuple(self, isolated_folder_path):
+        result = self.extractor_class.discover_events_and_flags(isolated_folder_path, **self.discover_kwargs)
         assert isinstance(result, tuple)
         assert len(result) == 2
 
-    def test_discover_first_element_is_list_of_strings(self):
-        events, _ = self.extractor_class.discover_events_and_flags(self.folder_path, **self.discover_kwargs)
+    def test_discover_first_element_is_list_of_strings(self, isolated_folder_path):
+        events, _ = self.extractor_class.discover_events_and_flags(isolated_folder_path, **self.discover_kwargs)
         assert isinstance(events, list)
         assert all(isinstance(event, str) for event in events)
 
-    def test_discover_second_element_is_list_of_strings(self):
-        _, flags = self.extractor_class.discover_events_and_flags(self.folder_path, **self.discover_kwargs)
+    def test_discover_second_element_is_list_of_strings(self, isolated_folder_path):
+        _, flags = self.extractor_class.discover_events_and_flags(isolated_folder_path, **self.discover_kwargs)
         assert isinstance(flags, list)
         assert all(isinstance(flag, str) for flag in flags)
 
-    def test_discover_includes_expected_events(self):
-        events, _ = self.extractor_class.discover_events_and_flags(self.folder_path, **self.discover_kwargs)
+    def test_discover_includes_expected_events(self, isolated_folder_path):
+        events, _ = self.extractor_class.discover_events_and_flags(isolated_folder_path, **self.discover_kwargs)
         for expected_event in self.expected_events:
             assert expected_event in events
 
     # --- read tests ---
 
-    def test_read_returns_list_of_dicts(self, tmp_path):
-        result = self.extractor_instance.read(events=self.expected_events, outputPath=str(tmp_path))
+    def test_read_returns_list_of_dicts(self, tmp_path, isolated_extractor_instance):
+        result = isolated_extractor_instance.read(events=self.expected_events, outputPath=str(tmp_path))
         assert isinstance(result, list)
         assert all(isinstance(output_dict, dict) for output_dict in result)
 
-    def test_read_output_dicts_have_storename_string(self, tmp_path):
-        result = self.extractor_instance.read(events=self.expected_events, outputPath=str(tmp_path))
+    def test_read_output_dicts_have_storename_string(self, tmp_path, isolated_extractor_instance):
+        result = isolated_extractor_instance.read(events=self.expected_events, outputPath=str(tmp_path))
         for output_dict in result:
             assert "storename" in output_dict
             assert isinstance(output_dict["storename"], str)
@@ -99,17 +116,17 @@ class RecordingExtractorTestMixin:
 
     # --- save tests ---
 
-    def test_save_produces_hdf5_files(self, tmp_path):
-        output_dicts = self.extractor_instance.read(events=self.expected_events, outputPath=str(tmp_path))
-        self.extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
+    def test_save_produces_hdf5_files(self, tmp_path, isolated_extractor_instance):
+        output_dicts = isolated_extractor_instance.read(events=self.expected_events, outputPath=str(tmp_path))
+        isolated_extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
 
         for output_dict in output_dicts:
             sanitized_storename = output_dict["storename"].replace("\\", "_").replace("/", "_")
             assert (tmp_path / f"{sanitized_storename}.hdf5").exists()
 
-    def test_save_hdf5_has_timestamps_dataset(self, tmp_path):
-        output_dicts = self.extractor_instance.read(events=self.expected_events, outputPath=str(tmp_path))
-        self.extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
+    def test_save_hdf5_has_timestamps_dataset(self, tmp_path, isolated_extractor_instance):
+        output_dicts = isolated_extractor_instance.read(events=self.expected_events, outputPath=str(tmp_path))
+        isolated_extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
 
         for output_dict in output_dicts:
             sanitized_storename = output_dict["storename"].replace("\\", "_").replace("/", "_")
@@ -118,41 +135,45 @@ class RecordingExtractorTestMixin:
 
     # --- roundtrip tests ---
 
-    def test_roundtrip_control_timestamps_preserved(self, tmp_path, expected_control_timestamps):
-        output_dicts = self.extractor_instance.read(events=[self.control_event], outputPath=str(tmp_path))
-        self.extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
+    def test_roundtrip_control_timestamps_preserved(
+        self, tmp_path, isolated_extractor_instance, expected_control_timestamps
+    ):
+        output_dicts = isolated_extractor_instance.read(events=[self.control_event], outputPath=str(tmp_path))
+        isolated_extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
 
         sanitized_storename = self.control_event.replace("\\", "_").replace("/", "_")
         with h5py.File(tmp_path / f"{sanitized_storename}.hdf5", "r") as file:
             np.testing.assert_array_equal(file["timestamps"][:], expected_control_timestamps)
 
-    def test_roundtrip_control_data_preserved(self, tmp_path, expected_control_data):
-        output_dicts = self.extractor_instance.read(events=[self.control_event], outputPath=str(tmp_path))
-        self.extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
+    def test_roundtrip_control_data_preserved(self, tmp_path, isolated_extractor_instance, expected_control_data):
+        output_dicts = isolated_extractor_instance.read(events=[self.control_event], outputPath=str(tmp_path))
+        isolated_extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
 
         sanitized_storename = self.control_event.replace("\\", "_").replace("/", "_")
         with h5py.File(tmp_path / f"{sanitized_storename}.hdf5", "r") as file:
             np.testing.assert_array_equal(file["data"][:], expected_control_data)
 
-    def test_roundtrip_signal_timestamps_preserved(self, tmp_path, expected_signal_timestamps):
-        output_dicts = self.extractor_instance.read(events=[self.signal_event], outputPath=str(tmp_path))
-        self.extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
+    def test_roundtrip_signal_timestamps_preserved(
+        self, tmp_path, isolated_extractor_instance, expected_signal_timestamps
+    ):
+        output_dicts = isolated_extractor_instance.read(events=[self.signal_event], outputPath=str(tmp_path))
+        isolated_extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
 
         sanitized_storename = self.signal_event.replace("\\", "_").replace("/", "_")
         with h5py.File(tmp_path / f"{sanitized_storename}.hdf5", "r") as file:
             np.testing.assert_array_equal(file["timestamps"][:], expected_signal_timestamps)
 
-    def test_roundtrip_signal_data_preserved(self, tmp_path, expected_signal_data):
-        output_dicts = self.extractor_instance.read(events=[self.signal_event], outputPath=str(tmp_path))
-        self.extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
+    def test_roundtrip_signal_data_preserved(self, tmp_path, isolated_extractor_instance, expected_signal_data):
+        output_dicts = isolated_extractor_instance.read(events=[self.signal_event], outputPath=str(tmp_path))
+        isolated_extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
 
         sanitized_storename = self.signal_event.replace("\\", "_").replace("/", "_")
         with h5py.File(tmp_path / f"{sanitized_storename}.hdf5", "r") as file:
             np.testing.assert_array_equal(file["data"][:], expected_signal_data)
 
-    def test_roundtrip_ttl_timestamps_preserved(self, tmp_path, expected_ttl_timestamps):
-        output_dicts = self.extractor_instance.read(events=[self.ttl_event], outputPath=str(tmp_path))
-        self.extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
+    def test_roundtrip_ttl_timestamps_preserved(self, tmp_path, isolated_extractor_instance, expected_ttl_timestamps):
+        output_dicts = isolated_extractor_instance.read(events=[self.ttl_event], outputPath=str(tmp_path))
+        isolated_extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
 
         sanitized_storename = self.ttl_event.replace("\\", "_").replace("/", "_")
         with h5py.File(tmp_path / f"{sanitized_storename}.hdf5", "r") as file:
@@ -160,13 +181,13 @@ class RecordingExtractorTestMixin:
 
     # --- stub tests ---
 
-    def test_stub_data_matches_original(self, tmp_path):
-        original_result = self.extractor_instance.read(events=[self.control_event], outputPath=str(tmp_path))
+    def test_stub_data_matches_original(self, tmp_path, isolated_extractor_instance):
+        original_result = isolated_extractor_instance.read(events=[self.control_event], outputPath=str(tmp_path))
         original_data = original_result[0]["data"]
         original_timestamps = original_result[0]["timestamps"]
 
         stub_folder_path = tmp_path / "stubbed"
-        self.extractor_instance.stub(folder_path=stub_folder_path)
+        isolated_extractor_instance.stub(folder_path=stub_folder_path)
         stubbed_extractor = self.extractor_class(folder_path=stub_folder_path)
         stubbed_result = stubbed_extractor.read(events=[self.control_event], outputPath=str(tmp_path))
 
@@ -175,30 +196,32 @@ class RecordingExtractorTestMixin:
             stubbed_result[0]["timestamps"], original_timestamps[: len(stubbed_result[0]["timestamps"])]
         )
 
-    def test_stub_idempotent(self, tmp_path):
+    def test_stub_idempotent(self, tmp_path, isolated_extractor_instance):
         stub_folder_path = tmp_path / "stubbed"
 
-        self.extractor_instance.stub(folder_path=stub_folder_path)
+        isolated_extractor_instance.stub(folder_path=stub_folder_path)
         first_result = self.extractor_class(folder_path=stub_folder_path).read(
             events=[self.control_event], outputPath=str(tmp_path)
         )
 
-        self.extractor_instance.stub(folder_path=stub_folder_path)
+        isolated_extractor_instance.stub(folder_path=stub_folder_path)
         second_result = self.extractor_class(folder_path=stub_folder_path).read(
             events=[self.control_event], outputPath=str(tmp_path)
         )
 
         np.testing.assert_array_equal(first_result[0]["data"], second_result[0]["data"])
 
-    def test_stub_ttl_timestamps_within_duration(self, tmp_path):
-        original_control_result = self.extractor_instance.read(events=[self.control_event], outputPath=str(tmp_path))
+    def test_stub_ttl_timestamps_within_duration(self, tmp_path, isolated_extractor_instance):
+        original_control_result = isolated_extractor_instance.read(
+            events=[self.control_event], outputPath=str(tmp_path)
+        )
         first_continuous_timestamp = original_control_result[0]["timestamps"][0]
         cutoff_timestamp = first_continuous_timestamp + self.stub_ttl_test_duration_in_seconds
 
-        original_ttl_result = self.extractor_instance.read(events=[self.ttl_event], outputPath=str(tmp_path))
+        original_ttl_result = isolated_extractor_instance.read(events=[self.ttl_event], outputPath=str(tmp_path))
 
         stub_folder_path = tmp_path / "stubbed"
-        self.extractor_instance.stub(
+        isolated_extractor_instance.stub(
             folder_path=stub_folder_path, duration_in_seconds=self.stub_ttl_test_duration_in_seconds
         )
         stubbed_extractor = self.extractor_class(folder_path=stub_folder_path)
@@ -209,9 +232,9 @@ class RecordingExtractorTestMixin:
         assert np.all(np.isin(stubbed_ttl_result[0]["timestamps"], original_ttl_result[0]["timestamps"]))
 
     @pytest.mark.parametrize("stub_duration_in_seconds", [0.5, 1.0, 2.0])
-    def test_stub_duration(self, tmp_path, stub_duration_in_seconds):
+    def test_stub_duration(self, tmp_path, isolated_extractor_instance, stub_duration_in_seconds):
         stub_folder_path = tmp_path / "stubbed"
-        self.extractor_instance.stub(folder_path=stub_folder_path, duration_in_seconds=stub_duration_in_seconds)
+        isolated_extractor_instance.stub(folder_path=stub_folder_path, duration_in_seconds=stub_duration_in_seconds)
         stubbed_extractor = self.extractor_class(folder_path=stub_folder_path)
         stubbed_result = stubbed_extractor.read(events=[self.control_event], outputPath=str(tmp_path))
 
