@@ -104,6 +104,8 @@ class TestDoricRecordingExtractor(RecordingExtractorTestMixin):
     control_event = "AIn-1 - Raw"
     signal_event = "AIn-2 - Raw"
     ttl_event = "DI--O-1"
+    stub_ttl_test_duration_in_seconds = 100.0
+    stub_extractor_kwargs = {"event_name_to_event_type": _EVENT_NAME_TO_EVENT_TYPE}
 
     @pytest.fixture
     def expected_control_timestamps(self):

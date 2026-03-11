@@ -26,6 +26,12 @@ class RecordingExtractorTestMixin:
         An initialized instance of the extractor under test. Can be a class
         variable when the extractor has no mutable state, or set in
         ``setup_method`` when a fresh instance per test is needed.
+    stub_extractor_kwargs : dict
+        Extra keyword arguments passed to the extractor constructor when
+        instantiating from a stubbed folder in the stub contract tests.
+        Use ``{}`` for extractors whose constructor only needs ``folder_path``;
+        override for extractors that require additional arguments (e.g. Doric
+        needs ``event_name_to_event_type``).
     control_event : str
         Event name for the control channel (timestamps + data).
     signal_event : str
@@ -42,6 +48,8 @@ class RecordingExtractorTestMixin:
     expected_control_timestamps, expected_control_data,
     expected_signal_timestamps, expected_signal_data, expected_ttl_timestamps.
     """
+
+    stub_extractor_kwargs = {}
 
     @pytest.fixture
     def expected_control_timestamps(self):
@@ -188,7 +196,7 @@ class RecordingExtractorTestMixin:
 
         stub_folder_path = tmp_path / "stubbed"
         isolated_extractor_instance.stub(folder_path=stub_folder_path)
-        stubbed_extractor = self.extractor_class(folder_path=stub_folder_path)
+        stubbed_extractor = self.extractor_class(folder_path=stub_folder_path, **self.stub_extractor_kwargs)
         stubbed_result = stubbed_extractor.read(events=[self.control_event], outputPath=str(tmp_path))
 
         np.testing.assert_array_equal(stubbed_result[0]["data"], original_data[: len(stubbed_result[0]["data"])])
@@ -200,12 +208,12 @@ class RecordingExtractorTestMixin:
         stub_folder_path = tmp_path / "stubbed"
 
         isolated_extractor_instance.stub(folder_path=stub_folder_path)
-        first_result = self.extractor_class(folder_path=stub_folder_path).read(
+        first_result = self.extractor_class(folder_path=stub_folder_path, **self.stub_extractor_kwargs).read(
             events=[self.control_event], outputPath=str(tmp_path)
         )
 
         isolated_extractor_instance.stub(folder_path=stub_folder_path)
-        second_result = self.extractor_class(folder_path=stub_folder_path).read(
+        second_result = self.extractor_class(folder_path=stub_folder_path, **self.stub_extractor_kwargs).read(
             events=[self.control_event], outputPath=str(tmp_path)
         )
 
@@ -224,7 +232,7 @@ class RecordingExtractorTestMixin:
         isolated_extractor_instance.stub(
             folder_path=stub_folder_path, duration_in_seconds=self.stub_ttl_test_duration_in_seconds
         )
-        stubbed_extractor = self.extractor_class(folder_path=stub_folder_path)
+        stubbed_extractor = self.extractor_class(folder_path=stub_folder_path, **self.stub_extractor_kwargs)
         stubbed_ttl_result = stubbed_extractor.read(events=[self.ttl_event], outputPath=str(tmp_path))
 
         assert np.all(stubbed_ttl_result[0]["timestamps"] <= cutoff_timestamp)
@@ -235,7 +243,7 @@ class RecordingExtractorTestMixin:
     def test_stub_duration(self, tmp_path, isolated_extractor_instance, stub_duration_in_seconds):
         stub_folder_path = tmp_path / "stubbed"
         isolated_extractor_instance.stub(folder_path=stub_folder_path, duration_in_seconds=stub_duration_in_seconds)
-        stubbed_extractor = self.extractor_class(folder_path=stub_folder_path)
+        stubbed_extractor = self.extractor_class(folder_path=stub_folder_path, **self.stub_extractor_kwargs)
         stubbed_result = stubbed_extractor.read(events=[self.control_event], outputPath=str(tmp_path))
 
         duration_in_seconds = stubbed_result[0]["timestamps"][-1] - stubbed_result[0]["timestamps"][0]

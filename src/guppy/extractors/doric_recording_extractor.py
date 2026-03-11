@@ -2,7 +2,9 @@ import glob
 import logging
 import os
 import re
+import shutil
 import warnings
+from pathlib import Path
 from typing import Any
 
 import h5py
@@ -294,7 +296,83 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
         return output_dicts
 
     def stub(self, *, folder_path, duration_in_seconds=1.0):
-        raise NotImplementedError("stub() is not yet implemented for DoricRecordingExtractor")
+        """
+        Create a stubbed copy of the Doric folder truncated to a short duration.
+
+        Copies the source folder to `folder_path`, then rewrites the Doric data
+        file so that only the first `duration_in_seconds` of recorded data are
+        retained. Supports V1 (.doric HDF5) and CSV (doric_csv) formats. V6
+        HDF5 format is not yet supported.
+
+        Parameters
+        ----------
+        folder_path : str or Path
+            Destination directory for the stubbed folder. Created if it does
+            not exist; overwritten if it already exists.
+        duration_in_seconds : float, optional
+            Approximate duration of data to retain in seconds. Default is 1.0.
+        """
+        folder_path = Path(folder_path)
+        if folder_path.exists():
+            shutil.rmtree(folder_path)
+        shutil.copytree(self.folder_path, folder_path)
+
+        flag = self._check_doric()
+        if flag == "doric_doric":
+            self._stub_doric_hdf5(folder_path=folder_path, duration_in_seconds=duration_in_seconds)
+        elif flag == "doric_csv":
+            self._stub_doric_csv(folder_path=folder_path, duration_in_seconds=duration_in_seconds)
+
+    def _stub_doric_hdf5(self, *, folder_path, duration_in_seconds):
+        doric_paths = glob.glob(os.path.join(folder_path, "*.doric"))
+        doric_path = doric_paths[0]
+
+        with h5py.File(doric_path, "r") as source_file:
+            if "Traces" in list(source_file.keys()):
+                self._stub_doric_hdf5_v1(
+                    source_file=source_file, doric_path=doric_path, duration_in_seconds=duration_in_seconds
+                )
+            else:
+                raise NotImplementedError("stub() does not yet support Doric V6 HDF5 format")
+
+    def _stub_doric_hdf5_v1(self, *, source_file, doric_path, duration_in_seconds):
+        timestamps = np.array(source_file["Traces"]["Console"]["Time(s)"]["Console_time(s)"])
+        cutoff_timestamp = timestamps[0] + duration_in_seconds
+        cutoff_index = int(np.searchsorted(timestamps, cutoff_timestamp, side="right"))
+
+        channel_keys = list(source_file["Traces"]["Console"].keys())
+        channel_keys.remove("Time(s)")
+
+        channel_data = {}
+        for key in channel_keys:
+            channel_data[key] = np.array(source_file["Traces"]["Console"][key][key])
+
+        temporary_path = doric_path + ".tmp"
+        with h5py.File(temporary_path, "w") as destination_file:
+            console = destination_file.require_group("Traces/Console")
+            time_group = console.require_group("Time(s)")
+            time_group.create_dataset("Console_time(s)", data=timestamps[:cutoff_index])
+            for key in channel_keys:
+                channel_group = console.require_group(key)
+                channel_group.create_dataset(key, data=channel_data[key][:cutoff_index])
+
+        os.replace(temporary_path, doric_path)
+
+    def _stub_doric_csv(self, *, folder_path, duration_in_seconds):
+        csv_paths = glob.glob(os.path.join(folder_path, "*.csv"))
+        csv_path = csv_paths[0]
+
+        # Row 0 is the channel descriptor row; row 1 is the column name row (header=1 skips both)
+        header_rows = pd.read_csv(csv_path, header=None, nrows=2, index_col=False, dtype=str)
+        dataframe = pd.read_csv(csv_path, header=1, index_col=False)
+        dataframe = dataframe.dropna(axis=1, how="all")
+
+        cutoff_timestamp = dataframe["Time(s)"].iloc[0] + duration_in_seconds
+        dataframe = dataframe[dataframe["Time(s)"] <= cutoff_timestamp]
+
+        with open(csv_path, "w") as file:
+            header_rows.to_csv(file, index=False, header=False)
+            dataframe.to_csv(file, index=False, header=True)
 
     def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str) -> None:
         for S in output_dicts:
