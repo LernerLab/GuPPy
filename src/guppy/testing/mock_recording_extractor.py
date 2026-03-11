@@ -75,6 +75,9 @@ class MockRecordingExtractor(BaseRecordingExtractor):
             )
         return output_dicts
 
+    def stub(self, *, folder_path, duration_in_seconds=1.0):
+        raise NotImplementedError("stub() is not implemented for MockRecordingExtractor")
+
     def save(self, *, output_dicts: list[dict], outputPath: str) -> None:
         """
         Write each output dict to an HDF5 file via ``_write_hdf5``.

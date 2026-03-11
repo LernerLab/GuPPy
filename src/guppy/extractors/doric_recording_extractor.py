@@ -293,6 +293,9 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
 
         return output_dicts
 
+    def stub(self, *, folder_path, duration_in_seconds=1.0):
+        raise NotImplementedError("stub() is not yet implemented for DoricRecordingExtractor")
+
     def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str) -> None:
         for S in output_dicts:
             storename = S["storename"]
