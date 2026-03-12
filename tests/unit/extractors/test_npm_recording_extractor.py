@@ -168,12 +168,12 @@ def test_needs_ts_unit_multiple_timestamp_columns_returns_true(tmp_path):
     assert col_names_ts == ["", "SystemTimestamp", "ComputerTimestamp"]
 
 
-_STUBBED_TESTING_DATA = os.path.join(os.path.dirname(__file__), "..", "..", "..", "stubbed_testing_data")
+from conftest import STUBBED_TESTING_DATA
 
 
 class TestNpmRecordingExtractor(RecordingExtractorTestMixin):
     extractor_class = NpmRecordingExtractor
-    folder_path = os.path.join(_STUBBED_TESTING_DATA, "npm", "sampleData_NPM_1")
+    folder_path = os.path.join(STUBBED_TESTING_DATA, "npm", "sampleData_NPM_1")
     extractor_instance = NpmRecordingExtractor(folder_path)
     expected_events = ["file0_chev1", "file0_chod1", "event0"]
     discover_kwargs = {"num_ch": 2, "inputParameters": {}}
@@ -316,7 +316,7 @@ class TestNpmRecordingExtractor(RecordingExtractorTestMixin):
 
 class TestNpmRecordingExtractorSession3(RecordingExtractorTestMixin):
     extractor_class = NpmRecordingExtractor
-    folder_path = os.path.join(_STUBBED_TESTING_DATA, "npm", "sampleData_NPM_3")
+    folder_path = os.path.join(STUBBED_TESTING_DATA, "npm", "sampleData_NPM_3")
     extractor_instance = NpmRecordingExtractor(folder_path)
     expected_events = ["file0_chev1", "file0_chod1", "event0"]
     discover_kwargs = {"num_ch": 2, "inputParameters": {}}

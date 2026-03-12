@@ -86,7 +86,7 @@ def test_access_keys_doricV6_excludes_time_datasets(tmp_path):
     assert set(keys) == {"Signals/Region0G", "Signals/Region1G"}
 
 
-_STUBBED_TESTING_DATA = os.path.join(os.path.dirname(__file__), "..", "..", "..", "stubbed_testing_data")
+from conftest import STUBBED_TESTING_DATA
 
 _EVENT_NAME_TO_EVENT_TYPE = {
     "AIn-1 - Raw": "control",
@@ -97,7 +97,7 @@ _EVENT_NAME_TO_EVENT_TYPE = {
 
 class TestDoricRecordingExtractor(RecordingExtractorTestMixin):
     extractor_class = DoricRecordingExtractor
-    folder_path = os.path.join(_STUBBED_TESTING_DATA, "doric", "sample_doric_1")
+    folder_path = os.path.join(STUBBED_TESTING_DATA, "doric", "sample_doric_1")
     extractor_instance = DoricRecordingExtractor(folder_path, _EVENT_NAME_TO_EVENT_TYPE)
     expected_events = ["AIn-1 - Raw", "AIn-2 - Raw", "DI--O-1"]
     discover_kwargs = {}
@@ -142,7 +142,7 @@ _EVENT_NAME_TO_EVENT_TYPE_V6 = {
 
 class TestDoricRecordingExtractorV6(RecordingExtractorTestMixin):
     extractor_class = DoricRecordingExtractor
-    folder_path = os.path.join(_STUBBED_TESTING_DATA, "doric", "sample_doric_3")
+    folder_path = os.path.join(STUBBED_TESTING_DATA, "doric", "sample_doric_3")
     extractor_instance = DoricRecordingExtractor(folder_path, _EVENT_NAME_TO_EVENT_TYPE_V6)
     expected_events = ["CAM1_EXC1/ROI01", "CAM1_EXC2/ROI01", "DigitalIO/CAM1"]
     discover_kwargs = {}

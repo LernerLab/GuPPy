@@ -47,12 +47,12 @@ def test_event_needs_splitting(data, sampling_rate, expected):
     assert TdtRecordingExtractor._event_needs_splitting(data=data, sampling_rate=sampling_rate) == expected
 
 
-_STUBBED_TESTING_DATA = os.path.join(os.path.dirname(__file__), "..", "..", "..", "stubbed_testing_data")
+from conftest import STUBBED_TESTING_DATA
 
 
 class TestTdtRecordingExtractor(RecordingExtractorTestMixin):
     extractor_class = TdtRecordingExtractor
-    folder_path = os.path.join(_STUBBED_TESTING_DATA, "tdt", "Photo_63_207-181030-103332")
+    folder_path = os.path.join(STUBBED_TESTING_DATA, "tdt", "Photo_63_207-181030-103332")
     extractor_instance = TdtRecordingExtractor(folder_path)
     expected_events = ["Dv1A", "Dv2A", "PrtN"]
     discover_kwargs = {}

@@ -1,11 +1,11 @@
 import glob
 import os
 import shutil
-from pathlib import Path
 
 import h5py
 import numpy as np
 import pytest
+from conftest import STUBBED_TESTING_DATA
 
 from guppy.testing.api import step2, step3, step4, step5
 
@@ -59,7 +59,7 @@ def test_mixed_modality_tdt_csv_ttl(tmp_path):
     folder alongside the TDT binary files. The pipeline auto-detects both formats and routes
     TDT stores to TdtRecordingExtractor and the CSV event file to CsvRecordingExtractor.
     """
-    src_base_dir = str(Path(".") / "stubbed_testing_data")
+    src_base_dir = str(STUBBED_TESTING_DATA)
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
@@ -98,7 +98,7 @@ def test_mixed_modality_doric_csv_ttl(tmp_path):
 
     The Doric recording window for sample_doric_3 runs from 0 to ~1811 seconds (relative time).
     """
-    src_base_dir = str(Path(".") / "stubbed_testing_data")
+    src_base_dir = str(STUBBED_TESTING_DATA)
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
@@ -142,7 +142,7 @@ def test_mixed_modality_npm_csv_ttl(tmp_path):
     NPM_1 photometry timestamps are rescaled to relative seconds (~0–1858 s). The external
     event CSV uses timestamps in that same relative domain so PSTH alignment succeeds.
     """
-    src_base_dir = str(Path(".") / "stubbed_testing_data")
+    src_base_dir = str(STUBBED_TESTING_DATA)
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)
 

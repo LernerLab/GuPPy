@@ -1,14 +1,12 @@
 import glob
 import os
 import shutil
-from pathlib import Path
 
 import pytest
+from conftest import TESTING_DATA
 
 from guppy.testing import compare_output_folders
 from guppy.testing.api import step2, step3, step4, step5
-
-TESTING_DATA = Path(".") / "testing_data"
 
 SESSION_SUBDIRS = [
     "SampleData_Clean/Photo_63_207-181030-103332",

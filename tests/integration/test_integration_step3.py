@@ -2,10 +2,10 @@ import csv
 import glob
 import os
 import shutil
-from pathlib import Path
 
 import h5py
 import pytest
+from conftest import STUBBED_TESTING_DATA
 
 from guppy.testing.api import step2, step3
 
@@ -176,7 +176,7 @@ def test_step3(tmp_path, storenames_map, session_subdir):
     if session_subdir == "npm/sampleData_NPM_5":
         npm_split_events = None
 
-    src_base_dir = str(Path(".") / "stubbed_testing_data")
+    src_base_dir = str(STUBBED_TESTING_DATA)
     src_session = os.path.join(src_base_dir, session_subdir)
 
     assert os.path.isdir(src_session), f"Sample data not available at expected path: {src_session}"

@@ -1,15 +1,13 @@
 import glob
 import os
 import shutil
-from pathlib import Path
 
 import h5py
 import numpy as np
 import pytest
+from conftest import STUBBED_TESTING_DATA as TESTING_DATA
 
 from guppy.testing.api import step2, step3, step4, step5
-
-TESTING_DATA = Path(".") / "stubbed_testing_data"
 
 SESSION_SUBDIR = "tdt/Photo_048_392-200728-121222"
 STORENAMES_MAP = {

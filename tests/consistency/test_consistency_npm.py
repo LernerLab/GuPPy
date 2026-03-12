@@ -1,14 +1,12 @@
 import glob
 import os
 import shutil
-from pathlib import Path
 
 import pytest
+from conftest import TESTING_DATA
 
 from guppy.testing import compare_npm_session_files, compare_output_folders
 from guppy.testing.api import step2, step3, step4, step5
-
-TESTING_DATA = Path(".") / "testing_data"
 
 CONSISTENCY_CASES = [
     (

@@ -1,10 +1,10 @@
 import glob
 import os
 import shutil
-from pathlib import Path
 
 import h5py
 import pytest
+from conftest import STUBBED_TESTING_DATA
 
 from guppy.testing.api import step2, step3, step4, step5
 
@@ -36,7 +36,7 @@ def test_mixed_modality(tmp_path):
         "DigitalIO/CAM1": "ttl",
     }
 
-    src_base_dir = str(Path(".") / "stubbed_testing_data")
+    src_base_dir = str(STUBBED_TESTING_DATA)
     npm_src = os.path.join(src_base_dir, npm_session_subdir)
     doric_src = os.path.join(src_base_dir, doric_session_subdir)
 
@@ -126,7 +126,7 @@ def test_mixed_modality_tdt_doric(tmp_path):
     Each session uses its own acquisition format; modality is auto-detected per folder.
     Step 2 runs separately per session; steps 3–5 run together across both sessions.
     """
-    src_base_dir = str(Path(".") / "stubbed_testing_data")
+    src_base_dir = str(STUBBED_TESTING_DATA)
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
@@ -168,7 +168,7 @@ def test_mixed_modality_tdt_npm(tmp_path):
     Step 2 runs separately per session; steps 3–5 run together across both sessions.
     The NPM session (sampleData_NPM_4) uses split events.
     """
-    src_base_dir = str(Path(".") / "stubbed_testing_data")
+    src_base_dir = str(STUBBED_TESTING_DATA)
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
@@ -210,7 +210,7 @@ def test_mixed_modality_tdt_csv_data(tmp_path):
     Each session uses its own acquisition format; modality is auto-detected per folder.
     Step 2 runs separately per session; steps 3–5 run together across both sessions.
     """
-    src_base_dir = str(Path(".") / "stubbed_testing_data")
+    src_base_dir = str(STUBBED_TESTING_DATA)
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)
 

@@ -2,9 +2,9 @@ import csv
 import glob
 import os
 import shutil
-from pathlib import Path
 
 import pytest
+from conftest import STUBBED_TESTING_DATA
 
 from guppy.testing.api import step2
 
@@ -25,7 +25,7 @@ def test_step2_npm_idempotent(tmp_path):
         "eventTrue": "ttl_true_region1",
     }
 
-    src_base_dir = str(Path(".") / "stubbed_testing_data")
+    src_base_dir = str(STUBBED_TESTING_DATA)
     src_session = os.path.join(src_base_dir, session_subdir)
     if not os.path.isdir(src_session):
         pytest.skip(f"Sample data not available at expected path: {src_session}")
