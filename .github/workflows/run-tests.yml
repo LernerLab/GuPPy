@@ -11,9 +11,19 @@ on:
         description: 'List of OS versions to use in matrix, as JSON string'
         required: true
         type: string
+      load-data:
+        description: 'Whether to download full testing data via rclone'
+        required: false
+        type: boolean
+        default: true
+      skip-daily-only-tests:
+        description: 'Whether to skip tests marked daily_only'
+        required: false
+        type: boolean
+        default: false
     secrets:
       RCLONE_CONFIG:
-        required: true
+        required: false
       CODECOV_TOKEN:
         required: true
   workflow_dispatch:
@@ -28,6 +38,16 @@ on:
         required: true
         type: string
         default: '["ubuntu-latest", "windows-2022", "macos-latest"]'
+      load-data:
+        description: 'Whether to download full testing data via rclone'
+        required: false
+        type: boolean
+        default: true
+      skip-daily-only-tests:
+        description: 'Whether to skip tests marked daily_only'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   run:
@@ -54,12 +74,13 @@ jobs:
           python -m pip install --group test
 
       - name: Prepare data for tests
+        if: ${{ inputs.load-data }}
         uses: ./.github/actions/load-data
         with:
           rclone-config: ${{ secrets.RCLONE_CONFIG }}
 
       - name: Run tests
-        run: pytest tests -vv -rsx --dist loadscope --cov=guppy --cov-branch --cov-report=xml # TODO: add -n auto when tests no longer use multiprocessing
+        run: pytest tests -vv -rsx --dist loadscope --cov=guppy --cov-branch --cov-report=xml ${{ inputs.skip-daily-only-tests && '-m "not daily_only"' || '' }} # TODO: add -n auto when tests no longer use multiprocessing
       - name: Upload full coverage to Codecov
         if: ${{ matrix.python-version == '3.10' && matrix.os == 'ubuntu-latest' }}
         uses: codecov/codecov-action@v5

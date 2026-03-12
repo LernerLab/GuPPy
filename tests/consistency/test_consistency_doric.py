@@ -75,6 +75,7 @@ CONSISTENCY_CASES = [
         "sample_doric_5",
     ],
 )
+@pytest.mark.daily_only
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_consistency(
     tmp_path,

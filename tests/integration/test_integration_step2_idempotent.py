@@ -18,14 +18,14 @@ def test_step2_npm_idempotent(tmp_path):
     Without a fix, detect_acquisition_formats misidentifies the folder as "csv" on the second
     run, causing the wrong extractor to be used and the step to fail.
     """
-    session_subdir = "SampleData_Neurophotometrics/sampleData_NPM_4"
+    session_subdir = "npm/sampleData_NPM_4"
     storenames_map = {
         "file0_chev1": "control_region1",
         "file0_chod1": "signal_region1",
         "eventTrue": "ttl_true_region1",
     }
 
-    src_base_dir = str(Path(".") / "testing_data")
+    src_base_dir = str(Path(".") / "stubbed_testing_data")
     src_session = os.path.join(src_base_dir, session_subdir)
     if not os.path.isdir(src_session):
         pytest.skip(f"Sample data not available at expected path: {src_session}")

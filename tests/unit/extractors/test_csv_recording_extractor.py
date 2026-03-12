@@ -29,12 +29,12 @@ def test_check_header_returns_all_columns_and_numeric_conversions(columns, expec
     assert float_conversions == expected_floats
 
 
-_TESTING_DATA = os.path.join(os.path.dirname(__file__), "..", "..", "..", "testing_data")
+_STUBBED_TESTING_DATA = os.path.join(os.path.dirname(__file__), "..", "..", "..", "stubbed_testing_data")
 
 
 class TestCsvRecordingExtractor(RecordingExtractorTestMixin):
     extractor_class = CsvRecordingExtractor
-    folder_path = os.path.join(_TESTING_DATA, "SampleData_csv", "sample_data_csv_1")
+    folder_path = os.path.join(_STUBBED_TESTING_DATA, "csv", "sample_data_csv_1")
     extractor_instance = CsvRecordingExtractor(folder_path)
     expected_events = ["Sample_Control_Channel", "Sample_Signal_Channel", "Sample_TTL"]
     discover_kwargs = {}

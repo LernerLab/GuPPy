@@ -62,6 +62,7 @@ CONSISTENCY_CASES = [
         "artifacts_nan",
     ],
 )
+@pytest.mark.daily_only
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_consistency(
     tmp_path,

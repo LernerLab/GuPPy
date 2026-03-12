@@ -25,6 +25,7 @@ STORENAMES_MAP = {
 }
 
 
+@pytest.mark.daily_only
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_consistency_group_analysis(tmp_path):
     """

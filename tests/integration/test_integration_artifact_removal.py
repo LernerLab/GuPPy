@@ -9,9 +9,9 @@ import pytest
 
 from guppy.testing.api import step2, step3, step4, step5
 
-TESTING_DATA = Path(".") / "testing_data"
+TESTING_DATA = Path(".") / "stubbed_testing_data"
 
-SESSION_SUBDIR = "SampleData_with_artifacts/Photo_048_392-200728-121222"
+SESSION_SUBDIR = "tdt/Photo_048_392-200728-121222"
 STORENAMES_MAP = {
     "Dv1A": "control_dms",
     "Dv2A": "signal_dms",

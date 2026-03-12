@@ -13,7 +13,7 @@ from guppy.testing.api import step2, step3, step4, step5
     "session_subdir, storenames_map, expected_region, expected_ttl",
     [
         (
-            "SampleData_csv/sample_data_csv_1",
+            "csv/sample_data_csv_1",
             {
                 "Sample_Control_Channel": "control_region",
                 "Sample_Signal_Channel": "signal_region",
@@ -23,7 +23,7 @@ from guppy.testing.api import step2, step3, step4, step5
             "ttl",
         ),
         (
-            "SampleData_Doric/sample_doric_1",
+            "doric/sample_doric_1",
             {
                 "AIn-1 - Raw": "control_region",
                 "AIn-2 - Raw": "signal_region",
@@ -33,7 +33,7 @@ from guppy.testing.api import step2, step3, step4, step5
             "ttl",
         ),
         (
-            "SampleData_Doric/sample_doric_2",
+            "doric/sample_doric_2",
             {
                 "AIn-1 - Dem (ref)": "control_region",
                 "AIn-1 - Dem (da)": "signal_region",
@@ -43,7 +43,7 @@ from guppy.testing.api import step2, step3, step4, step5
             "ttl",
         ),
         (
-            "SampleData_Doric/sample_doric_3",
+            "doric/sample_doric_3",
             {
                 "CAM1_EXC1/ROI01": "control_region",
                 "CAM1_EXC2/ROI01": "signal_region",
@@ -53,7 +53,7 @@ from guppy.testing.api import step2, step3, step4, step5
             "ttl",
         ),
         (
-            "SampleData_Doric/sample_doric_4",
+            "doric/sample_doric_4",
             {
                 "Series0001/AIN01xAOUT01-LockIn": "control_region",
                 "Series0001/AIN01xAOUT02-LockIn": "signal_region",
@@ -62,7 +62,7 @@ from guppy.testing.api import step2, step3, step4, step5
             None,
         ),
         (
-            "SampleData_Doric/sample_doric_5",
+            "doric/sample_doric_5",
             {
                 "Series0001/AIN01xAOUT01-LockIn": "control_region",
                 "Series0001/AIN01xAOUT02-LockIn": "signal_region",
@@ -71,7 +71,7 @@ from guppy.testing.api import step2, step3, step4, step5
             None,
         ),
         (
-            "SampleData_Clean/Photo_63_207-181030-103332",
+            "tdt/Photo_63_207-181030-103332",
             {
                 "Dv1A": "control_dms",
                 "Dv2A": "signal_dms",
@@ -81,7 +81,7 @@ from guppy.testing.api import step2, step3, step4, step5
             "port_entries_dms",
         ),
         (
-            "SampleData_Clean/Photometry-161823",
+            "tdt/Photometry-161823",
             {
                 "405R": "control_region",
                 "490R": "signal_region",
@@ -91,7 +91,7 @@ from guppy.testing.api import step2, step3, step4, step5
             ["PAB_0", "PAB_16", "PAB_2064"],  # This session has an event which gets split into three sub-events.
         ),
         (
-            "SampleData_with_artifacts/Photo_048_392-200728-121222",
+            "tdt/Photo_048_392-200728-121222",
             {
                 "Dv1A": "control_dms",
                 "Dv2A": "signal_dms",
@@ -101,7 +101,7 @@ from guppy.testing.api import step2, step3, step4, step5
             "port_entries_dms",
         ),
         (
-            "SampleData_Neurophotometrics/sampleData_NPM_1",
+            "npm/sampleData_NPM_1",
             {
                 "file0_chev1": "signal_region",
                 "file0_chod1": "control_region",
@@ -110,7 +110,7 @@ from guppy.testing.api import step2, step3, step4, step5
             None,
         ),
         (
-            "SampleData_Neurophotometrics/sampleData_NPM_2",
+            "npm/sampleData_NPM_2",
             {
                 "file0_chev6": "control_region",
                 "file1_chev6": "signal_region",
@@ -119,7 +119,7 @@ from guppy.testing.api import step2, step3, step4, step5
             None,
         ),
         (
-            "SampleData_Neurophotometrics/sampleData_NPM_3",
+            "npm/sampleData_NPM_3",
             {
                 "file0_chev3": "control_region3",
                 "file0_chod3": "signal_region3",
@@ -129,7 +129,7 @@ from guppy.testing.api import step2, step3, step4, step5
             "ttl_region3",
         ),
         (
-            "SampleData_Neurophotometrics/sampleData_NPM_4",
+            "npm/sampleData_NPM_4",
             {
                 "file0_chev1": "control_region1",
                 "file0_chod1": "signal_region1",
@@ -139,7 +139,7 @@ from guppy.testing.api import step2, step3, step4, step5
             "ttl_true_region1",
         ),
         (
-            "SampleData_Neurophotometrics/sampleData_NPM_5",
+            "npm/sampleData_NPM_5",
             {
                 "file0_chev1": "control_region1",
                 "file0_chod1": "signal_region1",
@@ -181,11 +181,11 @@ def test_step5(tmp_path, session_subdir, storenames_map, expected_region, expect
     Assertions confirm creation and basic readability of PSTH-related outputs from Step 5.
     Defaults are used for input parameters; PSTH computation defaults to z_score.
     """
-    if session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_1":
+    if session_subdir == "npm/sampleData_NPM_1":
         npm_timestamp_column_names = None
         npm_time_units = None
         npm_split_events = [False, True]
-    elif session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_3":
+    elif session_subdir == "npm/sampleData_NPM_3":
         npm_timestamp_column_names = ["ComputerTimestamp", None]
         npm_time_units = ["milliseconds", "seconds"]
         npm_split_events = [False, True]
@@ -193,11 +193,11 @@ def test_step5(tmp_path, session_subdir, storenames_map, expected_region, expect
         npm_timestamp_column_names = None
         npm_time_units = None
         npm_split_events = [True, True]
-    if session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_5":
+    if session_subdir == "npm/sampleData_NPM_5":
         npm_split_events = None
 
     # Use the sample session
-    src_base_dir = str(Path(".") / "testing_data")
+    src_base_dir = str(Path(".") / "stubbed_testing_data")
     src_session = os.path.join(src_base_dir, session_subdir)
     assert os.path.isdir(src_session), f"Sample data not available at expected path: {src_session}"
 

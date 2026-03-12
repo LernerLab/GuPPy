@@ -59,11 +59,11 @@ def test_mixed_modality_tdt_csv_ttl(tmp_path):
     folder alongside the TDT binary files. The pipeline auto-detects both formats and routes
     TDT stores to TdtRecordingExtractor and the CSV event file to CsvRecordingExtractor.
     """
-    src_base_dir = str(Path(".") / "testing_data")
+    src_base_dir = str(Path(".") / "stubbed_testing_data")
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
-    session_copy = _stage_session(src_base_dir, "SampleData_Clean/Photo_63_207-181030-103332", tmp_base)
+    session_copy = _stage_session(src_base_dir, "tdt/Photo_63_207-181030-103332", tmp_base)
 
     # Five epoch timestamps known to fall inside the session's recording window
     # (~1540913634–1540917275 s), spaced 10 minutes apart
@@ -98,11 +98,11 @@ def test_mixed_modality_doric_csv_ttl(tmp_path):
 
     The Doric recording window for sample_doric_3 runs from 0 to ~1811 seconds (relative time).
     """
-    src_base_dir = str(Path(".") / "testing_data")
+    src_base_dir = str(Path(".") / "stubbed_testing_data")
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
-    session_copy = _stage_session(src_base_dir, "SampleData_Doric/sample_doric_3", tmp_base)
+    session_copy = _stage_session(src_base_dir, "doric/sample_doric_3", tmp_base)
 
     # Five timestamps within the Doric recording window (0–1811 s relative), spaced 5 min apart
     csv_ttl_timestamps = np.array([300.0, 600.0, 900.0, 1200.0, 1500.0])
@@ -142,11 +142,11 @@ def test_mixed_modality_npm_csv_ttl(tmp_path):
     NPM_1 photometry timestamps are rescaled to relative seconds (~0–1858 s). The external
     event CSV uses timestamps in that same relative domain so PSTH alignment succeeds.
     """
-    src_base_dir = str(Path(".") / "testing_data")
+    src_base_dir = str(Path(".") / "stubbed_testing_data")
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
-    session_copy = _stage_session(src_base_dir, "SampleData_Neurophotometrics/sampleData_NPM_1", tmp_base)
+    session_copy = _stage_session(src_base_dir, "npm/sampleData_NPM_1", tmp_base)
 
     # Five timestamps in relative seconds matching the NPM_1 output domain (0–~1858 s),
     # spaced ~5 min apart. CsvRecordingExtractor reads these as-is without rescaling.

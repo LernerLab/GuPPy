@@ -11,3 +11,6 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 SRC_PATH = os.path.join(PROJECT_ROOT, "src")
 if SRC_PATH not in sys.path:
     sys.path.insert(0, SRC_PATH)
+
+# Path to the small stub data used by unit and integration tests on PRs
+STUBBED_TESTING_DATA = os.path.join(PROJECT_ROOT, "stubbed_testing_data")

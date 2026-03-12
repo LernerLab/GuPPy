@@ -35,6 +35,7 @@ CONSISTENCY_CASES = [
     CONSISTENCY_CASES,
     ids=["baseline", "modified"],
 )
+@pytest.mark.daily_only
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_consistency_zscore_method(
     tmp_path,
