@@ -267,17 +267,11 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         """
         Create a stubbed copy of the NPM folder with truncated signal files.
 
-        Copies the folder to ``folder_path``, then truncates each NPM multi-column
-        signal CSV to approximately ``duration_in_seconds``. The cutoff timestamp is
-        computed as the first value in the timestamp column plus ``duration_in_seconds``
+        Copies the folder to ``folder_path``, then truncates each raw NPM CSV
+        (multi-column signal files and 2-column event/stimuli files) to
+        approximately ``duration_in_seconds``. The cutoff timestamp is computed
+        as the first value in the timestamp column plus ``duration_in_seconds``
         (scaled to milliseconds when the first timestamp value exceeds ``1e6``).
-
-        Pre-existing split data CSVs (3-column files produced by a prior call to
-        ``discover_events_and_flags``) are also truncated to ``duration_in_seconds``
-        using their session-relative timestamps. Single-column event CSVs are left
-        unchanged because their timestamps are in an absolute ComputerTimestamp
-        reference that requires the conversion performed by ``discover_events_and_flags``
-        to align with signal timestamps.
 
         Parameters
         ----------
@@ -314,17 +308,6 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             cutoff = first_timestamp + duration_in_seconds * unit_factor
             dataframe = dataframe[dataframe[timestamp_column] <= cutoff]
             dataframe.to_csv(csv_path, index=False, header=has_text_header)
-
-        # Also truncate any pre-existing split data CSVs (session-relative timestamps
-        # starting at 0.0 s, produced by a prior call to discover_events_and_flags).
-        split_events, split_flags = CsvRecordingExtractor.discover_events_and_flags(str(folder_path))
-        for event_name, flag in zip(split_events, split_flags):
-            if "data_csv" not in flag:
-                continue
-            split_csv_path = folder_path / f"{event_name}.csv"
-            dataframe = pd.read_csv(split_csv_path, index_col=False)
-            dataframe = dataframe[dataframe["timestamps"] <= duration_in_seconds]
-            dataframe.to_csv(split_csv_path, index=False)
 
     @classmethod
     def has_multiple_event_ttls(cls, folder_path):

@@ -2,13 +2,11 @@
 
 import os
 import shutil
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from guppy.extractors.detect_acquisition_formats import _classify_csv_file
 from guppy.extractors.npm_recording_extractor import NpmRecordingExtractor
 
 from .recording_extractor_test_mixin import RecordingExtractorTestMixin
@@ -198,51 +196,54 @@ class TestNpmRecordingExtractor(RecordingExtractorTestMixin):
 
     @pytest.fixture
     def isolated_extractor_instance(self, isolated_folder_path):
+        # discover_events_and_flags writes intermediate per-channel CSVs into folder_path.
+        # Calling it here ensures read() works in all mixin tests that receive this fixture.
+        # Stub tests still work correctly: stub() copies the folder (including intermediates)
+        # then discover is called again on the stub output to regenerate them from raw data.
+        NpmRecordingExtractor.discover_events_and_flags(isolated_folder_path, **self.discover_kwargs)
         return NpmRecordingExtractor(isolated_folder_path)
 
     @pytest.fixture
-    def expected_control_timestamps(self, isolated_folder_path, isolated_extractor_instance):
-        NpmRecordingExtractor.discover_events_and_flags(isolated_folder_path, num_ch=2, inputParameters={})
+    def expected_control_timestamps(self, isolated_extractor_instance):
         result = isolated_extractor_instance.read(events=["file0_chod1"], outputPath="")
         return result[0]["timestamps"]
 
     @pytest.fixture
-    def expected_control_data(self, isolated_folder_path, isolated_extractor_instance):
-        NpmRecordingExtractor.discover_events_and_flags(isolated_folder_path, num_ch=2, inputParameters={})
+    def expected_control_data(self, isolated_extractor_instance):
         result = isolated_extractor_instance.read(events=["file0_chod1"], outputPath="")
         return result[0]["data"]
 
     @pytest.fixture
-    def expected_signal_timestamps(self, isolated_folder_path, isolated_extractor_instance):
-        NpmRecordingExtractor.discover_events_and_flags(isolated_folder_path, num_ch=2, inputParameters={})
+    def expected_signal_timestamps(self, isolated_extractor_instance):
         result = isolated_extractor_instance.read(events=["file0_chev1"], outputPath="")
         return result[0]["timestamps"]
 
     @pytest.fixture
-    def expected_signal_data(self, isolated_folder_path, isolated_extractor_instance):
-        NpmRecordingExtractor.discover_events_and_flags(isolated_folder_path, num_ch=2, inputParameters={})
+    def expected_signal_data(self, isolated_extractor_instance):
         result = isolated_extractor_instance.read(events=["file0_chev1"], outputPath="")
         return result[0]["data"]
 
     @pytest.fixture
-    def expected_ttl_timestamps(self, isolated_folder_path, isolated_extractor_instance):
-        NpmRecordingExtractor.discover_events_and_flags(isolated_folder_path, num_ch=2, inputParameters={})
+    def expected_ttl_timestamps(self, isolated_extractor_instance):
         result = isolated_extractor_instance.read(events=["event0"], outputPath="")
         return result[0]["timestamps"]
 
-    # NPM's read() requires split per-channel CSVs (file0_chod1.csv, file0_chev1.csv) that
-    # are created as a side effect of discover_events_and_flags(). The mixin stub tests call
-    # read() directly without going through the fixtures that call discover first, so we
-    # override each stub test here to call discover before reading.
+    # The stub tests call stub() first (from a clean folder), then discover on the stub
+    # output, then read. isolated_folder_path will already have intermediates from the
+    # isolated_extractor_instance fixture, but stub() ignores them (they are classified as
+    # "csv", not "npm") and discover on the stub output regenerates correct ones.
 
     def test_stub_data_matches_original(self, tmp_path, isolated_folder_path, isolated_extractor_instance):
-        NpmRecordingExtractor.discover_events_and_flags(isolated_folder_path, num_ch=2, inputParameters={})
-        original_result = isolated_extractor_instance.read(events=[self.control_event], outputPath="")
+        original_folder = tmp_path / "original"
+        shutil.copytree(isolated_folder_path, original_folder)
+        NpmRecordingExtractor.discover_events_and_flags(original_folder, **self.discover_kwargs)
+        original_result = NpmRecordingExtractor(original_folder).read(events=[self.control_event], outputPath="")
         original_data = original_result[0]["data"]
         original_timestamps = original_result[0]["timestamps"]
 
         stub_folder_path = tmp_path / "stubbed"
         isolated_extractor_instance.stub(folder_path=stub_folder_path)
+        NpmRecordingExtractor.discover_events_and_flags(stub_folder_path, **self.discover_kwargs)
         stubbed_extractor = NpmRecordingExtractor(folder_path=stub_folder_path)
         stubbed_result = stubbed_extractor.read(events=[self.control_event], outputPath="")
 
@@ -251,16 +252,17 @@ class TestNpmRecordingExtractor(RecordingExtractorTestMixin):
             stubbed_result[0]["timestamps"], original_timestamps[: len(stubbed_result[0]["timestamps"])]
         )
 
-    def test_stub_idempotent(self, tmp_path, isolated_folder_path, isolated_extractor_instance):
-        NpmRecordingExtractor.discover_events_and_flags(isolated_folder_path, num_ch=2, inputParameters={})
+    def test_stub_idempotent(self, tmp_path, isolated_extractor_instance):
         stub_folder_path = tmp_path / "stubbed"
 
         isolated_extractor_instance.stub(folder_path=stub_folder_path)
+        NpmRecordingExtractor.discover_events_and_flags(stub_folder_path, **self.discover_kwargs)
         first_result = NpmRecordingExtractor(folder_path=stub_folder_path).read(
             events=[self.control_event], outputPath=""
         )
 
         isolated_extractor_instance.stub(folder_path=stub_folder_path)
+        NpmRecordingExtractor.discover_events_and_flags(stub_folder_path, **self.discover_kwargs)
         second_result = NpmRecordingExtractor(folder_path=stub_folder_path).read(
             events=[self.control_event], outputPath=""
         )
@@ -268,10 +270,10 @@ class TestNpmRecordingExtractor(RecordingExtractorTestMixin):
         np.testing.assert_array_equal(first_result[0]["data"], second_result[0]["data"])
 
     @pytest.mark.parametrize("stub_duration_in_seconds", [0.5, 1.0, 2.0])
-    def test_stub_duration(self, tmp_path, isolated_folder_path, isolated_extractor_instance, stub_duration_in_seconds):
-        NpmRecordingExtractor.discover_events_and_flags(isolated_folder_path, num_ch=2, inputParameters={})
+    def test_stub_duration(self, tmp_path, isolated_extractor_instance, stub_duration_in_seconds):
         stub_folder_path = tmp_path / "stubbed"
         isolated_extractor_instance.stub(folder_path=stub_folder_path, duration_in_seconds=stub_duration_in_seconds)
+        NpmRecordingExtractor.discover_events_and_flags(stub_folder_path, **self.discover_kwargs)
         stubbed_extractor = NpmRecordingExtractor(folder_path=stub_folder_path)
         stubbed_result = stubbed_extractor.read(events=[self.control_event], outputPath="")
 
@@ -283,68 +285,151 @@ class TestNpmRecordingExtractor(RecordingExtractorTestMixin):
         )
         assert duration_from_samples_in_seconds == pytest.approx(stub_duration_in_seconds, abs=0.2)
 
-    @pytest.mark.xfail(
-        reason=(
-            "NPM event CSV timestamps (event0.csv) are in absolute ComputerTimestamp (ms) "
-            "before discover_events_and_flags converts them to session-relative seconds. "
-            "They cannot be compared to the cutoff derived from signal timestamps without "
-            "the conversion that discover_events_and_flags applies."
+    def test_stub_ttl_timestamps_within_duration(self, tmp_path, isolated_folder_path, isolated_extractor_instance):
+        # NPM event CSVs use absolute ComputerTimestamp in ms. The stub truncates them using
+        # the ms heuristic, so the cutoff comparison must also be in ms.
+        original_folder = tmp_path / "original"
+        shutil.copytree(isolated_folder_path, original_folder)
+        NpmRecordingExtractor.discover_events_and_flags(original_folder, **self.discover_kwargs)
+        original_extractor = NpmRecordingExtractor(original_folder)
+        original_ttl_result = original_extractor.read(events=[self.ttl_event], outputPath="")
+        first_ttl_timestamp_ms = original_ttl_result[0]["timestamps"][0]
+        cutoff_ms = first_ttl_timestamp_ms + self.stub_ttl_test_duration_in_seconds * 1000.0
+
+        stub_folder_path = tmp_path / "stubbed"
+        isolated_extractor_instance.stub(
+            folder_path=stub_folder_path, duration_in_seconds=self.stub_ttl_test_duration_in_seconds
         )
-    )
-    def test_stub_ttl_timestamps_within_duration(self, tmp_path, isolated_extractor_instance):
-        super().test_stub_ttl_timestamps_within_duration(tmp_path, isolated_extractor_instance)
+        NpmRecordingExtractor.discover_events_and_flags(stub_folder_path, **self.discover_kwargs)
+        stubbed_extractor = NpmRecordingExtractor(folder_path=stub_folder_path)
+        stubbed_ttl_result = stubbed_extractor.read(events=[self.ttl_event], outputPath="")
+
+        assert np.all(stubbed_ttl_result[0]["timestamps"] <= cutoff_ms)
+        assert len(stubbed_ttl_result[0]["timestamps"]) < len(original_ttl_result[0]["timestamps"])
+        assert np.all(np.isin(stubbed_ttl_result[0]["timestamps"], original_ttl_result[0]["timestamps"]))
 
 
 # ---------------------------------------------------------------------------
-# NPM stub tests — all five sessions
+# Contract tests for a second NPM session (sampleData_NPM_3)
 # ---------------------------------------------------------------------------
 
-_NPM_SESSIONS = [
-    "sampleData_NPM_1",
-    "sampleData_NPM_2",
-    "sampleData_NPM_3",
-    "sampleData_NPM_4",
-    "sampleData_NPM_5",
-]
 
+class TestNpmRecordingExtractorSession3(RecordingExtractorTestMixin):
+    extractor_class = NpmRecordingExtractor
+    folder_path = os.path.join(_TESTING_DATA, "SampleData_Neurophotometrics", "sampleData_NPM_3")
+    extractor_instance = NpmRecordingExtractor(folder_path)
+    expected_events = ["file0_chev1", "file0_chod1", "event0"]
+    discover_kwargs = {"num_ch": 2, "inputParameters": {}}
+    control_event = "file0_chod1"
+    signal_event = "file0_chev1"
+    ttl_event = "event0"
+    stub_ttl_test_duration_in_seconds = 600.0
 
-@pytest.mark.parametrize("session_name", _NPM_SESSIONS)
-def test_stub_npm_session_completes_without_error(session_name, tmp_path):
-    """NpmRecordingExtractor.stub() must not raise for any NPM session."""
-    source_folder = Path(_TESTING_DATA) / "SampleData_Neurophotometrics" / session_name
-    extractor = NpmRecordingExtractor(str(source_folder))
-    extractor.stub(folder_path=tmp_path / "stub", duration_in_seconds=1.0)
+    @pytest.fixture
+    def isolated_folder_path(self, tmp_path):
+        destination = tmp_path / "npm_data"
+        shutil.copytree(self.folder_path, destination)
+        return destination
 
+    @pytest.fixture
+    def isolated_extractor_instance(self, isolated_folder_path):
+        NpmRecordingExtractor.discover_events_and_flags(isolated_folder_path, **self.discover_kwargs)
+        return NpmRecordingExtractor(isolated_folder_path)
 
-@pytest.mark.parametrize("session_name", _NPM_SESSIONS)
-def test_stub_npm_session_truncates_signal_csvs(session_name, tmp_path):
-    """Each NPM signal CSV in the stub folder must have fewer rows than the original."""
-    source_folder = Path(_TESTING_DATA) / "SampleData_Neurophotometrics" / session_name
-    stub_folder = tmp_path / "stub"
-    NpmRecordingExtractor(str(source_folder)).stub(folder_path=stub_folder, duration_in_seconds=1.0)
+    @pytest.fixture
+    def expected_control_timestamps(self, isolated_extractor_instance):
+        result = isolated_extractor_instance.read(events=["file0_chod1"], outputPath="")
+        return result[0]["timestamps"]
 
-    for csv_path in sorted(stub_folder.glob("*.csv")):
-        if _classify_csv_file(str(csv_path)) != "npm":
-            continue
-        original_path = source_folder / csv_path.name
-        stub_row_count = len(pd.read_csv(csv_path, header=None))
-        original_row_count = len(pd.read_csv(original_path, header=None))
-        assert (
-            stub_row_count < original_row_count
-        ), f"{csv_path.name}: stub has {stub_row_count} rows, original has {original_row_count}"
+    @pytest.fixture
+    def expected_control_data(self, isolated_extractor_instance):
+        result = isolated_extractor_instance.read(events=["file0_chod1"], outputPath="")
+        return result[0]["data"]
 
+    @pytest.fixture
+    def expected_signal_timestamps(self, isolated_extractor_instance):
+        result = isolated_extractor_instance.read(events=["file0_chev1"], outputPath="")
+        return result[0]["timestamps"]
 
-@pytest.mark.parametrize("session_name", _NPM_SESSIONS)
-def test_stub_npm_session_is_idempotent(session_name, tmp_path):
-    """Calling stub() twice on the same destination produces identical files."""
-    source_folder = Path(_TESTING_DATA) / "SampleData_Neurophotometrics" / session_name
-    stub_folder = tmp_path / "stub"
-    extractor = NpmRecordingExtractor(str(source_folder))
+    @pytest.fixture
+    def expected_signal_data(self, isolated_extractor_instance):
+        result = isolated_extractor_instance.read(events=["file0_chev1"], outputPath="")
+        return result[0]["data"]
 
-    extractor.stub(folder_path=stub_folder, duration_in_seconds=1.0)
-    first_row_counts = {csv.name: len(pd.read_csv(csv, header=None)) for csv in sorted(stub_folder.glob("*.csv"))}
+    @pytest.fixture
+    def expected_ttl_timestamps(self, isolated_extractor_instance):
+        result = isolated_extractor_instance.read(events=["event0"], outputPath="")
+        return result[0]["timestamps"]
 
-    extractor.stub(folder_path=stub_folder, duration_in_seconds=1.0)
-    second_row_counts = {csv.name: len(pd.read_csv(csv, header=None)) for csv in sorted(stub_folder.glob("*.csv"))}
+    def test_stub_data_matches_original(self, tmp_path, isolated_folder_path, isolated_extractor_instance):
+        original_folder = tmp_path / "original"
+        shutil.copytree(isolated_folder_path, original_folder)
+        NpmRecordingExtractor.discover_events_and_flags(original_folder, **self.discover_kwargs)
+        original_result = NpmRecordingExtractor(original_folder).read(events=[self.control_event], outputPath="")
+        original_data = original_result[0]["data"]
+        original_timestamps = original_result[0]["timestamps"]
 
-    assert first_row_counts == second_row_counts
+        stub_folder_path = tmp_path / "stubbed"
+        isolated_extractor_instance.stub(folder_path=stub_folder_path)
+        NpmRecordingExtractor.discover_events_and_flags(stub_folder_path, **self.discover_kwargs)
+        stubbed_extractor = NpmRecordingExtractor(folder_path=stub_folder_path)
+        stubbed_result = stubbed_extractor.read(events=[self.control_event], outputPath="")
+
+        np.testing.assert_array_equal(stubbed_result[0]["data"], original_data[: len(stubbed_result[0]["data"])])
+        np.testing.assert_array_equal(
+            stubbed_result[0]["timestamps"], original_timestamps[: len(stubbed_result[0]["timestamps"])]
+        )
+
+    def test_stub_idempotent(self, tmp_path, isolated_extractor_instance):
+        stub_folder_path = tmp_path / "stubbed"
+
+        isolated_extractor_instance.stub(folder_path=stub_folder_path)
+        NpmRecordingExtractor.discover_events_and_flags(stub_folder_path, **self.discover_kwargs)
+        first_result = NpmRecordingExtractor(folder_path=stub_folder_path).read(
+            events=[self.control_event], outputPath=""
+        )
+
+        isolated_extractor_instance.stub(folder_path=stub_folder_path)
+        NpmRecordingExtractor.discover_events_and_flags(stub_folder_path, **self.discover_kwargs)
+        second_result = NpmRecordingExtractor(folder_path=stub_folder_path).read(
+            events=[self.control_event], outputPath=""
+        )
+
+        np.testing.assert_array_equal(first_result[0]["data"], second_result[0]["data"])
+
+    @pytest.mark.parametrize("stub_duration_in_seconds", [0.5, 1.0, 2.0])
+    def test_stub_duration(self, tmp_path, isolated_extractor_instance, stub_duration_in_seconds):
+        stub_folder_path = tmp_path / "stubbed"
+        isolated_extractor_instance.stub(folder_path=stub_folder_path, duration_in_seconds=stub_duration_in_seconds)
+        NpmRecordingExtractor.discover_events_and_flags(stub_folder_path, **self.discover_kwargs)
+        stubbed_extractor = NpmRecordingExtractor(folder_path=stub_folder_path)
+        stubbed_result = stubbed_extractor.read(events=[self.control_event], outputPath="")
+
+        duration_in_seconds = stubbed_result[0]["timestamps"][-1] - stubbed_result[0]["timestamps"][0]
+        assert duration_in_seconds == pytest.approx(stub_duration_in_seconds, abs=0.2)
+
+        duration_from_samples_in_seconds = len(stubbed_result[0]["data"]) / float(
+            np.atleast_1d(stubbed_result[0]["sampling_rate"])[0]
+        )
+        assert duration_from_samples_in_seconds == pytest.approx(stub_duration_in_seconds, abs=0.2)
+
+    def test_stub_ttl_timestamps_within_duration(self, tmp_path, isolated_folder_path, isolated_extractor_instance):
+        original_folder = tmp_path / "original"
+        shutil.copytree(isolated_folder_path, original_folder)
+        NpmRecordingExtractor.discover_events_and_flags(original_folder, **self.discover_kwargs)
+        original_extractor = NpmRecordingExtractor(original_folder)
+        original_ttl_result = original_extractor.read(events=[self.ttl_event], outputPath="")
+        first_ttl_timestamp_ms = original_ttl_result[0]["timestamps"][0]
+        cutoff_ms = first_ttl_timestamp_ms + self.stub_ttl_test_duration_in_seconds * 1000.0
+
+        stub_folder_path = tmp_path / "stubbed"
+        isolated_extractor_instance.stub(
+            folder_path=stub_folder_path, duration_in_seconds=self.stub_ttl_test_duration_in_seconds
+        )
+        NpmRecordingExtractor.discover_events_and_flags(stub_folder_path, **self.discover_kwargs)
+        stubbed_extractor = NpmRecordingExtractor(folder_path=stub_folder_path)
+        stubbed_ttl_result = stubbed_extractor.read(events=[self.ttl_event], outputPath="")
+
+        assert np.all(stubbed_ttl_result[0]["timestamps"] <= cutoff_ms)
+        assert len(stubbed_ttl_result[0]["timestamps"]) < len(original_ttl_result[0]["timestamps"])
+        assert np.all(np.isin(stubbed_ttl_result[0]["timestamps"], original_ttl_result[0]["timestamps"]))
