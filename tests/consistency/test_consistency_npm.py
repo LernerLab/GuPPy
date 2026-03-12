@@ -67,7 +67,7 @@ CONSISTENCY_CASES = [
         "sample_npm_5",
     ],
 )
-@pytest.mark.daily_only
+@pytest.mark.full_data
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_consistency(
     tmp_path,

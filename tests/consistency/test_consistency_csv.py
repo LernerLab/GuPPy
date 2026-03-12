@@ -30,7 +30,7 @@ CONSISTENCY_CASES = [
         "csv_generic",
     ],
 )
-@pytest.mark.daily_only
+@pytest.mark.full_data
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_consistency(
     tmp_path,

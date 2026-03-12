@@ -53,8 +53,7 @@ jobs:
     with:  #  Ternary operator: condition && value_if_true || value_if_false
       python-versions: ${{ github.event.pull_request.draft == true && '["3.10"]' || needs.load_python_and_os_versions.outputs.ALL_PYTHON_VERSIONS }}
       os-versions: ${{ github.event.pull_request.draft == true && '["ubuntu-latest"]' || needs.load_python_and_os_versions.outputs.ALL_OS_VERSIONS }}
-      load-data: false
-      skip-daily-only-tests: true
+      skip-full-data-tests: true
 
   check-final-status:
     name: All tests passing

@@ -134,5 +134,5 @@ branch = true
 
 [tool.pytest.ini_options]
 markers = [
-    "daily_only: marks tests that require the full testing_data download (deselect with '-m not daily_only')",
+    "full_data: marks tests that require the full testing_data download (deselect with '-m not full_data')",
 ]
