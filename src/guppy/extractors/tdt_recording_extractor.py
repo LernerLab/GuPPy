@@ -9,7 +9,6 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from numpy import float32, float64, int32, int64, uint16
-from tqdm import tqdm
 
 from guppy.extractors import BaseRecordingExtractor
 
@@ -359,7 +358,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
 
         rows_to_keep = []
         stream_name_to_num_kept = {name.encode(): 0 for name in stream_name_to_num_segments}
-        for row in tqdm(tsq_data):
+        for row in tsq_data:
             stream_name = row["name"]
             if stream_name not in stream_names_bytes:
                 is_sentinel = len(stream_name.rstrip(b"\x00")) < 4
