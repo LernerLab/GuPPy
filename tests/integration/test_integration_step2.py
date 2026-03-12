@@ -221,24 +221,11 @@ def test_step2(tmp_path, session_subdir, storenames_map):
         expected_files = [
             "bl72bl82_12feb2024_fp.csv",
             "bl72bl82_12feb2024_stimuli.csv",
-            "eventAfVf.csv",
-            "eventAfVm.csv",
+            "event0.csv",
             "eventAfVn.csv",
             "eventAfVu.csv",
             "eventAmVf.csv",
-            "eventAmVm.csv",
-            "eventAmVn.csv",
-            "eventAmVu.csv",
-            "eventAnVf.csv",
-            "eventAnVm.csv",
-            "eventAnVu.csv",
-            "eventAuVf.csv",
-            "eventAuVm.csv",
-            "eventAuVn.csv",
-            "eventAuVu.csv",
-            "eventblankvideo.csv",
             "eventpinknoise.csv",
-            "eventtone.csv",
             "eventwhitenoise.csv",
             "file0_chev1.csv",
             "file0_chod1.csv",
@@ -270,28 +257,36 @@ def test_step2(tmp_path, session_subdir, storenames_map):
             assert os.path.exists(fp), f"Missing expected NPM file at Step 2: {fp}"
     elif session_subdir == "npm/sampleData_NPM_3":
         expected_files = [
+            "event0.csv",
             "event1.csv",
             "event3.csv",
             "file0_chev1.csv",
             "file0_chev2.csv",
             "file0_chev3.csv",
+            "file0_chev4.csv",
             "file0_chod1.csv",
             "file0_chod2.csv",
             "file0_chod3.csv",
+            "file0_chod4.csv",
+            "signals.csv",
+            "ttls.csv",
         ]
         for rel in expected_files:
             fp = os.path.join(session_copy, rel)
             assert os.path.exists(fp), f"Missing expected NPM file at Step 2: {fp}"
     elif session_subdir == "npm/sampleData_NPM_4":
         expected_files = [
-            "eventTrue.csv",
+            "event0.csv",
             "eventFalse.csv",
+            "eventTrue.csv",
             "file0_chev1.csv",
             "file0_chev2.csv",
             "file0_chev3.csv",
             "file0_chod1.csv",
             "file0_chod2.csv",
             "file0_chod3.csv",
+            "PagCeAVgatFear_1442_ts0.csv",
+            "PagCeAVgatFear_14421.csv",
         ]
         for rel in expected_files:
             fp = os.path.join(session_copy, rel)
