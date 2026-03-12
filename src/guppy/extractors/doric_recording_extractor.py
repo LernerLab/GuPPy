@@ -404,7 +404,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
 
         with open(csv_path, "w") as file:
             header_rows.to_csv(file, index=False, header=False)
-            dataframe.to_csv(file, index=False, header=True)
+            dataframe.to_csv(file, index=False, header=False)
 
     def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str) -> None:
         for S in output_dicts:
