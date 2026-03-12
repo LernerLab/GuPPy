@@ -66,8 +66,8 @@ def test_mixed_modality_tdt_csv_ttl(tmp_path):
     session_copy = _stage_session(src_base_dir, "tdt/Photo_63_207-181030-103332", tmp_base)
 
     # Five epoch timestamps known to fall inside the session's recording window
-    # (~1540913634–1540917275 s), spaced 10 minutes apart
-    csv_ttl_timestamps = np.array([1540914000.0, 1540914600.0, 1540915200.0, 1540915800.0, 1540916400.0])
+    # (~1540913634–1540913791.4 s), spaced 30s apart
+    csv_ttl_timestamps = np.array([1540913664.0, 1540913694.0, 1540913724.0, 1540913754.0, 1540913784.0])
     np.savetxt(session_copy / "csv_port_entries.csv", csv_ttl_timestamps, header="timestamps", comments="", fmt="%.6f")
 
     base_dir = str(tmp_base)
@@ -96,7 +96,7 @@ def test_mixed_modality_doric_csv_ttl(tmp_path):
     and routes Doric photometry to DoricRecordingExtractor and the CSV event to
     CsvRecordingExtractor within the same session folder.
 
-    The Doric recording window for sample_doric_3 runs from 0 to ~1811 seconds (relative time).
+    The Doric recording window for sample_doric_3 runs from 0 to ~16 seconds (relative time).
     """
     src_base_dir = str(STUBBED_TESTING_DATA)
     tmp_base = tmp_path / "data_root"
@@ -104,8 +104,8 @@ def test_mixed_modality_doric_csv_ttl(tmp_path):
 
     session_copy = _stage_session(src_base_dir, "doric/sample_doric_3", tmp_base)
 
-    # Five timestamps within the Doric recording window (0–1811 s relative), spaced 5 min apart
-    csv_ttl_timestamps = np.array([300.0, 600.0, 900.0, 1200.0, 1500.0])
+    # Five timestamps within the Doric recording window (0–16 s relative), spaced 3s apart
+    csv_ttl_timestamps = np.array([3.0, 6.0, 9.0, 12.0, 15.0])
     np.savetxt(session_copy / "csv_doric_event.csv", csv_ttl_timestamps, header="timestamps", comments="", fmt="%.6f")
 
     base_dir = str(tmp_base)
@@ -139,7 +139,7 @@ def test_mixed_modality_npm_csv_ttl(tmp_path):
     are suppressed as before, while the external CSV (named csv_event.csv) is passed through
     to CsvRecordingExtractor.
 
-    NPM_1 photometry timestamps are rescaled to relative seconds (~0–1858 s). The external
+    NPM_1 photometry timestamps are rescaled to relative seconds (~0–120 s). The external
     event CSV uses timestamps in that same relative domain so PSTH alignment succeeds.
     """
     src_base_dir = str(STUBBED_TESTING_DATA)
@@ -148,9 +148,9 @@ def test_mixed_modality_npm_csv_ttl(tmp_path):
 
     session_copy = _stage_session(src_base_dir, "npm/sampleData_NPM_1", tmp_base)
 
-    # Five timestamps in relative seconds matching the NPM_1 output domain (0–~1858 s),
-    # spaced ~5 min apart. CsvRecordingExtractor reads these as-is without rescaling.
-    csv_ttl_timestamps = np.array([300.0, 600.0, 900.0, 1200.0, 1500.0])
+    # Five timestamps in relative seconds matching the NPM_1 output domain (0–~120 s),
+    # spaced ~20 s apart. CsvRecordingExtractor reads these as-is without rescaling.
+    csv_ttl_timestamps = np.array([20.0, 40.0, 60.0, 80.0, 100.0])
     np.savetxt(session_copy / "csv_event.csv", csv_ttl_timestamps, header="timestamps", comments="", fmt="%.6f")
 
     base_dir = str(tmp_base)
