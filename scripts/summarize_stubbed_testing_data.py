@@ -10,6 +10,8 @@ For each stubbed session, reports:
   - Number of TTL events
 """
 
+import shutil
+import tempfile
 from pathlib import Path
 
 from guppy.extractors.csv_recording_extractor import CsvRecordingExtractor
@@ -215,20 +217,21 @@ def _format_size(size_in_bytes):
     return f"{size_in_bytes:.1f} TB"
 
 
-def _summarize_session(session):
-    folder_path = session["folder_path"]
+def _summarize_session(session, working_folder_path):
+    original_folder_path = session["folder_path"]
     extractor_class = session["extractor_class"]
     constructor_kwargs = session["constructor_kwargs"]
     control_event = session["control_event"]
     ttl_event = session["ttl_event"]
     discover_kwargs = session["discover_kwargs"]
 
-    folder_size = _folder_size_in_bytes(folder_path)
+    # Measure size from the original (uncontaminated) data
+    folder_size = _folder_size_in_bytes(original_folder_path)
 
     if discover_kwargs:
-        extractor_class.discover_events_and_flags(folder_path, **discover_kwargs)
+        extractor_class.discover_events_and_flags(working_folder_path, **discover_kwargs)
 
-    extractor = extractor_class(folder_path=str(folder_path), **constructor_kwargs)
+    extractor = extractor_class(folder_path=str(working_folder_path), **constructor_kwargs)
 
     control_result = extractor.read(events=[control_event], outputPath="")
     timestamps = control_result[0]["timestamps"]
@@ -259,11 +262,15 @@ def _summarize_session(session):
 
 def main():
     rows = []
-    for session in _sessions():
-        print(f"  Reading {session['modality']:5s} {session['name']} ...", end=" ", flush=True)
-        row = _summarize_session(session)
-        rows.append(row)
-        print("done")
+    with tempfile.TemporaryDirectory() as temporary_directory:
+        temporary_directory_path = Path(temporary_directory)
+        for session in _sessions():
+            print(f"  Reading {session['modality']:5s} {session['name']} ...", end=" ", flush=True)
+            working_folder_path = temporary_directory_path / session["name"]
+            shutil.copytree(session["folder_path"], working_folder_path)
+            row = _summarize_session(session, working_folder_path)
+            rows.append(row)
+            print("done")
 
     print()
 
