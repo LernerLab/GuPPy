@@ -235,8 +235,13 @@ def _summarize_session(session):
     duration = float(timestamps[-1] - timestamps[0])
 
     if ttl_event is not None:
-        ttl_result = extractor.read(events=[ttl_event], outputPath="")
-        number_of_ttls = len(ttl_result[0]["timestamps"])
+        if hasattr(extractor, "_readtev"):
+            # TDT: use _readtev directly to avoid storesList.csv dependency for multi-behavior epocs
+            S = extractor._readtev(ttl_event)
+            number_of_ttls = len(S["timestamps"])
+        else:
+            ttl_result = extractor.read(events=[ttl_event], outputPath="")
+            number_of_ttls = len(ttl_result[0]["timestamps"])
         ttl_channel = ttl_event
     else:
         number_of_ttls = 0

@@ -4,7 +4,8 @@ Run from the project root:
     python scripts/create_stubbed_testing_data.py
 
 Stub durations are hard-coded per session. For sessions with TTL events, the
-duration was chosen to be just past the first TTL event in the full recording.
+duration was chosen to capture at least 5 complete TTL pulses (rising and
+falling edges both within the stub window for waveform-based formats).
 Sessions without TTL events use 1.0 second.
 
 Note: NpmRecordingExtractor.stub() copies the raw source folder and truncates
@@ -46,43 +47,43 @@ def _sessions():
     dest_csv = STUBBED_TESTING_DATA / "csv"
 
     return [
-        # TDT — first TTL (PrtN) at ~78.8 s
+        # TDT — 5th TTL (PrtN) at ~157.4 s relative
         (
             TdtRecordingExtractor(str(tdt / "Photo_63_207-181030-103332")),
-            79.0,
+            157.5,
             dest_tdt / "Photo_63_207-181030-103332",
         ),
-        # TDT — first TTL (PAB/) at ~160.7 s
+        # TDT — 5th TTL (PAB/) at ~215.8 s relative
         (
             TdtRecordingExtractor(str(tdt / "Photometry-161823")),
-            161.0,
+            215.9,
             dest_tdt / "Photometry-161823",
         ),
-        # TDT — first TTL (PrtN) at ~55.6 s
+        # TDT — 5th TTL (PrtN) at ~184.2 s relative
         (
             TdtRecordingExtractor(str(artifacts / "Photo_048_392-200728-121222")),
-            56.0,
+            184.3,
             dest_tdt / "Photo_048_392-200728-121222",
         ),
-        # Doric V1 — first TTL (DI--O-1) at ~39.2 s
+        # Doric V1 — 5th TTL pulse (DI--O-1) ends at ~115.1 s
         (
             DoricRecordingExtractor(
                 str(doric / "sample_doric_1"),
                 {"AIn-1 - Raw": "control", "AIn-2 - Raw": "signal", "DI--O-1": "ttl"},
             ),
-            40.0,
+            115.2,
             dest_doric / "sample_doric_1",
         ),
-        # Doric CSV — first TTL (DI/O-1) at ~15.9 s
+        # Doric CSV — 5th TTL pulse (DI/O-1) ends at ~77.9 s
         (
             DoricRecordingExtractor(
                 str(doric / "sample_doric_2"),
                 {"AIn-1 - Dem (ref)": "control", "AIn-1 - Dem (da)": "signal", "DI/O-1": "ttl"},
             ),
-            16.0,
+            78.0,
             dest_doric / "sample_doric_2",
         ),
-        # Doric V6 — first TTL (DigitalIO/CAM1) at ~0.03 s
+        # Doric V6 — 5th TTL (DigitalIO/CAM1) at ~0.1 s; 1.0 s retains many TTLs
         (
             DoricRecordingExtractor(
                 str(doric / "sample_doric_3"),
@@ -109,18 +110,18 @@ def _sessions():
             1.0,
             dest_doric / "sample_doric_5",
         ),
-        # CSV — first TTL (Sample_TTL) at ~139.2 s
-        (CsvRecordingExtractor(str(csv / "sample_data_csv_1")), 140.0, dest_csv / "sample_data_csv_1"),
-        # NPM v2 (LedState header) — first TTL (stimuli) at ~41.2 s
-        (NpmRecordingExtractor(str(npm / "sampleData_NPM_1")), 42.0, dest_npm / "sampleData_NPM_1"),
+        # CSV — 5th TTL (Sample_TTL) at ~410.9 s
+        (CsvRecordingExtractor(str(csv / "sample_data_csv_1")), 411.0, dest_csv / "sample_data_csv_1"),
+        # NPM v2 (LedState header) — 5th TTL (stimuli) at ~120.2 s relative
+        (NpmRecordingExtractor(str(npm / "sampleData_NPM_1")), 120.3, dest_npm / "sampleData_NPM_1"),
         # NPM v2 (LedState header, two files) — no TTL events
         (NpmRecordingExtractor(str(npm / "sampleData_NPM_2")), 1.0, dest_npm / "sampleData_NPM_2"),
-        # NPM v2 (LedState header, 4 channels) — first TTL (ttls) at ~522.7 s
-        (NpmRecordingExtractor(str(npm / "sampleData_NPM_3")), 524.0, dest_npm / "sampleData_NPM_3"),
-        # NPM legacy (no header, interleaved rows) — first TTL (ts0) at ~173.2 s
-        (NpmRecordingExtractor(str(npm / "sampleData_NPM_4")), 174.0, dest_npm / "sampleData_NPM_4"),
-        # NPM legacy (no header, interleaved rows) — first TTL (ts0) at ~173.2 s
-        (NpmRecordingExtractor(str(npm / "sampleData_NPM_5")), 174.0, dest_npm / "sampleData_NPM_5"),
+        # NPM v2 (LedState header, 4 channels) — 5th TTL (ttls) at ~252.1 s relative
+        (NpmRecordingExtractor(str(npm / "sampleData_NPM_3")), 252.2, dest_npm / "sampleData_NPM_3"),
+        # NPM legacy (no header, interleaved rows) — 5th TTL (ts0) at ~207.1 s relative
+        (NpmRecordingExtractor(str(npm / "sampleData_NPM_4")), 207.2, dest_npm / "sampleData_NPM_4"),
+        # NPM legacy (no header, interleaved rows) — 5th TTL (ts0) at ~200.9 s relative
+        (NpmRecordingExtractor(str(npm / "sampleData_NPM_5")), 201.0, dest_npm / "sampleData_NPM_5"),
     ]
 
 

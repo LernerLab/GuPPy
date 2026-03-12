@@ -342,8 +342,9 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
         cutoff_timestamp = timestamps[0] + duration_in_seconds
         cutoff_index = int(np.searchsorted(timestamps, cutoff_timestamp, side="right"))
 
-        channel_keys = list(source_file["Traces"]["Console"].keys())
-        channel_keys.remove("Time(s)")
+        # Only keep channels needed by this extractor instance, not all channels in the file.
+        # This avoids copying irrelevant channels that inflate stub file size.
+        channel_keys = list(self._event_name_to_event_type.keys())
 
         channel_data = {}
         for key in channel_keys:
@@ -353,10 +354,10 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
         with h5py.File(temporary_path, "w") as destination_file:
             console = destination_file.require_group("Traces/Console")
             time_group = console.require_group("Time(s)")
-            time_group.create_dataset("Console_time(s)", data=timestamps[:cutoff_index])
+            time_group.create_dataset("Console_time(s)", data=timestamps[:cutoff_index], compression="gzip")
             for key in channel_keys:
                 channel_group = console.require_group(key)
-                channel_group.create_dataset(key, data=channel_data[key][:cutoff_index])
+                channel_group.create_dataset(key, data=channel_data[key][:cutoff_index], compression="gzip")
 
         os.replace(temporary_path, doric_path)
 
