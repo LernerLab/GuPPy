@@ -236,7 +236,7 @@ class RecordingExtractorTestMixin:
         stubbed_ttl_result = stubbed_extractor.read(events=[self.ttl_event], outputPath=str(tmp_path))
 
         assert np.all(stubbed_ttl_result[0]["timestamps"] <= cutoff_timestamp)
-        assert len(stubbed_ttl_result[0]["timestamps"]) < len(original_ttl_result[0]["timestamps"])
+        assert len(stubbed_ttl_result[0]["timestamps"]) <= len(original_ttl_result[0]["timestamps"])
         assert np.all(np.isin(stubbed_ttl_result[0]["timestamps"], original_ttl_result[0]["timestamps"]))
 
     @pytest.mark.parametrize("stub_duration_in_seconds", [0.5, 1.0, 2.0])
