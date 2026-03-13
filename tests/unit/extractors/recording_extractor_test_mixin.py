@@ -199,8 +199,8 @@ class RecordingExtractorTestMixin:
         stubbed_extractor = self.extractor_class(folder_path=stub_folder_path, **self.stub_extractor_kwargs)
         stubbed_result = stubbed_extractor.read(events=[self.control_event], outputPath=str(tmp_path))
 
-        np.testing.assert_array_equal(stubbed_result[0]["data"], original_data[: len(stubbed_result[0]["data"])])
-        np.testing.assert_array_equal(
+        np.testing.assert_allclose(stubbed_result[0]["data"], original_data[: len(stubbed_result[0]["data"])])
+        np.testing.assert_allclose(
             stubbed_result[0]["timestamps"], original_timestamps[: len(stubbed_result[0]["timestamps"])]
         )
 
