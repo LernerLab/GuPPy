@@ -25,7 +25,7 @@ from guppy.extractors.doric_recording_extractor import DoricRecordingExtractor
 from guppy.extractors.npm_recording_extractor import NpmRecordingExtractor
 from guppy.extractors.tdt_recording_extractor import TdtRecordingExtractor
 
-PROJECT_ROOT = Path(__file__).parent.parent
+PROJECT_ROOT = Path(__file__).parent.parent.parent.parent.parent
 TESTING_DATA = PROJECT_ROOT / "testing_data"
 STUBBED_TESTING_DATA = PROJECT_ROOT / "stubbed_testing_data"
 
