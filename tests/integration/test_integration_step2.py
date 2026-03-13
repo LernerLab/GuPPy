@@ -221,7 +221,6 @@ def test_step2(tmp_path, session_subdir, storenames_map):
         expected_files = [
             "bl72bl82_12feb2024_fp.csv",
             "bl72bl82_12feb2024_stimuli.csv",
-            "event0.csv",
             "eventAfVn.csv",
             "eventAfVu.csv",
             "eventAmVf.csv",
@@ -257,7 +256,6 @@ def test_step2(tmp_path, session_subdir, storenames_map):
             assert os.path.exists(fp), f"Missing expected NPM file at Step 2: {fp}"
     elif session_subdir == "npm/sampleData_NPM_3":
         expected_files = [
-            "event0.csv",
             "event1.csv",
             "event3.csv",
             "file0_chev1.csv",
@@ -276,7 +274,6 @@ def test_step2(tmp_path, session_subdir, storenames_map):
             assert os.path.exists(fp), f"Missing expected NPM file at Step 2: {fp}"
     elif session_subdir == "npm/sampleData_NPM_4":
         expected_files = [
-            "event0.csv",
             "eventFalse.csv",
             "eventTrue.csv",
             "file0_chev1.csv",
