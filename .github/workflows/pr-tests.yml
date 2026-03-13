@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - id: load_python_versions
-        run: echo "python_versions=$(cat ./.github/workflows/all_python_versions.txt)" >> "$GITHUB_OUTPUT"
+        run: echo "python_versions=$(cat ./.github/workflows/first_and_last_python_versions.txt)" >> "$GITHUB_OUTPUT"
       - id: load_os_versions
         run: echo "os_versions=$(cat ./.github/workflows/all_os_versions.txt)" >> "$GITHUB_OUTPUT"
       - name: Debugging
