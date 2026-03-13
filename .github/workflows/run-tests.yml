@@ -50,6 +50,8 @@ jobs:
         os: ${{ fromJson(inputs.os-versions) }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          lfs: true
       - name: Setup Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
