@@ -5,13 +5,10 @@ from guppy.analysis.cross_correlation import compute_cross_correlation
 
 def test_identical_arrays_max_correlation_at_lag_zero():
     signal = np.sin(np.linspace(0, 4 * np.pi, 200))
-    sample_rate = 20.0
-    result = compute_cross_correlation([signal], [signal], sample_rate)
-    # Last row is the lag axis (in units of 1/sample_rate)
-    lag_row = result[-1, :]
+    result = compute_cross_correlation([signal], [signal], sample_rate=20.0)
     cross_corr_row = result[0, :]
-    zero_lag_index = np.argmin(np.abs(lag_row))
-    assert np.argmax(cross_corr_row) == zero_lag_index
+    # correlation_lags(n, n) always places zero-lag at index n-1
+    assert np.argmax(cross_corr_row) == len(signal) - 1
 
 
 def test_all_values_normalized_within_minus_one_to_one():
