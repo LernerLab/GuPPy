@@ -2,9 +2,17 @@ import numpy as np
 import pytest
 
 from guppy.analysis.io_utils import (
+    check_storeslistfile,
+    check_TDT,
     decide_naming_convention,
+    fetchCoords,
     find_files,
+    get_control_and_signal_channel_names,
+    get_coords,
+    make_dir_for_cross_correlation,
+    makeAverageDir,
     read_hdf5,
+    write_combined_stores_list,
     write_hdf5,
 )
 
@@ -110,3 +118,126 @@ def test_write_hdf5_sanitizes_forward_slash_in_event_name(tmp_path):
     write_hdf5(data, "CAM1/EXC1", str(tmp_path), "timestamps")
     # Should create "CAM1_EXC1.hdf5" (forward slash → underscore)
     assert (tmp_path / "CAM1_EXC1.hdf5").exists()
+
+
+# ── check_TDT ─────────────────────────────────────────────────────────────────
+
+
+def test_check_TDT_returns_true_when_tsq_file_present(tmp_path):
+    (tmp_path / "session.tsq").touch()
+    assert check_TDT(str(tmp_path)) is True
+
+
+def test_check_TDT_returns_false_when_no_tsq_file(tmp_path):
+    (tmp_path / "session.hdf5").touch()
+    assert check_TDT(str(tmp_path)) is False
+
+
+# ── fetchCoords ───────────────────────────────────────────────────────────────
+
+
+def test_fetch_coords_returns_default_range_when_no_file(tmp_path):
+    data = np.array([0.0, 1.0, 2.0, 5.0])
+    result = fetchCoords(str(tmp_path), "dms", data)
+    # No file: coords = [0, data[-1]] = [0, 5.0], reshaped to [[0, 5.0]]
+    np.testing.assert_array_equal(result, np.array([[0, 5.0]]))
+
+
+def test_fetch_coords_reads_npy_file_and_returns_first_column_pairs(tmp_path):
+    # File has shape (2, 2); [:, 0] = [1.0, 3.0]; reshape(-1, 2) = [[1.0, 3.0]]
+    npy_data = np.array([[1.0, 99.0], [3.0, 99.0]])
+    np.save(tmp_path / "coordsForPreProcessing_dms.npy", npy_data)
+    result = fetchCoords(str(tmp_path), "dms", np.array([0.0, 10.0]))
+    np.testing.assert_array_equal(result, np.array([[1.0, 3.0]]))
+
+
+# ── get_coords ────────────────────────────────────────────────────────────────
+
+
+def test_get_coords_without_artifact_removal_returns_full_range_with_margin(tmp_path):
+    tsNew = np.array([0.0, 1.0, 2.0, 3.0])
+    result = get_coords(str(tmp_path), "dms", tsNew, removeArtifacts=False)
+    # dt = 1.0; range = [[0.0 - 1.0, 3.0 + 1.0]] = [[-1.0, 4.0]]
+    np.testing.assert_array_equal(result, np.array([[-1.0, 4.0]]))
+
+
+def test_get_coords_with_artifact_removal_delegates_to_fetch_coords(tmp_path):
+    tsNew = np.array([0.0, 1.0, 2.0, 5.0])
+    result = get_coords(str(tmp_path), "dms", tsNew, removeArtifacts=True)
+    # No coords file: default = [[0, tsNew[-1]]] = [[0, 5.0]]
+    np.testing.assert_array_equal(result, np.array([[0, 5.0]]))
+
+
+# ── check_storeslistfile ──────────────────────────────────────────────────────
+
+
+def test_check_storeslistfile_reads_stores_list_from_output_subdirectory(tmp_path):
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    output_dir = session_dir / "session_output_1"
+    output_dir.mkdir()
+    stores_list = np.array([["sig0", "ctrl0"], ["signal_dms", "control_dms"]])
+    np.savetxt(output_dir / "storesList.csv", stores_list, fmt="%s", delimiter=",")
+    result = check_storeslistfile([str(session_dir)])
+    # np.unique sorts columns; "ctrl0"/"control_dms" < "sig0"/"signal_dms"
+    np.testing.assert_array_equal(result, np.array([["ctrl0", "sig0"], ["control_dms", "signal_dms"]]))
+
+
+# ── write_combined_stores_list ────────────────────────────────────────────────
+
+
+def test_write_combined_stores_list_creates_csv_in_each_output_path(tmp_path):
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    stores_list = np.array([["sig0"], ["signal_dms"]])
+    write_combined_stores_list([[str(output_dir)]], stores_list)
+    result = np.genfromtxt(output_dir / "combine_storesList.csv", dtype="str", delimiter=",").reshape(2, -1)
+    np.testing.assert_array_equal(result, stores_list)
+
+
+# ── get_control_and_signal_channel_names ──────────────────────────────────────
+
+
+def test_get_control_and_signal_channel_names_filters_and_sorts_channels():
+    stores_list = np.array([["sig0", "ctrl0", "event0"], ["signal_dms", "control_dms", "TTL1"]])
+    result = get_control_and_signal_channel_names(stores_list)
+    # Filters to ["signal_dms", "control_dms"], sorts to ["control_dms", "signal_dms"],
+    # reshapes to (2, 1)
+    np.testing.assert_array_equal(result, np.array([["control_dms"], ["signal_dms"]]))
+
+
+def test_get_control_and_signal_channel_names_raises_for_odd_count():
+    # Three control/signal entries cannot reshape to (2, -1)
+    stores_list = np.array([["s0", "c0", "c1"], ["signal_dms", "control_dms", "control_nac"]])
+    with pytest.raises(Exception):
+        get_control_and_signal_channel_names(stores_list)
+
+
+# ── make_dir_for_cross_correlation ────────────────────────────────────────────
+
+
+def test_make_dir_for_cross_correlation_creates_directory_and_returns_path(tmp_path):
+    result = make_dir_for_cross_correlation(str(tmp_path))
+    assert result == str(tmp_path / "cross_correlation_output")
+    assert (tmp_path / "cross_correlation_output").is_dir()
+
+
+def test_make_dir_for_cross_correlation_is_idempotent(tmp_path):
+    make_dir_for_cross_correlation(str(tmp_path))
+    result = make_dir_for_cross_correlation(str(tmp_path))
+    assert result == str(tmp_path / "cross_correlation_output")
+
+
+# ── makeAverageDir ────────────────────────────────────────────────────────────
+
+
+def test_make_average_dir_creates_directory_and_returns_path(tmp_path):
+    result = makeAverageDir(str(tmp_path))
+    assert result == str(tmp_path / "average")
+    assert (tmp_path / "average").is_dir()
+
+
+def test_make_average_dir_is_idempotent(tmp_path):
+    makeAverageDir(str(tmp_path))
+    result = makeAverageDir(str(tmp_path))
+    assert result == str(tmp_path / "average")
