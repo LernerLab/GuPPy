@@ -1,14 +1,12 @@
 import glob
 import os
 import shutil
-from pathlib import Path
 
 import pytest
+from conftest import TESTING_DATA
 
 from guppy.testing import compare_output_folders
 from guppy.testing.api import step2, step3, step4, step5
-
-TESTING_DATA = Path(".") / "testing_data"
 
 SESSION_SUBDIRS = [
     "SampleData_with_artifacts/Photo_048_392-200728-121222",
@@ -25,6 +23,7 @@ STORENAMES_MAP = {
 }
 
 
+@pytest.mark.full_data
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_consistency_group_analysis(tmp_path):
     """

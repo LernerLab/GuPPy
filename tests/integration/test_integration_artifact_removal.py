@@ -1,17 +1,15 @@
 import glob
 import os
 import shutil
-from pathlib import Path
 
 import h5py
 import numpy as np
 import pytest
+from conftest import STUBBED_TESTING_DATA as TESTING_DATA
 
 from guppy.testing.api import step2, step3, step4, step5
 
-TESTING_DATA = Path(".") / "testing_data"
-
-SESSION_SUBDIR = "SampleData_with_artifacts/Photo_048_392-200728-121222"
+SESSION_SUBDIR = "tdt/Photo_048_392-200728-121222"
 STORENAMES_MAP = {
     "Dv1A": "control_dms",
     "Dv2A": "signal_dms",
@@ -20,19 +18,19 @@ STORENAMES_MAP = {
 
 _COORDS_CONCATENATE = np.array(
     [
-        [1.83404952e00, 0.0],
-        [2.72244707e02, 0.0],
-        [3.29535101e02, 0.0],
-        [3.08405723e03, 0.0],
+        [4.03172489, 0.0],
+        [116.25228841, 0.0],
+        [135.76890815, 0.0],
+        [181.30768755, 0.0],
     ]
 )
 
 _COORDS_NAN = np.array(
     [
-        [4.12566526e00, 0.0],
-        [2.72244707e02, 0.0],
-        [3.29535101e02, 0.0],
-        [3.07718238e03, 0.0],
+        [4.03172489, 0.0],
+        [116.25228841, 0.0],
+        [135.76890815, 0.0],
+        [181.30768755, 0.0],
     ]
 )
 

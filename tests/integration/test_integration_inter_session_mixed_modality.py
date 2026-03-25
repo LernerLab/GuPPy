@@ -1,10 +1,10 @@
 import glob
 import os
 import shutil
-from pathlib import Path
 
 import h5py
 import pytest
+from conftest import STUBBED_TESTING_DATA
 
 from guppy.testing.api import step2, step3, step4, step5
 
@@ -22,8 +22,8 @@ def test_mixed_modality(tmp_path):
     Data is copied from the individual modality source directories, not SampleData_mixed_modality/,
     because the mixed-modality folder does not carry actual data files on CI.
     """
-    npm_session_subdir = "SampleData_Neurophotometrics/sampleData_NPM_4"
-    doric_session_subdir = "SampleData_Doric/sample_doric_3"
+    npm_session_subdir = "npm/sampleData_NPM_4"
+    doric_session_subdir = "doric/sample_doric_3"
 
     npm_storenames_map = {
         "file0_chev1": "control_region1",
@@ -36,7 +36,7 @@ def test_mixed_modality(tmp_path):
         "DigitalIO/CAM1": "ttl",
     }
 
-    src_base_dir = str(Path(".") / "testing_data")
+    src_base_dir = str(STUBBED_TESTING_DATA)
     npm_src = os.path.join(src_base_dir, npm_session_subdir)
     doric_src = os.path.join(src_base_dir, doric_session_subdir)
 
@@ -126,12 +126,12 @@ def test_mixed_modality_tdt_doric(tmp_path):
     Each session uses its own acquisition format; modality is auto-detected per folder.
     Step 2 runs separately per session; steps 3–5 run together across both sessions.
     """
-    src_base_dir = str(Path(".") / "testing_data")
+    src_base_dir = str(STUBBED_TESTING_DATA)
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
-    tdt_session = _stage_session(src_base_dir, "SampleData_Clean/Photo_63_207-181030-103332", tmp_base)
-    doric_session = _stage_session(src_base_dir, "SampleData_Doric/sample_doric_3", tmp_base)
+    tdt_session = _stage_session(src_base_dir, "tdt/Photo_63_207-181030-103332", tmp_base)
+    doric_session = _stage_session(src_base_dir, "doric/sample_doric_3", tmp_base)
 
     base_dir = str(tmp_base)
 
@@ -168,12 +168,12 @@ def test_mixed_modality_tdt_npm(tmp_path):
     Step 2 runs separately per session; steps 3–5 run together across both sessions.
     The NPM session (sampleData_NPM_4) uses split events.
     """
-    src_base_dir = str(Path(".") / "testing_data")
+    src_base_dir = str(STUBBED_TESTING_DATA)
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
-    tdt_session = _stage_session(src_base_dir, "SampleData_Clean/Photo_63_207-181030-103332", tmp_base)
-    npm_session = _stage_session(src_base_dir, "SampleData_Neurophotometrics/sampleData_NPM_4", tmp_base)
+    tdt_session = _stage_session(src_base_dir, "tdt/Photo_63_207-181030-103332", tmp_base)
+    npm_session = _stage_session(src_base_dir, "npm/sampleData_NPM_4", tmp_base)
 
     base_dir = str(tmp_base)
 
@@ -210,12 +210,12 @@ def test_mixed_modality_tdt_csv_data(tmp_path):
     Each session uses its own acquisition format; modality is auto-detected per folder.
     Step 2 runs separately per session; steps 3–5 run together across both sessions.
     """
-    src_base_dir = str(Path(".") / "testing_data")
+    src_base_dir = str(STUBBED_TESTING_DATA)
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
-    tdt_session = _stage_session(src_base_dir, "SampleData_Clean/Photo_63_207-181030-103332", tmp_base)
-    csv_session = _stage_session(src_base_dir, "SampleData_csv/sample_data_csv_1", tmp_base)
+    tdt_session = _stage_session(src_base_dir, "tdt/Photo_63_207-181030-103332", tmp_base)
+    csv_session = _stage_session(src_base_dir, "csv/sample_data_csv_1", tmp_base)
 
     base_dir = str(tmp_base)
 

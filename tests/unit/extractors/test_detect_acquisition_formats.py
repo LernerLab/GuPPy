@@ -4,6 +4,7 @@ import os
 import shutil
 
 import pytest
+from conftest import STUBBED_TESTING_DATA
 
 from guppy.extractors.detect_acquisition_formats import (
     _classify_csv_file,
@@ -11,8 +12,6 @@ from guppy.extractors.detect_acquisition_formats import (
     _is_float,
     detect_acquisition_formats,
 )
-
-_TESTING_DATA = os.path.join(os.path.dirname(__file__), "..", "..", "..", "testing_data")
 
 # ---------------------------------------------------------------------------
 # _is_float
@@ -101,32 +100,32 @@ def test_classify_csv_file_returns_npm_for_multicolumn_data(tmp_path):
 @pytest.mark.parametrize(
     "session_subdir, expected_formats",
     [
-        ("SampleData_Clean/Photo_63_207-181030-103332", {"tdt"}),
-        ("SampleData_Doric/sample_doric_1", {"doric"}),
-        ("SampleData_csv/sample_data_csv_1", {"csv"}),
-        ("SampleData_Neurophotometrics/sampleData_NPM_1", {"npm"}),
+        ("tdt/Photo_63_207-181030-103332", {"tdt"}),
+        ("doric/sample_doric_1", {"doric"}),
+        ("csv/sample_data_csv_1", {"csv"}),
+        ("npm/sampleData_NPM_1", {"npm"}),
     ],
     ids=["tdt", "doric", "csv", "npm"],
 )
 def test_detect_acquisition_formats(session_subdir, expected_formats):
-    folder_path = os.path.join(_TESTING_DATA, session_subdir)
+    folder_path = os.path.join(STUBBED_TESTING_DATA, session_subdir)
     assert detect_acquisition_formats(folder_path) == expected_formats
 
 
 @pytest.mark.parametrize(
     "session_subdir, expected_formats",
     [
-        ("SampleData_Clean/Photo_63_207-181030-103332", {"tdt", "csv"}),
-        ("SampleData_Doric/sample_doric_1", {"doric", "csv"}),
+        ("tdt/Photo_63_207-181030-103332", {"tdt", "csv"}),
+        ("doric/sample_doric_1", {"doric", "csv"}),
         # External CSV event file named without "event" prefix is NOT suppressed by NPM logic
-        ("SampleData_Neurophotometrics/sampleData_NPM_1", {"npm", "csv"}),
+        ("npm/sampleData_NPM_1", {"npm", "csv"}),
         # Adding another event CSV to a CSV session leaves the result unchanged
-        ("SampleData_csv/sample_data_csv_1", {"csv"}),
+        ("csv/sample_data_csv_1", {"csv"}),
     ],
     ids=["tdt_csv", "doric_csv", "npm_csv", "csv_csv"],
 )
 def test_detect_acquisition_formats_with_external_csv_events(tmp_path, session_subdir, expected_formats):
-    src = os.path.join(_TESTING_DATA, session_subdir)
+    src = os.path.join(STUBBED_TESTING_DATA, session_subdir)
     session_copy = tmp_path / os.path.basename(session_subdir)
     shutil.copytree(src, session_copy)
     (session_copy / "port_entries.csv").write_text("timestamps\n0.1\n0.2\n0.3\n")

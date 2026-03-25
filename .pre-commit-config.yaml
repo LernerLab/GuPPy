@@ -3,24 +3,29 @@ repos:
     rev: v6.0.0
     hooks:
     -   id: check-yaml
+        exclude: ^stubbed_testing_data/
     -   id: end-of-file-fixer
+        exclude: ^stubbed_testing_data/
     -   id: trailing-whitespace
+        exclude: ^stubbed_testing_data/
 
 -   repo: https://github.com/psf/black
     rev: 25.1.0
     hooks:
     -   id: black
-        exclude: ^docs/
+        exclude: ^(docs|stubbed_testing_data)/
 
 - repo: https://github.com/astral-sh/ruff-pre-commit
   rev: v0.13.0
   hooks:
   - id: ruff
     args: [ --fix ]
+    exclude: ^stubbed_testing_data/
 
 - repo: https://github.com/codespell-project/codespell
   rev: v2.4.1
   hooks:
   - id: codespell
+    exclude: ^stubbed_testing_data/
     additional_dependencies:
     - tomli

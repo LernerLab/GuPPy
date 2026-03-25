@@ -1,10 +1,10 @@
 import glob
 import os
 import shutil
-from pathlib import Path
 
 import pandas as pd
 import pytest
+from conftest import STUBBED_TESTING_DATA
 
 from guppy.testing.api import step2, step3, step4, step5
 
@@ -28,7 +28,7 @@ def test_cross_correlation(tmp_path):
       - getCorrCombinations returns np.unique(["dls", "dms"]) → ["dls", "dms"],
         so the output file is corr_port_entries_z_score_dls_dms.h5.
     """
-    session_subdir = "SampleData_Clean/Photo_63_207-181030-103332"
+    session_subdir = "tdt/Photo_63_207-181030-103332"
     storenames_map = {
         "Dv1A": "control_dms",
         "Dv2A": "signal_dms",
@@ -36,7 +36,7 @@ def test_cross_correlation(tmp_path):
         "Dv4B": "signal_dls",
         "PrtN": "port_entries",
     }
-    src_base_dir = str(Path(".") / "testing_data")
+    src_base_dir = str(STUBBED_TESTING_DATA)
     src_session = os.path.join(src_base_dir, session_subdir)
     assert os.path.isdir(src_session), f"Sample data not available at expected path: {src_session}"
 

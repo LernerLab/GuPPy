@@ -30,6 +30,8 @@
 - Restored automatic data modality detection and mixed-modality TTL/signal support with a modular, separation-of-concerns architecture: [PR #226](https://github.com/LernerLab/GuPPy/pull/226)
 - Expanded test suite with consistency tests that compare results to GuPPy-v1.3.0: [PR #207](https://github.com/LernerLab/GuPPy/pull/207)
 - Expanded test suite with unit tests for recording extractor classes: [PR #240](https://github.com/LernerLab/GuPPy/pull/240)
+- Migrated testing datasets from Google Drive to GitHub LFS with comprehensive documentation and CI/CD integration: [PR #242](https://github.com/LernerLab/GuPPy/pull/242)
+- Added GitHub Actions cache for stubbed testing data to avoid exhausting Git LFS bandwidth limits: [PR #245](https://github.com/LernerLab/GuPPy/pull/245)
 
 # GuPPy-v1.3.0 (August 12th, 2025)
 

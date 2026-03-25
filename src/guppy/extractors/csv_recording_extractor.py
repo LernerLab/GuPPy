@@ -1,7 +1,8 @@
-import copy
 import glob
 import logging
 import os
+import shutil
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -184,15 +185,70 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
     def read(self, *, events: list[str], outputPath: str) -> list[dict[str, Any]]:
         output_dicts = []
         for event in events:
-            df = self._read_csv(event=event)
-            S = df.to_dict()
-            S["storename"] = event
-            output_dicts.append(S)
+            dataframe = self._read_csv(event=event)
+            columns_lowercase = [col.lower() for col in dataframe.columns]
+            if "data" in columns_lowercase:
+                output_dicts.append(
+                    {
+                        "storename": event,
+                        "timestamps": dataframe["timestamps"].dropna().to_numpy(),
+                        "data": dataframe["data"].dropna().to_numpy(),
+                        "sampling_rate": dataframe["sampling_rate"].dropna().to_numpy()[:1],
+                    }
+                )
+            else:
+                output_dicts.append(
+                    {
+                        "storename": event,
+                        "timestamps": dataframe["timestamps"].dropna().to_numpy(),
+                    }
+                )
         return output_dicts
 
+    def stub(self, *, folder_path, duration_in_seconds=1.0):
+        """
+        Create a stubbed copy of the CSV folder with truncated data files.
+
+        Copies the entire folder to `folder_path`, then replaces each CSV file
+        with a version truncated to `duration_in_seconds`. The cutoff timestamp
+        is computed as the first timestamp in the first data CSV plus
+        `duration_in_seconds`. Both data CSVs (3-column) and event CSVs
+        (1-column) are filtered to rows at or before the cutoff.
+
+        Parameters
+        ----------
+        folder_path : str or Path
+            Destination directory for the stubbed folder. Created if it does
+            not exist; overwritten if it already exists.
+        duration_in_seconds : float, optional
+            Approximate duration of data to retain in seconds. Default is 1.0.
+        """
+        folder_path = Path(folder_path)
+        if folder_path.exists():
+            shutil.rmtree(folder_path)
+        shutil.copytree(self.folder_path, folder_path)
+
+        event_names, flags = CsvRecordingExtractor.discover_events_and_flags(self.folder_path)
+
+        first_data_timestamp = None
+        for event_name, flag in zip(event_names, flags):
+            if flag == "data_csv":
+                dataframe = pd.read_csv(Path(self.folder_path) / f"{event_name}.csv", index_col=False)
+                first_data_timestamp = dataframe["timestamps"].iloc[0]
+                break
+
+        cutoff_timestamp = first_data_timestamp + duration_in_seconds
+
+        for event_name, flag in zip(event_names, flags):
+            csv_path = folder_path / f"{event_name}.csv"
+            dataframe = pd.read_csv(csv_path, index_col=False)
+            dataframe = dataframe[dataframe["timestamps"] <= cutoff_timestamp]
+            dataframe.to_csv(csv_path, index=False)
+
     def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str) -> None:
-        for S in output_dicts:
-            working_dict = copy.deepcopy(S)
-            event = working_dict.pop("storename")
-            df = pd.DataFrame.from_dict(working_dict)
-            self._save_to_hdf5(df=df, event=event, outputPath=outputPath)
+        for output_dict in output_dicts:
+            storename = output_dict["storename"]
+            for key, value in output_dict.items():
+                if key == "storename":
+                    continue
+                self._write_hdf5(value, storename, outputPath, key)

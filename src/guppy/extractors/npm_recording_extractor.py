@@ -1,13 +1,18 @@
 import glob
 import logging
 import os
+import shutil
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import panel as pn
 
 from guppy.extractors import CsvRecordingExtractor
-from guppy.extractors.detect_acquisition_formats import _is_event_csv
+from guppy.extractors.detect_acquisition_formats import (
+    _classify_csv_file,
+    _is_event_csv,
+)
 
 pn.extension()
 
@@ -257,6 +262,52 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
                     raise Exception("Number of channels should be same for all regions.")
         logger.info("Importing of NPM file is done.")
         return event_from_filename, flag_arr
+
+    def stub(self, *, folder_path, duration_in_seconds=1.0):
+        """
+        Create a stubbed copy of the NPM folder with truncated signal files.
+
+        Copies the folder to ``folder_path``, then truncates each raw NPM CSV
+        (multi-column signal files and 2-column event/stimuli files) to
+        approximately ``duration_in_seconds``. The cutoff timestamp is computed
+        as the first value in the timestamp column plus ``duration_in_seconds``
+        (scaled to milliseconds when the first timestamp value exceeds ``1e6``).
+
+        Parameters
+        ----------
+        folder_path : str or Path
+            Destination directory. Created if absent; overwritten if present.
+        duration_in_seconds : float, optional
+            Approximate signal duration to retain in seconds. Default is 1.0.
+        """
+        folder_path = Path(folder_path)
+        if folder_path.exists():
+            shutil.rmtree(folder_path)
+        shutil.copytree(self.folder_path, folder_path)
+
+        for csv_path in sorted(folder_path.glob("*.csv")):
+            if _classify_csv_file(str(csv_path)) != "npm":
+                continue
+            df_probe = pd.read_csv(csv_path, index_col=False)
+            _, float_conversions = self._check_header(df_probe)
+            if len(float_conversions) > 0:
+                # No text header — first column is the timestamp
+                dataframe = pd.read_csv(csv_path, header=None)
+                timestamp_column = 0
+                has_text_header = False
+            else:
+                dataframe = df_probe
+                timestamp_column = next(
+                    (col for col in dataframe.columns if "timestamp" in col.lower()),
+                    dataframe.columns[0],
+                )
+                has_text_header = True
+            first_timestamp = float(dataframe[timestamp_column].iloc[0])
+            # Heuristic: timestamps > 1e6 are in milliseconds (e.g. ComputerTimestamp)
+            unit_factor = 1000.0 if first_timestamp > 1e6 else 1.0
+            cutoff = first_timestamp + duration_in_seconds * unit_factor
+            dataframe = dataframe[dataframe[timestamp_column] <= cutoff]
+            dataframe.to_csv(csv_path, index=False, header=has_text_header)
 
     @classmethod
     def has_multiple_event_ttls(cls, folder_path):

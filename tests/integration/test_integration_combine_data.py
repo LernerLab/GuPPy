@@ -1,10 +1,10 @@
 import glob
 import os
 import shutil
-from pathlib import Path
 
 import h5py
 import pytest
+from conftest import STUBBED_TESTING_DATA
 
 from guppy.testing.api import step2, step3, step4, step5
 
@@ -12,8 +12,8 @@ from guppy.testing.api import step2, step3, step4, step5
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_combine_data(tmp_path):
     session_subdirs = [
-        "SampleData_with_artifacts/Photo_048_392-200728-121222",
-        "SampleData_Clean/Photo_63_207-181030-103332",
+        "tdt/Photo_048_392-200728-121222",
+        "tdt/Photo_63_207-181030-103332",
     ]
     storenames_map = {
         "Dv1A": "control_dms",
@@ -28,7 +28,7 @@ def test_combine_data(tmp_path):
     npm_split_events = [True, True]
 
     # Use the CSV sample session
-    src_base_dir = str(Path(".") / "testing_data")
+    src_base_dir = str(STUBBED_TESTING_DATA)
     src_sessions = [os.path.join(src_base_dir, session_subdir) for session_subdir in session_subdirs]
     for src_session in src_sessions:
         assert os.path.isdir(src_session), f"Sample data not available at expected path: {src_session}"
