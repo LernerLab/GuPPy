@@ -1,15 +1,13 @@
 import glob
 import os
 import shutil
-from pathlib import Path
 
 import numpy as np
 import pytest
+from conftest import TESTING_DATA
 
 from guppy.testing import compare_output_folders
 from guppy.testing.api import step2, step3, step4, step5
-
-TESTING_DATA = Path(".") / "testing_data"
 
 # Artifact window coordinates (x/time values only; col 1 is y and not used by the analysis).
 # Each array has shape (4, 2): four click events defining two artifact windows.
@@ -62,6 +60,7 @@ CONSISTENCY_CASES = [
         "artifacts_nan",
     ],
 )
+@pytest.mark.full_data
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_consistency(
     tmp_path,

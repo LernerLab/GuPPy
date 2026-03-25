@@ -76,6 +76,25 @@ class BaseRecordingExtractor(ABC):
         """
         pass
 
+    @abstractmethod
+    def stub(self, *, folder_path, duration_in_seconds=1.0):
+        """
+        Create a stubbed copy of the data folder truncated to a short duration.
+
+        Copies the source folder to `folder_path`, then truncates data files so
+        that only the first `duration_in_seconds` of recorded data are retained.
+        If `folder_path` already exists it is overwritten.
+
+        Parameters
+        ----------
+        folder_path : str or Path
+            Destination directory for the stubbed data. Created if it does not
+            exist; overwritten if it already exists.
+        duration_in_seconds : float, optional
+            Approximate duration of data to retain in seconds. Default is 1.0.
+        """
+        pass
+
     @staticmethod
     def _write_hdf5(data: Any, storename: str, output_path: str, key: str) -> None:
         """

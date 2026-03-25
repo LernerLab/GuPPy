@@ -1,14 +1,12 @@
 import glob
 import os
 import shutil
-from pathlib import Path
 
 import pytest
+from conftest import TESTING_DATA
 
 from guppy.testing import compare_output_folders
 from guppy.testing.api import step2, step3, step4, step5
-
-TESTING_DATA = Path(".") / "testing_data"
 
 SESSION_SUBDIR = "SampleData_csv/sample_data_csv_1"
 STANDARD_OUTPUT_SUBDIR = "StandardOutputs_dff/sample_data_csv_1/sample_data_csv_1_output_1"
@@ -20,6 +18,7 @@ STORENAMES_MAP = {
 }
 
 
+@pytest.mark.full_data
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_consistency_dff(tmp_path):
     """

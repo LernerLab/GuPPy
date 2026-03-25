@@ -2,9 +2,9 @@ import csv
 import glob
 import os
 import shutil
-from pathlib import Path
 
 import pytest
+from conftest import STUBBED_TESTING_DATA
 
 from guppy.testing.api import step2
 
@@ -13,7 +13,7 @@ from guppy.testing.api import step2
     "session_subdir, storenames_map",
     [
         (
-            "SampleData_csv/sample_data_csv_1",
+            "csv/sample_data_csv_1",
             {
                 "Sample_Control_Channel": "control_region",
                 "Sample_Signal_Channel": "signal_region",
@@ -21,7 +21,7 @@ from guppy.testing.api import step2
             },
         ),
         (
-            "SampleData_Doric/sample_doric_1",
+            "doric/sample_doric_1",
             {
                 "AIn-1 - Raw": "control_region",
                 "AIn-2 - Raw": "signal_region",
@@ -29,7 +29,7 @@ from guppy.testing.api import step2
             },
         ),
         (
-            "SampleData_Doric/sample_doric_2",
+            "doric/sample_doric_2",
             {
                 "AIn-1 - Dem (ref)": "control_region",
                 "AIn-1 - Dem (da)": "signal_region",
@@ -37,7 +37,7 @@ from guppy.testing.api import step2
             },
         ),
         (
-            "SampleData_Doric/sample_doric_3",
+            "doric/sample_doric_3",
             {
                 "CAM1_EXC1/ROI01": "control_region",
                 "CAM1_EXC2/ROI01": "signal_region",
@@ -45,21 +45,21 @@ from guppy.testing.api import step2
             },
         ),
         (
-            "SampleData_Doric/sample_doric_4",
+            "doric/sample_doric_4",
             {
                 "Series0001/AIN01xAOUT01-LockIn": "control_region",
                 "Series0001/AIN01xAOUT02-LockIn": "signal_region",
             },
         ),
         (
-            "SampleData_Doric/sample_doric_5",
+            "doric/sample_doric_5",
             {
                 "Series0001/AIN01xAOUT01-LockIn": "control_region",
                 "Series0001/AIN01xAOUT02-LockIn": "signal_region",
             },
         ),
         (
-            "SampleData_Clean/Photo_63_207-181030-103332",
+            "tdt/Photo_63_207-181030-103332",
             {
                 "Dv1A": "control_dms",
                 "Dv2A": "signal_dms",
@@ -67,7 +67,7 @@ from guppy.testing.api import step2
             },
         ),
         (
-            "SampleData_with_artifacts/Photo_048_392-200728-121222",
+            "tdt/Photo_048_392-200728-121222",
             {
                 "Dv1A": "control_dms",
                 "Dv2A": "signal_dms",
@@ -75,7 +75,7 @@ from guppy.testing.api import step2
             },
         ),
         (
-            "SampleData_Clean/Photometry-161823",
+            "tdt/Photometry-161823",
             {
                 "405R": "control_region",
                 "490R": "signal_region",
@@ -83,21 +83,21 @@ from guppy.testing.api import step2
             },
         ),
         (
-            "SampleData_Neurophotometrics/sampleData_NPM_1",
+            "npm/sampleData_NPM_1",
             {
                 "file0_chev1": "signal_region",
                 "file0_chod1": "control_region",
             },
         ),
         (
-            "SampleData_Neurophotometrics/sampleData_NPM_2",
+            "npm/sampleData_NPM_2",
             {
                 "file0_chev6": "control_region",
                 "file1_chev6": "signal_region",
             },
         ),
         (
-            "SampleData_Neurophotometrics/sampleData_NPM_3",
+            "npm/sampleData_NPM_3",
             {
                 "file0_chev3": "control_region3",
                 "file0_chod3": "signal_region3",
@@ -105,7 +105,7 @@ from guppy.testing.api import step2
             },
         ),
         (
-            "SampleData_Neurophotometrics/sampleData_NPM_4",
+            "npm/sampleData_NPM_4",
             {
                 "file0_chev1": "control_region1",
                 "file0_chod1": "signal_region1",
@@ -113,7 +113,7 @@ from guppy.testing.api import step2
             },
         ),
         (
-            "SampleData_Neurophotometrics/sampleData_NPM_5",
+            "npm/sampleData_NPM_5",
             {
                 "file0_chev1": "control_region1",
                 "file0_chod1": "signal_region1",
@@ -147,11 +147,11 @@ def test_step2(tmp_path, session_subdir, storenames_map):
       - Calls step2 headlessly with an explicit, deterministic storenames_map
       - Asserts storesList.csv exists and exactly matches the provided mapping (2xN)
     """
-    if session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_1":
+    if session_subdir == "npm/sampleData_NPM_1":
         npm_timestamp_column_names = None
         npm_time_units = None
         npm_split_events = [False, True]
-    elif session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_3":
+    elif session_subdir == "npm/sampleData_NPM_3":
         npm_timestamp_column_names = ["ComputerTimestamp", None]
         npm_time_units = ["milliseconds", "seconds"]
         npm_split_events = [False, True]
@@ -159,10 +159,10 @@ def test_step2(tmp_path, session_subdir, storenames_map):
         npm_timestamp_column_names = None
         npm_time_units = None
         npm_split_events = [True, True]
-    if session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_5":
+    if session_subdir == "npm/sampleData_NPM_5":
         npm_split_events = None
     # Source sample data
-    src_base_dir = str(Path(".") / "testing_data")
+    src_base_dir = str(STUBBED_TESTING_DATA)
     src_session = os.path.join(src_base_dir, session_subdir)
     assert os.path.isdir(src_session), f"Sample data not available at expected path: {src_session}"
 
@@ -217,28 +217,14 @@ def test_step2(tmp_path, session_subdir, storenames_map):
     assert rows[1] == list(storenames_map.values()), "Row 1 (names_for_storenames) mismatch"
 
     # Additional NPM assertions: ensure Step 2 created the expected CSV files for Neurophotometrics
-    if session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_1":
+    if session_subdir == "npm/sampleData_NPM_1":
         expected_files = [
             "bl72bl82_12feb2024_fp.csv",
             "bl72bl82_12feb2024_stimuli.csv",
-            "eventAfVf.csv",
-            "eventAfVm.csv",
             "eventAfVn.csv",
             "eventAfVu.csv",
             "eventAmVf.csv",
-            "eventAmVm.csv",
-            "eventAmVn.csv",
-            "eventAmVu.csv",
-            "eventAnVf.csv",
-            "eventAnVm.csv",
-            "eventAnVu.csv",
-            "eventAuVf.csv",
-            "eventAuVm.csv",
-            "eventAuVn.csv",
-            "eventAuVu.csv",
-            "eventblankvideo.csv",
             "eventpinknoise.csv",
-            "eventtone.csv",
             "eventwhitenoise.csv",
             "file0_chev1.csv",
             "file0_chod1.csv",
@@ -246,7 +232,7 @@ def test_step2(tmp_path, session_subdir, storenames_map):
         for rel in expected_files:
             fp = os.path.join(session_copy, rel)
             assert os.path.exists(fp), f"Missing expected NPM file at Step 2: {fp}"
-    elif session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_2":
+    elif session_subdir == "npm/sampleData_NPM_2":
         expected_files = [
             "file0_chev1.csv",
             "file0_chev2.csv",
@@ -268,35 +254,41 @@ def test_step2(tmp_path, session_subdir, storenames_map):
         for rel in expected_files:
             fp = os.path.join(session_copy, rel)
             assert os.path.exists(fp), f"Missing expected NPM file at Step 2: {fp}"
-    elif session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_3":
+    elif session_subdir == "npm/sampleData_NPM_3":
         expected_files = [
             "event1.csv",
             "event3.csv",
             "file0_chev1.csv",
             "file0_chev2.csv",
             "file0_chev3.csv",
+            "file0_chev4.csv",
             "file0_chod1.csv",
             "file0_chod2.csv",
             "file0_chod3.csv",
+            "file0_chod4.csv",
+            "signals.csv",
+            "ttls.csv",
         ]
         for rel in expected_files:
             fp = os.path.join(session_copy, rel)
             assert os.path.exists(fp), f"Missing expected NPM file at Step 2: {fp}"
-    elif session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_4":
+    elif session_subdir == "npm/sampleData_NPM_4":
         expected_files = [
-            "eventTrue.csv",
             "eventFalse.csv",
+            "eventTrue.csv",
             "file0_chev1.csv",
             "file0_chev2.csv",
             "file0_chev3.csv",
             "file0_chod1.csv",
             "file0_chod2.csv",
             "file0_chod3.csv",
+            "PagCeAVgatFear_1442_ts0.csv",
+            "PagCeAVgatFear_14421.csv",
         ]
         for rel in expected_files:
             fp = os.path.join(session_copy, rel)
             assert os.path.exists(fp), f"Missing expected NPM file at Step 2: {fp}"
-    elif session_subdir == "SampleData_Neurophotometrics/sampleData_NPM_5":
+    elif session_subdir == "npm/sampleData_NPM_5":
         expected_files = [
             "event0.csv",
             "file0_chev1.csv",

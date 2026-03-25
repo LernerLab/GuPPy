@@ -86,7 +86,7 @@ def test_access_keys_doricV6_excludes_time_datasets(tmp_path):
     assert set(keys) == {"Signals/Region0G", "Signals/Region1G"}
 
 
-_TESTING_DATA = os.path.join(os.path.dirname(__file__), "..", "..", "..", "testing_data")
+from conftest import STUBBED_TESTING_DATA
 
 _EVENT_NAME_TO_EVENT_TYPE = {
     "AIn-1 - Raw": "control",
@@ -97,35 +97,82 @@ _EVENT_NAME_TO_EVENT_TYPE = {
 
 class TestDoricRecordingExtractor(RecordingExtractorTestMixin):
     extractor_class = DoricRecordingExtractor
-    folder_path = os.path.join(_TESTING_DATA, "SampleData_Doric", "sample_doric_1")
+    folder_path = os.path.join(STUBBED_TESTING_DATA, "doric", "sample_doric_1")
     extractor_instance = DoricRecordingExtractor(folder_path, _EVENT_NAME_TO_EVENT_TYPE)
     expected_events = ["AIn-1 - Raw", "AIn-2 - Raw", "DI--O-1"]
     discover_kwargs = {}
     control_event = "AIn-1 - Raw"
     signal_event = "AIn-2 - Raw"
     ttl_event = "DI--O-1"
+    stub_ttl_test_duration_in_seconds = 100.0
+    stub_extractor_kwargs = {"event_name_to_event_type": _EVENT_NAME_TO_EVENT_TYPE}
 
-    @property
+    @pytest.fixture
     def expected_control_timestamps(self):
         result = self.extractor_instance.read(events=["AIn-1 - Raw"], outputPath="")
         return result[0]["timestamps"]
 
-    @property
+    @pytest.fixture
     def expected_control_data(self):
         result = self.extractor_instance.read(events=["AIn-1 - Raw"], outputPath="")
         return result[0]["data"]
 
-    @property
+    @pytest.fixture
     def expected_signal_timestamps(self):
         result = self.extractor_instance.read(events=["AIn-2 - Raw"], outputPath="")
         return result[0]["timestamps"]
 
-    @property
+    @pytest.fixture
     def expected_signal_data(self):
         result = self.extractor_instance.read(events=["AIn-2 - Raw"], outputPath="")
         return result[0]["data"]
 
-    @property
+    @pytest.fixture
     def expected_ttl_timestamps(self):
         result = self.extractor_instance.read(events=["DI--O-1"], outputPath="")
+        return result[0]["timestamps"]
+
+
+_EVENT_NAME_TO_EVENT_TYPE_V6 = {
+    "CAM1_EXC1/ROI01": "control",
+    "CAM1_EXC2/ROI01": "signal",
+    "DigitalIO/CAM1": "ttl",
+}
+
+
+class TestDoricRecordingExtractorV6(RecordingExtractorTestMixin):
+    extractor_class = DoricRecordingExtractor
+    folder_path = os.path.join(STUBBED_TESTING_DATA, "doric", "sample_doric_3")
+    extractor_instance = DoricRecordingExtractor(folder_path, _EVENT_NAME_TO_EVENT_TYPE_V6)
+    expected_events = ["CAM1_EXC1/ROI01", "CAM1_EXC2/ROI01", "DigitalIO/CAM1"]
+    discover_kwargs = {}
+    control_event = "CAM1_EXC1/ROI01"
+    signal_event = "CAM1_EXC2/ROI01"
+    ttl_event = "DigitalIO/CAM1"
+    stub_ttl_test_duration_in_seconds = 100.0
+    stub_extractor_kwargs = {"event_name_to_event_type": _EVENT_NAME_TO_EVENT_TYPE_V6}
+
+    @pytest.fixture
+    def expected_control_timestamps(self):
+        result = self.extractor_instance.read(events=["CAM1_EXC1/ROI01"], outputPath="")
+        return result[0]["timestamps"]
+
+    @pytest.fixture
+    def expected_control_data(self):
+        result = self.extractor_instance.read(events=["CAM1_EXC1/ROI01"], outputPath="")
+        return result[0]["data"]
+
+    @pytest.fixture
+    def expected_signal_timestamps(self):
+        result = self.extractor_instance.read(events=["CAM1_EXC2/ROI01"], outputPath="")
+        return result[0]["timestamps"]
+
+    @pytest.fixture
+    def expected_signal_data(self):
+        result = self.extractor_instance.read(events=["CAM1_EXC2/ROI01"], outputPath="")
+        return result[0]["data"]
+
+    @pytest.fixture
+    def expected_ttl_timestamps(self):
+        result = self.extractor_instance.read(events=["DigitalIO/CAM1"], outputPath="")
         return result[0]["timestamps"]

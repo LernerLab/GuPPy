@@ -11,9 +11,14 @@ on:
         description: 'List of OS versions to use in matrix, as JSON string'
         required: true
         type: string
+      skip-full-data-tests:
+        description: 'Whether to skip tests marked full_data'
+        required: false
+        type: boolean
+        default: false
     secrets:
       RCLONE_CONFIG:
-        required: true
+        required: false
       CODECOV_TOKEN:
         required: true
   workflow_dispatch:
@@ -28,11 +33,17 @@ on:
         required: true
         type: string
         default: '["ubuntu-latest", "windows-2022", "macos-latest"]'
+      skip-full-data-tests:
+        description: 'Whether to skip tests marked full_data'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   run:
     name: ${{ matrix.os }} Python ${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -40,6 +51,8 @@ jobs:
         os: ${{ fromJson(inputs.os-versions) }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          lfs: true
       - name: Setup Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
@@ -54,12 +67,15 @@ jobs:
           python -m pip install --group test
 
       - name: Prepare data for tests
+        if: ${{ !inputs.skip-full-data-tests }}
         uses: ./.github/actions/load-data
         with:
           rclone-config: ${{ secrets.RCLONE_CONFIG }}
 
       - name: Run tests
-        run: pytest tests -vv -rsx --dist loadscope --cov=guppy --cov-branch --cov-report=xml # TODO: add -n auto when tests no longer use multiprocessing
+        run: pytest tests -vv -rsx -n auto --dist worksteal -m "not parallel${{ inputs.skip-full-data-tests && ' and not full_data' || '' }}" --cov=guppy --cov-branch --cov-report=xml
+      - name: Run parallel tests
+        run: pytest tests -vv -rsx -m "parallel and not full_data"
       - name: Upload full coverage to Codecov
         if: ${{ matrix.python-version == '3.10' && matrix.os == 'ubuntu-latest' }}
         uses: codecov/codecov-action@v5

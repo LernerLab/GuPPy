@@ -175,6 +175,7 @@ def step3(
     npm_timestamp_column_names: list[str | None] | None = None,
     npm_time_units: list[str] | None = None,
     npm_split_events: list[bool] | None = None,
+    number_of_cores: int = 1,
 ) -> None:
     """
     Run pipeline Step 3 (Read Raw Data) via the actual Panel-backed logic, headlessly.
@@ -198,6 +199,9 @@ def step3(
         List of time units for NPM files, one per CSV file (e.g., 'seconds', 'milliseconds'). None if not applicable.
     npm_split_events : list[bool] | None
         List of booleans indicating whether to split events for NPM files, one per CSV file. None if not applicable.
+    number_of_cores : int
+        Number of worker processes to use for parallel data reading. Defaults to ``1``
+        (single-process) to avoid multiprocessing conflicts in test environments.
 
     Raises
     ------
@@ -246,6 +250,9 @@ def step3(
     input_params["npm_timestamp_column_names"] = npm_timestamp_column_names
     input_params["npm_time_units"] = npm_time_units
     input_params["npm_split_events"] = npm_split_events
+
+    # Override parallelism — default 1 keeps tests single-process
+    input_params["numberOfCores"] = number_of_cores
 
     # Call the underlying Step 3 worker directly (no subprocess)
     orchestrate_read_raw_data(input_params)
@@ -403,6 +410,7 @@ def step5(
     group_folders: list[str] | None = None,
     select_for_compute_psth: str = "z_score",
     select_for_transients: str = "z_score",
+    number_of_cores: int = 1,
 ) -> None:
     """
     Run pipeline Step 5 (PSTH Computation) via the Panel-backed logic, headlessly.
@@ -442,6 +450,9 @@ def step5(
     select_for_transients : str
         Signal type to use for transient detection. One of ``'z_score'``, ``'dff'``, or
         ``'Both'``. Defaults to ``'z_score'``.
+    number_of_cores : int
+        Number of worker processes for PSTH and transient computations. Defaults to ``1``
+        (single-process) to avoid multiprocessing conflicts in test environments.
 
     Raises
     ------
@@ -501,6 +512,9 @@ def step5(
     # Inject signal-type selection parameters
     input_params["selectForComputePsth"] = select_for_compute_psth
     input_params["selectForTransientsComputation"] = select_for_transients
+
+    # Override parallelism — default 1 keeps tests single-process
+    input_params["numberOfCores"] = number_of_cores
 
     # Call the underlying Step 5 worker directly (no subprocess)
     psthForEachStorename(input_params)
