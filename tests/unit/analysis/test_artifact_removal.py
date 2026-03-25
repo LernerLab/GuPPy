@@ -1,9 +1,12 @@
 import numpy as np
 
 from guppy.analysis.artifact_removal import (
+    addingNaNtoChunksWithArtifacts,
     addingNaNValues,
     eliminateData,
     eliminateTs,
+    processTimestampsForArtifacts,
+    remove_artifacts,
     removeTTLs,
 )
 
@@ -123,3 +126,117 @@ def test_remove_ttls_two_windows_returns_timestamps_from_both():
     # 1.5, 2.5 inside [1,4]; 5.5, 6.5 inside [5,8]; 0.5 and 9.5 are outside both windows
     expected = np.array([1.5, 2.5, 5.5, 6.5])
     np.testing.assert_array_equal(result, expected)
+
+
+# ── addingNaNtoChunksWithArtifacts ────────────────────────────────────────────
+
+
+def test_adding_nan_to_chunks_sets_nan_outside_coords_for_signal_and_control():
+    storesList = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
+    tsNew = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
+    coords = np.array([[1.0, 4.0]])
+    name_to_data = {"control_dms": np.ones(6), "signal_dms": np.ones(6) * 2.0}
+    compound_name_to_ttl_timestamps = {"TTL1_dms": np.array([1.5, 2.5, 4.5])}
+
+    result_data, _ = addingNaNtoChunksWithArtifacts(
+        storesList, {"dms": tsNew}, {"dms": coords}, name_to_data, compound_name_to_ttl_timestamps
+    )
+
+    # ts=[0,1,2,3,4,5]: strictly inside (1,4) → indices 2,3; outside → 0,1,4,5 must be NaN
+    assert np.isnan(result_data["control_dms"][0])
+    assert np.isnan(result_data["control_dms"][1])
+    assert result_data["control_dms"][2] == 1.0
+    assert result_data["control_dms"][3] == 1.0
+    assert np.isnan(result_data["control_dms"][4])
+
+
+def test_adding_nan_to_chunks_drops_ttls_outside_coords():
+    storesList = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
+    tsNew = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
+    coords = np.array([[1.0, 4.0]])
+    name_to_data = {"control_dms": np.ones(6), "signal_dms": np.ones(6)}
+    compound_name_to_ttl_timestamps = {"TTL1_dms": np.array([1.5, 2.5, 4.5])}
+
+    _, result_ttl = addingNaNtoChunksWithArtifacts(
+        storesList, {"dms": tsNew}, {"dms": coords}, name_to_data, compound_name_to_ttl_timestamps
+    )
+
+    # 4.5 is outside (1, 4); only 1.5 and 2.5 are kept
+    np.testing.assert_array_equal(result_ttl["TTL1_dms"], np.array([1.5, 2.5]))
+
+
+# ── processTimestampsForArtifacts ─────────────────────────────────────────────
+
+
+def test_process_timestamps_for_artifacts_concatenates_data_inside_coords():
+    storesList = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
+    tsNew = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
+    coords = np.array([[1.0, 4.0]])
+    # ts strictly inside (1, 4): indices 2 and 3 (ts=2.0, ts=3.0)
+    name_to_data = {
+        "control_dms": np.array([10.0, 20.0, 30.0, 40.0, 50.0, 60.0]),
+        "signal_dms": np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
+    }
+    compound_name_to_ttl_timestamps = {"TTL1_dms": np.array([1.5, 2.5, 4.5])}
+
+    result_data, result_ts, result_ttl = processTimestampsForArtifacts(
+        0.5, storesList, {"dms": tsNew}, {"dms": 100.0}, {"dms": coords}, name_to_data, compound_name_to_ttl_timestamps
+    )
+
+    # Only 2 samples inside the window
+    assert result_data["control_dms"].shape[0] == 2
+    np.testing.assert_array_equal(result_data["control_dms"], np.array([30.0, 40.0]))
+    # First corrected timestamp = timeForLightsTurnOn = 0.5
+    np.testing.assert_allclose(result_ts["dms"][0], 0.5, atol=1e-6)
+    # TTLs: 1.5 and 2.5 inside; 4.5 outside
+    assert result_ttl["TTL1_dms"].shape[0] == 2
+
+
+# ── remove_artifacts ──────────────────────────────────────────────────────────
+
+
+def test_remove_artifacts_concatenate_method_returns_correct_data():
+    storesList = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
+    tsNew = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
+    coords = np.array([[1.0, 4.0]])
+    name_to_data = {"control_dms": np.ones(6), "signal_dms": np.ones(6) * 2.0}
+    compound_name_to_ttl_timestamps = {"TTL1_dms": np.array([1.5, 2.5, 4.5])}
+
+    result_data, result_ts, result_ttl = remove_artifacts(
+        0.5,
+        storesList,
+        {"dms": tsNew},
+        {"dms": 100.0},
+        {"dms": coords},
+        name_to_data,
+        compound_name_to_ttl_timestamps,
+        method="concatenate",
+    )
+
+    assert result_data["control_dms"].shape[0] == 2
+    assert result_ts is not None
+    assert result_ttl["TTL1_dms"].shape[0] == 2
+
+
+def test_remove_artifacts_replace_with_nan_method_returns_nan_outside_coords():
+    storesList = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
+    tsNew = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
+    coords = np.array([[1.0, 4.0]])
+    name_to_data = {"control_dms": np.ones(6), "signal_dms": np.ones(6)}
+    compound_name_to_ttl_timestamps = {"TTL1_dms": np.array([1.5, 2.5, 4.5])}
+
+    result_data, result_ts, result_ttl = remove_artifacts(
+        0.0,
+        storesList,
+        {"dms": tsNew},
+        {"dms": 100.0},
+        {"dms": coords},
+        name_to_data,
+        compound_name_to_ttl_timestamps,
+        method="replace with NaN",
+    )
+
+    # NaN method: pair_name_to_corrected_timestamps is None
+    assert result_ts is None
+    assert np.isnan(result_data["control_dms"][0])
+    assert result_data["control_dms"][2] == 1.0

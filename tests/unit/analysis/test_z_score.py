@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 from guppy.analysis.z_score import (
+    compute_z_score,
     controlFit,
     deltaFF,
     execute_controlFit_dff,
@@ -116,3 +117,43 @@ def test_execute_control_fit_dff_isosbestic_false_signal_offset_from_control():
     norm_data, control_fit = execute_controlFit_dff(control, signal, isosbestic_control=False, filter_window=0)
     np.testing.assert_allclose(norm_data, np.zeros(3), atol=1e-10)
     np.testing.assert_allclose(control_fit, np.array([2.0, 3.0, 4.0]), atol=1e-10)
+
+
+# ── compute_z_score ───────────────────────────────────────────────────────────
+
+
+def test_compute_z_score_isosbestic_returns_standard_normalized_array():
+    # signal = 2 * control → perfect fit → norm_data = 0 everywhere → standard z-score = NaN (0/0)
+    # Use slightly noisy signal to get a real z-score
+    rng = np.random.default_rng(seed=30)
+    n = 200
+    tsNew = np.linspace(1.0, 11.0, n)
+    # coords cover strictly inside the tsNew range
+    coords = np.array([[0.5, 11.5]])
+    control = 2.0 + rng.standard_normal(n) * 0.1
+    signal = 1.5 * control + rng.standard_normal(n) * 0.05
+
+    z_score_arr, norm_data_arr, control_fit_arr, temp_control_arr = compute_z_score(
+        control=control,
+        signal=signal,
+        tsNew=tsNew,
+        coords=coords,
+        artifactsRemovalMethod="replace with NaN",
+        filter_window=0,
+        isosbestic_control=True,
+        zscore_method="standard z-score",
+        baseline_start=0.0,
+        baseline_end=0.0,
+    )
+
+    # With isosbestic_control=True, temp_control_arr is None
+    assert temp_control_arr is None
+    # z_score has same length as tsNew
+    assert z_score_arr.shape[0] == n
+    # Standard z-score has ~zero mean and ~unit std
+    np.testing.assert_allclose(np.nanmean(z_score_arr), 0.0, atol=1e-6)
+    np.testing.assert_allclose(np.nanstd(z_score_arr), 1.0, atol=1e-6)
+    # norm_data and control_fit are filled inside the coords window
+    inside = (tsNew > 0.5) & (tsNew < 11.5)
+    assert not np.any(np.isnan(norm_data_arr[inside]))
+    assert not np.any(np.isnan(control_fit_arr[inside]))
