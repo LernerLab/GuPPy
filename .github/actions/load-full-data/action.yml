@@ -1,0 +1,18 @@
+name: 'Load Full Data'
+description: 'Downloads full testing data from Google Drive.'
+inputs:
+  rclone-config:
+    description: 'Rclone configuration'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Rclone
+      uses: AnimMouse/setup-rclone@v1
+      with:
+        rclone_config: ${{ inputs.rclone-config }}
+
+    - name: Download datasets from Google Drive
+      shell: bash
+      run: |
+        rclone copy remote:"SampleData" ./testing_data --drive-shared-with-me
