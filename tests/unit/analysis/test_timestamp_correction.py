@@ -7,37 +7,34 @@ from guppy.analysis.timestamp_correction import (
 
 
 def test_apply_correction_ttl_tdt_mode_all_above_rec_start_subtracts_both_offsets():
-    time_rec_start = 10.0
-    time_for_lights_turn_on = 2.0
+    # All timestamps >= timeRecStart → subtract both timeRecStart and timeForLightsTurnOn
+    # [10.5-10.0-2.0, 11.0-10.0-2.0, 12.0-10.0-2.0] = [-1.5, -1.0, 0.0]
     ttl_timestamps = np.array([10.5, 11.0, 12.0])
-    result = applyCorrection_ttl(time_for_lights_turn_on, time_rec_start, ttl_timestamps, "tdt")
-    expected = ttl_timestamps - time_rec_start - time_for_lights_turn_on
-    np.testing.assert_allclose(result, expected)
+    result = applyCorrection_ttl(2.0, 10.0, ttl_timestamps, "tdt")
+    np.testing.assert_allclose(result, np.array([-1.5, -1.0, 0.0]))
 
 
 def test_apply_correction_ttl_tdt_mode_some_below_rec_start_subtracts_only_lights_turn_on():
-    time_rec_start = 10.0
-    time_for_lights_turn_on = 2.0
-    # One timestamp is below timeRecStart
+    # One timestamp is below timeRecStart → subtract only timeForLightsTurnOn
+    # [9.5-2.0, 11.0-2.0, 12.0-2.0] = [7.5, 9.0, 10.0]
     ttl_timestamps = np.array([9.5, 11.0, 12.0])
-    result = applyCorrection_ttl(time_for_lights_turn_on, time_rec_start, ttl_timestamps, "tdt")
-    expected = ttl_timestamps - time_for_lights_turn_on
-    np.testing.assert_allclose(result, expected)
+    result = applyCorrection_ttl(2.0, 10.0, ttl_timestamps, "tdt")
+    np.testing.assert_allclose(result, np.array([7.5, 9.0, 10.0]))
 
 
 def test_apply_correction_ttl_csv_mode_subtracts_only_lights_turn_on():
-    time_rec_start = 0.0  # not used in csv mode
-    time_for_lights_turn_on = 3.0
+    # CSV mode always subtracts only timeForLightsTurnOn regardless of timeRecStart
+    # [5.0-3.0, 8.0-3.0, 12.0-3.0] = [2.0, 5.0, 9.0]
     ttl_timestamps = np.array([5.0, 8.0, 12.0])
-    result = applyCorrection_ttl(time_for_lights_turn_on, time_rec_start, ttl_timestamps, "csv")
-    expected = ttl_timestamps - time_for_lights_turn_on
-    np.testing.assert_allclose(result, expected)
+    result = applyCorrection_ttl(3.0, 0.0, ttl_timestamps, "csv")
+    np.testing.assert_allclose(result, np.array([2.0, 5.0, 9.0]))
 
 
-def test_apply_correction_ttl_output_same_shape_as_input():
+def test_apply_correction_ttl_tdt_mode_all_at_rec_start_subtracts_both_offsets():
+    # All timestamps >= timeRecStart=100 → [100-100-1, ..., 109-100-1] = [-1, 0, ..., 8]
     ttl_timestamps = np.arange(10, dtype=float) + 100.0
     result = applyCorrection_ttl(1.0, 100.0, ttl_timestamps, "tdt")
-    assert result.shape == ttl_timestamps.shape
+    np.testing.assert_allclose(result, np.arange(-1, 9, dtype=float))
 
 
 def test_check_cntrl_sig_length_control_shorter_returns_control_name():

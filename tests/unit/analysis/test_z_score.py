@@ -50,11 +50,12 @@ def test_control_fit_output_is_linear_transform_of_control():
     assert residuals.std() < 0.1
 
 
-def test_control_fit_returns_same_shape_as_control():
-    control = np.linspace(0, 1, 200)
-    signal = 3.0 * control + 0.5
+def test_control_fit_known_linear_signal_returns_exact_fit():
+    # signal = 3.0 * control + 0.5; polyfit should recover this exactly
+    control = np.array([0.0, 1.0, 2.0])
+    signal = np.array([0.5, 3.5, 6.5])
     result = controlFit(control, signal)
-    assert result.shape == control.shape
+    np.testing.assert_allclose(result, np.array([0.5, 3.5, 6.5]), atol=1e-10)
 
 
 def test_z_score_computation_standard_has_zero_mean_unit_std():
@@ -99,21 +100,19 @@ def test_z_score_computation_unknown_method_falls_through_to_mad():
     np.testing.assert_allclose(np.median(result), 0.0, atol=1e-10)
 
 
-def test_execute_control_fit_dff_isosbestic_true_returns_correct_shape():
-    rng = np.random.default_rng(seed=5)
-    control = np.linspace(1, 2, 500) + 0.01 * rng.standard_normal(500)
-    signal = 1.5 * control + 0.01 * rng.standard_normal(500)
+def test_execute_control_fit_dff_isosbestic_true_signal_proportional_to_control():
+    # signal = 1.5 * control → perfect linear fit → control_fit == signal → norm_data == 0
+    control = np.array([1.0, 2.0, 3.0])
+    signal = 1.5 * control
     norm_data, control_fit = execute_controlFit_dff(control, signal, isosbestic_control=True, filter_window=0)
-    assert norm_data.shape == signal.shape
-    assert control_fit.shape == signal.shape
+    np.testing.assert_allclose(norm_data, np.zeros(3), atol=1e-10)
+    np.testing.assert_allclose(control_fit, np.array([1.5, 3.0, 4.5]), atol=1e-10)
 
 
-def test_execute_control_fit_dff_isosbestic_false_uses_only_signal_for_smooth():
-    rng = np.random.default_rng(seed=6)
-    # When isosbestic_control=False, control is a curve-fitted synthetic channel.
-    # We pass a smooth synthetic control and verify output shapes match.
-    signal = np.linspace(1, 2, 500) + 0.01 * rng.standard_normal(500)
-    control = np.linspace(1.2, 1.8, 500) + 0.01 * rng.standard_normal(500)
+def test_execute_control_fit_dff_isosbestic_false_signal_offset_from_control():
+    # signal = control + 1.0 → perfect linear fit → control_fit == signal → norm_data == 0
+    control = np.array([1.0, 2.0, 3.0])
+    signal = control + 1.0
     norm_data, control_fit = execute_controlFit_dff(control, signal, isosbestic_control=False, filter_window=0)
-    assert norm_data.shape == signal.shape
-    assert control_fit.shape == signal.shape
+    np.testing.assert_allclose(norm_data, np.zeros(3), atol=1e-10)
+    np.testing.assert_allclose(control_fit, np.array([2.0, 3.0, 4.0]), atol=1e-10)
