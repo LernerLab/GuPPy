@@ -2,8 +2,6 @@ import numpy as np
 
 from guppy.analysis.control_channel import curveFitFn, helper_create_control_channel
 
-# ── curveFitFn ────────────────────────────────────────────────────────────────
-
 
 def test_curve_fit_fn_known_params_at_x_zero():
     # a + b * exp(-(1/c) * 0) = a + b
@@ -21,9 +19,6 @@ def test_curve_fit_fn_vectorized_produces_same_shape():
     x = np.linspace(0, 10, 100)
     result = curveFitFn(x, a=1.0, b=2.0, c=3.0)
     assert result.shape == x.shape
-
-
-# ── helper_create_control_channel ─────────────────────────────────────────────
 
 
 def test_helper_create_control_channel_output_shape_matches_signal():
@@ -48,7 +43,5 @@ def test_helper_create_control_channel_large_window_adjusted_down():
     rng = np.random.default_rng(seed=22)
     timestamps = np.linspace(0, 10, 200)
     signal = 1.0 + 5.0 * np.exp(-timestamps / 3.0) + 0.01 * rng.standard_normal(200)
-    # window > signal length: function should adjust it automatically, but currently
-    # computes a float window which causes savgol_filter to raise TypeError
     result = helper_create_control_channel(signal, timestamps, window=9999)
     assert result.shape == signal.shape
