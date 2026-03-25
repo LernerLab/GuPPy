@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 
 from guppy.analysis.control_channel import curveFitFn, helper_create_control_channel
 
@@ -45,9 +44,6 @@ def test_helper_create_control_channel_output_is_smooth():
     assert result.var() < signal.var()
 
 
-@pytest.mark.xfail(
-    reason="Production bug: window recalculation produces a float, but savgol_filter requires an integer window_length"
-)
 def test_helper_create_control_channel_large_window_adjusted_down():
     rng = np.random.default_rng(seed=22)
     timestamps = np.linspace(0, 10, 200)
