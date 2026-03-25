@@ -1,5 +1,5 @@
 name: 'Load Full Data'
-description: 'Restores data from caches or downloads it from Google Drive.'
+description: 'Downloads full testing data from Google Drive.'
 inputs:
   rclone-config:
     description: 'Rclone configuration'
@@ -12,23 +12,7 @@ runs:
       with:
         rclone_config: ${{ inputs.rclone-config }}
 
-    - name: Get dataset version hash
-      id: hash
-      shell: bash
-      run: |
-        HASH=$(rclone lsjson remote:"SampleData" --drive-shared-with-me --recursive | sed 's/,$//' | sort | sha256sum | cut -d' ' -f1)
-        echo "DATASET_HASH=$HASH" >> $GITHUB_OUTPUT
-
-    - name: Cache datasets
-      uses: actions/cache@v4
-      id: cache-datasets
-      with:
-        path: ./testing_data
-        key: ${{ steps.hash.outputs.DATASET_HASH }}
-        enableCrossOsArchive: true
-
-    - if: ${{ steps.cache-datasets.outputs.cache-hit != 'true' }}
-      name: Download datasets from Google Drive
+    - name: Download datasets from Google Drive
       shell: bash
       run: |
         rclone copy remote:"SampleData" ./testing_data --drive-shared-with-me
