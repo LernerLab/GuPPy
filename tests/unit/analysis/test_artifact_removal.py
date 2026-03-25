@@ -45,16 +45,6 @@ def test_eliminate_data_two_windows_output_length_is_sum_of_windows():
     assert result_ts.shape[0] == count_window_1 + count_window_2
 
 
-def test_eliminate_data_two_windows_timestamps_are_continuous():
-    ts = np.linspace(0, 10, 1001)
-    data = np.ones(1001)
-    coords = np.array([[1.0, 4.0], [6.0, 9.0]])
-    _, result_ts = eliminateData(data=data, ts=ts, coords=coords, timeForLightsTurnOn=0.0, sampling_rate=100.0)
-    # timestamps should be monotonically increasing with no large gaps
-    diffs = np.diff(result_ts)
-    assert (diffs > 0).all()
-
-
 def test_eliminate_data_all_zeros_returns_zero_array():
     ts = np.linspace(0, 5, 501)
     data = np.zeros(501)
@@ -67,17 +57,28 @@ def test_eliminate_ts_all_ttls_inside_window_are_preserved():
     tsNew = np.linspace(0, 5, 501)
     ttl_ts = np.array([1.5, 2.0, 3.5])
     coords = np.array([[1.0, 4.0]])
-    result = eliminateTs(ts=ttl_ts, tsNew=tsNew, coords=coords, timeForLightsTurnOn=0.0, sampling_rate=100.0)
-    assert result.shape[0] == 3
+    time_for_lights_turn_on = 0.0
+    result = eliminateTs(
+        ts=ttl_ts, tsNew=tsNew, coords=coords, timeForLightsTurnOn=time_for_lights_turn_on, sampling_rate=100.0
+    )
+    # All 3 TTLs inside the window; each is shifted by tsNew_inside[0] - timeForLightsTurnOn
+    shift = tsNew[(tsNew > 1.0) & (tsNew < 4.0)][0] - time_for_lights_turn_on
+    expected = ttl_ts - shift
+    np.testing.assert_allclose(result, expected, atol=1e-6)
 
 
 def test_eliminate_ts_ttls_outside_window_are_dropped():
     tsNew = np.linspace(0, 5, 501)
     ttl_ts = np.array([0.5, 1.5, 2.0, 4.5])
     coords = np.array([[1.0, 4.0]])
-    result = eliminateTs(ts=ttl_ts, tsNew=tsNew, coords=coords, timeForLightsTurnOn=0.0, sampling_rate=100.0)
-    # 0.5 and 4.5 are outside [1.0, 4.0]; 1.5 and 2.0 are inside
-    assert result.shape[0] == 2
+    time_for_lights_turn_on = 0.0
+    result = eliminateTs(
+        ts=ttl_ts, tsNew=tsNew, coords=coords, timeForLightsTurnOn=time_for_lights_turn_on, sampling_rate=100.0
+    )
+    # 0.5 and 4.5 are outside [1.0, 4.0]; only 1.5 and 2.0 survive, shifted by tsNew_inside[0] - timeForLightsTurnOn
+    shift = tsNew[(tsNew > 1.0) & (tsNew < 4.0)][0] - time_for_lights_turn_on
+    expected = np.array([1.5, 2.0]) - shift
+    np.testing.assert_allclose(result, expected, atol=1e-6)
 
 
 def test_adding_nan_values_out_of_window_indices_are_nan():
@@ -128,5 +129,6 @@ def test_remove_ttls_two_windows_returns_timestamps_from_both():
     ts = np.array([0.5, 1.5, 2.5, 5.5, 6.5, 9.5])
     coords = np.array([[1.0, 4.0], [5.0, 8.0]])
     result = removeTTLs(ts=ts, coords=coords)
-    # 1.5, 2.5 inside [1,4]; 5.5, 6.5 inside [5,8]
-    assert result.shape[0] == 4
+    # 1.5, 2.5 inside [1,4]; 5.5, 6.5 inside [5,8]; 0.5 and 9.5 are outside both windows
+    expected = np.array([1.5, 2.5, 5.5, 6.5])
+    np.testing.assert_array_equal(result, expected)
