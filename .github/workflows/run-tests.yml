@@ -51,8 +51,6 @@ jobs:
         os: ${{ fromJson(inputs.os-versions) }}
     steps:
       - uses: actions/checkout@v5
-        with:
-          lfs: true
       - name: Setup Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
@@ -66,9 +64,12 @@ jobs:
           python -m pip install "."
           python -m pip install --group test
 
-      - name: Prepare data for tests
+      - name: Load stubbed data for tests
+        uses: ./.github/actions/load-stubbed-data
+
+      - name: Load full data for tests
         if: ${{ !inputs.skip-full-data-tests }}
-        uses: ./.github/actions/load-data
+        uses: ./.github/actions/load-full-data
         with:
           rclone-config: ${{ secrets.RCLONE_CONFIG }}
 

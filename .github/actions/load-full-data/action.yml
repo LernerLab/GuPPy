@@ -1,4 +1,4 @@
-name: 'Prepare Datasets'
+name: 'Load Full Data'
 description: 'Restores data from caches or downloads it from Google Drive.'
 inputs:
   rclone-config:

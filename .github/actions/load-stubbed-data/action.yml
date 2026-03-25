@@ -1,0 +1,25 @@
+name: 'Load Stubbed Data'
+description: 'Restores stubbed testing data from cache or downloads it from Git LFS.'
+runs:
+  using: 'composite'
+  steps:
+    - name: Get stubbed data version hash
+      id: hash
+      shell: bash
+      run: |
+        HASH=$(git ls-tree -r HEAD -- stubbed_testing_data | sha256sum | cut -d' ' -f1)
+        echo "STUBBED_DATA_HASH=$HASH" >> $GITHUB_OUTPUT
+
+    - name: Cache stubbed datasets
+      uses: actions/cache@v4
+      id: cache-stubbed-datasets
+      with:
+        path: ./stubbed_testing_data
+        key: ${{ steps.hash.outputs.STUBBED_DATA_HASH }}
+        enableCrossOsArchive: true
+
+    - if: ${{ steps.cache-stubbed-datasets.outputs.cache-hit != 'true' }}
+      name: Download stubbed datasets from Git LFS
+      shell: bash
+      run: |
+        git lfs pull -- stubbed_testing_data
