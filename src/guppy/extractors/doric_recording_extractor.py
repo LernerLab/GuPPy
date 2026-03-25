@@ -329,13 +329,16 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
 
         with h5py.File(doric_path, "r") as source_file:
             if "Traces" in list(source_file.keys()):
-                self._stub_doric_hdf5_v1(
+                temporary_path = self._stub_doric_hdf5_v1(
                     source_file=source_file, doric_path=doric_path, duration_in_seconds=duration_in_seconds
                 )
             else:
-                self._stub_doric_hdf5_v6(
+                temporary_path = self._stub_doric_hdf5_v6(
                     source_file=source_file, doric_path=doric_path, duration_in_seconds=duration_in_seconds
                 )
+
+        # Replace after closing source_file so Windows does not raise PermissionError on open files.
+        os.replace(temporary_path, doric_path)
 
     def _stub_doric_hdf5_v1(self, *, source_file, doric_path, duration_in_seconds):
         timestamps = np.array(source_file["Traces"]["Console"]["Time(s)"]["Console_time(s)"])
@@ -359,7 +362,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                 channel_group = console.require_group(key)
                 channel_group.create_dataset(key, data=channel_data[key][:cutoff_index], compression="gzip")
 
-        os.replace(temporary_path, doric_path)
+        return temporary_path
 
     def _stub_doric_hdf5_v6(self, *, source_file, doric_path, duration_in_seconds):
         temporary_path = doric_path + ".tmp"
@@ -371,7 +374,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                 destination_group=destination_file.require_group("DataAcquisition"),
                 duration_in_seconds=duration_in_seconds,
             )
-        os.replace(temporary_path, doric_path)
+        return temporary_path
 
     def _copy_group_truncated(self, *, source_group, destination_group, duration_in_seconds):
         if "Time" in source_group:
