@@ -113,6 +113,7 @@ def test_read_and_save_event_hdf5_has_timestamps_dataset(tmp_path):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.parallel
 def test_read_and_save_all_events_produces_hdf5_files_for_all_events(tmp_path):
     extractor = MockRecordingExtractor("mock_folder")
     event_to_extractor = {"mock_signal": extractor, "mock_control": extractor}
@@ -122,6 +123,7 @@ def test_read_and_save_all_events_produces_hdf5_files_for_all_events(tmp_path):
     assert (tmp_path / "mock_control.hdf5").exists()
 
 
+@pytest.mark.parallel
 def test_read_and_save_all_events_all_hdf5_have_timestamps_dataset(tmp_path):
     extractor = MockRecordingExtractor("mock_folder")
     event_to_extractor = {"mock_signal": extractor, "mock_control": extractor}
@@ -132,6 +134,7 @@ def test_read_and_save_all_events_all_hdf5_have_timestamps_dataset(tmp_path):
             assert "timestamps" in file
 
 
+@pytest.mark.parallel
 def test_read_and_save_all_events_with_different_extractor_instances(tmp_path):
     signal_extractor = MockRecordingExtractor("mock_folder_1")
     control_extractor = MockRecordingExtractor("mock_folder_2")
