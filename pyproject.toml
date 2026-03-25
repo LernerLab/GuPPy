@@ -135,4 +135,5 @@ branch = true
 [tool.pytest.ini_options]
 markers = [
     "full_data: marks tests that require the full testing_data download (deselect with '-m not full_data')",
+    "parallel: marks tests that verify GuPPy multiprocessing behavior (run separately from the main suite)",
 ]

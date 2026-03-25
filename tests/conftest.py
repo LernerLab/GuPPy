@@ -1,3 +1,4 @@
+import multiprocessing
 import os
 import sys
 from pathlib import Path
@@ -6,6 +7,13 @@ from pathlib import Path
 # GuPPy's headless flag: orchestration code checks it to skip figure creation.
 # The per-test step functions will override this with the actual base_dir.
 os.environ.setdefault("GUPPY_BASE_DIR", "1")
+
+# Use "spawn" start method for all multiprocessing in tests. "fork" (the Linux
+# default) can deadlock when forking a multi-threaded pytest host, and can stall
+# coverage measurement waiting on child-process signals. "spawn" creates a clean
+# interpreter for each worker, which is safe in all environments. Windows always
+# uses "spawn" so force=True is a no-op there; macOS/Linux benefit from it.
+multiprocessing.set_start_method("spawn", force=True)
 
 # Ensure the 'src' directory and 'tests/' itself are on sys.path so that
 # test files can do `from conftest import ...` regardless of their nesting depth.
