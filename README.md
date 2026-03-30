@@ -120,4 +120,4 @@ This will launch the GuPPy user interface, where you can begin analyzing your fi
 - Jillian Seiler
 - [Gabriela Lopez](https://github.com/glopez924)
 - [Talia Lerner](https://github.com/talialerner)
-- [Paul Adkisson](https://github.com/pauladkisson)
+- [Paul Adkisson-Floro](https://github.com/pauladkisson)
