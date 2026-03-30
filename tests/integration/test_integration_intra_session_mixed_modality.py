@@ -13,8 +13,7 @@ from guppy.testing.api import step2, step3, step4, step5
 def _stage_session(src_base_dir, session_subdir, tmp_base):
     """Copy a session to a temp workspace, clean output dirs and param files."""
     src_session = os.path.join(src_base_dir, session_subdir)
-    if not os.path.isdir(src_session):
-        pytest.skip(f"Sample data not available at expected path: {src_session}")
+    assert os.path.isdir(src_session), f"Sample data not available at expected path: {src_session}"
     dest_name = os.path.basename(src_session)
     session_copy = tmp_base / dest_name
     shutil.copytree(src_session, session_copy)

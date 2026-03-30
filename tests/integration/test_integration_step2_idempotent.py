@@ -3,7 +3,6 @@ import glob
 import os
 import shutil
 
-import pytest
 from conftest import STUBBED_TESTING_DATA
 
 from guppy.testing.api import step2
@@ -27,8 +26,7 @@ def test_step2_npm_idempotent(tmp_path):
 
     src_base_dir = str(STUBBED_TESTING_DATA)
     src_session = os.path.join(src_base_dir, session_subdir)
-    if not os.path.isdir(src_session):
-        pytest.skip(f"Sample data not available at expected path: {src_session}")
+    assert os.path.isdir(src_session), f"Sample data not available at expected path: {src_session}"
 
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)
