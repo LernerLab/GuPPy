@@ -148,11 +148,16 @@ class VisualizationDashboard:
             pn.Row(self.plotter.heatmap, heatmap_y_parameters),
         )
 
+    def build_template(self):
+        """Build and return the Panel template without serving it."""
+        template = pn.template.MaterialTemplate(title="Visualization GUI")
+        app = pn.Tabs(("PSTH", self._psth_tab), ("Heat Map", self._heatmap_tab))
+        template.main.append(app)
+        return template
+
     def show(self):
         """Serve the dashboard in a browser on an available port."""
         logger.info("app")
-        template = pn.template.MaterialTemplate(title="Visualization GUI")
+        template = self.build_template()
         number = scanPortsAndFind(start_port=5000, end_port=5200)
-        app = pn.Tabs(("PSTH", self._psth_tab), ("Heat Map", self._heatmap_tab))
-        template.main.append(app)
         template.show(port=number)

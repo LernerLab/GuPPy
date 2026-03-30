@@ -152,26 +152,25 @@ def _save(d, select_location):
 
 
 # function to show GUI and save
-def build_storenames_page(inputParameters, events, flags, folder_path):
+def build_storenames_template(events, flags, folder_path):
+    """Build and return the Storenames GUI Panel template without serving it.
 
-    logger.debug("Saving stores list file.")
-    # getting input parameters
-    inputParameters = inputParameters
+    Parameters
+    ----------
+    events : list of str
+        Storename strings discovered from the data acquisition files.
+    flags : list of str
+        Feature flags (e.g. ``"data_np_v2"``) that control which instructions widget is shown.
+    folder_path : str
+        Absolute path to the session directory.
 
-    # Headless path: if storenames_map provided, write storesList.csv without building the Panel UI
-    storenames_map = inputParameters.get("storenames_map")
-    if isinstance(storenames_map, dict) and len(storenames_map) > 0:
-        op = make_dir(folder_path)
-        arr = np.asarray([list(storenames_map.keys()), list(storenames_map.values())], dtype=str)
-        np.savetxt(os.path.join(op, "storesList.csv"), arr, delimiter=",", fmt="%s")
-        logger.info(f"Storeslist file saved at {op}")
-        logger.info("Storeslist : \n" + str(arr))
-        return
-
-    # Get storenames from extractor's events property
+    Returns
+    -------
+    pn.template.BootstrapTemplate
+        Fully configured Panel template ready to be served.
+    """
     allnames = events
 
-    # creating GUI template
     template = pn.template.BootstrapTemplate(title="Storenames GUI - {}".format(os.path.basename(folder_path)))
 
     if "data_np_v2" in flags or "data_np" in flags or "event_np" in flags:
@@ -256,6 +255,25 @@ def build_storenames_page(inputParameters, events, flags, folder_path):
     storenames_selector.attach_callbacks(button_name_to_onclick_fn)
 
     template.main.append(pn.Row(storenames_instructions.widget, storenames_selector.widget))
+
+    return template
+
+
+def build_storenames_page(inputParameters, events, flags, folder_path):
+
+    logger.debug("Saving stores list file.")
+
+    # Headless path: if storenames_map provided, write storesList.csv without building the Panel UI
+    storenames_map = inputParameters.get("storenames_map")
+    if isinstance(storenames_map, dict) and len(storenames_map) > 0:
+        op = make_dir(folder_path)
+        arr = np.asarray([list(storenames_map.keys()), list(storenames_map.values())], dtype=str)
+        np.savetxt(os.path.join(op, "storesList.csv"), arr, delimiter=",", fmt="%s")
+        logger.info(f"Storeslist file saved at {op}")
+        logger.info("Storeslist : \n" + str(arr))
+        return
+
+    template = build_storenames_template(events, flags, folder_path)
 
     # creating widgets, adding them to template and showing a GUI on a new browser window
     number = scanPortsAndFind(start_port=5000, end_port=5200)
