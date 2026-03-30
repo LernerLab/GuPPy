@@ -4,10 +4,11 @@ import time
 
 logger = logging.getLogger(__name__)
 
+PB_STEPS_FILE = os.path.join(os.path.expanduser("~"), "pbSteps.txt")
 
-def readPBIncrementValues(progressBar):
+
+def readPBIncrementValues(progressBar, *, file_path):
     logger.info("Read progress bar increment values function started...")
-    file_path = os.path.join(os.path.expanduser("~"), "pbSteps.txt")
     if os.path.exists(file_path):
         os.remove(file_path)
     increment, maximum = 0, 100
@@ -45,6 +46,6 @@ def readPBIncrementValues(progressBar):
     logger.info("Read progress bar increment values stopped.")
 
 
-def writeToFile(value: str):
-    with open(os.path.join(os.path.expanduser("~"), "pbSteps.txt"), "a") as file:
+def writeToFile(value: str, *, file_path):
+    with open(file_path, "a") as file:
         file.write(value)

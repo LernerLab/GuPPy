@@ -32,7 +32,7 @@ from ..analysis.standard_io import (
     write_peak_and_area_to_csv,
     write_peak_and_area_to_hdf5,
 )
-from ..frontend.progress import writeToFile
+from ..frontend.progress import PB_STEPS_FILE, writeToFile
 from ..utils.utils import get_all_stores_for_combining_data, read_Df, takeOnlyDirs
 
 logger = logging.getLogger(__name__)
@@ -206,7 +206,10 @@ def orchestrate_psth(inputParameters):
     for i in range(len(folderNames)):
         storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(folderNames[i], "*_output_*"))))
     storesListPath = np.concatenate(storesListPath)
-    writeToFile(str((storesListPath.shape[0] + storesListPath.shape[0] + 1) * 10) + "\n" + str(10) + "\n")
+    writeToFile(
+        str((storesListPath.shape[0] + storesListPath.shape[0] + 1) * 10) + "\n" + str(10) + "\n",
+        file_path=PB_STEPS_FILE,
+    )
     for i in range(len(folderNames)):
         logger.debug(f"Computing PSTH, Peak and Area for each event in {folderNames[i]}")
         storesListPath = takeOnlyDirs(glob.glob(os.path.join(folderNames[i], "*_output_*")))
@@ -233,7 +236,7 @@ def orchestrate_psth(inputParameters):
                 # 	storenamePsth(filepath, storesList[1,k], inputParameters)
                 # 	findPSTHPeakAndArea(filepath, storesList[1,k], inputParameters)
 
-            writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
+            writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
             inputParameters["step"] += 1
         logger.info(f"PSTH, Area and Peak are computed for all events in {folderNames[i]}.")
 
@@ -245,7 +248,7 @@ def execute_psth_combined(inputParameters):
         storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(folderNames[i], "*_output_*"))))
     storesListPath = list(np.concatenate(storesListPath).flatten())
     op = get_all_stores_for_combining_data(storesListPath)
-    writeToFile(str((len(op) + len(op) + 1) * 10) + "\n" + str(10) + "\n")
+    writeToFile(str((len(op) + len(op) + 1) * 10) + "\n" + str(10) + "\n", file_path=PB_STEPS_FILE)
     for i in range(len(op)):
         storesList = np.asarray([[], []])
         for j in range(len(op[i])):
@@ -296,7 +299,7 @@ def execute_average_for_group(inputParameters):
             continue
         else:
             pbMaxValue += 1
-    writeToFile(str((1 + pbMaxValue + 1) * 10) + "\n" + str(10) + "\n")
+    writeToFile(str((1 + pbMaxValue + 1) * 10) + "\n" + str(10) + "\n", file_path=PB_STEPS_FILE)
     for k in range(storesList.shape[1]):
         if "control" in storesList[1, k].lower() or "signal" in storesList[1, k].lower():
             continue
@@ -348,8 +351,7 @@ def main(input_parameters):
         subprocess.call([sys.executable, "-m", "guppy.orchestration.transients", json.dumps(inputParameters)])
         logger.info("#" * 400)
     except Exception as e:
-        with open(os.path.join(os.path.expanduser("~"), "pbSteps.txt"), "a") as file:
-            file.write(str(-1) + "\n")
+        writeToFile(str(-1) + "\n", file_path=PB_STEPS_FILE)
         logger.error(str(e))
         raise e
 

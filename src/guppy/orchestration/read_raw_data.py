@@ -15,7 +15,7 @@ from guppy.extractors import (
     detect_acquisition_formats,
     read_and_save_all_events,
 )
-from guppy.frontend.progress import writeToFile
+from guppy.frontend.progress import PB_STEPS_FILE, writeToFile
 from guppy.utils.utils import takeOnlyDirs
 
 logger = logging.getLogger(__name__)
@@ -98,7 +98,7 @@ def orchestrate_read_raw_data(inputParameters):
         filepath = folderNames[i]
         storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
     storesListPath = np.concatenate(storesListPath)
-    writeToFile(str((storesListPath.shape[0] + 1) * 10) + "\n" + str(10) + "\n")
+    writeToFile(str((storesListPath.shape[0] + 1) * 10) + "\n" + str(10) + "\n", file_path=PB_STEPS_FILE)
     step = 0
     for i in range(len(folderNames)):
         filepath = folderNames[i]
@@ -132,7 +132,7 @@ def orchestrate_read_raw_data(inputParameters):
                 store_event_to_extractor[event] = ext
             read_and_save_all_events(store_event_to_extractor, op, numProcesses)
 
-            writeToFile(str(10 + ((step + 1) * 10)) + "\n")
+            writeToFile(str(10 + ((step + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
             step += 1
         logger.info(f"### Raw data for folder {folderNames[i]} fetched")
     logger.info("Raw data fetched and saved.")
@@ -145,8 +145,7 @@ def main(input_parameters):
         orchestrate_read_raw_data(input_parameters)
         logger.info("#" * 400)
     except Exception as e:
-        with open(os.path.join(os.path.expanduser("~"), "pbSteps.txt"), "a") as file:
-            file.write(str(-1) + "\n")
+        writeToFile(str(-1) + "\n", file_path=PB_STEPS_FILE)
         logger.error(f"An error occurred: {e}")
         raise e
 

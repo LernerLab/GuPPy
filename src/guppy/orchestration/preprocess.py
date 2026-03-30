@@ -41,7 +41,7 @@ from ..analysis.standard_io import (
 from ..analysis.timestamp_correction import correct_timestamps
 from ..analysis.z_score import compute_z_score
 from ..frontend.artifact_removal import ArtifactRemovalWidget
-from ..frontend.progress import writeToFile
+from ..frontend.progress import PB_STEPS_FILE, writeToFile
 from ..utils.utils import get_all_stores_for_combining_data
 from ..visualization.preprocessing import visualize_preprocessing
 
@@ -161,7 +161,7 @@ def execute_timestamp_correction(folderNames, inputParameters):
             if isosbestic_control == False:
                 create_control_channel(filepath, storesList, window=101)
 
-            writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
+            writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
             inputParameters["step"] += 1
         logger.info(f"Timestamps corrections finished for {filepath}")
 
@@ -419,7 +419,7 @@ def extractTsAndSignal(inputParameters):
     # writeToFile(str((pbMaxValue+1)*10)+'\n'+str(10)+'\n')
     if combine_data == False:
         pbMaxValue = storesListPath.shape[0] + len(folderNames)
-        writeToFile(str((pbMaxValue + 1) * 10) + "\n" + str(10) + "\n")
+        writeToFile(str((pbMaxValue + 1) * 10) + "\n" + str(10) + "\n", file_path=PB_STEPS_FILE)
         execute_timestamp_correction(folderNames, inputParameters)
         execute_zscore(folderNames, inputParameters)
         headless = bool(os.environ.get("GUPPY_BASE_DIR"))
@@ -429,7 +429,7 @@ def extractTsAndSignal(inputParameters):
             execute_artifact_removal(folderNames, inputParameters)
     else:
         pbMaxValue = 1 + len(folderNames)
-        writeToFile(str((pbMaxValue) * 10) + "\n" + str(10) + "\n")
+        writeToFile(str((pbMaxValue) * 10) + "\n" + str(10) + "\n", file_path=PB_STEPS_FILE)
         execute_timestamp_correction(folderNames, inputParameters)
         storesList = check_storeslistfile(folderNames)
         op_folder = execute_combine_data(folderNames, inputParameters, storesList)
@@ -447,8 +447,7 @@ def main(input_parameters):
         extractTsAndSignal(input_parameters)
         logger.info("#" * 400)
     except Exception as e:
-        with open(os.path.join(os.path.expanduser("~"), "pbSteps.txt"), "a") as file:
-            file.write(str(-1) + "\n")
+        writeToFile(str(-1) + "\n", file_path=PB_STEPS_FILE)
         logger.error(str(e))
         raise e
 
