@@ -3,21 +3,12 @@ import os
 import holoviews as hv
 import numpy as np
 import pandas as pd
+import pytest
 
 from guppy.frontend.storenames_instructions import (
     StorenamesInstructions,
     StorenamesInstructionsNPM,
 )
-
-
-def _write_stub_chev_csv(directory, filename):
-    """Write a minimal CSV with timestamps and data columns to directory."""
-    timestamps = np.linspace(0, 10, 50)
-    data = np.sin(timestamps)
-    df = pd.DataFrame({"timestamps": timestamps, "data": data})
-    file_path = os.path.join(str(directory), filename)
-    df.to_csv(file_path, index=False)
-    return file_path
 
 
 class TestStorenamesInstructions:
@@ -38,38 +29,43 @@ class TestStorenamesInstructions:
 
 
 class TestStorenamesInstructionsNPM:
-    def test_plot_select_options_match_basenames(self, panel_extension, tmp_path):
+    def _write_stub_chev_csv(self, directory, filename):
+        """Write a minimal CSV with timestamps and data columns to directory."""
+        timestamps = np.linspace(0, 10, 50)
+        data = np.sin(timestamps)
+        df = pd.DataFrame({"timestamps": timestamps, "data": data})
+        file_path = os.path.join(str(directory), filename)
+        df.to_csv(file_path, index=False)
+        return file_path
+
+    @pytest.fixture
+    def one_file_instructions(self, tmp_path, panel_extension):
         session_dir = tmp_path / "npm_session"
         session_dir.mkdir()
-        _write_stub_chev_csv(session_dir, "chev1.csv")
-        _write_stub_chev_csv(session_dir, "chev2.csv")
+        self._write_stub_chev_csv(session_dir, "chev1.csv")
+        return StorenamesInstructionsNPM(folder_path=str(session_dir))
 
-        instructions = StorenamesInstructionsNPM(folder_path=str(session_dir))
+    @pytest.fixture
+    def two_file_instructions(self, tmp_path, panel_extension):
+        session_dir = tmp_path / "npm_session"
+        session_dir.mkdir()
+        self._write_stub_chev_csv(session_dir, "chev1.csv")
+        self._write_stub_chev_csv(session_dir, "chev2.csv")
+        return StorenamesInstructionsNPM(folder_path=str(session_dir))
 
+    def test_plot_select_options_match_basenames(self, two_file_instructions):
         expected_basenames = sorted(["chev1", "chev2"])
-        actual_options = sorted(instructions.plot_select.options)
+        actual_options = sorted(two_file_instructions.plot_select.options)
         assert actual_options == expected_basenames
 
-    def test_make_plot_returns_hv_curve(self, panel_extension, tmp_path):
-        session_dir = tmp_path / "npm_session"
-        session_dir.mkdir()
-        _write_stub_chev_csv(session_dir, "chev1.csv")
-
-        instructions = StorenamesInstructionsNPM(folder_path=str(session_dir))
-        plot = instructions._make_plot("chev1")
-
+    def test_make_plot_returns_hv_curve(self, one_file_instructions):
+        plot = one_file_instructions._make_plot("chev1")
         assert isinstance(plot, hv.Curve)
 
-    def test_plot_select_change_updates_plot_pane(self, panel_extension, tmp_path):
-        session_dir = tmp_path / "npm_session"
-        session_dir.mkdir()
-        _write_stub_chev_csv(session_dir, "chev1.csv")
-        _write_stub_chev_csv(session_dir, "chev2.csv")
-
-        instructions = StorenamesInstructionsNPM(folder_path=str(session_dir))
-        original_plot = instructions.plot_pane.object
-
-        other_key = [key for key in instructions.plot_select.options if key != instructions.plot_select.value][0]
-        instructions.plot_select.value = other_key
-
-        assert instructions.plot_pane.object is not original_plot
+    def test_plot_select_change_updates_plot_pane(self, two_file_instructions):
+        original_plot = two_file_instructions.plot_pane.object
+        other_key = [
+            key for key in two_file_instructions.plot_select.options if key != two_file_instructions.plot_select.value
+        ][0]
+        two_file_instructions.plot_select.value = other_key
+        assert two_file_instructions.plot_pane.object is not original_plot
