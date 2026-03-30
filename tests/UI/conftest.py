@@ -1,4 +1,5 @@
 import os
+import socket
 import time
 
 import panel as pn
@@ -41,14 +42,12 @@ def live_server(panel_extension, ui_base_dir):
     template = build_homepage()
     pn.serve(template, port=port, show=False, threaded=True)
 
-    base_url = f"http://127.0.0.1:{port}"
+    base_url = f"http://localhost:{port}"
 
     # Brief poll to confirm the server accepted connections before yielding
-    import socket as _socket
-
     for _ in range(50):
         try:
-            connection = _socket.create_connection(("127.0.0.1", port), timeout=0.1)
+            connection = socket.create_connection(("localhost", port), timeout=0.1)
             connection.close()
             break
         except OSError:

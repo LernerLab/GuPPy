@@ -316,7 +316,9 @@ class ParameterForm:
         )
 
         self.group_analysis_wd_1 = pn.Column(self.mark_down_2, self.files_2, self.averageForGroup, width=800)
-        self.group = pn.Card(self.group_analysis_wd_1, title="Group Analysis", styles=self.styles, width=1000)
+        self.group = pn.Card(
+            self.group_analysis_wd_1, title="Group Analysis", styles=self.styles, width=1000, collapsed=True
+        )
 
     def setup_visualization_parameters(self):
         self.visualizeAverageResults = pn.widgets.Select(
@@ -329,7 +331,7 @@ class ParameterForm:
 
         self.visualization_wd = pn.Row(self.visualize_zscore_or_dff, pn.Spacer(width=60), self.visualizeAverageResults)
         self.visualize = pn.Card(
-            self.visualization_wd, title="Visualization Parameters", styles=self.styles, width=1000
+            self.visualization_wd, title="Visualization Parameters", styles=self.styles, width=1000, collapsed=True
         )
 
     def add_to_template(self):
