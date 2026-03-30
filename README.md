@@ -3,65 +3,93 @@
 <img src="assets/GuppyLogo.png" alt="GuPPy Logo" width="300">
 
 
-## Installation Instructions
+## Installation
 
-GuPPy can be run on Windows, Mac or Linux.
+GuPPy can be run on Windows, Mac or Linux. It requires **Python 3.10 or greater**.
 
-**Follow the instructions below to install GuPPy :** <br>
-- Current Users : Download new code updates by following steps 1.a to 1.c, then visit the Github Wiki page to get started on your analysis
-- New Users : Follow all the installation steps and then visit the Github Wiki page to get started on your analysis
+### Step 1: Install Conda
 
-1. Download the Guppy code <br>
-   a. Press the green button labeled “Code” on the top right corner and that will initiate a pull down menu. <br>
-   
-   b. Click on Download ZIP. *(Ensure that you save this ZIP locally, not in any external cloud storage such as iCloud, OneDrive, Box, etc. We suggest saving it in your User folder on the C drive)* <br>
-   
-   c. Once downloaded, open the ZIP file and you should have a folder named “GuPPy-main”. Place this GuPPy-main folder wherever is most convenient (avoiding cloud storage). <br>
-   
-   d. Inside the GuPPy-main folder there is a subfolder named “GuPPy”. Take note of the GuPPy subfolder location or path. It will be important for future steps in the GuPPy workflow <br>
-   - Mac: Right click folder → Click Get Info → Text next to “Where:” <br>
-       ~ Ex: /Users/LernerLab/Desktop/GuPPy-main <br>
-   - Windows/Linux: Right click folder → Properties → Text next to “Location:” <br>
+We recommend installing GuPPy inside a conda virtual environment to avoid conflicts with other Python packages on your system.
 
-2.  Anaconda is a distribution of the Python and R programming languages for scientific computing. Install [Anaconda](https://www.anaconda.com/products/individual#macos). Install Anaconda based on your operating system (Mac, Windows or Linux) by following the prompts when you run the downloaded installation file.
+1. Download the **Miniconda** installer for your operating system from the [official Miniconda page](https://docs.conda.io/en/latest/miniconda.html).
+   - **Windows**: Download the `.exe` installer and run it, following the on-screen prompts.
+   - **macOS**: Download the `.pkg` installer (or the `.sh` script) and follow the on-screen prompts. Alternatively, run the shell script in a terminal:
+     ```bash
+     bash Miniconda3-latest-MacOSX-x86_64.sh
+     ```
+   - **Linux**: Download the `.sh` installer and run it in a terminal:
+     ```bash
+     bash Miniconda3-latest-Linux-x86_64.sh
+     ```
 
-3. Once installed, open an Anaconda Prompt window (for windows) or Terminal window (for Mac or Linux). You can search for "anaconda prompt" or "terminal" on your computer to open this window.
+2. After installation, open a new terminal (or Command Prompt / Anaconda Prompt on Windows) and verify conda is available:
+   ```bash
+   conda --version
+   ```
 
-4. Find the location where GuPPy folder is located (from Step 1d) and execute the following command on the Anaconda Prompt or terminal window: 
+### Step 2: Create and Activate a Conda Environment
 
+1. Create a new conda environment named `guppy_env` with Python 3.12:
+   ```bash
+   conda create -n guppy_env python=3.12
+   ```
+
+2. Activate the environment:
+   ```bash
+   conda activate guppy_env
+   ```
+   Your terminal prompt should now show `(guppy_env)` to indicate the environment is active. You will need to activate this environment each time you open a new terminal before using GuPPy.
+
+### Step 3: Install GuPPy
+
+With the `guppy_env` environment active, install GuPPy using one of the two methods below.
+
+#### Option A: Install via PyPI (Recommended)
+
+Install the latest stable release directly from PyPI:
+
+```bash
+pip install guppy-neuro
 ```
-cd path_to_GuPPy_folder
-```
-   - Ex:  cd /Users/LernerLab/Desktop/GuPPy-main
-  
-5. Next, execute the following commands, in this specific order, on Anaconda Prompt or terminal window: <br>
-   - Note : filename in the first command should be replaced by <b>spec_file_windows10.txt</b> or <b>spec_file_mac.txt</b> or <b>spec_file_linux.txt</b> (based on your OS) <br>
-   - Some of these commands will initiate various transactions. Wait until they are all done before executing the next line <br>
-   - If the Anaconda Prompt or Terminal window asks: Proceed ([y]/n)? Respond with y <br>
-```
-conda create --name guppy --file filename
-conda activate guppy
-```
-6. Lastly, execute the following command to open the GuPPy User Interface:
-```
-panel serve --show GuPPy/savingInputParameters.ipynb
-```
-<b> GuPPy is now officially downloaded and ready to use! </b> <br>
 
+#### Option B: Install from GitHub (Latest Development Version)
+
+This option gives you access to the latest features and bug fixes that may not yet be in the stable release.
+You will need `git` installed ([installation instructions](https://github.com/git-guides/install-git)).
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/LernerLab/GuPPy.git
+   ```
+
+2. Navigate into the cloned directory:
+   ```bash
+   cd GuPPy
+   ```
+
+3. Install the package in [editable mode](https://pip.pypa.io/en/stable/cli/pip_install/#editable-installs):
+   ```bash
+   pip install -e .
+   ```
+
+## Usage
+
+In a terminal or command prompt, you can start using GuPPy by running the following command:
+
+```bash
+guppy
+```
+
+This will launch the GuPPy user interface, where you can begin analyzing your fiber photometry data.
+
+## Documentation
+
+> **Note:** The Wiki and video tutorials below refer to GuPPy v1.3.0 and earlier. Updated documentation for v2.0 is coming soon.
+
+### Wiki
 - The full instructions along with detailed descriptions of each step to run the GuPPy tool is on [Github Wiki Page](https://github.com/LernerLab/GuPPy/wiki).
 
-## Uninstalling or removing instructions
-
-1. Open an Anaconda Prompt window (for windows) or Terminal window (for Mac or Linux).
-
-2. Execute the following command on Anaconda Prompt or terminal window: <br>
-```
-conda remove --name guppy --all
-```
-
-3. To reinstall, follow steps 1 (Download GuPPy code) and 4 to 6 from the Installation Instructions.
-
-## Tutorial Videos
+### Tutorial Videos
 
 - [Installation steps](https://youtu.be/7qfU8xvj2nc)
 - [Explaining Input Parameters GUI](https://youtu.be/aO7_QqbYZ84)
@@ -92,5 +120,4 @@ conda remove --name guppy --all
 - Jillian Seiler
 - [Gabriela Lopez](https://github.com/glopez924)
 - [Talia Lerner](https://github.com/talialerner)
-
-
+- [Paul Adkisson](https://github.com/pauladkisson)

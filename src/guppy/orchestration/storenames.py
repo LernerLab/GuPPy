@@ -1,0 +1,329 @@
+import glob
+import json
+import logging
+import os
+from pathlib import Path
+
+import holoviews as hv  # noqa: F401
+import numpy as np
+import panel as pn
+
+from guppy.extractors import (
+    CsvRecordingExtractor,
+    DoricRecordingExtractor,
+    NpmRecordingExtractor,
+    TdtRecordingExtractor,
+    detect_acquisition_formats,
+)
+from guppy.frontend.frontend_utils import scanPortsAndFind
+from guppy.frontend.npm_gui_prompts import (
+    get_multi_event_responses,
+    get_timestamp_configuration,
+)
+from guppy.frontend.storenames_instructions import (
+    StorenamesInstructions,
+    StorenamesInstructionsNPM,
+)
+from guppy.frontend.storenames_selector import StorenamesSelector
+from guppy.utils.utils import takeOnlyDirs
+
+pn.extension()
+
+logger = logging.getLogger(__name__)
+
+
+# function to show location for over-writing or creating a new stores list file.
+def show_dir(filepath):
+    i = 1
+    while True:
+        basename = os.path.basename(filepath)
+        op = os.path.join(filepath, basename + "_output_" + str(i))
+        if not os.path.exists(op):
+            break
+        i += 1
+    return op
+
+
+def make_dir(filepath):
+    i = 1
+    while True:
+        basename = os.path.basename(filepath)
+        op = os.path.join(filepath, basename + "_output_" + str(i))
+        if not os.path.exists(op):
+            os.mkdir(op)
+            break
+        i += 1
+
+    return op
+
+
+def _fetchValues(text, storenames, storename_dropdowns, storename_textboxes, d):
+    if not storename_dropdowns or not len(storenames) > 0:
+        return "####Alert !! \n No storenames selected."
+
+    comboBoxValues, textBoxValues = [], []
+    dropdown_keys = list(storename_dropdowns.keys())
+
+    # Get dropdown values
+    for key in dropdown_keys:
+        comboBoxValues.append(storename_dropdowns[key].value)
+
+    # Get textbox values (all storenames always have a textbox)
+    for key in dropdown_keys:
+        textbox_value = storename_textboxes[key].value or ""
+        textBoxValues.append(textbox_value)
+
+        # Validation: Check for whitespace
+        if len(textbox_value.split()) > 1:
+            return "####Alert !! \n Whitespace is not allowed in the text box entry."
+
+        # Validation: Check for empty required fields
+        dropdown_value = storename_dropdowns[key].value
+        if not textbox_value and dropdown_value in ["control", "signal", "event TTLs"]:
+            return "####Alert !! \n One of the text box entry is empty."
+
+    if len(comboBoxValues) != len(textBoxValues):
+        return "####Alert !! \n Number of entries in combo box and text box should be same."
+
+    names_for_storenames = []
+    for i in range(len(comboBoxValues)):
+        if comboBoxValues[i] == "control" or comboBoxValues[i] == "signal":
+            if "_" in textBoxValues[i]:
+                return "####Alert !! \n Please do not use underscore in region name."
+            names_for_storenames.append("{}_{}".format(comboBoxValues[i], textBoxValues[i]))
+        elif comboBoxValues[i] == "event TTLs":
+            names_for_storenames.append(textBoxValues[i])
+        else:
+            names_for_storenames.append(comboBoxValues[i])
+
+    d["storenames"] = text.value
+    d["names_for_storenames"] = names_for_storenames
+    return "#### No alerts !!"
+
+
+def _save(d, select_location):
+    arr1, arr2 = np.asarray(d["storenames"]), np.asarray(d["names_for_storenames"])
+
+    if np.where(arr2 == "")[0].size > 0:
+        alert_message = "#### Alert !! \n Empty string in the list names_for_storenames."
+        logger.error("Empty string in the list names_for_storenames.")
+        return alert_message
+
+    if arr1.shape[0] != arr2.shape[0]:
+        alert_message = "#### Alert !! \n Length of list storenames and names_for_storenames is not equal."
+        logger.error("Length of list storenames and names_for_storenames is not equal.")
+        return alert_message
+
+    if not os.path.exists(os.path.join(Path.home(), ".storesList.json")):
+        storenames_cache = dict()
+
+        for i in range(arr1.shape[0]):
+            if arr1[i] in storenames_cache:
+                storenames_cache[arr1[i]].append(arr2[i])
+                storenames_cache[arr1[i]] = list(set(storenames_cache[arr1[i]]))
+            else:
+                storenames_cache[arr1[i]] = [arr2[i]]
+
+        with open(os.path.join(Path.home(), ".storesList.json"), "w") as f:
+            json.dump(storenames_cache, f, indent=4)
+    else:
+        with open(os.path.join(Path.home(), ".storesList.json")) as f:
+            storenames_cache = json.load(f)
+
+        for i in range(arr1.shape[0]):
+            if arr1[i] in storenames_cache:
+                storenames_cache[arr1[i]].append(arr2[i])
+                storenames_cache[arr1[i]] = list(set(storenames_cache[arr1[i]]))
+            else:
+                storenames_cache[arr1[i]] = [arr2[i]]
+
+        with open(os.path.join(Path.home(), ".storesList.json"), "w") as f:
+            json.dump(storenames_cache, f, indent=4)
+
+    arr = np.asarray([arr1, arr2])
+    logger.info(arr)
+    if not os.path.exists(select_location):
+        os.mkdir(select_location)
+
+    np.savetxt(os.path.join(select_location, "storesList.csv"), arr, delimiter=",", fmt="%s")
+    logger.info(f"Storeslist file saved at {select_location}")
+    logger.info("Storeslist : \n" + str(arr))
+    return "#### No alerts !!"
+
+
+# function to show GUI and save
+def build_storenames_page(inputParameters, events, flags, folder_path):
+
+    logger.debug("Saving stores list file.")
+    # getting input parameters
+    inputParameters = inputParameters
+
+    # Headless path: if storenames_map provided, write storesList.csv without building the Panel UI
+    storenames_map = inputParameters.get("storenames_map")
+    if isinstance(storenames_map, dict) and len(storenames_map) > 0:
+        op = make_dir(folder_path)
+        arr = np.asarray([list(storenames_map.keys()), list(storenames_map.values())], dtype=str)
+        np.savetxt(os.path.join(op, "storesList.csv"), arr, delimiter=",", fmt="%s")
+        logger.info(f"Storeslist file saved at {op}")
+        logger.info("Storeslist : \n" + str(arr))
+        return
+
+    # Get storenames from extractor's events property
+    allnames = events
+
+    # creating GUI template
+    template = pn.template.BootstrapTemplate(title="Storenames GUI - {}".format(os.path.basename(folder_path)))
+
+    if "data_np_v2" in flags or "data_np" in flags or "event_np" in flags:
+        storenames_instructions = StorenamesInstructionsNPM(folder_path=folder_path)
+    else:
+        storenames_instructions = StorenamesInstructions(folder_path=folder_path)
+    storenames_selector = StorenamesSelector(allnames=allnames)
+
+    storenames = []
+    storename_dropdowns = {}
+    storename_textboxes = {}
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # onclick closure functions
+    # on clicking overwrite_button, following function is executed
+    def overwrite_button_actions(event):
+        if event.new == "over_write_file":
+            options = takeOnlyDirs(glob.glob(os.path.join(folder_path, "*_output_*")))
+            storenames_selector.set_select_location_options(options=options)
+        else:
+            options = [show_dir(folder_path)]
+            storenames_selector.set_select_location_options(options=options)
+
+    def fetchValues(event):
+        global storenames
+        d = dict()
+        alert_message = _fetchValues(
+            text=storenames_selector.text,
+            storenames=storenames,
+            storename_dropdowns=storename_dropdowns,
+            storename_textboxes=storename_textboxes,
+            d=d,
+        )
+        storenames_selector.set_alert_message(alert_message)
+        storenames_selector.set_literal_input_2(d=d)
+
+    # on clicking 'Select Storenames' button, following function is executed
+    def update_values(event):
+        global storenames, vars_list
+
+        arr = storenames_selector.get_take_widgets()
+        new_arr = []
+        for i in range(len(arr[1])):
+            for j in range(arr[1][i]):
+                new_arr.append(arr[0][i])
+        if len(new_arr) > 0:
+            storenames = storenames_selector.get_cross_selector() + new_arr
+        else:
+            storenames = storenames_selector.get_cross_selector()
+        storenames_selector.set_change_widgets(storenames)
+
+        storenames_cache = dict()
+        if os.path.exists(os.path.join(Path.home(), ".storesList.json")):
+            with open(os.path.join(Path.home(), ".storesList.json")) as f:
+                storenames_cache = json.load(f)
+
+        storenames_selector.configure_storenames(
+            storename_dropdowns=storename_dropdowns,
+            storename_textboxes=storename_textboxes,
+            storenames=storenames,
+            storenames_cache=storenames_cache,
+        )
+
+    # on clicking save button, following function is executed
+    def save_button(event=None):
+        global storenames
+        d = storenames_selector.get_literal_input_2()
+        select_location = storenames_selector.get_select_location()
+        alert_message = _save(d=d, select_location=select_location)
+        storenames_selector.set_alert_message(alert_message)
+        storenames_selector.set_path(os.path.join(select_location, "storesList.csv"))
+
+    # ------------------------------------------------------------------------------------------------------------------
+
+    # Connect button callbacks
+    button_name_to_onclick_fn = {
+        "update_options": update_values,
+        "save": save_button,
+        "overwrite_button": overwrite_button_actions,
+        "show_config_button": fetchValues,
+    }
+    storenames_selector.attach_callbacks(button_name_to_onclick_fn)
+
+    template.main.append(pn.Row(storenames_instructions.widget, storenames_selector.widget))
+
+    # creating widgets, adding them to template and showing a GUI on a new browser window
+    number = scanPortsAndFind(start_port=5000, end_port=5200)
+    template.show(port=number)
+
+
+def read_header(inputParameters, num_ch, folder_path, headless):
+    all_formats = detect_acquisition_formats(folder_path)
+
+    # NPM GUI prompts (non-headless only) must run before NPM discovery so that
+    # inputParameters is populated with split_events, time_units, etc.
+    if "npm" in all_formats and not headless:
+        multiple_event_ttls = NpmRecordingExtractor.has_multiple_event_ttls(folder_path=folder_path)
+        responses = get_multi_event_responses(multiple_event_ttls)
+        inputParameters["npm_split_events"] = responses
+
+        ts_unit_needs, col_names_ts = NpmRecordingExtractor.needs_ts_unit(folder_path=folder_path, num_ch=num_ch)
+        ts_units, npm_timestamp_column_names = get_timestamp_configuration(ts_unit_needs, col_names_ts)
+        inputParameters["npm_time_units"] = ts_units if ts_units else None
+        inputParameters["npm_timestamp_column_names"] = (
+            npm_timestamp_column_names if npm_timestamp_column_names else None
+        )
+
+    events, flags = [], []
+    existing_events = set()
+
+    for format in sorted(all_formats):
+        if format == "tdt":
+            fmt_events, fmt_flags = TdtRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+        elif format == "doric":
+            fmt_events, fmt_flags = DoricRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+        elif format == "csv":
+            fmt_events, fmt_flags = CsvRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+        elif format == "npm":
+            fmt_events, fmt_flags = NpmRecordingExtractor.discover_events_and_flags(
+                folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
+            )
+        else:
+            raise ValueError(f"Format not recognized: '{format}'. Expected one of 'tdt', 'csv', 'doric', 'npm'.")
+
+        for event in fmt_events:
+            if event not in existing_events:
+                events.append(event)
+                existing_events.add(event)
+
+        for flag in fmt_flags:
+            flags.append(flag)
+
+    return events, flags
+
+
+# function to read input parameters and run the saveStorenames function
+def orchestrate_storenames_page(inputParameters):
+
+    inputParameters = inputParameters
+    folderNames = inputParameters["folderNames"]
+    isosbestic_control = inputParameters["isosbestic_control"]
+    num_ch = inputParameters["noChannels"]
+    headless = bool(os.environ.get("GUPPY_BASE_DIR"))
+
+    logger.info(folderNames)
+
+    try:
+        for i in folderNames:
+            folder_path = os.path.join(inputParameters["abspath"], i)
+            events, flags = read_header(inputParameters, num_ch, folder_path, headless)
+            build_storenames_page(inputParameters, events, flags, folder_path)
+        logger.info("#" * 400)
+    except Exception as e:
+        logger.error(str(e))
+        raise e

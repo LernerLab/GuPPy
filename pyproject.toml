@@ -1,0 +1,139 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "guppy-neuro"
+version = "2.0.0-alpha9"
+description = "Guided Photometry Analysis in Python, a free and open-source fiber photometry data analysis tool."
+readme = "README.md"
+authors = [
+    { name = "Venus Sherathiya", email = "venus.sherathiya@northwestern.edu" },
+    { name = "Michael Schaid" },
+    { name = "Jillian Seiler" },
+    { name = "Gabriela Lopez" },
+    { name = "Talia Lerner" },
+    { name = "Paul Adkisson-Floro" },
+    { name = "Luiz Tauffer" },
+]
+
+
+license = { file = "LICENSE" }
+keywords = [
+    "neuroscience",
+    "fiber-photometry",
+    "calcium-imaging",
+    "data-analysis",
+    "gui",
+    "visualization",
+    "signal-processing",
+]
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.10",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: MacOS",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+
+]
+requires-python = ">=3.10"
+dependencies = [
+    "bokeh",
+    "datashader",
+    "h5py",
+    "holoviews",
+    "matplotlib",
+    "numpy",
+    "pandas",
+    "panel",
+    "param",
+    "platformdirs",
+    "scipy",
+    "tables",
+]
+
+[dependency-groups]
+test = [
+    "pytest",
+    "pytest-cov",
+    "pytest-xdist"  # Runs tests on parallel
+]
+
+dev = [
+    "pre-commit",
+]
+
+[project.scripts]
+guppy = "guppy.main:main"
+
+
+[project.urls]
+"Homepage" = "https://github.com/LernerLab/GuPPy"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 120
+target-version = ['py310', 'py311', 'py312', 'py313']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  \.toml
+  |\.yml
+  |\.txt
+  |\.sh
+  |\.git
+  |\.ini
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+
+[tool.ruff]
+
+[tool.ruff.lint]
+select = [
+    "F401",  # Unused import
+    "I",  # All isort rules
+    # TODO: add docstring rules after adding comprehensive docstrings to all public functions/classes
+    # "D101",  # Missing docstring in public class
+    # "D103",  # Missing docstring in public function
+    "UP006", # non-pep585 annotation (tuple, list -> tuple, list)
+    "UP007" # non-pep604 annotation (Union[x, y] -> X | Y )
+]
+fixable = ["ALL"]
+
+[tool.ruff.lint.per-file-ignores]
+"**__init__.py" = ["F401", "I"] # We are not enforcing import rules in __init__'s
+
+[tool.ruff.lint.isort]
+relative-imports-order = "closest-to-furthest"
+known-first-party = ["guppy"]
+
+
+[tool.codespell]
+skip = '.git*,*.pdf,*.css,*.svg'
+check-hidden = true
+ignore-words-list = 'assertin,sortings'
+
+[tool.coverage.run]
+concurrency = ["multiprocessing"]
+sigterm = true
+branch = true
+
+[tool.pytest.ini_options]
+markers = [
+    "full_data: marks tests that require the full testing_data download (deselect with '-m not full_data')",
+    "parallel: marks tests that verify GuPPy multiprocessing behavior (run separately from the main suite)",
+]
