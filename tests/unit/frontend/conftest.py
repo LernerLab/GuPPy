@@ -3,6 +3,9 @@ import os
 import panel as pn
 import pytest
 
+from guppy.frontend.input_parameters import ParameterForm
+from guppy.frontend.sidebar import Sidebar
+
 
 @pytest.fixture(scope="session")
 def panel_extension():
@@ -31,14 +34,19 @@ def frontend_base_dir(tmp_path_factory):
 
 
 @pytest.fixture
+def bare_parameter_form(panel_extension, frontend_base_dir):
+    """Build a BootstrapTemplate + ParameterForm with no files set."""
+    template = pn.template.BootstrapTemplate(title="Test")
+    return ParameterForm(template=template)
+
+
+@pytest.fixture
 def parameter_form(panel_extension, frontend_base_dir, tmp_path):
     """Build a BootstrapTemplate + ParameterForm backed by a real temp directory.
 
     Sets files_1.value to a list of session paths under tmp_path so that
     getInputParameters() can be called without raising.
     """
-    from guppy.frontend.input_parameters import ParameterForm
-
     session_dir = tmp_path / "session1"
     session_dir.mkdir()
     template = pn.template.BootstrapTemplate(title="Test")
@@ -50,7 +58,5 @@ def parameter_form(panel_extension, frontend_base_dir, tmp_path):
 @pytest.fixture
 def sidebar(panel_extension):
     """Build a BootstrapTemplate + Sidebar."""
-    from guppy.frontend.sidebar import Sidebar
-
     template = pn.template.BootstrapTemplate(title="Test")
     return Sidebar(template=template)
