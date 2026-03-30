@@ -61,7 +61,9 @@ dependencies = [
 test = [
     "pytest",
     "pytest-cov",
-    "pytest-xdist"  # Runs tests on parallel
+    "pytest-xdist",  # Runs tests on parallel
+    "pytest-playwright",
+    "playwright",
 ]
 
 dev = [
@@ -136,4 +138,5 @@ branch = true
 markers = [
     "full_data: marks tests that require the full testing_data download (deselect with '-m not full_data')",
     "parallel: marks tests that verify GuPPy multiprocessing behavior (run separately from the main suite)",
+    "ui: marks tests that require a live Panel server and browser (deselect with '-m not ui')",
 ]
