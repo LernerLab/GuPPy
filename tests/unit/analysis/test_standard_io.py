@@ -1,7 +1,6 @@
 import h5py
 import numpy as np
 import pandas as pd
-import pytest
 
 from guppy.analysis.io_utils import write_hdf5
 from guppy.analysis.standard_io import (
@@ -238,24 +237,17 @@ def test_read_ttl_returns_timestamps_for_non_channel_events(tmp_path):
 # ── read_corrected_data ───────────────────────────────────────────────────────
 
 
-@pytest.mark.xfail(
-    reason="read_corrected_data calls read_hdf5('', path, ...) which opens 'path/.hdf5' "
-    "(a hidden file); macOS does not support opening hidden files via the HDF5 C library."
-)
 def test_read_corrected_data_returns_control_signal_and_timestamps(tmp_path):
-    # read_corrected_data uses read_hdf5("", path, "data") → file is "path/.hdf5"
-    # Create the hidden .hdf5 files directly with h5py
-    control_dir = tmp_path / "control"
-    signal_dir = tmp_path / "signal"
-    control_dir.mkdir()
-    signal_dir.mkdir()
-    with h5py.File(str(control_dir / ".hdf5"), "w") as f:
+    control_path = tmp_path / "control.h5"
+    signal_path = tmp_path / "signal.h5"
+
+    with h5py.File(control_path, "w") as f:
         f.create_dataset("data", data=np.array([1.0, 2.0]))
-    with h5py.File(str(signal_dir / ".hdf5"), "w") as f:
+    with h5py.File(signal_path, "w") as f:
         f.create_dataset("data", data=np.array([3.0, 4.0]))
     write_hdf5(np.array([0.0, 1.0]), "timeCorrection_dms", str(tmp_path), "timestampNew")
 
-    control, signal, tsNew = read_corrected_data(str(control_dir), str(signal_dir), str(tmp_path), "dms")
+    control, signal, tsNew = read_corrected_data(str(control_path), str(signal_path), str(tmp_path), "dms")
 
     np.testing.assert_array_equal(control, np.array([1.0, 2.0]))
     np.testing.assert_array_equal(signal, np.array([3.0, 4.0]))
