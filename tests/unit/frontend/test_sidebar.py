@@ -1,6 +1,14 @@
 import panel as pn
+import pytest
 
 from guppy.frontend.sidebar import Sidebar
+
+
+@pytest.fixture
+def sidebar(panel_extension):
+    """Build a BootstrapTemplate + Sidebar."""
+    template = pn.template.BootstrapTemplate(title="Test")
+    return Sidebar(template=template)
 
 
 class TestSidebar:
