@@ -33,6 +33,7 @@
 - Migrated testing datasets from Google Drive to GitHub LFS with comprehensive documentation and CI/CD integration: [PR #242](https://github.com/LernerLab/GuPPy/pull/242)
 - Added GitHub Actions cache for stubbed testing data to avoid exhausting Git LFS bandwidth limits: [PR #245](https://github.com/LernerLab/GuPPy/pull/245)
 - Expanded test suite with unit tests for analysis functions: [PR #247](https://github.com/LernerLab/GuPPy/pull/247)
+- Expanded test suite with unit tests for utility functions: [PR #248](https://github.com/LernerLab/GuPPy/pull/248)
 
 # GuPPy-v1.3.0 (August 12th, 2025)
 
