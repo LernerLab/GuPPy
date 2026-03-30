@@ -223,7 +223,7 @@ def execute_zscore(folderNames, inputParameters):
             write_zscore(filepath, name, z_score, dff, control_fit, temp_control_arr)
 
         logger.info(f"z-score for the data in {filepath} computed.")
-        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
+        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
         inputParameters["step"] += 1
 
     headless = bool(os.environ.get("GUPPY_BASE_DIR"))
@@ -306,7 +306,7 @@ def execute_artifact_removal(folderNames, inputParameters):
 
         write_artifact_removal(filepath, name_to_data, pair_name_to_timestamps, compound_name_to_ttl_timestamps)
 
-        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
+        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
         inputParameters["step"] += 1
 
     headless = bool(os.environ.get("GUPPY_BASE_DIR"))

@@ -264,7 +264,7 @@ def execute_psth_combined(inputParameters):
             execute_compute_psth(op[i][0], storesList[1, k], inputParameters)
             execute_compute_psth_peak_and_area(op[i][0], storesList[1, k], inputParameters)
             execute_compute_cross_correlation(op[i][0], storesList[1, k], inputParameters)
-        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
+        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
         inputParameters["step"] += 1
 
 
@@ -305,7 +305,7 @@ def execute_average_for_group(inputParameters):
             continue
         else:
             averageForGroup(storesListPath, storesList[1, k], inputParameters)
-        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
+        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
         inputParameters["step"] += 1
 
 
