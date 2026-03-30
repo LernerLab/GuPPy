@@ -1,4 +1,4 @@
-# v2.0.0 (Upcoming)
+# v2.0.0-alpha1 (March 30th, 2026)
 
 ## Features
 
