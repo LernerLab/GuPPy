@@ -38,7 +38,7 @@ def plotter(tmp_path_factory, panel_extension):
 
     events = ["event1", "event2"]
     columns_dict = {event: columns for event in events}
-    df_new = {event: make_event_dataframe() for event in events}
+    df_new = pd.concat([make_event_dataframe() for event in events], keys=events, axis=1)
     filepath = str(tmp_path_factory.mktemp("plotter"))
 
     return ParameterizedPlotter(

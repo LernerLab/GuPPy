@@ -55,7 +55,7 @@ class ParameterizedPlotter(param.Parameterized):
     event_selector_heatmap = param.ObjectSelector(default=None)
     selector_for_multipe_events_plot = param.ListSelector(default=None)
     columns_dict = param.Dict(default=None)
-    df_new = param.Dict(default=None)
+    df_new = param.DataFrame(default=None)
     x_min = param.Number(default=None)
     x_max = param.Number(default=None)
     select_trials_checkbox = param.ListSelector(default=["just trials"], objects=["mean", "just trials"])

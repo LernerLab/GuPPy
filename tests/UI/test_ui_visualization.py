@@ -32,7 +32,7 @@ def visualization_server_url(panel_extension, tmp_path_factory):
         )
 
     columns_dict = {event: _COLUMNS for event in _EVENTS}
-    df_new = {event: make_event_dataframe() for event in _EVENTS}
+    df_new = pd.concat([make_event_dataframe() for event in _EVENTS], keys=_EVENTS, axis=1)
 
     plotter = ParameterizedPlotter(
         event_selector_objects=_EVENTS,
