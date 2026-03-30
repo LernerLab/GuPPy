@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 
 from guppy.analysis.transients import (
     analyze_transients,
@@ -29,10 +28,7 @@ def test_create_chunks_padding_values_are_nan():
     sampling_rate = 100.0
     window = 2
     window_points = int(sampling_rate * window)  # 200
-    remainder = z_score.shape[0] % window_points
-    if remainder == 0:
-        # Unlikely with these values, but guard anyway
-        pytest.skip("No padding needed for this input")
+    # 350 % 200 = 150, so padding is always added for these inputs
     chunks, _ = createChunks(z_score, sampling_rate, window)
     flat = chunks.ravel()
     # Padding elements are at the end
