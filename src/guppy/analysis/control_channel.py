@@ -96,7 +96,7 @@ def create_control_channel(filepath, arr, window=5001):
 def helper_create_control_channel(signal, timestamps, window):
     # check if window is greater than signal shape
     if window > signal.shape[0]:
-        window = ((signal.shape[0] + 1) / 2) + 1
+        window = ((signal.shape[0] + 1) // 2) + 1
         if window % 2 != 0:
             window = window
         else:
