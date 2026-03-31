@@ -85,3 +85,100 @@ class TestTdtRecordingExtractor(RecordingExtractorTestMixin):
     def expected_ttl_timestamps(self, tmp_path):
         result = self.extractor_instance.read(events=["PrtN"], outputPath=str(tmp_path))
         return result[0]["timestamps"]
+
+
+class TestTdtRecordingExtractorSample2(RecordingExtractorTestMixin):
+    extractor_class = TdtRecordingExtractor
+    folder_path = os.path.join(STUBBED_TESTING_DATA, "tdt", "Photo_048_392-200728-121222")
+    extractor_instance = TdtRecordingExtractor(folder_path)
+    expected_events = ["Dv1A", "Dv2A", "PrtN"]
+    discover_kwargs = {}
+    control_event = "Dv1A"
+    signal_event = "Dv2A"
+    ttl_event = "PrtN"
+    stub_ttl_test_duration_in_seconds = 100.0
+
+    @pytest.fixture
+    def expected_control_timestamps(self, tmp_path):
+        result = self.extractor_instance.read(events=["Dv1A"], outputPath=str(tmp_path))
+        return result[0]["timestamps"]
+
+    @pytest.fixture
+    def expected_control_data(self, tmp_path):
+        result = self.extractor_instance.read(events=["Dv1A"], outputPath=str(tmp_path))
+        return result[0]["data"]
+
+    @pytest.fixture
+    def expected_signal_timestamps(self, tmp_path):
+        result = self.extractor_instance.read(events=["Dv2A"], outputPath=str(tmp_path))
+        return result[0]["timestamps"]
+
+    @pytest.fixture
+    def expected_signal_data(self, tmp_path):
+        result = self.extractor_instance.read(events=["Dv2A"], outputPath=str(tmp_path))
+        return result[0]["data"]
+
+    @pytest.fixture
+    def expected_ttl_timestamps(self, tmp_path):
+        result = self.extractor_instance.read(events=["PrtN"], outputPath=str(tmp_path))
+        return result[0]["timestamps"]
+
+
+class TestTdtRecordingExtractorSplitEvent(RecordingExtractorTestMixin):
+    extractor_class = TdtRecordingExtractor
+    folder_path = os.path.join(STUBBED_TESTING_DATA, "tdt", "Photometry-161823")
+    extractor_instance = TdtRecordingExtractor(folder_path)
+    # PAB/ is a split-event channel. read(events=["PAB/"]) internally calls
+    # _split_event_storesList, which requires a storesList.csv in outputPath. That
+    # file is not present in a bare tmp_path, so PAB/ cannot be read through the
+    # generic mixin tests. The split behaviour is verified separately in
+    # test_split_event_produces_sub_events below.
+    expected_events = ["405R", "490R"]
+    discover_kwargs = {}
+    control_event = "405R"
+    signal_event = "490R"
+    ttl_event = None
+    stub_ttl_test_duration_in_seconds = 100.0
+
+    @pytest.fixture
+    def expected_control_timestamps(self, tmp_path):
+        result = self.extractor_instance.read(events=["405R"], outputPath=str(tmp_path))
+        return result[0]["timestamps"]
+
+    @pytest.fixture
+    def expected_control_data(self, tmp_path):
+        result = self.extractor_instance.read(events=["405R"], outputPath=str(tmp_path))
+        return result[0]["data"]
+
+    @pytest.fixture
+    def expected_signal_timestamps(self, tmp_path):
+        result = self.extractor_instance.read(events=["490R"], outputPath=str(tmp_path))
+        return result[0]["timestamps"]
+
+    @pytest.fixture
+    def expected_signal_data(self, tmp_path):
+        result = self.extractor_instance.read(events=["490R"], outputPath=str(tmp_path))
+        return result[0]["data"]
+
+    def test_discover_includes_pab_event(self):
+        events, _ = self.extractor_class.discover_events_and_flags(self.folder_path)
+        assert "PAB/" in events
+
+    def test_split_event_produces_sub_events(self, tmp_path):
+        # PAB/ carries non-uniform event codes → _event_needs_splitting returns True.
+        # Pre-create a minimal storesList.csv so _split_event_storesList can read it.
+        import csv
+
+        with open(tmp_path / "storesList.csv", "w", newline="") as stores_file:
+            csv.writer(stores_file).writerows([["PAB/"], ["ttl"]])
+
+        result = self.extractor_instance.read(events=["PAB/"], outputPath=str(tmp_path))
+
+        # The first dict is the original unsplit PAB/ event; subsequent dicts are
+        # the per-code sub-events (e.g. PAB0, PAB16, PAB2064).
+        assert len(result) > 1
+        storenames = [output_dict["storename"] for output_dict in result]
+        assert "PAB/" in storenames
+        # All sub-event storenames should start with "PAB" (slash stripped).
+        sub_event_storenames = [name for name in storenames if name != "PAB/"]
+        assert all(name.startswith("PAB") for name in sub_event_storenames)
