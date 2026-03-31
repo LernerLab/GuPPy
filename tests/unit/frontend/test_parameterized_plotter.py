@@ -1,3 +1,10 @@
+from pathlib import Path
+
+import holoviews as hv
+import numpy as np
+import pandas as pd
+import pytest
+
 from guppy.frontend.parameterized_plotter import (
     ParameterizedPlotter,
     make_dir,
@@ -123,3 +130,85 @@ class TestParameterizedPlotter:
         assert plotter.psth_y == ["1 - trial_1"]
         # Reset
         plotter.event_selector = "event1"
+
+    def test_save_psth_plot_creates_png(self, plotter_for_save):
+        plotter_for_save.save_options = "save_png_format"
+        plotter_for_save.save_psth_plot()
+        assert Path(plotter_for_save.results_psth["op"] + ".png").exists()
+        assert Path(plotter_for_save.results_psth["op_combine"] + ".png").exists()
+
+    def test_save_psth_plot_creates_svg(self, plotter_for_save):
+        plotter_for_save.save_options = "save_svg_format"
+        plotter_for_save.save_psth_plot()
+        assert Path(plotter_for_save.results_psth["op"] + ".svg").exists()
+        assert Path(plotter_for_save.results_psth["op_combine"] + ".svg").exists()
+
+    def test_save_hm_plots_creates_png(self, plotter_for_save):
+        plotter_for_save.save_options_heatmap = "save_png_format"
+        plotter_for_save.save_hm_plots()
+        assert Path(plotter_for_save.results_hm["op"] + ".png").exists()
+
+    def test_save_hm_plots_creates_svg(self, plotter_for_save):
+        plotter_for_save.save_options_heatmap = "save_svg_format"
+        plotter_for_save.save_hm_plots()
+        assert Path(plotter_for_save.results_hm["op"] + ".svg").exists()
+
+
+# ---------------------------------------------------------------------------
+# plotter_for_save fixture (function-scoped, used only in this module)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def plotter_for_save(tmp_path, panel_extension):
+    """ParameterizedPlotter with results_psth and results_hm pre-populated.
+
+    Uses a minimal hv.Curve so save_psth_plot / save_hm_plots can render and
+    export without needing a full pipeline run.
+    """
+    columns = ["trial_1", "trial_2", "trial_3", "bin_1", "timestamps", "mean", "err", "bin_err_1"]
+    n_timepoints = 30
+    timestamps = np.linspace(-5.0, 10.0, n_timepoints)
+
+    def make_event_dataframe():
+        return pd.DataFrame(
+            {column: (timestamps if column == "timestamps" else np.zeros(n_timepoints)) for column in columns}
+        )
+
+    events = ["event1", "event2"]
+    columns_dict = {event: columns for event in events}
+    df_new = pd.concat([make_event_dataframe() for event in events], keys=events, axis=1)
+
+    plotter = ParameterizedPlotter(
+        event_selector_objects=events,
+        event_selector_heatmap_objects=events,
+        selector_for_multipe_events_plot_objects=events,
+        color_map_objects=["plasma", "viridis"],
+        x_objects=["timestamps"],
+        y_objects=["trial_1", "mean"],
+        heatmap_y_objects=["1 - trial_1", "2 - trial_2", "All"],
+        psth_y_objects=None,
+        filepath=str(tmp_path),
+        columns_dict=columns_dict,
+        df_new=df_new,
+        x_min=-5.0,
+        x_max=10.0,
+    )
+
+    saved_plots_dir = tmp_path / "saved_plots"
+    saved_plots_dir.mkdir()
+    curve = hv.Curve(([0, 1, 2], [0, 1, 0]))
+    op_prefix = str(saved_plots_dir / "test_plot")
+
+    plotter.results_psth = {
+        "plot_combine": curve,
+        "op_combine": op_prefix + "_combine",
+        "plot": curve,
+        "op": op_prefix,
+    }
+    plotter.results_hm = {
+        "plot": curve,
+        "op": op_prefix + "_hm",
+    }
+
+    return plotter
