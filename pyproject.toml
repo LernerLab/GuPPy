@@ -55,6 +55,7 @@ dependencies = [
     "platformdirs",
     "scipy",
     "tables",
+    "selenium",
 ]
 
 [dependency-groups]
