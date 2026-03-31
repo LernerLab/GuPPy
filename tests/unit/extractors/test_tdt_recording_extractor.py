@@ -1,5 +1,6 @@
 """Contract tests for TdtRecordingExtractor."""
 
+import csv
 import os
 
 import numpy as np
@@ -49,8 +50,52 @@ def test_event_needs_splitting(data, sampling_rate, expected):
 
 from conftest import STUBBED_TESTING_DATA
 
+# ---------------------------------------------------------------------------
+# Shared fixtures for all TDT test classes
+# ---------------------------------------------------------------------------
 
-class TestTdtRecordingExtractor(RecordingExtractorTestMixin):
+
+class TdtRecordingExtractorTestMixin(RecordingExtractorTestMixin):
+    """Provides ``expected_*`` fixtures for all TDT extractor test classes.
+
+    TDT's ``read()`` writes intermediate files, so ``outputPath=str(tmp_path)``
+    is used throughout. TTL fixtures return ``None`` when ``ttl_event is None``.
+    """
+
+    @pytest.fixture
+    def expected_control_timestamps(self, tmp_path):
+        result = self.extractor_instance.read(events=[self.control_event], outputPath=str(tmp_path))
+        return result[0]["timestamps"]
+
+    @pytest.fixture
+    def expected_control_data(self, tmp_path):
+        result = self.extractor_instance.read(events=[self.control_event], outputPath=str(tmp_path))
+        return result[0]["data"]
+
+    @pytest.fixture
+    def expected_signal_timestamps(self, tmp_path):
+        result = self.extractor_instance.read(events=[self.signal_event], outputPath=str(tmp_path))
+        return result[0]["timestamps"]
+
+    @pytest.fixture
+    def expected_signal_data(self, tmp_path):
+        result = self.extractor_instance.read(events=[self.signal_event], outputPath=str(tmp_path))
+        return result[0]["data"]
+
+    @pytest.fixture
+    def expected_ttl_timestamps(self, tmp_path):
+        if self.ttl_event is None:
+            return None
+        result = self.extractor_instance.read(events=[self.ttl_event], outputPath=str(tmp_path))
+        return result[0]["timestamps"]
+
+
+# ---------------------------------------------------------------------------
+# Contract test classes
+# ---------------------------------------------------------------------------
+
+
+class TestTdtRecordingExtractor(TdtRecordingExtractorTestMixin):
     extractor_class = TdtRecordingExtractor
     folder_path = os.path.join(STUBBED_TESTING_DATA, "tdt", "Photo_63_207-181030-103332")
     extractor_instance = TdtRecordingExtractor(folder_path)
@@ -61,33 +106,8 @@ class TestTdtRecordingExtractor(RecordingExtractorTestMixin):
     ttl_event = "PrtN"
     stub_ttl_test_duration_in_seconds = 100.0
 
-    @pytest.fixture
-    def expected_control_timestamps(self, tmp_path):
-        result = self.extractor_instance.read(events=["Dv1A"], outputPath=str(tmp_path))
-        return result[0]["timestamps"]
 
-    @pytest.fixture
-    def expected_control_data(self, tmp_path):
-        result = self.extractor_instance.read(events=["Dv1A"], outputPath=str(tmp_path))
-        return result[0]["data"]
-
-    @pytest.fixture
-    def expected_signal_timestamps(self, tmp_path):
-        result = self.extractor_instance.read(events=["Dv2A"], outputPath=str(tmp_path))
-        return result[0]["timestamps"]
-
-    @pytest.fixture
-    def expected_signal_data(self, tmp_path):
-        result = self.extractor_instance.read(events=["Dv2A"], outputPath=str(tmp_path))
-        return result[0]["data"]
-
-    @pytest.fixture
-    def expected_ttl_timestamps(self, tmp_path):
-        result = self.extractor_instance.read(events=["PrtN"], outputPath=str(tmp_path))
-        return result[0]["timestamps"]
-
-
-class TestTdtRecordingExtractorSample2(RecordingExtractorTestMixin):
+class TestTdtRecordingExtractorSample2(TdtRecordingExtractorTestMixin):
     extractor_class = TdtRecordingExtractor
     folder_path = os.path.join(STUBBED_TESTING_DATA, "tdt", "Photo_048_392-200728-121222")
     extractor_instance = TdtRecordingExtractor(folder_path)
@@ -98,33 +118,8 @@ class TestTdtRecordingExtractorSample2(RecordingExtractorTestMixin):
     ttl_event = "PrtN"
     stub_ttl_test_duration_in_seconds = 100.0
 
-    @pytest.fixture
-    def expected_control_timestamps(self, tmp_path):
-        result = self.extractor_instance.read(events=["Dv1A"], outputPath=str(tmp_path))
-        return result[0]["timestamps"]
 
-    @pytest.fixture
-    def expected_control_data(self, tmp_path):
-        result = self.extractor_instance.read(events=["Dv1A"], outputPath=str(tmp_path))
-        return result[0]["data"]
-
-    @pytest.fixture
-    def expected_signal_timestamps(self, tmp_path):
-        result = self.extractor_instance.read(events=["Dv2A"], outputPath=str(tmp_path))
-        return result[0]["timestamps"]
-
-    @pytest.fixture
-    def expected_signal_data(self, tmp_path):
-        result = self.extractor_instance.read(events=["Dv2A"], outputPath=str(tmp_path))
-        return result[0]["data"]
-
-    @pytest.fixture
-    def expected_ttl_timestamps(self, tmp_path):
-        result = self.extractor_instance.read(events=["PrtN"], outputPath=str(tmp_path))
-        return result[0]["timestamps"]
-
-
-class TestTdtRecordingExtractorSplitEvent(RecordingExtractorTestMixin):
+class TestTdtRecordingExtractorSplitEvent(TdtRecordingExtractorTestMixin):
     extractor_class = TdtRecordingExtractor
     folder_path = os.path.join(STUBBED_TESTING_DATA, "tdt", "Photometry-161823")
     extractor_instance = TdtRecordingExtractor(folder_path)
@@ -140,26 +135,6 @@ class TestTdtRecordingExtractorSplitEvent(RecordingExtractorTestMixin):
     ttl_event = None
     stub_ttl_test_duration_in_seconds = 100.0
 
-    @pytest.fixture
-    def expected_control_timestamps(self, tmp_path):
-        result = self.extractor_instance.read(events=["405R"], outputPath=str(tmp_path))
-        return result[0]["timestamps"]
-
-    @pytest.fixture
-    def expected_control_data(self, tmp_path):
-        result = self.extractor_instance.read(events=["405R"], outputPath=str(tmp_path))
-        return result[0]["data"]
-
-    @pytest.fixture
-    def expected_signal_timestamps(self, tmp_path):
-        result = self.extractor_instance.read(events=["490R"], outputPath=str(tmp_path))
-        return result[0]["timestamps"]
-
-    @pytest.fixture
-    def expected_signal_data(self, tmp_path):
-        result = self.extractor_instance.read(events=["490R"], outputPath=str(tmp_path))
-        return result[0]["data"]
-
     def test_discover_includes_pab_event(self):
         events, _ = self.extractor_class.discover_events_and_flags(self.folder_path)
         assert "PAB/" in events
@@ -167,8 +142,6 @@ class TestTdtRecordingExtractorSplitEvent(RecordingExtractorTestMixin):
     def test_split_event_produces_sub_events(self, tmp_path):
         # PAB/ carries non-uniform event codes → _event_needs_splitting returns True.
         # Pre-create a minimal storesList.csv so _split_event_storesList can read it.
-        import csv
-
         with open(tmp_path / "storesList.csv", "w", newline="") as stores_file:
             csv.writer(stores_file).writerows([["PAB/"], ["ttl"]])
 
