@@ -1,3 +1,15 @@
+# v2.0.0-alpha2 (Upcoming)
+
+## Features
+
+## Fixes
+- Fixed plot saving logic and added selenium as a dependency. [PR #252](https://github.com/LernerLab/GuPPy/pull/252)
+
+## Deprecations and Removals
+
+## Improvements
+
+
 # v2.0.0-alpha1 (March 30th, 2026)
 
 ## Features
