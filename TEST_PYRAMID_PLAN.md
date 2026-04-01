@@ -7,7 +7,7 @@
 | Tier         | Files | Tests | Notes                                      |
 |--------------|-------|-------|--------------------------------------------|
 | Unit         | 35    | ~396  | Good coverage of analysis, frontend, extractors |
-| Integration  | 12    | ~18   | Wide parametrization but shallow contracts |
+| Integration  | 12    | ~18   | End-to-end step smoke tests; currently over-parametrized |
 | Consistency  | 10    | ~10   | `@pytest.mark.full_data`; slow, require full dataset |
 | UI           | 5     | ~34   | `@pytest.mark.ui`; browser-based           |
 
@@ -59,18 +59,15 @@ The remaining five orchestration modules have zero unit coverage:
 | `psth.py`           | 0         | `test_integration_step5.py` |
 | `transients.py`     | 0         | `test_integration_step5.py` |
 
-**Problem 3 — Several inter-layer contracts are untested.**
-- The hook wiring in `home.py` (`_hooks`, `_widgets`) is never directly asserted.
-- `_build_event_to_extractor` (key routing logic in `read_raw_data.py`) has no
-  test at any level.
-- The handoff from the orchestration layer to the analysis layer inside
-  `preprocess.py` and `psth.py` is unverified at any level.
+**Problem 3 — Integration execution is inefficient for its intended role.**
+Integration tests should be treated as end-to-end pipeline smoke tests in this
+codebase. The current issue is not that they are end-to-end, but that they are
+implemented with repeated inline setup and excessive parametrization.
 
-**Problem 4 — Integration tests behave like mini end-to-end tests.**
-Each step N integration test re-runs steps 1 through N−1 as inline setup.
-`test_step5` runs step2 → step3 → step4 → step5 in sequence just to
-verify PSTH files exist. That is an end-to-end smoke test, not an integration
-test of Step 5 in isolation.
+**Problem 4 — End-to-end integration scope is not explicit in structure.**
+Step 3/4/5 integration tests currently read like step-isolated integration, but
+their actual behavior is end-to-end execution (running prior steps as setup).
+The suite should make that intent explicit and optimize around it.
 
 **Problem 5 — Integration tests are over-parametrized across data formats.**
 Steps 3, 4, and 5 each parametrize over all 14 format variants (CSV, 5 Doric,
@@ -87,8 +84,8 @@ pipeline run makes the integration suite slow without adding proportional value.
                  /   E2E / Consistency       \   ~10–20 tests
                 /   (full pipeline, real data) \
                /‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾\
-              /        Integration              \   ~30–40 tests
-             /  (two adjacent layers, 1–3 formats)\
+              /        Integration              \   ~18–30 tests
+             / (end-to-end step smoke, 1–3 formats)\
             /‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾\
            /                Unit                  \   450–500 tests
           /   (one function / class in isolation)   \
@@ -201,47 +198,15 @@ constructed HDF5 inputs in `tmp_path`:
 
 ---
 
-### 3C — New integration tests for uncovered contracts (addresses Problem 3) ✅ COMPLETED
-
-#### `test_integration_home.py` (new, ~3 tests)
-
-Test the wiring contract between `home.py` and `save_parameters.py`:
-- Call `build_homepage()`, set `files_1.value` to a single `tmp_path` folder,
-  call `_hooks["onclickProcess"]()`, and assert that
-  `GuPPyParamtersUsed.json` is written to that folder with the expected keys.
-- Confirms the hook closure correctly captures `parameter_form` so the wiring
-  in `home.py` is exercised end-to-end, not just individually.
-
-#### `test_integration_build_event_to_extractor.py` (new, ~4 tests)
-
-Test `_build_event_to_extractor` with real stubbed data directories (not mocks),
-confirming that the routing is correct for the three representative formats:
-- A CSV session: all storenames route to `CsvRecordingExtractor`.
-- A TDT session: all storenames route to `TdtRecordingExtractor`.
-- A multi-format session (TDT + CSV event files): storenames partition correctly.
-
-Uses `stubbed_testing_data/` which is already committed.
-
-#### `test_integration_orchestration_preprocess_analysis.py` (new, ~3 tests)
-
-Test the contract between `preprocess.py` orchestration and the analysis layer,
-using a pre-built `step3_output_csv` fixture from `conftest.py`:
-- Run Step 4, then read `timeCorrection_*.hdf5` and `z_score_*.hdf5` and assert
-  contents are numerically finite and non-trivially non-zero.
-- The goal is not to re-check the math (covered by analysis unit tests) but to
-  confirm the orchestration layer invokes analysis functions with correct inputs
-  and writes to the expected file paths.
-
----
-
-### 3D — Restructure and slim existing integration tests (addresses Problems 4 and 5)
+### 3C — Restructure and slim end-to-end integration tests (addresses Problems 3, 4, and 5)
 
 #### Add `tests/integration/conftest.py` with session-scoped fixtures
 
-Replace the inline step2→...→stepN call chains with session-scoped fixtures
-using `tmp_path_factory`. Each fixture runs the pipeline through step N−1
-exactly once and yields the output directory path. All tests for step N share
-that cached output:
+Treat the integration suite as explicit end-to-end smoke coverage and replace
+inline step2→...→stepN call chains with session-scoped fixtures using
+`tmp_path_factory`. Each fixture runs the pipeline through step N−1 exactly
+once and yields the output directory path. All tests for step N share that
+cached output:
 
 - `step2_output_csv`, `step2_output_tdt`, `step2_output_npm` — run step2 once
   per representative format, yield output directory.
@@ -250,9 +215,10 @@ that cached output:
 - `step4_output_csv`, `step4_output_tdt`, `step4_output_npm` — same pattern
   through step4.
 
-`test_integration_step3.py` takes `step2_output_*` and calls only `step3()`.
-`test_integration_step4.py` takes `step3_output_*` and calls only `step4()`.
-`test_integration_step5.py` takes `step4_output_*` and calls only `step5()`.
+`test_integration_step3.py`, `test_integration_step4.py`, and
+`test_integration_step5.py` remain end-to-end by design. They should validate
+that each stage successfully extends a pipeline state produced by prior steps,
+rather than attempt seam-level isolation.
 
 Note: because session-scoped fixtures cannot use the function-scoped `tmp_path`,
 they use `tmp_path_factory.mktemp(...)` to create isolated directories.
@@ -270,7 +236,7 @@ This reduces each of `test_integration_step3`, `test_integration_step4`, and
 
 ---
 
-### 3E — No changes to consistency / UI tests
+### 3D — No changes to consistency / UI tests
 
 The consistency tests (`@pytest.mark.full_data`) and UI tests (`@pytest.mark.ui`)
 appropriately occupy the E2E tier. No restructuring is needed there.
@@ -289,8 +255,5 @@ Listed in the same tier-by-tier order as the problems and changes above.
 | 4 | ✅ Add `test_read_raw_data.py` orchestration unit tests | `tests/unit/orchestration/test_read_raw_data.py` (new) |
 | 5 | ✅ Add `test_preprocess.py` orchestration unit tests | `tests/unit/orchestration/test_preprocess.py` (new) |
 | 6 | ✅ Add `test_psth.py` orchestration unit tests | `tests/unit/orchestration/test_psth.py` (new) |
-| 7 | ✅ Add `test_integration_home.py` | `tests/integration/test_integration_home.py` (new) |
-| 8 | ✅ Add `test_integration_build_event_to_extractor.py` | `tests/integration/test_integration_build_event_to_extractor.py` (new) |
-| 9 | ~~Add `test_integration_orchestration_preprocess_analysis.py`~~ (removed — redundant with `test_integration_step4.py`) | n/a |
-| 10 | Add `tests/integration/conftest.py` with session-scoped `tmp_path_factory` fixtures | `tests/integration/conftest.py` (new) |
-| 11 | Slim step3/step4/step5 integration parametrization to CSV, TDT-clean, NPM-1 | `test_integration_step3/4/5.py` (edit) |
+| 7 | Add `tests/integration/conftest.py` with session-scoped `tmp_path_factory` fixtures | `tests/integration/conftest.py` (new) |
+| 8 | Slim step3/step4/step5 integration parametrization to CSV, TDT-clean, NPM-1 | `test_integration_step3/4/5.py` (edit) |
