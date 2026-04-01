@@ -210,10 +210,15 @@ cached output:
 
 - `step2_output_csv`, `step2_output_tdt`, `step2_output_npm` — run step2 once
   per representative format, yield output directory.
+- `step2_output_doric` — run step2 once for a representative Doric session,
+  yield output directory.
 - `step3_output_csv`, `step3_output_tdt`, `step3_output_npm` — take the
   corresponding `step2_output_*` fixture, run step3, yield updated output directory.
+- `step3_output_doric` — take `step2_output_doric`, run step3, yield updated
+  output directory.
 - `step4_output_csv`, `step4_output_tdt`, `step4_output_npm` — same pattern
   through step4.
+- `step4_output_doric` — same pattern through step4.
 
 `test_integration_step3.py`, `test_integration_step4.py`, and
 `test_integration_step5.py` remain end-to-end by design. They should validate
@@ -226,13 +231,14 @@ they use `tmp_path_factory.mktemp(...)` to create isolated directories.
 #### Reduce format parametrization in step3/step4/step5
 
 Once every removed variant is covered by an extractor unit test class (from 3A),
-trim integration parametrization to three representative formats:
+trim integration parametrization to four representative formats:
 - CSV: `sample_data_csv_1` (simplest, fewest dependencies)
 - TDT: `Photo_63_207-181030-103332` (TDT-clean; also used in consistency tests)
 - NPM: `sampleData_NPM_1`
+- Doric: `sample_doric_1`
 
 This reduces each of `test_integration_step3`, `test_integration_step4`, and
-`test_integration_step5` from 14 parametrized cases to 3.
+`test_integration_step5` from 14 parametrized cases to 4.
 
 ---
 
@@ -256,4 +262,4 @@ Listed in the same tier-by-tier order as the problems and changes above.
 | 5 | ✅ Add `test_preprocess.py` orchestration unit tests | `tests/unit/orchestration/test_preprocess.py` (new) |
 | 6 | ✅ Add `test_psth.py` orchestration unit tests | `tests/unit/orchestration/test_psth.py` (new) |
 | 7 | Add `tests/integration/conftest.py` with session-scoped `tmp_path_factory` fixtures | `tests/integration/conftest.py` (new) |
-| 8 | Slim step3/step4/step5 integration parametrization to CSV, TDT-clean, NPM-1 | `test_integration_step3/4/5.py` (edit) |
+| 8 | Slim step3/step4/step5 integration parametrization to CSV, TDT-clean, NPM-1, Doric-1 | `test_integration_step3/4/5.py` (edit) |
