@@ -124,27 +124,35 @@ class TestTdtRecordingExtractorSplitEvent(TdtRecordingExtractorTestMixin):
     folder_path = os.path.join(STUBBED_TESTING_DATA, "tdt", "Photometry-161823")
     extractor_instance = TdtRecordingExtractor(folder_path)
     # PAB/ is a split-event channel. read(events=["PAB/"]) internally calls
-    # _split_event_storesList, which requires a storesList.csv in outputPath. That
-    # file is not present in a bare tmp_path, so PAB/ cannot be read through the
-    # generic mixin tests. The split behaviour is verified separately in
-    # test_split_event_produces_sub_events below.
-    expected_events = ["405R", "490R"]
+    # _split_event_storesList, which requires a storesList.csv in outputPath.
+    # The _pab_storesList_setup autouse fixture pre-creates that file in tmp_path
+    # before every test so that all inherited mixin tests work without modification.
+    expected_events = ["405R", "490R", "PAB/"]
     discover_kwargs = {}
     control_event = "405R"
     signal_event = "490R"
-    ttl_event = None
-    stub_ttl_test_duration_in_seconds = 100.0
+    ttl_event = "PAB/"
+    stub_ttl_test_duration_in_seconds = 200.0
 
-    def test_discover_includes_pab_event(self):
-        events, _ = self.extractor_class.discover_events_and_flags(self.folder_path)
-        assert "PAB/" in events
+    @pytest.fixture(autouse=True)
+    def _pab_storesList_setup(self, tmp_path):
+        """Write a minimal storesList.csv and return tmp_path for reuse.
+
+        Returning tmp_path lets other fixtures depend on this one to both
+        guarantee ordering and receive the prepared output path.
+        """
+        with open(tmp_path / "storesList.csv", "w", newline="") as stores_file:
+            csv.writer(stores_file).writerows([["PAB/"], ["ttl"]])
+        return tmp_path
+
+    @pytest.fixture
+    def expected_ttl_timestamps(self, _pab_storesList_setup):
+        result = self.extractor_instance.read(events=["PAB/"], outputPath=str(_pab_storesList_setup))
+        return result[0]["timestamps"]
 
     def test_split_event_produces_sub_events(self, tmp_path):
         # PAB/ carries non-uniform event codes → _event_needs_splitting returns True.
-        # Pre-create a minimal storesList.csv so _split_event_storesList can read it.
-        with open(tmp_path / "storesList.csv", "w", newline="") as stores_file:
-            csv.writer(stores_file).writerows([["PAB/"], ["ttl"]])
-
+        # _pab_storesList_setup (autouse) has already written storesList.csv.
         result = self.extractor_instance.read(events=["PAB/"], outputPath=str(tmp_path))
 
         # The first dict is the original unsplit PAB/ event; subsequent dicts are
