@@ -101,7 +101,7 @@ pipeline run makes the integration suite slow without adding proportional value.
 
 Changes are ordered tier by tier, bottom-up, mirroring the problem list.
 
-### 3A — Expand extractor unit test coverage (addresses Problem 1)
+### 3A — Expand extractor unit test coverage (addresses Problem 1) ✅ COMPLETED
 
 **This must be completed before any integration test format variant is removed.**
 
@@ -148,7 +148,7 @@ tests will confirm splitting works correctly at the extractor level.
 
 ---
 
-### 3B — New unit tests for the orchestration layer (addresses Problem 2)
+### 3B — New unit tests for the orchestration layer (addresses Problem 2) ✅ COMPLETED
 
 All files go in `tests/unit/orchestration/`.
 
@@ -201,7 +201,7 @@ constructed HDF5 inputs in `tmp_path`:
 
 ---
 
-### 3C — New integration tests for uncovered contracts (addresses Problem 3)
+### 3C — New integration tests for uncovered contracts (addresses Problem 3) ✅ COMPLETED
 
 #### `test_integration_home.py` (new, ~3 tests)
 
@@ -283,14 +283,14 @@ Listed in the same tier-by-tier order as the problems and changes above.
 
 | Priority | Work item | Files affected |
 |----------|-----------|----------------|
-| 1 | Extend `RecordingExtractorTestMixin` to make `ttl_event` optional | `recording_extractor_test_mixin.py` (edit) |
-| 2 | Add 8 missing extractor test classes (Doric ×3, TDT ×2, NPM ×3) | `test_doric/tdt/npm_recording_extractor.py` (edit each) |
-| 3 | Add `test_home.py` orchestration unit tests | `tests/unit/orchestration/test_home.py` (new) |
-| 4 | Add `test_read_raw_data.py` orchestration unit tests | `tests/unit/orchestration/test_read_raw_data.py` (new) |
-| 5 | Add `test_preprocess.py` orchestration unit tests | `tests/unit/orchestration/test_preprocess.py` (new) |
-| 6 | Add `test_psth.py` orchestration unit tests | `tests/unit/orchestration/test_psth.py` (new) |
-| 7 | Add `test_integration_home.py` | `tests/integration/test_integration_home.py` (new) |
-| 8 | Add `test_integration_build_event_to_extractor.py` | `tests/integration/test_integration_build_event_to_extractor.py` (new) |
-| 9 | Add `test_integration_orchestration_preprocess_analysis.py` | `tests/integration/test_integration_orchestration_preprocess_analysis.py` (new) |
+| 1 | ✅ Extend `RecordingExtractorTestMixin` to make `ttl_event` optional | `recording_extractor_test_mixin.py` (edit) |
+| 2 | ✅ Add 8 missing extractor test classes (Doric ×3, TDT ×2, NPM ×3) | `test_doric/tdt/npm_recording_extractor.py` (edit each) |
+| 3 | ✅ Add `test_home.py` orchestration unit tests | `tests/unit/orchestration/test_home.py` (new) |
+| 4 | ✅ Add `test_read_raw_data.py` orchestration unit tests | `tests/unit/orchestration/test_read_raw_data.py` (new) |
+| 5 | ✅ Add `test_preprocess.py` orchestration unit tests | `tests/unit/orchestration/test_preprocess.py` (new) |
+| 6 | ✅ Add `test_psth.py` orchestration unit tests | `tests/unit/orchestration/test_psth.py` (new) |
+| 7 | ✅ Add `test_integration_home.py` | `tests/integration/test_integration_home.py` (new) |
+| 8 | ✅ Add `test_integration_build_event_to_extractor.py` | `tests/integration/test_integration_build_event_to_extractor.py` (new) |
+| 9 | ~~Add `test_integration_orchestration_preprocess_analysis.py`~~ (removed — redundant with `test_integration_step4.py`) | n/a |
 | 10 | Add `tests/integration/conftest.py` with session-scoped `tmp_path_factory` fixtures | `tests/integration/conftest.py` (new) |
 | 11 | Slim step3/step4/step5 integration parametrization to CSV, TDT-clean, NPM-1 | `test_integration_step3/4/5.py` (edit) |
