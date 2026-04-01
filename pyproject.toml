@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "guppy-neuro"
-version = "2.0.0-alpha1"
+version = "2.0.0-alpha2"
 description = "Guided Photometry Analysis in Python, a free and open-source fiber photometry data analysis tool."
 readme = "README.md"
 authors = [
@@ -55,6 +55,7 @@ dependencies = [
     "platformdirs",
     "scipy",
     "tables",
+    "selenium",
 ]
 
 [dependency-groups]
