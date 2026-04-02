@@ -319,6 +319,7 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         path_chev_chod_event = path_chev + path_chod + path_event + path_chpr
 
         path = sorted(list(set(path) - set(path_chev_chod_event)))
+        path = [p for p in path if not _is_event_csv(p)]  # Skip event CSVs, which are handled by CsvRecordingExtractor
         multiple_event_ttls = []
         for i in range(len(path)):
             df = pd.read_csv(path[i], index_col=False)
@@ -442,6 +443,7 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         path_chev_chod_event = path_chev + path_chod + path_event + path_chpr
 
         path = sorted(list(set(path) - set(path_chev_chod_event)))
+        path = [p for p in path if not _is_event_csv(p)]  # Skip event CSVs, which are handled by CsvRecordingExtractor
         ts_unit_needs = []
         col_names_ts = [""]
         for i in range(len(path)):

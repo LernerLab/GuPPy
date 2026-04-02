@@ -126,6 +126,19 @@ def test_has_multiple_event_ttls_multiple_ttl_event_file_returns_true(tmp_path):
     assert result == [True]
 
 
+def test_has_multiple_event_ttls_intra_session_mixed_modality_npm_with_csv_event(tmp_path):
+    # Mixed intra-session folder: NPM files plus external 1-column CSV event should not crash helper detection.
+    source_folder = STUBBED_TESTING_DATA / "npm" / "sampleData_NPM_1"
+    session_folder = tmp_path / "sampleData_NPM_1"
+    shutil.copytree(source_folder, session_folder)
+
+    csv_ttl_timestamps = np.array([20.0, 40.0, 60.0, 80.0, 100.0])
+    np.savetxt(session_folder / "csv_event.csv", csv_ttl_timestamps, header="timestamps", comments="", fmt="%.6f")
+
+    result = NpmRecordingExtractor.has_multiple_event_ttls(folder_path=str(session_folder))
+    assert result == [False, True]
+
+
 # ---------------------------------------------------------------------------
 # needs_ts_unit
 # ---------------------------------------------------------------------------
@@ -165,6 +178,20 @@ def test_needs_ts_unit_multiple_timestamp_columns_returns_true(tmp_path):
     dataframe.to_csv(tmp_path / "data.csv", index=False)
     ts_unit_needs, col_names_ts = NpmRecordingExtractor.needs_ts_unit(folder_path=str(tmp_path), num_ch=2)
     assert ts_unit_needs == [True]
+    assert col_names_ts == ["", "SystemTimestamp", "ComputerTimestamp"]
+
+
+def test_needs_ts_unit_intra_session_mixed_modality_npm_with_csv_event(tmp_path):
+    # Mixed intra-session folder: NPM files plus external 1-column CSV event should not crash TS-unit inference.
+    source_folder = STUBBED_TESTING_DATA / "npm" / "sampleData_NPM_1"
+    session_folder = tmp_path / "sampleData_NPM_1"
+    shutil.copytree(source_folder, session_folder)
+
+    csv_ttl_timestamps = np.array([20.0, 40.0, 60.0, 80.0, 100.0])
+    np.savetxt(session_folder / "csv_event.csv", csv_ttl_timestamps, header="timestamps", comments="", fmt="%.6f")
+
+    ts_unit_needs, col_names_ts = NpmRecordingExtractor.needs_ts_unit(folder_path=str(session_folder), num_ch=2)
+    assert ts_unit_needs == [True, False]
     assert col_names_ts == ["", "SystemTimestamp", "ComputerTimestamp"]
 
 
