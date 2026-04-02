@@ -413,6 +413,8 @@ def step5(
     select_for_compute_psth: str = "z_score",
     select_for_transients: str = "z_score",
     number_of_cores: int = 1,
+    bin_psth_trials: int = 0,
+    use_time_or_trials: str = "Time (min)",
 ) -> None:
     """
     Run pipeline Step 5 (PSTH Computation) via the Panel-backed logic, headlessly.
@@ -457,6 +459,13 @@ def step5(
     number_of_cores : int
         Number of worker processes for PSTH and transient computations. Defaults to ``1``
         (single-process) to avoid multiprocessing conflicts in test environments.
+    bin_psth_trials : int
+        Number of time minutes or trials to bin together for PSTH computation. ``0`` disables
+        binning (the default). When positive, ``use_time_or_trials`` controls the interpretation.
+    use_time_or_trials : str
+        Whether ``bin_psth_trials`` is interpreted as a time window in minutes (``'Time (min)'``)
+        or a number of trials (``'# of trials'``). Only meaningful when ``bin_psth_trials > 0``.
+        Defaults to ``'Time (min)'``.
 
     Raises
     ------
@@ -522,6 +531,10 @@ def step5(
 
     # Override parallelism — default 1 keeps tests single-process
     input_params["numberOfCores"] = number_of_cores
+
+    # Inject PSTH binning parameters
+    input_params["bin_psth_trials"] = bin_psth_trials
+    input_params["use_time_or_trials"] = use_time_or_trials
 
     # Call the underlying Step 5 worker directly (no subprocess)
     psthForEachStorename(input_params)
