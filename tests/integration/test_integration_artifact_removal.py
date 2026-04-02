@@ -5,6 +5,8 @@ import shutil
 import h5py
 import numpy as np
 import pytest
+from bokeh.document import Document
+from bokeh.io.doc import set_curdoc
 from conftest import STUBBED_TESTING_DATA as TESTING_DATA
 
 from guppy.testing.api import step2, step3, step4, step5
@@ -33,6 +35,19 @@ _COORDS_NAN = np.array(
         [181.30768755, 0.0],
     ]
 )
+
+
+@pytest.fixture(autouse=True)
+def fresh_bokeh_document():
+    """Reset Bokeh's thread-local document before each test.
+
+    build_homepage() creates a pn.template.BootstrapTemplate, which reads
+    pn.state.curdoc. On a second call within the same xdist worker the old
+    document may be stale or None, triggering an AttributeError inside Panel.
+    Setting a fresh Document() before each test prevents that state leak.
+    """
+    set_curdoc(Document())
+    yield
 
 
 @pytest.mark.parametrize(
