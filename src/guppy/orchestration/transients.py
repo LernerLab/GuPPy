@@ -187,7 +187,7 @@ def execute_find_freq_and_amp_combined(inputParameters, folderNames, moving_wind
         filepath = op[i][0]
         storesList = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
         findFreqAndAmp(filepath, inputParameters, window=moving_window, numProcesses=numProcesses)
-        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
+        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
         inputParameters["step"] += 1
 
 

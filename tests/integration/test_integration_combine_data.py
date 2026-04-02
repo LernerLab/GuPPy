@@ -91,6 +91,7 @@ def test_combine_data(tmp_path):
         npm_timestamp_column_names=npm_timestamp_column_names,
         npm_time_units=npm_time_units,
         npm_split_events=npm_split_events,
+        combine_data=True,
     )
 
     # Validate outputs exist in the temp copy

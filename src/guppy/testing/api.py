@@ -405,6 +405,7 @@ def step5(
     npm_timestamp_column_names: list[str | None] | None = None,
     npm_time_units: list[str] | None = None,
     npm_split_events: list[bool] | None = None,
+    combine_data: bool = False,
     compute_corr: bool = False,
     average_for_group: bool = False,
     group_folders: list[str] | None = None,
@@ -434,6 +435,8 @@ def step5(
         List of time units for NPM files, one per CSV file (e.g., 'seconds', 'milliseconds'). None if not applicable.
     npm_split_events : list[bool] | None
         List of booleans indicating whether to split events for NPM files, one per CSV file. None if not applicable.
+    combine_data : bool
+        Whether to enable combined-session processing mode in Step 5. Defaults to False.
     compute_corr : bool
         Whether to compute cross-correlation between signals. Defaults to False.
     average_for_group : bool
@@ -501,6 +504,9 @@ def step5(
     input_params["npm_timestamp_column_names"] = npm_timestamp_column_names
     input_params["npm_time_units"] = npm_time_units
     input_params["npm_split_events"] = npm_split_events
+
+    # Inject combine_data
+    input_params["combine_data"] = combine_data
 
     # Inject cross-correlation flag
     input_params["computeCorr"] = compute_corr
