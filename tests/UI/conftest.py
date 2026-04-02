@@ -10,12 +10,6 @@ from guppy.orchestration.home import build_homepage
 
 
 @pytest.fixture(scope="session")
-def panel_extension():
-    """Call pn.extension() exactly once for the entire session."""
-    pn.extension()
-
-
-@pytest.fixture(scope="session")
 def ui_base_dir(tmp_path_factory):
     """Provide a real temp directory as GUPPY_BASE_DIR.
 

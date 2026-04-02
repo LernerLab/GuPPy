@@ -1,18 +1,8 @@
 import numpy as np
 import pandas as pd
-import panel as pn
 import pytest
 
 from guppy.frontend.parameterized_plotter import ParameterizedPlotter
-
-
-@pytest.fixture(scope="session")
-def panel_extension():
-    """Call pn.extension() exactly once for the entire test session.
-
-    Panel requires this before any widget instantiation.
-    """
-    pn.extension()
 
 
 @pytest.fixture(scope="session")

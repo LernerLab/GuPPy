@@ -3,6 +3,9 @@ import os
 import sys
 from pathlib import Path
 
+import panel as pn
+import pytest
+
 # Set GUPPY_BASE_DIR before any guppy source modules are imported. This is
 # GuPPy's headless flag: orchestration code checks it to skip figure creation.
 # The per-test step functions will override this with the actual base_dir.
@@ -27,3 +30,12 @@ for path in (SRC_PATH, TESTS_ROOT):
 # Static data directories — import these in test modules instead of redefining locally
 STUBBED_TESTING_DATA = Path(PROJECT_ROOT) / "stubbed_testing_data"
 TESTING_DATA = Path(PROJECT_ROOT) / "testing_data"
+
+
+@pytest.fixture(scope="session")
+def panel_extension():
+    """Call pn.extension() exactly once for the entire test session.
+
+    Panel requires this before any widget instantiation.
+    """
+    pn.extension()
