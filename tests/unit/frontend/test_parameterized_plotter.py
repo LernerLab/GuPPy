@@ -153,6 +153,74 @@ class TestParameterizedPlotter:
         plotter_for_save.save_hm_plots()
         assert Path(plotter_for_save.results_hm["op"] + ".svg").exists()
 
+    def test_save_psth_plot_returns_zero_when_save_options_none(self, plotter_for_save):
+        plotter_for_save.save_options = "None"
+        result = plotter_for_save.save_psth_plot()
+        assert result == 0
+
+    def test_save_hm_plots_returns_zero_when_save_options_none(self, plotter_for_save):
+        plotter_for_save.save_options_heatmap = "None"
+        result = plotter_for_save.save_hm_plots()
+        assert result == 0
+
+    def test_save_psth_plot_creates_png_and_svg_when_save_both(self, plotter_for_save):
+        plotter_for_save.save_options = "save_both_format"
+        plotter_for_save.save_psth_plot()
+
+        assert Path(plotter_for_save.results_psth["op"] + ".png").exists()
+        assert Path(plotter_for_save.results_psth["op"] + ".svg").exists()
+        assert Path(plotter_for_save.results_psth["op_combine"] + ".png").exists()
+        assert Path(plotter_for_save.results_psth["op_combine"] + ".svg").exists()
+
+    def test_save_hm_plots_creates_png_and_svg_when_save_both(self, plotter_for_save):
+        plotter_for_save.save_options_heatmap = "save_both_format"
+        plotter_for_save.save_hm_plots()
+
+        assert Path(plotter_for_save.results_hm["op"] + ".png").exists()
+        assert Path(plotter_for_save.results_hm["op"] + ".svg").exists()
+
+    def test_update_selector_handles_bin_series_selection(self, plotter):
+        plotter.param.selector_for_multipe_events_plot.objects = ["event1", "event2", "event1_bin_1"]
+        plotter.selector_for_multipe_events_plot = ["event1_bin_1"]
+
+        plot = plotter.update_selector()
+
+        assert plot is not None
+        assert plotter.results_psth["op_combine"].endswith("saved_plots/['event1_bin_1']_mean")
+
+    def test_cont_plot_all_trials_branch(self, plotter):
+        plotter.param["y"].objects = ["trial_1", "trial_2", "trial_3", "bin_1", "mean", "All"]
+        plotter.y = "All"
+
+        plot = plotter.contPlot()
+
+        assert plot is not None
+        assert plotter.results_psth["op"].endswith("saved_plots/event1_All")
+
+    def test_plot_specific_trials_mean_branch(self, plotter):
+        plotter.psth_y = ["1 - trial_1", "2 - trial_2"]
+        plotter.select_trials_checkbox = ["mean"]
+
+        plot = plotter.plot_specific_trials()
+
+        assert plot is not None
+
+    def test_plot_specific_trials_mean_and_just_trials_branch(self, plotter):
+        plotter.psth_y = ["1 - trial_1", "2 - trial_2"]
+        plotter.select_trials_checkbox = ["mean", "just trials"]
+
+        plot = plotter.plot_specific_trials()
+
+        assert plot is not None
+
+    def test_heatmap_non_all_selection_branch(self, plotter):
+        plotter.heatmap_y = ["1 - trial_1", "2 - trial_2"]
+
+        image = plotter.heatmap()
+
+        assert image is not None
+        assert plotter.results_hm["op"].endswith("saved_plots/event1_heatmap")
+
 
 # ---------------------------------------------------------------------------
 # plotter_for_save fixture (function-scoped, used only in this module)
