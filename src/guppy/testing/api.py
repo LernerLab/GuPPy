@@ -22,6 +22,7 @@ from guppy.orchestration.psth import psthForEachStorename
 from guppy.orchestration.read_raw_data import orchestrate_read_raw_data
 from guppy.orchestration.storenames import orchestrate_storenames_page
 from guppy.orchestration.transients import executeFindFreqAndAmp
+from guppy.orchestration.visualize import visualizeResults
 
 
 def step1(*, base_dir: str, selected_folders: Iterable[str]) -> None:
@@ -527,3 +528,94 @@ def step5(
 
     # Also compute frequency/amplitude and transients occurrences (normally triggered by CLI main)
     executeFindFreqAndAmp(input_params)
+
+
+def step6(
+    *,
+    base_dir: str,
+    selected_folders: Iterable[str],
+    npm_timestamp_column_names: list[str | None] | None = None,
+    npm_time_units: list[str] | None = None,
+    npm_split_events: list[bool] | None = None,
+    visualize_zscore_or_dff: str = "z_score",
+) -> None:
+    """
+    Run pipeline Step 6 (Visualize Results) via the Panel-backed logic, headlessly.
+
+    This builds the template headlessly (using ``GUPPY_BASE_DIR`` to bypass
+    the folder dialog), sets the FileSelector to ``selected_folders``, retrieves
+    the full input parameters via ``getInputParameters()``, and calls
+    ``visualizeResults(input_params)``. No GUI is spawned.
+
+    Callers that need to suppress the web server (e.g. tests) should patch
+    ``VisualizationDashboard.show`` before calling this function.
+
+    Parameters
+    ----------
+    base_dir : str
+        Root directory used to initialize the FileSelector. All ``selected_folders``
+        must reside directly under this path.
+    selected_folders : Iterable[str]
+        Absolute paths to the session directories to process.
+    npm_timestamp_column_names : list[str | None] | None
+        List of timestamp column names for NPM files, one per CSV file. None if not applicable.
+    npm_time_units : list[str] | None
+        List of time units for NPM files, one per CSV file. None if not applicable.
+    npm_split_events : list[bool] | None
+        List of booleans indicating whether to split events for NPM files. None if not applicable.
+    visualize_zscore_or_dff : str
+        Signal type to visualize. One of ``'z_score'`` or ``'dff'``. Defaults to ``'z_score'``.
+
+    Raises
+    ------
+    ValueError
+        If validation fails (e.g., empty iterable, invalid directories, or parent mismatch).
+    RuntimeError
+        If the template does not expose the required testing hooks/widgets.
+    """
+    # Validate base_dir
+    if not isinstance(base_dir, str) or not base_dir:
+        raise ValueError("base_dir must be a non-empty string")
+    base_dir = os.path.abspath(base_dir)
+    if not os.path.isdir(base_dir):
+        raise ValueError(f"base_dir does not exist or is not a directory: {base_dir}")
+
+    # Validate selected_folders
+    sessions = list(selected_folders or [])
+    if not sessions:
+        raise ValueError("selected_folders must be a non-empty iterable of session directories")
+    abs_sessions = [os.path.abspath(s) for s in sessions]
+    for s in abs_sessions:
+        if not os.path.isdir(s):
+            raise ValueError(f"Session path does not exist or is not a directory: {s}")
+        parent = os.path.dirname(s)
+        if parent != base_dir:
+            raise ValueError(
+                f"All selected_folders must share the same parent equal to base_dir. "
+                f"Got parent {parent!r} for session {s!r}, expected {base_dir!r}"
+            )
+
+    # Headless build: set base_dir and construct the template
+    os.environ["GUPPY_BASE_DIR"] = base_dir
+    template = build_homepage()
+
+    # Ensure hooks/widgets exposed
+    if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
+        raise RuntimeError("savingInputParameters did not expose 'getInputParameters' hook")
+    if not hasattr(template, "_widgets") or "files_1" not in template._widgets:
+        raise RuntimeError("savingInputParameters did not expose 'files_1' widget")
+
+    # Select folders and fetch input parameters
+    template._widgets["files_1"].value = abs_sessions
+    input_params = template._hooks["getInputParameters"]()
+
+    # Inject explicit NPM parameters
+    input_params["npm_timestamp_column_names"] = npm_timestamp_column_names
+    input_params["npm_time_units"] = npm_time_units
+    input_params["npm_split_events"] = npm_split_events
+
+    # Inject visualization signal-type selection
+    input_params["visualize_zscore_or_dff"] = visualize_zscore_or_dff
+
+    # Call the underlying Step 6 worker directly (no subprocess)
+    visualizeResults(input_params)
