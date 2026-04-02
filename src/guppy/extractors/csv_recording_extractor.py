@@ -147,41 +147,6 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
         df = pd.read_csv(os.path.join(self.folder_path, event + ".csv"), index_col=False)
         return df
 
-    def _save_to_hdf5(self, df, event, outputPath):
-        key = list(df.columns)
-
-        # TODO: clean up these if branches
-        if len(key) == 3:
-            arr1 = np.array(["timestamps", "data", "sampling_rate"])
-            arr2 = np.char.lower(np.array(key))
-            if (np.sort(arr1) == np.sort(arr2)).all() == False:
-                logger.error("\033[1m" + "Column names should be timestamps, data and sampling_rate" + "\033[0m")
-                raise Exception("\033[1m" + "Column names should be timestamps, data and sampling_rate" + "\033[0m")
-
-        if len(key) == 1:
-            if key[0].lower() != "timestamps":
-                logger.error("\033[1m" + "Column names should be timestamps, data and sampling_rate" + "\033[0m")
-                raise Exception("\033[1m" + "Column name should be timestamps" + "\033[0m")
-
-        if len(key) != 3 and len(key) != 1:
-            logger.error(
-                "\033[1m"
-                + "Number of columns in csv file should be either three or one. Three columns if \
-                            the file is for control or signal data or one column if the file is for event TTLs."
-                + "\033[0m"
-            )
-            raise Exception(
-                "\033[1m"
-                + "Number of columns in csv file should be either three or one. Three columns if \
-                            the file is for control or signal data or one column if the file is for event TTLs."
-                + "\033[0m"
-            )
-
-        for i in range(len(key)):
-            self._write_hdf5(df[key[i]].dropna(), event, outputPath, key[i].lower())
-
-        logger.info("\033[1m" + "Reading data for {} from csv file is completed.".format(event) + "\033[0m")
-
     def read(self, *, events: list[str], outputPath: str) -> list[dict[str, Any]]:
         output_dicts = []
         for event in events:
