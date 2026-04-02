@@ -5,8 +5,8 @@ import pytest
 from guppy.frontend.parameterized_plotter import ParameterizedPlotter
 
 
-@pytest.fixture(scope="session")
-def plotter(tmp_path_factory, panel_extension):
+@pytest.fixture
+def plotter(tmp_path, panel_extension):
     """Minimal _TestablePlotter for testing construction and watcher methods.
 
     Two events, each with 8 columns ordered so that columns[-4] == "timestamps":
@@ -29,7 +29,7 @@ def plotter(tmp_path_factory, panel_extension):
     events = ["event1", "event2"]
     columns_dict = {event: columns for event in events}
     df_new = pd.concat([make_event_dataframe() for event in events], keys=events, axis=1)
-    filepath = str(tmp_path_factory.mktemp("plotter"))
+    filepath = str(tmp_path)
 
     return ParameterizedPlotter(
         event_selector_objects=events,
