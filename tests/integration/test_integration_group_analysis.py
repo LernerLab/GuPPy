@@ -1,12 +1,15 @@
 import glob
 import os
 import shutil
+from unittest.mock import patch
 
+import holoviews as hv
 import pandas as pd
 import pytest
 from conftest import STUBBED_TESTING_DATA
 
-from guppy.testing.api import step2, step3, step4, step5
+from guppy.frontend.visualization_dashboard import VisualizationDashboard
+from guppy.testing.api import step2, step3, step4, step5, step6
 
 SESSION_SUBDIRS = [
     "tdt/Photo_048_392-200728-121222",
@@ -73,3 +76,17 @@ def test_group_analysis(tmp_path):
     group_psth_dataframe = pd.read_hdf(group_psth_file_path, key="df")
     assert "timestamps" in group_psth_dataframe.columns, f"'timestamps' column missing in {group_psth_file_path}"
     assert "mean" in group_psth_dataframe.columns, f"'mean' column missing in {group_psth_file_path}"
+
+    hv.extension("bokeh")
+    captured_dashboards: list[VisualizationDashboard] = []
+    original_init = VisualizationDashboard.__init__
+
+    def capturing_init(self, *, plotter, basename):
+        original_init(self, plotter=plotter, basename=basename)
+        captured_dashboards.append(self)
+
+    with patch.object(VisualizationDashboard, "__init__", capturing_init):
+        with patch.object(VisualizationDashboard, "show", lambda self: None):
+            step6(base_dir=base_dir, selected_folders=selected_folders)
+
+    assert len(captured_dashboards) >= 1, "step6 created no VisualizationDashboard instances"

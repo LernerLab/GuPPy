@@ -1,12 +1,15 @@
 import glob
 import os
 import shutil
+from unittest.mock import patch
 
 import h5py
+import holoviews as hv
 import pytest
 from conftest import STUBBED_TESTING_DATA
 
-from guppy.testing.api import step2, step3, step4, step5
+from guppy.frontend.visualization_dashboard import VisualizationDashboard
+from guppy.testing.api import step2, step3, step4, step5, step6
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
@@ -126,3 +129,17 @@ def test_combine_data(tmp_path):
         assert os.path.exists(ttl_fp), f"Missing TTL-aligned file {ttl_fp}"
         with h5py.File(ttl_fp, "r") as f:
             assert "ts" in f, f"Expected 'ts' dataset in {ttl_fp}"
+
+    hv.extension("bokeh")
+    captured_dashboards: list[VisualizationDashboard] = []
+    original_init = VisualizationDashboard.__init__
+
+    def capturing_init(self, *, plotter, basename):
+        original_init(self, plotter=plotter, basename=basename)
+        captured_dashboards.append(self)
+
+    with patch.object(VisualizationDashboard, "__init__", capturing_init):
+        with patch.object(VisualizationDashboard, "show", lambda self: None):
+            step6(base_dir=base_dir, selected_folders=[str(session_copies[0])])
+
+    assert len(captured_dashboards) >= 1, "step6 created no VisualizationDashboard instances"
