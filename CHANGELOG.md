@@ -8,6 +8,7 @@
 
 ## Improvements
 - Expanded test suite with unit tests for frontend components: [PR #250](https://github.com/LernerLab/GuPPy/pull/250)
+- Re-balanced test suite to conform to standard testing pyramid: [PR #255](https://github.com/LernerLab/GuPPy/pull/255)
 
 
 # v2.0.0-alpha2 (March 31st, 2026)
