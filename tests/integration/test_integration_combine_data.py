@@ -90,7 +90,7 @@ def test_combine_data(tmp_path):
     # Step 5: compute PSTH in the temp copy (headless)
     step5(
         base_dir=str(tmp_base),
-        selected_folders=[str(session_copy)],
+        selected_folders=selected_folders,
         npm_timestamp_column_names=npm_timestamp_column_names,
         npm_time_units=npm_time_units,
         npm_split_events=npm_split_events,
