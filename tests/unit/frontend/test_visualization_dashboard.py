@@ -6,7 +6,7 @@ from guppy.frontend.visualization_dashboard import VisualizationDashboard
 BASENAME = "test_session"
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def dashboard(plotter, panel_extension):
     return VisualizationDashboard(plotter=plotter, basename=BASENAME)
 
