@@ -136,7 +136,7 @@ def test_has_multiple_event_ttls_intra_session_mixed_modality_npm_with_csv_event
     np.savetxt(session_folder / "csv_event.csv", csv_ttl_timestamps, header="timestamps", comments="", fmt="%.6f")
 
     result = NpmRecordingExtractor.has_multiple_event_ttls(folder_path=str(session_folder))
-    assert result == [False, False]
+    assert result == [False, True]
 
 
 # ---------------------------------------------------------------------------
@@ -191,8 +191,8 @@ def test_needs_ts_unit_intra_session_mixed_modality_npm_with_csv_event(tmp_path)
     np.savetxt(session_folder / "csv_event.csv", csv_ttl_timestamps, header="timestamps", comments="", fmt="%.6f")
 
     ts_unit_needs, col_names_ts = NpmRecordingExtractor.needs_ts_unit(folder_path=str(session_folder), num_ch=2)
-    assert ts_unit_needs == [False, False]
-    assert col_names_ts == [""]
+    assert ts_unit_needs == [True, False]
+    assert col_names_ts == ["", "SystemTimestamp", "ComputerTimestamp"]
 
 
 from conftest import STUBBED_TESTING_DATA
