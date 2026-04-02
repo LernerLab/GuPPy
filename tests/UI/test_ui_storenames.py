@@ -3,6 +3,7 @@ import time
 
 import panel as pn
 import pytest
+from playwright.sync_api import expect
 
 from guppy.frontend.frontend_utils import scanPortsAndFind
 from guppy.orchestration.storenames import build_storenames_template
@@ -39,55 +40,48 @@ def storenames_server_url(panel_extension, ui_base_dir, tmp_path_factory):
 @pytest.mark.ui
 def test_page_title_contains_storenames_gui(page, storenames_server_url):
     page.goto(storenames_server_url)
-    page.wait_for_selector("text=Select Storenames")
+    expect(page.get_by_text("Select Storenames").first).to_be_visible()
     assert "Storenames GUI" in page.title()
 
 
 @pytest.mark.ui
 def test_storenames_to_repeat_checkbox_visible(page, storenames_server_url):
     page.goto(storenames_server_url)
-    page.wait_for_selector("text=Storenames to repeat")
-    assert page.get_by_text("Storenames to repeat").first.is_visible()
+    expect(page.get_by_text("Storenames to repeat").first).to_be_visible()
 
 
 @pytest.mark.ui
 def test_select_storenames_button_visible(page, storenames_server_url):
     page.goto(storenames_server_url)
-    page.wait_for_selector("text=Select Storenames")
-    assert page.get_by_role("button", name="Select Storenames").is_visible()
+    expect(page.get_by_role("button", name="Select Storenames")).to_be_visible()
 
 
 # TODO: Debug this test
 # @pytest.mark.ui
 # def test_show_selected_configuration_button_visible(page, storenames_server_url):
 #     page.goto(storenames_server_url)
-#     page.wait_for_selector("text=Show Selected Configuration")
-#     assert page.get_by_role("button", name="Show Selected Configuration").is_visible()
+#     expect(page.get_by_role("button", name="Show Selected Configuration")).to_be_visible()
 
 
 @pytest.mark.ui
 def test_save_button_visible(page, storenames_server_url):
     page.goto(storenames_server_url)
-    page.wait_for_selector("text=Save")
-    assert page.get_by_role("button", name="Save").first.is_visible()
+    expect(page.get_by_role("button", name="Save").first).to_be_visible()
 
 
 @pytest.mark.ui
 def test_selected_store_names_label_visible(page, storenames_server_url):
     page.goto(storenames_server_url)
-    page.wait_for_selector("text=Selected Store Names")
-    assert page.get_by_text("Selected Store Names").first.is_visible()
+    expect(page.get_by_text("Selected Store Names").first).to_be_visible()
 
 
 @pytest.mark.ui
 def test_location_to_stores_list_file_label_visible(page, storenames_server_url):
     page.goto(storenames_server_url)
-    page.wait_for_selector("text=Location to Stores List file")
-    assert page.get_by_text("Location to Stores List file").first.is_visible()
+    expect(page.get_by_text("Location to Stores List file").first).to_be_visible()
 
 
 @pytest.mark.ui
 def test_overwrite_button_visible(page, storenames_server_url):
     page.goto(storenames_server_url)
-    page.wait_for_selector("text=over-write storeslist file")
-    assert page.get_by_text("over-write storeslist file or create a new one?").first.is_visible()
+    expect(page.get_by_text("over-write storeslist file or create a new one?").first).to_be_visible()

@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import panel as pn
 import pytest
+from playwright.sync_api import expect
 
 from guppy.frontend.frontend_utils import scanPortsAndFind
 from guppy.frontend.parameterized_plotter import ParameterizedPlotter
@@ -71,40 +72,36 @@ def visualization_server_url(panel_extension, tmp_path_factory):
 @pytest.mark.ui
 def test_page_title_contains_visualization_gui(page, visualization_server_url):
     page.goto(visualization_server_url)
-    page.wait_for_selector("text=PSTH")
+    expect(page.get_by_text("PSTH").first).to_be_visible()
     assert "Visualization GUI" in page.title()
 
 
 @pytest.mark.ui
 def test_psth_tab_visible(page, visualization_server_url):
     page.goto(visualization_server_url)
-    page.wait_for_selector("text=PSTH")
-    assert page.get_by_text("PSTH").first.is_visible()
+    expect(page.get_by_text("PSTH").first).to_be_visible()
 
 
 @pytest.mark.ui
 def test_heat_map_tab_visible(page, visualization_server_url):
     page.goto(visualization_server_url)
-    page.wait_for_selector("text=Heat Map")
-    assert page.get_by_text("Heat Map").first.is_visible()
+    expect(page.get_by_text("Heat Map").first).to_be_visible()
 
 
 @pytest.mark.ui
 def test_trials_checkbox_options_visible(page, visualization_server_url):
     page.goto(visualization_server_url)
-    page.wait_for_selector("text=just trials")
-    assert page.get_by_text("just trials").first.is_visible()
+    expect(page.get_by_text("just trials").first).to_be_visible()
 
 
 @pytest.mark.ui
 def test_trial_timestamps_multiselect_visible(page, visualization_server_url):
     page.goto(visualization_server_url)
-    page.wait_for_selector("text=Trial # - Timestamps")
-    assert page.get_by_text("Trial # - Timestamps").first.is_visible()
+    expect(page.get_by_text("Trial # - Timestamps").first).to_be_visible()
 
 
 @pytest.mark.ui
 def test_save_psth_button_visible(page, visualization_server_url):
     page.goto(visualization_server_url)
-    page.wait_for_selector("text=PSTH")
-    assert page.get_by_role("button", name="Save").first.is_visible()
+    expect(page.get_by_text("PSTH").first).to_be_visible()
+    expect(page.get_by_role("button", name="Save").first).to_be_visible()
