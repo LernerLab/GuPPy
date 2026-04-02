@@ -11,7 +11,7 @@ from .save_parameters import save_parameters
 from .storenames import orchestrate_storenames_page
 from .visualize import visualizeResults
 from ..frontend.input_parameters import ParameterForm
-from ..frontend.progress import readPBIncrementValues
+from ..frontend.progress import PB_STEPS_FILE, readPBIncrementValues
 from ..frontend.sidebar import Sidebar
 
 logger = logging.getLogger(__name__)
@@ -58,19 +58,19 @@ def build_homepage():
     def onclickreaddata(event=None):
         thread = Thread(target=readRawData, args=(parameter_form,))
         thread.start()
-        readPBIncrementValues(sidebar.read_progress)
+        readPBIncrementValues(sidebar.read_progress, file_path=PB_STEPS_FILE)
         thread.join()
 
     def onclickpreprocess(event=None):
         thread = Thread(target=preprocess, args=(parameter_form,))
         thread.start()
-        readPBIncrementValues(sidebar.extract_progress)
+        readPBIncrementValues(sidebar.extract_progress, file_path=PB_STEPS_FILE)
         thread.join()
 
     def onclickpsth(event=None):
         thread = Thread(target=psthComputation, args=(parameter_form, current_dir))
         thread.start()
-        readPBIncrementValues(sidebar.psth_progress)
+        readPBIncrementValues(sidebar.psth_progress, file_path=PB_STEPS_FILE)
         thread.join()
 
     # ------------------------------------------------------------------------------------------------------------------

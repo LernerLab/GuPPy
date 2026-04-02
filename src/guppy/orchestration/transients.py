@@ -19,7 +19,7 @@ from ..analysis.standard_io import (
 )
 from ..analysis.transients import analyze_transients
 from ..analysis.transients_average import averageForGroup
-from ..frontend.progress import writeToFile
+from ..frontend.progress import PB_STEPS_FILE, writeToFile
 from ..utils.utils import get_all_stores_for_combining_data, takeOnlyDirs
 from ..visualization.transients import visualize_peaks
 
@@ -171,7 +171,7 @@ def execute_find_freq_and_amp(inputParameters, folderNames, moving_window, numPr
                 2, -1
             )
             findFreqAndAmp(filepath, inputParameters, window=moving_window, numProcesses=numProcesses)
-            writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
+            writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
             inputParameters["step"] += 1
         logger.info("Transients in z-score data found and frequency and amplitude are calculated.")
 
@@ -201,7 +201,7 @@ def execute_average_for_group(inputParameters, folderNamesForAvg):
         storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
     storesListPath = np.concatenate(storesListPath)
     averageForGroup(storesListPath, inputParameters)
-    writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
+    writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
     inputParameters["step"] += 1
 
 
@@ -210,7 +210,6 @@ if __name__ == "__main__":
         executeFindFreqAndAmp(json.loads(sys.argv[1]))
         logger.info("#" * 400)
     except Exception as e:
-        with open(os.path.join(os.path.expanduser("~"), "pbSteps.txt"), "a") as file:
-            file.write(str(-1) + "\n")
+        writeToFile(str(-1) + "\n", file_path=PB_STEPS_FILE)
         logger.error(str(e))
         raise e
