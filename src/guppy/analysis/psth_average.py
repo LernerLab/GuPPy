@@ -91,8 +91,8 @@ def averageForGroup(folderNames, event, inputParameters):
 
         if len(bins_cols) > 0:
             df_bins = pd.concat(psth_bins, axis=1)
-            df_bins_mean = df_bins.groupby(by=df_bins.columns, axis=1).mean()
-            df_bins_err = df_bins.groupby(by=df_bins.columns, axis=1).std() / math.sqrt(df_bins.shape[1])
+            df_bins_mean = df_bins.T.groupby(df_bins.columns).mean().T
+            df_bins_err = df_bins.T.groupby(df_bins.columns).std().T / math.sqrt(df_bins.shape[1])
             cols_err = list(df_bins_err.columns)
             dict_err = {}
             for i in cols_err:

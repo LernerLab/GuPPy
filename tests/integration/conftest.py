@@ -2,10 +2,13 @@ import glob
 import os
 import shutil
 from pathlib import Path
+from unittest.mock import patch
 
+import holoviews as hv
 import pytest
 
-from guppy.testing.api import step2, step3, step4
+from guppy.frontend.visualization_dashboard import VisualizationDashboard
+from guppy.testing.api import step2, step3, step4, step5, step6
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 STUBBED_TESTING_DATA = PROJECT_ROOT / "stubbed_testing_data"
@@ -35,14 +38,15 @@ REPRESENTATIVE_SESSIONS = {
         "npm_split_events": [True, True],
     },
     "npm": {
-        "session_subdir": "npm/sampleData_NPM_1",
+        "session_subdir": "npm/sampleData_NPM_5",
         "storenames_map": {
-            "file0_chev1": "signal_region",
-            "file0_chod1": "control_region",
+            "file0_chev1": "control_region1",
+            "file0_chod1": "signal_region1",
+            "event0": "ttl_region1",
         },
         "npm_timestamp_column_names": None,
         "npm_time_units": None,
-        "npm_split_events": [False, True],
+        "npm_split_events": None,
     },
     "doric": {
         "session_subdir": "doric/sample_doric_1",
@@ -201,3 +205,81 @@ def step4_output_npm(step3_output_npm):
 @pytest.fixture(scope="session")
 def step4_output_doric(step3_output_doric):
     return _run_step4(pipeline_state=step3_output_doric)
+
+
+def _run_step5(*, pipeline_state: dict[str, str | list[bool] | None]) -> dict[str, str | list[bool] | None]:
+    step5(
+        base_dir=str(pipeline_state["base_directory"]),
+        selected_folders=[str(pipeline_state["session_copy"])],
+        npm_timestamp_column_names=pipeline_state["npm_timestamp_column_names"],
+        npm_time_units=pipeline_state["npm_time_units"],
+        npm_split_events=pipeline_state["npm_split_events"],
+    )
+    pipeline_state["output_directory"] = _locate_output_directory(session_copy=str(pipeline_state["session_copy"]))
+    return pipeline_state
+
+
+def _run_step6(*, pipeline_state: dict[str, str | list[bool] | None]) -> dict[str, str | list[bool] | None]:
+    # ParameterizedPlotter uses holoviews opts (e.g. opts.NdOverlay) in reactive methods that Panel
+    # evaluates eagerly during VisualizationDashboard.__init__. The Bokeh backend must be registered
+    # before instantiation or holoviews raises AttributeError.
+    hv.extension("bokeh")
+    captured_dashboards: list[VisualizationDashboard] = []
+    original_init = VisualizationDashboard.__init__
+
+    def capturing_init(self, *, plotter, basename):
+        original_init(self, plotter=plotter, basename=basename)
+        captured_dashboards.append(self)
+
+    with patch.object(VisualizationDashboard, "__init__", capturing_init):
+        with patch.object(VisualizationDashboard, "show", lambda self: None):
+            step6(
+                base_dir=str(pipeline_state["base_directory"]),
+                selected_folders=[str(pipeline_state["session_copy"])],
+                npm_timestamp_column_names=pipeline_state["npm_timestamp_column_names"],
+                npm_time_units=pipeline_state["npm_time_units"],
+                npm_split_events=pipeline_state["npm_split_events"],
+            )
+
+    pipeline_state["captured_dashboards"] = captured_dashboards
+    return pipeline_state
+
+
+@pytest.fixture(scope="session")
+def step5_output_csv(step4_output_csv):
+    return _run_step5(pipeline_state=step4_output_csv)
+
+
+@pytest.fixture(scope="session")
+def step5_output_tdt(step4_output_tdt):
+    return _run_step5(pipeline_state=step4_output_tdt)
+
+
+@pytest.fixture(scope="session")
+def step5_output_npm(step4_output_npm):
+    return _run_step5(pipeline_state=step4_output_npm)
+
+
+@pytest.fixture(scope="session")
+def step5_output_doric(step4_output_doric):
+    return _run_step5(pipeline_state=step4_output_doric)
+
+
+@pytest.fixture(scope="session")
+def step6_output_csv(step5_output_csv):
+    return _run_step6(pipeline_state=step5_output_csv)
+
+
+@pytest.fixture(scope="session")
+def step6_output_tdt(step5_output_tdt):
+    return _run_step6(pipeline_state=step5_output_tdt)
+
+
+@pytest.fixture(scope="session")
+def step6_output_npm(step5_output_npm):
+    return _run_step6(pipeline_state=step5_output_npm)
+
+
+@pytest.fixture(scope="session")
+def step6_output_doric(step5_output_doric):
+    return _run_step6(pipeline_state=step5_output_doric)
