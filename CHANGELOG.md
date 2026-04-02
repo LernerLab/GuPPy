@@ -1,11 +1,18 @@
-# v2.0.0-alpha3 (Upcoming)
+# v2.0.0-alpha4 (Upcoming)
 
 ## Features
 
 ## Fixes
-- Fixed npm_recording_extractor.py bug that was caused by mixing standard event CSV type CSVs with NPM data. [PR #256](https://github.com/LernerLab/GuPPy/pull/256)
 
 ## Deprecations and Removals
+
+## Improvements
+
+
+# v2.0.0-alpha3 (April 1st, 2026)
+
+## Fixes
+- Fixed npm_recording_extractor.py bug that was caused by mixing standard event CSV type CSVs with NPM data. [PR #256](https://github.com/LernerLab/GuPPy/pull/256)
 
 ## Improvements
 - Expanded test suite with unit tests for frontend components: [PR #250](https://github.com/LernerLab/GuPPy/pull/250)
