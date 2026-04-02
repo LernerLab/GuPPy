@@ -19,8 +19,8 @@ import pytest
         ),
         (
             "step4_output_npm",
-            "region",
-            None,
+            "region1",
+            "ttl_region1",
         ),
         (
             "step4_output_doric",

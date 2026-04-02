@@ -10,7 +10,7 @@ from guppy.frontend.visualization_dashboard import VisualizationDashboard
     [
         ("step6_output_csv", "ttl"),
         ("step6_output_tdt", "port_entries"),
-        ("step6_output_npm", None),
+        ("step6_output_npm", "ttl"),
         ("step6_output_doric", "ttl"),
     ],
     ids=["csv_generic", "tdt_clean", "sample_npm_1", "sample_doric_1"],
@@ -26,13 +26,6 @@ def test_step6(step6_fixture_name, expected_event_substring, request):
     """
     pipeline_state = request.getfixturevalue(step6_fixture_name)
     captured_dashboards: list[VisualizationDashboard] = pipeline_state["captured_dashboards"]
-
-    # Modalities with no TTL events (e.g. NPM sample data) produce no dashboards — that is correct behavior.
-    if expected_event_substring is None:
-        assert (
-            len(captured_dashboards) == 0
-        ), f"Expected no dashboards for a modality with no TTL events, got {len(captured_dashboards)}"
-        return
 
     assert len(captured_dashboards) >= 1, "visualizeResults created no VisualizationDashboard instances"
 

@@ -4,6 +4,7 @@ import shutil
 from pathlib import Path
 from unittest.mock import patch
 
+import holoviews as hv
 import pytest
 
 from guppy.frontend.visualization_dashboard import VisualizationDashboard
@@ -37,14 +38,15 @@ REPRESENTATIVE_SESSIONS = {
         "npm_split_events": [True, True],
     },
     "npm": {
-        "session_subdir": "npm/sampleData_NPM_1",
+        "session_subdir": "npm/sampleData_NPM_5",
         "storenames_map": {
-            "file0_chev1": "signal_region",
-            "file0_chod1": "control_region",
+            "file0_chev1": "control_region1",
+            "file0_chod1": "signal_region1",
+            "event0": "ttl_region1",
         },
         "npm_timestamp_column_names": None,
         "npm_time_units": None,
-        "npm_split_events": [False, True],
+        "npm_split_events": None,
     },
     "doric": {
         "session_subdir": "doric/sample_doric_1",
@@ -218,6 +220,10 @@ def _run_step5(*, pipeline_state: dict[str, str | list[bool] | None]) -> dict[st
 
 
 def _run_step6(*, pipeline_state: dict[str, str | list[bool] | None]) -> dict[str, str | list[bool] | None]:
+    # ParameterizedPlotter uses holoviews opts (e.g. opts.NdOverlay) in reactive methods that Panel
+    # evaluates eagerly during VisualizationDashboard.__init__. The Bokeh backend must be registered
+    # before instantiation or holoviews raises AttributeError.
+    hv.extension("bokeh")
     captured_dashboards: list[VisualizationDashboard] = []
     original_init = VisualizationDashboard.__init__
 

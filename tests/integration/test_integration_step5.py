@@ -21,8 +21,8 @@ from guppy.testing.api import step5
         ),
         (
             "step4_output_npm",
-            "region",
-            None,
+            "region1",
+            "ttl_region1",
         ),
         (
             "step4_output_doric",
