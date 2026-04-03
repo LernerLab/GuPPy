@@ -3,21 +3,14 @@
 import glob
 import logging
 import os
-import shutil
-from pathlib import Path
 from typing import Any
 
-import h5py
 import numpy as np
 from pynwb import NWBHDF5IO
 
 from guppy.extractors.base_recording_extractor import BaseRecordingExtractor
 
 logger = logging.getLogger(__name__)
-
-# HDF5 dataset paths (relative to file root) that contain time-series data and
-# should be truncated to num_samples when stubbing.
-_ACQUISITION_DATA_SUFFIXES = ("/data", "/timestamps")
 
 
 class NwbRecordingExtractor(BaseRecordingExtractor):
@@ -133,40 +126,9 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
 
     def stub(self, *, folder_path, duration_in_seconds=1.0):
         """
-        Create a truncated copy of the NWB file retaining only a short duration.
-
-        Copies the source NWB file to ``folder_path``, truncating all acquisition
-        data and timestamp arrays to the first ``duration_in_seconds`` of data.
-        The sampling rate is determined from the first acquisition series found.
-
-        Parameters
-        ----------
-        folder_path : str or Path
-            Destination directory for the stubbed data.
-        duration_in_seconds : float, optional
-            Duration of data to retain. Default is 1.0.
+        Stub method is unnecessary for NWB files.
         """
-        src_nwb_path = _find_nwb_file(self.folder_path)
-
-        dest_folder = Path(folder_path)
-        if dest_folder.exists():
-            shutil.rmtree(dest_folder)
-        dest_folder.mkdir(parents=True)
-
-        dest_nwb_path = dest_folder / Path(src_nwb_path).name
-
-        # Determine num_samples from the first acquisition series
-        with NWBHDF5IO(src_nwb_path, "r") as io:
-            nwbfile = io.read()
-            first_series = next(iter(nwbfile.acquisition.values()))
-            sampling_rate, _ = _resolve_timing(first_series, first_series.data.shape[0])
-
-        num_samples = int(sampling_rate * duration_in_seconds)
-
-        # Copy HDF5 structure, truncating acquisition data/timestamp datasets
-        with h5py.File(src_nwb_path, "r") as source_file:
-            with h5py.File(str(dest_nwb_path), "w") as dest_file:
-                _copy_hdf5_truncated(source_file, dest_file, num_samples, current_path="/")
+        raise NotImplementedError("Stub method is unnecessary for NWB files.")
 
 
 def _find_nwb_file(folder_path):
@@ -242,52 +204,3 @@ def _resolve_timing(series, num_samples):
         raise Exception(f"Series '{series.name}' must have either 'rate' or 'timestamps' to reconstruct timing.")
 
     return float(sampling_rate), timestamps
-
-
-def _copy_hdf5_truncated(source_group, dest_group, num_samples, current_path):
-    """
-    Recursively copy an HDF5 group, truncating acquisition time-series datasets.
-
-    Datasets whose HDF5 path ends with ``/data`` or ``/timestamps`` and whose
-    first dimension exceeds ``num_samples`` are sliced to ``[:num_samples]``.
-    All other datasets and groups are copied verbatim.
-
-    Parameters
-    ----------
-    source_group : h5py.Group
-        Source HDF5 group (or file root).
-    dest_group : h5py.Group
-        Destination HDF5 group (or file root).
-    num_samples : int
-        Maximum number of samples to retain in truncated datasets.
-    current_path : str
-        HDF5 path of ``source_group`` relative to the file root, used to
-        determine whether a dataset lives under ``/acquisition/``.
-    """
-    # Copy group-level attributes
-    for attr_key, attr_value in source_group.attrs.items():
-        dest_group.attrs[attr_key] = attr_value
-
-    for key, item in source_group.items():
-        item_path = current_path + key if current_path == "/" else current_path + "/" + key
-
-        if isinstance(item, h5py.Group):
-            new_group = dest_group.create_group(key)
-            _copy_hdf5_truncated(item, new_group, num_samples, item_path)
-
-        elif isinstance(item, h5py.Dataset):
-            should_truncate = (
-                item_path.startswith("/acquisition/")
-                and any(item_path.endswith(suffix) for suffix in _ACQUISITION_DATA_SUFFIXES)
-                and item.ndim >= 1
-                and item.shape[0] > num_samples
-            )
-
-            if should_truncate:
-                data = item[:num_samples]
-            else:
-                data = item[()]
-
-            dest_group.create_dataset(key, data=data)
-            for attr_key, attr_value in item.attrs.items():
-                dest_group[key].attrs[attr_key] = attr_value
