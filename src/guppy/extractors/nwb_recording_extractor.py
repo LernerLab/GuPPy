@@ -1,12 +1,12 @@
 """NWB recording extractor for GuPPy fiber photometry pipeline."""
 
-import glob
 import logging
-import os
+from pathlib import Path
 from typing import Any
 
 import numpy as np
-from pynwb import NWBHDF5IO
+from ndx_fiber_photometry import FiberPhotometryResponseSeries
+from pynwb import read_nwb
 
 from guppy.extractors.base_recording_extractor import BaseRecordingExtractor
 
@@ -17,10 +17,10 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
     """
     Recording extractor for NWB (Neurodata Without Borders) fiber photometry files.
 
-    Reads acquisition series from ``*.nwb`` files found in a session folder.
-    Multi-channel series (2-D data arrays) produce one event per column, named
-    ``{acquisition_key}_{column_index}``.  Single-channel series produce one
-    event named ``{acquisition_key}``.
+    Discovers all ``FiberPhotometryResponseSeries`` objects anywhere in the NWB
+    file (not limited to ``/acquisition``).  Multi-channel series (2-D data
+    arrays) produce one event per column, named ``{series_name}_{column_index}``.
+    Single-channel series produce one event named ``{series_name}``.
     """
 
     @classmethod
@@ -30,29 +30,37 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
 
         Parameters
         ----------
-        folder_path : str
+        folder_path : str or Path
             Path to the folder containing a single ``*.nwb`` file.
 
         Returns
         -------
         events : list of str
-            Event names derived from acquisition series in the NWB file.
-            Multi-channel series yield ``{key}_0``, ``{key}_1``, … per column.
-            Single-channel series yield ``{key}``.
+            Event names derived from ``FiberPhotometryResponseSeries`` objects.
+            Multi-channel series yield ``{name}_0``, ``{name}_1``, … per column.
+            Single-channel series yield ``{name}``.
         flags : list of str
             Always empty for NWB files.
         """
         nwb_path = _find_nwb_file(folder_path)
         events = []
-        with NWBHDF5IO(nwb_path, "r") as io:
-            nwbfile = io.read()
-            for key, series in nwbfile.acquisition.items():
-                data_shape = series.data.shape
-                if len(data_shape) == 2:
-                    for column_index in range(data_shape[1]):
-                        events.append(f"{key}_{column_index}")
-                else:
-                    events.append(key)
+        seen_names = set()
+
+        nwbfile = read_nwb(nwb_path)
+        for neurodata_object in nwbfile.objects.values():
+            if not isinstance(neurodata_object, FiberPhotometryResponseSeries):
+                continue
+            series_name = neurodata_object.name
+            if series_name in seen_names:
+                raise ValueError(f"Duplicate FiberPhotometryResponseSeries name found: {series_name!r}")
+            seen_names.add(series_name)
+
+            data_shape = neurodata_object.data.shape
+            if len(data_shape) == 2:
+                for column_index in range(data_shape[1]):
+                    events.append(f"{series_name}_{column_index}")
+            else:
+                events.append(series_name)
 
         return events, []
 
@@ -74,34 +82,34 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
         -------
         list of dict
             One dictionary per event with keys: ``storename``, ``sampling_rate``,
-            ``timestamps``, ``data``, ``npoints``, ``channels``.
+            ``timestamps``, ``data``, ``npoints``.
         """
         nwb_path = _find_nwb_file(self.folder_path)
         output_dicts = []
 
-        with NWBHDF5IO(nwb_path, "r") as io:
-            nwbfile = io.read()
-            for event in events:
-                acquisition_key, column_index = _parse_event_name(event, nwbfile)
-                series = nwbfile.acquisition[acquisition_key]
-                full_data = series.data[:]
+        nwbfile = read_nwb(nwb_path)
+        series_name_to_object = {
+            obj.name: obj for obj in nwbfile.objects.values() if isinstance(obj, FiberPhotometryResponseSeries)
+        }
 
-                sampling_rate, timestamps = _resolve_timing(series, full_data.shape[0])
+        for event in events:
+            series_name, column_index = _parse_event_name(event, series_name_to_object)
+            series = series_name_to_object[series_name]
+            full_data = series.data[:]
 
-                if column_index is not None:
-                    channel_data = full_data[:, column_index]
-                else:
-                    channel_data = full_data
+            sampling_rate, timestamps = _resolve_timing(series, full_data.shape[0])
 
-                output_dicts.append(
-                    {
-                        "storename": event,
-                        "sampling_rate": sampling_rate,
-                        "timestamps": timestamps,
-                        "data": channel_data,
-                        "npoints": 1,
-                    }
-                )
+            channel_data = full_data[:, column_index] if column_index is not None else full_data
+
+            output_dicts.append(
+                {
+                    "storename": event,
+                    "sampling_rate": sampling_rate,
+                    "timestamps": timestamps,
+                    "data": channel_data,
+                    "npoints": 1,
+                }
+            )
 
         return output_dicts
 
@@ -133,50 +141,50 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
 
 def _find_nwb_file(folder_path):
     """Return the single NWB file path in *folder_path*, raising if not exactly one."""
-    nwb_paths = glob.glob(os.path.join(folder_path, "*.nwb"))
+    nwb_paths = list(Path(folder_path).glob("*.nwb"))
     if len(nwb_paths) > 1:
         raise Exception("Two NWB files are present at the location.")
     if len(nwb_paths) == 0:
         raise Exception(f"No NWB file found in {folder_path}.")
-    return nwb_paths[0]
+    return str(nwb_paths[0])
 
 
-def _parse_event_name(event, nwbfile):
+def _parse_event_name(event, series_name_to_object):
     """
-    Resolve an event name to an acquisition key and optional column index.
+    Resolve an event name to a series name and optional column index.
 
     Parameters
     ----------
     event : str
         Event name as produced by ``discover_events_and_flags``.
-    nwbfile : NWBFile
-        Open NWB file object to look up acquisition keys.
+    series_name_to_object : dict
+        Mapping of series name to ``FiberPhotometryResponseSeries`` object.
 
     Returns
     -------
-    acquisition_key : str
+    series_name : str
     column_index : int or None
         ``None`` for single-channel (1-D) series.
     """
-    if event in nwbfile.acquisition:
+    if event in series_name_to_object:
         return event, None
 
-    # Parse "{acquisition_key}_{column_index}" format
+    # Parse "{series_name}_{column_index}" format
     parts = event.rsplit("_", 1)
     if len(parts) == 2 and parts[1].isdigit():
-        key, column_index = parts[0], int(parts[1])
-        if key in nwbfile.acquisition:
-            return key, column_index
+        series_name, column_index = parts[0], int(parts[1])
+        if series_name in series_name_to_object:
+            return series_name, column_index
 
-    raise ValueError(f"Event '{event}' could not be resolved to any acquisition series in the NWB file.")
+    raise ValueError(f"Event '{event}' could not be resolved to any FiberPhotometryResponseSeries in the NWB file.")
 
 
 def _resolve_timing(series, num_samples):
     """
     Derive sampling rate and a full timestamps array from an NWB TimeSeries.
 
-    Checks ``rate``, then ``timestamps``, then reconstructs from ``starting_time``
-    and ``rate`` (or raises if neither is available).
+    Checks ``rate``, then ``timestamps``. If ``rate`` is present but no explicit
+    timestamps, reconstructs timestamps from ``starting_time`` and ``rate``.
 
     Parameters
     ----------

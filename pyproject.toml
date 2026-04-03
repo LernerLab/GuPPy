@@ -53,6 +53,7 @@ dependencies = [
     "panel",
     "param",
     "platformdirs",
+    "ndx-fiber-photometry",
     "pynwb",
     "scipy",
     "tables",
