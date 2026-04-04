@@ -7,13 +7,11 @@ import re
 import numpy as np
 import pandas as pd
 
-from .io_utils import read_hdf5
-
 logger = logging.getLogger(__name__)
 
 
 # function to create dataframe for each event PSTH and save it to h5 file
-def create_Df_for_psth(filepath, event, name, psth, columns=[]):
+def create_Df_for_psth(filepath, event, name, psth, columns):
     event = event.replace("\\", "_")
     event = event.replace("/", "_")
     if name:
@@ -40,18 +38,10 @@ def create_Df_for_psth(filepath, event, name, psth, columns=[]):
         psth = np.hstack((psth, err))
         # timestamps = np.asarray(read_Df(filepath, 'ts_psth', ''))
         # psth = np.hstack((psth, timestamps))
-    try:
-        ts = read_hdf5(event, filepath, "ts")
-        ts = np.append(ts, ["mean", "err"])
-    except:
-        ts = None
 
-    if len(columns) == 0:
-        df = pd.DataFrame(psth, index=None, columns=ts, dtype="float32")
-    else:
-        columns = np.asarray(columns)
-        columns = np.append(columns, ["mean", "err"])
-        df = pd.DataFrame(psth, index=None, columns=list(columns), dtype="float32")
+    columns = np.asarray(columns)
+    columns = np.append(columns, ["mean", "err"])
+    df = pd.DataFrame(psth, index=None, columns=list(columns), dtype="float32")
 
     df.to_hdf(op, key="df", mode="w")
 
@@ -59,7 +49,7 @@ def create_Df_for_psth(filepath, event, name, psth, columns=[]):
 # same function used to store PSTH in computePsth file
 # Here, cross correlation dataframe is saved instead of PSTH
 # cross correlation dataframe has the same structure as PSTH file
-def create_Df_for_cross_correlation(filepath, event, name, psth, columns=[]):
+def create_Df_for_cross_correlation(filepath, event, name, psth, columns):
     if name:
         op = os.path.join(filepath, event + "_{}.h5".format(name))
     else:
@@ -84,18 +74,10 @@ def create_Df_for_cross_correlation(filepath, event, name, psth, columns=[]):
         psth = np.hstack((psth, err))
         # timestamps = np.asarray(read_Df(filepath, 'ts_psth', ''))
         # psth = np.hstack((psth, timestamps))
-    try:
-        ts = read_hdf5(event, filepath, "ts")
-        ts = np.append(ts, ["mean", "err"])
-    except:
-        ts = None
 
-    if len(columns) == 0:
-        df = pd.DataFrame(psth, index=None, columns=ts, dtype="float32")
-    else:
-        columns = np.asarray(columns)
-        columns = np.append(columns, ["mean", "err"])
-        df = pd.DataFrame(psth, index=None, columns=columns, dtype="float32")
+    columns = np.asarray(columns)
+    columns = np.append(columns, ["mean", "err"])
+    df = pd.DataFrame(psth, index=None, columns=columns, dtype="float32")
 
     df.to_hdf(op, key="df", mode="w")
 
