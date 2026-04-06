@@ -153,7 +153,8 @@ def read_and_save_all_events(event_to_extractor, outputPath, numProcesses=mp.cpu
     logger.info("Reading data for event {} ...".format(events))
 
     start = time.time()
-    args = [(extractor, event, outputPath) for event, extractor in event_to_extractor.items()]
+    # str() normalizes np.str_ scalars (e.g. dtype <U34 from NWB reads) before pickling.
+    args = [(extractor, str(event), outputPath) for event, extractor in event_to_extractor.items()]
     with mp.Pool(numProcesses) as p:
         p.starmap(read_and_save_event, args)
     logger.info("Time taken = {0:.5f}".format(time.time() - start))
