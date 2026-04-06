@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from ndx_events import Events
 from ndx_fiber_photometry import FiberPhotometryResponseSeries
 from pynwb import read_nwb
 
@@ -62,6 +63,15 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
             else:
                 events.append(series_name)
 
+        for neurodata_object in nwbfile.objects.values():
+            if not isinstance(neurodata_object, Events):
+                continue
+            event_name = neurodata_object.name
+            if event_name in seen_names:
+                raise ValueError(f"Duplicate Events name found: {event_name!r}")
+            seen_names.add(event_name)
+            events.append(event_name)
+
         return events, []
 
     def __init__(self, *, folder_path):
@@ -91,8 +101,19 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
         series_name_to_object = {
             obj.name: obj for obj in nwbfile.objects.values() if isinstance(obj, FiberPhotometryResponseSeries)
         }
+        events_name_to_object = {obj.name: obj for obj in nwbfile.objects.values() if isinstance(obj, Events)}
 
         for event in events:
+            if event in events_name_to_object:
+                ndx_event = events_name_to_object[event]
+                output_dicts.append(
+                    {
+                        "storename": event,
+                        "timestamps": np.array(ndx_event.timestamps[:]),
+                    }
+                )
+                continue
+
             series_name, column_index = _parse_event_name(event, series_name_to_object)
             series = series_name_to_object[series_name]
             full_data = series.data[:]
@@ -127,10 +148,13 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
         for S in output_dicts:
             event = S["storename"]
             self._write_hdf5(S["storename"], event, outputPath, "storename")
-            self._write_hdf5(S["sampling_rate"], event, outputPath, "sampling_rate")
             self._write_hdf5(S["timestamps"], event, outputPath, "timestamps")
-            self._write_hdf5(S["data"], event, outputPath, "data")
-            self._write_hdf5(S["npoints"], event, outputPath, "npoints")
+            if "sampling_rate" in S:
+                self._write_hdf5(S["sampling_rate"], event, outputPath, "sampling_rate")
+            if "data" in S:
+                self._write_hdf5(S["data"], event, outputPath, "data")
+            if "npoints" in S:
+                self._write_hdf5(S["npoints"], event, outputPath, "npoints")
 
     def stub(self, *, folder_path, duration_in_seconds=1.0):
         """
