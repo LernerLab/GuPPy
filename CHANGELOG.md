@@ -8,6 +8,7 @@
 
 ## Improvements
 - Improved test suite coverage to greater than or equal to 85% on CodeCov. [PR #260](https://github.com/LernerLab/GuPPy/pull/260)
+- Made "Github wiki" references in the GUI clickable links. [PR #262](https://github.com/LernerLab/GuPPy/pull/262)
 
 
 # v2.0.0-alpha3 (April 1st, 2026)
