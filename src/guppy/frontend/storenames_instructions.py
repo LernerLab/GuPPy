@@ -22,7 +22,7 @@ class StorenamesInstructions:
 
                     ### Instructions to follow :
 
-                    - Check Storenames to repeat checkbox and see instructions in “Github Wiki” for duplicating storenames.
+                    - Check Storenames to repeat checkbox and see instructions in the [Github Wiki](https://github.com/LernerLab/GuPPy/wiki) for duplicating storenames.
                     Otherwise do not check the Storenames to repeat checkbox.<br>
                     - Select storenames from list and click “Select Storenames” to populate area below.<br>
                     - Enter names for storenames, in order, using the following naming convention:<br>
