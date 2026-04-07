@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from ndx_events import Events
+from ndx_events import Events, LabeledEvents
 from ndx_fiber_photometry import FiberPhotometryResponseSeries
 from pynwb import read_nwb
 
@@ -64,13 +64,18 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
                 events.append(series_name)
 
         for neurodata_object in nwbfile.objects.values():
-            if not isinstance(neurodata_object, Events):
-                continue
-            event_name = neurodata_object.name
-            if event_name in seen_names:
-                raise ValueError(f"Duplicate Events name found: {event_name!r}")
-            seen_names.add(event_name)
-            events.append(event_name)
+            if isinstance(neurodata_object, LabeledEvents):
+                event_name = neurodata_object.name
+                if event_name in seen_names:
+                    raise ValueError(f"Duplicate LabeledEvents name found: {event_name!r}")
+                seen_names.add(event_name)
+                events.append(event_name)
+            elif isinstance(neurodata_object, Events):
+                event_name = neurodata_object.name
+                if event_name in seen_names:
+                    raise ValueError(f"Duplicate Events name found: {event_name!r}")
+                seen_names.add(event_name)
+                events.append(event_name)
 
         return events, []
 
@@ -101,9 +106,33 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
         series_name_to_object = {
             obj.name: obj for obj in nwbfile.objects.values() if isinstance(obj, FiberPhotometryResponseSeries)
         }
-        events_name_to_object = {obj.name: obj for obj in nwbfile.objects.values() if isinstance(obj, Events)}
+        labeled_events_name_to_object = {
+            obj.name: obj for obj in nwbfile.objects.values() if isinstance(obj, LabeledEvents)
+        }
+        events_name_to_object = {
+            obj.name: obj
+            for obj in nwbfile.objects.values()
+            if isinstance(obj, Events) and not isinstance(obj, LabeledEvents)
+        }
 
         for event in events:
+            if event in labeled_events_name_to_object:
+                labeled_event = labeled_events_name_to_object[event]
+                all_timestamps = np.array(labeled_event.timestamps[:])
+                all_data = np.array(labeled_event.data[:])
+                labels = list(labeled_event.labels)
+                output_dicts.append({"storename": event, "timestamps": all_timestamps})
+                for unique_value in np.unique(all_data):
+                    label_string = labels[int(unique_value)]
+                    filtered_timestamps = all_timestamps[all_data == unique_value]
+                    output_dicts.append(
+                        {
+                            "storename": f"{event}_{label_string}",
+                            "timestamps": filtered_timestamps,
+                        }
+                    )
+                continue
+
             if event in events_name_to_object:
                 ndx_event = events_name_to_object[event]
                 output_dicts.append(
