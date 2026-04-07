@@ -172,7 +172,7 @@ class ParameterForm:
         self.explain_z_score = pn.pane.Markdown(
             """
                         ***Note :***<br>
-                        - Details about z-score computation methods are explained in Github wiki.<br>
+                        - Details about z-score computation methods are explained in the [Github wiki](https://github.com/LernerLab/GuPPy/wiki).<br>
                         - The details will make user understand what computation method to use for
                         their data.<br>
                         - Baseline Window Parameters should be kept 0 unless you are using baseline<br>
