@@ -7,7 +7,7 @@
 ## Deprecations and Removals
 
 ## Improvements
-- Added documentation site with Sphinx, pydata-sphinx-theme, and MyST-Parser. Includes Diataxis structure and a first tutorial covering the end-to-end GUI workflow with stubbed CSV test data. [PR #262](https://github.com/LernerLab/GuPPy/pull/262)
+- Added documentation site with Sphinx, pydata-sphinx-theme, and MyST-Parser. Includes Diataxis structure and a first tutorial covering the end-to-end GUI workflow with stubbed CSV test data. [PR #264](https://github.com/LernerLab/GuPPy/pull/264)
 - Improved test suite coverage to greater than or equal to 85% on CodeCov. [PR #260](https://github.com/LernerLab/GuPPy/pull/260)
 
 

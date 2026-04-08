@@ -16,10 +16,13 @@ source_suffix = [".rst", ".md"]
 
 myst_enable_extensions = ["colon_fence"]
 
+html_logo = "../assets/GuppyLogo.png"
+
 html_theme_options = {
     "github_url": "https://github.com/LernerLab/GuPPy",
     "logo": {
-        "text": "GuPPy",
+        "image_light": "../assets/GuppyLogo.png",
+        "image_dark": "../assets/GuppyLogo.png",
     },
 }
 
