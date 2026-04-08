@@ -59,6 +59,13 @@ dependencies = [
 ]
 
 [dependency-groups]
+docs = [
+    "sphinx",
+    "pydata-sphinx-theme",
+    "myst-parser",
+    "sphinx-autodoc-typehints",
+]
+
 test = [
     "pytest",
     "pytest-cov",
