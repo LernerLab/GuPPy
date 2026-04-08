@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from ndx_events import Events, LabeledEvents
+from ndx_events import AnnotatedEventsTable, Events, LabeledEvents
 from ndx_fiber_photometry import FiberPhotometryResponseSeries
 from pynwb import read_nwb
 
@@ -64,7 +64,14 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
                 events.append(series_name)
 
         for neurodata_object in nwbfile.objects.values():
-            if isinstance(neurodata_object, LabeledEvents):
+            if isinstance(neurodata_object, AnnotatedEventsTable):
+                table_name = neurodata_object.name
+                if table_name in seen_names:
+                    raise ValueError(f"Duplicate AnnotatedEventsTable name found: {table_name!r}")
+                seen_names.add(table_name)
+                for label in neurodata_object["label"].data:
+                    events.append(f"{table_name}_{label}")
+            elif isinstance(neurodata_object, LabeledEvents):
                 event_name = neurodata_object.name
                 if event_name in seen_names:
                     raise ValueError(f"Duplicate LabeledEvents name found: {event_name!r}")
@@ -107,6 +114,13 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
         series_name_to_object = {
             obj.name: obj for obj in nwbfile.objects.values() if isinstance(obj, FiberPhotometryResponseSeries)
         }
+        # Build lookup: "{table_name}_{label}" -> (AnnotatedEventsTable object, row_index)
+        annotated_event_key_to_source = {}
+        for obj in nwbfile.objects.values():
+            if isinstance(obj, AnnotatedEventsTable):
+                for row_index, label in enumerate(obj["label"].data):
+                    annotated_event_key_to_source[f"{obj.name}_{label}"] = (obj, row_index)
+
         # Build lookup: "{labeled_events_name}_{label}" -> (LabeledEvents object, label_index)
         labeled_event_key_to_source = {}
         for obj in nwbfile.objects.values():
@@ -121,6 +135,13 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
         }
 
         for event in events:
+            if event in annotated_event_key_to_source:
+                annotated_events_object, row_index = annotated_event_key_to_source[event]
+                output_dicts.append(
+                    {"storename": event, "timestamps": np.array(annotated_events_object["event_times"][row_index])}
+                )
+                continue
+
             if event in labeled_event_key_to_source:
                 labeled_event_object, label_index = labeled_event_key_to_source[event]
                 all_timestamps = np.array(labeled_event_object.timestamps[:])
