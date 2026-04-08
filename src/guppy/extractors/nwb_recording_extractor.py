@@ -268,17 +268,12 @@ def _resolve_timing(series, num_samples):
     sampling_rate : float
     timestamps : np.ndarray, shape (num_samples,)
     """
-    sampling_rate = getattr(series, "rate", None)
-    timestamps = getattr(series, "timestamps", None)
-
-    if timestamps is not None:
-        timestamps = np.array(timestamps[:])
-        if sampling_rate is None:
-            sampling_rate = 1.0 / float(np.median(np.diff(timestamps)))
-    elif sampling_rate is not None:
-        starting_time = getattr(series, "starting_time", None) or 0.0
-        timestamps = starting_time + np.arange(num_samples) / sampling_rate
+    if series.timestamps is not None:
+        timestamps = np.array(series.timestamps[:])
+        sampling_rate = 1.0 / float(np.median(np.diff(timestamps)))
     else:
-        raise Exception(f"Series '{series.name}' must have either 'rate' or 'timestamps' to reconstruct timing.")
+        starting_time = series.starting_time or 0.0
+        timestamps = starting_time + np.arange(num_samples) / series.rate
+        sampling_rate = float(series.rate)
 
-    return float(sampling_rate), timestamps
+    return sampling_rate, timestamps

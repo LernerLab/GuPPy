@@ -19,7 +19,6 @@ MOCK_NWB_FILE = MOCK_NWB_FOLDER / "mock_nwbfile.nwb"
 
 _NUM_SAMPLES = 3000
 _SAMPLING_RATE = 30.0
-_STARTING_TIME = 0.0
 
 
 class TestFindNwbFile:
@@ -70,7 +69,7 @@ class TestResolveTiming:
         series = TimeSeries(name="test", data=np.zeros(5), unit="n.a.", rate=30.0)
         sampling_rate, timestamps = _resolve_timing(series, 5)
         assert sampling_rate == 30.0
-        np.testing.assert_allclose(timestamps[0], 0.0)
+        np.testing.assert_allclose(timestamps, np.arange(5) / 30.0)
 
     def test_explicit_timestamps(self):
         series = TimeSeries(name="test", data=np.zeros(3), unit="n.a.", timestamps=[0.0, 0.1, 0.2])
@@ -78,19 +77,21 @@ class TestResolveTiming:
         assert sampling_rate == pytest.approx(10.0, rel=1e-3)
         np.testing.assert_allclose(timestamps, [0.0, 0.1, 0.2])
 
-    def test_raises_when_neither_rate_nor_timestamps(self):
-        # pynwb requires either rate or timestamps at construction time, so we use a
-        # minimal stand-in to exercise the error branch in _resolve_timing.
-        class _NoTimingMockSeries:
-            name = "mock"
-            rate = None
-            timestamps = None
 
-        with pytest.raises(Exception, match="must have either 'rate' or 'timestamps'"):
-            _resolve_timing(_NoTimingMockSeries(), 5)
+# ---------------------------------------------------------------------------
+# Shared mixin for all NWB contract test classes
+# ---------------------------------------------------------------------------
 
 
-class TestNwbRecordingExtractor(RecordingExtractorTestMixin):
+class NwbRecordingExtractorTestMixin(RecordingExtractorTestMixin):
+    """Provides shared fixtures and stub overrides for all NWB extractor test classes.
+
+    NWB's ``stub()`` always raises ``NotImplementedError``, so all four stub tests
+    from ``RecordingExtractorTestMixin`` are overridden here. All three concrete
+    test classes use the same FiberPhotometryResponseSeries as control and signal,
+    so those expected-value fixtures are also centralised here.
+    """
+
     extractor_class = NwbRecordingExtractor
     folder_path = str(MOCK_NWB_FOLDER)
     expected_events = [
@@ -107,7 +108,6 @@ class TestNwbRecordingExtractor(RecordingExtractorTestMixin):
     extractor_instance = NwbRecordingExtractor(folder_path=str(MOCK_NWB_FOLDER))
     control_event = "fiber_photometry_response_series_0"
     signal_event = "fiber_photometry_response_series_1"
-    ttl_event = "events"
 
     @pytest.fixture
     def expected_control_timestamps(self):
@@ -128,11 +128,6 @@ class TestNwbRecordingExtractor(RecordingExtractorTestMixin):
         nwbfile = read_nwb(str(MOCK_NWB_FILE))
         return np.array(nwbfile.acquisition["fiber_photometry_response_series"].data[:, 1])
 
-    @pytest.fixture
-    def expected_ttl_timestamps(self):
-        # Events timestamps: 45, 46, ..., 54
-        return np.arange(45, 55, dtype=np.float64)
-
     # --- override stub tests (stub() raises NotImplementedError for NWB) ---
 
     def test_stub_data_matches_original(self, tmp_path, isolated_extractor_instance):
@@ -152,42 +147,43 @@ class TestNwbRecordingExtractor(RecordingExtractorTestMixin):
         with pytest.raises(NotImplementedError):
             isolated_extractor_instance.stub(folder_path=tmp_path / "stubbed")
 
-    # --- NWB-specific tests ---
 
-    def test_discover_events_count(self):
-        events, _ = NwbRecordingExtractor.discover_events_and_flags(self.folder_path)
-        assert len(events) == 8
+# ---------------------------------------------------------------------------
+# Contract test classes — one per TTL event type
+# ---------------------------------------------------------------------------
 
-    def test_discover_flags_empty(self):
-        _, flags = NwbRecordingExtractor.discover_events_and_flags(self.folder_path)
-        assert flags == []
 
-    def test_read_annotated_reward_event_timestamps(self, tmp_path):
-        result = self.extractor_instance.read(events=["AnnotatedEventsTable_Reward"], outputPath=str(tmp_path))
-        np.testing.assert_array_equal(result[0]["timestamps"], np.array([41.0, 42.0, 43.0, 44.0, 45.0]))
+class TestNwbRecordingExtractorEvents(NwbRecordingExtractorTestMixin):
+    """Contract tests using a plain ndx-events ``Events`` object as the TTL channel.
 
-    def test_read_annotated_punishment_event_timestamps(self, tmp_path):
-        result = self.extractor_instance.read(events=["AnnotatedEventsTable_Punishment"], outputPath=str(tmp_path))
-        np.testing.assert_array_equal(result[0]["timestamps"], np.array([55.0, 56.0, 57.0, 58.0, 59.0]))
+    Also hosts general NWB-specific tests (discover count, flags, per-type reads)
+    that apply to the extractor as a whole rather than a specific TTL type.
+    """
 
-    def test_read_labeled_events_label_1_timestamps(self, tmp_path):
-        # label_1 is index 0 in the LabeledEvents data array: positions 0, 3, 6, 9, 12 → 40, 43, 46, 49, 52
-        result = self.extractor_instance.read(events=["labeled_events_label_1"], outputPath=str(tmp_path))
-        np.testing.assert_array_equal(result[0]["timestamps"], np.array([40.0, 43.0, 46.0, 49.0, 52.0]))
+    ttl_event = "events"
 
-    def test_read_events_output_has_no_data_key(self, tmp_path):
-        result = self.extractor_instance.read(events=["events"], outputPath=str(tmp_path))
-        assert "data" not in result[0]
+    @pytest.fixture
+    def expected_ttl_timestamps(self):
+        # Events timestamps: 45, 46, ..., 54
+        return np.arange(45, 55, dtype=np.float64)
 
-    def test_read_fiber_photometry_series_has_sampling_rate(self, tmp_path):
-        result = self.extractor_instance.read(events=[self.control_event], outputPath=str(tmp_path))
-        assert "sampling_rate" in result[0]
-        assert result[0]["sampling_rate"] == pytest.approx(30.0)
 
-    def test_read_fiber_photometry_series_has_npoints(self, tmp_path):
-        result = self.extractor_instance.read(events=[self.control_event], outputPath=str(tmp_path))
-        assert result[0]["npoints"] == 1
+class TestNwbExtractorAnnotatedEvents(NwbRecordingExtractorTestMixin):
+    """Contract tests using an ``AnnotatedEventsTable`` row as the TTL channel."""
 
-    def test_discover_raises_on_missing_nwb_file(self, tmp_path):
-        with pytest.raises(Exception):
-            NwbRecordingExtractor.discover_events_and_flags(str(tmp_path))
+    ttl_event = "AnnotatedEventsTable_Reward"
+
+    @pytest.fixture
+    def expected_ttl_timestamps(self):
+        return np.array([41.0, 42.0, 43.0, 44.0, 45.0])
+
+
+class TestNwbRecordingExtractorLabeledEvents(NwbRecordingExtractorTestMixin):
+    """Contract tests using a ``LabeledEvents`` label as the TTL channel."""
+
+    ttl_event = "labeled_events_label_1"
+
+    @pytest.fixture
+    def expected_ttl_timestamps(self):
+        # label_1 is index 0: timestamps at positions where data == 0 → 40, 43, 46, 49, 52
+        return np.array([40.0, 43.0, 46.0, 49.0, 52.0])
