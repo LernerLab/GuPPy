@@ -242,6 +242,184 @@ def test_mixed_modality_tdt_csv_data(tmp_path):
     _assert_pipeline_outputs(csv_session, expected_region="region", expected_ttl="ttl")
 
 
+@pytest.mark.filterwarnings("ignore::UserWarning")
+def test_mixed_modality_nwb_csv(tmp_path):
+    """
+    Inter-session mixed modality: NWB session + CSV data session processed together.
+
+    Each session uses its own acquisition format; modality is auto-detected per folder.
+    Step 2 runs separately per session; steps 3–5 run together across both sessions.
+    """
+    src_base_dir = str(STUBBED_TESTING_DATA)
+    tmp_base = tmp_path / "data_root"
+    tmp_base.mkdir(parents=True, exist_ok=True)
+
+    nwb_session = _stage_session(src_base_dir, "nwb/mock_nwbfile", tmp_base)
+    csv_session = _stage_session(src_base_dir, "csv/sample_data_csv_1", tmp_base)
+
+    base_dir = str(tmp_base)
+
+    step2(
+        base_dir=base_dir,
+        selected_folders=[str(nwb_session)],
+        storenames_map={
+            "fiber_photometry_response_series_0": "control_region",
+            "fiber_photometry_response_series_1": "signal_region",
+            "events": "ttl",
+        },
+    )
+    step2(
+        base_dir=base_dir,
+        selected_folders=[str(csv_session)],
+        storenames_map={
+            "Sample_Control_Channel": "control_region",
+            "Sample_Signal_Channel": "signal_region",
+            "Sample_TTL": "ttl",
+        },
+    )
+
+    selected_folders = [str(nwb_session), str(csv_session)]
+    step3(base_dir=base_dir, selected_folders=selected_folders)
+    step4(base_dir=base_dir, selected_folders=selected_folders)
+    step5(base_dir=base_dir, selected_folders=selected_folders)
+
+    _assert_pipeline_outputs(nwb_session, expected_region="region", expected_ttl="ttl")
+    _assert_pipeline_outputs(csv_session, expected_region="region", expected_ttl="ttl")
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+def test_mixed_modality_nwb_tdt(tmp_path):
+    """
+    Inter-session mixed modality: NWB session + TDT session processed together.
+
+    Each session uses its own acquisition format; modality is auto-detected per folder.
+    Step 2 runs separately per session; steps 3–5 run together across both sessions.
+    """
+    src_base_dir = str(STUBBED_TESTING_DATA)
+    tmp_base = tmp_path / "data_root"
+    tmp_base.mkdir(parents=True, exist_ok=True)
+
+    nwb_session = _stage_session(src_base_dir, "nwb/mock_nwbfile", tmp_base)
+    tdt_session = _stage_session(src_base_dir, "tdt/Photo_63_207-181030-103332", tmp_base)
+
+    base_dir = str(tmp_base)
+
+    step2(
+        base_dir=base_dir,
+        selected_folders=[str(nwb_session)],
+        storenames_map={
+            "fiber_photometry_response_series_0": "control_region",
+            "fiber_photometry_response_series_1": "signal_region",
+            "events": "ttl",
+        },
+    )
+    step2(
+        base_dir=base_dir,
+        selected_folders=[str(tdt_session)],
+        storenames_map={"Dv1A": "control_dms", "Dv2A": "signal_dms", "PrtN": "port_entries_dms"},
+    )
+
+    selected_folders = [str(nwb_session), str(tdt_session)]
+    step3(base_dir=base_dir, selected_folders=selected_folders)
+    step4(base_dir=base_dir, selected_folders=selected_folders)
+    step5(base_dir=base_dir, selected_folders=selected_folders)
+
+    _assert_pipeline_outputs(nwb_session, expected_region="region", expected_ttl="ttl")
+    _assert_pipeline_outputs(tdt_session, expected_region="dms", expected_ttl="port_entries_dms")
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+def test_mixed_modality_nwb_doric(tmp_path):
+    """
+    Inter-session mixed modality: NWB session + Doric session processed together.
+
+    Each session uses its own acquisition format; modality is auto-detected per folder.
+    Step 2 runs separately per session; steps 3–5 run together across both sessions.
+    """
+    src_base_dir = str(STUBBED_TESTING_DATA)
+    tmp_base = tmp_path / "data_root"
+    tmp_base.mkdir(parents=True, exist_ok=True)
+
+    nwb_session = _stage_session(src_base_dir, "nwb/mock_nwbfile", tmp_base)
+    doric_session = _stage_session(src_base_dir, "doric/sample_doric_3", tmp_base)
+
+    base_dir = str(tmp_base)
+
+    step2(
+        base_dir=base_dir,
+        selected_folders=[str(nwb_session)],
+        storenames_map={
+            "fiber_photometry_response_series_0": "control_region",
+            "fiber_photometry_response_series_1": "signal_region",
+            "events": "ttl",
+        },
+    )
+    step2(
+        base_dir=base_dir,
+        selected_folders=[str(doric_session)],
+        storenames_map={
+            "CAM1_EXC1/ROI01": "control_region",
+            "CAM1_EXC2/ROI01": "signal_region",
+            "DigitalIO/CAM1": "ttl",
+        },
+    )
+
+    selected_folders = [str(nwb_session), str(doric_session)]
+    step3(base_dir=base_dir, selected_folders=selected_folders)
+    step4(base_dir=base_dir, selected_folders=selected_folders)
+    step5(base_dir=base_dir, selected_folders=selected_folders)
+
+    _assert_pipeline_outputs(nwb_session, expected_region="region", expected_ttl="ttl")
+    _assert_pipeline_outputs(doric_session, expected_region="region", expected_ttl="ttl")
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+def test_mixed_modality_nwb_npm(tmp_path):
+    """
+    Inter-session mixed modality: NWB session + NPM session processed together.
+
+    Each session uses its own acquisition format; modality is auto-detected per folder.
+    Step 2 runs separately per session; steps 3–5 run together across both sessions.
+    The NPM session (sampleData_NPM_4) uses split events.
+    """
+    src_base_dir = str(STUBBED_TESTING_DATA)
+    tmp_base = tmp_path / "data_root"
+    tmp_base.mkdir(parents=True, exist_ok=True)
+
+    nwb_session = _stage_session(src_base_dir, "nwb/mock_nwbfile", tmp_base)
+    npm_session = _stage_session(src_base_dir, "npm/sampleData_NPM_4", tmp_base)
+
+    base_dir = str(tmp_base)
+
+    step2(
+        base_dir=base_dir,
+        selected_folders=[str(nwb_session)],
+        storenames_map={
+            "fiber_photometry_response_series_0": "control_region",
+            "fiber_photometry_response_series_1": "signal_region",
+            "events": "ttl",
+        },
+    )
+    step2(
+        base_dir=base_dir,
+        selected_folders=[str(npm_session)],
+        storenames_map={
+            "file0_chev1": "control_region1",
+            "file0_chod1": "signal_region1",
+            "eventTrue": "ttl_true_region1",
+        },
+        npm_split_events=[True, True],
+    )
+
+    selected_folders = [str(nwb_session), str(npm_session)]
+    step3(base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True])
+    step4(base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True])
+    step5(base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True])
+
+    _assert_pipeline_outputs(nwb_session, expected_region="region", expected_ttl="ttl")
+    _assert_pipeline_outputs(npm_session, expected_region="region1", expected_ttl="ttl_true_region1")
+
+
 def _assert_pipeline_outputs(session_copy, expected_region, expected_ttl):
     basename = os.path.basename(session_copy)
     output_dirs = sorted(glob.glob(os.path.join(session_copy, f"{basename}_output_*")))

@@ -25,7 +25,7 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
     """
 
     @classmethod
-    def discover_events_and_flags(cls, *, folder_path) -> tuple[list[str], list[str]]:
+    def discover_events_and_flags(cls, folder_path) -> tuple[list[str], list[str]]:
         """
         Discover available events from an NWB file.
 

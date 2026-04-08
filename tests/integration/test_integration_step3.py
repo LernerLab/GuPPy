@@ -12,8 +12,9 @@ import pytest
         "step3_output_tdt",
         "step3_output_npm",
         "step3_output_doric",
+        "step3_output_nwb",
     ],
-    ids=["csv_generic", "tdt_clean", "sample_npm_1", "sample_doric_1"],
+    ids=["csv_generic", "tdt_clean", "sample_npm_1", "sample_doric_1", "nwb_mock"],
 )
 def test_step3(step3_fixture_name, request):
     """Validate Step 3 outputs for the representative integration sessions."""

@@ -29,8 +29,13 @@ from guppy.testing.api import step5
             "region",
             "ttl",
         ),
+        (
+            "step4_output_nwb",
+            "region",
+            "ttl",
+        ),
     ],
-    ids=["csv_generic", "tdt_clean", "sample_npm_1", "sample_doric_1"],
+    ids=["csv_generic", "tdt_clean", "sample_npm_1", "sample_doric_1", "nwb_mock"],
 )
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_step5(step4_fixture_name, expected_region, expected_ttl, request):

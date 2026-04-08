@@ -170,3 +170,44 @@ def test_mixed_modality_npm_csv_ttl(tmp_path):
     step5(base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[False, True])
 
     _assert_intra_session_outputs(session_copy, expected_region="region", expected_ttl="ttl_region")
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+def test_mixed_modality_nwb_csv_ttl(tmp_path):
+    """
+    Intra-session mixed modality: NWB photometry channels + external CSV event TTL.
+
+    A single NWB session is staged in a temporary workspace. A synthesized CSV TTL file
+    (single 'timestamps' column, relative seconds within the NWB recording window) is written
+    into the session folder alongside the .nwb file. The pipeline auto-detects both formats and
+    routes NWB photometry to NwbRecordingExtractor and the CSV event file to CsvRecordingExtractor.
+
+    The mock NWB recording window runs from 0 to ~99.97 seconds (3000 samples at 30 Hz).
+    """
+    src_base_dir = str(STUBBED_TESTING_DATA)
+    tmp_base = tmp_path / "data_root"
+    tmp_base.mkdir(parents=True, exist_ok=True)
+
+    session_copy = _stage_session(src_base_dir, "nwb/mock_nwbfile", tmp_base)
+
+    # Five timestamps within the NWB recording window (0–~100 s), spaced ~20 s apart
+    csv_ttl_timestamps = np.array([20.0, 40.0, 60.0, 80.0])
+    np.savetxt(session_copy / "csv_nwb_event.csv", csv_ttl_timestamps, header="timestamps", comments="", fmt="%.6f")
+
+    base_dir = str(tmp_base)
+    selected_folders = [str(session_copy)]
+
+    step2(
+        base_dir=base_dir,
+        selected_folders=selected_folders,
+        storenames_map={
+            "fiber_photometry_response_series_0": "control_region",
+            "fiber_photometry_response_series_1": "signal_region",
+            "csv_nwb_event": "ttl_region",
+        },
+    )
+    step3(base_dir=base_dir, selected_folders=selected_folders)
+    step4(base_dir=base_dir, selected_folders=selected_folders)
+    step5(base_dir=base_dir, selected_folders=selected_folders)
+
+    _assert_intra_session_outputs(session_copy, expected_region="region", expected_ttl="ttl_region")
