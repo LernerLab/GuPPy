@@ -14,6 +14,7 @@ from guppy.extractors.base_recording_extractor import BaseRecordingExtractor
 logger = logging.getLogger(__name__)
 
 
+# TODO: Add support for different ndx-event versions
 class NwbRecordingExtractor(BaseRecordingExtractor):
     """
     Recording extractor for NWB (Neurodata Without Borders) fiber photometry files.
