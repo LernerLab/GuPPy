@@ -17,6 +17,9 @@ from .recording_extractor_test_mixin import RecordingExtractorTestMixin
 MOCK_NWB_FOLDER = STUBBED_TESTING_DATA / "nwb" / "mock_nwbfile"
 MOCK_NWB_FILE = MOCK_NWB_FOLDER / "mock_nwbfile.nwb"
 
+MOCK_NWB_V010_FOLDER = STUBBED_TESTING_DATA / "nwb" / "mock_nwbfile_v0_1_0"
+MOCK_NWB_V010_FILE = MOCK_NWB_V010_FOLDER / "mock_nwbfile_v0_1_0.nwb"
+
 _NUM_SAMPLES = 3000
 _SAMPLING_RATE = 30.0
 
@@ -187,3 +190,41 @@ class TestNwbRecordingExtractorLabeledEvents(NwbRecordingExtractorTestMixin):
     def expected_ttl_timestamps(self):
         # label_1 is index 0: timestamps at positions where data == 0 → 40, 43, 46, 49, 52
         return np.array([40.0, 43.0, 46.0, 49.0, 52.0])
+
+
+# ---------------------------------------------------------------------------
+# Contract tests for ndx-fiber-photometry v0.1.0 mock NWB file
+# ---------------------------------------------------------------------------
+
+
+class NwbRecordingExtractorV010TestMixin(NwbRecordingExtractorTestMixin):
+    """Shared fixtures for NWB contract tests targeting the v0.1.0 mock file.
+
+    The v0.1.0 mock file contains identical data to the current mock — same
+    FiberPhotometryResponseSeries shape, same events — but was produced with the
+    older ndx-fiber-photometry API (devices in ndx_fiber_photometry directly,
+    no virus/injection/indicator containers in FiberPhotometry).
+    """
+
+    folder_path = str(MOCK_NWB_V010_FOLDER)
+    extractor_instance = NwbRecordingExtractor(folder_path=str(MOCK_NWB_V010_FOLDER))
+
+    @pytest.fixture
+    def expected_control_data(self):
+        nwbfile = read_nwb(str(MOCK_NWB_V010_FILE))
+        return np.array(nwbfile.acquisition["fiber_photometry_response_series"].data[:, 0])
+
+    @pytest.fixture
+    def expected_signal_data(self):
+        nwbfile = read_nwb(str(MOCK_NWB_V010_FILE))
+        return np.array(nwbfile.acquisition["fiber_photometry_response_series"].data[:, 1])
+
+
+class TestNwbRecordingExtractorV010Events(NwbRecordingExtractorV010TestMixin):
+    """Contract tests for v0.1.0 mock file using a plain ``Events`` object as the TTL channel."""
+
+    ttl_event = "events"
+
+    @pytest.fixture
+    def expected_ttl_timestamps(self):
+        return np.arange(45, 55, dtype=np.float64)

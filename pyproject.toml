@@ -54,6 +54,7 @@ dependencies = [
     "param",
     "platformdirs",
     "ndx-fiber-photometry",
+    "ndx-events",
     "pynwb",
     "scipy",
     "tables",
@@ -71,6 +72,11 @@ test = [
 
 dev = [
     "pre-commit",
+]
+
+nwb-v0-1-0 = [
+    "ndx-fiber-photometry==0.1.0",
+    "pynwb<3",
 ]
 
 [project.scripts]
