@@ -69,7 +69,8 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
                 if event_name in seen_names:
                     raise ValueError(f"Duplicate LabeledEvents name found: {event_name!r}")
                 seen_names.add(event_name)
-                events.append(event_name)
+                for label in neurodata_object.labels:
+                    events.append(f"{event_name}_{label}")
             elif isinstance(neurodata_object, Events):
                 event_name = neurodata_object.name
                 if event_name in seen_names:
@@ -106,9 +107,13 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
         series_name_to_object = {
             obj.name: obj for obj in nwbfile.objects.values() if isinstance(obj, FiberPhotometryResponseSeries)
         }
-        labeled_events_name_to_object = {
-            obj.name: obj for obj in nwbfile.objects.values() if isinstance(obj, LabeledEvents)
-        }
+        # Build lookup: "{labeled_events_name}_{label}" -> (LabeledEvents object, label_index)
+        labeled_event_key_to_source = {}
+        for obj in nwbfile.objects.values():
+            if isinstance(obj, LabeledEvents):
+                for label_index, label in enumerate(obj.labels):
+                    labeled_event_key_to_source[f"{obj.name}_{label}"] = (obj, label_index)
+
         events_name_to_object = {
             obj.name: obj
             for obj in nwbfile.objects.values()
@@ -116,21 +121,12 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
         }
 
         for event in events:
-            if event in labeled_events_name_to_object:
-                labeled_event = labeled_events_name_to_object[event]
-                all_timestamps = np.array(labeled_event.timestamps[:])
-                all_data = np.array(labeled_event.data[:])
-                labels = list(labeled_event.labels)
-                output_dicts.append({"storename": event, "timestamps": all_timestamps})
-                for unique_value in np.unique(all_data):
-                    label_string = labels[int(unique_value)]
-                    filtered_timestamps = all_timestamps[all_data == unique_value]
-                    output_dicts.append(
-                        {
-                            "storename": f"{event}_{label_string}",
-                            "timestamps": filtered_timestamps,
-                        }
-                    )
+            if event in labeled_event_key_to_source:
+                labeled_event_object, label_index = labeled_event_key_to_source[event]
+                all_timestamps = np.array(labeled_event_object.timestamps[:])
+                all_data = np.array(labeled_event_object.data[:])
+                filtered_timestamps = all_timestamps[all_data == label_index]
+                output_dicts.append({"storename": event, "timestamps": filtered_timestamps})
                 continue
 
             if event in events_name_to_object:
