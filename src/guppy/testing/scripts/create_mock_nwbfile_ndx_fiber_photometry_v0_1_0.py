@@ -5,13 +5,13 @@ The current (post-v0.1.0) version moved device classes to ndx-ophys-devices, mak
 this script incompatible with the newer package.
 
 To run, create the isolated conda environment defined alongside this script:
-    conda env create -f src/guppy/testing/scripts/environment_nwb_v0_1_0.yaml
-    conda activate guppy_nwb_v0_1_0
+    conda env create -f src/guppy/testing/scripts/environment_ndx_fiber_photometry_v0_1_0.yaml
+    conda activate guppy_ndx_fiber_photometry_v0_1_0
 
 Then run from the project root:
-    python src/guppy/testing/scripts/create_mock_nwbfile_v0_1_0.py
+    python src/guppy/testing/scripts/create_mock_nwbfile_ndx_fiber_photometry_v0_1_0.py
 
-The output is written to stubbed_testing_data/nwb/mock_nwbfile_v0_1_0/mock_nwbfile_v0_1_0.nwb,
+The output is written to stubbed_testing_data/nwb/mock_nwbfile_ndx_fiber_photometry_v0_1_0/mock_nwbfile_ndx_fiber_photometry_v0_1_0.nwb,
 relative to the repository root. The directory is created if it does not exist.
 
 The file contains:
@@ -45,7 +45,13 @@ from pynwb import NWBHDF5IO, NWBFile
 
 # Output path relative to this script's location (repo_root/stubbed_testing_data/nwb/...)
 _REPO_ROOT = Path(__file__).resolve().parents[4]
-_OUTPUT_PATH = _REPO_ROOT / "stubbed_testing_data" / "nwb" / "mock_nwbfile_v0_1_0" / "mock_nwbfile_v0_1_0.nwb"
+_OUTPUT_PATH = (
+    _REPO_ROOT
+    / "stubbed_testing_data"
+    / "nwb"
+    / "mock_nwbfile_ndx_fiber_photometry_v0_1_0"
+    / "mock_nwbfile_ndx_fiber_photometry_v0_1_0.nwb"
+)
 
 
 def _add_ndx_fiber_photometry_metadata(nwbfile):
@@ -183,7 +189,7 @@ def _add_ndx_fiber_photometry_metadata(nwbfile):
 def main():
     nwbfile = NWBFile(
         session_description="Mock session for NWB extractor testing (ndx-fiber-photometry v0.1.0).",
-        identifier="mock_nwbfile_v0_1_0",
+        identifier="mock_nwbfile_ndx_fiber_photometry_v0_1_0",
         session_start_time=datetime.datetime.now(datetime.timezone.utc),
     )
 

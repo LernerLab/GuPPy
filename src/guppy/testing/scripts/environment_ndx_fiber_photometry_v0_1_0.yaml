@@ -1,4 +1,4 @@
-name: guppy_nwb_v0_1_0
+name: guppy_ndx_fiber_photometry_v0_1_0
 channels:
   - conda-forge
   - defaults

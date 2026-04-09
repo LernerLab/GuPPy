@@ -17,8 +17,10 @@ from .recording_extractor_test_mixin import RecordingExtractorTestMixin
 MOCK_NWB_FOLDER = STUBBED_TESTING_DATA / "nwb" / "mock_nwbfile"
 MOCK_NWB_FILE = MOCK_NWB_FOLDER / "mock_nwbfile.nwb"
 
-MOCK_NWB_V010_FOLDER = STUBBED_TESTING_DATA / "nwb" / "mock_nwbfile_v0_1_0"
-MOCK_NWB_V010_FILE = MOCK_NWB_V010_FOLDER / "mock_nwbfile_v0_1_0.nwb"
+MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_0_FOLDER = STUBBED_TESTING_DATA / "nwb" / "mock_nwbfile_ndx_fiber_photometry_v0_1_0"
+MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_0_FILE = (
+    MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_0_FOLDER / "mock_nwbfile_ndx_fiber_photometry_v0_1_0.nwb"
+)
 
 _NUM_SAMPLES = 3000
 _SAMPLING_RATE = 30.0
@@ -197,31 +199,31 @@ class TestNwbRecordingExtractorLabeledEvents(NwbRecordingExtractorTestMixin):
 # ---------------------------------------------------------------------------
 
 
-class NwbRecordingExtractorV010TestMixin(NwbRecordingExtractorTestMixin):
-    """Shared fixtures for NWB contract tests targeting the v0.1.0 mock file.
+class NwbRecordingExtractorNdxFiberPhotometryV010TestMixin(NwbRecordingExtractorTestMixin):
+    """Shared fixtures for NWB contract tests targeting the ndx-fiber-photometry v0.1.0 mock file.
 
-    The v0.1.0 mock file contains identical data to the current mock — same
+    The ndx-fiber-photometry v0.1.0 mock file contains identical data to the current mock — same
     FiberPhotometryResponseSeries shape, same events — but was produced with the
     older ndx-fiber-photometry API (devices in ndx_fiber_photometry directly,
     no virus/injection/indicator containers in FiberPhotometry).
     """
 
-    folder_path = str(MOCK_NWB_V010_FOLDER)
-    extractor_instance = NwbRecordingExtractor(folder_path=str(MOCK_NWB_V010_FOLDER))
+    folder_path = str(MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_0_FOLDER)
+    extractor_instance = NwbRecordingExtractor(folder_path=str(MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_0_FOLDER))
 
     @pytest.fixture
     def expected_control_data(self):
-        nwbfile = read_nwb(str(MOCK_NWB_V010_FILE))
+        nwbfile = read_nwb(str(MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_0_FILE))
         return np.array(nwbfile.acquisition["fiber_photometry_response_series"].data[:, 0])
 
     @pytest.fixture
     def expected_signal_data(self):
-        nwbfile = read_nwb(str(MOCK_NWB_V010_FILE))
+        nwbfile = read_nwb(str(MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_0_FILE))
         return np.array(nwbfile.acquisition["fiber_photometry_response_series"].data[:, 1])
 
 
-class TestNwbRecordingExtractorV010Events(NwbRecordingExtractorV010TestMixin):
-    """Contract tests for v0.1.0 mock file using a plain ``Events`` object as the TTL channel."""
+class TestNwbRecordingExtractorNdxFiberPhotometryV010Events(NwbRecordingExtractorNdxFiberPhotometryV010TestMixin):
+    """Contract tests for ndx-fiber-photometry v0.1.0 mock file using a plain ``Events`` object as the TTL channel."""
 
     ttl_event = "events"
 
