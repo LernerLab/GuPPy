@@ -99,6 +99,7 @@ class NwbRecordingExtractorTestMixin(RecordingExtractorTestMixin):
 
     extractor_class = NwbRecordingExtractor
     folder_path = str(MOCK_NWB_FOLDER)
+    file_path = str(MOCK_NWB_FILE)
     expected_events = [
         "fiber_photometry_response_series_0",
         "fiber_photometry_response_series_1",
@@ -121,7 +122,7 @@ class NwbRecordingExtractorTestMixin(RecordingExtractorTestMixin):
 
     @pytest.fixture
     def expected_control_data(self):
-        nwbfile = read_nwb(str(MOCK_NWB_FILE))
+        nwbfile = read_nwb(self.file_path)
         return np.array(nwbfile.acquisition["fiber_photometry_response_series"].data[:, 0])
 
     @pytest.fixture
@@ -130,7 +131,7 @@ class NwbRecordingExtractorTestMixin(RecordingExtractorTestMixin):
 
     @pytest.fixture
     def expected_signal_data(self):
-        nwbfile = read_nwb(str(MOCK_NWB_FILE))
+        nwbfile = read_nwb(self.file_path)
         return np.array(nwbfile.acquisition["fiber_photometry_response_series"].data[:, 1])
 
     # --- override stub tests (stub() raises NotImplementedError for NWB) ---
@@ -147,8 +148,7 @@ class NwbRecordingExtractorTestMixin(RecordingExtractorTestMixin):
         with pytest.raises(NotImplementedError):
             isolated_extractor_instance.stub(folder_path=tmp_path / "stubbed")
 
-    @pytest.mark.parametrize("stub_duration_in_seconds", [0.5, 1.0, 2.0])
-    def test_stub_duration(self, tmp_path, isolated_extractor_instance, stub_duration_in_seconds):
+    def test_stub_duration(self, tmp_path, isolated_extractor_instance):
         with pytest.raises(NotImplementedError):
             isolated_extractor_instance.stub(folder_path=tmp_path / "stubbed")
 
@@ -199,34 +199,24 @@ class TestNwbRecordingExtractorLabeledEvents(NwbRecordingExtractorTestMixin):
 # ---------------------------------------------------------------------------
 
 
-class NwbRecordingExtractorNdxFiberPhotometryV010TestMixin(NwbRecordingExtractorTestMixin):
-    """Shared fixtures for NWB contract tests targeting the ndx-fiber-photometry v0.1.0 mock file.
+class TestNwbRecordingExtractorNdxFiberPhotometryV010Events(NwbRecordingExtractorTestMixin):
+    """Contract tests for the ndx-fiber-photometry v0.1.0 mock file using a plain ``Events`` object as the TTL channel.
 
     The ndx-fiber-photometry v0.1.0 mock file contains identical data to the current mock — same
-    FiberPhotometryResponseSeries shape, same events — but was produced with the
-    older ndx-fiber-photometry API (devices in ndx_fiber_photometry directly,
-    no virus/injection/indicator containers in FiberPhotometry).
+    FiberPhotometryResponseSeries shape, same events — but was produced with the older
+    ndx-fiber-photometry API (devices in ndx_fiber_photometry directly, no virus/injection/indicator
+    containers in FiberPhotometry).
     """
 
+    extractor_class = NwbRecordingExtractor
     folder_path = str(MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_0_FOLDER)
+    file_path = str(MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_0_FILE)
     extractor_instance = NwbRecordingExtractor(folder_path=str(MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_0_FOLDER))
-
-    @pytest.fixture
-    def expected_control_data(self):
-        nwbfile = read_nwb(str(MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_0_FILE))
-        return np.array(nwbfile.acquisition["fiber_photometry_response_series"].data[:, 0])
-
-    @pytest.fixture
-    def expected_signal_data(self):
-        nwbfile = read_nwb(str(MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_0_FILE))
-        return np.array(nwbfile.acquisition["fiber_photometry_response_series"].data[:, 1])
-
-
-class TestNwbRecordingExtractorNdxFiberPhotometryV010Events(NwbRecordingExtractorNdxFiberPhotometryV010TestMixin):
-    """Contract tests for ndx-fiber-photometry v0.1.0 mock file using a plain ``Events`` object as the TTL channel."""
-
+    control_event = "fiber_photometry_response_series_0"
+    signal_event = "fiber_photometry_response_series_1"
     ttl_event = "events"
 
     @pytest.fixture
     def expected_ttl_timestamps(self):
+        # Events timestamps: 45, 46, ..., 54
         return np.arange(45, 55, dtype=np.float64)
