@@ -12,6 +12,7 @@ from guppy.extractors import (
     CsvRecordingExtractor,
     DoricRecordingExtractor,
     NpmRecordingExtractor,
+    NwbRecordingExtractor,
     TdtRecordingExtractor,
     detect_acquisition_formats,
 )
@@ -301,7 +302,9 @@ def read_header(inputParameters, num_ch, folder_path, headless):
     existing_events = set()
 
     for format in sorted(all_formats):
-        if format == "tdt":
+        if format == "nwb":
+            fmt_events, fmt_flags = NwbRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+        elif format == "tdt":
             fmt_events, fmt_flags = TdtRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
         elif format == "doric":
             fmt_events, fmt_flags = DoricRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
@@ -312,7 +315,7 @@ def read_header(inputParameters, num_ch, folder_path, headless):
                 folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
             )
         else:
-            raise ValueError(f"Format not recognized: '{format}'. Expected one of 'tdt', 'csv', 'doric', 'npm'.")
+            raise ValueError(f"Format not recognized: '{format}'. Expected one of 'nwb', 'tdt', 'csv', 'doric', 'npm'.")
 
         for event in fmt_events:
             if event not in existing_events:

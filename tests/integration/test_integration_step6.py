@@ -12,8 +12,9 @@ from guppy.frontend.visualization_dashboard import VisualizationDashboard
         ("step6_output_tdt", "port_entries"),
         ("step6_output_npm", "ttl"),
         ("step6_output_doric", "ttl"),
+        ("step6_output_nwb", "ttl"),
     ],
-    ids=["csv_generic", "tdt_clean", "sample_npm_1", "sample_doric_1"],
+    ids=["csv_generic", "tdt_clean", "sample_npm_1", "sample_doric_1", "nwb_mock"],
 )
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_step6(step6_fixture_name, expected_event_substring, request):

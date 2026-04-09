@@ -120,6 +120,14 @@ from guppy.testing.api import step2
                 "event0": "ttl_region1",
             },
         ),
+        (
+            "nwb/mock_nwbfile",
+            {
+                "fiber_photometry_response_series_0": "control_region",
+                "fiber_photometry_response_series_1": "signal_region",
+                "events": "ttl",
+            },
+        ),
     ],
     ids=[
         "csv_generic",
@@ -136,6 +144,7 @@ from guppy.testing.api import step2
         "sample_npm_3",
         "sample_npm_4",
         "sample_npm_5",
+        "nwb_mock",
     ],
 )
 def test_step2(tmp_path, session_subdir, storenames_map):

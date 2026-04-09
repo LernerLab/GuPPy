@@ -109,9 +109,13 @@ def detect_acquisition_formats(folder_path):
     -------
     set of str
         Format strings for all sources found in the folder.
-        Possible elements: ``"tdt"``, ``"doric"``, ``"csv"``, ``"npm"``.
+        Possible elements: ``"nwb"``, ``"tdt"``, ``"doric"``, ``"csv"``, ``"npm"``.
     """
     formats = set()
+
+    # NWB .nwb files provide photometry channels via acquisition series
+    if glob.glob(os.path.join(folder_path, "*.nwb")):
+        formats.add("nwb")
 
     # TDT .tsq files provide both photometry stores and TTL event stores
     if glob.glob(os.path.join(folder_path, "*.tsq")):

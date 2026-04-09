@@ -7,6 +7,7 @@ from guppy.extractors import (
     CsvRecordingExtractor,
     DoricRecordingExtractor,
     NpmRecordingExtractor,
+    NwbRecordingExtractor,
     TdtRecordingExtractor,
 )
 from guppy.orchestration.read_raw_data import _build_event_to_extractor
@@ -15,6 +16,7 @@ CSV_SESSION = STUBBED_TESTING_DATA / "csv" / "sample_data_csv_1"
 DORIC_SESSION = STUBBED_TESTING_DATA / "doric" / "sample_doric_1"
 TDT_SESSION = STUBBED_TESTING_DATA / "tdt" / "Photo_63_207-181030-103332"
 NPM_SESSION = STUBBED_TESTING_DATA / "npm" / "sampleData_NPM_1"
+NWB_SESSION = STUBBED_TESTING_DATA / "nwb" / "mock_nwbfile"
 
 CSV_STORENAMES_MAP = {
     "Sample_Control_Channel": "control_region",
@@ -34,6 +36,11 @@ TDT_STORENAMES_MAP = {
 NPM_STORENAMES_MAP = {
     "file0_chev1": "signal_region",
     "file0_chod1": "control_region",
+}
+NWB_STORENAMES_MAP = {
+    "fiber_photometry_response_series_0": "control_region",
+    "fiber_photometry_response_series_1": "signal_region",
+    "events": "ttl",
 }
 
 
@@ -133,3 +140,18 @@ def test_mixed_tdt_csv_session_partitions_events_correctly(tmp_path):
     assert isinstance(result["Dv1A"], TdtRecordingExtractor)
     assert isinstance(result["Dv2A"], TdtRecordingExtractor)
     assert isinstance(result["csv_port_entries"], CsvRecordingExtractor)
+
+
+def test_nwb_session_routes_all_events_to_nwb_extractor(tmp_path):
+    session_copy = tmp_path / NWB_SESSION.name
+    shutil.copytree(NWB_SESSION, session_copy)
+    stores_list = _make_stores_list(NWB_STORENAMES_MAP)
+    input_parameters = {"noChannels": 2}
+    result = _build_event_to_extractor(
+        folder_path=str(session_copy),
+        storesList=stores_list,
+        inputParameters=input_parameters,
+    )
+    assert result
+    for extractor in result.values():
+        assert isinstance(extractor, NwbRecordingExtractor)

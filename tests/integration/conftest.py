@@ -59,6 +59,17 @@ REPRESENTATIVE_SESSIONS = {
         "npm_time_units": None,
         "npm_split_events": [True, True],
     },
+    "nwb": {
+        "session_subdir": "nwb/mock_nwbfile",
+        "storenames_map": {
+            "fiber_photometry_response_series_0": "control_region",
+            "fiber_photometry_response_series_1": "signal_region",
+            "events": "ttl",
+        },
+        "npm_timestamp_column_names": None,
+        "npm_time_units": None,
+        "npm_split_events": [True, True],
+    },
 }
 
 
@@ -168,6 +179,12 @@ def step2_output_doric(tmp_path_factory: pytest.TempPathFactory):
 
 
 @pytest.fixture(scope="session")
+def step2_output_nwb(tmp_path_factory: pytest.TempPathFactory):
+    pipeline_state = _prepare_pipeline_state(tmp_path_factory=tmp_path_factory, modality="nwb")
+    return _run_step2(pipeline_state=pipeline_state)
+
+
+@pytest.fixture(scope="session")
 def step3_output_csv(step2_output_csv):
     return _run_step3(pipeline_state=step2_output_csv)
 
@@ -188,6 +205,11 @@ def step3_output_doric(step2_output_doric):
 
 
 @pytest.fixture(scope="session")
+def step3_output_nwb(step2_output_nwb):
+    return _run_step3(pipeline_state=step2_output_nwb)
+
+
+@pytest.fixture(scope="session")
 def step4_output_csv(step3_output_csv):
     return _run_step4(pipeline_state=step3_output_csv)
 
@@ -205,6 +227,11 @@ def step4_output_npm(step3_output_npm):
 @pytest.fixture(scope="session")
 def step4_output_doric(step3_output_doric):
     return _run_step4(pipeline_state=step3_output_doric)
+
+
+@pytest.fixture(scope="session")
+def step4_output_nwb(step3_output_nwb):
+    return _run_step4(pipeline_state=step3_output_nwb)
 
 
 def _run_step5(*, pipeline_state: dict[str, str | list[bool] | None]) -> dict[str, str | list[bool] | None]:
@@ -266,6 +293,11 @@ def step5_output_doric(step4_output_doric):
 
 
 @pytest.fixture(scope="session")
+def step5_output_nwb(step4_output_nwb):
+    return _run_step5(pipeline_state=step4_output_nwb)
+
+
+@pytest.fixture(scope="session")
 def step6_output_csv(step5_output_csv):
     return _run_step6(pipeline_state=step5_output_csv)
 
@@ -283,3 +315,8 @@ def step6_output_npm(step5_output_npm):
 @pytest.fixture(scope="session")
 def step6_output_doric(step5_output_doric):
     return _run_step6(pipeline_state=step5_output_doric)
+
+
+@pytest.fixture(scope="session")
+def step6_output_nwb(step5_output_nwb):
+    return _run_step6(pipeline_state=step5_output_nwb)
