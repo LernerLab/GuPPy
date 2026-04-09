@@ -4,8 +4,9 @@ IMPORTANT: This script must be run with ndx-fiber-photometry==0.1.0 installed.
 The current (post-v0.1.0) version moved device classes to ndx-ophys-devices, making
 this script incompatible with the newer package.
 
-To run, create an environment with the old version:
-    pip install ndx-fiber-photometry==0.1.0
+To run, create the isolated conda environment defined alongside this script:
+    conda env create -f src/guppy/testing/scripts/environment_nwb_v0_1_0.yaml
+    conda activate guppy_nwb_v0_1_0
 
 Then run from the project root:
     python src/guppy/testing/scripts/create_mock_nwbfile_v0_1_0.py
