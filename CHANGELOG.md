@@ -2,6 +2,7 @@
 
 ## Features
 - Added read support for NWB files with dedicated recording extractor. [PR #261](https://github.com/LernerLab/GuPPy/pull/261)
+- Added --start-path option to guppy launch command [PR #265](https://github.com/LernerLab/GuPPy/pull/265)
 
 ## Fixes
 - Fixed pickling issue for long storenames in `read_and_save_all_events`. [PR #261](https://github.com/LernerLab/GuPPy/pull/261)
