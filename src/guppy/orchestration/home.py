@@ -33,12 +33,12 @@ def psthComputation(parameter_form, current_dir):
     subprocess.call([sys.executable, "-m", "guppy.orchestration.psth", json.dumps(inputParameters)])
 
 
-def build_homepage():
+def build_homepage(*, start_path=None):
     pn.extension()
     current_dir = os.getcwd()
 
     template = pn.template.BootstrapTemplate(title="Input Parameters GUI")
-    parameter_form = ParameterForm(template=template)
+    parameter_form = ParameterForm(template=template, start_path=start_path)
     sidebar = Sidebar(template=template)
 
     # ------------------------------------------------------------------------------------------------------------------
