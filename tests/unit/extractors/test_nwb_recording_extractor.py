@@ -43,13 +43,13 @@ class TestFindNwbFile:
         assert result == str(nwb_file)
 
     def test_raises_when_no_nwb_file(self, tmp_path):
-        with pytest.raises(Exception, match="No NWB file found"):
+        with pytest.raises(FileNotFoundError, match="No NWB file found"):
             _find_nwb_file(tmp_path)
 
     def test_raises_when_two_nwb_files(self, tmp_path):
         (tmp_path / "first.nwb").touch()
         (tmp_path / "second.nwb").touch()
-        with pytest.raises(Exception, match="Two NWB files"):
+        with pytest.raises(ValueError, match="Multiple NWB files"):
             _find_nwb_file(tmp_path)
 
 
