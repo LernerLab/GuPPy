@@ -49,9 +49,9 @@ def getAbsPath(files_1, files_2):
 
 
 class ParameterForm:
-    def __init__(self, *, template):
+    def __init__(self, *, template, start_path=None):
         self.template = template
-        self.folder_path = _default_root_path()
+        self.folder_path = start_path if start_path and os.path.isdir(start_path) else _default_root_path()
         self.styles = dict(background="WhiteSmoke")
         self.setup_individual_parameters()
         self.setup_group_parameters()

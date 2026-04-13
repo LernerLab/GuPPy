@@ -14,9 +14,9 @@ import panel as pn
 from .orchestration.home import build_homepage
 
 
-def serve_app():
+def serve_app(*, start_path=None):
     """Serve the GuPPy application using Panel."""
-    template = build_homepage()
+    template = build_homepage(start_path=start_path)
     pn.serve(template, show=True)
 
 
@@ -25,6 +25,7 @@ def main():
 
     Supports command-line flags:
     - --export-logs: Export the log file to Desktop for sharing with support
+    - --start-path: Set the initial directory for the folder selector
     - (no flags): Launch the GUI application
     """
     parser = argparse.ArgumentParser(description="GuPPy - Guided Photometry Analysis in Python")
@@ -33,6 +34,12 @@ def main():
         action="store_true",
         help="Export log file to Desktop with timestamped name for support purposes",
     )
+    parser.add_argument(
+        "--start-path",
+        type=str,
+        default=None,
+        help="Initial directory for the folder selector (defaults to home directory)",
+    )
 
     args = parser.parse_args()
 
@@ -40,7 +47,7 @@ def main():
         logging_config.export_log_file()
         return
 
-    serve_app()
+    serve_app(start_path=args.start_path)
 
 
 if __name__ == "__main__":
