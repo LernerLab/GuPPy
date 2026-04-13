@@ -116,6 +116,4 @@ class MockRecordingExtractor(BaseRecordingExtractor):
         for output_dict in output_dicts:
             storename = output_dict["storename"]
             for key, value in output_dict.items():
-                if key == "storename":
-                    continue
                 self._write_hdf5(value, storename, outputPath, key)
