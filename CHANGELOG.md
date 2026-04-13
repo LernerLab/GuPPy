@@ -1,8 +1,10 @@
 # v2.0.0-alpha4 (Upcoming)
 
 ## Features
+- Added read support for NWB files with dedicated recording extractor. [PR #261](https://github.com/LernerLab/GuPPy/pull/261)
 
 ## Fixes
+- Fixed pickling issue for long storenames in `read_and_save_all_events`. [PR #261](https://github.com/LernerLab/GuPPy/pull/261)
 
 ## Deprecations and Removals
 
