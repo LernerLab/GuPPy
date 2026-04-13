@@ -42,30 +42,10 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
             Always empty for NWB files.
         """
         nwb_path = _find_nwb_file(folder_path)
-        events = []
-        seen_names = set()
 
         with NWBHDF5IO(nwb_path, "r") as io:
             nwbfile = io.read()
-            ndx_events_version = _get_ndx_events_version(io)
-
-            for neurodata_object in nwbfile.objects.values():
-                if neurodata_object.neurodata_type != "FiberPhotometryResponseSeries":
-                    continue
-                series_name = neurodata_object.name
-                _register_unique_name(seen_names, series_name, "FiberPhotometryResponseSeries")
-
-                data_shape = neurodata_object.data.shape
-                if len(data_shape) == 2:
-                    for column_index in range(data_shape[1]):
-                        events.append(f"{series_name}_{column_index}")
-                else:
-                    events.append(series_name)
-
-            if ndx_events_version is not None and ndx_events_version.startswith("0.2"):
-                events.extend(_discover_ndx_events_v02(nwbfile, seen_names))
-            elif ndx_events_version is not None and ndx_events_version.startswith("0.4"):
-                events.extend(_discover_ndx_events_v04(nwbfile, seen_names))
+            events = _discover_events_from_nwbfile(nwbfile=nwbfile, io=io)
 
         return events, []
 
@@ -90,47 +70,10 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
             ``timestamps``, ``data``, ``npoints``.
         """
         nwb_path = _find_nwb_file(self.folder_path)
-        output_dicts = []
 
         with NWBHDF5IO(nwb_path, "r") as io:
             nwbfile = io.read()
-            ndx_events_version = _get_ndx_events_version(io)
-
-            series_name_to_object = {
-                obj.name: obj
-                for obj in nwbfile.objects.values()
-                if obj.neurodata_type == "FiberPhotometryResponseSeries"
-            }
-
-            # Build a unified index for ndx-events objects
-            event_index = {}
-            if ndx_events_version is not None and ndx_events_version.startswith("0.2"):
-                event_index = _build_event_index_v02(nwbfile)
-            elif ndx_events_version is not None and ndx_events_version.startswith("0.4"):
-                event_index = _build_event_index_v04(nwbfile)
-
-            for event in events:
-                # Check ndx-events index first
-                if event in event_index:
-                    output_dicts.append(_read_ndx_event(event_name=event, source_info=event_index[event]))
-                    continue
-
-                # Fall through to FiberPhotometryResponseSeries
-                series_name, column_index = _parse_event_name(event, series_name_to_object)
-                series = series_name_to_object[series_name]
-                full_data = series.data[:]
-                sampling_rate, timestamps = _resolve_timing(series, full_data.shape[0])
-                channel_data = full_data[:, column_index] if column_index is not None else full_data
-
-                output_dicts.append(
-                    {
-                        "storename": event,
-                        "sampling_rate": sampling_rate,
-                        "timestamps": timestamps,
-                        "data": channel_data,
-                        "npoints": 1,  # single continuous segment, expected by downstream HDF5 readers
-                    }
-                )
+            output_dicts = _read_events_from_nwbfile(nwbfile=nwbfile, io=io, events=events)
 
         return output_dicts
 
@@ -161,6 +104,103 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
         Stub method is unnecessary for NWB files.
         """
         raise NotImplementedError("Stub method is unnecessary for NWB files.")
+
+
+def _discover_events_from_nwbfile(*, nwbfile, io):
+    """
+    Extract event names from an already-open NWB file.
+
+    Parameters
+    ----------
+    nwbfile : pynwb.NWBFile
+        An open NWB file object.
+    io : pynwb.NWBHDF5IO
+        The IO instance used to read the file (needed for namespace inspection).
+
+    Returns
+    -------
+    events : list of str
+        Event names derived from ``FiberPhotometryResponseSeries`` and ndx-events objects.
+    """
+    events = []
+    seen_names = set()
+    ndx_events_version = _get_ndx_events_version(io)
+
+    for neurodata_object in nwbfile.objects.values():
+        if neurodata_object.neurodata_type != "FiberPhotometryResponseSeries":
+            continue
+        series_name = neurodata_object.name
+        _register_unique_name(seen_names, series_name, "FiberPhotometryResponseSeries")
+
+        data_shape = neurodata_object.data.shape
+        if len(data_shape) == 2:
+            for column_index in range(data_shape[1]):
+                events.append(f"{series_name}_{column_index}")
+        else:
+            events.append(series_name)
+
+    if ndx_events_version is not None and ndx_events_version.startswith("0.2"):
+        events.extend(_discover_ndx_events_v02(nwbfile, seen_names))
+    elif ndx_events_version is not None and ndx_events_version.startswith("0.4"):
+        events.extend(_discover_ndx_events_v04(nwbfile, seen_names))
+
+    return events
+
+
+def _read_events_from_nwbfile(*, nwbfile, io, events):
+    """
+    Read data for specified events from an already-open NWB file.
+
+    Parameters
+    ----------
+    nwbfile : pynwb.NWBFile
+        An open NWB file object.
+    io : pynwb.NWBHDF5IO
+        The IO instance used to read the file (needed for namespace inspection).
+    events : list of str
+        Event names to extract.
+
+    Returns
+    -------
+    list of dict
+        One dictionary per event with keys: ``storename``, ``sampling_rate``,
+        ``timestamps``, ``data``, ``npoints``.
+    """
+    ndx_events_version = _get_ndx_events_version(io)
+
+    series_name_to_object = {
+        obj.name: obj for obj in nwbfile.objects.values() if obj.neurodata_type == "FiberPhotometryResponseSeries"
+    }
+
+    event_index = {}
+    if ndx_events_version is not None and ndx_events_version.startswith("0.2"):
+        event_index = _build_event_index_v02(nwbfile)
+    elif ndx_events_version is not None and ndx_events_version.startswith("0.4"):
+        event_index = _build_event_index_v04(nwbfile)
+
+    output_dicts = []
+    for event in events:
+        if event in event_index:
+            output_dicts.append(_read_ndx_event(event_name=event, source_info=event_index[event]))
+            continue
+
+        series_name, column_index = _parse_event_name(event, series_name_to_object)
+        series = series_name_to_object[series_name]
+        full_data = series.data[:]
+        sampling_rate, timestamps = _resolve_timing(series, full_data.shape[0])
+        channel_data = full_data[:, column_index] if column_index is not None else full_data
+
+        output_dicts.append(
+            {
+                "storename": event,
+                "sampling_rate": sampling_rate,
+                "timestamps": timestamps,
+                "data": channel_data,
+                "npoints": 1,
+            }
+        )
+
+    return output_dicts
 
 
 def _register_unique_name(seen_names, name, type_label):

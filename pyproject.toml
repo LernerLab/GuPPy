@@ -57,6 +57,8 @@ dependencies = [
     "scipy",
     "tables",
     "selenium",
+    "dandi",
+    "remfile",
 ]
 
 [dependency-groups]

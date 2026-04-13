@@ -75,6 +75,7 @@ def step2(
     npm_timestamp_column_names: list[str | None] | None = None,
     npm_time_units: list[str] | None = None,
     npm_split_events: list[bool] | None = None,
+    dandi_uri: str | None = None,
 ) -> None:
     """
     Run pipeline Step 2 (Save Storenames) via the actual Panel-backed logic.
@@ -165,6 +166,9 @@ def step2(
     input_params["npm_time_units"] = npm_time_units
     input_params["npm_split_events"] = npm_split_events
 
+    # Inject DANDI URI for streaming
+    input_params["dandi_uri"] = dandi_uri
+
     # Call the underlying Step 2 executor (now headless-aware)
     orchestrate_storenames_page(input_params)
 
@@ -177,6 +181,7 @@ def step3(
     npm_time_units: list[str] | None = None,
     npm_split_events: list[bool] | None = None,
     number_of_cores: int = 1,
+    dandi_uri: str | None = None,
 ) -> None:
     """
     Run pipeline Step 3 (Read Raw Data) via the actual Panel-backed logic, headlessly.
@@ -254,6 +259,9 @@ def step3(
 
     # Override parallelism — default 1 keeps tests single-process
     input_params["numberOfCores"] = number_of_cores
+
+    # Inject DANDI URI for streaming
+    input_params["dandi_uri"] = dandi_uri
 
     # Call the underlying Step 3 worker directly (no subprocess)
     orchestrate_read_raw_data(input_params)
