@@ -15,6 +15,7 @@ Usage
 import json
 import logging
 import os
+import shutil
 
 from guppy.extractors.dandi_nwb_recording_extractor import (
     DandiNwbRecordingExtractor,
@@ -90,8 +91,13 @@ def run_pipeline(*, dandi_uri, output_directory, storenames_map):
     _, asset_path = parse_dandi_uri(dandi_uri)
     session_name = os.path.splitext(os.path.basename(asset_path))[0]
 
-    # Create local directory structure
+    # Start from a clean output directory for each run.
     base_directory = output_directory
+    if os.path.exists(base_directory):
+        shutil.rmtree(base_directory)
+    os.makedirs(base_directory)
+
+    # Create local directory structure
     session_directory = os.path.join(base_directory, session_name)
     os.makedirs(session_directory, exist_ok=True)
 
