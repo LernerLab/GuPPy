@@ -22,6 +22,9 @@ MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_0_FILE = (
     MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_0_FOLDER / "mock_nwbfile_ndx_fiber_photometry_v0_1_0.nwb"
 )
 
+MOCK_NWB_NDX_EVENTS_V0_4_FOLDER = STUBBED_TESTING_DATA / "nwb" / "mock_nwbfile_ndx_events_v0_4"
+MOCK_NWB_NDX_EVENTS_V0_4_FILE = MOCK_NWB_NDX_EVENTS_V0_4_FOLDER / "mock_nwbfile_ndx_events_v0_4.nwb"
+
 _NUM_SAMPLES = 3000
 _SAMPLING_RATE = 30.0
 
@@ -220,3 +223,56 @@ class TestNwbRecordingExtractorNdxFiberPhotometryV010Events(NwbRecordingExtracto
     def expected_ttl_timestamps(self):
         # Events timestamps: 45, 46, ..., 54
         return np.arange(45, 55, dtype=np.float64)
+
+
+# ---------------------------------------------------------------------------
+# Contract tests for ndx-events v0.4 mock NWB file
+# ---------------------------------------------------------------------------
+
+
+class TestNwbRecordingExtractorNdxEventsV04SimpleEvents(NwbRecordingExtractorTestMixin):
+    """Contract tests for the ndx-events v0.4 mock file using a plain EventsTable as the TTL channel."""
+
+    extractor_class = NwbRecordingExtractor
+    folder_path = str(MOCK_NWB_NDX_EVENTS_V0_4_FOLDER)
+    file_path = str(MOCK_NWB_NDX_EVENTS_V0_4_FILE)
+    extractor_instance = NwbRecordingExtractor(folder_path=str(MOCK_NWB_NDX_EVENTS_V0_4_FOLDER))
+    control_event = "fiber_photometry_response_series_0"
+    signal_event = "fiber_photometry_response_series_1"
+    ttl_event = "simple_events"
+    expected_events = [
+        "fiber_photometry_response_series_0",
+        "fiber_photometry_response_series_1",
+        "simple_events",
+        "categorized_events_event_type_Reward",
+        "categorized_events_event_type_Punishment",
+    ]
+
+    @pytest.fixture
+    def expected_ttl_timestamps(self):
+        # simple_events: timestamps 45, 46, ..., 54
+        return np.arange(45, 55, dtype=np.float64)
+
+
+class TestNwbRecordingExtractorNdxEventsV04CategoricalEvents(NwbRecordingExtractorTestMixin):
+    """Contract tests for the ndx-events v0.4 mock file using a categorical EventsTable as the TTL channel."""
+
+    extractor_class = NwbRecordingExtractor
+    folder_path = str(MOCK_NWB_NDX_EVENTS_V0_4_FOLDER)
+    file_path = str(MOCK_NWB_NDX_EVENTS_V0_4_FILE)
+    extractor_instance = NwbRecordingExtractor(folder_path=str(MOCK_NWB_NDX_EVENTS_V0_4_FOLDER))
+    control_event = "fiber_photometry_response_series_0"
+    signal_event = "fiber_photometry_response_series_1"
+    ttl_event = "categorized_events_event_type_Reward"
+    expected_events = [
+        "fiber_photometry_response_series_0",
+        "fiber_photometry_response_series_1",
+        "simple_events",
+        "categorized_events_event_type_Reward",
+        "categorized_events_event_type_Punishment",
+    ]
+
+    @pytest.fixture
+    def expected_ttl_timestamps(self):
+        # Reward timestamps: 41, 42, 43, 44, 45
+        return np.array([41.0, 42.0, 43.0, 44.0, 45.0])

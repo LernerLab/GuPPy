@@ -5,16 +5,13 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from ndx_events import AnnotatedEventsTable, Events, LabeledEvents
-from ndx_fiber_photometry import FiberPhotometryResponseSeries
-from pynwb import read_nwb
+from pynwb import NWBHDF5IO
 
 from guppy.extractors.base_recording_extractor import BaseRecordingExtractor
 
 logger = logging.getLogger(__name__)
 
 
-# TODO: Add support for different ndx-event versions
 class NwbRecordingExtractor(BaseRecordingExtractor):
     """
     Recording extractor for NWB (Neurodata Without Borders) fiber photometry files.
@@ -48,43 +45,62 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
         events = []
         seen_names = set()
 
-        nwbfile = read_nwb(nwb_path)
-        for neurodata_object in nwbfile.objects.values():
-            if not isinstance(neurodata_object, FiberPhotometryResponseSeries):
-                continue
-            series_name = neurodata_object.name
-            if series_name in seen_names:
-                raise ValueError(f"Duplicate FiberPhotometryResponseSeries name found: {series_name!r}")
-            seen_names.add(series_name)
+        with NWBHDF5IO(nwb_path, "r") as io:
+            nwbfile = io.read()
+            ndx_events_version = _get_ndx_events_version(io)
 
-            data_shape = neurodata_object.data.shape
-            if len(data_shape) == 2:
-                for column_index in range(data_shape[1]):
-                    events.append(f"{series_name}_{column_index}")
-            else:
-                events.append(series_name)
+            for neurodata_object in nwbfile.objects.values():
+                if neurodata_object.neurodata_type != "FiberPhotometryResponseSeries":
+                    continue
+                series_name = neurodata_object.name
+                if series_name in seen_names:
+                    raise ValueError(f"Duplicate FiberPhotometryResponseSeries name found: {series_name!r}")
+                seen_names.add(series_name)
 
-        for neurodata_object in nwbfile.objects.values():
-            if isinstance(neurodata_object, AnnotatedEventsTable):
-                table_name = neurodata_object.name
-                if table_name in seen_names:
-                    raise ValueError(f"Duplicate AnnotatedEventsTable name found: {table_name!r}")
-                seen_names.add(table_name)
-                for label in neurodata_object["label"].data:
-                    events.append(f"{table_name}_{label}")
-            elif isinstance(neurodata_object, LabeledEvents):
-                event_name = neurodata_object.name
-                if event_name in seen_names:
-                    raise ValueError(f"Duplicate LabeledEvents name found: {event_name!r}")
-                seen_names.add(event_name)
-                for label in neurodata_object.labels:
-                    events.append(f"{event_name}_{label}")
-            elif isinstance(neurodata_object, Events):
-                event_name = neurodata_object.name
-                if event_name in seen_names:
-                    raise ValueError(f"Duplicate Events name found: {event_name!r}")
-                seen_names.add(event_name)
-                events.append(event_name)
+                data_shape = neurodata_object.data.shape
+                if len(data_shape) == 2:
+                    for column_index in range(data_shape[1]):
+                        events.append(f"{series_name}_{column_index}")
+                else:
+                    events.append(series_name)
+
+            if ndx_events_version is not None and ndx_events_version.startswith("0.2"):
+                for neurodata_object in nwbfile.objects.values():
+                    if neurodata_object.neurodata_type == "AnnotatedEventsTable":
+                        table_name = neurodata_object.name
+                        if table_name in seen_names:
+                            raise ValueError(f"Duplicate AnnotatedEventsTable name found: {table_name!r}")
+                        seen_names.add(table_name)
+                        for label in neurodata_object["label"].data:
+                            events.append(f"{table_name}_{label}")
+                    elif neurodata_object.neurodata_type == "LabeledEvents":
+                        event_name = neurodata_object.name
+                        if event_name in seen_names:
+                            raise ValueError(f"Duplicate LabeledEvents name found: {event_name!r}")
+                        seen_names.add(event_name)
+                        for label in neurodata_object.data__labels:
+                            events.append(f"{event_name}_{label}")
+                    elif neurodata_object.neurodata_type == "Events":
+                        event_name = neurodata_object.name
+                        if event_name in seen_names:
+                            raise ValueError(f"Duplicate Events name found: {event_name!r}")
+                        seen_names.add(event_name)
+                        events.append(event_name)
+
+            elif ndx_events_version is not None and ndx_events_version.startswith("0.4"):
+                for table_name, table in nwbfile.events__events_tables.items():
+                    if table_name in seen_names:
+                        raise ValueError(f"Duplicate EventsTable name found: {table_name!r}")
+                    seen_names.add(table_name)
+                    categorical_columns = [
+                        col for col in table.columns if col.neurodata_type == "CategoricalVectorData"
+                    ]
+                    if categorical_columns:
+                        for col in categorical_columns:
+                            for meaning_value in col.meanings["value"].data[:]:
+                                events.append(f"{table_name}_{col.name}_{meaning_value}")
+                    else:
+                        events.append(table_name)
 
         return events, []
 
@@ -111,73 +127,113 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
         nwb_path = _find_nwb_file(self.folder_path)
         output_dicts = []
 
-        nwbfile = read_nwb(nwb_path)
-        series_name_to_object = {
-            obj.name: obj for obj in nwbfile.objects.values() if isinstance(obj, FiberPhotometryResponseSeries)
-        }
-        # Build lookup: "{table_name}_{label}" -> (AnnotatedEventsTable object, row_index)
-        annotated_event_key_to_source = {}
-        for obj in nwbfile.objects.values():
-            if isinstance(obj, AnnotatedEventsTable):
-                for row_index, label in enumerate(obj["label"].data):
-                    annotated_event_key_to_source[f"{obj.name}_{label}"] = (obj, row_index)
+        with NWBHDF5IO(nwb_path, "r") as io:
+            nwbfile = io.read()
+            ndx_events_version = _get_ndx_events_version(io)
 
-        # Build lookup: "{labeled_events_name}_{label}" -> (LabeledEvents object, label_index)
-        labeled_event_key_to_source = {}
-        for obj in nwbfile.objects.values():
-            if isinstance(obj, LabeledEvents):
-                for label_index, label in enumerate(obj.labels):
-                    labeled_event_key_to_source[f"{obj.name}_{label}"] = (obj, label_index)
+            series_name_to_object = {
+                obj.name: obj
+                for obj in nwbfile.objects.values()
+                if obj.neurodata_type == "FiberPhotometryResponseSeries"
+            }
 
-        events_name_to_object = {
-            obj.name: obj
-            for obj in nwbfile.objects.values()
-            if isinstance(obj, Events) and not isinstance(obj, LabeledEvents)
-        }
+            if ndx_events_version is not None and ndx_events_version.startswith("0.2"):
+                # Build lookup: "{table_name}_{label}" -> (AnnotatedEventsTable object, row_index)
+                annotated_event_key_to_source = {}
+                for obj in nwbfile.objects.values():
+                    if obj.neurodata_type == "AnnotatedEventsTable":
+                        for row_index, label in enumerate(obj["label"].data):
+                            annotated_event_key_to_source[f"{obj.name}_{label}"] = (obj, row_index)
 
-        for event in events:
-            if event in annotated_event_key_to_source:
-                annotated_events_object, row_index = annotated_event_key_to_source[event]
-                output_dicts.append(
-                    {"storename": event, "timestamps": np.array(annotated_events_object["event_times"][row_index])}
-                )
-                continue
+                # Build lookup: "{labeled_events_name}_{label}" -> (LabeledEvents object, label_index)
+                labeled_event_key_to_source = {}
+                for obj in nwbfile.objects.values():
+                    if obj.neurodata_type == "LabeledEvents":
+                        for label_index, label in enumerate(obj.data__labels):
+                            labeled_event_key_to_source[f"{obj.name}_{label}"] = (obj, label_index)
 
-            if event in labeled_event_key_to_source:
-                labeled_event_object, label_index = labeled_event_key_to_source[event]
-                all_timestamps = np.array(labeled_event_object.timestamps[:])
-                all_data = np.array(labeled_event_object.data[:])
-                filtered_timestamps = all_timestamps[all_data == label_index]
-                output_dicts.append({"storename": event, "timestamps": filtered_timestamps})
-                continue
+                events_name_to_object = {
+                    obj.name: obj for obj in nwbfile.objects.values() if obj.neurodata_type == "Events"
+                }
 
-            if event in events_name_to_object:
-                ndx_event = events_name_to_object[event]
+            elif ndx_events_version is not None and ndx_events_version.startswith("0.4"):
+                # Build lookup: event_name -> (table, categorical_col or None, meaning_value or None)
+                v04_event_key_to_source = {}
+                for table_name, table in nwbfile.events__events_tables.items():
+                    categorical_columns = [
+                        col for col in table.columns if col.neurodata_type == "CategoricalVectorData"
+                    ]
+                    if categorical_columns:
+                        for col in categorical_columns:
+                            for meaning_value in col.meanings["value"].data[:]:
+                                v04_event_key_to_source[f"{table_name}_{col.name}_{meaning_value}"] = (
+                                    table,
+                                    col,
+                                    meaning_value,
+                                )
+                    else:
+                        v04_event_key_to_source[table_name] = (table, None, None)
+
+            for event in events:
+                if ndx_events_version is not None and ndx_events_version.startswith("0.2"):
+                    if event in annotated_event_key_to_source:
+                        annotated_events_object, row_index = annotated_event_key_to_source[event]
+                        output_dicts.append(
+                            {
+                                "storename": event,
+                                "timestamps": np.array(annotated_events_object["event_times"][row_index]),
+                            }
+                        )
+                        continue
+
+                    if event in labeled_event_key_to_source:
+                        labeled_event_object, label_index = labeled_event_key_to_source[event]
+                        all_timestamps = np.array(labeled_event_object.timestamps[:])
+                        all_data = np.array(labeled_event_object.data[:])
+                        filtered_timestamps = all_timestamps[all_data == label_index]
+                        output_dicts.append({"storename": event, "timestamps": filtered_timestamps})
+                        continue
+
+                    if event in events_name_to_object:
+                        ndx_event = events_name_to_object[event]
+                        output_dicts.append(
+                            {
+                                "storename": event,
+                                "timestamps": np.array(ndx_event.timestamps[:]),
+                            }
+                        )
+                        continue
+
+                elif ndx_events_version is not None and ndx_events_version.startswith("0.4"):
+                    if event in v04_event_key_to_source:
+                        table, categorical_col, meaning_value = v04_event_key_to_source[event]
+                        timestamp_col = next(col for col in table.columns if col.name == "timestamp")
+                        all_timestamps = np.array(timestamp_col.data[:])
+                        if categorical_col is not None:
+                            all_data = np.array(categorical_col.data[:])
+                            filtered_timestamps = all_timestamps[all_data == meaning_value]
+                        else:
+                            filtered_timestamps = all_timestamps
+                        output_dicts.append({"storename": event, "timestamps": filtered_timestamps})
+                        continue
+
+                series_name, column_index = _parse_event_name(event, series_name_to_object)
+                series = series_name_to_object[series_name]
+                full_data = series.data[:]
+
+                sampling_rate, timestamps = _resolve_timing(series, full_data.shape[0])
+
+                channel_data = full_data[:, column_index] if column_index is not None else full_data
+
                 output_dicts.append(
                     {
                         "storename": event,
-                        "timestamps": np.array(ndx_event.timestamps[:]),
+                        "sampling_rate": sampling_rate,
+                        "timestamps": timestamps,
+                        "data": channel_data,
+                        "npoints": 1,
                     }
                 )
-                continue
-
-            series_name, column_index = _parse_event_name(event, series_name_to_object)
-            series = series_name_to_object[series_name]
-            full_data = series.data[:]
-
-            sampling_rate, timestamps = _resolve_timing(series, full_data.shape[0])
-
-            channel_data = full_data[:, column_index] if column_index is not None else full_data
-
-            output_dicts.append(
-                {
-                    "storename": event,
-                    "sampling_rate": sampling_rate,
-                    "timestamps": timestamps,
-                    "data": channel_data,
-                    "npoints": 1,
-                }
-            )
 
         return output_dicts
 
@@ -218,6 +274,26 @@ def _find_nwb_file(folder_path):
     if len(nwb_paths) == 0:
         raise Exception(f"No NWB file found in {folder_path}.")
     return str(nwb_paths[0])
+
+
+def _get_ndx_events_version(io):
+    """Return the ndx-events namespace version string from an open NWBHDF5IO, or None.
+
+    Parameters
+    ----------
+    io : pynwb.NWBHDF5IO
+        An open (already-read) NWBHDF5IO instance.
+
+    Returns
+    -------
+    str or None
+        Version string such as ``"0.2.2"`` or ``"0.4.0"``, or ``None`` if the
+        ndx-events namespace is not present in the file.
+    """
+    namespace_catalog = io.manager.namespace_catalog
+    if "ndx-events" not in namespace_catalog.namespaces:
+        return None
+    return namespace_catalog.get_namespace("ndx-events").version
 
 
 def _parse_event_name(event, series_name_to_object):
