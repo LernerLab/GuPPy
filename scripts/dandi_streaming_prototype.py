@@ -4,28 +4,14 @@ through the GuPPy analysis pipeline.
 
 Usage
 -----
-Discover available events in a DANDI NWB file::
+1. Edit the configuration variables below to match your dandiset and desired output.
+2. Set ``DISCOVER_ONLY = True`` to list available events, then set it back to ``False``
+   and fill in ``STORENAMES_MAP`` before running the full pipeline.
+3. Run::
 
-    python scripts/dandi_streaming_prototype.py --discover
-
-Run the full pipeline (steps 1-5) on the streamed data::
-
-    python scripts/dandi_streaming_prototype.py --output-dir /path/to/output
-
-Override the default dandiset::
-
-    python scripts/dandi_streaming_prototype.py --dandiset-id 000971 \\
-        --asset-path "sub-112-283/sub-112-283_ses-FP-PS-2019-06-20T09-32-04_behavior.nwb" \\
-        --output-dir /path/to/output
-
-Requirements
-------------
-Install optional DANDI dependencies::
-
-    pip install -e ".[dandi]"
+       python scripts/dandi_streaming_prototype.py
 """
 
-import argparse
 import json
 import logging
 import os
@@ -39,8 +25,33 @@ from guppy.testing.api import step1, step2, step3, step4, step5
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-DEFAULT_DANDISET_ID = "000971"
-DEFAULT_ASSET_PATH = "sub-112-283/sub-112-283_ses-FP-PS-2019-06-20T09-32-04_behavior.nwb"
+# ---------------------------------------------------------------------------
+# Configuration — edit these variables before running
+# ---------------------------------------------------------------------------
+
+DANDISET_ID = "000971"
+ASSET_PATH = "sub-112-283/sub-112-283_ses-FP-PS-2019-06-20T09-32-04_behavior.nwb"
+
+# Local directory where pipeline outputs will be written
+OUTPUT_DIRECTORY = "/Users/pauladkisson/Documents/CatalystNeuro/Guppy/dandi_streaming"
+
+# Set to True to only discover and print available events (no pipeline run)
+DISCOVER_ONLY = False
+
+# Mapping from raw event names to semantic labels.
+# Run with DISCOVER_ONLY = True first to see available event names,
+# then fill in this mapping before running the full pipeline.
+STORENAMES_MAP = {
+    "fiber_photometry_response_series_0": "control_DMS",
+    "fiber_photometry_response_series_1": "signal_DMS",
+    "fiber_photometry_response_series_2": "control_DLS",
+    "fiber_photometry_response_series_3": "signal_DLS",
+    "right_nose_poke_times": "right_nose_poke",
+    "left_reward_times": "left_reward",
+    "left_nose_poke_times": "left_nose_poke",
+}
+
+# ---------------------------------------------------------------------------
 
 
 def build_dandi_uri(*, dandiset_id, asset_path):
@@ -129,41 +140,16 @@ def run_pipeline(*, dandi_uri, output_directory, storenames_map):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Stream NWB fiber photometry data from DANDI through GuPPy.")
-    parser.add_argument("--dandiset-id", default=DEFAULT_DANDISET_ID, help="Dandiset ID (default: %(default)s)")
-    parser.add_argument(
-        "--asset-path", default=DEFAULT_ASSET_PATH, help="Asset path within dandiset (default: %(default)s)"
-    )
-    parser.add_argument("--output-dir", help="Local directory for pipeline outputs")
-    parser.add_argument("--discover", action="store_true", help="Only discover events, don't run pipeline")
-    parser.add_argument(
-        "--storenames-map",
-        type=json.loads,
-        help='JSON string mapping raw event names to semantic labels, e.g. \'{"event_0": "control_DMS", "event_1": "signal_DMS"}\'',
-    )
-    arguments = parser.parse_args()
+    dandi_uri = build_dandi_uri(dandiset_id=DANDISET_ID, asset_path=ASSET_PATH)
 
-    dandi_uri = build_dandi_uri(dandiset_id=arguments.dandiset_id, asset_path=arguments.asset_path)
-
-    if arguments.discover:
+    if DISCOVER_ONLY:
         discover_events(dandi_uri=dandi_uri)
         return
 
-    if arguments.output_dir is None:
-        parser.error("--output-dir is required when running the pipeline")
-
-    if arguments.storenames_map is None:
-        # Default storenames map for dandiset 000971
-        # Users should first run --discover to see available events, then provide their own map
-        parser.error(
-            "--storenames-map is required. Run with --discover first to see available events, "
-            'then provide a JSON mapping, e.g. --storenames-map \'{"event_0": "control_DMS", "event_1": "signal_DMS"}\''
-        )
-
     run_pipeline(
         dandi_uri=dandi_uri,
-        output_directory=arguments.output_dir,
-        storenames_map=arguments.storenames_map,
+        output_directory=OUTPUT_DIRECTORY,
+        storenames_map=STORENAMES_MAP,
     )
 
 
