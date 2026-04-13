@@ -47,9 +47,9 @@ def _build_event_to_extractor(*, folder_path, storesList, inputParameters):
     """
     event_to_extractor = {}
 
-    # DANDI URI bypasses local format detection — discover and read via streaming
-    dandi_uri = inputParameters.get("dandi_uri") if inputParameters is not None else None
-    if dandi_uri is not None:
+    # DANDI mode bypasses local format detection — discover and read via streaming
+    if inputParameters is not None and inputParameters.get("mode") == "dandi":
+        dandi_uri = inputParameters["dandi_uri"]
         extractor = DandiNwbRecordingExtractor(folder_path=dandi_uri)
         fmt_events, _ = DandiNwbRecordingExtractor.discover_events_and_flags(folder_path=dandi_uri)
         for event in fmt_events:

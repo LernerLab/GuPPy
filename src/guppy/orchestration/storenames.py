@@ -283,9 +283,9 @@ def build_storenames_page(inputParameters, events, flags, folder_path):
 
 
 def read_header(inputParameters, num_ch, folder_path, headless):
-    # DANDI URI bypasses local format detection — discover events via streaming
-    dandi_uri = inputParameters.get("dandi_uri")
-    if dandi_uri is not None:
+    # DANDI mode bypasses local format detection — discover events via streaming
+    if inputParameters.get("mode") == "dandi":
+        dandi_uri = inputParameters["dandi_uri"]
         events, flags = DandiNwbRecordingExtractor.discover_events_and_flags(folder_path=dandi_uri)
         return events, flags
 
