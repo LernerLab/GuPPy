@@ -42,10 +42,10 @@ DISCOVER_ONLY = False
 # Run with DISCOVER_ONLY = True first to see available event names,
 # then fill in this mapping before running the full pipeline.
 STORENAMES_MAP = {
-    "fiber_photometry_response_series_0": "control_DMS",
-    "fiber_photometry_response_series_1": "signal_DMS",
-    "fiber_photometry_response_series_2": "control_DLS",
-    "fiber_photometry_response_series_3": "signal_DLS",
+    "fiber_photometry_response_series_0": "signal_DMS",
+    "fiber_photometry_response_series_1": "control_DMS",
+    "fiber_photometry_response_series_2": "signal_DLS",
+    "fiber_photometry_response_series_3": "control_DLS",
     "right_nose_poke_times": "right_nose_poke",
     "left_reward_times": "left_reward",
     "left_nose_poke_times": "left_nose_poke",
