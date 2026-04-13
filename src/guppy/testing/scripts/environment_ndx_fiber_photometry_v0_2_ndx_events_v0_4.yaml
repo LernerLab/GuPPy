@@ -1,4 +1,4 @@
-name: guppy_ndx_events_v0_4
+name: guppy_ndx_fiber_photometry_v0_2_ndx_events_v0_4
 channels:
   - conda-forge
   - defaults

@@ -1,7 +1,13 @@
 """Generate a mock NWB file for testing the NWB recording extractor with ndx-events v0.4.
 
-Run from the project root:
-    python src/guppy/testing/scripts/create_mock_nwbfile_ndx_events_v0_4.py
+IMPORTANT: This script must be run with ndx-fiber-photometry==0.2.3 and ndx-events==0.4.0 installed.
+
+To run, create the isolated conda environment defined alongside this script:
+    conda env create -f src/guppy/testing/scripts/environment_ndx_fiber_photometry_v0_2_ndx_events_v0_4.yaml
+    conda activate guppy_ndx_fiber_photometry_v0_2_ndx_events_v0_4
+
+Then run from the project root:
+    python src/guppy/testing/scripts/create_mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_4.py
 
 The output is written to
 stubbed_testing_data/nwb/mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_4/mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_4.nwb,
