@@ -125,8 +125,6 @@ class DandiNwbRecordingExtractor(NwbRecordingExtractor):
 
     def __init__(self, *, folder_path):
         self.folder_path = folder_path
-        dandiset_id, asset_path = parse_dandi_uri(folder_path)
-        self._nwbfile, self._io = _stream_nwb(dandiset_id=dandiset_id, asset_path=asset_path)
 
     def read(self, *, events: list[str], outputPath: str) -> list[dict[str, Any]]:
         """
@@ -145,18 +143,12 @@ class DandiNwbRecordingExtractor(NwbRecordingExtractor):
             One dictionary per event with keys: ``storename``, ``sampling_rate``,
             ``timestamps``, ``data``, ``npoints``.
         """
-        return _read_events_from_nwbfile(nwbfile=self._nwbfile, io=self._io, events=events)
+        dandiset_id, asset_path = parse_dandi_uri(self.folder_path)
+        nwbfile, io = _stream_nwb(dandiset_id=dandiset_id, asset_path=asset_path)
+        output_dicts = _read_events_from_nwbfile(nwbfile=nwbfile, io=io, events=events)
+        io.close()
+        return output_dicts
 
     def stub(self, *, folder_path, duration_in_seconds=1.0):
         """Stub method is not supported for DANDI-streamed NWB files."""
         raise NotImplementedError("Stub method is not supported for DANDI-streamed NWB files.")
-
-    def close(self):
-        """Close the streaming IO connection."""
-        self._io.close()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *args):
-        self.close()
