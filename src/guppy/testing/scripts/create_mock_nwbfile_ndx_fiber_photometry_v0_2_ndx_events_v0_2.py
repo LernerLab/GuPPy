@@ -1,9 +1,15 @@
 """Generate a mock NWB file for testing the NWB recording extractor.
 
-Run from the project root:
-    python src/guppy/testing/scripts/create_mock_nwbfile.py
+IMPORTANT: This script must be run with ndx-fiber-photometry==0.2.3 and ndx-events==0.2.2 installed.
 
-The output is written to stubbed_testing_data/nwb/mock_nwbfile/mock_nwbfile.nwb,
+To run, create the isolated conda environment defined alongside this script:
+    conda env create -f src/guppy/testing/scripts/environment_ndx_fiber_photometry_v0_2_ndx_events_v0_2.yaml
+    conda activate guppy_ndx_fiber_photometry_v0_2_ndx_events_v0_2
+
+Then run from the project root:
+    python src/guppy/testing/scripts/create_mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_2.py
+
+The output is written to stubbed_testing_data/nwb/mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_2/mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_2.nwb,
 relative to the repository root. The directory is created if it does not exist.
 
 The file contains:
@@ -46,7 +52,13 @@ from pynwb import NWBHDF5IO, NWBFile
 
 # Output path relative to this script's location (repo_root/stubbed_testing_data/nwb/...)
 _REPO_ROOT = Path(__file__).resolve().parents[4]
-_OUTPUT_PATH = _REPO_ROOT / "stubbed_testing_data" / "nwb" / "mock_nwbfile" / "mock_nwbfile.nwb"
+_OUTPUT_PATH = (
+    _REPO_ROOT
+    / "stubbed_testing_data"
+    / "nwb"
+    / "mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_2"
+    / "mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_2.nwb"
+)
 
 
 def _add_ndx_fiber_photometry_metadata(nwbfile):
@@ -265,7 +277,7 @@ def _add_ndx_fiber_photometry_metadata(nwbfile):
 def main():
     nwbfile = NWBFile(
         session_description="Mock session for NWB extractor testing.",
-        identifier="mock_nwbfile",
+        identifier="mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_2",
         session_start_time=datetime.datetime.now(datetime.timezone.utc),
     )
 

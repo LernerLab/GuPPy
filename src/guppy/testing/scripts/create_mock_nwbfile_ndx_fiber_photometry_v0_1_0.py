@@ -11,7 +11,7 @@ To run, create the isolated conda environment defined alongside this script:
 Then run from the project root:
     python src/guppy/testing/scripts/create_mock_nwbfile_ndx_fiber_photometry_v0_1_0.py
 
-The output is written to stubbed_testing_data/nwb/mock_nwbfile_ndx_fiber_photometry_v0_1_0/mock_nwbfile_ndx_fiber_photometry_v0_1_0.nwb,
+The output is written to stubbed_testing_data/nwb/mock_nwbfile_ndx_fiber_photometry_v0_1_ndx_events_v0_2/mock_nwbfile_ndx_fiber_photometry_v0_1_ndx_events_v0_2.nwb,
 relative to the repository root. The directory is created if it does not exist.
 
 The file contains:
@@ -49,8 +49,8 @@ _OUTPUT_PATH = (
     _REPO_ROOT
     / "stubbed_testing_data"
     / "nwb"
-    / "mock_nwbfile_ndx_fiber_photometry_v0_1_0"
-    / "mock_nwbfile_ndx_fiber_photometry_v0_1_0.nwb"
+    / "mock_nwbfile_ndx_fiber_photometry_v0_1_ndx_events_v0_2"
+    / "mock_nwbfile_ndx_fiber_photometry_v0_1_ndx_events_v0_2.nwb"
 )
 
 
@@ -189,7 +189,7 @@ def _add_ndx_fiber_photometry_metadata(nwbfile):
 def main():
     nwbfile = NWBFile(
         session_description="Mock session for NWB extractor testing (ndx-fiber-photometry v0.1.0).",
-        identifier="mock_nwbfile_ndx_fiber_photometry_v0_1_0",
+        identifier="mock_nwbfile_ndx_fiber_photometry_v0_1_ndx_events_v0_2",
         session_start_time=datetime.datetime.now(datetime.timezone.utc),
     )
 

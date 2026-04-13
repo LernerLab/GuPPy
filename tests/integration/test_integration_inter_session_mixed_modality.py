@@ -254,7 +254,7 @@ def test_mixed_modality_nwb_csv(tmp_path):
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
-    nwb_session = _stage_session(src_base_dir, "nwb/mock_nwbfile", tmp_base)
+    nwb_session = _stage_session(src_base_dir, "nwb/mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_2", tmp_base)
     csv_session = _stage_session(src_base_dir, "csv/sample_data_csv_1", tmp_base)
 
     base_dir = str(tmp_base)
@@ -299,7 +299,7 @@ def test_mixed_modality_nwb_tdt(tmp_path):
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
-    nwb_session = _stage_session(src_base_dir, "nwb/mock_nwbfile", tmp_base)
+    nwb_session = _stage_session(src_base_dir, "nwb/mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_2", tmp_base)
     tdt_session = _stage_session(src_base_dir, "tdt/Photo_63_207-181030-103332", tmp_base)
 
     base_dir = str(tmp_base)
@@ -340,7 +340,7 @@ def test_mixed_modality_nwb_doric(tmp_path):
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
-    nwb_session = _stage_session(src_base_dir, "nwb/mock_nwbfile", tmp_base)
+    nwb_session = _stage_session(src_base_dir, "nwb/mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_2", tmp_base)
     doric_session = _stage_session(src_base_dir, "doric/sample_doric_3", tmp_base)
 
     base_dir = str(tmp_base)
@@ -386,7 +386,7 @@ def test_mixed_modality_nwb_npm(tmp_path):
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
-    nwb_session = _stage_session(src_base_dir, "nwb/mock_nwbfile", tmp_base)
+    nwb_session = _stage_session(src_base_dir, "nwb/mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_2", tmp_base)
     npm_session = _stage_session(src_base_dir, "npm/sampleData_NPM_4", tmp_base)
 
     base_dir = str(tmp_base)

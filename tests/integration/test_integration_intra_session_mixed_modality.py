@@ -188,7 +188,7 @@ def test_mixed_modality_nwb_csv_ttl(tmp_path):
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
-    session_copy = _stage_session(src_base_dir, "nwb/mock_nwbfile", tmp_base)
+    session_copy = _stage_session(src_base_dir, "nwb/mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_2", tmp_base)
 
     # Five timestamps within the NWB recording window (0–~100 s), spaced ~20 s apart
     csv_ttl_timestamps = np.array([20.0, 40.0, 60.0, 80.0])

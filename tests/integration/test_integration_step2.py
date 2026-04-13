@@ -121,7 +121,7 @@ from guppy.testing.api import step2
             },
         ),
         (
-            "nwb/mock_nwbfile",
+            "nwb/mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_2",
             {
                 "fiber_photometry_response_series_0": "control_region",
                 "fiber_photometry_response_series_1": "signal_region",

@@ -14,16 +14,22 @@ from guppy.extractors.nwb_recording_extractor import (
 
 from .recording_extractor_test_mixin import RecordingExtractorTestMixin
 
-MOCK_NWB_FOLDER = STUBBED_TESTING_DATA / "nwb" / "mock_nwbfile"
-MOCK_NWB_FILE = MOCK_NWB_FOLDER / "mock_nwbfile.nwb"
+MOCK_NWB_FOLDER = STUBBED_TESTING_DATA / "nwb" / "mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_2"
+MOCK_NWB_FILE = MOCK_NWB_FOLDER / "mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_2.nwb"
 
-MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_0_FOLDER = STUBBED_TESTING_DATA / "nwb" / "mock_nwbfile_ndx_fiber_photometry_v0_1_0"
-MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_0_FILE = (
-    MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_0_FOLDER / "mock_nwbfile_ndx_fiber_photometry_v0_1_0.nwb"
+MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_FOLDER = (
+    STUBBED_TESTING_DATA / "nwb" / "mock_nwbfile_ndx_fiber_photometry_v0_1_ndx_events_v0_2"
+)
+MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_FILE = (
+    MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_FOLDER / "mock_nwbfile_ndx_fiber_photometry_v0_1_ndx_events_v0_2.nwb"
 )
 
-MOCK_NWB_NDX_EVENTS_V0_4_FOLDER = STUBBED_TESTING_DATA / "nwb" / "mock_nwbfile_ndx_events_v0_4"
-MOCK_NWB_NDX_EVENTS_V0_4_FILE = MOCK_NWB_NDX_EVENTS_V0_4_FOLDER / "mock_nwbfile_ndx_events_v0_4.nwb"
+MOCK_NWB_NDX_EVENTS_V0_4_FOLDER = (
+    STUBBED_TESTING_DATA / "nwb" / "mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_4"
+)
+MOCK_NWB_NDX_EVENTS_V0_4_FILE = (
+    MOCK_NWB_NDX_EVENTS_V0_4_FOLDER / "mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_4.nwb"
+)
 
 _NUM_SAMPLES = 3000
 _SAMPLING_RATE = 30.0
@@ -212,9 +218,9 @@ class TestNwbRecordingExtractorNdxFiberPhotometryV010Events(NwbRecordingExtracto
     """
 
     extractor_class = NwbRecordingExtractor
-    folder_path = str(MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_0_FOLDER)
-    file_path = str(MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_0_FILE)
-    extractor_instance = NwbRecordingExtractor(folder_path=str(MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_0_FOLDER))
+    folder_path = str(MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_FOLDER)
+    file_path = str(MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_FILE)
+    extractor_instance = NwbRecordingExtractor(folder_path=str(MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_FOLDER))
     control_event = "fiber_photometry_response_series_0"
     signal_event = "fiber_photometry_response_series_1"
     ttl_event = "events"

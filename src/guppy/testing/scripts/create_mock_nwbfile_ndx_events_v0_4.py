@@ -4,7 +4,7 @@ Run from the project root:
     python src/guppy/testing/scripts/create_mock_nwbfile_ndx_events_v0_4.py
 
 The output is written to
-stubbed_testing_data/nwb/mock_nwbfile_ndx_events_v0_4/mock_nwbfile_ndx_events_v0_4.nwb,
+stubbed_testing_data/nwb/mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_4/mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_4.nwb,
 relative to the repository root. The directory is created if it does not exist.
 
 The file contains:
@@ -56,7 +56,11 @@ from pynwb import NWBHDF5IO
 # Output path relative to this script's location (repo_root/stubbed_testing_data/nwb/...)
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 _OUTPUT_PATH = (
-    _REPO_ROOT / "stubbed_testing_data" / "nwb" / "mock_nwbfile_ndx_events_v0_4" / "mock_nwbfile_ndx_events_v0_4.nwb"
+    _REPO_ROOT
+    / "stubbed_testing_data"
+    / "nwb"
+    / "mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_4"
+    / "mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_4.nwb"
 )
 
 
@@ -276,7 +280,7 @@ def _add_ndx_fiber_photometry_metadata(nwbfile):
 def main():
     nwbfile = NdxEventsNWBFile(
         session_description="Mock session for NWB extractor testing (ndx-events v0.4).",
-        identifier="mock_nwbfile_ndx_events_v0_4",
+        identifier="mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_4",
         session_start_time=datetime.datetime.now(datetime.timezone.utc),
     )
 

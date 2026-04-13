@@ -16,7 +16,7 @@ CSV_SESSION = STUBBED_TESTING_DATA / "csv" / "sample_data_csv_1"
 DORIC_SESSION = STUBBED_TESTING_DATA / "doric" / "sample_doric_1"
 TDT_SESSION = STUBBED_TESTING_DATA / "tdt" / "Photo_63_207-181030-103332"
 NPM_SESSION = STUBBED_TESTING_DATA / "npm" / "sampleData_NPM_1"
-NWB_SESSION = STUBBED_TESTING_DATA / "nwb" / "mock_nwbfile"
+NWB_SESSION = STUBBED_TESTING_DATA / "nwb" / "mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_2"
 
 CSV_STORENAMES_MAP = {
     "Sample_Control_Channel": "control_region",

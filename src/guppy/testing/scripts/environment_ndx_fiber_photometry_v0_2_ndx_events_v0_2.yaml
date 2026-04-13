@@ -1,0 +1,12 @@
+name: guppy_ndx_fiber_photometry_v0_2_ndx_events_v0_2
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+    - ndx-fiber-photometry==0.2.3
+    - ndx-events==0.2.2
+    - pynwb
+    - numpy
