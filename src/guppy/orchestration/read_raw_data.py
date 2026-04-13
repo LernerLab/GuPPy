@@ -11,6 +11,7 @@ from guppy.extractors import (
     CsvRecordingExtractor,
     DoricRecordingExtractor,
     NpmRecordingExtractor,
+    NwbRecordingExtractor,
     TdtRecordingExtractor,
     detect_acquisition_formats,
     read_and_save_all_events,
@@ -50,7 +51,10 @@ def _build_event_to_extractor(*, folder_path, storesList, inputParameters):
     event_name_to_event_type = {storesList[0, col]: storesList[1, col] for col in range(storesList.shape[1])}
 
     for fmt in sorted(all_formats):
-        if fmt == "tdt":
+        if fmt == "nwb":
+            extractor = NwbRecordingExtractor(folder_path=folder_path)
+            fmt_events, _ = NwbRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+        elif fmt == "tdt":
             extractor = TdtRecordingExtractor(folder_path=folder_path)
             fmt_events, _ = TdtRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
         elif fmt == "doric":
@@ -67,7 +71,7 @@ def _build_event_to_extractor(*, folder_path, storesList, inputParameters):
                 folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
             )
         else:
-            raise ValueError(f"Format not recognized: '{fmt}'. Expected one of 'tdt', 'csv', 'doric', 'npm'.")
+            raise ValueError(f"Format not recognized: '{fmt}'. Expected one of 'nwb', 'tdt', 'csv', 'doric', 'npm'.")
 
         for event in fmt_events:
             if event not in event_to_extractor:

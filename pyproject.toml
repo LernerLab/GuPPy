@@ -53,6 +53,7 @@ dependencies = [
     "panel",
     "param",
     "platformdirs",
+    "pynwb",
     "scipy",
     "tables",
     "selenium",

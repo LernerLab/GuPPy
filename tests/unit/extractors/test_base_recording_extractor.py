@@ -148,6 +148,22 @@ def test_read_and_save_all_events_with_different_extractor_instances(tmp_path):
             assert "timestamps" in file
 
 
+@pytest.mark.parallel
+def test_read_and_save_all_events_with_u34_storename(tmp_path):
+    storename1 = np.str_("fiber_photometry_response_series_0")
+    storename2 = np.str_("fiber_photometry_response_series_1")
+    assert storename1.dtype == "<U34"
+    assert storename2.dtype == "<U34"
+    signal_extractor = MockRecordingExtractor("mock_folder_1")
+    control_extractor = MockRecordingExtractor("mock_folder_2")
+    event_to_extractor = {storename1: signal_extractor, storename2: control_extractor}
+    read_and_save_all_events(event_to_extractor, str(tmp_path), numProcesses=2)
+
+    assert (tmp_path / "fiber_photometry_response_series_0.hdf5").exists()
+    with h5py.File(tmp_path / "fiber_photometry_response_series_0.hdf5", "r") as file:
+        assert "timestamps" in file
+
+
 # ---------------------------------------------------------------------------
 # Concrete test class: MockRecordingExtractor
 # ---------------------------------------------------------------------------
