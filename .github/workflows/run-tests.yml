@@ -75,9 +75,9 @@ jobs:
           rclone-config: ${{ secrets.RCLONE_CONFIG }}
 
       - name: Run tests
-        run: pytest tests -vv -rsx -n auto --dist worksteal -m "not parallel${{ inputs.skip-full-data-tests && ' and not full_data' || '' }}" --cov=guppy --cov-branch --cov-report=xml
+        run: pytest tests -vv -rsx -n auto --dist worksteal -m "not parallel and not dandi_live${{ inputs.skip-full-data-tests && ' and not full_data' || '' }}" --cov=guppy --cov-branch --cov-report=xml
       - name: Run parallel tests
-        run: pytest tests -vv -rsx -m "parallel and not full_data" --cov=guppy --cov-append --cov-report=xml
+        run: pytest tests -vv -rsx -m "parallel and not full_data and not dandi_live" --cov=guppy --cov-append --cov-report=xml
       - name: Upload full coverage to Codecov
         if: ${{ matrix.python-version == '3.10' && matrix.os == 'ubuntu-latest' }}
         uses: codecov/codecov-action@v5

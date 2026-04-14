@@ -9,6 +9,7 @@ import numpy as np
 
 from guppy.extractors import (
     CsvRecordingExtractor,
+    DandiNwbRecordingExtractor,
     DoricRecordingExtractor,
     NpmRecordingExtractor,
     NwbRecordingExtractor,
@@ -45,6 +46,16 @@ def _build_event_to_extractor(*, folder_path, storesList, inputParameters):
         Maps each event name (str) to the extractor instance responsible for it.
     """
     event_to_extractor = {}
+
+    # DANDI mode bypasses local format detection — discover and read via streaming
+    if inputParameters is not None and inputParameters.get("mode") == "dandi":
+        dandi_uri = inputParameters["dandi_uri"]
+        extractor = DandiNwbRecordingExtractor(folder_path=dandi_uri)
+        fmt_events, _ = DandiNwbRecordingExtractor.discover_events_and_flags(folder_path=dandi_uri)
+        for event in fmt_events:
+            event_to_extractor[event] = extractor
+        return event_to_extractor
+
     num_ch = inputParameters["noChannels"]
     all_formats = detect_acquisition_formats(folder_path)
     # Doric extractor requires a store-name→event-type mapping built from storesList

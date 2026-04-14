@@ -10,6 +10,7 @@ import panel as pn
 
 from guppy.extractors import (
     CsvRecordingExtractor,
+    DandiNwbRecordingExtractor,
     DoricRecordingExtractor,
     NpmRecordingExtractor,
     NwbRecordingExtractor,
@@ -282,6 +283,12 @@ def build_storenames_page(inputParameters, events, flags, folder_path):
 
 
 def read_header(inputParameters, num_ch, folder_path, headless):
+    # DANDI mode bypasses local format detection — discover events via streaming
+    if inputParameters.get("mode") == "dandi":
+        dandi_uri = inputParameters["dandi_uri"]
+        events, flags = DandiNwbRecordingExtractor.discover_events_and_flags(folder_path=dandi_uri)
+        return events, flags
+
     all_formats = detect_acquisition_formats(folder_path)
 
     # NPM GUI prompts (non-headless only) must run before NPM discovery so that
