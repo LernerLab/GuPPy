@@ -25,23 +25,6 @@ from .test_nwb_recording_extractor import NwbRecordingExtractorTestMixin
 MOCK_NWB_FOLDER = STUBBED_TESTING_DATA / "nwb" / "mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_2"
 MOCK_NWB_FILE = MOCK_NWB_FOLDER / "mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_2.nwb"
 
-MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_FOLDER = (
-    STUBBED_TESTING_DATA / "nwb" / "mock_nwbfile_ndx_fiber_photometry_v0_1_ndx_events_v0_2"
-)
-MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_FILE = (
-    MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_FOLDER / "mock_nwbfile_ndx_fiber_photometry_v0_1_ndx_events_v0_2.nwb"
-)
-
-MOCK_NWB_NDX_EVENTS_V0_4_FOLDER = (
-    STUBBED_TESTING_DATA / "nwb" / "mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_4"
-)
-MOCK_NWB_NDX_EVENTS_V0_4_FILE = (
-    MOCK_NWB_NDX_EVENTS_V0_4_FOLDER / "mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_4.nwb"
-)
-
-_NUM_SAMPLES = 3000
-_SAMPLING_RATE = 30.0
-
 
 # ---------------------------------------------------------------------------
 # Helper: make a _stream_nwb replacement that opens a local mock file
@@ -212,7 +195,15 @@ class DandiNwbContractMixin(NwbRecordingExtractorTestMixin):
 
 
 class TestDandiNwbRecordingExtractorEvents(DandiNwbContractMixin):
-    """Contract tests using ndx-events v0.2 ``Events`` as the TTL channel."""
+    """Contract tests using ndx-events v0.2 ``Events`` as the TTL channel.
+
+    Runs the full ~14-test NWB contract against one mock NWB variant. The other
+    NWB-variant combinations (ndx-fiber-photometry v0.1, ndx-events v0.4, other
+    TTL types) are already exhaustively covered by ``TestNwbRecordingExtractor*``
+    in ``test_nwb_recording_extractor.py`` — the DANDI extractor only adds URI
+    parsing and ``_stream_nwb`` wiring on top of the same shared helpers, so one
+    variant is sufficient here.
+    """
 
     folder_path = "dandi://mock/events.nwb"
     file_path = str(MOCK_NWB_FILE)
@@ -223,88 +214,3 @@ class TestDandiNwbRecordingExtractorEvents(DandiNwbContractMixin):
     @pytest.fixture
     def expected_ttl_timestamps(self):
         return np.arange(45, 55, dtype=np.float64)
-
-
-class TestDandiNwbExtractorAnnotatedEvents(DandiNwbContractMixin):
-    """Contract tests using an ``AnnotatedEventsTable`` row as the TTL channel."""
-
-    folder_path = "dandi://mock/annotated.nwb"
-    file_path = str(MOCK_NWB_FILE)
-    local_nwb_file = MOCK_NWB_FILE
-    extractor_instance = DandiNwbRecordingExtractor(folder_path="dandi://mock/annotated.nwb")
-    ttl_event = "AnnotatedEventsTable_Reward"
-
-    @pytest.fixture
-    def expected_ttl_timestamps(self):
-        return np.array([41.0, 42.0, 43.0, 44.0, 45.0])
-
-
-class TestDandiNwbRecordingExtractorLabeledEvents(DandiNwbContractMixin):
-    """Contract tests using a ``LabeledEvents`` label as the TTL channel."""
-
-    folder_path = "dandi://mock/labeled.nwb"
-    file_path = str(MOCK_NWB_FILE)
-    local_nwb_file = MOCK_NWB_FILE
-    extractor_instance = DandiNwbRecordingExtractor(folder_path="dandi://mock/labeled.nwb")
-    ttl_event = "labeled_events_label_1"
-
-    @pytest.fixture
-    def expected_ttl_timestamps(self):
-        # label_1 is index 0: timestamps at positions where data == 0 → 40, 43, 46, 49, 52
-        return np.array([40.0, 43.0, 46.0, 49.0, 52.0])
-
-
-class TestDandiNwbRecordingExtractorNdxFiberPhotometryV010Events(DandiNwbContractMixin):
-    """Contract tests for ndx-fiber-photometry v0.1.0 mock using plain ``Events`` TTL."""
-
-    folder_path = "dandi://mock/v010.nwb"
-    file_path = str(MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_FILE)
-    local_nwb_file = MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_FILE
-    extractor_instance = DandiNwbRecordingExtractor(folder_path="dandi://mock/v010.nwb")
-    ttl_event = "events"
-
-    @pytest.fixture
-    def expected_ttl_timestamps(self):
-        return np.arange(45, 55, dtype=np.float64)
-
-
-class TestDandiNwbRecordingExtractorNdxEventsV04SimpleEvents(DandiNwbContractMixin):
-    """Contract tests for ndx-events v0.4 mock using a plain EventsTable as TTL."""
-
-    folder_path = "dandi://mock/v04_simple.nwb"
-    file_path = str(MOCK_NWB_NDX_EVENTS_V0_4_FILE)
-    local_nwb_file = MOCK_NWB_NDX_EVENTS_V0_4_FILE
-    extractor_instance = DandiNwbRecordingExtractor(folder_path="dandi://mock/v04_simple.nwb")
-    ttl_event = "simple_events"
-    expected_events = [
-        "fiber_photometry_response_series_0",
-        "fiber_photometry_response_series_1",
-        "simple_events",
-        "categorized_events_event_type_Reward",
-        "categorized_events_event_type_Punishment",
-    ]
-
-    @pytest.fixture
-    def expected_ttl_timestamps(self):
-        return np.arange(45, 55, dtype=np.float64)
-
-
-class TestDandiNwbRecordingExtractorNdxEventsV04CategoricalEvents(DandiNwbContractMixin):
-    """Contract tests for ndx-events v0.4 mock using a categorical EventsTable as TTL."""
-
-    folder_path = "dandi://mock/v04_cat.nwb"
-    file_path = str(MOCK_NWB_NDX_EVENTS_V0_4_FILE)
-    local_nwb_file = MOCK_NWB_NDX_EVENTS_V0_4_FILE
-    extractor_instance = DandiNwbRecordingExtractor(folder_path="dandi://mock/v04_cat.nwb")
-    ttl_event = "categorized_events_event_type_Reward"
-    expected_events = [
-        "fiber_photometry_response_series_0",
-        "fiber_photometry_response_series_1",
-        "simple_events",
-        "categorized_events_event_type_Reward",
-        "categorized_events_event_type_Punishment",
-    ]
-
-    @pytest.fixture
-    def expected_ttl_timestamps(self):
-        return np.array([41.0, 42.0, 43.0, 44.0, 45.0])
