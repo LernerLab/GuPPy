@@ -59,7 +59,11 @@ def parse_dandi_uri(uri):
     return dandiset_id, asset_path
 
 
-def _stream_nwb(*, dandiset_id, asset_path):
+# Excluded from coverage: hits the real DANDI Archive over the network. Exercised by
+# the local-only live suite tests/unit/extractors/test_dandi_nwb_live.py (marker
+# ``dandi_live``, deselected in CI). Offline tests monkeypatch this function to open
+# a local mock NWB file instead.
+def _stream_nwb(*, dandiset_id, asset_path):  # pragma: no cover
     """
     Open a streaming connection to an NWB file on the DANDI Archive.
 
