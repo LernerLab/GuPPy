@@ -3,6 +3,7 @@
 ## Features
 - Added read support for NWB files with dedicated recording extractor. [PR #261](https://github.com/LernerLab/GuPPy/pull/261)
 - Added --start-path option to guppy launch command [PR #265](https://github.com/LernerLab/GuPPy/pull/265)
+- Added a dedicated DANDI NWB streaming extractor, a prototype streaming script, and orchestration-layer support for running step 2 and step 3 against `dandi://` URIs. [PR #266](https://github.com/LernerLab/GuPPy/pull/266)
 
 ## Fixes
 - Fixed pickling issue for long storenames in `read_and_save_all_events`. [PR #261](https://github.com/LernerLab/GuPPy/pull/261)
