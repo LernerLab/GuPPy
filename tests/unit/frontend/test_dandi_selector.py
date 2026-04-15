@@ -189,7 +189,7 @@ class TestDandiSelector:
         original = selector.asset_file_selector
         selector.dandiset_input.value = "000971"
         assert selector.asset_file_selector is not original
-        assert selector.asset_file_selector.root_directory.endswith("/000971")
+        assert selector.asset_file_selector.root_directory.endswith("000971")
         # The slot holds exactly the current widget.
         assert list(selector._asset_file_selector_slot) == [selector.asset_file_selector]
 
