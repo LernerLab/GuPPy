@@ -3,6 +3,7 @@
 import os
 
 import pytest
+from dandi.exceptions import NotFoundError
 
 from guppy.frontend import dandi_selector as dandi_selector_module
 from guppy.frontend.dandi_selector import DandiSelector
@@ -137,3 +138,65 @@ class TestDandiSelector:
 
     def test_directory_path_input_hidden(self, selector):
         assert selector.asset_file_selector._directory.visible is False
+
+    @pytest.mark.parametrize("malformed", ["abc", "12345", "1234567", "#000971", "000971a"])
+    def test_malformed_id_shows_warning_and_skips_api(self, selector, tmp_path, monkeypatch, malformed):
+        calls = []
+
+        class TrackingClient(dandi_selector_module.DandiAPIClient):
+            def __enter__(self_inner):
+                calls.append("called")
+                return self_inner
+
+        monkeypatch.setattr(dandi_selector_module, "DandiAPIClient", TrackingClient)
+
+        selector.dandiset_input.value = malformed
+
+        assert "\u26a0\ufe0f" in selector.status.object
+        assert "Invalid Dandiset ID" in selector.status.object
+        assert calls == []
+        assert selector._current_mirror_root is None
+        # No <id>/ folder was created.
+        assert not os.path.isdir(os.path.join(selector._mirror_parent, malformed))
+
+    def test_not_found_shows_warning_and_no_stale_folder(self, selector, patched_client, monkeypatch):
+        def raising_get_dandiset(self_inner, dandiset_id, version=None):
+            raise NotFoundError(f"Dandiset {dandiset_id} not found")
+
+        monkeypatch.setattr(patched_client, "get_dandiset", raising_get_dandiset)
+
+        selector.dandiset_input.value = "999999"
+
+        assert "\u26a0\ufe0f" in selector.status.object
+        assert "not found" in selector.status.object
+        assert selector._current_mirror_root is None
+        assert not os.path.isdir(os.path.join(selector._mirror_parent, "999999"))
+
+    def test_recovery_after_error(self, selector, patched_client):
+        selector.dandiset_input.value = "abc"
+        assert "Invalid" in selector.status.object
+
+        selector.dandiset_input.value = "000971"
+        assert "\u2705" in selector.status.object
+        assert selector._current_mirror_root is not None
+        assert selector.asset_file_selector.root_directory == selector._current_mirror_root
+
+        mirror_root = selector._current_mirror_root
+        selector.asset_file_selector.value = [os.path.join(mirror_root, "sub-01", "ses-1_behavior.nwb")]
+        assert selector.selected_uris == ["dandi://000971/sub-01/ses-1_behavior.nwb"]
+
+    def test_widget_swapped_on_load(self, selector):
+        original = selector.asset_file_selector
+        selector.dandiset_input.value = "000971"
+        assert selector.asset_file_selector is not original
+        assert selector.asset_file_selector.root_directory.endswith("/000971")
+        # The slot holds exactly the current widget.
+        assert list(selector._asset_file_selector_slot) == [selector.asset_file_selector]
+
+    def test_widget_swapped_on_reset(self, selector):
+        selector.dandiset_input.value = "000971"
+        loaded_widget = selector.asset_file_selector
+        selector.dandiset_input.value = ""
+        assert selector.asset_file_selector is not loaded_widget
+        assert selector.asset_file_selector.root_directory == selector._mirror_parent
+        assert list(selector._asset_file_selector_slot) == [selector.asset_file_selector]
