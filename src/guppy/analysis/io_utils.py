@@ -173,11 +173,27 @@ def get_control_and_signal_channel_names(storesList):
             channels_arr.append(names_for_storenames[i])
 
     channels_arr = sorted(channels_arr, key=str.casefold)
-    try:
-        channels_arr = np.asarray(channels_arr).reshape(2, -1)
-    except:
-        logger.error("Error in saving stores list file or spelling mistake for control or signal")
-        raise Exception("Error in saving stores list file or spelling mistake for control or signal")
+
+    signal_regions = {name[len("signal_") :] for name in channels_arr if name.lower().startswith("signal_")}
+    control_regions = {name[len("control_") :] for name in channels_arr if name.lower().startswith("control_")}
+    signal_without_control = sorted(signal_regions - control_regions)
+    control_without_signal = sorted(control_regions - signal_regions)
+    if signal_without_control or control_without_signal:
+        parts = []
+        if signal_without_control:
+            parts.append(f"signal region(s) without a matching control: {', '.join(signal_without_control)}")
+        if control_without_signal:
+            parts.append(f"control region(s) without a matching signal: {', '.join(control_without_signal)}")
+        message = (
+            "Mismatched signal/control region pairs in storesList — "
+            + "; ".join(parts)
+            + ". Every 'signal_<region>' must have a matching 'control_<region>'. "
+            "Re-run step 2 (Storenames) to fix the region names."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+    channels_arr = np.asarray(channels_arr).reshape(2, -1)
 
     return channels_arr
 

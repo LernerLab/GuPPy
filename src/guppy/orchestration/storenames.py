@@ -88,15 +88,48 @@ def _fetchValues(text, storenames, storename_dropdowns, storename_textboxes, d):
         return "####Alert !! \n Number of entries in combo box and text box should be same."
 
     names_for_storenames = []
+    signal_regions = []
+    control_regions = []
     for i in range(len(comboBoxValues)):
         if comboBoxValues[i] == "control" or comboBoxValues[i] == "signal":
             if "_" in textBoxValues[i]:
                 return "####Alert !! \n Please do not use underscore in region name."
             names_for_storenames.append("{}_{}".format(comboBoxValues[i], textBoxValues[i]))
+            if comboBoxValues[i] == "signal":
+                signal_regions.append(textBoxValues[i])
+            else:
+                control_regions.append(textBoxValues[i])
         elif comboBoxValues[i] == "event TTLs":
             names_for_storenames.append(textBoxValues[i])
         else:
             names_for_storenames.append(comboBoxValues[i])
+
+    # Validation: reject duplicate names_for_storenames entries
+    seen = set()
+    duplicates = []
+    for name in names_for_storenames:
+        if name in seen and name not in duplicates:
+            duplicates.append(name)
+        seen.add(name)
+    if duplicates:
+        return (
+            "####Alert !! \n Duplicate name(s) in names_for_storenames: {}. "
+            "Each name (e.g. 'signal_DMS', 'lever_press') must be unique.".format(", ".join(duplicates))
+        )
+
+    # Validation: every signal_<R> must have a matching control_<R> and vice versa
+    signal_without_control = sorted(set(signal_regions) - set(control_regions))
+    control_without_signal = sorted(set(control_regions) - set(signal_regions))
+    if signal_without_control or control_without_signal:
+        parts = []
+        if signal_without_control:
+            parts.append("signal region(s) without a matching control: {}".format(", ".join(signal_without_control)))
+        if control_without_signal:
+            parts.append("control region(s) without a matching signal: {}".format(", ".join(control_without_signal)))
+        return (
+            "####Alert !! \n Mismatched signal/control region pairs — {}. "
+            "Every 'signal_<region>' must have a matching 'control_<region>'.".format("; ".join(parts))
+        )
 
     d["storenames"] = text.value
     d["names_for_storenames"] = names_for_storenames
