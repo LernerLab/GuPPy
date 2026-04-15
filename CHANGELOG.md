@@ -1,4 +1,14 @@
-# v2.0.0-alpha4 (Upcoming)
+# v2.0.0-alpha5 (Upcoming)
+
+## Features
+
+## Fixes
+
+## Deprecations and Removals
+
+## Improvements
+
+# v2.0.0-alpha4 (April 15th, 2026)
 
 ## Features
 - Added read support for NWB files with dedicated recording extractor. [PR #261](https://github.com/LernerLab/GuPPy/pull/261)
@@ -8,8 +18,6 @@
 
 ## Fixes
 - Fixed pickling issue for long storenames in `read_and_save_all_events`. [PR #261](https://github.com/LernerLab/GuPPy/pull/261)
-
-## Deprecations and Removals
 
 ## Improvements
 - Added documentation site with Sphinx, pydata-sphinx-theme, and MyST-Parser. Includes Diataxis structure and a first tutorial covering the end-to-end GUI workflow with stubbed CSV test data. [PR #264](https://github.com/LernerLab/GuPPy/pull/264)
