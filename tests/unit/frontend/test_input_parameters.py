@@ -248,3 +248,109 @@ class TestParameterForm:
         assert result["nSecPrev"] == -10
         assert result["nSecPost"] == 20
         assert result["zscore_method"] == "standard z-score"
+
+    def test_source_mode_default_is_local(self, parameter_form):
+        assert parameter_form.source_mode.value == "local"
+        assert parameter_form.files_1.visible is True
+        assert parameter_form.dandi_selector.panel.visible is False
+
+    def test_source_mode_toggle_to_dandi_shows_dandi_panel(self, parameter_form):
+        parameter_form.source_mode.value = "dandi"
+        assert parameter_form.files_1.visible is False
+        assert parameter_form.dandi_selector.panel.visible is True
+
+    def test_source_mode_toggle_back_to_local_restores(self, parameter_form):
+        parameter_form.source_mode.value = "dandi"
+        parameter_form.source_mode.value = "local"
+        assert parameter_form.files_1.visible is True
+        assert parameter_form.dandi_selector.panel.visible is False
+
+    def test_get_input_parameters_local_mode_sets_mode_and_no_dandi_map(self, parameter_form):
+        result = parameter_form.getInputParameters()
+        assert result["mode"] == "local"
+        assert result["dandi_uri_map"] is None
+
+
+class _FakeAsset:
+    def __init__(self, path):
+        self.path = path
+
+
+class _FakeDandiset:
+    def __init__(self, asset_paths):
+        self._asset_paths = asset_paths
+
+    def get_assets(self):
+        return [_FakeAsset(path) for path in self._asset_paths]
+
+
+class _FakeDandiAPIClient:
+    dandisets_by_id = {}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def get_dandiset(self, dandiset_id, version=None):
+        return self.dandisets_by_id[dandiset_id]
+
+
+@pytest.fixture
+def patched_dandi_client(monkeypatch, tmp_path):
+    from guppy.frontend import dandi_selector as dandi_selector_module
+
+    monkeypatch.setattr(dandi_selector_module, "DandiAPIClient", _FakeDandiAPIClient)
+    # Point the mirror parent at tmp_path so tests don't pollute the real temp dir.
+    monkeypatch.setattr(dandi_selector_module, "_MIRROR_ROOT", str(tmp_path / "dandi_mirror"))
+    return _FakeDandiAPIClient
+
+
+class TestParameterFormDandiMode:
+    def test_dandi_mode_builds_uri_map_and_session_dirs(self, bare_parameter_form, tmp_path, patched_dandi_client):
+        output_root = tmp_path / "dandi_output"
+        output_root.mkdir()
+        patched_dandi_client.dandisets_by_id = {
+            "000971": _FakeDandiset(["sub-01/session_a.nwb", "sub-02/session_b.nwb"]),
+        }
+        form = bare_parameter_form
+        form.source_mode.value = "dandi"
+        form.dandi_selector.dandiset_input.value = "000971"
+        mirror_root = form.dandi_selector._current_mirror_root
+        form.dandi_selector.asset_file_selector.value = [
+            os.path.join(mirror_root, "sub-01", "session_a.nwb"),
+            os.path.join(mirror_root, "sub-02", "session_b.nwb"),
+        ]
+        form.dandi_selector.output_root_selector.value = [str(output_root)]
+
+        result = form.getInputParameters()
+
+        assert result["mode"] == "dandi"
+        assert result["abspath"] == str(output_root)
+        session_a = str(output_root / "session_a")
+        session_b = str(output_root / "session_b")
+        assert sorted(result["folderNames"]) == sorted([session_a, session_b])
+        assert result["dandi_uri_map"] == {
+            session_a: "dandi://000971/sub-01/session_a.nwb",
+            session_b: "dandi://000971/sub-02/session_b.nwb",
+        }
+        for session_dir in (session_a, session_b):
+            assert os.path.isdir(session_dir)
+
+    def test_dandi_mode_no_asset_raises(self, bare_parameter_form, tmp_path):
+        form = bare_parameter_form
+        form.source_mode.value = "dandi"
+        form.dandi_selector.output_root_selector.value = [str(tmp_path)]
+        with pytest.raises(Exception, match="select at least one NWB asset"):
+            form.getInputParameters()
+
+    def test_dandi_mode_no_output_root_raises(self, bare_parameter_form, patched_dandi_client):
+        patched_dandi_client.dandisets_by_id = {"000971": _FakeDandiset(["sub-01/data.nwb"])}
+        form = bare_parameter_form
+        form.source_mode.value = "dandi"
+        form.dandi_selector.dandiset_input.value = "000971"
+        mirror_root = form.dandi_selector._current_mirror_root
+        form.dandi_selector.asset_file_selector.value = [os.path.join(mirror_root, "sub-01", "data.nwb")]
+        with pytest.raises(Exception, match="local output directory"):
+            form.getInputParameters()

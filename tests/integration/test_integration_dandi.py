@@ -79,7 +79,7 @@ def step2_dandi_output(dandi_pipeline_state, patched_stream_nwb):
         base_dir=dandi_pipeline_state["base_directory"],
         selected_folders=[dandi_pipeline_state["session_copy"]],
         storenames_map=STORENAMES_MAP,
-        dandi_uri=SENTINEL_DANDI_URI,
+        dandi_uri_map={dandi_pipeline_state["session_copy"]: SENTINEL_DANDI_URI},
     )
     dandi_pipeline_state["output_directory"] = _locate_output_directory(
         session_copy=dandi_pipeline_state["session_copy"]
@@ -92,7 +92,7 @@ def step3_dandi_output(step2_dandi_output, patched_stream_nwb):
     step3(
         base_dir=step2_dandi_output["base_directory"],
         selected_folders=[step2_dandi_output["session_copy"]],
-        dandi_uri=SENTINEL_DANDI_URI,
+        dandi_uri_map={step2_dandi_output["session_copy"]: SENTINEL_DANDI_URI},
     )
     step2_dandi_output["output_directory"] = _locate_output_directory(session_copy=step2_dandi_output["session_copy"])
     return step2_dandi_output
@@ -123,3 +123,32 @@ class TestDandiIntegration:
             with h5py.File(storename_file_path, "r") as storename_file:
                 assert "timestamps" in storename_file
                 assert storename_file["timestamps"].shape[0] > 0
+
+
+class TestDandiIntegrationMultiAsset:
+    """Confirm dandi_uri_map routes per-session URIs correctly when multiple assets are selected."""
+
+    def test_step2_writes_stores_list_for_each_session(self, tmp_path, patched_stream_nwb):
+        base_directory = tmp_path / "dandi_base_multi"
+        base_directory.mkdir()
+        session_a = base_directory / "session_a"
+        session_b = base_directory / "session_b"
+        session_a.mkdir()
+        session_b.mkdir()
+
+        dandi_uri_map = {
+            str(session_a): "dandi://mock/a.nwb",
+            str(session_b): "dandi://mock/b.nwb",
+        }
+
+        step2(
+            base_dir=str(base_directory),
+            selected_folders=[str(session_a), str(session_b)],
+            storenames_map=STORENAMES_MAP,
+            dandi_uri_map=dandi_uri_map,
+        )
+
+        for session_directory in (session_a, session_b):
+            output_directory = _locate_output_directory(session_copy=str(session_directory))
+            stores_file_path = os.path.join(output_directory, "storesList.csv")
+            assert os.path.exists(stores_file_path), f"Missing storesList.csv under {session_directory}"
