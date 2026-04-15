@@ -248,3 +248,77 @@ class TestParameterForm:
         assert result["nSecPrev"] == -10
         assert result["nSecPost"] == 20
         assert result["zscore_method"] == "standard z-score"
+
+    def test_source_mode_default_is_local(self, parameter_form):
+        assert parameter_form.source_mode.value == "local"
+        assert parameter_form.files_1.visible is True
+        assert parameter_form.dandi_selector.panel.visible is False
+
+    def test_source_mode_toggle_to_dandi_shows_dandi_panel(self, parameter_form):
+        parameter_form.source_mode.value = "dandi"
+        assert parameter_form.files_1.visible is False
+        assert parameter_form.dandi_selector.panel.visible is True
+
+    def test_source_mode_toggle_back_to_local_restores(self, parameter_form):
+        parameter_form.source_mode.value = "dandi"
+        parameter_form.source_mode.value = "local"
+        assert parameter_form.files_1.visible is True
+        assert parameter_form.dandi_selector.panel.visible is False
+
+    def test_get_input_parameters_local_mode_sets_mode_and_no_dandi_map(self, parameter_form):
+        result = parameter_form.getInputParameters()
+        assert result["mode"] == "local"
+        assert result["dandi_uri_map"] is None
+
+
+class TestParameterFormDandiMode:
+    def test_dandi_mode_builds_uri_map_and_session_dirs(self, bare_parameter_form, tmp_path):
+        output_root = tmp_path / "dandi_output"
+        output_root.mkdir()
+        form = bare_parameter_form
+        form.source_mode.value = "dandi"
+        form.dandi_selector.dandiset_input.options = ["000971"]
+        form.dandi_selector.dandiset_input.value = "000971"
+        form.dandi_selector.asset_select.options = ["sub-01/ses-1.nwb", "sub-02/ses-1.nwb"]
+        form.dandi_selector.asset_select.value = ["sub-01/ses-1.nwb", "sub-02/ses-1.nwb"]
+        form.dandi_selector.output_root_selector.value = [str(output_root)]
+
+        result = form.getInputParameters()
+
+        assert result["mode"] == "dandi"
+        assert result["abspath"] == str(output_root)
+        expected_session_dirs = [
+            str(output_root / "ses-1"),  # Both assets share basename 'ses-1'; dict key dedupes
+        ]
+        # Two assets with the same basename collide intentionally — exercise distinct paths.
+        form.dandi_selector.asset_select.value = ["sub-01/session_a.nwb", "sub-02/session_b.nwb"]
+        result = form.getInputParameters()
+        session_a = str(output_root / "session_a")
+        session_b = str(output_root / "session_b")
+        assert sorted(result["folderNames"]) == sorted([session_a, session_b])
+        assert result["dandi_uri_map"] == {
+            session_a: "dandi://000971/sub-01/session_a.nwb",
+            session_b: "dandi://000971/sub-02/session_b.nwb",
+        }
+        # Session directories were created on disk
+        import os as _os
+
+        for session_dir in (session_a, session_b):
+            assert _os.path.isdir(session_dir)
+
+    def test_dandi_mode_no_asset_raises(self, bare_parameter_form, tmp_path):
+        form = bare_parameter_form
+        form.source_mode.value = "dandi"
+        form.dandi_selector.output_root_selector.value = [str(tmp_path)]
+        with pytest.raises(Exception, match="select at least one NWB asset"):
+            form.getInputParameters()
+
+    def test_dandi_mode_no_output_root_raises(self, bare_parameter_form):
+        form = bare_parameter_form
+        form.source_mode.value = "dandi"
+        form.dandi_selector.dandiset_input.options = ["000971"]
+        form.dandi_selector.dandiset_input.value = "000971"
+        form.dandi_selector.asset_select.options = ["sub-01/data.nwb"]
+        form.dandi_selector.asset_select.value = ["sub-01/data.nwb"]
+        with pytest.raises(Exception, match="local output directory"):
+            form.getInputParameters()

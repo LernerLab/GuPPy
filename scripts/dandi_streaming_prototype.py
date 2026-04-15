@@ -111,11 +111,12 @@ def run_pipeline(*, dandi_uri, output_directory, storenames_map):
 
     # Step 2: Save storenames (discovers events via streaming)
     logger.info("Running Step 2 (Save Storenames)...")
+    dandi_uri_map = {session_directory: dandi_uri}
     step2(
         base_dir=base_directory,
         selected_folders=[session_directory],
         storenames_map=storenames_map,
-        dandi_uri=dandi_uri,
+        dandi_uri_map=dandi_uri_map,
     )
 
     # Step 3: Read raw data (streams from DANDI, saves HDF5 locally)
@@ -124,7 +125,7 @@ def run_pipeline(*, dandi_uri, output_directory, storenames_map):
         base_dir=base_directory,
         selected_folders=[session_directory],
         number_of_cores=1,
-        dandi_uri=dandi_uri,
+        dandi_uri_map=dandi_uri_map,
     )
 
     # Step 4: Preprocess and remove artifacts

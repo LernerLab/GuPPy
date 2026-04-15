@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 import panel as pn
 
+from .dandi_selector import DandiSelector
+
 logger = logging.getLogger(__name__)
 
 
@@ -64,7 +66,16 @@ class ParameterForm:
             """**Select folders for the analysis from the file selector below**""", width=600
         )
 
+        self.source_mode = pn.widgets.RadioButtonGroup(
+            name="Data Source", options=["local", "dandi"], value="local", button_type="primary", width=300
+        )
+        self.source_mode.param.watch(self._on_source_mode_change, "value")
+
         self.files_1 = pn.widgets.FileSelector(self.folder_path, root_directory="/", name="folderNames", width=950)
+
+        self.dandi_selector = DandiSelector(styles=self.styles)
+        # Hidden by default; shown when source_mode == "dandi"
+        self.dandi_selector.panel.visible = False
 
         self.explain_time_artifacts = pn.pane.Markdown(
             """
@@ -297,10 +308,55 @@ class ParameterForm:
 
         self.widget = pn.Column(
             self.mark_down_1,
+            pn.Row(pn.pane.Markdown("**Data Source:**"), self.source_mode),
             self.files_1,
+            self.dandi_selector.panel,
             pn.Row(self.individual_analysis_wd_2, self.psth_baseline_param),
         )
         self.individual = pn.Card(self.widget, title="Individual Analysis", styles=self.styles, width=1000)
+
+    def _on_source_mode_change(self, event):
+        is_dandi = event.new == "dandi"
+        self.files_1.visible = not is_dandi
+        self.dandi_selector.panel.visible = is_dandi
+
+    def _resolve_dandi_sessions(self):
+        """
+        Materialize DANDI asset selections into local session directories.
+
+        For each selected ``dandi://`` URI, create a directory under the user-chosen
+        output root named after the asset's basename (minus suffix). The returned
+        ``dandi_uri_map`` is keyed by that session directory — matching the key
+        used by the orchestration layer when ``mode == "dandi"``.
+
+        Returns
+        -------
+        folder_names : list[str]
+            Absolute paths of the created session directories.
+        output_root : str
+            The user-chosen local output root.
+        dandi_uri_map : dict[str, str]
+            Mapping from session directory to the originating DANDI URI.
+        """
+        selected_uris = self.dandi_selector.selected_uris
+        output_root = self.dandi_selector.output_root
+        if not selected_uris:
+            logger.error("DANDI mode: no NWB assets selected")
+            raise Exception("DANDI mode: select at least one NWB asset before running the pipeline")
+        if not output_root:
+            logger.error("DANDI mode: no local output directory selected")
+            raise Exception("DANDI mode: select a local output directory before running the pipeline")
+
+        folder_names = []
+        dandi_uri_map = {}
+        for uri in selected_uris:
+            asset_path = uri.split("/", 3)[-1]
+            session_stem = os.path.splitext(os.path.basename(asset_path))[0]
+            session_directory = os.path.join(output_root, session_stem)
+            os.makedirs(session_directory, exist_ok=True)
+            folder_names.append(session_directory)
+            dandi_uri_map[session_directory] = uri
+        return folder_names, output_root, dandi_uri_map
 
     def setup_group_parameters(self):
         self.mark_down_2 = pn.pane.Markdown(
@@ -340,10 +396,21 @@ class ParameterForm:
         self.template.main.append(self.visualize)
 
     def getInputParameters(self):
-        abspath = getAbsPath(self.files_1, self.files_2)
+        if self.source_mode.value == "dandi":
+            folder_names, abspath_value, dandi_uri_map = self._resolve_dandi_sessions()
+            mode = "dandi"
+        else:
+            abspath = getAbsPath(self.files_1, self.files_2)
+            folder_names = self.files_1.value
+            abspath_value = abspath[0]
+            dandi_uri_map = None
+            mode = "local"
+
         inputParameters = {
-            "abspath": abspath[0],
-            "folderNames": self.files_1.value,
+            "mode": mode,
+            "dandi_uri_map": dandi_uri_map,
+            "abspath": abspath_value,
+            "folderNames": folder_names,
             "numberOfCores": self.numberOfCores.value,
             "combine_data": self.combine_data.value,
             "isosbestic_control": self.isosbestic_control.value,

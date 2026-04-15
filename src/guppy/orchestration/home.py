@@ -93,6 +93,8 @@ def build_homepage(*, start_path=None):
     }
     template._widgets = {
         "files_1": parameter_form.files_1,
+        "source_mode": parameter_form.source_mode,
+        "dandi_selector": parameter_form.dandi_selector,
     }
 
     return template
