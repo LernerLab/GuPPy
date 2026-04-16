@@ -1,4 +1,5 @@
 import glob
+import json
 import logging
 import os
 import re
@@ -12,6 +13,118 @@ from ..frontend.visualization_dashboard import VisualizationDashboard
 from ..utils.utils import get_all_stores_for_combining_data, read_Df, takeOnlyDirs
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_visualization_metric(inputParameters: dict) -> None:
+    """Cross-check the visualization metric against step-5 outputs.
+
+    Compares ``visualize_zscore_or_dff`` in *inputParameters* against
+    ``selectForComputePsth`` recorded in each session's
+    ``GuPPyParamtersUsed.json``.  When the JSON is absent a file-based
+    heuristic is used instead (presence of PSTH HDF5 output files that
+    carry the metric name).
+
+    Raises
+    ------
+    ValueError
+        When the requested metric was not computed during step 5 for one
+        or more sessions.  The message names the missing metric, the
+        affected session paths, and instructs the user how to fix the
+        mismatch.
+    """
+    visualize_zscore_or_dff = inputParameters.get("visualize_zscore_or_dff", "z_score")
+    if visualize_zscore_or_dff not in ("z_score", "dff"):
+        return
+
+    average = inputParameters.get("visualizeAverageResults", False)
+    folder_names_for_avg = inputParameters.get("folderNamesForAvg") or []
+    folder_names = inputParameters.get("folderNames") or []
+
+    # Validate the folders that will actually be visualised.
+    folders_to_check = list(folder_names_for_avg) if (average and folder_names_for_avg) else list(folder_names)
+
+    missing_sessions: list[str] = []
+
+    for folder in folders_to_check:
+        output_dirs = takeOnlyDirs(glob.glob(os.path.join(folder, "*_output_*")))
+        if not output_dirs:
+            # Step 5 has not produced output yet; nothing to validate.
+            continue
+
+        # ------------------------------------------------------------------
+        # Primary check: read saved parameters written by step 5.
+        # ------------------------------------------------------------------
+        params_file = os.path.join(folder, "GuPPyParamtersUsed.json")
+        use_file_check = True
+
+        if os.path.exists(params_file):
+            try:
+                with open(params_file) as fh:
+                    saved_params = json.load(fh)
+                use_file_check = False  # JSON readable; skip file-based check
+            except (OSError, ValueError):
+                pass  # Unreadable JSON; fall through to file-based check.
+            else:
+                select_for_psth = saved_params.get("selectForComputePsth")
+                if select_for_psth is not None and select_for_psth != "Both":
+                    if select_for_psth != visualize_zscore_or_dff:
+                        computed_label = "z-score" if select_for_psth == "z_score" else "\u0394F/F"
+                        missing_sessions.append(
+                            f"  - {folder}: step 5 parameter "
+                            f"'z_score and/or \u0394F/F? (psth)' = {select_for_psth!r}; "
+                            f"only {computed_label} PSTH data was computed"
+                        )
+
+        if not use_file_check:
+            continue
+
+        # ------------------------------------------------------------------
+        # Fallback: detect PSTH HDF5 files on disk.
+        # PSTH files are named  {event}_{region}_{metric}_{region}.h5
+        # and therefore contain the metric in the *middle* of the name,
+        # unlike the raw metric files (z_score_{region}.h5 / dff_{region}.h5)
+        # which start with the metric prefix.
+        # ------------------------------------------------------------------
+        metric_psth_found = False
+        for output_dir in output_dirs:
+            if visualize_zscore_or_dff == "z_score":
+                candidates = [
+                    f
+                    for f in glob.glob(os.path.join(output_dir, "*_z_score_*.h5"))
+                    if not os.path.basename(f).startswith("z_score_")
+                ]
+            else:
+                candidates = [
+                    f
+                    for f in glob.glob(os.path.join(output_dir, "*_dff_*.h5"))
+                    if not os.path.basename(f).startswith("dff_")
+                ]
+            if candidates:
+                metric_psth_found = True
+                break
+
+        if not metric_psth_found:
+            missing_sessions.append(
+                f"  - {folder}: no {visualize_zscore_or_dff!r} PSTH output files found "
+                f"(step 5 may have been run with a different metric)"
+            )
+
+    if missing_sessions:
+        metric_label = "z-score" if visualize_zscore_or_dff == "z_score" else "\u0394F/F"
+        other_metric = "dff" if visualize_zscore_or_dff == "z_score" else "z_score"
+        session_list = "\n".join(missing_sessions)
+        raise ValueError(
+            f"The requested visualization metric '{metric_label}' "
+            f"({visualize_zscore_or_dff!r}) was not computed during step 5 "
+            f"for the following session(s):\n"
+            f"{session_list}\n\n"
+            f"To resolve this, either:\n"
+            f"  1. Change 'z-score or \u0394F/F? (for visualization)' to {other_metric!r} "
+            f"to match what was computed in step 5.\n"
+            f"  2. Re-run step 5 with {visualize_zscore_or_dff!r} or 'Both' enabled in "
+            f"'z_score and/or \u0394F/F? (psth)' and "
+            f"'z_score and/or \u0394F/F? (transients)'."
+        )
 
 
 # helper function to create plots
@@ -184,6 +297,8 @@ def createPlots(filepath, event, inputParameters):
 def visualizeResults(inputParameters):
 
     inputParameters = inputParameters
+
+    _validate_visualization_metric(inputParameters)
 
     average = inputParameters["visualizeAverageResults"]
     logger.info(average)
