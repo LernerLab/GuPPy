@@ -331,24 +331,16 @@ def psthForEachStorename(inputParameters):
 
     logger.info(f"Average for group : {average}")
 
-    try:
-        # for average following if statement will be executed
-        if average == True:
-            execute_average_for_group(inputParameters)
+    # for average following if statement will be executed
+    if average == True:
+        execute_average_for_group(inputParameters)
 
-        # for individual analysis following else statement will be executed
+    # for individual analysis following else statement will be executed
+    else:
+        if combine_data == True:
+            execute_psth_combined(inputParameters)
         else:
-            if combine_data == True:
-                execute_psth_combined(inputParameters)
-            else:
-                orchestrate_psth(inputParameters)
-    except FileNotFoundError as exc:
-        raise FileNotFoundError(
-            f"PSTH failed because a required HDF5 file was not found: {exc}. "
-            "This may be caused by storenames changed in step 2 without re-running step 3. "
-            "Please re-run step 3 (Read Raw Data) after changing storenames in step 2, "
-            "then re-run preprocessing before computing PSTH."
-        ) from exc
+            orchestrate_psth(inputParameters)
     logger.info("PSTH, Area and Peak are computed for all events.")
     return inputParameters
 
