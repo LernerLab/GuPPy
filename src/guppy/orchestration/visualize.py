@@ -273,7 +273,7 @@ def visualizeResults(inputParameters):
                     )
                     raise ValueError(
                         f"Store name mismatch across sessions for group analysis. "
-                        f"The following session \u00d7 storename combinations are missing: {details}"
+                        f"The following session × storename combinations are missing: {details}"
                     )
                 filepath = op[i][0]
                 createPlots(filepath, storesList[1, :], inputParameters)
