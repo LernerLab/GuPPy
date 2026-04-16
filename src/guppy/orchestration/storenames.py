@@ -59,7 +59,7 @@ def make_dir(filepath):
     return op
 
 
-def _fetchValues(text, storenames, storename_dropdowns, storename_textboxes, d):
+def _fetchValues(text, storenames, storename_dropdowns, storename_textboxes, d, isosbestic_control=False):
     if not storename_dropdowns or not len(storenames) > 0:
         return "####Alert !! \n No storenames selected."
 
@@ -88,15 +88,50 @@ def _fetchValues(text, storenames, storename_dropdowns, storename_textboxes, d):
         return "####Alert !! \n Number of entries in combo box and text box should be same."
 
     names_for_storenames = []
+    signal_regions = []
+    control_regions = []
     for i in range(len(comboBoxValues)):
         if comboBoxValues[i] == "control" or comboBoxValues[i] == "signal":
             if "_" in textBoxValues[i]:
                 return "####Alert !! \n Please do not use underscore in region name."
             names_for_storenames.append("{}_{}".format(comboBoxValues[i], textBoxValues[i]))
+            if comboBoxValues[i] == "signal":
+                signal_regions.append(textBoxValues[i])
+            else:
+                control_regions.append(textBoxValues[i])
         elif comboBoxValues[i] == "event TTLs":
             names_for_storenames.append(textBoxValues[i])
         else:
             names_for_storenames.append(comboBoxValues[i])
+
+    # Validation: reject duplicate names_for_storenames entries
+    seen = set()
+    duplicates = []
+    for name in names_for_storenames:
+        if name in seen and name not in duplicates:
+            duplicates.append(name)
+        seen.add(name)
+    if duplicates:
+        return (
+            "####Alert !! \n Duplicate name(s) in names_for_storenames: {}. "
+            "Each name (e.g. 'signal_DMS', 'lever_press') must be unique.".format(", ".join(duplicates))
+        )
+
+    # Validation: when isosbestic control is enabled, every signal_<R> must have a
+    # matching control_<R> and vice versa. Skipped when isosbestic_control is False
+    # (signal-only configurations are valid in that case).
+    signal_without_control = sorted(set(signal_regions) - set(control_regions))
+    control_without_signal = sorted(set(control_regions) - set(signal_regions))
+    if isosbestic_control and (signal_without_control or control_without_signal):
+        parts = []
+        if signal_without_control:
+            parts.append("signal region(s) without a matching control: {}".format(", ".join(signal_without_control)))
+        if control_without_signal:
+            parts.append("control region(s) without a matching signal: {}".format(", ".join(control_without_signal)))
+        return (
+            "####Alert !! \n Mismatched signal/control region pairs — {}. "
+            "Every 'signal_<region>' must have a matching 'control_<region>'.".format("; ".join(parts))
+        )
 
     d["storenames"] = text.value
     d["names_for_storenames"] = names_for_storenames
@@ -154,7 +189,7 @@ def _save(d, select_location):
 
 
 # function to show GUI and save
-def build_storenames_template(events, flags, folder_path):
+def build_storenames_template(events, flags, folder_path, isosbestic_control=False):
     """Build and return the Storenames GUI Panel template without serving it.
 
     Parameters
@@ -205,6 +240,7 @@ def build_storenames_template(events, flags, folder_path):
             storename_dropdowns=storename_dropdowns,
             storename_textboxes=storename_textboxes,
             d=d,
+            isosbestic_control=isosbestic_control,
         )
         storenames_selector.set_alert_message(alert_message)
         storenames_selector.set_literal_input_2(d=d)
@@ -275,7 +311,9 @@ def build_storenames_page(inputParameters, events, flags, folder_path):
         logger.info("Storeslist : \n" + str(arr))
         return
 
-    template = build_storenames_template(events, flags, folder_path)
+    template = build_storenames_template(
+        events, flags, folder_path, isosbestic_control=bool(inputParameters.get("isosbestic_control"))
+    )
 
     # creating widgets, adding them to template and showing a GUI on a new browser window
     number = scanPortsAndFind(start_port=5000, end_port=5200)

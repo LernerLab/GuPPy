@@ -7,6 +7,7 @@
 ## Deprecations and Removals
 
 ## Improvements
+- Added input validation in step 2 to reject duplicate store names and mismatched signal/control region pairs, with descriptive error messages naming the offending entries. [PR #275](https://github.com/LernerLab/GuPPy/pull/275)
 
 # v2.0.0-alpha4 (April 15th, 2026)
 

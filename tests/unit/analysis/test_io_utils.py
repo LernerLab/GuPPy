@@ -209,7 +209,20 @@ def test_get_control_and_signal_channel_names_filters_and_sorts_channels():
 def test_get_control_and_signal_channel_names_raises_for_odd_count():
     # Three control/signal entries cannot reshape to (2, -1)
     stores_list = np.array([["s0", "c0", "c1"], ["signal_dms", "control_dms", "control_nac"]])
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError, match="control region.*without a matching signal.*nac"):
+        get_control_and_signal_channel_names(stores_list)
+
+
+def test_get_control_and_signal_channel_names_error_names_unmatched_signal_region():
+    stores_list = np.array([["s0", "s1", "c0"], ["signal_dms", "signal_nac", "control_dms"]])
+    with pytest.raises(ValueError, match="signal region.*without a matching control.*nac"):
+        get_control_and_signal_channel_names(stores_list)
+
+
+def test_get_control_and_signal_channel_names_signal_only_odd_count_raises_count_error():
+    # Signal-only with an odd count cannot reshape; falls back to the count-based message.
+    stores_list = np.array([["s0", "s1", "s2"], ["signal_dms", "signal_nac", "signal_vta"]])
+    with pytest.raises(ValueError, match="0 control and 3 signal"):
         get_control_and_signal_channel_names(stores_list)
 
 
