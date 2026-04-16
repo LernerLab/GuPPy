@@ -53,9 +53,9 @@ def build_homepage(*, start_path=None):
 
     def onclickVisualization(event=None):
         inputParameters = parameter_form.getInputParameters()
+        sidebar.visualization_alert.visible = False
         try:
             visualizeResults(inputParameters)
-            sidebar.visualization_alert.visible = False
         except ValueError as e:
             logger.error(str(e))
             sidebar.visualization_alert.object = f"**Alert:** {e}"
