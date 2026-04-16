@@ -3,6 +3,7 @@
 ## Features
 
 ## Fixes
+- Fixed stale output data when overwriting storenames in step 2: the output directory is now fully cleared before writing the new `storesList.csv`, removing any leftover HDF5 files and other pipeline artefacts. [PR #276](https://github.com/LernerLab/GuPPy/pull/276)
 
 ## Deprecations and Removals
 
