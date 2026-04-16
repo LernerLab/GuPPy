@@ -202,6 +202,12 @@ def _build_fetchValues_args(dropdown_values, textbox_values, text_value=None):
     return text, storenames, storename_dropdowns, storename_textboxes
 
 
+def _fetch_isosbestic(*args, **kwargs):
+    """Call _fetchValues with isosbestic_control=True (the configuration where pair checks apply)."""
+    kwargs.setdefault("isosbestic_control", True)
+    return _fetchValues(*args, **kwargs)
+
+
 def test_fetchValues_returns_alert_when_storenames_empty():
     text = make_widget([])
     storenames = []
@@ -240,26 +246,26 @@ def test_fetchValues_returns_alert_when_underscore_in_region_name():
 
 def test_fetchValues_valid_control_entry_sets_correct_name():
     text, storenames, dropdowns, textboxes = _build_fetchValues_args(
-        dropdown_values={"Dv1A": "control", "Dv2A": "signal"},
-        textbox_values={"Dv1A": "DMS", "Dv2A": "DMS"},
-        text_value=["Dv1A", "Dv2A"],
+        dropdown_values={"Dv1A": "control"},
+        textbox_values={"Dv1A": "DMS"},
+        text_value=["Dv1A"],
     )
     result_dict = {}
     result = _fetchValues(text, storenames, dropdowns, textboxes, result_dict)
     assert result == "#### No alerts !!"
-    assert result_dict["names_for_storenames"][0] == "control_DMS"
+    assert result_dict["names_for_storenames"] == ["control_DMS"]
 
 
 def test_fetchValues_valid_signal_entry_sets_correct_name():
     text, storenames, dropdowns, textboxes = _build_fetchValues_args(
-        dropdown_values={"Dv1A": "control", "Dv2A": "signal"},
-        textbox_values={"Dv1A": "DMS", "Dv2A": "DMS"},
-        text_value=["Dv1A", "Dv2A"],
+        dropdown_values={"Dv2A": "signal"},
+        textbox_values={"Dv2A": "DMS"},
+        text_value=["Dv2A"],
     )
     result_dict = {}
     result = _fetchValues(text, storenames, dropdowns, textboxes, result_dict)
     assert result == "#### No alerts !!"
-    assert result_dict["names_for_storenames"][1] == "signal_DMS"
+    assert result_dict["names_for_storenames"] == ["signal_DMS"]
 
 
 def test_fetchValues_valid_event_ttls_uses_textbox_value():
@@ -311,40 +317,53 @@ def test_fetchValues_returns_alert_when_duplicate_event_ttls():
     assert "lever_press" in result
 
 
-def test_fetchValues_returns_alert_when_signal_region_has_no_matching_control():
+def test_fetchValues_isosbestic_alert_when_signal_region_has_no_matching_control():
     text, storenames, dropdowns, textboxes = _build_fetchValues_args(
         dropdown_values={"Dv1A": "control", "Dv2A": "signal", "Dv3A": "signal"},
         textbox_values={"Dv1A": "DMS", "Dv2A": "DMS", "Dv3A": "NAc"},
         text_value=["Dv1A", "Dv2A", "Dv3A"],
     )
-    result = _fetchValues(text, storenames, dropdowns, textboxes, {})
+    result = _fetch_isosbestic(text, storenames, dropdowns, textboxes, {})
     assert "Alert" in result
     assert "Mismatched" in result
     assert "NAc" in result
 
 
-def test_fetchValues_returns_alert_when_control_region_has_no_matching_signal():
+def test_fetchValues_isosbestic_alert_when_control_region_has_no_matching_signal():
     text, storenames, dropdowns, textboxes = _build_fetchValues_args(
         dropdown_values={"Dv1A": "control", "Dv2A": "control", "Dv3A": "signal"},
         textbox_values={"Dv1A": "DMS", "Dv2A": "NAc", "Dv3A": "DMS"},
         text_value=["Dv1A", "Dv2A", "Dv3A"],
     )
-    result = _fetchValues(text, storenames, dropdowns, textboxes, {})
+    result = _fetch_isosbestic(text, storenames, dropdowns, textboxes, {})
     assert "Alert" in result
     assert "Mismatched" in result
     assert "NAc" in result
 
 
-def test_fetchValues_matched_signal_control_pairs_pass():
+def test_fetchValues_isosbestic_matched_pairs_pass():
     text, storenames, dropdowns, textboxes = _build_fetchValues_args(
         dropdown_values={"Dv1A": "control", "Dv2A": "signal", "Dv3A": "control", "Dv4A": "signal"},
         textbox_values={"Dv1A": "DMS", "Dv2A": "DMS", "Dv3A": "NAc", "Dv4A": "NAc"},
         text_value=["Dv1A", "Dv2A", "Dv3A", "Dv4A"],
     )
     result_dict = {}
-    result = _fetchValues(text, storenames, dropdowns, textboxes, result_dict)
+    result = _fetch_isosbestic(text, storenames, dropdowns, textboxes, result_dict)
     assert result == "#### No alerts !!"
     assert result_dict["names_for_storenames"] == ["control_DMS", "signal_DMS", "control_NAc", "signal_NAc"]
+
+
+def test_fetchValues_non_isosbestic_allows_signal_only():
+    """When isosbestic_control is False, a signal without a matching control is valid."""
+    text, storenames, dropdowns, textboxes = _build_fetchValues_args(
+        dropdown_values={"Dv2A": "signal", "Dv3A": "signal"},
+        textbox_values={"Dv2A": "DMS", "Dv3A": "NAc"},
+        text_value=["Dv2A", "Dv3A"],
+    )
+    result_dict = {}
+    result = _fetchValues(text, storenames, dropdowns, textboxes, result_dict, isosbestic_control=False)
+    assert result == "#### No alerts !!"
+    assert result_dict["names_for_storenames"] == ["signal_DMS", "signal_NAc"]
 
 
 def test_fetchValues_populates_storenames_from_text_value():
@@ -515,7 +534,7 @@ def test_fetch_values_delegates_to_fetch_values_function(storenames_closures, mo
 
     captured_args = {}
 
-    def fake_fetch_values(text, storenames, storename_dropdowns, storename_textboxes, d):
+    def fake_fetch_values(text, storenames, storename_dropdowns, storename_textboxes, d, **kwargs):
         captured_args["storenames"] = list(storenames)
         d["storenames"] = storenames
         d["names_for_storenames"] = ["control_DMS"]

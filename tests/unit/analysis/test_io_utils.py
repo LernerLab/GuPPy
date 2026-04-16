@@ -219,6 +219,13 @@ def test_get_control_and_signal_channel_names_error_names_unmatched_signal_regio
         get_control_and_signal_channel_names(stores_list)
 
 
+def test_get_control_and_signal_channel_names_signal_only_odd_count_raises_count_error():
+    # Signal-only with an odd count cannot reshape; falls back to the count-based message.
+    stores_list = np.array([["s0", "s1", "s2"], ["signal_dms", "signal_nac", "signal_vta"]])
+    with pytest.raises(ValueError, match="0 control and 3 signal"):
+        get_control_and_signal_channel_names(stores_list)
+
+
 # ── make_dir_for_cross_correlation ────────────────────────────────────────────
 
 

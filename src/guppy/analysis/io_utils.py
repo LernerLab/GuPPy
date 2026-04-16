@@ -176,24 +176,36 @@ def get_control_and_signal_channel_names(storesList):
 
     signal_regions = {name[len("signal_") :] for name in channels_arr if name.lower().startswith("signal_")}
     control_regions = {name[len("control_") :] for name in channels_arr if name.lower().startswith("control_")}
-    signal_without_control = sorted(signal_regions - control_regions)
-    control_without_signal = sorted(control_regions - signal_regions)
-    if signal_without_control or control_without_signal:
-        parts = []
-        if signal_without_control:
-            parts.append(f"signal region(s) without a matching control: {', '.join(signal_without_control)}")
-        if control_without_signal:
-            parts.append(f"control region(s) without a matching signal: {', '.join(control_without_signal)}")
+    # Only enforce region pairing when both signal and control channels are present
+    # (signal-only / control-only configurations are valid when isosbestic control is disabled).
+    if signal_regions and control_regions:
+        signal_without_control = sorted(signal_regions - control_regions)
+        control_without_signal = sorted(control_regions - signal_regions)
+        if signal_without_control or control_without_signal:
+            parts = []
+            if signal_without_control:
+                parts.append(f"signal region(s) without a matching control: {', '.join(signal_without_control)}")
+            if control_without_signal:
+                parts.append(f"control region(s) without a matching signal: {', '.join(control_without_signal)}")
+            message = (
+                "Mismatched signal/control region pairs in storesList — "
+                + "; ".join(parts)
+                + ". Every 'signal_<region>' must have a matching 'control_<region>' when "
+                "isosbestic control is enabled. Re-run step 2 (Storenames) to fix the region names."
+            )
+            logger.error(message)
+            raise ValueError(message)
+
+    try:
+        channels_arr = np.asarray(channels_arr).reshape(2, -1)
+    except ValueError:
         message = (
-            "Mismatched signal/control region pairs in storesList — "
-            + "; ".join(parts)
-            + ". Every 'signal_<region>' must have a matching 'control_<region>'. "
-            "Re-run step 2 (Storenames) to fix the region names."
+            f"Cannot pair control and signal channels: found {len(control_regions)} control and "
+            f"{len(signal_regions)} signal entries in storesList. Each signal must be paired with a control "
+            "when isosbestic control is enabled; re-run step 2 (Storenames) to correct the entries."
         )
         logger.error(message)
         raise ValueError(message)
-
-    channels_arr = np.asarray(channels_arr).reshape(2, -1)
 
     return channels_arr
 

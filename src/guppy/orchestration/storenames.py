@@ -59,7 +59,7 @@ def make_dir(filepath):
     return op
 
 
-def _fetchValues(text, storenames, storename_dropdowns, storename_textboxes, d):
+def _fetchValues(text, storenames, storename_dropdowns, storename_textboxes, d, isosbestic_control=False):
     if not storename_dropdowns or not len(storenames) > 0:
         return "####Alert !! \n No storenames selected."
 
@@ -117,10 +117,12 @@ def _fetchValues(text, storenames, storename_dropdowns, storename_textboxes, d):
             "Each name (e.g. 'signal_DMS', 'lever_press') must be unique.".format(", ".join(duplicates))
         )
 
-    # Validation: every signal_<R> must have a matching control_<R> and vice versa
+    # Validation: when isosbestic control is enabled, every signal_<R> must have a
+    # matching control_<R> and vice versa. Skipped when isosbestic_control is False
+    # (signal-only configurations are valid in that case).
     signal_without_control = sorted(set(signal_regions) - set(control_regions))
     control_without_signal = sorted(set(control_regions) - set(signal_regions))
-    if signal_without_control or control_without_signal:
+    if isosbestic_control and (signal_without_control or control_without_signal):
         parts = []
         if signal_without_control:
             parts.append("signal region(s) without a matching control: {}".format(", ".join(signal_without_control)))
@@ -187,7 +189,7 @@ def _save(d, select_location):
 
 
 # function to show GUI and save
-def build_storenames_template(events, flags, folder_path):
+def build_storenames_template(events, flags, folder_path, isosbestic_control=False):
     """Build and return the Storenames GUI Panel template without serving it.
 
     Parameters
@@ -238,6 +240,7 @@ def build_storenames_template(events, flags, folder_path):
             storename_dropdowns=storename_dropdowns,
             storename_textboxes=storename_textboxes,
             d=d,
+            isosbestic_control=isosbestic_control,
         )
         storenames_selector.set_alert_message(alert_message)
         storenames_selector.set_literal_input_2(d=d)
@@ -308,7 +311,9 @@ def build_storenames_page(inputParameters, events, flags, folder_path):
         logger.info("Storeslist : \n" + str(arr))
         return
 
-    template = build_storenames_template(events, flags, folder_path)
+    template = build_storenames_template(
+        events, flags, folder_path, isosbestic_control=bool(inputParameters.get("isosbestic_control"))
+    )
 
     # creating widgets, adding them to template and showing a GUI on a new browser window
     number = scanPortsAndFind(start_port=5000, end_port=5200)
