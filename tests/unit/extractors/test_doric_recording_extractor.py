@@ -235,7 +235,7 @@ class TestDoricRecordingExtractorV6(DoricRecordingExtractorTestMixin):
 
 
 def test_access_data_doricV6_raises_on_empty_channel_control(tmp_path):
-    """_access_data_doricV6 raises ValueError with helpful message when a control channel is missing."""
+    """_access_data_doricV6 raises ValueError with helpful message when a signal channel is empty."""
     hdf5_path = tmp_path / "empty_channel.doric"
     with h5py.File(hdf5_path, "w") as f:
         region = f.require_group("DataAcquisition/FiberPhotometry/Signals/AIN01xAOUT01-LockIn")
@@ -252,7 +252,7 @@ def test_access_data_doricV6_raises_on_empty_channel_control(tmp_path):
 
 
 def test_access_data_doricV6_raises_on_empty_channel_ttl(tmp_path):
-    """_access_data_doricV6 raises ValueError with helpful message when a TTL channel is missing."""
+    """_access_data_doricV6 raises ValueError with helpful message when a TTL channel is empty."""
     hdf5_path = tmp_path / "empty_ttl.doric"
     with h5py.File(hdf5_path, "w") as f:
         region = f.require_group("DataAcquisition/FiberPhotometry/Signals/AIN01xAOUT01-LockIn")
