@@ -124,9 +124,21 @@ def orchestrate_read_raw_data(inputParameters):
         for j in range(len(storesListPath)):
             op = storesListPath[j]
             if os.path.exists(os.path.join(op, ".cache_storesList.csv")):
-                storesList = np.genfromtxt(
+                old_storesList = np.genfromtxt(
                     os.path.join(op, ".cache_storesList.csv"), dtype="str", delimiter=","
                 ).reshape(2, -1)
+                new_storesList = np.genfromtxt(
+                    os.path.join(op, "storesList.csv"), dtype="str", delimiter=","
+                ).reshape(2, -1)
+                # Delete orphan HDF5 files: names present in the old storesList but absent from the new one.
+                old_names = set(old_storesList.ravel())
+                new_names = set(new_storesList.ravel())
+                for orphan in sorted(old_names - new_names):
+                    hdf5_path = os.path.join(op, orphan + ".hdf5")
+                    if os.path.exists(hdf5_path):
+                        os.remove(hdf5_path)
+                        logger.info(f"Deleted orphan HDF5 file: {hdf5_path}")
+                storesList = old_storesList
             else:
                 storesList = np.genfromtxt(os.path.join(op, "storesList.csv"), dtype="str", delimiter=",").reshape(
                     2, -1
