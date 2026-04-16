@@ -3,6 +3,7 @@
 ## Features
 
 ## Fixes
+- Cross-correlation now raises a descriptive `ValueError` (instead of silently skipping) when `compute_cross_correlation=True` but fewer than two distinct signal regions are present; the error message is surfaced as a persistent notification in the Panel UI so users do not need to inspect the terminal. [PR #284](https://github.com/LernerLab/GuPPy/pull/284)
 
 ## Deprecations and Removals
 
