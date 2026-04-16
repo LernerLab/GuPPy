@@ -181,6 +181,32 @@ def createPlots(filepath, event, inputParameters):
         helper_plots(filepath, event, name_arr, inputParameters)
 
 
+def _validate_store_names_across_sessions(sessions_stores, combined_store_names):
+    """Verify that every semantic store name appears in every session's storesList.
+
+    Parameters
+    ----------
+    sessions_stores : list of (session_path: str, store_names: set)
+        Each element is the path to a session output directory paired with the
+        set of semantic store names found in that session's ``storesList.csv``.
+    combined_store_names : array-like of str
+        The union of all semantic store names across sessions.
+
+    Returns
+    -------
+    list of (session_path, store_name) tuples
+        All session × storename combinations where the store name is absent from
+        the session's storesList.  Empty when every store name is present in
+        every session.
+    """
+    missing = []
+    for store_name in combined_store_names:
+        for session_path, store_names in sessions_stores:
+            if store_name not in store_names:
+                missing.append((session_path, store_name))
+    return missing
+
+
 def visualizeResults(inputParameters):
 
     inputParameters = inputParameters
@@ -226,17 +252,29 @@ def visualizeResults(inputParameters):
             op = get_all_stores_for_combining_data(storesListPath)
             for i in range(len(op)):
                 storesList = np.asarray([[], []])
+                sessions_stores = []
                 for j in range(len(op[i])):
+                    session_sl = np.genfromtxt(
+                        os.path.join(op[i][j], "storesList.csv"), dtype="str", delimiter=","
+                    ).reshape(2, -1)
                     storesList = np.concatenate(
                         (
                             storesList,
-                            np.genfromtxt(os.path.join(op[i][j], "storesList.csv"), dtype="str", delimiter=",").reshape(
-                                2, -1
-                            ),
+                            session_sl,
                         ),
                         axis=1,
                     )
+                    sessions_stores.append((op[i][j], set(session_sl[1, :])))
                 storesList = np.unique(storesList, axis=1)
+                missing = _validate_store_names_across_sessions(sessions_stores, storesList[1, :])
+                if missing:
+                    details = "; ".join(
+                        f"session '{s}' is missing store name '{n}'" for s, n in missing
+                    )
+                    raise ValueError(
+                        f"Store name mismatch across sessions for group analysis. "
+                        f"The following session \u00d7 storename combinations are missing: {details}"
+                    )
                 filepath = op[i][0]
                 createPlots(filepath, storesList[1, :], inputParameters)
         else:
