@@ -9,7 +9,10 @@ PB_ERROR_FILE = os.path.join(os.path.expanduser("~"), "guppyError.txt")
 
 
 def writeErrorToFile(message: str, *, file_path=PB_ERROR_FILE):
-    """Write an error message to a file for the GUI to read and display."""
+    """Write an error message to a file for the GUI to read and display.
+
+    Overwrites any existing content so that only the most recent error is shown.
+    """
     with open(file_path, "w") as file:
         file.write(message)
 
@@ -18,7 +21,8 @@ def readPBIncrementValues(progressBar, *, file_path, error_pane=None, error_file
     logger.info("Read progress bar increment values function started...")
     if os.path.exists(file_path):
         os.remove(file_path)
-    if error_pane is not None and os.path.exists(error_file_path):
+    # Always remove stale error file at the start, regardless of whether an error pane is provided.
+    if os.path.exists(error_file_path):
         os.remove(error_file_path)
     increment, maximum = 0, 100
     progressBar.value = increment
