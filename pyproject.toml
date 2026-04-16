@@ -151,4 +151,5 @@ markers = [
     "parallel: marks tests that verify GuPPy multiprocessing behavior (run separately from the main suite)",
     "ui: marks tests that require a live Panel server and browser (deselect with '-m not ui')",
     "dandi_live: marks tests that stream from the real DANDI Archive (deselect with '-m not dandi_live'; skipped in CI, for local use only)",
+    "progress_bar: marks tests that exercise the progress-bar file-locking loop (skipped on Windows in CI due to threading/file-lock issues; see issue #286)",
 ]

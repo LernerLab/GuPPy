@@ -2,6 +2,7 @@ import glob
 import json
 import logging
 import os
+import shutil
 from pathlib import Path
 
 import holoviews as hv  # noqa: F401
@@ -179,8 +180,11 @@ def _save(d, select_location):
 
     arr = np.asarray([arr1, arr2])
     logger.info(arr)
-    if not os.path.exists(select_location):
-        os.mkdir(select_location)
+    if os.path.exists(select_location):
+        # Overwrite mode: clear all derived data from the previous run before saving the new storesList.
+        shutil.rmtree(select_location)
+        logger.info(f"Cleared output directory for overwrite: {select_location}")
+    os.mkdir(select_location)
 
     np.savetxt(os.path.join(select_location, "storesList.csv"), arr, delimiter=",", fmt="%s")
     logger.info(f"Storeslist file saved at {select_location}")
