@@ -53,7 +53,13 @@ def build_homepage(*, start_path=None):
 
     def onclickVisualization(event=None):
         inputParameters = parameter_form.getInputParameters()
-        visualizeResults(inputParameters)
+        try:
+            visualizeResults(inputParameters)
+            sidebar.visualization_alert.visible = False
+        except ValueError as e:
+            logger.error(str(e))
+            sidebar.visualization_alert.object = f"**Alert:** {e}"
+            sidebar.visualization_alert.visible = True
 
     def onclickreaddata(event=None):
         thread = Thread(target=readRawData, args=(parameter_form,))
