@@ -11,7 +11,6 @@ class Sidebar:
         self.setup_markdown()
         self.setup_buttons()
         self.setup_progress_bars()
-        self.setup_error_panes()
 
     def setup_markdown(self):
         self.mark_down_ip = pn.pane.Markdown("""**Step 1 : Save Input Parameters**""", width=300)
@@ -57,11 +56,6 @@ class Sidebar:
         self.extract_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
         self.psth_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
 
-    def setup_error_panes(self):
-        self.read_error_pane = pn.pane.Markdown("", width=300, styles={"color": "red"})
-        self.extract_error_pane = pn.pane.Markdown("", width=300, styles={"color": "red"})
-        self.psth_error_pane = pn.pane.Markdown("", width=300, styles={"color": "red"})
-
     def add_to_template(self):
         self.template.sidebar.append(self.mark_down_ip)
         self.template.sidebar.append(self.mark_down_ip_note)
@@ -71,14 +65,11 @@ class Sidebar:
         self.template.sidebar.append(self.mark_down_read)
         self.template.sidebar.append(self.read_rawData)
         self.template.sidebar.append(self.read_progress)
-        self.template.sidebar.append(self.read_error_pane)
         self.template.sidebar.append(self.mark_down_preprocess)
         self.template.sidebar.append(self.preprocess)
         self.template.sidebar.append(self.extract_progress)
-        self.template.sidebar.append(self.extract_error_pane)
         self.template.sidebar.append(self.mark_down_psth)
         self.template.sidebar.append(self.psth_computation)
         self.template.sidebar.append(self.psth_progress)
-        self.template.sidebar.append(self.psth_error_pane)
         self.template.sidebar.append(self.mark_down_visualization)
         self.template.sidebar.append(self.open_visualization)

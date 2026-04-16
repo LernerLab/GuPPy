@@ -21,9 +21,6 @@ def readPBIncrementValues(progressBar, *, file_path, error_file_path=PB_ERROR_FI
     logger.info("Read progress bar increment values function started...")
     if os.path.exists(file_path):
         os.remove(file_path)
-    # Always remove stale error file at the start, regardless of whether an error pane is provided.
-    if os.path.exists(error_file_path):
-        os.remove(error_file_path)
     increment, maximum = 0, 100
     progressBar.value = increment
     progressBar.bar_color = "success"
@@ -40,14 +37,6 @@ def readPBIncrementValues(progressBar, *, file_path, error_file_path=PB_ERROR_FI
 
                     if increment == -1:
                         progressBar.bar_color = "danger"
-                        if error_pane is not None:
-                            try:
-                                with open(error_file_path, "r") as ef:
-                                    msg = ef.read().strip()
-                                if msg:
-                                    error_pane.object = f"**Error:** {msg}"
-                            except FileNotFoundError:
-                                pass
                         os.remove(file_path)
                         if os.path.exists(error_file_path):
                             with open(error_file_path, "r") as ef:
