@@ -173,15 +173,10 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
         for event in events:
             if event not in df.columns:
                 available = ", ".join(df.columns.tolist())
-                if event in ("Raw", "Unknown 7"):
-                    raise ValueError(
-                        f"Column '{event}' not found in '{path[0]}'. "
-                        f"'{event}' is an export artifact, not an actual analog channel. "
-                        "Please reselect actual analog channels (e.g. AIn-1, AIn-2) in step 2. "
-                        f"Available columns: {available}"
-                    )
                 raise ValueError(
                     f"Column '{event}' not found in '{path[0]}'. "
+                    "If this column is an export artifact (e.g. 'Raw', 'Unknown 7'), "
+                    "please reselect actual analog channels (e.g. AIn-1, AIn-2) in step 2. "
                     f"Available columns: {available}"
                 )
             event_type = self._event_name_to_event_type[event]

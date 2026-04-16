@@ -19,7 +19,7 @@ from ..analysis.standard_io import (
 )
 from ..analysis.transients import analyze_transients
 from ..analysis.transients_average import averageForGroup
-from ..frontend.progress import PB_STEPS_FILE, writeToFile
+from ..frontend.progress import PB_STEPS_FILE, PB_ERROR_FILE, writeToFile, writeErrorToFile
 from ..utils.utils import get_all_stores_for_combining_data, takeOnlyDirs
 from ..visualization.transients import visualize_peaks
 
@@ -210,6 +210,7 @@ if __name__ == "__main__":
         executeFindFreqAndAmp(json.loads(sys.argv[1]))
         logger.info("#" * 400)
     except Exception as e:
+        writeErrorToFile(str(e))
         writeToFile(str(-1) + "\n", file_path=PB_STEPS_FILE)
         logger.error(str(e))
         raise e

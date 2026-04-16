@@ -58,19 +58,19 @@ def build_homepage(*, start_path=None):
     def onclickreaddata(event=None):
         thread = Thread(target=readRawData, args=(parameter_form,))
         thread.start()
-        readPBIncrementValues(sidebar.read_progress, file_path=PB_STEPS_FILE)
+        readPBIncrementValues(sidebar.read_progress, file_path=PB_STEPS_FILE, error_pane=sidebar.read_error_pane)
         thread.join()
 
     def onclickpreprocess(event=None):
         thread = Thread(target=preprocess, args=(parameter_form,))
         thread.start()
-        readPBIncrementValues(sidebar.extract_progress, file_path=PB_STEPS_FILE)
+        readPBIncrementValues(sidebar.extract_progress, file_path=PB_STEPS_FILE, error_pane=sidebar.extract_error_pane)
         thread.join()
 
     def onclickpsth(event=None):
         thread = Thread(target=psthComputation, args=(parameter_form, current_dir))
         thread.start()
-        readPBIncrementValues(sidebar.psth_progress, file_path=PB_STEPS_FILE)
+        readPBIncrementValues(sidebar.psth_progress, file_path=PB_STEPS_FILE, error_pane=sidebar.psth_error_pane)
         thread.join()
 
     # ------------------------------------------------------------------------------------------------------------------

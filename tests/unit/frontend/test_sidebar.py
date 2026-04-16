@@ -33,6 +33,12 @@ class TestSidebar:
             assert bar.value == 100, f"{bar_name} does not start at 100"
             assert bar.max == 100, f"{bar_name} max is not 100"
 
+    def test_error_panes_exist_and_initially_empty(self, sidebar):
+        for pane_name in ("read_error_pane", "extract_error_pane", "psth_error_pane"):
+            pane = getattr(sidebar, pane_name)
+            assert isinstance(pane, pn.pane.Markdown), f"{pane_name} is not a Markdown pane"
+            assert pane.object == "", f"{pane_name} should be initially empty"
+
     def test_attach_callbacks_triggers_function(self, sidebar):
         calls = []
 
@@ -55,3 +61,6 @@ class TestSidebar:
         assert sidebar.read_progress in objects
         assert sidebar.extract_progress in objects
         assert sidebar.psth_progress in objects
+        assert sidebar.read_error_pane in objects
+        assert sidebar.extract_error_pane in objects
+        assert sidebar.psth_error_pane in objects
