@@ -85,10 +85,10 @@ def test_get_corr_combinations_three_signals_returns_circular_triplet(tmp_path):
     assert corr_info[0] == corr_info[-1]
 
 
-def test_get_corr_combinations_one_signal_returns_empty(tmp_path):
+def test_get_corr_combinations_one_signal_returns_single_name(tmp_path):
     (tmp_path / "z_score_dms.hdf5").touch()
     input_parameters = {"selectForComputePsth": "z_score"}
 
     corr_info, _ = getCorrCombinations(str(tmp_path), input_parameters)
 
-    assert corr_info == []
+    assert corr_info == ["dms"]

@@ -104,3 +104,35 @@ def test_execute_compute_cross_correlation_returns_early_for_control_event(
     execute_compute_cross_correlation(str(psth_output_dir), "control_DMS", base_input_parameters)
 
     assert len(read_df_calls) == 0
+
+
+def test_execute_compute_cross_correlation_raises_for_single_region(
+    psth_output_dir, base_input_parameters, monkeypatch
+):
+    """When computeCorr=True but only one signal region is present, a ValueError is raised."""
+    monkeypatch.setattr(
+        "guppy.orchestration.psth.getCorrCombinations",
+        lambda filepath, inputParameters: (["dms"], ["z_score"]),
+    )
+
+    base_input_parameters["computeCorr"] = True
+    base_input_parameters["removeArtifacts"] = False
+
+    with pytest.raises(ValueError, match="only one was found: 'dms'"):
+        execute_compute_cross_correlation(str(psth_output_dir), "lever_press", base_input_parameters)
+
+
+def test_execute_compute_cross_correlation_raises_for_no_regions(
+    psth_output_dir, base_input_parameters, monkeypatch
+):
+    """When computeCorr=True but no signal regions are found, a ValueError is raised."""
+    monkeypatch.setattr(
+        "guppy.orchestration.psth.getCorrCombinations",
+        lambda filepath, inputParameters: ([], ["z_score"]),
+    )
+
+    base_input_parameters["computeCorr"] = True
+    base_input_parameters["removeArtifacts"] = False
+
+    with pytest.raises(ValueError, match="no signal regions were found"):
+        execute_compute_cross_correlation(str(psth_output_dir), "lever_press", base_input_parameters)
