@@ -32,7 +32,7 @@ from ..analysis.standard_io import (
     write_peak_and_area_to_csv,
     write_peak_and_area_to_hdf5,
 )
-from ..frontend.progress import PB_STEPS_FILE, writeToFile
+from ..frontend.progress import PB_ERROR_FILE, PB_STEPS_FILE, writeToFile
 from ..utils.utils import get_all_stores_for_combining_data, read_Df, takeOnlyDirs
 
 logger = logging.getLogger(__name__)
@@ -364,6 +364,8 @@ def main(input_parameters):
         subprocess.call([sys.executable, "-m", "guppy.orchestration.transients", json.dumps(inputParameters)])
         logger.info("#" * 400)
     except Exception as e:
+        with open(PB_ERROR_FILE, "w") as ef:
+            ef.write(str(e))
         writeToFile(str(-1) + "\n", file_path=PB_STEPS_FILE)
         logger.error(str(e))
         raise e
