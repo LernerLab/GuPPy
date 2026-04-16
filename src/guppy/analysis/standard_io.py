@@ -128,8 +128,13 @@ def read_corrected_timestamps_pairwise(filepath):
         name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")
         name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")
         if name_1[-1] != name_2[-1]:
-            logger.error("Error in naming convention of files or Error in storesList file")
-            raise Exception("Error in naming convention of files or Error in storesList file")
+            msg = (
+                f"Pair name mismatch in '{filepath}': control file suffix '{name_1[-1]}' does not match "
+                f"signal file suffix '{name_2[-1]}'. Check the naming convention of your files and the "
+                f"storesList file, then re-run step 2."
+            )
+            logger.error(msg)
+            raise Exception(msg)
         name = name_1[-1]
 
         tsNew = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
@@ -146,8 +151,13 @@ def read_coords_pairwise(filepath, pair_name_to_tsNew):
         name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")
         name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")
         if name_1[-1] != name_2[-1]:
-            logger.error("Error in naming convention of files or Error in storesList file")
-            raise Exception("Error in naming convention of files or Error in storesList file")
+            msg = (
+                f"Pair name mismatch in '{filepath}': control file suffix '{name_1[-1]}' does not match "
+                f"signal file suffix '{name_2[-1]}'. Check the naming convention of your files and the "
+                f"storesList file, then re-run step 2."
+            )
+            logger.error(msg)
+            raise Exception(msg)
         pair_name = name_1[-1]
 
         tsNew = pair_name_to_tsNew[pair_name]
@@ -218,8 +228,13 @@ def read_timestamps_for_combining_data(filepaths_to_combine):
         name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")[-1]
         name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")[-1]
         if name_1 != name_2:
-            logger.error("Error in naming convention of files or Error in storesList file")
-            raise Exception("Error in naming convention of files or Error in storesList file")
+            msg = (
+                f"Pair name mismatch in '{filepaths_to_combine[0]}': control file suffix '{name_1}' does not match "
+                f"signal file suffix '{name_2}'. Check the naming convention of your files and the "
+                f"storesList file, then re-run step 2."
+            )
+            logger.error(msg)
+            raise Exception(msg)
         pair_name = name_1
         pair_name_to_filepath_to_timestamps[pair_name] = {}
         for filepath in filepaths_to_combine:
@@ -237,8 +252,13 @@ def read_data_for_combining_data(filepaths_to_combine, storesList):
         name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")[-1]
         name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")[-1]
         if name_1 != name_2:
-            logger.error("Error in naming convention of files or Error in storesList file")
-            raise Exception("Error in naming convention of files or Error in storesList file")
+            msg = (
+                f"Pair name mismatch in '{filepaths_to_combine[0]}': control file suffix '{name_1}' does not match "
+                f"signal file suffix '{name_2}'. Check the naming convention of your files and the "
+                f"storesList file, then re-run step 2."
+            )
+            logger.error(msg)
+            raise Exception(msg)
         pair_name = name_1
         for i in range(len(names_for_storenames)):
             if not (
