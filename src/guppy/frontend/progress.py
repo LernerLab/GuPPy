@@ -5,19 +5,19 @@ import time
 logger = logging.getLogger(__name__)
 
 PB_STEPS_FILE = os.path.join(os.path.expanduser("~"), "pbSteps.txt")
-PB_ERROR_FILE = os.path.join(os.path.expanduser("~"), "guppyError.txt")
+PB_ERROR_FILE = os.path.join(os.path.expanduser("~"), "pbError.txt")
 
 
-def writeErrorToFile(message: str, *, file_path=PB_ERROR_FILE):
-    """Write an error message to a file for the GUI to read and display.
+def readPBIncrementValues(progressBar, *, file_path, error_file_path=PB_ERROR_FILE):  # pragma: no cover
+    """Read progress bar values from file and update the progress bar widget.
 
-    Overwrites any existing content so that only the most recent error is shown.
+    Returns the error message string if the subprocess reported a failure,
+    or ``None`` on success.
+
+    Note: excluded from coverage because this function uses a tight polling loop
+    that reads from a file written by a subprocess; the threading and file-lock
+    behaviour cannot be tested reliably on Windows in CI (see issue #286).
     """
-    with open(file_path, "w") as file:
-        file.write(message)
-
-
-def readPBIncrementValues(progressBar, *, file_path, error_pane=None, error_file_path=PB_ERROR_FILE):
     logger.info("Read progress bar increment values function started...")
     if os.path.exists(file_path):
         os.remove(file_path)
@@ -27,8 +27,7 @@ def readPBIncrementValues(progressBar, *, file_path, error_pane=None, error_file
     increment, maximum = 0, 100
     progressBar.value = increment
     progressBar.bar_color = "success"
-    if error_pane is not None:
-        error_pane.object = ""
+    error_message = None
     while True:
         try:
             with open(file_path, "r") as file:
@@ -50,6 +49,10 @@ def readPBIncrementValues(progressBar, *, file_path, error_pane=None, error_file
                             except FileNotFoundError:
                                 pass
                         os.remove(file_path)
+                        if os.path.exists(error_file_path):
+                            with open(error_file_path, "r") as ef:
+                                error_message = ef.read().strip()
+                            os.remove(error_file_path)
                         break
                     progressBar.max = maximum
                     progressBar.value = increment
@@ -67,6 +70,7 @@ def readPBIncrementValues(progressBar, *, file_path, error_pane=None, error_file
             break
 
     logger.info("Read progress bar increment values stopped.")
+    return error_message
 
 
 def writeToFile(value: str, *, file_path):

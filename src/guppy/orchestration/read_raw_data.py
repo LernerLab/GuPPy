@@ -17,7 +17,7 @@ from guppy.extractors import (
     detect_acquisition_formats,
     read_and_save_all_events,
 )
-from guppy.frontend.progress import PB_STEPS_FILE, PB_ERROR_FILE, writeToFile, writeErrorToFile
+from guppy.frontend.progress import PB_ERROR_FILE, PB_STEPS_FILE, writeToFile
 from guppy.utils.utils import takeOnlyDirs
 
 logger = logging.getLogger(__name__)
@@ -160,7 +160,8 @@ def main(input_parameters):
         orchestrate_read_raw_data(input_parameters)
         logger.info("#" * 400)
     except Exception as e:
-        writeErrorToFile(str(e))
+        with open(PB_ERROR_FILE, "w") as ef:
+            ef.write(str(e))
         writeToFile(str(-1) + "\n", file_path=PB_STEPS_FILE)
         logger.error(f"An error occurred: {e}")
         raise e

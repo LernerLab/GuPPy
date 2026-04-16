@@ -34,7 +34,7 @@ def psthComputation(parameter_form, current_dir):
 
 
 def build_homepage(*, start_path=None):
-    pn.extension()
+    pn.extension(notifications=True)
     current_dir = os.getcwd()
 
     template = pn.template.BootstrapTemplate(title="Input Parameters GUI")
@@ -58,20 +58,26 @@ def build_homepage(*, start_path=None):
     def onclickreaddata(event=None):
         thread = Thread(target=readRawData, args=(parameter_form,))
         thread.start()
-        readPBIncrementValues(sidebar.read_progress, file_path=PB_STEPS_FILE, error_pane=sidebar.read_error_pane)
+        error_msg = readPBIncrementValues(sidebar.read_progress, file_path=PB_STEPS_FILE)
         thread.join()
+        if error_msg:
+            pn.state.notifications.error(error_msg, duration=0)
 
     def onclickpreprocess(event=None):
         thread = Thread(target=preprocess, args=(parameter_form,))
         thread.start()
-        readPBIncrementValues(sidebar.extract_progress, file_path=PB_STEPS_FILE, error_pane=sidebar.extract_error_pane)
+        error_msg = readPBIncrementValues(sidebar.extract_progress, file_path=PB_STEPS_FILE)
         thread.join()
+        if error_msg:
+            pn.state.notifications.error(error_msg, duration=0)
 
     def onclickpsth(event=None):
         thread = Thread(target=psthComputation, args=(parameter_form, current_dir))
         thread.start()
-        readPBIncrementValues(sidebar.psth_progress, file_path=PB_STEPS_FILE, error_pane=sidebar.psth_error_pane)
+        error_msg = readPBIncrementValues(sidebar.psth_progress, file_path=PB_STEPS_FILE)
         thread.join()
+        if error_msg:
+            pn.state.notifications.error(error_msg, duration=0)
 
     # ------------------------------------------------------------------------------------------------------------------
 
