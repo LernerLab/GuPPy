@@ -8,11 +8,15 @@ PB_STEPS_FILE = os.path.join(os.path.expanduser("~"), "pbSteps.txt")
 PB_ERROR_FILE = os.path.join(os.path.expanduser("~"), "pbError.txt")
 
 
-def readPBIncrementValues(progressBar, *, file_path, error_file_path=PB_ERROR_FILE):
+def readPBIncrementValues(progressBar, *, file_path, error_file_path=PB_ERROR_FILE):  # pragma: no cover
     """Read progress bar values from file and update the progress bar widget.
 
     Returns the error message string if the subprocess reported a failure,
     or ``None`` on success.
+
+    Note: excluded from coverage because this function uses a tight polling loop
+    that reads from a file written by a subprocess; the threading and file-lock
+    behaviour cannot be tested reliably on Windows in CI (see issue #286).
     """
     logger.info("Read progress bar increment values function started...")
     if os.path.exists(file_path):

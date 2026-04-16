@@ -1,6 +1,8 @@
 import threading
 import time
 
+import pytest
+
 from guppy.frontend.progress import readPBIncrementValues, writeToFile
 
 
@@ -27,6 +29,7 @@ class _MockProgressBar:
         self.bar_color = "success"
 
 
+@pytest.mark.progress_bar
 def test_readpbincrementvalues_returns_error_message_on_failure(tmp_path):
     """When the subprocess writes -1 and an error file exists, the error message is returned."""
     steps_file = tmp_path / "pbSteps.txt"
@@ -52,6 +55,7 @@ def test_readpbincrementvalues_returns_error_message_on_failure(tmp_path):
     assert not error_file.exists()
 
 
+@pytest.mark.progress_bar
 def test_readpbincrementvalues_returns_none_when_no_error_file(tmp_path):
     """When the subprocess writes -1 but no error file exists, None is returned."""
     steps_file = tmp_path / "pbSteps.txt"
