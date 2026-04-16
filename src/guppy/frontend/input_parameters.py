@@ -214,7 +214,7 @@ class ParameterForm:
                         receive an error indicating the offending parameter, the value supplied,
                         and the valid range (e.g.
                         "baselineWindowEnd=120 exceeds signal duration 90.5s;
-                        choose a value within [0, 90.5]").
+                        signal timespan is [0, 90.5]s — choose values within this range.").
                         """,
             width=580,
         )
