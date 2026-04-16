@@ -170,6 +170,19 @@ def execute_compute_cross_correlation(filepath, event, inputParameters):
                             should be replace with NaNs and not concatenate"
             )
         corr_info, type = getCorrCombinations(filepath, inputParameters)
+        if len(corr_info) < 2:
+            if corr_info:
+                raise ValueError(
+                    f"Cross-correlation requires at least two distinct signal regions, but only one was "
+                    f"found: '{corr_info[0]}'. Please either disable compute_cross_correlation or add a "
+                    f"second signal region in step 2."
+                )
+            else:
+                raise ValueError(
+                    "Cross-correlation requires at least two distinct signal regions, but no signal "
+                    "regions were found. Please either disable compute_cross_correlation or add signal "
+                    "regions in step 2."
+                )
         if "control" in event.lower() or "signal" in event.lower():
             return
         else:
