@@ -4,6 +4,7 @@ import os
 
 import h5py
 import numpy as np
+import pandas as pd
 import pytest
 
 from guppy.extractors.doric_recording_extractor import DoricRecordingExtractor
@@ -226,3 +227,113 @@ class TestDoricRecordingExtractorV6(DoricRecordingExtractorTestMixin):
     ttl_event = "DigitalIO/CAM1"
     stub_ttl_test_duration_in_seconds = 100.0
     stub_extractor_kwargs = {"event_name_to_event_type": _EVENT_NAME_TO_EVENT_TYPE_V6}
+
+
+# ---------------------------------------------------------------------------
+# Informative error tests
+# ---------------------------------------------------------------------------
+
+
+def test_access_data_doricV6_raises_on_empty_channel_control(tmp_path):
+    """_access_data_doricV6 raises ValueError with helpful message when a control channel is missing."""
+    hdf5_path = tmp_path / "empty_channel.doric"
+    with h5py.File(hdf5_path, "w") as f:
+        region = f.require_group("DataAcquisition/FiberPhotometry/Signals/AIN01xAOUT01-LockIn")
+        region.create_dataset("Values", data=np.array([1.0, 2.0, 3.0]))
+        region.create_dataset("Time", data=np.array([0.0, 0.1, 0.2]))
+
+    extractor = DoricRecordingExtractor(
+        str(tmp_path),
+        {"AIN01xAOUT01-LockIn": "control", "AOut1": "signal"},
+    )
+    with h5py.File(hdf5_path, "r") as f:
+        with pytest.raises(ValueError, match="AOut1"):
+            extractor._access_data_doricV6(f, ["AOut1"])
+
+
+def test_access_data_doricV6_raises_on_empty_channel_ttl(tmp_path):
+    """_access_data_doricV6 raises ValueError with helpful message when a TTL channel is missing."""
+    hdf5_path = tmp_path / "empty_ttl.doric"
+    with h5py.File(hdf5_path, "w") as f:
+        region = f.require_group("DataAcquisition/FiberPhotometry/Signals/AIN01xAOUT01-LockIn")
+        region.create_dataset("Values", data=np.array([1.0, 2.0]))
+        region.create_dataset("Time", data=np.array([0.0, 0.1]))
+
+    extractor = DoricRecordingExtractor(
+        str(tmp_path),
+        {"AOut2": "ttl"},
+    )
+    with h5py.File(hdf5_path, "r") as f:
+        with pytest.raises(ValueError, match="AOut2"):
+            extractor._access_data_doricV6(f, ["AOut2"])
+
+
+def test_access_data_doricV1_raises_on_missing_channel(tmp_path):
+    """_access_data_doricV1 raises ValueError with helpful message when a channel is missing."""
+    hdf5_path = tmp_path / "missing_channel.doric"
+    with h5py.File(hdf5_path, "w") as f:
+        console = f.require_group("Traces/Console")
+        time_group = console.require_group("Time(s)")
+        time_group.create_dataset("Console_time(s)", data=np.array([0.0, 0.1, 0.2]))
+        ain1 = console.require_group("AIn-1")
+        ain1.create_dataset("AIn-1", data=np.array([1.0, 2.0, 3.0]))
+
+    extractor = DoricRecordingExtractor(
+        str(tmp_path),
+        {"AOut1": "control"},
+    )
+    with h5py.File(hdf5_path, "r") as f:
+        with pytest.raises(ValueError, match="AOut1"):
+            extractor._access_data_doricV1(f, ["AOut1"])
+
+
+def test_read_doric_csv_raises_on_missing_column(tmp_path):
+    """_read_doric_csv raises ValueError with file path and available columns when a column is missing."""
+    csv_path = tmp_path / "doric_data.csv"
+    header_row = "AIn-1,AIn-2\n"
+    col_row = "Time(s),AIn-1,AIn-2\n"
+    data_rows = "0.0,1.0,2.0\n0.1,1.1,2.1\n"
+    csv_path.write_text(header_row + col_row + data_rows)
+
+    extractor = DoricRecordingExtractor(
+        str(tmp_path),
+        {"MissingChannel": "signal"},
+    )
+    with pytest.raises(ValueError, match="MissingChannel") as exc_info:
+        extractor._read_doric_csv(["MissingChannel"])
+    assert "AIn-1" in str(exc_info.value)
+    assert str(csv_path) in str(exc_info.value)
+
+
+def test_read_doric_csv_raises_targeted_message_for_Raw(tmp_path):
+    """_read_doric_csv raises ValueError with artifact-specific message for 'Raw' column."""
+    csv_path = tmp_path / "doric_data.csv"
+    header_row = "AIn-1,AIn-2\n"
+    col_row = "Time(s),AIn-1,AIn-2\n"
+    data_rows = "0.0,1.0,2.0\n0.1,1.1,2.1\n"
+    csv_path.write_text(header_row + col_row + data_rows)
+
+    extractor = DoricRecordingExtractor(
+        str(tmp_path),
+        {"Raw": "signal"},
+    )
+    with pytest.raises(ValueError, match="export artifact") as exc_info:
+        extractor._read_doric_csv(["Raw"])
+    assert "step 2" in str(exc_info.value)
+
+
+def test_read_doric_csv_raises_targeted_message_for_Unknown7(tmp_path):
+    """_read_doric_csv raises ValueError with artifact-specific message for 'Unknown 7' column."""
+    csv_path = tmp_path / "doric_data.csv"
+    header_row = "AIn-1,AIn-2\n"
+    col_row = "Time(s),AIn-1,AIn-2\n"
+    data_rows = "0.0,1.0,2.0\n0.1,1.1,2.1\n"
+    csv_path.write_text(header_row + col_row + data_rows)
+
+    extractor = DoricRecordingExtractor(
+        str(tmp_path),
+        {"Unknown 7": "signal"},
+    )
+    with pytest.raises(ValueError, match="export artifact") as exc_info:
+        extractor._read_doric_csv(["Unknown 7"])
+    assert "step 2" in str(exc_info.value)

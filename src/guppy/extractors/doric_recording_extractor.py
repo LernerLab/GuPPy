@@ -171,6 +171,19 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
 
         output_dicts = []
         for event in events:
+            if event not in df.columns:
+                available = ", ".join(df.columns.tolist())
+                if event in ("Raw", "Unknown 7"):
+                    raise ValueError(
+                        f"Column '{event}' not found in '{path[0]}'. "
+                        f"'{event}' is an export artifact, not an actual analog channel. "
+                        "Please reselect actual analog channels (e.g. AIn-1, AIn-2) in step 2. "
+                        f"Available columns: {available}"
+                    )
+                raise ValueError(
+                    f"Column '{event}' not found in '{path[0]}'. "
+                    f"Available columns: {available}"
+                )
             event_type = self._event_name_to_event_type[event]
             if "control" in event_type or "signal" in event_type:
                 timestamps = np.array(df["Time(s)"])
@@ -231,6 +244,12 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
             if "control" in event_type or "signal" in event_type:
                 regex = re.compile("(.*?)" + str(event) + "(.*?)")
                 idx = [i for i in range(len(decide_path)) if regex.match(decide_path[i])]
+                if len(idx) == 0:
+                    raise ValueError(
+                        f"Channel '{event}' was not found in the Doric file. "
+                        "This can happen when the channel (e.g. AOut1 or AOut2) is empty. "
+                        "Please deselect it in step 2 or choose a different signal channel."
+                    )
                 if len(idx) > 1:
                     logger.error("More than one string matched (which should not be the case)")
                     raise Exception("More than one string matched (which should not be the case)")
@@ -244,6 +263,12 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
             else:
                 regex = re.compile("(.*?)" + event + "$")
                 idx = [i for i in range(len(decide_path)) if regex.match(decide_path[i])]
+                if len(idx) == 0:
+                    raise ValueError(
+                        f"Channel '{event}' was not found in the Doric file. "
+                        "This can happen when the channel (e.g. AOut1 or AOut2) is empty. "
+                        "Please deselect it in step 2 or choose a different signal channel."
+                    )
                 if len(idx) > 1:
                     logger.error("More than one string matched (which should not be the case)")
                     raise Exception("More than one string matched (which should not be the case)")
@@ -263,6 +288,12 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
         keys = list(doric_file["Traces"]["Console"].keys())
         output_dicts = []
         for event in events:
+            if event not in keys:
+                raise ValueError(
+                    f"Channel '{event}' was not found in the Doric file. "
+                    "This can happen when the channel (e.g. AOut1 or AOut2) is empty. "
+                    "Please deselect it in step 2 or choose a different signal channel."
+                )
             event_type = self._event_name_to_event_type[event]
             if "control" in event_type or "signal" in event_type:
                 timestamps = np.array(doric_file["Traces"]["Console"]["Time(s)"]["Console_time(s)"])
