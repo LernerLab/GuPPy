@@ -1,6 +1,7 @@
 import h5py
 import numpy as np
 import pandas as pd
+import pytest
 
 from guppy.analysis.io_utils import write_hdf5
 from guppy.analysis.standard_io import (
@@ -270,6 +271,21 @@ def test_read_corrected_timestamps_pairwise_returns_pair_name_dicts(tmp_path):
     assert pair_name_to_sampling_rate["dms"] == 100.0
 
 
+def test_read_corrected_timestamps_pairwise_mismatched_pair_names_raises_actionable_error(tmp_path):
+    # control suffix is 'dms', signal suffix is 'vms' → mismatch
+    (tmp_path / "control_dms.hdf5").touch()
+    (tmp_path / "signal_vms.hdf5").touch()
+
+    with pytest.raises(Exception) as exc_info:
+        read_corrected_timestamps_pairwise(str(tmp_path))
+
+    msg = str(exc_info.value)
+    assert "dms" in msg
+    assert "vms" in msg
+    assert str(tmp_path) in msg
+    assert "re-run step 2" in msg
+
+
 # ── read_coords_pairwise ──────────────────────────────────────────────────────
 
 
@@ -284,6 +300,22 @@ def test_read_coords_pairwise_returns_default_range_when_no_coords_file(tmp_path
     assert "dms" in result
     # No coords file → default = [[0, tsNew[-1]]] = [[0, 5.0]]
     np.testing.assert_array_equal(result["dms"], np.array([[0, 5.0]]))
+
+
+def test_read_coords_pairwise_mismatched_pair_names_raises_actionable_error(tmp_path):
+    # control suffix is 'dms', signal suffix is 'vms' → mismatch
+    (tmp_path / "control_dms.hdf5").touch()
+    (tmp_path / "signal_vms.hdf5").touch()
+    pair_name_to_tsNew = {"dms": np.array([0.0, 1.0, 2.0, 5.0])}
+
+    with pytest.raises(Exception) as exc_info:
+        read_coords_pairwise(str(tmp_path), pair_name_to_tsNew)
+
+    msg = str(exc_info.value)
+    assert "dms" in msg
+    assert "vms" in msg
+    assert str(tmp_path) in msg
+    assert "re-run step 2" in msg
 
 
 # ── read_corrected_data_dict ──────────────────────────────────────────────────

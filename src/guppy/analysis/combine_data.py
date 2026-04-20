@@ -79,8 +79,13 @@ def combine_data(
         name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")[-1]
         name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")[-1]
         if name_1 != name_2:
-            logger.error("Error in naming convention of files or Error in storesList file")
-            raise Exception("Error in naming convention of files or Error in storesList file")
+            msg = (
+                f"Pair name mismatch in '{filepaths_to_combine[0]}': control file suffix '{name_1}' does not match "
+                f"signal file suffix '{name_2}'. Check the naming convention of your files and the "
+                f"storesList file, then re-run step 2."
+            )
+            logger.error(msg)
+            raise Exception(msg)
         pair_name = name_1
 
         for i in range(len(names_for_storenames)):
