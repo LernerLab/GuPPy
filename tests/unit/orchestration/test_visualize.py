@@ -2,10 +2,11 @@
 Unit tests for guppy.orchestration.visualize._validate_metric_against_step5_outputs.
 """
 
+import re
+
 import pytest
 
 from guppy.orchestration.visualize import _validate_metric_against_step5_outputs
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -59,7 +60,7 @@ def test_raises_names_missing_session_in_message(tmp_path):
     session_dir, output_dir = _make_session_dir(tmp_path)
     (output_dir / "ttl_region_dff_region.h5").write_bytes(b"")
     params = _base_params(session_dir, visualize_zscore_or_dff="z_score")
-    with pytest.raises(ValueError, match=str(output_dir)):
+    with pytest.raises(ValueError, match=re.escape(str(output_dir))):
         _validate_metric_against_step5_outputs(params)
 
 
