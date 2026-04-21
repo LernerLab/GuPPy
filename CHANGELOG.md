@@ -7,6 +7,7 @@
 - Fixed stale output data when overwriting storenames in step 2: the output directory is now fully cleared before writing the new `storesList.csv`, removing any leftover HDF5 files and other pipeline artefacts. [PR #281](https://github.com/LernerLab/GuPPy/pull/281)
 - Replaced the uninformative `"Error in naming convention of files or Error in storesList file"` exception with an actionable message that reports the mismatching pair-name suffixes, the directory searched, and a suggestion to re-run step 2. [PR #280](https://github.com/LernerLab/GuPPy/pull/280)
 - Step 6 now validates the visualization metric selection (`z-score or ΔF/F? (for visualization)`) against the step-5 PSTH outputs on disk at the start of `visualizeResults`. When the requested metric was not computed in step 5, a `ValueError` is raised that names the missing metric, lists the affected session output directories, and tells the user to either change the visualization selection or re-run step 5 with the relevant option enabled. [PR #290](https://github.com/LernerLab/GuPPy/pull/290)
+- Step 6 now validates store name consistency across sessions when `combine_data=True`: `visualizeResults` raises a descriptive `ValueError` listing the missing session × storename pairs before attempting to build group plots, instead of failing deep inside `createPlots` with an opaque error. [PR #282](https://github.com/LernerLab/GuPPy/pull/282)
 
 ## Deprecations and Removals
 
