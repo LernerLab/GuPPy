@@ -205,11 +205,69 @@ def _validate_store_names_across_sessions(sessions_stores, combined_store_names)
             if store_name not in store_names:
                 missing.append((session_path, store_name))
     return missing
+def _validate_metric_against_step5_outputs(inputParameters):
+    """Cross-check the visualization metric selection against step-5 PSTH outputs on disk.
+
+    Step 5 only writes PSTH ``.h5`` files for the metric(s) selected via
+    ``selectForComputePsth``.  If the user later requests a different metric in
+    step 6 the downstream ``read_Df`` call will fail with an opaque
+    ``FileNotFoundError``.  This function detects that mismatch early and raises
+    a :class:`ValueError` that names the offending sessions and tells the user
+    exactly how to fix the problem.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        The full input-parameters dict passed to :func:`visualizeResults`.
+
+    Raises
+    ------
+    ValueError
+        When one or more output directories are missing PSTH ``.h5`` files for
+        the requested visualization metric.
+    """
+    visualize_zscore_or_dff = inputParameters["visualize_zscore_or_dff"]
+    average = inputParameters["visualizeAverageResults"]
+    folderNames = inputParameters["folderNames"]
+    folderNamesForAvg = inputParameters["folderNamesForAvg"]
+
+    # Collect all output directories that will be visualised
+    output_dirs = []
+    source_folders = folderNamesForAvg if (average and len(folderNamesForAvg) > 0) else folderNames
+    for filepath in source_folders:
+        output_dirs.extend(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+
+    if not output_dirs:
+        return  # Nothing to check; the main function will handle the empty case.
+
+    # PSTH output files use the ".h5" extension (pandas HDF5) and embed the
+    # metric name, e.g. "ttl_region_z_score_region.h5" or "ttl_region_dff_region.h5".
+    # Step-4 z-score/dff files use ".hdf5" and are therefore never false-positives.
+    if visualize_zscore_or_dff == "z_score":
+        pattern = "*_z_score_*.h5"
+    else:
+        pattern = "*_dff_*.h5"
+
+    missing_sessions = [od for od in output_dirs if not glob.glob(os.path.join(od, pattern))]
+
+    if missing_sessions:
+        other_metric = "dff" if visualize_zscore_or_dff == "z_score" else "z_score"
+        session_lines = "\n  - ".join(missing_sessions)
+        raise ValueError(
+            f"The visualization metric '{visualize_zscore_or_dff}' was not computed "
+            f"in step 5 for {len(missing_sessions)} session(s):\n"
+            f"  - {session_lines}\n\n"
+            f"To fix this, either:\n"
+            f"  1. Change the visualization selection to '{other_metric}', or\n"
+            f"  2. Re-run step 5 with '{visualize_zscore_or_dff}' (or 'Both') enabled."
+        )
 
 
 def visualizeResults(inputParameters):
 
     inputParameters = inputParameters
+
+    _validate_metric_against_step5_outputs(inputParameters)
 
     average = inputParameters["visualizeAverageResults"]
     logger.info(average)

@@ -7,6 +7,7 @@ GuPPy/runFiberPhotometryAnalysis.ipynb
 .vscode/
 *.egg-info/
 .clinerules/
+.venv/
 
 testing_data/
 
