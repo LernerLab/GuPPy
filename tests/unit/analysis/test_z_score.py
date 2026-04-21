@@ -80,8 +80,66 @@ def test_z_score_computation_baseline_mean_near_zero_in_window():
 def test_z_score_computation_baseline_raises_when_window_outside_timestamps():
     dff = np.ones(100)
     timestamps = np.linspace(5.0, 10.0, 100)
-    with pytest.raises(Exception):
+    # both start (0.0) and end (4.0) are before the signal starts (5.0),
+    # so start < ts_min is flagged first
+    with pytest.raises(ValueError, match="baselineWindowStart=0.0 is before the signal start"):
         z_score_computation(dff, timestamps, "baseline z-score", 0.0, 4.0)
+
+
+def test_z_score_computation_baseline_raises_when_end_exceeds_signal_duration():
+    dff = np.ones(100)
+    timestamps = np.linspace(0.0, 90.5, 100)
+    with pytest.raises(ValueError, match="baselineWindowEnd=120 exceeds signal duration"):
+        z_score_computation(dff, timestamps, "baseline z-score", 0.0, 120)
+
+
+def test_z_score_computation_baseline_raises_non_numeric_start():
+    dff = np.ones(100)
+    timestamps = np.linspace(0.0, 10.0, 100)
+    with pytest.raises(ValueError, match="baselineWindowStart=.* is not a valid number"):
+        z_score_computation(dff, timestamps, "baseline z-score", "bad", 5.0)
+
+
+def test_z_score_computation_baseline_raises_non_numeric_end():
+    dff = np.ones(100)
+    timestamps = np.linspace(0.0, 10.0, 100)
+    with pytest.raises(ValueError, match="baselineWindowEnd=.* is not a valid number"):
+        z_score_computation(dff, timestamps, "baseline z-score", 0.0, None)
+
+
+def test_z_score_computation_baseline_raises_when_start_equals_end():
+    dff = np.ones(100)
+    timestamps = np.linspace(0.0, 10.0, 100)
+    with pytest.raises(ValueError, match="baselineWindowStart=5 must be strictly less than baselineWindowEnd=5"):
+        z_score_computation(dff, timestamps, "baseline z-score", 5, 5)
+
+
+def test_z_score_computation_baseline_raises_when_start_greater_than_end():
+    dff = np.ones(100)
+    timestamps = np.linspace(0.0, 10.0, 100)
+    with pytest.raises(ValueError, match="baselineWindowStart=7 must be strictly less than baselineWindowEnd=3"):
+        z_score_computation(dff, timestamps, "baseline z-score", 7, 3)
+
+
+def test_z_score_computation_baseline_raises_start_before_signal():
+    dff = np.ones(100)
+    timestamps = np.linspace(5.0, 10.0, 100)
+    with pytest.raises(ValueError, match="baselineWindowStart=-1 is before the signal start"):
+        z_score_computation(dff, timestamps, "baseline z-score", -1, 8.0)
+
+
+def test_z_score_computation_baseline_error_message_includes_timespan():
+    dff = np.ones(100)
+    timestamps = np.linspace(5.0, 10.0, 100)
+    with pytest.raises(ValueError, match=r"signal timespan is \[5, 10\]s"):
+        z_score_computation(dff, timestamps, "baseline z-score", 0.0, 4.0)
+
+
+def test_z_score_computation_baseline_raises_nan_start():
+    dff = np.ones(100)
+    timestamps = np.linspace(0.0, 10.0, 100)
+    with pytest.raises(ValueError, match="baselineWindowStart=.* is not a valid number"):
+        z_score_computation(dff, timestamps, "baseline z-score", float("nan"), 5.0)
 
 
 def test_z_score_computation_mad_median_near_zero():

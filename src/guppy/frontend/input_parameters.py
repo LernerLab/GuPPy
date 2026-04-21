@@ -192,12 +192,8 @@ class ParameterForm:
             width=200,
         )
 
-        self.baseline_wd_strt = pn.widgets.LiteralInput(
-            name="Baseline Window Start Time (s) (int)", value=0, type=int, width=200
-        )
-        self.baseline_wd_end = pn.widgets.LiteralInput(
-            name="Baseline Window End Time (s) (int)", value=0, type=int, width=200
-        )
+        self.baseline_wd_strt = pn.widgets.IntInput(name="Baseline Window Start Time (s) (int)", value=0, width=200)
+        self.baseline_wd_end = pn.widgets.IntInput(name="Baseline Window End Time (s) (int)", value=0, width=200)
 
         self.explain_z_score = pn.pane.Markdown(
             """
@@ -205,8 +201,16 @@ class ParameterForm:
                         - Details about z-score computation methods are explained in Github wiki.<br>
                         - The details will make user understand what computation method to use for
                         their data.<br>
-                        - Baseline Window Parameters should be kept 0 unless you are using baseline<br>
-                        z-score computation method. The parameters are in seconds.
+                        - **Baseline Window Parameters** are only used with the *baseline z-score*
+                        method; keep both at 0 for other methods.<br>
+                        - Both values are in **seconds** and must be within the signal's recorded
+                        timespan. **Start** must be strictly less than **End**
+                        (e.g. Start=0, End=60 for a 0–60 s baseline window).<br>
+                        - If either value falls outside the available signal timespan you will
+                        receive an error indicating the offending parameter, the value supplied,
+                        and the valid range (e.g.
+                        "baselineWindowEnd=120 exceeds signal duration 90.5s;
+                        signal timespan is [0, 90.5]s — choose values within this range.").
                         """,
             width=580,
         )
