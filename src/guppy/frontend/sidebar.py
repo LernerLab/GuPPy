@@ -29,7 +29,6 @@ class Sidebar:
         self.mark_down_preprocess = pn.pane.Markdown("""**Step 4 : Preprocess and Remove Artifacts**""", width=300)
         self.mark_down_psth = pn.pane.Markdown("""**Step 5 : PSTH Computation**""", width=300)
         self.mark_down_visualization = pn.pane.Markdown("""**Step 6 : Visualization**""", width=300)
-        self.visualization_alert = pn.pane.Alert("", alert_type="danger", width=300, visible=False)
 
     def setup_buttons(self):
         self.open_storenames = pn.widgets.Button(
@@ -74,4 +73,3 @@ class Sidebar:
         self.template.sidebar.append(self.psth_progress)
         self.template.sidebar.append(self.mark_down_visualization)
         self.template.sidebar.append(self.open_visualization)
-        self.template.sidebar.append(self.visualization_alert)

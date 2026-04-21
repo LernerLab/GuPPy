@@ -55,13 +55,3 @@ class TestSidebar:
         assert sidebar.read_progress in objects
         assert sidebar.extract_progress in objects
         assert sidebar.psth_progress in objects
-
-    def test_visualization_alert_starts_hidden(self, sidebar):
-        assert not sidebar.visualization_alert.visible
-
-    def test_visualization_alert_is_added_to_template(self, panel_extension):
-        template = pn.template.BootstrapTemplate(title="Test")
-        sidebar = Sidebar(template=template)
-        sidebar.add_to_template()
-
-        assert sidebar.visualization_alert in template.sidebar.objects
