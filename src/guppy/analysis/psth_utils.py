@@ -122,7 +122,7 @@ def getCorrCombinations(filepath, inputParameters):
     corr_info = list()
     if len(names) <= 1:
         logger.info("Cross-correlation cannot be computed because only one signal is present.")
-        return corr_info, type
+        return names, type
     elif len(names) == 2:
         corr_info = names
     else:

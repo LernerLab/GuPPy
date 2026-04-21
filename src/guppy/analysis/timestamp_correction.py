@@ -74,8 +74,13 @@ def timestampCorrection(
         name_1 = channels_arr[0, i].split("_")[-1]
         name_2 = channels_arr[1, i].split("_")[-1]
         if name_1 != name_2:
-            logger.error("Error in naming convention of files or Error in storesList file")
-            raise Exception("Error in naming convention of files or Error in storesList file")
+            msg = (
+                f"Pair name mismatch in storesList: control channel '{control_name}' has suffix '{name_1}' "
+                f"but signal channel '{signal_name}' has suffix '{name_2}'. Check the naming convention of "
+                f"your files and the storesList file, then re-run step 2."
+            )
+            logger.error(msg)
+            raise Exception(msg)
 
         # dirname = os.path.dirname(path[i])
         idx = np.where(names_for_storenames == indices[i])[0]

@@ -41,7 +41,7 @@ from ..analysis.standard_io import (
 from ..analysis.timestamp_correction import correct_timestamps
 from ..analysis.z_score import compute_z_score
 from ..frontend.artifact_removal import ArtifactRemovalWidget
-from ..frontend.progress import PB_STEPS_FILE, writeToFile
+from ..frontend.progress import PB_ERROR_FILE, PB_STEPS_FILE, writeToFile
 from ..utils.utils import get_all_stores_for_combining_data
 from ..visualization.preprocessing import visualize_preprocessing
 
@@ -447,6 +447,8 @@ def main(input_parameters):
         extractTsAndSignal(input_parameters)
         logger.info("#" * 400)
     except Exception as e:
+        with open(PB_ERROR_FILE, "w") as ef:
+            ef.write(str(e))
         writeToFile(str(-1) + "\n", file_path=PB_STEPS_FILE)
         logger.error(str(e))
         raise e
