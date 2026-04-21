@@ -6,6 +6,7 @@
 - Cross-correlation now raises a descriptive `ValueError` (instead of silently skipping) when `compute_cross_correlation=True` but fewer than two distinct signal regions are present; the error message is surfaced as a persistent notification in the Panel UI so users do not need to inspect the terminal. [PR #284](https://github.com/LernerLab/GuPPy/pull/284)
 - Fixed stale output data when overwriting storenames in step 2: the output directory is now fully cleared before writing the new `storesList.csv`, removing any leftover HDF5 files and other pipeline artefacts. [PR #281](https://github.com/LernerLab/GuPPy/pull/281)
 - Replaced the uninformative `"Error in naming convention of files or Error in storesList file"` exception with an actionable message that reports the mismatching pair-name suffixes, the directory searched, and a suggestion to re-run step 2. [PR #280](https://github.com/LernerLab/GuPPy/pull/280)
+- Replaced the generic error for invalid `baselineWindowStart`/`baselineWindowEnd` values with layered upfront validation in the baseline z-score path: rejects non-numeric/`NaN` inputs, enforces `start < end`, and checks each bound against the signal timespan — reporting which limit was violated and the valid range. The input parameters tooltip now documents the expected units, ordering, and bounds. [PR #283](https://github.com/LernerLab/GuPPy/pull/283)
 
 ## Deprecations and Removals
 
