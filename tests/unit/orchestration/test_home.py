@@ -62,6 +62,10 @@ def test_onclick_visualization_surfaces_value_error_as_panel_notification(homepa
     """When visualizeResults raises ValueError the error must be surfaced as a
     persistent Panel error notification (duration=0) rather than propagated to
     the caller."""
+    folder = tmp_path / "session1"
+    folder.mkdir()
+    homepage._widgets["files_1"].value = [str(folder)]
+
     error_text = "Metric 'z_score' not found in step-5 outputs"
 
     def _raise(params):
@@ -74,11 +78,10 @@ def test_onclick_visualization_surfaces_value_error_as_panel_notification(homepa
 
     captured_notifications = []
 
-    class _FakeNotifications:
-        def error(self, message, *, duration):
-            captured_notifications.append({"message": message, "duration": duration})
+    def fake_error(message, *, duration):
+        captured_notifications.append({"message": message, "duration": duration})
 
-    monkeypatch.setattr(pn.state, "notifications", _FakeNotifications())
+    monkeypatch.setattr(pn.state.notifications, "error", fake_error)
 
     # Must not raise — the ValueError is caught and forwarded to Panel
     homepage._hooks["onclickVisualization"]()
