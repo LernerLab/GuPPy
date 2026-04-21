@@ -53,7 +53,10 @@ def build_homepage(*, start_path=None):
 
     def onclickVisualization(event=None):
         inputParameters = parameter_form.getInputParameters()
-        visualizeResults(inputParameters)
+        try:
+            visualizeResults(inputParameters)
+        except ValueError as e:
+            pn.state.notifications.error(str(e), duration=0)
 
     def onclickreaddata(event=None):
         thread = Thread(target=readRawData, args=(parameter_form,))
@@ -95,6 +98,7 @@ def build_homepage(*, start_path=None):
     # Expose minimal hooks and widgets to enable programmatic testing
     template._hooks = {
         "onclickProcess": onclickProcess,
+        "onclickVisualization": onclickVisualization,
         "getInputParameters": parameter_form.getInputParameters,
     }
     template._widgets = {
