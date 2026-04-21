@@ -100,6 +100,11 @@ def test_visualize_results_raises_on_mismatched_store_names(tmp_path, monkeypatc
     session_a = str(tmp_path / "session_A")
     session_b = str(tmp_path / "session_B")
 
+    # Bypass the metric-vs-step5 check; that logic is tested elsewhere
+    monkeypatch.setattr(
+        "guppy.orchestration.visualize._validate_metric_against_step5_outputs",
+        lambda params: None,
+    )
     # Patch get_all_stores_for_combining_data to return the two output dirs as one group
     monkeypatch.setattr(
         "guppy.orchestration.visualize.get_all_stores_for_combining_data",
@@ -120,6 +125,11 @@ def test_visualize_results_raises_lists_missing_session_and_name(tmp_path, monke
     _write_stores_list(session_a_out, ["Dv1A", "Dv2A", "PulA"], ["control_DMS", "signal_DMS", "lever_press"])
     _write_stores_list(session_b_out, ["Dv1A", "Dv2A"], ["control_DMS", "signal_DMS"])
 
+    # Bypass the metric-vs-step5 check; that logic is tested elsewhere
+    monkeypatch.setattr(
+        "guppy.orchestration.visualize._validate_metric_against_step5_outputs",
+        lambda params: None,
+    )
     monkeypatch.setattr(
         "guppy.orchestration.visualize.get_all_stores_for_combining_data",
         lambda paths: [[session_a_out, session_b_out]],
@@ -143,6 +153,11 @@ def test_visualize_results_combine_data_proceeds_when_store_names_match(tmp_path
     _write_stores_list(session_a_out, ["Dv1A", "Dv2A", "PulA"], ["control_DMS", "signal_DMS", "lever_press"])
     _write_stores_list(session_b_out, ["Dv1A", "Dv2A", "PulA"], ["control_DMS", "signal_DMS", "lever_press"])
 
+    # Bypass the metric-vs-step5 check; that logic is tested elsewhere
+    monkeypatch.setattr(
+        "guppy.orchestration.visualize._validate_metric_against_step5_outputs",
+        lambda params: None,
+    )
     monkeypatch.setattr(
         "guppy.orchestration.visualize.get_all_stores_for_combining_data",
         lambda paths: [[session_a_out, session_b_out]],
