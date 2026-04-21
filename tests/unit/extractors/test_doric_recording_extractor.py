@@ -226,3 +226,195 @@ class TestDoricRecordingExtractorV6(DoricRecordingExtractorTestMixin):
     ttl_event = "DigitalIO/CAM1"
     stub_ttl_test_duration_in_seconds = 100.0
     stub_extractor_kwargs = {"event_name_to_event_type": _EVENT_NAME_TO_EVENT_TYPE_V6}
+
+
+# ---------------------------------------------------------------------------
+# Validation of signal/control data (issue #270)
+# ---------------------------------------------------------------------------
+
+
+class TestValidateSignalControlData:
+    """Unit tests for ``_validate_signal_control_data``."""
+
+    def test_accepts_finite_non_constant_data(self):
+        data = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
+        DoricRecordingExtractor._validate_signal_control_data("AIn-1 - Raw", data, "signal")
+
+    def test_rejects_empty_data(self):
+        with pytest.raises(ValueError, match="is empty"):
+            DoricRecordingExtractor._validate_signal_control_data("ch", np.array([]), "signal")
+
+    def test_rejects_data_with_any_nan(self):
+        data = np.array([0.1, np.nan, 0.3, 0.4, 0.5])
+        with pytest.raises(ValueError, match="1 non-finite value"):
+            DoricRecordingExtractor._validate_signal_control_data("AIn-1 - Dem (AOut-2)", data, "signal")
+
+    def test_rejects_all_nan_data(self):
+        data = np.full(10, np.nan)
+        with pytest.raises(ValueError, match="10 non-finite value"):
+            DoricRecordingExtractor._validate_signal_control_data("ch", data, "control")
+
+    def test_rejects_inf_values(self):
+        data = np.array([0.1, np.inf, 0.3])
+        with pytest.raises(ValueError, match="non-finite"):
+            DoricRecordingExtractor._validate_signal_control_data("ch", data, "signal")
+
+    def test_rejects_constant_data(self):
+        data = np.ones(100, dtype=float)
+        with pytest.raises(ValueError, match="constant.*std=0.*AOut"):
+            DoricRecordingExtractor._validate_signal_control_data("AOut-1", data, "signal")
+
+    def test_error_message_includes_event_type(self):
+        data = np.ones(5)
+        with pytest.raises(ValueError, match="control_DMS"):
+            DoricRecordingExtractor._validate_signal_control_data("AOut-1", data, "control_DMS")
+
+
+# ---------------------------------------------------------------------------
+# Doric read paths: existence guards and data validation (issue #270)
+# ---------------------------------------------------------------------------
+
+
+def _make_doric_v1(hdf5_path, channels):
+    """Build a synthetic Doric V1 file. ``channels`` maps name -> 1-D array."""
+    with h5py.File(hdf5_path, "w") as f:
+        console = f.require_group("Traces/Console")
+        time_length = max(len(arr) for arr in channels.values())
+        console.require_group("Time(s)").create_dataset("Console_time(s)", data=np.linspace(0.0, 1.0, time_length))
+        for name, arr in channels.items():
+            console.require_group(name).create_dataset(name, data=arr)
+
+
+class TestDoricV1Validation:
+    """V1 read path must surface missing channels and bad data as ValueError."""
+
+    def test_missing_channel_raises_with_available_list(self, tmp_path):
+        hdf5_path = tmp_path / "session.doric"
+        _make_doric_v1(hdf5_path, {"AIn-1": np.arange(10.0), "AIn-2": np.arange(10.0)})
+        extractor = DoricRecordingExtractor(str(tmp_path), {"Raw": "signal"})
+        with pytest.raises(ValueError, match="'Raw' not found.*Available channels"):
+            extractor.read(events=["Raw"], outputPath="")
+
+    def test_nan_signal_raises_before_polyfit(self, tmp_path):
+        hdf5_path = tmp_path / "session.doric"
+        data_with_nan = np.arange(10.0)
+        data_with_nan[0] = np.nan
+        _make_doric_v1(
+            hdf5_path,
+            {"AIn-1 - Dem (AOut-2)": data_with_nan, "DI--O-1": np.ones(10)},
+        )
+        extractor = DoricRecordingExtractor(str(tmp_path), {"AIn-1 - Dem (AOut-2)": "signal", "DI--O-1": "ttl"})
+        with pytest.raises(ValueError, match="non-finite value"):
+            extractor.read(events=["AIn-1 - Dem (AOut-2)"], outputPath="")
+
+    def test_constant_aout_channel_raises(self, tmp_path):
+        hdf5_path = tmp_path / "session.doric"
+        _make_doric_v1(
+            hdf5_path,
+            {"AOut-1": np.ones(10), "AIn-2 - Raw": np.arange(10.0), "DI--O-1": np.ones(10)},
+        )
+        extractor = DoricRecordingExtractor(
+            str(tmp_path),
+            {"AOut-1": "signal", "AIn-2 - Raw": "control", "DI--O-1": "ttl"},
+        )
+        with pytest.raises(ValueError, match="'AOut-1' is constant.*AOut"):
+            extractor.read(events=["AOut-1"], outputPath="")
+
+    def test_valid_signal_still_works(self, tmp_path):
+        hdf5_path = tmp_path / "session.doric"
+        signal = np.linspace(0.0, 1.0, 10) + 0.1
+        _make_doric_v1(hdf5_path, {"AIn-1 - Raw": signal, "DI--O-1": np.ones(10)})
+        extractor = DoricRecordingExtractor(str(tmp_path), {"AIn-1 - Raw": "signal", "DI--O-1": "ttl"})
+        result = extractor.read(events=["AIn-1 - Raw"], outputPath="")
+        np.testing.assert_array_equal(result[0]["data"], signal)
+
+
+class TestDoricV6Validation:
+    """V6 read path must surface missing channels and bad data as ValueError."""
+
+    def _make_v6(self, hdf5_path, channels):
+        """``channels``: dict of {group_path: 1-D array}. Each gets sibling Time."""
+        with h5py.File(hdf5_path, "w") as f:
+            f.require_group("Configurations")
+            group_to_children = {}
+            for path, arr in channels.items():
+                parent, leaf = path.rsplit("/", 1)
+                group_to_children.setdefault(parent, {})[leaf] = arr
+            for parent, leaves in group_to_children.items():
+                grp = f.require_group("DataAcquisition/" + parent)
+                length = max(len(a) for a in leaves.values())
+                grp.create_dataset("Time", data=np.linspace(0.0, 1.0, length))
+                for leaf, arr in leaves.items():
+                    grp.create_dataset(leaf, data=arr)
+
+    def test_constant_aout_channel_raises(self, tmp_path):
+        hdf5_path = tmp_path / "session.doric"
+        self._make_v6(
+            hdf5_path,
+            {"Signals/Series0001/AnalogOut/AOUT01": np.ones(10)},
+        )
+        extractor = DoricRecordingExtractor(str(tmp_path), {"AnalogOut/AOUT01": "signal"})
+        with pytest.raises(ValueError, match="constant.*AOut"):
+            extractor.read(events=["AnalogOut/AOUT01"], outputPath="")
+
+    def test_missing_channel_raises_with_available_list(self, tmp_path):
+        hdf5_path = tmp_path / "session.doric"
+        self._make_v6(
+            hdf5_path,
+            {"Signals/Series0001/AnalogIn/AIN01": np.arange(10.0)},
+        )
+        extractor = DoricRecordingExtractor(str(tmp_path), {"AnalogIn/NotAChannel": "signal"})
+        with pytest.raises(ValueError, match="not found.*Available channels"):
+            extractor.read(events=["AnalogIn/NotAChannel"], outputPath="")
+
+
+class TestDoricCsvDiscovery:
+    """CSV discovery must filter junk columns that break the read path (issue #270)."""
+
+    def test_discovery_drops_trailing_all_nan_unnamed_column(self, tmp_path):
+        csv_path = tmp_path / "session.csv"
+        csv_path.write_text(
+            "---,Analog In. | Ch.1,Digital I/O | Ch.1,\n"
+            "Time(s),AIn-1 - Dem (ref),DI/O-1,\n"
+            "0.0,0.5,0,\n"
+            "0.1,0.6,1,\n"
+            "0.2,0.7,0,\n"
+        )
+        events, _ = DoricRecordingExtractor.discover_events_and_flags(str(tmp_path))
+        assert "AIn-1 - Dem (ref)" in events
+        assert "DI/O-1" in events
+        assert not any(e.startswith("Unnamed") for e in events)
+
+
+class TestDoricCsvValidation:
+    """CSV read path must surface missing columns and bad data as ValueError."""
+
+    def _write_csv(self, path, content):
+        path.write_text(content)
+
+    def test_missing_column_raises_with_available_list(self, tmp_path):
+        csv_path = tmp_path / "session.csv"
+        self._write_csv(
+            csv_path,
+            "---,Analog In. | Ch.1,Digital I/O | Ch.1,\n"
+            "Time(s),AIn-1 - Dem (ref),DI/O-1,\n"
+            "0.0,0.5,0,\n"
+            "0.1,0.6,1,\n",
+        )
+        extractor = DoricRecordingExtractor(str(tmp_path), {"Unnamed: 7": "signal"})
+        with pytest.raises(ValueError, match="'Unnamed: 7' not found.*Available channels"):
+            extractor.read(events=["Unnamed: 7"], outputPath="")
+
+    def test_constant_aout_column_raises(self, tmp_path):
+        csv_path = tmp_path / "session.csv"
+        self._write_csv(
+            csv_path,
+            "---,Analog Out. | Ch.1,Digital I/O | Ch.1,\n"
+            "Time(s),AOut-1,DI/O-1,\n"
+            "0.0,1,0,\n"
+            "0.1,1,1,\n"
+            "0.2,1,0,\n",
+        )
+        extractor = DoricRecordingExtractor(str(tmp_path), {"AOut-1": "signal", "DI/O-1": "ttl"})
+        with pytest.raises(ValueError, match="'AOut-1' is constant"):
+            extractor.read(events=["AOut-1"], outputPath="")

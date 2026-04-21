@@ -68,6 +68,10 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                     df_arr
                 ), "This file appears to be standard .csv. This function only supports doric .csv files."
                 df = pd.read_csv(path[i], header=1, index_col=False, nrows=10)
+                # Drop trailing all-NaN columns (e.g. "Unnamed: 7" from Doric CSVs with a
+                # trailing comma on each line). They'd otherwise appear as selectable events
+                # in Step 2, then vanish via the read path's own dropna, yielding a cryptic KeyError.
+                df = df.dropna(axis=1, how="all")
                 df = df.drop(["Time(s)"], axis=1)
                 event_from_filename.extend(list(df.columns))
                 flag = "doric_csv"
@@ -127,6 +131,38 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
         l = arr[-1]
         return arr[:-1], l
 
+    @staticmethod
+    def _validate_signal_control_data(event, data, event_type):
+        """Raise ValueError if ``data`` is unusable as a photometry signal/control trace.
+
+        Rejects channels that are all-NaN, mostly-NaN (>=50%), or zero-variance —
+        the three failure modes seen in real Doric exports (unused demodulation
+        channels fill with NaN; AOut / LED-drive channels are constant).
+        """
+        if data.size == 0:
+            raise ValueError(f"Doric channel {event!r} is empty and cannot be used as a {event_type} channel.")
+        finite_mask = np.isfinite(data)
+        nonfinite_count = int((~finite_mask).sum())
+        if nonfinite_count > 0:
+            # Even one NaN/inf breaks the downstream np.polyfit in z_score.controlFit (SVD error).
+            # This is common in Doric 'AIn-X - Dem (AOut-Y)' channels where AOut-Y was not
+            # driven (all-NaN demod output) or during demodulator warmup at recording start.
+            raise ValueError(
+                f"Doric channel {event!r} contains {nonfinite_count} non-finite value(s) "
+                f"(NaN/inf) out of {data.size} and cannot be used as a {event_type} channel — "
+                "downstream control-fit (np.polyfit) cannot handle NaN. This typically happens "
+                "with demodulated channels like 'AIn-X - Dem (AOut-Y)' when excitation "
+                "AOut-Y was not driven for this input, or during demodulator warmup at "
+                "recording start. Re-run Step 2 and pick a channel with continuous finite data."
+            )
+        if float(np.std(data)) == 0.0:
+            raise ValueError(
+                f"Doric channel {event!r} is constant (std=0) and cannot be used as a "
+                f"{event_type} channel. This is typical of analog output ('AOut') / LED "
+                "excitation channels, which do not contain fluorescence data. Pick a "
+                "demodulated or raw photometry channel instead."
+            )
+
     def _check_doric(self):
         logger.debug("Checking if doric file exists")
         path = glob.glob(os.path.join(self.folder_path, "*.csv")) + glob.glob(os.path.join(self.folder_path, "*.doric"))
@@ -171,11 +207,19 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
 
         output_dicts = []
         for event in events:
+            if event not in df.columns:
+                available = sorted(c for c in df.columns if c != "Time(s)")
+                raise ValueError(
+                    f"Doric channel {event!r} not found in Doric CSV file. "
+                    f"Available channels: {available}. Empty columns (trailing commas, "
+                    "'Unnamed: N') are filtered during discovery."
+                )
             event_type = self._event_name_to_event_type[event]
             if "control" in event_type or "signal" in event_type:
                 timestamps = np.array(df["Time(s)"])
                 sampling_rate = np.array([1 / (timestamps[-1] - timestamps[-2])])
                 data = np.array(df[event])
+                self._validate_signal_control_data(event, data, event_type)
                 storename = event
                 S = {"storename": storename, "sampling_rate": sampling_rate, "timestamps": timestamps, "data": data}
                 output_dicts.append(S)
@@ -234,9 +278,20 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                 if len(idx) > 1:
                     logger.error("More than one string matched (which should not be the case)")
                     raise Exception("More than one string matched (which should not be the case)")
+                if len(idx) == 0:
+                    available = sorted(
+                        {
+                            p.rsplit("/", 1)[-1] if p.rsplit("/", 1)[-1] != "Values" else p.rsplit("/", 2)[-2]
+                            for p in res
+                        }
+                    )
+                    raise ValueError(
+                        f"Doric channel {event!r} not found in Doric V6 file. " f"Available channels: {available}."
+                    )
                 idx = idx[0]
                 data = np.array(doric_file[decide_path[idx]])
                 timestamps = np.array(doric_file[decide_path[idx].rsplit("/", 1)[0] + "/Time"])
+                self._validate_signal_control_data(event, data, event_type)
                 sampling_rate = np.array([1 / (timestamps[-1] - timestamps[-2])])
                 storename = event
                 S = {"storename": storename, "sampling_rate": sampling_rate, "timestamps": timestamps, "data": data}
@@ -247,6 +302,16 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                 if len(idx) > 1:
                     logger.error("More than one string matched (which should not be the case)")
                     raise Exception("More than one string matched (which should not be the case)")
+                if len(idx) == 0:
+                    available = sorted(
+                        {
+                            p.rsplit("/", 1)[-1] if p.rsplit("/", 1)[-1] != "Values" else p.rsplit("/", 2)[-2]
+                            for p in res
+                        }
+                    )
+                    raise ValueError(
+                        f"Doric TTL channel {event!r} not found in Doric V6 file. " f"Available channels: {available}."
+                    )
                 idx = idx[0]
                 ttl = np.array(doric_file[decide_path[idx]])
                 timestamps = np.array(doric_file[decide_path[idx].rsplit("/", 1)[0] + "/Time"])
@@ -260,20 +325,26 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
         return output_dicts
 
     def _access_data_doricV1(self, doric_file, events):
-        keys = list(doric_file["Traces"]["Console"].keys())
+        console = doric_file["Traces"]["Console"]
         output_dicts = []
         for event in events:
+            if event not in console:
+                available = sorted(k for k in console.keys() if k != "Time(s)")
+                raise ValueError(
+                    f"Doric channel {event!r} not found in Doric V1 file. " f"Available channels: {available}."
+                )
             event_type = self._event_name_to_event_type[event]
             if "control" in event_type or "signal" in event_type:
-                timestamps = np.array(doric_file["Traces"]["Console"]["Time(s)"]["Console_time(s)"])
+                timestamps = np.array(console["Time(s)"]["Console_time(s)"])
+                data = np.array(console[event][event])
+                self._validate_signal_control_data(event, data, event_type)
                 sampling_rate = np.array([1 / (timestamps[-1] - timestamps[-2])])
-                data = np.array(doric_file["Traces"]["Console"][event][event])
                 storename = event
                 S = {"storename": storename, "sampling_rate": sampling_rate, "timestamps": timestamps, "data": data}
                 output_dicts.append(S)
             else:
-                timestamps = np.array(doric_file["Traces"]["Console"]["Time(s)"]["Console_time(s)"])
-                ttl = np.array(doric_file["Traces"]["Console"][event][event])
+                timestamps = np.array(console["Time(s)"]["Console_time(s)"])
+                ttl = np.array(console[event][event])
                 indices = np.where(ttl <= 0)[0]
                 diff_indices = np.where(np.diff(indices) > 1)[0]
                 timestamps = timestamps[indices[diff_indices] + 1]
