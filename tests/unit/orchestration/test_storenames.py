@@ -189,6 +189,69 @@ def test_save_updates_cache_file(isolated_cache):
 
 
 # ---------------------------------------------------------------------------
+# _save — overwrite mode clears output directory
+# ---------------------------------------------------------------------------
+
+
+def test_save_overwrites_clears_all_files_in_existing_dir(isolated_cache):
+    """When select_location already exists, all files are deleted before saving."""
+    select_location = isolated_cache / "session1_output_1"
+    select_location.mkdir()
+
+    # Representative derived data files written by earlier pipeline steps.
+    stale_files = ["signal_DMS.hdf5", "control_DMS.hdf5", "z_score_DMS.hdf5", "storesList.csv", "old_data.h5"]
+    for filename in stale_files:
+        (select_location / filename).write_bytes(b"stale")
+
+    storenames_data = {
+        "storenames": ["Dv3A", "Dv4A"],
+        "names_for_storenames": ["signal_NAc", "control_NAc"],
+    }
+
+    result = _save(storenames_data, str(select_location))
+
+    assert result == "#### No alerts !!"
+    # Only the freshly written storesList.csv should remain.
+    remaining = set(os.listdir(str(select_location)))
+    assert remaining == {"storesList.csv"}, f"Expected only storesList.csv, found: {remaining}"
+
+
+def test_save_overwrites_removes_subdirectories(isolated_cache):
+    """When select_location already exists, subdirectories are also removed."""
+    select_location = isolated_cache / "session1_output_1"
+    select_location.mkdir()
+
+    subdir = select_location / "cross_correlation_output"
+    subdir.mkdir()
+    (subdir / "corr_event1.hdf5").write_bytes(b"stale")
+
+    storenames_data = {
+        "storenames": ["Dv3A", "Dv4A"],
+        "names_for_storenames": ["signal_NAc", "control_NAc"],
+    }
+
+    _save(storenames_data, str(select_location))
+
+    assert not subdir.exists(), "Subdirectory should have been removed on overwrite"
+
+
+def test_save_new_dir_creates_directory(isolated_cache):
+    """When select_location does not exist, _save creates it (new mode, not overwrite)."""
+    select_location = isolated_cache / "session1_output_1"
+    assert not select_location.exists()
+
+    storenames_data = {
+        "storenames": ["Dv1A"],
+        "names_for_storenames": ["signal_DMS"],
+    }
+
+    result = _save(storenames_data, str(select_location))
+
+    assert result == "#### No alerts !!"
+    assert select_location.is_dir()
+
+
+# ---------------------------------------------------------------------------
 # _fetchValues
 # ---------------------------------------------------------------------------
 

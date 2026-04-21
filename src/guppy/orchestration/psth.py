@@ -32,7 +32,7 @@ from ..analysis.standard_io import (
     write_peak_and_area_to_csv,
     write_peak_and_area_to_hdf5,
 )
-from ..frontend.progress import PB_STEPS_FILE, writeToFile
+from ..frontend.progress import PB_ERROR_FILE, PB_STEPS_FILE, writeToFile
 from ..utils.utils import get_all_stores_for_combining_data, read_Df, takeOnlyDirs
 
 logger = logging.getLogger(__name__)
@@ -170,6 +170,19 @@ def execute_compute_cross_correlation(filepath, event, inputParameters):
                             should be replace with NaNs and not concatenate"
             )
         corr_info, type = getCorrCombinations(filepath, inputParameters)
+        if len(corr_info) < 2:
+            if corr_info:
+                raise ValueError(
+                    f"Cross-correlation requires at least two distinct signal regions, but only one was "
+                    f"found: '{corr_info[0]}'. Please either disable compute_cross_correlation or add a "
+                    f"second signal region in step 2."
+                )
+            else:
+                raise ValueError(
+                    "Cross-correlation requires at least two distinct signal regions, but no signal "
+                    "regions were found. Please either disable compute_cross_correlation or add signal "
+                    "regions in step 2."
+                )
         if "control" in event.lower() or "signal" in event.lower():
             return
         else:
@@ -351,6 +364,8 @@ def main(input_parameters):
         subprocess.call([sys.executable, "-m", "guppy.orchestration.transients", json.dumps(inputParameters)])
         logger.info("#" * 400)
     except Exception as e:
+        with open(PB_ERROR_FILE, "w") as ef:
+            ef.write(str(e))
         writeToFile(str(-1) + "\n", file_path=PB_STEPS_FILE)
         logger.error(str(e))
         raise e
