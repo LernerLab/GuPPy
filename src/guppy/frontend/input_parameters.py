@@ -192,12 +192,8 @@ class ParameterForm:
             width=200,
         )
 
-        self.baseline_wd_strt = pn.widgets.LiteralInput(
-            name="Baseline Window Start Time (s) (int)", value=0, type=int, width=200
-        )
-        self.baseline_wd_end = pn.widgets.LiteralInput(
-            name="Baseline Window End Time (s) (int)", value=0, type=int, width=200
-        )
+        self.baseline_wd_strt = pn.widgets.IntInput(name="Baseline Window Start Time (s) (int)", value=0, width=200)
+        self.baseline_wd_end = pn.widgets.IntInput(name="Baseline Window End Time (s) (int)", value=0, width=200)
 
         self.explain_z_score = pn.pane.Markdown(
             """
