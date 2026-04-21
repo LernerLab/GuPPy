@@ -143,7 +143,11 @@ def orchestrate_read_raw_data(inputParameters):
             for event in events:
                 ext = event_to_extractor.get(event)
                 if ext is None:
-                    raise ValueError(f"Event '{event}' not found in any extractor for folder {filepath}.")
+                    available = sorted(event_to_extractor.keys())
+                    raise ValueError(
+                        f"Event '{event}' not found in any extractor for folder {filepath}. "
+                        f"Available events: {available}."
+                    )
                 store_event_to_extractor[event] = ext
             read_and_save_all_events(store_event_to_extractor, op, numProcesses)
 
