@@ -305,11 +305,17 @@ def _validate_storenames_consistent_for_group(storesListPath):
     if len(unique_store_sets) <= 1:
         return
 
+    session_lines = "\n".join(
+        f"  - {os.path.basename(os.path.dirname(output_dir))}: " f"{', '.join(stores) if stores else '(no storenames)'}"
+        for output_dir, stores in per_session_stores.items()
+    )
     raise ValueError(
         "Group averaging requires every selected session to share the same "
         "storenames, but the selected sessions have mismatched or "
-        "non-overlapping storenames. Fix the storename labels in step 2, "
-        "deselect the mismatched sessions, or disable 'Average Group? (bool)'."
+        "non-overlapping storenames:\n"
+        f"{session_lines}\n"
+        "Fix the storename labels in step 2, deselect the mismatched "
+        "sessions, or disable 'Average Group? (bool)'."
     )
 
 

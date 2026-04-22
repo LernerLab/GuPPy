@@ -189,6 +189,25 @@ def test_validate_storenames_raises_for_mismatched_region_labels(tmp_path):
         _validate_storenames_consistent_for_group(np.array([str(output_1), str(output_2)]))
 
 
+def test_validate_storenames_error_message_lists_session_name_and_storenames(tmp_path):
+    output_1 = tmp_path / "session1" / "session1_output_1"
+    output_2 = tmp_path / "session2" / "session2_output_1"
+    _write_stores_list(output_1, ["control_region1", "signal_region1"])
+    _write_stores_list(output_2, ["control_region2", "signal_region2"])
+
+    with pytest.raises(ValueError) as exc_info:
+        _validate_storenames_consistent_for_group(np.array([str(output_1), str(output_2)]))
+    message = str(exc_info.value)
+    # Session folder names
+    assert "session1" in message
+    assert "session2" in message
+    # Storenames for each session
+    assert "control_region1" in message
+    assert "signal_region1" in message
+    assert "control_region2" in message
+    assert "signal_region2" in message
+
+
 def test_validate_storenames_single_session_does_not_raise(tmp_path):
     output_1 = tmp_path / "session1" / "session1_output_1"
     _write_stores_list(output_1, ["control_DMS", "signal_DMS"])
