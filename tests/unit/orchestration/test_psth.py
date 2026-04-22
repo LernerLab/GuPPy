@@ -185,24 +185,8 @@ def test_validate_storenames_raises_for_mismatched_region_labels(tmp_path):
     _write_stores_list(output_1, ["control_region1", "signal_region1", "port_entries1"])
     _write_stores_list(output_2, ["control_region2", "signal_region2", "port_entries2"])
 
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(ValueError, match="mismatched or non-overlapping storenames"):
         _validate_storenames_consistent_for_group(np.array([str(output_1), str(output_2)]))
-    message = str(exc_info.value)
-    assert "control_region1" in message
-    assert "control_region2" in message
-
-
-def test_validate_storenames_error_message_lists_offending_sessions(tmp_path):
-    output_1 = tmp_path / "session1" / "session1_output_1"
-    output_2 = tmp_path / "session2" / "session2_output_1"
-    _write_stores_list(output_1, ["control_DMS", "signal_DMS"])
-    _write_stores_list(output_2, ["control_NAC", "signal_NAC"])
-
-    with pytest.raises(ValueError) as exc_info:
-        _validate_storenames_consistent_for_group(np.array([str(output_1), str(output_2)]))
-    message = str(exc_info.value)
-    assert str(output_1) in message
-    assert str(output_2) in message
 
 
 def test_validate_storenames_single_session_does_not_raise(tmp_path):

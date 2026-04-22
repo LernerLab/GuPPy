@@ -305,21 +305,11 @@ def _validate_storenames_consistent_for_group(storesListPath):
     if len(unique_store_sets) <= 1:
         return
 
-    session_lines = "\n".join(
-        f"  - {output_dir}: {', '.join(stores) if stores else '(no storenames)'}"
-        for output_dir, stores in per_session_stores.items()
-    )
     raise ValueError(
-        "Group averaging requires every selected session to share the same set "
-        "of storenames (region labels), but the following sessions have "
-        "mismatched or non-overlapping storenames:\n"
-        f"{session_lines}\n\n"
-        "To fix this, either:\n"
-        "  1. Re-run step 2 so that every session uses the same storename "
-        "labels (e.g. 'control_region1', 'signal_region1'), or\n"
-        "  2. Remove sessions with mismatched storenames from the group "
-        "analysis folder selector, or\n"
-        "  3. Disable 'Average Group? (bool)' to run individual analysis."
+        "Group averaging requires every selected session to share the same "
+        "storenames, but the selected sessions have mismatched or "
+        "non-overlapping storenames. Fix the storename labels in step 2, "
+        "deselect the mismatched sessions, or disable 'Average Group? (bool)'."
     )
 
 
