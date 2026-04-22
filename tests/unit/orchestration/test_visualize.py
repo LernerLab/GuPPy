@@ -6,7 +6,10 @@ import re
 
 import pytest
 
-from guppy.orchestration.visualize import _validate_metric_against_step5_outputs
+from guppy.orchestration.visualize import (
+    _validate_average_visualization_preconditions,
+    _validate_metric_against_step5_outputs,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -178,3 +181,75 @@ def test_no_op_when_no_output_directories(tmp_path):
     params = _base_params(session_dir, visualize_zscore_or_dff="z_score")
     # Should not raise
     _validate_metric_against_step5_outputs(params)
+
+
+# ---------------------------------------------------------------------------
+# _validate_average_visualization_preconditions
+# ---------------------------------------------------------------------------
+
+
+def _avg_params(
+    tmp_path,
+    *,
+    visualize_average_results=True,
+    folder_names_for_avg=None,
+    visualize_zscore_or_dff="z_score",
+):
+    return {
+        "abspath": str(tmp_path),
+        "visualizeAverageResults": visualize_average_results,
+        "folderNamesForAvg": folder_names_for_avg if folder_names_for_avg is not None else [],
+        "visualize_zscore_or_dff": visualize_zscore_or_dff,
+    }
+
+
+def test_precondition_noop_when_visualize_average_false(tmp_path):
+    """When visualizeAverageResults=False, no checks are run — even without folders."""
+    params = _avg_params(tmp_path, visualize_average_results=False)
+    _validate_average_visualization_preconditions(params)
+
+
+def test_precondition_raises_when_no_folders_selected_for_avg(tmp_path):
+    """visualizeAverageResults=True with empty folderNamesForAvg → actionable error."""
+    params = _avg_params(tmp_path, folder_names_for_avg=[])
+    with pytest.raises(ValueError, match="no folders are selected"):
+        _validate_average_visualization_preconditions(params)
+
+
+def test_precondition_raises_when_average_folder_missing(tmp_path):
+    """visualizeAverageResults=True but no `average/` folder on disk → actionable error."""
+    session_dir = tmp_path / "session1"
+    session_dir.mkdir()
+    params = _avg_params(tmp_path, folder_names_for_avg=[str(session_dir)])
+    with pytest.raises(ValueError, match="no 'average' directory"):
+        _validate_average_visualization_preconditions(params)
+
+
+def test_precondition_raises_when_average_folder_empty_of_psth_outputs(tmp_path):
+    """`average/` exists but has no PSTH .h5 outputs for the requested metric → actionable error."""
+    session_dir = tmp_path / "session1"
+    session_dir.mkdir()
+    (tmp_path / "average").mkdir()
+    params = _avg_params(tmp_path, folder_names_for_avg=[str(session_dir)])
+    with pytest.raises(ValueError, match="no PSTH outputs for the 'z_score' metric"):
+        _validate_average_visualization_preconditions(params)
+
+
+def test_precondition_passes_when_average_folder_has_z_score_psth(tmp_path):
+    session_dir = tmp_path / "session1"
+    session_dir.mkdir()
+    average_dir = tmp_path / "average"
+    average_dir.mkdir()
+    (average_dir / "ttl_region_z_score_region.h5").write_bytes(b"")
+    params = _avg_params(tmp_path, folder_names_for_avg=[str(session_dir)], visualize_zscore_or_dff="z_score")
+    _validate_average_visualization_preconditions(params)
+
+
+def test_precondition_passes_when_average_folder_has_dff_psth(tmp_path):
+    session_dir = tmp_path / "session1"
+    session_dir.mkdir()
+    average_dir = tmp_path / "average"
+    average_dir.mkdir()
+    (average_dir / "ttl_region_dff_region.h5").write_bytes(b"")
+    params = _avg_params(tmp_path, folder_names_for_avg=[str(session_dir)], visualize_zscore_or_dff="dff")
+    _validate_average_visualization_preconditions(params)

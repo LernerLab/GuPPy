@@ -22,7 +22,6 @@ def averageForGroup(folderNames, inputParameters):
     path = []
     abspath = inputParameters["abspath"]
     selectForTransientsComputation = inputParameters["selectForTransientsComputation"]
-    path_temp_len = []
 
     for i in range(len(folderNames)):
         if selectForTransientsComputation == "z_score":
@@ -34,23 +33,20 @@ def averageForGroup(folderNames, inputParameters):
                 os.path.join(folderNames[i], "dff_*")
             )
 
-        path_temp_len.append(len(path_temp))
-
         for j in range(len(path_temp)):
             basename = (os.path.basename(path_temp[j])).split(".")[0]
             # name = name[0]
             temp = [folderNames[i], basename]
             path.append(temp)
 
-    path_temp_len = np.asarray(path_temp_len)
-    max_len = np.argmax(path_temp_len)
-
     naming = []
     for i in range(len(path)):
         naming.append(path[i][1])
     naming = np.unique(np.asarray(naming))
 
-    new_path = [[] for _ in range(path_temp_len[max_len])]
+    # Size by the number of unique basenames across all folders so that mismatched
+    # or non-overlapping storenames across sessions do not cause an IndexError.
+    new_path = [[] for _ in range(len(naming))]
     for i in range(len(path)):
         idx = np.where(naming == path[i][1])[0][0]
         new_path[idx].append(path[i])
