@@ -281,6 +281,48 @@ def execute_psth_combined(inputParameters):
         inputParameters["step"] += 1
 
 
+def _validate_storenames_consistent_for_group(storesListPath):
+    """Check that every session output directory exposes the same storenames.
+
+    Group averaging only produces meaningful results when all sessions share the
+    same set of storenames (the second row of each storesList.csv).  Detect the
+    mismatch up-front and raise a clear error listing the offending sessions,
+    instead of letting it surface downstream as an opaque ``IndexError``.
+
+    Raises
+    ------
+    ValueError
+        When the sessions disagree on the set of storenames.
+    """
+    per_session_stores = {}
+    for output_dir in storesListPath:
+        session_stores_list = np.genfromtxt(
+            os.path.join(output_dir, "storesList.csv"), dtype="str", delimiter=","
+        ).reshape(2, -1)
+        per_session_stores[output_dir] = tuple(sorted(set(session_stores_list[1, :])))
+
+    unique_store_sets = set(per_session_stores.values())
+    if len(unique_store_sets) <= 1:
+        return
+
+    session_lines = "\n".join(
+        f"  - {output_dir}: {', '.join(stores) if stores else '(no storenames)'}"
+        for output_dir, stores in per_session_stores.items()
+    )
+    raise ValueError(
+        "Group averaging requires every selected session to share the same set "
+        "of storenames (region labels), but the following sessions have "
+        "mismatched or non-overlapping storenames:\n"
+        f"{session_lines}\n\n"
+        "To fix this, either:\n"
+        "  1. Re-run step 2 so that every session uses the same storename "
+        "labels (e.g. 'control_region1', 'signal_region1'), or\n"
+        "  2. Remove sessions with mismatched storenames from the group "
+        "analysis folder selector, or\n"
+        "  3. Disable 'Average Group? (bool)' to run individual analysis."
+    )
+
+
 def execute_average_for_group(inputParameters):
     folderNamesForAvg = inputParameters["folderNamesForAvg"]
     if len(folderNamesForAvg) == 0:
@@ -292,6 +334,9 @@ def execute_average_for_group(inputParameters):
         filepath = folderNamesForAvg[i]
         storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
     storesListPath = np.concatenate(storesListPath)
+
+    _validate_storenames_consistent_for_group(storesListPath)
+
     storesList = np.asarray([[], []])
     for i in range(storesListPath.shape[0]):
         storesList = np.concatenate(

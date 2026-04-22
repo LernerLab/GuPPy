@@ -110,3 +110,34 @@ def test_average_for_group_creates_averaged_psth_file(tmp_path):
     averageForGroup([str(session1), str(session2)], "event_lever", input_parameters)
 
     assert (tmp_path / "average" / "event_lever_dms_z_score_dms.h5").exists()
+
+
+def test_average_for_group_handles_non_overlapping_storenames_without_indexerror(tmp_path):
+    """Sessions with entirely non-overlapping storenames must not raise IndexError.
+
+    Regression test for issue #274 — previously ``new_path`` was sized by the
+    largest per-session file count, which could be smaller than the number of
+    unique basenames and caused ``list index out of range`` at
+    ``new_path[idx].append(path[i])``.
+    """
+    session1 = tmp_path / "session1"
+    session2 = tmp_path / "session2"
+    session1.mkdir()
+    session2.mkdir()
+
+    # Non-overlapping region labels across sessions
+    (session1 / "z_score_regionA.hdf5").touch()
+    (session2 / "z_score_regionB.hdf5").touch()
+
+    psth = np.array([[1.0, 2.0, 3.0], [0.0, 1.0, 2.0]])
+    columns = ["trial1", "timestamps"]
+    create_Df_for_psth(str(session1), "event_lever_regionA", "z_score_regionA", psth, columns=columns)
+    create_Df_for_psth(str(session2), "event_lever_regionB", "z_score_regionB", psth, columns=columns)
+
+    input_parameters = {"abspath": str(tmp_path), "selectForComputePsth": "z_score"}
+
+    # Must not raise IndexError, and must produce an output file per unique basename
+    averageForGroup([str(session1), str(session2)], "event_lever", input_parameters)
+
+    assert (tmp_path / "average" / "event_lever_regionA_z_score_regionA.h5").exists()
+    assert (tmp_path / "average" / "event_lever_regionB_z_score_regionB.h5").exists()

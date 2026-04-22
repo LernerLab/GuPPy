@@ -28,7 +28,6 @@ def averageForGroup(folderNames, event, inputParameters):
     path = []
     abspath = inputParameters["abspath"]
     selectForComputePsth = inputParameters["selectForComputePsth"]
-    path_temp_len = []
     op = makeAverageDir(abspath)
 
     # combining paths to all the selected folders for doing average
@@ -42,8 +41,6 @@ def averageForGroup(folderNames, event, inputParameters):
                 os.path.join(folderNames[i], "dff_*")
             )
 
-        path_temp_len.append(len(path_temp))
-        # path_temp = glob.glob(os.path.join(folderNames[i], 'z_score_*'))
         for j in range(len(path_temp)):
             basename = (os.path.basename(path_temp[j])).split(".")[0]
             write_hdf5(np.array([]), basename, op, "data")
@@ -52,15 +49,14 @@ def averageForGroup(folderNames, event, inputParameters):
             path.append(temp)
 
     # processing of all the paths
-    path_temp_len = np.asarray(path_temp_len)
-    max_len = np.argmax(path_temp_len)
-
     naming = []
     for i in range(len(path)):
         naming.append(path[i][2])
     naming = np.unique(np.asarray(naming))
 
-    new_path = [[] for _ in range(path_temp_len[max_len])]
+    # Size by the number of unique basenames across all folders so that mismatched
+    # or non-overlapping storenames across sessions do not cause an IndexError.
+    new_path = [[] for _ in range(len(naming))]
     for i in range(len(path)):
         idx = np.where(naming == path[i][2])[0][0]
         new_path[idx].append(path[i])

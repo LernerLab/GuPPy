@@ -239,10 +239,72 @@ def _validate_metric_against_step5_outputs(inputParameters):
         )
 
 
+def _validate_average_visualization_preconditions(inputParameters):
+    """Ensure the prerequisites for 'Visualize Average Results' are satisfied.
+
+    Catches the three user-facing failure modes documented in issue #274:
+
+    1. ``visualizeAverageResults`` is True, but no folders are selected in the
+       group-analysis folder picker — previously the visualization silently
+       fell through to individual mode.
+    2. ``visualizeAverageResults`` is True, but step 5 was never run with
+       ``averageForGroup`` = True, so no ``average/`` directory exists —
+       previously only a terminal warning was logged.
+    3. ``visualizeAverageResults`` is True and an ``average/`` folder exists,
+       but the folders selected for averaging are not reflected in the saved
+       averaged outputs (e.g. the user deselected them after running step 5).
+
+    Raises
+    ------
+    ValueError
+        With a message pointing the user at the specific corrective action.
+    """
+    if not inputParameters["visualizeAverageResults"]:
+        return
+
+    folderNamesForAvg = inputParameters["folderNamesForAvg"]
+    if len(folderNamesForAvg) == 0:
+        raise ValueError(
+            "'Visualize Average Results?' is set to True, but no folders are "
+            "selected in the Group Analysis folder picker. Please either "
+            "select the folders to visualize in the group-analysis selector, "
+            "or set 'Visualize Average Results?' to False for individual "
+            "visualization."
+        )
+
+    average_folder = os.path.join(inputParameters["abspath"], "average")
+    if not os.path.isdir(average_folder):
+        raise ValueError(
+            "'Visualize Average Results?' is set to True, but no 'average' "
+            f"directory was found at {average_folder}. Please re-run step 5 "
+            "('PSTH Computation') with 'Average Group? (bool)' = True before "
+            "visualizing the averaged results."
+        )
+
+    # Ensure the average folder contains PSTH outputs; otherwise step 5 was
+    # run without averageForGroup=True even though the folder exists from some
+    # earlier run.
+    visualize_zscore_or_dff = inputParameters["visualize_zscore_or_dff"]
+    if visualize_zscore_or_dff == "z_score":
+        pattern = "*_z_score_*.h5"
+    else:
+        pattern = "*_dff_*.h5"
+    if not glob.glob(os.path.join(average_folder, pattern)):
+        raise ValueError(
+            f"'Visualize Average Results?' is set to True and an 'average' "
+            f"directory exists at {average_folder}, but it contains no PSTH "
+            f"outputs for the '{visualize_zscore_or_dff}' metric. Please "
+            "re-run step 5 ('PSTH Computation') with 'Average Group? (bool)' "
+            "= True and the appropriate 'z_score and/or ΔF/F? (psth)' "
+            "selection before visualizing the averaged results."
+        )
+
+
 def visualizeResults(inputParameters):
 
     inputParameters = inputParameters
 
+    _validate_average_visualization_preconditions(inputParameters)
     _validate_metric_against_step5_outputs(inputParameters)
 
     average = inputParameters["visualizeAverageResults"]

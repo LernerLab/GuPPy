@@ -3,6 +3,7 @@ import numpy as np
 import pytest
 
 from guppy.orchestration.psth import (
+    _validate_storenames_consistent_for_group,
     execute_compute_cross_correlation,
     execute_compute_psth,
     execute_compute_psth_peak_and_area,
@@ -122,9 +123,7 @@ def test_execute_compute_cross_correlation_raises_for_single_region(
         execute_compute_cross_correlation(str(psth_output_dir), "lever_press", base_input_parameters)
 
 
-def test_execute_compute_cross_correlation_raises_for_no_regions(
-    psth_output_dir, base_input_parameters, monkeypatch
-):
+def test_execute_compute_cross_correlation_raises_for_no_regions(psth_output_dir, base_input_parameters, monkeypatch):
     """When computeCorr=True but no signal regions are found, a ValueError is raised."""
     monkeypatch.setattr(
         "guppy.orchestration.psth.getCorrCombinations",
@@ -136,3 +135,79 @@ def test_execute_compute_cross_correlation_raises_for_no_regions(
 
     with pytest.raises(ValueError, match="no signal regions were found"):
         execute_compute_cross_correlation(str(psth_output_dir), "lever_press", base_input_parameters)
+
+
+# ---------------------------------------------------------------------------
+# _validate_storenames_consistent_for_group
+# ---------------------------------------------------------------------------
+
+
+def _write_stores_list(output_dir, storenames):
+    """Write a minimal storesList.csv with 'raw' labels in row 0 and storenames in row 1."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    raw_labels = [f"raw{i}" for i in range(len(storenames))]
+    rows = [",".join(raw_labels), ",".join(storenames)]
+    (output_dir / "storesList.csv").write_text("\n".join(rows) + "\n")
+
+
+def test_validate_storenames_consistent_passes_when_all_match(tmp_path):
+    output_1 = tmp_path / "session1" / "session1_output_1"
+    output_2 = tmp_path / "session2" / "session2_output_1"
+    _write_stores_list(output_1, ["control_DMS", "signal_DMS", "port_entries"])
+    _write_stores_list(output_2, ["control_DMS", "signal_DMS", "port_entries"])
+
+    # Should not raise
+    _validate_storenames_consistent_for_group(np.array([str(output_1), str(output_2)]))
+
+
+def test_validate_storenames_consistent_allows_reordered_storenames(tmp_path):
+    output_1 = tmp_path / "session1" / "session1_output_1"
+    output_2 = tmp_path / "session2" / "session2_output_1"
+    _write_stores_list(output_1, ["control_DMS", "signal_DMS", "port_entries"])
+    _write_stores_list(output_2, ["signal_DMS", "port_entries", "control_DMS"])
+
+    _validate_storenames_consistent_for_group(np.array([str(output_1), str(output_2)]))
+
+
+def test_validate_storenames_raises_for_non_overlapping_storenames(tmp_path):
+    output_1 = tmp_path / "session1" / "session1_output_1"
+    output_2 = tmp_path / "session2" / "session2_output_1"
+    _write_stores_list(output_1, ["control_DMS_A", "signal_DMS_A", "port_entries_A"])
+    _write_stores_list(output_2, ["control_DMS_B", "signal_DMS_B", "port_entries_B"])
+
+    with pytest.raises(ValueError, match="mismatched or non-overlapping storenames"):
+        _validate_storenames_consistent_for_group(np.array([str(output_1), str(output_2)]))
+
+
+def test_validate_storenames_raises_for_mismatched_region_labels(tmp_path):
+    output_1 = tmp_path / "session1" / "session1_output_1"
+    output_2 = tmp_path / "session2" / "session2_output_1"
+    _write_stores_list(output_1, ["control_region1", "signal_region1", "port_entries1"])
+    _write_stores_list(output_2, ["control_region2", "signal_region2", "port_entries2"])
+
+    with pytest.raises(ValueError) as exc_info:
+        _validate_storenames_consistent_for_group(np.array([str(output_1), str(output_2)]))
+    message = str(exc_info.value)
+    assert "control_region1" in message
+    assert "control_region2" in message
+
+
+def test_validate_storenames_error_message_lists_offending_sessions(tmp_path):
+    output_1 = tmp_path / "session1" / "session1_output_1"
+    output_2 = tmp_path / "session2" / "session2_output_1"
+    _write_stores_list(output_1, ["control_DMS", "signal_DMS"])
+    _write_stores_list(output_2, ["control_NAC", "signal_NAC"])
+
+    with pytest.raises(ValueError) as exc_info:
+        _validate_storenames_consistent_for_group(np.array([str(output_1), str(output_2)]))
+    message = str(exc_info.value)
+    assert str(output_1) in message
+    assert str(output_2) in message
+
+
+def test_validate_storenames_single_session_does_not_raise(tmp_path):
+    output_1 = tmp_path / "session1" / "session1_output_1"
+    _write_stores_list(output_1, ["control_DMS", "signal_DMS"])
+
+    # Single session → trivially consistent
+    _validate_storenames_consistent_for_group(np.array([str(output_1)]))
