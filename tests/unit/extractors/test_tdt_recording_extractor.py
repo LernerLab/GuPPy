@@ -48,6 +48,27 @@ def test_event_needs_splitting(data, sampling_rate, expected):
     assert TdtRecordingExtractor._event_needs_splitting(data=data, sampling_rate=sampling_rate) == expected
 
 
+# ---------------------------------------------------------------------------
+# _format_split_suffix
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        (5, "5"),
+        (np.int32(3), "3"),
+        (5.0, "5"),  # integer-valued float → no "p"
+        (0.1, "0p1"),
+        (1.6, "1p6"),
+        (10.0, "10"),
+        (np.float32(0.1), "0p1"),  # float32 precision artifact collapsed by "{:g}"
+    ],
+)
+def test_format_split_suffix(value, expected):
+    assert TdtRecordingExtractor._format_split_suffix(value) == expected
+
+
 from conftest import STUBBED_TESTING_DATA
 
 # ---------------------------------------------------------------------------
@@ -163,3 +184,49 @@ class TestTdtRecordingExtractorSplitEvent(TdtRecordingExtractorTestMixin):
         # All sub-event storenames should start with "PAB" (slash stripped).
         sub_event_storenames = [name for name in storenames if name != "PAB/"]
         assert all(name.startswith("PAB") for name in sub_event_storenames)
+
+
+class TestTdtRecordingExtractorSplitFloat(TdtRecordingExtractorTestMixin):
+    extractor_class = TdtRecordingExtractor
+    folder_path = os.path.join(STUBBED_TESTING_DATA, "tdt", "ME112-ME113-260420-114630")
+    extractor_instance = TdtRecordingExtractor(folder_path)
+    # Widt is a split-event channel whose codes are floats (0.1, 0.2, 0.4, 0.8, 10.0)
+    # — regression case for the int()-collapse bug. _widt_storesList_setup autouse
+    # fixture prepares storesList.csv exactly like the PAB/ case above.
+    expected_events = ["415A", "465A", "Widt"]
+    discover_kwargs = {}
+    control_event = "415A"
+    signal_event = "465A"
+    ttl_event = "Widt"
+    stub_ttl_test_duration_in_seconds = 15.0
+
+    @pytest.fixture(autouse=True)
+    def _widt_storesList_setup(self, tmp_path):
+        with open(tmp_path / "storesList.csv", "w", newline="") as stores_file:
+            csv.writer(stores_file).writerows([["Widt"], ["ttl"]])
+        return tmp_path
+
+    @pytest.fixture
+    def expected_ttl_timestamps(self, _widt_storesList_setup):
+        result = self.extractor_instance.read(events=["Widt"], outputPath=str(_widt_storesList_setup))
+        return result[0]["timestamps"]
+
+    def test_split_event_preserves_unique_floats(self, _widt_storesList_setup):
+        # Widt carries float-valued codes (0.1, 0.2, 0.4, 0.8, 10.0) — splitting
+        # must produce one sub-event per unique float, not collapse via int() to
+        # four "Widt0" + one "Widt10".
+        result = self.extractor_instance.read(events=["Widt"], outputPath=str(_widt_storesList_setup))
+
+        storenames = [output_dict["storename"] for output_dict in result]
+        sub_event_storenames = sorted(name for name in storenames if name != "Widt")
+        assert sub_event_storenames == ["Widt0p1", "Widt0p2", "Widt0p4", "Widt0p8", "Widt10"]
+
+    def test_split_event_storesList_has_no_duplicates(self, _widt_storesList_setup):
+        self.extractor_instance.read(events=["Widt"], outputPath=str(_widt_storesList_setup))
+        stores_list = np.genfromtxt(str(_widt_storesList_setup / "storesList.csv"), dtype="str", delimiter=",").reshape(
+            2, -1
+        )
+
+        assert sorted(stores_list[0]) == ["Widt0p1", "Widt0p2", "Widt0p4", "Widt0p8", "Widt10"]
+        assert sorted(stores_list[1]) == ["Widt_0p1", "Widt_0p2", "Widt_0p4", "Widt_0p8", "Widt_10"]
+        assert "Widt" not in stores_list[0]
