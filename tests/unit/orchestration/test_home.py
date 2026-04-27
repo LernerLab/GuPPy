@@ -58,6 +58,34 @@ def test_get_input_parameters_returns_dict(homepage, tmp_path):
     assert isinstance(result, dict)
 
 
+def test_onclick_process_surfaces_no_folder_selected_as_panel_notification(homepage, monkeypatch):
+    """When no folder is selected, getInputParameters raises and the click
+    handler must surface the error as a persistent Panel notification (duration=0)
+    rather than letting it propagate, and must not invoke the underlying worker."""
+    homepage._widgets["files_1"].value = []
+
+    save_parameters_calls = []
+    monkeypatch.setattr(
+        "guppy.orchestration.home.save_parameters",
+        lambda inputParameters: save_parameters_calls.append(inputParameters),
+    )
+
+    captured_notifications = []
+
+    def fake_error(message, *, duration):
+        captured_notifications.append({"message": message, "duration": duration})
+
+    monkeypatch.setattr(pn.state.notifications, "error", fake_error)
+
+    # Must not raise — the exception is caught and forwarded to Panel
+    homepage._hooks["onclickProcess"]()
+
+    assert len(captured_notifications) == 1
+    assert "No folder is selected for analysis" in captured_notifications[0]["message"]
+    assert captured_notifications[0]["duration"] == 0
+    assert save_parameters_calls == []
+
+
 def test_onclick_visualization_surfaces_value_error_as_panel_notification(homepage, tmp_path, monkeypatch):
     """When visualizeResults raises ValueError the error must be surfaced as a
     persistent Panel error notification (duration=0) rather than propagated to
