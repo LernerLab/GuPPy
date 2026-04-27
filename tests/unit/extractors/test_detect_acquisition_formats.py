@@ -6,6 +6,7 @@ import shutil
 import pytest
 from conftest import STUBBED_TESTING_DATA
 
+from guppy.extractors import NpmRecordingExtractor
 from guppy.extractors.detect_acquisition_formats import (
     _classify_csv_file,
     _is_event_csv,
@@ -130,3 +131,26 @@ def test_detect_acquisition_formats_with_external_csv_events(tmp_path, session_s
     shutil.copytree(src, session_copy)
     (session_copy / "port_entries.csv").write_text("timestamps\n0.1\n0.2\n0.3\n")
     assert detect_acquisition_formats(str(session_copy)) == expected_formats
+
+
+def test_detect_acquisition_formats_after_npm_split_events(tmp_path):
+    # When an NPM session has split-event TTLs, NpmRecordingExtractor.discover_events_and_flags
+    # writes intermediate single-column "event*.csv" files that must subsequently be read by
+    # CsvRecordingExtractor. detect_acquisition_formats must therefore report both "npm" and
+    # "csv" so the read path dispatches CsvRecordingExtractor for those events.
+    src = os.path.join(STUBBED_TESTING_DATA, "npm/sampleData_NPM_4")
+    session_copy = tmp_path / "sampleData_NPM_4"
+    shutil.copytree(src, session_copy)
+
+    inputParameters = {
+        "npm_timestamp_column_names": None,
+        "npm_time_units": None,
+        "npm_split_events": [True, True],
+    }
+    NpmRecordingExtractor.discover_events_and_flags(
+        folder_path=str(session_copy),
+        num_ch=2,
+        inputParameters=inputParameters,
+    )
+
+    assert detect_acquisition_formats(str(session_copy)) == {"npm", "csv"}
