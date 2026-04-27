@@ -132,15 +132,13 @@ class ParameterForm:
             width=350,
         )
 
-        self.timeForLightsTurnOn = pn.widgets.LiteralInput(
-            name="Eliminate first few seconds (int)", value=1, type=int, width=320
-        )
+        self.timeForLightsTurnOn = pn.widgets.IntInput(name="Eliminate first few seconds (int)", value=1, width=320)
 
         self.isosbestic_control = pn.widgets.Select(
             name="Isosbestic Control Channel? (bool)", value=True, options=[True, False], width=320
         )
 
-        self.numberOfCores = pn.widgets.LiteralInput(name="# of cores (int)", value=2, type=int, width=150)
+        self.numberOfCores = pn.widgets.IntInput(name="# of cores (int)", value=2, width=150)
 
         self.combine_data = pn.widgets.Select(
             name="Combine Data? (bool)", value=False, options=[True, False], width=150
@@ -161,16 +159,16 @@ class ParameterForm:
             width=320,
         )
 
-        self.moving_wd = pn.widgets.LiteralInput(
-            name="Moving Window for transients detection (s) (int)", value=15, type=int, width=320
+        self.moving_wd = pn.widgets.IntInput(
+            name="Moving Window for transients detection (s) (int)", value=15, width=320
         )
 
-        self.highAmpFilt = pn.widgets.LiteralInput(name="HAFT (int)", value=2, type=int, width=150)
+        self.highAmpFilt = pn.widgets.IntInput(name="HAFT (int)", value=2, width=150)
 
-        self.transientsThresh = pn.widgets.LiteralInput(name="TD Thresh (int)", value=3, type=int, width=150)
+        self.transientsThresh = pn.widgets.IntInput(name="TD Thresh (int)", value=3, width=150)
 
-        self.moving_avg_filter = pn.widgets.LiteralInput(
-            name="Window for Moving Average filter (int)", value=100, type=int, width=320
+        self.moving_avg_filter = pn.widgets.IntInput(
+            name="Window for Moving Average filter (int)", value=100, width=320
         )
 
         self.removeArtifacts = pn.widgets.Select(
@@ -181,8 +179,8 @@ class ParameterForm:
             name="removeArtifacts method", value="concatenate", options=["concatenate", "replace with NaN"], width=150
         )
 
-        self.no_channels_np = pn.widgets.LiteralInput(
-            name="Number of channels (Neurophotometrics only)", value=2, type=int, width=320
+        self.no_channels_np = pn.widgets.IntInput(
+            name="Number of channels (Neurophotometrics only)", value=2, width=320
         )
 
         self.z_score_computation = pn.widgets.Select(
@@ -227,22 +225,22 @@ class ParameterForm:
             width=580,
         )
 
-        self.nSecPrev = pn.widgets.LiteralInput(name="Seconds before 0 (int)", value=-10, type=int, width=120)
+        self.nSecPrev = pn.widgets.IntInput(name="Seconds before 0 (int)", value=-10, width=120)
 
-        self.nSecPost = pn.widgets.LiteralInput(name="Seconds after 0 (int)", value=20, type=int, width=120)
+        self.nSecPost = pn.widgets.IntInput(name="Seconds after 0 (int)", value=20, width=120)
 
         self.computeCorr = pn.widgets.Select(
             name="Compute Cross-correlation (bool)", options=[True, False], value=False, width=200
         )
 
-        self.timeInterval = pn.widgets.LiteralInput(name="Time Interval (s)", value=2, type=int, width=120)
+        self.timeInterval = pn.widgets.IntInput(name="Time Interval (s)", value=2, width=120)
 
         self.use_time_or_trials = pn.widgets.Select(
             name="Bin PSTH trials (str)", options=["Time (min)", "# of trials"], value="Time (min)", width=120
         )
 
-        self.bin_psth_trials = pn.widgets.LiteralInput(
-            name="Time(min) / # of trials \n for binning? (int)", value=0, type=int, width=200
+        self.bin_psth_trials = pn.widgets.IntInput(
+            name="Time(min) / # of trials \n for binning? (int)", value=0, width=200
         )
 
         self.explain_baseline = pn.pane.Markdown(
@@ -258,13 +256,11 @@ class ParameterForm:
             width=580,
         )
 
-        self.baselineCorrectionStart = pn.widgets.LiteralInput(
-            name="Baseline Correction Start time(int)", value=-5, type=int, width=200
+        self.baselineCorrectionStart = pn.widgets.IntInput(
+            name="Baseline Correction Start time(int)", value=-5, width=200
         )
 
-        self.baselineCorrectionEnd = pn.widgets.LiteralInput(
-            name="Baseline Correction End time(int)", value=0, type=int, width=200
-        )
+        self.baselineCorrectionEnd = pn.widgets.IntInput(name="Baseline Correction End time(int)", value=0, width=200)
 
         self.zscore_param_wd = pn.WidgetBox(
             "### Z-score Parameters",
