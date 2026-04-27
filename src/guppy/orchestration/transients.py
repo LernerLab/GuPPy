@@ -19,7 +19,7 @@ from ..analysis.standard_io import (
 )
 from ..analysis.transients import analyze_transients
 from ..analysis.transients_average import averageForGroup
-from ..frontend.progress import PB_STEPS_FILE, writeToFile
+from ..frontend.progress import PB_STEPS_FILE, subprocess_main_handler, writeToFile
 from ..utils.utils import get_all_stores_for_combining_data, takeOnlyDirs
 from ..visualization.transients import visualize_peaks
 
@@ -205,11 +205,11 @@ def execute_average_for_group(inputParameters, folderNamesForAvg):
     inputParameters["step"] += 1
 
 
+@subprocess_main_handler
+def main(input_parameters):
+    executeFindFreqAndAmp(input_parameters)
+
+
 if __name__ == "__main__":
-    try:
-        executeFindFreqAndAmp(json.loads(sys.argv[1]))
-        logger.info("#" * 400)
-    except Exception as e:
-        writeToFile(str(-1) + "\n", file_path=PB_STEPS_FILE)
-        logger.error(str(e))
-        raise e
+    input_parameters = json.loads(sys.argv[1])
+    main(input_parameters=input_parameters)

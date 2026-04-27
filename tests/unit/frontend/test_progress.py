@@ -3,7 +3,12 @@ import time
 
 import pytest
 
-from guppy.frontend.progress import readPBIncrementValues, writeToFile
+from guppy.frontend import progress as progress_module
+from guppy.frontend.progress import (
+    readPBIncrementValues,
+    subprocess_main_handler,
+    writeToFile,
+)
 
 
 def test_write_to_file_creates_file_with_content(tmp_path):
@@ -53,6 +58,42 @@ def test_readpbincrementvalues_returns_error_message_on_failure(tmp_path):
     assert result == expected_message
     assert pb.bar_color == "danger"
     assert not error_file.exists()
+
+
+class TestSubprocessMainHandler:
+    @pytest.fixture
+    def redirect_progress_files(self, tmp_path, monkeypatch):
+        steps_file = tmp_path / "pbSteps.txt"
+        error_file = tmp_path / "pbError.txt"
+        monkeypatch.setattr(progress_module, "PB_STEPS_FILE", str(steps_file))
+        monkeypatch.setattr(progress_module, "PB_ERROR_FILE", str(error_file))
+        return steps_file, error_file
+
+    def test_returns_value_and_writes_no_files_on_success(self, redirect_progress_files):
+        steps_file, error_file = redirect_progress_files
+
+        @subprocess_main_handler
+        def worker(input_parameters):
+            return input_parameters["x"] + 1
+
+        result = worker({"x": 41})
+
+        assert result == 42
+        assert not steps_file.exists()
+        assert not error_file.exists()
+
+    def test_writes_error_files_and_reraises_on_exception(self, redirect_progress_files):
+        steps_file, error_file = redirect_progress_files
+
+        @subprocess_main_handler
+        def worker(input_parameters):
+            raise ValueError("bad parameter foo=3; valid range is [0, 1]")
+
+        with pytest.raises(ValueError, match="bad parameter foo=3"):
+            worker({})
+
+        assert error_file.read_text() == "bad parameter foo=3; valid range is [0, 1]"
+        assert steps_file.read_text() == "-1\n"
 
 
 @pytest.mark.progress_bar
