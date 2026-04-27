@@ -13,6 +13,7 @@
 - Added group-analysis validation in steps 5 and 6 with actionable error messages for mismatched/non-overlapping storenames and missing average outputs, replacing the prior `IndexError` and silent fall-through behaviors. [PR #293](https://github.com/LernerLab/GuPPy/pull/293)
 - Sidebar button click handlers now surface input-parameter validation errors (e.g. "No folder is selected for analysis") as a persistent Panel notification instead of dying silently in a worker thread traceback. [PR #296](https://github.com/LernerLab/GuPPy/pull/296)
 - Fixed TDT split-event extraction collapsing float-valued event codes (e.g. `0.1, 0.2, 0.4, 0.8, 10.0`) to integers, which caused duplicate `storesList.csv` rows, silent overwrites of per-code HDF5 files, and a downstream `KeyError` in step-6 visualization; sub-event suffixes now preserve unique floats as filesystem-safe `0p1`, `0p2`, … strings. [PR #294](https://github.com/LernerLab/GuPPy/pull/294)
+- Fixed `detect_acquisition_formats` skipping the intermediate `event*.csv` files that `NpmRecordingExtractor` materializes when `npm_split_events=True`, which left `CsvRecordingExtractor` undispatched and broke step-3 reads of NPM split-event TTLs. Single-column timestamp CSVs are now uniformly reported as `csv` regardless of whether NPM data is present. [PR #298](https://github.com/LernerLab/GuPPy/pull/298)
 
 ## Deprecations and Removals
 
