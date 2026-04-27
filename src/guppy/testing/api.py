@@ -140,9 +140,15 @@ def step2(
         raise ValueError("storenames_map must be a non-empty dict[str, str]")
     for k, v in storenames_map.items():
         if not isinstance(k, str) or not k.strip():
-            raise ValueError(f"Invalid storename key: {k!r}")
+            raise ValueError(
+                f"Invalid storename key: {k!r}. Keys must be non-empty strings (the raw store name "
+                "from the acquisition file)."
+            )
         if not isinstance(v, str) or not v.strip():
-            raise ValueError(f"Invalid semantic name for key {k!r}: {v!r}")
+            raise ValueError(
+                f"Invalid semantic name for key {k!r}: {v!r}. Values must be non-empty strings "
+                "(the semantic label such as 'control_DMS' or 'signal_NAc')."
+            )
 
     # Headless build: set base_dir and construct the template
     os.environ["GUPPY_BASE_DIR"] = base_dir

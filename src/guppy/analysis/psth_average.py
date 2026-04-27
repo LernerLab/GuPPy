@@ -82,7 +82,11 @@ def averageForGroup(folderNames, event, inputParameters):
                     psth_bins.append(df[bins_cols])
 
         if len(psth) == 0:
-            logger.warning("Something is wrong with the file search pattern.")
+            logger.warning(
+                f"No PSTH files found for event {event!r} (basename {temp_path[0][2]!r}, "
+                f"selectForComputePsth={selectForComputePsth!r}) across the selected folders; "
+                "skipping average for this event."
+            )
             continue
 
         if len(bins_cols) > 0:
@@ -124,7 +128,10 @@ def averageForGroup(folderNames, event, inputParameters):
                 index.append(list(df.index))
 
         if len(arr) == 0:
-            logger.warning("Something is wrong with the file search pattern.")
+            logger.warning(
+                f"No peak/AUC files found for event {event!r} (basename {temp_path[0][2]!r}) "
+                "across the selected folders; skipping peak/AUC average for this event."
+            )
             continue
         index = list(np.concatenate(index))
         new_df = pd.concat(arr, axis=0)  # os.path.join(filepath, 'peak_AUC_'+name+'.csv')

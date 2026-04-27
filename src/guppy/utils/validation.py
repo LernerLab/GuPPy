@@ -156,7 +156,10 @@ def validate_required_folder_selection(*, file_selectors: Sequence) -> None:
         If every selector is empty.
     """
     if all(len(selector.value) == 0 for selector in file_selectors):
-        message = "No folder is selected for analysis"
+        message = (
+            "No folder is selected for analysis. Pick at least one session folder in the "
+            "file selector(s) before running this step."
+        )
         logger.error(message)
         raise ValueError(message)
 
@@ -181,7 +184,11 @@ def validate_same_parent_directory(*, paths: Sequence[str]) -> np.ndarray:
     """
     parents = np.unique(np.asarray([os.path.dirname(p) for p in paths]))
     if len(parents) > 1:
-        message = "All the folders selected should be at the same location"
+        path_to_parent = "\n".join(f"  - {p} (parent: {os.path.dirname(p)})" for p in paths)
+        message = (
+            "All the folders selected should be at the same location, but the selected folders "
+            f"span {len(parents)} parent directories:\n{path_to_parent}"
+        )
         logger.error(message)
         raise ValueError(message)
     return parents
