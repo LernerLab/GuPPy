@@ -17,19 +17,15 @@ from ..frontend.sidebar import Sidebar
 logger = logging.getLogger(__name__)
 
 
-def readRawData(parameter_form):
-    inputParameters = parameter_form.getInputParameters()
+def readRawData(inputParameters):
     subprocess.call([sys.executable, "-m", "guppy.orchestration.read_raw_data", json.dumps(inputParameters)])
 
 
-def preprocess(parameter_form):
-    inputParameters = parameter_form.getInputParameters()
+def preprocess(inputParameters):
     subprocess.call([sys.executable, "-m", "guppy.orchestration.preprocess", json.dumps(inputParameters)])
 
 
-def psthComputation(parameter_form, current_dir):
-    inputParameters = parameter_form.getInputParameters()
-    inputParameters["curr_dir"] = current_dir
+def psthComputation(inputParameters):
     subprocess.call([sys.executable, "-m", "guppy.orchestration.psth", json.dumps(inputParameters)])
 
 
@@ -43,23 +39,39 @@ def build_homepage(*, start_path=None):
 
     # ------------------------------------------------------------------------------------------------------------------
     # onclick closure functions for sidebar buttons
+    def _getInputParametersOrNotify():
+        try:
+            return parameter_form.getInputParameters()
+        except Exception as e:
+            pn.state.notifications.error(str(e), duration=0)
+            return None
+
     def onclickProcess(event=None):
-        inputParameters = parameter_form.getInputParameters()
+        inputParameters = _getInputParametersOrNotify()
+        if inputParameters is None:
+            return
         save_parameters(inputParameters=inputParameters)
 
     def onclickStorenames(event=None):
-        inputParameters = parameter_form.getInputParameters()
+        inputParameters = _getInputParametersOrNotify()
+        if inputParameters is None:
+            return
         orchestrate_storenames_page(inputParameters)
 
     def onclickVisualization(event=None):
-        inputParameters = parameter_form.getInputParameters()
+        inputParameters = _getInputParametersOrNotify()
+        if inputParameters is None:
+            return
         try:
             visualizeResults(inputParameters)
         except ValueError as e:
             pn.state.notifications.error(str(e), duration=0)
 
     def onclickreaddata(event=None):
-        thread = Thread(target=readRawData, args=(parameter_form,))
+        inputParameters = _getInputParametersOrNotify()
+        if inputParameters is None:
+            return
+        thread = Thread(target=readRawData, args=(inputParameters,))
         thread.start()
         error_msg = readPBIncrementValues(sidebar.read_progress, file_path=PB_STEPS_FILE)
         thread.join()
@@ -67,7 +79,10 @@ def build_homepage(*, start_path=None):
             pn.state.notifications.error(error_msg, duration=0)
 
     def onclickpreprocess(event=None):
-        thread = Thread(target=preprocess, args=(parameter_form,))
+        inputParameters = _getInputParametersOrNotify()
+        if inputParameters is None:
+            return
+        thread = Thread(target=preprocess, args=(inputParameters,))
         thread.start()
         error_msg = readPBIncrementValues(sidebar.extract_progress, file_path=PB_STEPS_FILE)
         thread.join()
@@ -75,7 +90,11 @@ def build_homepage(*, start_path=None):
             pn.state.notifications.error(error_msg, duration=0)
 
     def onclickpsth(event=None):
-        thread = Thread(target=psthComputation, args=(parameter_form, current_dir))
+        inputParameters = _getInputParametersOrNotify()
+        if inputParameters is None:
+            return
+        inputParameters["curr_dir"] = current_dir
+        thread = Thread(target=psthComputation, args=(inputParameters,))
         thread.start()
         error_msg = readPBIncrementValues(sidebar.psth_progress, file_path=PB_STEPS_FILE)
         thread.join()
