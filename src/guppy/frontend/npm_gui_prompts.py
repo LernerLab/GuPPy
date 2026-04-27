@@ -62,37 +62,21 @@ def get_timestamp_configuration(ts_unit_needs, col_names_ts):
         window.after(500, lambda: window.lift())
         window.mainloop()
 
-        if holdComboboxValues["timestamps"].get():
-            npm_timestamp_column_name = holdComboboxValues["timestamps"].get()
-        else:
-            messagebox.showerror(
-                "All options not selected",
-                "All the options for timestamps \
-                                                            were not selected. Please select appropriate options",
+        missing_fields = []
+        if not holdComboboxValues["timestamps"].get():
+            missing_fields.append("'Select which timestamps to use'")
+        if not holdComboboxValues["time_unit"].get():
+            missing_fields.append("'Select timestamps unit'")
+        if missing_fields:
+            message = (
+                f"NPM timestamp configuration incomplete: {', '.join(missing_fields)} "
+                "must be selected before continuing."
             )
-            logger.error(
-                "All the options for timestamps \
-                        were not selected. Please select appropriate options"
-            )
-            raise ValueError("All the options for timestamps were not selected. Please select appropriate options.")
-        if holdComboboxValues["time_unit"].get():
-            if holdComboboxValues["time_unit"].get() == "seconds":
-                ts_unit = holdComboboxValues["time_unit"].get()
-            elif holdComboboxValues["time_unit"].get() == "milliseconds":
-                ts_unit = holdComboboxValues["time_unit"].get()
-            else:
-                ts_unit = holdComboboxValues["time_unit"].get()
-        else:
-            messagebox.showerror(
-                "All options not selected",
-                "All the options for timestamps \
-                                                            were not selected. Please select appropriate options",
-            )
-            logger.error(
-                "All the options for timestamps \
-                        were not selected. Please select appropriate options"
-            )
-            raise ValueError("All the options for timestamps were not selected. Please select appropriate options.")
+            messagebox.showerror("NPM timestamp configuration incomplete", message)
+            logger.error(message)
+            raise ValueError(message)
+        npm_timestamp_column_name = holdComboboxValues["timestamps"].get()
+        ts_unit = holdComboboxValues["time_unit"].get()
         ts_units.append(ts_unit)
         npm_timestamp_column_names.append(npm_timestamp_column_name)
     return ts_units, npm_timestamp_column_names

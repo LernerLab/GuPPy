@@ -116,7 +116,10 @@ def filterSignal(filter_window, signal):
         filtered_signal = ss.filtfilt(b, a, signal)
         return filtered_signal
     else:
-        raise ValueError("Moving average filter window value is not correct.")
+        raise ValueError(
+            f"filter_window={filter_window} is not a valid moving-average window. "
+            "Use 0 to disable filtering, or an integer greater than 1 for the window length in samples."
+        )
 
 
 # function to compute z-score based on z-score computation method

@@ -389,8 +389,12 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
         elif flag == "doric_doric":
             output_dicts = self._read_doric_doric(events)
         else:
-            logger.error("Doric file not found or not recognized.")
-            raise FileNotFoundError("Doric file not found or not recognized.")
+            message = (
+                f"No Doric file (.doric or .csv) found in '{self.folder_path}', or the file format "
+                "could not be recognized."
+            )
+            logger.error(message)
+            raise FileNotFoundError(message)
 
         return output_dicts
 

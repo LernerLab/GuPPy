@@ -85,8 +85,13 @@ def createChunks(z_score, sampling_rate, window):
         z_score_chunks = padded_z_score.reshape(int(reshape), -1)
         z_score_chunks_index = z_score_index.reshape(int(reshape), -1)
     else:
-        logger.error("Reshaping values should be integer.")
-        raise ValueError("Reshaping values should be integer.")
+        message = (
+            f"Cannot split z-score data of length {padded_z_score.shape[0]} into chunks of "
+            f"{windowPoints} samples (sampling_rate={sampling_rate}, window={window}s): "
+            f"the ratio {reshape} is non-integer. The padding logic may have a bug."
+        )
+        logger.error(message)
+        raise ValueError(message)
     logger.info("Chunks are created for multiprocessing.")
     return z_score_chunks, z_score_chunks_index
 

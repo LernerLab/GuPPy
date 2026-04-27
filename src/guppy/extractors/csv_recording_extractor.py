@@ -96,13 +96,11 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
                     raise ValueError(message)
                 else:
                     flag = "data_csv"
-            elif len(cols) == 2:
-                raise ValueError(
-                    "Data appears to be Neurophotometrics csv. Please use import_npm_csv function to import the data."
-                )
             elif len(cols) >= 2:
                 raise ValueError(
-                    "Data appears to be Neurophotometrics csv. Please use import_npm_csv function to import the data."
+                    f"CSV file '{path[i]}' has {len(cols)} columns {list(cols)}, which matches the "
+                    "Neurophotometrics (NPM) layout. Set 'Acquisition System' to 'NPM' in the "
+                    "Input Parameters GUI before re-running the pipeline."
                 )
             else:
                 message = (
