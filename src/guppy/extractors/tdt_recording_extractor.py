@@ -183,6 +183,14 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         return np.asarray(res)
 
     @staticmethod
+    def _format_split_suffix(value):
+        # "{:g}" renders integer-valued codes (int or 5.0) as "5", and collapses
+        # float32 precision artifacts (0.10000000149... → "0.1") at 6 significant
+        # digits. "." → "p" keeps the suffix free of the "_" / "." delimiters used
+        # by downstream filename parsers.
+        return f"{float(value):g}".replace(".", "p")
+
+    @staticmethod
     def _event_needs_splitting(data, sampling_rate):
         logger.info("Checking event storename data for creating multiple event names from single event storename...")
         diff = np.diff(data)
@@ -204,7 +212,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
             new_S = dict()
             idx = np.where(S["data"] == i_d[i])[0]
             new_S["timestamps"] = S["timestamps"][idx]
-            new_S["storename"] = new_event + str(int(i_d[i]))
+            new_S["storename"] = new_event + self._format_split_suffix(i_d[i])
             new_S["sampling_rate"] = S["sampling_rate"]
             new_S["data"] = S["data"]
             new_S["npoints"] = S["npoints"]
@@ -225,9 +233,8 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         logger.debug("\033[1m" + "Change the stores list file for individual new event." + "\033[0m")
         i_d = np.unique(S["data"])
         for i in range(i_d.shape[0]):
-            storesList = np.concatenate(
-                (storesList, [[new_event + str(int(i_d[i]))], [new_event + "_" + str(int(i_d[i]))]]), axis=1
-            )
+            suffix = self._format_split_suffix(i_d[i])
+            storesList = np.concatenate((storesList, [[new_event + suffix], [new_event + "_" + suffix]]), axis=1)
 
         idx = np.where(storesList[0] == event)[0]
         storesList = np.delete(storesList, idx, axis=1)
