@@ -74,10 +74,7 @@ def get_timestamp_configuration(ts_unit_needs, col_names_ts):
                 "All the options for timestamps \
                         were not selected. Please select appropriate options"
             )
-            raise Exception(
-                "All the options for timestamps \
-                            were not selected. Please select appropriate options"
-            )
+            raise ValueError("All the options for timestamps were not selected. Please select appropriate options.")
         if holdComboboxValues["time_unit"].get():
             if holdComboboxValues["time_unit"].get() == "seconds":
                 ts_unit = holdComboboxValues["time_unit"].get()
@@ -95,10 +92,7 @@ def get_timestamp_configuration(ts_unit_needs, col_names_ts):
                 "All the options for timestamps \
                         were not selected. Please select appropriate options"
             )
-            raise Exception(
-                "All the options for timestamps \
-                            were not selected. Please select appropriate options"
-            )
+            raise ValueError("All the options for timestamps were not selected. Please select appropriate options.")
         ts_units.append(ts_unit)
         npm_timestamp_column_names.append(npm_timestamp_column_name)
     return ts_units, npm_timestamp_column_names

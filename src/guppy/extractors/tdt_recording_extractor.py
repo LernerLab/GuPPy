@@ -66,10 +66,14 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         tsq_dtype = np.dtype({"names": names, "formats": formats, "offsets": offsets}, align=True)
         path = glob.glob(os.path.join(folder_path, "*.tsq"))
         if len(path) > 1:
-            logger.error("Two tsq files are present at the location.")
-            raise Exception("Two tsq files are present at the location.")
+            message = (
+                f"Multiple .tsq files found in '{folder_path}': {sorted(path)}. "
+                "Each TDT tank folder must contain exactly one .tsq file."
+            )
+            logger.error(message)
+            raise ValueError(message)
         elif len(path) == 0:
-            logger.info("\033[1m" + "tsq file not found." + "\033[1m")
+            logger.info("tsq file not found.")
             return 0, 0
         else:
             path = path[0]
@@ -91,7 +95,10 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         logger.debug("Reading data for event {} ...".format(event))
         tevfilepath = glob.glob(os.path.join(filepath, "*.tev"))
         if len(tevfilepath) > 1:
-            raise Exception("Two tev files are present at the location.")
+            raise ValueError(
+                f"Multiple .tev files found in '{filepath}': {sorted(tevfilepath)}. "
+                "Each TDT tank folder must contain exactly one .tev file."
+            )
         else:
             tevfilepath = tevfilepath[0]
 
@@ -114,11 +121,13 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         row = self._ismember(data["name"], event)
 
         if sum(row) == 0:
-            logger.error("\033[1m" + "Requested store name " + event + " not found (case-sensitive)." + "\033[0m")
-            logger.error("\033[1m" + "File contains the following TDT store names:" + "\033[0m")
-            logger.error("\033[1m" + str(allnames) + "\033[0m")
-            logger.error("\033[1m" + "TDT store name " + str(event) + " not found." + "\033[0m")
-            raise ValueError("Requested store name not found.")
+            available = sorted(str(name) for name in allnames)
+            message = (
+                f"Requested TDT store name '{event}' not found in tank "
+                f"'{self.folder_path}' (case-sensitive). Available stores: {available}."
+            )
+            logger.error(message)
+            raise ValueError(message)
 
         allIndexesWhereEventIsPresent = np.where(row == 1)
         first_row = allIndexesWhereEventIsPresent[0][0]
@@ -204,8 +213,8 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         # Note that new_event is only used for the new storesList and event is still used for the old storesList
         new_event = event.replace("\\", "")
         new_event = event.replace("/", "")
-        logger.info("\033[1m" + "Data in event {} belongs to multiple behavior".format(event) + "\033[0m")
-        logger.debug("\033[1m" + "Create timestamp files for individual new event." + "\033[0m")
+        logger.info(f"Data in event {event} belongs to multiple behavior")
+        logger.debug("Create timestamp files for individual new event.")
         i_d = np.unique(S["data"])
         event_dicts = [S]
         for i in range(i_d.shape[0]):
@@ -218,7 +227,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
             new_S["npoints"] = S["npoints"]
             new_S["channels"] = S["channels"]
             event_dicts.append(new_S)
-        logger.info("\033[1m Timestamp files for individual new event are created.\033[0m")
+        logger.info("Timestamp files for individual new event are created.")
 
         return event_dicts
 
@@ -229,8 +238,8 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         storesList = np.genfromtxt(os.path.join(outputPath, "storesList.csv"), dtype="str", delimiter=",").reshape(
             2, -1
         )
-        logger.info("\033[1m" + "StoresList in event {} belongs to multiple behavior".format(event) + "\033[0m")
-        logger.debug("\033[1m" + "Change the stores list file for individual new event." + "\033[0m")
+        logger.info(f"StoresList in event {event} belongs to multiple behavior")
+        logger.debug("Change the stores list file for individual new event.")
         i_d = np.unique(S["data"])
         for i in range(i_d.shape[0]):
             suffix = self._format_split_suffix(i_d[i])
@@ -244,7 +253,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
             pass
         else:
             np.savetxt(os.path.join(outputPath, "storesList.csv"), storesList, delimiter=",", fmt="%s")
-        logger.info("\033[1m The stores list file is changed.\033[0m")
+        logger.info("The stores list file is changed.")
 
     def _save_dict_to_hdf5(self, S, outputPath):
         event = S["storename"]

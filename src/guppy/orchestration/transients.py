@@ -139,8 +139,8 @@ def executeFindFreqAndAmp(inputParameters):
         numProcesses = mp.cpu_count()
     elif numProcesses > mp.cpu_count():
         logger.warning(
-            "Warning : # of cores parameter set is greater than the cores available \
-			   available in your machine"
+            f"Number of cores requested ({numProcesses}) exceeds available cores "
+            f"({mp.cpu_count()}); using {mp.cpu_count() - 1}."
         )
         numProcesses = mp.cpu_count() - 1
 
@@ -193,8 +193,12 @@ def execute_find_freq_and_amp_combined(inputParameters, folderNames, moving_wind
 
 def execute_average_for_group(inputParameters, folderNamesForAvg):
     if len(folderNamesForAvg) == 0:
-        logger.error("Not a single folder name is provided in folderNamesForAvg in inputParamters File.")
-        raise Exception("Not a single folder name is provided in folderNamesForAvg in inputParamters File.")
+        message = (
+            "No folders selected for group averaging (folderNamesForAvg is empty in inputParameters). "
+            "Select folders in the 'Group Folders for Averaging' picker before running the average step."
+        )
+        logger.error(message)
+        raise ValueError(message)
     storesListPath = []
     for i in range(len(folderNamesForAvg)):
         filepath = folderNamesForAvg[i]

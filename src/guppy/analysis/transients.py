@@ -86,7 +86,7 @@ def createChunks(z_score, sampling_rate, window):
         z_score_chunks_index = z_score_index.reshape(int(reshape), -1)
     else:
         logger.error("Reshaping values should be integer.")
-        raise Exception("Reshaping values should be integer.")
+        raise ValueError("Reshaping values should be integer.")
     logger.info("Chunks are created for multiprocessing.")
     return z_score_chunks, z_score_chunks_index
 

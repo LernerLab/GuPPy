@@ -134,7 +134,7 @@ def read_corrected_timestamps_pairwise(filepath):
                 f"storesList file, then re-run step 2."
             )
             logger.error(msg)
-            raise Exception(msg)
+            raise ValueError(msg)
         name = name_1[-1]
 
         tsNew = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
@@ -157,7 +157,7 @@ def read_coords_pairwise(filepath, pair_name_to_tsNew):
                 f"storesList file, then re-run step 2."
             )
             logger.error(msg)
-            raise Exception(msg)
+            raise ValueError(msg)
         pair_name = name_1[-1]
 
         tsNew = pair_name_to_tsNew[pair_name]
@@ -195,8 +195,13 @@ def read_corrected_ttl_timestamps(filepath, storesList):
             name_1 = arr[0, i].split("_")[-1]
             name_2 = arr[1, i].split("_")[-1]
             if name_1 != name_2:
-                logger.error("Error in naming convention of files or Error in storesList file")
-                raise Exception("Error in naming convention of files or Error in storesList file")
+                message = (
+                    f"Pair name mismatch in storesList: control channel '{arr[0, i]}' has suffix "
+                    f"'{name_1}' but signal channel '{arr[1, i]}' has suffix '{name_2}'. Check the "
+                    "naming convention of your files and the storesList file, then re-run step 2."
+                )
+                logger.error(message)
+                raise ValueError(message)
             compound_name = ttl_name + "_" + name_1
             ts = read_hdf5(compound_name, filepath, "ts")
             compound_name_to_ttl_timestamps[compound_name] = ts
@@ -234,7 +239,7 @@ def read_timestamps_for_combining_data(filepaths_to_combine):
                 f"storesList file, then re-run step 2."
             )
             logger.error(msg)
-            raise Exception(msg)
+            raise ValueError(msg)
         pair_name = name_1
         pair_name_to_filepath_to_timestamps[pair_name] = {}
         for filepath in filepaths_to_combine:
@@ -258,7 +263,7 @@ def read_data_for_combining_data(filepaths_to_combine, storesList):
                 f"storesList file, then re-run step 2."
             )
             logger.error(msg)
-            raise Exception(msg)
+            raise ValueError(msg)
         pair_name = name_1
         for i in range(len(names_for_storenames)):
             if not (
@@ -283,8 +288,13 @@ def read_ttl_timestamps_for_combining_data(filepaths_to_combine, storesList):
         name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")[-1]
         name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")[-1]
         if name_1 != name_2:
-            logger.error("Error in naming convention of files or Error in storesList file")
-            raise Exception("Error in naming convention of files or Error in storesList file")
+            message = (
+                f"Pair name mismatch in '{filepaths_to_combine[0]}': control file suffix '{name_1}' does "
+                f"not match signal file suffix '{name_2}'. Check the naming convention of your files and "
+                "the storesList file, then re-run step 2."
+            )
+            logger.error(message)
+            raise ValueError(message)
         pair_name = name_1
         for i in range(len(names_for_storenames)):
             if (

@@ -83,7 +83,8 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
 
             dirname = os.path.dirname(path[i])
             ext = os.path.basename(path[i]).split(".")[-1]
-            assert ext != "doric", "Doric files are not supported by import_npm function."
+            if ext == "doric":
+                raise ValueError(f"Doric files are not supported by NpmRecordingExtractor; got '{path[i]}'.")
             df = pd.read_csv(path[i], header=None, nrows=2, index_col=False, dtype=str)
             df = df.dropna(axis=1, how="all")
             df_arr = np.array(df).flatten()
@@ -93,9 +94,11 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
                     float(element)
                 except:
                     check_all_str.append(i)
-            assert len(check_all_str) != len(
-                df_arr
-            ), "This file appears to be doric .csv. This function only supports NPM .csv files."
+            if len(check_all_str) == len(df_arr):
+                raise ValueError(
+                    f"CSV file '{path[i]}' appears to be a Doric .csv (all-string header rows). "
+                    "NpmRecordingExtractor only supports NPM .csv files; use the Doric extractor instead."
+                )
             df = pd.read_csv(path[i], index_col=False)
             _, value = cls._check_header(df)
 
@@ -109,15 +112,27 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
                 columns_isstr = True
                 cols = np.array(list(df.columns), dtype=str)
             # check the structure of dataframe and assign flag to the type of file
-            assert len(cols) != 1, "File appears to be event .csv. This function only supports NPM .csv files."
-            assert len(cols) != 3, "File appears to be data .csv. This function only supports NPM .csv files."
+            if len(cols) == 1:
+                raise ValueError(
+                    f"CSV file '{path[i]}' has 1 column (event .csv layout). "
+                    "NpmRecordingExtractor only supports NPM .csv files; use the standard CSV extractor for event timestamp files."
+                )
+            if len(cols) == 3:
+                raise ValueError(
+                    f"CSV file '{path[i]}' has 3 columns {list(cols)} (data .csv layout). "
+                    "NpmRecordingExtractor only supports NPM .csv files; use the standard CSV extractor for 3-column data files."
+                )
             if len(cols) == 2:
                 flag = "event_or_data_np"
             elif len(cols) > 2:
                 flag = "data_np"
             else:
-                logger.error("Number of columns in csv file does not make sense.")
-                raise Exception("Number of columns in csv file does not make sense.")
+                message = (
+                    f"CSV file '{path[i]}' has {len(cols)} columns, which is not a recognized NPM layout. "
+                    "Expected 2+ columns."
+                )
+                logger.error(message)
+                raise ValueError(message)
 
             if columns_isstr == True and (
                 "flags" in np.char.lower(np.array(cols)) or "ledstate" in np.char.lower(np.array(cols))
@@ -258,8 +273,17 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
                             df_chpr.at[0, "sampling_rate"] = df_chev["sampling_rate"][0]
                             df_chpr.to_csv(path_chpr[j], index=False)
                 else:
-                    logger.error("Number of channels should be same for all regions.")
-                    raise Exception("Number of channels should be same for all regions.")
+                    region_counts = {
+                        "chev": num_path_chev,
+                        "chod": num_path_chod,
+                        "chpr": num_path_chpr,
+                    }
+                    message = (
+                        "Number of channel files must be the same for all regions. "
+                        f"Found per-region counts: {region_counts}."
+                    )
+                    logger.error(message)
+                    raise ValueError(message)
         logger.info("Importing of NPM file is done.")
         return event_from_filename, flag_arr
 
@@ -338,8 +362,12 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             elif len(cols) > 2:
                 flag = "data_np"
             else:
-                logger.error("Number of columns in csv file does not make sense.")
-                raise Exception("Number of columns in csv file does not make sense.")
+                message = (
+                    f"CSV file '{path[i]}' has {len(cols)} columns, which is not a recognized NPM layout. "
+                    "Expected 2+ columns."
+                )
+                logger.error(message)
+                raise ValueError(message)
 
             # used assigned flags to process the files and read the data
             if flag == "event_or_data_np":
@@ -370,16 +398,13 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
     def decide_indices(cls, file, df, flag, num_ch=2):
         ch_name = [file + "chev", file + "chod", file + "chpr"]
         if len(ch_name) < num_ch:
-            logger.error(
-                "Number of channels parameters in Input Parameters GUI is more than 3. \
-                        Looks like there are more than 3 channels in the file. Reading of these files\
-                        are not supported. Reach out to us if you get this error message."
+            message = (
+                f"Number of channels in the Input Parameters GUI is set to {num_ch}, which exceeds the "
+                "maximum of 3 channels supported for NPM files. Set 'Number of channels' to 3 or fewer "
+                "in the Input Parameters GUI."
             )
-            raise Exception(
-                "Number of channels parameters in Input Parameters GUI is more than 3. \
-                            Looks like there are more than 3 channels in the file. Reading of these files\
-                            are not supported. Reach out to us if you get this error message."
-            )
+            logger.error(message)
+            raise ValueError(message)
         if flag == "data_np":
             indices_dict = dict()
             for i in range(num_ch):
@@ -394,14 +419,12 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
                 arr = ["FrameCounter", "LedState"]
                 state = np.array(df["LedState"])
             else:
-                logger.error(
-                    "File type shows Neurophotometrics newer version \
-                        data but column names does not have Flags or LedState"
+                message = (
+                    "File type indicates Neurophotometrics newer version data but the columns do not "
+                    f"contain a 'Flags' or 'LedState' column. Found columns: {list(cols)}."
                 )
-                raise Exception(
-                    "File type shows Neurophotometrics newer version \
-                                data but column names does not have Flags or LedState"
-                )
+                logger.error(message)
+                raise ValueError(message)
 
             num_ch, ch = cls.check_channels(state)
             indices_dict = dict()
@@ -419,14 +442,12 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         state = state.astype(int)
         unique_state = np.unique(state[2:12])
         if unique_state.shape[0] > 3:
-            logger.error(
-                "Looks like there are more than 3 channels in the file. Reading of these files\
-                            are not supported. Reach out to us if you get this error message."
+            message = (
+                f"NPM file contains {unique_state.shape[0]} unique channel states ({unique_state.tolist()}), "
+                "but only 1-3 channels are supported."
             )
-            raise Exception(
-                "Looks like there are more than 3 channels in the file. Reading of these files\
-                            are not supported. Reach out to us if you get this error message."
-            )
+            logger.error(message)
+            raise ValueError(message)
 
         return unique_state.shape[0], unique_state
 
@@ -464,8 +485,12 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             elif len(cols) > 2:
                 flag = "data_np"
             else:
-                logger.error("Number of columns in csv file does not make sense.")
-                raise Exception("Number of columns in csv file does not make sense.")
+                message = (
+                    f"CSV file '{path[i]}' has {len(cols)} columns, which is not a recognized NPM layout. "
+                    "Expected 2+ columns."
+                )
+                logger.error(message)
+                raise ValueError(message)
 
             if columns_isstr == True and (
                 "flags" in np.char.lower(np.array(cols)) or "ledstate" in np.char.lower(np.array(cols))
@@ -514,9 +539,10 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             return df
 
         timestamp_column_name = timestamp_column_name if timestamp_column_name is not None else col_names_ts[1]
-        assert (
-            timestamp_column_name in col_names_ts
-        ), f"Provided timestamp_column_name '{timestamp_column_name}' not found in columns {col_names_ts[1:]}"
+        if timestamp_column_name not in col_names_ts:
+            raise ValueError(
+                f"Provided timestamp_column_name '{timestamp_column_name}' not found in columns {col_names_ts[1:]}."
+            )
         df.insert(1, "Timestamp", df[timestamp_column_name])
         df = df.drop(col_names_ts[1:], axis=1)
         return df

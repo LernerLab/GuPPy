@@ -32,17 +32,22 @@ def add_control_channel(filepath, arr):
             new_str = "signal_" + str(name).lower()
             find_signal = [True for i in storesList if i == new_str]
             if len(find_signal) > 1:
-                logger.error("Error in naming convention of files or Error in storesList file")
-                raise Exception("Error in naming convention of files or Error in storesList file")
+                message = (
+                    f"Multiple signal channels named '{new_str}' found in storesList for control "
+                    f"channel '{storesList[i]}' in '{filepath}'. Each signal name must be unique; "
+                    "check the storesList file and re-run step 2."
+                )
+                logger.error(message)
+                raise ValueError(message)
             if len(find_signal) == 0:
-                logger.error(
-                    "Isosbectic control channel parameter is set to False and still \
-							 	 storeslist file shows there is control channel present"
+                message = (
+                    "Isosbestic control channel parameter is set to False, but the storesList file "
+                    f"in '{filepath}' contains a control channel '{storesList[i]}' with no matching "
+                    f"signal channel '{new_str}'. Either enable isosbestic control or re-run step 2 "
+                    "to remove the unmatched control entry."
                 )
-                raise Exception(
-                    "Isosbectic control channel parameter is set to False and still \
-							 	 storeslist file shows there is control channel present"
-                )
+                logger.error(message)
+                raise ValueError(message)
         else:
             continue
 

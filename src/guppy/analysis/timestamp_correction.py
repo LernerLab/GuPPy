@@ -57,8 +57,9 @@ def timestampCorrection(
         f"Correcting timestamps by getting rid of the first {timeForLightsTurnOn} seconds and convert timestamps to seconds"
     )
     if mode not in ["tdt", "csv"]:
-        logger.error("Mode should be either 'tdt' or 'csv'")
-        raise ValueError("Mode should be either 'tdt' or 'csv'")
+        message = f"Mode {mode!r} is not supported; must be either 'tdt' or 'csv'."
+        logger.error(message)
+        raise ValueError(message)
     name_to_corrected_timestamps = {}
     name_to_correctionIndex = {}
     name_to_corrected_data = {}
@@ -74,20 +75,24 @@ def timestampCorrection(
         name_1 = channels_arr[0, i].split("_")[-1]
         name_2 = channels_arr[1, i].split("_")[-1]
         if name_1 != name_2:
-            msg = (
+            message = (
                 f"Pair name mismatch in storesList: control channel '{control_name}' has suffix '{name_1}' "
                 f"but signal channel '{signal_name}' has suffix '{name_2}'. Check the naming convention of "
-                f"your files and the storesList file, then re-run step 2."
+                "your files and the storesList file, then re-run step 2."
             )
-            logger.error(msg)
-            raise Exception(msg)
+            logger.error(message)
+            raise ValueError(message)
 
         # dirname = os.path.dirname(path[i])
         idx = np.where(names_for_storenames == indices[i])[0]
 
         if idx.shape[0] == 0:
-            logger.error(f"{channels_arr[0,i]} does not exist in the stores list file.")
-            raise Exception("{} does not exist in the stores list file.".format(channels_arr[0, i]))
+            message = (
+                f"Channel '{channels_arr[0, i]}' does not exist in the storesList file. "
+                f"Available channel names: {sorted(set(names_for_storenames.tolist()))}."
+            )
+            logger.error(message)
+            raise ValueError(message)
 
         name = names_for_storenames[idx][0]
         timestamp = name_to_timestamps[name]
@@ -142,13 +147,22 @@ def decide_naming_and_applyCorrection_ttl(
             name_1 = arr[0, i].split("_")[-1]
             name_2 = arr[1, i].split("_")[-1]
             if name_1 != name_2:
-                logger.error("Error in naming convention of files or Error in storesList file")
-                raise Exception("Error in naming convention of files or Error in storesList file")
+                message = (
+                    f"Pair name mismatch in storesList: control channel '{arr[0, i]}' has suffix "
+                    f"'{name_1}' but signal channel '{arr[1, i]}' has suffix '{name_2}'. Check the "
+                    "naming convention of your files and the storesList file, then re-run step 2."
+                )
+                logger.error(message)
+                raise ValueError(message)
 
             idx = np.where(names_for_storenames == indices[i])[0]
             if idx.shape[0] == 0:
-                logger.error(f"{arr[0,i]} does not exist in the stores list file.")
-                raise Exception("{} does not exist in the stores list file.".format(arr[0, i]))
+                message = (
+                    f"Channel '{arr[0, i]}' does not exist in the storesList file. "
+                    f"Available channel names: {sorted(set(names_for_storenames.tolist()))}."
+                )
+                logger.error(message)
+                raise ValueError(message)
 
             name = names_for_storenames[idx][0]
             timestamps = name_to_timestamps[name]

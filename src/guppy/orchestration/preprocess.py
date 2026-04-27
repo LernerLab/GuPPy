@@ -194,16 +194,28 @@ def execute_zscore(folderNames, inputParameters):
         path_2 = find_files(filepath, "signal_*", ignore_case=True)  # glob.glob(os.path.join(filepath, 'signal*'))
         path = sorted(path_1 + path_2, key=str.casefold)
         if len(path) % 2 != 0:
-            logger.error("There are not equal number of Control and Signal data")
-            raise Exception("There are not equal number of Control and Signal data")
+            controls = sorted(p for p in path if "control_" in os.path.basename(p).lower())
+            signals = sorted(p for p in path if "signal_" in os.path.basename(p).lower())
+            message = (
+                f"Unequal number of control and signal files in '{filepath}': "
+                f"found {len(controls)} control and {len(signals)} signal file(s). "
+                "Each signal must be paired with a control; re-run step 2 to fix the entries."
+            )
+            logger.error(message)
+            raise ValueError(message)
         path = np.asarray(path).reshape(2, -1)
 
         for i in range(path.shape[1]):
             name_1 = ((os.path.basename(path[0, i])).split(".")[0]).split("_")
             name_2 = ((os.path.basename(path[1, i])).split(".")[0]).split("_")
             if name_1[-1] != name_2[-1]:
-                logger.error("Error in naming convention of files or Error in storesList file")
-                raise Exception("Error in naming convention of files or Error in storesList file")
+                message = (
+                    f"Pair name mismatch in '{filepath}': control file suffix '{name_1[-1]}' does not match "
+                    f"signal file suffix '{name_2[-1]}'. Check the naming convention of your files and "
+                    "the storesList file, then re-run step 2."
+                )
+                logger.error(message)
+                raise ValueError(message)
             name = name_1[-1]
 
             control, signal, tsNew = read_corrected_data(path[0, i], path[1, i], filepath, name)
@@ -365,8 +377,13 @@ def execute_combine_data(folderNames, inputParameters, storesList):
 
     res = all(i == sampling_rate[0] for i in sampling_rate)
     if res == False:
-        logger.error("To combine the data, sampling rate for both the data should be same.")
-        raise Exception("To combine the data, sampling rate for both the data should be same.")
+        rates = [float(np.asarray(rate).reshape(-1)[0]) for rate in sampling_rate]
+        message = (
+            f"Cannot combine data: sampling rates differ across files {sampling_rate_fp.tolist()} "
+            f"(rates={rates}). All files being combined must share the same sampling rate."
+        )
+        logger.error(message)
+        raise ValueError(message)
 
     # get the output folders informatinos
     op = get_all_stores_for_combining_data(op_folder)

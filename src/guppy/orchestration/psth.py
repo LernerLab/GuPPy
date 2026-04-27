@@ -166,9 +166,10 @@ def execute_compute_cross_correlation(filepath, event, inputParameters):
     artifactsRemovalMethod = inputParameters["artifactsRemovalMethod"]
     if isCompute == True:
         if removeArtifacts == True and artifactsRemovalMethod == "concatenate":
-            raise Exception(
-                "For cross-correlation, when removeArtifacts is True, artifacts removal method\
-                            should be replace with NaNs and not concatenate"
+            raise ValueError(
+                "For cross-correlation, when removeArtifacts is True, the artifacts removal method "
+                "must be 'replace with NaNs' and not 'concatenate'. Change 'Method for Artifact "
+                "Removal' in the Input Parameters GUI."
             )
         corr_info, type = getCorrCombinations(filepath, inputParameters)
         if len(corr_info) < 2:
@@ -353,8 +354,12 @@ def _validate_psth_window_parameters(inputParameters):
 def execute_average_for_group(inputParameters):
     folderNamesForAvg = inputParameters["folderNamesForAvg"]
     if len(folderNamesForAvg) == 0:
-        logger.error("Not a single folder name is provided in folderNamesForAvg in inputParamters File.")
-        raise ValueError("Not a single folder name is provided in folderNamesForAvg in inputParamters File.")
+        message = (
+            "No folders selected for group averaging (folderNamesForAvg is empty in inputParameters). "
+            "Select folders in the 'Group Folders for Averaging' picker before running the average step."
+        )
+        logger.error(message)
+        raise ValueError(message)
 
     storesListPath = []
     for i in range(len(folderNamesForAvg)):
@@ -411,8 +416,8 @@ def psthForEachStorename(inputParameters):
         numProcesses = mp.cpu_count()
     elif numProcesses > mp.cpu_count():
         logger.warning(
-            "Warning : # of cores parameter set is greater than the cores available \
-			   available in your machine"
+            f"Number of cores requested ({numProcesses}) exceeds available cores "
+            f"({mp.cpu_count()}); using {mp.cpu_count() - 1}."
         )
         numProcesses = mp.cpu_count() - 1
 

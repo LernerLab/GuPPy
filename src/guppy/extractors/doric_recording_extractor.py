@@ -64,9 +64,11 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                         float(element)
                     except:
                         check_all_str.append(i)
-                assert len(check_all_str) == len(
-                    df_arr
-                ), "This file appears to be standard .csv. This function only supports doric .csv files."
+                if len(check_all_str) != len(df_arr):
+                    raise ValueError(
+                        f"CSV file '{path[i]}' appears to be a standard .csv (numeric values in header rows). "
+                        "DoricRecordingExtractor only supports Doric .csv files; use the standard CSV extractor instead."
+                    )
                 df = pd.read_csv(path[i], header=1, index_col=False, nrows=10)
                 # Drop trailing all-NaN columns (e.g. "Unnamed: 7" from Doric CSVs with a
                 # trailing comma on each line). They'd otherwise appear as selectable events
@@ -186,10 +188,18 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                 pass
 
         if len(flag_arr) > 1:
-            logger.error("Two doric files are present at the same location")
-            raise Exception("Two doric files are present at the same location")
+            doric_paths = sorted(
+                glob.glob(os.path.join(self.folder_path, "*.csv"))
+                + glob.glob(os.path.join(self.folder_path, "*.doric"))
+            )
+            message = (
+                f"Multiple Doric data files found in '{self.folder_path}': {doric_paths}. "
+                "Each session folder must contain exactly one Doric file."
+            )
+            logger.error(message)
+            raise ValueError(message)
         if len(flag_arr) == 0:
-            logger.error("\033[1m" + "Doric file not found." + "\033[1m")
+            logger.error("Doric file not found.")
             return 0
         logger.info("Doric file found.")
         return flag_arr[0]
@@ -197,8 +207,12 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
     def _read_doric_csv(self, events):
         path = glob.glob(os.path.join(self.folder_path, "*.csv"))
         if len(path) > 1:
-            logger.error("An error occurred : More than one Doric csv file present at the location")
-            raise Exception("More than one Doric csv file present at the location")
+            message = (
+                f"Multiple Doric .csv files found in '{self.folder_path}': {sorted(path)}. "
+                "Each Doric session folder must contain exactly one .csv file."
+            )
+            logger.error(message)
+            raise ValueError(message)
 
         df = pd.read_csv(path[0], header=1, index_col=False)
         df = df.dropna(axis=1, how="all")
@@ -237,8 +251,12 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
     def _read_doric_doric(self, events):
         path = glob.glob(os.path.join(self.folder_path, "*.doric"))
         if len(path) > 1:
-            logger.error("An error occurred : More than one Doric file present at the location")
-            raise Exception("More than one Doric file present at the location")
+            message = (
+                f"Multiple Doric .doric files found in '{self.folder_path}': {sorted(path)}. "
+                "Each Doric session folder must contain exactly one .doric file."
+            )
+            logger.error(message)
+            raise ValueError(message)
         with h5py.File(path[0], "r") as f:
             if "Traces" in list(f.keys()):
                 output_dicts = self._access_data_doricV1(f, events)
@@ -276,8 +294,13 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                 regex = re.compile("(.*?)" + str(event) + "(.*?)")
                 idx = [i for i in range(len(decide_path)) if regex.match(decide_path[i])]
                 if len(idx) > 1:
-                    logger.error("More than one string matched (which should not be the case)")
-                    raise Exception("More than one string matched (which should not be the case)")
+                    matched_paths = [decide_path[i] for i in idx]
+                    message = (
+                        f"Doric channel {event!r} matches multiple internal HDF5 paths "
+                        f"({matched_paths}); expected exactly one. The Doric file may have a malformed structure."
+                    )
+                    logger.error(message)
+                    raise ValueError(message)
                 if len(idx) == 0:
                     available = sorted(
                         {
@@ -300,8 +323,13 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                 regex = re.compile("(.*?)" + event + "$")
                 idx = [i for i in range(len(decide_path)) if regex.match(decide_path[i])]
                 if len(idx) > 1:
-                    logger.error("More than one string matched (which should not be the case)")
-                    raise Exception("More than one string matched (which should not be the case)")
+                    matched_paths = [decide_path[i] for i in idx]
+                    message = (
+                        f"Doric channel {event!r} matches multiple internal HDF5 paths "
+                        f"({matched_paths}); expected exactly one. The Doric file may have a malformed structure."
+                    )
+                    logger.error(message)
+                    raise ValueError(message)
                 if len(idx) == 0:
                     available = sorted(
                         {

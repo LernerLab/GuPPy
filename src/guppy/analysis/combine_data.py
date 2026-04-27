@@ -85,7 +85,7 @@ def combine_data(
                 f"storesList file, then re-run step 2."
             )
             logger.error(msg)
-            raise Exception(msg)
+            raise ValueError(msg)
         pair_name = name_1
 
         for i in range(len(names_for_storenames)):
