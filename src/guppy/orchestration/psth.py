@@ -34,6 +34,7 @@ from ..analysis.standard_io import (
 )
 from ..frontend.progress import PB_ERROR_FILE, PB_STEPS_FILE, writeToFile
 from ..utils.utils import get_all_stores_for_combining_data, read_Df, takeOnlyDirs
+from ..utils.validation import validate_peak_windows, validate_window_bounds
 
 logger = logging.getLogger(__name__)
 
@@ -319,11 +320,41 @@ def _validate_storenames_consistent_for_group(storesListPath):
     )
 
 
+def _validate_psth_window_parameters(inputParameters):
+    """Upfront PSTH-window validation, run before any HDF5 IO.
+
+    Why: peak-window ordering used to surface only deep inside
+    ``compute_psth_peak_and_area`` (after step 5 had begun), and the PSTH
+    baseline-correction window had no equivalent of the z-score baseline
+    validation added in PR #283. Catching both here gives the user a Panel
+    notification before progress starts.
+    """
+    validate_peak_windows(
+        peak_starts=inputParameters["peak_startPoint"],
+        peak_ends=inputParameters["peak_endPoint"],
+    )
+    baselineCorrectionStart = inputParameters["baselineCorrectionStart"]
+    baselineCorrectionEnd = inputParameters["baselineCorrectionEnd"]
+    # (0, 0) is the documented sentinel for "skip baseline correction"
+    # (see baselineCorrection in compute_psth.py and the GUI tooltip).
+    if baselineCorrectionStart == 0 and baselineCorrectionEnd == 0:
+        return
+    validate_window_bounds(
+        start=baselineCorrectionStart,
+        end=baselineCorrectionEnd,
+        ts_min=float(inputParameters["nSecPrev"]),
+        ts_max=float(inputParameters["nSecPost"]),
+        start_name="baselineCorrectionStart",
+        end_name="baselineCorrectionEnd",
+        range_label="PSTH window",
+    )
+
+
 def execute_average_for_group(inputParameters):
     folderNamesForAvg = inputParameters["folderNamesForAvg"]
     if len(folderNamesForAvg) == 0:
         logger.error("Not a single folder name is provided in folderNamesForAvg in inputParamters File.")
-        raise Exception("Not a single folder name is provided in folderNamesForAvg in inputParamters File.")
+        raise ValueError("Not a single folder name is provided in folderNamesForAvg in inputParamters File.")
 
     storesListPath = []
     for i in range(len(folderNamesForAvg)):
@@ -367,6 +398,8 @@ def psthForEachStorename(inputParameters):
 
     logger.info("Computing PSTH, Peak and Area for each event...")
     inputParameters = inputParameters
+
+    _validate_psth_window_parameters(inputParameters)
 
     # storesList = np.genfromtxt(inputParameters['storesListPath'], dtype='str', delimiter=',')
 

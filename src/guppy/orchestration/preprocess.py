@@ -78,7 +78,7 @@ def visualizeControlAndSignal(filepath, removeArtifacts):
 
     if len(path) % 2 != 0:
         logger.error("There are not equal number of Control and Signal data")
-        raise Exception("There are not equal number of Control and Signal data")
+        raise ValueError("There are not equal number of Control and Signal data")
 
     path = np.asarray(path).reshape(2, -1)
 

@@ -4,6 +4,7 @@ import numpy as np
 from scipy import signal as ss
 
 from .control_channel import helper_create_control_channel
+from ..utils.validation import validate_window_bounds
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +116,7 @@ def filterSignal(filter_window, signal):
         filtered_signal = ss.filtfilt(b, a, signal)
         return filtered_signal
     else:
-        raise Exception("Moving average filter window value is not correct.")
+        raise ValueError("Moving average filter window value is not correct.")
 
 
 # function to compute z-score based on z-score computation method
@@ -124,51 +125,17 @@ def z_score_computation(dff, timestamps, zscore_method, baseline_start, baseline
         numerator = np.subtract(dff, np.nanmean(dff))
         zscore = np.divide(numerator, np.nanstd(dff))
     elif zscore_method == "baseline z-score":
-        # Validate that both window parameters are numeric
-        for param_name, param_value in (
-            ("baselineWindowStart", baseline_start),
-            ("baselineWindowEnd", baseline_end),
-        ):
-            if not isinstance(param_value, (int, float)) or (
-                isinstance(param_value, float) and np.isnan(param_value)
-            ):
-                msg = (
-                    f"{param_name}={param_value!r} is not a valid number; "
-                    "provide a numeric value in seconds."
-                )
-                logger.error(msg)
-                raise ValueError(msg)
-
-        # Validate start < end
-        if baseline_start >= baseline_end:
-            msg = (
-                f"baselineWindowStart={baseline_start} must be strictly less than "
-                f"baselineWindowEnd={baseline_end}; choose start < end."
-            )
-            logger.error(msg)
-            raise ValueError(msg)
-
         ts_min = float(np.nanmin(timestamps))
         ts_max = float(np.nanmax(timestamps))
-
-        # Validate the window falls within the available signal timespan
-        if baseline_start < ts_min or baseline_end > ts_max:
-            offending = []
-            if baseline_start < ts_min:
-                offending.append(
-                    f"baselineWindowStart={baseline_start} is before the signal start {ts_min:.4g}s"
-                )
-            if baseline_end > ts_max:
-                offending.append(
-                    f"baselineWindowEnd={baseline_end} exceeds signal duration {ts_max:.4g}s"
-                )
-            msg = (
-                f"{'; '.join(offending)}; "
-                f"signal timespan is [{ts_min:.4g}, {ts_max:.4g}]s — "
-                f"choose values within this range."
-            )
-            logger.error(msg)
-            raise ValueError(msg)
+        validate_window_bounds(
+            start=baseline_start,
+            end=baseline_end,
+            ts_min=ts_min,
+            ts_max=ts_max,
+            start_name="baselineWindowStart",
+            end_name="baselineWindowEnd",
+            range_label="signal timespan",
+        )
 
         idx = np.where((timestamps > baseline_start) & (timestamps < baseline_end))[0]
         if idx.shape[0] == 0:

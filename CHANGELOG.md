@@ -19,6 +19,7 @@
 
 ## Improvements
 - Added input validation in step 2 to reject duplicate store names and mismatched signal/control region pairs, with descriptive error messages naming the offending entries. [PR #275](https://github.com/LernerLab/GuPPy/pull/275)
+- Consolidated the input-validation logic accumulated across the [#138](https://github.com/LernerLab/GuPPy/issues/138) sub-PRs into a shared `src/guppy/utils/validation.py` module (`validate_window_bounds`, `validate_peak_windows`, folder-selection helpers), standardized remaining input-validation paths on `ValueError` so they are surfaced uniformly as persistent Panel notifications, and moved peak-window-ordering and PSTH baseline-correction-window validation upfront in step 5 so they are caught before any HDF5 IO instead of mid-pipeline. The PSTH baseline-correction window now validates ordering and that bounds fall within `[nSecPrev, nSecPost]`, mirroring the z-score baseline validation added in [PR #283](https://github.com/LernerLab/GuPPy/pull/283); the documented `(0, 0)` "skip baseline correction" sentinel is preserved.
 
 # v2.0.0-alpha4 (April 15th, 2026)
 
