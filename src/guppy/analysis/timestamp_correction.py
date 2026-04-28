@@ -72,27 +72,8 @@ def timestampCorrection(
     for i in range(channels_arr.shape[1]):
         control_name = channels_arr[0, i]
         signal_name = channels_arr[1, i]
-        name_1 = channels_arr[0, i].split("_")[-1]
-        name_2 = channels_arr[1, i].split("_")[-1]
-        if name_1 != name_2:
-            message = (
-                f"Pair name mismatch in storesList: control channel '{control_name}' has suffix '{name_1}' "
-                f"but signal channel '{signal_name}' has suffix '{name_2}'. Check the naming convention of "
-                "your files and the storesList file, then re-run step 2."
-            )
-            logger.error(message)
-            raise ValueError(message)
-
         # dirname = os.path.dirname(path[i])
         idx = np.where(names_for_storenames == indices[i])[0]
-
-        if idx.shape[0] == 0:
-            message = (
-                f"Channel '{channels_arr[0, i]}' does not exist in the storesList file. "
-                f"Available channel names: {sorted(set(names_for_storenames.tolist()))}."
-            )
-            logger.error(message)
-            raise ValueError(message)
 
         name = names_for_storenames[idx][0]
         timestamp = name_to_timestamps[name]
@@ -145,24 +126,8 @@ def decide_naming_and_applyCorrection_ttl(
     for ttl_name, ttl_timestamps in name_to_timestamps_ttl.items():
         for i in range(arr.shape[1]):
             name_1 = arr[0, i].split("_")[-1]
-            name_2 = arr[1, i].split("_")[-1]
-            if name_1 != name_2:
-                message = (
-                    f"Pair name mismatch in storesList: control channel '{arr[0, i]}' has suffix "
-                    f"'{name_1}' but signal channel '{arr[1, i]}' has suffix '{name_2}'. Check the "
-                    "naming convention of your files and the storesList file, then re-run step 2."
-                )
-                logger.error(message)
-                raise ValueError(message)
 
             idx = np.where(names_for_storenames == indices[i])[0]
-            if idx.shape[0] == 0:
-                message = (
-                    f"Channel '{arr[0, i]}' does not exist in the storesList file. "
-                    f"Available channel names: {sorted(set(names_for_storenames.tolist()))}."
-                )
-                logger.error(message)
-                raise ValueError(message)
 
             name = names_for_storenames[idx][0]
             timestamps = name_to_timestamps[name]
