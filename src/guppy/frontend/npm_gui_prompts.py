@@ -25,7 +25,8 @@ def _validate_timestamp_configuration(*, timestamp_column_name: str, time_unit: 
         raise ValueError(message)
 
 
-def get_multi_event_responses(multiple_event_ttls):
+# get_multi_event_responses is not covered by tests due to flaky behavior of tkinter messagebox in testing environments.
+def get_multi_event_responses(multiple_event_ttls):  # pragma: no cover
     responses = []
     for has_multiple in multiple_event_ttls:
         if not has_multiple:
@@ -47,7 +48,8 @@ def get_multi_event_responses(multiple_event_ttls):
     return responses
 
 
-def get_timestamp_configuration(ts_unit_needs, col_names_ts):
+# get_timestamp_configuration is not covered by tests due to the use of tkinter GUI elements in the function.
+def get_timestamp_configuration(ts_unit_needs, col_names_ts):  # pragma: no cover
     ts_units, npm_timestamp_column_names = [], []
     for need in ts_unit_needs:
         if not need:
