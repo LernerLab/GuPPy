@@ -5,11 +5,12 @@ This tutorial walks through a complete GuPPy pipeline run from raw CSV data to a
 By the end you will have:
 
 - Launched the GuPPy GUI
-- Assigned names to your recording channels (storenames)
-- Ingested raw data into HDF5
+- Selected your data and reviewed the analysis parameters
+- Labeled your channels with storenames
+- Loaded the raw data into HDF5
 - Preprocessed the signal
-- Computed a PSTH
-- Opened the visualization panel
+- Computed the PSTH
+- Visualized the results
 
 ## Prerequisites
 
@@ -132,10 +133,11 @@ The three CSV filenames appear in the left list (**Filter available options**) o
 
 5. **Choose the output directory.** Use the **over-write storeslist file or create a new one?** menu button and select `create_new_file`.
 
-   Despite the menu's name, this choice does more than name a file. It picks the **output directory** for the entire analysis pipeline. From this point on, every downstream step (Read Raw Data, Preprocess, PSTH Computation, Visualization) writes its outputs (HDF5 files, PSTH results, plots) into that directory and reads `storesList.csv` from it to know which raw channel maps to which storename.
+   Despite the menu's name, this choice does more than name a file. It picks the **output directory** for the entire analysis pipeline. From this point on, every downstream step (Read Raw Data, Preprocess, PSTH Computation, Visualization) writes its outputs (HDF5 files, PSTH results, plots) into that directory and reads `storesList.csv` from it to know which raw channel maps to which storename. `create_new_file` makes a fresh subdirectory inside the session folder, named `<session>_output_<N>/` with `<N>` auto-incremented (`_output_1` on the first run, `_output_2` on the second, and so on).
 
-   - `create_new_file` makes a fresh subdirectory inside the session folder, named `<session>_output_<N>/` with `<N>` auto-incremented (`_output_1` on the first run, `_output_2` on the second, and so on). Pick this for a first run.
-   - `over_write_file` is for re-running on a session that already has an output subdirectory. It lets you point at an existing `<session>_output_<N>/`, **deletes everything inside it** (the previous `storesList.csv` plus any HDF5 and PSTH results from the previous run), and starts that subdirectory over fresh.
+   :::{note}
+   The other menu option, `over_write_file`, is for re-running on a session that already has an output subdirectory. It lets you point at an existing `<session>_output_<N>/`, deletes everything inside it (the previous `storesList.csv` plus any HDF5 and PSTH results from the previous run), and starts that subdirectory over fresh. Pick `over_write_file` only when you genuinely want that destructive behavior. For the tutorial, ignore it.
+   :::
 
 6. **Click Save.** GuPPy creates the output subdirectory (e.g. `sample_data_csv_1_output_1/`) and writes `storesList.csv` into it. The downstream steps will read and write inside this folder.
 
@@ -149,6 +151,8 @@ Click **Read Raw Data**. A progress bar appears in the sidebar directly below th
 :alt: GuPPy homepage sidebar with the Read Raw Data progress bar partially filled
 :align: center
 ```
+
+The other bars on the sidebar (under *Preprocess and Remove Artifacts* and *PSTH Computation*) appear pre-filled at 100% as a styling default; they reset to 0 and fill while their own step is running. So a fully-green bar does not mean that step is done, it just means it has not been touched yet.
 
 GuPPy loads each CSV file and writes the data into the output folder you created in Step 3, one HDF5 file per storename (so for this tutorial: `sample_data_csv_1_output_1/control_A.hdf5`, `.../signal_A.hdf5`, `.../RewardPort.hdf5`). Each file holds the channel's `data`, `timestamps`, and `sampling_rate` datasets plus a few metadata fields. HDF5 is a binary format that stores large numerical arrays efficiently and supports partial reads, which speeds up the later pipeline steps.
 
@@ -165,8 +169,8 @@ Click **Preprocess**. As with Read Raw Data, a progress bar appears in the sideb
 
 GuPPy runs the following on the raw signal:
 
-1. Trims the first `timeForLightsTurnOn` seconds from both channels.
-2. Applies a moving-average filter to reduce high-frequency noise.
+1. Trims the first few seconds from both channels (the *Eliminate first few seconds* parameter, internally `timeForLightsTurnOn`).
+2. Applies a moving-average filter to reduce high-frequency noise (the *Window for Moving Average filter* parameter, internally `filter_window`).
 3. Fits the control channel to the signal channel using a linear regression, then subtracts it. This removes motion artifacts and photobleaching that affect both channels equally.
 4. Computes the z-score and the dF/F (delta F over F) of the corrected signal.
 
@@ -193,11 +197,20 @@ Click **Compute PSTH**. As with the previous two steps, a progress bar appears i
 :align: center
 ```
 
-GuPPy aligns the z-scored trace to each event timestamp in `Sample_TTL.csv`, extracts a window of `nSecPrev` seconds before and `nSecPost` seconds after each event, and averages across all trials. The result is a peri-stimulus time histogram (PSTH).
+GuPPy aligns the z-scored trace to each event timestamp in `Sample_TTL.csv`, extracts the window defined by the *Seconds before 0* / *Seconds after 0* parameters (internally `nSecPrev`, `nSecPost`) around each event, and averages across all trials. The result is a peri-stimulus time histogram (PSTH).
 
 The default window is -10 to +20 seconds. With the sample data you will get a small number of trials (the TTL file has just a handful of timestamps), so the average will be noisy. This is expected for a minimal example dataset.
 
-Output files are written to the session folder.
+The outputs land in the same `sample_data_csv_1_output_1/` directory you have been using since Step 3, with one set of files per (event, region) pair. For this tutorial that is the single pair `(RewardPort, A)`:
+
+| File | Contents |
+|------|----------|
+| `RewardPort_A.hdf5` | The peri-event timestamps (the x-axis of the PSTH) |
+| `RewardPort_A_z_score_A.h5` | The PSTH dataframe: one column per trial, plus `mean` and `err` (standard error) columns and the `timestamps` column |
+| `RewardPort_A_baselineUncorrected_z_score_A.h5` | Same dataframe before baseline correction was applied (kept for inspection) |
+| `peak_AUC_RewardPort_A_z_score_A.csv` and matching `.hdf5` | Peak amplitude and area-under-curve for the trial-mean PSTH |
+
+The visualization step in Step 7 reads these files; you do not need to inspect them by hand.
 
 ## Step 7: Visualize the results
 
