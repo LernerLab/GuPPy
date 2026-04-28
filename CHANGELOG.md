@@ -1,6 +1,14 @@
-# v2.0.0-alpha5 (Upcoming)
+# v2.0.0-alpha6 (Upcoming)
 
 ## Features
+
+## Fixes
+
+## Deprecations and Removals
+
+## Improvements
+
+# v2.0.0-alpha5 (April 28th, 2026)
 
 ## Fixes
 - Cross-correlation now raises a descriptive `ValueError` (instead of silently skipping) when `compute_cross_correlation=True` but fewer than two distinct signal regions are present; the error message is surfaced as a persistent notification in the Panel UI so users do not need to inspect the terminal. [PR #284](https://github.com/LernerLab/GuPPy/pull/284)
@@ -15,12 +23,11 @@
 - Fixed TDT split-event extraction collapsing float-valued event codes (e.g. `0.1, 0.2, 0.4, 0.8, 10.0`) to integers, which caused duplicate `storesList.csv` rows, silent overwrites of per-code HDF5 files, and a downstream `KeyError` in step-6 visualization; sub-event suffixes now preserve unique floats as filesystem-safe `0p1`, `0p2`, … strings. [PR #294](https://github.com/LernerLab/GuPPy/pull/294)
 - Fixed `detect_acquisition_formats` skipping the intermediate `event*.csv` files that `NpmRecordingExtractor` materializes when `npm_split_events=True`, which left `CsvRecordingExtractor` undispatched and broke step-3 reads of NPM split-event TTLs. Single-column timestamp CSVs are now uniformly reported as `csv` regardless of whether NPM data is present. [PR #298](https://github.com/LernerLab/GuPPy/pull/298)
 
-## Deprecations and Removals
-
 ## Improvements
 - Added input validation in step 2 to reject duplicate store names and mismatched signal/control region pairs, with descriptive error messages naming the offending entries. [PR #275](https://github.com/LernerLab/GuPPy/pull/275)
 - Consolidated input-validation logic from the [#138](https://github.com/LernerLab/GuPPy/issues/138) sub-PRs into `src/guppy/utils/validation.py` and moved peak-window and PSTH baseline-correction validation upfront in step 5 so errors surface before any HDF5 IO. [PR #299](https://github.com/LernerLab/GuPPy/pull/299)
 - Audited every user-facing error message across `src/guppy/`: stripped ANSI escape codes, converted input-validation `assert`s and generic `raise Exception(...)` calls to `ValueError` / `FileNotFoundError`, and rewrote vague strings (naming-convention mismatches, CSV column counts, TDT/Doric/NWB extractor errors, typos) to name the offending value, state the rule, and give the fix. [PR #299](https://github.com/LernerLab/GuPPy/pull/299)
+
 
 # v2.0.0-alpha4 (April 15th, 2026)
 
