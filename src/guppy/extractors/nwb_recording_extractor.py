@@ -206,7 +206,10 @@ def _read_events_from_nwbfile(*, nwbfile, io, events):
 def _register_unique_name(seen_names, name, type_label):
     """Add *name* to *seen_names*, raising ``ValueError`` if already present."""
     if name in seen_names:
-        raise ValueError(f"Duplicate {type_label} name found: {name!r}")
+        raise ValueError(
+            f"Duplicate {type_label} name found: {name!r}. NWB object names must be unique within "
+            "the file; rename the duplicate in the source NWB file before re-running."
+        )
     seen_names.add(name)
 
 
@@ -327,16 +330,22 @@ def _read_ndx_event(*, event_name, source_info):
             return {"storename": event_name, "timestamps": all_timestamps[all_data == meaning_value]}
         return {"storename": event_name, "timestamps": all_timestamps}
 
-    raise ValueError(f"Unknown event source tag: {tag!r}")
+    raise ValueError(
+        f"Unknown event source tag: {tag!r}. Expected one of 'annotated', 'labeled', 'events', 'v04'. "
+        "This indicates an internal inconsistency in the NWB event index."
+    )
 
 
 def _find_nwb_file(folder_path):
     """Return the single NWB file path in *folder_path*, raising if not exactly one."""
     nwb_paths = list(Path(folder_path).glob("*.nwb"))
     if len(nwb_paths) > 1:
-        raise ValueError(f"Multiple NWB files found in {folder_path}.")
+        raise ValueError(
+            f"Multiple NWB files found in '{folder_path}': {sorted(str(p) for p in nwb_paths)}. "
+            "Each session folder must contain exactly one .nwb file."
+        )
     if len(nwb_paths) == 0:
-        raise FileNotFoundError(f"No NWB file found in {folder_path}.")
+        raise FileNotFoundError(f"No NWB file found in '{folder_path}'.")
     return str(nwb_paths[0])
 
 
@@ -387,7 +396,12 @@ def _parse_event_name(event, series_name_to_object):
         if series_name in series_name_to_object:
             return series_name, column_index
 
-    raise ValueError(f"Event '{event}' could not be resolved to any FiberPhotometryResponseSeries in the NWB file.")
+    available_series = sorted(series_name_to_object.keys())
+    raise ValueError(
+        f"Event '{event}' could not be resolved to any FiberPhotometryResponseSeries in the NWB file. "
+        f"Available series: {available_series}. Multi-channel series accept '{{series_name}}_{{column_index}}' "
+        "form (e.g. 'fp_signal_0')."
+    )
 
 
 def _resolve_timing(series, num_samples):

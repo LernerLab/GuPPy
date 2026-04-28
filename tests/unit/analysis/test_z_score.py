@@ -23,8 +23,11 @@ def test_filter_signal_window_greater_than_one_smooths(uniform_signal):
 
 def test_filter_signal_window_one_raises():
     signal = np.ones(100)
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError) as exception_info:
         filterSignal(1, signal)
+    message = str(exception_info.value)
+    assert "filter_window=1" in message
+    assert "Use 0 to disable" in message
 
 
 def test_delta_ff_equal_signal_and_control_returns_zeros():

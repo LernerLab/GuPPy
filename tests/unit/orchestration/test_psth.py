@@ -3,7 +3,9 @@ import numpy as np
 import pytest
 
 from guppy.orchestration.psth import (
+    _validate_psth_window_parameters,
     _validate_storenames_consistent_for_group,
+    execute_average_for_group,
     execute_compute_cross_correlation,
     execute_compute_psth,
     execute_compute_psth_peak_and_area,
@@ -82,8 +84,14 @@ def test_execute_compute_cross_correlation_raises_when_concatenate_and_remove_ar
     base_input_parameters["removeArtifacts"] = True
     base_input_parameters["artifactsRemovalMethod"] = "concatenate"
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError, match=r"must be 'replace with NaNs' and not 'concatenate'"):
         execute_compute_cross_correlation(str(psth_output_dir), "lever_press", base_input_parameters)
+
+
+def test_execute_average_for_group_raises_for_empty_folders(base_input_parameters):
+    base_input_parameters["folderNamesForAvg"] = []
+    with pytest.raises(ValueError, match="No folders selected for group averaging"):
+        execute_average_for_group(base_input_parameters)
 
 
 def test_execute_compute_cross_correlation_returns_early_for_control_event(
@@ -214,3 +222,68 @@ def test_validate_storenames_single_session_does_not_raise(tmp_path):
 
     # Single session → trivially consistent
     _validate_storenames_consistent_for_group(np.array([str(output_1)]))
+
+
+# ---------------------------------------------------------------------------
+# _validate_psth_window_parameters — upfront step-5 input validation
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def psth_window_inputs():
+    """Minimal inputParameters dict for _validate_psth_window_parameters tests.
+
+    Uses production-shaped values: nSecPrev is the negative-side bound and
+    baselineCorrectionStart is negative-relative-to-event.
+    """
+    return {
+        "peak_startPoint": [0.0, np.nan],
+        "peak_endPoint": [3.0, np.nan],
+        "nSecPrev": -10,
+        "nSecPost": 20,
+        "baselineCorrectionStart": -5,
+        "baselineCorrectionEnd": 0,
+    }
+
+
+def test_validate_psth_window_parameters_passes_with_valid_inputs(psth_window_inputs):
+    # Should not raise.
+    _validate_psth_window_parameters(psth_window_inputs)
+
+
+def test_validate_psth_window_parameters_skips_when_baseline_correction_off(psth_window_inputs):
+    # (0, 0) is the documented sentinel for "skip baseline correction".
+    psth_window_inputs["baselineCorrectionStart"] = 0
+    psth_window_inputs["baselineCorrectionEnd"] = 0
+    _validate_psth_window_parameters(psth_window_inputs)
+
+
+def test_validate_psth_window_parameters_raises_for_inverted_peak_window(psth_window_inputs):
+    psth_window_inputs["peak_startPoint"] = [3.0]
+    psth_window_inputs["peak_endPoint"] = [1.0]
+    with pytest.raises(ValueError, match=r"Peak End Time is less than or equal to Peak Start Time"):
+        _validate_psth_window_parameters(psth_window_inputs)
+
+
+def test_validate_psth_window_parameters_raises_for_inverted_baseline_window(psth_window_inputs):
+    psth_window_inputs["baselineCorrectionStart"] = 0
+    psth_window_inputs["baselineCorrectionEnd"] = -5
+    with pytest.raises(
+        ValueError, match=r"baselineCorrectionStart=0 must be strictly less than baselineCorrectionEnd=-5"
+    ):
+        _validate_psth_window_parameters(psth_window_inputs)
+
+
+def test_validate_psth_window_parameters_raises_when_baseline_outside_psth_window(psth_window_inputs):
+    # baselineCorrectionEnd=25 exceeds nSecPost=20.
+    psth_window_inputs["baselineCorrectionStart"] = -5
+    psth_window_inputs["baselineCorrectionEnd"] = 25
+    with pytest.raises(ValueError, match=r"PSTH window is \[-10, 20\]s"):
+        _validate_psth_window_parameters(psth_window_inputs)
+
+
+def test_validate_psth_window_parameters_raises_for_unequal_peak_array_lengths(psth_window_inputs):
+    psth_window_inputs["peak_startPoint"] = [0.0, 1.0]
+    psth_window_inputs["peak_endPoint"] = [2.0]
+    with pytest.raises(ValueError, match=r"unequal \(start: 2, end: 1\)"):
+        _validate_psth_window_parameters(psth_window_inputs)

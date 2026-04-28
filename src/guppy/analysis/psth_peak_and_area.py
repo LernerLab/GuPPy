@@ -3,28 +3,14 @@ from collections import OrderedDict
 
 import numpy as np
 
+from ..utils.validation import validate_peak_windows
+
 logger = logging.getLogger(__name__)
 
 
 def compute_psth_peak_and_area(psth_mean, timestamps, sampling_rate, peak_startPoint, peak_endPoint):
 
-    peak_startPoint = np.asarray(peak_startPoint)
-    peak_endPoint = np.asarray(peak_endPoint)
-
-    peak_startPoint = peak_startPoint[~np.isnan(peak_startPoint)]
-    peak_endPoint = peak_endPoint[~np.isnan(peak_endPoint)]
-
-    if peak_startPoint.shape[0] != peak_endPoint.shape[0]:
-        logger.error("Number of Peak Start Time and Peak End Time are unequal.")
-        raise Exception("Number of Peak Start Time and Peak End Time are unequal.")
-
-    if np.less_equal(peak_endPoint, peak_startPoint).any() == True:
-        logger.error(
-            "Peak End Time is lesser than or equal to Peak Start Time. Please check the Peak parameters window."
-        )
-        raise Exception(
-            "Peak End Time is lesser than or equal to Peak Start Time. Please check the Peak parameters window."
-        )
+    peak_startPoint, peak_endPoint = validate_peak_windows(peak_starts=peak_startPoint, peak_ends=peak_endPoint)
 
     peak_and_area = OrderedDict()
 

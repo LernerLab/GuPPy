@@ -19,6 +19,8 @@
 
 ## Improvements
 - Added input validation in step 2 to reject duplicate store names and mismatched signal/control region pairs, with descriptive error messages naming the offending entries. [PR #275](https://github.com/LernerLab/GuPPy/pull/275)
+- Consolidated input-validation logic from the [#138](https://github.com/LernerLab/GuPPy/issues/138) sub-PRs into `src/guppy/utils/validation.py` and moved peak-window and PSTH baseline-correction validation upfront in step 5 so errors surface before any HDF5 IO. [PR #299](https://github.com/LernerLab/GuPPy/pull/299)
+- Audited every user-facing error message across `src/guppy/`: stripped ANSI escape codes, converted input-validation `assert`s and generic `raise Exception(...)` calls to `ValueError` / `FileNotFoundError`, and rewrote vague strings (naming-convention mismatches, CSV column counts, TDT/Doric/NWB extractor errors, typos) to name the offending value, state the rule, and give the fix. [PR #299](https://github.com/LernerLab/GuPPy/pull/299)
 
 # v2.0.0-alpha4 (April 15th, 2026)
 

@@ -45,25 +45,34 @@ def _classify_csv_file(path):
 
     if len(cols) == 1:
         if cols[0].lower() != "timestamps":
-            logger.error("\033[1m" + "Column name should be timestamps (all lower-cases)" + "\033[0m")
-            raise Exception("\033[1m" + "Column name should be timestamps (all lower-cases)" + "\033[0m")
+            message = (
+                f"CSV file '{path}' has 1 column named '{cols[0]}', but the only-supported "
+                "single-column CSV format requires the column to be named 'timestamps' (lower case)."
+            )
+            logger.error(message)
+            raise ValueError(message)
         return "csv"
     elif len(cols) == 3:
         arr1 = np.array(["timestamps", "data", "sampling_rate"])
         arr2 = np.char.lower(cols)
         if (np.sort(arr1) == np.sort(arr2)).all():
             return "csv"
-        logger.error(
-            "\033[1m" + "Column names should be timestamps, data and sampling_rate (all lower-cases)" + "\033[0m"
+        message = (
+            f"CSV file '{path}' has columns {list(cols)}, but the 3-column CSV format "
+            "requires column names 'timestamps', 'data', 'sampling_rate' (all lower case)."
         )
-        raise Exception(
-            "\033[1m" + "Column names should be timestamps, data and sampling_rate (all lower-cases)" + "\033[0m"
-        )
+        logger.error(message)
+        raise ValueError(message)
     elif len(cols) >= 2:
         return "npm"
     else:
-        logger.error("Number of columns in csv file does not make sense.")
-        raise Exception("Number of columns in csv file does not make sense.")
+        message = (
+            f"CSV file '{path}' has {len(cols)} columns, which is not a recognized layout. "
+            "Expected 1 column ('timestamps'), 2 columns (NPM event/data), or 3 columns "
+            "('timestamps', 'data', 'sampling_rate')."
+        )
+        logger.error(message)
+        raise ValueError(message)
 
 
 def _is_float(value):

@@ -142,14 +142,28 @@ def _fetchValues(text, storenames, storename_dropdowns, storename_textboxes, d, 
 def _save(d, select_location):
     arr1, arr2 = np.asarray(d["storenames"]), np.asarray(d["names_for_storenames"])
 
-    if np.where(arr2 == "")[0].size > 0:
-        alert_message = "#### Alert !! \n Empty string in the list names_for_storenames."
-        logger.error("Empty string in the list names_for_storenames.")
+    empty_indices = np.where(arr2 == "")[0].tolist()
+    if empty_indices:
+        detail = (
+            f"Empty string in the list names_for_storenames at index {empty_indices[0]} "
+            f"(storename {arr1[empty_indices[0]]!r})."
+            if len(empty_indices) == 1
+            else (
+                f"Empty strings in the list names_for_storenames at {len(empty_indices)} indices: "
+                f"{empty_indices} (storenames {[str(arr1[i]) for i in empty_indices]})."
+            )
+        )
+        alert_message = f"#### Alert !! \n {detail} Provide a semantic name for each storename."
+        logger.error(detail)
         return alert_message
 
     if arr1.shape[0] != arr2.shape[0]:
-        alert_message = "#### Alert !! \n Length of list storenames and names_for_storenames is not equal."
-        logger.error("Length of list storenames and names_for_storenames is not equal.")
+        detail = (
+            f"Length of list storenames ({arr1.shape[0]}) and names_for_storenames ({arr2.shape[0]}) "
+            "is not equal; each storename must be paired with exactly one semantic name."
+        )
+        alert_message = f"#### Alert !! \n {detail}"
+        logger.error(detail)
         return alert_message
 
     if not os.path.exists(os.path.join(Path.home(), ".storesList.json")):

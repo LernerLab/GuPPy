@@ -9,6 +9,8 @@ from guppy.extractors.nwb_recording_extractor import (
     NwbRecordingExtractor,
     _find_nwb_file,
     _parse_event_name,
+    _read_ndx_event,
+    _register_unique_name,
     _resolve_timing,
 )
 
@@ -49,8 +51,12 @@ class TestFindNwbFile:
     def test_raises_when_two_nwb_files(self, tmp_path):
         (tmp_path / "first.nwb").touch()
         (tmp_path / "second.nwb").touch()
-        with pytest.raises(ValueError, match="Multiple NWB files"):
+        with pytest.raises(ValueError) as exception_info:
             _find_nwb_file(tmp_path)
+        message = str(exception_info.value)
+        assert "Multiple NWB files" in message
+        assert "first.nwb" in message
+        assert "second.nwb" in message
 
 
 class TestParseEventName:
@@ -67,9 +73,32 @@ class TestParseEventName:
         assert column_index == 1
 
     def test_raises_for_unknown_event(self):
-        series_name_to_object = {"my_series": object()}
-        with pytest.raises(ValueError, match="could not be resolved"):
+        series_name_to_object = {"my_series": object(), "another_series": object()}
+        with pytest.raises(ValueError) as exception_info:
             _parse_event_name("unknown_event", series_name_to_object)
+        message = str(exception_info.value)
+        assert "could not be resolved" in message
+        assert "Available series:" in message
+        assert "my_series" in message
+        assert "another_series" in message
+
+
+class TestRegisterUniqueName:
+    def test_registers_first_occurrence(self):
+        seen = set()
+        _register_unique_name(seen, "my_series", "FiberPhotometryResponseSeries")
+        assert "my_series" in seen
+
+    def test_raises_on_duplicate(self):
+        seen = {"my_series"}
+        with pytest.raises(ValueError, match="must be unique within the file"):
+            _register_unique_name(seen, "my_series", "FiberPhotometryResponseSeries")
+
+
+class TestReadNdxEvent:
+    def test_raises_for_unknown_tag(self):
+        with pytest.raises(ValueError, match=r"Expected one of 'annotated', 'labeled', 'events', 'v04'"):
+            _read_ndx_event(event_name="bogus", source_info=("invalid_tag",))
 
 
 class TestResolveTiming:

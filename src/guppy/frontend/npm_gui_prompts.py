@@ -5,7 +5,28 @@ from tkinter import StringVar, messagebox, ttk
 logger = logging.getLogger(__name__)
 
 
-def get_multi_event_responses(multiple_event_ttls):
+def _validate_timestamp_configuration(*, timestamp_column_name: str, time_unit: str) -> None:
+    """Raise ValueError if either NPM timestamp combobox value is empty.
+
+    Extracted from ``get_timestamp_configuration`` so the validation logic can be
+    unit-tested without spinning up a Tk mainloop.
+    """
+    missing_fields = []
+    if not timestamp_column_name:
+        missing_fields.append("'Select which timestamps to use'")
+    if not time_unit:
+        missing_fields.append("'Select timestamps unit'")
+    if missing_fields:
+        message = (
+            f"NPM timestamp configuration incomplete: {', '.join(missing_fields)} "
+            "must be selected before continuing."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+
+# get_multi_event_responses is not covered by tests due to flaky behavior of tkinter messagebox in testing environments.
+def get_multi_event_responses(multiple_event_ttls):  # pragma: no cover
     responses = []
     for has_multiple in multiple_event_ttls:
         if not has_multiple:
@@ -27,7 +48,8 @@ def get_multi_event_responses(multiple_event_ttls):
     return responses
 
 
-def get_timestamp_configuration(ts_unit_needs, col_names_ts):
+# get_timestamp_configuration is not covered by tests due to the use of tkinter GUI elements in the function.
+def get_timestamp_configuration(ts_unit_needs, col_names_ts):  # pragma: no cover
     ts_units, npm_timestamp_column_names = [], []
     for need in ts_unit_needs:
         if not need:
@@ -62,43 +84,13 @@ def get_timestamp_configuration(ts_unit_needs, col_names_ts):
         window.after(500, lambda: window.lift())
         window.mainloop()
 
-        if holdComboboxValues["timestamps"].get():
-            npm_timestamp_column_name = holdComboboxValues["timestamps"].get()
-        else:
-            messagebox.showerror(
-                "All options not selected",
-                "All the options for timestamps \
-                                                            were not selected. Please select appropriate options",
-            )
-            logger.error(
-                "All the options for timestamps \
-                        were not selected. Please select appropriate options"
-            )
-            raise Exception(
-                "All the options for timestamps \
-                            were not selected. Please select appropriate options"
-            )
-        if holdComboboxValues["time_unit"].get():
-            if holdComboboxValues["time_unit"].get() == "seconds":
-                ts_unit = holdComboboxValues["time_unit"].get()
-            elif holdComboboxValues["time_unit"].get() == "milliseconds":
-                ts_unit = holdComboboxValues["time_unit"].get()
-            else:
-                ts_unit = holdComboboxValues["time_unit"].get()
-        else:
-            messagebox.showerror(
-                "All options not selected",
-                "All the options for timestamps \
-                                                            were not selected. Please select appropriate options",
-            )
-            logger.error(
-                "All the options for timestamps \
-                        were not selected. Please select appropriate options"
-            )
-            raise Exception(
-                "All the options for timestamps \
-                            were not selected. Please select appropriate options"
-            )
+        npm_timestamp_column_name = holdComboboxValues["timestamps"].get()
+        ts_unit = holdComboboxValues["time_unit"].get()
+        try:
+            _validate_timestamp_configuration(timestamp_column_name=npm_timestamp_column_name, time_unit=ts_unit)
+        except ValueError as error:
+            messagebox.showerror("NPM timestamp configuration incomplete", str(error))
+            raise
         ts_units.append(ts_unit)
         npm_timestamp_column_names.append(npm_timestamp_column_name)
     return ts_units, npm_timestamp_column_names

@@ -6,6 +6,10 @@ import pandas as pd
 import panel as pn
 
 from .dandi_selector import DandiSelector
+from ..utils.validation import (
+    validate_required_folder_selection,
+    validate_same_parent_directory,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -19,35 +23,16 @@ def _default_root_path():
 
 
 def checkSameLocation(arr, abspath):
-    # abspath = []
-    for i in range(len(arr)):
-        abspath.append(os.path.dirname(arr[i]))
-    abspath = np.asarray(abspath)
-    abspath = np.unique(abspath)
-    if len(abspath) > 1:
-        logger.error("All the folders selected should be at the same location")
-        raise Exception("All the folders selected should be at the same location")
-
-    return abspath
+    # abspath retained as a positional arg for backwards compatibility with existing
+    # callers; only the contents of arr are inspected.
+    del abspath
+    return validate_same_parent_directory(paths=list(arr))
 
 
 def getAbsPath(files_1, files_2):
-    arr_1, arr_2 = files_1.value, files_2.value
-    if len(arr_1) == 0 and len(arr_2) == 0:
-        logger.error("No folder is selected for analysis")
-        raise Exception("No folder is selected for analysis")
-
-    abspath = []
-    if len(arr_1) > 0:
-        abspath = checkSameLocation(arr_1, abspath)
-    else:
-        abspath = checkSameLocation(arr_2, abspath)
-
-    abspath = np.unique(abspath)
-    if len(abspath) > 1:
-        logger.error("All the folders selected should be at the same location")
-        raise Exception("All the folders selected should be at the same location")
-    return abspath
+    validate_required_folder_selection(file_selectors=[files_1, files_2])
+    selected = files_1.value if len(files_1.value) > 0 else files_2.value
+    return validate_same_parent_directory(paths=list(selected))
 
 
 class ParameterForm:
@@ -361,10 +346,10 @@ class ParameterForm:
         output_root = self.dandi_selector.output_root
         if not selected_uris:
             logger.error("DANDI mode: no NWB assets selected")
-            raise Exception("DANDI mode: select at least one NWB asset before running the pipeline")
+            raise ValueError("DANDI mode: select at least one NWB asset before running the pipeline")
         if not output_root:
             logger.error("DANDI mode: no local output directory selected")
-            raise Exception("DANDI mode: select a local output directory before running the pipeline")
+            raise ValueError("DANDI mode: select a local output directory before running the pipeline")
 
         folder_names = []
         dandi_uri_map = {}

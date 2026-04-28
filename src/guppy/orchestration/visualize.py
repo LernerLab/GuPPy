@@ -22,7 +22,7 @@ def helper_plots(filepath, event, name, inputParameters):
 
     # note when there are no behavior event TTLs
     if len(event) == 0:
-        logger.warning("\033[1m" + "There are no behavior event TTLs present to visualize.".format(event) + "\033[0m")
+        logger.warning("There are no behavior event TTLs present to visualize.")
         return 0
 
     if os.path.exists(os.path.join(filepath, "cross_correlation_output")):

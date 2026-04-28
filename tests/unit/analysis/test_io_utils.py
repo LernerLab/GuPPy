@@ -61,8 +61,12 @@ def test_decide_naming_convention_unequal_counts_raises(tmp_path):
     (tmp_path / "control_DMS.hdf5").touch()
     (tmp_path / "control_NAc.hdf5").touch()
     (tmp_path / "signal_DMS.hdf5").touch()
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError) as exception_info:
         decide_naming_convention(str(tmp_path))
+    message = str(exception_info.value)
+    assert "Unequal number of control and signal files" in message
+    assert "2 control" in message
+    assert "1 signal" in message
 
 
 # ── read_hdf5 / write_hdf5 ────────────────────────────────────────────────────
@@ -102,8 +106,16 @@ def test_write_hdf5_adds_second_key_to_existing_file(tmp_path):
 
 
 def test_read_hdf5_nonexistent_file_raises(tmp_path):
-    with pytest.raises(Exception):
+    with pytest.raises(FileNotFoundError, match=r"HDF5 file"):
         read_hdf5("nonexistent_event", str(tmp_path), "data")
+
+
+def test_fetch_coords_raises_for_odd_count_npy(tmp_path):
+    coords_path = tmp_path / "coordsForPreProcessing_dms.npy"
+    # Save a 3-row array with 2 columns; first column has odd count → triggers raise
+    np.save(coords_path, np.array([[0.0, 0.0], [1.0, 0.0], [2.0, 0.0]]))
+    with pytest.raises(ValueError, match="must come in pairs"):
+        fetchCoords(str(tmp_path), "dms", np.array([0.0, 5.0]))
 
 
 def test_write_hdf5_sanitizes_backslash_in_event_name(tmp_path):

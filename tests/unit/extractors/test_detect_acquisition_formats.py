@@ -93,6 +93,28 @@ def test_classify_csv_file_returns_npm_for_multicolumn_data(tmp_path):
     assert _classify_csv_file(str(path)) == "npm"
 
 
+def test_classify_csv_file_raises_for_single_column_with_wrong_name(tmp_path):
+    path = tmp_path / "wrong_name.csv"
+    path.write_text("not_timestamps\n0.1\n0.2\n")
+    with pytest.raises(ValueError, match=r"requires the column to be named 'timestamps'"):
+        _classify_csv_file(str(path))
+
+
+def test_classify_csv_file_raises_for_three_columns_with_wrong_names(tmp_path):
+    path = tmp_path / "wrong_columns.csv"
+    path.write_text("foo,bar,baz\n0.1,1.0,250\n0.2,1.1,250\n")
+    with pytest.raises(ValueError, match=r"requires column names 'timestamps', 'data', 'sampling_rate'"):
+        _classify_csv_file(str(path))
+
+
+def test_classify_csv_file_raises_for_headerless_single_numeric_column(tmp_path):
+    """A headerless single-numeric-column CSV triggers the unrecognized-layout branch."""
+    path = tmp_path / "headerless.csv"
+    path.write_text("0\n1\n2\n")
+    with pytest.raises(ValueError, match=r"requires the column to be named 'timestamps'"):
+        _classify_csv_file(str(path))
+
+
 # ---------------------------------------------------------------------------
 # detect_acquisition_formats
 # ---------------------------------------------------------------------------

@@ -39,8 +39,9 @@ def remove_artifacts(
         pair_name_to_corrected_timestamps = None
         logger.info("Artifacts removed using NaN replacement method.")
     else:
-        logger.error("Invalid artifact removal method specified.")
-        raise ValueError("Invalid artifact removal method specified.")
+        message = f"Invalid artifact removal method {method!r}. " "Expected one of: 'concatenate', 'replace with NaN'."
+        logger.error(message)
+        raise ValueError(message)
 
     return name_to_corrected_data, pair_name_to_corrected_timestamps, compound_name_to_corrected_ttl_timestamps
 

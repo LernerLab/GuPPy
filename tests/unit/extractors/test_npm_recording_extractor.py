@@ -36,7 +36,7 @@ def test_check_channels_returns_correct_num_channels(state, expected_num_channel
 
 def test_check_channels_raises_for_more_than_three_channels():
     state = np.array([0, 0, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2])
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError, match=r"4 unique channel states"):
         NpmRecordingExtractor.check_channels(state)
 
 
@@ -52,6 +52,20 @@ def test_decide_indices_data_np_flag_partitions_rows_by_channel():
     np.testing.assert_array_equal(indices_dict["file0_chev"], [0, 2, 4])
     np.testing.assert_array_equal(indices_dict["file0_chod"], [1, 3, 5])
     assert num_channels == 2
+
+
+def test_decide_indices_raises_when_num_ch_exceeds_three():
+    dataframe = pd.DataFrame({"col1": range(8), "col2": range(8, 16)})
+    with pytest.raises(ValueError, match=r"set to 4, which exceeds the maximum of 3 channels"):
+        NpmRecordingExtractor.decide_indices("file0_", dataframe, "data_np", num_ch=4)
+
+
+def test_decide_indices_v2_flag_raises_when_flags_and_ledstate_columns_missing():
+    dataframe = pd.DataFrame(
+        {"FrameCounter": [1, 2, 3, 4], "Timestamp": [0.1, 0.2, 0.3, 0.4], "Signal": [10, 20, 30, 40]}
+    )
+    with pytest.raises(ValueError, match=r"do not contain a 'Flags' or 'LedState' column"):
+        NpmRecordingExtractor.decide_indices("file0_", dataframe, "data_np_v2", num_ch=2)
 
 
 # ---------------------------------------------------------------------------
@@ -97,6 +111,19 @@ def test_update_df_with_timestamp_columns_explicit_column_name_used():
     np.testing.assert_array_equal(result["Timestamp"].to_numpy(), [0.0001, 0.0002])
 
 
+def test_update_df_with_timestamp_columns_raises_for_missing_name():
+    dataframe = pd.DataFrame(
+        {
+            "FrameCounter": [1, 2],
+            "Timestamp_ms": [0.1, 0.2],
+            "Timestamp_s": [0.0001, 0.0002],
+            "Values": [10, 20],
+        }
+    )
+    with pytest.raises(ValueError, match=r"'BogusTimestamp' not found in columns"):
+        NpmRecordingExtractor._update_df_with_timestamp_columns(dataframe, "BogusTimestamp")
+
+
 # ---------------------------------------------------------------------------
 # has_multiple_event_ttls
 # ---------------------------------------------------------------------------
@@ -124,6 +151,13 @@ def test_has_multiple_event_ttls_multiple_ttl_event_file_returns_true(tmp_path):
     dataframe.to_csv(tmp_path / "stimuli.csv", index=False)
     result = NpmRecordingExtractor.has_multiple_event_ttls(folder_path=str(tmp_path))
     assert result == [True]
+
+
+def test_has_multiple_event_ttls_raises_for_unrecognized_layout(tmp_path):
+    pd.DataFrame({"event_code": [1, 2]}).to_csv(tmp_path / "single_column.csv", index=False)
+
+    with pytest.raises(ValueError, match=r"has 1 columns, which is not a recognized NPM layout"):
+        NpmRecordingExtractor.has_multiple_event_ttls(folder_path=str(tmp_path))
 
 
 def test_has_multiple_event_ttls_intra_session_mixed_modality_npm_with_csv_event(tmp_path):
@@ -181,6 +215,13 @@ def test_needs_ts_unit_multiple_timestamp_columns_returns_true(tmp_path):
     assert col_names_ts == ["", "SystemTimestamp", "ComputerTimestamp"]
 
 
+def test_needs_ts_unit_raises_for_unrecognized_layout(tmp_path):
+    pd.DataFrame({"event_code": [1, 2]}).to_csv(tmp_path / "single_column.csv", index=False)
+
+    with pytest.raises(ValueError, match=r"has 1 columns, which is not a recognized NPM layout"):
+        NpmRecordingExtractor.needs_ts_unit(folder_path=str(tmp_path), num_ch=2)
+
+
 def test_needs_ts_unit_intra_session_mixed_modality_npm_with_csv_event(tmp_path):
     # Mixed intra-session folder: NPM files plus external 1-column CSV event should not crash TS-unit inference.
     source_folder = STUBBED_TESTING_DATA / "npm" / "sampleData_NPM_1"
@@ -193,6 +234,55 @@ def test_needs_ts_unit_intra_session_mixed_modality_npm_with_csv_event(tmp_path)
     ts_unit_needs, col_names_ts = NpmRecordingExtractor.needs_ts_unit(folder_path=str(session_folder), num_ch=2)
     assert ts_unit_needs == [True, False]
     assert col_names_ts == ["", "SystemTimestamp", "ComputerTimestamp"]
+
+
+# ---------------------------------------------------------------------------
+# discover_events_and_flags error paths
+# ---------------------------------------------------------------------------
+
+
+def test_discover_raises_when_doric_extension_present(tmp_path):
+    (tmp_path / "session.doric").write_bytes(b"\x00")  # contents irrelevant, never read
+    with pytest.raises(ValueError, match=r"Doric files are not supported by NpmRecordingExtractor"):
+        NpmRecordingExtractor.discover_events_and_flags(folder_path=str(tmp_path), num_ch=2, inputParameters={})
+
+
+def test_discover_raises_for_doric_shaped_csv(tmp_path):
+    csv_path = tmp_path / "doric_shaped.csv"
+    csv_path.write_text("Time(s),Region0/Values\nUnit,V\n0.0,0.5\n0.1,0.51\n")
+    with pytest.raises(ValueError, match=r"appears to be a Doric .csv"):
+        NpmRecordingExtractor.discover_events_and_flags(folder_path=str(tmp_path), num_ch=2, inputParameters={})
+
+
+def test_discover_raises_for_event_csv_one_column(tmp_path):
+    # Column name not exactly lowercase "timestamps" so it bypasses the
+    # _is_event_csv pre-filter and reaches the inner 1-column check.
+    csv_path = tmp_path / "single.csv"
+    csv_path.write_text("Timestamp\n0.1\n0.2\n")
+    with pytest.raises(ValueError, match=r"event .csv layout"):
+        NpmRecordingExtractor.discover_events_and_flags(folder_path=str(tmp_path), num_ch=2, inputParameters={})
+
+
+def test_discover_raises_for_data_csv_three_columns(tmp_path):
+    csv_path = tmp_path / "three.csv"
+    csv_path.write_text("timestamps,data,sampling_rate\n0.1,1.0,250\n0.2,1.1,250\n")
+    with pytest.raises(ValueError, match=r"data .csv layout"):
+        NpmRecordingExtractor.discover_events_and_flags(folder_path=str(tmp_path), num_ch=2, inputParameters={})
+
+
+def test_discover_raises_when_region_channel_counts_do_not_match(tmp_path):
+    csv_path = tmp_path / "data.csv"
+    csv_path.write_text(
+        "FrameCounter,Signal1,Signal2,Signal3\n"
+        "0,1.0,10.0,100.0\n"
+        "1,2.0,20.0,200.0\n"
+        "2,3.0,30.0,300.0\n"
+        "3,4.0,40.0,400.0\n"
+    )
+    pd.DataFrame({"timestamps": [0.0], "data": [1.0]}).to_csv(tmp_path / "existing_chpr.csv", index=False)
+
+    with pytest.raises(ValueError, match=r"Number of channel files must be the same for all regions"):
+        NpmRecordingExtractor.discover_events_and_flags(folder_path=str(tmp_path), num_ch=2, inputParameters={})
 
 
 from conftest import STUBBED_TESTING_DATA

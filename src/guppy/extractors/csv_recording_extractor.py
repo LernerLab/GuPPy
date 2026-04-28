@@ -44,7 +44,8 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
         flag_arr = []
         for i in range(len(path)):
             ext = os.path.basename(path[i]).split(".")[-1]
-            assert ext == "csv", "Only .csv files are supported by import_csv function."
+            if ext != "csv":
+                raise ValueError(f"Only .csv files are supported by CsvRecordingExtractor; got '{path[i]}'.")
             df = pd.read_csv(path[i], header=None, nrows=2, index_col=False, dtype=str)
             df = df.dropna(axis=1, how="all")
             df_arr = np.array(df).flatten()
@@ -54,9 +55,11 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
                     float(element)
                 except:
                     check_all_str.append(i)
-            assert len(check_all_str) != len(
-                df_arr
-            ), "This file appears to be doric .csv. This function only supports standard .csv files."
+            if len(check_all_str) == len(df_arr):
+                raise ValueError(
+                    f"CSV file '{path[i]}' appears to be a Doric .csv (all-string header rows). "
+                    "CsvRecordingExtractor only supports standard .csv files; use the Doric extractor instead."
+                )
             df = pd.read_csv(path[i], index_col=False)
 
             _, value = cls._check_header(df)
@@ -73,50 +76,35 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
             # check the structure of dataframe and assign flag to the type of file
             if len(cols) == 1:
                 if cols[0].lower() != "timestamps":
-                    logger.error("\033[1m" + "Column name should be timestamps (all lower-cases)" + "\033[0m")
-                    raise Exception("\033[1m" + "Column name should be timestamps (all lower-cases)" + "\033[0m")
+                    message = (
+                        f"CSV file '{path[i]}' has 1 column named '{cols[0]}', but the only-supported "
+                        "single-column CSV format requires the column to be named 'timestamps' (lower case)."
+                    )
+                    logger.error(message)
+                    raise ValueError(message)
                 else:
                     flag = "event_csv"
             elif len(cols) == 3:
                 arr1 = np.array(["timestamps", "data", "sampling_rate"])
                 arr2 = np.char.lower(np.array(cols))
                 if (np.sort(arr1) == np.sort(arr2)).all() == False:
-                    logger.error(
-                        "\033[1m"
-                        + "Column names should be timestamps, data and sampling_rate (all lower-cases)"
-                        + "\033[0m"
+                    message = (
+                        f"CSV file '{path[i]}' has columns {list(cols)}, but the 3-column CSV format "
+                        "requires column names 'timestamps', 'data', 'sampling_rate' (all lower case)."
                     )
-                    raise Exception(
-                        "\033[1m"
-                        + "Column names should be timestamps, data and sampling_rate (all lower-cases)"
-                        + "\033[0m"
-                    )
+                    logger.error(message)
+                    raise ValueError(message)
                 else:
                     flag = "data_csv"
-            elif len(cols) == 2:
-                raise ValueError(
-                    "Data appears to be Neurophotometrics csv. Please use import_npm_csv function to import the data."
-                )
             elif len(cols) >= 2:
                 raise ValueError(
-                    "Data appears to be Neurophotometrics csv. Please use import_npm_csv function to import the data."
+                    f"CSV file '{path[i]}' has {len(cols)} columns {list(cols)}, which matches the "
+                    "Neurophotometrics (NPM) layout. Set 'Acquisition System' to 'NPM' in the "
+                    "Input Parameters GUI before re-running the pipeline."
                 )
-            else:
-                logger.error("Number of columns in csv file does not make sense.")
-                raise Exception("Number of columns in csv file does not make sense.")
-
-            if columns_isstr == True and (
-                "flags" in np.char.lower(np.array(cols)) or "ledstate" in np.char.lower(np.array(cols))
-            ):
-                flag = flag + "_v2"
-            else:
-                flag = flag
 
             flag_arr.append(flag)
             logger.info(flag)
-            assert (
-                flag == "event_csv" or flag == "data_csv"
-            ), "This function only supports standard event_csv and data_csv files."
             name = os.path.basename(path[i]).split(".")[0]
             event_from_filename.append(name)
 
@@ -139,12 +127,14 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
         return arr, check_float
 
     def _read_csv(self, event):
-        logger.debug("\033[1m" + "Trying to read data for {} from csv file.".format(event) + "\033[0m")
-        if not os.path.exists(os.path.join(self.folder_path, event + ".csv")):
-            logger.error("\033[1m" + "No csv file found for event {}".format(event) + "\033[0m")
-            raise Exception("\033[1m" + "No csv file found for event {}".format(event) + "\033[0m")
+        logger.debug(f"Trying to read data for {event} from csv file.")
+        csv_path = os.path.join(self.folder_path, event + ".csv")
+        if not os.path.exists(csv_path):
+            message = f"No CSV file found for event '{event}' at '{csv_path}'."
+            logger.error(message)
+            raise FileNotFoundError(message)
 
-        df = pd.read_csv(os.path.join(self.folder_path, event + ".csv"), index_col=False)
+        df = pd.read_csv(csv_path, index_col=False)
         return df
 
     def read(self, *, events: list[str], outputPath: str) -> list[dict[str, Any]]:

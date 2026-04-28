@@ -17,7 +17,7 @@ from guppy.extractors import (
     detect_acquisition_formats,
     read_and_save_all_events,
 )
-from guppy.frontend.progress import PB_ERROR_FILE, PB_STEPS_FILE, writeToFile
+from guppy.frontend.progress import PB_STEPS_FILE, subprocess_main_handler, writeToFile
 from guppy.utils.utils import takeOnlyDirs
 
 logger = logging.getLogger(__name__)
@@ -105,8 +105,8 @@ def orchestrate_read_raw_data(inputParameters):
         numProcesses = mp.cpu_count()
     elif numProcesses > mp.cpu_count():
         logger.warning(
-            "Warning : # of cores parameter set is greater than the cores available \
-			   available in your machine"
+            f"Number of cores requested ({numProcesses}) exceeds available cores "
+            f"({mp.cpu_count()}); using {mp.cpu_count() - 1}."
         )
         numProcesses = mp.cpu_count() - 1
     for i in range(len(folderNames)):
@@ -158,17 +158,10 @@ def orchestrate_read_raw_data(inputParameters):
     logger.info("#" * 400)
 
 
+@subprocess_main_handler
 def main(input_parameters):
     logger.info("run")
-    try:
-        orchestrate_read_raw_data(input_parameters)
-        logger.info("#" * 400)
-    except Exception as e:
-        with open(PB_ERROR_FILE, "w") as ef:
-            ef.write(str(e))
-        writeToFile(str(-1) + "\n", file_path=PB_STEPS_FILE)
-        logger.error(f"An error occurred: {e}")
-        raise e
+    orchestrate_read_raw_data(input_parameters)
 
 
 if __name__ == "__main__":

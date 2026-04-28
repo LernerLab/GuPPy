@@ -418,3 +418,74 @@ class TestDoricCsvValidation:
         extractor = DoricRecordingExtractor(str(tmp_path), {"AOut-1": "signal", "DI/O-1": "ttl"})
         with pytest.raises(ValueError, match="'AOut-1' is constant"):
             extractor.read(events=["AOut-1"], outputPath="")
+
+
+# ---------------------------------------------------------------------------
+# Multi-file detection and read-path file-not-found errors
+# ---------------------------------------------------------------------------
+
+
+def _write_minimal_doric_v1(path):
+    with h5py.File(path, "w") as f:
+        console = f.require_group("Traces/Console")
+        console.require_group("Time(s)").create_dataset("Console_time(s)", data=np.linspace(0.0, 1.0, 5))
+        console.require_group("AIn-1").create_dataset("AIn-1", data=np.arange(5.0))
+
+
+def test_check_doric_raises_for_multiple_doric_files(tmp_path):
+    _write_minimal_doric_v1(tmp_path / "session_a.doric")
+    _write_minimal_doric_v1(tmp_path / "session_b.doric")
+    extractor = DoricRecordingExtractor(str(tmp_path), {"AIn-1": "signal"})
+    with pytest.raises(ValueError, match="Multiple Doric data files"):
+        extractor._check_doric()
+
+
+def test_read_doric_csv_raises_for_multiple_csv_files(tmp_path):
+    csv_a = tmp_path / "session_a.csv"
+    csv_b = tmp_path / "session_b.csv"
+    contents = "---,Analog In. | Ch.1,\n" "Time(s),AIn-1 - Dem (ref),\n" "0.0,0.5,\n" "0.1,0.6,\n"
+    csv_a.write_text(contents)
+    csv_b.write_text(contents)
+    extractor = DoricRecordingExtractor(str(tmp_path), {"AIn-1 - Dem (ref)": "signal"})
+    with pytest.raises(ValueError, match=r"Multiple Doric .csv files"):
+        extractor._read_doric_csv(events=["AIn-1 - Dem (ref)"])
+
+
+def test_read_doric_doric_raises_for_multiple_doric_files(tmp_path):
+    _write_minimal_doric_v1(tmp_path / "session_a.doric")
+    _write_minimal_doric_v1(tmp_path / "session_b.doric")
+    extractor = DoricRecordingExtractor(str(tmp_path), {"AIn-1": "signal"})
+    with pytest.raises(ValueError, match=r"Multiple Doric .doric files"):
+        extractor._read_doric_doric(events=["AIn-1"])
+
+
+def test_read_raises_when_no_doric_file_present(tmp_path):
+    extractor = DoricRecordingExtractor(str(tmp_path), {"AIn-1": "signal"})
+    with pytest.raises(FileNotFoundError, match="No Doric file"):
+        extractor.read(events=["AIn-1"], outputPath="")
+
+
+def test_v6_signal_event_with_multiple_matching_paths_raises(tmp_path):
+    """Two HDF5 datasets at different parents but ending in ``Series0001/AnalogIn/Values``
+    both register against the same event key, triggering the duplicate-match guard."""
+    hdf5_path = tmp_path / "session.doric"
+    with h5py.File(hdf5_path, "w") as f:
+        f.require_group("Configurations")
+        # Same final segments ("Series0001/AnalogIn") under two different ancestor paths,
+        # so _access_data_doricV6 registers both into decide_path for event "Series0001/AnalogIn".
+        for parent in ("Signals", "Other"):
+            grp = f.require_group(f"DataAcquisition/{parent}/Series0001/AnalogIn")
+            grp.create_dataset("Time", data=np.linspace(0.0, 1.0, 5))
+            grp.create_dataset("Values", data=np.arange(5.0) + 0.1)
+    extractor = DoricRecordingExtractor(str(tmp_path), {"Series0001/AnalogIn": "signal"})
+    with pytest.raises(ValueError, match="matches multiple internal HDF5 paths"):
+        extractor.read(events=["Series0001/AnalogIn"], outputPath="")
+
+
+def test_discover_raises_for_standard_csv_in_doric_extractor(tmp_path):
+    """A standard (non-Doric) CSV with numeric data in the first 2 rows triggers the
+    'appears to be a standard .csv' guard inside discover_events_and_flags."""
+    csv_path = tmp_path / "standard.csv"
+    csv_path.write_text("timestamps,data,sampling_rate\n0.1,1.0,250\n0.2,1.1,250\n")
+    with pytest.raises(ValueError, match=r"appears to be a standard .csv"):
+        DoricRecordingExtractor.discover_events_and_flags(str(tmp_path))

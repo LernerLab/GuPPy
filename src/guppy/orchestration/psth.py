@@ -32,8 +32,9 @@ from ..analysis.standard_io import (
     write_peak_and_area_to_csv,
     write_peak_and_area_to_hdf5,
 )
-from ..frontend.progress import PB_ERROR_FILE, PB_STEPS_FILE, writeToFile
+from ..frontend.progress import PB_STEPS_FILE, subprocess_main_handler, writeToFile
 from ..utils.utils import get_all_stores_for_combining_data, read_Df, takeOnlyDirs
+from ..utils.validation import validate_peak_windows, validate_window_bounds
 
 logger = logging.getLogger(__name__)
 
@@ -165,9 +166,10 @@ def execute_compute_cross_correlation(filepath, event, inputParameters):
     artifactsRemovalMethod = inputParameters["artifactsRemovalMethod"]
     if isCompute == True:
         if removeArtifacts == True and artifactsRemovalMethod == "concatenate":
-            raise Exception(
-                "For cross-correlation, when removeArtifacts is True, artifacts removal method\
-                            should be replace with NaNs and not concatenate"
+            raise ValueError(
+                "For cross-correlation, when removeArtifacts is True, the artifacts removal method "
+                "must be 'replace with NaNs' and not 'concatenate'. Change 'Method for Artifact "
+                "Removal' in the Input Parameters GUI."
             )
         corr_info, type = getCorrCombinations(filepath, inputParameters)
         if len(corr_info) < 2:
@@ -319,11 +321,45 @@ def _validate_storenames_consistent_for_group(storesListPath):
     )
 
 
+def _validate_psth_window_parameters(inputParameters):
+    """Upfront PSTH-window validation, run before any HDF5 IO.
+
+    Why: peak-window ordering used to surface only deep inside
+    ``compute_psth_peak_and_area`` (after step 5 had begun), and the PSTH
+    baseline-correction window had no equivalent of the z-score baseline
+    validation added in PR #283. Catching both here gives the user a Panel
+    notification before progress starts.
+    """
+    validate_peak_windows(
+        peak_starts=inputParameters["peak_startPoint"],
+        peak_ends=inputParameters["peak_endPoint"],
+    )
+    baselineCorrectionStart = inputParameters["baselineCorrectionStart"]
+    baselineCorrectionEnd = inputParameters["baselineCorrectionEnd"]
+    # (0, 0) is the documented sentinel for "skip baseline correction"
+    # (see baselineCorrection in compute_psth.py and the GUI tooltip).
+    if baselineCorrectionStart == 0 and baselineCorrectionEnd == 0:
+        return
+    validate_window_bounds(
+        start=baselineCorrectionStart,
+        end=baselineCorrectionEnd,
+        ts_min=float(inputParameters["nSecPrev"]),
+        ts_max=float(inputParameters["nSecPost"]),
+        start_name="baselineCorrectionStart",
+        end_name="baselineCorrectionEnd",
+        range_label="PSTH window",
+    )
+
+
 def execute_average_for_group(inputParameters):
     folderNamesForAvg = inputParameters["folderNamesForAvg"]
     if len(folderNamesForAvg) == 0:
-        logger.error("Not a single folder name is provided in folderNamesForAvg in inputParamters File.")
-        raise Exception("Not a single folder name is provided in folderNamesForAvg in inputParamters File.")
+        message = (
+            "No folders selected for group averaging (folderNamesForAvg is empty in inputParameters). "
+            "Select folders in the 'Group Folders for Averaging' picker before running the average step."
+        )
+        logger.error(message)
+        raise ValueError(message)
 
     storesListPath = []
     for i in range(len(folderNamesForAvg)):
@@ -368,6 +404,8 @@ def psthForEachStorename(inputParameters):
     logger.info("Computing PSTH, Peak and Area for each event...")
     inputParameters = inputParameters
 
+    _validate_psth_window_parameters(inputParameters)
+
     # storesList = np.genfromtxt(inputParameters['storesListPath'], dtype='str', delimiter=',')
 
     average = inputParameters["averageForGroup"]
@@ -378,8 +416,8 @@ def psthForEachStorename(inputParameters):
         numProcesses = mp.cpu_count()
     elif numProcesses > mp.cpu_count():
         logger.warning(
-            "Warning : # of cores parameter set is greater than the cores available \
-			   available in your machine"
+            f"Number of cores requested ({numProcesses}) exceeds available cores "
+            f"({mp.cpu_count()}); using {mp.cpu_count() - 1}."
         )
         numProcesses = mp.cpu_count() - 1
 
@@ -399,17 +437,10 @@ def psthForEachStorename(inputParameters):
     return inputParameters
 
 
+@subprocess_main_handler
 def main(input_parameters):
-    try:
-        inputParameters = psthForEachStorename(input_parameters)
-        subprocess.call([sys.executable, "-m", "guppy.orchestration.transients", json.dumps(inputParameters)])
-        logger.info("#" * 400)
-    except Exception as e:
-        with open(PB_ERROR_FILE, "w") as ef:
-            ef.write(str(e))
-        writeToFile(str(-1) + "\n", file_path=PB_STEPS_FILE)
-        logger.error(str(e))
-        raise e
+    inputParameters = psthForEachStorename(input_parameters)
+    subprocess.call([sys.executable, "-m", "guppy.orchestration.transients", json.dumps(inputParameters)])
 
 
 if __name__ == "__main__":
