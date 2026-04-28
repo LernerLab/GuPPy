@@ -132,10 +132,3 @@ def test_discover_raises_for_two_column_npm_shaped_csv(monkeypatch, tmp_path):
     _force_classify_to_csv(monkeypatch)
     with pytest.raises(ValueError, match="matches the Neurophotometrics"):
         CsvRecordingExtractor.discover_events_and_flags(str(tmp_path))
-
-
-# Note: the zero-column "not a recognized layout" branch and the v2-flag
-# "could not be classified" branch in discover_events_and_flags are unreachable
-# from the public API (pandas rejects 0-column CSVs at parse time, and the v2
-# suffix logic only triggers when 'Flags'/'LedState' coexist with 1-col timestamps
-# or 3-col timestamps/data/sampling_rate, which is structurally impossible).

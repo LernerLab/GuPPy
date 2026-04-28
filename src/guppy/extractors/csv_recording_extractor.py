@@ -102,28 +102,9 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
                     "Neurophotometrics (NPM) layout. Set 'Acquisition System' to 'NPM' in the "
                     "Input Parameters GUI before re-running the pipeline."
                 )
-            else:
-                message = (
-                    f"CSV file '{path[i]}' has {len(cols)} columns, which is not a recognized layout. "
-                    "Expected 1 column ('timestamps') or 3 columns ('timestamps', 'data', 'sampling_rate')."
-                )
-                logger.error(message)
-                raise ValueError(message)
-
-            if columns_isstr == True and (
-                "flags" in np.char.lower(np.array(cols)) or "ledstate" in np.char.lower(np.array(cols))
-            ):
-                flag = flag + "_v2"
-            else:
-                flag = flag
 
             flag_arr.append(flag)
             logger.info(flag)
-            if flag not in ("event_csv", "data_csv"):
-                raise ValueError(
-                    f"CSV file '{path[i]}' could not be classified as a standard event_csv "
-                    f"or data_csv (got flag={flag!r}). CsvRecordingExtractor only supports standard CSV files."
-                )
             name = os.path.basename(path[i]).split(".")[0]
             event_from_filename.append(name)
 
