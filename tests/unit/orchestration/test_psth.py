@@ -5,6 +5,7 @@ import pytest
 from guppy.orchestration.psth import (
     _validate_psth_window_parameters,
     _validate_storenames_consistent_for_group,
+    execute_average_for_group,
     execute_compute_cross_correlation,
     execute_compute_psth,
     execute_compute_psth_peak_and_area,
@@ -83,8 +84,14 @@ def test_execute_compute_cross_correlation_raises_when_concatenate_and_remove_ar
     base_input_parameters["removeArtifacts"] = True
     base_input_parameters["artifactsRemovalMethod"] = "concatenate"
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError, match=r"must be 'replace with NaNs' and not 'concatenate'"):
         execute_compute_cross_correlation(str(psth_output_dir), "lever_press", base_input_parameters)
+
+
+def test_execute_average_for_group_raises_for_empty_folders(base_input_parameters):
+    base_input_parameters["folderNamesForAvg"] = []
+    with pytest.raises(ValueError, match="No folders selected for group averaging"):
+        execute_average_for_group(base_input_parameters)
 
 
 def test_execute_compute_cross_correlation_returns_early_for_control_event(

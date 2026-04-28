@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from guppy.analysis.artifact_removal import (
     addingNaNtoChunksWithArtifacts,
@@ -9,6 +10,37 @@ from guppy.analysis.artifact_removal import (
     remove_artifacts,
     removeTTLs,
 )
+
+
+def test_remove_artifacts_raises_for_invalid_method():
+    with pytest.raises(ValueError, match=r"Invalid artifact removal method 'bogus'"):
+        remove_artifacts(
+            timeForLightsTurnOn=0.0,
+            storesList=np.array([["c"], ["control_dms"]]),
+            pair_name_to_tsNew={},
+            pair_name_to_sampling_rate={},
+            pair_name_to_coords={},
+            name_to_data={},
+            compound_name_to_ttl_timestamps={},
+            method="bogus",
+        )
+
+
+def test_remove_artifacts_invalid_method_message_lists_allowed_methods():
+    with pytest.raises(ValueError) as exception_info:
+        remove_artifacts(
+            timeForLightsTurnOn=0.0,
+            storesList=np.array([["c"], ["control_dms"]]),
+            pair_name_to_tsNew={},
+            pair_name_to_sampling_rate={},
+            pair_name_to_coords={},
+            name_to_data={},
+            compound_name_to_ttl_timestamps={},
+            method="bogus",
+        )
+    message = str(exception_info.value)
+    assert "concatenate" in message
+    assert "replace with NaN" in message
 
 
 def test_eliminate_data_single_window_output_length():

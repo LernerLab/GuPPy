@@ -155,18 +155,40 @@ def test_save_returns_alert_when_shapes_mismatch(isolated_cache):
     result = _save(storenames_data, select_location)
 
     assert "Alert" in result
+    # Both lengths should be reported in the alert
+    assert "(2)" in result
+    assert "(1)" in result
 
 
 def test_save_returns_alert_when_empty_string_in_names(isolated_cache):
     select_location = str(isolated_cache / "session1_output_1")
     storenames_data = {
         "storenames": ["Dv1A", "Dv2A"],
-        "names_for_storenames": ["control_DMS", ""],  # empty string
+        "names_for_storenames": ["control_DMS", ""],  # empty string at index 1
     }
 
     result = _save(storenames_data, select_location)
 
     assert "Alert" in result
+    # Alert should name the offending index and storename
+    assert "index 1" in result
+    assert "Dv2A" in result
+
+
+def test_save_returns_alert_listing_multiple_empty_indices(isolated_cache):
+    select_location = str(isolated_cache / "session1_output_1")
+    storenames_data = {
+        "storenames": ["Dv1A", "Dv2A", "Dv3A"],
+        "names_for_storenames": ["", "control_DMS", ""],
+    }
+
+    result = _save(storenames_data, select_location)
+
+    assert "Alert" in result
+    # Multiple indices listed
+    assert "[0, 2]" in result
+    assert "Dv1A" in result
+    assert "Dv3A" in result
 
 
 def test_save_updates_cache_file(isolated_cache):

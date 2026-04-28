@@ -1,6 +1,8 @@
 import numpy as np
+import pytest
 
 from guppy.orchestration.preprocess import (
+    execute_combine_data,
     execute_preprocessing_visualization,
     execute_zscore,
     visualize_artifact_removal,
@@ -136,6 +138,74 @@ def test_visualize_artifact_removal_invokes_widget_visualization_and_show(monkey
         ("/tmp/session_output_2", True),
     ]
     assert len(show_calls) == 1
+
+
+# ── error paths ───────────────────────────────────────────────────────────────
+
+
+def test_visualize_control_and_signal_raises_for_unequal_file_counts(monkeypatch):
+    """Three control files but only two signal files → odd total → raises with counts."""
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.find_files",
+        lambda path, pattern, ignore_case=True: (
+            ["/tmp/ctrl_a.hdf5", "/tmp/ctrl_b.hdf5", "/tmp/ctrl_c.hdf5"]
+            if "control" in pattern
+            else ["/tmp/sig_a.hdf5", "/tmp/sig_b.hdf5"]
+        ),
+    )
+    with pytest.raises(ValueError, match="Unequal number of control and signal files"):
+        visualizeControlAndSignal("/tmp/session_output_1", removeArtifacts=False)
+
+
+def test_execute_zscore_raises_for_pair_name_mismatch(monkeypatch, base_input_parameters):
+    """control_dms paired with signal_vms (different suffixes) — raises with both suffixes."""
+    folder_names = [["/tmp/session_output_1"]]
+    base_input_parameters["combine_data"] = True
+
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.find_files",
+        lambda path, pattern, ignore_case=True: (
+            ["/tmp/session_output_1/control_dms.hdf5"]
+            if "control" in pattern
+            else ["/tmp/session_output_1/signal_vms.hdf5"]
+        ),
+    )
+
+    with pytest.raises(ValueError) as exception_info:
+        execute_zscore(folder_names, base_input_parameters)
+    message = str(exception_info.value)
+    assert "Pair name mismatch" in message
+    assert "dms" in message
+    assert "vms" in message
+
+
+def test_execute_combine_data_raises_for_mismatched_sampling_rates(monkeypatch, base_input_parameters):
+    """When timeCorrection_*.hdf5 files report different sampling rates, the message
+    lists both rates and the offending paths."""
+    folder_names = ["/tmp/session_a", "/tmp/session_b"]
+    storesList = np.array([["ctrl0", "sig0"], ["control_dms", "signal_dms"]])
+
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.takeOnlyDirs",
+        lambda paths: (
+            [folder_names[0] + "/output_dir"] if "session_a" in str(paths) else [folder_names[1] + "/output_dir"]
+        ),
+    )
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.glob.glob",
+        lambda pattern: (
+            [f"{folder_names[0]}/output_dir/timeCorrection_dms.hdf5"]
+            if "session_a" in pattern
+            else [f"{folder_names[1]}/output_dir/timeCorrection_dms.hdf5"] if "session_b" in pattern else []
+        ),
+    )
+
+    rates = iter([np.array([100.0]), np.array([250.0])])
+    monkeypatch.setattr("guppy.orchestration.preprocess.read_hdf5", lambda *a, **k: next(rates))
+    monkeypatch.setattr("guppy.orchestration.preprocess.np.genfromtxt", lambda *a, **k: storesList)
+
+    with pytest.raises(ValueError, match="sampling rates differ"):
+        execute_combine_data(folder_names, base_input_parameters, storesList)
 
 
 def test_execute_zscore_shows_plot_when_not_headless(monkeypatch, base_input_parameters):

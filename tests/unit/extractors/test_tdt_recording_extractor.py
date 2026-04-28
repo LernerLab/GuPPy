@@ -2,9 +2,11 @@
 
 import csv
 import os
+import shutil
 
 import numpy as np
 import pytest
+from conftest import STUBBED_TESTING_DATA
 
 from guppy.extractors.tdt_recording_extractor import TdtRecordingExtractor
 
@@ -69,7 +71,43 @@ def test_format_split_suffix(value, expected):
     assert TdtRecordingExtractor._format_split_suffix(value) == expected
 
 
-from conftest import STUBBED_TESTING_DATA
+# ---------------------------------------------------------------------------
+# Error paths in _readtsq / _readtev / read
+# ---------------------------------------------------------------------------
+
+
+def test_readtsq_raises_for_multiple_tsq_files(tmp_path):
+    (tmp_path / "session_a.tsq").write_bytes(b"")
+    (tmp_path / "session_b.tsq").write_bytes(b"")
+    with pytest.raises(ValueError, match=r"Multiple .tsq files"):
+        TdtRecordingExtractor._readtsq(str(tmp_path))
+
+
+def test_readtsq_returns_zeros_when_no_tsq_present(tmp_path):
+    """No-tsq path should return (0, 0) without raising — used by mixed-modality detection."""
+    header_df, flag = TdtRecordingExtractor._readtsq(str(tmp_path))
+    assert header_df == 0
+    assert flag == 0
+
+
+def test_readtev_raises_for_multiple_tev_files(tmp_path):
+    """A folder with one valid tank's tsq plus an extra .tev triggers the multi-tev guard."""
+    source = os.path.join(STUBBED_TESTING_DATA, "tdt", "Photo_63_207-181030-103332")
+    for filename in os.listdir(source):
+        shutil.copy(os.path.join(source, filename), tmp_path / filename)
+    # Add a second .tev so the read path detects duplicates.
+    (tmp_path / "extra.tev").write_bytes(b"")
+    extractor = TdtRecordingExtractor(str(tmp_path))
+    with pytest.raises(ValueError, match=r"Multiple .tev files"):
+        extractor._readtev("Dv1A")
+
+
+def test_readtev_raises_when_store_name_not_present(tmp_path):
+    """A bogus store name surfaces a ValueError listing the available stores."""
+    extractor = TdtRecordingExtractor(os.path.join(STUBBED_TESTING_DATA, "tdt", "Photo_63_207-181030-103332"))
+    with pytest.raises(ValueError, match=r"'BOGUS' not found.*Available stores"):
+        extractor._readtev("BOGUS")
+
 
 # ---------------------------------------------------------------------------
 # Shared fixtures for all TDT test classes

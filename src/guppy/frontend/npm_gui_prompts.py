@@ -5,6 +5,26 @@ from tkinter import StringVar, messagebox, ttk
 logger = logging.getLogger(__name__)
 
 
+def _validate_timestamp_configuration(*, timestamp_column_name: str, time_unit: str) -> None:
+    """Raise ValueError if either NPM timestamp combobox value is empty.
+
+    Extracted from ``get_timestamp_configuration`` so the validation logic can be
+    unit-tested without spinning up a Tk mainloop.
+    """
+    missing_fields = []
+    if not timestamp_column_name:
+        missing_fields.append("'Select which timestamps to use'")
+    if not time_unit:
+        missing_fields.append("'Select timestamps unit'")
+    if missing_fields:
+        message = (
+            f"NPM timestamp configuration incomplete: {', '.join(missing_fields)} "
+            "must be selected before continuing."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+
 def get_multi_event_responses(multiple_event_ttls):
     responses = []
     for has_multiple in multiple_event_ttls:
@@ -62,21 +82,13 @@ def get_timestamp_configuration(ts_unit_needs, col_names_ts):
         window.after(500, lambda: window.lift())
         window.mainloop()
 
-        missing_fields = []
-        if not holdComboboxValues["timestamps"].get():
-            missing_fields.append("'Select which timestamps to use'")
-        if not holdComboboxValues["time_unit"].get():
-            missing_fields.append("'Select timestamps unit'")
-        if missing_fields:
-            message = (
-                f"NPM timestamp configuration incomplete: {', '.join(missing_fields)} "
-                "must be selected before continuing."
-            )
-            messagebox.showerror("NPM timestamp configuration incomplete", message)
-            logger.error(message)
-            raise ValueError(message)
         npm_timestamp_column_name = holdComboboxValues["timestamps"].get()
         ts_unit = holdComboboxValues["time_unit"].get()
+        try:
+            _validate_timestamp_configuration(timestamp_column_name=npm_timestamp_column_name, time_unit=ts_unit)
+        except ValueError as error:
+            messagebox.showerror("NPM timestamp configuration incomplete", str(error))
+            raise
         ts_units.append(ts_unit)
         npm_timestamp_column_names.append(npm_timestamp_column_name)
     return ts_units, npm_timestamp_column_names

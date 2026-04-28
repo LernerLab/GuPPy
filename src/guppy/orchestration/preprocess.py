@@ -77,8 +77,13 @@ def visualizeControlAndSignal(filepath, removeArtifacts):
     path = sorted(path_1 + path_2, key=str.casefold)
 
     if len(path) % 2 != 0:
-        logger.error("There are not equal number of Control and Signal data")
-        raise ValueError("There are not equal number of Control and Signal data")
+        message = (
+            f"Unequal number of control and signal files in '{filepath}': "
+            f"found {len(path_1)} control and {len(path_2)} signal file(s). "
+            "Each signal must be paired with a control; re-run step 2 to fix the entries."
+        )
+        logger.error(message)
+        raise ValueError(message)
 
     path = np.asarray(path).reshape(2, -1)
 

@@ -4,6 +4,7 @@ import pytest
 
 from guppy.analysis.standard_io import write_transients_to_hdf5
 from guppy.orchestration.transients import (
+    execute_average_for_group,
     execute_visualize_peaks,
     execute_visualize_peaks_combined,
 )
@@ -132,6 +133,10 @@ class TestExecuteVisualizePeaksCombined:
         np.testing.assert_array_equal(calls[0]["z_score"], STUB_Z_SCORE)
         np.testing.assert_array_equal(calls[0]["ts"], STUB_TS)
         np.testing.assert_array_equal(calls[0]["peaksInd"], STUB_PEAKS_IND)
+
+    def test_execute_average_for_group_raises_for_empty_folders(self, base_input_parameters):
+        with pytest.raises(ValueError, match="No folders selected for group averaging"):
+            execute_average_for_group(base_input_parameters, [])
 
     def test_combined_selects_dff_files_when_requested(self, tmp_path, base_input_parameters, monkeypatch):
         session_dir = tmp_path / "session1"
