@@ -84,6 +84,51 @@ def screenshot_storenames(page, tmp_path: Path) -> None:
     pn.state.kill_all_servers()
 
 
+def screenshot_data_selection(page) -> None:
+    """Screenshot for Step 2 substep 1: the file-selector portion of the homepage.
+
+    Captures the top of the Individual Analysis card so the reader can see the
+    file browser they are about to interact with.
+    """
+    os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
+    template = build_homepage()
+    url = _serve(template)
+    page.goto(url)
+    page.get_by_text("Individual Analysis").first.wait_for()
+    page.wait_for_timeout(1000)
+    page.screenshot(
+        path=OUTPUT_DIR / "02_data_selection.png",
+        clip={"x": 0, "y": 0, "width": 1280, "height": 480},
+    )
+    print("Saved 02_data_selection.png")
+    pn.state.kill_all_servers()
+
+
+def screenshot_parameters(page) -> None:
+    """Screenshot for Step 2 substep 2: the parameter widgets in the Individual
+    Analysis card.
+
+    The homepage uses a sticky header and sticky sidebar, so window-level
+    scrolling does not move the parameters into view. Instead we render with a
+    tall viewport so the whole Individual Analysis card lays out without
+    scrolling, then clip to the parameter region in absolute page coordinates.
+    """
+    os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
+    template = build_homepage()
+    url = _serve(template)
+    page.set_viewport_size({"width": 1280, "height": 1800})
+    page.goto(url)
+    page.get_by_text("Individual Analysis").first.wait_for()
+    page.wait_for_timeout(1500)
+    page.screenshot(
+        path=OUTPUT_DIR / "02_parameters.png",
+        clip={"x": 0, "y": 600, "width": 1280, "height": 800},
+    )
+    print("Saved 02_parameters.png")
+    page.set_viewport_size(VIEWPORT)
+    pn.state.kill_all_servers()
+
+
 def screenshot_sidebar_progress(page, progress_index: int, output_name: str) -> None:
     """Screenshot the homepage sidebar with one progress bar mid-fill.
 
@@ -207,6 +252,8 @@ def main() -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             screenshot_homepage(page)
+            screenshot_data_selection(page)
+            screenshot_parameters(page)
             screenshot_storenames(page, tmp_path)
             screenshot_storenames_configured(page, tmp_path)
             screenshot_sidebar_progress(page, 0, "04_read_progress.png")

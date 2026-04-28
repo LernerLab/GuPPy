@@ -7,6 +7,7 @@
 ## Deprecations and Removals
 
 ## Improvements
+- Expanded the first tutorial with embedded screenshots and a step-by-step walkthrough of the Storenames and Visualization GUIs, corrected button names and HDF5 output descriptions, and added `docs/take_screenshots.py` to regenerate the tutorial screenshots from the stubbed CSV sample data. [PR #303](https://github.com/LernerLab/GuPPy/pull/303)
 
 # v2.0.0-alpha5 (April 28th, 2026)
 
