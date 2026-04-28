@@ -14,3 +14,4 @@ testing_data/
 CLAUDE.md
 
 docs/_build/
+uv.lock

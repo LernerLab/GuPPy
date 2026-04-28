@@ -7,6 +7,7 @@
 ## Deprecations and Removals
 
 ## Improvements
+- Deduplicated the two copy-pasted `write_hdf5` implementations (extractor side and analysis side) into a single canonical helper at `guppy.utils._hdf5_io`, fixing a latent bug on the analysis-side writer that silently dropped scalar overwrites when the key already existed. Also lifted the duplicated `_default_root_path` helper into `guppy.frontend.frontend_utils.default_root_path` so the `GUPPY_BASE_DIR` precedence rule lives in one place. Addresses [#174](https://github.com/LernerLab/GuPPy/issues/174). [PR #305](https://github.com/LernerLab/GuPPy/pull/305)
 
 # v2.0.0-alpha5 (April 28th, 2026)
 

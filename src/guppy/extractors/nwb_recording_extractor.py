@@ -8,6 +8,7 @@ import numpy as np
 from pynwb import NWBHDF5IO
 
 from guppy.extractors.base_recording_extractor import BaseRecordingExtractor
+from guppy.utils._hdf5_io import write_hdf5
 
 logger = logging.getLogger(__name__)
 
@@ -90,14 +91,14 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
         """
         for output_dict in output_dicts:
             event = output_dict["storename"]
-            self._write_hdf5(output_dict["storename"], event, outputPath, "storename")
-            self._write_hdf5(output_dict["timestamps"], event, outputPath, "timestamps")
+            write_hdf5(output_dict["storename"], event, outputPath, "storename")
+            write_hdf5(output_dict["timestamps"], event, outputPath, "timestamps")
             if "sampling_rate" in output_dict:
-                self._write_hdf5(output_dict["sampling_rate"], event, outputPath, "sampling_rate")
+                write_hdf5(output_dict["sampling_rate"], event, outputPath, "sampling_rate")
             if "data" in output_dict:
-                self._write_hdf5(output_dict["data"], event, outputPath, "data")
+                write_hdf5(output_dict["data"], event, outputPath, "data")
             if "npoints" in output_dict:
-                self._write_hdf5(output_dict["npoints"], event, outputPath, "npoints")
+                write_hdf5(output_dict["npoints"], event, outputPath, "npoints")
 
     def stub(self, *, folder_path, duration_in_seconds=1.0):
         """
