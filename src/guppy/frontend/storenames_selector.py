@@ -113,11 +113,11 @@ class StorenamesSelector:
         self.alert.object = message
 
     def get_literal_input_2(self):  # TODO: come up with a better name for this method.
-        d = json.loads(self.literal_input_2.value)
-        return d
+        storenames_config = json.loads(self.literal_input_2.value)
+        return storenames_config
 
-    def set_literal_input_2(self, d):  # TODO: come up with a better name for this method.
-        self.literal_input_2.value = str(json.dumps(d, indent=2))
+    def set_literal_input_2(self, storenames_config):  # TODO: come up with a better name for this method.
+        self.literal_input_2.value = str(json.dumps(storenames_config, indent=2))
 
     def get_take_widgets(self):
         return [w.value for w in self.take_widgets]
