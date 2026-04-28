@@ -126,13 +126,6 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
                 flag = "event_or_data_np"
             elif len(cols) > 2:
                 flag = "data_np"
-            else:
-                message = (
-                    f"CSV file '{path[i]}' has {len(cols)} columns, which is not a recognized NPM layout. "
-                    "Expected 2+ columns."
-                )
-                logger.error(message)
-                raise ValueError(message)
 
             if columns_isstr == True and (
                 "flags" in np.char.lower(np.array(cols)) or "ledstate" in np.char.lower(np.array(cols))
