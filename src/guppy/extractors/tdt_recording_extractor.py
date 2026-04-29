@@ -11,6 +11,7 @@ import pandas as pd
 from numpy import float32, float64, int32, int64, uint16
 
 from guppy.extractors import BaseRecordingExtractor
+from guppy.utils._hdf5_io import write_hdf5
 
 logger = logging.getLogger(__name__)
 
@@ -257,12 +258,12 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
 
     def _save_dict_to_hdf5(self, event_dict, outputPath):
         event = event_dict["storename"]
-        self._write_hdf5(event_dict["storename"], event, outputPath, "storename")
-        self._write_hdf5(event_dict["sampling_rate"], event, outputPath, "sampling_rate")
-        self._write_hdf5(event_dict["timestamps"], event, outputPath, "timestamps")
-        self._write_hdf5(event_dict["data"], event, outputPath, "data")
-        self._write_hdf5(event_dict["npoints"], event, outputPath, "npoints")
-        self._write_hdf5(event_dict["channels"], event, outputPath, "channels")
+        write_hdf5(event_dict["storename"], event, outputPath, "storename")
+        write_hdf5(event_dict["sampling_rate"], event, outputPath, "sampling_rate")
+        write_hdf5(event_dict["timestamps"], event, outputPath, "timestamps")
+        write_hdf5(event_dict["data"], event, outputPath, "data")
+        write_hdf5(event_dict["npoints"], event, outputPath, "npoints")
+        write_hdf5(event_dict["channels"], event, outputPath, "channels")
 
     def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str) -> None:
         for event_dict in output_dicts:

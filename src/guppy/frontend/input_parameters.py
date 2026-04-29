@@ -6,20 +6,13 @@ import pandas as pd
 import panel as pn
 
 from .dandi_selector import DandiSelector
+from .frontend_utils import default_root_path
 from ..utils.validation import (
     validate_required_folder_selection,
     validate_same_parent_directory,
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _default_root_path():
-    # Respect GUPPY_BASE_DIR env var for headless/test mode; otherwise use the home directory.
-    base_dir_env = os.environ.get("GUPPY_BASE_DIR")
-    if base_dir_env and os.path.isdir(base_dir_env):
-        return base_dir_env
-    return os.path.expanduser("~")
 
 
 def checkSameLocation(arr, abspath):
@@ -38,7 +31,7 @@ def getAbsPath(files_1, files_2):
 class ParameterForm:
     def __init__(self, *, template, start_path=None):
         self.template = template
-        self.folder_path = start_path if start_path and os.path.isdir(start_path) else _default_root_path()
+        self.folder_path = start_path if start_path and os.path.isdir(start_path) else default_root_path()
         self.styles = dict(background="WhiteSmoke")
         self.setup_individual_parameters()
         self.setup_group_parameters()

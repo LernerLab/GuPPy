@@ -10,6 +10,7 @@ import pandas as pd
 
 from guppy.extractors import BaseRecordingExtractor
 from guppy.extractors.detect_acquisition_formats import _classify_csv_file
+from guppy.utils._hdf5_io import write_hdf5
 
 logger = logging.getLogger(__name__)
 
@@ -206,4 +207,4 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
             for key, value in output_dict.items():
                 if key == "storename":
                     continue
-                self._write_hdf5(value, storename, outputPath, key)
+                write_hdf5(value, storename, outputPath, key)

@@ -13,6 +13,7 @@ import pandas as pd
 
 from guppy.extractors import BaseRecordingExtractor
 from guppy.extractors.detect_acquisition_formats import _is_event_csv
+from guppy.utils._hdf5_io import write_hdf5
 
 logger = logging.getLogger(__name__)
 
@@ -516,11 +517,11 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
     def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str) -> None:
         for event_dict in output_dicts:
             storename = event_dict["storename"]
-            self._write_hdf5(data=event_dict["timestamps"], storename=storename, output_path=outputPath, key="timestamps")
+            write_hdf5(data=event_dict["timestamps"], storename=storename, output_path=outputPath, key="timestamps")
 
             if "sampling_rate" in event_dict:
-                self._write_hdf5(
+                write_hdf5(
                     data=event_dict["sampling_rate"], storename=storename, output_path=outputPath, key="sampling_rate"
                 )
             if "data" in event_dict:
-                self._write_hdf5(data=event_dict["data"], storename=storename, output_path=outputPath, key="data")
+                write_hdf5(data=event_dict["data"], storename=storename, output_path=outputPath, key="data")
