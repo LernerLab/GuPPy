@@ -19,6 +19,23 @@ logger = logging.getLogger(__name__)
 
 
 class DoricRecordingExtractor(BaseRecordingExtractor):
+    """
+    Extractor for fiber photometry data from Doric Lenses acquisition systems.
+
+    Supports two file formats:
+
+    * **doric_csv** — Doric-exported CSV files with a two-row header.
+    * **doric_doric** — Doric HDF5 files (``.doric``), V1 and V6 layouts.
+
+    Parameters
+    ----------
+    folder_path : str
+        Path to the session folder containing the Doric data file.
+    event_name_to_event_type : dict
+        Mapping from channel/event name (str) to its role in the pipeline
+        (e.g. ``"control_DMS"``, ``"signal_DMS"``, ``"ttl_DMS"``).
+    """
+
     # TODO: consolidate duplicate flag logic between the `discover_events_and_flags` and the `check_doric` method.
 
     @classmethod
@@ -384,6 +401,28 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
         return output_dicts
 
     def read(self, *, events: list[str], outputPath: str) -> list[dict[str, Any]]:
+        """
+        Read data from Doric files for the specified events.
+
+        Detects the Doric file format (CSV or HDF5) and dispatches to the
+        appropriate reader. Signal/control channels are returned with full
+        time-series data; TTL channels are returned as onset timestamps only.
+
+        Parameters
+        ----------
+        events : list of str
+            Channel/event names to read.
+        outputPath : str
+            Path to the output directory (unused by this extractor; required by
+            the base-class interface).
+
+        Returns
+        -------
+        list of dict
+            One dictionary per event. Signal/control dicts contain
+            ``storename``, ``sampling_rate``, ``timestamps``, and ``data``;
+            TTL dicts contain ``storename`` and ``timestamps``.
+        """
         flag = self._check_doric()
         if flag == "doric_csv":
             output_dicts = self._read_doric_csv(events)
@@ -515,13 +554,21 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
             dataframe.to_csv(file, index=False, header=False)
 
     def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str) -> None:
+        """
+        Save extracted data dictionaries to HDF5 files.
+
+        Parameters
+        ----------
+        output_dicts : list of dict
+            Data dictionaries as returned by :meth:`read`.
+        outputPath : str
+            Path to the output directory where HDF5 files are written.
+        """
         for S in output_dicts:
             storename = S["storename"]
             write_hdf5(data=S["timestamps"], event=storename, filepath=outputPath, key="timestamps")
 
             if "sampling_rate" in S:
-                write_hdf5(
-                    data=S["sampling_rate"], event=storename, filepath=outputPath, key="sampling_rate"
-                )
+                write_hdf5(data=S["sampling_rate"], event=storename, filepath=outputPath, key="sampling_rate")
             if "data" in S:
                 write_hdf5(data=S["data"], event=storename, filepath=outputPath, key="data")
