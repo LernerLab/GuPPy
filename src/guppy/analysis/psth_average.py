@@ -20,6 +20,19 @@ logger = logging.getLogger(__name__)
 
 # function to compute average of group of recordings
 def averageForGroup(folderNames, event, inputParameters):
+    """
+    Average PSTH, peak/AUC, and cross-correlation results across a group of sessions.
+
+    Parameters
+    ----------
+    folderNames : list of str
+        Session directories whose output subdirectories contain precomputed PSTH files.
+    event : str
+        Event label to average across sessions.
+    inputParameters : dict
+        Analysis configuration dictionary; must include ``'abspath'`` and
+        ``'selectForComputePsth'``.
+    """
 
     event = event.replace("\\", "_")
     event = event.replace("/", "_")
@@ -192,6 +205,19 @@ def averageForGroup(folderNames, event, inputParameters):
 
 
 def psth_shape_check(psth):
+    """
+    Pad or truncate PSTH trial arrays so they all share the same length.
+
+    Parameters
+    ----------
+    psth : list of np.ndarray
+        List of 1-D PSTH mean arrays, potentially with differing lengths.
+
+    Returns
+    -------
+    psth : list of np.ndarray
+        List of arrays all truncated or NaN-padded to the length of the last element.
+    """
 
     each_ln = []
     for i in range(len(psth)):
@@ -212,6 +238,21 @@ def psth_shape_check(psth):
 
 
 def read_Df_area_peak(filepath, name):
+    """
+    Read a peak/AUC HDF5 file and return its DataFrame.
+
+    Parameters
+    ----------
+    filepath : str
+        Directory containing the ``peak_AUC_<name>.h5`` file.
+    name : str
+        Filename stem (without the ``peak_AUC_`` prefix or ``.h5`` suffix).
+
+    Returns
+    -------
+    df : pd.DataFrame
+        DataFrame of peak and area-under-curve metrics.
+    """
     op = os.path.join(filepath, "peak_AUC_" + name + ".h5")
     df = pd.read_hdf(op, key="df", mode="r")
 

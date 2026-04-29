@@ -22,6 +22,44 @@ def compute_z_score(
     baseline_start,
     baseline_end,
 ):
+    """
+    Compute the z-score and dF/F for a control/signal channel pair.
+
+    Parameters
+    ----------
+    control : np.ndarray
+        Control channel data array.
+    signal : np.ndarray
+        Signal channel data array.
+    tsNew : np.ndarray
+        Corrected timestamp array aligned with ``control`` and ``signal``.
+    coords : np.ndarray
+        Shape ``(N, 2)`` good-chunk boundary array from artifact removal.
+    artifactsRemovalMethod : str
+        Artifact removal method used upstream; ``'concatenate'`` triggers NaN removal.
+    filter_window : int
+        Moving-average filter window length; 0 disables filtering.
+    isosbestic_control : bool
+        When False, a synthetic control is fit from the signal.
+    zscore_method : str
+        Z-score method; one of ``'standard z-score'``, ``'baseline z-score'``,
+        or any other value (uses median/MAD).
+    baseline_start : float
+        Baseline window start (s); used only for ``'baseline z-score'``.
+    baseline_end : float
+        Baseline window end (s); used only for ``'baseline z-score'``.
+
+    Returns
+    -------
+    z_score_arr : np.ndarray
+        Computed z-score array.
+    norm_data_arr : np.ndarray
+        Normalized dF/F array (NaN-filled where artifacts were removed).
+    control_fit_arr : np.ndarray
+        Fitted control channel array (NaN-filled where artifacts were removed).
+    temp_control_arr : np.ndarray or None
+        Synthetic control array (when ``isosbestic_control=False``); None otherwise.
+    """
     if (control == 0).all() == True:
         control = np.zeros(tsNew.shape[0])
 
@@ -74,6 +112,28 @@ def compute_z_score(
 # function will also take care if there is only signal channel and no control channel
 # if there is only signal channel, z-score will be computed using just signal channel
 def execute_controlFit_dff(control, signal, isosbestic_control, filter_window):
+    """
+    Filter channels, fit the control to the signal, and compute dF/F.
+
+    Parameters
+    ----------
+    control : np.ndarray
+        Control channel data (or synthetic control when no isosbestic exists).
+    signal : np.ndarray
+        Signal channel data.
+    isosbestic_control : bool
+        When True, both channels are filtered before fitting.
+        When False, only the signal is filtered.
+    filter_window : int
+        Moving-average filter window length; 0 disables filtering.
+
+    Returns
+    -------
+    norm_data : np.ndarray
+        Normalized dF/F array.
+    control_fit : np.ndarray
+        Fitted control channel aligned with ``signal``.
+    """
 
     if isosbestic_control == False:
         signal_smooth = filterSignal(filter_window, signal)  # ss.filtfilt(b, a, signal)
@@ -90,6 +150,21 @@ def execute_controlFit_dff(control, signal, isosbestic_control, filter_window):
 
 # function to compute deltaF/F using fitted control channel and filtered signal channel
 def deltaFF(signal, control):
+    """
+    Compute dF/F as ``(signal - control) / control * 100``.
+
+    Parameters
+    ----------
+    signal : np.ndarray
+        Filtered signal channel.
+    control : np.ndarray
+        Fitted control channel.
+
+    Returns
+    -------
+    normData : np.ndarray
+        Percent dF/F array.
+    """
 
     res = np.subtract(signal, control)
     normData = np.divide(res, control)
@@ -101,6 +176,21 @@ def deltaFF(signal, control):
 
 # function to fit control channel to signal channel
 def controlFit(control, signal):
+    """
+    Fit a linear model from control to signal and return the fitted values.
+
+    Parameters
+    ----------
+    control : np.ndarray
+        Control channel array.
+    signal : np.ndarray
+        Signal channel array.
+
+    Returns
+    -------
+    arr : np.ndarray
+        Fitted control values (linear projection onto the signal scale).
+    """
 
     p = np.polyfit(control, signal, 1)
     arr = (p[0] * control) + p[1]
@@ -108,6 +198,21 @@ def controlFit(control, signal):
 
 
 def filterSignal(filter_window, signal):
+    """
+    Apply a moving-average (uniform FIR) filter to a signal array.
+
+    Parameters
+    ----------
+    filter_window : int
+        Window length in samples; 0 returns ``signal`` unchanged; must be > 1 to filter.
+    signal : np.ndarray
+        1-D signal array.
+
+    Returns
+    -------
+    np.ndarray
+        Filtered signal array, or ``signal`` when ``filter_window`` is 0.
+    """
     if filter_window == 0:
         return signal
     elif filter_window > 1:
@@ -124,6 +229,29 @@ def filterSignal(filter_window, signal):
 
 # function to compute z-score based on z-score computation method
 def z_score_computation(dff, timestamps, zscore_method, baseline_start, baseline_end):
+    """
+    Convert a dF/F array to z-scores using the specified method.
+
+    Parameters
+    ----------
+    dff : np.ndarray
+        1-D dF/F array.
+    timestamps : np.ndarray
+        Timestamp array aligned with ``dff``; used only for ``'baseline z-score'``.
+    zscore_method : str
+        One of ``'standard z-score'`` (whole-session mean/std),
+        ``'baseline z-score'`` (baseline-window mean/std), or any other value
+        (robust median/MAD estimator).
+    baseline_start : float
+        Start of the baseline window (s); used only for ``'baseline z-score'``.
+    baseline_end : float
+        End of the baseline window (s); used only for ``'baseline z-score'``.
+
+    Returns
+    -------
+    zscore : np.ndarray
+        Z-scored signal array.
+    """
     if zscore_method == "standard z-score":
         numerator = np.subtract(dff, np.nanmean(dff))
         zscore = np.divide(numerator, np.nanstd(dff))

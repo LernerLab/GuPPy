@@ -17,6 +17,39 @@ def correct_timestamps(
     name_to_timestamps_ttl,
     mode,
 ):
+    """
+    Apply timestamp correction to all channels and TTL stores.
+
+    Parameters
+    ----------
+    timeForLightsTurnOn : float
+        Seconds offset for the start of the recording; samples before this are dropped.
+    storesList : np.ndarray
+        2-D array with rows [storenames, display_names].
+    name_to_timestamps : dict
+        Display name → raw timestamp array.
+    name_to_data : dict
+        Display name → raw data array.
+    name_to_sampling_rate : dict
+        Display name → sampling-rate array.
+    name_to_npoints : dict
+        Display name → npoints array (or None for CSV data).
+    name_to_timestamps_ttl : dict
+        Display name → TTL timestamp array.
+    mode : str
+        Acquisition format; one of ``'tdt'`` or ``'csv'``.
+
+    Returns
+    -------
+    name_to_corrected_timestamps : dict
+        Display name → corrected timestamp array.
+    name_to_correctionIndex : dict
+        Display name → index array applied to the raw timestamps.
+    name_to_corrected_data : dict
+        Display name → corrected data array.
+    compound_name_to_corrected_ttl_timestamps : dict
+        Compound TTL name → corrected TTL timestamp array.
+    """
     name_to_corrected_timestamps, name_to_correctionIndex, name_to_corrected_data = timestampCorrection(
         timeForLightsTurnOn,
         storesList,
@@ -53,6 +86,35 @@ def timestampCorrection(
     name_to_npoints,
     mode,
 ):
+    """
+    Trim and realign control/signal timestamps, discarding samples before ``timeForLightsTurnOn``.
+
+    Parameters
+    ----------
+    timeForLightsTurnOn : float
+        Seconds offset; samples before this value are discarded.
+    storesList : np.ndarray
+        2-D array with rows [storenames, display_names].
+    name_to_timestamps : dict
+        Display name → raw timestamp array.
+    name_to_data : dict
+        Display name → raw data array.
+    name_to_sampling_rate : dict
+        Display name → sampling-rate value.
+    name_to_npoints : dict
+        Display name → npoints value (or None for CSV data).
+    mode : str
+        Acquisition format; one of ``'tdt'`` or ``'csv'``.
+
+    Returns
+    -------
+    name_to_corrected_timestamps : dict
+        Display name → corrected timestamp array.
+    name_to_correctionIndex : dict
+        Display name → index array used to slice raw data.
+    name_to_corrected_data : dict
+        Display name → sliced data array.
+    """
     logger.debug(
         f"Correcting timestamps by getting rid of the first {timeForLightsTurnOn} seconds and convert timestamps to seconds"
     )
@@ -116,6 +178,29 @@ def decide_naming_and_applyCorrection_ttl(
     name_to_data,
     mode,
 ):
+    """
+    Apply timestamp correction to all TTL stores and pair them with channel suffixes.
+
+    Parameters
+    ----------
+    timeForLightsTurnOn : float
+        Seconds offset used as the new time zero.
+    storesList : np.ndarray
+        2-D array with rows [storenames, display_names].
+    name_to_timestamps_ttl : dict
+        TTL display name → raw TTL timestamp array.
+    name_to_timestamps : dict
+        Channel display name → raw photometry timestamp array.
+    name_to_data : dict
+        Channel display name → raw data array.
+    mode : str
+        Acquisition format; one of ``'tdt'`` or ``'csv'``.
+
+    Returns
+    -------
+    compound_name_to_corrected_ttl_timestamps : dict
+        Compound TTL name → corrected TTL timestamp array.
+    """
     logger.debug("Applying correction of timestamps to the data and event timestamps")
     storenames = storesList[0, :]
     names_for_storenames = storesList[1, :]
@@ -151,6 +236,25 @@ def applyCorrection_ttl(
     ttl_timestamps,
     mode,
 ):
+    """
+    Shift TTL timestamps to align with the corrected photometry time base.
+
+    Parameters
+    ----------
+    timeForLightsTurnOn : float
+        Seconds offset for the new time zero.
+    timeRecStart : float
+        Absolute start time of the recording (TDT only; ignored for CSV).
+    ttl_timestamps : np.ndarray
+        Raw TTL timestamp array.
+    mode : str
+        Acquisition format; one of ``'tdt'`` or ``'csv'``.
+
+    Returns
+    -------
+    corrected_ttl_timestamps : np.ndarray
+        TTL timestamps shifted to the corrected time base.
+    """
     corrected_ttl_timestamps = ttl_timestamps
     if mode == "tdt":
         res = (corrected_ttl_timestamps >= timeRecStart).all()
@@ -167,6 +271,22 @@ def applyCorrection_ttl(
 # function to check control and signal channel has same length
 # if not, take a smaller length and do pre-processing
 def check_cntrl_sig_length(channels_arr, name_to_data):
+    """
+    Identify the shorter channel in each control/signal pair.
+
+    Parameters
+    ----------
+    channels_arr : np.ndarray
+        Shape ``(2, N)`` array where row 0 is control names and row 1 is signal names.
+    name_to_data : dict
+        Display name → data array.
+
+    Returns
+    -------
+    indices : list of str
+        List of display names (one per pair) pointing to the channel with fewer samples.
+        When lengths are equal the signal name is returned.
+    """
 
     indices = []
     for i in range(channels_arr.shape[1]):

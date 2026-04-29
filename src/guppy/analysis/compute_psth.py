@@ -24,6 +24,53 @@ def compute_psth(
     ts,
     corrected_timestamps,
 ):
+    """
+    Build a peri-stimulus time histogram (PSTH) matrix for one event.
+
+    Parameters
+    ----------
+    z_score : np.ndarray
+        1-D z-scored signal array.
+    event : str
+        Event label used for file naming.
+    filepath : str
+        Path to the session output directory.
+    nSecPrev : float
+        Seconds before each event timestamp to include in each trial.
+    nSecPost : float
+        Seconds after each event timestamp to include in each trial.
+    timeInterval : float
+        Minimum inter-event interval (s); events closer than this are skipped.
+    bin_psth_trials : int or float
+        Bin width for trial averaging; 0 disables binning.
+    use_time_or_trials : str
+        ``'Time (min)'`` or ``'# of trials'`` — selects binning mode.
+    baselineStart : float
+        Start of the baseline window (s) for baseline correction.
+    baselineEnd : float
+        End of the baseline window (s) for baseline correction.
+    naming : str
+        Channel name suffix used to look up timestamps in HDF5.
+    just_use_signal : bool
+        When True, z-score each trial independently rather than using the pre-computed z-score.
+    sampling_rate : float
+        Sampling rate in Hz.
+    ts : np.ndarray
+        Event timestamp array (s).
+    corrected_timestamps : np.ndarray
+        Full corrected photometry timestamp array used for time-based binning.
+
+    Returns
+    -------
+    psth : np.ndarray
+        PSTH matrix (trials × time-points), with optional bin rows appended.
+    psth_baselineUncorrected : np.ndarray
+        Same shape as ``psth`` but without baseline correction.
+    columns : list
+        Column labels corresponding to ``psth``; last entry is ``'timestamps'``.
+    ts : np.ndarray
+        Filtered event timestamps actually used to build the PSTH.
+    """
 
     event = event.replace("\\", "_")
     event = event.replace("/", "_")
@@ -147,6 +194,26 @@ def compute_psth(
 
 # function to create PSTH trials corresponding to each event timestamp
 def rowFormation(z_score, thisIndex, nTsPrev, nTsPost):
+    """
+    Extract one PSTH trial from the z-score array, padding with NaN at boundaries.
+
+    Parameters
+    ----------
+    z_score : np.ndarray
+        1-D z-scored signal array.
+    thisIndex : int
+        Sample index of the event timestamp in ``z_score``.
+    nTsPrev : int
+        Number of samples before the event to include (negative; passed as a negative integer).
+    nTsPost : int
+        Number of samples after the event to include.
+
+    Returns
+    -------
+    res : np.ndarray
+        1-D trial array of length ``nTsPrev + nTsPost + 1``, NaN-padded where the
+        signal does not exist.
+    """
 
     if nTsPrev < thisIndex and z_score.shape[0] > (thisIndex + nTsPost):
         res = z_score[thisIndex - nTsPrev - 1 : thisIndex + nTsPost]
@@ -174,6 +241,26 @@ def rowFormation(z_score, thisIndex, nTsPrev, nTsPost):
 
 # function to calculate baseline for each PSTH trial and do baseline correction
 def baselineCorrection(arr, timeAxis, baselineStart, baselineEnd):
+    """
+    Subtract the mean baseline from a single PSTH trial.
+
+    Parameters
+    ----------
+    arr : np.ndarray
+        1-D trial array aligned with ``timeAxis``.
+    timeAxis : np.ndarray
+        1-D time axis (s) for the trial window.
+    baselineStart : float
+        Start of the baseline window (s).
+    baselineEnd : float
+        End of the baseline window (s).
+
+    Returns
+    -------
+    baselineSub : np.ndarray
+        Trial array with the mean baseline subtracted; ``arr`` unchanged when
+        both ``baselineStart`` and ``baselineEnd`` are zero.
+    """
     baselineStrtPt = np.where(timeAxis >= baselineStart)[0]
     baselineEndPt = np.where(timeAxis >= baselineEnd)[0]
 
