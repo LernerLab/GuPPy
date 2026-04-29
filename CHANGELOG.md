@@ -1,4 +1,15 @@
-# v2.0.0-alpha6 (Upcoming)
+# v2.0.0-alpha7 (Upcoming)
+
+## Features
+
+## Fixes
+
+## Improvements
+
+## Deprecations and Removals
+
+
+# v2.0.0-alpha6 (April 29th, 2026)
 
 ## Features
 - Updated license from GPL to BSD-3-Clause [PR #309](https://github.com/LernerLab/GuPPy/pull/309)
