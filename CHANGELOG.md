@@ -7,6 +7,7 @@
 ## Deprecations and Removals
 
 ## Improvements
+- Added an explanation page on z-score normalisation (standard, baseline, and modified variants) at `docs/explanation/zscore.md`, with four generated SVG figures and a self-contained PEP 723 script that regenerates them. Enabled MyST `dollarmath` for LaTeX equation rendering and bumped the Read the Docs build to Python 3.13 / ubuntu-24.04 with the `docs` dependency group. [PR #308](https://github.com/LernerLab/GuPPy/pull/308)
 
 # v2.0.0-alpha5 (April 28th, 2026)
 
