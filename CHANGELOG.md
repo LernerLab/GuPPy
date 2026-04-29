@@ -7,6 +7,7 @@
 ## Deprecations and Removals
 
 ## Improvements
+- Added cross-correlation explanation page to the documentation site, with six generated SVG figures and a self-contained PEP 723 script (`docs/scripts/cross_correlation_explainer.py`) that regenerates them in place. [PR #307](https://github.com/LernerLab/GuPPy/pull/307)
 
 # v2.0.0-alpha5 (April 28th, 2026)
 
