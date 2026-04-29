@@ -7,4 +7,5 @@ Explanation pages give background and context: the science behind fiber photomet
 
 zscore
 cross_correlation
+psth
 ```
