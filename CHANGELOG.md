@@ -2,6 +2,7 @@
 
 ## Features
 - Added docstring checks to pre-commit. [PR #311](https://github.com/LernerLab/GuPPy/pull/311)
+- Added numpydoc-style docstrings to all public functions and classes in the extractor layer (`src/guppy/extractors/`). [PR #312](https://github.com/LernerLab/GuPPy/pull/312)
 - Added numpydoc-style docstrings to all public functions and classes in the analysis layer (`src/guppy/analysis/`). [PR #313](https://github.com/LernerLab/GuPPy/pull/313)
 - Added numpydoc-style docstrings to all public functions and classes in the orchestration layer (`src/guppy/orchestration/`). [PR #314](https://github.com/LernerLab/GuPPy/pull/314)
 - Added numpydoc-style docstrings to all public functions and classes in the frontend layer (`src/guppy/frontend/`). [PR #316](https://github.com/LernerLab/GuPPy/pull/316)
