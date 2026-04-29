@@ -2,13 +2,9 @@
 
 import logging
 import multiprocessing as mp
-import os
 import time
 from abc import ABC, abstractmethod
 from typing import Any
-
-import h5py
-import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -94,53 +90,6 @@ class BaseRecordingExtractor(ABC):
             Approximate duration of data to retain in seconds. Default is 1.0.
         """
         pass
-
-    @staticmethod
-    def _write_hdf5(data: Any, storename: str, output_path: str, key: str) -> None:
-        """
-        Write data to HDF5 file.
-
-        Parameters
-        ----------
-        data : array-like
-            Data to write to the HDF5 file.
-        storename : str
-            Name of the store/event.
-        output_path : str
-            Directory path where HDF5 file will be written.
-        key : str
-            Key name for this data field in the HDF5 file.
-        """
-        # Replace invalid characters in storename to avoid filesystem errors
-        storename = storename.replace("\\", "_")
-        storename = storename.replace("/", "_")
-
-        filepath = os.path.join(output_path, storename + ".hdf5")
-
-        # Create new file if it doesn't exist
-        if not os.path.exists(filepath):
-            with h5py.File(filepath, "w") as f:
-                if isinstance(data, np.ndarray):
-                    f.create_dataset(key, data=data, maxshape=(None,), chunks=True)
-                else:
-                    f.create_dataset(key, data=data)
-        # Append to existing file
-        else:
-            with h5py.File(filepath, "r+") as f:
-                if key in list(f.keys()):
-                    if isinstance(data, np.ndarray):
-                        f[key].resize(data.shape)
-                        arr = f[key]
-                        arr[:] = data
-                    else:
-                        arr = f[key]
-                        arr[()] = data
-                else:
-                    if isinstance(data, np.ndarray):
-                        f.create_dataset(key, data=data, maxshape=(None,), chunks=True)
-                    else:
-                        f.create_dataset(key, data=data)
-
 
 def read_and_save_event(extractor, event, outputPath):
     output_dicts = extractor.read(events=[event], outputPath=outputPath)

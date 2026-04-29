@@ -4,9 +4,9 @@ import logging
 import os
 import re
 
-import h5py
 import numpy as np
 
+from ..utils._hdf5_io import read_hdf5, write_hdf5  # noqa: F401  (re-exported)
 from ..utils.utils import takeOnlyDirs
 
 logger = logging.getLogger(__name__)
@@ -39,58 +39,6 @@ def check_TDT(filepath):
         return True
     else:
         return False
-
-
-# function to read hdf5 file
-def read_hdf5(event, filepath, key):
-    if event:
-        event = event.replace("\\", "_")
-        event = event.replace("/", "_")
-        op = os.path.join(filepath, event + ".hdf5")
-    else:
-        op = filepath
-
-    if os.path.exists(op):
-        with h5py.File(op, "r") as f:
-            arr = np.asarray(f[key])
-    else:
-        message = f"HDF5 file '{op}' does not exist (event={event!r}, key={key!r})."
-        logger.error(message)
-        raise FileNotFoundError(message)
-
-    return arr
-
-
-# function to write hdf5 file
-def write_hdf5(data, event, filepath, key):
-    event = event.replace("\\", "_")
-    event = event.replace("/", "_")
-    op = os.path.join(filepath, event + ".hdf5")
-
-    # if file does not exist create a new file
-    if not os.path.exists(op):
-        with h5py.File(op, "w") as f:
-            if type(data) is np.ndarray:
-                f.create_dataset(key, data=data, maxshape=(None,), chunks=True)
-            else:
-                f.create_dataset(key, data=data)
-
-    # if file already exists, append data to it or add a new key to it
-    else:
-        with h5py.File(op, "r+") as f:
-            if key in list(f.keys()):
-                if type(data) is np.ndarray:
-                    f[key].resize(data.shape)
-                    arr = f[key]
-                    arr[:] = data
-                else:
-                    arr = f[key]
-                    arr = data
-            else:
-                if type(data) is np.ndarray:
-                    f.create_dataset(key, data=data, maxshape=(None,), chunks=True)
-                else:
-                    f.create_dataset(key, data=data)
 
 
 # function to check if the naming convention for saving storeslist file was followed or not

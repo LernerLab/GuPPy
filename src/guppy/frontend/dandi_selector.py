@@ -10,6 +10,8 @@ import panel as pn
 from dandi.dandiapi import DandiAPIClient
 from dandi.exceptions import NotFoundError
 
+from .frontend_utils import default_root_path
+
 logger = logging.getLogger(__name__)
 
 _DANDISET_ID_PATTERN = re.compile(r"^\d{6}$")
@@ -21,13 +23,6 @@ _DANDISET_ID_PATTERN = re.compile(r"^\d{6}$")
 # from local mode. We leave cleanup to the OS — the parent lives under the
 # system temp dir.
 _MIRROR_ROOT = os.path.join(tempfile.gettempdir(), "guppy_dandi_mirror")
-
-
-def _default_root_path():
-    base_directory_environment = os.environ.get("GUPPY_BASE_DIR")
-    if base_directory_environment and os.path.isdir(base_directory_environment):
-        return base_directory_environment
-    return os.path.expanduser("~")
 
 
 def _build_dandiset_mirror(*, dandiset_id, mirror_parent):
@@ -102,7 +97,7 @@ class DandiSelector:
         self._asset_file_selector_slot = pn.Column(self.asset_file_selector)
 
         self.output_root_selector = pn.widgets.FileSelector(
-            _default_root_path(),
+            default_root_path(),
             root_directory="/",
             name="Local output directory",
             width=950,
