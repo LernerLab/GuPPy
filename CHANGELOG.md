@@ -1,6 +1,7 @@
 # v2.0.0-alpha7 (Upcoming)
 
 ## Features
+- Added docstring checks to pre-commit. [PR #311](https://github.com/LernerLab/GuPPy/pull/311)
 
 ## Fixes
 
