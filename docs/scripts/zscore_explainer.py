@@ -400,9 +400,150 @@ def figure_4_cross_session_limitation():
     plt.close(fig)
 
 
+def figure_5_psth_baseline_vs_standard():
+    """Two synthetic sessions with identical event responses but different overall
+    activity levels. Standard z-score PSTHs differ (because the per-session std differs);
+    baseline z-score PSTHs match (because each is normalised against its own pre-event
+    window). Demonstrates why baseline z-score is the natural unit for PSTH/group analysis."""
+    rng = np.random.default_rng(2)
+    sample_rate = 30
+    n_trials = 25
+    pre_seconds = 5.0
+    post_seconds = 5.0
+    iti = 20.0  # inter-trial interval
+    duration = n_trials * iti + 30.0
+    t_full = np.arange(0, duration, 1 / sample_rate)
+
+    event_times = np.arange(15.0, 15.0 + n_trials * iti, iti)
+
+    event_amp = 5.0
+    event_width = 0.6
+
+    def event_response(t):
+        return sum(
+            event_amp * np.exp(-((t - et) ** 2) / (2 * event_width**2))
+            for et in event_times
+        )
+
+    baseline_level = 100.0
+    control = np.full_like(t_full, baseline_level)
+
+    # Session A: only event-locked responses plus low noise.
+    noise_a = 0.4 * rng.standard_normal(len(t_full))
+    signal_a = baseline_level + event_response(t_full) + noise_a
+    dff_a = deltaFF(signal_a, control)
+
+    # Session B: same event response, but with substantial non-event-locked transients
+    # scattered between trials. These contaminate the recording-wide std.
+    rng_extra = np.random.default_rng(7)
+    n_extra = 60
+    extra_times = []
+    while len(extra_times) < n_extra:
+        candidate = rng_extra.uniform(0.0, duration)
+        if all(abs(candidate - et) > 4.0 for et in event_times):
+            extra_times.append(candidate)
+    extra_amps = rng_extra.uniform(4.0, 9.0, n_extra)
+    extra_widths = rng_extra.uniform(0.3, 0.7, n_extra)
+    extra_response = sum(
+        amp * np.exp(-((t_full - et) ** 2) / (2 * width**2))
+        for et, amp, width in zip(extra_times, extra_amps, extra_widths)
+    )
+    noise_b = 0.4 * rng.standard_normal(len(t_full))
+    signal_b = baseline_level + event_response(t_full) + extra_response + noise_b
+    dff_b = deltaFF(signal_b, control)
+
+    z_std_a = zscore_standard(dff_a)
+    z_std_b = zscore_standard(dff_b)
+
+    n_pre = int(round(pre_seconds * sample_rate))
+    n_post = int(round(post_seconds * sample_rate))
+    t_psth = (np.arange(-n_pre, n_post)) / sample_rate
+
+    def extract_windows(trace):
+        windows = []
+        for et in event_times:
+            event_idx = int(round(et * sample_rate))
+            window = trace[event_idx - n_pre : event_idx + n_post]
+            if len(window) == n_pre + n_post:
+                windows.append(window)
+        return np.asarray(windows)
+
+    windows_std_a = extract_windows(z_std_a)
+    windows_std_b = extract_windows(z_std_b)
+
+    windows_dff_a = extract_windows(dff_a)
+    windows_dff_b = extract_windows(dff_b)
+
+    def baseline_z_per_trial(windows):
+        out = np.empty_like(windows)
+        for index, window in enumerate(windows):
+            mu = window[:n_pre].mean()
+            sigma = window[:n_pre].std()
+            out[index] = (window - mu) / sigma
+        return out
+
+    windows_base_a = baseline_z_per_trial(windows_dff_a)
+    windows_base_b = baseline_z_per_trial(windows_dff_b)
+
+    def mean_sem(windows):
+        mean = windows.mean(axis=0)
+        sem = windows.std(axis=0) / np.sqrt(windows.shape[0])
+        return mean, sem
+
+    mu_std_a, sem_std_a = mean_sem(windows_std_a)
+    mu_std_b, sem_std_b = mean_sem(windows_std_b)
+    mu_base_a, sem_base_a = mean_sem(windows_base_a)
+    mu_base_b, sem_base_b = mean_sem(windows_base_b)
+
+    color_a = "#1f77b4"
+    color_b = "#ff7f0e"
+
+    fig, (ax_std, ax_base) = plt.subplots(1, 2, figsize=(9.5, 4.0))
+
+    for ax, (mu_a, sem_a, mu_b, sem_b, ylabel, title) in zip(
+        (ax_std, ax_base),
+        (
+            (mu_std_a, sem_std_a, mu_std_b, sem_std_b, "standard z-score",
+             "PSTH in standard z-score: session B's response looks smaller"),
+            (mu_base_a, sem_base_a, mu_base_b, sem_base_b, "baseline z-score",
+             "PSTH in baseline z-score: identical responses"),
+        ),
+    ):
+        ax.fill_between(t_psth, mu_a - sem_a, mu_a + sem_a, color=color_a, alpha=0.25, linewidth=0)
+        ax.plot(t_psth, mu_a, color=color_a, linewidth=1.6, label="session A (quiet recording)")
+        ax.fill_between(t_psth, mu_b - sem_b, mu_b + sem_b, color=color_b, alpha=0.25, linewidth=0)
+        ax.plot(t_psth, mu_b, color=color_b, linewidth=1.6, label="session B (active recording)")
+        ax.axvline(0, color="#888888", linewidth=0.5, alpha=0.5, linestyle="--")
+        ax.axhline(0, color="#888888", linewidth=0.5, alpha=0.4)
+        ax.set_xlabel("time from event (s)", fontsize=9)
+        ax.set_ylabel(ylabel, fontsize=9)
+        ax.set_title(title, loc="left", fontsize=10)
+        ax.legend(loc="upper left", frameon=False, fontsize=8)
+
+    ymax = max(
+        (mu_std_a + sem_std_a).max(),
+        (mu_std_b + sem_std_b).max(),
+        (mu_base_a + sem_base_a).max(),
+        (mu_base_b + sem_base_b).max(),
+    ) * 1.1
+    ymin = min(
+        (mu_std_a - sem_std_a).min(),
+        (mu_std_b - sem_std_b).min(),
+        (mu_base_a - sem_base_a).min(),
+        (mu_base_b - sem_base_b).min(),
+    ) - 0.5
+    for ax in (ax_std, ax_base):
+        ax.set_ylim(ymin, ymax)
+
+    fig.tight_layout()
+    fig.savefig(OUT / "fig5_psth_baseline_vs_standard.svg")
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     figure_1_zscore_cross_session()
     figure_2_baseline_zscore_contrast()
     figure_3_modified_zscore_robustness()
     figure_4_cross_session_limitation()
+    figure_5_psth_baseline_vs_standard()
     print("Wrote SVGs to", OUT)
