@@ -5,5 +5,6 @@ Explanation pages give background and context: the science behind fiber photomet
 ```{toctree}
 :maxdepth: 1
 
+zscore
 cross_correlation
 ```
