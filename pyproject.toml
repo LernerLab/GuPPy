@@ -87,6 +87,7 @@ guppy = "guppy.main:main"
 
 [project.urls]
 "Homepage" = "https://github.com/LernerLab/GuPPy"
+"Documentation" = "https://guppy.readthedocs.io/"
 
 [tool.setuptools.packages.find]
 where = ["src"]

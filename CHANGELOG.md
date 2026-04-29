@@ -5,9 +5,9 @@
 ## Fixes
 
 ## Improvements
+- Added a Read the Docs documentation badge to `README.md` and a `Documentation` project URL in `pyproject.toml` pointing at https://guppy.readthedocs.io/, so the documentation is discoverable directly from the GitHub landing page and the PyPI listing. [PR #306](https://github.com/LernerLab/GuPPy/pull/306)
 
 ## Deprecations and Removals
-
 
 # v2.0.0-alpha6 (April 29th, 2026)
 
