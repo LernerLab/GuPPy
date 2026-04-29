@@ -1,13 +1,20 @@
-# v2.0.0-alpha6 (Upcoming)
+# v2.0.0-alpha7 (Upcoming)
 
 ## Features
 
 ## Fixes
 
-## Deprecations and Removals
-
 ## Improvements
 - Renamed the per-event dict variable `S` (in `tdt_recording_extractor.py` and `doric_recording_extractor.py`) to `event_dict`, the helper-local `new_S` to `split_event_dict`, and the storenames-config dict `d` (in `storenames.py`, `_fetchValues`/`_save`, and the `StorenamesSelector.{get,set}_literal_input_2` parameter) to `storenames_config`, addressing part of [#187](https://github.com/LernerLab/GuPPy/issues/187). [PR #304](https://github.com/LernerLab/GuPPy/pull/304)
+
+## Deprecations and Removals
+
+
+# v2.0.0-alpha6 (April 29th, 2026)
+
+## Features
+- Updated license from GPL to BSD-3-Clause [PR #309](https://github.com/LernerLab/GuPPy/pull/309)
+
 
 # v2.0.0-alpha5 (April 28th, 2026)
 
