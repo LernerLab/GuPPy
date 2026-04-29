@@ -27,7 +27,19 @@ logger = logging.getLogger(__name__)
 
 
 def findFreqAndAmp(filepath, inputParameters, window=15, numProcesses=mp.cpu_count()):
+    """Detect transients and compute their frequency and amplitude for one output directory.
 
+    Parameters
+    ----------
+    filepath : str
+        Path to the session output directory.
+    inputParameters : dict
+        Full pipeline input parameters.
+    window : int, optional
+        Moving-window size in seconds used for transient detection.
+    numProcesses : int, optional
+        Number of worker processes for parallel transient analysis.
+    """
     logger.debug("Calculating frequency and amplitude of transients in z-score data....")
     selectForTransientsComputation = inputParameters["selectForTransientsComputation"]
     highAmpFilt = inputParameters["highAmpFilt"]
@@ -66,6 +78,15 @@ def findFreqAndAmp(filepath, inputParameters, window=15, numProcesses=mp.cpu_cou
 
 
 def execute_visualize_peaks(folderNames, inputParameters):
+    """Plot detected transient peaks for each individual session.
+
+    Parameters
+    ----------
+    folderNames : list of str
+        Session folder paths.
+    inputParameters : dict
+        Full pipeline input parameters.
+    """
     selectForTransientsComputation = inputParameters["selectForTransientsComputation"]
     for i in range(len(folderNames)):
         logger.debug(f"Finding transients in z-score data of {folderNames[i]} and calculating frequency and amplitude.")
@@ -93,6 +114,15 @@ def execute_visualize_peaks(folderNames, inputParameters):
 
 
 def execute_visualize_peaks_combined(folderNames, inputParameters):
+    """Plot detected transient peaks for combined (multi-session) data.
+
+    Parameters
+    ----------
+    folderNames : list of str
+        Session folder paths.
+    inputParameters : dict
+        Full pipeline input parameters.
+    """
     selectForTransientsComputation = inputParameters["selectForTransientsComputation"]
 
     storesListPath = []
@@ -124,7 +154,13 @@ def execute_visualize_peaks_combined(folderNames, inputParameters):
 
 
 def executeFindFreqAndAmp(inputParameters):
+    """Entry point for step-5 transient analysis: dispatches to the appropriate sub-routine.
 
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters.
+    """
     logger.info("Finding transients in z-score data and calculating frequency and amplitude....")
 
     inputParameters = inputParameters
@@ -161,6 +197,19 @@ def executeFindFreqAndAmp(inputParameters):
 
 
 def execute_find_freq_and_amp(inputParameters, folderNames, moving_window, numProcesses):
+    """Compute transient frequency and amplitude for each individual session.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters.
+    folderNames : list of str
+        Session folder paths.
+    moving_window : int
+        Moving-window size in seconds for transient detection.
+    numProcesses : int
+        Number of parallel worker processes.
+    """
     for i in range(len(folderNames)):
         logger.debug(f"Finding transients in z-score data of {folderNames[i]} and calculating frequency and amplitude.")
         filepath = folderNames[i]
@@ -177,6 +226,19 @@ def execute_find_freq_and_amp(inputParameters, folderNames, moving_window, numPr
 
 
 def execute_find_freq_and_amp_combined(inputParameters, folderNames, moving_window, numProcesses):
+    """Compute transient frequency and amplitude for combined (multi-session) data.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters.
+    folderNames : list of str
+        Session folder paths.
+    moving_window : int
+        Moving-window size in seconds for transient detection.
+    numProcesses : int
+        Number of parallel worker processes.
+    """
     storesListPath = []
     for i in range(len(folderNames)):
         filepath = folderNames[i]
@@ -192,6 +254,20 @@ def execute_find_freq_and_amp_combined(inputParameters, folderNames, moving_wind
 
 
 def execute_average_for_group(inputParameters, folderNamesForAvg):
+    """Average transient frequency and amplitude results across all group sessions.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters.
+    folderNamesForAvg : list of str
+        Session folder paths selected for group averaging.
+
+    Raises
+    ------
+    ValueError
+        When ``folderNamesForAvg`` is empty.
+    """
     if len(folderNamesForAvg) == 0:
         message = (
             "No folders selected for group averaging (folderNamesForAvg is empty in inputParameters). "
@@ -211,6 +287,13 @@ def execute_average_for_group(inputParameters, folderNamesForAvg):
 
 @subprocess_main_handler
 def main(input_parameters):
+    """Subprocess entry point for the transient-analysis step.
+
+    Parameters
+    ----------
+    input_parameters : dict
+        Full pipeline input parameters deserialized from the subprocess argument.
+    """
     executeFindFreqAndAmp(input_parameters)
 
 
