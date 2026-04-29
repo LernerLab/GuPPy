@@ -6,9 +6,10 @@
 
 ## Improvements
 - Expanded the first tutorial with embedded screenshots and a step-by-step walkthrough of the Storenames and Visualization GUIs, corrected button names and HDF5 output descriptions, and added `docs/take_screenshots.py` to regenerate the tutorial screenshots from the stubbed CSV sample data. [PR #303](https://github.com/LernerLab/GuPPy/pull/303)
+- Added a Read the Docs documentation badge to `README.md` and a `Documentation` project URL in `pyproject.toml` pointing at https://guppy.readthedocs.io/, so the documentation is discoverable directly from the GitHub landing page and the PyPI listing. [PR #306](https://github.com/LernerLab/GuPPy/pull/306)
+- Added cross-correlation explanation page to the documentation site, with six generated SVG figures and a self-contained PEP 723 script (`docs/scripts/cross_correlation_explainer.py`) that regenerates them in place. [PR #307](https://github.com/LernerLab/GuPPy/pull/307)
 
 ## Deprecations and Removals
-
 
 # v2.0.0-alpha6 (April 29th, 2026)
 
