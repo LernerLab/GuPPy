@@ -17,8 +17,6 @@ logger = logging.getLogger(__name__)
 
 # This function just creates placeholder Control-HDF5 files that are then immediately overwritten later on in the pipeline.
 # TODO: Refactor this function to avoid unnecessary file creation.
-# function to add control channel when there is no
-# isosbestic control channel and update the storeslist file
 def add_control_channel(filepath, arr):
     """
     Add synthetic control-channel entries to the storesList when no isosbestic control exists.
@@ -83,8 +81,6 @@ def add_control_channel(filepath, arr):
     return arr
 
 
-# main function to create control channel using
-# signal channel and save it to a file
 def create_control_channel(filepath, arr, window=5001):
     """
     Fit a synthetic control channel from the signal channel and save it.
@@ -122,9 +118,6 @@ def create_control_channel(filepath, arr, window=5001):
 
 
 # TODO: figure out why a control channel is created for both timestamp correction and z-score steps.
-# helper function to create control channel using signal channel
-# by curve fitting signal channel to exponential function
-# when there is no isosbestic control channel is present
 def helper_create_control_channel(signal, timestamps, window):
     """
     Fit an exponential control channel to the signal using curve fitting.
@@ -166,7 +159,6 @@ def helper_create_control_channel(signal, timestamps, window):
     return control
 
 
-# curve fit exponential function
 def curveFitFn(x, a, b, c):
     """
     Evaluate the exponential model ``a + b * exp(-x / c)``.

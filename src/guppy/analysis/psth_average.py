@@ -18,7 +18,6 @@ from ..utils.utils import read_Df
 logger = logging.getLogger(__name__)
 
 
-# function to compute average of group of recordings
 def averageForGroup(folderNames, event, inputParameters):
     """
     Average PSTH, peak/AUC, and cross-correlation results across a group of sessions.

@@ -6,7 +6,6 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
-# helper function to make PSTH for each event
 def compute_psth(
     z_score,
     event,
@@ -192,7 +191,6 @@ def compute_psth(
     return psth, psth_baselineUncorrected, columns, ts
 
 
-# function to create PSTH trials corresponding to each event timestamp
 def rowFormation(z_score, thisIndex, nTsPrev, nTsPost):
     """
     Extract one PSTH trial from the z-score array, padding with NaN at boundaries.
@@ -239,7 +237,6 @@ def rowFormation(z_score, thisIndex, nTsPrev, nTsPost):
     return res
 
 
-# function to calculate baseline for each PSTH trial and do baseline correction
 def baselineCorrection(arr, timeAxis, baselineStart, baselineEnd):
     """
     Subtract the mean baseline from a single PSTH trial.

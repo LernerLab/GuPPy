@@ -12,7 +12,6 @@ from .io_utils import read_hdf5
 logger = logging.getLogger(__name__)
 
 
-# function to create dataframe for each event PSTH and save it to h5 file
 def create_Df_for_psth(filepath, event, name, psth, columns=[]):
     """
     Build a PSTH DataFrame (with mean/error columns) and save it as an HDF5 file.
@@ -72,9 +71,6 @@ def create_Df_for_psth(filepath, event, name, psth, columns=[]):
     df.to_hdf(op, key="df", mode="w")
 
 
-# same function used to store PSTH in computePsth file
-# Here, cross correlation dataframe is saved instead of PSTH
-# cross correlation dataframe has the same structure as PSTH file
 def create_Df_for_cross_correlation(filepath, event, name, psth, columns=[]):
     """
     Build a cross-correlation DataFrame (with mean/error columns) and save it as an HDF5 file.

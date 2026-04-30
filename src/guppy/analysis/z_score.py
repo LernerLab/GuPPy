@@ -9,7 +9,6 @@ from ..utils.validation import validate_window_bounds
 logger = logging.getLogger(__name__)
 
 
-# high-level function to compute z-score and deltaF/F
 def compute_z_score(
     control,
     signal,
@@ -108,9 +107,6 @@ def compute_z_score(
     return z_score_arr, norm_data_arr, control_fit_arr, temp_control_arr
 
 
-# function to filter control and signal channel, also execute above two function : controlFit and deltaFF
-# function will also take care if there is only signal channel and no control channel
-# if there is only signal channel, z-score will be computed using just signal channel
 def execute_controlFit_dff(control, signal, isosbestic_control, filter_window):
     """
     Filter channels, fit the control to the signal, and compute dF/F.
@@ -148,7 +144,6 @@ def execute_controlFit_dff(control, signal, isosbestic_control, filter_window):
     return norm_data, control_fit
 
 
-# function to compute deltaF/F using fitted control channel and filtered signal channel
 def deltaFF(signal, control):
     """
     Compute dF/F as ``(signal - control) / control * 100``.
@@ -174,7 +169,6 @@ def deltaFF(signal, control):
     return normData
 
 
-# function to fit control channel to signal channel
 def controlFit(control, signal):
     """
     Fit a linear model from control to signal and return the fitted values.
@@ -227,7 +221,6 @@ def filterSignal(filter_window, signal):
         )
 
 
-# function to compute z-score based on z-score computation method
 def z_score_computation(dff, timestamps, zscore_method, baseline_start, baseline_end):
     """
     Convert a dF/F array to z-scores using the specified method.

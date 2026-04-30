@@ -12,7 +12,6 @@ from ..utils.utils import takeOnlyDirs
 logger = logging.getLogger(__name__)
 
 
-# find files by ignoring the case sensitivity
 def find_files(path, glob_path, ignore_case=False):
     """
     List files in ``path`` matching a glob pattern, optionally case-insensitively.
@@ -49,7 +48,6 @@ def find_files(path, glob_path, ignore_case=False):
     return [os.path.join(path, n) for n in str_path if rule.match(n)]
 
 
-# check if dealing with TDT files or csv files
 def check_TDT(filepath):
     """
     Return True if ``filepath`` contains TDT ``.tsq`` files.
@@ -71,7 +69,6 @@ def check_TDT(filepath):
         return False
 
 
-# function to check if the naming convention for saving storeslist file was followed or not
 def decide_naming_convention(filepath):
     """
     Find and pair control/signal HDF5 files in ``filepath``.
@@ -106,7 +103,6 @@ def decide_naming_convention(filepath):
     return path
 
 
-# function to read coordinates file which was saved by selecting chunks for artifacts removal
 def fetchCoords(filepath, naming, data):
     """
     Load artifact-removal boundary coordinates for a channel pair.
@@ -176,7 +172,6 @@ def get_coords(filepath, name, tsNew, removeArtifacts):  # TODO: Make less redun
     return coords
 
 
-# for combining data, reading storeslist file from both data and create a new storeslist array
 def check_storeslistfile(folderNames):
     """
     Merge storesList CSVs from all session output directories.

@@ -133,7 +133,6 @@ def addingNaNtoChunksWithArtifacts(
     return name_to_corrected_data, compound_name_to_corrected_ttl_timestamps
 
 
-# main function to align timestamps for control, signal and event timestamps for artifacts removal
 def processTimestampsForArtifacts(
     timeForLightsTurnOn,
     storesList,
@@ -222,7 +221,6 @@ def processTimestampsForArtifacts(
     )
 
 
-# helper function to process control and signal timestamps
 def eliminateData(*, data, ts, coords, timeForLightsTurnOn, sampling_rate):
     """
     Concatenate non-artifact data chunks and realign their timestamps.
@@ -274,7 +272,6 @@ def eliminateData(*, data, ts, coords, timeForLightsTurnOn, sampling_rate):
     return arr, ts_arr
 
 
-# helper function to align event timestamps with the control and signal timestamps
 def eliminateTs(*, ts, tsNew, coords, timeForLightsTurnOn, sampling_rate):
     """
     Realign TTL timestamps to match concatenated non-artifact photometry chunks.
@@ -319,8 +316,6 @@ def eliminateTs(*, ts, tsNew, coords, timeForLightsTurnOn, sampling_rate):
     return ts_arr
 
 
-# adding nan values to removed chunks
-# when using artifacts removal method - replace with NaN
 def addingNaNValues(*, data, ts, coords):
     """
     Set data samples outside the good-chunk windows to NaN.
@@ -356,8 +351,6 @@ def addingNaNValues(*, data, ts, coords):
     return data
 
 
-# remove event TTLs which falls in the removed chunks
-# when using artifacts removal method - replace with NaN
 def removeTTLs(*, ts, coords):
     """
     Keep only TTL timestamps that fall within good-chunk windows.

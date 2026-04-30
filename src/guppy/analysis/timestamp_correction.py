@@ -76,7 +76,6 @@ def correct_timestamps(
     )
 
 
-# function to correct timestamps after eliminating first few seconds of the data (for csv or TDT data depending on mode)
 def timestampCorrection(
     timeForLightsTurnOn,
     storesList,
@@ -268,8 +267,6 @@ def applyCorrection_ttl(
     return corrected_ttl_timestamps
 
 
-# function to check control and signal channel has same length
-# if not, take a smaller length and do pre-processing
 def check_cntrl_sig_length(channels_arr, name_to_data):
     """
     Identify the shorter channel in each control/signal pair.
