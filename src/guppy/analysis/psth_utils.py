@@ -12,8 +12,23 @@ from .io_utils import read_hdf5
 logger = logging.getLogger(__name__)
 
 
-# function to create dataframe for each event PSTH and save it to h5 file
 def create_Df_for_psth(filepath, event, name, psth, columns=[]):
+    """
+    Build a PSTH DataFrame (with mean/error columns) and save it as an HDF5 file.
+
+    Parameters
+    ----------
+    filepath : str
+        Output directory where the ``.h5`` file is written.
+    event : str
+        Event label; backslashes and forward-slashes are replaced with underscores.
+    name : str
+        Channel name suffix appended to the filename.
+    psth : np.ndarray
+        2-D PSTH matrix (trials × time-points).
+    columns : list, optional
+        Column labels for the trials axis. Default is an empty list.
+    """
     event = event.replace("\\", "_")
     event = event.replace("/", "_")
     if name:
@@ -56,10 +71,23 @@ def create_Df_for_psth(filepath, event, name, psth, columns=[]):
     df.to_hdf(op, key="df", mode="w")
 
 
-# same function used to store PSTH in computePsth file
-# Here, cross correlation dataframe is saved instead of PSTH
-# cross correlation dataframe has the same structure as PSTH file
 def create_Df_for_cross_correlation(filepath, event, name, psth, columns=[]):
+    """
+    Build a cross-correlation DataFrame (with mean/error columns) and save it as an HDF5 file.
+
+    Parameters
+    ----------
+    filepath : str
+        Output directory where the ``.h5`` file is written.
+    event : str
+        Event label used to build the filename.
+    name : str
+        Channel name suffix appended to the filename.
+    psth : np.ndarray
+        2-D cross-correlation matrix (trials × lags).
+    columns : list, optional
+        Column labels for the trials axis. Default is an empty list.
+    """
     if name:
         op = os.path.join(filepath, event + "_{}.h5".format(name))
     else:
@@ -101,6 +129,23 @@ def create_Df_for_cross_correlation(filepath, event, name, psth, columns=[]):
 
 
 def getCorrCombinations(filepath, inputParameters):
+    """
+    Determine which channel pairs to cross-correlate in a session directory.
+
+    Parameters
+    ----------
+    filepath : str
+        Session output directory containing z-score or dff HDF5 files.
+    inputParameters : dict
+        Analysis configuration; must include ``'selectForComputePsth'``.
+
+    Returns
+    -------
+    corr_info : list of str
+        Ordered list of channel suffixes to correlate; circular when more than two.
+    type : list of str
+        Unique channel-type prefixes (e.g. ``['z_score']``).
+    """
     selectForComputePsth = inputParameters["selectForComputePsth"]
     if selectForComputePsth == "z_score":
         path = glob.glob(os.path.join(filepath, "z_score_*"))

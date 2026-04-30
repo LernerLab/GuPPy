@@ -16,6 +16,27 @@ logger = logging.getLogger(__name__)
 
 
 def read_control_and_signal(filepath, storesList):
+    """
+    Load control and signal channel arrays from HDF5 files.
+
+    Parameters
+    ----------
+    filepath : str
+        Session output directory.
+    storesList : np.ndarray
+        2-D array with rows [storenames, display_names].
+
+    Returns
+    -------
+    name_to_data : dict
+        Display name → data array.
+    name_to_timestamps : dict
+        Display name → timestamp array.
+    name_to_sampling_rate : dict
+        Display name → sampling-rate array.
+    name_to_npoints : dict
+        Display name → npoints array (or None for CSV datasets).
+    """
     channels_arr = get_control_and_signal_channel_names(storesList)
     storenames = storesList[0, :]
     names_for_storenames = storesList[1, :]
@@ -59,6 +80,21 @@ def read_control_and_signal(filepath, storesList):
 
 
 def read_ttl(filepath, storesList):
+    """
+    Load TTL event timestamps from HDF5 files, skipping control/signal channels.
+
+    Parameters
+    ----------
+    filepath : str
+        Session output directory.
+    storesList : np.ndarray
+        2-D array with rows [storenames, display_names].
+
+    Returns
+    -------
+    name_to_timestamps : dict
+        Display name → TTL timestamp array for each non-channel store.
+    """
     channels_arr = get_control_and_signal_channel_names(storesList)
     storenames = storesList[0, :]
     names_for_storenames = storesList[1, :]
@@ -76,6 +112,22 @@ def read_ttl(filepath, storesList):
 def write_corrected_timestamps(
     filepath, corrected_name_to_timestamps, name_to_timestamps, name_to_sampling_rate, name_to_correctionIndex
 ):
+    """
+    Write timestamp-correction HDF5 datasets for all channel pairs.
+
+    Parameters
+    ----------
+    filepath : str
+        Session output directory.
+    corrected_name_to_timestamps : dict
+        Display name → corrected timestamp array.
+    name_to_timestamps : dict
+        Display name → original timestamp array.
+    name_to_sampling_rate : dict
+        Display name → sampling-rate array.
+    name_to_correctionIndex : dict
+        Display name → index array used to slice the original timestamps.
+    """
     for name, correctionIndex in name_to_correctionIndex.items():
         timestamps = name_to_timestamps[name]
         corrected_timestamps = corrected_name_to_timestamps[name]
@@ -90,6 +142,16 @@ def write_corrected_timestamps(
 
 
 def write_corrected_data(filepath, name_to_corrected_data):
+    """
+    Write corrected data arrays to HDF5 files.
+
+    Parameters
+    ----------
+    filepath : str
+        Session output directory.
+    name_to_corrected_data : dict
+        Display name → corrected data array.
+    """
     for name, data in name_to_corrected_data.items():
         write_hdf5(data, name, filepath, "data")
 
@@ -98,6 +160,16 @@ def write_corrected_ttl_timestamps(
     filepath,
     compound_name_to_corrected_ttl_timestamps,
 ):
+    """
+    Write corrected TTL timestamp arrays to HDF5 files.
+
+    Parameters
+    ----------
+    filepath : str
+        Session output directory.
+    compound_name_to_corrected_ttl_timestamps : dict
+        Compound TTL name → corrected TTL timestamp array.
+    """
     logger.debug("Applying correction of timestamps to the data and event timestamps")
     for compound_name, corrected_ttl_timestamps in compound_name_to_corrected_ttl_timestamps.items():
         write_hdf5(corrected_ttl_timestamps, compound_name, filepath, "ts")
@@ -105,6 +177,29 @@ def write_corrected_ttl_timestamps(
 
 
 def read_corrected_data(control_path, signal_path, filepath, name):
+    """
+    Load corrected control, signal, and timestamp arrays for one channel pair.
+
+    Parameters
+    ----------
+    control_path : str
+        Path to the control HDF5 file.
+    signal_path : str
+        Path to the signal HDF5 file.
+    filepath : str
+        Session output directory (used to find the ``timeCorrection_<name>`` file).
+    name : str
+        Channel pair suffix used to locate the timestamp-correction file.
+
+    Returns
+    -------
+    control : np.ndarray
+        1-D corrected control data array.
+    signal : np.ndarray
+        1-D corrected signal data array.
+    tsNew : np.ndarray
+        Corrected timestamp array.
+    """
     control = read_hdf5("", control_path, "data").reshape(-1)
     signal = read_hdf5("", signal_path, "data").reshape(-1)
     tsNew = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
@@ -113,6 +208,24 @@ def read_corrected_data(control_path, signal_path, filepath, name):
 
 
 def write_zscore(filepath, name, z_score, dff, control_fit, temp_control_arr):
+    """
+    Write z-score, dF/F, and fitted-control arrays to HDF5 files.
+
+    Parameters
+    ----------
+    filepath : str
+        Session output directory.
+    name : str
+        Channel pair suffix used in HDF5 key names.
+    z_score : np.ndarray
+        Z-scored signal array.
+    dff : np.ndarray
+        Delta-F/F signal array.
+    control_fit : np.ndarray
+        Fitted control channel array.
+    temp_control_arr : np.ndarray or None
+        Synthetic control array when no isosbestic control is present; None otherwise.
+    """
     write_hdf5(z_score, "z_score_" + name, filepath, "data")
     write_hdf5(dff, "dff_" + name, filepath, "data")
     write_hdf5(control_fit, "cntrl_sig_fit_" + name, filepath, "data")
@@ -121,6 +234,21 @@ def write_zscore(filepath, name, z_score, dff, control_fit, temp_control_arr):
 
 
 def read_corrected_timestamps_pairwise(filepath):
+    """
+    Load corrected timestamps and sampling rates for all channel pairs.
+
+    Parameters
+    ----------
+    filepath : str
+        Session output directory.
+
+    Returns
+    -------
+    pair_name_to_tsNew : dict
+        Pair name → corrected timestamp array.
+    pair_name_to_sampling_rate : dict
+        Pair name → sampling rate (Hz).
+    """
     pair_name_to_tsNew = {}
     pair_name_to_sampling_rate = {}
     path = decide_naming_convention(filepath)
@@ -145,6 +273,21 @@ def read_corrected_timestamps_pairwise(filepath):
 
 
 def read_coords_pairwise(filepath, pair_name_to_tsNew):
+    """
+    Load artifact-removal boundary coordinates for all channel pairs.
+
+    Parameters
+    ----------
+    filepath : str
+        Session output directory.
+    pair_name_to_tsNew : dict
+        Pair name → corrected timestamp array (used as fallback bounds).
+
+    Returns
+    -------
+    pair_name_to_coords : dict
+        Pair name → shape ``(N, 2)`` array of good-chunk boundaries.
+    """
     pair_name_to_coords = {}
     path = decide_naming_convention(filepath)
     for j in range(path.shape[1]):
@@ -167,6 +310,21 @@ def read_coords_pairwise(filepath, pair_name_to_tsNew):
 
 
 def read_corrected_data_dict(filepath, storesList):  # TODO: coordinate with read_corrected_data
+    """
+    Load corrected control and signal data arrays into a flat dict.
+
+    Parameters
+    ----------
+    filepath : str
+        Session output directory.
+    storesList : np.ndarray
+        2-D array with rows [storenames, display_names].
+
+    Returns
+    -------
+    name_to_corrected_data : dict
+        Display name → 1-D corrected data array.
+    """
     name_to_corrected_data = {}
     storenames = storesList[0, :]
     names_for_storenames = storesList[1, :]
@@ -182,6 +340,21 @@ def read_corrected_data_dict(filepath, storesList):  # TODO: coordinate with rea
 
 
 def read_corrected_ttl_timestamps(filepath, storesList):
+    """
+    Load corrected TTL timestamps for all non-channel stores.
+
+    Parameters
+    ----------
+    filepath : str
+        Session output directory.
+    storesList : np.ndarray
+        2-D array with rows [storenames, display_names].
+
+    Returns
+    -------
+    compound_name_to_ttl_timestamps : dict
+        Compound TTL name → TTL timestamp array.
+    """
     compound_name_to_ttl_timestamps = {}
     storenames = storesList[0, :]
     names_for_storenames = storesList[1, :]
@@ -210,6 +383,16 @@ def read_corrected_ttl_timestamps(filepath, storesList):
 
 
 def write_artifact_corrected_timestamps(filepath, pair_name_to_corrected_timestamps):
+    """
+    Write artifact-corrected timestamp arrays to the ``timeCorrection_*`` HDF5 keys.
+
+    Parameters
+    ----------
+    filepath : str
+        Session output directory.
+    pair_name_to_corrected_timestamps : dict
+        Pair name → corrected timestamp array.
+    """
     for pair_name, timestamps in pair_name_to_corrected_timestamps.items():
         write_hdf5(timestamps, "timeCorrection_" + pair_name, filepath, "timestampNew")
 
@@ -220,6 +403,20 @@ def write_artifact_removal(
     pair_name_to_corrected_timestamps,
     compound_name_to_corrected_ttl_timestamps=None,
 ):
+    """
+    Write all artifact-removal outputs (data, TTL timestamps, and optionally timestamps) to HDF5.
+
+    Parameters
+    ----------
+    filepath : str
+        Session output directory.
+    name_to_corrected_data : dict
+        Display name → corrected data array.
+    pair_name_to_corrected_timestamps : dict or None
+        Pair name → corrected timestamp array; skipped when None.
+    compound_name_to_corrected_ttl_timestamps : dict, optional
+        Compound TTL name → corrected TTL timestamp array. Default is None.
+    """
     write_corrected_data(filepath, name_to_corrected_data)
     write_corrected_ttl_timestamps(filepath, compound_name_to_corrected_ttl_timestamps)
     if pair_name_to_corrected_timestamps is not None:
@@ -227,6 +424,19 @@ def write_artifact_removal(
 
 
 def read_timestamps_for_combining_data(filepaths_to_combine):
+    """
+    Load corrected timestamps from all session files for the combine-data step.
+
+    Parameters
+    ----------
+    filepaths_to_combine : list of str
+        Ordered list of session output directories.
+
+    Returns
+    -------
+    pair_name_to_filepath_to_timestamps : dict
+        ``{pair_name: {filepath: timestamps_array}}``.
+    """
     path = decide_naming_convention(filepaths_to_combine[0])
     pair_name_to_filepath_to_timestamps: dict[str, dict[str, np.ndarray]] = {}
     for j in range(path.shape[1]):
@@ -250,6 +460,21 @@ def read_timestamps_for_combining_data(filepaths_to_combine):
 
 
 def read_data_for_combining_data(filepaths_to_combine, storesList):
+    """
+    Load corrected channel data from all session files for the combine-data step.
+
+    Parameters
+    ----------
+    filepaths_to_combine : list of str
+        Ordered list of session output directories.
+    storesList : np.ndarray
+        2-D array with rows [storenames, display_names].
+
+    Returns
+    -------
+    display_name_to_filepath_to_data : dict
+        ``{display_name: {filepath: data_array}}``.
+    """
     names_for_storenames = storesList[1, :]
     path = decide_naming_convention(filepaths_to_combine[0])
     display_name_to_filepath_to_data: dict[str, dict[str, np.ndarray]] = {}
@@ -281,6 +506,21 @@ def read_data_for_combining_data(filepaths_to_combine, storesList):
 
 
 def read_ttl_timestamps_for_combining_data(filepaths_to_combine, storesList):
+    """
+    Load corrected TTL timestamps from all session files for the combine-data step.
+
+    Parameters
+    ----------
+    filepaths_to_combine : list of str
+        Ordered list of session output directories.
+    storesList : np.ndarray
+        2-D array with rows [storenames, display_names].
+
+    Returns
+    -------
+    compound_name_to_filepath_to_ttl_timestamps : dict
+        ``{compound_name: {filepath: ttl_timestamps_array}}``.
+    """
     names_for_storenames = storesList[1, :]
     path = decide_naming_convention(filepaths_to_combine[0])
     compound_name_to_filepath_to_ttl_timestamps: dict[str, dict[str, np.ndarray]] = {}
@@ -315,6 +555,20 @@ def read_ttl_timestamps_for_combining_data(filepaths_to_combine, storesList):
 
 
 def write_combined_data(output_filepath, pair_name_to_tsNew, display_name_to_data, compound_name_to_ttl_timestamps):
+    """
+    Write combined multi-session data (timestamps, channel data, TTLs) to HDF5.
+
+    Parameters
+    ----------
+    output_filepath : str
+        Destination session output directory.
+    pair_name_to_tsNew : dict
+        Pair name → combined timestamp array.
+    display_name_to_data : dict
+        Display name → combined data array.
+    compound_name_to_ttl_timestamps : dict
+        Compound TTL name → combined TTL timestamp array.
+    """
     for pair_name, tsNew in pair_name_to_tsNew.items():
         write_hdf5(tsNew, "timeCorrection_" + pair_name, output_filepath, "timestampNew")
     for display_name, data in display_name_to_data.items():
@@ -324,6 +578,20 @@ def write_combined_data(output_filepath, pair_name_to_tsNew, display_name_to_dat
 
 
 def write_peak_and_area_to_hdf5(filepath, arr, name, index=[]):
+    """
+    Save peak and area-under-curve metrics to an HDF5 file.
+
+    Parameters
+    ----------
+    filepath : str
+        Output directory.
+    arr : array-like
+        Metrics data to store in the DataFrame.
+    name : str
+        Filename stem; the file is written as ``peak_AUC_<name>.h5``.
+    index : list, optional
+        Row index labels. Default is an empty list.
+    """
 
     op = os.path.join(filepath, "peak_AUC_" + name + ".h5")
     dirname = os.path.dirname(filepath)
@@ -334,6 +602,20 @@ def write_peak_and_area_to_hdf5(filepath, arr, name, index=[]):
 
 
 def write_peak_and_area_to_csv(filepath, arr, name, index=[]):
+    """
+    Save peak and area-under-curve metrics to a CSV file.
+
+    Parameters
+    ----------
+    filepath : str
+        Output directory.
+    arr : array-like
+        Metrics data to store in the DataFrame.
+    name : str
+        Filename stem; the file is written as ``peak_AUC_<name>.csv``.
+    index : list, optional
+        Row index labels. Default is an empty list.
+    """
     op = os.path.join(filepath, "peak_AUC_" + name + ".csv")
     df = pd.DataFrame(arr, index=index)
 
@@ -341,6 +623,22 @@ def write_peak_and_area_to_csv(filepath, arr, name, index=[]):
 
 
 def write_freq_and_amp_to_hdf5(filepath, arr, name, index=[], columns=[]):
+    """
+    Save transient frequency and amplitude metrics to an HDF5 file.
+
+    Parameters
+    ----------
+    filepath : str
+        Output directory.
+    arr : array-like
+        Metrics data to store in the DataFrame.
+    name : str
+        Filename stem; the file is written as ``freqAndAmp_<name>.h5``.
+    index : list, optional
+        Row index labels. Default is an empty list.
+    columns : list, optional
+        Column labels. Default is an empty list.
+    """
 
     op = os.path.join(filepath, "freqAndAmp_" + name + ".h5")
     dirname = os.path.dirname(filepath)
@@ -351,12 +649,43 @@ def write_freq_and_amp_to_hdf5(filepath, arr, name, index=[], columns=[]):
 
 
 def write_freq_and_amp_to_csv(filepath, arr, name, index=[], columns=[]):
+    """
+    Save transient frequency and amplitude metrics to a CSV file.
+
+    Parameters
+    ----------
+    filepath : str
+        Output directory.
+    arr : array-like
+        Metrics data to store in the DataFrame.
+    name : str
+        Output filename (written directly inside ``filepath``).
+    index : list, optional
+        Row index labels. Default is an empty list.
+    columns : list, optional
+        Column labels. Default is an empty list.
+    """
     op = os.path.join(filepath, name)
     df = pd.DataFrame(arr, index=index, columns=columns)
     df.to_csv(op)
 
 
 def read_freq_and_amp_from_hdf5(filepath, name):
+    """
+    Load transient frequency and amplitude metrics from an HDF5 file.
+
+    Parameters
+    ----------
+    filepath : str
+        Directory containing the ``freqAndAmp_<name>.h5`` file.
+    name : str
+        Filename stem (without the ``freqAndAmp_`` prefix or ``.h5`` suffix).
+
+    Returns
+    -------
+    df : pd.DataFrame
+        DataFrame of frequency and amplitude metrics.
+    """
     op = os.path.join(filepath, "freqAndAmp_" + name + ".h5")
     df = pd.read_hdf(op, key="df", mode="r")
 
@@ -364,6 +693,22 @@ def read_freq_and_amp_from_hdf5(filepath, name):
 
 
 def write_transients_to_hdf5(filepath, name, z_score, ts, peaksInd):
+    """
+    Write transient detection outputs (z-score, timestamps, peak indices) to HDF5.
+
+    Parameters
+    ----------
+    filepath : str
+        Session output directory.
+    name : str
+        Channel suffix used to build the HDF5 event key.
+    z_score : np.ndarray
+        Z-scored signal array (NaN-free).
+    ts : np.ndarray
+        Timestamp array corresponding to ``z_score``.
+    peaksInd : np.ndarray
+        Integer indices of detected transient peaks in ``z_score``.
+    """
     event = f"transient_outputs_{name}"
     write_hdf5(z_score, event, filepath, "z_score")
     write_hdf5(ts, event, filepath, "timestamps")
@@ -371,6 +716,25 @@ def write_transients_to_hdf5(filepath, name, z_score, ts, peaksInd):
 
 
 def read_transients_from_hdf5(filepath, name):
+    """
+    Load transient detection outputs from HDF5.
+
+    Parameters
+    ----------
+    filepath : str
+        Session output directory.
+    name : str
+        Channel suffix used to build the HDF5 event key.
+
+    Returns
+    -------
+    z_score : np.ndarray
+        Z-scored signal array.
+    ts : np.ndarray
+        Timestamp array.
+    peaksInd : np.ndarray
+        Integer indices of detected transient peaks.
+    """
     event = f"transient_outputs_{name}"
     z_score = read_hdf5(event, filepath, "z_score")
     ts = read_hdf5(event, filepath, "timestamps")
