@@ -14,9 +14,21 @@ from ..utils.utils import get_all_stores_for_combining_data, read_Df, takeOnlyDi
 logger = logging.getLogger(__name__)
 
 
-# helper function to create plots
 def helper_plots(filepath, event, name, inputParameters):
+    """Build and display the interactive PSTH visualization dashboard for one output directory.
 
+    Parameters
+    ----------
+    filepath : str
+        Path to the session output directory.
+    event : list of str
+        Event names (or z-score/dff file basenames when ``name`` is empty).
+    name : list of str or str
+        z-score/dff file basenames paired with ``event``; pass an empty string
+        for the average-results code path.
+    inputParameters : dict
+        Full pipeline input parameters.
+    """
     basename = os.path.basename(filepath)
     visualize_zscore_or_dff = inputParameters["visualize_zscore_or_dff"]
 
@@ -134,9 +146,18 @@ def helper_plots(filepath, event, name, inputParameters):
     dashboard.show()
 
 
-# function to combine all the output folders together and preprocess them to use them in helper_plots function
 def createPlots(filepath, event, inputParameters):
+    """Assemble PSTH data from an output directory and delegate to ``helper_plots``.
 
+    Parameters
+    ----------
+    filepath : str
+        Path to the session output directory.
+    event : list of str
+        Storenames (row 1 of storesList) to include in the visualization.
+    inputParameters : dict
+        Full pipeline input parameters.
+    """
     for i in range(len(event)):
         event[i] = event[i].replace("\\", "_")
         event[i] = event[i].replace("/", "_")
@@ -301,7 +322,19 @@ def _validate_average_visualization_preconditions(inputParameters):
 
 
 def visualizeResults(inputParameters):
+    """Entry point for step-6 visualization: validate preconditions and open dashboards.
 
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters.
+
+    Raises
+    ------
+    ValueError
+        When average visualization is requested but prerequisites are not met,
+        or when the visualization metric was not computed in step 5.
+    """
     inputParameters = inputParameters
 
     _validate_average_visualization_preconditions(inputParameters)

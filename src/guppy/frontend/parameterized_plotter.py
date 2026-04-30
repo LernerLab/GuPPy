@@ -28,6 +28,21 @@ logging.getLogger("bokeh.io.export").setLevel(logging.ERROR)
 
 # remove unnecessary column names
 def remove_cols(cols):
+    """Remove bookkeeping columns from a PSTH column list.
+
+    Drops ``"err"``, ``"timestamps"``, and any column matching ``bin_err_*``
+    so that only trial and mean columns remain.
+
+    Parameters
+    ----------
+    cols : list of str
+        Full list of column names from a PSTH DataFrame.
+
+    Returns
+    -------
+    list of str
+        Filtered column list with bookkeeping columns removed.
+    """
     regex = re.compile("bin_err_*")
     remove_cols = [cols[i] for i in range(len(cols)) if regex.match(cols[i])]
     remove_cols = remove_cols + ["err", "timestamps"]
@@ -38,6 +53,18 @@ def remove_cols(cols):
 
 # make a new directory for saving plots
 def make_dir(filepath):
+    """Create (if needed) and return the ``saved_plots`` subdirectory under ``filepath``.
+
+    Parameters
+    ----------
+    filepath : str
+        Path to the session directory.
+
+    Returns
+    -------
+    str
+        Absolute path to the ``saved_plots`` directory.
+    """
     op = os.path.join(filepath, "saved_plots")
     if not os.path.exists(op):
         os.mkdir(op)
@@ -55,6 +82,14 @@ def _headless_chrome_options():
 
 # create a class to make GUI and plot different graphs
 class ParameterizedPlotter(param.Parameterized):
+    """Interactive Panel/HoloViews dashboard for exploring PSTH results.
+
+    Provides tabbed views for mean PSTH traces, single-trial overlays, trial
+    heatmaps, and multi-event comparisons.  All interactive selectors are
+    exposed as ``param`` parameters so that Panel can bind them to reactive
+    plot callbacks automatically.
+    """
+
     event_selector_objects = param.List(default=None)
     event_selector_heatmap_objects = param.List(default=None)
     selector_for_multipe_events_plot_objects = param.List(default=None)
@@ -123,6 +158,7 @@ class ParameterizedPlotter(param.Parameterized):
     # function to save heatmaps when save button on heatmap tab is clicked
     @param.depends("save_hm", watch=True)
     def save_hm_plots(self):
+        """Export the current heatmap to disk in the format selected by ``save_options_heatmap``."""
         plot = self.results_hm["plot"]
         op = self.results_hm["op"]
         save_opts = self.save_options_heatmap
@@ -147,6 +183,7 @@ class ParameterizedPlotter(param.Parameterized):
     # function to save PSTH plots when save button on PSTH tab is clicked
     @param.depends("save_psth", watch=True)
     def save_psth_plot(self):
+        """Export the current PSTH plots to disk in the format selected by ``save_options``."""
         plot, op = [], []
         plot.append(self.results_psth["plot_combine"])
         op.append(self.results_psth["op_combine"])
@@ -209,6 +246,14 @@ class ParameterizedPlotter(param.Parameterized):
         "Width_Plot",
     )
     def update_selector(self):
+        """Render an overlay of mean PSTH curves for all selected events.
+
+        Returns
+        -------
+        holoviews.NdOverlay or None
+            Overlay of mean curves with spread bands, or ``None`` when no
+            events are selected.
+        """
         data_curve, cols_curve, data_spread, cols_spread = [], [], [], []
         arr = self.selector_for_multipe_events_plot
         df1 = self.df_new
@@ -291,6 +336,14 @@ class ParameterizedPlotter(param.Parameterized):
         "event_selector", "x", "y", "Y_Label", "save_options", "Y_Limit", "X_Limit", "Height_Plot", "Width_Plot"
     )
     def contPlot(self):
+        """Render the selected PSTH view (mean, single trial, or all-trials datashaded overlay).
+
+        Returns
+        -------
+        holoviews.Element
+            A ``Curve``, ``Spread``-overlaid ``Curve``, or datashaded
+            ``NdOverlay``, depending on the value of ``y``.
+        """
         df1 = self.df_new[self.event_selector]
         # height = self.Heigth_Plot
         # width = self.Width_Plot
@@ -418,6 +471,15 @@ class ParameterizedPlotter(param.Parameterized):
         "Width_Plot",
     )
     def plot_specific_trials(self):
+        """Render the user-selected subset of PSTH trials, optionally with their mean.
+
+        Returns
+        -------
+        holoviews.Element or None
+            An overlay of individual trial curves, a mean-with-spread curve, or
+            their combination, depending on ``select_trials_checkbox``.  Returns
+            ``None`` when ``psth_y`` is not set.
+        """
         df_psth = self.df_new[self.event_selector]
         # if self.Y_Limit==None:
         # 	self.Y_Limit = (np.nanmin(ypoints)-0.5, np.nanmax(ypoints)+0.5)
@@ -513,6 +575,14 @@ class ParameterizedPlotter(param.Parameterized):
     # function to show heatmaps for each event
     @param.depends("event_selector_heatmap", "color_map", "height_heatmap", "width_heatmap", "heatmap_y")
     def heatmap(self):
+        """Render a trial heatmap for the selected event.
+
+        Returns
+        -------
+        holoviews.Element
+            A ``QuadMesh`` (single trial) or a datashaded ``QuadMesh`` overlay
+            (multiple trials), coloured by the selected colour map.
+        """
         height = self.height_heatmap
         width = self.width_heatmap
         df_hm = self.df_new[self.event_selector_heatmap]

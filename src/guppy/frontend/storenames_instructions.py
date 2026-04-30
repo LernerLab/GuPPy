@@ -14,6 +14,15 @@ logger = logging.getLogger(__name__)
 
 
 class StorenamesInstructions:
+    """Panel widget displaying storenames-configuration instructions for a session folder.
+
+    Parameters
+    ----------
+    folder_path : str
+        Absolute path to the session directory; its basename is shown as a
+        heading above the instructions.
+    """
+
     def __init__(self, folder_path):
         # instructions about how to save the storeslist file
         self.mark_down = pn.pane.Markdown(
@@ -57,6 +66,18 @@ class StorenamesInstructions:
 
 
 class StorenamesInstructionsNPM(StorenamesInstructions):
+    """Storenames instructions panel extended with NPM-specific channel preview plots.
+
+    Adds a channel selector and a live HoloViews curve so the user can inspect
+    each NPM channel before assigning it a signal or control role.
+
+    Parameters
+    ----------
+    folder_path : str
+        Absolute path to the NPM session directory.  CSV files whose names
+        contain ``chev``, ``chod``, or ``chpr`` are loaded for preview.
+    """
+
     def __init__(self, folder_path):
         super().__init__(folder_path=folder_path)
         path_chev = glob.glob(os.path.join(folder_path, "*chev*"))
