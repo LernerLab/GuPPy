@@ -15,6 +15,37 @@ def remove_artifacts(
     compound_name_to_ttl_timestamps,
     method,
 ):
+    """
+    Remove artifacts from photometry data using the specified method.
+
+    Parameters
+    ----------
+    timeForLightsTurnOn : float
+        Seconds offset for when lights turned on; used as the new time zero.
+    storesList : np.ndarray
+        2-D array with rows [storenames, display_names].
+    pair_name_to_tsNew : dict
+        Mapping from pair name to corrected timestamp array.
+    pair_name_to_sampling_rate : dict
+        Mapping from pair name to sampling rate (Hz).
+    pair_name_to_coords : dict
+        Mapping from pair name to artifact-boundary coordinates array.
+    name_to_data : dict
+        Mapping from display name to raw data array.
+    compound_name_to_ttl_timestamps : dict
+        Mapping from compound TTL name to timestamp array.
+    method : str
+        Artifact removal method; one of ``'concatenate'`` or ``'replace with NaN'``.
+
+    Returns
+    -------
+    name_to_corrected_data : dict
+        Display name → corrected data array.
+    pair_name_to_corrected_timestamps : dict or None
+        Pair name → corrected timestamp array, or ``None`` for the NaN method.
+    compound_name_to_corrected_ttl_timestamps : dict
+        Compound TTL name → corrected TTL timestamp array.
+    """
     if method == "concatenate":
         name_to_corrected_data, pair_name_to_corrected_timestamps, compound_name_to_corrected_ttl_timestamps = (
             processTimestampsForArtifacts(
@@ -49,6 +80,29 @@ def remove_artifacts(
 def addingNaNtoChunksWithArtifacts(
     storesList, pair_name_to_tsNew, pair_name_to_coords, name_to_data, compound_name_to_ttl_timestamps
 ):
+    """
+    Replace artifact chunks in control/signal data with NaN values.
+
+    Parameters
+    ----------
+    storesList : np.ndarray
+        2-D array with rows [storenames, display_names].
+    pair_name_to_tsNew : dict
+        Mapping from pair name to corrected timestamp array.
+    pair_name_to_coords : dict
+        Mapping from pair name to artifact-boundary coordinates array.
+    name_to_data : dict
+        Mapping from display name to raw data array.
+    compound_name_to_ttl_timestamps : dict
+        Mapping from compound TTL name to timestamp array.
+
+    Returns
+    -------
+    name_to_corrected_data : dict
+        Display name → data array with artifact samples set to NaN.
+    compound_name_to_corrected_ttl_timestamps : dict
+        Compound TTL name → TTL timestamps with artifact-window events removed.
+    """
     logger.debug("Replacing chunks with artifacts by NaN values.")
     names_for_storenames = storesList[1, :]
     pair_names = pair_name_to_tsNew.keys()
@@ -79,7 +133,6 @@ def addingNaNtoChunksWithArtifacts(
     return name_to_corrected_data, compound_name_to_corrected_ttl_timestamps
 
 
-# main function to align timestamps for control, signal and event timestamps for artifacts removal
 def processTimestampsForArtifacts(
     timeForLightsTurnOn,
     storesList,
@@ -89,6 +142,35 @@ def processTimestampsForArtifacts(
     name_to_data,
     compound_name_to_ttl_timestamps,
 ):
+    """
+    Concatenate non-artifact chunks and realign all timestamps.
+
+    Parameters
+    ----------
+    timeForLightsTurnOn : float
+        Seconds offset for when lights turned on; used as the new time zero.
+    storesList : np.ndarray
+        2-D array with rows [storenames, display_names].
+    pair_name_to_tsNew : dict
+        Mapping from pair name to corrected timestamp array.
+    pair_name_to_sampling_rate : dict
+        Mapping from pair name to sampling rate (Hz).
+    pair_name_to_coords : dict
+        Mapping from pair name to artifact-boundary coordinates array.
+    name_to_data : dict
+        Mapping from display name to raw data array.
+    compound_name_to_ttl_timestamps : dict
+        Mapping from compound TTL name to timestamp array.
+
+    Returns
+    -------
+    name_to_corrected_data : dict
+        Display name → concatenated data array with artifacts removed.
+    pair_name_to_corrected_timestamps : dict
+        Pair name → realigned timestamp array.
+    compound_name_to_corrected_ttl_timestamps : dict
+        Compound TTL name → realigned TTL timestamp array.
+    """
     logger.debug("Processing timestamps to get rid of artifacts using concatenate method...")
     names_for_storenames = storesList[1, :]
     pair_names = pair_name_to_tsNew.keys()
@@ -139,8 +221,30 @@ def processTimestampsForArtifacts(
     )
 
 
-# helper function to process control and signal timestamps
 def eliminateData(*, data, ts, coords, timeForLightsTurnOn, sampling_rate):
+    """
+    Concatenate non-artifact data chunks and realign their timestamps.
+
+    Parameters
+    ----------
+    data : np.ndarray
+        1-D data array aligned with ``ts``.
+    ts : np.ndarray
+        1-D timestamp array.
+    coords : np.ndarray
+        Shape ``(N, 2)`` array of ``[start, end]`` bounds for good chunks.
+    timeForLightsTurnOn : float
+        Seconds offset used to set the new time zero for the first chunk.
+    sampling_rate : float
+        Sampling rate in Hz; used to compute inter-chunk spacing.
+
+    Returns
+    -------
+    arr : np.ndarray
+        Concatenated data from all good chunks.
+    ts_arr : np.ndarray
+        Realigned timestamps corresponding to ``arr``.
+    """
 
     if (data == 0).all() == True:
         data = np.zeros(ts.shape[0])
@@ -168,8 +272,28 @@ def eliminateData(*, data, ts, coords, timeForLightsTurnOn, sampling_rate):
     return arr, ts_arr
 
 
-# helper function to align event timestamps with the control and signal timestamps
 def eliminateTs(*, ts, tsNew, coords, timeForLightsTurnOn, sampling_rate):
+    """
+    Realign TTL timestamps to match concatenated non-artifact photometry chunks.
+
+    Parameters
+    ----------
+    ts : np.ndarray
+        TTL timestamp array to realign.
+    tsNew : np.ndarray
+        Corrected photometry timestamp array used as the reference.
+    coords : np.ndarray
+        Shape ``(N, 2)`` array of ``[start, end]`` bounds for good chunks.
+    timeForLightsTurnOn : float
+        Seconds offset used to set the new time zero for the first chunk.
+    sampling_rate : float
+        Sampling rate in Hz; used to compute inter-chunk spacing.
+
+    Returns
+    -------
+    ts_arr : np.ndarray
+        Realigned TTL timestamps.
+    """
 
     ts_arr = np.array([])
     tsNew_arr = np.array([])
@@ -192,9 +316,24 @@ def eliminateTs(*, ts, tsNew, coords, timeForLightsTurnOn, sampling_rate):
     return ts_arr
 
 
-# adding nan values to removed chunks
-# when using artifacts removal method - replace with NaN
 def addingNaNValues(*, data, ts, coords):
+    """
+    Set data samples outside the good-chunk windows to NaN.
+
+    Parameters
+    ----------
+    data : np.ndarray
+        1-D data array aligned with ``ts``.
+    ts : np.ndarray
+        1-D timestamp array.
+    coords : np.ndarray
+        Shape ``(N, 2)`` array of ``[start, end]`` bounds for good chunks.
+
+    Returns
+    -------
+    data : np.ndarray
+        Data array with artifact samples replaced by NaN.
+    """
 
     if (data == 0).all() == True:
         data = np.zeros(ts.shape[0])
@@ -212,9 +351,22 @@ def addingNaNValues(*, data, ts, coords):
     return data
 
 
-# remove event TTLs which falls in the removed chunks
-# when using artifacts removal method - replace with NaN
 def removeTTLs(*, ts, coords):
+    """
+    Keep only TTL timestamps that fall within good-chunk windows.
+
+    Parameters
+    ----------
+    ts : np.ndarray
+        TTL timestamp array to filter.
+    coords : np.ndarray
+        Shape ``(N, 2)`` array of ``[start, end]`` bounds for good chunks.
+
+    Returns
+    -------
+    ts_arr : np.ndarray
+        TTL timestamps that fall within the good-chunk windows.
+    """
     ts_arr = np.array([])
     for i in range(coords.shape[0]):
         ts_index = np.where((ts > coords[i, 0]) & (ts < coords[i, 1]))[0]
