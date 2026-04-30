@@ -231,7 +231,6 @@ def _save(d, select_location):
     return "#### No alerts !!"
 
 
-# function to show GUI and save
 def build_storenames_template(events, flags, folder_path, isosbestic_control=False):
     """Build and return the Storenames GUI Panel template without serving it.
 

@@ -78,7 +78,6 @@ def execute_preprocessing_visualization(filepath, visualization_type: Literal["z
         fig, ax = visualize_preprocessing(suptitle=name, title=basename, x=x, y=y)
 
 
-# function to plot control and signal, also provide a feature to select chunks for artifacts removal
 def visualizeControlAndSignal(filepath, removeArtifacts):
     """
     Build artifact-removal widgets for each control/signal pair in a session directory.
@@ -137,7 +136,6 @@ def visualizeControlAndSignal(filepath, removeArtifacts):
     return widgets
 
 
-# function to execute timestamps corrections using functions timestampCorrection and decide_naming_convention_and_applyCorrection
 def execute_timestamp_correction(folderNames, inputParameters):
     """
     Apply timestamp correction to all session output directories.
@@ -208,7 +206,6 @@ def execute_timestamp_correction(folderNames, inputParameters):
         logger.info(f"Timestamps corrections finished for {filepath}")
 
 
-# function to compute z-score and deltaF/F
 def execute_zscore(folderNames, inputParameters):
     """
     Compute z-score and dF/F for all channel pairs across session output directories.
@@ -343,7 +340,6 @@ def visualize_z_score(inputParameters, folderNames):
     logger.info("Visualization of z-score and dF/F completed.")
 
 
-# function to remove artifacts from z-score data
 def execute_artifact_removal(folderNames, inputParameters):
     """
     Apply artifact removal to all session output directories.
@@ -433,8 +429,6 @@ def visualize_artifact_removal(folderNames, inputParameters):
     logger.info("Visualization of artifact removal completed.")
 
 
-# function to combine data when there are two different data files for the same recording session
-# it will combine the data, do timestamps processing and save the combined data in the first output folder.
 def execute_combine_data(folderNames, inputParameters, storesList):
     """
     Concatenate data from multiple session files and save the result to the first output folder.
