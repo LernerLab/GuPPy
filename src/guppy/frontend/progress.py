@@ -89,5 +89,14 @@ def readPBIncrementValues(progressBar, *, file_path, error_file_path=PB_ERROR_FI
 
 
 def writeToFile(value: str, *, file_path):
+    """Append ``value`` to the file at ``file_path``, creating it if necessary.
+
+    Parameters
+    ----------
+    value : str
+        Text to append.
+    file_path : str
+        Absolute path to the target file.
+    """
     with open(file_path, "a") as file:
         file.write(value)
