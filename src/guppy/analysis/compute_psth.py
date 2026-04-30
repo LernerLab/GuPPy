@@ -121,6 +121,8 @@ def compute_psth(
     for i in range(nTs):
         thisTime = ts[i]  # -timeForLightsTurnOn
         thisIndex = int(round(thisTime * sampling_rate))
+        # nSecPrev (and therefore nTsPrev) is negative by convention; flip to a positive
+        # sample count for rowFormation, which expects nTsPrev as a positive lookback length.
         arr = rowFormation(z_score, thisIndex, -1 * nTsPrev, nTsPost)
         if just_use_signal == True:
             res = np.subtract(arr, np.nanmean(arr))
@@ -202,7 +204,7 @@ def rowFormation(z_score, thisIndex, nTsPrev, nTsPost):
     thisIndex : int
         Sample index of the event timestamp in ``z_score``.
     nTsPrev : int
-        Number of samples before the event to include (negative; passed as a negative integer).
+        Number of samples before the event to include.
     nTsPost : int
         Number of samples after the event to include.
 
