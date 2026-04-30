@@ -261,6 +261,7 @@ def _summarize_session(session, working_folder_path):
 
 
 def main():
+    """Print a summary table of all stubbed testing sessions and their sizes."""
     rows = []
     with tempfile.TemporaryDirectory() as temporary_directory:
         temporary_directory_path = Path(temporary_directory)
