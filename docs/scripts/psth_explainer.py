@@ -140,8 +140,16 @@ def figure_psth_walkthrough():
     mean_psth = traces.mean(axis=0)
     sem_psth = traces.std(axis=0) / np.sqrt(traces.shape[0])
 
-    fig, axes = plt.subplots(4, 1, figsize=(9.0, 9.5))
-    ax_full, ax_windows, ax_overlay, ax_avg = axes
+    fig = plt.figure(figsize=(7.0, 7.5), constrained_layout=True)
+    gs = fig.add_gridspec(
+        4, 2, height_ratios=[1, 0.04, 1, 1.1], hspace=0.05
+    )
+    ax_full = fig.add_subplot(gs[0, :])
+    ax_legend = fig.add_subplot(gs[1, :])
+    ax_legend.axis("off")
+    ax_windows = fig.add_subplot(gs[2, :])
+    ax_overlay = fig.add_subplot(gs[3, 0])
+    ax_avg = fig.add_subplot(gs[3, 1])
 
     z_min, z_max = z.min() - 0.5, z.max() + 0.5
 
@@ -156,8 +164,22 @@ def figure_psth_walkthrough():
     ax_full.set_ylabel("z-score", fontsize=9)
     ax_full.set_title(
         "1. full session z-score trace, with event timestamps as vertical lines",
-        loc="left",
         fontsize=10,
+    )
+
+    ax_legend.legend(
+        handles=[
+            plt.Line2D([0], [0], color=COLOR_TRACE, linewidth=2, label="z-score trace"),
+            plt.Line2D([0], [0], color=COLOR_EVENT, linewidth=2, label="event timestamp"),
+            plt.Line2D([0], [0], color=color_pure_noise, linewidth=2, label="pure-noise event"),
+            plt.Line2D([0], [0], color=color_artifact, linewidth=2, label="artifact event"),
+        ],
+        loc="center",
+        ncol=4,
+        frameon=False,
+        fontsize=9,
+        handlelength=2.0,
+        columnspacing=2.0,
     )
 
     ax_windows.plot(t, z, color=COLOR_TRACE, linewidth=0.8)
@@ -184,9 +206,7 @@ def figure_psth_walkthrough():
     ax_windows.set_ylabel("z-score", fontsize=9)
     ax_windows.set_xlabel("time (s)", fontsize=9)
     ax_windows.set_title(
-        f"2. extract a window per event ({pre_seconds:.0f} s before to {post_seconds:.0f} s after); "
-        "the orange and purple windows mark a pure-noise event and an artifact event",
-        loc="left",
+        f"2. extract a window per event ({pre_seconds:.0f} s before to {post_seconds:.0f} s after)",
         fontsize=10,
     )
 
@@ -196,9 +216,8 @@ def figure_psth_walkthrough():
                 t_psth,
                 trace,
                 color=color_pure_noise,
-                linewidth=1.4,
-                alpha=0.95,
-                label="pure-noise event",
+                linewidth=1.1,
+                alpha=0.7,
                 zorder=4,
             )
         elif event_index == artifact_event:
@@ -206,9 +225,8 @@ def figure_psth_walkthrough():
                 t_psth,
                 trace,
                 color=color_artifact,
-                linewidth=1.4,
-                alpha=0.95,
-                label="artifact event",
+                linewidth=1.1,
+                alpha=0.7,
                 zorder=4,
             )
         else:
@@ -220,10 +238,9 @@ def figure_psth_walkthrough():
     ax_overlay.set_xlim(t_psth[0], t_psth[-1])
     ax_overlay.set_ylabel("z-score", fontsize=9)
     ax_overlay.set_xlabel("time from event (s)", fontsize=9)
-    ax_overlay.legend(loc="upper right", frameon=False, fontsize=8)
     ax_overlay.set_title(
-        f"3. stack the windows on a shared event-relative time axis (n = {traces.shape[0]} events)",
-        loc="left",
+        "3. stack the windows\n"
+        f"on a shared event-relative axis (n = {traces.shape[0]})",
         fontsize=10,
     )
 
@@ -242,12 +259,11 @@ def figure_psth_walkthrough():
     ax_avg.set_ylabel("z-score", fontsize=9)
     ax_avg.set_xlabel("time from event (s)", fontsize=9)
     ax_avg.set_title(
-        "4. average across events (mean +/- SEM); the event-locked response is what survives",
-        loc="left",
+        "4. average across events\n"
+        "(mean +/- SEM)",
         fontsize=10,
     )
 
-    fig.tight_layout()
     fig.savefig(OUT / "fig1_psth_walkthrough.svg")
     plt.close(fig)
 
@@ -310,7 +326,15 @@ def figure_session_drift():
     }
     pale_color = "#bbbbbb"
 
-    fig, (ax_full, ax_traces, ax_corrected) = plt.subplots(3, 1, figsize=(9.0, 8.5))
+    fig = plt.figure(figsize=(7.0, 7.5), constrained_layout=True)
+    gs = fig.add_gridspec(
+        4, 1, height_ratios=[1, 0.04, 1, 1], hspace=0.05
+    )
+    ax_full = fig.add_subplot(gs[0])
+    ax_legend = fig.add_subplot(gs[1])
+    ax_legend.axis("off")
+    ax_traces = fig.add_subplot(gs[2])
+    ax_corrected = fig.add_subplot(gs[3])
 
     ax_full.plot(t, z, color="#3a3a3a", linewidth=0.7, alpha=0.9)
     for index, et in enumerate(event_times):
@@ -336,9 +360,22 @@ def figure_session_drift():
     ax_full.set_xlabel("time (s)", fontsize=9)
     ax_full.set_ylabel("z-score", fontsize=9)
     ax_full.set_title(
-        "full session z-score trace: ten events, three highlighted (start, middle, end); slow drift carries the baseline across the session",
-        loc="left",
+        "z-score trace across ten events with drift across the full session",
         fontsize=10,
+    )
+
+    ax_legend.legend(
+        handles=[
+            plt.Line2D([0], [0], color=highlight_colors[0], linewidth=2, label=highlight_labels[0]),
+            plt.Line2D([0], [0], color=highlight_colors[4], linewidth=2, label=highlight_labels[4]),
+            plt.Line2D([0], [0], color=highlight_colors[9], linewidth=2, label=highlight_labels[9]),
+        ],
+        loc="center",
+        ncol=3,
+        frameon=False,
+        fontsize=9,
+        handlelength=2.0,
+        columnspacing=2.0,
     )
 
     baseline_color = "#ffe699"
@@ -352,24 +389,22 @@ def figure_session_drift():
             color=highlight_colors[index],
             linewidth=1.5,
             alpha=0.95,
-            label=highlight_labels[index],
         )
     ax_traces.axvline(0, color="#666666", linewidth=0.7, linestyle="--", alpha=0.6)
     ax_traces.axhline(0, color="#888888", linewidth=0.5, alpha=0.4)
     ax_traces.set_xlim(t_psth[0], t_psth[-1])
     ax_traces.set_xlabel("time from event (s)", fontsize=9)
     ax_traces.set_ylabel("z-score", fontsize=9)
-    ax_traces.legend(loc="upper right", frameon=False, fontsize=9)
     ax_traces.set_title(
-        "extracted event-aligned traces: pre-event baselines (shaded) sit at whatever the local drift level happened to be",
-        loc="left",
+        "extracted event-aligned traces\n"
+        "pre-event baselines (shaded) sit at the local drift level",
         fontsize=10,
     )
 
     ax_traces.text(
         0.02,
         0.04,
-        "Each event-aligned trace's mean over this window\nis subtracted to anchor the trace at zero pre-event",
+        "Each trace's mean over this window\nanchors it to zero pre-event",
         transform=ax_traces.transAxes,
         ha="left",
         va="bottom",
@@ -387,7 +422,6 @@ def figure_session_drift():
             color=highlight_colors[index],
             linewidth=1.5,
             alpha=0.95,
-            label=highlight_labels[index],
         )
     ax_corrected.axvline(0, color="#666666", linewidth=0.7, linestyle="--", alpha=0.6)
     ax_corrected.axhline(0, color="#888888", linewidth=0.5, alpha=0.4)
@@ -395,12 +429,11 @@ def figure_session_drift():
     ax_corrected.set_xlabel("time from event (s)", fontsize=9)
     ax_corrected.set_ylabel("z-score (baseline-corrected)", fontsize=9)
     ax_corrected.set_title(
-        "after per-event baseline correction: every trace sits at zero pre-event, the response itself is unchanged",
-        loc="left",
+        "after per-event baseline correction\n"
+        "every trace sits at zero pre-event, the response is unchanged",
         fontsize=10,
     )
 
-    fig.tight_layout()
     fig.savefig(OUT / "fig2_session_drift.svg")
     plt.close(fig)
 
@@ -432,11 +465,35 @@ def figure_peak_vs_auc():
 
     psths = [psth_a, psth_b, psth_c]
 
-    color_trace = "#1f77b4"
+    color_trace = "#3a3a3a"
     color_peak = "#c0392b"
     color_auc = "#2ca02c"
 
-    fig, axes = plt.subplots(3, 2, figsize=(10.0, 8.5))
+    row_labels = ["canonical", "broad sustained", "real + artifact"]
+    n_rows = len(row_labels)
+
+    fig = plt.figure(figsize=(7.0, 7.5), constrained_layout=True)
+    gs = fig.add_gridspec(
+        n_rows * 2,
+        2,
+        height_ratios=[0.08, 1] * n_rows,
+    )
+    axes = np.empty((n_rows, 2), dtype=object)
+    for row_idx, label in enumerate(row_labels):
+        header_ax = fig.add_subplot(gs[row_idx * 2, :])
+        header_ax.axis("off")
+        header_ax.text(
+            0.5,
+            0.5,
+            label,
+            ha="center",
+            va="center",
+            fontsize=11,
+            fontweight="bold",
+            transform=header_ax.transAxes,
+        )
+        axes[row_idx, 0] = fig.add_subplot(gs[row_idx * 2 + 1, 0])
+        axes[row_idx, 1] = fig.add_subplot(gs[row_idx * 2 + 1, 1])
 
     window_mask = t >= 0
     t_window = t[window_mask]
@@ -451,7 +508,7 @@ def figure_peak_vs_auc():
         peak_value = psth_window[peak_idx]
         auc_value = np.trapezoid(psth_window, t_window)
 
-        ax_peak.plot(t, psth, color=color_trace, linewidth=1.3, alpha=0.95)
+        ax_peak.plot(t, psth, color=color_trace, linewidth=1.5, alpha=0.95)
         ax_peak.plot(
             [peak_t, peak_t],
             [0, peak_value],
@@ -477,7 +534,7 @@ def figure_peak_vs_auc():
         ax_auc.fill_between(
             t_window, 0, psth_window, color=color_auc, alpha=0.32, linewidth=0
         )
-        ax_auc.plot(t, psth, color=color_trace, linewidth=1.3, alpha=0.95)
+        ax_auc.plot(t, psth, color=color_trace, linewidth=1.5, alpha=0.95)
         ax_auc.axvline(0, color="#666666", linewidth=0.7, linestyle="--", alpha=0.6)
         ax_auc.axhline(0, color="#888888", linewidth=0.5, alpha=0.4)
         ax_auc.text(
@@ -497,58 +554,63 @@ def figure_peak_vs_auc():
             ax.set_xlim(t[0], t[-1])
 
         ax_peak.set_ylabel("z-score", fontsize=9)
-        plt.setp(ax_auc.get_yticklabels(), visible=False)
+        ax_auc.spines["left"].set_visible(False)
+        ax_auc.tick_params(left=False, labelleft=False)
 
-    axes[0, 0].set_title("peak amplitude", loc="left", fontsize=11)
-    axes[0, 1].set_title("AUC (area under the curve)", loc="left", fontsize=11)
+        if row_idx < n_rows - 1:
+            for ax in (ax_peak, ax_auc):
+                ax.spines["bottom"].set_visible(False)
+                ax.tick_params(bottom=False, labelbottom=False)
 
     for ax in axes[-1, :]:
         ax.set_xlabel("time from event (s)", fontsize=9)
 
-    fig.tight_layout()
     fig.savefig(OUT / "fig3_peak_vs_auc.svg")
     plt.close(fig)
 
 
-def figure_event_rejection():
-    """Two-panel figure illustrating the two event-rejection filters with
-    minimal visual elements: red marks rejected events, green marks accepted
-    events, in both panels.
+def _event_rejection_legend(fig, color_rejected, color_kept):
+    fig.legend(
+        handles=[
+            plt.Line2D([0], [0], color=color_rejected, linewidth=2, label="rejected event"),
+            plt.Line2D([0], [0], color=color_kept, linewidth=2, label="accepted event"),
+        ],
+        loc="outside lower center",
+        ncol=2,
+        frameon=False,
+        fontsize=9,
+    )
 
-    Left: edge rejection - one event near the recording start whose pre-event
-    extraction window would clip past the recording start, and one accepted
-    event later in the recording.
-    Right: burst rejection - three events too close together; the first is
-    kept (green) and the next two (red) fall within the inter-event threshold
-    and are rejected.
+
+def figure_edge_rejection():
+    """Single-panel figure illustrating edge rejection: an event near the
+    recording start whose pre-event extraction window clips past t = 0, and
+    an accepted event later in the recording whose window fits inside.
     """
     rng = np.random.default_rng(31)
     sample_rate = 30
     duration = 30.0
     t = np.arange(0, duration, 1 / sample_rate)
 
-    pre_seconds = 5.0
-    post_seconds = 10.0
-
     color_kept = "#2ca02c"
     color_rejected = "#c0392b"
 
-    fig, (ax_edge, ax_burst) = plt.subplots(1, 2, figsize=(12.5, 4.0))
+    fig, ax_edge = plt.subplots(1, 1, figsize=(7.0, 3.0), constrained_layout=True)
 
     edge_event_t = 2.0
     accepted_event_t = 17.0
-    z_edge = 0.35 * rng.standard_normal(len(t))
-    z_edge = z_edge + 3.5 * np.exp(-((t - edge_event_t) ** 2) / (2 * 0.7**2))
-    z_edge = z_edge + 3.5 * np.exp(-((t - accepted_event_t) ** 2) / (2 * 0.7**2))
+    z_edge = 0.18 * rng.standard_normal(len(t))
+    z_edge = z_edge + 3.5 * np.exp(-((t - edge_event_t) ** 2) / (2 * 0.5**2))
+    z_edge = z_edge + 3.5 * np.exp(-((t - accepted_event_t) ** 2) / (2 * 0.5**2))
 
-    ax_edge.axvspan(-10, 0, facecolor="#dcdcdc", alpha=0.7, linewidth=0, zorder=0)
+    ax_edge.axvspan(-10, 0, facecolor="#dcdcdc", alpha=0.18, linewidth=0, zorder=0)
     ax_edge.text(
         -3.5,
         z_edge.max() * 0.55,
         "window out\nof recording",
         ha="center",
         va="center",
-        fontsize=8,
+        fontsize=9,
         color="#777777",
         fontstyle="italic",
         zorder=1,
@@ -563,43 +625,130 @@ def figure_event_rejection():
     ax_edge.set_xlabel("time (s)", fontsize=9)
     ax_edge.set_ylabel("z-score", fontsize=9)
     ax_edge.set_title(
-        "edge rejection: extraction window clips past recording bounds",
-        loc="left",
+        "edge rejection: window clips past recording bounds",
         fontsize=10,
     )
-    ax_edge.legend(
-        handles=[
-            plt.Line2D([0], [0], color=color_rejected, linewidth=2, label="rejected event"),
-            plt.Line2D([0], [0], color=color_kept, linewidth=2, label="accepted event"),
-        ],
-        loc="upper right",
-        frameon=False,
-        fontsize=8,
-    )
 
-    burst_events = [(10.0, "kept"), (12.5, "burst"), (15.0, "burst")]
-    z_burst = 0.35 * rng.standard_normal(len(t))
-    for et, _ in burst_events:
-        z_burst = z_burst + 3.5 * np.exp(-((t - et) ** 2) / (2 * 0.7**2))
+    _event_rejection_legend(fig, color_rejected, color_kept)
+
+    fig.savefig(OUT / "fig5_edge_rejection.svg")
+    plt.close(fig)
+
+
+def figure_burst_rejection():
+    """Single-panel figure illustrating burst rejection: a normal event, then
+    a burst of three events close together (first kept, next two rejected),
+    then another normal event.
+    """
+    rng = np.random.default_rng(31)
+    sample_rate = 30
+    duration = 32.0
+    t = np.arange(0, duration, 1 / sample_rate)
+
+    color_kept = "#2ca02c"
+    color_rejected = "#c0392b"
+
+    fig, ax_burst = plt.subplots(1, 1, figsize=(7.0, 3.0), constrained_layout=True)
+
+    events = [
+        (5.0, "kept"),
+        (15.0, "kept"),
+        (16.8, "burst"),
+        (18.6, "burst"),
+        (30.0, "kept"),
+    ]
+    z_burst = 0.18 * rng.standard_normal(len(t))
+    for et, _ in events:
+        z_burst = z_burst + 3.5 * np.exp(-((t - et) ** 2) / (2 * 0.5**2))
 
     ax_burst.plot(t, z_burst, color="#3a3a3a", linewidth=0.7, alpha=0.85, zorder=2)
-    for et, category in burst_events:
+    for et, category in events:
         if category == "kept":
             ax_burst.axvline(et, color=color_kept, linewidth=1.3, alpha=0.9, zorder=3)
         else:
             ax_burst.axvline(et, color=color_rejected, linewidth=1.3, alpha=0.9, zorder=3)
-    ax_burst.set_xlim(-7, duration + 7)
+    ax_burst.set_xlim(0, 32)
     ax_burst.set_ylim(z_burst.min() - 0.5, z_burst.max() + 1.0)
     ax_burst.set_xlabel("time (s)", fontsize=9)
     ax_burst.set_ylabel("z-score", fontsize=9)
     ax_burst.set_title(
         "burst rejection: events too close to a previous kept event",
-        loc="left",
         fontsize=10,
     )
 
-    fig.tight_layout()
-    fig.savefig(OUT / "fig4_event_rejection.svg")
+    _event_rejection_legend(fig, color_rejected, color_kept)
+
+    fig.savefig(OUT / "fig6_burst_rejection.svg")
+    plt.close(fig)
+
+
+def figure_peak_latency():
+    """Two-panel figure illustrating what peak latency captures: same peak
+    amplitude, different peak latencies. The point is that peak amplitude
+    alone cannot distinguish responses that occur at different times relative
+    to the event, and latency is the scalar that does.
+    """
+    sample_rate = 30
+    pre_seconds = 2.0
+    post_seconds = 7.0
+    n_pre = int(round(pre_seconds * sample_rate))
+    n_post = int(round(post_seconds * sample_rate))
+    t = (np.arange(-n_pre, n_post)) / sample_rate
+
+    early_peak_t = 1.0
+    late_peak_t = 3.5
+    peak_value = 3.0
+    sigma = 0.6
+
+    psth_early = peak_value * np.exp(-((t - early_peak_t) ** 2) / (2 * sigma**2))
+    psth_late = peak_value * np.exp(-((t - late_peak_t) ** 2) / (2 * sigma**2))
+
+    color_trace = "#3a3a3a"
+    color_peak = "#c0392b"
+
+    fig, (ax_early, ax_late) = plt.subplots(
+        1, 2, figsize=(7.0, 3.2), sharey=True, constrained_layout=True
+    )
+
+    cases = [
+        (ax_early, psth_early, early_peak_t, "early peak"),
+        (ax_late, psth_late, late_peak_t, "late peak"),
+    ]
+
+    for ax, psth, peak_t, header_label in cases:
+        ax.plot(t, psth, color=color_trace, linewidth=1.5, alpha=0.95)
+        ax.plot(
+            [peak_t, peak_t],
+            [0, peak_value],
+            color=color_peak,
+            linewidth=1.0,
+            linestyle=":",
+            alpha=0.75,
+        )
+        ax.plot(peak_t, peak_value, "o", color=color_peak, markersize=10, zorder=5)
+        ax.axvline(0, color="#666666", linewidth=0.7, linestyle="--", alpha=0.6)
+        ax.axhline(0, color="#888888", linewidth=0.5, alpha=0.4)
+        ax.text(
+            0.97,
+            0.93,
+            f"peak lat = {peak_t:.1f} s",
+            transform=ax.transAxes,
+            ha="right",
+            va="top",
+            fontsize=10,
+            color=color_peak,
+            zorder=10,
+        )
+        ax.set_xlim(-2, 8)
+        ax.set_ylim(-0.4, peak_value + 0.6)
+        ax.set_xlabel("time from event (s)", fontsize=9)
+        ax.set_title(header_label, fontsize=11, fontweight="bold")
+
+    ax_early.set_ylabel("z-score", fontsize=9)
+    ax_late.spines["left"].set_visible(False)
+    ax_late.tick_params(left=False, labelleft=False)
+
+    fig.savefig(OUT / "fig4_peak_latency.svg")
     plt.close(fig)
 
 
@@ -607,5 +756,7 @@ if __name__ == "__main__":
     figure_psth_walkthrough()
     figure_session_drift()
     figure_peak_vs_auc()
-    figure_event_rejection()
+    figure_peak_latency()
+    figure_edge_rejection()
+    figure_burst_rejection()
     print("Wrote SVGs to", OUT)
