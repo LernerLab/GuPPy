@@ -20,6 +20,19 @@ logger = logging.getLogger(__name__)
 
 
 class NpmRecordingExtractor(CsvRecordingExtractor):
+    """
+    Extractor for fiber photometry data from Neurophotometrics (NPM) systems.
+
+    Inherits ``read`` and ``save`` from :class:`CsvRecordingExtractor`; only
+    ``discover_events_and_flags`` is overridden to handle NPM-specific multi-column
+    CSV layouts and interleaved channel demultiplexing.
+
+    Parameters
+    ----------
+    folder_path : str
+        Path to the session folder containing the NPM CSV files.
+    """
+
     # Inherits from CsvRecordingExtractor to reuse identical read/save logic.
     # Only overrides discover_events_and_flags() and adds NPM-specific helper methods.
 
@@ -328,6 +341,20 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
 
     @classmethod
     def has_multiple_event_ttls(cls, folder_path):
+        """
+        Check whether any NPM event files in the folder contain multiple TTL types.
+
+        Parameters
+        ----------
+        folder_path : str
+            Path to the folder containing NPM CSV files.
+
+        Returns
+        -------
+        multiple_event_ttls : list of bool
+            One entry per NPM data file. ``True`` if the corresponding event
+            file encodes more than one unique TTL state value, ``False`` otherwise.
+        """
         path = sorted(glob.glob(os.path.join(folder_path, "*.csv")))
         path_chev = glob.glob(os.path.join(folder_path, "*chev*"))
         path_chod = glob.glob(os.path.join(folder_path, "*chod*"))
@@ -389,6 +416,35 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
     # in neurophotometrics data
     @classmethod
     def decide_indices(cls, file, df, flag, num_ch=2):
+        """
+        Determine the row indices belonging to each interleaved channel in NPM data.
+
+        For older NPM layouts (``data_np``), rows are assumed to cycle through
+        channels in order. For newer layouts (``data_np_v2``), the ``Flags`` or
+        ``LedState`` column is used to assign rows to channels.
+
+        Parameters
+        ----------
+        file : str
+            Filename prefix used to build per-channel keys (e.g. ``"file0_"``).
+        df : pd.DataFrame
+            NPM data DataFrame, with or without a text header.
+        flag : str
+            Layout flag as returned by :meth:`discover_events_and_flags`.
+        num_ch : int, optional
+            Number of interleaved channels expected. Default is 2.
+
+        Returns
+        -------
+        df : pd.DataFrame
+            The input DataFrame with flag columns (``Flags`` / ``LedState``)
+            dropped for ``data_np_v2`` layouts.
+        indices_dict : dict
+            Mapping from channel key (e.g. ``"file0_chev"``) to a NumPy array
+            of row indices belonging to that channel.
+        num_ch : int
+            Actual number of channels detected.
+        """
         ch_name = [file + "chev", file + "chod", file + "chpr"]
         if len(ch_name) < num_ch:
             message = (
@@ -432,6 +488,23 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
     # check flag consistency in neurophotometrics data
     @classmethod
     def check_channels(cls, state):
+        """
+        Validate and count unique channel states in NPM ``Flags``/``LedState`` data.
+
+        Parameters
+        ----------
+        state : array-like
+            Integer channel-state values (from the ``Flags`` or ``LedState``
+            column). Only rows 2–11 are examined to skip potential startup
+            artefacts.
+
+        Returns
+        -------
+        num_ch : int
+            Number of unique channel states found.
+        unique_state : np.ndarray
+            Sorted array of unique state values.
+        """
         state = state.astype(int)
         unique_state = np.unique(state[2:12])
         if unique_state.shape[0] > 3:
@@ -446,6 +519,29 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
 
     @classmethod
     def needs_ts_unit(cls, folder_path, num_ch):
+        """
+        Determine which NPM files require explicit timestamp-unit configuration.
+
+        Files with more than one timestamp-like column (e.g. both
+        ``Timestamp`` and ``ComputerTimestamp``) require the user to specify
+        which column to use and what units it is in.
+
+        Parameters
+        ----------
+        folder_path : str
+            Path to the folder containing NPM CSV files.
+        num_ch : int
+            Number of interleaved channels, used when demultiplexing
+            ``data_np`` layout files.
+
+        Returns
+        -------
+        ts_unit_needs : list of bool
+            One entry per NPM data file. ``True`` if the file has multiple
+            timestamp columns and requires unit disambiguation.
+        col_names_ts : list of str
+            Names of all timestamp-like columns found across the files.
+        """
         path = sorted(glob.glob(os.path.join(folder_path, "*.csv"))) + sorted(
             glob.glob(os.path.join(folder_path, "*.doric"))
         )

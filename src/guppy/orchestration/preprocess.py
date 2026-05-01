@@ -54,6 +54,16 @@ if not os.getenv("CI") and not headless:
 
 
 def execute_preprocessing_visualization(filepath, visualization_type: Literal["z_score", "dff"]):
+    """
+    Plot z-score or dF/F signals for all channel pairs in a session output directory.
+
+    Parameters
+    ----------
+    filepath : str
+        Session output directory containing ``timeCorrection_*`` and signal HDF5 files.
+    visualization_type : {'z_score', 'dff'}
+        Which preprocessed signal to visualize.
+    """
     name = os.path.basename(filepath)
 
     path = glob.glob(os.path.join(filepath, f"{visualization_type}_*"))
@@ -68,8 +78,23 @@ def execute_preprocessing_visualization(filepath, visualization_type: Literal["z
         fig, ax = visualize_preprocessing(suptitle=name, title=basename, x=x, y=y)
 
 
-# function to plot control and signal, also provide a feature to select chunks for artifacts removal
 def visualizeControlAndSignal(filepath, removeArtifacts):
+    """
+    Build artifact-removal widgets for each control/signal pair in a session directory.
+
+    Parameters
+    ----------
+    filepath : str
+        Session output directory containing ``control_*`` and ``signal_*`` HDF5 files.
+    removeArtifacts : bool
+        When True, the widget is shown in artifact-review mode; when False it allows
+        the user to draw new artifact boundaries.
+
+    Returns
+    -------
+    widgets : list of ArtifactRemovalWidget
+        One widget per channel pair.
+    """
     path_1 = find_files(filepath, "control_*", ignore_case=True)  # glob.glob(os.path.join(filepath, 'control*'))
 
     path_2 = find_files(filepath, "signal_*", ignore_case=True)  # glob.glob(os.path.join(filepath, 'signal*'))
@@ -111,8 +136,18 @@ def visualizeControlAndSignal(filepath, removeArtifacts):
     return widgets
 
 
-# function to execute timestamps corrections using functions timestampCorrection and decide_naming_convention_and_applyCorrection
 def execute_timestamp_correction(folderNames, inputParameters):
+    """
+    Apply timestamp correction to all session output directories.
+
+    Parameters
+    ----------
+    folderNames : list of str
+        Session directories to process.
+    inputParameters : dict
+        Pipeline configuration; must include ``'timeForLightsTurnOn'`` and
+        ``'isosbestic_control'``.
+    """
 
     timeForLightsTurnOn = inputParameters["timeForLightsTurnOn"]
     isosbestic_control = inputParameters["isosbestic_control"]
@@ -171,8 +206,19 @@ def execute_timestamp_correction(folderNames, inputParameters):
         logger.info(f"Timestamps corrections finished for {filepath}")
 
 
-# function to compute z-score and deltaF/F
 def execute_zscore(folderNames, inputParameters):
+    """
+    Compute z-score and dF/F for all channel pairs across session output directories.
+
+    Parameters
+    ----------
+    folderNames : list of str
+        Session directories (or combined-output folder lists when ``combine_data`` is True).
+    inputParameters : dict
+        Pipeline configuration; must include ``'filter_window'``, ``'isosbestic_control'``,
+        ``'zscore_method'``, ``'baselineWindowStart'``, ``'baselineWindowEnd'``,
+        ``'removeArtifacts'``, ``'artifactsRemovalMethod'``, and ``'combine_data'``.
+    """
 
     plot_zScore_dff = inputParameters["plot_zScore_dff"]
     combine_data = inputParameters["combine_data"]
@@ -250,6 +296,17 @@ def execute_zscore(folderNames, inputParameters):
 
 
 def visualize_z_score(inputParameters, folderNames):
+    """
+    Display control/signal plots and z-score/dF/F visualizations for all sessions.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Pipeline configuration; must include ``'plot_zScore_dff'``, ``'combine_data'``,
+        and ``'removeArtifacts'``.
+    folderNames : list of str
+        Session directories to visualize.
+    """
     plot_zScore_dff = inputParameters["plot_zScore_dff"]
     combine_data = inputParameters["combine_data"]
     remove_artifacts = inputParameters["removeArtifacts"]
@@ -283,8 +340,18 @@ def visualize_z_score(inputParameters, folderNames):
     logger.info("Visualization of z-score and dF/F completed.")
 
 
-# function to remove artifacts from z-score data
 def execute_artifact_removal(folderNames, inputParameters):
+    """
+    Apply artifact removal to all session output directories.
+
+    Parameters
+    ----------
+    folderNames : list of str
+        Session directories to process.
+    inputParameters : dict
+        Pipeline configuration; must include ``'timeForLightsTurnOn'``,
+        ``'artifactsRemovalMethod'``, and ``'combine_data'``.
+    """
 
     timeForLightsTurnOn = inputParameters["timeForLightsTurnOn"]
     artifactsRemovalMethod = inputParameters["artifactsRemovalMethod"]
@@ -333,6 +400,16 @@ def execute_artifact_removal(folderNames, inputParameters):
 
 
 def visualize_artifact_removal(folderNames, inputParameters):
+    """
+    Display control/signal plots after artifact removal for all sessions.
+
+    Parameters
+    ----------
+    folderNames : list of str
+        Session directories to visualize.
+    inputParameters : dict
+        Pipeline configuration; must include ``'combine_data'``.
+    """
     combine_data = inputParameters["combine_data"]
 
     storesListPath = []
@@ -352,9 +429,24 @@ def visualize_artifact_removal(folderNames, inputParameters):
     logger.info("Visualization of artifact removal completed.")
 
 
-# function to combine data when there are two different data files for the same recording session
-# it will combine the data, do timestamps processing and save the combined data in the first output folder.
 def execute_combine_data(folderNames, inputParameters, storesList):
+    """
+    Concatenate data from multiple session files and save the result to the first output folder.
+
+    Parameters
+    ----------
+    folderNames : list of str
+        Session directories whose output subdirectories are to be combined.
+    inputParameters : dict
+        Pipeline configuration; must include ``'timeForLightsTurnOn'``.
+    storesList : np.ndarray
+        2-D storesList array with rows [storenames, display_names].
+
+    Returns
+    -------
+    op : list
+        List of ``[output_filepath, ...]`` entries for combined output directories.
+    """
     logger.debug("Combining Data from different data files...")
     timeForLightsTurnOn = inputParameters["timeForLightsTurnOn"]
     op_folder = []
@@ -417,6 +509,15 @@ def execute_combine_data(folderNames, inputParameters, storesList):
 
 
 def extractTsAndSignal(inputParameters):
+    """
+    Orchestrate the full preprocessing pipeline (timestamp correction, z-score, artifact removal).
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline configuration, including ``'folderNames'``, ``'timeForLightsTurnOn'``,
+        ``'isosbestic_control'``, ``'removeArtifacts'``, and ``'combine_data'``.
+    """
 
     logger.debug("Extracting signal data and event timestamps...")
     inputParameters = inputParameters
@@ -466,6 +567,13 @@ def extractTsAndSignal(inputParameters):
 
 @subprocess_main_handler
 def main(input_parameters):
+    """Subprocess entry point for the preprocessing step.
+
+    Parameters
+    ----------
+    input_parameters : dict
+        Full pipeline input parameters deserialized from the subprocess argument.
+    """
     extractTsAndSignal(input_parameters)
 
 

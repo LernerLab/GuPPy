@@ -43,7 +43,7 @@ $$
 
 where $m$ and $b$ are chosen by ordinary least-squares fit of the smoothed control $C(t)$ to the smoothed signal.
 
-To compute dF/F, both traces are first smoothed (a moving average of length `filter_window`) to suppress per-sample noise, the fitted control above is used as the artifact estimate, and the residual is divided by the fitted control and expressed in percent:
+Both traces are first smoothed with a moving-average filter to suppress per-sample noise. Subtracting the fitted control from the smoothed signal then cancels the shared artifact: the residual is the part that the rescaled control cannot explain. Going one step further and dividing that residual by the fitted control converts the result from raw fluorescence units into a fractional change, comparable across recordings with different absolute brightness (which varies with fiber insertion depth, indicator expression, and LED power). Multiplied by 100, this is dF/F: a fractional change expressed in percent.
 
 $$
 \mathrm{dF/F}(t) = \frac{S(t) - \widehat{C}(t)}{\widehat{C}(t)} \times 100
@@ -51,7 +51,7 @@ $$
 
 where $S(t)$ is the smoothed signal.
 
-A note on notation: this dF/F is different from the ΔF used in the figures above. The figures use ΔF (the raw fluorescence change in arbitrary units) because that is the natural quantity for comparing wavelengths to each other. dF/F is the residual after artifact removal divided by the fitted control and expressed in percent. Both are stages of the same trace: ΔF is the change at the indicator, dF/F is the calibrated, motion-corrected reading downstream.
+A note on notation: this dF/F is different from the ΔF used in the figures above. The figures use ΔF (the raw fluorescence change in arbitrary units) because that is the natural quantity for comparing wavelengths to each other. dF/F is the residual after artifact removal divided by the fitted control: a fractional change expressed in percent. Both are stages of the same trace: ΔF is the change at the indicator, dF/F is the calibrated, motion-corrected reading downstream. From dF/F the pipeline goes on to [z-score normalisation](zscore.md) and event-aligned analyses such as the [PSTH](psth.md).
 
 ![The full GuPPy isosbestic correction on a 60 s synthetic trace. Top: the raw 470 nm signal (green) and 405 nm control (purple) are recorded simultaneously and share a slow bleach plus two motion artifacts; calcium events at t = 10, 30, 50 s appear only on the 470 channel. Middle: the linear fit (dashed grey) is overlaid on the signal; rescaling the control onto the signal's baseline is what makes subtraction sensible despite the two channels being on different absolute scales. Bottom: the dF/F residual after subtracting the fit. The shared slow drift and motion bumps cancel; the three calcium events remain.](../_static/images/isosbestic_explainer/fig5_linear_fit_and_correction.svg)
 

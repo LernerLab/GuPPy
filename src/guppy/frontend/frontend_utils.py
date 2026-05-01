@@ -26,6 +26,25 @@ _CHROME_UNSAFE_PORTS = {5060, 5061}
 
 
 def scanPortsAndFind(start_port=5000, end_port=5200, host="127.0.0.1"):
+    """Find an available TCP port by randomly sampling the given range.
+
+    Skips ports that browsers refuse to connect to (Chrome unsafe-port list)
+    and ports that are already bound.
+
+    Parameters
+    ----------
+    start_port : int, optional
+        Lower bound of the port range to search (inclusive). Default is 5000.
+    end_port : int, optional
+        Upper bound of the port range to search (inclusive). Default is 5200.
+    host : str, optional
+        Host address to probe. Default is ``"127.0.0.1"``.
+
+    Returns
+    -------
+    int
+        An available port number within ``[start_port, end_port]``.
+    """
     while True:
         port = randint(start_port, end_port)
         if port in _CHROME_UNSAFE_PORTS:

@@ -453,7 +453,7 @@ def figure_2a_calcium_chain():
     )
     ax_f.set_title(
         f"at {sample_wavelength_label}",
-        fontsize=10, color="#444444", pad=4, loc="right",
+        fontsize=10, color="#444444", pad=4,
     )
 
     # Hill curve (right two columns, spanning all rows for a wider aspect).
@@ -745,6 +745,14 @@ def _build_unified_figure(decomposition, combined, filename):
         ax_curve.plot(wl_grid, apo_spec_curve, color=COLOR_APO, linewidth=1.4, zorder=3)
         ax_curve.plot(wl_grid, delta_f_curve, color="#222222", linewidth=2.2, zorder=4, label="ΔF (bound − apo)")
 
+    # Mark the isosbestic crossing where the ΔF curve crosses zero.
+    ax_curve.axvline(iso_wl, color="#444444", linestyle="--", linewidth=1.2, alpha=0.85, zorder=3)
+    y_top = float(np.max(delta_f_curve)) * 1.05
+    ax_curve.text(
+        iso_wl, y_top, "isosbestic", fontsize=9, color="#222222",
+        ha="center", va="bottom", clip_on=False,
+    )
+
     for wl, color in sample_specs:
         delta_at_wl = float(np.interp(wl, wl_grid, delta_f_curve))
         ax_curve.axvline(wl, color="#cccccc", linestyle=":", linewidth=0.7, alpha=0.6, zorder=2)
@@ -773,7 +781,7 @@ def _build_unified_figure(decomposition, combined, filename):
     )
     ax_curve.set_title(
         "response amplitude vs wavelength",
-        fontsize=10, color="#222222", pad=4, loc="left",
+        fontsize=10, color="#222222", pad=4,
     )
 
     # The bottom-left cell (gs[bottom_row_idx, 0]) holds the legend; the

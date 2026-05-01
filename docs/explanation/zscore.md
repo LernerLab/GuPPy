@@ -23,7 +23,7 @@ Two synthetic recordings with their own event structures and very different abso
 
 Z-score appears in three places in the GuPPy pipeline:
 
-- **PSTH y-axes.** When the PSTH step computes event-aligned trial averages, it operates on the z-scored trace by default. The resulting PSTHs are in z-score units, so that group analysis can pool trials across sessions and animals on a common scale.
+- **[PSTH](psth.md) y-axes.** When the PSTH step computes event-aligned trial averages, it operates on the z-scored trace by default. The resulting PSTHs are in z-score units, so that group analysis can pool trials across sessions and animals on a common scale.
 - **Visualization GUI.** Plots of event-aligned data are shown with z-score on the y-axis, so a reader comparing sessions on the same plot is comparing them in the same units.
 - **Transient detection.** GuPPy's transient detector identifies peaks that exceed a threshold expressed in noise units (effectively `z > 3`, with refinements described below). The threshold's meaning depends on z-score being a faithful unit of noise.
 

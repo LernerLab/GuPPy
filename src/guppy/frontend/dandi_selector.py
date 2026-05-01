@@ -199,6 +199,16 @@ class DandiSelector:
 
     @property
     def selected_uris(self):
+        """Return the currently selected DANDI URIs.
+
+        Returns
+        -------
+        list of str
+            Each element is a ``dandi://<dandiset_id>/<asset_path>`` URI for
+            every ``.nwb`` placeholder currently selected in the asset browser.
+            Returns an empty list when no dandiset has been loaded or no files
+            are selected.
+        """
         dandiset_id = (self.dandiset_input.value or "").strip()
         if not dandiset_id:
             return []
@@ -206,6 +216,14 @@ class DandiSelector:
 
     @property
     def output_root(self):
+        """Return the local output directory selected by the user.
+
+        Returns
+        -------
+        str or None
+            Absolute path of the first entry in the output-root
+            ``FileSelector``'s value, or ``None`` when nothing is selected.
+        """
         selected = self.output_root_selector.value
         if not selected:
             return None
