@@ -113,6 +113,62 @@ def test_make_dir_increments_when_previous_exists(tmp_path):
     assert os.path.isdir(result)
 
 
+def test_make_dir_with_explicit_run_name_creates_named_directory(tmp_path):
+    session = tmp_path / "session1"
+    session.mkdir()
+
+    result = make_dir(str(session), run_name="baseline")
+
+    assert result == str(session / "session1_output_baseline")
+    assert os.path.isdir(result)
+
+
+def test_make_dir_create_policy_raises_on_existing_directory(tmp_path):
+    session = tmp_path / "session1"
+    session.mkdir()
+    (session / "session1_output_baseline").mkdir()
+
+    with pytest.raises(ValueError, match="already exists"):
+        make_dir(str(session), run_name="baseline", run_name_policy="create")
+
+
+def test_make_dir_overwrite_policy_replaces_existing_directory(tmp_path):
+    session = tmp_path / "session1"
+    session.mkdir()
+    existing = session / "session1_output_baseline"
+    existing.mkdir()
+    (existing / "stale.txt").write_text("stale")
+
+    result = make_dir(str(session), run_name="baseline", run_name_policy="overwrite")
+
+    assert result == str(existing)
+    assert os.path.isdir(result)
+    assert not (existing / "stale.txt").exists()
+
+
+def test_make_dir_invalid_policy_raises():
+    with pytest.raises(ValueError, match="run_name_policy"):
+        make_dir("/anywhere", run_name="x", run_name_policy="bogus")
+
+
+def test_show_dir_with_explicit_run_name_returns_named_path(tmp_path):
+    session = tmp_path / "session1"
+    session.mkdir()
+
+    result = show_dir(str(session), run_name="strict")
+
+    assert result == str(session / "session1_output_strict")
+    assert not os.path.exists(result)
+
+
+def test_show_dir_invalid_run_name_raises(tmp_path):
+    session = tmp_path / "session1"
+    session.mkdir()
+
+    with pytest.raises(ValueError, match="forbidden character"):
+        show_dir(str(session), run_name="bad/name")
+
+
 # ---------------------------------------------------------------------------
 # _save
 # ---------------------------------------------------------------------------
@@ -514,6 +570,15 @@ class CapturingStorenamesSelector:
 
     def attach_callbacks(self, button_name_to_onclick_fn):
         self.callbacks = button_name_to_onclick_fn
+
+    def attach_run_name_watcher(self, callback):
+        self.run_name_callback = callback
+
+    def get_run_name(self):
+        return getattr(self, "_run_name_value", "")
+
+    def get_overwrite_mode(self):
+        return getattr(self, "_overwrite_mode_value", "create_new_file")
 
     def configure_storenames(self, storename_dropdowns, storename_textboxes, storenames, storenames_cache):
         self.configure_storenames_calls.append(

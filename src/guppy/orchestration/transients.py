@@ -20,7 +20,7 @@ from ..analysis.standard_io import (
 from ..analysis.transients import analyze_transients
 from ..analysis.transients_average import averageForGroup
 from ..frontend.progress import PB_STEPS_FILE, subprocess_main_handler, writeToFile
-from ..utils.utils import get_all_stores_for_combining_data, takeOnlyDirs
+from ..utils.utils import get_all_stores_for_combining_data, select_output_dirs
 from ..visualization.transients import visualize_peaks
 
 logger = logging.getLogger(__name__)
@@ -88,10 +88,11 @@ def execute_visualize_peaks(folderNames, inputParameters):
         Full pipeline input parameters.
     """
     selectForTransientsComputation = inputParameters["selectForTransientsComputation"]
+    selected_outputs = inputParameters.get("selectedOutputs") or {}
     for i in range(len(folderNames)):
         logger.debug(f"Finding transients in z-score data of {folderNames[i]} and calculating frequency and amplitude.")
         filepath = folderNames[i]
-        storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*")))
+        storesListPath = select_output_dirs(filepath, selected_outputs.get(filepath))
         for j in range(len(storesListPath)):
             filepath = storesListPath[j]
             if selectForTransientsComputation == "z_score":
@@ -124,11 +125,12 @@ def execute_visualize_peaks_combined(folderNames, inputParameters):
         Full pipeline input parameters.
     """
     selectForTransientsComputation = inputParameters["selectForTransientsComputation"]
+    selected_outputs = inputParameters.get("selectedOutputs") or {}
 
     storesListPath = []
     for i in range(len(folderNames)):
         filepath = folderNames[i]
-        storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+        storesListPath.append(select_output_dirs(filepath, selected_outputs.get(filepath)))
     storesListPath = list(np.concatenate(storesListPath).flatten())
     op = get_all_stores_for_combining_data(storesListPath)
     for i in range(len(op)):
@@ -210,10 +212,11 @@ def execute_find_freq_and_amp(inputParameters, folderNames, moving_window, numPr
     numProcesses : int
         Number of parallel worker processes.
     """
+    selected_outputs = inputParameters.get("selectedOutputs") or {}
     for i in range(len(folderNames)):
         logger.debug(f"Finding transients in z-score data of {folderNames[i]} and calculating frequency and amplitude.")
         filepath = folderNames[i]
-        storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*")))
+        storesListPath = select_output_dirs(filepath, selected_outputs.get(filepath))
         for j in range(len(storesListPath)):
             filepath = storesListPath[j]
             storesList = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(
@@ -239,10 +242,11 @@ def execute_find_freq_and_amp_combined(inputParameters, folderNames, moving_wind
     numProcesses : int
         Number of parallel worker processes.
     """
+    selected_outputs = inputParameters.get("selectedOutputs") or {}
     storesListPath = []
     for i in range(len(folderNames)):
         filepath = folderNames[i]
-        storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+        storesListPath.append(select_output_dirs(filepath, selected_outputs.get(filepath)))
     storesListPath = list(np.concatenate(storesListPath).flatten())
     op = get_all_stores_for_combining_data(storesListPath)
     for i in range(len(op)):
@@ -275,10 +279,11 @@ def execute_average_for_group(inputParameters, folderNamesForAvg):
         )
         logger.error(message)
         raise ValueError(message)
+    group_selected_outputs = inputParameters.get("groupSelectedOutputs") or {}
     storesListPath = []
     for i in range(len(folderNamesForAvg)):
         filepath = folderNamesForAvg[i]
-        storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+        storesListPath.append(select_output_dirs(filepath, group_selected_outputs.get(filepath)))
     storesListPath = np.concatenate(storesListPath)
     averageForGroup(storesListPath, inputParameters)
     writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)

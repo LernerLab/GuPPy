@@ -95,6 +95,10 @@ def build_homepage(*, start_path=None):
         if inputParameters is None:
             return
         orchestrate_storenames_page(inputParameters)
+        # Newly-created output dirs become available for filtering on the next
+        # step without requiring the user to deselect/reselect their session.
+        parameter_form.refresh_individual_outputs()
+        parameter_form.refresh_group_outputs()
 
     def onclickVisualization(event=None):
         inputParameters = _getInputParametersOrNotify()

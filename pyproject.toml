@@ -130,6 +130,7 @@ fixable = ["ALL"]
 
 [tool.ruff.lint.per-file-ignores]
 "**__init__.py" = ["F401", "I", "D1"]  # We are not enforcing import or docstring rules in __init__'s
+"test_**.py" = ["D1"] # We are not enforcing docstring rules in test files.
 
 [tool.ruff.lint.isort]
 relative-imports-order = "closest-to-furthest"
