@@ -52,7 +52,9 @@ def parse_run_name(output_dir):
     ValueError
         If the basename does not match the expected pattern.
     """
-    basename = os.path.basename(output_dir.rstrip(os.sep))
+    # Strip both separators so trailing forward slashes are tolerated on Windows
+    # (where os.sep is "\\" but paths can still use "/").
+    basename = os.path.basename(output_dir.rstrip("/\\"))
     index = basename.rfind(_RUN_NAME_MARKER)
     if index < 0:
         raise ValueError(
