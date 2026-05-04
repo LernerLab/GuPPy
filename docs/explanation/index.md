@@ -8,4 +8,5 @@ Explanation pages give background and context: the science behind fiber photomet
 fiber_photometry
 zscore
 cross_correlation
+psth
 ```

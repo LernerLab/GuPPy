@@ -1,6 +1,13 @@
 # v2.0.0-alpha7 (Upcoming)
 
 ## Features
+- Added docstring checks to pre-commit. [PR #311](https://github.com/LernerLab/GuPPy/pull/311)
+- Added numpydoc-style docstrings to all public functions and classes in the extractor layer (`src/guppy/extractors/`). [PR #312](https://github.com/LernerLab/GuPPy/pull/312)
+- Added numpydoc-style docstrings to all public functions and classes in the analysis layer (`src/guppy/analysis/`). [PR #313](https://github.com/LernerLab/GuPPy/pull/313)
+- Added numpydoc-style docstrings to all public functions and classes in the orchestration layer (`src/guppy/orchestration/`). [PR #314](https://github.com/LernerLab/GuPPy/pull/314)
+- Added numpydoc-style docstrings to all public functions and classes in the frontend layer (`src/guppy/frontend/`). [PR #316](https://github.com/LernerLab/GuPPy/pull/316)
+- Added numpydoc-style docstrings to all public functions in the utils layer (`src/guppy/utils/`). [PR #317](https://github.com/LernerLab/GuPPy/pull/317)
+- Added numpydoc-style docstrings to all public functions in the testing layer (`src/guppy/testing/`). [PR #318](https://github.com/LernerLab/GuPPy/pull/318)
 
 ## Fixes
 
@@ -9,7 +16,8 @@
 - Added a Read the Docs documentation badge to `README.md` and a `Documentation` project URL in `pyproject.toml` pointing at https://guppy.readthedocs.io/, so the documentation is discoverable directly from the GitHub landing page and the PyPI listing. [PR #306](https://github.com/LernerLab/GuPPy/pull/306)
 - Added cross-correlation explanation page to the documentation site, with six generated SVG figures and a self-contained PEP 723 script (`docs/scripts/cross_correlation_explainer.py`) that regenerates them in place. [PR #307](https://github.com/LernerLab/GuPPy/pull/307)
 - Added an explanation page on z-score normalization (standard, baseline, and modified variants) at `docs/explanation/zscore.md`, with four generated SVG figures and a self-contained PEP 723 script that regenerates them. Enabled MyST `dollarmath` for LaTeX equation rendering and bumped the Read the Docs build to Python 3.13 / ubuntu-24.04 with the `docs` dependency group. [PR #308](https://github.com/LernerLab/GuPPy/pull/308)
-- Added a fiber photometry explanation page at `docs/explanation/fiber_photometry.md`, with one hand-illustrated technique schematic (PNG) and two generated SVG figures (population summing, and a space-vs-time landscape placing photometry against electrophysiology, two-photon imaging, and fMRI). The matplotlib figures are produced by a self-contained PEP 723 script at `docs/scripts/fiber_photometry_explainer.py`. [PR #XXX](https://github.com/LernerLab/GuPPy/pull/XXX)
+- Added a PSTH explanation page (origin, the construction operation, drift correction, peak vs AUC summary statistics, and event rejection) at `docs/explanation/psth.md`, with four generated SVG figures and a self-contained PEP 723 script (`docs/scripts/psth_explainer.py`) that regenerates them in place. [PR #315](https://github.com/LernerLab/GuPPy/pull/315)
+- Added a fiber photometry explanation page at `docs/explanation/fiber_photometry.md`, with one hand-illustrated technique schematic (PNG) and two generated SVG figures (population summing, and a space-vs-time landscape placing photometry against electrophysiology, two-photon imaging, and fMRI). The matplotlib figures are produced by a self-contained PEP 723 script at `docs/scripts/fiber_photometry_explainer.py`. [PR #319](https://github.com/LernerLab/GuPPy/pull/319)
 
 ## Deprecations and Removals
 

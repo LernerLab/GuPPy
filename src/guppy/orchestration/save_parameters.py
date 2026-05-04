@@ -6,6 +6,16 @@ logger = logging.getLogger(__name__)
 
 
 def save_parameters(inputParameters: dict):
+    """
+    Write the analysis configuration JSON to each session folder.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters; a subset of keys is written to
+        ``GuPPyParamtersUsed.json`` inside each folder listed under
+        ``inputParameters['folderNames']``.
+    """
     logger.debug("Saving Input Parameters file.")
     analysisParameters = {
         "combine_data": inputParameters["combine_data"],
