@@ -261,24 +261,289 @@ def figure_1b_response_columns():
     _build_response_columns(spectrum_start_col=1, filename="fig1_response_columns.svg")
 
 
+def figure_3_spectra_decomposition():
+    """Fig 3 (mechanism deep-dive, part B): the isosbestic point as a
+    spectral-crossing argument.
+
+    Layout: 2 rows.
+      - Top row: emission spectra of apo (coral) and bound (teal) as a
+        function of wavelength, with their crossing point marked as the
+        isosbestic. Sample wavelengths used in the four columns below are
+        marked as coloured dots on the spectra so the reader can see where
+        each column samples relative to the crossing.
+      - Bottom row: 4 columns at the four sample wavelengths. Each column
+        shows the apo loss (coral, below zero), the bound gain (teal,
+        above zero), and the total response (wavelength-coloured). At the
+        column matching the isosbestic, the apo loss and bound gain are
+        mirror images and the total stays flat.
+    """
+    rng = np.random.default_rng(43)
+    sample_rate = 100
+    duration = 4.5
+    t = np.arange(0, duration, 1 / sample_rate)
+
+    def calcium_event(t, t0, amplitude, tau_rise=0.04, tau_decay=0.45):
+        s = t - t0
+        out = np.zeros_like(t)
+        mask = s > 0
+        out[mask] = amplitude * (1 - np.exp(-s[mask] / tau_rise)) * np.exp(-s[mask] / tau_decay)
+        return out
+
+    baseline_ca = 0.10
+    calcium = baseline_ca + calcium_event(t, t0=1.2, amplitude=1.0, tau_decay=0.45)
+
+    tau_rise_ind = 0.12
+    tau_decay_ind = 0.55
+    k_t = np.arange(0, 4.0, 1 / sample_rate)
+    kernel = (1 - np.exp(-k_t / tau_rise_ind)) * np.exp(-k_t / tau_decay_ind)
+    kernel = kernel / np.sum(kernel)
+    calcium_filtered = np.convolve(calcium - baseline_ca, kernel, mode="full")[: len(t)] + baseline_ca
+
+    min_bound = 0.20
+    max_bound = 0.85
+    ca_max = float(np.max(calcium))
+    bound_fraction = min_bound + (max_bound - min_bound) * (calcium_filtered - baseline_ca) / (ca_max - baseline_ca)
+    bound_fraction = np.clip(bound_fraction, 0, 1)
+    apo_fraction = 1.0 - bound_fraction
+    n_total = 24
+
+    rows_wavelengths = [
+        ("470 nm", "large response", 0.20, 1.00, "#2ca02c"),
+        ("420 nm", "smaller response", 0.50, 1.00, "#b87333"),
+        ("405 nm", "no response", 0.70, 0.70, "#9467bd"),
+        ("390 nm", "inverted response", 1.00, 0.50, "#d62728"),
+    ]
+
+    noise_amp = 0.45
+    apo_traces = []
+    bound_traces = []
+    total_traces = []
+    for _, _, pa, pb, _ in rows_wavelengths:
+        ideal_apo = n_total * apo_fraction * pa
+        baseline_apo = float(n_total * apo_fraction[0] * pa)
+        apo_traces.append(ideal_apo + (noise_amp * 0.7) * rng.standard_normal(len(t)) - baseline_apo)
+
+        ideal_bound = n_total * bound_fraction * pb
+        baseline_bound = float(n_total * bound_fraction[0] * pb)
+        bound_traces.append(ideal_bound + (noise_amp * 0.7) * rng.standard_normal(len(t)) - baseline_bound)
+
+        ideal_total = n_total * (apo_fraction * pa + bound_fraction * pb)
+        baseline_total = float(n_total * (apo_fraction[0] * pa + bound_fraction[0] * pb))
+        total_traces.append(ideal_total + noise_amp * rng.standard_normal(len(t)) - baseline_total)
+
+    all_traces = apo_traces + bound_traces + total_traces
+    y_max_f = max(np.max(tr) for tr in all_traces) * 1.10
+    y_min_f = min(np.min(tr) for tr in all_traces) * 1.10
+
+    # Spectra (top row)
+    def split_normal(x, mu, sl, sr):
+        sigma = np.where(x < mu, sl, sr)
+        return np.exp(-((x - mu) ** 2) / (2 * sigma ** 2))
+
+    wl_grid = np.linspace(350, 590, 1000)
+    apo_spec_curve = split_normal(wl_grid, mu=395, sl=14, sr=30)
+    bound_spec_curve = 3.0 * split_normal(wl_grid, mu=488, sl=55, sr=36)
+
+    diff = apo_spec_curve - bound_spec_curve
+    search_mask = (wl_grid >= 390) & (wl_grid <= 480)
+    sign_changes = np.where(np.diff(np.sign(diff[search_mask])))[0]
+    iso_idx = int(np.where(search_mask)[0][sign_changes[0]])
+    iso_wl = float(wl_grid[iso_idx])
+
+    delta_f_curve = bound_spec_curve - apo_spec_curve
+
+    fig = plt.figure(figsize=(13.0, 8.5))
+    gs = GridSpec(
+        3,
+        4,
+        height_ratios=[1.2, 1.0, 1.0],
+        wspace=0.15,
+        hspace=0.45,
+        left=0.10,
+        right=0.97,
+        top=0.93,
+        bottom=0.08,
+    )
+
+    # ---- Top-left: emission spectra ----
+    ax_spec = fig.add_subplot(gs[0, 0:2])
+    spec_max = float(max(np.max(apo_spec_curve), np.max(bound_spec_curve)))
+
+    ax_spec.plot(wl_grid, apo_spec_curve, color=COLOR_APO, linewidth=2.6, label="apo", zorder=3)
+    ax_spec.plot(wl_grid, bound_spec_curve, color=COLOR_BOUND, linewidth=2.6, label="bound", zorder=3)
+
+    # Sample wavelengths marked as coloured vlines (one per wavelength).
+    # Avoids the dual-dot ambiguity of putting two dots at the same x but on
+    # different curves.
+    for wl_label, _, _, _, color in rows_wavelengths:
+        wl_val = float(wl_label.split()[0])
+        ax_spec.axvline(wl_val, color=color, linewidth=2.6, alpha=0.65, zorder=2)
+
+    ax_spec.set_xlim(350, 590)
+    ax_spec.set_xticks([390, 405, 420, 470])
+    ax_spec.set_xticklabels(["390", "405", "420", "470"], fontsize=10, color="#444444")
+    ax_spec.set_yticks([])
+    for spine in ["top", "right"]:
+        ax_spec.spines[spine].set_visible(False)
+    ax_spec.spines["left"].set_color("#bbbbbb")
+    ax_spec.spines["bottom"].set_color("#bbbbbb")
+    ax_spec.set_xlabel("excitation wavelength (nm)", fontsize=10, color="#444444", labelpad=6)
+    ax_spec.set_ylabel(
+        "emission",
+        rotation=0,
+        ha="right",
+        va="center",
+        fontsize=10,
+        color="#222222",
+        labelpad=12,
+    )
+    ax_spec.set_title(
+        "emission spectra of the two states",
+        fontsize=11, color="#222222", pad=8,
+    )
+
+    # ---- Top-right: ΔF as a function of excitation wavelength ----
+    ax_curve = fig.add_subplot(gs[0, 2:4])
+    ax_curve.axhline(0, color="#cccccc", linewidth=0.8, alpha=0.7, zorder=1)
+    ax_curve.plot(wl_grid, delta_f_curve, color="#222222", linewidth=2.4, zorder=4)
+    for wl_label, _, _, _, color in rows_wavelengths:
+        wl_val = float(wl_label.split()[0])
+        delta_at = float(np.interp(wl_val, wl_grid, delta_f_curve))
+        ax_curve.scatter([wl_val], [delta_at], color=color, s=120, zorder=5,
+                         edgecolors="white", linewidths=1.8)
+
+    ax_curve.set_xlim(350, 590)
+    ax_curve.set_xticks([390, 405, 420, 470])
+    ax_curve.set_xticklabels(["390", "405", "420", "470"], fontsize=10, color="#444444")
+    ax_curve.set_yticks([])
+    for spine in ["top", "right"]:
+        ax_curve.spines[spine].set_visible(False)
+    ax_curve.spines["left"].set_color("#bbbbbb")
+    ax_curve.spines["bottom"].set_color("#bbbbbb")
+    ax_curve.set_xlabel("excitation wavelength (nm)", fontsize=10, color="#444444", labelpad=6)
+    ax_curve.set_ylabel(
+        "ΔF",
+        rotation=0,
+        ha="right",
+        va="center",
+        fontsize=11,
+        color="#222222",
+        labelpad=10,
+    )
+    ax_curve.set_title(
+        "response vs wavelength",
+        fontsize=11, color="#222222", pad=8,
+    )
+
+    # ---- Middle row: total ΔF at four sample wavelengths ----
+    first_ax = None
+    for col_idx, (wl_label, wl_descriptor, _, _, color) in enumerate(rows_wavelengths):
+        ax = fig.add_subplot(gs[1, col_idx], sharey=first_ax)
+        if first_ax is None:
+            first_ax = ax
+        ax.axhline(0, color="#dddddd", linewidth=0.7, alpha=0.7, zorder=1)
+        ax.plot(t, total_traces[col_idx], color=color, linewidth=1.4, zorder=3)
+        ax.set_xlim(t[0], t[-1])
+        ax.set_ylim(y_min_f, y_max_f)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        for spine in ["top", "right", "bottom"]:
+            ax.spines[spine].set_visible(False)
+        if col_idx == 0:
+            ax.spines["left"].set_color("#bbbbbb")
+            ax.set_ylabel(
+                "total ΔF",
+                rotation=0,
+                ha="right",
+                va="center",
+                fontsize=10,
+                color="#222222",
+                labelpad=14,
+            )
+        else:
+            ax.spines["left"].set_visible(False)
+
+    # ---- Bottom row: apo + bound contributions decomposition ----
+    # Wavelength labels go on this row's titles so they sit in the gap between
+    # the total ΔF row above and the decomposition row below.
+    first_ax_dec = None
+    for col_idx, (wl_label, _, _, _, _) in enumerate(rows_wavelengths):
+        ax = fig.add_subplot(gs[2, col_idx], sharey=first_ax_dec)
+        if first_ax_dec is None:
+            first_ax_dec = ax
+        ax.axhline(0, color="#dddddd", linewidth=0.7, alpha=0.7, zorder=1)
+        # Apo plotted as is: apo_traces is already negative during the event
+        # (apo population shrinks), which renders the apo "loss" below zero.
+        # Bound plotted as is: bound_traces is positive (bound grows), which
+        # renders the bound "gain" above zero. At the isosbestic column the
+        # two are mirror images.
+        ax.plot(t, apo_traces[col_idx], color=COLOR_APO, linewidth=1.4, zorder=3)
+        ax.plot(t, bound_traces[col_idx], color=COLOR_BOUND, linewidth=1.4, zorder=3)
+        ax.set_xlim(t[0], t[-1])
+        ax.set_ylim(y_min_f, y_max_f)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        for spine in ["top", "right", "bottom"]:
+            ax.spines[spine].set_visible(False)
+        if col_idx == 0:
+            ax.spines["left"].set_color("#bbbbbb")
+            ax.set_ylabel(
+                "contributions\n(apo + bound)",
+                rotation=0,
+                ha="right",
+                va="center",
+                fontsize=10,
+                color="#222222",
+                labelpad=14,
+            )
+        else:
+            ax.spines["left"].set_visible(False)
+        ax.set_title(
+            wl_label,
+            fontsize=11, color="#222222", pad=18,
+        )
+
+    # Bottom-row legend
+    from matplotlib.lines import Line2D
+    legend_handles = [
+        Line2D([0], [0], color=COLOR_APO, linewidth=2.0, label="apo (loss)"),
+        Line2D([0], [0], color=COLOR_BOUND, linewidth=2.0, label="bound (gain)"),
+    ]
+    fig.legend(
+        handles=legend_handles,
+        loc="lower center",
+        ncol=2,
+        fontsize=10,
+        frameon=False,
+        bbox_to_anchor=(0.5, 0.005),
+    )
+
+    fig.savefig(OUT / "fig3_decomposition.svg")
+    plt.close(fig)
+
+
 def figure_1_unified_decomposition():
     """Build the canonical unified figure: combined contributions row + signed
-    bottom-left ΔF panel.
+    bottom-left ΔF panel. (Legacy; current fig3 uses
+    figure_3_spectra_decomposition.)
     """
     _build_unified_figure(decomposition="signed", combined=True, filename="fig3_decomposition.svg")
 
 
 def figure_2a_calcium_chain():
-    """Fig 2a: the chain calcium -> populations -> fluorescence at one
-    canonical recording wavelength (470 nm), plus the equilibrium
-    relationship as a side panel.
+    """Fig 2 (mechanism deep-dive, part A): calcium drives the population
+    mix, which drives the fluorescence response.
 
-    Left column (3 rows, time-domain):
-      - Top: calcium event over time.
-      - Middle: apo and bound population fractions over time.
-      - Bottom: total fluorescence response at 470 nm over time.
-    Right column (full height): Hill saturation curve showing apo and bound
-    fractions as a function of [Ca²⁺], with resting and peak markers.
+    Layout: 2x2 grid.
+      - Top-left: fluorescence as a function of calcium concentration (static).
+      - Bottom-left: apo and bound population fractions as a function of
+        calcium concentration (Hill saturation curve, static).
+      - Top-right: calcium event over time (dynamic).
+      - Bottom-right: apo and bound population fractions over time (dynamic).
+
+    Left column = equilibrium relationships (everything as a function of
+    [Ca²⁺]). Right column = dynamics in time. Resting and peak vertical
+    guides cross-reference the static and dynamic views.
     """
     sample_rate = 100
     duration = 4.5
@@ -308,112 +573,69 @@ def figure_2a_calcium_chain():
     bound_fraction = np.clip(bound_fraction, 0, 1)
     apo_fraction = 1.0 - bound_fraction
 
-    n_total = 24
-    # 420 nm: the per-molecule ratio is 2:1 (bound:apo). Bound still dominates,
-    # but apo contributes visibly enough that the decomposition is legible.
-    # At 470 nm (5:1) the bound trace would overlap the total trace and the
-    # decomposition would be hard to read.
-    per_apo = 0.50
-    per_bound = 1.00
-    sample_wavelength_label = "420 nm"
-    sample_wavelength_color = "#b87333"  # amber, matches fig 2b's 420 column
-
-    rng = np.random.default_rng(44)
-    noise_amp = 0.45
-
-    ideal_total = n_total * (apo_fraction * per_apo + bound_fraction * per_bound)
-    baseline_total = float(n_total * (apo_fraction[0] * per_apo + bound_fraction[0] * per_bound))
-    total_df = ideal_total + noise_amp * rng.standard_normal(len(t)) - baseline_total
-
-    ideal_apo = n_total * apo_fraction * per_apo
-    baseline_apo = float(n_total * apo_fraction[0] * per_apo)
-    apo_contrib_df = ideal_apo + (noise_amp * 0.7) * rng.standard_normal(len(t)) - baseline_apo
-
-    ideal_bound = n_total * bound_fraction * per_bound
-    baseline_bound = float(n_total * bound_fraction[0] * per_bound)
-    bound_contrib_df = ideal_bound + (noise_amp * 0.7) * rng.standard_normal(len(t)) - baseline_bound
-
     ca_grid = np.linspace(0, 2.0, 500)
     kd = 0.5
     n_hill = 2.5
     bound_curve = ca_grid**n_hill / (kd**n_hill + ca_grid**n_hill)
     apo_curve = 1.0 - bound_curve
 
-    fig = plt.figure(figsize=(13.5, 6.6))
-    gs = GridSpec(
-        3,
-        3,
-        height_ratios=[0.6, 1.0, 1.0],
-        width_ratios=[1.0, 1.0, 1.0],
-        wspace=0.30,
-        hspace=0.45,
-        left=0.08,
-        right=0.97,
-        top=0.88,
-        bottom=0.15,
-    )
+    # Fluorescence as a function of calcium: weighted sum of per-molecule
+    # contributions. Apo is dim (low per-molecule emission), bound is bright
+    # (high per-molecule emission). The result is a Hill-shaped saturation
+    # curve in fluorescence space, going from F_min (all apo) to F_max (all
+    # bound). Generic units; no specific wavelength is implied here (fig 3
+    # handles wavelength dependence).
+    per_apo = 0.20
+    per_bound = 1.00
+    f_curve = per_apo * apo_curve + per_bound * bound_curve
 
-    # Column header for the left chain (calcium -> populations -> fluorescence).
-    # Promoted to a figure-level text so it sits above the panel and does not
-    # collide with the "resting" / "peak" annotations on the calcium panel.
-    fig.text(
-        0.08,
-        0.955,
-        "calcium event drives populations, populations drive fluorescence",
-        fontsize=12,
-        color="#222222",
-        ha="left",
-        va="center",
-    )
-
-    # Identify resting and peak times for the time-domain vertical guides.
-    # The "resting" vline sits before the event onset; the "peak" vline sits
-    # at the peak of the (filtered) calcium signal that drives the populations.
+    # Resting and peak [Ca²⁺] markers (left column).
+    resting_ca = 0.18
+    peak_ca = 1.25
+    # Resting and peak time markers (right column). The "peak" time is the
+    # peak of the filtered indicator response, not the calcium peak itself.
     resting_time = 0.5
     peak_time = float(t[int(np.argmax(calcium_filtered))])
 
-    # Calcium event (top-left)
-    ax_ca = fig.add_subplot(gs[0, 0])
-    for t_val in (resting_time, peak_time):
-        ax_ca.axvline(t_val, color="#888888", linestyle=":", linewidth=0.8, alpha=0.65)
-    ax_ca.text(resting_time, ca_max * 1.30, "resting", fontsize=8.5, color="#444444",
-               ha="center", va="bottom", clip_on=False)
-    ax_ca.text(peak_time, ca_max * 1.30, "peak", fontsize=8.5, color="#444444",
-               ha="center", va="bottom", clip_on=False)
-    ax_ca.plot(t, calcium, color="#222222", linewidth=2.0, zorder=3)
-    ax_ca.set_xlim(t[0], t[-1])
-    ax_ca.set_ylim(0, ca_max * 1.20)
-    ax_ca.set_xticks([])
-    ax_ca.set_yticks([])
-    for spine in ax_ca.spines.values():
-        spine.set_visible(False)
-    ax_ca.set_ylabel(
-        "[Ca²⁺]",
-        rotation=0,
-        ha="right",
-        va="center",
-        fontsize=11,
-        color="#222222",
-        labelpad=12,
+    fig = plt.figure(figsize=(11.0, 5.4))
+    gs = GridSpec(
+        2,
+        2,
+        height_ratios=[1.0, 1.0],
+        width_ratios=[1.0, 1.0],
+        wspace=0.30,
+        hspace=0.45,
+        left=0.10,
+        right=0.97,
+        top=0.86,
+        bottom=0.16,
     )
 
-    # Apo and bound fractions over time (middle-left)
-    ax_frac = fig.add_subplot(gs[1, 0], sharex=ax_ca)
-    for t_val in (resting_time, peak_time):
-        ax_frac.axvline(t_val, color="#888888", linestyle=":", linewidth=0.8, alpha=0.65, zorder=1)
-    ax_frac.plot(t, apo_fraction, color=COLOR_APO, linewidth=2.0, label="apo fraction", zorder=3)
-    ax_frac.plot(t, bound_fraction, color=COLOR_BOUND, linewidth=2.0, label="bound fraction", zorder=3)
-    ax_frac.set_xlim(t[0], t[-1])
-    ax_frac.set_ylim(-0.02, 1.05)
-    ax_frac.set_xticks([])
-    ax_frac.set_yticks([0, 0.5, 1.0])
-    ax_frac.set_yticklabels(["0", "½", "1"], fontsize=9, color="#444444")
+    def _add_panel_label(ax, label):
+        ax.text(
+            -0.10, 1.05, label,
+            transform=ax.transAxes,
+            fontsize=13, color="#222222", fontweight="bold",
+            ha="left", va="bottom",
+        )
+
+    # ---- Left column: equilibrium relationships (functions of [Ca²⁺]) ----
+
+    # (A) Top-left: Hill curve (state fractions as a function of [Ca²⁺])
+    ax_hill = fig.add_subplot(gs[0, 0])
+    ax_hill.plot(ca_grid, apo_curve, color=COLOR_APO, linewidth=2.4, zorder=3)
+    ax_hill.plot(ca_grid, bound_curve, color=COLOR_BOUND, linewidth=2.4, zorder=3)
+    ax_hill.set_xlim(0, 2.0)
+    ax_hill.set_ylim(-0.02, 1.05)
+    ax_hill.set_xticks([])
+    ax_hill.set_yticks([0, 0.5, 1.0])
+    ax_hill.set_yticklabels(["0", "½", "1"], fontsize=9, color="#444444")
     for spine in ["top", "right"]:
-        ax_frac.spines[spine].set_visible(False)
-    ax_frac.spines["left"].set_color("#bbbbbb")
-    ax_frac.spines["bottom"].set_visible(False)
-    ax_frac.set_ylabel(
-        "fraction",
+        ax_hill.spines[spine].set_visible(False)
+    ax_hill.spines["left"].set_color("#bbbbbb")
+    ax_hill.spines["bottom"].set_color("#bbbbbb")
+    ax_hill.set_ylabel(
+        "state\nfraction",
         rotation=0,
         ha="right",
         va="center",
@@ -421,97 +643,107 @@ def figure_2a_calcium_chain():
         color="#222222",
         labelpad=12,
     )
+    _add_panel_label(ax_hill, "A")
 
-    # Total fluorescence response decomposed (bottom-left). Three lines:
-    # apo contribution (coral), bound contribution (teal), and their sum
-    # (the total, in the wavelength's column colour). At 420 nm the per-
-    # molecule ratio is 2:1 (bound:apo), so both contributions are clearly
-    # visible without total overlapping bound.
-    ax_f = fig.add_subplot(gs[2, 0], sharex=ax_ca)
-    for t_val in (resting_time, peak_time):
-        ax_f.axvline(t_val, color="#888888", linestyle=":", linewidth=0.8, alpha=0.65, zorder=1)
-    ax_f.axhline(0, color="#dddddd", linewidth=0.7, alpha=0.7, zorder=2)
-    ax_f.plot(t, apo_contrib_df, color=COLOR_APO, linewidth=1.3, zorder=3)
-    ax_f.plot(t, bound_contrib_df, color=COLOR_BOUND, linewidth=1.3, zorder=3)
-    ax_f.plot(t, total_df, color=sample_wavelength_color, linewidth=1.7, zorder=4)
-    ax_f.set_xlim(t[0], t[-1])
-    ax_f.set_xticks([])
-    ax_f.set_yticks([])
+    # (B) Bottom-left: fluorescence as a function of [Ca²⁺]
+    ax_f_vs_ca = fig.add_subplot(gs[1, 0], sharex=ax_hill)
+    ax_f_vs_ca.plot(ca_grid, f_curve, color="#222222", linewidth=2.4, zorder=3)
+    ax_f_vs_ca.set_xlim(0, 2.0)
+    ax_f_vs_ca.set_ylim(0, max(f_curve) * 1.20)
+    ax_f_vs_ca.set_xticks([])
+    ax_f_vs_ca.set_yticks([])
     for spine in ["top", "right"]:
-        ax_f.spines[spine].set_visible(False)
-    ax_f.spines["left"].set_color("#bbbbbb")
-    ax_f.spines["bottom"].set_color("#bbbbbb")
-    ax_f.set_xlabel("time  →", fontsize=10, color="#444444", labelpad=4)
-    ax_f.set_ylabel(
-        "ΔF",
+        ax_f_vs_ca.spines[spine].set_visible(False)
+    ax_f_vs_ca.spines["left"].set_color("#bbbbbb")
+    ax_f_vs_ca.spines["bottom"].set_color("#bbbbbb")
+    ax_f_vs_ca.set_xlabel("calcium [Ca²⁺]  →", fontsize=11, color="#444444", labelpad=6)
+    ax_f_vs_ca.set_ylabel(
+        "fluorescence",
         rotation=0,
         ha="right",
         va="center",
-        fontsize=11,
+        fontsize=10,
         color="#222222",
         labelpad=12,
     )
-    ax_f.set_title(
-        f"at {sample_wavelength_label}",
-        fontsize=10, color="#444444", pad=4,
-    )
+    _add_panel_label(ax_f_vs_ca, "B")
 
-    # Hill curve (right two columns, spanning all rows for a wider aspect).
-    # Clean lines only — no fills, no per-curve markers. The vertical
-    # "resting" and "peak" guides cross-reference matching guides on the
-    # time-domain panels on the left.
-    ax_hill = fig.add_subplot(gs[0:2, 1:3])
+    # ---- Right column: dynamics over time ----
 
-    ax_hill.plot(ca_grid, apo_curve, color=COLOR_APO, linewidth=3.0, label="apo", zorder=3)
-    ax_hill.plot(ca_grid, bound_curve, color=COLOR_BOUND, linewidth=3.0, label="bound", zorder=3)
-
-    resting_ca = 0.18
-    peak_ca = 1.25
-    for ca_val, ca_label in [(resting_ca, "resting"), (peak_ca, "peak")]:
-        ax_hill.axvline(ca_val, color="#888888", linestyle=":", linewidth=0.8, alpha=0.65)
-        ax_hill.text(
-            ca_val,
-            1.08,
-            ca_label,
-            fontsize=10.5,
-            color="#444444",
-            ha="center",
-            va="bottom",
-        )
-
-    ax_hill.set_xlim(0, 2.0)
-    ax_hill.set_ylim(0, 1.18)
-    ax_hill.set_xticks([])
-    ax_hill.set_yticks([0, 0.5, 1.0])
-    ax_hill.set_yticklabels(["0", "½", "1"], fontsize=11, color="#444444")
+    # (C) Top-right: calcium event over time, with fluorescence response overlaid.
+    # Calcium is plotted on its native [Ca²⁺] scale; fluorescence is rescaled to
+    # the same y-range so the reader can compare shapes (the two follow each
+    # other with a small kinetic delay).
+    ax_ca_t = fig.add_subplot(gs[0, 1])
+    f_t_raw = per_apo * apo_fraction + per_bound * bound_fraction
+    f_t_min = float(np.min(f_t_raw))
+    f_t_max = float(np.max(f_t_raw))
+    f_t_scaled = baseline_ca + (f_t_raw - f_t_min) / (f_t_max - f_t_min) * (ca_max - baseline_ca)
+    ax_ca_t.plot(t, f_t_scaled, color=COLOR_SIGNAL, linewidth=2.0, zorder=3, label="fluorescence")
+    ax_ca_t.plot(t, calcium, color="#222222", linewidth=2.0, zorder=4, label="[Ca²⁺]")
+    ax_ca_t.set_xlim(t[0], t[-1])
+    ax_ca_t.set_ylim(0, ca_max * 1.20)
+    ax_ca_t.set_xticks([])
+    ax_ca_t.set_yticks([])
     for spine in ["top", "right"]:
-        ax_hill.spines[spine].set_visible(False)
-    ax_hill.spines["left"].set_color("#bbbbbb")
-    ax_hill.spines["bottom"].set_color("#bbbbbb")
-    ax_hill.set_xlabel("calcium [Ca²⁺]  →", fontsize=12, color="#444444", labelpad=6)
-    ax_hill.set_ylabel(
-        "fraction",
+        ax_ca_t.spines[spine].set_visible(False)
+    ax_ca_t.spines["left"].set_color("#bbbbbb")
+    ax_ca_t.spines["bottom"].set_color("#bbbbbb")
+    ax_ca_t.legend(loc="upper right", frameon=False, fontsize=9)
+    _add_panel_label(ax_ca_t, "C")
+
+    # (D) Bottom-right: fractions over time
+    ax_frac_t = fig.add_subplot(gs[1, 1], sharex=ax_ca_t)
+    ax_frac_t.plot(t, apo_fraction, color=COLOR_APO, linewidth=2.0, zorder=3)
+    ax_frac_t.plot(t, bound_fraction, color=COLOR_BOUND, linewidth=2.0, zorder=3)
+    ax_frac_t.set_xlim(t[0], t[-1])
+    ax_frac_t.set_ylim(-0.02, 1.05)
+    ax_frac_t.set_xticks([])
+    ax_frac_t.set_yticks([0, 0.5, 1.0])
+    ax_frac_t.set_yticklabels(["0", "½", "1"], fontsize=9, color="#444444")
+    for spine in ["top", "right"]:
+        ax_frac_t.spines[spine].set_visible(False)
+    ax_frac_t.spines["left"].set_color("#bbbbbb")
+    ax_frac_t.spines["bottom"].set_color("#bbbbbb")
+    ax_frac_t.set_xlabel("time  →", fontsize=11, color="#444444", labelpad=6)
+    ax_frac_t.set_ylabel(
+        "state\nfraction",
         rotation=0,
         ha="right",
         va="center",
-        fontsize=12,
+        fontsize=10,
         color="#222222",
         labelpad=12,
     )
+    _add_panel_label(ax_frac_t, "D")
 
-    # Global legend at the bottom of the figure.
+    # Column headers
+    fig.text(
+        0.30, 0.93,
+        "as a function of [Ca²⁺]",
+        fontsize=11, color="#222222",
+        ha="center", va="center",
+        style="italic",
+    )
+    fig.text(
+        0.75, 0.93,
+        "as a function of time",
+        fontsize=11, color="#222222",
+        ha="center", va="center",
+        style="italic",
+    )
+
+    # Global legend at the bottom
     from matplotlib.lines import Line2D
     legend_handles = [
-        Line2D([0], [0], color="#222222", linewidth=2.0, label="calcium event"),
+        Line2D([0], [0], color="#222222", linewidth=2.0, label="calcium / fluorescence"),
         Line2D([0], [0], color=COLOR_APO, linewidth=2.0, label="apo"),
         Line2D([0], [0], color=COLOR_BOUND, linewidth=2.0, label="bound"),
-        Line2D([0], [0], color=sample_wavelength_color, linewidth=2.0,
-               label=f"total ΔF (at {sample_wavelength_label})"),
     ]
     fig.legend(
         handles=legend_handles,
         loc="lower center",
-        ncol=4,
+        ncol=3,
         fontsize=10,
         frameon=False,
         bbox_to_anchor=(0.5, 0.02),
@@ -1010,7 +1242,21 @@ def _build_response_columns(spectrum_start_col, filename):
     bound_spec = 3.5 * _split_normal(wl_grid, mu=488, sl=55, sr=36)
     delta_f_curve = bound_spec - apo_spec
 
+    # Find the meaningful isosbestic crossing (sign change of delta_f_curve in
+    # the visible region). Same approach as fig3 to keep the two figures
+    # consistent.
+    search_mask = (wl_grid >= 390) & (wl_grid <= 480)
+    sign_changes = np.where(np.diff(np.sign(delta_f_curve[search_mask])))[0]
+    iso_idx = int(np.where(search_mask)[0][sign_changes[0]])
+    iso_wl = float(wl_grid[iso_idx])
+
     ax_curve.axhline(0, color="#cccccc", linewidth=0.8, alpha=0.7, zorder=1)
+    ax_curve.axvline(iso_wl, color="#444444", linestyle="--", linewidth=1.2, alpha=0.85, zorder=2)
+    delta_max = float(np.max(delta_f_curve))
+    ax_curve.text(
+        iso_wl, delta_max * 1.04, "isosbestic", fontsize=9, color="#222222",
+        ha="center", va="bottom", clip_on=False,
+    )
     ax_curve.fill_between(
         wl_grid,
         0,
@@ -1600,7 +1846,7 @@ def figure_8_control_diagnostic():
 if __name__ == "__main__":
     figure_1b_response_columns()
     figure_2a_calcium_chain()
-    figure_1_unified_decomposition()
+    figure_3_spectra_decomposition()
     figure_4_what_405_captures()
     figure_5_linear_fit_and_correction()
     figure_7_what_survives()
