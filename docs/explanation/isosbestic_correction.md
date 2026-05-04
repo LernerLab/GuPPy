@@ -31,7 +31,7 @@ Almost anything that fluctuates at 405 nm cannot be calcium-driven. It must come
 
 ![Three scenarios contrasting what shows up at 405 nm versus 470 nm. Left: a fiber-motion artifact at t = 15 s shows in both channels. Centre: slow photobleaching decays both channels proportionally over 30 s. Right: a calcium event at t = 15 s appears only at 470 nm; the 405 trace stays flat. The empirical content of the isosbestic property is that the first two are visible at 405 nm and the third is not.](../_static/images/isosbestic_explainer/fig4_what_405_captures.svg)
 
-The 405 nm control mirrors the *shape* of the artifacts in the 470 nm signal but not their *magnitude*: different excitation wavelengths, LED powers, per-molecule indicator brightness, and detector responses give each channel its own absolute scale. An artifact that scales all molecules equally appears in both traces with the same time-course but multiplied by different constants, so subtracting raw from raw would mix scales rather than cancel the artifact. The fix is a linear rescaling that brings the control onto the signal's scale:
+The 405 nm control mirrors the *shape* of the artifacts in the 470 nm signal but not their *magnitude*: each channel has its own absolute scale, set by hardware and indicator differences. Subtracting raw from raw would mix scales rather than cancel the artifact. The fix is a linear rescaling that brings the control onto the signal's scale:
 
 $$
 \widehat{C}(t) = m \cdot C(t) + b

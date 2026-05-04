@@ -460,7 +460,7 @@ def figure_2a_calcium_chain():
     # Clean lines only — no fills, no per-curve markers. The vertical
     # "resting" and "peak" guides cross-reference matching guides on the
     # time-domain panels on the left.
-    ax_hill = fig.add_subplot(gs[:, 1:3])
+    ax_hill = fig.add_subplot(gs[0:2, 1:3])
 
     ax_hill.plot(ca_grid, apo_curve, color=COLOR_APO, linewidth=3.0, label="apo", zorder=3)
     ax_hill.plot(ca_grid, bound_curve, color=COLOR_BOUND, linewidth=3.0, label="bound", zorder=3)
@@ -705,7 +705,14 @@ def _build_unified_figure(decomposition, combined, filename):
     apo_spec_curve = split_normal(wl_grid, mu=395, sl=14, sr=30)
     bound_spec_curve = 3.0 * split_normal(wl_grid, mu=488, sl=55, sr=36)
 
-    iso_idx = int(np.argmin(np.abs(apo_spec_curve - bound_spec_curve)))
+    # Find the meaningful isosbestic crossing (where apo and bound spectra
+    # actually cross at non-trivial values). argmin(abs(diff)) is wrong here
+    # because both curves are near zero in the violet tail, producing a
+    # spurious "crossing" at ~375 nm that is not the real isosbestic.
+    diff = apo_spec_curve - bound_spec_curve
+    search_mask = (wl_grid >= 390) & (wl_grid <= 480)
+    sign_changes = np.where(np.diff(np.sign(diff[search_mask])))[0]
+    iso_idx = int(np.where(search_mask)[0][sign_changes[0]])
     iso_wl = float(wl_grid[iso_idx])
     iso_val = float(apo_spec_curve[iso_idx])
 
@@ -780,7 +787,7 @@ def _build_unified_figure(decomposition, combined, filename):
         labelpad=10,
     )
     ax_curve.set_title(
-        "response amplitude vs wavelength",
+        "response vs wavelength",
         fontsize=10, color="#222222", pad=4,
     )
 
