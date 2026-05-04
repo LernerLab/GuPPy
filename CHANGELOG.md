@@ -12,6 +12,7 @@
 ## Fixes
 
 ## Improvements
+- Saved GuPPy version and expanded the parameter set written to `GuPPyParamtersUsed.json` (adds `artifactsRemovalMethod`, `computeCorr`, `plot_zScore_dff`, `visualize_zscore_or_dff`, `averageForGroup`). Addresses [#326](https://github.com/LernerLab/GuPPy/issues/326). [PR #XXX](https://github.com/LernerLab/GuPPy/pull/XXX)
 - Deduplicated the two copy-pasted `write_hdf5` implementations (extractor side and analysis side) into a single canonical helper at `guppy.utils._hdf5_io`, fixing a latent bug on the analysis-side writer that silently dropped scalar overwrites when the key already existed. Also lifted the duplicated `_default_root_path` helper into `guppy.frontend.frontend_utils.default_root_path` so the `GUPPY_BASE_DIR` precedence rule lives in one place. Addresses part of [#174](https://github.com/LernerLab/GuPPy/issues/174). [PR #305](https://github.com/LernerLab/GuPPy/pull/305)
 - Added a Read the Docs documentation badge to `README.md` and a `Documentation` project URL in `pyproject.toml` pointing at https://guppy.readthedocs.io/, so the documentation is discoverable directly from the GitHub landing page and the PyPI listing. [PR #306](https://github.com/LernerLab/GuPPy/pull/306)
 - Added cross-correlation explanation page to the documentation site, with six generated SVG figures and a self-contained PEP 723 script (`docs/scripts/cross_correlation_explainer.py`) that regenerates them in place. [PR #307](https://github.com/LernerLab/GuPPy/pull/307)

@@ -1,5 +1,6 @@
 import json
 import os
+from importlib.metadata import version
 
 import numpy as np
 import pytest
@@ -15,12 +16,14 @@ def default_parameters():
         "timeForLightsTurnOn": 1,
         "filter_window": 100,
         "removeArtifacts": False,
+        "artifactsRemovalMethod": "concatenate",
         "noChannels": 2,
         "zscore_method": "standard z-score",
         "baselineWindowStart": 0,
         "baselineWindowEnd": 0,
         "nSecPrev": -10,
         "nSecPost": 20,
+        "computeCorr": False,
         "timeInterval": 2,
         "bin_psth_trials": 0,
         "use_time_or_trials": "Time (min)",
@@ -33,6 +36,9 @@ def default_parameters():
         "moving_window": 15,
         "highAmpFilt": 2,
         "transientsThresh": 3,
+        "plot_zScore_dff": "None",
+        "visualize_zscore_or_dff": "z_score",
+        "averageForGroup": False,
     }
 
 
@@ -58,6 +64,8 @@ def test_step1(tmp_path, default_parameters):
         assert os.path.exists(out_fp), f"Missing file: {out_fp}"
         with open(out_fp, "r") as f:
             data = json.load(f)
+
+        assert data["guppy_version"] == version("guppy")
 
         # Check that JSON data matches default parameters
         for key, expected_value in default_parameters.items():
