@@ -2,6 +2,10 @@
 
 A bare fluorescence trace is the sum of calcium-dependent GCaMP fluorescence and several confounds: the fiber tip moving relative to tissue, blood vessels dilating and changing scattering, the indicator photobleaching over the session. The standard correction is to record a second channel simultaneously through the same fiber at the indicator's isosbestic wavelength, where calcium changes produce no fluorescence change, and use it to estimate and subtract those confounds. The rest of this page is about how GuPPy implements that correction, the assumptions behind the linear-fit-and-subtract procedure, and how to read the result.
 
+:::{note} Scope
+This page covers isosbestic correction for the GCaMP family (GCaMP6, GCaMP7, jGCaMP8) and similar two-state calcium indicators like RCaMP.
+:::
+
 ## What is an isosbestic point?
 
 Fiber photometry uses GCaMP because its fluorescence tracks calcium concentration: more calcium, more emission. What is less obvious is that *how much* the fluorescence changes depends on the laser wavelength used to excite the indicator. At some wavelengths a calcium event produces a large change, at others a smaller one, and at one specific wavelength, the **isosbestic point**, the response is zero (calcium concentration changes produce no fluorescence change at all):
