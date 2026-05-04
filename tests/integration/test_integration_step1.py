@@ -65,7 +65,7 @@ def test_step1(tmp_path, default_parameters):
         with open(out_fp, "r") as f:
             data = json.load(f)
 
-        assert data["guppy_version"] == version("guppy")
+        assert data["guppy_version"] == version("guppy-neuro")
 
         # Check that JSON data matches default parameters
         for key, expected_value in default_parameters.items():

@@ -19,7 +19,7 @@ def save_parameters(inputParameters: dict):
     """
     logger.debug("Saving Input Parameters file.")
     analysisParameters = {
-        "guppy_version": version("guppy"),
+        "guppy_version": version("guppy-neuro"),
         "combine_data": inputParameters["combine_data"],
         "isosbestic_control": inputParameters["isosbestic_control"],
         "timeForLightsTurnOn": inputParameters["timeForLightsTurnOn"],

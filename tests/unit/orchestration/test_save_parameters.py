@@ -147,7 +147,7 @@ def test_save_parameters_writes_guppy_version(base_input_parameters):
     with open(os.path.join(folder, "GuPPyParamtersUsed.json")) as file:
         saved = json.load(file)
 
-    assert saved["guppy_version"] == version("guppy")
+    assert saved["guppy_version"] == version("guppy-neuro")
 
 
 def test_save_parameters_single_folder(tmp_path):
