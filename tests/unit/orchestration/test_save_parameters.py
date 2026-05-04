@@ -150,3 +150,54 @@ def test_save_parameters_single_folder(tmp_path):
         saved = json.load(file)
     assert saved["zscore_method"] == "baseline"
     assert saved["combine_data"] is True
+
+
+def _make_output_dir(session_path, run_name):
+    output_dir = os.path.join(session_path, f"{os.path.basename(session_path)}_output_{run_name}")
+    os.mkdir(output_dir)
+    # storesList.csv must exist so select_output_dirs accepts the run name.
+    open(os.path.join(output_dir, "storesList.csv"), "w").close()
+    return output_dir
+
+
+def test_save_parameters_writes_into_all_output_dirs_when_no_filter(base_input_parameters):
+    session = base_input_parameters["folderNames"][0]
+    baseline_dir = _make_output_dir(session, "baseline")
+    strict_dir = _make_output_dir(session, "strict")
+
+    save_parameters(base_input_parameters)
+
+    assert os.path.exists(os.path.join(baseline_dir, "GuPPyParamtersUsed.json"))
+    assert os.path.exists(os.path.join(strict_dir, "GuPPyParamtersUsed.json"))
+    # Session root must NOT receive the file when output dirs exist.
+    assert not os.path.exists(os.path.join(session, "GuPPyParamtersUsed.json"))
+
+
+def test_save_parameters_filters_to_selected_run_name(base_input_parameters):
+    session = base_input_parameters["folderNames"][0]
+    baseline_dir = _make_output_dir(session, "baseline")
+    strict_dir = _make_output_dir(session, "strict")
+    base_input_parameters["selectedOutputs"] = {session: ["baseline"]}
+
+    save_parameters(base_input_parameters)
+
+    assert os.path.exists(os.path.join(baseline_dir, "GuPPyParamtersUsed.json"))
+    assert not os.path.exists(os.path.join(strict_dir, "GuPPyParamtersUsed.json"))
+
+
+def test_save_parameters_falls_back_to_session_root_when_no_output_dirs(base_input_parameters):
+    """Step 1 before step 2: no output dirs yet, so the file lands at the session root."""
+    session = base_input_parameters["folderNames"][0]
+
+    save_parameters(base_input_parameters)
+
+    assert os.path.exists(os.path.join(session, "GuPPyParamtersUsed.json"))
+
+
+def test_save_parameters_raises_for_unknown_selected_run(base_input_parameters):
+    session = base_input_parameters["folderNames"][0]
+    _make_output_dir(session, "baseline")
+    base_input_parameters["selectedOutputs"] = {session: ["nonexistent"]}
+
+    with pytest.raises(ValueError, match="Output directory not found"):
+        save_parameters(base_input_parameters)
