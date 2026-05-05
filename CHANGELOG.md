@@ -17,6 +17,7 @@
 - Added cross-correlation explanation page to the documentation site, with six generated SVG figures and a self-contained PEP 723 script (`docs/scripts/cross_correlation_explainer.py`) that regenerates them in place. [PR #307](https://github.com/LernerLab/GuPPy/pull/307)
 - Added an explanation page on z-score normalization (standard, baseline, and modified variants) at `docs/explanation/zscore.md`, with four generated SVG figures and a self-contained PEP 723 script that regenerates them. Enabled MyST `dollarmath` for LaTeX equation rendering and bumped the Read the Docs build to Python 3.13 / ubuntu-24.04 with the `docs` dependency group. [PR #308](https://github.com/LernerLab/GuPPy/pull/308)
 - Added a PSTH explanation page (origin, the construction operation, drift correction, peak vs AUC summary statistics, and event rejection) at `docs/explanation/psth.md`, with four generated SVG figures and a self-contained PEP 723 script (`docs/scripts/psth_explainer.py`) that regenerates them in place. [PR #XXX](https://github.com/LernerLab/GuPPy/pull/XXX)
+- Added a transient detection explanation page (motivation, basic detector, drift handling via per-chunk MAD, the two-stage outlier-trim scheme, summary statistics, and limitations) at `docs/explanation/transient_detection.md`, with six generated SVG figures and a self-contained PEP 723 script (`docs/scripts/transient_detection_explainer.py`) that regenerates them in place. [PR #XXX](https://github.com/LernerLab/GuPPy/pull/XXX)
 
 ## Deprecations and Removals
 

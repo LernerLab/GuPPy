@@ -6,6 +6,7 @@ Explanation pages give background and context: the science behind fiber photomet
 :maxdepth: 1
 
 zscore
+transient_detection
 cross_correlation
 psth
 ```
