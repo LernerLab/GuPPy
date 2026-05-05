@@ -81,13 +81,12 @@ class ParameterForm:
         self.template = template
         self.folder_path = start_path if start_path and os.path.isdir(start_path) else default_root_path()
         self.styles = dict(background="WhiteSmoke")
-        self.selected_outputs_widgets: dict[str, pn.widgets.Select] = {}
         self.group_selected_outputs_widgets: dict[str, pn.widgets.Select] = {}
         self.setup_individual_parameters()
         self.setup_group_parameters()
         self.setup_visualization_parameters()
         self.add_to_template()
-        self.files_1.param.watch(self._rebuild_selected_outputs_widgets, "value")
+        self.files_1.param.watch(self._retarget_outputs_selector, "value")
         self.files_2.param.watch(self._rebuild_group_selected_outputs_widgets, "value")
 
     def setup_individual_parameters(self):
@@ -175,7 +174,19 @@ class ParameterForm:
             name="Combine Data? (bool)", value=False, options=[True, False], width=150
         )
 
-        self.selected_outputs_box = pn.Column(self._make_outputs_placeholder("individual"))
+        self.outputs_selector_header = pn.pane.Markdown(
+            "**Existing runs (steps 3–6):** Pick existing output directories to analyze. "
+            "Leave empty to use all runs in the selected sessions. "
+            "To create a new run, use the Storenames GUI in step 2.",
+            width=950,
+        )
+        self.outputs_selector = pn.widgets.FileSelector(
+            self.folder_path,
+            root_directory="/",
+            file_pattern="*_output_*",
+            name="Existing runs (steps 3–6)",
+            width=950,
+        )
 
         self.computePsth = pn.widgets.Select(
             name="z_score and/or \u0394F/F? (psth)", options=["z_score", "dff", "Both"], width=320
@@ -358,29 +369,58 @@ class ParameterForm:
             self.zscore_param_wd, self.psth_param_wd, self.baseline_param_wd, self.peak_param_wd
         )
 
-        self.widget = pn.Column(
-            self.mark_down_1,
+        self.input_folder_selection_widget = pn.Column(
             pn.Row(pn.pane.Markdown("**Data Source:**"), self.source_mode),
             self.files_1,
             self.dandi_selector.panel,
-            self.selected_outputs_box,
+        )
+        self.input_folder_selection = pn.Card(
+            self.input_folder_selection_widget,
+            title="Input Folder Selection",
+            styles=self.styles,
+            width=1000,
+        )
+
+        self.output_folder_selection_widget = pn.Column(
+            self.outputs_selector_header,
+            self.outputs_selector,
+        )
+        self.output_folder_selection = pn.Card(
+            self.output_folder_selection_widget,
+            title="Output Folder Selection",
+            styles=self.styles,
+            width=1000,
+            collapsed=True,
+        )
+
+        self.widget = pn.Column(
+            self.mark_down_1,
             pn.Row(self.individual_analysis_wd_2, self.psth_baseline_param),
         )
-        self.individual = pn.Card(self.widget, title="Individual Analysis", styles=self.styles, width=1000)
+        self.individual = pn.Card(
+            self.widget, title="Individual Analysis", styles=self.styles, width=1000, collapsed=True
+        )
 
     def _on_source_mode_change(self, event):
         is_dandi = event.new == "dandi"
         self.files_1.visible = not is_dandi
         self.dandi_selector.panel.visible = is_dandi
 
-    def _rebuild_selected_outputs_widgets(self, event):
-        """Rebuild the per-session run-name Selects when files_1 changes."""
-        self._rebuild_per_session_widgets(
-            sessions=event.new,
-            target_box=self.selected_outputs_box,
-            store=self.selected_outputs_widgets,
-            scope="individual",
-        )
+    def _collect_selected_outputs(self):
+        """Group the FileSelector's selected output dirs by parent session."""
+        grouped: dict[str, list[str]] = {}
+        for path in self.outputs_selector.value or []:
+            session = os.path.dirname(path)
+            grouped.setdefault(session, []).append(parse_run_name(path))
+        return grouped
+
+    def _retarget_outputs_selector(self, event):
+        """Root the existing-runs FileSelector at the first selected session so its `_output_*` dirs show directly."""
+        sessions = event.new or []
+        target = sessions[0] if sessions and os.path.isdir(sessions[0]) else default_root_path()
+        self.outputs_selector.directory = target
+        # Clear any prior selection that no longer makes sense for the new root.
+        self.outputs_selector.value = []
 
     def _rebuild_group_selected_outputs_widgets(self, event):
         """Rebuild the per-session group-run-name Selects when files_2 changes."""
@@ -389,15 +429,6 @@ class ParameterForm:
             target_box=self.group_selected_outputs_box,
             store=self.group_selected_outputs_widgets,
             scope="group",
-        )
-
-    def refresh_individual_outputs(self):
-        """Re-discover output directories for the currently-selected individual sessions."""
-        self._rebuild_per_session_widgets(
-            sessions=self.files_1.value,
-            target_box=self.selected_outputs_box,
-            store=self.selected_outputs_widgets,
-            scope="individual",
         )
 
     def refresh_group_outputs(self):
@@ -527,7 +558,9 @@ class ParameterForm:
         )
 
     def add_to_template(self):
-        """Append the individual, group, and visualization cards to the template's main area."""
+        """Append the input/output folder, individual, group, and visualization cards to the template's main area."""
+        self.template.main.append(self.input_folder_selection)
+        self.template.main.append(self.output_folder_selection)
         self.template.main.append(self.individual)
         self.template.main.append(self.group)
         self.template.main.append(self.visualize)
@@ -542,10 +575,8 @@ class ParameterForm:
             pipeline, keyed by the parameter names expected by the orchestration
             layer (e.g. ``"folderNames"``, ``"zscore_method"``, ``"nSecPrev"``).
         """
-        # Re-discover output dirs every time params are collected so that filters
-        # populated after a prior step (e.g. step 2) become available without the
-        # user having to deselect/reselect their session folder.
-        self.refresh_individual_outputs()
+        # Re-discover group output dirs so the per-session filters reflect any new dirs
+        # produced by step 2 since the user last deselected/reselected their session folder.
         self.refresh_group_outputs()
 
         if self.source_mode.value == "dandi":
@@ -594,11 +625,7 @@ class ParameterForm:
             "folderNamesForAvg": self.files_2.value,
             "averageForGroup": self.averageForGroup.value,
             "visualizeAverageResults": self.visualizeAverageResults.value,
-            "selectedOutputs": {
-                session: [widget.value]
-                for session, widget in self.selected_outputs_widgets.items()
-                if widget.value != self._ALL_OUTPUTS_SENTINEL
-            },
+            "selectedOutputs": self._collect_selected_outputs(),
             "groupSelectedOutputs": {
                 session: [widget.value]
                 for session, widget in self.group_selected_outputs_widgets.items()

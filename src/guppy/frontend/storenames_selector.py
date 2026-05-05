@@ -56,10 +56,12 @@ class StorenamesSelector:
         self.path = pn.widgets.TextInput(name="Location to Stores List file", width=600)
 
         self.mark_down_for_overwrite = pn.pane.Markdown(
-            """ Select option from below if user wants to over-write a file or create a new file.
-                        **Creating a new file will make a new output folder and will get saved at that location.**
-                        If user selects to over-write a file **Select location of the file to over-write** will provide
-                        the existing options of the output folders where user needs to over-write the file""",
+            """
+**Choose how to save this storesList:**
+
+- **create_new_file** — create a new output folder. Optionally set **Run name** below; leave blank to use the next available integer.
+- **over_write_file** — replace an existing output folder. Pick which one in **Select location of the file to over-write**.
+            """,
             width=600,
         )
 
