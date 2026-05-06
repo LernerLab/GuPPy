@@ -9,5 +9,6 @@ fiber_photometry
 zscore
 cross_correlation
 psth
+artifacts
 isosbestic_correction
 ```

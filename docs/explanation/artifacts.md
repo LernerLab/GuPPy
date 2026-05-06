@@ -1,0 +1,52 @@
+# Artifacts in fiber photometry
+
+## What an artifact is
+
+Anything in the recorded [fluorescence trace](fiber_photometry.md) that does not reflect the biological signal of interest. The biological signal is the indicator's response to the molecule being measured (intracellular calcium for GCaMP, extracellular dopamine for dLight, and so on); everything else is an artifact.
+
+The recorded trace is the sum of the biological signal and every artifact present in the recording:
+
+![A three-column figure laid out as an equation, showing the additive decomposition of a recorded fluorescence trace. Left column ("Recorded signal"): a single tall panel showing a noisy, drifting trace with three calcium-like upward deflections superimposed; the y-axis is labelled "fluorescence (a.u.)". An "=" sign separates it from the middle column. Middle column ("Artifacts"): three stacked panels showing "Photobleaching / LED drift" (a slow exponential decay), "Motion" (irregular slow wandering with bouts of fast wiggles), and "Electronic noise" (high-frequency jitter). A "+" sign separates the middle from the right column. Right column ("True signal"): a single tall panel showing three clean upward transients on a flat baseline. The figure makes the additive definition of an artifact visible: recorded = artifacts + true signal.](../_static/images/artifacts_explainer/fig1_decomposition.svg)
+
+What the photometer reads (left) equals the artifact components (middle) plus the biological signal underneath (right). Each row in the catalogue below names one mechanism that contributes to the middle column; correction methods later in the page try to recover the right column from the left.
+
+## Artifact catalogue
+
+The fiber photometry literature names a small set of well-described artifact categories. The table below catalogues them with their physical mechanism.
+
+Rows are grouped by where in the recording chain the contamination originates: from the LED at the excitation source, through the optical path (patchcord, fiber, ferrule, and implant tip), into the tissue under the fiber, and finally into the detection electronics. This grouping helps locate artifacts in the table; which correction method applies follows from other properties of the artifact, introduced in the next section.
+
+| Stage | Artifact | What it is |
+| --- | --- | --- |
+| Excitation source | **Electronic: LED drift** | Slow drift in excitation-source intensity from LED driver electronics: thermal warm-up, regulation drift, aging-driven output decline. Timescale is minutes to hours; appears as baseline drift in the recorded fluorescence. |
+| Excitation source | **Electronic: power flicker** | Fast changes in excitation-source intensity: mains-coupled ripple (50/60 Hz and harmonics), step transients when other equipment switches on shared circuits, sub-millisecond glitches from PWM-dimmed drivers. Sub-second timescale. |
+| Optical path | **Motion: patchcord** (slow drift, bending) | Cord between animal and hardware bends and drifts as the animal moves; mode loss attenuates both 470 and 405 channels proportionally. |
+| Optical path | **Motion: subject (head movement)** | The animal's head movements transmit through the skull to the implant; the brain shifts slightly under the skull-mounted implant, so the fiber tip moves through tissue by a few microns. Reversible: the tip returns to a similar position when motion stops. Mode patterns and tip-tissue collection geometry change at both wavelengths, with a small residual that depends on wavelength. |
+| Optical path | **Motion: implant displacement** (hard impact, fiber translates) | Larger mechanical events at the implant: animal strikes cage wall, cable yanks past tolerance, fiber translates inside the ferrule, implant cement loosens over weeks. Often persistent, producing step changes in baseline rather than transient deflections. Optical-path geometry changes at the fiber tip with a small wavelength-dependent residual on top of a mostly-symmetric base. |
+| Optical path | **Autofluorescence: hardware** (fiber cladding, ferrules, optics) | Optical components themselves emit in the photometry detection band when illuminated. |
+| Tissue | **Indicator photobleaching** | Slow decay of fluorescent intensity over the session as fluorophore molecules are destroyed by absorbed photons. |
+| Tissue | **Hemodynamic absorption** | Blood-volume and oxygenation changes attenuate transmitted light. Hemoglobin's Soret band near 415 nm absorbs much more strongly than 470 nm, and the HbO/HbR ratio shifts the cross-channel ratio over time. |
+| Tissue | **Autofluorescence: tissue** (NADH, FAD, lipofuscin) | Endogenous tissue fluorophores emit in the photometry detection band, with excitation spectra distinct from the indicator's. |
+| Detection | **Electronic: electrical noise** | High-frequency noise injected into the detection path: amplifier electronics, photodetector dark current, ground loops, RF coupling (mobile phones, fluorescent lights). Light at the tissue is unaffected; the contamination is added on top of the photocurrent. If both channels share electronics, the noise appears on both. |
+| Detection | **Electrical transients** | Brief non-optical events: solenoid clicks, TTL or valve switching coupling into photodetector electronics through ground loops, capacitive pickup, or shared power rails. Voltage spike on the detector output; if both channels share electronics, the transient appears on both. |
+| Detection | **Optogenetic crosstalk** | Stimulation photons leak through the detection filter and land on the photodetector. Leakage lands on the channel whose filter overlaps the stimulation wavelength (typically the indicator-sensitive channel for blue stim); magnitude depends on filter rejection. |
+
+## Artifact characteristics and correction methods
+
+A few properties of the artifacts themselves predict which method addresses them. The properties describe what the contamination *is*, independent of any pipeline; the methods are a *snapshot of what the field currently does* and will shift as new approaches come online. The properties stay.
+
+**Time structure.** Whether the contamination is *pervasive* (present throughout the recording, with no clean baseline elsewhere in the session) or *episodic* (localised to specific time windows, with clean recording on either side). Photobleaching, hemodynamic drift, autofluorescence, and electronic noise are pervasive. Hard impacts, electrical transients, and optogenetic crosstalk are episodic.
+
+**Wavelength dependence.** Whether the contamination produces the *same time-course shape* at the 470 nm signal channel and the 405 nm control channel, or *different shapes*. The property is a fact about the recording itself, observable before any correction is applied. Patchcord motion is approximately wavelength-independent (mode loss, the scattering of light out of the fiber when it bends, affects both wavelengths to first order equally); hemodynamic absorption (Soret band absorbs more strongly at 405 than at 470) and autofluorescence (different excitation spectra at the two wavelengths) are wavelength-dependent. Wavelength-independent artifacts are addressed by [isosbestic correction](isosbestic_correction.md).
+
+**Behaviour coupling.** Whether the artifact's time course is correlated with the experimental events that downstream analyses align to. Motion (animals move when they perceive cues, lick rewards, or transition between behavioural states) and hemodynamic absorption (arousal drives blood flow) are typically behaviour-coupled. Behaviour-coupled artifacts that survive upstream correction are a special concern for event-locked analyses; the [PSTH explainer](psth.md) covers the event-aligned averaging mechanism.
+
+**Frequency content.** Whether the contamination sits inside the biosensor's kinetics frequency band, roughly **0.01-5 Hz**, varying with indicator type and downstream smoothing. In-band artifacts have time courses on the same timescale as the real biological signal and cannot be removed by low-pass filtering without removing the signal. Off-band artifacts at higher frequencies (electronic noise, mains-coupled flicker, electrical transients) are cleanly separated by a filter above the kinetics band. Sub-mHz drifts (photobleaching, autofluorescence drift, LED drift) sit *below* the band but are similarly unreachable by low-pass filtering, so the catalogue groups them with the in-band rows.
+
+The decision tree below shows the routing logic for any new artifact: each stage tests one property and catches the matching artifacts, with the remainder passing through to the next stage. The routing reflects *currently used methods*, not a stable property of the artifacts; as the field develops new approaches, the tree will gain or lose branches.
+
+![A vertical decision tree routing an artifact to a correction method. The "Artifact" label sits at the top with a downward arrow leading into the first decision. Three yes/no decision boxes are stacked vertically, labelled "Off-band frequency content?", "Wavelength-independent?", and "Episodic?". From each decision, a green "yes" arrow leads right to a method leaf, with the leaves labelled "Off-band caught: low-pass filter", "Independent caught: isosbestic correction", and "Episodic caught: manual removal". Gray "no" arrows fall down from each decision to the next. An artifact that answers "no" to all three falls through to a residual node at the bottom of the decision column labelled "Active research: spectral methods or tolerate". The "X caught" framing on each leaf makes the catching semantics explicit: each stage removes its property class and passes the rest to the next stage; what survives all three is the residual.](../_static/images/artifacts_explainer/fig2_decision_tree.svg)
+
+### Upstream avoidance
+
+The diagram above covers in-pipeline corrections. The field also avoids artifacts upstream of the pipeline through indicator choice and experimental design: red-shifted indicators (RCaMP, jRGECO, dLight variants) move the detection band away from hemoglobin's Soret band entirely; pre-bleaching the recording site saturates the fast-bleaching components of autofluorescence; control conditions that share the artifact-driving behaviour without the biological event let the experimenter detect and account for residual contamination statistically.
