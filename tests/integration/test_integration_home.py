@@ -6,17 +6,20 @@ import pytest
 from guppy.orchestration.home import build_homepage
 
 EXPECTED_JSON_KEYS = {
+    "guppy_version",
     "combine_data",
     "isosbestic_control",
     "timeForLightsTurnOn",
     "filter_window",
     "removeArtifacts",
+    "artifactsRemovalMethod",
     "noChannels",
     "zscore_method",
     "baselineWindowStart",
     "baselineWindowEnd",
     "nSecPrev",
     "nSecPost",
+    "computeCorr",
     "timeInterval",
     "bin_psth_trials",
     "use_time_or_trials",
@@ -29,6 +32,9 @@ EXPECTED_JSON_KEYS = {
     "moving_window",
     "highAmpFilt",
     "transientsThresh",
+    "plot_zScore_dff",
+    "visualize_zscore_or_dff",
+    "averageForGroup",
 }
 
 
@@ -69,4 +75,6 @@ def test_get_input_parameters_keys_include_saved_keys(homepage, tmp_path):
         saved_parameters = json.load(json_file)
     in_memory_parameters = homepage._hooks["getInputParameters"]()
     for key in saved_parameters:
+        if key == "guppy_version":
+            continue
         assert key in in_memory_parameters
