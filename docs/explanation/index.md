@@ -5,8 +5,10 @@ Explanation pages give background and context: the science behind fiber photomet
 ```{toctree}
 :maxdepth: 1
 
+fiber_photometry
 zscore
 transient_detection
 cross_correlation
 psth
+isosbestic_correction
 ```
