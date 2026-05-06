@@ -34,10 +34,10 @@ def read_hdf5(event, filepath, key):
     return arr
 
 
-def write_hdf5(data: Any, event: str, filepath: str, key: str) -> None:
-    event = event.replace("\\", "_")
-    event = event.replace("/", "_")
-    op = os.path.join(filepath, event + ".hdf5")
+def write_hdf5(data: Any, storename: str, output_path: str, key: str) -> None:
+    storename = storename.replace("\\", "_")
+    storename = storename.replace("/", "_")
+    op = os.path.join(output_path, storename + ".hdf5")
 
     if not os.path.exists(op):
         with h5py.File(op, "w") as f:
