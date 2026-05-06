@@ -354,3 +354,102 @@ class TestParameterFormDandiMode:
         form.dandi_selector.asset_file_selector.value = [os.path.join(mirror_root, "sub-01", "data.nwb")]
         with pytest.raises(Exception, match="local output directory"):
             form.getInputParameters()
+
+
+class TestOutputsSelector:
+    def test_outputs_selector_exists_and_is_filtered(self, parameter_form):
+        assert isinstance(parameter_form.outputs_selector, pn.widgets.FileSelector)
+        assert parameter_form.outputs_selector.file_pattern == "*_output_*"
+
+    def test_outputs_selector_retargets_to_first_session_on_files_1_change(self, bare_parameter_form, tmp_path):
+        session = tmp_path / "sessionA"
+        session.mkdir()
+        bare_parameter_form.files_1.value = [str(session)]
+        assert bare_parameter_form.outputs_selector.directory == str(session)
+        assert bare_parameter_form.outputs_selector.value == []
+
+    def test_outputs_selector_falls_back_to_default_root_when_files_1_cleared(self, bare_parameter_form, tmp_path):
+        from guppy.frontend.frontend_utils import default_root_path
+
+        session = tmp_path / "sessionA"
+        session.mkdir()
+        bare_parameter_form.files_1.value = [str(session)]
+        bare_parameter_form.files_1.value = []
+        assert bare_parameter_form.outputs_selector.directory == default_root_path()
+
+    def test_outputs_selector_clears_value_when_retargeted(self, bare_parameter_form, tmp_path):
+        session_a = tmp_path / "sessionA"
+        session_a.mkdir()
+        bare_parameter_form.files_1.value = [str(session_a)]
+        bare_parameter_form.outputs_selector.value = [str(session_a / "stale_output_x")]
+
+        session_b = tmp_path / "sessionB"
+        session_b.mkdir()
+        bare_parameter_form.files_1.value = [str(session_b)]
+        assert bare_parameter_form.outputs_selector.value == []
+
+    def test_collect_selected_outputs_groups_by_session(self, bare_parameter_form, tmp_path):
+        from guppy.utils.utils import output_dir_for_run
+
+        session_a = tmp_path / "sessionA"
+        session_a.mkdir()
+        session_b = tmp_path / "sessionB"
+        session_b.mkdir()
+        run_a1 = output_dir_for_run(str(session_a), "run1")
+        run_a2 = output_dir_for_run(str(session_a), "run2")
+        run_b1 = output_dir_for_run(str(session_b), "run1")
+        for path in (run_a1, run_a2, run_b1):
+            os.mkdir(path)
+
+        bare_parameter_form.outputs_selector.value = [run_a1, run_a2, run_b1]
+        result = bare_parameter_form._collect_selected_outputs()
+        assert result == {
+            str(session_a): ["run1", "run2"],
+            str(session_b): ["run1"],
+        }
+
+    def test_collect_selected_outputs_empty_returns_empty_dict(self, bare_parameter_form):
+        bare_parameter_form.outputs_selector.value = []
+        assert bare_parameter_form._collect_selected_outputs() == {}
+
+    def test_get_input_parameters_omits_run_name_keys(self, parameter_form):
+        result = parameter_form.getInputParameters()
+        assert "runName" not in result
+        assert "runNamePolicy" not in result
+
+    def test_get_input_parameters_selected_outputs_reflects_selector(self, bare_parameter_form, tmp_path):
+        from guppy.utils.utils import output_dir_for_run
+
+        session = tmp_path / "sessionA"
+        session.mkdir()
+        run_dir = output_dir_for_run(str(session), "baseline")
+        os.mkdir(run_dir)
+
+        bare_parameter_form.files_1.value = [str(session)]
+        bare_parameter_form.outputs_selector.value = [run_dir]
+
+        result = bare_parameter_form.getInputParameters()
+        assert result["selectedOutputs"] == {str(session): ["baseline"]}
+
+
+class TestFolderSelectionCards:
+    def test_input_folder_selection_card_exists_and_is_open(self, parameter_form):
+        assert isinstance(parameter_form.input_folder_selection, pn.Card)
+        assert parameter_form.input_folder_selection.title == "Input Folder Selection"
+        assert parameter_form.input_folder_selection.collapsed is False
+
+    def test_output_folder_selection_card_exists_and_is_collapsed(self, parameter_form):
+        assert isinstance(parameter_form.output_folder_selection, pn.Card)
+        assert parameter_form.output_folder_selection.title == "Output Folder Selection"
+        assert parameter_form.output_folder_selection.collapsed is True
+
+    def test_individual_card_starts_collapsed(self, parameter_form):
+        assert parameter_form.individual.collapsed is True
+
+    def test_add_to_template_appends_input_then_output_first(self, parameter_form):
+        main = parameter_form.template.main
+        assert main[0] is parameter_form.input_folder_selection
+        assert main[1] is parameter_form.output_folder_selection
+        assert main[2] is parameter_form.individual
+        assert main[3] is parameter_form.group
+        assert main[4] is parameter_form.visualize
