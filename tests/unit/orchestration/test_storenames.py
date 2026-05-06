@@ -494,8 +494,8 @@ class CapturingStorenamesSelector:
     def get_literal_input_2(self):
         return self._literal_input_2
 
-    def set_literal_input_2(self, d):
-        self._literal_input_2 = d
+    def set_literal_input_2(self, storenames_config):
+        self._literal_input_2 = storenames_config
 
     def get_take_widgets(self):
         return self._take_widgets
@@ -619,10 +619,10 @@ def test_fetch_values_delegates_to_fetch_values_function(storenames_closures, mo
 
     captured_args = {}
 
-    def fake_fetch_values(text, storenames, storename_dropdowns, storename_textboxes, d, **kwargs):
+    def fake_fetch_values(text, storenames, storename_dropdowns, storename_textboxes, storenames_config, **kwargs):
         captured_args["storenames"] = list(storenames)
-        d["storenames"] = storenames
-        d["names_for_storenames"] = ["control_DMS"]
+        storenames_config["storenames"] = storenames
+        storenames_config["names_for_storenames"] = ["control_DMS"]
         return "#### No alerts !!"
 
     monkeypatch.setattr("guppy.orchestration.storenames._fetchValues", fake_fetch_values)

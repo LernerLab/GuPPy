@@ -19,12 +19,11 @@ The result is a unit-free trace centered at zero. The unit is *standard deviatio
 
 Two synthetic recordings with their own event structures and very different absolute scales (one with large transients in low noise, the other with smaller transients in moderate noise) look essentially incomparable in dF/F units. After standard z-scoring, both recordings sit on a shared session-relative scale and event magnitudes become comparable in the same units, even though the events themselves happen at different times.
 
-## How GuPPy uses z-score
+## Downstream uses of z-score
 
-Z-score appears in three places in the GuPPy pipeline:
+Z-score appears in two places in the GuPPy pipeline:
 
 - **[PSTH](psth.md) y-axes.** When the PSTH step computes event-aligned trial averages, it operates on the z-scored trace by default. The resulting PSTHs are in z-score units, so that group analysis can pool trials across sessions and animals on a common scale.
-- **Visualization GUI.** Plots of event-aligned data are shown with z-score on the y-axis, so a reader comparing sessions on the same plot is comparing them in the same units.
 - **Transient detection.** GuPPy's transient detector identifies peaks that exceed a threshold expressed in noise units (effectively `z > 3`, with refinements described below). The threshold's meaning depends on z-score being a faithful unit of noise.
 
 Outside GuPPy, z-score is also the standard reporting unit in fiber photometry papers, so converting to it makes downstream comparisons with the published literature straightforward.

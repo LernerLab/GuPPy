@@ -159,18 +159,18 @@ class StorenamesSelector:
         dict
             Parsed JSON object from the ``literal_input_2`` code editor.
         """
-        d = json.loads(self.literal_input_2.value)
-        return d
+        storenames_config = json.loads(self.literal_input_2.value)
+        return storenames_config
 
-    def set_literal_input_2(self, d):  # TODO: come up with a better name for this method.
-        """Serialise ``d`` as pretty-printed JSON and set the code editor value.
+    def set_literal_input_2(self, storenames_config):  # TODO: come up with a better name for this method.
+        """Serialise ``storenames_config`` as pretty-printed JSON and set the code editor value.
 
         Parameters
         ----------
-        d : dict
+        storenames_config : dict
             Dictionary to serialise into the ``literal_input_2`` code editor.
         """
-        self.literal_input_2.value = str(json.dumps(d, indent=2))
+        self.literal_input_2.value = str(json.dumps(storenames_config, indent=2))
 
     def get_take_widgets(self):
         """Return the current values of the repeat-storenames widgets.
