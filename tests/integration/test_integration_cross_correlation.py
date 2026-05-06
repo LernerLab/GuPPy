@@ -63,18 +63,22 @@ def test_cross_correlation(tmp_path):
         selected_folders=[str(session_copy)],
         storenames_map=storenames_map,
     )
+    selected_runs = {str(session_copy): ["1"]}
     step3(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
+        selected_runs=selected_runs,
     )
     step4(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
+        selected_runs=selected_runs,
     )
     step5(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
         compute_corr=True,
+        selected_runs=selected_runs,
     )
 
     # Locate output directory
@@ -119,6 +123,7 @@ def test_cross_correlation(tmp_path):
             step6(
                 base_dir=str(tmp_base),
                 selected_folders=[str(session_copy)],
+                selected_runs=selected_runs,
             )
 
     assert len(captured_dashboards) >= 1, "step6 created no VisualizationDashboard instances"

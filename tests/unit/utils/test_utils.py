@@ -224,20 +224,13 @@ def test_discover_output_dirs_empty_when_no_outputs(tmp_path):
 # ── select_output_dirs ────────────────────────────────────────────────────────
 
 
-def test_select_output_dirs_none_returns_all(tmp_path):
+def test_select_output_dirs_none_raises(tmp_path):
     session = tmp_path / "mySession"
     session.mkdir()
     (session / "mySession_output_1").mkdir()
-    (session / "mySession_output_baseline").mkdir()
 
-    result = select_output_dirs(str(session), None)
-
-    assert sorted(result) == sorted(
-        [
-            str(session / "mySession_output_1"),
-            str(session / "mySession_output_baseline"),
-        ]
-    )
+    with pytest.raises(ValueError, match="explicit non-empty list"):
+        select_output_dirs(str(session), None)
 
 
 def test_select_output_dirs_filters_to_requested_runs(tmp_path):
@@ -272,15 +265,13 @@ def test_select_output_dirs_raises_when_storeslist_missing(tmp_path):
         select_output_dirs(str(session), ["baseline"])
 
 
-def test_select_output_dirs_empty_list_treated_as_none(tmp_path):
-    """Empty list defaults to "all output dirs" (back-compat with optional UI selection)."""
+def test_select_output_dirs_empty_list_raises(tmp_path):
     session = tmp_path / "mySession"
     session.mkdir()
     (session / "mySession_output_1").mkdir()
 
-    result = select_output_dirs(str(session), [])
-
-    assert result == [str(session / "mySession_output_1")]
+    with pytest.raises(ValueError, match="explicit non-empty list"):
+        select_output_dirs(str(session), [])
 
 
 # ── validate_run_name ─────────────────────────────────────────────────────────

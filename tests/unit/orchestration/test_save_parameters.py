@@ -160,17 +160,12 @@ def _make_output_dir(session_path, run_name):
     return output_dir
 
 
-def test_save_parameters_writes_into_all_output_dirs_when_no_filter(base_input_parameters):
+def test_save_parameters_raises_when_filter_missing_for_session_with_output_dirs(base_input_parameters):
     session = base_input_parameters["folderNames"][0]
-    baseline_dir = _make_output_dir(session, "baseline")
-    strict_dir = _make_output_dir(session, "strict")
+    _make_output_dir(session, "baseline")
 
-    save_parameters(base_input_parameters)
-
-    assert os.path.exists(os.path.join(baseline_dir, "GuPPyParamtersUsed.json"))
-    assert os.path.exists(os.path.join(strict_dir, "GuPPyParamtersUsed.json"))
-    # Session root must NOT receive the file when output dirs exist.
-    assert not os.path.exists(os.path.join(session, "GuPPyParamtersUsed.json"))
+    with pytest.raises(ValueError, match="explicit non-empty list"):
+        save_parameters(base_input_parameters)
 
 
 def test_save_parameters_filters_to_selected_run_name(base_input_parameters):

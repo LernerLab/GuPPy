@@ -45,11 +45,17 @@ def test_dff(tmp_path):
         base_dir=str(temporary_base_directory),
         selected_folders=[str(session_copy)],
     )
+    selected_runs = {str(session_copy): ["1"]}
 
     step2(**common_kwargs, storenames_map=STORENAMES_MAP)
-    step3(**common_kwargs)
-    step4(**common_kwargs)
-    step5(**common_kwargs, select_for_compute_psth="dff", select_for_transients="dff")
+    step3(**common_kwargs, selected_runs=selected_runs)
+    step4(**common_kwargs, selected_runs=selected_runs)
+    step5(
+        **common_kwargs,
+        select_for_compute_psth="dff",
+        select_for_transients="dff",
+        selected_runs=selected_runs,
+    )
 
     output_directories = sorted(glob.glob(os.path.join(session_copy, f"{session_name}_output_*")))
     assert output_directories, f"No output directories found in {session_copy}"

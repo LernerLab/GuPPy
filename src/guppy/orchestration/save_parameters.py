@@ -13,10 +13,9 @@ def save_parameters(inputParameters: dict):
 
     For every session listed under ``inputParameters['folderNames']`` the
     configuration is written into each output directory selected by the
-    ``selectedOutputs`` filter (or every output directory when no filter is
-    given).  When a session has no output directories yet (e.g. the user
-    clicked step 1 before step 2), the file is written at the session root
-    as a fallback so the legacy ordering still works.
+    ``selectedOutputs`` filter. When a session has no output directories yet
+    (e.g. the user clicked step 1 before step 2), the file is written at the
+    session root as a fallback so the legacy ordering still works.
 
     Parameters
     ----------

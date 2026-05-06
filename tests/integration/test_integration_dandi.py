@@ -93,6 +93,7 @@ def step3_dandi_output(step2_dandi_output, patched_stream_nwb):
         base_dir=step2_dandi_output["base_directory"],
         selected_folders=[step2_dandi_output["session_copy"]],
         dandi_uri_map={step2_dandi_output["session_copy"]: SENTINEL_DANDI_URI},
+        selected_runs={step2_dandi_output["session_copy"]: ["1"]},
     )
     step2_dandi_output["output_directory"] = _locate_output_directory(session_copy=step2_dandi_output["session_copy"])
     return step2_dandi_output

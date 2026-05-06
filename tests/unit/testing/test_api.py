@@ -49,6 +49,8 @@ class TestSharedApiValidation:
         }
         if step_name == "step2":
             kwargs["storenames_map"] = valid_storenames_map
+        if step_name in ("step3", "step4", "step5", "step6"):
+            kwargs["selected_runs"] = {api_workspace["session_directory"]: ["1"]}
 
         with pytest.raises(ValueError, match="base_dir does not exist or is not a directory"):
             step(**kwargs)
@@ -62,6 +64,8 @@ class TestSharedApiValidation:
         }
         if step_name == "step2":
             kwargs["storenames_map"] = valid_storenames_map
+        if step_name in ("step3", "step4", "step5", "step6"):
+            kwargs["selected_runs"] = {}
 
         with pytest.raises(ValueError, match="selected_folders must be a non-empty iterable"):
             step(**kwargs)
@@ -75,6 +79,8 @@ class TestSharedApiValidation:
         }
         if step_name == "step2":
             kwargs["storenames_map"] = valid_storenames_map
+        if step_name in ("step3", "step4", "step5", "step6"):
+            kwargs["selected_runs"] = {api_workspace["missing_session_directory"]: ["1"]}
 
         with pytest.raises(ValueError, match="Session path does not exist or is not a directory"):
             step(**kwargs)
@@ -88,6 +94,8 @@ class TestSharedApiValidation:
         }
         if step_name == "step2":
             kwargs["storenames_map"] = valid_storenames_map
+        if step_name in ("step3", "step4", "step5", "step6"):
+            kwargs["selected_runs"] = {api_workspace["foreign_session_directory"]: ["1"]}
 
         with pytest.raises(ValueError, match="must share the same parent equal to base_dir"):
             step(**kwargs)
@@ -129,6 +137,8 @@ class TestApiRuntimeErrors:
         }
         if step_name == "step2":
             kwargs["storenames_map"] = valid_storenames_map
+        if step_name in ("step3", "step4", "step5", "step6"):
+            kwargs["selected_runs"] = {api_workspace["session_directory"]: ["1"]}
 
         with pytest.raises(RuntimeError, match="getInputParameters"):
             step(**kwargs)
@@ -148,6 +158,8 @@ class TestApiRuntimeErrors:
         }
         if step_name == "step2":
             kwargs["storenames_map"] = valid_storenames_map
+        if step_name in ("step3", "step4", "step5", "step6"):
+            kwargs["selected_runs"] = {api_workspace["session_directory"]: ["1"]}
 
         with pytest.raises(RuntimeError, match="files_1"):
             step(**kwargs)

@@ -111,9 +111,8 @@ def select_output_dirs(session_path, selected_runs):
     ----------
     session_path : str
         Path to a session folder.
-    selected_runs : list of str or None
-        Run-name suffixes to keep.  When ``None`` (or empty) all output dirs
-        are returned (back-compat with the pre-parametrized pipeline).
+    selected_runs : list of str
+        Run-name suffixes to keep. Must be a non-empty list.
 
     Returns
     -------
@@ -123,14 +122,18 @@ def select_output_dirs(session_path, selected_runs):
     Raises
     ------
     ValueError
-        When a requested run name has no matching directory or when a
-        selected directory is missing ``storesList.csv``.  The error message
-        lists the available run names so the user can correct their input.
+        When ``selected_runs`` is empty/``None``, when a requested run name has
+        no matching directory, or when a selected directory is missing
+        ``storesList.csv``. The error message lists the available run names so
+        the user can correct their input.
     """
-    available = discover_output_dirs(session_path)
     if not selected_runs:
-        return available
-
+        raise ValueError(
+            f"select_output_dirs requires an explicit non-empty list of run names for session "
+            f"{session_path!r}; got {selected_runs!r}. Pick at least one existing _output_<run> "
+            "directory in the Output Folder Selection panel."
+        )
+    available = discover_output_dirs(session_path)
     available_by_name = {parse_run_name(directory): directory for directory in available}
     missing = [run for run in selected_runs if run not in available_by_name]
     if missing:

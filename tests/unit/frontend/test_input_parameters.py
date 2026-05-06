@@ -413,6 +413,27 @@ class TestOutputsSelector:
         bare_parameter_form.outputs_selector.value = []
         assert bare_parameter_form._collect_selected_outputs() == {}
 
+    def test_validate_selected_outputs_raises_when_session_has_dirs_but_none_selected(
+        self, bare_parameter_form, tmp_path
+    ):
+        session = tmp_path / "sessionA"
+        session.mkdir()
+        os.mkdir(output_dir_for_run(str(session), "baseline"))
+
+        bare_parameter_form.files_1.value = [str(session)]
+        bare_parameter_form.outputs_selector.value = []
+
+        with pytest.raises(ValueError, match="No output directory selected"):
+            bare_parameter_form.validate_selected_outputs_for_consumers()
+
+    def test_validate_selected_outputs_skips_sessions_without_output_dirs(self, bare_parameter_form, tmp_path):
+        session = tmp_path / "sessionA"
+        session.mkdir()
+        bare_parameter_form.files_1.value = [str(session)]
+        bare_parameter_form.outputs_selector.value = []
+
+        bare_parameter_form.validate_selected_outputs_for_consumers()
+
     def test_get_input_parameters_omits_run_name_keys(self, parameter_form):
         result = parameter_form.getInputParameters()
         assert "runName" not in result

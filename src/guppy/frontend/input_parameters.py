@@ -75,8 +75,6 @@ class ParameterForm:
         the path does not exist.
     """
 
-    _ALL_OUTPUTS_SENTINEL = "(all)"
-
     def __init__(self, *, template, start_path=None):
         self.template = template
         self.folder_path = start_path if start_path and os.path.isdir(start_path) else default_root_path()
@@ -175,9 +173,8 @@ class ParameterForm:
         )
 
         self.outputs_selector_header = pn.pane.Markdown(
-            "**Existing runs (steps 3–6):** Pick existing output directories to analyze. "
-            "Leave empty to use all runs in the selected sessions. "
-            "To create a new run, use the Storenames GUI in step 2.",
+            "**Existing runs (steps 3–6):** Pick at least one existing output directory per "
+            "selected session. To create a new run, use the Storenames GUI in step 2.",
             width=950,
         )
         self.outputs_selector = pn.widgets.FileSelector(
@@ -414,6 +411,26 @@ class ParameterForm:
             grouped.setdefault(session, []).append(parse_run_name(path))
         return grouped
 
+    def validate_selected_outputs_for_consumers(self):
+        """Ensure every selected session that has output dirs on disk also has at least one selected.
+
+        Run this from the click handlers for steps 3–6 (which consume existing
+        output directories). Skips sessions with no ``_output_<run>`` subdirs
+        yet — those are typically pre-step-2 states.
+        """
+        grouped = self._collect_selected_outputs()
+        missing = [
+            session
+            for session in (self.files_1.value or [])
+            if discover_output_dirs(session) and not grouped.get(session)
+        ]
+        if missing:
+            raise ValueError(
+                f"No output directory selected for session(s) {missing!r}. "
+                "Open the Output Folder Selection panel and pick at least one "
+                "_output_<run> directory per selected session."
+            )
+
     def _retarget_outputs_selector(self, event):
         """Root the existing-runs FileSelector at the first selected session so its `_output_*` dirs show directly."""
         sessions = event.new or []
@@ -458,19 +475,18 @@ class ParameterForm:
             # Skip sessions with no output dirs — nothing to filter, no widget needed.
             if not run_names:
                 continue
-            options = [cls._ALL_OUTPUTS_SENTINEL] + run_names
             existing = store.get(session)
             if existing is not None:
                 # Preserve the user's prior selection across rebuilds when it remains valid.
-                preserved = existing.value if existing.value in options else cls._ALL_OUTPUTS_SENTINEL
-                existing.options = options
+                preserved = existing.value if existing.value in run_names else run_names[0]
+                existing.options = run_names
                 existing.value = preserved
                 widget = existing
             else:
                 widget = pn.widgets.Select(
                     name=f"Outputs for {os.path.basename(session)}",
-                    value=cls._ALL_OUTPUTS_SENTINEL,
-                    options=options,
+                    value=run_names[0],
+                    options=run_names,
                     width=320,
                 )
             new_store[session] = widget
@@ -627,9 +643,7 @@ class ParameterForm:
             "visualizeAverageResults": self.visualizeAverageResults.value,
             "selectedOutputs": self._collect_selected_outputs(),
             "groupSelectedOutputs": {
-                session: [widget.value]
-                for session, widget in self.group_selected_outputs_widgets.items()
-                if widget.value != self._ALL_OUTPUTS_SENTINEL
+                session: [widget.value] for session, widget in self.group_selected_outputs_widgets.items()
             },
         }
         return inputParameters
