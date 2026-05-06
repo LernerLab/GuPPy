@@ -68,10 +68,12 @@ def screenshot_homepage(page) -> None:
 
 def screenshot_storenames(page, tmp_path: Path) -> None:
     """Screenshot 2: the Storenames GUI with CSV channel names."""
+    # Pass the real sample-data directory so the page title reads
+    # "Storenames GUI - sample_data_csv_1" instead of leaking a tmp dir basename.
     template = build_storenames_template(
         events=["Sample_Control_Channel", "Sample_Signal_Channel", "Sample_TTL"],
         flags=[],
-        folder_path=str(tmp_path),
+        folder_path=str(SAMPLE_DATA_DIR),
     )
     url = _serve(template)
 
