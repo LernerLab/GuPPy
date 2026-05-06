@@ -14,7 +14,7 @@ By the end you will have:
 
 ## Prerequisites
 
-- **GuPPy installed from source, with Git LFS.** This tutorial uses sample CSV files that live in the GuPPy repository under `stubbed_testing_data/`, which is tracked by [Git LFS](https://git-lfs.com). A plain `git clone` will fetch only LFS pointer files (a few hundred bytes each) instead of the real CSVs, so you need both Git LFS installed on your machine and a clone with the LFS payload pulled in:
+- **GuPPy installed from source, with Git LFS.** This tutorial uses sample CSV files that live in the GuPPy repository under `stubbed_testing_data/csv/sample_data_csv_1/`, which is tracked by [Git LFS](https://git-lfs.com). A plain `git clone` will fetch only LFS pointer files (a few hundred bytes each) instead of the real CSVs, so you need both Git LFS installed on your machine and a clone with the relevant LFS payload pulled in:
 
   ```bash
   # Install Git LFS once per machine; see https://git-lfs.com for OS-specific instructions.
@@ -22,7 +22,7 @@ By the end you will have:
 
   git clone https://github.com/LernerLab/GuPPy.git
   cd GuPPy
-  git lfs pull
+  git lfs pull --include="stubbed_testing_data/csv/sample_data_csv_1/*"
   pip install -e .
   ```
 
