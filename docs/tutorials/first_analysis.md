@@ -1,6 +1,6 @@
 # Your First Analysis
 
-This tutorial walks through a complete GuPPy pipeline run from raw CSV data to a PSTH plot. You will use the small sample dataset that lives inside the GuPPy repository, so the only setup is cloning the repo.
+This tutorial walks through a complete GuPPy pipeline run from raw CSV data to a PSTH plot. You will use the small sample dataset that lives inside the GuPPy repository (under Git LFS), so the only setup is the source-install steps below.
 
 By the end you will have:
 
