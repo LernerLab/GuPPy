@@ -30,6 +30,7 @@ class TestOrchestrateReadRawDataErrorEnrichment:
             "folderNames": [session_with_bogus_event],
             "numberOfCores": 1,
             "noChannels": 2,
+            "selectedOutputs": {session_with_bogus_event: ["1"]},
         }
         with pytest.raises(ValueError) as exception_info:
             orchestrate_read_raw_data(input_parameters)

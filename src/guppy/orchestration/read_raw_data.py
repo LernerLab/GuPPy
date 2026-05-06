@@ -1,4 +1,3 @@
-import glob
 import json
 import logging
 import multiprocessing as mp
@@ -18,7 +17,7 @@ from guppy.extractors import (
     read_and_save_all_events,
 )
 from guppy.frontend.progress import PB_STEPS_FILE, subprocess_main_handler, writeToFile
-from guppy.utils.utils import takeOnlyDirs
+from guppy.utils.utils import select_output_dirs
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +105,7 @@ def orchestrate_read_raw_data(inputParameters):
     folderNames = inputParameters["folderNames"]
     numProcesses = inputParameters["numberOfCores"]
     num_ch = inputParameters["noChannels"]
+    selected_outputs = inputParameters.get("selectedOutputs", {}) or {}
     storesListPath = []
     if numProcesses == 0:
         numProcesses = mp.cpu_count()
@@ -117,14 +117,14 @@ def orchestrate_read_raw_data(inputParameters):
         numProcesses = mp.cpu_count() - 1
     for i in range(len(folderNames)):
         filepath = folderNames[i]
-        storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+        storesListPath.append(select_output_dirs(filepath, selected_outputs.get(filepath)))
     storesListPath = np.concatenate(storesListPath)
     writeToFile(str((storesListPath.shape[0] + 1) * 10) + "\n" + str(10) + "\n", file_path=PB_STEPS_FILE)
     step = 0
     for i in range(len(folderNames)):
         filepath = folderNames[i]
         logger.debug(f"### Reading raw data for folder {folderNames[i]}")
-        storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*")))
+        storesListPath = select_output_dirs(filepath, selected_outputs.get(filepath))
 
         # read data corresponding to each storename selected by user while saving the storeslist file
         for j in range(len(storesListPath)):

@@ -7,6 +7,7 @@ import panel as pn
 
 from .dandi_selector import DandiSelector
 from .frontend_utils import default_root_path
+from ..utils.utils import discover_output_dirs, parse_run_name
 from ..utils.validation import (
     validate_required_folder_selection,
     validate_same_parent_directory,
@@ -78,10 +79,13 @@ class ParameterForm:
         self.template = template
         self.folder_path = start_path if start_path and os.path.isdir(start_path) else default_root_path()
         self.styles = dict(background="WhiteSmoke")
+        self.group_selected_outputs_widgets: dict[str, pn.widgets.Select] = {}
         self.setup_individual_parameters()
         self.setup_group_parameters()
         self.setup_visualization_parameters()
         self.add_to_template()
+        self.files_1.param.watch(self._retarget_outputs_selector, "value")
+        self.files_2.param.watch(self._rebuild_group_selected_outputs_widgets, "value")
 
     def setup_individual_parameters(self):
         """Build all widgets for the individual-analysis card and store them as instance attributes."""
@@ -166,6 +170,19 @@ class ParameterForm:
 
         self.combine_data = pn.widgets.Select(
             name="Combine Data? (bool)", value=False, options=[True, False], width=150
+        )
+
+        self.outputs_selector_header = pn.pane.Markdown(
+            "**Existing runs (steps 3–6):** Pick at least one existing output directory per "
+            "selected session. To create a new run, use the Storenames GUI in step 2.",
+            width=950,
+        )
+        self.outputs_selector = pn.widgets.FileSelector(
+            self.folder_path,
+            root_directory="/",
+            file_pattern="*_output_*",
+            name="Existing runs (steps 3–6)",
+            width=950,
         )
 
         self.computePsth = pn.widgets.Select(
@@ -349,19 +366,166 @@ class ParameterForm:
             self.zscore_param_wd, self.psth_param_wd, self.baseline_param_wd, self.peak_param_wd
         )
 
-        self.widget = pn.Column(
-            self.mark_down_1,
+        self.input_folder_selection_widget = pn.Column(
             pn.Row(pn.pane.Markdown("**Data Source:**"), self.source_mode),
             self.files_1,
             self.dandi_selector.panel,
+        )
+        self.input_folder_selection = pn.Card(
+            self.input_folder_selection_widget,
+            title="Input Folder Selection",
+            styles=self.styles,
+            width=1000,
+        )
+
+        self.output_folder_selection_widget = pn.Column(
+            self.outputs_selector_header,
+            self.outputs_selector,
+        )
+        self.output_folder_selection = pn.Card(
+            self.output_folder_selection_widget,
+            title="Output Folder Selection",
+            styles=self.styles,
+            width=1000,
+            collapsed=True,
+        )
+
+        self.widget = pn.Column(
+            self.mark_down_1,
             pn.Row(self.individual_analysis_wd_2, self.psth_baseline_param),
         )
-        self.individual = pn.Card(self.widget, title="Individual Analysis", styles=self.styles, width=1000)
+        self.individual = pn.Card(
+            self.widget, title="Individual Analysis", styles=self.styles, width=1000, collapsed=True
+        )
 
     def _on_source_mode_change(self, event):
         is_dandi = event.new == "dandi"
         self.files_1.visible = not is_dandi
         self.dandi_selector.panel.visible = is_dandi
+
+    def _collect_selected_outputs(self):
+        """Group the FileSelector's selected output dirs by parent session."""
+        grouped: dict[str, list[str]] = {}
+        for path in self.outputs_selector.value or []:
+            session = os.path.dirname(path)
+            grouped.setdefault(session, []).append(parse_run_name(path))
+        return grouped
+
+    def validate_selected_outputs_for_consumers(self):
+        """Ensure every selected session that has output dirs on disk also has at least one selected.
+
+        Run this from the click handlers for steps 3–6 (which consume existing
+        output directories). Skips sessions with no ``_output_<run>`` subdirs
+        yet — those are typically pre-step-2 states.
+        """
+        grouped = self._collect_selected_outputs()
+        missing = [
+            session
+            for session in (self.files_1.value or [])
+            if discover_output_dirs(session) and not grouped.get(session)
+        ]
+        if missing:
+            raise ValueError(
+                f"No output directory selected for session(s) {missing!r}. "
+                "Open the Output Folder Selection panel and pick at least one "
+                "_output_<run> directory per selected session."
+            )
+
+    def _retarget_outputs_selector(self, event):
+        """Root the existing-runs FileSelector so all selected sessions' `_output_*` dirs are reachable.
+
+        - Zero sessions: fall back to ``default_root_path()``.
+        - One session: root and starting directory both set to that session so its `_output_*`
+          children show directly (no extra click).
+        - Multiple sessions: root set to their common parent so every session is navigable;
+          starting directory set to the first session so the user lands on one session's
+          outputs and can navigate up to switch between sessions.
+        """
+        sessions = [s for s in (event.new or []) if os.path.isdir(s)]
+        if not sessions:
+            root_target = default_root_path()
+            directory_target = default_root_path()
+        elif len(sessions) == 1:
+            root_target = sessions[0]
+            directory_target = sessions[0]
+        else:
+            root_target = os.path.commonpath(sessions)
+            directory_target = sessions[0]
+        # Set root_directory before directory so Panel's `path.startswith(self._root_directory)`
+        # check in FileSelector._dir_change can't silently revert (Windows-specific failure mode
+        # when the constructor's root_directory="/" resolves to a drive root that isn't shared
+        # with tmp_path or the user's session folder).
+        self.outputs_selector.root_directory = root_target
+        self.outputs_selector.directory = directory_target
+        # Clear any prior selection that no longer makes sense for the new root.
+        self.outputs_selector.value = []
+        # Sync the FileSelector's internal _cwd and re-enumerate. Without this, _cwd remains
+        # at the construction-time path; clicking a sub-dir uses the stale _cwd to compute
+        # the navigated path, that path doesn't exist, and the FileSelector silently snaps
+        # back to the stale _cwd — visible to the user as "selection resets the directory".
+        self.outputs_selector._update_files()
+
+    def _rebuild_group_selected_outputs_widgets(self, event):
+        """Rebuild the per-session group-run-name Selects when files_2 changes."""
+        self._rebuild_per_session_widgets(
+            sessions=event.new,
+            target_box=self.group_selected_outputs_box,
+            store=self.group_selected_outputs_widgets,
+            scope="group",
+        )
+
+    def refresh_individual_outputs(self):
+        """Re-list the outputs FileSelector so newly-created run dirs (e.g. from step 2) appear."""
+        self.outputs_selector._refresh()
+
+    def refresh_group_outputs(self):
+        """Re-discover output directories for the currently-selected group sessions."""
+        self._rebuild_per_session_widgets(
+            sessions=self.files_2.value,
+            target_box=self.group_selected_outputs_box,
+            store=self.group_selected_outputs_widgets,
+            scope="group",
+        )
+
+    @staticmethod
+    def _make_outputs_placeholder(scope):
+        text = (
+            "**Run-name filter:** No output directories yet — run step 2 first."
+            if scope == "individual"
+            else "**Run-name filter (group):** No output directories yet — run step 2 first."
+        )
+        return pn.pane.Markdown(text, width=520)
+
+    @classmethod
+    def _rebuild_per_session_widgets(cls, sessions, target_box, store, scope):
+        new_objects = []
+        new_store = {}
+        for session in sessions or []:
+            run_names = [parse_run_name(directory) for directory in discover_output_dirs(session)]
+            # Skip sessions with no output dirs — nothing to filter, no widget needed.
+            if not run_names:
+                continue
+            existing = store.get(session)
+            if existing is not None:
+                # Preserve the user's prior selection across rebuilds when it remains valid.
+                preserved = existing.value if existing.value in run_names else run_names[0]
+                existing.options = run_names
+                existing.value = preserved
+                widget = existing
+            else:
+                widget = pn.widgets.Select(
+                    name=f"Outputs for {os.path.basename(session)}",
+                    value=run_names[0],
+                    options=run_names,
+                    width=320,
+                )
+            new_store[session] = widget
+            new_objects.append(widget)
+        store.clear()
+        store.update(new_store)
+        # When no per-session widgets are populated, show the placeholder so the
+        # box has a stable, always-visible footprint in the layout.
+        target_box.objects = new_objects or [cls._make_outputs_placeholder(scope)]
 
     def _resolve_dandi_sessions(self):
         """
@@ -415,7 +579,11 @@ class ParameterForm:
             name="Average Group? (bool)", value=False, options=[True, False], width=435
         )
 
-        self.group_analysis_wd_1 = pn.Column(self.mark_down_2, self.files_2, self.averageForGroup, width=800)
+        self.group_selected_outputs_box = pn.Column(self._make_outputs_placeholder("group"))
+
+        self.group_analysis_wd_1 = pn.Column(
+            self.mark_down_2, self.files_2, self.group_selected_outputs_box, self.averageForGroup, width=800
+        )
         self.group = pn.Card(
             self.group_analysis_wd_1, title="Group Analysis", styles=self.styles, width=1000, collapsed=True
         )
@@ -436,7 +604,9 @@ class ParameterForm:
         )
 
     def add_to_template(self):
-        """Append the individual, group, and visualization cards to the template's main area."""
+        """Append the input/output folder, individual, group, and visualization cards to the template's main area."""
+        self.template.main.append(self.input_folder_selection)
+        self.template.main.append(self.output_folder_selection)
         self.template.main.append(self.individual)
         self.template.main.append(self.group)
         self.template.main.append(self.visualize)
@@ -451,6 +621,10 @@ class ParameterForm:
             pipeline, keyed by the parameter names expected by the orchestration
             layer (e.g. ``"folderNames"``, ``"zscore_method"``, ``"nSecPrev"``).
         """
+        # Re-discover group output dirs so the per-session filters reflect any new dirs
+        # produced by step 2 since the user last deselected/reselected their session folder.
+        self.refresh_group_outputs()
+
         if self.source_mode.value == "dandi":
             folder_names, abspath_value, dandi_uri_map = self._resolve_dandi_sessions()
             mode = "dandi"
@@ -497,5 +671,9 @@ class ParameterForm:
             "folderNamesForAvg": self.files_2.value,
             "averageForGroup": self.averageForGroup.value,
             "visualizeAverageResults": self.visualizeAverageResults.value,
+            "selectedOutputs": self._collect_selected_outputs(),
+            "groupSelectedOutputs": {
+                session: [widget.value] for session, widget in self.group_selected_outputs_widgets.items()
+            },
         }
         return inputParameters

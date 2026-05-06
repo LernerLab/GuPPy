@@ -49,6 +49,8 @@ class TestSharedApiValidation:
         }
         if step_name == "step2":
             kwargs["storenames_map"] = valid_storenames_map
+        if step_name in ("step3", "step4", "step5", "step6"):
+            kwargs["selected_runs"] = {api_workspace["session_directory"]: ["1"]}
 
         with pytest.raises(ValueError, match="base_dir does not exist or is not a directory"):
             step(**kwargs)
@@ -62,6 +64,8 @@ class TestSharedApiValidation:
         }
         if step_name == "step2":
             kwargs["storenames_map"] = valid_storenames_map
+        if step_name in ("step3", "step4", "step5", "step6"):
+            kwargs["selected_runs"] = {}
 
         with pytest.raises(ValueError, match="selected_folders must be a non-empty iterable"):
             step(**kwargs)
@@ -75,6 +79,8 @@ class TestSharedApiValidation:
         }
         if step_name == "step2":
             kwargs["storenames_map"] = valid_storenames_map
+        if step_name in ("step3", "step4", "step5", "step6"):
+            kwargs["selected_runs"] = {api_workspace["missing_session_directory"]: ["1"]}
 
         with pytest.raises(ValueError, match="Session path does not exist or is not a directory"):
             step(**kwargs)
@@ -88,6 +94,8 @@ class TestSharedApiValidation:
         }
         if step_name == "step2":
             kwargs["storenames_map"] = valid_storenames_map
+        if step_name in ("step3", "step4", "step5", "step6"):
+            kwargs["selected_runs"] = {api_workspace["foreign_session_directory"]: ["1"]}
 
         with pytest.raises(ValueError, match="must share the same parent equal to base_dir"):
             step(**kwargs)
@@ -129,6 +137,8 @@ class TestApiRuntimeErrors:
         }
         if step_name == "step2":
             kwargs["storenames_map"] = valid_storenames_map
+        if step_name in ("step3", "step4", "step5", "step6"):
+            kwargs["selected_runs"] = {api_workspace["session_directory"]: ["1"]}
 
         with pytest.raises(RuntimeError, match="getInputParameters"):
             step(**kwargs)
@@ -148,6 +158,8 @@ class TestApiRuntimeErrors:
         }
         if step_name == "step2":
             kwargs["storenames_map"] = valid_storenames_map
+        if step_name in ("step3", "step4", "step5", "step6"):
+            kwargs["selected_runs"] = {api_workspace["session_directory"]: ["1"]}
 
         with pytest.raises(RuntimeError, match="files_1"):
             step(**kwargs)
@@ -177,3 +189,97 @@ class TestApiRuntimeErrors:
                 base_dir=api_workspace["base_directory"],
                 selected_folders=[api_workspace["session_directory"]],
             )
+
+
+class TestNormalizeSelectedRuns:
+    def test_raises_when_not_a_dict(self):
+        with pytest.raises(ValueError, match="must be a dict"):
+            testing_api._normalize_selected_runs(["not", "a", "dict"], ["/abs/session"])
+
+    def test_raises_when_session_key_not_in_selected_folders(self, tmp_path):
+        session = tmp_path / "session"
+        session.mkdir()
+        foreign = tmp_path / "foreign"
+        foreign.mkdir()
+        with pytest.raises(ValueError, match="not in selected_folders"):
+            testing_api._normalize_selected_runs(
+                {str(foreign): ["run1"]},
+                [str(session)],
+            )
+
+    def test_raises_when_run_names_not_a_list(self, tmp_path):
+        session = tmp_path / "session"
+        session.mkdir()
+        with pytest.raises(ValueError, match="non-empty list of non-empty strings"):
+            testing_api._normalize_selected_runs(
+                {str(session): "run1"},
+                [str(session)],
+            )
+
+    def test_raises_when_run_names_list_is_empty(self, tmp_path):
+        session = tmp_path / "session"
+        session.mkdir()
+        with pytest.raises(ValueError, match="non-empty list of non-empty strings"):
+            testing_api._normalize_selected_runs(
+                {str(session): []},
+                [str(session)],
+            )
+
+    def test_raises_when_run_name_is_empty_string(self, tmp_path):
+        session = tmp_path / "session"
+        session.mkdir()
+        with pytest.raises(ValueError, match="non-empty list of non-empty strings"):
+            testing_api._normalize_selected_runs(
+                {str(session): [""]},
+                [str(session)],
+            )
+
+    def test_raises_when_run_name_is_not_a_string(self, tmp_path):
+        session = tmp_path / "session"
+        session.mkdir()
+        with pytest.raises(ValueError, match="non-empty list of non-empty strings"):
+            testing_api._normalize_selected_runs(
+                {str(session): [123]},
+                [str(session)],
+            )
+
+    def test_raises_when_session_missing_from_mapping(self, tmp_path):
+        session_a = tmp_path / "sessionA"
+        session_a.mkdir()
+        session_b = tmp_path / "sessionB"
+        session_b.mkdir()
+        with pytest.raises(ValueError, match="missing entries for sessions"):
+            testing_api._normalize_selected_runs(
+                {str(session_a): ["run1"]},
+                [str(session_a), str(session_b)],
+            )
+
+    def test_uses_custom_parameter_name_in_error(self, tmp_path):
+        with pytest.raises(ValueError, match="custom_param must be a dict"):
+            testing_api._normalize_selected_runs(
+                "bad",
+                [str(tmp_path)],
+                parameter_name="custom_param",
+            )
+
+
+class TestNormalizeGroupSelectedRuns:
+    def test_raises_when_runs_provided_but_no_group_folders(self):
+        with pytest.raises(ValueError, match="no group_folders were selected"):
+            testing_api._normalize_group_selected_runs({"/abs/session": ["run1"]}, [])
+
+    def test_returns_empty_when_no_group_folders_and_no_runs(self):
+        assert testing_api._normalize_group_selected_runs(None, []) == {}
+        assert testing_api._normalize_group_selected_runs({}, []) == {}
+
+    def test_raises_when_group_folders_present_but_runs_is_none(self, tmp_path):
+        session = tmp_path / "session"
+        session.mkdir()
+        with pytest.raises(ValueError, match="group_selected_runs is required"):
+            testing_api._normalize_group_selected_runs(None, [str(session)])
+
+    def test_delegates_to_normalize_selected_runs_with_group_param_name(self, tmp_path):
+        session = tmp_path / "session"
+        session.mkdir()
+        with pytest.raises(ValueError, match="group_selected_runs"):
+            testing_api._normalize_group_selected_runs({str(session): []}, [str(session)])

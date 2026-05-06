@@ -45,6 +45,7 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
 
     base_dir = str(temporary_base)
     selected_folders = [str(session_copy)]
+    selected_runs = {folder: ["1"] for folder in selected_folders}
 
     step2(
         base_dir=base_dir,
@@ -61,6 +62,7 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
         npm_timestamp_column_names=None,
         npm_time_units=None,
         npm_split_events=[True, True],
+        selected_runs=selected_runs,
     )
 
     step4(
@@ -69,6 +71,7 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
         npm_timestamp_column_names=None,
         npm_time_units=None,
         npm_split_events=[True, True],
+        selected_runs=selected_runs,
     )
 
     step5(
@@ -79,6 +82,7 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
         npm_split_events=[True, True],
         bin_psth_trials=2,
         use_time_or_trials="# of trials",
+        selected_runs=selected_runs,
     )
 
     output_directories = sorted(glob.glob(os.path.join(str(session_copy), f"{session_name}_output_*")))
@@ -111,6 +115,8 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
         group_folders=selected_folders,
         bin_psth_trials=2,
         use_time_or_trials="# of trials",
+        selected_runs=selected_runs,
+        group_selected_runs=selected_runs,
     )
 
     average_directory = os.path.join(base_dir, "average")

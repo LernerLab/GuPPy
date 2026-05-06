@@ -10,9 +10,8 @@ This module is intentionally minimal and non-invasive.
 
 from __future__ import annotations
 
-import glob
 import os
-from typing import Iterable
+from typing import Iterable, Literal
 
 import numpy as np
 
@@ -23,6 +22,65 @@ from guppy.orchestration.read_raw_data import orchestrate_read_raw_data
 from guppy.orchestration.storenames import orchestrate_storenames_page
 from guppy.orchestration.transients import executeFindFreqAndAmp
 from guppy.orchestration.visualize import visualizeResults
+from guppy.utils.utils import select_output_dirs
+
+
+def _normalize_selected_runs(
+    selected_runs: dict[str, list[str]],
+    abs_sessions: list[str],
+    *,
+    parameter_name: str = "selected_runs",
+) -> dict[str, list[str]]:
+    """Validate and absolute-ify session keys in a selected_runs mapping.
+
+    Every session in ``abs_sessions`` must appear as a key with a non-empty
+    list of run-name suffixes.
+    """
+    if not isinstance(selected_runs, dict):
+        raise ValueError(
+            f"{parameter_name} must be a dict[session_path, list[run_name]]; " f"got {type(selected_runs).__name__}."
+        )
+    normalized: dict[str, list[str]] = {}
+    abs_sessions_set = set(abs_sessions)
+    for session_key, run_names in selected_runs.items():
+        absolute = os.path.abspath(session_key)
+        if absolute not in abs_sessions_set:
+            raise ValueError(
+                f"{parameter_name} key {session_key!r} is not in selected_folders; "
+                f"expected one of {sorted(abs_sessions_set)!r}."
+            )
+        if not isinstance(run_names, list) or not run_names or not all(isinstance(r, str) and r for r in run_names):
+            raise ValueError(
+                f"{parameter_name}[{session_key!r}] must be a non-empty list of non-empty strings; "
+                f"got {run_names!r}."
+            )
+        normalized[absolute] = list(run_names)
+    missing = sorted(abs_sessions_set - normalized.keys())
+    if missing:
+        raise ValueError(
+            f"{parameter_name} is missing entries for sessions {missing!r}; "
+            "every selected session must specify at least one run name."
+        )
+    return normalized
+
+
+def _normalize_group_selected_runs(
+    group_selected_runs: dict[str, list[str]] | None,
+    abs_group_folders: list[str],
+) -> dict[str, list[str]]:
+    """Validate group_selected_runs, allowing empty/None only when no group folders are selected."""
+    if not abs_group_folders:
+        if group_selected_runs:
+            raise ValueError(
+                f"group_selected_runs was provided but no group_folders were selected; got {group_selected_runs!r}."
+            )
+        return {}
+    if group_selected_runs is None:
+        raise ValueError(
+            "group_selected_runs is required when group_folders is non-empty; "
+            "every group session must specify at least one run name."
+        )
+    return _normalize_selected_runs(group_selected_runs, abs_group_folders, parameter_name="group_selected_runs")
 
 
 def step1(*, base_dir: str, selected_folders: Iterable[str]) -> None:
@@ -76,6 +134,8 @@ def step2(
     npm_time_units: list[str] | None = None,
     npm_split_events: list[bool] | None = None,
     dandi_uri_map: dict[str, str] | None = None,
+    run_name: str | None = None,
+    run_name_policy: Literal["create", "overwrite"] = "create",
 ) -> None:
     """
     Run pipeline Step 2 (Save Storenames) via the actual Panel-backed logic.
@@ -167,6 +227,10 @@ def step2(
     # Inject storenames mapping for headless execution
     input_params["storenames_map"] = dict(storenames_map)
 
+    # Inject run-name configuration (None falls back to legacy auto-incremented integer suffix)
+    input_params["runName"] = run_name
+    input_params["runNamePolicy"] = run_name_policy
+
     # Add npm parameters
     input_params["npm_timestamp_column_names"] = npm_timestamp_column_names
     input_params["npm_time_units"] = npm_time_units
@@ -192,6 +256,7 @@ def step3(
     npm_split_events: list[bool] | None = None,
     number_of_cores: int = 1,
     dandi_uri_map: dict[str, str] | None = None,
+    selected_runs: dict[str, list[str]],
 ) -> None:
     """
     Run pipeline Step 3 (Read Raw Data) via the actual Panel-backed logic, headlessly.
@@ -270,6 +335,9 @@ def step3(
     # Override parallelism — default 1 keeps tests single-process
     input_params["numberOfCores"] = number_of_cores
 
+    # Per-session output-directory subset filter — every session must have at least one run name.
+    input_params["selectedOutputs"] = _normalize_selected_runs(selected_runs, abs_sessions)
+
     # Inject DANDI mode and URI map for streaming
     if dandi_uri_map is not None:
         input_params["mode"] = "dandi"
@@ -296,6 +364,7 @@ def step4(
     baseline_window_start: int = 0,
     baseline_window_end: int = 0,
     isosbestic_control: bool = True,
+    selected_runs: dict[str, list[str]],
 ) -> None:
     """
     Run pipeline Step 4 (Extract timestamps and signal) via the Panel-backed logic, headlessly.
@@ -408,14 +477,17 @@ def step4(
     # Inject isosbestic_control
     input_params["isosbestic_control"] = isosbestic_control
 
+    # Per-session output-directory subset filter — every session must have at least one run name.
+    normalized_selected_runs = _normalize_selected_runs(selected_runs, abs_sessions)
+    input_params["selectedOutputs"] = normalized_selected_runs
+
     # Write artifact coordinates into each output directory so that the artifact
     # removal worker can find them without the interactive selection UI.
     if remove_artifacts and artifact_coords:
         for session in abs_sessions:
-            for output_dir in glob.glob(os.path.join(session, "*_output_*")):
-                if os.path.isdir(output_dir):
-                    for pair_name, coords in artifact_coords.items():
-                        np.save(os.path.join(output_dir, f"coordsForPreProcessing_{pair_name}.npy"), coords)
+            for output_dir in select_output_dirs(session, normalized_selected_runs[session]):
+                for pair_name, coords in artifact_coords.items():
+                    np.save(os.path.join(output_dir, f"coordsForPreProcessing_{pair_name}.npy"), coords)
 
     # Call the underlying Step 4 worker directly (no subprocess)
     extractTsAndSignal(input_params)
@@ -437,6 +509,8 @@ def step5(
     number_of_cores: int = 1,
     bin_psth_trials: int = 0,
     use_time_or_trials: str = "Time (min)",
+    selected_runs: dict[str, list[str]],
+    group_selected_runs: dict[str, list[str]] | None = None,
 ) -> None:
     """
     Run pipeline Step 5 (PSTH Computation) via the Panel-backed logic, headlessly.
@@ -545,7 +619,12 @@ def step5(
 
     # Inject group analysis parameters
     input_params["averageForGroup"] = average_for_group
-    input_params["folderNamesForAvg"] = [os.path.abspath(f) for f in group_folders] if group_folders else []
+    abs_group_folders = [os.path.abspath(f) for f in group_folders] if group_folders else []
+    input_params["folderNamesForAvg"] = abs_group_folders
+
+    # Per-session output-directory subset filter for individual + group analysis
+    input_params["selectedOutputs"] = _normalize_selected_runs(selected_runs, abs_sessions)
+    input_params["groupSelectedOutputs"] = _normalize_group_selected_runs(group_selected_runs, abs_group_folders)
 
     # Inject signal-type selection parameters
     input_params["selectForComputePsth"] = select_for_compute_psth
@@ -573,6 +652,8 @@ def step6(
     npm_time_units: list[str] | None = None,
     npm_split_events: list[bool] | None = None,
     visualize_zscore_or_dff: str = "z_score",
+    selected_runs: dict[str, list[str]],
+    group_selected_runs: dict[str, list[str]] | None = None,
 ) -> None:
     """
     Run pipeline Step 6 (Visualize Results) via the Panel-backed logic, headlessly.
@@ -651,6 +732,13 @@ def step6(
 
     # Inject visualization signal-type selection
     input_params["visualize_zscore_or_dff"] = visualize_zscore_or_dff
+
+    # Per-session output-directory subset filter for individual + group visualization
+    input_params["selectedOutputs"] = _normalize_selected_runs(selected_runs, abs_sessions)
+    input_params["groupSelectedOutputs"] = _normalize_group_selected_runs(
+        group_selected_runs,
+        [os.path.abspath(f) for f in (input_params.get("folderNamesForAvg") or [])],
+    )
 
     # Call the underlying Step 6 worker directly (no subprocess)
     visualizeResults(input_params)

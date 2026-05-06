@@ -1,4 +1,3 @@
-import glob
 import json
 import logging
 import os
@@ -28,60 +27,91 @@ from guppy.frontend.storenames_instructions import (
     StorenamesInstructionsNPM,
 )
 from guppy.frontend.storenames_selector import StorenamesSelector
-from guppy.utils.utils import takeOnlyDirs
+from guppy.utils.utils import (
+    discover_output_dirs,
+    output_dir_for_run,
+    validate_run_name,
+)
 
 pn.extension()
 
 logger = logging.getLogger(__name__)
 
 
-def show_dir(filepath):
-    """Return the path of the next available output directory without creating it.
+def show_dir(filepath, run_name=None):
+    """Return the path of an output directory without creating it.
 
     Parameters
     ----------
     filepath : str
         Path to the session folder.
+    run_name : str or None, optional
+        Explicit run-name suffix.  When ``None`` (the default) the legacy
+        next-available-integer behaviour is used.
 
     Returns
     -------
     str
-        Path of the form ``<filepath>/<basename>_output_<n>`` where ``n`` is the
-        lowest integer for which the directory does not yet exist.
+        Path of the form ``<filepath>/<basename>_output_<run_name>``.  When
+        ``run_name`` is ``None`` the suffix is the lowest integer for which
+        the directory does not yet exist.
     """
+    if run_name is not None:
+        validate_run_name(run_name)
+        return output_dir_for_run(filepath, run_name)
+
     i = 1
     while True:
-        basename = os.path.basename(filepath)
-        op = os.path.join(filepath, basename + "_output_" + str(i))
+        op = output_dir_for_run(filepath, str(i))
         if not os.path.exists(op):
             break
         i += 1
     return op
 
 
-def make_dir(filepath):
-    """Create and return the next available output directory.
+def make_dir(filepath, run_name=None, run_name_policy="create"):
+    """Create and return an output directory.
 
     Parameters
     ----------
     filepath : str
         Path to the session folder.
+    run_name : str or None, optional
+        Explicit run-name suffix.  When ``None`` (the default) the next-available
+        integer is used (legacy behaviour).
+    run_name_policy : {"create", "overwrite"}, optional
+        With ``run_name`` set, controls collision behaviour.  ``"create"``
+        raises if the target directory already exists; ``"overwrite"``
+        ``rmtree``s an existing directory before recreating it.  Ignored when
+        ``run_name`` is ``None`` (auto-increment never collides).
 
     Returns
     -------
     str
-        Path of the newly created directory, of the form
-        ``<filepath>/<basename>_output_<n>``.
+        Path of the newly created directory.
     """
-    i = 1
-    while True:
-        basename = os.path.basename(filepath)
-        op = os.path.join(filepath, basename + "_output_" + str(i))
-        if not os.path.exists(op):
-            os.mkdir(op)
-            break
-        i += 1
+    if run_name is None:
+        i = 1
+        while True:
+            op = output_dir_for_run(filepath, str(i))
+            if not os.path.exists(op):
+                os.mkdir(op)
+                return op
+            i += 1
 
+    validate_run_name(run_name)
+    if run_name_policy not in ("create", "overwrite"):
+        raise ValueError(f"run_name_policy must be 'create' or 'overwrite'; got {run_name_policy!r}.")
+    op = output_dir_for_run(filepath, run_name)
+    if os.path.exists(op):
+        if run_name_policy == "create":
+            raise ValueError(
+                f"Output directory already exists: {op!r}. "
+                "Choose a different runName or set runNamePolicy='overwrite' to replace it."
+            )
+        shutil.rmtree(op)
+        logger.info(f"Cleared output directory for overwrite: {op}")
+    os.mkdir(op)
     return op
 
 
@@ -267,11 +297,24 @@ def build_storenames_template(events, flags, folder_path, isosbestic_control=Fal
     # on clicking overwrite_button, following function is executed
     def overwrite_button_actions(event):
         if event.new == "over_write_file":
-            options = takeOnlyDirs(glob.glob(os.path.join(folder_path, "*_output_*")))
+            options = discover_output_dirs(folder_path)
             storenames_selector.set_select_location_options(options=options)
         else:
-            options = [show_dir(folder_path)]
+            run_name = storenames_selector.get_run_name()
+            options = [show_dir(folder_path, run_name=run_name or None)]
             storenames_selector.set_select_location_options(options=options)
+
+    def run_name_input_changed(event):
+        if storenames_selector.get_overwrite_mode() != "create_new_file":
+            return
+        run_name = event.new or None
+        try:
+            options = [show_dir(folder_path, run_name=run_name)]
+        except ValueError as exc:
+            storenames_selector.set_alert_message(f"####Alert !! \n {exc}")
+            return
+        storenames_selector.set_select_location_options(options=options)
+        storenames_selector.set_alert_message("#### No alerts !!")
 
     def fetchValues(event):
         global storenames
@@ -333,6 +376,7 @@ def build_storenames_template(events, flags, folder_path, isosbestic_control=Fal
         "show_config_button": fetchValues,
     }
     storenames_selector.attach_callbacks(button_name_to_onclick_fn)
+    storenames_selector.attach_run_name_watcher(run_name_input_changed)
 
     template.main.append(pn.Row(storenames_instructions.widget, storenames_selector.widget))
 
@@ -363,7 +407,9 @@ def build_storenames_page(inputParameters, events, flags, folder_path):
     # Headless path: if storenames_map provided, write storesList.csv without building the Panel UI
     storenames_map = inputParameters.get("storenames_map")
     if isinstance(storenames_map, dict) and len(storenames_map) > 0:
-        op = make_dir(folder_path)
+        run_name = inputParameters.get("runName") or None
+        run_name_policy = inputParameters.get("runNamePolicy", "create")
+        op = make_dir(folder_path, run_name=run_name, run_name_policy=run_name_policy)
         arr = np.asarray([list(storenames_map.keys()), list(storenames_map.values())], dtype=str)
         np.savetxt(os.path.join(op, "storesList.csv"), arr, delimiter=",", fmt="%s")
         logger.info(f"Storeslist file saved at {op}")

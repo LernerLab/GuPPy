@@ -77,9 +77,12 @@ def build_homepage(*, start_path=None):
 
     # ------------------------------------------------------------------------------------------------------------------
     # onclick closure functions for sidebar buttons
-    def _getInputParametersOrNotify():
+    def _getInputParametersOrNotify(*, require_selected_outputs: bool = False):
         try:
-            return parameter_form.getInputParameters()
+            input_parameters = parameter_form.getInputParameters()
+            if require_selected_outputs:
+                parameter_form.validate_selected_outputs_for_consumers()
+            return input_parameters
         except Exception as e:
             pn.state.notifications.error(str(e), duration=0)
             return None
@@ -95,9 +98,13 @@ def build_homepage(*, start_path=None):
         if inputParameters is None:
             return
         orchestrate_storenames_page(inputParameters)
+        # Newly-created output dirs become available for filtering on the next
+        # step without requiring the user to deselect/reselect their session.
+        parameter_form.refresh_individual_outputs()
+        parameter_form.refresh_group_outputs()
 
     def onclickVisualization(event=None):
-        inputParameters = _getInputParametersOrNotify()
+        inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
         if inputParameters is None:
             return
         try:
@@ -106,7 +113,7 @@ def build_homepage(*, start_path=None):
             pn.state.notifications.error(str(e), duration=0)
 
     def onclickreaddata(event=None):
-        inputParameters = _getInputParametersOrNotify()
+        inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
         if inputParameters is None:
             return
         thread = Thread(target=readRawData, args=(inputParameters,))
@@ -117,7 +124,7 @@ def build_homepage(*, start_path=None):
             pn.state.notifications.error(error_msg, duration=0)
 
     def onclickpreprocess(event=None):
-        inputParameters = _getInputParametersOrNotify()
+        inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
         if inputParameters is None:
             return
         thread = Thread(target=preprocess, args=(inputParameters,))
@@ -128,7 +135,7 @@ def build_homepage(*, start_path=None):
             pn.state.notifications.error(error_msg, duration=0)
 
     def onclickpsth(event=None):
-        inputParameters = _getInputParametersOrNotify()
+        inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
         if inputParameters is None:
             return
         inputParameters["curr_dir"] = current_dir
