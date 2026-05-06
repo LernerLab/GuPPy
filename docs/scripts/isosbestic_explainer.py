@@ -251,7 +251,7 @@ def figure_1_response_vs_wavelength():
     plt.close(fig)
 
 
-def figure_1b_response_columns():
+def figure_1_response_columns():
     """Empirical phenomenon figure: four panels side by side as columns, one
     per wavelength. Each panel shows a single calcium event as a black trace
     overlaid on the wavelength-specific fluorescence trace. The bottom row
@@ -261,7 +261,7 @@ def figure_1b_response_columns():
     _build_response_columns(spectrum_start_col=1, filename="fig1_response_columns.svg")
 
 
-def figure_3_spectra_decomposition():
+def figure_8_spectra_decomposition():
     """Fig 3 (mechanism deep-dive, part B): the isosbestic point as a
     spectral-crossing argument.
 
@@ -365,10 +365,19 @@ def figure_3_spectra_decomposition():
         bottom=0.08,
     )
 
+    # The 405 column is the figure's punchline (apo loss = bound gain → total
+    # cancels). Tint the column across all rows where it appears so the
+    # cancellation registers preattentively. Same amber as the answer cell
+    # in figure 2 for consistency.
+    iso_column_color = "#fff7e0"
+
     # ---- Top-left: emission spectra ----
     ax_spec = fig.add_subplot(gs[0, 0:2])
     spec_max = float(max(np.max(apo_spec_curve), np.max(bound_spec_curve)))
 
+    # Amber band at 405 nm marks where the spectra cross. Drawn behind the
+    # curves so the apo/bound lines stay legible.
+    ax_spec.axvspan(402, 408, color=iso_column_color, alpha=0.95, zorder=0)
     ax_spec.plot(wl_grid, apo_spec_curve, color=COLOR_APO, linewidth=2.6, label="apo", zorder=3)
     ax_spec.plot(wl_grid, bound_spec_curve, color=COLOR_BOUND, linewidth=2.6, label="bound", zorder=3)
 
@@ -404,13 +413,44 @@ def figure_3_spectra_decomposition():
 
     # ---- Top-right: ΔF as a function of excitation wavelength ----
     ax_curve = fig.add_subplot(gs[0, 2:4])
-    ax_curve.axhline(0, color="#cccccc", linewidth=0.8, alpha=0.7, zorder=1)
+    # Continue the 405 column tint into the response curve panel.
+    ax_curve.axvspan(402, 408, color=iso_column_color, alpha=0.95, zorder=0)
+    ax_curve.axhline(0, color="#888888", linewidth=1.1, alpha=0.95, zorder=1)
+    # Bold isosbestic line, parallel to the first figure's bottom panel.
+    ax_curve.axvline(
+        iso_wl,
+        color="#111111",
+        linestyle="--",
+        linewidth=2.2,
+        alpha=1.0,
+        dashes=(5, 3),
+        zorder=3,
+    )
     ax_curve.plot(wl_grid, delta_f_curve, color="#222222", linewidth=2.4, zorder=4)
     for wl_label, _, _, _, color in rows_wavelengths:
         wl_val = float(wl_label.split()[0])
         delta_at = float(np.interp(wl_val, wl_grid, delta_f_curve))
-        ax_curve.scatter([wl_val], [delta_at], color=color, s=120, zorder=5,
-                         edgecolors="white", linewidths=1.8)
+        ax_curve.scatter([wl_val], [delta_at], color=color, s=170, zorder=5)
+    delta_max = float(np.max(delta_f_curve))
+    ax_curve.annotate(
+        "isosbestic",
+        xy=(iso_wl, 0),
+        xytext=(iso_wl, delta_max * 1.18),
+        fontsize=12,
+        color="#111111",
+        weight="bold",
+        ha="center",
+        va="bottom",
+        arrowprops=dict(
+            arrowstyle="-",
+            color="#111111",
+            linewidth=1.0,
+            shrinkA=2,
+            shrinkB=6,
+        ),
+        clip_on=False,
+        zorder=7,
+    )
 
     ax_curve.set_xlim(350, 590)
     ax_curve.set_xticks([390, 405, 420, 470])
@@ -436,11 +476,14 @@ def figure_3_spectra_decomposition():
     )
 
     # ---- Middle row: total ΔF at four sample wavelengths ----
+    iso_column_idx = 2  # 405 nm column
     first_ax = None
     for col_idx, (wl_label, wl_descriptor, _, _, color) in enumerate(rows_wavelengths):
         ax = fig.add_subplot(gs[1, col_idx], sharey=first_ax)
         if first_ax is None:
             first_ax = ax
+        if col_idx == iso_column_idx:
+            ax.set_facecolor(iso_column_color)
         ax.axhline(0, color="#dddddd", linewidth=0.7, alpha=0.7, zorder=1)
         ax.plot(t, total_traces[col_idx], color=color, linewidth=1.4, zorder=3)
         ax.set_xlim(t[0], t[-1])
@@ -466,11 +509,21 @@ def figure_3_spectra_decomposition():
     # ---- Bottom row: apo + bound contributions decomposition ----
     # Wavelength labels go on this row's titles so they sit in the gap between
     # the total ΔF row above and the decomposition row below.
+    #
+    # TITLE_GAP_FRACTION controls where the wavelength title sits in the gap:
+    #   0.0 → flush against the top of this (bottom) panel
+    #   1.0 → flush against the bottom of the middle panel above
+    #   0.5 → exactly halfway (mathematical midpoint)
+    TITLE_GAP_FRACTION = 0.5
+    HSPACE = 0.45  # must match the GridSpec hspace above
+    title_y = 1.0 + TITLE_GAP_FRACTION * HSPACE
     first_ax_dec = None
     for col_idx, (wl_label, _, _, _, _) in enumerate(rows_wavelengths):
         ax = fig.add_subplot(gs[2, col_idx], sharey=first_ax_dec)
         if first_ax_dec is None:
             first_ax_dec = ax
+        if col_idx == iso_column_idx:
+            ax.set_facecolor(iso_column_color)
         ax.axhline(0, color="#dddddd", linewidth=0.7, alpha=0.7, zorder=1)
         # Apo plotted as is: apo_traces is already negative during the event
         # (apo population shrinks), which renders the apo "loss" below zero.
@@ -500,7 +553,8 @@ def figure_3_spectra_decomposition():
             ax.spines["left"].set_visible(False)
         ax.set_title(
             wl_label,
-            fontsize=11, color="#222222", pad=18,
+            fontsize=11, color="#222222",
+            y=title_y,
         )
 
     # Bottom-row legend
@@ -518,19 +572,19 @@ def figure_3_spectra_decomposition():
         bbox_to_anchor=(0.5, 0.005),
     )
 
-    fig.savefig(OUT / "fig3_decomposition.svg")
+    fig.savefig(OUT / "fig8_decomposition.svg")
     plt.close(fig)
 
 
 def figure_1_unified_decomposition():
     """Build the canonical unified figure: combined contributions row + signed
     bottom-left ΔF panel. (Legacy; current fig3 uses
-    figure_3_spectra_decomposition.)
+    figure_8_spectra_decomposition.)
     """
     _build_unified_figure(decomposition="signed", combined=True, filename="fig3_decomposition.svg")
 
 
-def figure_2a_calcium_chain():
+def figure_7_calcium_chain():
     """Fig 2 (mechanism deep-dive, part A): calcium drives the population
     mix, which drives the fluorescence response.
 
@@ -647,7 +701,7 @@ def figure_2a_calcium_chain():
 
     # (B) Bottom-left: fluorescence as a function of [Ca²⁺]
     ax_f_vs_ca = fig.add_subplot(gs[1, 0], sharex=ax_hill)
-    ax_f_vs_ca.plot(ca_grid, f_curve, color="#222222", linewidth=2.4, zorder=3)
+    ax_f_vs_ca.plot(ca_grid, f_curve, color=COLOR_SIGNAL, linewidth=2.4, zorder=3)
     ax_f_vs_ca.set_xlim(0, 2.0)
     ax_f_vs_ca.set_ylim(0, max(f_curve) * 1.20)
     ax_f_vs_ca.set_xticks([])
@@ -733,23 +787,24 @@ def figure_2a_calcium_chain():
         style="italic",
     )
 
-    # Global legend at the bottom
+    # Global legend at the bottom: state labels only. Panel C's inline legend
+    # carries the calcium / fluorescence pair, so the merged entry that
+    # conflated black calcium and green fluorescence under one swatch is dropped.
     from matplotlib.lines import Line2D
     legend_handles = [
-        Line2D([0], [0], color="#222222", linewidth=2.0, label="calcium / fluorescence"),
         Line2D([0], [0], color=COLOR_APO, linewidth=2.0, label="apo"),
         Line2D([0], [0], color=COLOR_BOUND, linewidth=2.0, label="bound"),
     ]
     fig.legend(
         handles=legend_handles,
         loc="lower center",
-        ncol=3,
+        ncol=2,
         fontsize=10,
         frameon=False,
         bbox_to_anchor=(0.5, 0.02),
     )
 
-    fig.savefig(OUT / "fig2_calcium_chain.svg")
+    fig.savefig(OUT / "fig7_calcium_chain.svg")
     plt.close(fig)
 
 
@@ -1142,7 +1197,10 @@ def _build_response_columns(spectrum_start_col, filename):
     for col_idx, (trace, (wave_label, descriptor, _, _, color)) in enumerate(zip(traces_df, rows)):
         ax_f = fig.add_subplot(gs[0, col_idx])
 
-        ax_f.axhline(0, color="#dddddd", linewidth=0.7, alpha=0.7, zorder=1)
+        # Shared zero baseline through all four panels: lets the 390 nm
+        # inversion register at first glance instead of requiring the reader
+        # to infer an invisible baseline.
+        ax_f.axhline(0, color="#999999", linewidth=1.0, alpha=0.95, zorder=1)
         ax_f.plot(t, calcium_centered_scaled, color="#222222", linewidth=1.7, alpha=0.85, zorder=2)
         ax_f.plot(t, trace, color=color, linewidth=1.1, zorder=3)
         ax_f.set_xlim(t[0], t[-1])
@@ -1239,7 +1297,12 @@ def _build_response_columns(spectrum_start_col, filename):
 
     wl_grid = np.linspace(380, 590, 900)
     apo_spec = _split_normal(wl_grid, mu=395, sl=14, sr=30)
-    bound_spec = 3.5 * _split_normal(wl_grid, mu=488, sl=55, sr=36)
+    # Bound multiplier chosen so that the spectra crossing lands at exactly
+    # 405 nm. This matches the figure's narrative: 405 is the sampled column
+    # labelled "no response" in the legend, and the dashed isosbestic line
+    # should coincide with it. The real-world nuance that the LED at 405
+    # sits a few nm short of the GCaMP isosbestic (~410) is covered in prose.
+    bound_spec = 2.956 * _split_normal(wl_grid, mu=488, sl=55, sr=36)
     delta_f_curve = bound_spec - apo_spec
 
     # Find the meaningful isosbestic crossing (sign change of delta_f_curve in
@@ -1250,31 +1313,21 @@ def _build_response_columns(spectrum_start_col, filename):
     iso_idx = int(np.where(search_mask)[0][sign_changes[0]])
     iso_wl = float(wl_grid[iso_idx])
 
-    ax_curve.axhline(0, color="#cccccc", linewidth=0.8, alpha=0.7, zorder=1)
-    ax_curve.axvline(iso_wl, color="#444444", linestyle="--", linewidth=1.2, alpha=0.85, zorder=2)
+    # Stronger zero baseline: the bottom curve crosses zero exactly at the
+    # isosbestic, and that crossing is the operational definition. The
+    # baseline needs to be visible enough that the coincidence reads.
+    ax_curve.axhline(0, color="#888888", linewidth=1.1, alpha=0.95, zorder=1)
+    # Bold isosbestic line: the most important annotation on the page.
+    ax_curve.axvline(
+        iso_wl,
+        color="#111111",
+        linestyle="--",
+        linewidth=2.2,
+        alpha=1.0,
+        dashes=(5, 3),
+        zorder=4,
+    )
     delta_max = float(np.max(delta_f_curve))
-    ax_curve.text(
-        iso_wl, delta_max * 1.04, "isosbestic", fontsize=9, color="#222222",
-        ha="center", va="bottom", clip_on=False,
-    )
-    ax_curve.fill_between(
-        wl_grid,
-        0,
-        delta_f_curve,
-        where=(delta_f_curve >= 0),
-        color="#bbbbbb",
-        alpha=0.18,
-        zorder=2,
-    )
-    ax_curve.fill_between(
-        wl_grid,
-        0,
-        delta_f_curve,
-        where=(delta_f_curve < 0),
-        color="#bbbbbb",
-        alpha=0.18,
-        zorder=2,
-    )
     ax_curve.plot(wl_grid, delta_f_curve, color="#222222", linewidth=2.0, zorder=3)
 
     for wl, color in sample_specs:
@@ -1284,11 +1337,32 @@ def _build_response_columns(spectrum_start_col, filename):
             [wl],
             [delta_at_wl],
             color=color,
-            s=140,
+            s=180,
             zorder=5,
-            edgecolors="white",
-            linewidths=2.0,
         )
+
+    # Bigger bold label with a leader line down to the intersection. The
+    # arrow makes the coincidence between the dashed vertical and the
+    # curve's zero crossing impossible to miss.
+    ax_curve.annotate(
+        "isosbestic",
+        xy=(iso_wl, 0),
+        xytext=(iso_wl, delta_max * 1.18),
+        fontsize=12,
+        color="#111111",
+        weight="bold",
+        ha="center",
+        va="bottom",
+        arrowprops=dict(
+            arrowstyle="-",
+            color="#111111",
+            linewidth=1.0,
+            shrinkA=2,
+            shrinkB=6,
+        ),
+        clip_on=False,
+        zorder=7,
+    )
 
     ax_curve.set_xlim(380, 590)
     ax_curve.set_xticks([390, 405, 420, 470])
@@ -1581,7 +1655,7 @@ def figure_3_contribution_decomposition():
     plt.close(fig)
 
 
-def figure_4_what_405_captures():
+def figure_2_what_405_captures():
     """Three scenarios: motion shows in both, bleach shows in both, calcium only in 470."""
     rng = np.random.default_rng(0)
     sample_rate = 100
@@ -1604,7 +1678,7 @@ def figure_4_what_405_captures():
     s_c_405 = base_405 * np.ones_like(t) + noise_amp * rng.standard_normal(len(t))
     s_c_470 = base_470 * (1 + calcium) + noise_amp * rng.standard_normal(len(t))
 
-    fig, axes = plt.subplots(2, 3, figsize=(8.6, 4.2), sharex=True)
+    fig, axes = plt.subplots(2, 3, figsize=(9.0, 4.4), sharex=True, sharey=True)
     titles = [
         "motion artifact\n(visible in both)",
         "photobleaching\n(visible in both)",
@@ -1612,27 +1686,66 @@ def figure_4_what_405_captures():
     ]
     pairs = [(s_a_405, s_a_470), (s_b_405, s_b_470), (s_c_405, s_c_470)]
 
+    # Shared y-limits across all four panels so the relative magnitudes of
+    # control and signal traces are visually honest: the 405 channel really
+    # is dimmer in absolute terms, and its artifacts really are smaller in
+    # absolute fluorescence units.
+    shared_ylim = (0.40, 1.28)
+
     for col, ((s_405, s_470), title) in enumerate(zip(pairs, titles)):
         ax_top = axes[0, col]
         ax_top.plot(t, s_405, color=COLOR_CONTROL, linewidth=1.2)
-        ax_top.set_ylim(0.43, 0.66)
+        ax_top.set_ylim(shared_ylim)
         ax_top.set_title(title, fontsize=10)
-        if col == 0:
-            ax_top.set_ylabel("405 nm\n(isosbestic)")
 
         ax_bot = axes[1, col]
         ax_bot.plot(t, s_470, color=COLOR_SIGNAL, linewidth=1.2)
-        ax_bot.set_ylim(0.70, 1.25)
+        ax_bot.set_ylim(shared_ylim)
         ax_bot.set_xlabel("time (s)")
-        if col == 0:
-            ax_bot.set_ylabel("470 nm\n(signal)")
 
-    fig.tight_layout()
-    fig.savefig(OUT / "fig4_what_405_captures.svg")
+        for ax in (ax_top, ax_bot):
+            ax.spines["right"].set_visible(False)
+            if col == 0:
+                ax.spines["left"].set_color("#bbbbbb")
+            else:
+                ax.spines["left"].set_visible(False)
+                ax.tick_params(axis="y", which="both", left=False, right=False)
+
+        # Top row shares its x-axis with the bottom row, so its bottom spine
+        # and x-ticks are redundant.
+        ax_top.spines["bottom"].set_visible(False)
+        ax_top.tick_params(axis="x", which="both", bottom=False)
+
+    # Mark the answer cell (calcium event, 405 row): a faint amber tint lets
+    # the empty panel read preattentively as "this is the answer" instead of
+    # as "nothing happens here". The asymmetry in this column is the whole
+    # point of the figure.
+    axes[0, 2].set_facecolor("#fff7e0")
+
+    fig.subplots_adjust(left=0.22, right=0.97, top=0.84, bottom=0.16,
+                        wspace=0.10, hspace=0.42)
+
+    # Row headers, parallel to the column titles. Replaces the per-axis
+    # y-labels that were doing row-identity work. Positioned in the margin
+    # to the left of the y-tick labels.
+    top_box = axes[0, 0].get_position()
+    bot_box = axes[1, 0].get_position()
+    top_y = (top_box.y0 + top_box.y1) / 2
+    bot_y = (bot_box.y0 + bot_box.y1) / 2
+    fig.text(0.10, top_y, "405 nm\n(isosbestic)", ha="center", va="center",
+             fontsize=10, weight="bold")
+    fig.text(0.10, bot_y, "470 nm\n(signal)", ha="center", va="center",
+             fontsize=10, weight="bold")
+
+    # Shared axis label, freed up now that row identity lives in the headers.
+    fig.text(0.025, 0.5, "raw fluorescence (a.u.)", rotation=90,
+             ha="center", va="center", fontsize=10)
+
+    fig.savefig(OUT / "fig2_what_405_captures.svg")
     plt.close(fig)
 
 
-def figure_5_linear_fit_and_correction():
+def figure_3_linear_fit_and_correction():
     """The GuPPy correction in action: signal, control, linear fit, residual dF/F."""
     rng = np.random.default_rng(1)
     sample_rate = 100
@@ -1658,8 +1771,9 @@ def figure_5_linear_fit_and_correction():
 
     fit = control_fit(control, signal_trace)
     dff = delta_ff(signal_trace, fit)
+    residual = signal_trace - fit
 
-    fig, axes = plt.subplots(3, 1, figsize=(7.6, 5.4), sharex=True)
+    fig, axes = plt.subplots(4, 1, figsize=(7.8, 7.2), sharex=True)
 
     ax = axes[0]
     ax.plot(t, signal_trace, color=COLOR_SIGNAL, linewidth=1.0, label="signal")
@@ -1670,20 +1784,46 @@ def figure_5_linear_fit_and_correction():
 
     ax = axes[1]
     ax.plot(t, signal_trace, color=COLOR_SIGNAL, linewidth=1.0, label="signal")
-    ax.plot(t, fit, color=COLOR_FIT, linewidth=1.4, linestyle="--", label="control_fit = m * control + b")
+    ax.plot(t, fit, color=COLOR_FIT, linewidth=1.4, linestyle="--", label="rescaled control")
     ax.set_ylabel("470 with fit")
     ax.legend(loc="upper right", frameon=False, fontsize=9)
     ax.set_title("control rescaled to signal")
 
+    # Residual panel: signal minus fit. Shows what the rescaling cannot
+    # explain (calcium events plus a little noise) and links the overlap
+    # claim in the panel above to the dF/F panel below.
     ax = axes[2]
+    ax.plot(t, residual, color="#333333", linewidth=1.0)
+    ax.axhline(0, color="#333333", linewidth=0.9, alpha=0.85)
+    ax.set_ylabel("residual\n(signal − fit)")
+    ax.set_title("what the rescaling cannot explain")
+
+    ax = axes[3]
     ax.plot(t, dff, color=COLOR_DFF, linewidth=1.0)
-    ax.axhline(0, color="#888888", linewidth=0.5, alpha=0.7)
+    # Bolder zero baseline: the whole point of the corrected dF/F is that
+    # the slow drift visible in the top panel is gone. The flat baseline
+    # should register preattentively, not rely on a faint default gridline.
+    ax.axhline(0, color="#222222", linewidth=1.2, alpha=0.95)
     ax.set_xlabel("time (s)")
     ax.set_ylabel("dF/F (%)")
     ax.set_title("corrected dF/F")
 
+    # Vertical reference lines at calcium-event and motion-artifact times,
+    # propagated across every panel. Lets the reader's eye trace each event
+    # top-to-bottom in a single sweep: motion bumps fade through the
+    # residual, calcium events persist into the dF/F.
+    calcium_times = [10, 30, 50]
+    motion_times = [20, 42]
+    for ax in axes:
+        for t_val in calcium_times:
+            ax.axvline(t_val, color=COLOR_SIGNAL, linestyle=":",
+                       linewidth=0.8, alpha=0.45, zorder=0)
+        for t_val in motion_times:
+            ax.axvline(t_val, color="#b87333", linestyle=":",
+                       linewidth=0.8, alpha=0.45, zorder=0)
+
     fig.tight_layout()
-    fig.savefig(OUT / "fig5_linear_fit_and_correction.svg")
+    fig.savefig(OUT / "fig3_linear_fit_and_correction.svg")
     plt.close(fig)
 
 
@@ -1698,16 +1838,20 @@ def figure_6_synthetic_fallback():
     base_470 = 1.00
 
     bleach = make_bleach(t, tau=25, depth=0.22)
-    # Flip the sign so the motion artifact reads as an upward deflection in
-    # dF/F. With the synthetic-exponential fallback, the residual then looks
-    # like a calcium event, which is the pedagogical point: the fallback
-    # cannot distinguish artifacts from real events when they share polarity.
-    motion = -make_motion_bump(t, center=30, width=0.7, depth=0.07)
+    # Motion artifact at t=20 s, separated from all calcium-event times so
+    # the surviving spike in the bottom-right panel is unambiguous. Flipped
+    # sign so the artifact reads as an upward deflection in dF/F: with the
+    # synthetic fallback the residual looks like a real calcium event,
+    # which is the pedagogical point.
+    motion = -make_motion_bump(t, center=20, width=0.7, depth=0.07)
     shared = bleach * (1 + motion)
 
+    # Three calcium events at 10, 30, 50 s, mirroring figure 3 so the
+    # reader can compare the same recording across figures.
     calcium_events = (
-        make_calcium_transient(t, center=12, amplitude=0.16, rise=0.3, decay=2.0)
-        + make_calcium_transient(t, center=45, amplitude=0.18, rise=0.3, decay=2.0)
+        make_calcium_transient(t, center=10, amplitude=0.16, rise=0.3, decay=2.0)
+        + make_calcium_transient(t, center=30, amplitude=0.14, rise=0.3, decay=2.0)
+        + make_calcium_transient(t, center=50, amplitude=0.18, rise=0.3, decay=2.0)
     )
 
     control = base_405 * shared + 0.004 * rng.standard_normal(len(t))
@@ -1720,31 +1864,29 @@ def figure_6_synthetic_fallback():
     fit_synthetic = control_fit(synthetic, signal_trace)
     dff_synthetic = delta_ff(signal_trace, fit_synthetic)
 
-    fig, axes = plt.subplots(2, 2, figsize=(8.6, 4.6))
+    fig, axes = plt.subplots(2, 2, figsize=(8.6, 4.6), sharey="row")
 
     # Shade the motion-artifact window on the right column so the reader sees
     # which feature was preserved (i.e., not removed by the synthetic fallback).
-    motion_t0 = 28.5
-    motion_t1 = 31.5
+    motion_t0 = 18.5
+    motion_t1 = 21.5
     motion_color = "#f0c060"
 
     ax = axes[0, 0]
     ax.plot(t, signal_trace, color=COLOR_SIGNAL, linewidth=1.0, label="signal")
     ax.plot(t, control, color=COLOR_CONTROL, linewidth=1.0, label="control")
     ax.set_ylabel("raw fluorescence")
-    ax.set_title("real isosbestic control")
     ax.legend(loc="upper right", frameon=False, fontsize=8)
 
     ax = axes[0, 1]
     ax.axvspan(motion_t0, motion_t1, color=motion_color, alpha=0.25, zorder=0)
     ax.plot(t, signal_trace, color=COLOR_SIGNAL, linewidth=1.0, label="signal")
     ax.plot(t, synthetic, color=COLOR_SYNTHETIC, linewidth=1.2, linestyle="--", label="synthetic exponential")
-    ax.set_title("synthetic exponential control")
     ax.legend(loc="upper right", frameon=False, fontsize=8)
 
     ax = axes[1, 0]
     ax.plot(t, dff_real, color=COLOR_DFF, linewidth=1.0)
-    ax.axhline(0, color="#888888", linewidth=0.5, alpha=0.7)
+    ax.axhline(0, color="#222222", linewidth=1.0, alpha=0.9)
     ax.set_xlabel("time (s)")
     ax.set_ylabel("dF/F (%)")
     ax.set_title("artifact removed, calcium events preserved", fontsize=10)
@@ -1753,22 +1895,17 @@ def figure_6_synthetic_fallback():
     ax.axvspan(motion_t0, motion_t1, color=motion_color, alpha=0.25, zorder=0,
                label="motion artifact")
     ax.plot(t, dff_synthetic, color=COLOR_DFF, linewidth=1.0)
-    ax.axhline(0, color="#888888", linewidth=0.5, alpha=0.7)
+    ax.axhline(0, color="#222222", linewidth=1.0, alpha=0.9)
     ax.set_xlabel("time (s)")
     ax.set_title("bleaching removed, motion artifact passes through", fontsize=10)
     ax.legend(loc="lower left", frameon=False, fontsize=8)
 
-    ymin = min(dff_real.min(), dff_synthetic.min()) - 1
-    ymax = max(dff_real.max(), dff_synthetic.max()) + 1
-    axes[1, 0].set_ylim(ymin, ymax)
-    axes[1, 1].set_ylim(ymin, ymax)
-
     fig.tight_layout()
-    fig.savefig(OUT / "fig8_synthetic_fallback.svg")
+    fig.savefig(OUT / "fig6_synthetic_fallback.svg")
     plt.close(fig)
 
 
-def figure_7_what_survives():
+def figure_4_what_survives():
     """Single asymmetric-artifact case: a wavelength-dependent artifact (large
     at 470, small at 405) cannot be matched by any rescaling of the 405 trace,
     so a reduced version of the artifact remains in dF/F."""
@@ -1790,25 +1927,53 @@ def figure_7_what_survives():
     fit = control_fit(ctrl, sig)
     dff = delta_ff(sig, fit)
 
-    fig, (ax_l, ax_r) = plt.subplots(1, 2, figsize=(8.4, 2.4))
+    fig, (ax_l, ax_r) = plt.subplots(1, 2, figsize=(8.8, 3.0))
 
-    ax_l.plot(t, sig, color=COLOR_SIGNAL, linewidth=1.0, label="signal")
-    ax_l.plot(t, ctrl, color=COLOR_CONTROL, linewidth=1.0, label="control")
+    # Vertical reference line at the artifact time, propagated across both
+    # panels. Lets the reader trace input → output in one visual sweep.
+    artifact_t = 10
+    for ax in (ax_l, ax_r):
+        ax.axvline(artifact_t, color="#bbbbbb", linestyle=":",
+                   linewidth=0.8, alpha=0.7, zorder=0)
+
+    # Left panel: raw signal, raw control, and rescaled control overlaid.
+    # The rescaled control hugs the signal almost everywhere; at the bump
+    # the green dips much further than the gray dashed. The gap is exactly
+    # what the correction cannot cancel.
+    ax_l.plot(t, sig, color=COLOR_SIGNAL, linewidth=1.1, label="signal", zorder=4)
+    ax_l.plot(t, ctrl, color=COLOR_CONTROL, linewidth=1.0, label="control", zorder=3)
+    ax_l.plot(t, fit, color="#888888", linewidth=0.9, linestyle="--",
+              label="rescaled control", alpha=0.75, zorder=2)
     ax_l.set_title("raw traces")
-    ax_l.legend(loc="center right", frameon=False, fontsize=8)
+    ax_l.legend(loc="lower left", frameon=False, fontsize=8)
     ax_l.set_xlabel("time (s)")
+    ax_l.set_ylabel("raw fluorescence")
 
-    ax_r.plot(t, dff, color=COLOR_DFF, linewidth=1.0)
-    ax_r.axhline(0, color="#888888", linewidth=0.5, alpha=0.7)
+    # Right panel: corrected dF/F. Reference at the typical calcium-event
+    # amplitude (~10%, from figure 3) so the reader can size the surviving
+    # artifact spike against a real event.
+    typical_event = 10.0
+    ax_r.axhline(typical_event, color="#bbbbbb", linestyle="--",
+                 linewidth=0.9, alpha=0.85, zorder=1)
+    ax_r.text(
+        t[-1] - 0.2, typical_event + 0.5,
+        "typical calcium event (~10%)",
+        ha="right", va="bottom", fontsize=8, color="#555555", style="italic",
+        zorder=2,
+    )
+    ax_r.plot(t, dff, color=COLOR_DFF, linewidth=1.0, zorder=3)
+    # Bolder zero baseline, parallel to figure 3's bottom panel.
+    ax_r.axhline(0, color="#222222", linewidth=1.1, alpha=0.95, zorder=2)
+    ax_r.set_ylim(-12, 13)
     ax_r.set_title("corrected dF/F (%)")
     ax_r.set_xlabel("time (s)")
 
     fig.tight_layout()
-    fig.savefig(OUT / "fig6_what_survives.svg")
+    fig.savefig(OUT / "fig4_what_survives.svg")
     plt.close(fig)
 
 
-def figure_8_control_diagnostic():
+def figure_5_control_diagnostic():
     """Two example 405 traces: a clean recording vs a noisy one."""
     rng = np.random.default_rng(4)
     sample_rate = 100
@@ -1816,9 +1981,14 @@ def figure_8_control_diagnostic():
     t = np.arange(0, duration, 1 / sample_rate)
     base = 0.60
 
-    clean = base * make_bleach(t, tau=30, depth=0.18) + 0.004 * rng.standard_normal(len(t))
-
     bleach = make_bleach(t, tau=30, depth=0.18)
+    # Shared reference exponential: both panels nominally bleach the same
+    # way, so the same dashed reference goes in both. The left should hug
+    # it; the right should depart from it.
+    expected = base * bleach
+
+    clean = expected + 0.004 * rng.standard_normal(len(t))
+
     motion = (
         make_motion_bump(t, center=12, width=0.5, depth=0.08)
         + make_motion_bump(t, center=27, width=0.4, depth=0.10)
@@ -1827,29 +1997,57 @@ def figure_8_control_diagnostic():
     drift = 0.03 * np.sin(2 * np.pi * t / 35.0)
     noisy = base * bleach * (1 + motion) + base * drift + 0.004 * rng.standard_normal(len(t))
 
-    fig, axes = plt.subplots(1, 2, figsize=(8.6, 2.8), sharey=True)
+    fig, axes = plt.subplots(1, 2, figsize=(8.8, 3.2), sharey=True)
 
-    axes[0].plot(t, clean, color=COLOR_CONTROL, linewidth=1.1)
+    for ax in axes:
+        ax.plot(
+            t,
+            expected,
+            color="#666666",
+            linewidth=1.0,
+            linestyle="--",
+            alpha=0.9,
+            label="expected bleach",
+            zorder=2,
+        )
+
+    axes[0].plot(t, clean, color=COLOR_CONTROL, linewidth=1.1, zorder=3)
     axes[0].set_title("only photobleaching")
     axes[0].set_xlabel("time (s)")
     axes[0].set_ylabel("isosbestic fluorescence")
+    axes[0].legend(loc="upper right", frameon=False, fontsize=9)
 
-    axes[1].plot(t, noisy, color=COLOR_CONTROL, linewidth=1.1)
+    axes[1].plot(t, noisy, color=COLOR_CONTROL, linewidth=1.1, zorder=3)
     axes[1].set_title("motion and drift")
     axes[1].set_xlabel("time (s)")
 
-    fig.tight_layout()
-    fig.savefig(OUT / "fig7_control_diagnostic.svg")
+    fig.tight_layout(rect=[0, 0.06, 1, 1])
+
+    # Surface the controlled comparison: both panels share starting baseline
+    # and bleach envelope (~16% decay over 60 s); the only meaningful
+    # difference is the transients on the right.
+    fig.text(
+        0.5,
+        0.01,
+        "Both panels share the same starting baseline (~0.60) and bleach by ~16% over 60 s; the right panel adds motion artifacts and slow drift.",
+        ha="center",
+        va="bottom",
+        fontsize=9,
+        color="#555555",
+        style="italic",
+    )
+
+    fig.savefig(OUT / "fig5_control_diagnostic.svg")
     plt.close(fig)
 
 
 if __name__ == "__main__":
-    figure_1b_response_columns()
-    figure_2a_calcium_chain()
-    figure_3_spectra_decomposition()
-    figure_4_what_405_captures()
-    figure_5_linear_fit_and_correction()
-    figure_7_what_survives()
-    figure_8_control_diagnostic()
+    figure_1_response_columns()
+    figure_2_what_405_captures()
+    figure_3_linear_fit_and_correction()
+    figure_4_what_survives()
+    figure_5_control_diagnostic()
     figure_6_synthetic_fallback()
+    figure_7_calcium_chain()
+    figure_8_spectra_decomposition()
     print("Wrote SVGs to", OUT)
