@@ -17,6 +17,17 @@ logger = logging.getLogger(__name__)
 
 
 class TdtRecordingExtractor(BaseRecordingExtractor):
+    """
+    Extractor for fiber photometry data from Tucker-Davis Technologies (TDT) systems.
+
+    Reads binary TDT tank data (``*.tsq`` header + ``*.tev`` data) and extracts
+    continuous photometry streams and TTL/epoc events.
+
+    Parameters
+    ----------
+    folder_path : str
+        Path to the TDT tank folder containing ``.tsq`` and ``.tev`` files.
+    """
 
     @classmethod
     def discover_events_and_flags(cls, folder_path) -> tuple[list[str], list[str]]:
@@ -176,6 +187,29 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         return event_dict
 
     def read(self, *, events: list[str], outputPath: str) -> list[dict[str, Any]]:
+        """
+        Read data from TDT TEV/TSQ files for the specified events.
+
+        If an event's data encodes multiple behaviour markers (non-uniform
+        strobe values), it is automatically split into one sub-event per
+        unique marker value and the ``storesList.csv`` in ``outputPath`` is
+        updated accordingly.
+
+        Parameters
+        ----------
+        events : list of str
+            TDT store names to read (case-sensitive, exactly 4 characters).
+        outputPath : str
+            Path to the output directory. Used when split-event stores must
+            update ``storesList.csv``.
+
+        Returns
+        -------
+        list of dict
+            One dictionary per store (or sub-store after splitting). Each dict
+            contains ``storename``, ``sampling_rate``, ``timestamps``, ``data``,
+            ``npoints``, and ``channels``.
+        """
         output_dicts = []
         for event in events:
             event_dict = self._readtev(event=event)
@@ -266,6 +300,16 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         write_hdf5(event_dict["channels"], event, outputPath, "channels")
 
     def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str) -> None:
+        """
+        Save extracted TDT data dictionaries to HDF5 files.
+
+        Parameters
+        ----------
+        output_dicts : list of dict
+            Data dictionaries as returned by :meth:`read`.
+        outputPath : str
+            Path to the output directory where HDF5 files are written.
+        """
         for event_dict in output_dicts:
             self._save_dict_to_hdf5(event_dict=event_dict, outputPath=outputPath)
 

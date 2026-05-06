@@ -17,6 +17,18 @@ logger = logging.getLogger(__name__)
 
 
 def averageForGroup(folderNames, inputParameters):
+    """
+    Combine transient frequency and amplitude results across a group of sessions.
+
+    Parameters
+    ----------
+    folderNames : list of str
+        Session directories whose output subdirectories contain precomputed
+        ``freqAndAmp_*.h5`` files.
+    inputParameters : dict
+        Analysis configuration dictionary; must include ``'abspath'`` and
+        ``'selectForTransientsComputation'``.
+    """
 
     logger.debug("Combining results for frequency and amplitude of transients in z-score data...")
     path = []

@@ -9,6 +9,18 @@ logger = logging.getLogger(__name__)
 
 
 def takeOnlyDirs(paths):
+    """Filter a list of paths to include only directories.
+
+    Parameters
+    ----------
+    paths : list of str
+        Mixed list of file and directory paths.
+
+    Returns
+    -------
+    list of str
+        Subset of ``paths`` containing only directories.
+    """
     removePaths = []
     for p in paths:
         if os.path.isfile(p):
@@ -17,6 +29,19 @@ def takeOnlyDirs(paths):
 
 
 def get_all_stores_for_combining_data(folderNames):
+    """Group output directories by their output index for cross-session combining.
+
+    Parameters
+    ----------
+    folderNames : list of str
+        Paths to ``*_output_<n>`` directories across all sessions.
+
+    Returns
+    -------
+    list of list of str
+        One inner list per output index (1, 2, …), each containing all
+        directories that share that index.
+    """
     op = []
     for i in range(100):
         temp = []
@@ -30,8 +55,24 @@ def get_all_stores_for_combining_data(folderNames):
     return op
 
 
-# function to read h5 file and make a dataframe from it
 def read_Df(filepath, event, name):
+    """Read a PSTH HDF5 file and return it as a DataFrame.
+
+    Parameters
+    ----------
+    filepath : str
+        Path to the session output directory.
+    event : str
+        Event name used in the filename.
+    name : str
+        z-score/dff basename; when non-empty the filename is
+        ``<event>_<name>.h5``, otherwise ``<event>.h5``.
+
+    Returns
+    -------
+    pandas.DataFrame
+        PSTH data loaded from the HDF5 file.
+    """
     event = event.replace("\\", "_")
     event = event.replace("/", "_")
     if name:

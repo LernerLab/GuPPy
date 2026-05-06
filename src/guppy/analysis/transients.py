@@ -10,6 +10,40 @@ logger = logging.getLogger(__name__)
 
 
 def analyze_transients(ts, window, numProcesses, highAmpFilt, transientsThresh, sampling_rate, z_score):
+    """
+    Detect transient events in a z-score signal using a two-threshold MAD approach.
+
+    Parameters
+    ----------
+    ts : np.ndarray
+        Timestamp array corresponding to ``z_score``.
+    window : float
+        Chunk duration in seconds for parallel processing.
+    numProcesses : int
+        Number of worker processes for the multiprocessing pool.
+    highAmpFilt : float
+        MAD multiplier used to identify and exclude high-amplitude samples before
+        computing the second threshold.
+    transientsThresh : float
+        MAD multiplier applied to the filtered distribution to set the detection threshold.
+    sampling_rate : float
+        Sampling rate in Hz.
+    z_score : np.ndarray
+        1-D z-scored signal array.
+
+    Returns
+    -------
+    z_score : np.ndarray
+        NaN-free z-score array used for analysis.
+    ts : np.ndarray
+        NaN-free timestamp array aligned with the returned ``z_score``.
+    peaksInd : np.ndarray
+        Integer indices of detected transient peaks in ``z_score``.
+    peaks_occurrences : np.ndarray
+        Shape ``(n_peaks, 2)`` array of ``[timestamp, amplitude]`` for each peak.
+    arr : np.ndarray
+        Shape ``(1, 2)`` array of ``[frequency (events/min), mean amplitude]``.
+    """
     not_nan_indices = ~np.isnan(z_score)
     z_score = z_score[not_nan_indices]
     z_score_chunks, z_score_chunks_index = createChunks(z_score, sampling_rate, window)
@@ -28,6 +62,27 @@ def analyze_transients(ts, window, numProcesses, highAmpFilt, transientsThresh, 
 
 
 def processChunks(arrValues, arrIndexes, highAmpFilt, transientsThresh):
+    """
+    Apply the two-threshold MAD transient-detection algorithm to one chunk.
+
+    Parameters
+    ----------
+    arrValues : np.ndarray
+        Z-score values for this chunk (may contain NaN padding).
+    arrIndexes : np.ndarray
+        Global sample indices corresponding to ``arrValues``.
+    highAmpFilt : float
+        MAD multiplier for the first (high-amplitude exclusion) threshold.
+    transientsThresh : float
+        MAD multiplier for the second (detection) threshold.
+
+    Returns
+    -------
+    tuple
+        ``(peaks, mad, filteredOutMad, medianY, filteredOutMedianY,
+        firstThresholdY, secondThresholdY)`` — detected peak indices and
+        diagnostic arrays aligned with ``arrValues``.
+    """
 
     arrValues = arrValues[~np.isnan(arrValues)]
     median = np.median(arrValues)
@@ -66,6 +121,25 @@ def processChunks(arrValues, arrIndexes, highAmpFilt, transientsThresh):
 
 
 def createChunks(z_score, sampling_rate, window):
+    """
+    Pad and reshape the z-score array into equal-length chunks for parallel processing.
+
+    Parameters
+    ----------
+    z_score : np.ndarray
+        1-D z-score array (NaN-free).
+    sampling_rate : float
+        Sampling rate in Hz.
+    window : float
+        Desired chunk duration in seconds.
+
+    Returns
+    -------
+    z_score_chunks : np.ndarray
+        Shape ``(n_chunks, chunk_length)`` array of z-score chunks.
+    z_score_chunks_index : np.ndarray
+        Shape ``(n_chunks, chunk_length)`` global sample indices aligned with ``z_score_chunks``.
+    """
 
     logger.debug("Creating chunks for multiprocessing...")
     windowPoints = math.ceil(sampling_rate * window)
@@ -97,6 +171,29 @@ def createChunks(z_score, sampling_rate, window):
 
 
 def calculate_freq_amp(arr, z_score, z_score_chunks_index, timestamps):
+    """
+    Aggregate per-chunk transient results into global frequency and amplitude statistics.
+
+    Parameters
+    ----------
+    arr : np.ndarray
+        Object array returned by ``processChunks``; each row is a chunk result tuple.
+    z_score : np.ndarray
+        Full 1-D z-score array.
+    z_score_chunks_index : np.ndarray
+        Shape ``(n_chunks, chunk_length)`` global sample indices from :func:`createChunks`.
+    timestamps : np.ndarray
+        Timestamp array aligned with ``z_score``.
+
+    Returns
+    -------
+    freq : float
+        Transient frequency in events per minute.
+    peaksAmp : np.ndarray
+        Amplitude (z-score minus local median) for each detected peak.
+    peaksInd : np.ndarray
+        Global integer indices of detected peaks in ``z_score``.
+    """
     peaks = arr[:, 0]
     filteredOutMedian = arr[:, 4]
     count = 0

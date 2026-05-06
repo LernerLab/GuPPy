@@ -18,18 +18,56 @@ logger = logging.getLogger(__name__)
 
 
 def readRawData(inputParameters):
+    """
+    Launch the raw-data extraction step in a subprocess.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Pipeline input parameters serialized to JSON for the subprocess.
+    """
     subprocess.call([sys.executable, "-m", "guppy.orchestration.read_raw_data", json.dumps(inputParameters)])
 
 
 def preprocess(inputParameters):
+    """
+    Launch the preprocessing step (timestamp correction, z-score) in a subprocess.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Pipeline input parameters serialized to JSON for the subprocess.
+    """
     subprocess.call([sys.executable, "-m", "guppy.orchestration.preprocess", json.dumps(inputParameters)])
 
 
 def psthComputation(inputParameters):
+    """
+    Launch the PSTH computation step in a subprocess.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Pipeline input parameters serialized to JSON for the subprocess.
+    """
     subprocess.call([sys.executable, "-m", "guppy.orchestration.psth", json.dumps(inputParameters)])
 
 
 def build_homepage(*, start_path=None):
+    """
+    Build and return the GuPPy Panel web-application template.
+
+    Parameters
+    ----------
+    start_path : str or None, optional
+        Initial directory shown in the folder-selection widget.  When None the
+        widget starts in the current working directory.
+
+    Returns
+    -------
+    template : pn.template.BootstrapTemplate
+        Fully wired Panel template ready to be served or shown.
+    """
     pn.extension(notifications=True)
     current_dir = os.getcwd()
 

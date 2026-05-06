@@ -120,20 +120,23 @@ extend-exclude = '''
 select = [
     "F401",  # Unused import
     "I",  # All isort rules
-    # TODO: add docstring rules after adding comprehensive docstrings to all public functions/classes
-    # "D101",  # Missing docstring in public class
-    # "D103",  # Missing docstring in public function
+    "D101",  # Missing docstring in public class
+    "D102",  # Missing docstring in public method
+    "D103",  # Missing docstring in public function
     "UP006", # non-pep585 annotation (tuple, list -> tuple, list)
-    "UP007" # non-pep604 annotation (Union[x, y] -> X | Y )
+    "UP007", # non-pep604 annotation (Union[x, y] -> X | Y )
 ]
 fixable = ["ALL"]
 
 [tool.ruff.lint.per-file-ignores]
-"**__init__.py" = ["F401", "I"] # We are not enforcing import rules in __init__'s
+"**__init__.py" = ["F401", "I", "D1"]  # We are not enforcing import or docstring rules in __init__'s
 
 [tool.ruff.lint.isort]
 relative-imports-order = "closest-to-furthest"
 known-first-party = ["guppy"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
 
 
 [tool.codespell]

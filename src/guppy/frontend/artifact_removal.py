@@ -14,6 +14,12 @@ if not os.getenv("CI"):
 
 
 class ArtifactRemovalWidget:
+    """Interactive matplotlib widget for marking and removing signal artifacts.
+
+    Displays three vertically stacked signal axes and lets the user press
+    ``Space`` to mark artifact boundaries or ``d`` to undo the last mark.
+    Boundary coordinates are saved as a ``.npy`` file when the figure is closed.
+    """
 
     def __init__(self, filepath, x, y1, y2, y3, plot_name, removeArtifacts):
         self.coords = []  # List to store selected coordinates

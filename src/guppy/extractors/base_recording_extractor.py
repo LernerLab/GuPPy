@@ -91,13 +91,42 @@ class BaseRecordingExtractor(ABC):
         """
         pass
 
+
 def read_and_save_event(extractor, event, outputPath):
+    """
+    Read data for a single event and save it to HDF5.
+
+    Intended as the per-worker function called by :func:`read_and_save_all_events`
+    inside a multiprocessing pool.
+
+    Parameters
+    ----------
+    extractor : BaseRecordingExtractor
+        Extractor instance used to read and save the event.
+    event : str
+        Name of the event/store to read.
+    outputPath : str
+        Path to the output directory where HDF5 files are written.
+    """
     output_dicts = extractor.read(events=[event], outputPath=outputPath)
     extractor.save(output_dicts=output_dicts, outputPath=outputPath)
     logger.info("Data for event {} fetched and stored.".format(event))
 
 
 def read_and_save_all_events(event_to_extractor, outputPath, numProcesses=mp.cpu_count()):
+    """
+    Read and save all events in parallel using a multiprocessing pool.
+
+    Parameters
+    ----------
+    event_to_extractor : dict
+        Mapping from event name (str) to the :class:`BaseRecordingExtractor`
+        instance responsible for reading that event.
+    outputPath : str
+        Path to the output directory where HDF5 files are written.
+    numProcesses : int, optional
+        Number of worker processes. Defaults to ``multiprocessing.cpu_count()``.
+    """
     events = list(event_to_extractor.keys())
     logger.info("Reading data for event {} ...".format(events))
 
