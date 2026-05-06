@@ -33,7 +33,7 @@ from ..analysis.standard_io import (
     write_peak_and_area_to_hdf5,
 )
 from ..frontend.progress import PB_STEPS_FILE, subprocess_main_handler, writeToFile
-from ..utils.utils import get_all_stores_for_combining_data, read_Df, takeOnlyDirs
+from ..utils.utils import get_all_stores_for_combining_data, read_Df, select_output_dirs
 from ..utils.validation import validate_peak_windows, validate_window_bounds
 
 logger = logging.getLogger(__name__)
@@ -253,9 +253,10 @@ def orchestrate_psth(inputParameters):
     """
     folderNames = inputParameters["folderNames"]
     numProcesses = inputParameters["numberOfCores"]
+    selected_outputs = inputParameters.get("selectedOutputs") or {}
     storesListPath = []
     for i in range(len(folderNames)):
-        storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(folderNames[i], "*_output_*"))))
+        storesListPath.append(select_output_dirs(folderNames[i], selected_outputs.get(folderNames[i])))
     storesListPath = np.concatenate(storesListPath)
     writeToFile(
         str((storesListPath.shape[0] + storesListPath.shape[0] + 1) * 10) + "\n" + str(10) + "\n",
@@ -263,7 +264,7 @@ def orchestrate_psth(inputParameters):
     )
     for i in range(len(folderNames)):
         logger.debug(f"Computing PSTH, Peak and Area for each event in {folderNames[i]}")
-        storesListPath = takeOnlyDirs(glob.glob(os.path.join(folderNames[i], "*_output_*")))
+        storesListPath = select_output_dirs(folderNames[i], selected_outputs.get(folderNames[i]))
         for j in range(len(storesListPath)):
             filepath = storesListPath[j]
             storesList = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(
@@ -301,9 +302,10 @@ def execute_psth_combined(inputParameters):
         Full pipeline input parameters.
     """
     folderNames = inputParameters["folderNames"]
+    selected_outputs = inputParameters.get("selectedOutputs") or {}
     storesListPath = []
     for i in range(len(folderNames)):
-        storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(folderNames[i], "*_output_*"))))
+        storesListPath.append(select_output_dirs(folderNames[i], selected_outputs.get(folderNames[i])))
     storesListPath = list(np.concatenate(storesListPath).flatten())
     op = get_all_stores_for_combining_data(storesListPath)
     writeToFile(str((len(op) + len(op) + 1) * 10) + "\n" + str(10) + "\n", file_path=PB_STEPS_FILE)
@@ -418,10 +420,11 @@ def execute_average_for_group(inputParameters):
         logger.error(message)
         raise ValueError(message)
 
+    group_selected_outputs = inputParameters.get("groupSelectedOutputs") or {}
     storesListPath = []
     for i in range(len(folderNamesForAvg)):
         filepath = folderNamesForAvg[i]
-        storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+        storesListPath.append(select_output_dirs(filepath, group_selected_outputs.get(filepath)))
     storesListPath = np.concatenate(storesListPath)
 
     _validate_storenames_consistent_for_group(storesListPath)

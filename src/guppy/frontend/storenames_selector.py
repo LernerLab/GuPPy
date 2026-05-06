@@ -56,10 +56,19 @@ class StorenamesSelector:
         self.path = pn.widgets.TextInput(name="Location to Stores List file", width=600)
 
         self.mark_down_for_overwrite = pn.pane.Markdown(
-            """ Select option from below if user wants to over-write a file or create a new file.
-                        **Creating a new file will make a new output folder and will get saved at that location.**
-                        If user selects to over-write a file **Select location of the file to over-write** will provide
-                        the existing options of the output folders where user needs to over-write the file""",
+            """
+**Choose how to save this storesList:**
+
+- **create_new_file** — create a new output folder. Optionally set **Run name** below; leave blank to use the next available integer.
+- **over_write_file** — replace an existing output folder. Pick which one in **Select location of the file to over-write**.
+            """,
+            width=600,
+        )
+
+        self.run_name = pn.widgets.TextInput(
+            name="Run name",
+            value="",
+            placeholder="optional — defaults to next available integer",
             width=600,
         )
 
@@ -74,6 +83,7 @@ class StorenamesSelector:
             split=True,
             width=600,
         )
+        self._current_overwrite_mode = "create_new_file"
 
         self.literal_input_2 = pn.widgets.CodeEditor(
             value="""{}""", theme="tomorrow", language="json", height=250, width=600
@@ -100,6 +110,7 @@ class StorenamesSelector:
             self.alert,
             self.mark_down_for_overwrite,
             self.overwrite_button,
+            self.run_name,
             self.select_location,
             self.save,
             self.path,
@@ -225,7 +236,49 @@ class StorenamesSelector:
         """
         for button_name, onclick_fn in button_name_to_onclick_fn.items():
             button = getattr(self, button_name)
-            button.on_click(onclick_fn)
+            if button_name == "overwrite_button":
+                # Wrap the user callback so we can also remember the current
+                # mode (for get_overwrite_mode) and hide the run-name field in
+                # overwrite mode where it has no effect.
+                def remember_then_call(event, _user_callback=onclick_fn):
+                    self._current_overwrite_mode = event.new
+                    self.run_name.visible = event.new == "create_new_file"
+                    _user_callback(event)
+
+                button.on_click(remember_then_call)
+            else:
+                button.on_click(onclick_fn)
+
+    def attach_run_name_watcher(self, callback):
+        """Attach a watcher that fires when the run-name TextInput value changes.
+
+        Parameters
+        ----------
+        callback : callable
+            Function with signature ``callback(event)`` where ``event.new`` is
+            the new run-name string.
+        """
+        self.run_name.param.watch(callback, "value")
+
+    def get_run_name(self):
+        """Return the current value of the run-name TextInput.
+
+        Returns
+        -------
+        str
+            Run-name string entered by the user (may be empty).
+        """
+        return self.run_name.value
+
+    def get_overwrite_mode(self):
+        """Return the current overwrite-vs-create mode.
+
+        Returns
+        -------
+        str
+            ``"over_write_file"`` or ``"create_new_file"``.
+        """
+        return self._current_overwrite_mode
 
     def configure_storenames(self, storename_dropdowns, storename_textboxes, storenames, storenames_cache):
         """Build the storename-configuration panel and make it visible.

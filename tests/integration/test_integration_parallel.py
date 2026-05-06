@@ -71,6 +71,7 @@ def test_parallel_step3(tmp_path):
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
         number_of_cores=2,
+        selected_runs={str(session_copy): ["1"]},
     )
 
     # Locate the output directory
@@ -110,21 +111,25 @@ def test_parallel_step5(tmp_path):
         storenames_map=STORENAMES_MAP,
     )
 
+    selected_runs = {str(session_copy): ["1"]}
     step3(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
         number_of_cores=2,
+        selected_runs=selected_runs,
     )
 
     step4(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
+        selected_runs=selected_runs,
     )
 
     step5(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
         number_of_cores=2,
+        selected_runs=selected_runs,
     )
 
     # Locate output directory

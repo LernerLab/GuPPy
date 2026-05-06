@@ -60,11 +60,21 @@ def test_consistency(tmp_path):
 
     selected_folders = [str(s) for s in session_copies]
 
+    selected_runs = {folder: ["1"] for folder in selected_folders}
     step2(base_dir=str(tmp_base), selected_folders=selected_folders, storenames_map=STORENAMES_MAP)
-    step3(base_dir=str(tmp_base), selected_folders=selected_folders)
-    step4(base_dir=str(tmp_base), selected_folders=selected_folders, combine_data=True)
+    step3(base_dir=str(tmp_base), selected_folders=selected_folders, selected_runs=selected_runs)
+    step4(
+        base_dir=str(tmp_base),
+        selected_folders=selected_folders,
+        combine_data=True,
+        selected_runs=selected_runs,
+    )
     # Step 5 is called on the second session only; it receives the full combined PSTH outputs.
-    step5(base_dir=str(tmp_base), selected_folders=[selected_folders[1]])
+    step5(
+        base_dir=str(tmp_base),
+        selected_folders=[selected_folders[1]],
+        selected_runs={selected_folders[1]: ["1"]},
+    )
 
     for session_copy, standard_output_dir in zip(session_copies, standard_output_dirs):
         dest_name = session_copy.name

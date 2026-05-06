@@ -186,9 +186,9 @@ def test_execute_combine_data_raises_for_mismatched_sampling_rates(monkeypatch, 
     storesList = np.array([["ctrl0", "sig0"], ["control_dms", "signal_dms"]])
 
     monkeypatch.setattr(
-        "guppy.orchestration.preprocess.takeOnlyDirs",
-        lambda paths: (
-            [folder_names[0] + "/output_dir"] if "session_a" in str(paths) else [folder_names[1] + "/output_dir"]
+        "guppy.orchestration.preprocess.select_output_dirs",
+        lambda session, selected: (
+            [folder_names[0] + "/output_dir"] if "session_a" in session else [folder_names[1] + "/output_dir"]
         ),
     )
     monkeypatch.setattr(

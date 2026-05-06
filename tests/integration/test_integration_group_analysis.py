@@ -55,14 +55,21 @@ def test_group_analysis(tmp_path):
     base_dir = str(temporary_base_directory)
 
     common_kwargs = dict(base_dir=base_dir, selected_folders=selected_folders)
+    selected_runs = {folder: ["1"] for folder in selected_folders}
 
     step2(**common_kwargs, storenames_map=STORENAMES_MAP)
-    step3(**common_kwargs)
-    step4(**common_kwargs)
-    step5(**common_kwargs)
+    step3(**common_kwargs, selected_runs=selected_runs)
+    step4(**common_kwargs, selected_runs=selected_runs)
+    step5(**common_kwargs, selected_runs=selected_runs)
 
     # Run group averaging pass
-    step5(**common_kwargs, average_for_group=True, group_folders=selected_folders)
+    step5(
+        **common_kwargs,
+        average_for_group=True,
+        group_folders=selected_folders,
+        selected_runs=selected_runs,
+        group_selected_runs=selected_runs,
+    )
 
     average_directory = temporary_base_directory / "average"
     assert average_directory.is_dir(), f"No average directory found under {temporary_base_directory}"
@@ -87,6 +94,10 @@ def test_group_analysis(tmp_path):
 
     with patch.object(VisualizationDashboard, "__init__", capturing_init):
         with patch.object(VisualizationDashboard, "show", lambda self: None):
-            step6(base_dir=base_dir, selected_folders=selected_folders)
+            step6(
+                base_dir=base_dir,
+                selected_folders=selected_folders,
+                selected_runs=selected_runs,
+            )
 
     assert len(captured_dashboards) >= 1, "step6 created no VisualizationDashboard instances"

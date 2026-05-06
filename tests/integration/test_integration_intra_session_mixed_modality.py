@@ -77,9 +77,10 @@ def test_mixed_modality_tdt_csv_ttl(tmp_path):
         selected_folders=selected_folders,
         storenames_map={"Dv1A": "control_dms", "Dv2A": "signal_dms", "csv_port_entries": "port_entries_dms"},
     )
-    step3(base_dir=base_dir, selected_folders=selected_folders)
-    step4(base_dir=base_dir, selected_folders=selected_folders)
-    step5(base_dir=base_dir, selected_folders=selected_folders)
+    selected_runs = {str(session_copy): ["1"]}
+    step3(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
+    step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
+    step5(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
 
     _assert_intra_session_outputs(session_copy, expected_region="dms", expected_ttl="port_entries_dms")
 
@@ -119,9 +120,10 @@ def test_mixed_modality_doric_csv_ttl(tmp_path):
             "csv_doric_event": "ttl_region",
         },
     )
-    step3(base_dir=base_dir, selected_folders=selected_folders)
-    step4(base_dir=base_dir, selected_folders=selected_folders)
-    step5(base_dir=base_dir, selected_folders=selected_folders)
+    selected_runs = {str(session_copy): ["1"]}
+    step3(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
+    step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
+    step5(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
 
     _assert_intra_session_outputs(session_copy, expected_region="region", expected_ttl="ttl_region")
 
@@ -165,9 +167,25 @@ def test_mixed_modality_npm_csv_ttl(tmp_path):
         },
         npm_split_events=[False, True],
     )
-    step3(base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[False, True])
-    step4(base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[False, True])
-    step5(base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[False, True])
+    selected_runs = {str(session_copy): ["1"]}
+    step3(
+        base_dir=base_dir,
+        selected_folders=selected_folders,
+        npm_split_events=[False, True],
+        selected_runs=selected_runs,
+    )
+    step4(
+        base_dir=base_dir,
+        selected_folders=selected_folders,
+        npm_split_events=[False, True],
+        selected_runs=selected_runs,
+    )
+    step5(
+        base_dir=base_dir,
+        selected_folders=selected_folders,
+        npm_split_events=[False, True],
+        selected_runs=selected_runs,
+    )
 
     _assert_intra_session_outputs(session_copy, expected_region="region", expected_ttl="ttl_region")
 
@@ -206,8 +224,9 @@ def test_mixed_modality_nwb_csv_ttl(tmp_path):
             "csv_nwb_event": "ttl_region",
         },
     )
-    step3(base_dir=base_dir, selected_folders=selected_folders)
-    step4(base_dir=base_dir, selected_folders=selected_folders)
-    step5(base_dir=base_dir, selected_folders=selected_folders)
+    selected_runs = {str(session_copy): ["1"]}
+    step3(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
+    step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
+    step5(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
 
     _assert_intra_session_outputs(session_copy, expected_region="region", expected_ttl="ttl_region")

@@ -22,10 +22,12 @@ def _make_session_dir(tmp_path, name="session1"):
     session_dir.mkdir(parents=True, exist_ok=True)
     output_dir = session_dir / f"{name}_output_1"
     output_dir.mkdir(parents=True, exist_ok=True)
+    # select_output_dirs validates that picked outputs have a storesList.csv (re-run step 2 if missing).
+    (output_dir / "storesList.csv").write_text("")
     return session_dir, output_dir
 
 
-def _base_params(session_dir, *, visualize_zscore_or_dff="z_score"):
+def _base_params(session_dir, *, visualize_zscore_or_dff="z_score", selected_runs=("1",)):
     """Minimal inputParameters dict for _validate_metric_against_step5_outputs."""
     return {
         "folderNames": [str(session_dir)],
@@ -33,6 +35,7 @@ def _base_params(session_dir, *, visualize_zscore_or_dff="z_score"):
         "visualizeAverageResults": False,
         "combine_data": False,
         "visualize_zscore_or_dff": visualize_zscore_or_dff,
+        "selectedOutputs": {str(session_dir): list(selected_runs)},
     }
 
 
@@ -158,6 +161,7 @@ def test_raises_only_missing_sessions_are_reported(tmp_path):
         "visualizeAverageResults": False,
         "combine_data": False,
         "visualize_zscore_or_dff": "z_score",
+        "selectedOutputs": {str(session1_dir): ["1"], str(session2_dir): ["1"]},
     }
 
     with pytest.raises(ValueError) as exc_info:
@@ -175,11 +179,16 @@ def test_raises_only_missing_sessions_are_reported(tmp_path):
 
 
 def test_no_op_when_no_output_directories(tmp_path):
-    """When no *_output_* dirs exist the function returns silently."""
+    """When no *_output_* dirs exist the function returns silently.
+
+    The homepage gate `validate_selected_outputs_for_consumers` skips sessions with
+    no output dirs on disk, so they reach orchestration with no entry in
+    selectedOutputs. The validator must skip such sessions instead of erroring.
+    """
     session_dir = tmp_path / "empty_session"
     session_dir.mkdir()
-    params = _base_params(session_dir, visualize_zscore_or_dff="z_score")
-    # Should not raise
+    params = _base_params(session_dir, visualize_zscore_or_dff="z_score", selected_runs=())
+    # Empty selected_runs simulates "session not picked in the FileSelector" — should not raise.
     _validate_metric_against_step5_outputs(params)
 
 

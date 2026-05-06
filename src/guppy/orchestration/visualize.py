@@ -9,7 +9,7 @@ import pandas as pd
 
 from ..frontend.parameterized_plotter import ParameterizedPlotter, remove_cols
 from ..frontend.visualization_dashboard import VisualizationDashboard
-from ..utils.utils import get_all_stores_for_combining_data, read_Df, takeOnlyDirs
+from ..utils.utils import get_all_stores_for_combining_data, read_Df, select_output_dirs
 
 logger = logging.getLogger(__name__)
 
@@ -231,8 +231,18 @@ def _validate_metric_against_step5_outputs(inputParameters):
     # Collect all output directories that will be visualised
     output_dirs = []
     source_folders = folderNamesForAvg if (average and len(folderNamesForAvg) > 0) else folderNames
+    selected_outputs_for_validation = (
+        (inputParameters.get("groupSelectedOutputs") or {})
+        if (average and len(folderNamesForAvg) > 0)
+        else (inputParameters.get("selectedOutputs") or {})
+    )
     for filepath in source_folders:
-        output_dirs.extend(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+        runs = selected_outputs_for_validation.get(filepath)
+        if not runs:
+            # Session not in selectedOutputs (e.g. it has no _output_* dirs yet, which the
+            # homepage gate `validate_selected_outputs_for_consumers` skips). Nothing to validate.
+            continue
+        output_dirs.extend(select_output_dirs(filepath, runs))
 
     if not output_dirs:
         return  # Nothing to check; the main function will handle the empty case.
@@ -351,10 +361,11 @@ def visualizeResults(inputParameters):
         # folderNames = folderNamesForAvg
         filepath_avg = os.path.join(inputParameters["abspath"], "average")
         # filepath = os.path.join(inputParameters['abspath'], folderNames[0])
+        group_selected_outputs = inputParameters.get("groupSelectedOutputs") or {}
         storesListPath = []
         for i in range(len(folderNamesForAvg)):
             filepath = folderNamesForAvg[i]
-            storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+            storesListPath.append(select_output_dirs(filepath, group_selected_outputs.get(filepath)))
         storesListPath = np.concatenate(storesListPath)
         storesList = np.asarray([[], []])
         for i in range(storesListPath.shape[0]):
@@ -372,11 +383,12 @@ def visualizeResults(inputParameters):
         createPlots(filepath_avg, np.unique(storesList[1, :]), inputParameters)
 
     else:
+        selected_outputs = inputParameters.get("selectedOutputs") or {}
         if combine_data == True:
             storesListPath = []
             for i in range(len(folderNames)):
                 filepath = folderNames[i]
-                storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+                storesListPath.append(select_output_dirs(filepath, selected_outputs.get(filepath)))
             storesListPath = list(np.concatenate(storesListPath).flatten())
             op = get_all_stores_for_combining_data(storesListPath)
             for i in range(len(op)):
@@ -398,7 +410,7 @@ def visualizeResults(inputParameters):
             for i in range(len(folderNames)):
 
                 filepath = folderNames[i]
-                storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*")))
+                storesListPath = select_output_dirs(filepath, selected_outputs.get(filepath))
                 for j in range(len(storesListPath)):
                     filepath = storesListPath[j]
                     storesList = np.genfromtxt(

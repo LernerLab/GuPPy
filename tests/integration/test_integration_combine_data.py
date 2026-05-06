@@ -68,6 +68,8 @@ def test_combine_data(tmp_path):
         npm_split_events=npm_split_events,
     )
 
+    selected_runs = {selected_folder: ["1"] for selected_folder in selected_folders}
+
     # Step 3: read raw data in the temp copy
     step3(
         base_dir=base_dir,
@@ -75,6 +77,7 @@ def test_combine_data(tmp_path):
         npm_timestamp_column_names=npm_timestamp_column_names,
         npm_time_units=npm_time_units,
         npm_split_events=npm_split_events,
+        selected_runs=selected_runs,
     )
 
     # Step 4: extract timestamps and signal in the temp copy
@@ -85,6 +88,7 @@ def test_combine_data(tmp_path):
         npm_time_units=npm_time_units,
         npm_split_events=npm_split_events,
         combine_data=True,
+        selected_runs=selected_runs,
     )
 
     # Step 5: compute PSTH in the temp copy (headless)
@@ -95,6 +99,7 @@ def test_combine_data(tmp_path):
         npm_time_units=npm_time_units,
         npm_split_events=npm_split_events,
         combine_data=True,
+        selected_runs=selected_runs,
     )
 
     # Validate outputs exist in the temp copy
@@ -140,6 +145,10 @@ def test_combine_data(tmp_path):
 
     with patch.object(VisualizationDashboard, "__init__", capturing_init):
         with patch.object(VisualizationDashboard, "show", lambda self: None):
-            step6(base_dir=base_dir, selected_folders=[str(session_copies[0])])
+            step6(
+                base_dir=base_dir,
+                selected_folders=[str(session_copies[0])],
+                selected_runs={str(session_copies[0]): ["1"]},
+            )
 
     assert len(captured_dashboards) >= 1, "step6 created no VisualizationDashboard instances"

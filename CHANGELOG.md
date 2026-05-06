@@ -8,6 +8,7 @@
 - Added numpydoc-style docstrings to all public functions and classes in the frontend layer (`src/guppy/frontend/`). [PR #316](https://github.com/LernerLab/GuPPy/pull/316)
 - Added numpydoc-style docstrings to all public functions in the utils layer (`src/guppy/utils/`). [PR #317](https://github.com/LernerLab/GuPPy/pull/317)
 - Added numpydoc-style docstrings to all public functions in the testing layer (`src/guppy/testing/`). [PR #318](https://github.com/LernerLab/GuPPy/pull/318)
+- Added parameterized output directories: step 2 accepts a user-supplied run name, steps 1 and 3–6 honour a per-session run-name filter, and `GuPPyParamtersUsed.json` is written into the selected output directories so multiple parameter sets can coexist in one session. [PR #325](https://github.com/LernerLab/GuPPy/pull/325)
 
 ## Fixes
 
