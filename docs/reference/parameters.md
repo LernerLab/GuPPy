@@ -77,8 +77,6 @@ The largest card on the homepage and the only one open by default. The left colu
 
 *Used by: Step 4 (Preprocess) runs the transient detector on the corrected signal.*
 
-See the [transient detection explainer](../explanation/transient_detection.md) for what counts as a transient, why the detector uses MAD-based thresholds, and how the high-amplitude filter and detection threshold interact.
-
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
 | Moving Window for transients detection (s) | Rolling window for the detector. | int | `15` | positive seconds |
