@@ -465,6 +465,47 @@ class TestOutputsSelector:
         assert result["selectedOutputs"] == {str(session): ["baseline"]}
 
 
+class TestRebuildPerSessionWidgets:
+    def test_preserves_existing_widget_value_across_rebuilds(self, bare_parameter_form, tmp_path):
+        """When files_2 fires twice and the prior selection still exists, preserve it."""
+        session = tmp_path / "sessionA"
+        session.mkdir()
+        os.mkdir(output_dir_for_run(str(session), "run1"))
+        os.mkdir(output_dir_for_run(str(session), "run2"))
+
+        bare_parameter_form.files_2.value = [str(session)]
+        widget = bare_parameter_form.group_selected_outputs_widgets[str(session)]
+        widget.value = "run2"
+
+        # Rebuild with the same session — existing widget is reused, "run2" preserved.
+        bare_parameter_form.files_2.param.trigger("value")
+        reused_widget = bare_parameter_form.group_selected_outputs_widgets[str(session)]
+        assert reused_widget is widget
+        assert reused_widget.value == "run2"
+
+    def test_resets_existing_widget_value_when_prior_selection_invalid(self, bare_parameter_form, tmp_path):
+        """When the prior selection no longer exists in run_names, fall back to the first option."""
+        session = tmp_path / "sessionA"
+        session.mkdir()
+        run1 = output_dir_for_run(str(session), "run1")
+        run2 = output_dir_for_run(str(session), "run2")
+        os.mkdir(run1)
+        os.mkdir(run2)
+
+        bare_parameter_form.files_2.value = [str(session)]
+        widget = bare_parameter_form.group_selected_outputs_widgets[str(session)]
+        widget.value = "run2"
+
+        # Remove run2 so the prior selection becomes invalid; rebuild.
+        os.rmdir(run2)
+        bare_parameter_form.files_2.param.trigger("value")
+
+        reused_widget = bare_parameter_form.group_selected_outputs_widgets[str(session)]
+        assert reused_widget is widget
+        assert reused_widget.value == "run1"
+        assert reused_widget.options == ["run1"]
+
+
 class TestFolderSelectionCards:
     def test_input_folder_selection_card_exists_and_is_open(self, parameter_form):
         assert isinstance(parameter_form.input_folder_selection, pn.Card)

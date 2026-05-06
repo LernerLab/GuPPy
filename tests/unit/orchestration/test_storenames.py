@@ -654,6 +654,54 @@ def test_overwrite_button_actions_over_write_file_returns_existing_output_dirs(s
 
 
 # ---------------------------------------------------------------------------
+# run_name_input_changed
+# ---------------------------------------------------------------------------
+
+
+def test_run_name_input_changed_no_op_when_not_create_new_file(storenames_closures):
+    selector, _ = storenames_closures
+    selector._overwrite_mode_value = "over_write_file"
+    selector.select_location_options = "untouched"
+
+    selector.run_name_callback(types.SimpleNamespace(new="myrun"))
+
+    assert selector.select_location_options == "untouched"
+    assert selector.alert_message is None
+
+
+def test_run_name_input_changed_updates_select_location_options(storenames_closures):
+    selector, folder_path = storenames_closures
+    selector._overwrite_mode_value = "create_new_file"
+
+    selector.run_name_callback(types.SimpleNamespace(new="myrun"))
+
+    expected = os.path.join(folder_path, "my_session_output_myrun")
+    assert selector.select_location_options == [expected]
+    assert selector.alert_message == "#### No alerts !!"
+
+
+def test_run_name_input_changed_empty_string_falls_back_to_numeric(storenames_closures):
+    selector, folder_path = storenames_closures
+    selector._overwrite_mode_value = "create_new_file"
+
+    selector.run_name_callback(types.SimpleNamespace(new=""))
+
+    expected = os.path.join(folder_path, "my_session_output_1")
+    assert selector.select_location_options == [expected]
+
+
+def test_run_name_input_changed_invalid_run_name_sets_alert(storenames_closures):
+    selector, _ = storenames_closures
+    selector._overwrite_mode_value = "create_new_file"
+
+    selector.run_name_callback(types.SimpleNamespace(new="bad/name"))
+
+    assert "Alert" in selector.alert_message
+    # When show_dir raises, select_location_options is not updated.
+    assert selector.select_location_options is None
+
+
+# ---------------------------------------------------------------------------
 # fetchValues (show_config_button)
 # ---------------------------------------------------------------------------
 
