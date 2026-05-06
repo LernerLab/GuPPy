@@ -365,19 +365,10 @@ def figure_8_spectra_decomposition():
         bottom=0.08,
     )
 
-    # The 405 column is the figure's punchline (apo loss = bound gain → total
-    # cancels). Tint the column across all rows where it appears so the
-    # cancellation registers preattentively. Same amber as the answer cell
-    # in figure 2 for consistency.
-    iso_column_color = "#fff7e0"
-
     # ---- Top-left: emission spectra ----
     ax_spec = fig.add_subplot(gs[0, 0:2])
     spec_max = float(max(np.max(apo_spec_curve), np.max(bound_spec_curve)))
 
-    # Amber band at 405 nm marks where the spectra cross. Drawn behind the
-    # curves so the apo/bound lines stay legible.
-    ax_spec.axvspan(402, 408, color=iso_column_color, alpha=0.95, zorder=0)
     ax_spec.plot(wl_grid, apo_spec_curve, color=COLOR_APO, linewidth=2.6, label="apo", zorder=3)
     ax_spec.plot(wl_grid, bound_spec_curve, color=COLOR_BOUND, linewidth=2.6, label="bound", zorder=3)
 
@@ -413,8 +404,6 @@ def figure_8_spectra_decomposition():
 
     # ---- Top-right: ΔF as a function of excitation wavelength ----
     ax_curve = fig.add_subplot(gs[0, 2:4])
-    # Continue the 405 column tint into the response curve panel.
-    ax_curve.axvspan(402, 408, color=iso_column_color, alpha=0.95, zorder=0)
     ax_curve.axhline(0, color="#888888", linewidth=1.1, alpha=0.95, zorder=1)
     # Bold isosbestic line, parallel to the first figure's bottom panel.
     ax_curve.axvline(
@@ -476,14 +465,11 @@ def figure_8_spectra_decomposition():
     )
 
     # ---- Middle row: total ΔF at four sample wavelengths ----
-    iso_column_idx = 2  # 405 nm column
     first_ax = None
     for col_idx, (wl_label, wl_descriptor, _, _, color) in enumerate(rows_wavelengths):
         ax = fig.add_subplot(gs[1, col_idx], sharey=first_ax)
         if first_ax is None:
             first_ax = ax
-        if col_idx == iso_column_idx:
-            ax.set_facecolor(iso_column_color)
         ax.axhline(0, color="#dddddd", linewidth=0.7, alpha=0.7, zorder=1)
         ax.plot(t, total_traces[col_idx], color=color, linewidth=1.4, zorder=3)
         ax.set_xlim(t[0], t[-1])
@@ -522,8 +508,6 @@ def figure_8_spectra_decomposition():
         ax = fig.add_subplot(gs[2, col_idx], sharey=first_ax_dec)
         if first_ax_dec is None:
             first_ax_dec = ax
-        if col_idx == iso_column_idx:
-            ax.set_facecolor(iso_column_color)
         ax.axhline(0, color="#dddddd", linewidth=0.7, alpha=0.7, zorder=1)
         # Apo plotted as is: apo_traces is already negative during the event
         # (apo population shrinks), which renders the apo "loss" below zero.
@@ -699,20 +683,27 @@ def figure_7_calcium_chain():
     )
     _add_panel_label(ax_hill, "A")
 
-    # (B) Bottom-left: fluorescence as a function of [Ca²⁺]
+    # (B) Bottom-left: fluorescence as a function of [Ca²⁺], normalized to
+    # [0, 1] relative to peak so the y-axis is visually consistent with
+    # A and D. The figure shows shape, not absolute magnitude (units are
+    # arbitrary anyway), and the normalization makes that explicit.
+    f_curve_min = float(np.min(f_curve))
+    f_curve_max = float(np.max(f_curve))
+    f_curve_norm = (f_curve - f_curve_min) / (f_curve_max - f_curve_min)
     ax_f_vs_ca = fig.add_subplot(gs[1, 0], sharex=ax_hill)
-    ax_f_vs_ca.plot(ca_grid, f_curve, color=COLOR_SIGNAL, linewidth=2.4, zorder=3)
+    ax_f_vs_ca.plot(ca_grid, f_curve_norm, color=COLOR_SIGNAL, linewidth=2.4, zorder=3)
     ax_f_vs_ca.set_xlim(0, 2.0)
-    ax_f_vs_ca.set_ylim(0, max(f_curve) * 1.20)
+    ax_f_vs_ca.set_ylim(-0.02, 1.05)
     ax_f_vs_ca.set_xticks([])
-    ax_f_vs_ca.set_yticks([])
+    ax_f_vs_ca.set_yticks([0, 0.5, 1.0])
+    ax_f_vs_ca.set_yticklabels(["0", "½", "1"], fontsize=9, color="#444444")
     for spine in ["top", "right"]:
         ax_f_vs_ca.spines[spine].set_visible(False)
     ax_f_vs_ca.spines["left"].set_color("#bbbbbb")
     ax_f_vs_ca.spines["bottom"].set_color("#bbbbbb")
     ax_f_vs_ca.set_xlabel("calcium [Ca²⁺]  →", fontsize=11, color="#444444", labelpad=6)
     ax_f_vs_ca.set_ylabel(
-        "fluorescence",
+        "fluorescence\n(a.u.)",
         rotation=0,
         ha="right",
         va="center",
@@ -725,24 +716,34 @@ def figure_7_calcium_chain():
     # ---- Right column: dynamics over time ----
 
     # (C) Top-right: calcium event over time, with fluorescence response overlaid.
-    # Calcium is plotted on its native [Ca²⁺] scale; fluorescence is rescaled to
-    # the same y-range so the reader can compare shapes (the two follow each
-    # other with a small kinetic delay).
+    # Both traces normalized so resting baseline = 0 and peak = 1, keeping the
+    # y-axis visually consistent with A, B, D.
     ax_ca_t = fig.add_subplot(gs[0, 1])
     f_t_raw = per_apo * apo_fraction + per_bound * bound_fraction
     f_t_min = float(np.min(f_t_raw))
     f_t_max = float(np.max(f_t_raw))
-    f_t_scaled = baseline_ca + (f_t_raw - f_t_min) / (f_t_max - f_t_min) * (ca_max - baseline_ca)
-    ax_ca_t.plot(t, f_t_scaled, color=COLOR_SIGNAL, linewidth=2.0, zorder=3, label="fluorescence")
-    ax_ca_t.plot(t, calcium, color="#222222", linewidth=2.0, zorder=4, label="[Ca²⁺]")
+    calcium_norm = (calcium - baseline_ca) / (ca_max - baseline_ca)
+    f_t_norm = (f_t_raw - f_t_min) / (f_t_max - f_t_min)
+    ax_ca_t.plot(t, f_t_norm, color=COLOR_SIGNAL, linewidth=2.0, zorder=3, label="fluorescence")
+    ax_ca_t.plot(t, calcium_norm, color="#222222", linewidth=2.0, zorder=4, label="[Ca²⁺]")
     ax_ca_t.set_xlim(t[0], t[-1])
-    ax_ca_t.set_ylim(0, ca_max * 1.20)
+    ax_ca_t.set_ylim(-0.02, 1.05)
     ax_ca_t.set_xticks([])
-    ax_ca_t.set_yticks([])
+    ax_ca_t.set_yticks([0, 0.5, 1.0])
+    ax_ca_t.set_yticklabels(["0", "½", "1"], fontsize=9, color="#444444")
     for spine in ["top", "right"]:
         ax_ca_t.spines[spine].set_visible(False)
     ax_ca_t.spines["left"].set_color("#bbbbbb")
     ax_ca_t.spines["bottom"].set_color("#bbbbbb")
+    ax_ca_t.set_ylabel(
+        "rel. peak",
+        rotation=0,
+        ha="right",
+        va="center",
+        fontsize=10,
+        color="#222222",
+        labelpad=12,
+    )
     ax_ca_t.legend(loc="upper right", frameon=False, fontsize=9)
     _add_panel_label(ax_ca_t, "C")
 
@@ -1194,13 +1195,11 @@ def _build_response_columns(spectrum_start_col, filename):
         (390, "#d62728"),
     ]
 
+    top_axes = []
     for col_idx, (trace, (wave_label, descriptor, _, _, color)) in enumerate(zip(traces_df, rows)):
         ax_f = fig.add_subplot(gs[0, col_idx])
+        top_axes.append(ax_f)
 
-        # Shared zero baseline through all four panels: lets the 390 nm
-        # inversion register at first glance instead of requiring the reader
-        # to infer an invisible baseline.
-        ax_f.axhline(0, color="#999999", linewidth=1.0, alpha=0.95, zorder=1)
         ax_f.plot(t, calcium_centered_scaled, color="#222222", linewidth=1.7, alpha=0.85, zorder=2)
         ax_f.plot(t, trace, color=color, linewidth=1.1, zorder=3)
         ax_f.set_xlim(t[0], t[-1])
@@ -1230,6 +1229,26 @@ def _build_response_columns(spectrum_start_col, filename):
             )
         else:
             ax_f.spines["left"].set_visible(False)
+
+    # Continuous zero baseline across all four top panels, drawn in figure
+    # coordinates so it spans the gaps between panels. Lets the 390 nm
+    # inversion register at first glance and ties the four panels together.
+    from matplotlib.lines import Line2D
+    left_box = top_axes[0].get_position()
+    right_box = top_axes[-1].get_position()
+    y_norm = (0 - y_min_f) / (y_max_f - y_min_f)
+    y_fig = left_box.y0 + y_norm * (left_box.y1 - left_box.y0)
+    fig.add_artist(
+        Line2D(
+            [left_box.x0, right_box.x1],
+            [y_fig, y_fig],
+            transform=fig.transFigure,
+            color="#999999",
+            linewidth=1.0,
+            alpha=0.95,
+            zorder=1,
+        )
+    )
 
     # Bottom-left cell(s): legend / key for the figure.
     ax_legend = fig.add_subplot(gs[1, 0:spectrum_start_col])
@@ -1704,23 +1723,25 @@ def figure_2_what_405_captures():
         ax_bot.set_xlabel("time (s)")
 
         for ax in (ax_top, ax_bot):
+            ax.spines["top"].set_visible(False)
             ax.spines["right"].set_visible(False)
-            if col == 0:
-                ax.spines["left"].set_color("#bbbbbb")
-            else:
-                ax.spines["left"].set_visible(False)
-                ax.tick_params(axis="y", which="both", left=False, right=False)
+            ax.spines["left"].set_color("#bbbbbb")
+            ax.spines["bottom"].set_color("#bbbbbb")
 
-        # Top row shares its x-axis with the bottom row, so its bottom spine
-        # and x-ticks are redundant.
-        ax_top.spines["bottom"].set_visible(False)
-        ax_top.tick_params(axis="x", which="both", bottom=False)
-
-    # Mark the answer cell (calcium event, 405 row): a faint amber tint lets
-    # the empty panel read preattentively as "this is the answer" instead of
-    # as "nothing happens here". The asymmetry in this column is the whole
-    # point of the figure.
-    axes[0, 2].set_facecolor("#fff7e0")
+    # Reinforce the answer cell with a thin dashed reference line at the
+    # 405 baseline (0.60). The trace sits flat on this line, so the reader
+    # sees "no deflection" rather than just "looks like noise".
+    axes[0, 2].axhline(0.60, color="#888888", linestyle="--",
+                        linewidth=0.9, alpha=0.85, zorder=2)
+    # Inline annotation calling out what is missing: a calcium event would
+    # appear here on the 470 channel below, but the 405 trace stays flat.
+    # Positioned just above the trace so the proximity reinforces the
+    # "trace = baseline" reading.
+    axes[0, 2].text(
+        15, 0.70, "no response",
+        ha="center", va="bottom",
+        fontsize=9, color="#555555", style="italic", zorder=3,
+    )
 
     fig.subplots_adjust(left=0.22, right=0.97, top=0.84, bottom=0.16,
                         wspace=0.10, hspace=0.42)
@@ -1771,9 +1792,8 @@ def figure_3_linear_fit_and_correction():
 
     fit = control_fit(control, signal_trace)
     dff = delta_ff(signal_trace, fit)
-    residual = signal_trace - fit
 
-    fig, axes = plt.subplots(4, 1, figsize=(7.8, 7.2), sharex=True)
+    fig, axes = plt.subplots(3, 1, figsize=(7.8, 5.6), sharex=True)
 
     ax = axes[0]
     ax.plot(t, signal_trace, color=COLOR_SIGNAL, linewidth=1.0, label="signal")
@@ -1789,16 +1809,7 @@ def figure_3_linear_fit_and_correction():
     ax.legend(loc="upper right", frameon=False, fontsize=9)
     ax.set_title("control rescaled to signal")
 
-    # Residual panel: signal minus fit. Shows what the rescaling cannot
-    # explain (calcium events plus a little noise) and links the overlap
-    # claim in the panel above to the dF/F panel below.
     ax = axes[2]
-    ax.plot(t, residual, color="#333333", linewidth=1.0)
-    ax.axhline(0, color="#333333", linewidth=0.9, alpha=0.85)
-    ax.set_ylabel("residual\n(signal − fit)")
-    ax.set_title("what the rescaling cannot explain")
-
-    ax = axes[3]
     ax.plot(t, dff, color=COLOR_DFF, linewidth=1.0)
     # Bolder zero baseline: the whole point of the corrected dF/F is that
     # the slow drift visible in the top panel is gone. The flat baseline
@@ -1883,6 +1894,16 @@ def figure_6_synthetic_fallback():
     ax.plot(t, signal_trace, color=COLOR_SIGNAL, linewidth=1.0, label="signal")
     ax.plot(t, synthetic, color=COLOR_SYNTHETIC, linewidth=1.2, linestyle="--", label="synthetic exponential")
     ax.legend(loc="upper right", frameon=False, fontsize=8)
+    # Inline "motion artifact" label inside the amber band, in the panel's
+    # empty lower region. Mirrors the bottom-right panel's label so the
+    # reader can trace the artifact through the pipeline (input → output).
+    ax.text(
+        (motion_t0 + motion_t1) / 2, 0.55,
+        "motion artifact",
+        ha="center", va="center",
+        fontsize=8, color="#b87333", style="italic",
+        zorder=2,
+    )
 
     ax = axes[1, 0]
     ax.plot(t, dff_real, color=COLOR_DFF, linewidth=1.0)
@@ -1892,13 +1913,11 @@ def figure_6_synthetic_fallback():
     ax.set_title("artifact removed, calcium events preserved", fontsize=10)
 
     ax = axes[1, 1]
-    ax.axvspan(motion_t0, motion_t1, color=motion_color, alpha=0.25, zorder=0,
-               label="motion artifact")
+    ax.axvspan(motion_t0, motion_t1, color=motion_color, alpha=0.25, zorder=0)
     ax.plot(t, dff_synthetic, color=COLOR_DFF, linewidth=1.0)
     ax.axhline(0, color="#222222", linewidth=1.0, alpha=0.9)
     ax.set_xlabel("time (s)")
     ax.set_title("bleaching removed, motion artifact passes through", fontsize=10)
-    ax.legend(loc="lower left", frameon=False, fontsize=8)
 
     fig.tight_layout()
     fig.savefig(OUT / "fig6_synthetic_fallback.svg")
@@ -1942,29 +1961,17 @@ def figure_4_what_survives():
     # what the correction cannot cancel.
     ax_l.plot(t, sig, color=COLOR_SIGNAL, linewidth=1.1, label="signal", zorder=4)
     ax_l.plot(t, ctrl, color=COLOR_CONTROL, linewidth=1.0, label="control", zorder=3)
-    ax_l.plot(t, fit, color="#888888", linewidth=0.9, linestyle="--",
-              label="rescaled control", alpha=0.75, zorder=2)
+    ax_l.plot(t, fit, color="#555555", linewidth=1.2, linestyle="--",
+              label="rescaled control", alpha=0.95, zorder=2)
     ax_l.set_title("raw traces")
-    ax_l.legend(loc="lower left", frameon=False, fontsize=8)
+    ax_l.legend(loc="center left", frameon=False, fontsize=8)
     ax_l.set_xlabel("time (s)")
     ax_l.set_ylabel("raw fluorescence")
 
-    # Right panel: corrected dF/F. Reference at the typical calcium-event
-    # amplitude (~10%, from figure 3) so the reader can size the surviving
-    # artifact spike against a real event.
-    typical_event = 10.0
-    ax_r.axhline(typical_event, color="#bbbbbb", linestyle="--",
-                 linewidth=0.9, alpha=0.85, zorder=1)
-    ax_r.text(
-        t[-1] - 0.2, typical_event + 0.5,
-        "typical calcium event (~10%)",
-        ha="right", va="bottom", fontsize=8, color="#555555", style="italic",
-        zorder=2,
-    )
+    # Right panel: corrected dF/F.
     ax_r.plot(t, dff, color=COLOR_DFF, linewidth=1.0, zorder=3)
     # Bolder zero baseline, parallel to figure 3's bottom panel.
     ax_r.axhline(0, color="#222222", linewidth=1.1, alpha=0.95, zorder=2)
-    ax_r.set_ylim(-12, 13)
     ax_r.set_title("corrected dF/F (%)")
     ax_r.set_xlabel("time (s)")
 
@@ -2015,27 +2022,15 @@ def figure_5_control_diagnostic():
     axes[0].set_title("only photobleaching")
     axes[0].set_xlabel("time (s)")
     axes[0].set_ylabel("isosbestic fluorescence")
-    axes[0].legend(loc="upper right", frameon=False, fontsize=9)
 
     axes[1].plot(t, noisy, color=COLOR_CONTROL, linewidth=1.1, zorder=3)
     axes[1].set_title("motion and drift")
     axes[1].set_xlabel("time (s)")
+    # Legend on the right panel: that's where the dashed reference is
+    # actually distinguishable from the data.
+    axes[1].legend(loc="upper right", frameon=False, fontsize=9)
 
-    fig.tight_layout(rect=[0, 0.06, 1, 1])
-
-    # Surface the controlled comparison: both panels share starting baseline
-    # and bleach envelope (~16% decay over 60 s); the only meaningful
-    # difference is the transients on the right.
-    fig.text(
-        0.5,
-        0.01,
-        "Both panels share the same starting baseline (~0.60) and bleach by ~16% over 60 s; the right panel adds motion artifacts and slow drift.",
-        ha="center",
-        va="bottom",
-        fontsize=9,
-        color="#555555",
-        style="italic",
-    )
+    fig.tight_layout()
 
     fig.savefig(OUT / "fig5_control_diagnostic.svg")
     plt.close(fig)
