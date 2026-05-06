@@ -435,9 +435,20 @@ class ParameterForm:
         """Root the existing-runs FileSelector at the first selected session so its `_output_*` dirs show directly."""
         sessions = event.new or []
         target = sessions[0] if sessions and os.path.isdir(sessions[0]) else default_root_path()
+        # Set root_directory before directory so Panel's `path.startswith(self._root_directory)`
+        # check in FileSelector._dir_change can't silently revert when the new target lives on a
+        # different drive than Panel's resolved root_directory (a Windows-specific failure mode
+        # when the constructor's root_directory="/" resolves to a drive root that isn't shared
+        # with tmp_path or the user's session folder).
+        self.outputs_selector.root_directory = target
         self.outputs_selector.directory = target
         # Clear any prior selection that no longer makes sense for the new root.
         self.outputs_selector.value = []
+        # Sync the FileSelector's internal _cwd and re-enumerate. Without this, _cwd remains
+        # at the construction-time path; clicking a sub-dir uses the stale _cwd to compute
+        # the navigated path, that path doesn't exist, and the FileSelector silently snaps
+        # back to the stale _cwd — visible to the user as "selection resets the directory".
+        self.outputs_selector._update_files()
 
     def _rebuild_group_selected_outputs_widgets(self, event):
         """Rebuild the per-session group-run-name Selects when files_2 changes."""
@@ -447,6 +458,10 @@ class ParameterForm:
             store=self.group_selected_outputs_widgets,
             scope="group",
         )
+
+    def refresh_individual_outputs(self):
+        """Re-list the outputs FileSelector so newly-created run dirs (e.g. from step 2) appear."""
+        self.outputs_selector._refresh()
 
     def refresh_group_outputs(self):
         """Re-discover output directories for the currently-selected group sessions."""
