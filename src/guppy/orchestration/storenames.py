@@ -115,7 +115,7 @@ def make_dir(filepath, run_name=None, run_name_policy="create"):
     return op
 
 
-def _fetchValues(text, storenames, storename_dropdowns, storename_textboxes, d, isosbestic_control=False):
+def _fetchValues(text, storenames, storename_dropdowns, storename_textboxes, storenames_config, isosbestic_control=False):
     if not storename_dropdowns or not len(storenames) > 0:
         return "####Alert !! \n No storenames selected."
 
@@ -189,13 +189,13 @@ def _fetchValues(text, storenames, storename_dropdowns, storename_textboxes, d, 
             "Every 'signal_<region>' must have a matching 'control_<region>'.".format("; ".join(parts))
         )
 
-    d["storenames"] = text.value
-    d["names_for_storenames"] = names_for_storenames
+    storenames_config["storenames"] = text.value
+    storenames_config["names_for_storenames"] = names_for_storenames
     return "#### No alerts !!"
 
 
-def _save(d, select_location):
-    arr1, arr2 = np.asarray(d["storenames"]), np.asarray(d["names_for_storenames"])
+def _save(storenames_config, select_location):
+    arr1, arr2 = np.asarray(storenames_config["storenames"]), np.asarray(storenames_config["names_for_storenames"])
 
     empty_indices = np.where(arr2 == "")[0].tolist()
     if empty_indices:
@@ -318,17 +318,17 @@ def build_storenames_template(events, flags, folder_path, isosbestic_control=Fal
 
     def fetchValues(event):
         global storenames
-        d = dict()
+        storenames_config = dict()
         alert_message = _fetchValues(
             text=storenames_selector.text,
             storenames=storenames,
             storename_dropdowns=storename_dropdowns,
             storename_textboxes=storename_textboxes,
-            d=d,
+            storenames_config=storenames_config,
             isosbestic_control=isosbestic_control,
         )
         storenames_selector.set_alert_message(alert_message)
-        storenames_selector.set_literal_input_2(d=d)
+        storenames_selector.set_literal_input_2(storenames_config=storenames_config)
 
     # on clicking 'Select Storenames' button, following function is executed
     def update_values(event):
@@ -360,9 +360,9 @@ def build_storenames_template(events, flags, folder_path, isosbestic_control=Fal
     # on clicking save button, following function is executed
     def save_button(event=None):
         global storenames
-        d = storenames_selector.get_literal_input_2()
+        storenames_config = storenames_selector.get_literal_input_2()
         select_location = storenames_selector.get_select_location()
-        alert_message = _save(d=d, select_location=select_location)
+        alert_message = _save(storenames_config=storenames_config, select_location=select_location)
         storenames_selector.set_alert_message(alert_message)
         storenames_selector.set_path(os.path.join(select_location, "storesList.csv"))
 
