@@ -53,7 +53,7 @@ COLOR_ARTIFACT = "#d62728"
 
 
 def deflection(t, center, rise, decay, peak_amplitude):
-    """Alpha-shaped deflection normalised to peak_amplitude."""
+    """Alpha-shaped deflection normalized to peak_amplitude."""
     out = np.zeros_like(t)
     mask = t >= center
     dt = t[mask] - center
@@ -65,7 +65,7 @@ def deflection(t, center, rise, decay, peak_amplitude):
 
 
 def smooth_gaussian(x, sigma_samples):
-    """Convolve x with a normalised Gaussian kernel; mirrors what upstream
+    """Convolve x with a normalized Gaussian kernel; mirrors what upstream
     smoothing leaves behind in a real photometry trace. Pads edges with the
     boundary value to avoid edge artifacts from zero-padding."""
     kernel_size = int(6 * sigma_samples) | 1
