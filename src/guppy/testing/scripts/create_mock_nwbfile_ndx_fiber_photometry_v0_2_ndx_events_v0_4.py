@@ -284,6 +284,7 @@ def _add_ndx_fiber_photometry_metadata(nwbfile):
 
 
 def main():
+    """Create and write a mock NWB file using ndx-fiber-photometry v0.2 and ndx-events v0.4."""
     nwbfile = NdxEventsNWBFile(
         session_description="Mock session for NWB extractor testing (ndx-events v0.4).",
         identifier="mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_4",

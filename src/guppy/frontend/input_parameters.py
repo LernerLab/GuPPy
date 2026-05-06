@@ -6,6 +6,7 @@ import pandas as pd
 import panel as pn
 
 from .dandi_selector import DandiSelector
+from .frontend_utils import default_root_path
 from ..utils.validation import (
     validate_required_folder_selection,
     validate_same_parent_directory,
@@ -14,15 +15,21 @@ from ..utils.validation import (
 logger = logging.getLogger(__name__)
 
 
-def _default_root_path():
-    # Respect GUPPY_BASE_DIR env var for headless/test mode; otherwise use the home directory.
-    base_dir_env = os.environ.get("GUPPY_BASE_DIR")
-    if base_dir_env and os.path.isdir(base_dir_env):
-        return base_dir_env
-    return os.path.expanduser("~")
-
-
 def checkSameLocation(arr, abspath):
+    """Check that all paths in ``arr`` share the same parent directory.
+
+    Parameters
+    ----------
+    arr : sequence of str
+        Paths to validate.
+    abspath : object
+        Ignored; retained for backwards-compatibility with existing callers.
+
+    Returns
+    -------
+    str
+        The common parent directory of all paths in ``arr``.
+    """
     # abspath retained as a positional arg for backwards compatibility with existing
     # callers; only the contents of arr are inspected.
     del abspath
@@ -30,15 +37,46 @@ def checkSameLocation(arr, abspath):
 
 
 def getAbsPath(files_1, files_2):
+    """Return the common parent directory of the selected folders.
+
+    Parameters
+    ----------
+    files_1 : pn.widgets.FileSelector
+        Primary file selector (individual analysis).
+    files_2 : pn.widgets.FileSelector
+        Secondary file selector (group analysis).
+
+    Returns
+    -------
+    str
+        Absolute path of the common parent directory shared by the selected
+        folders.
+    """
     validate_required_folder_selection(file_selectors=[files_1, files_2])
     selected = files_1.value if len(files_1.value) > 0 else files_2.value
     return validate_same_parent_directory(paths=list(selected))
 
 
 class ParameterForm:
+    """Panel form collecting all GuPPy analysis parameters.
+
+    Builds and owns every input widget for the individual-analysis, group-
+    analysis, and visualization sections, then appends them to the provided
+    Panel template's main area.
+
+    Parameters
+    ----------
+    template : panel.template.base.BasicTemplate
+        The Panel template whose ``main`` area will receive the form cards.
+    start_path : str, optional
+        Initial directory shown in the file selectors. Falls back to the
+        value returned by ``default_root_path()`` when not supplied or when
+        the path does not exist.
+    """
+
     def __init__(self, *, template, start_path=None):
         self.template = template
-        self.folder_path = start_path if start_path and os.path.isdir(start_path) else _default_root_path()
+        self.folder_path = start_path if start_path and os.path.isdir(start_path) else default_root_path()
         self.styles = dict(background="WhiteSmoke")
         self.setup_individual_parameters()
         self.setup_group_parameters()
@@ -46,6 +84,7 @@ class ParameterForm:
         self.add_to_template()
 
     def setup_individual_parameters(self):
+        """Build all widgets for the individual-analysis card and store them as instance attributes."""
         # Individual analysis components
         self.mark_down_1 = pn.pane.Markdown(
             """**Select folders for the analysis from the file selector below**""", width=600
@@ -363,6 +402,7 @@ class ParameterForm:
         return folder_names, output_root, dandi_uri_map
 
     def setup_group_parameters(self):
+        """Build all widgets for the group-analysis card and store them as instance attributes."""
         self.mark_down_2 = pn.pane.Markdown(
             """**Select folders for the average analysis from the file selector below**""", width=600
         )
@@ -381,6 +421,7 @@ class ParameterForm:
         )
 
     def setup_visualization_parameters(self):
+        """Build all widgets for the visualization-parameters card and store them as instance attributes."""
         self.visualizeAverageResults = pn.widgets.Select(
             name="Visualize Average Results? (bool)", value=False, options=[True, False], width=435
         )
@@ -395,11 +436,21 @@ class ParameterForm:
         )
 
     def add_to_template(self):
+        """Append the individual, group, and visualization cards to the template's main area."""
         self.template.main.append(self.individual)
         self.template.main.append(self.group)
         self.template.main.append(self.visualize)
 
     def getInputParameters(self):
+        """Collect and return all current widget values as an input-parameters dictionary.
+
+        Returns
+        -------
+        dict
+            Flat dictionary containing every parameter needed to run the GuPPy
+            pipeline, keyed by the parameter names expected by the orchestration
+            layer (e.g. ``"folderNames"``, ``"zscore_method"``, ``"nSecPrev"``).
+        """
         if self.source_mode.value == "dandi":
             folder_names, abspath_value, dandi_uri_map = self._resolve_dandi_sessions()
             mode = "dandi"

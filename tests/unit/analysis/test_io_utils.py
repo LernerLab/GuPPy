@@ -94,6 +94,19 @@ def test_write_hdf5_overwrites_existing_key_with_new_array(tmp_path):
     np.testing.assert_array_equal(result, updated)
 
 
+def test_write_hdf5_creates_new_file_with_scalar(tmp_path):
+    write_hdf5(250.0, "my_store", str(tmp_path), "sampling_rate")
+    result = read_hdf5("my_store", str(tmp_path), "sampling_rate")
+    assert result == 250.0
+
+
+def test_write_hdf5_overwrites_existing_key_with_scalar(tmp_path):
+    write_hdf5(100.0, "my_store", str(tmp_path), "sampling_rate")
+    write_hdf5(500.0, "my_store", str(tmp_path), "sampling_rate")
+    result = read_hdf5("my_store", str(tmp_path), "sampling_rate")
+    assert result == 500.0
+
+
 def test_write_hdf5_adds_second_key_to_existing_file(tmp_path):
     data_a = np.array([1.0, 2.0])
     data_b = np.array([3.0, 4.0])

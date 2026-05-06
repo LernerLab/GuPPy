@@ -35,8 +35,20 @@ pn.extension()
 logger = logging.getLogger(__name__)
 
 
-# function to show location for over-writing or creating a new stores list file.
 def show_dir(filepath):
+    """Return the path of the next available output directory without creating it.
+
+    Parameters
+    ----------
+    filepath : str
+        Path to the session folder.
+
+    Returns
+    -------
+    str
+        Path of the form ``<filepath>/<basename>_output_<n>`` where ``n`` is the
+        lowest integer for which the directory does not yet exist.
+    """
     i = 1
     while True:
         basename = os.path.basename(filepath)
@@ -48,6 +60,19 @@ def show_dir(filepath):
 
 
 def make_dir(filepath):
+    """Create and return the next available output directory.
+
+    Parameters
+    ----------
+    filepath : str
+        Path to the session folder.
+
+    Returns
+    -------
+    str
+        Path of the newly created directory, of the form
+        ``<filepath>/<basename>_output_<n>``.
+    """
     i = 1
     while True:
         basename = os.path.basename(filepath)
@@ -60,7 +85,7 @@ def make_dir(filepath):
     return op
 
 
-def _fetchValues(text, storenames, storename_dropdowns, storename_textboxes, d, isosbestic_control=False):
+def _fetchValues(text, storenames, storename_dropdowns, storename_textboxes, storenames_config, isosbestic_control=False):
     if not storename_dropdowns or not len(storenames) > 0:
         return "####Alert !! \n No storenames selected."
 
@@ -134,13 +159,13 @@ def _fetchValues(text, storenames, storename_dropdowns, storename_textboxes, d, 
             "Every 'signal_<region>' must have a matching 'control_<region>'.".format("; ".join(parts))
         )
 
-    d["storenames"] = text.value
-    d["names_for_storenames"] = names_for_storenames
+    storenames_config["storenames"] = text.value
+    storenames_config["names_for_storenames"] = names_for_storenames
     return "#### No alerts !!"
 
 
-def _save(d, select_location):
-    arr1, arr2 = np.asarray(d["storenames"]), np.asarray(d["names_for_storenames"])
+def _save(storenames_config, select_location):
+    arr1, arr2 = np.asarray(storenames_config["storenames"]), np.asarray(storenames_config["names_for_storenames"])
 
     empty_indices = np.where(arr2 == "")[0].tolist()
     if empty_indices:
@@ -206,7 +231,6 @@ def _save(d, select_location):
     return "#### No alerts !!"
 
 
-# function to show GUI and save
 def build_storenames_template(events, flags, folder_path, isosbestic_control=False):
     """Build and return the Storenames GUI Panel template without serving it.
 
@@ -251,17 +275,17 @@ def build_storenames_template(events, flags, folder_path, isosbestic_control=Fal
 
     def fetchValues(event):
         global storenames
-        d = dict()
+        storenames_config = dict()
         alert_message = _fetchValues(
             text=storenames_selector.text,
             storenames=storenames,
             storename_dropdowns=storename_dropdowns,
             storename_textboxes=storename_textboxes,
-            d=d,
+            storenames_config=storenames_config,
             isosbestic_control=isosbestic_control,
         )
         storenames_selector.set_alert_message(alert_message)
-        storenames_selector.set_literal_input_2(d=d)
+        storenames_selector.set_literal_input_2(storenames_config=storenames_config)
 
     # on clicking 'Select Storenames' button, following function is executed
     def update_values(event):
@@ -293,9 +317,9 @@ def build_storenames_template(events, flags, folder_path, isosbestic_control=Fal
     # on clicking save button, following function is executed
     def save_button(event=None):
         global storenames
-        d = storenames_selector.get_literal_input_2()
+        storenames_config = storenames_selector.get_literal_input_2()
         select_location = storenames_selector.get_select_location()
-        alert_message = _save(d=d, select_location=select_location)
+        alert_message = _save(storenames_config=storenames_config, select_location=select_location)
         storenames_selector.set_alert_message(alert_message)
         storenames_selector.set_path(os.path.join(select_location, "storesList.csv"))
 
@@ -316,7 +340,24 @@ def build_storenames_template(events, flags, folder_path, isosbestic_control=Fal
 
 
 def build_storenames_page(inputParameters, events, flags, folder_path):
+    """Write storesList.csv for one session, headlessly or via the Panel GUI.
 
+    In headless mode (``storenames_map`` key present in ``inputParameters``)
+    the mapping is written directly.  Otherwise a Panel GUI is launched in a
+    browser so the user can assign semantic labels interactively.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters; may contain ``storenames_map`` for
+        headless operation.
+    events : list of str
+        Storename strings discovered from the acquisition files.
+    flags : list of str
+        Feature flags (e.g. ``"data_np_v2"``) passed to the GUI template.
+    folder_path : str
+        Absolute path to the session directory.
+    """
     logger.debug("Saving stores list file.")
 
     # Headless path: if storenames_map provided, write storesList.csv without building the Panel UI
@@ -339,6 +380,27 @@ def build_storenames_page(inputParameters, events, flags, folder_path):
 
 
 def read_header(inputParameters, num_ch, folder_path, headless):
+    """Discover events and feature flags for a single session folder.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters; checked for DANDI mode and NPM
+        configuration.
+    num_ch : int
+        Number of photometry channels (used by NPM extractor discovery).
+    folder_path : str
+        Absolute path to the session directory.
+    headless : bool
+        When True, suppress interactive NPM GUI prompts.
+
+    Returns
+    -------
+    events : list of str
+        Unique event names discovered across all acquisition formats present.
+    flags : list of str
+        Feature flags (e.g. ``"data_np_v2"``) from all formats.
+    """
     # DANDI mode bypasses local format detection — discover events via streaming
     if inputParameters.get("mode") == "dandi":
         dandi_uri = inputParameters["dandi_uri_map"][folder_path]
@@ -391,9 +453,15 @@ def read_header(inputParameters, num_ch, folder_path, headless):
     return events, flags
 
 
-# function to read input parameters and run the saveStorenames function
 def orchestrate_storenames_page(inputParameters):
+    """Run the step-2 storenames configuration for every selected session folder.
 
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters; uses ``folderNames``, ``abspath``,
+        ``isosbestic_control``, and ``noChannels``.
+    """
     inputParameters = inputParameters
     folderNames = inputParameters["folderNames"]
     isosbestic_control = inputParameters["isosbestic_control"]

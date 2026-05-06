@@ -91,9 +91,15 @@ def _build_event_to_extractor(*, folder_path, storesList, inputParameters):
     return event_to_extractor
 
 
-# function to read data from 'tsq' and 'tev' files
 def orchestrate_read_raw_data(inputParameters):
+    """Read raw acquisition data for all sessions and save to HDF5.
 
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters; uses ``folderNames``, ``numberOfCores``,
+        and ``noChannels`` among other keys.
+    """
     logger.debug("### Reading raw data... ###")
     # get input parameters
     inputParameters = inputParameters
@@ -160,6 +166,13 @@ def orchestrate_read_raw_data(inputParameters):
 
 @subprocess_main_handler
 def main(input_parameters):
+    """Subprocess entry point for step-3 raw-data extraction.
+
+    Parameters
+    ----------
+    input_parameters : dict
+        Full pipeline input parameters deserialized from the subprocess argument.
+    """
     logger.info("run")
     orchestrate_read_raw_data(input_parameters)
 

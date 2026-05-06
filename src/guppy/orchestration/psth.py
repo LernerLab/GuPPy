@@ -39,9 +39,18 @@ from ..utils.validation import validate_peak_windows, validate_window_bounds
 logger = logging.getLogger(__name__)
 
 
-# function to create PSTH for each event using function helper_psth and save the PSTH to h5 file
 def execute_compute_psth(filepath, event, inputParameters):
+    """Compute and save the PSTH for a single event in one session output folder.
 
+    Parameters
+    ----------
+    filepath : str
+        Path to the session output directory (e.g. ``<session>_output_1``).
+    event : str
+        Raw event name from storesList row 1.
+    inputParameters : dict
+        Full pipeline input parameters.
+    """
     event = event.replace("\\", "_")
     event = event.replace("/", "_")
     if "control" in event.lower() or "signal" in event.lower():
@@ -113,9 +122,18 @@ def execute_compute_psth(filepath, event, inputParameters):
         logger.info(f"PSTH for event {event} computed.")
 
 
-# function to compute PSTH peak and area using the function helperPSTHPeakAndArea save the values to h5 and csv files.
 def execute_compute_psth_peak_and_area(filepath, event, inputParameters):
+    """Compute and save PSTH peak and area for a single event.
 
+    Parameters
+    ----------
+    filepath : str
+        Path to the session output directory.
+    event : str
+        Raw event name from storesList row 1.
+    inputParameters : dict
+        Full pipeline input parameters.
+    """
     event = event.replace("\\", "_")
     event = event.replace("/", "_")
     if "control" in event.lower() or "signal" in event.lower():
@@ -161,6 +179,17 @@ def execute_compute_psth_peak_and_area(filepath, event, inputParameters):
 
 
 def execute_compute_cross_correlation(filepath, event, inputParameters):
+    """Compute and save cross-correlation between brain regions for a single event.
+
+    Parameters
+    ----------
+    filepath : str
+        Path to the session output directory.
+    event : str
+        Raw event name from storesList row 1.
+    inputParameters : dict
+        Full pipeline input parameters.
+    """
     isCompute = inputParameters["computeCorr"]
     removeArtifacts = inputParameters["removeArtifacts"]
     artifactsRemovalMethod = inputParameters["artifactsRemovalMethod"]
@@ -215,6 +244,13 @@ def execute_compute_cross_correlation(filepath, event, inputParameters):
 
 
 def orchestrate_psth(inputParameters):
+    """Run PSTH, peak/area, and cross-correlation for each individual session.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters.
+    """
     folderNames = inputParameters["folderNames"]
     numProcesses = inputParameters["numberOfCores"]
     storesListPath = []
@@ -257,6 +293,13 @@ def orchestrate_psth(inputParameters):
 
 
 def execute_psth_combined(inputParameters):
+    """Run PSTH computation for combined (multi-session) data.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters.
+    """
     folderNames = inputParameters["folderNames"]
     storesListPath = []
     for i in range(len(folderNames)):
@@ -352,6 +395,20 @@ def _validate_psth_window_parameters(inputParameters):
 
 
 def execute_average_for_group(inputParameters):
+    """Average PSTH results across all selected sessions in the group.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters; must contain a non-empty
+        ``folderNamesForAvg`` list.
+
+    Raises
+    ------
+    ValueError
+        When ``folderNamesForAvg`` is empty or storenames are inconsistent
+        across sessions.
+    """
     folderNamesForAvg = inputParameters["folderNamesForAvg"]
     if len(folderNamesForAvg) == 0:
         message = (
@@ -400,7 +457,19 @@ def execute_average_for_group(inputParameters):
 
 
 def psthForEachStorename(inputParameters):
+    """Entry point for step-5 PSTH computation: validates parameters and dispatches to the appropriate sub-routine.
 
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters.
+
+    Returns
+    -------
+    dict
+        The same ``inputParameters`` dict, potentially updated with the step
+        counter used for progress tracking.
+    """
     logger.info("Computing PSTH, Peak and Area for each event...")
     inputParameters = inputParameters
 
@@ -439,6 +508,13 @@ def psthForEachStorename(inputParameters):
 
 @subprocess_main_handler
 def main(input_parameters):
+    """Run step-5 PSTH computation and chain to the transients step.
+
+    Parameters
+    ----------
+    input_parameters : dict
+        Full pipeline input parameters deserialized from the subprocess argument.
+    """
     inputParameters = psthForEachStorename(input_parameters)
     subprocess.call([sys.executable, "-m", "guppy.orchestration.transients", json.dumps(inputParameters)])
 

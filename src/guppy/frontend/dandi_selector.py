@@ -10,6 +10,8 @@ import panel as pn
 from dandi.dandiapi import DandiAPIClient
 from dandi.exceptions import NotFoundError
 
+from .frontend_utils import default_root_path
+
 logger = logging.getLogger(__name__)
 
 _DANDISET_ID_PATTERN = re.compile(r"^\d{6}$")
@@ -21,13 +23,6 @@ _DANDISET_ID_PATTERN = re.compile(r"^\d{6}$")
 # from local mode. We leave cleanup to the OS — the parent lives under the
 # system temp dir.
 _MIRROR_ROOT = os.path.join(tempfile.gettempdir(), "guppy_dandi_mirror")
-
-
-def _default_root_path():
-    base_directory_environment = os.environ.get("GUPPY_BASE_DIR")
-    if base_directory_environment and os.path.isdir(base_directory_environment):
-        return base_directory_environment
-    return os.path.expanduser("~")
 
 
 def _build_dandiset_mirror(*, dandiset_id, mirror_parent):
@@ -102,7 +97,7 @@ class DandiSelector:
         self._asset_file_selector_slot = pn.Column(self.asset_file_selector)
 
         self.output_root_selector = pn.widgets.FileSelector(
-            _default_root_path(),
+            default_root_path(),
             root_directory="/",
             name="Local output directory",
             width=950,
@@ -204,6 +199,16 @@ class DandiSelector:
 
     @property
     def selected_uris(self):
+        """Return the currently selected DANDI URIs.
+
+        Returns
+        -------
+        list of str
+            Each element is a ``dandi://<dandiset_id>/<asset_path>`` URI for
+            every ``.nwb`` placeholder currently selected in the asset browser.
+            Returns an empty list when no dandiset has been loaded or no files
+            are selected.
+        """
         dandiset_id = (self.dandiset_input.value or "").strip()
         if not dandiset_id:
             return []
@@ -211,6 +216,14 @@ class DandiSelector:
 
     @property
     def output_root(self):
+        """Return the local output directory selected by the user.
+
+        Returns
+        -------
+        str or None
+            Absolute path of the first entry in the output-root
+            ``FileSelector``'s value, or ``None`` when nothing is selected.
+        """
         selected = self.output_root_selector.value
         if not selected:
             return None

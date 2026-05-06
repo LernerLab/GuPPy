@@ -10,11 +10,25 @@ import pandas as pd
 
 from guppy.extractors import BaseRecordingExtractor
 from guppy.extractors.detect_acquisition_formats import _classify_csv_file
+from guppy.utils._hdf5_io import write_hdf5
 
 logger = logging.getLogger(__name__)
 
 
 class CsvRecordingExtractor(BaseRecordingExtractor):
+    """
+    Extractor for fiber photometry data stored in standard CSV files.
+
+    Supports two CSV layouts:
+
+    * **data_csv** — three columns: ``timestamps``, ``data``, ``sampling_rate``.
+    * **event_csv** — one column: ``timestamps``.
+
+    Parameters
+    ----------
+    folder_path : str
+        Path to the folder containing the CSV files.
+    """
 
     @classmethod
     def discover_events_and_flags(cls, folder_path) -> tuple[list[str], list[str]]:
@@ -138,6 +152,25 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
         return df
 
     def read(self, *, events: list[str], outputPath: str) -> list[dict[str, Any]]:
+        """
+        Read data from CSV files for the specified events.
+
+        Parameters
+        ----------
+        events : list of str
+            Event names to read. Each name must correspond to a ``<name>.csv``
+            file in ``folder_path``.
+        outputPath : str
+            Path to the output directory (unused by this extractor; required by
+            the base-class interface).
+
+        Returns
+        -------
+        list of dict
+            One dictionary per event. Data CSVs produce dicts with keys
+            ``storename``, ``timestamps``, ``data``, and ``sampling_rate``;
+            event CSVs produce dicts with keys ``storename`` and ``timestamps``.
+        """
         output_dicts = []
         for event in events:
             dataframe = self._read_csv(event=event)
@@ -201,9 +234,19 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
             dataframe.to_csv(csv_path, index=False)
 
     def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str) -> None:
+        """
+        Save extracted data dictionaries to HDF5 files.
+
+        Parameters
+        ----------
+        output_dicts : list of dict
+            Data dictionaries as returned by :meth:`read`.
+        outputPath : str
+            Path to the output directory where HDF5 files are written.
+        """
         for output_dict in output_dicts:
             storename = output_dict["storename"]
             for key, value in output_dict.items():
                 if key == "storename":
                     continue
-                self._write_hdf5(value, storename, outputPath, key)
+                write_hdf5(value, storename, outputPath, key)

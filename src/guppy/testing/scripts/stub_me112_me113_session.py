@@ -23,6 +23,7 @@ DURATION_IN_SECONDS = 25.0
 
 
 def main():
+    """Stub the ME112/ME113 TDT session to the configured destination path."""
     extractor = TdtRecordingExtractor(str(SOURCE))
     print(f"Stubbing {SOURCE} → {DESTINATION} ({DURATION_IN_SECONDS}s) ...", end=" ", flush=True)
     extractor.stub(folder_path=DESTINATION, duration_in_seconds=DURATION_IN_SECONDS)

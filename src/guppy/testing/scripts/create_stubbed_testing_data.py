@@ -135,6 +135,7 @@ def _sessions():
 
 
 def main():
+    """Generate stubbed testing data for all registered acquisition formats."""
     print(f"Writing stubbed data to: {STUBBED_TESTING_DATA}\n")
     for extractor, duration, destination in _sessions():
         modality = type(extractor).__name__.replace("RecordingExtractor", "")

@@ -27,6 +27,20 @@ def _validate_timestamp_configuration(*, timestamp_column_name: str, time_unit: 
 
 # get_multi_event_responses is not covered by tests due to flaky behavior of tkinter messagebox in testing environments.
 def get_multi_event_responses(multiple_event_ttls):  # pragma: no cover
+    """Prompt the user to confirm whether each TTL file contains multiple event types.
+
+    Parameters
+    ----------
+    multiple_event_ttls : sequence of bool
+        One entry per TTL file; ``True`` when the file appears to contain
+        multiple event types and a dialog should be shown.
+
+    Returns
+    -------
+    list of bool
+        One boolean per input entry, ``True`` when the user confirmed that the
+        corresponding TTL file has multiple event types.
+    """
     responses = []
     for has_multiple in multiple_event_ttls:
         if not has_multiple:
@@ -50,6 +64,26 @@ def get_multi_event_responses(multiple_event_ttls):  # pragma: no cover
 
 # get_timestamp_configuration is not covered by tests due to the use of tkinter GUI elements in the function.
 def get_timestamp_configuration(ts_unit_needs, col_names_ts):  # pragma: no cover
+    """Prompt the user to select the timestamp column and time unit for each NPM session.
+
+    Parameters
+    ----------
+    ts_unit_needs : sequence of bool
+        One entry per session; ``True`` when a dialog must be shown because the
+        timestamp configuration cannot be inferred automatically.
+    col_names_ts : sequence of str
+        Column names available in the timestamp file, presented as options in
+        the combo box.
+
+    Returns
+    -------
+    ts_units : list of str
+        Time unit (``"seconds"``, ``"milliseconds"``, or ``"microseconds"``) for
+        each session.
+    npm_timestamp_column_names : list of str or None
+        Selected timestamp column name for each session, or ``None`` when no
+        dialog was needed.
+    """
     ts_units, npm_timestamp_column_names = [], []
     for need in ts_unit_needs:
         if not need:

@@ -12,7 +12,6 @@ from guppy.frontend.parameterized_plotter import ParameterizedPlotter
 from guppy.frontend.visualization_dashboard import VisualizationDashboard
 from guppy.testing.api import step2, step3, step4, step5, step6
 
-
 SESSION_SUBDIR = "csv/sample_data_csv_1"
 STORENAMES_MAP = {
     "Sample_Control_Channel": "control_region",
@@ -121,8 +120,8 @@ def test_step6_raises_when_visualization_metric_not_computed_in_step5(tmp_path):
 
     message = str(exc_info.value)
     assert "z_score" in message, f"Error message should mention the missing metric. Got: {message}"
-    assert str(session_copy) in message or session_name in message, (
-        f"Error message should name the session. Got: {message}"
-    )
+    assert (
+        str(session_copy) in message or session_name in message
+    ), f"Error message should name the session. Got: {message}"
     assert "dff" in message, f"Error message should suggest the available alternative. Got: {message}"
     assert "step 5" in message.lower(), f"Error message should mention step 5. Got: {message}"
