@@ -381,6 +381,18 @@ class TestOutputsSelector:
         bare_parameter_form.files_1.value = []
         assert bare_parameter_form.outputs_selector.directory == default_root_path()
 
+    def test_retarget_multiple_sessions_uses_common_parent_as_root(self, bare_parameter_form, tmp_path):
+        # Multi-session: root must be the common parent so the user can navigate between
+        # sessions to reach each one's _output_* dirs. Directory starts at sessions[0] so
+        # the FileSelector lands on one session's outputs immediately.
+        session_a = tmp_path / "sessionA"
+        session_a.mkdir()
+        session_b = tmp_path / "sessionB"
+        session_b.mkdir()
+        bare_parameter_form.files_1.value = [str(session_a), str(session_b)]
+        assert bare_parameter_form.outputs_selector.root_directory == str(tmp_path)
+        assert bare_parameter_form.outputs_selector.directory == str(session_a)
+
     def test_retarget_clears_stale_outputs_selector_value(self, bare_parameter_form, tmp_path):
         session_a = tmp_path / "sessionA"
         session_a.mkdir()

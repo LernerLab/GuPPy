@@ -432,16 +432,31 @@ class ParameterForm:
             )
 
     def _retarget_outputs_selector(self, event):
-        """Root the existing-runs FileSelector at the first selected session so its `_output_*` dirs show directly."""
-        sessions = event.new or []
-        target = sessions[0] if sessions and os.path.isdir(sessions[0]) else default_root_path()
+        """Root the existing-runs FileSelector so all selected sessions' `_output_*` dirs are reachable.
+
+        - Zero sessions: fall back to ``default_root_path()``.
+        - One session: root and starting directory both set to that session so its `_output_*`
+          children show directly (no extra click).
+        - Multiple sessions: root set to their common parent so every session is navigable;
+          starting directory set to the first session so the user lands on one session's
+          outputs and can navigate up to switch between sessions.
+        """
+        sessions = [s for s in (event.new or []) if os.path.isdir(s)]
+        if not sessions:
+            root_target = default_root_path()
+            directory_target = default_root_path()
+        elif len(sessions) == 1:
+            root_target = sessions[0]
+            directory_target = sessions[0]
+        else:
+            root_target = os.path.commonpath(sessions)
+            directory_target = sessions[0]
         # Set root_directory before directory so Panel's `path.startswith(self._root_directory)`
-        # check in FileSelector._dir_change can't silently revert when the new target lives on a
-        # different drive than Panel's resolved root_directory (a Windows-specific failure mode
+        # check in FileSelector._dir_change can't silently revert (Windows-specific failure mode
         # when the constructor's root_directory="/" resolves to a drive root that isn't shared
         # with tmp_path or the user's session folder).
-        self.outputs_selector.root_directory = target
-        self.outputs_selector.directory = target
+        self.outputs_selector.root_directory = root_target
+        self.outputs_selector.directory = directory_target
         # Clear any prior selection that no longer makes sense for the new root.
         self.outputs_selector.value = []
         # Sync the FileSelector's internal _cwd and re-enumerate. Without this, _cwd remains
