@@ -237,7 +237,12 @@ def _validate_metric_against_step5_outputs(inputParameters):
         else (inputParameters.get("selectedOutputs") or {})
     )
     for filepath in source_folders:
-        output_dirs.extend(select_output_dirs(filepath, selected_outputs_for_validation.get(filepath)))
+        runs = selected_outputs_for_validation.get(filepath)
+        if not runs:
+            # Session not in selectedOutputs (e.g. it has no _output_* dirs yet, which the
+            # homepage gate `validate_selected_outputs_for_consumers` skips). Nothing to validate.
+            continue
+        output_dirs.extend(select_output_dirs(filepath, runs))
 
     if not output_dirs:
         return  # Nothing to check; the main function will handle the empty case.
