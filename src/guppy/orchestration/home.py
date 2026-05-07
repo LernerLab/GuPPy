@@ -11,67 +11,140 @@ from .save_parameters import save_parameters
 from .storenames import orchestrate_storenames_page
 from .visualize import visualizeResults
 from ..frontend.input_parameters import ParameterForm
-from ..frontend.progress import readPBIncrementValues
+from ..frontend.progress import PB_STEPS_FILE, readPBIncrementValues
 from ..frontend.sidebar import Sidebar
 
 logger = logging.getLogger(__name__)
 
 
-def readRawData(parameter_form):
-    inputParameters = parameter_form.getInputParameters()
+def readRawData(inputParameters):
+    """
+    Launch the raw-data extraction step in a subprocess.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Pipeline input parameters serialized to JSON for the subprocess.
+    """
     subprocess.call([sys.executable, "-m", "guppy.orchestration.read_raw_data", json.dumps(inputParameters)])
 
 
-def preprocess(parameter_form):
-    inputParameters = parameter_form.getInputParameters()
+def preprocess(inputParameters):
+    """
+    Launch the preprocessing step (timestamp correction, z-score) in a subprocess.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Pipeline input parameters serialized to JSON for the subprocess.
+    """
     subprocess.call([sys.executable, "-m", "guppy.orchestration.preprocess", json.dumps(inputParameters)])
 
 
-def psthComputation(parameter_form, current_dir):
-    inputParameters = parameter_form.getInputParameters()
-    inputParameters["curr_dir"] = current_dir
+def psthComputation(inputParameters):
+    """
+    Launch the PSTH computation step in a subprocess.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Pipeline input parameters serialized to JSON for the subprocess.
+    """
     subprocess.call([sys.executable, "-m", "guppy.orchestration.psth", json.dumps(inputParameters)])
 
 
-def build_homepage():
-    pn.extension()
+def build_homepage(*, start_path=None):
+    """
+    Build and return the GuPPy Panel web-application template.
+
+    Parameters
+    ----------
+    start_path : str or None, optional
+        Initial directory shown in the folder-selection widget.  When None the
+        widget starts in the current working directory.
+
+    Returns
+    -------
+    template : pn.template.BootstrapTemplate
+        Fully wired Panel template ready to be served or shown.
+    """
+    pn.extension(notifications=True)
     current_dir = os.getcwd()
 
     template = pn.template.BootstrapTemplate(title="Input Parameters GUI")
-    parameter_form = ParameterForm(template=template)
+    parameter_form = ParameterForm(template=template, start_path=start_path)
     sidebar = Sidebar(template=template)
 
     # ------------------------------------------------------------------------------------------------------------------
     # onclick closure functions for sidebar buttons
+    def _getInputParametersOrNotify(*, require_selected_outputs: bool = False):
+        try:
+            input_parameters = parameter_form.getInputParameters()
+            if require_selected_outputs:
+                parameter_form.validate_selected_outputs_for_consumers()
+            return input_parameters
+        except Exception as e:
+            pn.state.notifications.error(str(e), duration=0)
+            return None
+
     def onclickProcess(event=None):
-        inputParameters = parameter_form.getInputParameters()
+        inputParameters = _getInputParametersOrNotify()
+        if inputParameters is None:
+            return
         save_parameters(inputParameters=inputParameters)
 
     def onclickStorenames(event=None):
-        inputParameters = parameter_form.getInputParameters()
+        inputParameters = _getInputParametersOrNotify()
+        if inputParameters is None:
+            return
         orchestrate_storenames_page(inputParameters)
+        # Newly-created output dirs become available for filtering on the next
+        # step without requiring the user to deselect/reselect their session.
+        parameter_form.refresh_individual_outputs()
+        parameter_form.refresh_group_outputs()
 
     def onclickVisualization(event=None):
-        inputParameters = parameter_form.getInputParameters()
-        visualizeResults(inputParameters)
+        inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
+        if inputParameters is None:
+            return
+        try:
+            visualizeResults(inputParameters)
+        except ValueError as e:
+            pn.state.notifications.error(str(e), duration=0)
 
     def onclickreaddata(event=None):
-        thread = Thread(target=readRawData, args=(parameter_form,))
+        inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
+        if inputParameters is None:
+            return
+        thread = Thread(target=readRawData, args=(inputParameters,))
         thread.start()
-        readPBIncrementValues(sidebar.read_progress)
+        error_msg = readPBIncrementValues(sidebar.read_progress, file_path=PB_STEPS_FILE)
         thread.join()
+        if error_msg:
+            pn.state.notifications.error(error_msg, duration=0)
 
     def onclickpreprocess(event=None):
-        thread = Thread(target=preprocess, args=(parameter_form,))
+        inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
+        if inputParameters is None:
+            return
+        thread = Thread(target=preprocess, args=(inputParameters,))
         thread.start()
-        readPBIncrementValues(sidebar.extract_progress)
+        error_msg = readPBIncrementValues(sidebar.extract_progress, file_path=PB_STEPS_FILE)
         thread.join()
+        if error_msg:
+            pn.state.notifications.error(error_msg, duration=0)
 
     def onclickpsth(event=None):
-        thread = Thread(target=psthComputation, args=(parameter_form, current_dir))
+        inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
+        if inputParameters is None:
+            return
+        inputParameters["curr_dir"] = current_dir
+        thread = Thread(target=psthComputation, args=(inputParameters,))
         thread.start()
-        readPBIncrementValues(sidebar.psth_progress)
+        error_msg = readPBIncrementValues(sidebar.psth_progress, file_path=PB_STEPS_FILE)
         thread.join()
+        if error_msg:
+            pn.state.notifications.error(error_msg, duration=0)
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -89,10 +162,13 @@ def build_homepage():
     # Expose minimal hooks and widgets to enable programmatic testing
     template._hooks = {
         "onclickProcess": onclickProcess,
+        "onclickVisualization": onclickVisualization,
         "getInputParameters": parameter_form.getInputParameters,
     }
     template._widgets = {
         "files_1": parameter_form.files_1,
+        "source_mode": parameter_form.source_mode,
+        "dandi_selector": parameter_form.dandi_selector,
     }
 
     return template

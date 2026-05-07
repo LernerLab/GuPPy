@@ -1,6 +1,7 @@
 import h5py
 import numpy as np
 import pandas as pd
+import pytest
 
 from guppy.analysis.io_utils import write_hdf5
 from guppy.analysis.standard_io import (
@@ -270,6 +271,21 @@ def test_read_corrected_timestamps_pairwise_returns_pair_name_dicts(tmp_path):
     assert pair_name_to_sampling_rate["dms"] == 100.0
 
 
+def test_read_corrected_timestamps_pairwise_mismatched_pair_names_raises_actionable_error(tmp_path):
+    # control suffix is 'dms', signal suffix is 'vms' → mismatch
+    (tmp_path / "control_dms.hdf5").touch()
+    (tmp_path / "signal_vms.hdf5").touch()
+
+    with pytest.raises(ValueError) as exc_info:
+        read_corrected_timestamps_pairwise(str(tmp_path))
+
+    msg = str(exc_info.value)
+    assert "dms" in msg
+    assert "vms" in msg
+    assert str(tmp_path) in msg
+    assert "re-run step 2" in msg
+
+
 # ── read_coords_pairwise ──────────────────────────────────────────────────────
 
 
@@ -284,6 +300,22 @@ def test_read_coords_pairwise_returns_default_range_when_no_coords_file(tmp_path
     assert "dms" in result
     # No coords file → default = [[0, tsNew[-1]]] = [[0, 5.0]]
     np.testing.assert_array_equal(result["dms"], np.array([[0, 5.0]]))
+
+
+def test_read_coords_pairwise_mismatched_pair_names_raises_actionable_error(tmp_path):
+    # control suffix is 'dms', signal suffix is 'vms' → mismatch
+    (tmp_path / "control_dms.hdf5").touch()
+    (tmp_path / "signal_vms.hdf5").touch()
+    pair_name_to_tsNew = {"dms": np.array([0.0, 1.0, 2.0, 5.0])}
+
+    with pytest.raises(ValueError) as exc_info:
+        read_coords_pairwise(str(tmp_path), pair_name_to_tsNew)
+
+    msg = str(exc_info.value)
+    assert "dms" in msg
+    assert "vms" in msg
+    assert str(tmp_path) in msg
+    assert "re-run step 2" in msg
 
 
 # ── read_corrected_data_dict ──────────────────────────────────────────────────
@@ -366,3 +398,39 @@ def test_read_ttl_timestamps_for_combining_data_returns_nested_dict(tmp_path):
     assert "TTL1_dms" in result
     assert str(session) in result["TTL1_dms"]
     np.testing.assert_array_equal(result["TTL1_dms"][str(session)], np.array([1.5, 2.5]))
+
+
+# ── Combining-data suffix mismatch error paths ────────────────────────────────
+
+
+def test_read_timestamps_for_combining_data_mismatched_suffix_raises(tmp_path):
+    session = tmp_path / "session"
+    session.mkdir()
+    (session / "control_dms.hdf5").touch()
+    (session / "signal_vms.hdf5").touch()
+    with pytest.raises(ValueError) as exception_info:
+        read_timestamps_for_combining_data([str(session)])
+    message = str(exception_info.value)
+    assert "Pair name mismatch" in message
+    assert "dms" in message
+    assert "vms" in message
+
+
+def test_read_data_for_combining_data_mismatched_suffix_raises(tmp_path):
+    session = tmp_path / "session"
+    session.mkdir()
+    (session / "control_dms.hdf5").touch()
+    (session / "signal_vms.hdf5").touch()
+    storesList = np.array([["ctrl0", "sig0"], ["control_dms", "signal_vms"]])
+    with pytest.raises(ValueError, match="Pair name mismatch"):
+        read_data_for_combining_data([str(session)], storesList)
+
+
+def test_read_ttl_timestamps_for_combining_data_mismatched_suffix_raises(tmp_path):
+    session = tmp_path / "session"
+    session.mkdir()
+    (session / "control_dms.hdf5").touch()
+    (session / "signal_vms.hdf5").touch()
+    storesList = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_vms", "TTL1"]])
+    with pytest.raises(ValueError, match="Pair name mismatch"):
+        read_ttl_timestamps_for_combining_data([str(session)], storesList)

@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from guppy.analysis.timestamp_correction import (
     applyCorrection_ttl,
@@ -129,6 +130,62 @@ def test_decide_naming_applies_csv_correction_to_ttl_and_forms_compound_name():
 
 
 # ── correct_timestamps ────────────────────────────────────────────────────────
+
+
+# ── timestampCorrection error paths ────────────────────────────────────────────
+
+
+def test_timestamp_correction_raises_for_invalid_mode():
+    storesList = np.array([["ctrl0", "sig0"], ["control_dms", "signal_dms"]])
+    name_to_timestamps = {"control_dms": np.zeros(3), "signal_dms": np.zeros(3)}
+    name_to_data = {"control_dms": np.zeros(3), "signal_dms": np.zeros(3)}
+    name_to_sampling_rate = {"control_dms": np.array([100.0]), "signal_dms": np.array([100.0])}
+    name_to_npoints = {"control_dms": None, "signal_dms": None}
+    with pytest.raises(ValueError, match=r"Mode 'invalid' is not supported"):
+        timestampCorrection(
+            0.0,
+            storesList,
+            name_to_timestamps,
+            name_to_data,
+            name_to_sampling_rate,
+            name_to_npoints,
+            mode="invalid",
+        )
+
+
+def test_timestamp_correction_surfaces_mismatched_region_pairs_via_storeslist():
+    """control_dms paired with signal_vms — surfaces from get_control_and_signal_channel_names."""
+    storesList = np.array([["ctrl0", "sig0"], ["control_dms", "signal_vms"]])
+    name_to_timestamps = {"control_dms": np.zeros(3), "signal_vms": np.zeros(3)}
+    name_to_data = {"control_dms": np.zeros(3), "signal_vms": np.zeros(3)}
+    name_to_sampling_rate = {"control_dms": np.array([100.0]), "signal_vms": np.array([100.0])}
+    name_to_npoints = {"control_dms": None, "signal_vms": None}
+    with pytest.raises(ValueError, match="Mismatched signal/control region pairs"):
+        timestampCorrection(
+            0.0,
+            storesList,
+            name_to_timestamps,
+            name_to_data,
+            name_to_sampling_rate,
+            name_to_npoints,
+            mode="csv",
+        )
+
+
+def test_decide_naming_surfaces_mismatched_region_pairs_via_storeslist():
+    storesList = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_vms", "TTL1"]])
+    name_to_timestamps_ttl = {"TTL1": np.array([1.0, 2.0])}
+    name_to_timestamps = {"control_dms": np.zeros(3), "signal_vms": np.zeros(3)}
+    name_to_data = {"control_dms": np.zeros(3), "signal_vms": np.zeros(3)}
+    with pytest.raises(ValueError, match="Mismatched signal/control region pairs"):
+        decide_naming_and_applyCorrection_ttl(
+            0.0,
+            storesList,
+            name_to_timestamps_ttl,
+            name_to_timestamps,
+            name_to_data,
+            mode="csv",
+        )
 
 
 def test_correct_timestamps_returns_all_four_outputs_consistent():

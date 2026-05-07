@@ -3,28 +3,37 @@ from collections import OrderedDict
 
 import numpy as np
 
+from ..utils.validation import validate_peak_windows
+
 logger = logging.getLogger(__name__)
 
 
 def compute_psth_peak_and_area(psth_mean, timestamps, sampling_rate, peak_startPoint, peak_endPoint):
+    """
+    Compute peak amplitude and area under the curve for each peak window.
 
-    peak_startPoint = np.asarray(peak_startPoint)
-    peak_endPoint = np.asarray(peak_endPoint)
+    Parameters
+    ----------
+    psth_mean : np.ndarray
+        2-D array of mean PSTH values (time-points × channels/trials).
+    timestamps : np.ndarray
+        1-D time axis (s) aligned with ``psth_mean`` rows.
+    sampling_rate : float
+        Sampling rate in Hz (currently unused; reserved for future use).
+    peak_startPoint : array-like
+        Start times (s) for each peak window.
+    peak_endPoint : array-like
+        End times (s) for each peak window.
 
-    peak_startPoint = peak_startPoint[~np.isnan(peak_startPoint)]
-    peak_endPoint = peak_endPoint[~np.isnan(peak_endPoint)]
+    Returns
+    -------
+    peak_and_area : OrderedDict
+        Ordered mapping of metric name → scalar or array value.  Keys follow
+        the pattern ``'peak_pos_N'``, ``'peak_neg_N'``, and ``'area_N'`` for
+        each validated window ``N``.
+    """
 
-    if peak_startPoint.shape[0] != peak_endPoint.shape[0]:
-        logger.error("Number of Peak Start Time and Peak End Time are unequal.")
-        raise Exception("Number of Peak Start Time and Peak End Time are unequal.")
-
-    if np.less_equal(peak_endPoint, peak_startPoint).any() == True:
-        logger.error(
-            "Peak End Time is lesser than or equal to Peak Start Time. Please check the Peak parameters window."
-        )
-        raise Exception(
-            "Peak End Time is lesser than or equal to Peak Start Time. Please check the Peak parameters window."
-        )
+    peak_startPoint, peak_endPoint = validate_peak_windows(peak_starts=peak_startPoint, peak_ends=peak_endPoint)
 
     peak_and_area = OrderedDict()
 

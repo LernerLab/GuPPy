@@ -36,20 +36,26 @@ class RecordingExtractorTestMixin:
         Event name for the control channel (timestamps + data).
     signal_event : str
         Event name for the signal channel (timestamps + data).
-    ttl_event : str
-        Event name for the TTL/event channel (timestamps only).
+    ttl_event : str or None
+        Event name for the TTL/event channel (timestamps only). Set to ``None``
+        for sessions that have no TTL channel; all TTL-related tests become
+        no-ops in that case.
     stub_ttl_test_duration_in_seconds : float
         Duration in seconds passed to ``stub()`` for the TTL pruning test.
         Choose a value that captures some but not all TTL events in the test data.
+        Ignored when ``ttl_event`` is ``None``.
 
     Child test classes must also implement these fixtures, each returning the
     array as it should appear in the saved HDF5 file:
 
     expected_control_timestamps, expected_control_data,
     expected_signal_timestamps, expected_signal_data, expected_ttl_timestamps.
+    When ``ttl_event`` is ``None``, ``expected_ttl_timestamps`` need not be
+    overridden (the default returns ``None`` and the TTL tests are skipped).
     """
 
     stub_extractor_kwargs = {}
+    ttl_event = None
 
     @pytest.fixture
     def expected_control_timestamps(self):
@@ -69,7 +75,7 @@ class RecordingExtractorTestMixin:
 
     @pytest.fixture
     def expected_ttl_timestamps(self):
-        raise NotImplementedError("Child test classes must implement expected_ttl_timestamps.")
+        return None
 
     # These two fixtures exist so that NPM can override them to provide per-test
     # isolated copies of the data folder. NPM's discover_events_and_flags writes
@@ -180,6 +186,8 @@ class RecordingExtractorTestMixin:
             np.testing.assert_array_equal(file["data"][:], expected_signal_data)
 
     def test_roundtrip_ttl_timestamps_preserved(self, tmp_path, isolated_extractor_instance, expected_ttl_timestamps):
+        if self.ttl_event is None:
+            return
         output_dicts = isolated_extractor_instance.read(events=[self.ttl_event], outputPath=str(tmp_path))
         isolated_extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
 
@@ -220,6 +228,8 @@ class RecordingExtractorTestMixin:
         np.testing.assert_array_equal(first_result[0]["data"], second_result[0]["data"])
 
     def test_stub_ttl_timestamps_within_duration(self, tmp_path, isolated_extractor_instance):
+        if self.ttl_event is None:
+            return
         original_control_result = isolated_extractor_instance.read(
             events=[self.control_event], outputPath=str(tmp_path)
         )

@@ -1,6 +1,7 @@
 import h5py
 import numpy as np
 import pandas as pd
+import pytest
 
 from guppy.analysis.control_channel import (
     add_control_channel,
@@ -71,6 +72,21 @@ def test_add_control_channel_no_new_entry_when_control_exists(tmp_path):
     arr = np.array([["sig0", "ctrl0"], ["signal_dms", "control_dms"]])
     result = add_control_channel(str(tmp_path), arr)
     np.testing.assert_array_equal(result, arr)
+
+
+def test_add_control_channel_raises_when_two_signals_match_one_control(tmp_path):
+    # Two entries named "signal_dms" → ambiguous mapping for "control_dms"
+    arr = np.array([["ctrl0", "sig0", "sig1"], ["control_dms", "signal_dms", "signal_dms"]])
+    with pytest.raises(ValueError, match=r"Multiple signal channels named 'signal_dms'"):
+        add_control_channel(str(tmp_path), arr)
+
+
+def test_add_control_channel_raises_when_isosbestic_disabled_but_unmatched_control_present(tmp_path):
+    # control_dms with no matching signal_dms — when isosbestic_control is False,
+    # this means the storesList is malformed.
+    arr = np.array([["ctrl0"], ["control_dms"]])
+    with pytest.raises(ValueError, match=r"Isosbestic control channel parameter is set to False"):
+        add_control_channel(str(tmp_path), arr)
 
 
 # ── create_control_channel ────────────────────────────────────────────────────

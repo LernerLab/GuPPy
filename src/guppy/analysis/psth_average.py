@@ -18,8 +18,20 @@ from ..utils.utils import read_Df
 logger = logging.getLogger(__name__)
 
 
-# function to compute average of group of recordings
 def averageForGroup(folderNames, event, inputParameters):
+    """
+    Average PSTH, peak/AUC, and cross-correlation results across a group of sessions.
+
+    Parameters
+    ----------
+    folderNames : list of str
+        Session directories whose output subdirectories contain precomputed PSTH files.
+    event : str
+        Event label to average across sessions.
+    inputParameters : dict
+        Analysis configuration dictionary; must include ``'abspath'`` and
+        ``'selectForComputePsth'``.
+    """
 
     event = event.replace("\\", "_")
     event = event.replace("/", "_")
@@ -28,7 +40,6 @@ def averageForGroup(folderNames, event, inputParameters):
     path = []
     abspath = inputParameters["abspath"]
     selectForComputePsth = inputParameters["selectForComputePsth"]
-    path_temp_len = []
     op = makeAverageDir(abspath)
 
     # combining paths to all the selected folders for doing average
@@ -42,8 +53,6 @@ def averageForGroup(folderNames, event, inputParameters):
                 os.path.join(folderNames[i], "dff_*")
             )
 
-        path_temp_len.append(len(path_temp))
-        # path_temp = glob.glob(os.path.join(folderNames[i], 'z_score_*'))
         for j in range(len(path_temp)):
             basename = (os.path.basename(path_temp[j])).split(".")[0]
             write_hdf5(np.array([]), basename, op, "data")
@@ -52,15 +61,14 @@ def averageForGroup(folderNames, event, inputParameters):
             path.append(temp)
 
     # processing of all the paths
-    path_temp_len = np.asarray(path_temp_len)
-    max_len = np.argmax(path_temp_len)
-
     naming = []
     for i in range(len(path)):
         naming.append(path[i][2])
     naming = np.unique(np.asarray(naming))
 
-    new_path = [[] for _ in range(path_temp_len[max_len])]
+    # Size by the number of unique basenames across all folders so that mismatched
+    # or non-overlapping storenames across sessions do not cause an IndexError.
+    new_path = [[] for _ in range(len(naming))]
     for i in range(len(path)):
         idx = np.where(naming == path[i][2])[0][0]
         new_path[idx].append(path[i])
@@ -86,13 +94,17 @@ def averageForGroup(folderNames, event, inputParameters):
                     psth_bins.append(df[bins_cols])
 
         if len(psth) == 0:
-            logger.warning("Something is wrong with the file search pattern.")
+            logger.warning(
+                f"No PSTH files found for event {event!r} (basename {temp_path[0][2]!r}, "
+                f"selectForComputePsth={selectForComputePsth!r}) across the selected folders; "
+                "skipping average for this event."
+            )
             continue
 
         if len(bins_cols) > 0:
             df_bins = pd.concat(psth_bins, axis=1)
-            df_bins_mean = df_bins.groupby(by=df_bins.columns, axis=1).mean()
-            df_bins_err = df_bins.groupby(by=df_bins.columns, axis=1).std() / math.sqrt(df_bins.shape[1])
+            df_bins_mean = df_bins.T.groupby(df_bins.columns).mean().T
+            df_bins_err = df_bins.T.groupby(df_bins.columns).std().T / math.sqrt(df_bins.shape[1])
             cols_err = list(df_bins_err.columns)
             dict_err = {}
             for i in cols_err:
@@ -128,7 +140,10 @@ def averageForGroup(folderNames, event, inputParameters):
                 index.append(list(df.index))
 
         if len(arr) == 0:
-            logger.warning("Something is wrong with the file search pattern.")
+            logger.warning(
+                f"No peak/AUC files found for event {event!r} (basename {temp_path[0][2]!r}) "
+                "across the selected folders; skipping peak/AUC average for this event."
+            )
             continue
         index = list(np.concatenate(index))
         new_df = pd.concat(arr, axis=0)  # os.path.join(filepath, 'peak_AUC_'+name+'.csv')
@@ -189,6 +204,19 @@ def averageForGroup(folderNames, event, inputParameters):
 
 
 def psth_shape_check(psth):
+    """
+    Pad or truncate PSTH trial arrays so they all share the same length.
+
+    Parameters
+    ----------
+    psth : list of np.ndarray
+        List of 1-D PSTH mean arrays, potentially with differing lengths.
+
+    Returns
+    -------
+    psth : list of np.ndarray
+        List of arrays all truncated or NaN-padded to the length of the last element.
+    """
 
     each_ln = []
     for i in range(len(psth)):
@@ -209,6 +237,21 @@ def psth_shape_check(psth):
 
 
 def read_Df_area_peak(filepath, name):
+    """
+    Read a peak/AUC HDF5 file and return its DataFrame.
+
+    Parameters
+    ----------
+    filepath : str
+        Directory containing the ``peak_AUC_<name>.h5`` file.
+    name : str
+        Filename stem (without the ``peak_AUC_`` prefix or ``.h5`` suffix).
+
+    Returns
+    -------
+    df : pd.DataFrame
+        DataFrame of peak and area-under-curve metrics.
+    """
     op = os.path.join(filepath, "peak_AUC_" + name + ".h5")
     df = pd.read_hdf(op, key="df", mode="r")
 

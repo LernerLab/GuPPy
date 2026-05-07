@@ -1,4 +1,3 @@
-import glob
 import json
 import logging
 import multiprocessing as mp
@@ -9,14 +8,16 @@ import numpy as np
 
 from guppy.extractors import (
     CsvRecordingExtractor,
+    DandiNwbRecordingExtractor,
     DoricRecordingExtractor,
     NpmRecordingExtractor,
+    NwbRecordingExtractor,
     TdtRecordingExtractor,
     detect_acquisition_formats,
     read_and_save_all_events,
 )
-from guppy.frontend.progress import writeToFile
-from guppy.utils.utils import takeOnlyDirs
+from guppy.frontend.progress import PB_STEPS_FILE, subprocess_main_handler, writeToFile
+from guppy.utils.utils import select_output_dirs
 
 logger = logging.getLogger(__name__)
 
@@ -44,13 +45,26 @@ def _build_event_to_extractor(*, folder_path, storesList, inputParameters):
         Maps each event name (str) to the extractor instance responsible for it.
     """
     event_to_extractor = {}
+
+    # DANDI mode bypasses local format detection — discover and read via streaming
+    if inputParameters is not None and inputParameters.get("mode") == "dandi":
+        dandi_uri = inputParameters["dandi_uri_map"][folder_path]
+        extractor = DandiNwbRecordingExtractor(folder_path=dandi_uri)
+        fmt_events, _ = DandiNwbRecordingExtractor.discover_events_and_flags(folder_path=dandi_uri)
+        for event in fmt_events:
+            event_to_extractor[event] = extractor
+        return event_to_extractor
+
     num_ch = inputParameters["noChannels"]
     all_formats = detect_acquisition_formats(folder_path)
     # Doric extractor requires a store-name→event-type mapping built from storesList
     event_name_to_event_type = {storesList[0, col]: storesList[1, col] for col in range(storesList.shape[1])}
 
     for fmt in sorted(all_formats):
-        if fmt == "tdt":
+        if fmt == "nwb":
+            extractor = NwbRecordingExtractor(folder_path=folder_path)
+            fmt_events, _ = NwbRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+        elif fmt == "tdt":
             extractor = TdtRecordingExtractor(folder_path=folder_path)
             fmt_events, _ = TdtRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
         elif fmt == "doric":
@@ -67,7 +81,7 @@ def _build_event_to_extractor(*, folder_path, storesList, inputParameters):
                 folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
             )
         else:
-            raise ValueError(f"Format not recognized: '{fmt}'. Expected one of 'tdt', 'csv', 'doric', 'npm'.")
+            raise ValueError(f"Format not recognized: '{fmt}'. Expected one of 'nwb', 'tdt', 'csv', 'doric', 'npm'.")
 
         for event in fmt_events:
             if event not in event_to_extractor:
@@ -76,34 +90,41 @@ def _build_event_to_extractor(*, folder_path, storesList, inputParameters):
     return event_to_extractor
 
 
-# function to read data from 'tsq' and 'tev' files
 def orchestrate_read_raw_data(inputParameters):
+    """Read raw acquisition data for all sessions and save to HDF5.
 
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters; uses ``folderNames``, ``numberOfCores``,
+        and ``noChannels`` among other keys.
+    """
     logger.debug("### Reading raw data... ###")
     # get input parameters
     inputParameters = inputParameters
     folderNames = inputParameters["folderNames"]
     numProcesses = inputParameters["numberOfCores"]
     num_ch = inputParameters["noChannels"]
+    selected_outputs = inputParameters.get("selectedOutputs", {}) or {}
     storesListPath = []
     if numProcesses == 0:
         numProcesses = mp.cpu_count()
     elif numProcesses > mp.cpu_count():
         logger.warning(
-            "Warning : # of cores parameter set is greater than the cores available \
-			   available in your machine"
+            f"Number of cores requested ({numProcesses}) exceeds available cores "
+            f"({mp.cpu_count()}); using {mp.cpu_count() - 1}."
         )
         numProcesses = mp.cpu_count() - 1
     for i in range(len(folderNames)):
         filepath = folderNames[i]
-        storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+        storesListPath.append(select_output_dirs(filepath, selected_outputs.get(filepath)))
     storesListPath = np.concatenate(storesListPath)
-    writeToFile(str((storesListPath.shape[0] + 1) * 10) + "\n" + str(10) + "\n")
+    writeToFile(str((storesListPath.shape[0] + 1) * 10) + "\n" + str(10) + "\n", file_path=PB_STEPS_FILE)
     step = 0
     for i in range(len(folderNames)):
         filepath = folderNames[i]
         logger.debug(f"### Reading raw data for folder {folderNames[i]}")
-        storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*")))
+        storesListPath = select_output_dirs(filepath, selected_outputs.get(filepath))
 
         # read data corresponding to each storename selected by user while saving the storeslist file
         for j in range(len(storesListPath)):
@@ -128,27 +149,32 @@ def orchestrate_read_raw_data(inputParameters):
             for event in events:
                 ext = event_to_extractor.get(event)
                 if ext is None:
-                    raise ValueError(f"Event '{event}' not found in any extractor for folder {filepath}.")
+                    available = sorted(event_to_extractor.keys())
+                    raise ValueError(
+                        f"Event '{event}' not found in any extractor for folder {filepath}. "
+                        f"Available events: {available}."
+                    )
                 store_event_to_extractor[event] = ext
             read_and_save_all_events(store_event_to_extractor, op, numProcesses)
 
-            writeToFile(str(10 + ((step + 1) * 10)) + "\n")
+            writeToFile(str(10 + ((step + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
             step += 1
         logger.info(f"### Raw data for folder {folderNames[i]} fetched")
     logger.info("Raw data fetched and saved.")
     logger.info("#" * 400)
 
 
+@subprocess_main_handler
 def main(input_parameters):
+    """Subprocess entry point for step-3 raw-data extraction.
+
+    Parameters
+    ----------
+    input_parameters : dict
+        Full pipeline input parameters deserialized from the subprocess argument.
+    """
     logger.info("run")
-    try:
-        orchestrate_read_raw_data(input_parameters)
-        logger.info("#" * 400)
-    except Exception as e:
-        with open(os.path.join(os.path.expanduser("~"), "pbSteps.txt"), "a") as file:
-            file.write(str(-1) + "\n")
-        logger.error(f"An error occurred: {e}")
-        raise e
+    orchestrate_read_raw_data(input_parameters)
 
 
 if __name__ == "__main__":

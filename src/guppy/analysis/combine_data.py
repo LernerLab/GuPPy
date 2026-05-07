@@ -11,6 +11,27 @@ logger = logging.getLogger(__name__)
 
 
 def eliminateData(filepath_to_timestamps, filepath_to_data, timeForLightsTurnOn, sampling_rate):
+    """
+    Concatenate data from multiple session files and realign their timestamps.
+
+    Parameters
+    ----------
+    filepath_to_timestamps : dict
+        Mapping from session filepath to corrected timestamp array.
+    filepath_to_data : dict
+        Mapping from session filepath to data array.
+    timeForLightsTurnOn : float
+        Seconds offset used to set the new time zero for the first session.
+    sampling_rate : float
+        Sampling rate in Hz; used to compute inter-session spacing.
+
+    Returns
+    -------
+    arr : np.ndarray
+        Concatenated data across all sessions.
+    ts_arr : np.ndarray
+        Realigned timestamps corresponding to ``arr``.
+    """
 
     arr = np.array([])
     ts_arr = np.array([])
@@ -35,6 +56,25 @@ def eliminateData(filepath_to_timestamps, filepath_to_data, timeForLightsTurnOn,
 
 
 def eliminateTs(filepath_to_timestamps, filepath_to_ttl_timestamps, timeForLightsTurnOn, sampling_rate):
+    """
+    Realign TTL timestamps to match concatenated multi-session photometry timestamps.
+
+    Parameters
+    ----------
+    filepath_to_timestamps : dict
+        Mapping from session filepath to corrected photometry timestamp array.
+    filepath_to_ttl_timestamps : dict
+        Mapping from session filepath to TTL timestamp array to realign.
+    timeForLightsTurnOn : float
+        Seconds offset used to set the new time zero for the first session.
+    sampling_rate : float
+        Sampling rate in Hz; used to compute inter-session spacing.
+
+    Returns
+    -------
+    ts_arr : np.ndarray
+        Realigned TTL timestamps concatenated across all sessions.
+    """
 
     ts_arr = np.array([])
     tsNew_arr = np.array([])
@@ -66,6 +106,35 @@ def combine_data(
     storesList,
     sampling_rate,
 ):
+    """
+    Combine photometry data and TTL timestamps from multiple session files.
+
+    Parameters
+    ----------
+    filepaths_to_combine : list of str
+        Ordered list of session output directories to concatenate.
+    pair_name_to_filepath_to_timestamps : dict
+        ``{pair_name: {filepath: timestamps_array}}``.
+    display_name_to_filepath_to_data : dict
+        ``{display_name: {filepath: data_array}}``.
+    compound_name_to_filepath_to_ttl_timestamps : dict
+        ``{compound_name: {filepath: ttl_timestamps_array}}``.
+    timeForLightsTurnOn : float
+        Seconds offset used to set the new time zero.
+    storesList : np.ndarray
+        2-D array with rows [storenames, display_names].
+    sampling_rate : float
+        Sampling rate in Hz.
+
+    Returns
+    -------
+    pair_name_to_tsNew : dict
+        Pair name → combined and realigned timestamp array.
+    display_name_to_data : dict
+        Display name → combined data array.
+    compound_name_to_ttl_timestamps : dict
+        Compound TTL name → combined TTL timestamp array.
+    """
     # filepaths_to_combine = [folder1_output_i, folder2_output_i, ...]
     logger.debug("Processing timestamps for combining data...")
 
@@ -79,8 +148,13 @@ def combine_data(
         name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")[-1]
         name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")[-1]
         if name_1 != name_2:
-            logger.error("Error in naming convention of files or Error in storesList file")
-            raise Exception("Error in naming convention of files or Error in storesList file")
+            msg = (
+                f"Pair name mismatch in '{filepaths_to_combine[0]}': control file suffix '{name_1}' does not match "
+                f"signal file suffix '{name_2}'. Check the naming convention of your files and the "
+                f"storesList file, then re-run step 2."
+            )
+            logger.error(msg)
+            raise ValueError(msg)
         pair_name = name_1
 
         for i in range(len(names_for_storenames)):

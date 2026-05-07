@@ -8,6 +8,31 @@ logger = logging.getLogger(__name__)
 
 
 class StorenamesConfig:
+    """Panel widget that renders a configuration row for each discovered storename.
+
+    Each row lets the user classify a storename as ``"control"``, ``"signal"``,
+    or ``"event TTLs"`` and enter a region or event name.  Selections are stored
+    in-place in the provided ``storename_dropdowns`` and ``storename_textboxes``
+    dictionaries so the orchestration layer can read them back later.
+
+    Parameters
+    ----------
+    show_config_button : pn.widgets.Button
+        Button appended at the bottom of the configuration panel; the caller
+        is responsible for wiring its click handler.
+    storename_dropdowns : dict
+        Mutable mapping that will be populated with ``{key: Select}`` entries.
+        Cleared on entry.
+    storename_textboxes : dict
+        Mutable mapping that will be populated with ``{key: TextInput}`` entries.
+        Cleared on entry.
+    storenames : list of str
+        Raw storename strings discovered from the data files.
+    storenames_cache : dict
+        Previously saved storename assignments, keyed by storename.  Used to
+        pre-populate the widgets when the user re-opens the configuration.
+    """
+
     def __init__(
         self,
         show_config_button,
@@ -72,6 +97,22 @@ class StorenamesConfig:
             return "", ""
 
     def setup_storename(self, i, storename, storename_dropdowns, storename_textboxes, storenames_cache):
+        """Build and register a configuration row for a single storename.
+
+        Parameters
+        ----------
+        i : int
+            Zero-based index of this storename in the list; used to create a
+            unique widget key.
+        storename : str
+            Raw storename string (e.g. ``"Dv1A"``).
+        storename_dropdowns : dict
+            Mutable mapping to which the new ``Select`` widget is added.
+        storename_textboxes : dict
+            Mutable mapping to which the new ``TextInput`` widget is added.
+        storenames_cache : dict
+            Previously saved assignments used to pre-populate the widgets.
+        """
         # Create a row for each storename
         row_widgets = []
 

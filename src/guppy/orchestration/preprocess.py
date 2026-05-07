@@ -17,7 +17,6 @@ from ..analysis.io_utils import (
     find_files,
     get_coords,
     read_hdf5,
-    takeOnlyDirs,
     write_combined_stores_list,
 )
 from ..analysis.standard_io import (
@@ -41,8 +40,8 @@ from ..analysis.standard_io import (
 from ..analysis.timestamp_correction import correct_timestamps
 from ..analysis.z_score import compute_z_score
 from ..frontend.artifact_removal import ArtifactRemovalWidget
-from ..frontend.progress import writeToFile
-from ..utils.utils import get_all_stores_for_combining_data
+from ..frontend.progress import PB_STEPS_FILE, subprocess_main_handler, writeToFile
+from ..utils.utils import get_all_stores_for_combining_data, select_output_dirs
 from ..visualization.preprocessing import visualize_preprocessing
 
 logger = logging.getLogger(__name__)
@@ -54,6 +53,16 @@ if not os.getenv("CI") and not headless:
 
 
 def execute_preprocessing_visualization(filepath, visualization_type: Literal["z_score", "dff"]):
+    """
+    Plot z-score or dF/F signals for all channel pairs in a session output directory.
+
+    Parameters
+    ----------
+    filepath : str
+        Session output directory containing ``timeCorrection_*`` and signal HDF5 files.
+    visualization_type : {'z_score', 'dff'}
+        Which preprocessed signal to visualize.
+    """
     name = os.path.basename(filepath)
 
     path = glob.glob(os.path.join(filepath, f"{visualization_type}_*"))
@@ -68,8 +77,23 @@ def execute_preprocessing_visualization(filepath, visualization_type: Literal["z
         fig, ax = visualize_preprocessing(suptitle=name, title=basename, x=x, y=y)
 
 
-# function to plot control and signal, also provide a feature to select chunks for artifacts removal
 def visualizeControlAndSignal(filepath, removeArtifacts):
+    """
+    Build artifact-removal widgets for each control/signal pair in a session directory.
+
+    Parameters
+    ----------
+    filepath : str
+        Session output directory containing ``control_*`` and ``signal_*`` HDF5 files.
+    removeArtifacts : bool
+        When True, the widget is shown in artifact-review mode; when False it allows
+        the user to draw new artifact boundaries.
+
+    Returns
+    -------
+    widgets : list of ArtifactRemovalWidget
+        One widget per channel pair.
+    """
     path_1 = find_files(filepath, "control_*", ignore_case=True)  # glob.glob(os.path.join(filepath, 'control*'))
 
     path_2 = find_files(filepath, "signal_*", ignore_case=True)  # glob.glob(os.path.join(filepath, 'signal*'))
@@ -77,8 +101,13 @@ def visualizeControlAndSignal(filepath, removeArtifacts):
     path = sorted(path_1 + path_2, key=str.casefold)
 
     if len(path) % 2 != 0:
-        logger.error("There are not equal number of Control and Signal data")
-        raise Exception("There are not equal number of Control and Signal data")
+        message = (
+            f"Unequal number of control and signal files in '{filepath}': "
+            f"found {len(path_1)} control and {len(path_2)} signal file(s). "
+            "Each signal must be paired with a control; re-run step 2 to fix the entries."
+        )
+        logger.error(message)
+        raise ValueError(message)
 
     path = np.asarray(path).reshape(2, -1)
 
@@ -106,15 +135,26 @@ def visualizeControlAndSignal(filepath, removeArtifacts):
     return widgets
 
 
-# function to execute timestamps corrections using functions timestampCorrection and decide_naming_convention_and_applyCorrection
 def execute_timestamp_correction(folderNames, inputParameters):
+    """
+    Apply timestamp correction to all session output directories.
+
+    Parameters
+    ----------
+    folderNames : list of str
+        Session directories to process.
+    inputParameters : dict
+        Pipeline configuration; must include ``'timeForLightsTurnOn'`` and
+        ``'isosbestic_control'``.
+    """
 
     timeForLightsTurnOn = inputParameters["timeForLightsTurnOn"]
     isosbestic_control = inputParameters["isosbestic_control"]
 
+    selected_outputs = inputParameters.get("selectedOutputs") or {}
     for i in range(len(folderNames)):
         filepath = folderNames[i]
-        storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*")))
+        storesListPath = select_output_dirs(filepath, selected_outputs.get(filepath))
         mode = "tdt" if check_TDT(folderNames[i]) else "csv"
         logger.debug(f"Timestamps corrections started for {filepath}")
         for j in range(len(storesListPath)):
@@ -161,13 +201,24 @@ def execute_timestamp_correction(folderNames, inputParameters):
             if isosbestic_control == False:
                 create_control_channel(filepath, storesList, window=101)
 
-            writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
+            writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
             inputParameters["step"] += 1
         logger.info(f"Timestamps corrections finished for {filepath}")
 
 
-# function to compute z-score and deltaF/F
 def execute_zscore(folderNames, inputParameters):
+    """
+    Compute z-score and dF/F for all channel pairs across session output directories.
+
+    Parameters
+    ----------
+    folderNames : list of str
+        Session directories (or combined-output folder lists when ``combine_data`` is True).
+    inputParameters : dict
+        Pipeline configuration; must include ``'filter_window'``, ``'isosbestic_control'``,
+        ``'zscore_method'``, ``'baselineWindowStart'``, ``'baselineWindowEnd'``,
+        ``'removeArtifacts'``, ``'artifactsRemovalMethod'``, and ``'combine_data'``.
+    """
 
     plot_zScore_dff = inputParameters["plot_zScore_dff"]
     combine_data = inputParameters["combine_data"]
@@ -184,7 +235,9 @@ def execute_zscore(folderNames, inputParameters):
             storesListPath.append([folderNames[i][0]])
         else:
             filepath = folderNames[i]
-            storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+            storesListPath.append(
+                select_output_dirs(filepath, (inputParameters.get("selectedOutputs") or {}).get(filepath))
+            )
     storesListPath = np.concatenate(storesListPath)
 
     for j in range(len(storesListPath)):
@@ -194,16 +247,28 @@ def execute_zscore(folderNames, inputParameters):
         path_2 = find_files(filepath, "signal_*", ignore_case=True)  # glob.glob(os.path.join(filepath, 'signal*'))
         path = sorted(path_1 + path_2, key=str.casefold)
         if len(path) % 2 != 0:
-            logger.error("There are not equal number of Control and Signal data")
-            raise Exception("There are not equal number of Control and Signal data")
+            controls = sorted(p for p in path if "control_" in os.path.basename(p).lower())
+            signals = sorted(p for p in path if "signal_" in os.path.basename(p).lower())
+            message = (
+                f"Unequal number of control and signal files in '{filepath}': "
+                f"found {len(controls)} control and {len(signals)} signal file(s). "
+                "Each signal must be paired with a control; re-run step 2 to fix the entries."
+            )
+            logger.error(message)
+            raise ValueError(message)
         path = np.asarray(path).reshape(2, -1)
 
         for i in range(path.shape[1]):
             name_1 = ((os.path.basename(path[0, i])).split(".")[0]).split("_")
             name_2 = ((os.path.basename(path[1, i])).split(".")[0]).split("_")
             if name_1[-1] != name_2[-1]:
-                logger.error("Error in naming convention of files or Error in storesList file")
-                raise Exception("Error in naming convention of files or Error in storesList file")
+                message = (
+                    f"Pair name mismatch in '{filepath}': control file suffix '{name_1[-1]}' does not match "
+                    f"signal file suffix '{name_2[-1]}'. Check the naming convention of your files and "
+                    "the storesList file, then re-run step 2."
+                )
+                logger.error(message)
+                raise ValueError(message)
             name = name_1[-1]
 
             control, signal, tsNew = read_corrected_data(path[0, i], path[1, i], filepath, name)
@@ -223,7 +288,7 @@ def execute_zscore(folderNames, inputParameters):
             write_zscore(filepath, name, z_score, dff, control_fit, temp_control_arr)
 
         logger.info(f"z-score for the data in {filepath} computed.")
-        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
+        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
         inputParameters["step"] += 1
 
     headless = bool(os.environ.get("GUPPY_BASE_DIR"))
@@ -233,6 +298,17 @@ def execute_zscore(folderNames, inputParameters):
 
 
 def visualize_z_score(inputParameters, folderNames):
+    """
+    Display control/signal plots and z-score/dF/F visualizations for all sessions.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Pipeline configuration; must include ``'plot_zScore_dff'``, ``'combine_data'``,
+        and ``'removeArtifacts'``.
+    folderNames : list of str
+        Session directories to visualize.
+    """
     plot_zScore_dff = inputParameters["plot_zScore_dff"]
     combine_data = inputParameters["combine_data"]
     remove_artifacts = inputParameters["removeArtifacts"]
@@ -243,7 +319,9 @@ def visualize_z_score(inputParameters, folderNames):
             storesListPath.append([folderNames[i][0]])
         else:
             filepath = folderNames[i]
-            storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+            storesListPath.append(
+                select_output_dirs(filepath, (inputParameters.get("selectedOutputs") or {}).get(filepath))
+            )
     storesListPath = np.concatenate(storesListPath)
 
     widgets = []
@@ -266,8 +344,18 @@ def visualize_z_score(inputParameters, folderNames):
     logger.info("Visualization of z-score and dF/F completed.")
 
 
-# function to remove artifacts from z-score data
 def execute_artifact_removal(folderNames, inputParameters):
+    """
+    Apply artifact removal to all session output directories.
+
+    Parameters
+    ----------
+    folderNames : list of str
+        Session directories to process.
+    inputParameters : dict
+        Pipeline configuration; must include ``'timeForLightsTurnOn'``,
+        ``'artifactsRemovalMethod'``, and ``'combine_data'``.
+    """
 
     timeForLightsTurnOn = inputParameters["timeForLightsTurnOn"]
     artifactsRemovalMethod = inputParameters["artifactsRemovalMethod"]
@@ -279,7 +367,9 @@ def execute_artifact_removal(folderNames, inputParameters):
             storesListPath.append([folderNames[i][0]])
         else:
             filepath = folderNames[i]
-            storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+            storesListPath.append(
+                select_output_dirs(filepath, (inputParameters.get("selectedOutputs") or {}).get(filepath))
+            )
 
     storesListPath = np.concatenate(storesListPath)
 
@@ -306,7 +396,7 @@ def execute_artifact_removal(folderNames, inputParameters):
 
         write_artifact_removal(filepath, name_to_data, pair_name_to_timestamps, compound_name_to_ttl_timestamps)
 
-        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
+        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
         inputParameters["step"] += 1
 
     headless = bool(os.environ.get("GUPPY_BASE_DIR"))
@@ -316,6 +406,16 @@ def execute_artifact_removal(folderNames, inputParameters):
 
 
 def visualize_artifact_removal(folderNames, inputParameters):
+    """
+    Display control/signal plots after artifact removal for all sessions.
+
+    Parameters
+    ----------
+    folderNames : list of str
+        Session directories to visualize.
+    inputParameters : dict
+        Pipeline configuration; must include ``'combine_data'``.
+    """
     combine_data = inputParameters["combine_data"]
 
     storesListPath = []
@@ -324,7 +424,9 @@ def visualize_artifact_removal(folderNames, inputParameters):
             storesListPath.append([folderNames[i][0]])
         else:
             filepath = folderNames[i]
-            storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+            storesListPath.append(
+                select_output_dirs(filepath, (inputParameters.get("selectedOutputs") or {}).get(filepath))
+            )
 
     storesListPath = np.concatenate(storesListPath)
 
@@ -335,21 +437,37 @@ def visualize_artifact_removal(folderNames, inputParameters):
     logger.info("Visualization of artifact removal completed.")
 
 
-# function to combine data when there are two different data files for the same recording session
-# it will combine the data, do timestamps processing and save the combined data in the first output folder.
 def execute_combine_data(folderNames, inputParameters, storesList):
+    """
+    Concatenate data from multiple session files and save the result to the first output folder.
+
+    Parameters
+    ----------
+    folderNames : list of str
+        Session directories whose output subdirectories are to be combined.
+    inputParameters : dict
+        Pipeline configuration; must include ``'timeForLightsTurnOn'``.
+    storesList : np.ndarray
+        2-D storesList array with rows [storenames, display_names].
+
+    Returns
+    -------
+    op : list
+        List of ``[output_filepath, ...]`` entries for combined output directories.
+    """
     logger.debug("Combining Data from different data files...")
     timeForLightsTurnOn = inputParameters["timeForLightsTurnOn"]
+    selected_outputs = inputParameters.get("selectedOutputs") or {}
     op_folder = []
     for i in range(len(folderNames)):
         filepath = folderNames[i]
-        op_folder.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+        op_folder.append(select_output_dirs(filepath, selected_outputs.get(filepath)))
 
     op_folder = list(np.concatenate(op_folder).flatten())
     sampling_rate_fp = []
     for i in range(len(folderNames)):
         filepath = folderNames[i]
-        storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*")))
+        storesListPath = select_output_dirs(filepath, selected_outputs.get(filepath))
         for j in range(len(storesListPath)):
             filepath = storesListPath[j]
             storesList_new = np.genfromtxt(
@@ -365,8 +483,13 @@ def execute_combine_data(folderNames, inputParameters, storesList):
 
     res = all(i == sampling_rate[0] for i in sampling_rate)
     if res == False:
-        logger.error("To combine the data, sampling rate for both the data should be same.")
-        raise Exception("To combine the data, sampling rate for both the data should be same.")
+        rates = [float(np.asarray(rate).reshape(-1)[0]) for rate in sampling_rate]
+        message = (
+            f"Cannot combine data: sampling rates differ across files {sampling_rate_fp.tolist()} "
+            f"(rates={rates}). All files being combined must share the same sampling rate."
+        )
+        logger.error(message)
+        raise ValueError(message)
 
     # get the output folders informatinos
     op = get_all_stores_for_combining_data(op_folder)
@@ -395,6 +518,15 @@ def execute_combine_data(folderNames, inputParameters, storesList):
 
 
 def extractTsAndSignal(inputParameters):
+    """
+    Orchestrate the full preprocessing pipeline (timestamp correction, z-score, artifact removal).
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline configuration, including ``'folderNames'``, ``'timeForLightsTurnOn'``,
+        ``'isosbestic_control'``, ``'removeArtifacts'``, and ``'combine_data'``.
+    """
 
     logger.debug("Extracting signal data and event timestamps...")
     inputParameters = inputParameters
@@ -411,15 +543,16 @@ def extractTsAndSignal(inputParameters):
     logger.info(f"Remove Artifacts : {remove_artifacts}")
     logger.info(f"Combine Data : {combine_data}")
     logger.info(f"Isosbestic Control Channel : {isosbestic_control}")
+    selected_outputs = inputParameters.get("selectedOutputs") or {}
     storesListPath = []
     for i in range(len(folderNames)):
-        storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(folderNames[i], "*_output_*"))))
+        storesListPath.append(select_output_dirs(folderNames[i], selected_outputs.get(folderNames[i])))
     storesListPath = np.concatenate(storesListPath)
     # pbMaxValue = storesListPath.shape[0] + len(folderNames)
     # writeToFile(str((pbMaxValue+1)*10)+'\n'+str(10)+'\n')
     if combine_data == False:
         pbMaxValue = storesListPath.shape[0] + len(folderNames)
-        writeToFile(str((pbMaxValue + 1) * 10) + "\n" + str(10) + "\n")
+        writeToFile(str((pbMaxValue + 1) * 10) + "\n" + str(10) + "\n", file_path=PB_STEPS_FILE)
         execute_timestamp_correction(folderNames, inputParameters)
         execute_zscore(folderNames, inputParameters)
         headless = bool(os.environ.get("GUPPY_BASE_DIR"))
@@ -429,7 +562,7 @@ def extractTsAndSignal(inputParameters):
             execute_artifact_removal(folderNames, inputParameters)
     else:
         pbMaxValue = 1 + len(folderNames)
-        writeToFile(str((pbMaxValue) * 10) + "\n" + str(10) + "\n")
+        writeToFile(str((pbMaxValue) * 10) + "\n" + str(10) + "\n", file_path=PB_STEPS_FILE)
         execute_timestamp_correction(folderNames, inputParameters)
         storesList = check_storeslistfile(folderNames)
         op_folder = execute_combine_data(folderNames, inputParameters, storesList)
@@ -442,15 +575,16 @@ def extractTsAndSignal(inputParameters):
             execute_artifact_removal(op_folder, inputParameters)
 
 
+@subprocess_main_handler
 def main(input_parameters):
-    try:
-        extractTsAndSignal(input_parameters)
-        logger.info("#" * 400)
-    except Exception as e:
-        with open(os.path.join(os.path.expanduser("~"), "pbSteps.txt"), "a") as file:
-            file.write(str(-1) + "\n")
-        logger.error(str(e))
-        raise e
+    """Subprocess entry point for the preprocessing step.
+
+    Parameters
+    ----------
+    input_parameters : dict
+        Full pipeline input parameters deserialized from the subprocess argument.
+    """
+    extractTsAndSignal(input_parameters)
 
 
 if __name__ == "__main__":

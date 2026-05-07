@@ -9,20 +9,32 @@ import pandas as pd
 
 from ..frontend.parameterized_plotter import ParameterizedPlotter, remove_cols
 from ..frontend.visualization_dashboard import VisualizationDashboard
-from ..utils.utils import get_all_stores_for_combining_data, read_Df, takeOnlyDirs
+from ..utils.utils import get_all_stores_for_combining_data, read_Df, select_output_dirs
 
 logger = logging.getLogger(__name__)
 
 
-# helper function to create plots
 def helper_plots(filepath, event, name, inputParameters):
+    """Build and display the interactive PSTH visualization dashboard for one output directory.
 
+    Parameters
+    ----------
+    filepath : str
+        Path to the session output directory.
+    event : list of str
+        Event names (or z-score/dff file basenames when ``name`` is empty).
+    name : list of str or str
+        z-score/dff file basenames paired with ``event``; pass an empty string
+        for the average-results code path.
+    inputParameters : dict
+        Full pipeline input parameters.
+    """
     basename = os.path.basename(filepath)
     visualize_zscore_or_dff = inputParameters["visualize_zscore_or_dff"]
 
     # note when there are no behavior event TTLs
     if len(event) == 0:
-        logger.warning("\033[1m" + "There are no behavior event TTLs present to visualize.".format(event) + "\033[0m")
+        logger.warning("There are no behavior event TTLs present to visualize.")
         return 0
 
     if os.path.exists(os.path.join(filepath, "cross_correlation_output")):
@@ -134,9 +146,18 @@ def helper_plots(filepath, event, name, inputParameters):
     dashboard.show()
 
 
-# function to combine all the output folders together and preprocess them to use them in helper_plots function
 def createPlots(filepath, event, inputParameters):
+    """Assemble PSTH data from an output directory and delegate to ``helper_plots``.
 
+    Parameters
+    ----------
+    filepath : str
+        Path to the session output directory.
+    event : list of str
+        Storenames (row 1 of storesList) to include in the visualization.
+    inputParameters : dict
+        Full pipeline input parameters.
+    """
     for i in range(len(event)):
         event[i] = event[i].replace("\\", "_")
         event[i] = event[i].replace("/", "_")
@@ -181,9 +202,153 @@ def createPlots(filepath, event, inputParameters):
         helper_plots(filepath, event, name_arr, inputParameters)
 
 
-def visualizeResults(inputParameters):
+def _validate_metric_against_step5_outputs(inputParameters):
+    """Cross-check the visualization metric selection against step-5 PSTH outputs on disk.
 
+    Step 5 only writes PSTH ``.h5`` files for the metric(s) selected via
+    ``selectForComputePsth``.  If the user later requests a different metric in
+    step 6 the downstream ``read_Df`` call will fail with an opaque
+    ``FileNotFoundError``.  This function detects that mismatch early and raises
+    a :class:`ValueError` that names the offending sessions and tells the user
+    exactly how to fix the problem.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        The full input-parameters dict passed to :func:`visualizeResults`.
+
+    Raises
+    ------
+    ValueError
+        When one or more output directories are missing PSTH ``.h5`` files for
+        the requested visualization metric.
+    """
+    visualize_zscore_or_dff = inputParameters["visualize_zscore_or_dff"]
+    average = inputParameters["visualizeAverageResults"]
+    folderNames = inputParameters["folderNames"]
+    folderNamesForAvg = inputParameters["folderNamesForAvg"]
+
+    # Collect all output directories that will be visualised
+    output_dirs = []
+    source_folders = folderNamesForAvg if (average and len(folderNamesForAvg) > 0) else folderNames
+    selected_outputs_for_validation = (
+        (inputParameters.get("groupSelectedOutputs") or {})
+        if (average and len(folderNamesForAvg) > 0)
+        else (inputParameters.get("selectedOutputs") or {})
+    )
+    for filepath in source_folders:
+        runs = selected_outputs_for_validation.get(filepath)
+        if not runs:
+            # Session not in selectedOutputs (e.g. it has no _output_* dirs yet, which the
+            # homepage gate `validate_selected_outputs_for_consumers` skips). Nothing to validate.
+            continue
+        output_dirs.extend(select_output_dirs(filepath, runs))
+
+    if not output_dirs:
+        return  # Nothing to check; the main function will handle the empty case.
+
+    # PSTH output files use the ".h5" extension (pandas HDF5) and embed the
+    # metric name, e.g. "ttl_region_z_score_region.h5" or "ttl_region_dff_region.h5".
+    # Step-4 z-score/dff files use ".hdf5" and are therefore never false-positives.
+    if visualize_zscore_or_dff == "z_score":
+        pattern = "*_z_score_*.h5"
+    else:
+        pattern = "*_dff_*.h5"
+
+    missing_sessions = [od for od in output_dirs if not glob.glob(os.path.join(od, pattern))]
+
+    if missing_sessions:
+        other_metric = "dff" if visualize_zscore_or_dff == "z_score" else "z_score"
+        session_lines = "\n  - ".join(missing_sessions)
+        raise ValueError(
+            f"The visualization metric '{visualize_zscore_or_dff}' was not computed "
+            f"in step 5 for {len(missing_sessions)} session(s):\n"
+            f"  - {session_lines}\n\n"
+            f"To fix this, either:\n"
+            f"  1. Change the visualization selection to '{other_metric}', or\n"
+            f"  2. Re-run step 5 with '{visualize_zscore_or_dff}' (or 'Both') enabled."
+        )
+
+
+def _validate_average_visualization_preconditions(inputParameters):
+    """Ensure the prerequisites for 'Visualize Average Results' are satisfied.
+
+    Catches the three user-facing failure modes documented in issue #274:
+
+    1. ``visualizeAverageResults`` is True, but no folders are selected in the
+       group-analysis folder picker — previously the visualization silently
+       fell through to individual mode.
+    2. ``visualizeAverageResults`` is True, but step 5 was never run with
+       ``averageForGroup`` = True, so no ``average/`` directory exists —
+       previously only a terminal warning was logged.
+    3. ``visualizeAverageResults`` is True and an ``average/`` folder exists,
+       but the folders selected for averaging are not reflected in the saved
+       averaged outputs (e.g. the user deselected them after running step 5).
+
+    Raises
+    ------
+    ValueError
+        With a message pointing the user at the specific corrective action.
+    """
+    if not inputParameters["visualizeAverageResults"]:
+        return
+
+    folderNamesForAvg = inputParameters["folderNamesForAvg"]
+    if len(folderNamesForAvg) == 0:
+        raise ValueError(
+            "'Visualize Average Results?' is set to True, but no folders are "
+            "selected in the Group Analysis folder picker. Please either "
+            "select the folders to visualize in the group-analysis selector, "
+            "or set 'Visualize Average Results?' to False for individual "
+            "visualization."
+        )
+
+    average_folder = os.path.join(inputParameters["abspath"], "average")
+    if not os.path.isdir(average_folder):
+        raise ValueError(
+            "'Visualize Average Results?' is set to True, but no 'average' "
+            f"directory was found at {average_folder}. Please re-run step 5 "
+            "('PSTH Computation') with 'Average Group? (bool)' = True before "
+            "visualizing the averaged results."
+        )
+
+    # Ensure the average folder contains PSTH outputs; otherwise step 5 was
+    # run without averageForGroup=True even though the folder exists from some
+    # earlier run.
+    visualize_zscore_or_dff = inputParameters["visualize_zscore_or_dff"]
+    if visualize_zscore_or_dff == "z_score":
+        pattern = "*_z_score_*.h5"
+    else:
+        pattern = "*_dff_*.h5"
+    if not glob.glob(os.path.join(average_folder, pattern)):
+        raise ValueError(
+            f"'Visualize Average Results?' is set to True and an 'average' "
+            f"directory exists at {average_folder}, but it contains no PSTH "
+            f"outputs for the '{visualize_zscore_or_dff}' metric. Please "
+            "re-run step 5 ('PSTH Computation') with 'Average Group? (bool)' "
+            "= True and the appropriate 'z_score and/or ΔF/F? (psth)' "
+            "selection before visualizing the averaged results."
+        )
+
+
+def visualizeResults(inputParameters):
+    """Entry point for step-6 visualization: validate preconditions and open dashboards.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters.
+
+    Raises
+    ------
+    ValueError
+        When average visualization is requested but prerequisites are not met,
+        or when the visualization metric was not computed in step 5.
+    """
     inputParameters = inputParameters
+
+    _validate_average_visualization_preconditions(inputParameters)
+    _validate_metric_against_step5_outputs(inputParameters)
 
     average = inputParameters["visualizeAverageResults"]
     logger.info(average)
@@ -196,10 +361,11 @@ def visualizeResults(inputParameters):
         # folderNames = folderNamesForAvg
         filepath_avg = os.path.join(inputParameters["abspath"], "average")
         # filepath = os.path.join(inputParameters['abspath'], folderNames[0])
+        group_selected_outputs = inputParameters.get("groupSelectedOutputs") or {}
         storesListPath = []
         for i in range(len(folderNamesForAvg)):
             filepath = folderNamesForAvg[i]
-            storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+            storesListPath.append(select_output_dirs(filepath, group_selected_outputs.get(filepath)))
         storesListPath = np.concatenate(storesListPath)
         storesList = np.asarray([[], []])
         for i in range(storesListPath.shape[0]):
@@ -217,11 +383,12 @@ def visualizeResults(inputParameters):
         createPlots(filepath_avg, np.unique(storesList[1, :]), inputParameters)
 
     else:
+        selected_outputs = inputParameters.get("selectedOutputs") or {}
         if combine_data == True:
             storesListPath = []
             for i in range(len(folderNames)):
                 filepath = folderNames[i]
-                storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+                storesListPath.append(select_output_dirs(filepath, selected_outputs.get(filepath)))
             storesListPath = list(np.concatenate(storesListPath).flatten())
             op = get_all_stores_for_combining_data(storesListPath)
             for i in range(len(op)):
@@ -243,7 +410,7 @@ def visualizeResults(inputParameters):
             for i in range(len(folderNames)):
 
                 filepath = folderNames[i]
-                storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*")))
+                storesListPath = select_output_dirs(filepath, selected_outputs.get(filepath))
                 for j in range(len(storesListPath)):
                     filepath = storesListPath[j]
                     storesList = np.genfromtxt(

@@ -5,66 +5,124 @@ import numpy as np
 import pandas as pd
 import panel as pn
 
+from .dandi_selector import DandiSelector
+from .frontend_utils import default_root_path
+from ..utils.utils import discover_output_dirs, parse_run_name
+from ..utils.validation import (
+    validate_required_folder_selection,
+    validate_same_parent_directory,
+)
+
 logger = logging.getLogger(__name__)
 
 
-def _default_root_path():
-    # Respect GUPPY_BASE_DIR env var for headless/test mode; otherwise use the home directory.
-    base_dir_env = os.environ.get("GUPPY_BASE_DIR")
-    if base_dir_env and os.path.isdir(base_dir_env):
-        return base_dir_env
-    return os.path.expanduser("~")
-
-
 def checkSameLocation(arr, abspath):
-    # abspath = []
-    for i in range(len(arr)):
-        abspath.append(os.path.dirname(arr[i]))
-    abspath = np.asarray(abspath)
-    abspath = np.unique(abspath)
-    if len(abspath) > 1:
-        logger.error("All the folders selected should be at the same location")
-        raise Exception("All the folders selected should be at the same location")
+    """Check that all paths in ``arr`` share the same parent directory.
 
-    return abspath
+    Parameters
+    ----------
+    arr : sequence of str
+        Paths to validate.
+    abspath : object
+        Ignored; retained for backwards-compatibility with existing callers.
+
+    Returns
+    -------
+    str
+        The common parent directory of all paths in ``arr``.
+    """
+    # abspath retained as a positional arg for backwards compatibility with existing
+    # callers; only the contents of arr are inspected.
+    del abspath
+    return validate_same_parent_directory(paths=list(arr))
 
 
 def getAbsPath(files_1, files_2):
-    arr_1, arr_2 = files_1.value, files_2.value
-    if len(arr_1) == 0 and len(arr_2) == 0:
-        logger.error("No folder is selected for analysis")
-        raise Exception("No folder is selected for analysis")
+    """Return the common parent directory of the selected folders.
 
-    abspath = []
-    if len(arr_1) > 0:
-        abspath = checkSameLocation(arr_1, abspath)
-    else:
-        abspath = checkSameLocation(arr_2, abspath)
+    Parameters
+    ----------
+    files_1 : pn.widgets.FileSelector
+        Primary file selector (individual analysis).
+    files_2 : pn.widgets.FileSelector
+        Secondary file selector (group analysis).
 
-    abspath = np.unique(abspath)
-    if len(abspath) > 1:
-        logger.error("All the folders selected should be at the same location")
-        raise Exception("All the folders selected should be at the same location")
-    return abspath
+    Returns
+    -------
+    str
+        Absolute path of the common parent directory shared by the selected
+        folders.
+    """
+    validate_required_folder_selection(file_selectors=[files_1, files_2])
+    selected = files_1.value if len(files_1.value) > 0 else files_2.value
+    return validate_same_parent_directory(paths=list(selected))
 
 
 class ParameterForm:
-    def __init__(self, *, template):
+    """Panel form collecting all GuPPy analysis parameters.
+
+    Builds and owns every input widget for the individual-analysis, group-
+    analysis, and visualization sections, then appends them to the provided
+    Panel template's main area.
+
+    Parameters
+    ----------
+    template : panel.template.base.BasicTemplate
+        The Panel template whose ``main`` area will receive the form cards.
+    start_path : str, optional
+        Initial directory shown in the file selectors. Falls back to the
+        value returned by ``default_root_path()`` when not supplied or when
+        the path does not exist.
+    """
+
+    def __init__(self, *, template, start_path=None):
         self.template = template
-        self.folder_path = _default_root_path()
+        self.folder_path = start_path if start_path and os.path.isdir(start_path) else default_root_path()
         self.styles = dict(background="WhiteSmoke")
+        self.group_selected_outputs_widgets: dict[str, pn.widgets.Select] = {}
         self.setup_individual_parameters()
         self.setup_group_parameters()
         self.setup_visualization_parameters()
         self.add_to_template()
+        self.files_1.param.watch(self._retarget_outputs_selector, "value")
+        self.files_2.param.watch(self._rebuild_group_selected_outputs_widgets, "value")
 
     def setup_individual_parameters(self):
+        """Build all widgets for the individual-analysis card and store them as instance attributes."""
         # Individual analysis components
         self.mark_down_1 = pn.pane.Markdown(
             """**Select folders for the analysis from the file selector below**""", width=600
         )
 
+        # Color the "dandi" button muted pink (matches the DANDI brain-logo palette) so
+        # the two options are visually distinguishable at a glance.
+        dandi_button_stylesheet = """
+        :host .bk-btn-group > button:nth-child(2) {
+            background-color: #E8B4BC !important;
+            border-color: #D89AA3 !important;
+            color: #3A2A2F !important;
+        }
+        :host .bk-btn-group > button:nth-child(2).bk-active {
+            background-color: #C98A94 !important;
+            border-color: #B56E78 !important;
+            color: #FFFFFF !important;
+        }
+        """
+        self.source_mode = pn.widgets.RadioButtonGroup(
+            name="Data Source",
+            options=["local", "dandi"],
+            value="local",
+            button_type="primary",
+            width=300,
+            stylesheets=[dandi_button_stylesheet],
+        )
+        self.source_mode.param.watch(self._on_source_mode_change, "value")
+
         self.files_1 = pn.widgets.FileSelector(self.folder_path, root_directory="/", name="folderNames", width=950)
+
+        self.dandi_selector = DandiSelector(styles=self.styles)
+        # Hidden by default; shown when source_mode == "dandi"
+        self.dandi_selector.panel.visible = False
 
         self.explain_time_artifacts = pn.pane.Markdown(
             """
@@ -102,18 +160,29 @@ class ParameterForm:
             width=350,
         )
 
-        self.timeForLightsTurnOn = pn.widgets.LiteralInput(
-            name="Eliminate first few seconds (int)", value=1, type=int, width=320
-        )
+        self.timeForLightsTurnOn = pn.widgets.IntInput(name="Eliminate first few seconds (int)", value=1, width=320)
 
         self.isosbestic_control = pn.widgets.Select(
             name="Isosbestic Control Channel? (bool)", value=True, options=[True, False], width=320
         )
 
-        self.numberOfCores = pn.widgets.LiteralInput(name="# of cores (int)", value=2, type=int, width=150)
+        self.numberOfCores = pn.widgets.IntInput(name="# of cores (int)", value=2, width=150)
 
         self.combine_data = pn.widgets.Select(
             name="Combine Data? (bool)", value=False, options=[True, False], width=150
+        )
+
+        self.outputs_selector_header = pn.pane.Markdown(
+            "**Existing runs (steps 3–6):** Pick at least one existing output directory per "
+            "selected session. To create a new run, use the Storenames GUI in step 2.",
+            width=950,
+        )
+        self.outputs_selector = pn.widgets.FileSelector(
+            self.folder_path,
+            root_directory="/",
+            file_pattern="*_output_*",
+            name="Existing runs (steps 3–6)",
+            width=950,
         )
 
         self.computePsth = pn.widgets.Select(
@@ -131,16 +200,16 @@ class ParameterForm:
             width=320,
         )
 
-        self.moving_wd = pn.widgets.LiteralInput(
-            name="Moving Window for transients detection (s) (int)", value=15, type=int, width=320
+        self.moving_wd = pn.widgets.IntInput(
+            name="Moving Window for transients detection (s) (int)", value=15, width=320
         )
 
-        self.highAmpFilt = pn.widgets.LiteralInput(name="HAFT (int)", value=2, type=int, width=150)
+        self.highAmpFilt = pn.widgets.IntInput(name="HAFT (int)", value=2, width=150)
 
-        self.transientsThresh = pn.widgets.LiteralInput(name="TD Thresh (int)", value=3, type=int, width=150)
+        self.transientsThresh = pn.widgets.IntInput(name="TD Thresh (int)", value=3, width=150)
 
-        self.moving_avg_filter = pn.widgets.LiteralInput(
-            name="Window for Moving Average filter (int)", value=100, type=int, width=320
+        self.moving_avg_filter = pn.widgets.IntInput(
+            name="Window for Moving Average filter (int)", value=100, width=320
         )
 
         self.removeArtifacts = pn.widgets.Select(
@@ -151,8 +220,8 @@ class ParameterForm:
             name="removeArtifacts method", value="concatenate", options=["concatenate", "replace with NaN"], width=150
         )
 
-        self.no_channels_np = pn.widgets.LiteralInput(
-            name="Number of channels (Neurophotometrics only)", value=2, type=int, width=320
+        self.no_channels_np = pn.widgets.IntInput(
+            name="Number of channels (Neurophotometrics only)", value=2, width=320
         )
 
         self.z_score_computation = pn.widgets.Select(
@@ -162,12 +231,8 @@ class ParameterForm:
             width=200,
         )
 
-        self.baseline_wd_strt = pn.widgets.LiteralInput(
-            name="Baseline Window Start Time (s) (int)", value=0, type=int, width=200
-        )
-        self.baseline_wd_end = pn.widgets.LiteralInput(
-            name="Baseline Window End Time (s) (int)", value=0, type=int, width=200
-        )
+        self.baseline_wd_strt = pn.widgets.IntInput(name="Baseline Window Start Time (s) (int)", value=0, width=200)
+        self.baseline_wd_end = pn.widgets.IntInput(name="Baseline Window End Time (s) (int)", value=0, width=200)
 
         self.explain_z_score = pn.pane.Markdown(
             """
@@ -175,8 +240,16 @@ class ParameterForm:
                         - Details about z-score computation methods are explained in Github wiki.<br>
                         - The details will make user understand what computation method to use for
                         their data.<br>
-                        - Baseline Window Parameters should be kept 0 unless you are using baseline<br>
-                        z-score computation method. The parameters are in seconds.
+                        - **Baseline Window Parameters** are only used with the *baseline z-score*
+                        method; keep both at 0 for other methods.<br>
+                        - Both values are in **seconds** and must be within the signal's recorded
+                        timespan. **Start** must be strictly less than **End**
+                        (e.g. Start=0, End=60 for a 0–60 s baseline window).<br>
+                        - If either value falls outside the available signal timespan you will
+                        receive an error indicating the offending parameter, the value supplied,
+                        and the valid range (e.g.
+                        "baselineWindowEnd=120 exceeds signal duration 90.5s;
+                        signal timespan is [0, 90.5]s — choose values within this range.").
                         """,
             width=580,
         )
@@ -193,22 +266,22 @@ class ParameterForm:
             width=580,
         )
 
-        self.nSecPrev = pn.widgets.LiteralInput(name="Seconds before 0 (int)", value=-10, type=int, width=120)
+        self.nSecPrev = pn.widgets.IntInput(name="Seconds before 0 (int)", value=-10, width=120)
 
-        self.nSecPost = pn.widgets.LiteralInput(name="Seconds after 0 (int)", value=20, type=int, width=120)
+        self.nSecPost = pn.widgets.IntInput(name="Seconds after 0 (int)", value=20, width=120)
 
         self.computeCorr = pn.widgets.Select(
             name="Compute Cross-correlation (bool)", options=[True, False], value=False, width=200
         )
 
-        self.timeInterval = pn.widgets.LiteralInput(name="Time Interval (s)", value=2, type=int, width=120)
+        self.timeInterval = pn.widgets.IntInput(name="Time Interval (s)", value=2, width=120)
 
         self.use_time_or_trials = pn.widgets.Select(
             name="Bin PSTH trials (str)", options=["Time (min)", "# of trials"], value="Time (min)", width=120
         )
 
-        self.bin_psth_trials = pn.widgets.LiteralInput(
-            name="Time(min) / # of trials \n for binning? (int)", value=0, type=int, width=200
+        self.bin_psth_trials = pn.widgets.IntInput(
+            name="Time(min) / # of trials \n for binning? (int)", value=0, width=200
         )
 
         self.explain_baseline = pn.pane.Markdown(
@@ -224,13 +297,11 @@ class ParameterForm:
             width=580,
         )
 
-        self.baselineCorrectionStart = pn.widgets.LiteralInput(
-            name="Baseline Correction Start time(int)", value=-5, type=int, width=200
+        self.baselineCorrectionStart = pn.widgets.IntInput(
+            name="Baseline Correction Start time(int)", value=-5, width=200
         )
 
-        self.baselineCorrectionEnd = pn.widgets.LiteralInput(
-            name="Baseline Correction End time(int)", value=0, type=int, width=200
-        )
+        self.baselineCorrectionEnd = pn.widgets.IntInput(name="Baseline Correction End time(int)", value=0, width=200)
 
         self.zscore_param_wd = pn.WidgetBox(
             "### Z-score Parameters",
@@ -295,14 +366,207 @@ class ParameterForm:
             self.zscore_param_wd, self.psth_param_wd, self.baseline_param_wd, self.peak_param_wd
         )
 
+        self.input_folder_selection_widget = pn.Column(
+            pn.Row(pn.pane.Markdown("**Data Source:**"), self.source_mode),
+            self.files_1,
+            self.dandi_selector.panel,
+        )
+        self.input_folder_selection = pn.Card(
+            self.input_folder_selection_widget,
+            title="Input Folder Selection",
+            styles=self.styles,
+            width=1000,
+        )
+
+        self.output_folder_selection_widget = pn.Column(
+            self.outputs_selector_header,
+            self.outputs_selector,
+        )
+        self.output_folder_selection = pn.Card(
+            self.output_folder_selection_widget,
+            title="Output Folder Selection",
+            styles=self.styles,
+            width=1000,
+            collapsed=True,
+        )
+
         self.widget = pn.Column(
             self.mark_down_1,
-            self.files_1,
             pn.Row(self.individual_analysis_wd_2, self.psth_baseline_param),
         )
-        self.individual = pn.Card(self.widget, title="Individual Analysis", styles=self.styles, width=1000)
+        self.individual = pn.Card(
+            self.widget, title="Individual Analysis", styles=self.styles, width=1000, collapsed=True
+        )
+
+    def _on_source_mode_change(self, event):
+        is_dandi = event.new == "dandi"
+        self.files_1.visible = not is_dandi
+        self.dandi_selector.panel.visible = is_dandi
+
+    def _collect_selected_outputs(self):
+        """Group the FileSelector's selected output dirs by parent session."""
+        grouped: dict[str, list[str]] = {}
+        for path in self.outputs_selector.value or []:
+            session = os.path.dirname(path)
+            grouped.setdefault(session, []).append(parse_run_name(path))
+        return grouped
+
+    def validate_selected_outputs_for_consumers(self):
+        """Ensure every selected session that has output dirs on disk also has at least one selected.
+
+        Run this from the click handlers for steps 3–6 (which consume existing
+        output directories). Skips sessions with no ``_output_<run>`` subdirs
+        yet — those are typically pre-step-2 states.
+        """
+        grouped = self._collect_selected_outputs()
+        missing = [
+            session
+            for session in (self.files_1.value or [])
+            if discover_output_dirs(session) and not grouped.get(session)
+        ]
+        if missing:
+            raise ValueError(
+                f"No output directory selected for session(s) {missing!r}. "
+                "Open the Output Folder Selection panel and pick at least one "
+                "_output_<run> directory per selected session."
+            )
+
+    def _retarget_outputs_selector(self, event):
+        """Root the existing-runs FileSelector so all selected sessions' `_output_*` dirs are reachable.
+
+        - Zero sessions: fall back to ``default_root_path()``.
+        - One session: root and starting directory both set to that session so its `_output_*`
+          children show directly (no extra click).
+        - Multiple sessions: root set to their common parent so every session is navigable;
+          starting directory set to the first session so the user lands on one session's
+          outputs and can navigate up to switch between sessions.
+        """
+        sessions = [s for s in (event.new or []) if os.path.isdir(s)]
+        if not sessions:
+            root_target = default_root_path()
+            directory_target = default_root_path()
+        elif len(sessions) == 1:
+            root_target = sessions[0]
+            directory_target = sessions[0]
+        else:
+            root_target = os.path.commonpath(sessions)
+            directory_target = sessions[0]
+        # Set root_directory before directory so Panel's `path.startswith(self._root_directory)`
+        # check in FileSelector._dir_change can't silently revert (Windows-specific failure mode
+        # when the constructor's root_directory="/" resolves to a drive root that isn't shared
+        # with tmp_path or the user's session folder).
+        self.outputs_selector.root_directory = root_target
+        self.outputs_selector.directory = directory_target
+        # Clear any prior selection that no longer makes sense for the new root.
+        self.outputs_selector.value = []
+        # Sync the FileSelector's internal _cwd and re-enumerate. Without this, _cwd remains
+        # at the construction-time path; clicking a sub-dir uses the stale _cwd to compute
+        # the navigated path, that path doesn't exist, and the FileSelector silently snaps
+        # back to the stale _cwd — visible to the user as "selection resets the directory".
+        self.outputs_selector._update_files()
+
+    def _rebuild_group_selected_outputs_widgets(self, event):
+        """Rebuild the per-session group-run-name Selects when files_2 changes."""
+        self._rebuild_per_session_widgets(
+            sessions=event.new,
+            target_box=self.group_selected_outputs_box,
+            store=self.group_selected_outputs_widgets,
+            scope="group",
+        )
+
+    def refresh_individual_outputs(self):
+        """Re-list the outputs FileSelector so newly-created run dirs (e.g. from step 2) appear."""
+        self.outputs_selector._refresh()
+
+    def refresh_group_outputs(self):
+        """Re-discover output directories for the currently-selected group sessions."""
+        self._rebuild_per_session_widgets(
+            sessions=self.files_2.value,
+            target_box=self.group_selected_outputs_box,
+            store=self.group_selected_outputs_widgets,
+            scope="group",
+        )
+
+    @staticmethod
+    def _make_outputs_placeholder(scope):
+        text = (
+            "**Run-name filter:** No output directories yet — run step 2 first."
+            if scope == "individual"
+            else "**Run-name filter (group):** No output directories yet — run step 2 first."
+        )
+        return pn.pane.Markdown(text, width=520)
+
+    @classmethod
+    def _rebuild_per_session_widgets(cls, sessions, target_box, store, scope):
+        new_objects = []
+        new_store = {}
+        for session in sessions or []:
+            run_names = [parse_run_name(directory) for directory in discover_output_dirs(session)]
+            # Skip sessions with no output dirs — nothing to filter, no widget needed.
+            if not run_names:
+                continue
+            existing = store.get(session)
+            if existing is not None:
+                # Preserve the user's prior selection across rebuilds when it remains valid.
+                preserved = existing.value if existing.value in run_names else run_names[0]
+                existing.options = run_names
+                existing.value = preserved
+                widget = existing
+            else:
+                widget = pn.widgets.Select(
+                    name=f"Outputs for {os.path.basename(session)}",
+                    value=run_names[0],
+                    options=run_names,
+                    width=320,
+                )
+            new_store[session] = widget
+            new_objects.append(widget)
+        store.clear()
+        store.update(new_store)
+        # When no per-session widgets are populated, show the placeholder so the
+        # box has a stable, always-visible footprint in the layout.
+        target_box.objects = new_objects or [cls._make_outputs_placeholder(scope)]
+
+    def _resolve_dandi_sessions(self):
+        """
+        Materialize DANDI asset selections into local session directories.
+
+        For each selected ``dandi://`` URI, create a directory under the user-chosen
+        output root named after the asset's basename (minus suffix). The returned
+        ``dandi_uri_map`` is keyed by that session directory — matching the key
+        used by the orchestration layer when ``mode == "dandi"``.
+
+        Returns
+        -------
+        folder_names : list[str]
+            Absolute paths of the created session directories.
+        output_root : str
+            The user-chosen local output root.
+        dandi_uri_map : dict[str, str]
+            Mapping from session directory to the originating DANDI URI.
+        """
+        selected_uris = self.dandi_selector.selected_uris
+        output_root = self.dandi_selector.output_root
+        if not selected_uris:
+            logger.error("DANDI mode: no NWB assets selected")
+            raise ValueError("DANDI mode: select at least one NWB asset before running the pipeline")
+        if not output_root:
+            logger.error("DANDI mode: no local output directory selected")
+            raise ValueError("DANDI mode: select a local output directory before running the pipeline")
+
+        folder_names = []
+        dandi_uri_map = {}
+        for uri in selected_uris:
+            asset_path = uri.split("/", 3)[-1]
+            session_stem = os.path.splitext(os.path.basename(asset_path))[0]
+            session_directory = os.path.join(output_root, session_stem)
+            os.makedirs(session_directory, exist_ok=True)
+            folder_names.append(session_directory)
+            dandi_uri_map[session_directory] = uri
+        return folder_names, output_root, dandi_uri_map
 
     def setup_group_parameters(self):
+        """Build all widgets for the group-analysis card and store them as instance attributes."""
         self.mark_down_2 = pn.pane.Markdown(
             """**Select folders for the average analysis from the file selector below**""", width=600
         )
@@ -315,10 +579,17 @@ class ParameterForm:
             name="Average Group? (bool)", value=False, options=[True, False], width=435
         )
 
-        self.group_analysis_wd_1 = pn.Column(self.mark_down_2, self.files_2, self.averageForGroup, width=800)
-        self.group = pn.Card(self.group_analysis_wd_1, title="Group Analysis", styles=self.styles, width=1000)
+        self.group_selected_outputs_box = pn.Column(self._make_outputs_placeholder("group"))
+
+        self.group_analysis_wd_1 = pn.Column(
+            self.mark_down_2, self.files_2, self.group_selected_outputs_box, self.averageForGroup, width=800
+        )
+        self.group = pn.Card(
+            self.group_analysis_wd_1, title="Group Analysis", styles=self.styles, width=1000, collapsed=True
+        )
 
     def setup_visualization_parameters(self):
+        """Build all widgets for the visualization-parameters card and store them as instance attributes."""
         self.visualizeAverageResults = pn.widgets.Select(
             name="Visualize Average Results? (bool)", value=False, options=[True, False], width=435
         )
@@ -329,19 +600,46 @@ class ParameterForm:
 
         self.visualization_wd = pn.Row(self.visualize_zscore_or_dff, pn.Spacer(width=60), self.visualizeAverageResults)
         self.visualize = pn.Card(
-            self.visualization_wd, title="Visualization Parameters", styles=self.styles, width=1000
+            self.visualization_wd, title="Visualization Parameters", styles=self.styles, width=1000, collapsed=True
         )
 
     def add_to_template(self):
+        """Append the input/output folder, individual, group, and visualization cards to the template's main area."""
+        self.template.main.append(self.input_folder_selection)
+        self.template.main.append(self.output_folder_selection)
         self.template.main.append(self.individual)
         self.template.main.append(self.group)
         self.template.main.append(self.visualize)
 
     def getInputParameters(self):
-        abspath = getAbsPath(self.files_1, self.files_2)
+        """Collect and return all current widget values as an input-parameters dictionary.
+
+        Returns
+        -------
+        dict
+            Flat dictionary containing every parameter needed to run the GuPPy
+            pipeline, keyed by the parameter names expected by the orchestration
+            layer (e.g. ``"folderNames"``, ``"zscore_method"``, ``"nSecPrev"``).
+        """
+        # Re-discover group output dirs so the per-session filters reflect any new dirs
+        # produced by step 2 since the user last deselected/reselected their session folder.
+        self.refresh_group_outputs()
+
+        if self.source_mode.value == "dandi":
+            folder_names, abspath_value, dandi_uri_map = self._resolve_dandi_sessions()
+            mode = "dandi"
+        else:
+            abspath = getAbsPath(self.files_1, self.files_2)
+            folder_names = self.files_1.value
+            abspath_value = abspath[0]
+            dandi_uri_map = None
+            mode = "local"
+
         inputParameters = {
-            "abspath": abspath[0],
-            "folderNames": self.files_1.value,
+            "mode": mode,
+            "dandi_uri_map": dandi_uri_map,
+            "abspath": abspath_value,
+            "folderNames": folder_names,
             "numberOfCores": self.numberOfCores.value,
             "combine_data": self.combine_data.value,
             "isosbestic_control": self.isosbestic_control.value,
@@ -373,5 +671,9 @@ class ParameterForm:
             "folderNamesForAvg": self.files_2.value,
             "averageForGroup": self.averageForGroup.value,
             "visualizeAverageResults": self.visualizeAverageResults.value,
+            "selectedOutputs": self._collect_selected_outputs(),
+            "groupSelectedOutputs": {
+                session: [widget.value] for session, widget in self.group_selected_outputs_widgets.items()
+            },
         }
         return inputParameters

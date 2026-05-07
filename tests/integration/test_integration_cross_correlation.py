@@ -1,12 +1,15 @@
 import glob
 import os
 import shutil
+from unittest.mock import patch
 
+import holoviews as hv
 import pandas as pd
 import pytest
 from conftest import STUBBED_TESTING_DATA
 
-from guppy.testing.api import step2, step3, step4, step5
+from guppy.frontend.visualization_dashboard import VisualizationDashboard
+from guppy.testing.api import step2, step3, step4, step5, step6
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
@@ -60,18 +63,22 @@ def test_cross_correlation(tmp_path):
         selected_folders=[str(session_copy)],
         storenames_map=storenames_map,
     )
+    selected_runs = {str(session_copy): ["1"]}
     step3(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
+        selected_runs=selected_runs,
     )
     step4(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
+        selected_runs=selected_runs,
     )
     step5(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
         compute_corr=True,
+        selected_runs=selected_runs,
     )
 
     # Locate output directory
@@ -102,3 +109,21 @@ def test_cross_correlation(tmp_path):
     df = pd.read_hdf(corr_h5, key="df")
     assert "timestamps" in df.columns, f"'timestamps' column missing in {corr_h5}"
     assert "mean" in df.columns, f"'mean' column missing in {corr_h5}"
+
+    hv.extension("bokeh")
+    captured_dashboards: list[VisualizationDashboard] = []
+    original_init = VisualizationDashboard.__init__
+
+    def capturing_init(self, *, plotter, basename):
+        original_init(self, plotter=plotter, basename=basename)
+        captured_dashboards.append(self)
+
+    with patch.object(VisualizationDashboard, "__init__", capturing_init):
+        with patch.object(VisualizationDashboard, "show", lambda self: None):
+            step6(
+                base_dir=str(tmp_base),
+                selected_folders=[str(session_copy)],
+                selected_runs=selected_runs,
+            )
+
+    assert len(captured_dashboards) >= 1, "step6 created no VisualizationDashboard instances"

@@ -32,15 +32,25 @@ from ..analysis.standard_io import (
     write_peak_and_area_to_csv,
     write_peak_and_area_to_hdf5,
 )
-from ..frontend.progress import writeToFile
-from ..utils.utils import get_all_stores_for_combining_data, read_Df, takeOnlyDirs
+from ..frontend.progress import PB_STEPS_FILE, subprocess_main_handler, writeToFile
+from ..utils.utils import get_all_stores_for_combining_data, read_Df, select_output_dirs
+from ..utils.validation import validate_peak_windows, validate_window_bounds
 
 logger = logging.getLogger(__name__)
 
 
-# function to create PSTH for each event using function helper_psth and save the PSTH to h5 file
 def execute_compute_psth(filepath, event, inputParameters):
+    """Compute and save the PSTH for a single event in one session output folder.
 
+    Parameters
+    ----------
+    filepath : str
+        Path to the session output directory (e.g. ``<session>_output_1``).
+    event : str
+        Raw event name from storesList row 1.
+    inputParameters : dict
+        Full pipeline input parameters.
+    """
     event = event.replace("\\", "_")
     event = event.replace("/", "_")
     if "control" in event.lower() or "signal" in event.lower():
@@ -112,9 +122,18 @@ def execute_compute_psth(filepath, event, inputParameters):
         logger.info(f"PSTH for event {event} computed.")
 
 
-# function to compute PSTH peak and area using the function helperPSTHPeakAndArea save the values to h5 and csv files.
 def execute_compute_psth_peak_and_area(filepath, event, inputParameters):
+    """Compute and save PSTH peak and area for a single event.
 
+    Parameters
+    ----------
+    filepath : str
+        Path to the session output directory.
+    event : str
+        Raw event name from storesList row 1.
+    inputParameters : dict
+        Full pipeline input parameters.
+    """
     event = event.replace("\\", "_")
     event = event.replace("/", "_")
     if "control" in event.lower() or "signal" in event.lower():
@@ -160,16 +179,41 @@ def execute_compute_psth_peak_and_area(filepath, event, inputParameters):
 
 
 def execute_compute_cross_correlation(filepath, event, inputParameters):
+    """Compute and save cross-correlation between brain regions for a single event.
+
+    Parameters
+    ----------
+    filepath : str
+        Path to the session output directory.
+    event : str
+        Raw event name from storesList row 1.
+    inputParameters : dict
+        Full pipeline input parameters.
+    """
     isCompute = inputParameters["computeCorr"]
     removeArtifacts = inputParameters["removeArtifacts"]
     artifactsRemovalMethod = inputParameters["artifactsRemovalMethod"]
     if isCompute == True:
         if removeArtifacts == True and artifactsRemovalMethod == "concatenate":
-            raise Exception(
-                "For cross-correlation, when removeArtifacts is True, artifacts removal method\
-                            should be replace with NaNs and not concatenate"
+            raise ValueError(
+                "For cross-correlation, when removeArtifacts is True, the artifacts removal method "
+                "must be 'replace with NaNs' and not 'concatenate'. Change 'Method for Artifact "
+                "Removal' in the Input Parameters GUI."
             )
         corr_info, type = getCorrCombinations(filepath, inputParameters)
+        if len(corr_info) < 2:
+            if corr_info:
+                raise ValueError(
+                    f"Cross-correlation requires at least two distinct signal regions, but only one was "
+                    f"found: '{corr_info[0]}'. Please either disable compute_cross_correlation or add a "
+                    f"second signal region in step 2."
+                )
+            else:
+                raise ValueError(
+                    "Cross-correlation requires at least two distinct signal regions, but no signal "
+                    "regions were found. Please either disable compute_cross_correlation or add signal "
+                    "regions in step 2."
+                )
         if "control" in event.lower() or "signal" in event.lower():
             return
         else:
@@ -200,16 +244,27 @@ def execute_compute_cross_correlation(filepath, event, inputParameters):
 
 
 def orchestrate_psth(inputParameters):
+    """Run PSTH, peak/area, and cross-correlation for each individual session.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters.
+    """
     folderNames = inputParameters["folderNames"]
     numProcesses = inputParameters["numberOfCores"]
+    selected_outputs = inputParameters.get("selectedOutputs") or {}
     storesListPath = []
     for i in range(len(folderNames)):
-        storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(folderNames[i], "*_output_*"))))
+        storesListPath.append(select_output_dirs(folderNames[i], selected_outputs.get(folderNames[i])))
     storesListPath = np.concatenate(storesListPath)
-    writeToFile(str((storesListPath.shape[0] + storesListPath.shape[0] + 1) * 10) + "\n" + str(10) + "\n")
+    writeToFile(
+        str((storesListPath.shape[0] + storesListPath.shape[0] + 1) * 10) + "\n" + str(10) + "\n",
+        file_path=PB_STEPS_FILE,
+    )
     for i in range(len(folderNames)):
         logger.debug(f"Computing PSTH, Peak and Area for each event in {folderNames[i]}")
-        storesListPath = takeOnlyDirs(glob.glob(os.path.join(folderNames[i], "*_output_*")))
+        storesListPath = select_output_dirs(folderNames[i], selected_outputs.get(folderNames[i]))
         for j in range(len(storesListPath)):
             filepath = storesListPath[j]
             storesList = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(
@@ -233,19 +288,27 @@ def orchestrate_psth(inputParameters):
                 # 	storenamePsth(filepath, storesList[1,k], inputParameters)
                 # 	findPSTHPeakAndArea(filepath, storesList[1,k], inputParameters)
 
-            writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
+            writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
             inputParameters["step"] += 1
         logger.info(f"PSTH, Area and Peak are computed for all events in {folderNames[i]}.")
 
 
 def execute_psth_combined(inputParameters):
+    """Run PSTH computation for combined (multi-session) data.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters.
+    """
     folderNames = inputParameters["folderNames"]
+    selected_outputs = inputParameters.get("selectedOutputs") or {}
     storesListPath = []
     for i in range(len(folderNames)):
-        storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(folderNames[i], "*_output_*"))))
+        storesListPath.append(select_output_dirs(folderNames[i], selected_outputs.get(folderNames[i])))
     storesListPath = list(np.concatenate(storesListPath).flatten())
     op = get_all_stores_for_combining_data(storesListPath)
-    writeToFile(str((len(op) + len(op) + 1) * 10) + "\n" + str(10) + "\n")
+    writeToFile(str((len(op) + len(op) + 1) * 10) + "\n" + str(10) + "\n", file_path=PB_STEPS_FILE)
     for i in range(len(op)):
         storesList = np.asarray([[], []])
         for j in range(len(op[i])):
@@ -261,21 +324,111 @@ def execute_psth_combined(inputParameters):
             execute_compute_psth(op[i][0], storesList[1, k], inputParameters)
             execute_compute_psth_peak_and_area(op[i][0], storesList[1, k], inputParameters)
             execute_compute_cross_correlation(op[i][0], storesList[1, k], inputParameters)
-        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
+        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
         inputParameters["step"] += 1
 
 
+def _validate_storenames_consistent_for_group(storesListPath):
+    """Check that every session output directory exposes the same storenames.
+
+    Group averaging only produces meaningful results when all sessions share the
+    same set of storenames (the second row of each storesList.csv).  Detect the
+    mismatch up-front and raise a clear error listing the offending sessions,
+    instead of letting it surface downstream as an opaque ``IndexError``.
+
+    Raises
+    ------
+    ValueError
+        When the sessions disagree on the set of storenames.
+    """
+    per_session_stores = {}
+    for output_dir in storesListPath:
+        session_stores_list = np.genfromtxt(
+            os.path.join(output_dir, "storesList.csv"), dtype="str", delimiter=","
+        ).reshape(2, -1)
+        per_session_stores[output_dir] = tuple(sorted(set(session_stores_list[1, :])))
+
+    unique_store_sets = set(per_session_stores.values())
+    if len(unique_store_sets) <= 1:
+        return
+
+    session_lines = "\n".join(
+        f"  - {os.path.basename(os.path.dirname(output_dir))}: " f"{', '.join(stores) if stores else '(no storenames)'}"
+        for output_dir, stores in per_session_stores.items()
+    )
+    raise ValueError(
+        "Group averaging requires every selected session to share the same "
+        "storenames, but the selected sessions have mismatched or "
+        "non-overlapping storenames:\n"
+        f"{session_lines}\n"
+        "Fix the storename labels in step 2, deselect the mismatched "
+        "sessions, or disable 'Average Group? (bool)'."
+    )
+
+
+def _validate_psth_window_parameters(inputParameters):
+    """Upfront PSTH-window validation, run before any HDF5 IO.
+
+    Why: peak-window ordering used to surface only deep inside
+    ``compute_psth_peak_and_area`` (after step 5 had begun), and the PSTH
+    baseline-correction window had no equivalent of the z-score baseline
+    validation added in PR #283. Catching both here gives the user a Panel
+    notification before progress starts.
+    """
+    validate_peak_windows(
+        peak_starts=inputParameters["peak_startPoint"],
+        peak_ends=inputParameters["peak_endPoint"],
+    )
+    baselineCorrectionStart = inputParameters["baselineCorrectionStart"]
+    baselineCorrectionEnd = inputParameters["baselineCorrectionEnd"]
+    # (0, 0) is the documented sentinel for "skip baseline correction"
+    # (see baselineCorrection in compute_psth.py and the GUI tooltip).
+    if baselineCorrectionStart == 0 and baselineCorrectionEnd == 0:
+        return
+    validate_window_bounds(
+        start=baselineCorrectionStart,
+        end=baselineCorrectionEnd,
+        ts_min=float(inputParameters["nSecPrev"]),
+        ts_max=float(inputParameters["nSecPost"]),
+        start_name="baselineCorrectionStart",
+        end_name="baselineCorrectionEnd",
+        range_label="PSTH window",
+    )
+
+
 def execute_average_for_group(inputParameters):
+    """Average PSTH results across all selected sessions in the group.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters; must contain a non-empty
+        ``folderNamesForAvg`` list.
+
+    Raises
+    ------
+    ValueError
+        When ``folderNamesForAvg`` is empty or storenames are inconsistent
+        across sessions.
+    """
     folderNamesForAvg = inputParameters["folderNamesForAvg"]
     if len(folderNamesForAvg) == 0:
-        logger.error("Not a single folder name is provided in folderNamesForAvg in inputParamters File.")
-        raise Exception("Not a single folder name is provided in folderNamesForAvg in inputParamters File.")
+        message = (
+            "No folders selected for group averaging (folderNamesForAvg is empty in inputParameters). "
+            "Select folders in the 'Group Folders for Averaging' picker before running the average step."
+        )
+        logger.error(message)
+        raise ValueError(message)
 
+    group_selected_outputs = inputParameters.get("groupSelectedOutputs") or {}
     storesListPath = []
     for i in range(len(folderNamesForAvg)):
         filepath = folderNamesForAvg[i]
-        storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+        storesListPath.append(select_output_dirs(filepath, group_selected_outputs.get(filepath)))
     storesListPath = np.concatenate(storesListPath)
+
+    _validate_storenames_consistent_for_group(storesListPath)
+
     storesList = np.asarray([[], []])
     for i in range(storesListPath.shape[0]):
         storesList = np.concatenate(
@@ -296,20 +449,34 @@ def execute_average_for_group(inputParameters):
             continue
         else:
             pbMaxValue += 1
-    writeToFile(str((1 + pbMaxValue + 1) * 10) + "\n" + str(10) + "\n")
+    writeToFile(str((1 + pbMaxValue + 1) * 10) + "\n" + str(10) + "\n", file_path=PB_STEPS_FILE)
     for k in range(storesList.shape[1]):
         if "control" in storesList[1, k].lower() or "signal" in storesList[1, k].lower():
             continue
         else:
             averageForGroup(storesListPath, storesList[1, k], inputParameters)
-        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n")
+        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
         inputParameters["step"] += 1
 
 
 def psthForEachStorename(inputParameters):
+    """Entry point for step-5 PSTH computation: validates parameters and dispatches to the appropriate sub-routine.
 
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters.
+
+    Returns
+    -------
+    dict
+        The same ``inputParameters`` dict, potentially updated with the step
+        counter used for progress tracking.
+    """
     logger.info("Computing PSTH, Peak and Area for each event...")
     inputParameters = inputParameters
+
+    _validate_psth_window_parameters(inputParameters)
 
     # storesList = np.genfromtxt(inputParameters['storesListPath'], dtype='str', delimiter=',')
 
@@ -321,8 +488,8 @@ def psthForEachStorename(inputParameters):
         numProcesses = mp.cpu_count()
     elif numProcesses > mp.cpu_count():
         logger.warning(
-            "Warning : # of cores parameter set is greater than the cores available \
-			   available in your machine"
+            f"Number of cores requested ({numProcesses}) exceeds available cores "
+            f"({mp.cpu_count()}); using {mp.cpu_count() - 1}."
         )
         numProcesses = mp.cpu_count() - 1
 
@@ -342,16 +509,17 @@ def psthForEachStorename(inputParameters):
     return inputParameters
 
 
+@subprocess_main_handler
 def main(input_parameters):
-    try:
-        inputParameters = psthForEachStorename(input_parameters)
-        subprocess.call([sys.executable, "-m", "guppy.orchestration.transients", json.dumps(inputParameters)])
-        logger.info("#" * 400)
-    except Exception as e:
-        with open(os.path.join(os.path.expanduser("~"), "pbSteps.txt"), "a") as file:
-            file.write(str(-1) + "\n")
-        logger.error(str(e))
-        raise e
+    """Run step-5 PSTH computation and chain to the transients step.
+
+    Parameters
+    ----------
+    input_parameters : dict
+        Full pipeline input parameters deserialized from the subprocess argument.
+    """
+    inputParameters = psthForEachStorename(input_parameters)
+    subprocess.call([sys.executable, "-m", "guppy.orchestration.transients", json.dumps(inputParameters)])
 
 
 if __name__ == "__main__":

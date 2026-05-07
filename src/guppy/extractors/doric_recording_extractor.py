@@ -13,11 +13,29 @@ import pandas as pd
 
 from guppy.extractors import BaseRecordingExtractor
 from guppy.extractors.detect_acquisition_formats import _is_event_csv
+from guppy.utils._hdf5_io import write_hdf5
 
 logger = logging.getLogger(__name__)
 
 
 class DoricRecordingExtractor(BaseRecordingExtractor):
+    """
+    Extractor for fiber photometry data from Doric Lenses acquisition systems.
+
+    Supports two file formats:
+
+    * **doric_csv** — Doric-exported CSV files with a two-row header.
+    * **doric_doric** — Doric HDF5 files (``.doric``), V1 and V6 layouts.
+
+    Parameters
+    ----------
+    folder_path : str
+        Path to the session folder containing the Doric data file.
+    event_name_to_event_type : dict
+        Mapping from channel/event name (str) to its role in the pipeline
+        (e.g. ``"control_DMS"``, ``"signal_DMS"``, ``"ttl_DMS"``).
+    """
+
     # TODO: consolidate duplicate flag logic between the `discover_events_and_flags` and the `check_doric` method.
 
     @classmethod
@@ -64,10 +82,16 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                         float(element)
                     except:
                         check_all_str.append(i)
-                assert len(check_all_str) == len(
-                    df_arr
-                ), "This file appears to be standard .csv. This function only supports doric .csv files."
+                if len(check_all_str) != len(df_arr):
+                    raise ValueError(
+                        f"CSV file '{path[i]}' appears to be a standard .csv (numeric values in header rows). "
+                        "DoricRecordingExtractor only supports Doric .csv files; use the standard CSV extractor instead."
+                    )
                 df = pd.read_csv(path[i], header=1, index_col=False, nrows=10)
+                # Drop trailing all-NaN columns (e.g. "Unnamed: 7" from Doric CSVs with a
+                # trailing comma on each line). They'd otherwise appear as selectable events
+                # in Step 2, then vanish via the read path's own dropna, yielding a cryptic KeyError.
+                df = df.dropna(axis=1, how="all")
                 df = df.drop(["Time(s)"], axis=1)
                 event_from_filename.extend(list(df.columns))
                 flag = "doric_csv"
@@ -127,6 +151,38 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
         l = arr[-1]
         return arr[:-1], l
 
+    @staticmethod
+    def _validate_signal_control_data(event, data, event_type):
+        """Raise ValueError if ``data`` is unusable as a photometry signal/control trace.
+
+        Rejects channels that are all-NaN, mostly-NaN (>=50%), or zero-variance —
+        the three failure modes seen in real Doric exports (unused demodulation
+        channels fill with NaN; AOut / LED-drive channels are constant).
+        """
+        if data.size == 0:
+            raise ValueError(f"Doric channel {event!r} is empty and cannot be used as a {event_type} channel.")
+        finite_mask = np.isfinite(data)
+        nonfinite_count = int((~finite_mask).sum())
+        if nonfinite_count > 0:
+            # Even one NaN/inf breaks the downstream np.polyfit in z_score.controlFit (SVD error).
+            # This is common in Doric 'AIn-X - Dem (AOut-Y)' channels where AOut-Y was not
+            # driven (all-NaN demod output) or during demodulator warmup at recording start.
+            raise ValueError(
+                f"Doric channel {event!r} contains {nonfinite_count} non-finite value(s) "
+                f"(NaN/inf) out of {data.size} and cannot be used as a {event_type} channel — "
+                "downstream control-fit (np.polyfit) cannot handle NaN. This typically happens "
+                "with demodulated channels like 'AIn-X - Dem (AOut-Y)' when excitation "
+                "AOut-Y was not driven for this input, or during demodulator warmup at "
+                "recording start. Re-run Step 2 and pick a channel with continuous finite data."
+            )
+        if float(np.std(data)) == 0.0:
+            raise ValueError(
+                f"Doric channel {event!r} is constant (std=0) and cannot be used as a "
+                f"{event_type} channel. This is typical of analog output ('AOut') / LED "
+                "excitation channels, which do not contain fluorescence data. Pick a "
+                "demodulated or raw photometry channel instead."
+            )
+
     def _check_doric(self):
         logger.debug("Checking if doric file exists")
         path = glob.glob(os.path.join(self.folder_path, "*.csv")) + glob.glob(os.path.join(self.folder_path, "*.doric"))
@@ -150,10 +206,18 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                 pass
 
         if len(flag_arr) > 1:
-            logger.error("Two doric files are present at the same location")
-            raise Exception("Two doric files are present at the same location")
+            doric_paths = sorted(
+                glob.glob(os.path.join(self.folder_path, "*.csv"))
+                + glob.glob(os.path.join(self.folder_path, "*.doric"))
+            )
+            message = (
+                f"Multiple Doric data files found in '{self.folder_path}': {doric_paths}. "
+                "Each session folder must contain exactly one Doric file."
+            )
+            logger.error(message)
+            raise ValueError(message)
         if len(flag_arr) == 0:
-            logger.error("\033[1m" + "Doric file not found." + "\033[1m")
+            logger.error("Doric file not found.")
             return 0
         logger.info("Doric file found.")
         return flag_arr[0]
@@ -161,8 +225,12 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
     def _read_doric_csv(self, events):
         path = glob.glob(os.path.join(self.folder_path, "*.csv"))
         if len(path) > 1:
-            logger.error("An error occurred : More than one Doric csv file present at the location")
-            raise Exception("More than one Doric csv file present at the location")
+            message = (
+                f"Multiple Doric .csv files found in '{self.folder_path}': {sorted(path)}. "
+                "Each Doric session folder must contain exactly one .csv file."
+            )
+            logger.error(message)
+            raise ValueError(message)
 
         df = pd.read_csv(path[0], header=1, index_col=False)
         df = df.dropna(axis=1, how="all")
@@ -171,30 +239,42 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
 
         output_dicts = []
         for event in events:
+            if event not in df.columns:
+                available = sorted(c for c in df.columns if c != "Time(s)")
+                raise ValueError(
+                    f"Doric channel {event!r} not found in Doric CSV file. "
+                    f"Available channels: {available}. Empty columns (trailing commas, "
+                    "'Unnamed: N') are filtered during discovery."
+                )
             event_type = self._event_name_to_event_type[event]
             if "control" in event_type or "signal" in event_type:
                 timestamps = np.array(df["Time(s)"])
                 sampling_rate = np.array([1 / (timestamps[-1] - timestamps[-2])])
                 data = np.array(df[event])
+                self._validate_signal_control_data(event, data, event_type)
                 storename = event
-                S = {"storename": storename, "sampling_rate": sampling_rate, "timestamps": timestamps, "data": data}
-                output_dicts.append(S)
+                event_dict = {"storename": storename, "sampling_rate": sampling_rate, "timestamps": timestamps, "data": data}
+                output_dicts.append(event_dict)
             else:
                 ttl = df[event]
                 indices = np.where(ttl <= 0)[0]
                 diff_indices = np.where(np.diff(indices) > 1)[0]
                 timestamps = df["Time(s)"][indices[diff_indices] + 1].to_numpy()
                 storename = event
-                S = {"storename": storename, "timestamps": timestamps}
-                output_dicts.append(S)
+                event_dict = {"storename": storename, "timestamps": timestamps}
+                output_dicts.append(event_dict)
 
         return output_dicts
 
     def _read_doric_doric(self, events):
         path = glob.glob(os.path.join(self.folder_path, "*.doric"))
         if len(path) > 1:
-            logger.error("An error occurred : More than one Doric file present at the location")
-            raise Exception("More than one Doric file present at the location")
+            message = (
+                f"Multiple Doric .doric files found in '{self.folder_path}': {sorted(path)}. "
+                "Each Doric session folder must contain exactly one .doric file."
+            )
+            logger.error(message)
+            raise ValueError(message)
         with h5py.File(path[0], "r") as f:
             if "Traces" in list(f.keys()):
                 output_dicts = self._access_data_doricV1(f, events)
@@ -232,21 +312,52 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                 regex = re.compile("(.*?)" + str(event) + "(.*?)")
                 idx = [i for i in range(len(decide_path)) if regex.match(decide_path[i])]
                 if len(idx) > 1:
-                    logger.error("More than one string matched (which should not be the case)")
-                    raise Exception("More than one string matched (which should not be the case)")
+                    matched_paths = [decide_path[i] for i in idx]
+                    message = (
+                        f"Doric channel {event!r} matches multiple internal HDF5 paths "
+                        f"({matched_paths}); expected exactly one. The Doric file may have a malformed structure."
+                    )
+                    logger.error(message)
+                    raise ValueError(message)
+                if len(idx) == 0:
+                    available = sorted(
+                        {
+                            p.rsplit("/", 1)[-1] if p.rsplit("/", 1)[-1] != "Values" else p.rsplit("/", 2)[-2]
+                            for p in res
+                        }
+                    )
+                    raise ValueError(
+                        f"Doric channel {event!r} not found in Doric V6 file. " f"Available channels: {available}."
+                    )
                 idx = idx[0]
                 data = np.array(doric_file[decide_path[idx]])
                 timestamps = np.array(doric_file[decide_path[idx].rsplit("/", 1)[0] + "/Time"])
+                self._validate_signal_control_data(event, data, event_type)
                 sampling_rate = np.array([1 / (timestamps[-1] - timestamps[-2])])
                 storename = event
-                S = {"storename": storename, "sampling_rate": sampling_rate, "timestamps": timestamps, "data": data}
-                output_dicts.append(S)
+                event_dict = {"storename": storename, "sampling_rate": sampling_rate, "timestamps": timestamps, "data": data}
+                output_dicts.append(event_dict)
             else:
                 regex = re.compile("(.*?)" + event + "$")
                 idx = [i for i in range(len(decide_path)) if regex.match(decide_path[i])]
                 if len(idx) > 1:
-                    logger.error("More than one string matched (which should not be the case)")
-                    raise Exception("More than one string matched (which should not be the case)")
+                    matched_paths = [decide_path[i] for i in idx]
+                    message = (
+                        f"Doric channel {event!r} matches multiple internal HDF5 paths "
+                        f"({matched_paths}); expected exactly one. The Doric file may have a malformed structure."
+                    )
+                    logger.error(message)
+                    raise ValueError(message)
+                if len(idx) == 0:
+                    available = sorted(
+                        {
+                            p.rsplit("/", 1)[-1] if p.rsplit("/", 1)[-1] != "Values" else p.rsplit("/", 2)[-2]
+                            for p in res
+                        }
+                    )
+                    raise ValueError(
+                        f"Doric TTL channel {event!r} not found in Doric V6 file. " f"Available channels: {available}."
+                    )
                 idx = idx[0]
                 ttl = np.array(doric_file[decide_path[idx]])
                 timestamps = np.array(doric_file[decide_path[idx].rsplit("/", 1)[0] + "/Time"])
@@ -254,44 +365,76 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                 diff_indices = np.where(np.diff(indices) > 1)[0]
                 timestamps = timestamps[indices[diff_indices] + 1]
                 storename = event
-                S = {"storename": storename, "timestamps": timestamps}
-                output_dicts.append(S)
+                event_dict = {"storename": storename, "timestamps": timestamps}
+                output_dicts.append(event_dict)
 
         return output_dicts
 
     def _access_data_doricV1(self, doric_file, events):
-        keys = list(doric_file["Traces"]["Console"].keys())
+        console = doric_file["Traces"]["Console"]
         output_dicts = []
         for event in events:
+            if event not in console:
+                available = sorted(k for k in console.keys() if k != "Time(s)")
+                raise ValueError(
+                    f"Doric channel {event!r} not found in Doric V1 file. " f"Available channels: {available}."
+                )
             event_type = self._event_name_to_event_type[event]
             if "control" in event_type or "signal" in event_type:
-                timestamps = np.array(doric_file["Traces"]["Console"]["Time(s)"]["Console_time(s)"])
+                timestamps = np.array(console["Time(s)"]["Console_time(s)"])
+                data = np.array(console[event][event])
+                self._validate_signal_control_data(event, data, event_type)
                 sampling_rate = np.array([1 / (timestamps[-1] - timestamps[-2])])
-                data = np.array(doric_file["Traces"]["Console"][event][event])
                 storename = event
-                S = {"storename": storename, "sampling_rate": sampling_rate, "timestamps": timestamps, "data": data}
-                output_dicts.append(S)
+                event_dict = {"storename": storename, "sampling_rate": sampling_rate, "timestamps": timestamps, "data": data}
+                output_dicts.append(event_dict)
             else:
-                timestamps = np.array(doric_file["Traces"]["Console"]["Time(s)"]["Console_time(s)"])
-                ttl = np.array(doric_file["Traces"]["Console"][event][event])
+                timestamps = np.array(console["Time(s)"]["Console_time(s)"])
+                ttl = np.array(console[event][event])
                 indices = np.where(ttl <= 0)[0]
                 diff_indices = np.where(np.diff(indices) > 1)[0]
                 timestamps = timestamps[indices[diff_indices] + 1]
                 storename = event
-                S = {"storename": storename, "timestamps": timestamps}
-                output_dicts.append(S)
+                event_dict = {"storename": storename, "timestamps": timestamps}
+                output_dicts.append(event_dict)
 
         return output_dicts
 
     def read(self, *, events: list[str], outputPath: str) -> list[dict[str, Any]]:
+        """
+        Read data from Doric files for the specified events.
+
+        Detects the Doric file format (CSV or HDF5) and dispatches to the
+        appropriate reader. Signal/control channels are returned with full
+        time-series data; TTL channels are returned as onset timestamps only.
+
+        Parameters
+        ----------
+        events : list of str
+            Channel/event names to read.
+        outputPath : str
+            Path to the output directory (unused by this extractor; required by
+            the base-class interface).
+
+        Returns
+        -------
+        list of dict
+            One dictionary per event. Signal/control dicts contain
+            ``storename``, ``sampling_rate``, ``timestamps``, and ``data``;
+            TTL dicts contain ``storename`` and ``timestamps``.
+        """
         flag = self._check_doric()
         if flag == "doric_csv":
             output_dicts = self._read_doric_csv(events)
         elif flag == "doric_doric":
             output_dicts = self._read_doric_doric(events)
         else:
-            logger.error("Doric file not found or not recognized.")
-            raise FileNotFoundError("Doric file not found or not recognized.")
+            message = (
+                f"No Doric file (.doric or .csv) found in '{self.folder_path}', or the file format "
+                "could not be recognized."
+            )
+            logger.error(message)
+            raise FileNotFoundError(message)
 
         return output_dicts
 
@@ -411,13 +554,23 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
             dataframe.to_csv(file, index=False, header=False)
 
     def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str) -> None:
-        for S in output_dicts:
-            storename = S["storename"]
-            self._write_hdf5(data=S["timestamps"], storename=storename, output_path=outputPath, key="timestamps")
+        """
+        Save extracted data dictionaries to HDF5 files.
 
-            if "sampling_rate" in S:
-                self._write_hdf5(
-                    data=S["sampling_rate"], storename=storename, output_path=outputPath, key="sampling_rate"
+        Parameters
+        ----------
+        output_dicts : list of dict
+            Data dictionaries as returned by :meth:`read`.
+        outputPath : str
+            Path to the output directory where HDF5 files are written.
+        """
+        for event_dict in output_dicts:
+            storename = event_dict["storename"]
+            write_hdf5(data=event_dict["timestamps"], storename=storename, output_path=outputPath, key="timestamps")
+
+            if "sampling_rate" in event_dict:
+                write_hdf5(
+                    data=event_dict["sampling_rate"], storename=storename, output_path=outputPath, key="sampling_rate"
                 )
-            if "data" in S:
-                self._write_hdf5(data=S["data"], storename=storename, output_path=outputPath, key="data")
+            if "data" in event_dict:
+                write_hdf5(data=event_dict["data"], storename=storename, output_path=outputPath, key="data")

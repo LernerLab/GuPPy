@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from guppy.analysis.transients import (
     analyze_transients,
@@ -6,6 +7,20 @@ from guppy.analysis.transients import (
     createChunks,
     processChunks,
 )
+
+
+def test_create_chunks_raises_when_padded_length_not_multiple_of_window(monkeypatch):
+    """The padding logic normally guarantees padded length divides evenly. Force a
+    non-integer divisor to cover the defensive 'Cannot split z-score data' branch."""
+    monkeypatch.setattr(
+        "guppy.analysis.transients.math.ceil",
+        lambda x: 7 if abs(x - 5.0) < 1e-9 else int(np.ceil(x)),
+    )
+    # sampling_rate * window = 5.0; without monkeypatch ceil returns 5, but the patch
+    # forces windowPoints=7, then padded length=10 which is not a multiple of 7.
+    z_score = np.arange(10, dtype=float)
+    with pytest.raises(ValueError, match="Cannot split z-score data of length"):
+        createChunks(z_score, sampling_rate=5.0, window=1)
 
 
 def test_create_chunks_column_count_equals_window_points():

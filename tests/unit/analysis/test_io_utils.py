@@ -61,8 +61,12 @@ def test_decide_naming_convention_unequal_counts_raises(tmp_path):
     (tmp_path / "control_DMS.hdf5").touch()
     (tmp_path / "control_NAc.hdf5").touch()
     (tmp_path / "signal_DMS.hdf5").touch()
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError) as exception_info:
         decide_naming_convention(str(tmp_path))
+    message = str(exception_info.value)
+    assert "Unequal number of control and signal files" in message
+    assert "2 control" in message
+    assert "1 signal" in message
 
 
 # ── read_hdf5 / write_hdf5 ────────────────────────────────────────────────────
@@ -90,6 +94,19 @@ def test_write_hdf5_overwrites_existing_key_with_new_array(tmp_path):
     np.testing.assert_array_equal(result, updated)
 
 
+def test_write_hdf5_creates_new_file_with_scalar(tmp_path):
+    write_hdf5(250.0, "my_store", str(tmp_path), "sampling_rate")
+    result = read_hdf5("my_store", str(tmp_path), "sampling_rate")
+    assert result == 250.0
+
+
+def test_write_hdf5_overwrites_existing_key_with_scalar(tmp_path):
+    write_hdf5(100.0, "my_store", str(tmp_path), "sampling_rate")
+    write_hdf5(500.0, "my_store", str(tmp_path), "sampling_rate")
+    result = read_hdf5("my_store", str(tmp_path), "sampling_rate")
+    assert result == 500.0
+
+
 def test_write_hdf5_adds_second_key_to_existing_file(tmp_path):
     data_a = np.array([1.0, 2.0])
     data_b = np.array([3.0, 4.0])
@@ -102,8 +119,16 @@ def test_write_hdf5_adds_second_key_to_existing_file(tmp_path):
 
 
 def test_read_hdf5_nonexistent_file_raises(tmp_path):
-    with pytest.raises(Exception):
+    with pytest.raises(FileNotFoundError, match=r"HDF5 file"):
         read_hdf5("nonexistent_event", str(tmp_path), "data")
+
+
+def test_fetch_coords_raises_for_odd_count_npy(tmp_path):
+    coords_path = tmp_path / "coordsForPreProcessing_dms.npy"
+    # Save a 3-row array with 2 columns; first column has odd count → triggers raise
+    np.save(coords_path, np.array([[0.0, 0.0], [1.0, 0.0], [2.0, 0.0]]))
+    with pytest.raises(ValueError, match="must come in pairs"):
+        fetchCoords(str(tmp_path), "dms", np.array([0.0, 5.0]))
 
 
 def test_write_hdf5_sanitizes_backslash_in_event_name(tmp_path):
@@ -209,7 +234,20 @@ def test_get_control_and_signal_channel_names_filters_and_sorts_channels():
 def test_get_control_and_signal_channel_names_raises_for_odd_count():
     # Three control/signal entries cannot reshape to (2, -1)
     stores_list = np.array([["s0", "c0", "c1"], ["signal_dms", "control_dms", "control_nac"]])
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError, match="control region.*without a matching signal.*nac"):
+        get_control_and_signal_channel_names(stores_list)
+
+
+def test_get_control_and_signal_channel_names_error_names_unmatched_signal_region():
+    stores_list = np.array([["s0", "s1", "c0"], ["signal_dms", "signal_nac", "control_dms"]])
+    with pytest.raises(ValueError, match="signal region.*without a matching control.*nac"):
+        get_control_and_signal_channel_names(stores_list)
+
+
+def test_get_control_and_signal_channel_names_signal_only_odd_count_raises_count_error():
+    # Signal-only with an odd count cannot reshape; falls back to the count-based message.
+    stores_list = np.array([["s0", "s1", "s2"], ["signal_dms", "signal_nac", "signal_vta"]])
+    with pytest.raises(ValueError, match="0 control and 3 signal"):
         get_control_and_signal_channel_names(stores_list)
 
 

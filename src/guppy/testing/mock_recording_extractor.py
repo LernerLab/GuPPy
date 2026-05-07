@@ -3,6 +3,7 @@
 import numpy as np
 
 from guppy.extractors.base_recording_extractor import BaseRecordingExtractor
+from guppy.utils._hdf5_io import write_hdf5
 
 _MOCK_EVENTS = ["mock_signal", "mock_control", "mock_ttl"]
 _MOCK_SAMPLING_RATE = 100.0
@@ -103,7 +104,7 @@ class MockRecordingExtractor(BaseRecordingExtractor):
 
     def save(self, *, output_dicts: list[dict], outputPath: str) -> None:
         """
-        Write each output dict to an HDF5 file via ``_write_hdf5``.
+        Write each output dict to an HDF5 file via ``write_hdf5``.
 
         Parameters
         ----------
@@ -116,6 +117,4 @@ class MockRecordingExtractor(BaseRecordingExtractor):
         for output_dict in output_dicts:
             storename = output_dict["storename"]
             for key, value in output_dict.items():
-                if key == "storename":
-                    continue
-                self._write_hdf5(value, storename, outputPath, key)
+                write_hdf5(value, storename, outputPath, key)

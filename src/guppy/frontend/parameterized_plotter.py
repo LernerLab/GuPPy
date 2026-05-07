@@ -9,18 +9,40 @@ import numpy as np
 import pandas as pd
 import panel as pn
 import param
+import selenium
 from bokeh.io import export_png, export_svgs
 from holoviews import opts
 from holoviews.operation.datashader import datashade
 from holoviews.plotting.util import process_cmap
+from selenium.webdriver.chrome.options import Options
 
 pn.extension()
 
 logger = logging.getLogger(__name__)
+# Panel registers its bundled JS extensions (es-module-shims, tabulator, luxon) with Bokeh
+# using file:// paths. When headless Chrome renders the export HTML it tries to load those
+# paths, fails with ERR_FILE_NOT_FOUND, and Bokeh logs a WARNING for each one. The plots
+# export correctly regardless, so we suppress these harmless warnings here.
+logging.getLogger("bokeh.io.export").setLevel(logging.ERROR)
 
 
 # remove unnecessary column names
 def remove_cols(cols):
+    """Remove bookkeeping columns from a PSTH column list.
+
+    Drops ``"err"``, ``"timestamps"``, and any column matching ``bin_err_*``
+    so that only trial and mean columns remain.
+
+    Parameters
+    ----------
+    cols : list of str
+        Full list of column names from a PSTH DataFrame.
+
+    Returns
+    -------
+    list of str
+        Filtered column list with bookkeeping columns removed.
+    """
     regex = re.compile("bin_err_*")
     remove_cols = [cols[i] for i in range(len(cols)) if regex.match(cols[i])]
     remove_cols = remove_cols + ["err", "timestamps"]
@@ -31,6 +53,18 @@ def remove_cols(cols):
 
 # make a new directory for saving plots
 def make_dir(filepath):
+    """Create (if needed) and return the ``saved_plots`` subdirectory under ``filepath``.
+
+    Parameters
+    ----------
+    filepath : str
+        Path to the session directory.
+
+    Returns
+    -------
+    str
+        Absolute path to the ``saved_plots`` directory.
+    """
     op = os.path.join(filepath, "saved_plots")
     if not os.path.exists(op):
         os.mkdir(op)
@@ -38,8 +72,24 @@ def make_dir(filepath):
     return op
 
 
+def _headless_chrome_options():
+    options = Options()
+    options.add_argument("--headless")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    return options
+
+
 # create a class to make GUI and plot different graphs
 class ParameterizedPlotter(param.Parameterized):
+    """Interactive Panel/HoloViews dashboard for exploring PSTH results.
+
+    Provides tabbed views for mean PSTH traces, single-trial overlays, trial
+    heatmaps, and multi-event comparisons.  All interactive selectors are
+    exposed as ``param`` parameters so that Panel can bind them to reactive
+    plot callbacks automatically.
+    """
+
     event_selector_objects = param.List(default=None)
     event_selector_heatmap_objects = param.List(default=None)
     selector_for_multipe_events_plot_objects = param.List(default=None)
@@ -108,52 +158,55 @@ class ParameterizedPlotter(param.Parameterized):
     # function to save heatmaps when save button on heatmap tab is clicked
     @param.depends("save_hm", watch=True)
     def save_hm_plots(self):
+        """Export the current heatmap to disk in the format selected by ``save_options_heatmap``."""
         plot = self.results_hm["plot"]
         op = self.results_hm["op"]
         save_opts = self.save_options_heatmap
         logger.info(save_opts)
-        if save_opts == "save_svg_format":
-            p = hv.render(plot, backend="bokeh")
-            p.output_backend = "svg"
-            export_svgs(p, filename=op + ".svg")
-        elif save_opts == "save_png_format":
-            p = hv.render(plot, backend="bokeh")
-            export_png(p, filename=op + ".png")
-        elif save_opts == "save_both_format":
-            p = hv.render(plot, backend="bokeh")
-            p.output_backend = "svg"
-            export_svgs(p, filename=op + ".svg")
-            p_png = hv.render(plot, backend="bokeh")
-            export_png(p_png, filename=op + ".png")
-        else:
+        if save_opts == "None":
             return 0
+        with selenium.webdriver.Chrome(options=_headless_chrome_options()) as webdriver:
+            if save_opts == "save_svg_format":
+                p = hv.render(plot, backend="bokeh")
+                p.output_backend = "svg"
+                export_svgs(p, filename=op + ".svg", webdriver=webdriver)
+            elif save_opts == "save_png_format":
+                p = hv.render(plot, backend="bokeh")
+                export_png(p, filename=op + ".png", webdriver=webdriver)
+            elif save_opts == "save_both_format":
+                p = hv.render(plot, backend="bokeh")
+                p.output_backend = "svg"
+                export_svgs(p, filename=op + ".svg", webdriver=webdriver)
+                p_png = hv.render(plot, backend="bokeh")
+                export_png(p_png, filename=op + ".png", webdriver=webdriver)
 
     # function to save PSTH plots when save button on PSTH tab is clicked
     @param.depends("save_psth", watch=True)
     def save_psth_plot(self):
+        """Export the current PSTH plots to disk in the format selected by ``save_options``."""
         plot, op = [], []
         plot.append(self.results_psth["plot_combine"])
         op.append(self.results_psth["op_combine"])
         plot.append(self.results_psth["plot"])
         op.append(self.results_psth["op"])
-        for i in range(len(plot)):
-            temp_plot, temp_op = plot[i], op[i]
-            save_opts = self.save_options
-            if save_opts == "save_svg_format":
-                p = hv.render(temp_plot, backend="bokeh")
-                p.output_backend = "svg"
-                export_svgs(p, filename=temp_op + ".svg")
-            elif save_opts == "save_png_format":
-                p = hv.render(temp_plot, backend="bokeh")
-                export_png(p, filename=temp_op + ".png")
-            elif save_opts == "save_both_format":
-                p = hv.render(temp_plot, backend="bokeh")
-                p.output_backend = "svg"
-                export_svgs(p, filename=temp_op + ".svg")
-                p_png = hv.render(temp_plot, backend="bokeh")
-                export_png(p_png, filename=temp_op + ".png")
-            else:
-                return 0
+        save_opts = self.save_options
+        if save_opts == "None":
+            return 0
+        with selenium.webdriver.Chrome(options=_headless_chrome_options()) as webdriver:
+            for temp_plot, temp_op in zip(plot, op):
+                if save_opts == "save_svg_format":
+                    p = hv.render(temp_plot, backend="bokeh")
+                    p.output_backend = "svg"
+                    export_svgs(p, filename=temp_op + ".svg", webdriver=webdriver)
+                elif save_opts == "save_png_format":
+                    p = hv.render(temp_plot, backend="bokeh")
+                    export_png(p, filename=temp_op + ".png", webdriver=webdriver)
+                elif save_opts == "save_both_format":
+                    p = hv.render(temp_plot, backend="bokeh")
+                    p.output_backend = "svg"
+                    export_svgs(p, filename=temp_op + ".svg", webdriver=webdriver)
+                    p_png = hv.render(temp_plot, backend="bokeh")
+                    export_png(p_png, filename=temp_op + ".png", webdriver=webdriver)
 
     # function to change Y values based on event selection
     @param.depends("event_selector", watch=True)
@@ -193,6 +246,14 @@ class ParameterizedPlotter(param.Parameterized):
         "Width_Plot",
     )
     def update_selector(self):
+        """Render an overlay of mean PSTH curves for all selected events.
+
+        Returns
+        -------
+        holoviews.NdOverlay or None
+            Overlay of mean curves with spread bands, or ``None`` when no
+            events are selected.
+        """
         data_curve, cols_curve, data_spread, cols_spread = [], [], [], []
         arr = self.selector_for_multipe_events_plot
         df1 = self.df_new
@@ -275,6 +336,14 @@ class ParameterizedPlotter(param.Parameterized):
         "event_selector", "x", "y", "Y_Label", "save_options", "Y_Limit", "X_Limit", "Height_Plot", "Width_Plot"
     )
     def contPlot(self):
+        """Render the selected PSTH view (mean, single trial, or all-trials datashaded overlay).
+
+        Returns
+        -------
+        holoviews.Element
+            A ``Curve``, ``Spread``-overlaid ``Curve``, or datashaded
+            ``NdOverlay``, depending on the value of ``y``.
+        """
         df1 = self.df_new[self.event_selector]
         # height = self.Heigth_Plot
         # width = self.Width_Plot
@@ -402,6 +471,15 @@ class ParameterizedPlotter(param.Parameterized):
         "Width_Plot",
     )
     def plot_specific_trials(self):
+        """Render the user-selected subset of PSTH trials, optionally with their mean.
+
+        Returns
+        -------
+        holoviews.Element or None
+            An overlay of individual trial curves, a mean-with-spread curve, or
+            their combination, depending on ``select_trials_checkbox``.  Returns
+            ``None`` when ``psth_y`` is not set.
+        """
         df_psth = self.df_new[self.event_selector]
         # if self.Y_Limit==None:
         # 	self.Y_Limit = (np.nanmin(ypoints)-0.5, np.nanmax(ypoints)+0.5)
@@ -497,6 +575,14 @@ class ParameterizedPlotter(param.Parameterized):
     # function to show heatmaps for each event
     @param.depends("event_selector_heatmap", "color_map", "height_heatmap", "width_heatmap", "heatmap_y")
     def heatmap(self):
+        """Render a trial heatmap for the selected event.
+
+        Returns
+        -------
+        holoviews.Element
+            A ``QuadMesh`` (single trial) or a datashaded ``QuadMesh`` overlay
+            (multiple trials), coloured by the selected colour map.
+        """
         height = self.height_heatmap
         width = self.width_heatmap
         df_hm = self.df_new[self.event_selector_heatmap]

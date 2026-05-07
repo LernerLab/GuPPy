@@ -45,25 +45,34 @@ def _classify_csv_file(path):
 
     if len(cols) == 1:
         if cols[0].lower() != "timestamps":
-            logger.error("\033[1m" + "Column name should be timestamps (all lower-cases)" + "\033[0m")
-            raise Exception("\033[1m" + "Column name should be timestamps (all lower-cases)" + "\033[0m")
+            message = (
+                f"CSV file '{path}' has 1 column named '{cols[0]}', but the only-supported "
+                "single-column CSV format requires the column to be named 'timestamps' (lower case)."
+            )
+            logger.error(message)
+            raise ValueError(message)
         return "csv"
     elif len(cols) == 3:
         arr1 = np.array(["timestamps", "data", "sampling_rate"])
         arr2 = np.char.lower(cols)
         if (np.sort(arr1) == np.sort(arr2)).all():
             return "csv"
-        logger.error(
-            "\033[1m" + "Column names should be timestamps, data and sampling_rate (all lower-cases)" + "\033[0m"
+        message = (
+            f"CSV file '{path}' has columns {list(cols)}, but the 3-column CSV format "
+            "requires column names 'timestamps', 'data', 'sampling_rate' (all lower case)."
         )
-        raise Exception(
-            "\033[1m" + "Column names should be timestamps, data and sampling_rate (all lower-cases)" + "\033[0m"
-        )
+        logger.error(message)
+        raise ValueError(message)
     elif len(cols) >= 2:
         return "npm"
     else:
-        logger.error("Number of columns in csv file does not make sense.")
-        raise Exception("Number of columns in csv file does not make sense.")
+        message = (
+            f"CSV file '{path}' has {len(cols)} columns, which is not a recognized layout. "
+            "Expected 1 column ('timestamps'), 2 columns (NPM event/data), or 3 columns "
+            "('timestamps', 'data', 'sampling_rate')."
+        )
+        logger.error(message)
+        raise ValueError(message)
 
 
 def _is_float(value):
@@ -109,9 +118,13 @@ def detect_acquisition_formats(folder_path):
     -------
     set of str
         Format strings for all sources found in the folder.
-        Possible elements: ``"tdt"``, ``"doric"``, ``"csv"``, ``"npm"``.
+        Possible elements: ``"nwb"``, ``"tdt"``, ``"doric"``, ``"csv"``, ``"npm"``.
     """
     formats = set()
+
+    # NWB .nwb files provide photometry channels via acquisition series
+    if glob.glob(os.path.join(folder_path, "*.nwb")):
+        formats.add("nwb")
 
     # TDT .tsq files provide both photometry stores and TTL event stores
     if glob.glob(os.path.join(folder_path, "*.tsq")):
@@ -136,16 +149,11 @@ def detect_acquisition_formats(folder_path):
         if not has_npm_data and "csv" in labels:
             formats.add("csv")
 
-    # Single-column timestamp CSVs provide external event timestamps. When NPM data is
-    # present, suppress only the NPM-generated split-event files (named event*.csv), since
-    # those are owned by NpmRecordingExtractor. External event CSVs with other names are
-    # still detected as "csv" and handled by CsvRecordingExtractor.
-    event_csv_paths = [p for p in csv_paths if _is_event_csv(p)]
-    if has_npm_data:
-        external_event_csv_paths = [p for p in event_csv_paths if not os.path.basename(p).startswith("event")]
-    else:
-        external_event_csv_paths = event_csv_paths
-    if external_event_csv_paths:
+    # Single-column timestamp CSVs are always read by CsvRecordingExtractor — both
+    # user-supplied external TTL files and the event*.csv intermediates that
+    # NpmRecordingExtractor materializes when npm_split_events is True (NPM extends
+    # CSV but excludes single-column CSVs from its own discover, delegating them to CSV).
+    if any(_is_event_csv(p) for p in csv_paths):
         formats.add("csv")
 
     return formats

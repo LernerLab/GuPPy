@@ -1,4 +1,4 @@
-[![DOI](https://zenodo.org/badge/382176345.svg)](https://zenodo.org/badge/latestdoi/382176345) [![Join the chat at https://gitter.im/LernerLab/GuPPy](https://badges.gitter.im/LernerLab/GuPPy.svg)](https://gitter.im/LernerLab/GuPPy?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![DOI](https://zenodo.org/badge/382176345.svg)](https://zenodo.org/badge/latestdoi/382176345) [![Join the chat at https://gitter.im/LernerLab/GuPPy](https://badges.gitter.im/LernerLab/GuPPy.svg)](https://gitter.im/LernerLab/GuPPy?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![codecov](https://codecov.io/gh/LernerLab/GuPPy/graph/badge.svg)](https://codecov.io/gh/LernerLab/GuPPy) [![Documentation Status](https://readthedocs.org/projects/guppy/badge/?version=latest)](https://guppy.readthedocs.io/)
 
 <img src="assets/GuppyLogo.png" alt="GuPPy Logo" width="300">
 
@@ -120,4 +120,4 @@ This will launch the GuPPy user interface, where you can begin analyzing your fi
 - Jillian Seiler
 - [Gabriela Lopez](https://github.com/glopez924)
 - [Talia Lerner](https://github.com/talialerner)
-- [Paul Adkisson](https://github.com/pauladkisson)
+- [Paul Adkisson-Floro](https://github.com/pauladkisson)
