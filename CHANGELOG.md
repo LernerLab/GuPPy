@@ -24,6 +24,7 @@
 - Added a PSTH explanation page (origin, the construction operation, drift correction, peak vs AUC summary statistics, and event rejection) at `docs/explanation/psth.md`, with four generated SVG figures and a self-contained PEP 723 script (`docs/scripts/psth_explainer.py`) that regenerates them in place. [PR #315](https://github.com/LernerLab/GuPPy/pull/315)
 - Added a fiber photometry explanation page at `docs/explanation/fiber_photometry.md`, with one hand-illustrated technique schematic (PNG) and two generated SVG figures (population summing, and a space-vs-time landscape placing photometry against electrophysiology, two-photon imaging, and fMRI). The matplotlib figures are produced by a self-contained PEP 723 script at `docs/scripts/fiber_photometry_explainer.py`. [PR #319](https://github.com/LernerLab/GuPPy/pull/319)
 - Added an explanation page on the isosbestic correction at `docs/explanation/isosbestic_correction.md`, covering the two-state GCaMP framework, GuPPy's linear-fit-and-subtract procedure, what the corrected trace does and does not remove, and why the synthetic-exponential fallback is not equivalent. Eight generated SVG figures and a self-contained PEP 723 script (`docs/scripts/isosbestic_explainer.py`) that regenerates them in place. [PR #324](https://github.com/LernerLab/GuPPy/pull/324)
+- Updated stubbed testing data README.md with complete descriptions of each store name. [PR #343](https://github.com/LernerLab/GuPPy/pull/343)
 
 ## Deprecations and Removals
 
