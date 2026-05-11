@@ -96,6 +96,14 @@ class _CountingRemfile:
     def end_event(self) -> None:
         if self._current_event is None:
             return
+        # Top up to the event's full sample count: DANDI datasets are typically
+        # compressed, so bytes-on-wire is less than the uncompressed dataset size
+        # and the proportional counter never reaches 100% on its own. The
+        # event boundary is the authoritative "done" signal.
+        remainder = self._event_total_samples - self._samples_committed_for_event
+        if remainder > 0:
+            add_samples_done(remainder)
+            self._samples_committed_for_event = self._event_total_samples
         self._committed_samples_by_event[self._current_event] = self._samples_committed_for_event
         self._current_event = None
         self._event_total_bytes = 0
@@ -257,15 +265,16 @@ class DandiNwbRecordingExtractor(NwbRecordingExtractor):
             One dictionary per event with keys: ``storename``, ``sampling_rate``,
             ``timestamps``, ``data``, ``npoints``.
         """
-        self._ensure_count_cache()
         dandiset_id, asset_path = parse_dandi_uri(self.folder_path)
         nwbfile, io, counter = _stream_nwb(dandiset_id=dandiset_id, asset_path=asset_path)
         self._last_counter = counter
+        sample_counts = self._sample_count_cache or {}
+        byte_counts = self._byte_count_cache or {}
         output_dicts: list[dict[str, Any]] = []
         try:
             for event in events:
-                total_samples = int(self._sample_count_cache.get(event, 0))
-                total_bytes = int(self._byte_count_cache.get(event, 0))
+                total_samples = int(sample_counts.get(event, 0))
+                total_bytes = int(byte_counts.get(event, 0))
                 counter.set_event(event=event, total_bytes=total_bytes, total_samples=total_samples)
                 try:
                     output_dicts.extend(_read_events_from_nwbfile(nwbfile=nwbfile, io=io, events=[event]))

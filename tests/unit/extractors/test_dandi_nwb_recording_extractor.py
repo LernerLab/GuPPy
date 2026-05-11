@@ -111,6 +111,112 @@ class TestParseDandiUri:
 
 
 # ---------------------------------------------------------------------------
+# _CountingRemfile passive byte-tracker tests
+# ---------------------------------------------------------------------------
+
+
+class TestCountingRemfile:
+    """Verify the passive byte-counter wrapper is transparent and accounts correctly."""
+
+    def _build(self, *, payload, total_bytes, total_samples):
+        import io as io_module
+
+        from guppy.extractors.dandi_nwb_recording_extractor import _CountingRemfile
+
+        counter = _CountingRemfile(io_module.BytesIO(payload))
+        counter.set_event(event="evt", total_bytes=total_bytes, total_samples=total_samples)
+        return counter
+
+    def test_read_returns_wrapped_bytes_unchanged(self):
+        # 100 bytes of payload, request 40 → wrapper returns exactly the same 40 bytes.
+        payload = bytes(range(100))
+        counter = self._build(payload=payload, total_bytes=100, total_samples=10)
+        result = counter.read(40)
+        assert result == payload[:40]
+
+    def test_read_full_payload_returns_full_payload(self):
+        payload = b"\x00" * 100
+        counter = self._build(payload=payload, total_bytes=100, total_samples=10)
+        result = counter.read(100)
+        assert len(result) == 100
+
+    def test_full_event_read_commits_all_samples(self):
+        # 100 bytes total, 10 samples → fully reading commits 10 samples.
+        counter = self._build(payload=b"\x00" * 100, total_bytes=100, total_samples=10)
+        counter.read(100)
+        counter.end_event()
+        assert counter.committed_samples_for_event("evt") == 10
+
+    def test_partial_read_commits_proportional_samples_during_streaming(self):
+        # 1000 bytes / 100 samples → 10 bytes per sample.
+        # Reading 250 bytes ⇒ 25 samples committed so far.
+        counter = self._build(payload=b"\x00" * 1000, total_bytes=1000, total_samples=100)
+        counter.read(250)
+        # Inspect the running per-event tally before end_event finalises it.
+        assert counter._samples_committed_for_event == 25
+
+    def test_end_event_tops_up_committed_to_event_total(self):
+        # DANDI datasets are typically compressed, so bytes-on-wire is less than
+        # the uncompressed event_total_bytes; end_event must reconcile the
+        # event's per-event committed count to event_total_samples regardless.
+        counter = self._build(payload=b"\x00" * 1000, total_bytes=1000, total_samples=100)
+        counter.read(250)  # only 25 samples worth of bytes have flowed
+        counter.end_event()
+        assert counter.committed_samples_for_event("evt") == 100
+
+    def test_overshoot_clamps_to_event_total(self):
+        # Underlying BytesIO has 200 bytes but we declare only 100 as the event budget;
+        # reading all 200 must clamp committed samples to total_samples (=10).
+        counter = self._build(payload=b"\x00" * 200, total_bytes=100, total_samples=10)
+        counter.read(200)
+        counter.end_event()
+        assert counter.committed_samples_for_event("evt") == 10
+
+    def test_reads_outside_event_scope_are_not_attributed(self):
+        # No set_event call → bytes flow through but no committed counters update.
+        import io as io_module
+
+        from guppy.extractors.dandi_nwb_recording_extractor import _CountingRemfile
+
+        counter = _CountingRemfile(io_module.BytesIO(b"\x00" * 100))
+        counter.read(50)
+        assert counter.committed_samples_for_event("evt") == 0
+
+    def test_set_event_finalizes_previous_event(self):
+        # Switching events without explicit end_event must still snapshot
+        # the previous event's committed count into committed_samples_by_event.
+        # end_event tops each event up to its declared total_samples (compressed
+        # DANDI bytes-on-wire are less than the uncompressed budget), so both
+        # events are reported at their full sample counts after switching.
+        import io as io_module
+
+        from guppy.extractors.dandi_nwb_recording_extractor import _CountingRemfile
+
+        counter = _CountingRemfile(io_module.BytesIO(b"\x00" * 200))
+        counter.set_event(event="a", total_bytes=100, total_samples=10)
+        counter.read(50)
+        counter.set_event(event="b", total_bytes=100, total_samples=20)
+        counter.read(50)
+        counter.end_event()
+        assert counter.committed_samples_for_event("a") == 10
+        assert counter.committed_samples_for_event("b") == 20
+
+    def test_getattr_forwards_to_wrapped_object(self):
+        # h5py uses arbitrary file-protocol attributes (seek, tell, etc.); make sure
+        # they fall through to the underlying object via __getattr__.
+        import io as io_module
+
+        from guppy.extractors.dandi_nwb_recording_extractor import _CountingRemfile
+
+        wrapped = io_module.BytesIO(b"abcdef")
+        counter = _CountingRemfile(wrapped)
+        counter.read(3)
+        assert counter.tell() == 3
+        counter.seek(0)
+        assert counter.tell() == 0
+
+
+# ---------------------------------------------------------------------------
 # DANDI-specific wiring tests: URI parsing, _stream_nwb invocation, io.close
 # ---------------------------------------------------------------------------
 
