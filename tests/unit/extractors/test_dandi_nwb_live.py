@@ -64,7 +64,7 @@ class TestDandiLiveContract(NwbRecordingExtractorTestMixin):
     def streamed_nwbfile(self):
         """Stream the live NWB file once per class and hold IO open for the session."""
         dandiset_id, asset_path = parse_dandi_uri(DANDI_URI)
-        nwbfile, io = _stream_nwb(dandiset_id=dandiset_id, asset_path=asset_path)
+        nwbfile, io, _ = _stream_nwb(dandiset_id=dandiset_id, asset_path=asset_path)
         yield nwbfile
         io.close()
 

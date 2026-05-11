@@ -53,6 +53,13 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
     def __init__(self, *, folder_path):
         self.folder_path = folder_path
 
+    def count_samples(self, *, event: str) -> int:
+        """Return the total number of samples for ``event`` without reading bulk data."""
+        nwb_path = _find_nwb_file(self.folder_path)
+        with NWBHDF5IO(nwb_path, "r") as io:
+            nwbfile = io.read()
+            return _count_event_samples(nwbfile=nwbfile, io=io, event=event)
+
     def read(self, *, events: list[str], outputPath: str) -> list[dict[str, Any]]:
         """
         Read data for the given events from the NWB file.
@@ -105,6 +112,27 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
         Stub method is unnecessary for NWB files.
         """
         raise NotImplementedError("Stub method is unnecessary for NWB files.")
+
+
+def _count_event_samples(*, nwbfile, io, event):
+    """Return total samples for ``event`` without materialising bulk data.
+
+    For ``FiberPhotometryResponseSeries`` events the result is the dataset's
+    leading dimension. For ndx-events events the result is ``0`` because
+    they carry only sparse event timestamps and contribute negligibly to
+    progress-bar weighting.
+    """
+    series_name_to_object = {
+        obj.name: obj for obj in nwbfile.objects.values() if obj.neurodata_type == "FiberPhotometryResponseSeries"
+    }
+    if event in series_name_to_object:
+        return int(series_name_to_object[event].data.shape[0])
+    parts = event.rsplit("_", 1)
+    if len(parts) == 2 and parts[1].isdigit():
+        series_name = parts[0]
+        if series_name in series_name_to_object:
+            return int(series_name_to_object[series_name].data.shape[0])
+    return 0
 
 
 def _discover_events_from_nwbfile(*, nwbfile, io):

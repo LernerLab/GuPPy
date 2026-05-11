@@ -56,7 +56,11 @@ class _StreamNwbSpy:
             return original_close(*args, **kwargs)
 
         io.close = tracked_close
-        return nwbfile, io
+        import io as io_module
+
+        from guppy.extractors.dandi_nwb_recording_extractor import _CountingRemfile
+
+        return nwbfile, io, _CountingRemfile(io_module.BytesIO())
 
 
 # ---------------------------------------------------------------------------

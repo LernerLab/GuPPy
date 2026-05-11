@@ -43,19 +43,26 @@ STORENAMES_MAP = {
 def patched_stream_nwb(monkeypatch):
     """Replace _stream_nwb with a function that opens the local mock NWB file."""
 
+    import io as io_module
+
+    from guppy.extractors.dandi_nwb_recording_extractor import _CountingRemfile
+
     def local_stream_nwb(*, dandiset_id, asset_path):
         io = NWBHDF5IO(str(MOCK_NWB_FILE), "r", load_namespaces=True)
         nwbfile = io.read()
-        return nwbfile, io
+        return nwbfile, io, _CountingRemfile(io_module.BytesIO())
 
     monkeypatch.setattr(dandi_module, "_stream_nwb", local_stream_nwb)
 
     # step3 spawns a multiprocessing pool that doesn't inherit the monkeypatch.
     # Replace the imported helper with a serial loop so the patched _stream_nwb
     # stays in effect.
-    def serial_read_and_save_all_events(event_to_extractor, outputPath, numProcesses):
+    def serial_read_and_save_all_events(
+        event_to_extractor, outputPath, numProcesses, samples_done=None, event_total_samples=None
+    ):
         for event, extractor in event_to_extractor.items():
-            read_and_save_event(extractor, str(event), outputPath)
+            total = 0 if event_total_samples is None else int(event_total_samples.get(event, 0))
+            read_and_save_event(extractor, str(event), outputPath, total)
 
     monkeypatch.setattr(read_raw_data_module, "read_and_save_all_events", serial_read_and_save_all_events)
 
