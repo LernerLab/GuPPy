@@ -15,8 +15,10 @@ from guppy.extractors import (
     NwbRecordingExtractor,
     TdtRecordingExtractor,
     detect_acquisition_formats,
-    read_and_save_all_events,
+    read_and_save_events_for_extractor,
 )
+from guppy.extractors import base_recording_extractor as base_module
+from guppy.extractors.base_recording_extractor import _pool_initializer
 from guppy.frontend.progress import PB_STEPS_FILE, subprocess_main_handler, writeToFile
 from guppy.utils.utils import select_output_dirs
 
@@ -36,6 +38,24 @@ def _progress_poller(samples_done, stop_event, *, file_path):
         if current != last_written:
             writeToFile(str(current * 10) + "\n", file_path=file_path)
             last_written = current
+
+
+def _group_events_by_extractor(event_to_extractor, events):
+    """Partition ``events`` by their owning extractor instance, preserving order.
+
+    Single-extractor sessions produce one group; mixed-modality sessions produce
+    one group per format. Uses ``id(extractor)`` as the partitioning key so that
+    the same instance is reused across multiple events (e.g. TDT's three stores
+    all share one ``TdtRecordingExtractor`` instance).
+    """
+    grouped = {}
+    for event in events:
+        extractor = event_to_extractor[event]
+        key = id(extractor)
+        if key not in grouped:
+            grouped[key] = (extractor, [])
+        grouped[key][1].append(str(event))
+    return {extractor: event_list for extractor, event_list in grouped.values()}
 
 
 def _build_event_to_extractor(*, folder_path, storesList, inputParameters):
@@ -132,8 +152,9 @@ def orchestrate_read_raw_data(inputParameters):
 
     # Pre-flight: walk every output folder, build its extractor map, and ask each
     # extractor for the per-event sample count via metadata-only inspection. The
-    # resulting dict feeds the progress-bar denominator and per-worker reconciliation.
-    work_units = []
+    # resulting per-(session, extractor) tasks feed both the progress-bar
+    # denominator and the worker pool.
+    tasks = []
     total_samples = 0
     for filepath in folderNames:
         for op in select_output_dirs(filepath, selected_outputs.get(filepath)):
@@ -144,7 +165,6 @@ def orchestrate_read_raw_data(inputParameters):
                 storesList=storesList,
                 inputParameters=inputParameters,
             )
-            store_event_to_extractor = {}
             event_total_samples = {}
             for event in events:
                 extractor = event_to_extractor.get(event)
@@ -154,19 +174,23 @@ def orchestrate_read_raw_data(inputParameters):
                         f"Event '{event}' not found in any extractor for folder {filepath}. "
                         f"Available events: {available}."
                     )
-                store_event_to_extractor[event] = extractor
                 event_total_samples[event] = (
                     int(extractor.count_samples(event=event)) if hasattr(extractor, "count_samples") else 0
                 )
                 total_samples += event_total_samples[event]
-            work_units.append(
-                {
-                    "filepath": filepath,
-                    "output_dir": op,
-                    "event_to_extractor": store_event_to_extractor,
-                    "event_total_samples": event_total_samples,
-                }
-            )
+
+            # Group events by extractor instance identity so each task is one
+            # batched read for one (session, extractor) pair. Mixed-modality
+            # sessions (e.g. TDT data + CSV TTL) contribute one task per format.
+            for extractor, grouped_events in _group_events_by_extractor(event_to_extractor, events).items():
+                tasks.append(
+                    (
+                        extractor,
+                        grouped_events,
+                        op,
+                        {event: event_total_samples[event] for event in grouped_events},
+                    )
+                )
 
     # Bar denominator. Falls back to 10 so the file stays valid for the
     # rare degenerate case where no extractor reports samples (all-ndx-events runs).
@@ -183,16 +207,20 @@ def orchestrate_read_raw_data(inputParameters):
     )
     poller.start()
     try:
-        for unit in work_units:
-            logger.debug(f"### Reading raw data for folder {unit['filepath']}")
-            read_and_save_all_events(
-                unit["event_to_extractor"],
-                unit["output_dir"],
-                numProcesses,
-                samples_done=samples_done,
-                event_total_samples=unit["event_total_samples"],
-            )
-            logger.info(f"### Raw data for folder {unit['filepath']} fetched")
+        if numProcesses <= 1:
+            # Serial path: run tasks in the parent process so the shared counter
+            # plumbing (and any test monkeypatches on the extractors) stays in scope.
+            base_module._SAMPLES_DONE = samples_done
+            try:
+                for extractor, grouped_events, output_dir, event_totals in tasks:
+                    logger.debug(f"### Reading raw data for {len(grouped_events)} event(s) into {output_dir}")
+                    read_and_save_events_for_extractor(extractor, grouped_events, output_dir, event_totals)
+            finally:
+                base_module._SAMPLES_DONE = None
+        else:
+            with mp.Pool(numProcesses, initializer=_pool_initializer, initargs=(samples_done,)) as pool:
+                pool.starmap(read_and_save_events_for_extractor, tasks)
+        logger.info("### Raw data fetched for all sessions")
     finally:
         # Reconcile to exact total so the bar always finishes at 100%, then drain
         # the poller thread before returning.

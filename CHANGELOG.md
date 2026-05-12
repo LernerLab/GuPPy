@@ -14,6 +14,7 @@
 - Fixed bug with step five, which was causing the baseline uncorrected HDF5 file to not exist. [PR #241](https://github.com/LernerLab/GuPPy/pull/241)
 
 ## Improvements
+- Hoisted step-3 multiprocessing pool out of the per-session loop and batched reads per `(session, extractor)` pair: ~3.3× faster DANDI streaming and ~2.2× faster local NWB on representative sessions.
 - Expanded the first tutorial with embedded screenshots and a step-by-step walkthrough of the Storenames and Visualization GUIs, corrected button names and HDF5 output descriptions, and added `docs/take_screenshots.py` to regenerate the tutorial screenshots from the stubbed CSV sample data. [PR #303](https://github.com/LernerLab/GuPPy/pull/303)
 - Saved GuPPy version and expanded the parameter set written to `GuPPyParamtersUsed.json` (adds `artifactsRemovalMethod`, `computeCorr`, `plot_zScore_dff`, `visualize_zscore_or_dff`, `averageForGroup`). [PR #328](https://github.com/LernerLab/GuPPy/pull/328)
 - Renamed the per-event dict variable `S` (in `tdt_recording_extractor.py` and `doric_recording_extractor.py`) to `event_dict`, the helper-local `new_S` to `split_event_dict`, and the storenames-config dict `d` (in `storenames.py`, `_fetchValues`/`_save`, and the `StorenamesSelector.{get,set}_literal_input_2` parameter) to `storenames_config`, addressing part of [#187](https://github.com/LernerLab/GuPPy/issues/187). [PR #304](https://github.com/LernerLab/GuPPy/pull/304)

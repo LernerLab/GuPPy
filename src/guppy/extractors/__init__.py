@@ -1,7 +1,6 @@
 from .base_recording_extractor import (
     BaseRecordingExtractor,
-    read_and_save_event,
-    read_and_save_all_events,
+    read_and_save_events_for_extractor,
 )
 from .detect_acquisition_formats import detect_acquisition_formats
 from .tdt_recording_extractor import TdtRecordingExtractor

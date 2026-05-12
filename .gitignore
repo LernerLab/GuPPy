@@ -16,3 +16,5 @@ CLAUDE.md
 
 docs/_build/
 uv.lock
+
+tmp/

@@ -137,25 +137,9 @@ class TestProgressFileAccountingEndToEnd:
 
         monkeypatch.setattr(read_raw_data_module, "_build_event_to_extractor", fake_build_event_to_extractor)
 
-        # Serial replacement: pool initializer + worker-side _SAMPLES_DONE plumbing
-        # only kicks in inside the pool. Install the counter in this process so
-        # read_and_save_event commits samples synchronously.
-        from guppy.extractors import base_recording_extractor as base_module
-        from guppy.extractors.base_recording_extractor import read_and_save_event
-
-        def serial_read_and_save_all_events(
-            event_to_extractor, outputPath, numProcesses, samples_done=None, event_total_samples=None
-        ):
-            base_module._SAMPLES_DONE = samples_done
-            try:
-                for event, extractor in event_to_extractor.items():
-                    total = 0 if event_total_samples is None else int(event_total_samples.get(event, 0))
-                    read_and_save_event(extractor, str(event), outputPath, total)
-            finally:
-                base_module._SAMPLES_DONE = None
-
-        monkeypatch.setattr(read_raw_data_module, "read_and_save_all_events", serial_read_and_save_all_events)
-
+        # numberOfCores=1 routes orchestrate_read_raw_data through its serial path,
+        # which installs _SAMPLES_DONE in the parent process and calls the
+        # read-and-save unit function directly — no pool, no separate patch needed.
         input_parameters = {
             "folderNames": [str(session_folder)],
             "numberOfCores": 1,
