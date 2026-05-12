@@ -2,11 +2,34 @@
 
 import logging
 import multiprocessing as mp
-import time
 from abc import ABC, abstractmethod
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+# Per-worker handle on the shared "samples done" counter. Installed by
+# ``_pool_initializer`` when the orchestrator opens its multiprocessing pool,
+# or directly by the orchestrator's serial path. Stays ``None`` outside of
+# either context so direct unit-test calls are no-ops on progress accounting.
+_SAMPLES_DONE: "mp.sharedctypes.Synchronized | None" = None
+
+
+def _pool_initializer(samples_done):
+    global _SAMPLES_DONE
+    _SAMPLES_DONE = samples_done
+
+
+def add_samples_done(delta: int) -> None:
+    """Atomically add ``delta`` samples to the shared progress counter.
+
+    No-op when ``_SAMPLES_DONE`` has not been installed, or when ``delta`` is
+    non-positive.
+    """
+    if _SAMPLES_DONE is None or delta <= 0:
+        return
+    with _SAMPLES_DONE.get_lock():
+        _SAMPLES_DONE.value += int(delta)
 
 
 class BaseRecordingExtractor(ABC):
@@ -92,47 +115,37 @@ class BaseRecordingExtractor(ABC):
         pass
 
 
-def read_and_save_event(extractor, event, outputPath):
+def read_and_save_events_for_extractor(extractor, events, outputPath, event_total_samples):
     """
-    Read data for a single event and save it to HDF5.
+    Read all events owned by one extractor in a single batched call, save, and
+    account progress per event.
 
-    Intended as the per-worker function called by :func:`read_and_save_all_events`
-    inside a multiprocessing pool.
+    Intended as the per-task unit of work invoked by ``orchestrate_read_raw_data``
+    — either directly in the parent process (single-core path) or inside a
+    multiprocessing pool worker (multi-core path).
 
     Parameters
     ----------
     extractor : BaseRecordingExtractor
-        Extractor instance used to read and save the event.
-    event : str
-        Name of the event/store to read.
+        Extractor instance used to read and save the events.
+    events : list of str
+        Names of the events/stores to read in this single batched call.
     outputPath : str
         Path to the output directory where HDF5 files are written.
+    event_total_samples : dict
+        Mapping from event name (str) to its pre-computed total sample count.
+        Used to advance the shared progress counter after the read returns.
     """
-    output_dicts = extractor.read(events=[event], outputPath=outputPath)
+    # str() normalizes np.str_ scalars (e.g. dtype <U34 from NWB reads) so the
+    # event names are plain Python strings before they cross any boundaries.
+    normalized_events = [str(event) for event in events]
+    output_dicts = extractor.read(events=normalized_events, outputPath=outputPath)
     extractor.save(output_dicts=output_dicts, outputPath=outputPath)
-    logger.info("Data for event {} fetched and stored.".format(event))
-
-
-def read_and_save_all_events(event_to_extractor, outputPath, numProcesses=mp.cpu_count()):
-    """
-    Read and save all events in parallel using a multiprocessing pool.
-
-    Parameters
-    ----------
-    event_to_extractor : dict
-        Mapping from event name (str) to the :class:`BaseRecordingExtractor`
-        instance responsible for reading that event.
-    outputPath : str
-        Path to the output directory where HDF5 files are written.
-    numProcesses : int, optional
-        Number of worker processes. Defaults to ``multiprocessing.cpu_count()``.
-    """
-    events = list(event_to_extractor.keys())
-    logger.info("Reading data for event {} ...".format(events))
-
-    start = time.time()
-    # str() normalizes np.str_ scalars (e.g. dtype <U34 from NWB reads) before pickling.
-    args = [(extractor, str(event), outputPath) for event, extractor in event_to_extractor.items()]
-    with mp.Pool(numProcesses) as p:
-        p.starmap(read_and_save_event, args)
-    logger.info("Time taken = {0:.5f}".format(time.time() - start))
+    # Extractors that report progress incrementally during read (e.g. DANDI's
+    # passive byte counter) expose ``committed_samples_for_event``. Subtract
+    # what they already committed so we only add the residual at event end.
+    has_passive_counter = hasattr(extractor, "committed_samples_for_event")
+    for event in normalized_events:
+        already_committed = int(extractor.committed_samples_for_event(event)) if has_passive_counter else 0
+        add_samples_done(int(event_total_samples.get(event, 0)) - already_committed)
+        logger.info("Data for event {} fetched and stored.".format(event))

@@ -186,6 +186,22 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
 
         return event_dict
 
+    def count_samples(self, *, event: str) -> int:
+        """Return the total number of samples in ``event`` based on header metadata."""
+        data = self._header_df
+        names = np.asarray(data["name"], dtype=str)
+        row = self._ismember(names, event)
+        if sum(row) == 0:
+            return 0
+        indexes = np.where(row == 1)[0]
+        first_row = indexes[0]
+        format_new = data["format"][first_row] + 1
+        if format_new == 5:
+            return int(len(indexes))
+        bytes_per_sample_table = {1: 1, 2: 1, 3: 2, 4: 4}
+        nsample = int((data["size"][first_row] - 10) * bytes_per_sample_table[int(format_new)])
+        return int(nsample * len(indexes))
+
     def read(self, *, events: list[str], outputPath: str) -> list[dict[str, Any]]:
         """
         Read data from TDT TEV/TSQ files for the specified events.

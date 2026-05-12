@@ -47,6 +47,13 @@ class MockRecordingExtractor(BaseRecordingExtractor):
         """
         return list(_MOCK_EVENTS), []
 
+    def count_samples(self, *, event: str) -> int:
+        """Return the total number of samples that ``read()`` would produce."""
+        duration = MockRecordingExtractor._stub_folder_path_to_duration.get(str(self.folder_path))
+        if duration is None:
+            duration = _MOCK_DURATION_IN_SECONDS
+        return int(duration * _MOCK_SAMPLING_RATE)
+
     def read(self, *, events: list[str], outputPath: str) -> list[dict]:
         """
         Return deterministic numpy arrays for each requested event.

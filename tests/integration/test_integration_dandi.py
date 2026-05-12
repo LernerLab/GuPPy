@@ -19,8 +19,6 @@ from conftest import STUBBED_TESTING_DATA, _locate_output_directory
 from pynwb import NWBHDF5IO
 
 from guppy.extractors import dandi_nwb_recording_extractor as dandi_module
-from guppy.extractors.base_recording_extractor import read_and_save_event
-from guppy.orchestration import read_raw_data as read_raw_data_module
 from guppy.testing.api import step2, step3
 
 MOCK_NWB_FILE = (
@@ -41,23 +39,23 @@ STORENAMES_MAP = {
 
 @pytest.fixture
 def patched_stream_nwb(monkeypatch):
-    """Replace _stream_nwb with a function that opens the local mock NWB file."""
+    """Replace _stream_nwb with a function that opens the local mock NWB file.
+
+    With step3 running serially in the parent process (numberOfCores=1, the api.step3
+    default), this single patch is all that's needed — the orchestrator's serial
+    path runs in-process and naturally sees this monkeypatch.
+    """
+
+    import io as io_module
+
+    from guppy.extractors.dandi_nwb_recording_extractor import _CountingRemfile
 
     def local_stream_nwb(*, dandiset_id, asset_path):
         io = NWBHDF5IO(str(MOCK_NWB_FILE), "r", load_namespaces=True)
         nwbfile = io.read()
-        return nwbfile, io
+        return nwbfile, io, _CountingRemfile(io_module.BytesIO())
 
     monkeypatch.setattr(dandi_module, "_stream_nwb", local_stream_nwb)
-
-    # step3 spawns a multiprocessing pool that doesn't inherit the monkeypatch.
-    # Replace the imported helper with a serial loop so the patched _stream_nwb
-    # stays in effect.
-    def serial_read_and_save_all_events(event_to_extractor, outputPath, numProcesses):
-        for event, extractor in event_to_extractor.items():
-            read_and_save_event(extractor, str(event), outputPath)
-
-    monkeypatch.setattr(read_raw_data_module, "read_and_save_all_events", serial_read_and_save_all_events)
 
 
 @pytest.fixture
