@@ -39,7 +39,7 @@ from ..utils.validation import validate_peak_windows, validate_window_bounds
 logger = logging.getLogger(__name__)
 
 
-def execute_compute_psth(filepath, event, inputParameters):
+def execute_compute_psth(filepath: str, event: str, inputParameters: dict[str, object]) -> None:
     """Compute and save the PSTH for a single event in one session output folder.
 
     Parameters
@@ -122,7 +122,7 @@ def execute_compute_psth(filepath, event, inputParameters):
         logger.info(f"PSTH for event {event} computed.")
 
 
-def execute_compute_psth_peak_and_area(filepath, event, inputParameters):
+def execute_compute_psth_peak_and_area(filepath: str, event: str, inputParameters: dict[str, object]) -> None:
     """Compute and save PSTH peak and area for a single event.
 
     Parameters
@@ -178,7 +178,7 @@ def execute_compute_psth_peak_and_area(filepath, event, inputParameters):
         logger.info(f"Peak and Area for PSTH mean signal for event {event} computed.")
 
 
-def execute_compute_cross_correlation(filepath, event, inputParameters):
+def execute_compute_cross_correlation(filepath: str, event: str, inputParameters: dict[str, object]) -> None:
     """Compute and save cross-correlation between brain regions for a single event.
 
     Parameters
@@ -243,7 +243,7 @@ def execute_compute_cross_correlation(filepath, event, inputParameters):
                 logger.info(f"Cross-correlation for event {event} computed.")
 
 
-def orchestrate_psth(inputParameters):
+def orchestrate_psth(inputParameters: dict[str, object]) -> None:
     """Run PSTH, peak/area, and cross-correlation for each individual session.
 
     Parameters
@@ -293,7 +293,7 @@ def orchestrate_psth(inputParameters):
         logger.info(f"PSTH, Area and Peak are computed for all events in {folderNames[i]}.")
 
 
-def execute_psth_combined(inputParameters):
+def execute_psth_combined(inputParameters: dict[str, object]) -> None:
     """Run PSTH computation for combined (multi-session) data.
 
     Parameters
@@ -328,7 +328,7 @@ def execute_psth_combined(inputParameters):
         inputParameters["step"] += 1
 
 
-def _validate_storenames_consistent_for_group(storesListPath):
+def _validate_storenames_consistent_for_group(storesListPath: np.ndarray) -> None:
     """Check that every session output directory exposes the same storenames.
 
     Group averaging only produces meaningful results when all sessions share the
@@ -366,7 +366,7 @@ def _validate_storenames_consistent_for_group(storesListPath):
     )
 
 
-def _validate_psth_window_parameters(inputParameters):
+def _validate_psth_window_parameters(inputParameters: dict[str, object]) -> None:
     """Upfront PSTH-window validation, run before any HDF5 IO.
 
     Why: peak-window ordering used to surface only deep inside
@@ -396,7 +396,7 @@ def _validate_psth_window_parameters(inputParameters):
     )
 
 
-def execute_average_for_group(inputParameters):
+def execute_average_for_group(inputParameters: dict[str, object]) -> None:
     """Average PSTH results across all selected sessions in the group.
 
     Parameters
@@ -459,7 +459,7 @@ def execute_average_for_group(inputParameters):
         inputParameters["step"] += 1
 
 
-def psthForEachStorename(inputParameters):
+def psthForEachStorename(inputParameters: dict[str, object]) -> dict[str, object]:
     """Entry point for step-5 PSTH computation: validates parameters and dispatches to the appropriate sub-routine.
 
     Parameters
@@ -510,7 +510,7 @@ def psthForEachStorename(inputParameters):
 
 
 @subprocess_main_handler
-def main(input_parameters):
+def main(input_parameters: dict[str, object]) -> None:
     """Run step-5 PSTH computation and chain to the transients step.
 
     Parameters

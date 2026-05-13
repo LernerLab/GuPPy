@@ -14,7 +14,7 @@ from ..utils.utils import get_all_stores_for_combining_data, read_Df, select_out
 logger = logging.getLogger(__name__)
 
 
-def helper_plots(filepath, event, name, inputParameters):
+def helper_plots(filepath: str, event: list[str], name: list[str] | str, inputParameters: dict[str, object]) -> None:
     """Build and display the interactive PSTH visualization dashboard for one output directory.
 
     Parameters
@@ -146,7 +146,7 @@ def helper_plots(filepath, event, name, inputParameters):
     dashboard.show()
 
 
-def createPlots(filepath, event, inputParameters):
+def createPlots(filepath: str, event: np.ndarray, inputParameters: dict[str, object]) -> None:
     """Assemble PSTH data from an output directory and delegate to ``helper_plots``.
 
     Parameters
@@ -202,7 +202,7 @@ def createPlots(filepath, event, inputParameters):
         helper_plots(filepath, event, name_arr, inputParameters)
 
 
-def _validate_metric_against_step5_outputs(inputParameters):
+def _validate_metric_against_step5_outputs(inputParameters: dict[str, object]) -> None:
     """Cross-check the visualization metric selection against step-5 PSTH outputs on disk.
 
     Step 5 only writes PSTH ``.h5`` files for the metric(s) selected via
@@ -270,7 +270,7 @@ def _validate_metric_against_step5_outputs(inputParameters):
         )
 
 
-def _validate_average_visualization_preconditions(inputParameters):
+def _validate_average_visualization_preconditions(inputParameters: dict[str, object]) -> None:
     """Ensure the prerequisites for 'Visualize Average Results' are satisfied.
 
     Catches the three user-facing failure modes documented in issue #274:
@@ -331,7 +331,7 @@ def _validate_average_visualization_preconditions(inputParameters):
         )
 
 
-def visualizeResults(inputParameters):
+def visualizeResults(inputParameters: dict[str, object]) -> None:
     """Entry point for step-6 visualization: validate preconditions and open dashboards.
 
     Parameters

@@ -1,6 +1,7 @@
 import json
 import logging
 import multiprocessing as mp
+import multiprocessing.sharedctypes
 import os
 import sys
 import threading
@@ -25,7 +26,9 @@ from guppy.utils.utils import select_output_dirs
 logger = logging.getLogger(__name__)
 
 
-def _progress_poller(samples_done, stop_event, *, file_path):
+def _progress_poller(
+    samples_done: mp.sharedctypes.Synchronized, stop_event: threading.Event, *, file_path: str
+) -> None:
     """Periodically flush the shared samples counter into ``PB_STEPS_FILE``.
 
     Runs in the parent process while the multiprocessing pool drains. Each
@@ -40,7 +43,7 @@ def _progress_poller(samples_done, stop_event, *, file_path):
             last_written = current
 
 
-def _group_events_by_extractor(event_to_extractor, events):
+def _group_events_by_extractor(event_to_extractor: dict, events: np.ndarray) -> dict:
     """Partition ``events`` by their owning extractor instance, preserving order.
 
     Single-extractor sessions produce one group; mixed-modality sessions produce
@@ -58,7 +61,7 @@ def _group_events_by_extractor(event_to_extractor, events):
     return {extractor: event_list for extractor, event_list in grouped.values()}
 
 
-def _build_event_to_extractor(*, folder_path, storesList, inputParameters):
+def _build_event_to_extractor(*, folder_path: str, storesList: np.ndarray, inputParameters: dict[str, object]) -> dict:
     """
     Build a mapping from event name to the extractor instance that owns it.
 
@@ -126,7 +129,7 @@ def _build_event_to_extractor(*, folder_path, storesList, inputParameters):
     return event_to_extractor
 
 
-def orchestrate_read_raw_data(inputParameters):
+def orchestrate_read_raw_data(inputParameters: dict[str, object]) -> None:
     """Read raw acquisition data for all sessions and save to HDF5.
 
     Parameters
@@ -236,7 +239,7 @@ def orchestrate_read_raw_data(inputParameters):
     logger.info("#" * 400)
 
 
-def _load_stores_list(output_dir):
+def _load_stores_list(output_dir: str) -> np.ndarray:
     """Load the storesList CSV (preferring the cached copy if it exists)."""
     cached_path = os.path.join(output_dir, ".cache_storesList.csv")
     source_path = cached_path if os.path.exists(cached_path) else os.path.join(output_dir, "storesList.csv")
@@ -244,7 +247,7 @@ def _load_stores_list(output_dir):
 
 
 @subprocess_main_handler
-def main(input_parameters):
+def main(input_parameters: dict[str, object]) -> None:
     """Subprocess entry point for step-3 raw-data extraction.
 
     Parameters

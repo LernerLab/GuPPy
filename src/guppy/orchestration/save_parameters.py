@@ -8,7 +8,7 @@ from guppy.utils.utils import discover_output_dirs, select_output_dirs
 logger = logging.getLogger(__name__)
 
 
-def save_parameters(inputParameters: dict):
+def save_parameters(inputParameters: dict[str, object]) -> None:
     """
     Write the analysis configuration JSON to each selected output directory.
 

@@ -38,7 +38,7 @@ pn.extension()
 logger = logging.getLogger(__name__)
 
 
-def show_dir(filepath, run_name=None):
+def show_dir(filepath: str, run_name: str | None = None) -> str:
     """Return the path of an output directory without creating it.
 
     Parameters
@@ -69,7 +69,7 @@ def show_dir(filepath, run_name=None):
     return op
 
 
-def make_dir(filepath, run_name=None, run_name_policy="create"):
+def make_dir(filepath: str, run_name: str | None = None, run_name_policy: str = "create") -> str:
     """Create and return an output directory.
 
     Parameters
@@ -115,7 +115,14 @@ def make_dir(filepath, run_name=None, run_name_policy="create"):
     return op
 
 
-def _fetchValues(text, storenames, storename_dropdowns, storename_textboxes, storenames_config, isosbestic_control=False):
+def _fetchValues(
+    text: object,
+    storenames: list,
+    storename_dropdowns: dict,
+    storename_textboxes: dict,
+    storenames_config: dict,
+    isosbestic_control: bool = False,
+) -> str:
     if not storename_dropdowns or not len(storenames) > 0:
         return "####Alert !! \n No storenames selected."
 
@@ -194,7 +201,7 @@ def _fetchValues(text, storenames, storename_dropdowns, storename_textboxes, sto
     return "#### No alerts !!"
 
 
-def _save(storenames_config, select_location):
+def _save(storenames_config: dict, select_location: str) -> str:
     arr1, arr2 = np.asarray(storenames_config["storenames"]), np.asarray(storenames_config["names_for_storenames"])
 
     empty_indices = np.where(arr2 == "")[0].tolist()
@@ -261,7 +268,9 @@ def _save(storenames_config, select_location):
     return "#### No alerts !!"
 
 
-def build_storenames_template(events, flags, folder_path, isosbestic_control=False):
+def build_storenames_template(
+    events: list[str], flags: list[str], folder_path: str, isosbestic_control: bool = False
+) -> pn.template.BootstrapTemplate:
     """Build and return the Storenames GUI Panel template without serving it.
 
     Parameters
@@ -295,7 +304,7 @@ def build_storenames_template(events, flags, folder_path, isosbestic_control=Fal
     # ------------------------------------------------------------------------------------------------------------------
     # onclick closure functions
     # on clicking overwrite_button, following function is executed
-    def overwrite_button_actions(event):
+    def overwrite_button_actions(event: object) -> None:
         if event.new == "over_write_file":
             options = discover_output_dirs(folder_path)
             storenames_selector.set_select_location_options(options=options)
@@ -304,7 +313,7 @@ def build_storenames_template(events, flags, folder_path, isosbestic_control=Fal
             options = [show_dir(folder_path, run_name=run_name or None)]
             storenames_selector.set_select_location_options(options=options)
 
-    def run_name_input_changed(event):
+    def run_name_input_changed(event: object) -> None:
         if storenames_selector.get_overwrite_mode() != "create_new_file":
             return
         run_name = event.new or None
@@ -316,7 +325,7 @@ def build_storenames_template(events, flags, folder_path, isosbestic_control=Fal
         storenames_selector.set_select_location_options(options=options)
         storenames_selector.set_alert_message("#### No alerts !!")
 
-    def fetchValues(event):
+    def fetchValues(event: object) -> None:
         global storenames
         storenames_config = dict()
         alert_message = _fetchValues(
@@ -331,7 +340,7 @@ def build_storenames_template(events, flags, folder_path, isosbestic_control=Fal
         storenames_selector.set_literal_input_2(storenames_config=storenames_config)
 
     # on clicking 'Select Storenames' button, following function is executed
-    def update_values(event):
+    def update_values(event: object) -> None:
         global storenames, vars_list
 
         arr = storenames_selector.get_take_widgets()
@@ -358,7 +367,7 @@ def build_storenames_template(events, flags, folder_path, isosbestic_control=Fal
         )
 
     # on clicking save button, following function is executed
-    def save_button(event=None):
+    def save_button(event: object = None) -> None:
         global storenames
         storenames_config = storenames_selector.get_literal_input_2()
         select_location = storenames_selector.get_select_location()
@@ -383,7 +392,9 @@ def build_storenames_template(events, flags, folder_path, isosbestic_control=Fal
     return template
 
 
-def build_storenames_page(inputParameters, events, flags, folder_path):
+def build_storenames_page(
+    inputParameters: dict[str, object], events: list[str], flags: list[str], folder_path: str
+) -> None:
     """Write storesList.csv for one session, headlessly or via the Panel GUI.
 
     In headless mode (``storenames_map`` key present in ``inputParameters``)
@@ -425,7 +436,9 @@ def build_storenames_page(inputParameters, events, flags, folder_path):
     template.show(port=number)
 
 
-def read_header(inputParameters, num_ch, folder_path, headless):
+def read_header(
+    inputParameters: dict[str, object], num_ch: int, folder_path: str, headless: bool
+) -> tuple[list[str], list[str]]:
     """Discover events and feature flags for a single session folder.
 
     Parameters
@@ -499,7 +512,7 @@ def read_header(inputParameters, num_ch, folder_path, headless):
     return events, flags
 
 
-def orchestrate_storenames_page(inputParameters):
+def orchestrate_storenames_page(inputParameters: dict[str, object]) -> None:
     """Run the step-2 storenames configuration for every selected session folder.
 
     Parameters
