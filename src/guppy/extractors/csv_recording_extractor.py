@@ -31,7 +31,7 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
     """
 
     @classmethod
-    def discover_events_and_flags(cls, folder_path) -> tuple[list[str], list[str]]:
+    def discover_events_and_flags(cls, folder_path: str) -> tuple[list[str], list[str]]:
         """
         Discover available events and format flags from CSV files.
 
@@ -125,11 +125,11 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
         logger.info("Importing of csv file is done.")
         return event_from_filename, flag_arr
 
-    def __init__(self, folder_path):
+    def __init__(self, folder_path: str) -> None:
         self.folder_path = folder_path
 
     @staticmethod
-    def _check_header(df):
+    def _check_header(df: pd.DataFrame) -> tuple[list[str], list[float]]:
         arr = list(df.columns)
         check_float = []
         for i in arr:
@@ -149,7 +149,7 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
             total_lines = sum(1 for _ in file)
         return max(0, total_lines - 1)
 
-    def _read_csv(self, event):
+    def _read_csv(self, event: str) -> pd.DataFrame:
         logger.debug(f"Trying to read data for {event} from csv file.")
         csv_path = os.path.join(self.folder_path, event + ".csv")
         if not os.path.exists(csv_path):
@@ -202,7 +202,7 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
                 )
         return output_dicts
 
-    def stub(self, *, folder_path, duration_in_seconds=1.0):
+    def stub(self, *, folder_path: str | Path, duration_in_seconds: float = 1.0) -> None:
         """
         Create a stubbed copy of the CSV folder with truncated data files.
 

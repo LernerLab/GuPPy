@@ -37,7 +37,9 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
     # Only overrides discover_events_and_flags() and adds NPM-specific helper methods.
 
     @classmethod
-    def discover_events_and_flags(cls, folder_path, num_ch, inputParameters) -> tuple[list[str], list[str]]:
+    def discover_events_and_flags(
+        cls, folder_path: str, num_ch: int, inputParameters: dict[str, object] | None
+    ) -> tuple[list[str], list[str]]:
         """
         Discover available events and format flags from NPM files.
 
@@ -293,7 +295,7 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         logger.info("Importing of NPM file is done.")
         return event_from_filename, flag_arr
 
-    def stub(self, *, folder_path, duration_in_seconds=1.0):
+    def stub(self, *, folder_path: str | Path, duration_in_seconds: float = 1.0) -> None:
         """
         Create a stubbed copy of the NPM folder with truncated signal files.
 
@@ -340,7 +342,7 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             dataframe.to_csv(csv_path, index=False, header=has_text_header)
 
     @classmethod
-    def has_multiple_event_ttls(cls, folder_path):
+    def has_multiple_event_ttls(cls, folder_path: str) -> list[bool]:
         """
         Check whether any NPM event files in the folder contain multiple TTL types.
 
@@ -415,7 +417,9 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
     # function to decide indices of interleaved channels
     # in neurophotometrics data
     @classmethod
-    def decide_indices(cls, file, df, flag, num_ch=2):
+    def decide_indices(
+        cls, file: str, df: pd.DataFrame, flag: str, num_ch: int = 2
+    ) -> tuple[pd.DataFrame, dict[str, np.ndarray], int]:
         """
         Determine the row indices belonging to each interleaved channel in NPM data.
 
@@ -487,7 +491,7 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
 
     # check flag consistency in neurophotometrics data
     @classmethod
-    def check_channels(cls, state):
+    def check_channels(cls, state: np.ndarray) -> tuple[int, np.ndarray]:
         """
         Validate and count unique channel states in NPM ``Flags``/``LedState`` data.
 
@@ -518,7 +522,7 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         return unique_state.shape[0], unique_state
 
     @classmethod
-    def needs_ts_unit(cls, folder_path, num_ch):
+    def needs_ts_unit(cls, folder_path: str, num_ch: int) -> tuple[list[bool], list[str]]:
         """
         Determine which NPM files require explicit timestamp-unit configuration.
 
@@ -618,7 +622,7 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         return ts_unit_needs, col_names_ts
 
     @staticmethod
-    def _update_df_with_timestamp_columns(df, timestamp_column_name):
+    def _update_df_with_timestamp_columns(df: pd.DataFrame, timestamp_column_name: str | None) -> pd.DataFrame:
         col_names = np.array(list(df.columns))
         col_names_ts = [""]
         for name in col_names:
