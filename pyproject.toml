@@ -125,6 +125,7 @@ select = [
     "D103",  # Missing docstring in public function
     "UP006", # non-pep585 annotation (tuple, list -> tuple, list)
     "UP007", # non-pep604 annotation (Union[x, y] -> X | Y )
+    "ANN", # All type hint rules
 ]
 fixable = ["ALL"]
 
