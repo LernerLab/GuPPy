@@ -21,7 +21,16 @@ class ArtifactRemovalWidget:
     Boundary coordinates are saved as a ``.npy`` file when the figure is closed.
     """
 
-    def __init__(self, filepath, x, y1, y2, y3, plot_name, removeArtifacts):
+    def __init__(
+        self,
+        filepath: str,
+        x: np.ndarray,
+        y1: np.ndarray,
+        y2: np.ndarray,
+        y3: np.ndarray,
+        plot_name: list[str],
+        removeArtifacts: bool,
+    ) -> None:
         self.coords = []  # List to store selected coordinates
         self.filepath = filepath
         self.plot_name = plot_name
@@ -39,7 +48,7 @@ class ArtifactRemovalWidget:
         self.cid = self.fig.canvas.mpl_connect("key_press_event", self._on_key_press)
         self.fig.canvas.mpl_connect("close_event", self._on_close)
 
-    def _on_key_press(self, event):
+    def _on_key_press(self, event: object) -> list[tuple[float, float]] | None:
         """Handle key press events for artifact selection.
 
         Pressing 'space' draws a vertical line at the cursor position to mark artifact boundaries.
@@ -69,7 +78,7 @@ class ArtifactRemovalWidget:
 
             return self.coords
 
-    def _on_close(self, _event):
+    def _on_close(self, _event: object) -> None:
         """Handle figure close event by saving coordinates and cleaning up."""
         if self.coords and len(self.coords) > 0:
             name_1 = self.plot_name[0].split("_")[-1]

@@ -20,7 +20,7 @@ class StorenamesSelector:
         options in the cross-selector and multi-choice widgets.
     """
 
-    def __init__(self, allnames):
+    def __init__(self, allnames: list[str]) -> None:
         self.alert = pn.pane.Alert("#### No alerts !!", alert_type="danger", height=80, width=600)
         if len(allnames) == 0:
             self.alert.object = (
@@ -116,7 +116,7 @@ class StorenamesSelector:
             self.path,
         )
 
-    def callback(self, target, event):
+    def callback(self, target: pn.WidgetBox, event: object) -> None:
         """Show or hide the storenames-to-repeat widget box based on the checkbox state.
 
         Parameters
@@ -132,7 +132,7 @@ class StorenamesSelector:
         elif event.new == False:
             target.clear()
 
-    def get_select_location(self):
+    def get_select_location(self) -> str:
         """Return the currently selected overwrite-location option.
 
         Returns
@@ -142,7 +142,7 @@ class StorenamesSelector:
         """
         return self.select_location.value
 
-    def set_select_location_options(self, options):
+    def set_select_location_options(self, options: list[str]) -> None:
         """Replace the options in the overwrite-location selector.
 
         Parameters
@@ -152,7 +152,7 @@ class StorenamesSelector:
         """
         self.select_location.options = options
 
-    def set_alert_message(self, message):
+    def set_alert_message(self, message: str) -> None:
         """Set the text shown in the alert pane.
 
         Parameters
@@ -162,7 +162,7 @@ class StorenamesSelector:
         """
         self.alert.object = message
 
-    def get_literal_input_2(self):  # TODO: come up with a better name for this method.
+    def get_literal_input_2(self) -> dict[str, object]:  # TODO: come up with a better name for this method.
         """Parse and return the JSON storenames mapping from the code editor widget.
 
         Returns
@@ -173,7 +173,9 @@ class StorenamesSelector:
         storenames_config = json.loads(self.literal_input_2.value)
         return storenames_config
 
-    def set_literal_input_2(self, storenames_config):  # TODO: come up with a better name for this method.
+    def set_literal_input_2(
+        self, storenames_config: dict[str, object]
+    ) -> None:  # TODO: come up with a better name for this method.
         """Serialise ``storenames_config`` as pretty-printed JSON and set the code editor value.
 
         Parameters
@@ -183,7 +185,7 @@ class StorenamesSelector:
         """
         self.literal_input_2.value = str(json.dumps(storenames_config, indent=2))
 
-    def get_take_widgets(self):
+    def get_take_widgets(self) -> list[object]:
         """Return the current values of the repeat-storenames widgets.
 
         Returns
@@ -194,7 +196,7 @@ class StorenamesSelector:
         """
         return [w.value for w in self.take_widgets]
 
-    def set_change_widgets(self, value):
+    def set_change_widgets(self, value: object) -> None:
         """Set all ``change_widgets`` to ``value``.
 
         Parameters
@@ -205,7 +207,7 @@ class StorenamesSelector:
         for w in self.change_widgets:
             w.value = value
 
-    def get_cross_selector(self):
+    def get_cross_selector(self) -> list[str]:
         """Return the storenames currently selected in the cross-selector.
 
         Returns
@@ -215,7 +217,7 @@ class StorenamesSelector:
         """
         return self.cross_selector.value
 
-    def set_path(self, value):
+    def set_path(self, value: str) -> None:
         """Set the displayed path in the location text input.
 
         Parameters
@@ -225,7 +227,7 @@ class StorenamesSelector:
         """
         self.path.value = value
 
-    def attach_callbacks(self, button_name_to_onclick_fn: dict):
+    def attach_callbacks(self, button_name_to_onclick_fn: dict[str, object]) -> None:
         """Register click-handler callbacks on selector buttons.
 
         Parameters
@@ -240,7 +242,7 @@ class StorenamesSelector:
                 # Wrap the user callback so we can also remember the current
                 # mode (for get_overwrite_mode) and hide the run-name field in
                 # overwrite mode where it has no effect.
-                def remember_then_call(event, _user_callback=onclick_fn):
+                def remember_then_call(event: object, _user_callback: object = onclick_fn) -> None:
                     self._current_overwrite_mode = event.new
                     self.run_name.visible = event.new == "create_new_file"
                     _user_callback(event)
@@ -249,7 +251,7 @@ class StorenamesSelector:
             else:
                 button.on_click(onclick_fn)
 
-    def attach_run_name_watcher(self, callback):
+    def attach_run_name_watcher(self, callback: object) -> None:
         """Attach a watcher that fires when the run-name TextInput value changes.
 
         Parameters
@@ -260,7 +262,7 @@ class StorenamesSelector:
         """
         self.run_name.param.watch(callback, "value")
 
-    def get_run_name(self):
+    def get_run_name(self) -> str:
         """Return the current value of the run-name TextInput.
 
         Returns
@@ -270,7 +272,7 @@ class StorenamesSelector:
         """
         return self.run_name.value
 
-    def get_overwrite_mode(self):
+    def get_overwrite_mode(self) -> str:
         """Return the current overwrite-vs-create mode.
 
         Returns
@@ -280,7 +282,13 @@ class StorenamesSelector:
         """
         return self._current_overwrite_mode
 
-    def configure_storenames(self, storename_dropdowns, storename_textboxes, storenames, storenames_cache):
+    def configure_storenames(
+        self,
+        storename_dropdowns: dict[str, pn.widgets.Select],
+        storename_textboxes: dict[str, pn.widgets.TextInput],
+        storenames: list[str],
+        storenames_cache: dict[str, list[str]],
+    ) -> None:
         """Build the storename-configuration panel and make it visible.
 
         Parameters

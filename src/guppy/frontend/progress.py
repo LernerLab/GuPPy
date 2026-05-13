@@ -9,7 +9,7 @@ PB_STEPS_FILE = os.path.join(os.path.expanduser("~"), "pbSteps.txt")
 PB_ERROR_FILE = os.path.join(os.path.expanduser("~"), "pbError.txt")
 
 
-def subprocess_main_handler(func):
+def subprocess_main_handler(func: object) -> object:
     """Decorate an orchestration subprocess entry point with shared error reporting.
 
     On success, logs the banner separator. On exception, writes the error message
@@ -19,7 +19,7 @@ def subprocess_main_handler(func):
     """
 
     @functools.wraps(func)
-    def wrapper(input_parameters):
+    def wrapper(input_parameters: dict[str, object]) -> object:
         try:
             result = func(input_parameters)
             logger.info("#" * 400)
@@ -34,7 +34,9 @@ def subprocess_main_handler(func):
     return wrapper
 
 
-def readPBIncrementValues(progressBar, *, file_path, error_file_path=PB_ERROR_FILE):  # pragma: no cover
+def readPBIncrementValues(
+    progressBar: object, *, file_path: str, error_file_path: str = PB_ERROR_FILE
+) -> str | None:  # pragma: no cover
     """Read progress bar values from file and update the progress bar widget.
 
     Returns the error message string if the subprocess reported a failure,
@@ -88,7 +90,7 @@ def readPBIncrementValues(progressBar, *, file_path, error_file_path=PB_ERROR_FI
     return error_message
 
 
-def writeToFile(value: str, *, file_path):
+def writeToFile(value: str, *, file_path: str) -> None:
     """Append ``value`` to the file at ``file_path``, creating it if necessary.
 
     Parameters

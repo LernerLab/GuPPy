@@ -23,7 +23,7 @@ class StorenamesInstructions:
         heading above the instructions.
     """
 
-    def __init__(self, folder_path):
+    def __init__(self, folder_path: str) -> None:
         # instructions about how to save the storeslist file
         self.mark_down = pn.pane.Markdown(
             """
@@ -78,7 +78,7 @@ class StorenamesInstructionsNPM(StorenamesInstructions):
         contain ``chev``, ``chod``, or ``chpr`` are loaded for preview.
     """
 
-    def __init__(self, folder_path):
+    def __init__(self, folder_path: str) -> None:
         super().__init__(folder_path=folder_path)
         path_chev = glob.glob(os.path.join(folder_path, "*chev*"))
         path_chod = glob.glob(os.path.join(folder_path, "*chod*"))
@@ -123,8 +123,8 @@ class StorenamesInstructionsNPM(StorenamesInstructions):
             self.plot_pane,
         )
 
-    def _make_plot(self, plot_key):
+    def _make_plot(self, plot_key: str) -> hv.Curve:
         return hv.Curve((self.d[plot_key]["x"], self.d[plot_key]["y"])).opts(width=550)
 
-    def _on_plot_select_change(self, event):
+    def _on_plot_select_change(self, event: object) -> None:
         self.plot_pane.object = self._make_plot(event.new)
