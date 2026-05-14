@@ -14,13 +14,13 @@ class Sidebar:
         The Panel template whose ``sidebar`` area will receive the widgets.
     """
 
-    def __init__(self, template):
+    def __init__(self, template: object) -> None:
         self.template = template
         self.setup_markdown()
         self.setup_buttons()
         self.setup_progress_bars()
 
-    def setup_markdown(self):
+    def setup_markdown(self) -> None:
         """Create step-label ``Markdown`` panes and store them as instance attributes."""
         self.mark_down_ip = pn.pane.Markdown("""**Step 1 : Save Input Parameters**""", width=300)
         self.mark_down_ip_note = pn.pane.Markdown(
@@ -39,7 +39,7 @@ class Sidebar:
         self.mark_down_psth = pn.pane.Markdown("""**Step 5 : PSTH Computation**""", width=300)
         self.mark_down_visualization = pn.pane.Markdown("""**Step 6 : Visualization**""", width=300)
 
-    def setup_buttons(self):
+    def setup_buttons(self) -> None:
         """Create pipeline-step action buttons and store them as instance attributes."""
         self.open_storenames = pn.widgets.Button(
             name="Open Storenames GUI", button_type="primary", width=300, align="end"
@@ -56,7 +56,7 @@ class Sidebar:
         )
         self.save_button = pn.widgets.Button(name="Save to file...", button_type="primary", width=300, align="end")
 
-    def attach_callbacks(self, button_name_to_onclick_fn: dict):
+    def attach_callbacks(self, button_name_to_onclick_fn: dict[str, object]) -> None:
         """Register click-handler callbacks on sidebar buttons.
 
         Parameters
@@ -69,13 +69,13 @@ class Sidebar:
             button = getattr(self, button_name)
             button.on_click(onclick_fn)
 
-    def setup_progress_bars(self):
+    def setup_progress_bars(self) -> None:
         """Create ``Progress`` indicator widgets for the read, extract, and PSTH steps."""
         self.read_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
         self.extract_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
         self.psth_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
 
-    def add_to_template(self):
+    def add_to_template(self) -> None:
         """Append all sidebar widgets to the template's sidebar area in pipeline order."""
         self.template.sidebar.append(self.mark_down_ip)
         self.template.sidebar.append(self.mark_down_ip_note)

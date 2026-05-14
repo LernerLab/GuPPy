@@ -35,12 +35,12 @@ class StorenamesConfig:
 
     def __init__(
         self,
-        show_config_button,
-        storename_dropdowns,
-        storename_textboxes,
-        storenames,
-        storenames_cache,
-    ):
+        show_config_button: pn.widgets.Button,
+        storename_dropdowns: dict[str, pn.widgets.Select],
+        storename_textboxes: dict[str, pn.widgets.TextInput],
+        storenames: list[str],
+        storenames_cache: dict[str, list[str]],
+    ) -> None:
         self.config_widgets = []
         self._dropdown_help_map = {}
         storename_dropdowns.clear()
@@ -68,14 +68,14 @@ class StorenamesConfig:
             )
         )
 
-    def _on_dropdown_value_change(self, event):
+    def _on_dropdown_value_change(self, event: object) -> None:
         help_pane = self._dropdown_help_map.get(event.obj)
         if help_pane is None:
             return
         dropdown_value = event.new
         help_pane.object = self._get_help_text(dropdown_value=dropdown_value)
 
-    def _get_help_text(self, dropdown_value):
+    def _get_help_text(self, dropdown_value: str) -> str:
         if dropdown_value == "control":
             return "*Type appropriate region name*"
         elif dropdown_value == "signal":
@@ -85,7 +85,7 @@ class StorenamesConfig:
         else:
             return ""
 
-    def _parse_cached_value(self, cached_value):
+    def _parse_cached_value(self, cached_value: str) -> tuple[str, str]:
         # Split an assembled cache entry back into (type, name) for pre-populating widgets
         if cached_value.startswith("control_"):
             return "control", cached_value[len("control_") :]
@@ -96,7 +96,14 @@ class StorenamesConfig:
         else:
             return "", ""
 
-    def setup_storename(self, i, storename, storename_dropdowns, storename_textboxes, storenames_cache):
+    def setup_storename(
+        self,
+        i: int,
+        storename: str,
+        storename_dropdowns: dict[str, pn.widgets.Select],
+        storename_textboxes: dict[str, pn.widgets.TextInput],
+        storenames_cache: dict[str, list[str]],
+    ) -> None:
         """Build and register a configuration row for a single storename.
 
         Parameters

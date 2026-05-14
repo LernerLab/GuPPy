@@ -26,13 +26,13 @@ class VisualizationDashboard:
         Session name displayed as the tab title.
     """
 
-    def __init__(self, *, plotter, basename):
+    def __init__(self, *, plotter: object, basename: str) -> None:
         self.plotter = plotter
         self.basename = basename
         self._psth_tab = self._build_psth_tab()
         self._heatmap_tab = self._build_heatmap_tab()
 
-    def _build_psth_tab(self):
+    def _build_psth_tab(self) -> pn.Column:
         """Build the PSTH tab with controls and plot panels."""
         psth_checkbox = pn.Param(
             self.plotter.param.select_trials_checkbox,
@@ -108,7 +108,7 @@ class VisualizationDashboard:
             self.plotter.plot_specific_trials,
         )
 
-    def _build_heatmap_tab(self):
+    def _build_heatmap_tab(self) -> pn.Column:
         """Build the heatmap tab with controls and plot panels."""
         heatmap_y_parameters = pn.Param(
             self.plotter.param.heatmap_y,
@@ -148,14 +148,14 @@ class VisualizationDashboard:
             pn.Row(self.plotter.heatmap, heatmap_y_parameters),
         )
 
-    def build_template(self):
+    def build_template(self) -> pn.template.MaterialTemplate:
         """Build and return the Panel template without serving it."""
         template = pn.template.MaterialTemplate(title="Visualization GUI")
         app = pn.Tabs(("PSTH", self._psth_tab), ("Heat Map", self._heatmap_tab))
         template.main.append(app)
         return template
 
-    def show(self):
+    def show(self) -> None:
         """Serve the dashboard in a browser on an available port."""
         logger.info("app")
         template = self.build_template()

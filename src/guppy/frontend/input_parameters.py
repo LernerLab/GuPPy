@@ -16,7 +16,7 @@ from ..utils.validation import (
 logger = logging.getLogger(__name__)
 
 
-def checkSameLocation(arr, abspath):
+def checkSameLocation(arr: list[str], abspath: object) -> str:
     """Check that all paths in ``arr`` share the same parent directory.
 
     Parameters
@@ -37,7 +37,7 @@ def checkSameLocation(arr, abspath):
     return validate_same_parent_directory(paths=list(arr))
 
 
-def getAbsPath(files_1, files_2):
+def getAbsPath(files_1: pn.widgets.FileSelector, files_2: pn.widgets.FileSelector) -> str:
     """Return the common parent directory of the selected folders.
 
     Parameters
@@ -75,7 +75,7 @@ class ParameterForm:
         the path does not exist.
     """
 
-    def __init__(self, *, template, start_path=None):
+    def __init__(self, *, template: object, start_path: str | None = None) -> None:
         self.template = template
         self.folder_path = start_path if start_path and os.path.isdir(start_path) else default_root_path()
         self.styles = dict(background="WhiteSmoke")
@@ -87,7 +87,7 @@ class ParameterForm:
         self.files_1.param.watch(self._retarget_outputs_selector, "value")
         self.files_2.param.watch(self._rebuild_group_selected_outputs_widgets, "value")
 
-    def setup_individual_parameters(self):
+    def setup_individual_parameters(self) -> None:
         """Build all widgets for the individual-analysis card and store them as instance attributes."""
         # Individual analysis components
         self.mark_down_1 = pn.pane.Markdown(
@@ -398,12 +398,12 @@ class ParameterForm:
             self.widget, title="Individual Analysis", styles=self.styles, width=1000, collapsed=True
         )
 
-    def _on_source_mode_change(self, event):
+    def _on_source_mode_change(self, event: object) -> None:
         is_dandi = event.new == "dandi"
         self.files_1.visible = not is_dandi
         self.dandi_selector.panel.visible = is_dandi
 
-    def _collect_selected_outputs(self):
+    def _collect_selected_outputs(self) -> dict[str, list[str]]:
         """Group the FileSelector's selected output dirs by parent session."""
         grouped: dict[str, list[str]] = {}
         for path in self.outputs_selector.value or []:
@@ -411,7 +411,7 @@ class ParameterForm:
             grouped.setdefault(session, []).append(parse_run_name(path))
         return grouped
 
-    def validate_selected_outputs_for_consumers(self):
+    def validate_selected_outputs_for_consumers(self) -> None:
         """Ensure every selected session that has output dirs on disk also has at least one selected.
 
         Run this from the click handlers for steps 3–6 (which consume existing
@@ -431,7 +431,7 @@ class ParameterForm:
                 "_output_<run> directory per selected session."
             )
 
-    def _retarget_outputs_selector(self, event):
+    def _retarget_outputs_selector(self, event: object) -> None:
         """Root the existing-runs FileSelector so all selected sessions' `_output_*` dirs are reachable.
 
         - Zero sessions: fall back to ``default_root_path()``.
@@ -465,7 +465,7 @@ class ParameterForm:
         # back to the stale _cwd — visible to the user as "selection resets the directory".
         self.outputs_selector._update_files()
 
-    def _rebuild_group_selected_outputs_widgets(self, event):
+    def _rebuild_group_selected_outputs_widgets(self, event: object) -> None:
         """Rebuild the per-session group-run-name Selects when files_2 changes."""
         self._rebuild_per_session_widgets(
             sessions=event.new,
@@ -474,11 +474,11 @@ class ParameterForm:
             scope="group",
         )
 
-    def refresh_individual_outputs(self):
+    def refresh_individual_outputs(self) -> None:
         """Re-list the outputs FileSelector so newly-created run dirs (e.g. from step 2) appear."""
         self.outputs_selector._refresh()
 
-    def refresh_group_outputs(self):
+    def refresh_group_outputs(self) -> None:
         """Re-discover output directories for the currently-selected group sessions."""
         self._rebuild_per_session_widgets(
             sessions=self.files_2.value,
@@ -488,7 +488,7 @@ class ParameterForm:
         )
 
     @staticmethod
-    def _make_outputs_placeholder(scope):
+    def _make_outputs_placeholder(scope: str) -> pn.pane.Markdown:
         text = (
             "**Run-name filter:** No output directories yet — run step 2 first."
             if scope == "individual"
@@ -497,7 +497,9 @@ class ParameterForm:
         return pn.pane.Markdown(text, width=520)
 
     @classmethod
-    def _rebuild_per_session_widgets(cls, sessions, target_box, store, scope):
+    def _rebuild_per_session_widgets(
+        cls, sessions: list[str] | None, target_box: pn.Column, store: dict[str, pn.widgets.Select], scope: str
+    ) -> None:
         new_objects = []
         new_store = {}
         for session in sessions or []:
@@ -527,7 +529,7 @@ class ParameterForm:
         # box has a stable, always-visible footprint in the layout.
         target_box.objects = new_objects or [cls._make_outputs_placeholder(scope)]
 
-    def _resolve_dandi_sessions(self):
+    def _resolve_dandi_sessions(self) -> tuple[list[str], str, dict[str, str]]:
         """
         Materialize DANDI asset selections into local session directories.
 
@@ -565,7 +567,7 @@ class ParameterForm:
             dandi_uri_map[session_directory] = uri
         return folder_names, output_root, dandi_uri_map
 
-    def setup_group_parameters(self):
+    def setup_group_parameters(self) -> None:
         """Build all widgets for the group-analysis card and store them as instance attributes."""
         self.mark_down_2 = pn.pane.Markdown(
             """**Select folders for the average analysis from the file selector below**""", width=600
@@ -588,7 +590,7 @@ class ParameterForm:
             self.group_analysis_wd_1, title="Group Analysis", styles=self.styles, width=1000, collapsed=True
         )
 
-    def setup_visualization_parameters(self):
+    def setup_visualization_parameters(self) -> None:
         """Build all widgets for the visualization-parameters card and store them as instance attributes."""
         self.visualizeAverageResults = pn.widgets.Select(
             name="Visualize Average Results? (bool)", value=False, options=[True, False], width=435
@@ -603,7 +605,7 @@ class ParameterForm:
             self.visualization_wd, title="Visualization Parameters", styles=self.styles, width=1000, collapsed=True
         )
 
-    def add_to_template(self):
+    def add_to_template(self) -> None:
         """Append the input/output folder, individual, group, and visualization cards to the template's main area."""
         self.template.main.append(self.input_folder_selection)
         self.template.main.append(self.output_folder_selection)
@@ -611,7 +613,7 @@ class ParameterForm:
         self.template.main.append(self.group)
         self.template.main.append(self.visualize)
 
-    def getInputParameters(self):
+    def getInputParameters(self) -> dict[str, object]:
         """Collect and return all current widget values as an input-parameters dictionary.
 
         Returns
