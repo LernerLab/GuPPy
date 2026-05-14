@@ -39,7 +39,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
     # TODO: consolidate duplicate flag logic between the `discover_events_and_flags` and the `check_doric` method.
 
     @classmethod
-    def discover_events_and_flags(cls, folder_path):
+    def discover_events_and_flags(cls, folder_path: str) -> tuple[list[str], list[str]]:
         """
         Discover available events and file format flags from Doric files.
 
@@ -100,12 +100,12 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
         logger.info("Doric event discovery complete.")
         return event_from_filename, flag_arr
 
-    def __init__(self, folder_path, event_name_to_event_type):
+    def __init__(self, folder_path: str, event_name_to_event_type: dict[str, str]) -> None:
         self.folder_path = folder_path
         self._event_name_to_event_type = event_name_to_event_type
 
     @staticmethod
-    def _read_doric_file(filepath):
+    def _read_doric_file(filepath: str) -> list[str]:
         """Static helper to read Doric file headers for event discovery."""
         with h5py.File(filepath, "r") as f:
             if "Traces" in list(f.keys()):
@@ -116,7 +116,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
         return keys
 
     @staticmethod
-    def _access_keys_doricV6(doric_file):
+    def _access_keys_doricV6(doric_file: h5py.File) -> list[str]:
         data = [doric_file["DataAcquisition"]]
         res = []
         while len(data) != 0:
@@ -140,19 +140,19 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
         return keys
 
     @staticmethod
-    def _access_keys_doricV1(doric_file):
+    def _access_keys_doricV1(doric_file: h5py.File) -> list[str]:
         keys = list(doric_file["Traces"]["Console"].keys())
         keys.remove("Time(s)")
 
         return keys
 
     @staticmethod
-    def _separate_last_element(arr):
+    def _separate_last_element(arr: list) -> tuple[list, object]:
         l = arr[-1]
         return arr[:-1], l
 
     @staticmethod
-    def _validate_signal_control_data(event, data, event_type):
+    def _validate_signal_control_data(event: str, data: np.ndarray, event_type: str) -> None:
         """Raise ValueError if ``data`` is unusable as a photometry signal/control trace.
 
         Rejects channels that are all-NaN, mostly-NaN (>=50%), or zero-variance —
@@ -226,7 +226,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                     return 0
         return 0
 
-    def _check_doric(self):
+    def _check_doric(self) -> str | int:
         logger.debug("Checking if doric file exists")
         path = glob.glob(os.path.join(self.folder_path, "*.csv")) + glob.glob(os.path.join(self.folder_path, "*.doric"))
 
@@ -265,7 +265,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
         logger.info("Doric file found.")
         return flag_arr[0]
 
-    def _read_doric_csv(self, events):
+    def _read_doric_csv(self, events: list[str]) -> list[dict[str, object]]:
         path = glob.glob(os.path.join(self.folder_path, "*.csv"))
         if len(path) > 1:
             message = (
@@ -314,7 +314,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
 
         return output_dicts
 
-    def _read_doric_doric(self, events):
+    def _read_doric_doric(self, events: list[str]) -> list[dict[str, object]]:
         path = glob.glob(os.path.join(self.folder_path, "*.doric"))
         if len(path) > 1:
             message = (
@@ -330,7 +330,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                 output_dicts = self._access_data_doricV6(f, events)
         return output_dicts
 
-    def _access_data_doricV6(self, doric_file, events):
+    def _access_data_doricV6(self, doric_file: h5py.File, events: list[str]) -> list[dict[str, object]]:
         data = [doric_file["DataAcquisition"]]
         res = []
         while len(data) != 0:
@@ -423,7 +423,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
 
         return output_dicts
 
-    def _access_data_doricV1(self, doric_file, events):
+    def _access_data_doricV1(self, doric_file: h5py.File, events: list[str]) -> list[dict[str, object]]:
         console = doric_file["Traces"]["Console"]
         output_dicts = []
         for event in events:
@@ -496,7 +496,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
 
         return output_dicts
 
-    def stub(self, *, folder_path, duration_in_seconds=1.0):
+    def stub(self, *, folder_path: Path | str, duration_in_seconds: float = 1.0) -> None:
         """
         Create a stubbed copy of the Doric folder truncated to a short duration.
 
@@ -524,7 +524,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
         elif flag == "doric_csv":
             self._stub_doric_csv(folder_path=folder_path, duration_in_seconds=duration_in_seconds)
 
-    def _stub_doric_hdf5(self, *, folder_path, duration_in_seconds):
+    def _stub_doric_hdf5(self, *, folder_path: Path | str, duration_in_seconds: float) -> None:
         doric_paths = glob.glob(os.path.join(folder_path, "*.doric"))
         doric_path = doric_paths[0]
 
@@ -541,7 +541,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
         # Replace after closing source_file so Windows does not raise PermissionError on open files.
         os.replace(temporary_path, doric_path)
 
-    def _stub_doric_hdf5_v1(self, *, source_file, doric_path, duration_in_seconds):
+    def _stub_doric_hdf5_v1(self, *, source_file: h5py.File, doric_path: str, duration_in_seconds: float) -> str:
         timestamps = np.array(source_file["Traces"]["Console"]["Time(s)"]["Console_time(s)"])
         cutoff_timestamp = timestamps[0] + duration_in_seconds
         cutoff_index = int(np.searchsorted(timestamps, cutoff_timestamp, side="right"))
@@ -565,7 +565,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
 
         return temporary_path
 
-    def _stub_doric_hdf5_v6(self, *, source_file, doric_path, duration_in_seconds):
+    def _stub_doric_hdf5_v6(self, *, source_file: h5py.File, doric_path: str, duration_in_seconds: float) -> str:
         temporary_path = doric_path + ".tmp"
         with h5py.File(temporary_path, "w") as destination_file:
             if "Configurations" in source_file:
@@ -577,7 +577,9 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
             )
         return temporary_path
 
-    def _copy_group_truncated(self, *, source_group, destination_group, duration_in_seconds):
+    def _copy_group_truncated(
+        self, *, source_group: h5py.Group, destination_group: h5py.Group, duration_in_seconds: float
+    ) -> None:
         if "Time" in source_group:
             time_data = source_group["Time"][:]
             cutoff_index = int(np.searchsorted(time_data, time_data[0] + duration_in_seconds, side="right"))
@@ -595,7 +597,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                 else:
                     destination_group.create_dataset(key, data=item[:])
 
-    def _stub_doric_csv(self, *, folder_path, duration_in_seconds):
+    def _stub_doric_csv(self, *, folder_path: Path | str, duration_in_seconds: float) -> None:
         csv_paths = glob.glob(os.path.join(folder_path, "*.csv"))
         csv_path = csv_paths[0]
 
