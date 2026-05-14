@@ -14,13 +14,13 @@ import panel as pn
 from .orchestration.home import build_homepage
 
 
-def serve_app(*, start_path=None):
+def serve_app(*, start_path: str | None = None) -> None:
     """Serve the GuPPy application using Panel."""
     template = build_homepage(start_path=start_path)
     pn.serve(template, show=True)
 
 
-def main():
+def main() -> None:
     """Main entry point for GuPPy.
 
     Supports command-line flags:

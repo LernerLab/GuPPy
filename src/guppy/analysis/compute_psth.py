@@ -7,22 +7,22 @@ logger = logging.getLogger(__name__)
 
 
 def compute_psth(
-    z_score,
-    event,
-    filepath,
-    nSecPrev,
-    nSecPost,
-    timeInterval,
-    bin_psth_trials,
-    use_time_or_trials,
-    baselineStart,
-    baselineEnd,
-    naming,
-    just_use_signal,
-    sampling_rate,
-    ts,
-    corrected_timestamps,
-):
+    z_score: np.ndarray,
+    event: str,
+    filepath: str,
+    nSecPrev: float,
+    nSecPost: float,
+    timeInterval: float,
+    bin_psth_trials: float,
+    use_time_or_trials: str,
+    baselineStart: float,
+    baselineEnd: float,
+    naming: str,
+    just_use_signal: bool,
+    sampling_rate: float,
+    ts: np.ndarray,
+    corrected_timestamps: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, list[object], np.ndarray]:
     """
     Build a peri-stimulus time histogram (PSTH) matrix for one event.
 
@@ -193,7 +193,7 @@ def compute_psth(
     return psth, psth_baselineUncorrected, columns, ts
 
 
-def rowFormation(z_score, thisIndex, nTsPrev, nTsPost):
+def rowFormation(z_score: np.ndarray, thisIndex: int, nTsPrev: int, nTsPost: int) -> np.ndarray:
     """
     Extract one PSTH trial from the z-score array, padding with NaN at boundaries.
 
@@ -239,7 +239,7 @@ def rowFormation(z_score, thisIndex, nTsPrev, nTsPost):
     return res
 
 
-def baselineCorrection(arr, timeAxis, baselineStart, baselineEnd):
+def baselineCorrection(arr: np.ndarray, timeAxis: np.ndarray, baselineStart: float, baselineEnd: float) -> np.ndarray:
     """
     Subtract the mean baseline from a single PSTH trial.
 
