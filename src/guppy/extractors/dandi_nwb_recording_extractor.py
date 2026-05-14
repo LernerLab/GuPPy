@@ -1,13 +1,14 @@
 """DANDI streaming NWB recording extractor for GuPPy fiber photometry pipeline."""
 
 import logging
+from pathlib import Path
 from typing import Any
 
 import h5py
 import numpy as np
 import remfile
 from dandi.dandiapi import DandiAPIClient
-from pynwb import NWBHDF5IO
+from pynwb import NWBHDF5IO, NWBFile
 
 from guppy.extractors.base_recording_extractor import add_samples_done
 from guppy.extractors.nwb_recording_extractor import (
@@ -21,14 +22,14 @@ logger = logging.getLogger(__name__)
 DANDI_URI_PREFIX = "dandi://"
 
 
-def is_dandi_uri(path):
+def is_dandi_uri(path: object) -> bool:
     """
     Check whether a path is a DANDI URI.
 
     Parameters
     ----------
-    path : str
-        Path to check.
+    path : object
+        Value to check.
 
     Returns
     -------
@@ -38,7 +39,7 @@ def is_dandi_uri(path):
     return isinstance(path, str) and path.startswith(DANDI_URI_PREFIX)
 
 
-def parse_dandi_uri(uri):
+def parse_dandi_uri(uri: str) -> tuple[str, str]:
     """
     Parse a DANDI URI into its dandiset ID and asset path.
 
@@ -76,7 +77,7 @@ class _CountingRemfile:
     unchanged from talking to the underlying ``remfile.File`` directly.
     """
 
-    def __init__(self, wrapped):
+    def __init__(self, wrapped: remfile.File) -> None:
         self._wrapped = wrapped
         self._current_event = None
         self._event_total_bytes = 0
@@ -114,7 +115,7 @@ class _CountingRemfile:
     def committed_samples_for_event(self, event: str) -> int:
         return self._committed_samples_by_event.get(event, 0)
 
-    def read(self, *args, **kwargs):
+    def read(self, *args: object, **kwargs: object) -> bytes:
         data = self._wrapped.read(*args, **kwargs)
         if self._current_event is not None and data and self._event_total_bytes > 0:
             self._bytes_seen_for_event += len(data)
@@ -128,7 +129,7 @@ class _CountingRemfile:
                 self._samples_committed_for_event = target_samples
         return data
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> object:
         return getattr(self._wrapped, name)
 
 
@@ -136,7 +137,9 @@ class _CountingRemfile:
 # the local-only live suite tests/unit/extractors/test_dandi_nwb_live.py (marker
 # ``dandi_live``, deselected in CI). Offline tests monkeypatch this function to open
 # a local mock NWB file instead.
-def _stream_nwb(*, dandiset_id, asset_path):  # pragma: no cover
+def _stream_nwb(
+    *, dandiset_id: str, asset_path: str
+) -> tuple[NWBFile, NWBHDF5IO, _CountingRemfile]:  # pragma: no cover
     """
     Open a streaming connection to an NWB file on the DANDI Archive.
 
@@ -181,7 +184,7 @@ class DandiNwbRecordingExtractor(NwbRecordingExtractor):
     """
 
     @classmethod
-    def discover_events_and_flags(cls, folder_path) -> tuple[list[str], list[str]]:
+    def discover_events_and_flags(cls, folder_path: str) -> tuple[list[str], list[str]]:
         """
         Discover available events from a DANDI-hosted NWB file.
 
@@ -203,7 +206,7 @@ class DandiNwbRecordingExtractor(NwbRecordingExtractor):
         io.close()
         return events, []
 
-    def __init__(self, *, folder_path):
+    def __init__(self, *, folder_path: str) -> None:
         self.folder_path = folder_path
         self._sample_count_cache: dict[str, int] | None = None
         self._byte_count_cache: dict[str, int] | None = None
@@ -284,6 +287,6 @@ class DandiNwbRecordingExtractor(NwbRecordingExtractor):
             io.close()
         return output_dicts
 
-    def stub(self, *, folder_path, duration_in_seconds=1.0):
+    def stub(self, *, folder_path: str | Path, duration_in_seconds: float = 1.0) -> None:
         """Stub method is not supported for DANDI-streamed NWB files."""
         raise NotImplementedError("Stub method is not supported for DANDI-streamed NWB files.")

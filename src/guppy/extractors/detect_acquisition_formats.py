@@ -8,7 +8,7 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
-def _classify_csv_file(path):
+def _classify_csv_file(path: str) -> str:
     """
     Classify a single CSV file as belonging to one of three modalities.
 
@@ -75,7 +75,7 @@ def _classify_csv_file(path):
         raise ValueError(message)
 
 
-def _is_float(value):
+def _is_float(value: object) -> bool:
     """Return True if *value* can be interpreted as a float."""
     try:
         float(value)
@@ -84,7 +84,7 @@ def _is_float(value):
         return False
 
 
-def _is_event_csv(path):
+def _is_event_csv(path: str) -> bool:
     """
     Return True if the CSV file is an event_csv: a single column named 'timestamps'.
 
@@ -102,7 +102,7 @@ def _is_event_csv(path):
     return len(cols) == 1 and cols[0].lower() == "timestamps"
 
 
-def detect_acquisition_formats(folder_path):
+def detect_acquisition_formats(folder_path: str) -> set[str]:
     """
     Detect all acquisition formats present in a session folder.
 

@@ -13,17 +13,40 @@ For each stubbed session, reports:
 import shutil
 import tempfile
 from pathlib import Path
+from typing import TypedDict
 
+from guppy.extractors.base_recording_extractor import BaseRecordingExtractor
 from guppy.extractors.csv_recording_extractor import CsvRecordingExtractor
 from guppy.extractors.doric_recording_extractor import DoricRecordingExtractor
 from guppy.extractors.npm_recording_extractor import NpmRecordingExtractor
 from guppy.extractors.tdt_recording_extractor import TdtRecordingExtractor
 
+
+class _SessionConfig(TypedDict):
+    modality: str
+    name: str
+    folder_path: Path
+    extractor_class: type[BaseRecordingExtractor]
+    constructor_kwargs: dict[str, object]
+    control_event: str | None
+    ttl_event: str | None
+    discover_kwargs: dict[str, object]
+
+
+class _SessionSummary(TypedDict):
+    modality: str
+    name: str
+    folder_size: int
+    duration: float
+    ttl_channel: str
+    number_of_ttls: int
+
+
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent.parent
 STUBBED_TESTING_DATA = PROJECT_ROOT / "stubbed_testing_data"
 
 
-def _sessions():
+def _sessions() -> list[_SessionConfig]:
     tdt = STUBBED_TESTING_DATA / "tdt"
     doric = STUBBED_TESTING_DATA / "doric"
     npm = STUBBED_TESTING_DATA / "npm"
@@ -205,11 +228,11 @@ def _sessions():
     ]
 
 
-def _folder_size_in_bytes(folder_path):
+def _folder_size_in_bytes(folder_path: Path) -> int:
     return sum(path.stat().st_size for path in Path(folder_path).rglob("*") if path.is_file())
 
 
-def _format_size(size_in_bytes):
+def _format_size(size_in_bytes: float) -> str:
     for unit in ("B", "KB", "MB", "GB"):
         if size_in_bytes < 1024:
             return f"{size_in_bytes:.1f} {unit}"
@@ -217,7 +240,7 @@ def _format_size(size_in_bytes):
     return f"{size_in_bytes:.1f} TB"
 
 
-def _summarize_session(session, working_folder_path):
+def _summarize_session(session: _SessionConfig, working_folder_path: Path) -> _SessionSummary:
     original_folder_path = session["folder_path"]
     extractor_class = session["extractor_class"]
     constructor_kwargs = session["constructor_kwargs"]
@@ -260,7 +283,7 @@ def _summarize_session(session, working_folder_path):
     }
 
 
-def main():
+def main() -> None:
     """Print a summary table of all stubbed testing sessions and their sizes."""
     rows = []
     with tempfile.TemporaryDirectory() as temporary_directory:
