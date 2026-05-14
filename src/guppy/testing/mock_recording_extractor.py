@@ -1,5 +1,7 @@
 """Mock recording extractor for unit testing."""
 
+from pathlib import Path
+
 import numpy as np
 
 from guppy.extractors.base_recording_extractor import BaseRecordingExtractor
@@ -91,7 +93,7 @@ class MockRecordingExtractor(BaseRecordingExtractor):
             )
         return output_dicts
 
-    def stub(self, *, folder_path, duration_in_seconds=1.0):
+    def stub(self, *, folder_path: str | Path, duration_in_seconds: float = 1.0) -> None:
         """
         Register a stub duration for ``folder_path`` without writing any files.
 

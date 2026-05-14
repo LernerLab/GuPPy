@@ -12,7 +12,6 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Any
 
 import h5py
 import numpy as np
@@ -337,8 +336,8 @@ def _compare_json(
 
 
 def _compare_json_values(
-    actual: Any,
-    expected: Any,
+    actual: object,
+    expected: object,
     rel_path: str,
     key_path: str,
     mismatches: list[str],
