@@ -17,7 +17,7 @@ from ..frontend.sidebar import Sidebar
 logger = logging.getLogger(__name__)
 
 
-def readRawData(inputParameters):
+def readRawData(inputParameters: dict[str, object]) -> None:
     """
     Launch the raw-data extraction step in a subprocess.
 
@@ -29,7 +29,7 @@ def readRawData(inputParameters):
     subprocess.call([sys.executable, "-m", "guppy.orchestration.read_raw_data", json.dumps(inputParameters)])
 
 
-def preprocess(inputParameters):
+def preprocess(inputParameters: dict[str, object]) -> None:
     """
     Launch the preprocessing step (timestamp correction, z-score) in a subprocess.
 
@@ -41,7 +41,7 @@ def preprocess(inputParameters):
     subprocess.call([sys.executable, "-m", "guppy.orchestration.preprocess", json.dumps(inputParameters)])
 
 
-def psthComputation(inputParameters):
+def psthComputation(inputParameters: dict[str, object]) -> None:
     """
     Launch the PSTH computation step in a subprocess.
 
@@ -53,7 +53,7 @@ def psthComputation(inputParameters):
     subprocess.call([sys.executable, "-m", "guppy.orchestration.psth", json.dumps(inputParameters)])
 
 
-def build_homepage(*, start_path=None):
+def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTemplate:
     """
     Build and return the GuPPy Panel web-application template.
 
@@ -77,7 +77,7 @@ def build_homepage(*, start_path=None):
 
     # ------------------------------------------------------------------------------------------------------------------
     # onclick closure functions for sidebar buttons
-    def _getInputParametersOrNotify(*, require_selected_outputs: bool = False):
+    def _getInputParametersOrNotify(*, require_selected_outputs: bool = False) -> dict[str, object] | None:
         try:
             input_parameters = parameter_form.getInputParameters()
             if require_selected_outputs:
@@ -87,13 +87,13 @@ def build_homepage(*, start_path=None):
             pn.state.notifications.error(str(e), duration=0)
             return None
 
-    def onclickProcess(event=None):
+    def onclickProcess(event: object = None) -> None:
         inputParameters = _getInputParametersOrNotify()
         if inputParameters is None:
             return
         save_parameters(inputParameters=inputParameters)
 
-    def onclickStorenames(event=None):
+    def onclickStorenames(event: object = None) -> None:
         inputParameters = _getInputParametersOrNotify()
         if inputParameters is None:
             return
@@ -103,7 +103,7 @@ def build_homepage(*, start_path=None):
         parameter_form.refresh_individual_outputs()
         parameter_form.refresh_group_outputs()
 
-    def onclickVisualization(event=None):
+    def onclickVisualization(event: object = None) -> None:
         inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
         if inputParameters is None:
             return
@@ -112,7 +112,7 @@ def build_homepage(*, start_path=None):
         except ValueError as e:
             pn.state.notifications.error(str(e), duration=0)
 
-    def onclickreaddata(event=None):
+    def onclickreaddata(event: object = None) -> None:
         inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
         if inputParameters is None:
             return
@@ -123,7 +123,7 @@ def build_homepage(*, start_path=None):
         if error_msg:
             pn.state.notifications.error(error_msg, duration=0)
 
-    def onclickpreprocess(event=None):
+    def onclickpreprocess(event: object = None) -> None:
         inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
         if inputParameters is None:
             return
@@ -134,7 +134,7 @@ def build_homepage(*, start_path=None):
         if error_msg:
             pn.state.notifications.error(error_msg, duration=0)
 
-    def onclickpsth(event=None):
+    def onclickpsth(event: object = None) -> None:
         inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
         if inputParameters is None:
             return
