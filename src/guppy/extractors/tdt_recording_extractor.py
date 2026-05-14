@@ -156,35 +156,51 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
             ]
         )
 
-        S = dict()
+        event_dict = dict()
 
-        S["storename"] = str(event)
-        S["sampling_rate"] = data["frequency"][first_row]
-        S["timestamps"] = np.asarray(data["timestamp"][allIndexesWhereEventIsPresent[0]])
-        S["channels"] = np.asarray(data["chan"][allIndexesWhereEventIsPresent[0]])
+        event_dict["storename"] = str(event)
+        event_dict["sampling_rate"] = data["frequency"][first_row]
+        event_dict["timestamps"] = np.asarray(data["timestamp"][allIndexesWhereEventIsPresent[0]])
+        event_dict["channels"] = np.asarray(data["chan"][allIndexesWhereEventIsPresent[0]])
 
         fp_loc = np.asarray(data["fp_loc"][allIndexesWhereEventIsPresent[0]])
         data_size = np.asarray(data["size"])
 
         if formatNew != 5:
             nsample = (data_size[first_row,] - 10) * int(table[formatNew, 2])
-            S["data"] = np.zeros((len(fp_loc), nsample))
+            event_dict["data"] = np.zeros((len(fp_loc), nsample))
             for i in range(0, len(fp_loc)):
                 with open(tevfilepath, "rb") as fp:
                     fp.seek(fp_loc[i], os.SEEK_SET)
-                    S["data"][i, :] = np.fromfile(fp, dtype=table[formatNew, 3], count=nsample).reshape(
+                    event_dict["data"][i, :] = np.fromfile(fp, dtype=table[formatNew, 3], count=nsample).reshape(
                         1, nsample, order="F"
                     )
-                    # S['data'] = S['data'].swapaxes()
-            S["npoints"] = nsample
+                    # event_dict['data'] = event_dict['data'].swapaxes()
+            event_dict["npoints"] = nsample
         else:
-            S["data"] = np.asarray(data["strobe"][allIndexesWhereEventIsPresent[0]])
-            S["npoints"] = 1
-            S["channels"] = np.tile(1, (S["data"].shape[0],))
+            event_dict["data"] = np.asarray(data["strobe"][allIndexesWhereEventIsPresent[0]])
+            event_dict["npoints"] = 1
+            event_dict["channels"] = np.tile(1, (event_dict["data"].shape[0],))
 
-        S["data"] = (S["data"].T).reshape(-1, order="F")
+        event_dict["data"] = (event_dict["data"].T).reshape(-1, order="F")
 
-        return S
+        return event_dict
+
+    def count_samples(self, *, event: str) -> int:
+        """Return the total number of samples in ``event`` based on header metadata."""
+        data = self._header_df
+        names = np.asarray(data["name"], dtype=str)
+        row = self._ismember(names, event)
+        if sum(row) == 0:
+            return 0
+        indexes = np.where(row == 1)[0]
+        first_row = indexes[0]
+        format_new = data["format"][first_row] + 1
+        if format_new == 5:
+            return int(len(indexes))
+        bytes_per_sample_table = {1: 1, 2: 1, 3: 2, 4: 4}
+        nsample = int((data["size"][first_row] - 10) * bytes_per_sample_table[int(format_new)])
+        return int(nsample * len(indexes))
 
     def read(self, *, events: list[str], outputPath: str) -> list[dict[str, Any]]:
         """
@@ -212,12 +228,12 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         """
         output_dicts = []
         for event in events:
-            S = self._readtev(event=event)
-            if self._event_needs_splitting(data=S["data"], sampling_rate=S["sampling_rate"]):
-                event_dicts = self._split_event_data(S, event)
-                self._split_event_storesList(S, event, outputPath)
+            event_dict = self._readtev(event=event)
+            if self._event_needs_splitting(data=event_dict["data"], sampling_rate=event_dict["sampling_rate"]):
+                event_dicts = self._split_event_data(event_dict, event)
+                self._split_event_storesList(event_dict, event, outputPath)
             else:
-                event_dicts = [S]
+                event_dicts = [event_dict]
             output_dicts.extend(event_dicts)
         return output_dicts
 
@@ -244,29 +260,29 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
             return True
         return False
 
-    def _split_event_data(self, S, event):
+    def _split_event_data(self, event_dict, event):
         # Note that new_event is only used for the new storesList and event is still used for the old storesList
         new_event = event.replace("\\", "")
         new_event = event.replace("/", "")
         logger.info(f"Data in event {event} belongs to multiple behavior")
         logger.debug("Create timestamp files for individual new event.")
-        i_d = np.unique(S["data"])
-        event_dicts = [S]
+        i_d = np.unique(event_dict["data"])
+        event_dicts = [event_dict]
         for i in range(i_d.shape[0]):
-            new_S = dict()
-            idx = np.where(S["data"] == i_d[i])[0]
-            new_S["timestamps"] = S["timestamps"][idx]
-            new_S["storename"] = new_event + self._format_split_suffix(i_d[i])
-            new_S["sampling_rate"] = S["sampling_rate"]
-            new_S["data"] = S["data"]
-            new_S["npoints"] = S["npoints"]
-            new_S["channels"] = S["channels"]
-            event_dicts.append(new_S)
+            split_event_dict = dict()
+            idx = np.where(event_dict["data"] == i_d[i])[0]
+            split_event_dict["timestamps"] = event_dict["timestamps"][idx]
+            split_event_dict["storename"] = new_event + self._format_split_suffix(i_d[i])
+            split_event_dict["sampling_rate"] = event_dict["sampling_rate"]
+            split_event_dict["data"] = event_dict["data"]
+            split_event_dict["npoints"] = event_dict["npoints"]
+            split_event_dict["channels"] = event_dict["channels"]
+            event_dicts.append(split_event_dict)
         logger.info("Timestamp files for individual new event are created.")
 
         return event_dicts
 
-    def _split_event_storesList(self, S, event, outputPath):
+    def _split_event_storesList(self, event_dict, event, outputPath):
         # Note that new_event is only used for the new storesList and event is still used for the old storesList
         new_event = event.replace("\\", "")
         new_event = event.replace("/", "")
@@ -275,7 +291,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         )
         logger.info(f"StoresList in event {event} belongs to multiple behavior")
         logger.debug("Change the stores list file for individual new event.")
-        i_d = np.unique(S["data"])
+        i_d = np.unique(event_dict["data"])
         for i in range(i_d.shape[0]):
             suffix = self._format_split_suffix(i_d[i])
             storesList = np.concatenate((storesList, [[new_event + suffix], [new_event + "_" + suffix]]), axis=1)
@@ -290,14 +306,14 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
             np.savetxt(os.path.join(outputPath, "storesList.csv"), storesList, delimiter=",", fmt="%s")
         logger.info("The stores list file is changed.")
 
-    def _save_dict_to_hdf5(self, S, outputPath):
-        event = S["storename"]
-        write_hdf5(S["storename"], event, outputPath, "storename")
-        write_hdf5(S["sampling_rate"], event, outputPath, "sampling_rate")
-        write_hdf5(S["timestamps"], event, outputPath, "timestamps")
-        write_hdf5(S["data"], event, outputPath, "data")
-        write_hdf5(S["npoints"], event, outputPath, "npoints")
-        write_hdf5(S["channels"], event, outputPath, "channels")
+    def _save_dict_to_hdf5(self, event_dict, outputPath):
+        event = event_dict["storename"]
+        write_hdf5(event_dict["storename"], event, outputPath, "storename")
+        write_hdf5(event_dict["sampling_rate"], event, outputPath, "sampling_rate")
+        write_hdf5(event_dict["timestamps"], event, outputPath, "timestamps")
+        write_hdf5(event_dict["data"], event, outputPath, "data")
+        write_hdf5(event_dict["npoints"], event, outputPath, "npoints")
+        write_hdf5(event_dict["channels"], event, outputPath, "channels")
 
     def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str) -> None:
         """
@@ -310,8 +326,8 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         outputPath : str
             Path to the output directory where HDF5 files are written.
         """
-        for S in output_dicts:
-            self._save_dict_to_hdf5(S=S, outputPath=outputPath)
+        for event_dict in output_dicts:
+            self._save_dict_to_hdf5(event_dict=event_dict, outputPath=outputPath)
 
     @staticmethod
     def _stub_tev_file(tev_file_path, header_df, stubbed_tev_file_path, stream_name_to_num_segments):

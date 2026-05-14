@@ -113,6 +113,62 @@ def test_make_dir_increments_when_previous_exists(tmp_path):
     assert os.path.isdir(result)
 
 
+def test_make_dir_with_explicit_run_name_creates_named_directory(tmp_path):
+    session = tmp_path / "session1"
+    session.mkdir()
+
+    result = make_dir(str(session), run_name="baseline")
+
+    assert result == str(session / "session1_output_baseline")
+    assert os.path.isdir(result)
+
+
+def test_make_dir_create_policy_raises_on_existing_directory(tmp_path):
+    session = tmp_path / "session1"
+    session.mkdir()
+    (session / "session1_output_baseline").mkdir()
+
+    with pytest.raises(ValueError, match="already exists"):
+        make_dir(str(session), run_name="baseline", run_name_policy="create")
+
+
+def test_make_dir_overwrite_policy_replaces_existing_directory(tmp_path):
+    session = tmp_path / "session1"
+    session.mkdir()
+    existing = session / "session1_output_baseline"
+    existing.mkdir()
+    (existing / "stale.txt").write_text("stale")
+
+    result = make_dir(str(session), run_name="baseline", run_name_policy="overwrite")
+
+    assert result == str(existing)
+    assert os.path.isdir(result)
+    assert not (existing / "stale.txt").exists()
+
+
+def test_make_dir_invalid_policy_raises():
+    with pytest.raises(ValueError, match="run_name_policy"):
+        make_dir("/anywhere", run_name="x", run_name_policy="bogus")
+
+
+def test_show_dir_with_explicit_run_name_returns_named_path(tmp_path):
+    session = tmp_path / "session1"
+    session.mkdir()
+
+    result = show_dir(str(session), run_name="strict")
+
+    assert result == str(session / "session1_output_strict")
+    assert not os.path.exists(result)
+
+
+def test_show_dir_invalid_run_name_raises(tmp_path):
+    session = tmp_path / "session1"
+    session.mkdir()
+
+    with pytest.raises(ValueError, match="forbidden character"):
+        show_dir(str(session), run_name="bad/name")
+
+
 # ---------------------------------------------------------------------------
 # _save
 # ---------------------------------------------------------------------------
@@ -494,8 +550,8 @@ class CapturingStorenamesSelector:
     def get_literal_input_2(self):
         return self._literal_input_2
 
-    def set_literal_input_2(self, d):
-        self._literal_input_2 = d
+    def set_literal_input_2(self, storenames_config):
+        self._literal_input_2 = storenames_config
 
     def get_take_widgets(self):
         return self._take_widgets
@@ -514,6 +570,15 @@ class CapturingStorenamesSelector:
 
     def attach_callbacks(self, button_name_to_onclick_fn):
         self.callbacks = button_name_to_onclick_fn
+
+    def attach_run_name_watcher(self, callback):
+        self.run_name_callback = callback
+
+    def get_run_name(self):
+        return getattr(self, "_run_name_value", "")
+
+    def get_overwrite_mode(self):
+        return getattr(self, "_overwrite_mode_value", "create_new_file")
 
     def configure_storenames(self, storename_dropdowns, storename_textboxes, storenames, storenames_cache):
         self.configure_storenames_calls.append(
@@ -589,6 +654,54 @@ def test_overwrite_button_actions_over_write_file_returns_existing_output_dirs(s
 
 
 # ---------------------------------------------------------------------------
+# run_name_input_changed
+# ---------------------------------------------------------------------------
+
+
+def test_run_name_input_changed_no_op_when_not_create_new_file(storenames_closures):
+    selector, _ = storenames_closures
+    selector._overwrite_mode_value = "over_write_file"
+    selector.select_location_options = "untouched"
+
+    selector.run_name_callback(types.SimpleNamespace(new="myrun"))
+
+    assert selector.select_location_options == "untouched"
+    assert selector.alert_message is None
+
+
+def test_run_name_input_changed_updates_select_location_options(storenames_closures):
+    selector, folder_path = storenames_closures
+    selector._overwrite_mode_value = "create_new_file"
+
+    selector.run_name_callback(types.SimpleNamespace(new="myrun"))
+
+    expected = os.path.join(folder_path, "my_session_output_myrun")
+    assert selector.select_location_options == [expected]
+    assert selector.alert_message == "#### No alerts !!"
+
+
+def test_run_name_input_changed_empty_string_falls_back_to_numeric(storenames_closures):
+    selector, folder_path = storenames_closures
+    selector._overwrite_mode_value = "create_new_file"
+
+    selector.run_name_callback(types.SimpleNamespace(new=""))
+
+    expected = os.path.join(folder_path, "my_session_output_1")
+    assert selector.select_location_options == [expected]
+
+
+def test_run_name_input_changed_invalid_run_name_sets_alert(storenames_closures):
+    selector, _ = storenames_closures
+    selector._overwrite_mode_value = "create_new_file"
+
+    selector.run_name_callback(types.SimpleNamespace(new="bad/name"))
+
+    assert "Alert" in selector.alert_message
+    # When show_dir raises, select_location_options is not updated.
+    assert selector.select_location_options is None
+
+
+# ---------------------------------------------------------------------------
 # fetchValues (show_config_button)
 # ---------------------------------------------------------------------------
 
@@ -619,10 +732,10 @@ def test_fetch_values_delegates_to_fetch_values_function(storenames_closures, mo
 
     captured_args = {}
 
-    def fake_fetch_values(text, storenames, storename_dropdowns, storename_textboxes, d, **kwargs):
+    def fake_fetch_values(text, storenames, storename_dropdowns, storename_textboxes, storenames_config, **kwargs):
         captured_args["storenames"] = list(storenames)
-        d["storenames"] = storenames
-        d["names_for_storenames"] = ["control_DMS"]
+        storenames_config["storenames"] = storenames
+        storenames_config["names_for_storenames"] = ["control_DMS"]
         return "#### No alerts !!"
 
     monkeypatch.setattr("guppy.orchestration.storenames._fetchValues", fake_fetch_values)
