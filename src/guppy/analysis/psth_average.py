@@ -18,7 +18,7 @@ from ..utils.utils import read_Df
 logger = logging.getLogger(__name__)
 
 
-def averageForGroup(folderNames, event, inputParameters):
+def averageForGroup(folderNames: list[str], event: str, inputParameters: dict[str, object]) -> None:
     """
     Average PSTH, peak/AUC, and cross-correlation results across a group of sessions.
 
@@ -203,7 +203,7 @@ def averageForGroup(folderNames, event, inputParameters):
     logger.info("Group of data averaged.")
 
 
-def psth_shape_check(psth):
+def psth_shape_check(psth: list[np.ndarray]) -> list[np.ndarray]:
     """
     Pad or truncate PSTH trial arrays so they all share the same length.
 
@@ -236,7 +236,7 @@ def psth_shape_check(psth):
     return psth
 
 
-def read_Df_area_peak(filepath, name):
+def read_Df_area_peak(filepath: str, name: str) -> pd.DataFrame:
     """
     Read a peak/AUC HDF5 file and return its DataFrame.
 

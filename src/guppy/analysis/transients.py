@@ -9,7 +9,15 @@ from scipy.signal import argrelextrema
 logger = logging.getLogger(__name__)
 
 
-def analyze_transients(ts, window, numProcesses, highAmpFilt, transientsThresh, sampling_rate, z_score):
+def analyze_transients(
+    ts: np.ndarray,
+    window: float,
+    numProcesses: int,
+    highAmpFilt: float,
+    transientsThresh: float,
+    sampling_rate: float,
+    z_score: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Detect transient events in a z-score signal using a two-threshold MAD approach.
 
@@ -61,7 +69,9 @@ def analyze_transients(ts, window, numProcesses, highAmpFilt, transientsThresh, 
     return z_score, ts, peaksInd, peaks_occurrences, arr
 
 
-def processChunks(arrValues, arrIndexes, highAmpFilt, transientsThresh):
+def processChunks(
+    arrValues: np.ndarray, arrIndexes: np.ndarray, highAmpFilt: float, transientsThresh: float
+) -> tuple[np.ndarray, float, float, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Apply the two-threshold MAD transient-detection algorithm to one chunk.
 
@@ -120,7 +130,7 @@ def processChunks(arrValues, arrIndexes, highAmpFilt, transientsThresh):
     return peaks, mad, filteredOutMad, medianY, filteredOutMedianY, firstThresholdY, secondThresholdY
 
 
-def createChunks(z_score, sampling_rate, window):
+def createChunks(z_score: np.ndarray, sampling_rate: float, window: float) -> tuple[np.ndarray, np.ndarray]:
     """
     Pad and reshape the z-score array into equal-length chunks for parallel processing.
 
@@ -170,7 +180,9 @@ def createChunks(z_score, sampling_rate, window):
     return z_score_chunks, z_score_chunks_index
 
 
-def calculate_freq_amp(arr, z_score, z_score_chunks_index, timestamps):
+def calculate_freq_amp(
+    arr: np.ndarray, z_score: np.ndarray, z_score_chunks_index: np.ndarray, timestamps: np.ndarray
+) -> tuple[float, np.ndarray, np.ndarray]:
     """
     Aggregate per-chunk transient results into global frequency and amplitude statistics.
 

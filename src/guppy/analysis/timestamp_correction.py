@@ -8,15 +8,15 @@ logger = logging.getLogger(__name__)
 
 
 def correct_timestamps(
-    timeForLightsTurnOn,
-    storesList,
-    name_to_timestamps,
-    name_to_data,
-    name_to_sampling_rate,
-    name_to_npoints,
-    name_to_timestamps_ttl,
-    mode,
-):
+    timeForLightsTurnOn: float,
+    storesList: np.ndarray,
+    name_to_timestamps: dict[str, np.ndarray],
+    name_to_data: dict[str, np.ndarray],
+    name_to_sampling_rate: dict[str, np.ndarray],
+    name_to_npoints: dict[str, np.ndarray | None],
+    name_to_timestamps_ttl: dict[str, np.ndarray],
+    mode: str,
+) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray]]:
     """
     Apply timestamp correction to all channels and TTL stores.
 
@@ -77,14 +77,14 @@ def correct_timestamps(
 
 
 def timestampCorrection(
-    timeForLightsTurnOn,
-    storesList,
-    name_to_timestamps,
-    name_to_data,
-    name_to_sampling_rate,
-    name_to_npoints,
-    mode,
-):
+    timeForLightsTurnOn: float,
+    storesList: np.ndarray,
+    name_to_timestamps: dict[str, np.ndarray],
+    name_to_data: dict[str, np.ndarray],
+    name_to_sampling_rate: dict[str, np.ndarray],
+    name_to_npoints: dict[str, np.ndarray | None],
+    mode: str,
+) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray]]:
     """
     Trim and realign control/signal timestamps, discarding samples before ``timeForLightsTurnOn``.
 
@@ -170,13 +170,13 @@ def timestampCorrection(
 
 
 def decide_naming_and_applyCorrection_ttl(
-    timeForLightsTurnOn,
-    storesList,
-    name_to_timestamps_ttl,
-    name_to_timestamps,
-    name_to_data,
-    mode,
-):
+    timeForLightsTurnOn: float,
+    storesList: np.ndarray,
+    name_to_timestamps_ttl: dict[str, np.ndarray],
+    name_to_timestamps: dict[str, np.ndarray],
+    name_to_data: dict[str, np.ndarray],
+    mode: str,
+) -> dict[str, np.ndarray]:
     """
     Apply timestamp correction to all TTL stores and pair them with channel suffixes.
 
@@ -230,11 +230,11 @@ def decide_naming_and_applyCorrection_ttl(
 
 
 def applyCorrection_ttl(
-    timeForLightsTurnOn,
-    timeRecStart,
-    ttl_timestamps,
-    mode,
-):
+    timeForLightsTurnOn: float,
+    timeRecStart: float,
+    ttl_timestamps: np.ndarray,
+    mode: str,
+) -> np.ndarray:
     """
     Shift TTL timestamps to align with the corrected photometry time base.
 
@@ -267,7 +267,7 @@ def applyCorrection_ttl(
     return corrected_ttl_timestamps
 
 
-def check_cntrl_sig_length(channels_arr, name_to_data):
+def check_cntrl_sig_length(channels_arr: np.ndarray, name_to_data: dict[str, np.ndarray]) -> list[str]:
     """
     Identify the shorter channel in each control/signal pair.
 
