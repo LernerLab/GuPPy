@@ -4,7 +4,9 @@ import os
 import panel as pn
 import pytest
 
+from guppy.frontend.frontend_utils import default_root_path
 from guppy.frontend.input_parameters import ParameterForm, checkSameLocation, getAbsPath
+from guppy.utils.utils import output_dir_for_run
 
 
 @pytest.fixture(scope="session")
@@ -354,3 +356,174 @@ class TestParameterFormDandiMode:
         form.dandi_selector.asset_file_selector.value = [os.path.join(mirror_root, "sub-01", "data.nwb")]
         with pytest.raises(Exception, match="local output directory"):
             form.getInputParameters()
+
+
+class TestOutputsSelector:
+    def test_outputs_selector_exists_and_is_filtered(self, parameter_form):
+        assert isinstance(parameter_form.outputs_selector, pn.widgets.FileSelector)
+        assert parameter_form.outputs_selector.file_pattern == "*_output_*"
+
+    def test_retarget_uses_first_session_as_directory(self, bare_parameter_form, tmp_path):
+        session = tmp_path / "sessionA"
+        session.mkdir()
+        bare_parameter_form.files_1.value = [str(session)]
+        # root_directory must equal directory so Panel's startswith() validation in _dir_change
+        # can't silently revert (especially on Windows where root_directory="/" resolves to a
+        # potentially different drive than tmp_path).
+        assert bare_parameter_form.outputs_selector.root_directory == str(session)
+        assert bare_parameter_form.outputs_selector.directory == str(session)
+        assert bare_parameter_form.outputs_selector.value == []
+
+    def test_retarget_falls_back_to_default_root_when_files_1_cleared(self, bare_parameter_form, tmp_path):
+        session = tmp_path / "sessionA"
+        session.mkdir()
+        bare_parameter_form.files_1.value = [str(session)]
+        bare_parameter_form.files_1.value = []
+        assert bare_parameter_form.outputs_selector.directory == default_root_path()
+
+    def test_retarget_multiple_sessions_uses_common_parent_as_root(self, bare_parameter_form, tmp_path):
+        # Multi-session: root must be the common parent so the user can navigate between
+        # sessions to reach each one's _output_* dirs. Directory starts at sessions[0] so
+        # the FileSelector lands on one session's outputs immediately.
+        session_a = tmp_path / "sessionA"
+        session_a.mkdir()
+        session_b = tmp_path / "sessionB"
+        session_b.mkdir()
+        bare_parameter_form.files_1.value = [str(session_a), str(session_b)]
+        assert bare_parameter_form.outputs_selector.root_directory == str(tmp_path)
+        assert bare_parameter_form.outputs_selector.directory == str(session_a)
+
+    def test_retarget_clears_stale_outputs_selector_value(self, bare_parameter_form, tmp_path):
+        session_a = tmp_path / "sessionA"
+        session_a.mkdir()
+        bare_parameter_form.files_1.value = [str(session_a)]
+        bare_parameter_form.outputs_selector.value = [str(session_a / "stale_output_x")]
+
+        session_b = tmp_path / "sessionB"
+        session_b.mkdir()
+        bare_parameter_form.files_1.value = [str(session_b)]
+        assert bare_parameter_form.outputs_selector.value == []
+
+    def test_collect_selected_outputs_groups_by_session(self, bare_parameter_form, tmp_path):
+        session_a = tmp_path / "sessionA"
+        session_a.mkdir()
+        session_b = tmp_path / "sessionB"
+        session_b.mkdir()
+        run_a1 = output_dir_for_run(str(session_a), "run1")
+        run_a2 = output_dir_for_run(str(session_a), "run2")
+        run_b1 = output_dir_for_run(str(session_b), "run1")
+        for path in (run_a1, run_a2, run_b1):
+            os.mkdir(path)
+
+        bare_parameter_form.outputs_selector.value = [run_a1, run_a2, run_b1]
+        result = bare_parameter_form._collect_selected_outputs()
+        assert result == {
+            str(session_a): ["run1", "run2"],
+            str(session_b): ["run1"],
+        }
+
+    def test_collect_selected_outputs_empty_returns_empty_dict(self, bare_parameter_form):
+        bare_parameter_form.outputs_selector.value = []
+        assert bare_parameter_form._collect_selected_outputs() == {}
+
+    def test_validate_selected_outputs_raises_when_session_has_dirs_but_none_selected(
+        self, bare_parameter_form, tmp_path
+    ):
+        session = tmp_path / "sessionA"
+        session.mkdir()
+        os.mkdir(output_dir_for_run(str(session), "baseline"))
+
+        bare_parameter_form.files_1.value = [str(session)]
+        bare_parameter_form.outputs_selector.value = []
+
+        with pytest.raises(ValueError, match="No output directory selected"):
+            bare_parameter_form.validate_selected_outputs_for_consumers()
+
+    def test_validate_selected_outputs_skips_sessions_without_output_dirs(self, bare_parameter_form, tmp_path):
+        session = tmp_path / "sessionA"
+        session.mkdir()
+        bare_parameter_form.files_1.value = [str(session)]
+        bare_parameter_form.outputs_selector.value = []
+
+        bare_parameter_form.validate_selected_outputs_for_consumers()
+
+    def test_get_input_parameters_omits_run_name_keys(self, parameter_form):
+        result = parameter_form.getInputParameters()
+        assert "runName" not in result
+        assert "runNamePolicy" not in result
+
+    def test_get_input_parameters_selected_outputs_reflects_selector(self, bare_parameter_form, tmp_path):
+        session = tmp_path / "sessionA"
+        session.mkdir()
+        run_dir = output_dir_for_run(str(session), "baseline")
+        os.mkdir(run_dir)
+
+        bare_parameter_form.files_1.value = [str(session)]
+        bare_parameter_form.outputs_selector.value = [run_dir]
+
+        result = bare_parameter_form.getInputParameters()
+        assert result["selectedOutputs"] == {str(session): ["baseline"]}
+
+
+class TestRebuildPerSessionWidgets:
+    def test_preserves_existing_widget_value_across_rebuilds(self, bare_parameter_form, tmp_path):
+        """When files_2 fires twice and the prior selection still exists, preserve it."""
+        session = tmp_path / "sessionA"
+        session.mkdir()
+        os.mkdir(output_dir_for_run(str(session), "run1"))
+        os.mkdir(output_dir_for_run(str(session), "run2"))
+
+        bare_parameter_form.files_2.value = [str(session)]
+        widget = bare_parameter_form.group_selected_outputs_widgets[str(session)]
+        widget.value = "run2"
+
+        # Rebuild with the same session — existing widget is reused, "run2" preserved.
+        bare_parameter_form.files_2.param.trigger("value")
+        reused_widget = bare_parameter_form.group_selected_outputs_widgets[str(session)]
+        assert reused_widget is widget
+        assert reused_widget.value == "run2"
+
+    def test_resets_existing_widget_value_when_prior_selection_invalid(self, bare_parameter_form, tmp_path):
+        """When the prior selection no longer exists in run_names, fall back to the first option."""
+        session = tmp_path / "sessionA"
+        session.mkdir()
+        run1 = output_dir_for_run(str(session), "run1")
+        run2 = output_dir_for_run(str(session), "run2")
+        os.mkdir(run1)
+        os.mkdir(run2)
+
+        bare_parameter_form.files_2.value = [str(session)]
+        widget = bare_parameter_form.group_selected_outputs_widgets[str(session)]
+        widget.value = "run2"
+
+        # Remove run2 so the prior selection becomes invalid; rebuild.
+        os.rmdir(run2)
+        bare_parameter_form.files_2.param.trigger("value")
+
+        reused_widget = bare_parameter_form.group_selected_outputs_widgets[str(session)]
+        assert reused_widget is widget
+        assert reused_widget.value == "run1"
+        assert reused_widget.options == ["run1"]
+
+
+class TestFolderSelectionCards:
+    def test_input_folder_selection_card_exists_and_is_open(self, parameter_form):
+        assert isinstance(parameter_form.input_folder_selection, pn.Card)
+        assert parameter_form.input_folder_selection.title == "Input Folder Selection"
+        assert parameter_form.input_folder_selection.collapsed is False
+
+    def test_output_folder_selection_card_exists_and_is_collapsed(self, parameter_form):
+        assert isinstance(parameter_form.output_folder_selection, pn.Card)
+        assert parameter_form.output_folder_selection.title == "Output Folder Selection"
+        assert parameter_form.output_folder_selection.collapsed is True
+
+    def test_individual_card_starts_collapsed(self, parameter_form):
+        assert parameter_form.individual.collapsed is True
+
+    def test_add_to_template_appends_input_then_output_first(self, parameter_form):
+        main = parameter_form.template.main
+        assert main[0] is parameter_form.input_folder_selection
+        assert main[1] is parameter_form.output_folder_selection
+        assert main[2] is parameter_form.individual
+        assert main[3] is parameter_form.group
+        assert main[4] is parameter_form.visualize

@@ -20,6 +20,8 @@ def _write_stub_files(output_dir, basename):
     with h5py.File(str(output_dir / f"{basename}.hdf5"), "w"):
         pass
     write_transients_to_hdf5(str(output_dir), basename, STUB_Z_SCORE, STUB_TS, STUB_PEAKS_IND)
+    # select_output_dirs validates that picked outputs have a storesList.csv (re-run step 2 if missing).
+    (output_dir / "storesList.csv").write_text("")
 
 
 @pytest.fixture
@@ -58,6 +60,7 @@ class TestExecuteVisualizePeaks:
         monkeypatch.setattr("guppy.orchestration.transients.plt.show", lambda: None)
 
         base_input_parameters["selectForTransientsComputation"] = "z_score"
+        base_input_parameters["selectedOutputs"] = {str(output_dir): ["0"]}
         execute_visualize_peaks([str(output_dir)], base_input_parameters)
 
         assert len(calls) == 1
@@ -82,6 +85,7 @@ class TestExecuteVisualizePeaks:
         monkeypatch.setattr("guppy.orchestration.transients.plt.show", lambda: None)
 
         base_input_parameters["selectForTransientsComputation"] = "dff"
+        base_input_parameters["selectedOutputs"] = {str(session_dir): ["0"]}
         execute_visualize_peaks([str(session_dir)], base_input_parameters)
 
         assert len(calls) == 1
@@ -103,6 +107,7 @@ class TestExecuteVisualizePeaks:
         monkeypatch.setattr("guppy.orchestration.transients.plt.show", lambda: None)
 
         base_input_parameters["selectForTransientsComputation"] = "both"
+        base_input_parameters["selectedOutputs"] = {str(session_dir): ["0"]}
         execute_visualize_peaks([str(session_dir)], base_input_parameters)
 
         assert len(calls) == 2
@@ -123,6 +128,7 @@ class TestExecuteVisualizePeaksCombined:
         monkeypatch.setattr("guppy.orchestration.transients.plt.show", lambda: None)
 
         base_input_parameters["selectForTransientsComputation"] = "z_score"
+        base_input_parameters["selectedOutputs"] = {session: ["0"] for session in combined_output_dir}
         execute_visualize_peaks_combined(combined_output_dir, base_input_parameters)
 
         # get_all_stores_for_combining_data groups both output_0 dirs into op[0];
@@ -153,6 +159,7 @@ class TestExecuteVisualizePeaksCombined:
         monkeypatch.setattr("guppy.orchestration.transients.plt.show", lambda: None)
 
         base_input_parameters["selectForTransientsComputation"] = "dff"
+        base_input_parameters["selectedOutputs"] = {str(session_dir): ["0"]}
         execute_visualize_peaks_combined([str(session_dir)], base_input_parameters)
 
         assert len(calls) == 1

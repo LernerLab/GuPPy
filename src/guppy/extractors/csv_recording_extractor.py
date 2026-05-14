@@ -140,6 +140,15 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
 
         return arr, check_float
 
+    def count_samples(self, *, event: str) -> int:
+        """Return the number of data rows in ``<event>.csv`` (excludes header)."""
+        csv_path = os.path.join(self.folder_path, event + ".csv")
+        if not os.path.exists(csv_path):
+            return 0
+        with open(csv_path, "rb") as file:
+            total_lines = sum(1 for _ in file)
+        return max(0, total_lines - 1)
+
     def _read_csv(self, event):
         logger.debug(f"Trying to read data for {event} from csv file.")
         csv_path = os.path.join(self.folder_path, event + ".csv")

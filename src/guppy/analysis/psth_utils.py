@@ -7,12 +7,10 @@ import re
 import numpy as np
 import pandas as pd
 
-from .io_utils import read_hdf5
-
 logger = logging.getLogger(__name__)
 
 
-def create_Df_for_psth(filepath, event, name, psth, columns=[]):
+def create_Df_for_psth(filepath, event, name, psth, columns):
     """
     Build a PSTH DataFrame (with mean/error columns) and save it as an HDF5 file.
 
@@ -55,23 +53,15 @@ def create_Df_for_psth(filepath, event, name, psth, columns=[]):
         psth = np.hstack((psth, err))
         # timestamps = np.asarray(read_Df(filepath, 'ts_psth', ''))
         # psth = np.hstack((psth, timestamps))
-    try:
-        ts = read_hdf5(event, filepath, "ts")
-        ts = np.append(ts, ["mean", "err"])
-    except:
-        ts = None
 
-    if len(columns) == 0:
-        df = pd.DataFrame(psth, index=None, columns=ts, dtype="float32")
-    else:
-        columns = np.asarray(columns)
-        columns = np.append(columns, ["mean", "err"])
-        df = pd.DataFrame(psth, index=None, columns=list(columns), dtype="float32")
+    columns = np.asarray(columns)
+    columns = np.append(columns, ["mean", "err"])
+    df = pd.DataFrame(psth, index=None, columns=list(columns), dtype="float32")
 
     df.to_hdf(op, key="df", mode="w")
 
 
-def create_Df_for_cross_correlation(filepath, event, name, psth, columns=[]):
+def create_Df_for_cross_correlation(filepath, event, name, psth, columns):
     """
     Build a cross-correlation DataFrame (with mean/error columns) and save it as an HDF5 file.
 
@@ -112,18 +102,10 @@ def create_Df_for_cross_correlation(filepath, event, name, psth, columns=[]):
         psth = np.hstack((psth, err))
         # timestamps = np.asarray(read_Df(filepath, 'ts_psth', ''))
         # psth = np.hstack((psth, timestamps))
-    try:
-        ts = read_hdf5(event, filepath, "ts")
-        ts = np.append(ts, ["mean", "err"])
-    except:
-        ts = None
 
-    if len(columns) == 0:
-        df = pd.DataFrame(psth, index=None, columns=ts, dtype="float32")
-    else:
-        columns = np.asarray(columns)
-        columns = np.append(columns, ["mean", "err"])
-        df = pd.DataFrame(psth, index=None, columns=columns, dtype="float32")
+    columns = np.asarray(columns)
+    columns = np.append(columns, ["mean", "err"])
+    df = pd.DataFrame(psth, index=None, columns=columns, dtype="float32")
 
     df.to_hdf(op, key="df", mode="w")
 

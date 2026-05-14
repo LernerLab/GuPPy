@@ -78,20 +78,24 @@ def test_mixed_modality(tmp_path):
     )
 
     # Steps 3–5 run once with both sessions; each session's storesList.csv is read independently.
+    selected_runs = {folder: ["1"] for folder in selected_folders}
     step3(
         base_dir=base_dir,
         selected_folders=selected_folders,
         npm_split_events=[True, True],
+        selected_runs=selected_runs,
     )
     step4(
         base_dir=base_dir,
         selected_folders=selected_folders,
         npm_split_events=[True, True],
+        selected_runs=selected_runs,
     )
     step5(
         base_dir=base_dir,
         selected_folders=selected_folders,
         npm_split_events=[True, True],
+        selected_runs=selected_runs,
     )
 
     # Validate NPM session outputs
@@ -150,9 +154,10 @@ def test_mixed_modality_tdt_doric(tmp_path):
     )
 
     selected_folders = [str(tdt_session), str(doric_session)]
-    step3(base_dir=base_dir, selected_folders=selected_folders)
-    step4(base_dir=base_dir, selected_folders=selected_folders)
-    step5(base_dir=base_dir, selected_folders=selected_folders)
+    selected_runs = {folder: ["1"] for folder in selected_folders}
+    step3(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
+    step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
+    step5(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
 
     _assert_pipeline_outputs(tdt_session, expected_region="dms", expected_ttl="port_entries_dms")
     _assert_pipeline_outputs(doric_session, expected_region="region", expected_ttl="ttl")
@@ -193,9 +198,16 @@ def test_mixed_modality_tdt_npm(tmp_path):
     )
 
     selected_folders = [str(tdt_session), str(npm_session)]
-    step3(base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True])
-    step4(base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True])
-    step5(base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True])
+    selected_runs = {folder: ["1"] for folder in selected_folders}
+    step3(
+        base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
+    )
+    step4(
+        base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
+    )
+    step5(
+        base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
+    )
 
     _assert_pipeline_outputs(tdt_session, expected_region="dms", expected_ttl="port_entries_dms")
     _assert_pipeline_outputs(npm_session, expected_region="region1", expected_ttl="ttl_true_region1")
@@ -234,9 +246,10 @@ def test_mixed_modality_tdt_csv_data(tmp_path):
     )
 
     selected_folders = [str(tdt_session), str(csv_session)]
-    step3(base_dir=base_dir, selected_folders=selected_folders)
-    step4(base_dir=base_dir, selected_folders=selected_folders)
-    step5(base_dir=base_dir, selected_folders=selected_folders)
+    selected_runs = {folder: ["1"] for folder in selected_folders}
+    step3(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
+    step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
+    step5(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
 
     _assert_pipeline_outputs(tdt_session, expected_region="dms", expected_ttl="port_entries_dms")
     _assert_pipeline_outputs(csv_session, expected_region="region", expected_ttl="ttl")
@@ -279,9 +292,10 @@ def test_mixed_modality_nwb_csv(tmp_path):
     )
 
     selected_folders = [str(nwb_session), str(csv_session)]
-    step3(base_dir=base_dir, selected_folders=selected_folders)
-    step4(base_dir=base_dir, selected_folders=selected_folders)
-    step5(base_dir=base_dir, selected_folders=selected_folders)
+    selected_runs = {folder: ["1"] for folder in selected_folders}
+    step3(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
+    step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
+    step5(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
 
     _assert_pipeline_outputs(nwb_session, expected_region="region", expected_ttl="ttl")
     _assert_pipeline_outputs(csv_session, expected_region="region", expected_ttl="ttl")
@@ -320,9 +334,10 @@ def test_mixed_modality_nwb_tdt(tmp_path):
     )
 
     selected_folders = [str(nwb_session), str(tdt_session)]
-    step3(base_dir=base_dir, selected_folders=selected_folders)
-    step4(base_dir=base_dir, selected_folders=selected_folders)
-    step5(base_dir=base_dir, selected_folders=selected_folders)
+    selected_runs = {folder: ["1"] for folder in selected_folders}
+    step3(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
+    step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
+    step5(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
 
     _assert_pipeline_outputs(nwb_session, expected_region="region", expected_ttl="ttl")
     _assert_pipeline_outputs(tdt_session, expected_region="dms", expected_ttl="port_entries_dms")
@@ -365,9 +380,10 @@ def test_mixed_modality_nwb_doric(tmp_path):
     )
 
     selected_folders = [str(nwb_session), str(doric_session)]
-    step3(base_dir=base_dir, selected_folders=selected_folders)
-    step4(base_dir=base_dir, selected_folders=selected_folders)
-    step5(base_dir=base_dir, selected_folders=selected_folders)
+    selected_runs = {folder: ["1"] for folder in selected_folders}
+    step3(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
+    step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
+    step5(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
 
     _assert_pipeline_outputs(nwb_session, expected_region="region", expected_ttl="ttl")
     _assert_pipeline_outputs(doric_session, expected_region="region", expected_ttl="ttl")
@@ -412,9 +428,16 @@ def test_mixed_modality_nwb_npm(tmp_path):
     )
 
     selected_folders = [str(nwb_session), str(npm_session)]
-    step3(base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True])
-    step4(base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True])
-    step5(base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True])
+    selected_runs = {folder: ["1"] for folder in selected_folders}
+    step3(
+        base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
+    )
+    step4(
+        base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
+    )
+    step5(
+        base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
+    )
 
     _assert_pipeline_outputs(nwb_session, expected_region="region", expected_ttl="ttl")
     _assert_pipeline_outputs(npm_session, expected_region="region1", expected_ttl="ttl_true_region1")

@@ -64,7 +64,7 @@ class TestDandiLiveContract(NwbRecordingExtractorTestMixin):
     def streamed_nwbfile(self):
         """Stream the live NWB file once per class and hold IO open for the session."""
         dandiset_id, asset_path = parse_dandi_uri(DANDI_URI)
-        nwbfile, io = _stream_nwb(dandiset_id=dandiset_id, asset_path=asset_path)
+        nwbfile, io, _ = _stream_nwb(dandiset_id=dandiset_id, asset_path=asset_path)
         yield nwbfile
         io.close()
 
@@ -95,3 +95,12 @@ class TestDandiLiveContract(NwbRecordingExtractorTestMixin):
             len(ttl_objects) == 1
         ), f"Expected exactly one NWB object named {self.ttl_event!r}, found {len(ttl_objects)}"
         return np.array(ttl_objects[0].timestamps[:])
+
+    def test_byte_counter_commits_full_event_after_read(self, tmp_path):
+        """After a real DANDI streamed read, the passive byte counter should have
+        attributed enough bytes to commit the full sample count for the event."""
+        extractor = DandiNwbRecordingExtractor(folder_path=DANDI_URI)
+        total_samples = extractor.count_samples(event=self.control_event)
+        extractor.read(events=[self.control_event], outputPath=str(tmp_path))
+        committed = extractor.committed_samples_for_event(self.control_event)
+        assert committed == total_samples

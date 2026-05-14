@@ -52,6 +52,7 @@ def test_step5(step4_fixture_name, expected_region, expected_ttl, request):
         npm_timestamp_column_names=pipeline_state["npm_timestamp_column_names"],
         npm_time_units=pipeline_state["npm_time_units"],
         npm_split_events=pipeline_state["npm_split_events"],
+        selected_runs={session_copy: ["1"]},
     )
 
     output_directory = str(pipeline_state["output_directory"])

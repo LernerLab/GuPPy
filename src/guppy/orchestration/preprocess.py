@@ -17,7 +17,6 @@ from ..analysis.io_utils import (
     find_files,
     get_coords,
     read_hdf5,
-    takeOnlyDirs,
     write_combined_stores_list,
 )
 from ..analysis.standard_io import (
@@ -42,7 +41,7 @@ from ..analysis.timestamp_correction import correct_timestamps
 from ..analysis.z_score import compute_z_score
 from ..frontend.artifact_removal import ArtifactRemovalWidget
 from ..frontend.progress import PB_STEPS_FILE, subprocess_main_handler, writeToFile
-from ..utils.utils import get_all_stores_for_combining_data
+from ..utils.utils import get_all_stores_for_combining_data, select_output_dirs
 from ..visualization.preprocessing import visualize_preprocessing
 
 logger = logging.getLogger(__name__)
@@ -152,9 +151,10 @@ def execute_timestamp_correction(folderNames, inputParameters):
     timeForLightsTurnOn = inputParameters["timeForLightsTurnOn"]
     isosbestic_control = inputParameters["isosbestic_control"]
 
+    selected_outputs = inputParameters.get("selectedOutputs") or {}
     for i in range(len(folderNames)):
         filepath = folderNames[i]
-        storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*")))
+        storesListPath = select_output_dirs(filepath, selected_outputs.get(filepath))
         mode = "tdt" if check_TDT(folderNames[i]) else "csv"
         logger.debug(f"Timestamps corrections started for {filepath}")
         for j in range(len(storesListPath)):
@@ -235,7 +235,9 @@ def execute_zscore(folderNames, inputParameters):
             storesListPath.append([folderNames[i][0]])
         else:
             filepath = folderNames[i]
-            storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+            storesListPath.append(
+                select_output_dirs(filepath, (inputParameters.get("selectedOutputs") or {}).get(filepath))
+            )
     storesListPath = np.concatenate(storesListPath)
 
     for j in range(len(storesListPath)):
@@ -317,7 +319,9 @@ def visualize_z_score(inputParameters, folderNames):
             storesListPath.append([folderNames[i][0]])
         else:
             filepath = folderNames[i]
-            storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+            storesListPath.append(
+                select_output_dirs(filepath, (inputParameters.get("selectedOutputs") or {}).get(filepath))
+            )
     storesListPath = np.concatenate(storesListPath)
 
     widgets = []
@@ -363,7 +367,9 @@ def execute_artifact_removal(folderNames, inputParameters):
             storesListPath.append([folderNames[i][0]])
         else:
             filepath = folderNames[i]
-            storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+            storesListPath.append(
+                select_output_dirs(filepath, (inputParameters.get("selectedOutputs") or {}).get(filepath))
+            )
 
     storesListPath = np.concatenate(storesListPath)
 
@@ -418,7 +424,9 @@ def visualize_artifact_removal(folderNames, inputParameters):
             storesListPath.append([folderNames[i][0]])
         else:
             filepath = folderNames[i]
-            storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+            storesListPath.append(
+                select_output_dirs(filepath, (inputParameters.get("selectedOutputs") or {}).get(filepath))
+            )
 
     storesListPath = np.concatenate(storesListPath)
 
@@ -449,16 +457,17 @@ def execute_combine_data(folderNames, inputParameters, storesList):
     """
     logger.debug("Combining Data from different data files...")
     timeForLightsTurnOn = inputParameters["timeForLightsTurnOn"]
+    selected_outputs = inputParameters.get("selectedOutputs") or {}
     op_folder = []
     for i in range(len(folderNames)):
         filepath = folderNames[i]
-        op_folder.append(takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*"))))
+        op_folder.append(select_output_dirs(filepath, selected_outputs.get(filepath)))
 
     op_folder = list(np.concatenate(op_folder).flatten())
     sampling_rate_fp = []
     for i in range(len(folderNames)):
         filepath = folderNames[i]
-        storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*")))
+        storesListPath = select_output_dirs(filepath, selected_outputs.get(filepath))
         for j in range(len(storesListPath)):
             filepath = storesListPath[j]
             storesList_new = np.genfromtxt(
@@ -534,9 +543,10 @@ def extractTsAndSignal(inputParameters):
     logger.info(f"Remove Artifacts : {remove_artifacts}")
     logger.info(f"Combine Data : {combine_data}")
     logger.info(f"Isosbestic Control Channel : {isosbestic_control}")
+    selected_outputs = inputParameters.get("selectedOutputs") or {}
     storesListPath = []
     for i in range(len(folderNames)):
-        storesListPath.append(takeOnlyDirs(glob.glob(os.path.join(folderNames[i], "*_output_*"))))
+        storesListPath.append(select_output_dirs(folderNames[i], selected_outputs.get(folderNames[i])))
     storesListPath = np.concatenate(storesListPath)
     # pbMaxValue = storesListPath.shape[0] + len(folderNames)
     # writeToFile(str((pbMaxValue+1)*10)+'\n'+str(10)+'\n')
