@@ -101,12 +101,18 @@ def test_step6_raises_when_visualization_metric_not_computed_in_step5(tmp_path):
         base_dir=str(temporary_base_directory),
         selected_folders=[str(session_copy)],
     )
+    selected_runs = {str(session_copy): ["1"]}
 
     step2(**common_kwargs, storenames_map=STORENAMES_MAP)
-    step3(**common_kwargs)
-    step4(**common_kwargs)
+    step3(**common_kwargs, selected_runs=selected_runs)
+    step4(**common_kwargs, selected_runs=selected_runs)
     # Step 5: compute only dff (not z_score)
-    step5(**common_kwargs, select_for_compute_psth="dff", select_for_transients="dff")
+    step5(
+        **common_kwargs,
+        select_for_compute_psth="dff",
+        select_for_transients="dff",
+        selected_runs=selected_runs,
+    )
 
     hv.extension("bokeh")
 
@@ -116,6 +122,7 @@ def test_step6_raises_when_visualization_metric_not_computed_in_step5(tmp_path):
             step6(
                 **common_kwargs,
                 visualize_zscore_or_dff="z_score",
+                selected_runs=selected_runs,
             )
 
     message = str(exc_info.value)

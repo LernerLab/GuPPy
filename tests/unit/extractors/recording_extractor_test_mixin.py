@@ -114,6 +114,14 @@ class RecordingExtractorTestMixin:
         for expected_event in self.expected_events:
             assert expected_event in events
 
+    # --- count_samples tests ---
+
+    def test_count_samples_control_matches_data_length(self, isolated_extractor_instance, expected_control_data):
+        assert isolated_extractor_instance.count_samples(event=self.control_event) == len(expected_control_data)
+
+    def test_count_samples_signal_matches_data_length(self, isolated_extractor_instance, expected_signal_data):
+        assert isolated_extractor_instance.count_samples(event=self.signal_event) == len(expected_signal_data)
+
     # --- read tests ---
 
     def test_read_returns_list_of_dicts(self, tmp_path, isolated_extractor_instance):

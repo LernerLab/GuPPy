@@ -73,10 +73,11 @@ def test_consistency(
         selected_folders=[str(session_copy)],
     )
 
+    selected_runs = {folder: ["1"] for folder in common_kwargs["selected_folders"]}
     step2(**common_kwargs, storenames_map=storenames_map)
-    step3(**common_kwargs)
-    step4(**common_kwargs)
-    step5(**common_kwargs)
+    step3(**common_kwargs, selected_runs=selected_runs)
+    step4(**common_kwargs, selected_runs=selected_runs)
+    step5(**common_kwargs, selected_runs=selected_runs)
 
     output_dirs = sorted(glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")))
     assert output_dirs, f"No output directory found under {session_copy}"

@@ -1,11 +1,17 @@
 """Contract tests for orchestrate_read_raw_data error enrichment."""
 
+import multiprocessing as mp
 import shutil
+import threading
+import time
 
 import pytest
 from conftest import STUBBED_TESTING_DATA
 
-from guppy.orchestration.read_raw_data import orchestrate_read_raw_data
+from guppy.orchestration.read_raw_data import (
+    _progress_poller,
+    orchestrate_read_raw_data,
+)
 
 
 class TestOrchestrateReadRawDataErrorEnrichment:
@@ -30,6 +36,7 @@ class TestOrchestrateReadRawDataErrorEnrichment:
             "folderNames": [session_with_bogus_event],
             "numberOfCores": 1,
             "noChannels": 2,
+            "selectedOutputs": {session_with_bogus_event: ["1"]},
         }
         with pytest.raises(ValueError) as exception_info:
             orchestrate_read_raw_data(input_parameters)
@@ -41,3 +48,114 @@ class TestOrchestrateReadRawDataErrorEnrichment:
         assert "AIn-1 - Raw" in message
         assert "AIn-2 - Raw" in message
         assert "DI--O-1" in message
+
+
+class TestProgressPoller:
+    """``_progress_poller`` flushes the shared samples counter to ``PB_STEPS_FILE``."""
+
+    def test_writes_value_times_ten_on_change(self, tmp_path):
+        progress_file = tmp_path / "pb.txt"
+        samples_done = mp.Value("q", 0)
+        stop_event = threading.Event()
+        thread = threading.Thread(
+            target=_progress_poller,
+            args=(samples_done, stop_event),
+            kwargs={"file_path": str(progress_file)},
+        )
+        thread.start()
+        try:
+            # Drive three distinct values past the poller; sleep long enough between
+            # each so the 200ms poll loop sees them as separate ticks.
+            for value in (5, 12, 30):
+                with samples_done.get_lock():
+                    samples_done.value = value
+                time.sleep(0.3)
+        finally:
+            stop_event.set()
+            thread.join(timeout=2.0)
+
+        written_values = [int(line.strip()) for line in progress_file.read_text().splitlines() if line.strip()]
+        assert written_values == [50, 120, 300]
+
+    def test_skips_redundant_writes_when_value_unchanged(self, tmp_path):
+        progress_file = tmp_path / "pb.txt"
+        samples_done = mp.Value("q", 7)
+        stop_event = threading.Event()
+        thread = threading.Thread(
+            target=_progress_poller,
+            args=(samples_done, stop_event),
+            kwargs={"file_path": str(progress_file)},
+        )
+        thread.start()
+        time.sleep(0.7)  # ~3 poll cycles with no value change
+        stop_event.set()
+        thread.join(timeout=2.0)
+
+        written_values = [int(line.strip()) for line in progress_file.read_text().splitlines() if line.strip()]
+        # The first poll writes the value once; subsequent polls with the same value
+        # must not write again.
+        assert written_values == [70]
+
+
+class TestProgressFileAccountingEndToEnd:
+    """A full step-3 run with a fake sleeping extractor produces a monotonic, fully
+    reconciled progress file. Exercises the pre-flight count, pool worker handoff,
+    poller writes, and final reconciliation in one shot.
+    """
+
+    def test_two_event_run_produces_monotonic_progress_and_reconciles_to_total(self, tmp_path, monkeypatch):
+        from guppy.orchestration import read_raw_data as read_raw_data_module
+
+        progress_file = tmp_path / "pb_steps.txt"
+        monkeypatch.setattr(read_raw_data_module, "PB_STEPS_FILE", str(progress_file))
+
+        # Build a session folder with a storesList.csv referencing two fake events.
+        session_folder = tmp_path / "session"
+        output_folder = session_folder / "session_output_1"
+        output_folder.mkdir(parents=True)
+        (output_folder / "storesList.csv").write_text("event_a,event_b\nsignal_a,signal_b\n")
+
+        # Fake extractor that sleeps inside read so the poller has time to tick.
+        # count_samples reports per-event totals; read+save are no-ops on disk.
+        class _SleepingExtractor:
+            samples_per_event = {"event_a": 100, "event_b": 200}
+
+            def count_samples(self, *, event):
+                return _SleepingExtractor.samples_per_event[event]
+
+            def read(self, *, events, outputPath):
+                time.sleep(0.4)
+                return [{"storename": event, "timestamps": [0.0]} for event in events]
+
+            def save(self, *, output_dicts, outputPath):
+                return None
+
+        fake_extractor = _SleepingExtractor()
+
+        def fake_build_event_to_extractor(*, folder_path, storesList, inputParameters):
+            return {"event_a": fake_extractor, "event_b": fake_extractor}
+
+        monkeypatch.setattr(read_raw_data_module, "_build_event_to_extractor", fake_build_event_to_extractor)
+
+        # numberOfCores=1 routes orchestrate_read_raw_data through its serial path,
+        # which installs _SAMPLES_DONE in the parent process and calls the
+        # read-and-save unit function directly — no pool, no separate patch needed.
+        input_parameters = {
+            "folderNames": [str(session_folder)],
+            "numberOfCores": 1,
+            "noChannels": 2,
+            "selectedOutputs": {str(session_folder): ["1"]},
+        }
+        orchestrate_read_raw_data(input_parameters)
+
+        written_values = [int(line.strip()) for line in progress_file.read_text().splitlines() if line.strip()]
+        total_samples = 100 + 200
+        expected_max = total_samples * 10
+
+        # First line is the bar's max; the rest are monotonic progress ticks ending at max.
+        assert written_values[0] == expected_max
+        progress_ticks = written_values[1:]
+        assert progress_ticks == sorted(progress_ticks)
+        assert progress_ticks[-1] == expected_max
+        # Pre-flight wrote a 0 immediately after the max, so we get at least two ticks.
+        assert len(progress_ticks) >= 2

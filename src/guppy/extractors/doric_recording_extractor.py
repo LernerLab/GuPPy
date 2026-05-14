@@ -183,6 +183,49 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                 "demodulated or raw photometry channel instead."
             )
 
+    def count_samples(self, *, event: str) -> int:
+        """Return the number of samples for ``event`` using only metadata reads."""
+        flag = self._check_doric()
+        if flag == "doric_csv":
+            csv_paths = glob.glob(os.path.join(self.folder_path, "*.csv"))
+            if not csv_paths:
+                return 0
+            with open(csv_paths[0], "rb") as file:
+                total_lines = sum(1 for _ in file)
+            return max(0, total_lines - 2)
+        if flag == "doric_doric":
+            doric_paths = glob.glob(os.path.join(self.folder_path, "*.doric"))
+            if not doric_paths:
+                return 0
+            with h5py.File(doric_paths[0], "r") as f:
+                if "Traces" in list(f.keys()):
+                    console = f["Traces"]["Console"]
+                    if event in console:
+                        return int(console[event][event].shape[0])
+                    return 0
+                if list(f.keys()) == ["Configurations", "DataAcquisition"]:
+                    data = [f["DataAcquisition"]]
+                    res = []
+                    while len(data) != 0:
+                        members = len(data)
+                        while members != 0:
+                            members -= 1
+                            data, last_element = self._separate_last_element(data)
+                            if isinstance(last_element, h5py.Dataset) and not last_element.name.endswith("/Time"):
+                                res.append(last_element.name)
+                            elif isinstance(last_element, h5py.Group):
+                                data.extend(reversed([last_element[k] for k in last_element.keys()]))
+                    for element in res:
+                        sep_values = element.split("/")
+                        if sep_values[-1] == "Values":
+                            label = f"{sep_values[-3]}/{sep_values[-2]}"
+                        else:
+                            label = f"{sep_values[-2]}/{sep_values[-1]}"
+                        if label == event:
+                            return int(f[element].shape[0])
+                    return 0
+        return 0
+
     def _check_doric(self):
         logger.debug("Checking if doric file exists")
         path = glob.glob(os.path.join(self.folder_path, "*.csv")) + glob.glob(os.path.join(self.folder_path, "*.doric"))
@@ -253,7 +296,12 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                 data = np.array(df[event])
                 self._validate_signal_control_data(event, data, event_type)
                 storename = event
-                event_dict = {"storename": storename, "sampling_rate": sampling_rate, "timestamps": timestamps, "data": data}
+                event_dict = {
+                    "storename": storename,
+                    "sampling_rate": sampling_rate,
+                    "timestamps": timestamps,
+                    "data": data,
+                }
                 output_dicts.append(event_dict)
             else:
                 ttl = df[event]
@@ -335,7 +383,12 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                 self._validate_signal_control_data(event, data, event_type)
                 sampling_rate = np.array([1 / (timestamps[-1] - timestamps[-2])])
                 storename = event
-                event_dict = {"storename": storename, "sampling_rate": sampling_rate, "timestamps": timestamps, "data": data}
+                event_dict = {
+                    "storename": storename,
+                    "sampling_rate": sampling_rate,
+                    "timestamps": timestamps,
+                    "data": data,
+                }
                 output_dicts.append(event_dict)
             else:
                 regex = re.compile("(.*?)" + event + "$")
@@ -386,7 +439,12 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                 self._validate_signal_control_data(event, data, event_type)
                 sampling_rate = np.array([1 / (timestamps[-1] - timestamps[-2])])
                 storename = event
-                event_dict = {"storename": storename, "sampling_rate": sampling_rate, "timestamps": timestamps, "data": data}
+                event_dict = {
+                    "storename": storename,
+                    "sampling_rate": sampling_rate,
+                    "timestamps": timestamps,
+                    "data": data,
+                }
                 output_dicts.append(event_dict)
             else:
                 timestamps = np.array(console["Time(s)"]["Console_time(s)"])

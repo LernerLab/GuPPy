@@ -64,12 +64,19 @@ def test_consistency_group_analysis(tmp_path):
         selected_folders=selected_folders,
     )
 
+    selected_runs = {folder: ["1"] for folder in selected_folders}
     step2(**common_kwargs, storenames_map=STORENAMES_MAP)
-    step3(**common_kwargs)
-    step4(**common_kwargs)
-    step5(**common_kwargs)
+    step3(**common_kwargs, selected_runs=selected_runs)
+    step4(**common_kwargs, selected_runs=selected_runs)
+    step5(**common_kwargs, selected_runs=selected_runs)
 
-    step5(**common_kwargs, average_for_group=True, group_folders=selected_folders)
+    step5(
+        **common_kwargs,
+        average_for_group=True,
+        group_folders=selected_folders,
+        selected_runs=selected_runs,
+        group_selected_runs=selected_runs,
+    )
 
     actual_output_dir = str(tmp_base / "average")
     assert os.path.isdir(actual_output_dir), f"No average directory found under {tmp_base}"

@@ -1,6 +1,16 @@
 import pandas as pd
+import pytest
 
-from guppy.utils.utils import get_all_stores_for_combining_data, read_Df, takeOnlyDirs
+from guppy.utils.utils import (
+    discover_output_dirs,
+    get_all_stores_for_combining_data,
+    output_dir_for_run,
+    parse_run_name,
+    read_Df,
+    select_output_dirs,
+    takeOnlyDirs,
+    validate_run_name,
+)
 
 # ── takeOnlyDirs ──────────────────────────────────────────────────────────────
 
@@ -126,3 +136,210 @@ def test_read_df_forward_slash_in_event_name_is_replaced_with_underscore(tmp_pat
     result = read_Df(str(tmp_path), "a/b", name=None)
 
     pd.testing.assert_frame_equal(result, dataframe)
+
+
+# ── parse_run_name ────────────────────────────────────────────────────────────
+
+
+def test_parse_run_name_legacy_integer_suffix():
+    assert parse_run_name("/sessions/mySession/mySession_output_1") == "1"
+
+
+def test_parse_run_name_alphanumeric_suffix():
+    assert parse_run_name("/sessions/mySession/mySession_output_baseline50") == "baseline50"
+
+
+def test_parse_run_name_uses_last_marker_occurrence():
+    # If a session basename happens to embed "_output_", the last occurrence is the boundary.
+    assert parse_run_name("/path/foo_output_data/foo_output_data_output_strict") == "strict"
+
+
+def test_parse_run_name_trailing_separator_is_tolerated():
+    assert parse_run_name("/sessions/mySession/mySession_output_1/") == "1"
+
+
+def test_parse_run_name_raises_when_marker_missing():
+    with pytest.raises(ValueError, match="does not match"):
+        parse_run_name("/sessions/no_match_here")
+
+
+# ── output_dir_for_run ────────────────────────────────────────────────────────
+
+
+def test_output_dir_for_run_builds_expected_path(tmp_path):
+    session = tmp_path / "mySession"
+    session.mkdir()
+    result = output_dir_for_run(str(session), "baseline")
+    assert result == str(session / "mySession_output_baseline")
+
+
+def test_output_dir_for_run_does_not_create_directory(tmp_path):
+    session = tmp_path / "mySession"
+    session.mkdir()
+    result = output_dir_for_run(str(session), "x")
+    import os as _os
+
+    assert not _os.path.exists(result)
+
+
+# ── discover_output_dirs ──────────────────────────────────────────────────────
+
+
+def test_discover_output_dirs_returns_only_output_dirs(tmp_path):
+    session = tmp_path / "mySession"
+    session.mkdir()
+    (session / "mySession_output_1").mkdir()
+    (session / "mySession_output_2").mkdir()
+    (session / "unrelated.txt").touch()
+    (session / "raw_data").mkdir()
+
+    result = discover_output_dirs(str(session))
+
+    assert result == [
+        str(session / "mySession_output_1"),
+        str(session / "mySession_output_2"),
+    ]
+
+
+def test_discover_output_dirs_orders_numeric_then_alpha(tmp_path):
+    session = tmp_path / "mySession"
+    session.mkdir()
+    (session / "mySession_output_10").mkdir()
+    (session / "mySession_output_2").mkdir()
+    (session / "mySession_output_baseline").mkdir()
+    (session / "mySession_output_alpha").mkdir()
+
+    result = [parse_run_name(directory) for directory in discover_output_dirs(str(session))]
+
+    assert result == ["2", "10", "alpha", "baseline"]
+
+
+def test_discover_output_dirs_empty_when_no_outputs(tmp_path):
+    session = tmp_path / "mySession"
+    session.mkdir()
+
+    assert discover_output_dirs(str(session)) == []
+
+
+# ── select_output_dirs ────────────────────────────────────────────────────────
+
+
+def test_select_output_dirs_none_raises(tmp_path):
+    session = tmp_path / "mySession"
+    session.mkdir()
+    (session / "mySession_output_1").mkdir()
+
+    with pytest.raises(ValueError, match="explicit non-empty list"):
+        select_output_dirs(str(session), None)
+
+
+def test_select_output_dirs_filters_to_requested_runs(tmp_path):
+    session = tmp_path / "mySession"
+    session.mkdir()
+    for run_name in ("1", "baseline", "strict"):
+        directory = session / f"mySession_output_{run_name}"
+        directory.mkdir()
+        (directory / "storesList.csv").touch()
+
+    result = select_output_dirs(str(session), ["baseline"])
+
+    assert result == [str(session / "mySession_output_baseline")]
+
+
+def test_select_output_dirs_raises_for_missing_run_name(tmp_path):
+    session = tmp_path / "mySession"
+    session.mkdir()
+    (session / "mySession_output_1").mkdir()
+    (session / "mySession_output_1" / "storesList.csv").touch()
+
+    with pytest.raises(ValueError, match="Output directory not found"):
+        select_output_dirs(str(session), ["nonexistent"])
+
+
+def test_select_output_dirs_raises_when_storeslist_missing(tmp_path):
+    session = tmp_path / "mySession"
+    session.mkdir()
+    (session / "mySession_output_baseline").mkdir()  # no storesList.csv
+
+    with pytest.raises(ValueError, match="storesList.csv"):
+        select_output_dirs(str(session), ["baseline"])
+
+
+def test_select_output_dirs_empty_list_raises(tmp_path):
+    session = tmp_path / "mySession"
+    session.mkdir()
+    (session / "mySession_output_1").mkdir()
+
+    with pytest.raises(ValueError, match="explicit non-empty list"):
+        select_output_dirs(str(session), [])
+
+
+# ── validate_run_name ─────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("run_name", ["baseline", "1", "run-2", "v2.0", "alpha_beta"])
+def test_validate_run_name_accepts_valid_names(run_name):
+    validate_run_name(run_name)  # should not raise
+
+
+@pytest.mark.parametrize(
+    "run_name, match",
+    [
+        ("", "non-empty"),
+        ("   ", "whitespace"),
+        (" leading", "whitespace"),
+        ("trailing ", "whitespace"),
+        ("a/b", "forbidden character"),
+        ("a\\b", "forbidden character"),
+        ("a:b", "forbidden character"),
+        ("a..b", "'..'"),
+        ("foo_output_bar", "_output_"),
+    ],
+)
+def test_validate_run_name_rejects_invalid(run_name, match):
+    with pytest.raises(ValueError, match=match):
+        validate_run_name(run_name)
+
+
+def test_validate_run_name_rejects_non_string():
+    with pytest.raises(ValueError, match="must be a string"):
+        validate_run_name(123)
+
+
+# ── get_all_stores_for_combining_data — new name-based grouping ───────────────
+
+
+def test_get_all_stores_for_combining_data_groups_by_alphanumeric_run_name():
+    folder_names = [
+        "/data/sessionA/sessionA_output_baseline",
+        "/data/sessionB/sessionB_output_baseline",
+        "/data/sessionA/sessionA_output_strict",
+    ]
+
+    result = get_all_stores_for_combining_data(folder_names)
+
+    assert result == [
+        ["/data/sessionA/sessionA_output_baseline", "/data/sessionB/sessionB_output_baseline"],
+        ["/data/sessionA/sessionA_output_strict"],
+    ]
+
+
+def test_get_all_stores_for_combining_data_orders_numeric_before_alpha():
+    folder_names = [
+        "/d/x/x_output_baseline",
+        "/d/y/y_output_2",
+        "/d/x/x_output_2",
+        "/d/y/y_output_baseline",
+    ]
+
+    result = get_all_stores_for_combining_data(folder_names)
+
+    # Numeric "2" group first (sorted by integer value), then alphanumeric "baseline".
+    assert result[0] == ["/d/x/x_output_2", "/d/y/y_output_2"]
+    assert result[1] == ["/d/x/x_output_baseline", "/d/y/y_output_baseline"]
+
+
+def test_get_all_stores_for_combining_data_skips_paths_without_marker():
+    folder_names = ["/data/no_match", "/data/x/x_output_1"]
+    result = get_all_stores_for_combining_data(folder_names)
+    assert result == [["/data/x/x_output_1"]]

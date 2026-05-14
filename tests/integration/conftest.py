@@ -9,6 +9,7 @@ import pytest
 
 from guppy.frontend.visualization_dashboard import VisualizationDashboard
 from guppy.testing.api import step2, step3, step4, step5, step6
+from guppy.utils.utils import parse_run_name
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 STUBBED_TESTING_DATA = PROJECT_ROOT / "stubbed_testing_data"
@@ -130,6 +131,12 @@ def _run_step2(*, pipeline_state: dict[str, str | list[bool] | None]) -> dict[st
     return pipeline_state
 
 
+def _selected_runs_for_session(*, pipeline_state: dict[str, str | list[bool] | None]) -> dict[str, list[str]]:
+    session = str(pipeline_state["session_copy"])
+    output_directory = str(pipeline_state["output_directory"])
+    return {session: [parse_run_name(output_directory)]}
+
+
 def _run_step3(*, pipeline_state: dict[str, str | list[bool] | None]) -> dict[str, str | list[bool] | None]:
     step3(
         base_dir=str(pipeline_state["base_directory"]),
@@ -137,6 +144,7 @@ def _run_step3(*, pipeline_state: dict[str, str | list[bool] | None]) -> dict[st
         npm_timestamp_column_names=pipeline_state["npm_timestamp_column_names"],
         npm_time_units=pipeline_state["npm_time_units"],
         npm_split_events=pipeline_state["npm_split_events"],
+        selected_runs=_selected_runs_for_session(pipeline_state=pipeline_state),
     )
     pipeline_state["output_directory"] = _locate_output_directory(session_copy=str(pipeline_state["session_copy"]))
     return pipeline_state
@@ -149,6 +157,7 @@ def _run_step4(*, pipeline_state: dict[str, str | list[bool] | None]) -> dict[st
         npm_timestamp_column_names=pipeline_state["npm_timestamp_column_names"],
         npm_time_units=pipeline_state["npm_time_units"],
         npm_split_events=pipeline_state["npm_split_events"],
+        selected_runs=_selected_runs_for_session(pipeline_state=pipeline_state),
     )
     pipeline_state["output_directory"] = _locate_output_directory(session_copy=str(pipeline_state["session_copy"]))
     return pipeline_state
@@ -241,6 +250,7 @@ def _run_step5(*, pipeline_state: dict[str, str | list[bool] | None]) -> dict[st
         npm_timestamp_column_names=pipeline_state["npm_timestamp_column_names"],
         npm_time_units=pipeline_state["npm_time_units"],
         npm_split_events=pipeline_state["npm_split_events"],
+        selected_runs=_selected_runs_for_session(pipeline_state=pipeline_state),
     )
     pipeline_state["output_directory"] = _locate_output_directory(session_copy=str(pipeline_state["session_copy"]))
     return pipeline_state
@@ -266,6 +276,7 @@ def _run_step6(*, pipeline_state: dict[str, str | list[bool] | None]) -> dict[st
                 npm_timestamp_column_names=pipeline_state["npm_timestamp_column_names"],
                 npm_time_units=pipeline_state["npm_time_units"],
                 npm_split_events=pipeline_state["npm_split_events"],
+                selected_runs=_selected_runs_for_session(pipeline_state=pipeline_state),
             )
 
     pipeline_state["captured_dashboards"] = captured_dashboards

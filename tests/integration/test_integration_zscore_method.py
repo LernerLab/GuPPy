@@ -56,11 +56,12 @@ def test_zscore_method(tmp_path, zscore_method, step4_extra_kwargs):
         base_dir=str(temporary_base_directory),
         selected_folders=[str(session_copy)],
     )
+    selected_runs = {str(session_copy): ["1"]}
 
     step2(**common_kwargs, storenames_map=STORENAMES_MAP)
-    step3(**common_kwargs)
-    step4(**common_kwargs, zscore_method=zscore_method, **step4_extra_kwargs)
-    step5(**common_kwargs)
+    step3(**common_kwargs, selected_runs=selected_runs)
+    step4(**common_kwargs, zscore_method=zscore_method, selected_runs=selected_runs, **step4_extra_kwargs)
+    step5(**common_kwargs, selected_runs=selected_runs)
 
     output_directories = sorted(glob.glob(os.path.join(session_copy, f"{session_name}_output_*")))
     assert output_directories, f"No output directories found in {session_copy}"
