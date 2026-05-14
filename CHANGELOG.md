@@ -11,6 +11,7 @@
 - Added parameterized output directories: step 2 accepts a user-supplied run name, steps 1 and 3–6 honour a per-session run-name filter, and `GuPPyParamtersUsed.json` is written into the selected output directories so multiple parameter sets can coexist in one session. [PR #325](https://github.com/LernerLab/GuPPy/pull/325)
 - Added type hint checks to pre-commit. [PR #346](https://github.com/LernerLab/GuPPy/pull/346)
 - Added type hints to all functions in the extractors layer (`src/guppy/extractors/`). [PR #348](https://github.com/LernerLab/GuPPy/pull/348)
+- Added type hints to all functions in the utils, visualization, testing, and root layers. [PR #347](https://github.com/LernerLab/GuPPy/pull/347)
 
 ## Fixes
 - Fixed bug with step five, which was causing the baseline uncorrected HDF5 file to not exist. [PR #241](https://github.com/LernerLab/GuPPy/pull/241)

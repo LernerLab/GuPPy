@@ -39,13 +39,22 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
-def _is_finite_number(value):
+def _is_finite_number(value: object) -> bool:
     if isinstance(value, bool) or not isinstance(value, (int, float, np.integer, np.floating)):
         return False
     return not np.isnan(float(value))
 
 
-def validate_window_bounds(*, start, end, ts_min, ts_max, start_name, end_name, range_label="signal timespan"):
+def validate_window_bounds(
+    *,
+    start: float,
+    end: float,
+    ts_min: float,
+    ts_max: float,
+    start_name: str,
+    end_name: str,
+    range_label: str = "signal timespan",
+) -> None:
     """Validate a ``[start, end]`` window against an outer ``[ts_min, ts_max]`` range.
 
     Parameters
@@ -92,7 +101,7 @@ def validate_window_bounds(*, start, end, ts_min, ts_max, start_name, end_name, 
         raise ValueError(message)
 
 
-def validate_peak_windows(*, peak_starts, peak_ends):
+def validate_peak_windows(*, peak_starts: Sequence[float], peak_ends: Sequence[float]) -> tuple[np.ndarray, np.ndarray]:
     """Validate paired peak-window arrays and return them with NaN padding stripped.
 
     The GUI exposes ten peak-window slots, each padded with ``NaN`` when unused,
