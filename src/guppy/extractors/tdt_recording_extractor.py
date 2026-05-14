@@ -30,7 +30,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
     """
 
     @classmethod
-    def discover_events_and_flags(cls, folder_path) -> tuple[list[str], list[str]]:
+    def discover_events_and_flags(cls, folder_path: str) -> tuple[list[str], list[str]]:
         """
         Discover available events and format flags from TDT files.
 
@@ -65,12 +65,12 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         flags = []
         return events, flags
 
-    def __init__(self, folder_path):
+    def __init__(self, folder_path: str) -> None:
         self.folder_path = folder_path
         self._header_df, _ = self._readtsq(folder_path)
 
     @staticmethod
-    def _readtsq(folder_path):
+    def _readtsq(folder_path: str) -> tuple[pd.DataFrame | int, str | int]:
         logger.debug("Trying to read tsq file.")
         names = ("size", "type", "name", "chan", "sort_code", "timestamp", "fp_loc", "strobe", "format", "frequency")
         formats = (int32, int32, "S4", uint16, uint16, float64, int64, float64, int32, float32)
@@ -100,7 +100,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         logger.info("Data from tsq file fetched.")
         return df, flag
 
-    def _readtev(self, event):
+    def _readtev(self, event: str) -> dict[str, object]:
         data = self._header_df.copy()
         filepath = self.folder_path
 
@@ -238,12 +238,12 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         return output_dicts
 
     @staticmethod
-    def _ismember(arr, element):
+    def _ismember(arr: np.ndarray, element: str) -> np.ndarray:
         res = [1 if i == element else 0 for i in arr]
         return np.asarray(res)
 
     @staticmethod
-    def _format_split_suffix(value):
+    def _format_split_suffix(value: float) -> str:
         # "{:g}" renders integer-valued codes (int or 5.0) as "5", and collapses
         # float32 precision artifacts (0.10000000149... → "0.1") at 6 significant
         # digits. "." → "p" keeps the suffix free of the "_" / "." delimiters used
@@ -251,7 +251,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         return f"{float(value):g}".replace(".", "p")
 
     @staticmethod
-    def _event_needs_splitting(data, sampling_rate):
+    def _event_needs_splitting(data: np.ndarray, sampling_rate: float) -> bool:
         logger.info("Checking event storename data for creating multiple event names from single event storename...")
         diff = np.diff(data)
         if diff.shape[0] == 0:
@@ -260,7 +260,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
             return True
         return False
 
-    def _split_event_data(self, event_dict, event):
+    def _split_event_data(self, event_dict: dict[str, object], event: str) -> list[dict[str, object]]:
         # Note that new_event is only used for the new storesList and event is still used for the old storesList
         new_event = event.replace("\\", "")
         new_event = event.replace("/", "")
@@ -282,7 +282,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
 
         return event_dicts
 
-    def _split_event_storesList(self, event_dict, event, outputPath):
+    def _split_event_storesList(self, event_dict: dict[str, object], event: str, outputPath: str) -> None:
         # Note that new_event is only used for the new storesList and event is still used for the old storesList
         new_event = event.replace("\\", "")
         new_event = event.replace("/", "")
@@ -306,7 +306,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
             np.savetxt(os.path.join(outputPath, "storesList.csv"), storesList, delimiter=",", fmt="%s")
         logger.info("The stores list file is changed.")
 
-    def _save_dict_to_hdf5(self, event_dict, outputPath):
+    def _save_dict_to_hdf5(self, event_dict: dict[str, object], outputPath: str) -> None:
         event = event_dict["storename"]
         write_hdf5(event_dict["storename"], event, outputPath, "storename")
         write_hdf5(event_dict["sampling_rate"], event, outputPath, "sampling_rate")
@@ -330,7 +330,12 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
             self._save_dict_to_hdf5(event_dict=event_dict, outputPath=outputPath)
 
     @staticmethod
-    def _stub_tev_file(tev_file_path, header_df, stubbed_tev_file_path, stream_name_to_num_segments):
+    def _stub_tev_file(
+        tev_file_path: Path | str,
+        header_df: pd.DataFrame,
+        stubbed_tev_file_path: Path | str,
+        stream_name_to_num_segments: dict[str, int],
+    ) -> dict[int, int]:
         """
         Write a truncated TEV file containing only the first N data segments per stream.
 
@@ -397,8 +402,12 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
 
     @staticmethod
     def _stub_tsq_file(
-        header_df, stubbed_tsq_file_path, stream_name_to_num_segments, original_to_new_fp_loc, stub_duration_in_seconds
-    ):
+        header_df: pd.DataFrame,
+        stubbed_tsq_file_path: Path | str,
+        stream_name_to_num_segments: dict[str, int],
+        original_to_new_fp_loc: dict[int, int],
+        stub_duration_in_seconds: float,
+    ) -> None:
         """
         Write a truncated TSQ header file matching the stubbed TEV file.
 
@@ -469,7 +478,9 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         stubbed_tsq_data.tofile(stubbed_tsq_file_path)
 
     @staticmethod
-    def _compute_stream_name_to_num_segments(header_df, stub_duration_in_seconds):
+    def _compute_stream_name_to_num_segments(
+        header_df: pd.DataFrame, stub_duration_in_seconds: float
+    ) -> dict[str, int]:
         """
         Compute the number of TEV segments to retain per stream for a given stub duration.
 
@@ -500,7 +511,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
             stream_name_to_num_segments[stream_name_bytes.decode()] = number_of_segments
         return stream_name_to_num_segments
 
-    def stub(self, *, folder_path, duration_in_seconds=1.0):
+    def stub(self, *, folder_path: str | Path, duration_in_seconds: float = 1.0) -> None:
         """
         Create a stubbed copy of the TDT tank folder with truncated TEV and TSQ files.
 

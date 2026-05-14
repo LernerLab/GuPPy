@@ -16,7 +16,7 @@ from .standard_io import (
 logger = logging.getLogger(__name__)
 
 
-def averageForGroup(folderNames, inputParameters):
+def averageForGroup(folderNames: list[str], inputParameters: dict[str, object]) -> None:
     """
     Combine transient frequency and amplitude results across a group of sessions.
 
