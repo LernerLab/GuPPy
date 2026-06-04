@@ -1,8 +1,5 @@
-import os
-
 import holoviews as hv
 import numpy as np
-import pandas as pd
 import pytest
 
 from guppy.frontend.storenames_instructions import (
@@ -29,29 +26,25 @@ class TestStorenamesInstructions:
 
 
 class TestStorenamesInstructionsNPM:
-    def _write_stub_chev_csv(self, directory, filename):
-        """Write a minimal CSV with timestamps and data columns to directory."""
+    @staticmethod
+    def _preview():
+        """Return an in-memory channel preview ({"x", "y"} arrays)."""
         timestamps = np.linspace(0, 10, 50)
-        data = np.sin(timestamps)
-        df = pd.DataFrame({"timestamps": timestamps, "data": data})
-        file_path = os.path.join(str(directory), filename)
-        df.to_csv(file_path, index=False)
-        return file_path
+        return {"x": timestamps, "y": np.sin(timestamps)}
 
     @pytest.fixture
     def one_file_instructions(self, tmp_path, panel_extension):
-        session_dir = tmp_path / "npm_session"
-        session_dir.mkdir()
-        self._write_stub_chev_csv(session_dir, "chev1.csv")
-        return StorenamesInstructionsNPM(folder_path=str(session_dir))
+        return StorenamesInstructionsNPM(
+            folder_path=str(tmp_path / "npm_session"),
+            channel_previews={"chev1": self._preview()},
+        )
 
     @pytest.fixture
     def two_file_instructions(self, tmp_path, panel_extension):
-        session_dir = tmp_path / "npm_session"
-        session_dir.mkdir()
-        self._write_stub_chev_csv(session_dir, "chev1.csv")
-        self._write_stub_chev_csv(session_dir, "chev2.csv")
-        return StorenamesInstructionsNPM(folder_path=str(session_dir))
+        return StorenamesInstructionsNPM(
+            folder_path=str(tmp_path / "npm_session"),
+            channel_previews={"chev1": self._preview(), "chev2": self._preview()},
+        )
 
     def test_plot_select_options_match_basenames(self, two_file_instructions):
         expected_basenames = sorted(["chev1", "chev2"])

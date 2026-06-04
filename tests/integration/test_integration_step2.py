@@ -225,90 +225,16 @@ def test_step2(tmp_path, session_subdir, storenames_map):
     assert rows[0] == list(storenames_map.keys()), "Row 0 (storenames) mismatch"
     assert rows[1] == list(storenames_map.values()), "Row 1 (names_for_storenames) mismatch"
 
-    # Additional NPM assertions: ensure Step 2 created the expected CSV files for Neurophotometrics
-    if session_subdir == "npm/sampleData_NPM_1":
-        expected_files = [
-            "bl72bl82_12feb2024_fp.csv",
-            "bl72bl82_12feb2024_stimuli.csv",
-            "eventAfVn.csv",
-            "eventAfVu.csv",
-            "eventAmVf.csv",
-            "eventpinknoise.csv",
-            "eventwhitenoise.csv",
-            "file0_chev1.csv",
-            "file0_chod1.csv",
-        ]
-        for rel in expected_files:
-            fp = os.path.join(session_copy, rel)
-            assert os.path.exists(fp), f"Missing expected NPM file at Step 2: {fp}"
-    elif session_subdir == "npm/sampleData_NPM_2":
-        expected_files = [
-            "file0_chev1.csv",
-            "file0_chev2.csv",
-            "file0_chev3.csv",
-            "file0_chev4.csv",
-            "file0_chev5.csv",
-            "file0_chev6.csv",
-            "file0_chev7.csv",
-            "file1_chev1.csv",
-            "file1_chev2.csv",
-            "file1_chev3.csv",
-            "file1_chev4.csv",
-            "file1_chev5.csv",
-            "file1_chev6.csv",
-            "file1_chev7.csv",
-            "FiberData415.csv",
-            "FiberData470.csv",
-        ]
-        for rel in expected_files:
-            fp = os.path.join(session_copy, rel)
-            assert os.path.exists(fp), f"Missing expected NPM file at Step 2: {fp}"
-    elif session_subdir == "npm/sampleData_NPM_3":
-        expected_files = [
-            "event1.csv",
-            "event3.csv",
-            "file0_chev1.csv",
-            "file0_chev2.csv",
-            "file0_chev3.csv",
-            "file0_chev4.csv",
-            "file0_chod1.csv",
-            "file0_chod2.csv",
-            "file0_chod3.csv",
-            "file0_chod4.csv",
-            "signals.csv",
-            "ttls.csv",
-        ]
-        for rel in expected_files:
-            fp = os.path.join(session_copy, rel)
-            assert os.path.exists(fp), f"Missing expected NPM file at Step 2: {fp}"
-    elif session_subdir == "npm/sampleData_NPM_4":
-        expected_files = [
-            "eventFalse.csv",
-            "eventTrue.csv",
-            "file0_chev1.csv",
-            "file0_chev2.csv",
-            "file0_chev3.csv",
-            "file0_chod1.csv",
-            "file0_chod2.csv",
-            "file0_chod3.csv",
-            "PagCeAVgatFear_1442_ts0.csv",
-            "PagCeAVgatFear_14421.csv",
-        ]
-        for rel in expected_files:
-            fp = os.path.join(session_copy, rel)
-            assert os.path.exists(fp), f"Missing expected NPM file at Step 2: {fp}"
-    elif session_subdir == "npm/sampleData_NPM_5":
-        expected_files = [
-            "event0.csv",
-            "file0_chev1.csv",
-            "file0_chev2.csv",
-            "file0_chev3.csv",
-            "file0_chod1.csv",
-            "file0_chod2.csv",
-            "file0_chod3.csv",
-            "PagCeAVgatFear_1512_1.csv",
-            "PagCeAVgatFear_1512_ts0.csv",
-        ]
-        for rel in expected_files:
-            fp = os.path.join(session_copy, rel)
-            assert os.path.exists(fp), f"Missing expected NPM file at Step 2: {fp}"
+    # NPM now demultiplexes in memory: Step 2 must NOT write any intermediate CSVs into the
+    # source session folder, and must persist the decomposition params next to storesList.csv.
+    if session_subdir.startswith("npm/"):
+        intermediates = (
+            glob.glob(os.path.join(session_copy, "file*_chev*.csv"))
+            + glob.glob(os.path.join(session_copy, "file*_chod*.csv"))
+            + glob.glob(os.path.join(session_copy, "file*_chpr*.csv"))
+            + glob.glob(os.path.join(session_copy, "event*.csv"))
+        )
+        assert intermediates == [], f"NPM Step 2 wrote intermediate CSVs into the source folder: {intermediates}"
+
+        npm_params_fp = os.path.join(out_dir, ".npm_params.json")
+        assert os.path.exists(npm_params_fp), f"Missing persisted NPM params at Step 2: {npm_params_fp}"

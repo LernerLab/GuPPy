@@ -11,7 +11,6 @@ from guppy.testing.consistency import (
     _normalize_psth_index,
     _normalize_psth_label,
     _normalize_psth_str_array,
-    compare_npm_session_files,
     compare_output_folders,
 )
 
@@ -154,46 +153,6 @@ class TestCompareOutputFolders:
             compare_output_folders(actual_dir=str(actual_directory), expected_dir=str(expected_directory))
 
         assert "plain_data.h5: 'labels' string data differs" in str(raised_error.value)
-
-
-class TestCompareNpmSessionFiles:
-    def test_compare_npm_session_files_compares_only_top_level_csv_files(self, tmp_path):
-        expected_session_directory = tmp_path / "expected_session"
-        actual_session_directory = tmp_path / "actual_session"
-        expected_session_directory.mkdir()
-        actual_session_directory.mkdir()
-
-        pd.DataFrame({"value": [1.0, 2.0]}).to_csv(expected_session_directory / "event0.csv")
-        pd.DataFrame({"value": [1.0, 2.0]}).to_csv(actual_session_directory / "event0.csv")
-
-        nested_expected_directory = expected_session_directory / "nested"
-        nested_actual_directory = actual_session_directory / "nested"
-        nested_expected_directory.mkdir()
-        nested_actual_directory.mkdir()
-
-        pd.DataFrame({"value": [100.0]}).to_csv(nested_expected_directory / "ignored.csv")
-        pd.DataFrame({"value": [999.0]}).to_csv(nested_actual_directory / "ignored.csv")
-
-        compare_npm_session_files(
-            actual_session_dir=str(actual_session_directory),
-            expected_session_dir=str(expected_session_directory),
-        )
-
-    def test_compare_npm_session_files_reports_missing_expected_csv(self, tmp_path):
-        expected_session_directory = tmp_path / "expected_session"
-        actual_session_directory = tmp_path / "actual_session"
-        expected_session_directory.mkdir()
-        actual_session_directory.mkdir()
-
-        pd.DataFrame({"value": [1.0]}).to_csv(expected_session_directory / "event0.csv")
-
-        with pytest.raises(AssertionError, match="NPM session file comparison failed") as raised_error:
-            compare_npm_session_files(
-                actual_session_dir=str(actual_session_directory),
-                expected_session_dir=str(expected_session_directory),
-            )
-
-        assert "MISSING in actual session dir: event0.csv" in str(raised_error.value)
 
 
 class TestCompareJsonFilePath:
