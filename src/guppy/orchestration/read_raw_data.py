@@ -249,10 +249,12 @@ def orchestrate_read_raw_data(inputParameters: dict[str, object]) -> None:
 
 
 def _load_stores_list(output_dir: str) -> np.ndarray:
-    """Load the storesList CSV (preferring the cached copy if it exists)."""
-    cached_path = os.path.join(output_dir, ".cache_storesList.csv")
-    source_path = cached_path if os.path.exists(cached_path) else os.path.join(output_dir, "storesList.csv")
-    return np.genfromtxt(source_path, dtype="str", delimiter=",").reshape(2, -1)
+    """Load the storesList CSV from the output directory.
+
+    storesList is finalized in step 2 (including TDT split sub-events) and is no
+    longer mutated during extraction, so it is read directly.
+    """
+    return np.genfromtxt(os.path.join(output_dir, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
 
 
 @subprocess_main_handler
