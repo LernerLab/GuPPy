@@ -1,4 +1,5 @@
 import glob
+import json
 import logging
 import os
 
@@ -8,6 +9,50 @@ logger = logging.getLogger(__name__)
 
 _RUN_NAME_MARKER = "_output_"
 _FORBIDDEN_RUN_NAME_CHARACTERS = ("/", "\\", ":", "\0")
+
+# NPM decomposition parameters chosen interactively in Step 2 are not part of the
+# saved analysis parameters, so they are persisted next to storesList.csv for Step 3.
+NPM_PARAMS_FILENAME = ".npm_params.json"
+NPM_PARAM_KEYS = ("npm_split_events", "npm_time_units", "npm_timestamp_column_names")
+
+
+def write_npm_params(*, output_dir: str, npm_params: dict[str, object]) -> None:
+    """Persist the NPM decomposition parameters for one output directory.
+
+    The interactive NPM choices made during Step 2 (event splitting, timestamp
+    units, timestamp column names) determine how :class:`NpmRecordingExtractor`
+    demultiplexes the raw files in memory. They are written next to
+    ``storesList.csv`` so Step 3 can reproduce the identical decomposition.
+
+    Parameters
+    ----------
+    output_dir : str
+        Output directory where ``storesList.csv`` is written.
+    npm_params : dict
+        The NPM parameters (keys in :data:`NPM_PARAM_KEYS`) to persist.
+    """
+    with open(os.path.join(output_dir, NPM_PARAMS_FILENAME), "w") as file:
+        json.dump(npm_params, file, indent=4)
+
+
+def load_npm_params(output_dir: str) -> dict[str, object]:
+    """Load persisted NPM decomposition parameters from an output directory.
+
+    Parameters
+    ----------
+    output_dir : str
+        Output directory possibly containing the NPM parameters file.
+
+    Returns
+    -------
+    dict
+        The persisted NPM parameters, or an empty dict if none were written.
+    """
+    npm_params_path = os.path.join(output_dir, NPM_PARAMS_FILENAME)
+    if not os.path.exists(npm_params_path):
+        return {}
+    with open(npm_params_path) as file:
+        return json.load(file)
 
 
 def takeOnlyDirs(paths: list[str]) -> list[str]:

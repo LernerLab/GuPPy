@@ -1,10 +1,8 @@
-import glob
 import logging
 import os
 
 import holoviews as hv
 import numpy as np
-import pandas as pd
 import panel as pn
 
 # hv.extension()
@@ -69,26 +67,27 @@ class StorenamesInstructionsNPM(StorenamesInstructions):
     """Storenames instructions panel extended with NPM-specific channel preview plots.
 
     Adds a channel selector and a live HoloViews curve so the user can inspect
-    each NPM channel before assigning it a signal or control role.
+    each NPM channel before assigning it a signal or control role. The decomposed
+    channel traces are computed upstream (by the orchestrator, via
+    ``NpmRecordingExtractor.decompose``) and passed in; this widget only renders
+    them.
 
     Parameters
     ----------
     folder_path : str
-        Absolute path to the NPM session directory.  CSV files whose names
-        contain ``chev``, ``chod``, or ``chpr`` are loaded for preview.
+        Absolute path to the NPM session directory; its basename is shown as a
+        heading above the instructions.
+    channel_previews : dict
+        Maps each chev/chod/chpr channel name to a dict with ``"x"`` (timestamps)
+        and ``"y"`` (data) arrays to plot.
     """
 
-    def __init__(self, folder_path: str) -> None:
+    def __init__(self, folder_path: str, *, channel_previews: dict[str, dict[str, np.ndarray]]) -> None:
         super().__init__(folder_path=folder_path)
-        path_chev = glob.glob(os.path.join(folder_path, "*chev*"))
-        path_chod = glob.glob(os.path.join(folder_path, "*chod*"))
-        path_chpr = glob.glob(os.path.join(folder_path, "*chpr*"))
-        combine_paths = path_chev + path_chod + path_chpr
-        self.d = dict()
-        for i in range(len(combine_paths)):
-            basename = (os.path.basename(combine_paths[i])).split(".")[0]
-            df = pd.read_csv(combine_paths[i])
-            self.d[basename] = {"x": np.array(df["timestamps"]), "y": np.array(df["data"])}
+        self.d = {
+            name: {"x": np.asarray(preview["x"]), "y": np.asarray(preview["y"])}
+            for name, preview in channel_previews.items()
+        }
         keys = list(self.d.keys())
         self.mark_down_np = pn.pane.Markdown(
             """
