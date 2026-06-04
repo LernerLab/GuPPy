@@ -30,7 +30,14 @@ _PREFIXED_FLOAT_RE = re.compile(rf"^(.+)_({_FLOAT_PAT})$")
 _PSTH_LABEL_RE = re.compile(rf"^{_FLOAT_PAT}$|^.+_{_FLOAT_PAT}$")
 
 
-def compare_output_folders(*, actual_dir: str, expected_dir: str, rtol: float = 1e-5, atol: float = 1e-8) -> None:
+def compare_output_folders(
+    *,
+    actual_dir: str,
+    expected_dir: str,
+    name_map: dict[str, str | None] | None = None,
+    rtol: float = 1e-5,
+    atol: float = 1e-8,
+) -> None:
     """
     Assert that every file in ``expected_dir`` exists in ``actual_dir`` and is
     numerically identical.
@@ -47,6 +54,13 @@ def compare_output_folders(*, actual_dir: str, expected_dir: str, rtol: float = 
         Path to the output folder produced by the current code under test.
     expected_dir : str
         Path to the reference output folder (e.g. from GuPPy v1.3.0).
+    name_map : dict, optional
+        Per-file overrides for reconciling intentional naming changes without
+        modifying the reference. Keys are expected (reference) relative paths;
+        a string value is the actual relative path to compare against by data
+        value (a rename), and ``None`` marks a reference file the current code
+        intentionally no longer produces (its absence is required, not a
+        failure). Expected paths not in the map compare by identical name.
     rtol : float
         Relative tolerance for numeric comparisons (default 1e-5).
     atol : float
@@ -61,17 +75,30 @@ def compare_output_folders(*, actual_dir: str, expected_dir: str, rtol: float = 
     """
     actual_dir = os.path.abspath(actual_dir)
     expected_dir = os.path.abspath(expected_dir)
+    name_map = name_map or {}
 
     expected_files = _collect_relative_paths(expected_dir)
 
     mismatches: list[str] = []
 
     for rel_path in sorted(expected_files):
-        actual_path = os.path.join(actual_dir, rel_path)
+        if rel_path in name_map:
+            mapped = name_map[rel_path]
+            if mapped is None:
+                # Intentionally not reproduced by the current code; its absence is required.
+                if os.path.exists(os.path.join(actual_dir, rel_path)):
+                    mismatches.append(f"UNEXPECTEDLY PRESENT (mapped to None): {rel_path}")
+                continue
+            actual_rel = mapped
+        else:
+            actual_rel = rel_path
+
+        actual_path = os.path.join(actual_dir, actual_rel)
         expected_path = os.path.join(expected_dir, rel_path)
 
         if not os.path.exists(actual_path):
-            mismatches.append(f"MISSING in actual: {rel_path}")
+            detail = actual_rel if actual_rel == rel_path else f"{actual_rel} (mapped from {rel_path})"
+            mismatches.append(f"MISSING in actual: {detail}")
             continue
 
         ext = Path(rel_path).suffix.lower()

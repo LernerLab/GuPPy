@@ -75,11 +75,15 @@ from guppy.testing.api import step2
             },
         ),
         (
+            # PAB/ is an epoc store that splits into one sub-event per marker value; those
+            # sub-events are enumerated at step 2, so the map references them directly.
             "tdt/Photometry-161823",
             {
                 "405R": "control_region",
                 "490R": "signal_region",
-                "PAB/": "ttl",
+                "PAB0": "ttl_0",
+                "PAB16": "ttl_16",
+                "PAB2064": "ttl_2064",
             },
         ),
         (

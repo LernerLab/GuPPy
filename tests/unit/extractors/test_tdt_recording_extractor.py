@@ -1,6 +1,5 @@
 """Contract tests for TdtRecordingExtractor."""
 
-import csv
 import os
 import shutil
 
@@ -178,93 +177,76 @@ class TestTdtRecordingExtractorSample2(TdtRecordingExtractorTestMixin):
     stub_ttl_test_duration_in_seconds = 100.0
 
 
-class TestTdtRecordingExtractorSplitEvent(TdtRecordingExtractorTestMixin):
+class TdtRecordingExtractorSplitTestMixin(TdtRecordingExtractorTestMixin):
+    """Generic tests for TDT epoc stores that split into per-marker-value sub-events.
+
+    Subclasses set ``split_parent`` (the parent store name) and ``expected_split_events``
+    (the sub-event names discover should enumerate). Splits are now determined at discover
+    time, so ``read()`` is a pure lookup that writes nothing.
+    """
+
+    def test_discover_enumerates_split_subevents(self):
+        events, _ = self.extractor_class.discover_events_and_flags(self.folder_path)
+        for split_event in self.expected_split_events:
+            assert split_event in events
+        # The parent store is replaced by its sub-events and is not itself a discovered event.
+        assert self.split_parent not in events
+
+    def test_discover_split_subevents_have_no_duplicates(self):
+        events, _ = self.extractor_class.discover_events_and_flags(self.folder_path)
+        discovered_splits = [event for event in events if event in self.expected_split_events]
+        assert sorted(discovered_splits) == sorted(set(self.expected_split_events))
+
+    def test_read_split_subevent_matches_parent_filter(self):
+        split_map = self.extractor_class._compute_split_map(self.extractor_instance._header_df)
+        parent_dict = self.extractor_instance._readtev(event=self.split_parent)
+        for split_name, value in split_map[self.split_parent]:
+            result = self.extractor_instance.read(events=[split_name], outputPath="")
+            expected_timestamps = parent_dict["timestamps"][np.where(parent_dict["data"] == value)[0]]
+            np.testing.assert_array_equal(result[0]["timestamps"], expected_timestamps)
+            assert result[0]["storename"] == split_name
+
+    def test_read_split_subevents_writes_nothing(self, tmp_path):
+        before = set(os.listdir(tmp_path))
+        self.extractor_instance.read(events=list(self.expected_split_events), outputPath=str(tmp_path))
+        assert set(os.listdir(tmp_path)) == before
+
+    def test_count_samples_split_subevent_matches_parent_rows(self):
+        split_map = self.extractor_class._compute_split_map(self.extractor_instance._header_df)
+        names = np.asarray(self.extractor_instance._header_df["name"], dtype=str)
+        parent_strobes = np.asarray(self.extractor_instance._header_df["strobe"])[
+            np.where(names == self.split_parent)[0]
+        ]
+        for split_name, value in split_map[self.split_parent]:
+            assert self.extractor_instance.count_samples(event=split_name) == int(
+                np.count_nonzero(parent_strobes == value)
+            )
+
+
+class TestTdtRecordingExtractorSplitEvent(TdtRecordingExtractorSplitTestMixin):
     extractor_class = TdtRecordingExtractor
     folder_path = os.path.join(STUBBED_TESTING_DATA, "tdt", "Photometry-161823")
     extractor_instance = TdtRecordingExtractor(folder_path)
-    # PAB/ is a split-event channel. read(events=["PAB/"]) internally calls
-    # _split_event_storesList, which requires a storesList.csv in outputPath.
-    # The _pab_storesList_setup autouse fixture pre-creates that file in tmp_path
-    # before every test so that all inherited mixin tests work without modification.
-    expected_events = ["405R", "490R", "PAB/"]
+    # PAB/ splits into one sub-event per marker value, enumerated at discover time.
+    split_parent = "PAB/"
+    expected_split_events = ["PAB0", "PAB16", "PAB2064"]
+    expected_events = ["405R", "490R", "PAB0", "PAB16", "PAB2064"]
     discover_kwargs = {}
     control_event = "405R"
     signal_event = "490R"
-    ttl_event = "PAB/"
-    stub_ttl_test_duration_in_seconds = 200.0
-
-    @pytest.fixture(autouse=True)
-    def _pab_storesList_setup(self, tmp_path):
-        """Write a minimal storesList.csv and return tmp_path for reuse.
-
-        Returning tmp_path lets other fixtures depend on this one to both
-        guarantee ordering and receive the prepared output path.
-        """
-        with open(tmp_path / "storesList.csv", "w", newline="") as stores_file:
-            csv.writer(stores_file).writerows([["PAB/"], ["ttl"]])
-        return tmp_path
-
-    @pytest.fixture
-    def expected_ttl_timestamps(self, _pab_storesList_setup):
-        result = self.extractor_instance.read(events=["PAB/"], outputPath=str(_pab_storesList_setup))
-        return result[0]["timestamps"]
-
-    def test_split_event_produces_sub_events(self, tmp_path):
-        # PAB/ carries non-uniform event codes → _event_needs_splitting returns True.
-        # _pab_storesList_setup (autouse) has already written storesList.csv.
-        result = self.extractor_instance.read(events=["PAB/"], outputPath=str(tmp_path))
-
-        # The first dict is the original unsplit PAB/ event; subsequent dicts are
-        # the per-code sub-events (e.g. PAB0, PAB16, PAB2064).
-        assert len(result) > 1
-        storenames = [output_dict["storename"] for output_dict in result]
-        assert "PAB/" in storenames
-        # All sub-event storenames should start with "PAB" (slash stripped).
-        sub_event_storenames = [name for name in storenames if name != "PAB/"]
-        assert all(name.startswith("PAB") for name in sub_event_storenames)
+    ttl_event = None
 
 
-class TestTdtRecordingExtractorSplitFloat(TdtRecordingExtractorTestMixin):
+class TestTdtRecordingExtractorSplitFloat(TdtRecordingExtractorSplitTestMixin):
     extractor_class = TdtRecordingExtractor
     folder_path = os.path.join(STUBBED_TESTING_DATA, "tdt", "ME112-ME113-260420-114630")
     extractor_instance = TdtRecordingExtractor(folder_path)
-    # Widt is a split-event channel whose codes are floats (0.1, 0.2, 0.4, 0.8, 10.0)
-    # — regression case for the int()-collapse bug. _widt_storesList_setup autouse
-    # fixture prepares storesList.csv exactly like the PAB/ case above.
-    expected_events = ["415A", "465A", "Widt"]
+    # Widt carries float-valued codes (0.1, 0.2, 0.4, 0.8, 10.0); splitting must produce one
+    # sub-event per unique float (regression for the int()-collapse bug), not collapse them.
+    split_parent = "Widt"
+    expected_split_events = ["Widt0p1", "Widt0p2", "Widt0p4", "Widt0p8", "Widt10"]
+    expected_events = ["415A", "465A", "Widt0p1", "Widt0p2", "Widt0p4", "Widt0p8", "Widt10"]
     discover_kwargs = {}
     control_event = "415A"
     signal_event = "465A"
-    ttl_event = "Widt"
-    stub_ttl_test_duration_in_seconds = 15.0
-
-    @pytest.fixture(autouse=True)
-    def _widt_storesList_setup(self, tmp_path):
-        with open(tmp_path / "storesList.csv", "w", newline="") as stores_file:
-            csv.writer(stores_file).writerows([["Widt"], ["ttl"]])
-        return tmp_path
-
-    @pytest.fixture
-    def expected_ttl_timestamps(self, _widt_storesList_setup):
-        result = self.extractor_instance.read(events=["Widt"], outputPath=str(_widt_storesList_setup))
-        return result[0]["timestamps"]
-
-    def test_split_event_preserves_unique_floats(self, _widt_storesList_setup):
-        # Widt carries float-valued codes (0.1, 0.2, 0.4, 0.8, 10.0) — splitting
-        # must produce one sub-event per unique float, not collapse via int() to
-        # four "Widt0" + one "Widt10".
-        result = self.extractor_instance.read(events=["Widt"], outputPath=str(_widt_storesList_setup))
-
-        storenames = [output_dict["storename"] for output_dict in result]
-        sub_event_storenames = sorted(name for name in storenames if name != "Widt")
-        assert sub_event_storenames == ["Widt0p1", "Widt0p2", "Widt0p4", "Widt0p8", "Widt10"]
-
-    def test_split_event_storesList_has_no_duplicates(self, _widt_storesList_setup):
-        self.extractor_instance.read(events=["Widt"], outputPath=str(_widt_storesList_setup))
-        stores_list = np.genfromtxt(str(_widt_storesList_setup / "storesList.csv"), dtype="str", delimiter=",").reshape(
-            2, -1
-        )
-
-        assert sorted(stores_list[0]) == ["Widt0p1", "Widt0p2", "Widt0p4", "Widt0p8", "Widt10"]
-        assert sorted(stores_list[1]) == ["Widt_0p1", "Widt_0p2", "Widt_0p4", "Widt_0p8", "Widt_10"]
-        assert "Widt" not in stores_list[0]
+    ttl_event = None

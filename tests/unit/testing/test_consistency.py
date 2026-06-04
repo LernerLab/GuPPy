@@ -154,6 +154,73 @@ class TestCompareOutputFolders:
 
         assert "plain_data.h5: 'labels' string data differs" in str(raised_error.value)
 
+    def test_compare_output_folders_name_map_compares_renamed_file_by_data(self, tmp_path):
+        # A reference file mapped to a differently-named actual file passes when the data matches.
+        expected_directory = tmp_path / "expected"
+        actual_directory = tmp_path / "actual"
+        expected_directory.mkdir()
+        actual_directory.mkdir()
+
+        pd.DataFrame({"value": [1.0, 2.0]}).to_csv(expected_directory / "PAB_0_region.csv", index=False)
+        pd.DataFrame({"value": [1.0, 2.0]}).to_csv(actual_directory / "reward_region.csv", index=False)
+
+        compare_output_folders(
+            actual_dir=str(actual_directory),
+            expected_dir=str(expected_directory),
+            name_map={"PAB_0_region.csv": "reward_region.csv"},
+        )
+
+    def test_compare_output_folders_name_map_renamed_file_reports_data_mismatch(self, tmp_path):
+        expected_directory = tmp_path / "expected"
+        actual_directory = tmp_path / "actual"
+        expected_directory.mkdir()
+        actual_directory.mkdir()
+
+        pd.DataFrame({"value": [1.0]}).to_csv(expected_directory / "PAB_0_region.csv", index=False)
+        pd.DataFrame({"value": [2.0]}).to_csv(actual_directory / "reward_region.csv", index=False)
+
+        with pytest.raises(AssertionError, match="Output folder comparison failed") as raised_error:
+            compare_output_folders(
+                actual_dir=str(actual_directory),
+                expected_dir=str(expected_directory),
+                name_map={"PAB_0_region.csv": "reward_region.csv"},
+                rtol=1e-12,
+                atol=0.0,
+            )
+        assert "PAB_0_region.csv: CSV content differs" in str(raised_error.value)
+
+    def test_compare_output_folders_name_map_none_allows_intentionally_absent_file(self, tmp_path):
+        # A reference file mapped to None is intentionally not produced; its absence is required, not a failure.
+        expected_directory = tmp_path / "expected"
+        actual_directory = tmp_path / "actual"
+        expected_directory.mkdir()
+        actual_directory.mkdir()
+
+        pd.DataFrame({"value": [1.0]}).to_csv(expected_directory / "PAB_.csv", index=False)
+
+        compare_output_folders(
+            actual_dir=str(actual_directory),
+            expected_dir=str(expected_directory),
+            name_map={"PAB_.csv": None},
+        )
+
+    def test_compare_output_folders_name_map_none_fails_when_file_unexpectedly_present(self, tmp_path):
+        expected_directory = tmp_path / "expected"
+        actual_directory = tmp_path / "actual"
+        expected_directory.mkdir()
+        actual_directory.mkdir()
+
+        pd.DataFrame({"value": [1.0]}).to_csv(expected_directory / "PAB_.csv", index=False)
+        pd.DataFrame({"value": [1.0]}).to_csv(actual_directory / "PAB_.csv", index=False)
+
+        with pytest.raises(AssertionError, match="Output folder comparison failed") as raised_error:
+            compare_output_folders(
+                actual_dir=str(actual_directory),
+                expected_dir=str(expected_directory),
+                name_map={"PAB_.csv": None},
+            )
+        assert "UNEXPECTEDLY PRESENT (mapped to None): PAB_.csv" in str(raised_error.value)
+
 
 class TestCompareJsonFilePath:
     def test_compare_output_folders_reports_json_value_differences(self, tmp_path):
