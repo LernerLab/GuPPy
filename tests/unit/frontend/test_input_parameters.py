@@ -1,6 +1,8 @@
+import json
 import math
 import os
 
+import numpy as np
 import panel as pn
 import pytest
 
@@ -527,3 +529,114 @@ class TestFolderSelectionCards:
         assert main[2] is parameter_form.individual
         assert main[3] is parameter_form.group
         assert main[4] is parameter_form.visualize
+
+
+# Distinctive non-default snapshot so a successful load is unambiguous. peak_*Point
+# carry NaN tail entries exactly as save_parameters serializes them.
+SAVED_PARAMETERS = {
+    "guppy_version": "test-version",
+    "combine_data": True,
+    "isosbestic_control": False,
+    "timeForLightsTurnOn": 7,
+    "filter_window": 42,
+    "removeArtifacts": True,
+    "artifactsRemovalMethod": "replace with NaN",
+    "noChannels": 3,
+    "zscore_method": "modified z-score",
+    "baselineWindowStart": 2,
+    "baselineWindowEnd": 9,
+    "nSecPrev": -3,
+    "nSecPost": 8,
+    "computeCorr": True,
+    "timeInterval": 5,
+    "bin_psth_trials": 4,
+    "use_time_or_trials": "# of trials",
+    "baselineCorrectionStart": -2,
+    "baselineCorrectionEnd": 1,
+    "peak_startPoint": [-4.0, 1.0, 6.0] + [float("nan")] * 7,
+    "peak_endPoint": [1.0, 4.0, 11.0] + [float("nan")] * 7,
+    "selectForComputePsth": "dff",
+    "selectForTransientsComputation": "Both",
+    "moving_window": 12,
+    "highAmpFilt": 5,
+    "transientsThresh": 6,
+    "plot_zScore_dff": "Both",
+    "visualize_zscore_or_dff": "dff",
+    "averageForGroup": True,
+}
+
+
+def _write_run_with_parameters(session_dir, run_name, parameters):
+    """Create an ``_output_<run>`` dir under session_dir holding a GuPPyParamtersUsed.json."""
+    run_dir = output_dir_for_run(str(session_dir), run_name)
+    os.mkdir(run_dir)
+    with open(os.path.join(run_dir, "GuPPyParamtersUsed.json"), "w") as parameters_file:
+        json.dump(parameters, parameters_file)
+    return run_dir
+
+
+class TestParameterAutoPopulate:
+    def test_set_input_parameters_round_trips_get_input_parameters(self, parameter_form):
+        parameter_form.setInputParameters(SAVED_PARAMETERS)
+        result = parameter_form.getInputParameters()
+        for key, widget in parameter_form._scalar_parameter_widgets().items():
+            assert result[key] == SAVED_PARAMETERS[key], f"{key} did not round-trip"
+        # NaN tail entries compare equal only via isnan.
+        np.testing.assert_array_equal(result["peak_startPoint"], SAVED_PARAMETERS["peak_startPoint"])
+        np.testing.assert_array_equal(result["peak_endPoint"], SAVED_PARAMETERS["peak_endPoint"])
+
+    def test_set_input_parameters_ignores_unknown_keys(self, parameter_form):
+        # guppy_version has no backing widget and must be ignored without error.
+        parameter_form.setInputParameters({"guppy_version": "x", "nSecPost": 99})
+        assert parameter_form.nSecPost.value == 99
+
+    def test_selecting_output_run_populates_widgets(self, bare_parameter_form, tmp_path):
+        session = tmp_path / "sessionA"
+        session.mkdir()
+        run_dir = _write_run_with_parameters(session, "baseline", SAVED_PARAMETERS)
+
+        bare_parameter_form.files_1.value = [str(session)]
+        bare_parameter_form.outputs_selector.value = [run_dir]
+
+        assert bare_parameter_form.timeForLightsTurnOn.value == 7
+        assert bare_parameter_form.z_score_computation.value == "modified z-score"
+        assert bare_parameter_form.combine_data.value is True
+        assert bare_parameter_form.nSecPrev.value == -3
+        assert list(bare_parameter_form.df_widget.value["Peak Start time"])[:3] == [-4.0, 1.0, 6.0]
+
+    def test_agreeing_runs_populate_widgets(self, bare_parameter_form, tmp_path):
+        session = tmp_path / "sessionA"
+        session.mkdir()
+        run_a = _write_run_with_parameters(session, "run_a", SAVED_PARAMETERS)
+        run_b = _write_run_with_parameters(session, "run_b", SAVED_PARAMETERS)
+
+        bare_parameter_form.files_1.value = [str(session)]
+        bare_parameter_form.outputs_selector.value = [run_a, run_b]
+
+        assert bare_parameter_form.timeForLightsTurnOn.value == 7
+
+    def test_conflicting_runs_leave_form_unchanged(self, bare_parameter_form, tmp_path):
+        session = tmp_path / "sessionA"
+        session.mkdir()
+        run_a = _write_run_with_parameters(session, "run_a", SAVED_PARAMETERS)
+        conflicting = {**SAVED_PARAMETERS, "timeForLightsTurnOn": 99}
+        run_b = _write_run_with_parameters(session, "run_b", conflicting)
+
+        default_time = bare_parameter_form.timeForLightsTurnOn.value
+        bare_parameter_form.files_1.value = [str(session)]
+        bare_parameter_form.outputs_selector.value = [run_a, run_b]
+
+        # Conflicting snapshots: form must be left untouched for the user to reconcile.
+        assert bare_parameter_form.timeForLightsTurnOn.value == default_time
+
+    def test_selecting_run_without_json_is_noop(self, bare_parameter_form, tmp_path):
+        session = tmp_path / "sessionA"
+        session.mkdir()
+        run_dir = output_dir_for_run(str(session), "fresh")
+        os.mkdir(run_dir)
+
+        default_time = bare_parameter_form.timeForLightsTurnOn.value
+        bare_parameter_form.files_1.value = [str(session)]
+        bare_parameter_form.outputs_selector.value = [run_dir]
+
+        assert bare_parameter_form.timeForLightsTurnOn.value == default_time

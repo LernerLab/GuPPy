@@ -7,7 +7,6 @@ from threading import Thread
 
 import panel as pn
 
-from .save_parameters import save_parameters
 from .storenames import orchestrate_storenames_page
 from .visualize import visualizeResults
 from ..frontend.input_parameters import ParameterForm
@@ -87,12 +86,6 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
             pn.state.notifications.error(str(e), duration=0)
             return None
 
-    def onclickProcess(event: object = None) -> None:
-        inputParameters = _getInputParametersOrNotify()
-        if inputParameters is None:
-            return
-        save_parameters(inputParameters=inputParameters)
-
     def onclickStorenames(event: object = None) -> None:
         inputParameters = _getInputParametersOrNotify()
         if inputParameters is None:
@@ -149,7 +142,6 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
     # ------------------------------------------------------------------------------------------------------------------
 
     button_name_to_onclick_fn = {
-        "save_button": onclickProcess,
         "open_storenames": onclickStorenames,
         "read_rawData": onclickreaddata,
         "preprocess": onclickpreprocess,
@@ -161,7 +153,6 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
 
     # Expose minimal hooks and widgets to enable programmatic testing
     template._hooks = {
-        "onclickProcess": onclickProcess,
         "onclickVisualization": onclickVisualization,
         "getInputParameters": parameter_form.getInputParameters,
     }

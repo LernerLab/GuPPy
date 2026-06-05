@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 
@@ -86,6 +87,7 @@ class ParameterForm:
         self.add_to_template()
         self.files_1.param.watch(self._retarget_outputs_selector, "value")
         self.files_2.param.watch(self._rebuild_group_selected_outputs_widgets, "value")
+        self.outputs_selector.param.watch(self._load_parameters_from_selected_outputs, "value")
 
     def setup_individual_parameters(self) -> None:
         """Build all widgets for the individual-analysis card and store them as instance attributes."""
@@ -679,3 +681,109 @@ class ParameterForm:
             },
         }
         return inputParameters
+
+    def _scalar_parameter_widgets(self) -> dict[str, pn.widgets.Widget]:
+        """Map each scalar analysis-parameter key to the widget whose ``.value`` holds it.
+
+        Covers every key written to ``GuPPyParamtersUsed.json`` except the two
+        peak-window columns (held in the ``df_widget`` Tabulator) and the
+        provenance-only ``guppy_version``.
+
+        Returns
+        -------
+        dict
+            Mapping from JSON parameter key to its backing Panel widget.
+        """
+        return {
+            "combine_data": self.combine_data,
+            "isosbestic_control": self.isosbestic_control,
+            "timeForLightsTurnOn": self.timeForLightsTurnOn,
+            "filter_window": self.moving_avg_filter,
+            "removeArtifacts": self.removeArtifacts,
+            "artifactsRemovalMethod": self.artifactsRemovalMethod,
+            "noChannels": self.no_channels_np,
+            "zscore_method": self.z_score_computation,
+            "baselineWindowStart": self.baseline_wd_strt,
+            "baselineWindowEnd": self.baseline_wd_end,
+            "nSecPrev": self.nSecPrev,
+            "nSecPost": self.nSecPost,
+            "computeCorr": self.computeCorr,
+            "timeInterval": self.timeInterval,
+            "bin_psth_trials": self.bin_psth_trials,
+            "use_time_or_trials": self.use_time_or_trials,
+            "baselineCorrectionStart": self.baselineCorrectionStart,
+            "baselineCorrectionEnd": self.baselineCorrectionEnd,
+            "selectForComputePsth": self.computePsth,
+            "selectForTransientsComputation": self.transients,
+            "moving_window": self.moving_wd,
+            "highAmpFilt": self.highAmpFilt,
+            "transientsThresh": self.transientsThresh,
+            "plot_zScore_dff": self.plot_zScore_dff,
+            "visualize_zscore_or_dff": self.visualize_zscore_or_dff,
+            "averageForGroup": self.averageForGroup,
+        }
+
+    def setInputParameters(self, parameters: dict[str, object]) -> None:
+        """Populate the form widgets from a saved-parameters dict (reverse of ``getInputParameters``).
+
+        Only the analysis keys written to ``GuPPyParamtersUsed.json`` are
+        applied; unknown keys (e.g. ``guppy_version``) are ignored.
+
+        Parameters
+        ----------
+        parameters : dict
+            Parameter dict as loaded from a ``GuPPyParamtersUsed.json`` file.
+        """
+        for key, widget in self._scalar_parameter_widgets().items():
+            if key in parameters:
+                widget.value = parameters[key]
+        if "peak_startPoint" in parameters and "peak_endPoint" in parameters:
+            df = self.df_widget.value.copy()
+            df["Peak Start time"] = parameters["peak_startPoint"]
+            df["Peak End time"] = parameters["peak_endPoint"]
+            self.df_widget.value = df
+
+    def _load_parameters_from_selected_outputs(self, event: object) -> None:
+        """Reload analysis parameters from the saved JSON of the selected output run(s).
+
+        Fired when the individual-analysis output selector changes. Lets a user
+        resume a run (e.g. relaunch and run steps 4–5) without the form's
+        defaults silently overwriting the parameters the earlier steps used.
+        When several runs are selected the parameters are applied only if every
+        run with a saved snapshot agrees; conflicting snapshots are left for the
+        user to reconcile.
+        """
+        saved = []
+        for output_dir in event.new or []:
+            json_path = os.path.join(output_dir, "GuPPyParamtersUsed.json")
+            if os.path.exists(json_path):
+                with open(json_path) as f:
+                    saved.append(json.load(f))
+        if not saved:
+            return
+
+        # Compare only the widget-backed analysis keys via JSON so NaN peak-window
+        # entries compare equal (NaN != NaN under direct equality).
+        keys = list(self._scalar_parameter_widgets().keys()) + ["peak_startPoint", "peak_endPoint"]
+
+        def signature(params: dict[str, object]) -> str:
+            return json.dumps({key: params.get(key) for key in keys}, sort_keys=True)
+
+        reference = saved[0]
+        if any(signature(params) != signature(reference) for params in saved[1:]):
+            self._notify(
+                "warning",
+                "Selected output runs have different saved parameters; the form was left unchanged. "
+                "Select runs that share parameters to auto-load them.",
+            )
+            return
+
+        self.setInputParameters(reference)
+        self._notify("info", "Loaded parameters from the selected output run(s).")
+
+    @staticmethod
+    def _notify(level: str, message: str) -> None:
+        """Show a Panel notification when a notification area is available (no-op when headless)."""
+        notifications = pn.state.notifications
+        if notifications is not None:
+            getattr(notifications, level)(message)

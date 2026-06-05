@@ -8,6 +8,7 @@ from typing import Literal
 import matplotlib.pyplot as plt
 import numpy as np
 
+from .save_parameters import save_parameters
 from ..analysis.artifact_removal import remove_artifacts
 from ..analysis.combine_data import combine_data
 from ..analysis.control_channel import add_control_channel, create_control_channel
@@ -530,6 +531,10 @@ def extractTsAndSignal(inputParameters: dict[str, object]) -> None:
 
     logger.debug("Extracting signal data and event timestamps...")
     inputParameters = inputParameters
+
+    # Snapshot the parameters being executed into each selected output dir so the
+    # on-disk GuPPyParamtersUsed.json always reflects the last-run configuration.
+    save_parameters(inputParameters=inputParameters)
 
     # storesList = np.genfromtxt(inputParameters['storesListPath'], dtype='str', delimiter=',')
 

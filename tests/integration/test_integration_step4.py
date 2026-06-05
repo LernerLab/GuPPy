@@ -1,3 +1,4 @@
+import json
 import os
 
 import h5py
@@ -44,6 +45,14 @@ def test_step4(step4_fixture_name, expected_region, expected_ttl, request):
     output_directory = str(pipeline_state["output_directory"])
     stores_file_path = os.path.join(output_directory, "storesList.csv")
     assert os.path.exists(stores_file_path), "Missing storesList.csv after Step 2/3/4"
+
+    # Step 4 auto-writes the executed parameters into the output directory.
+    parameters_file_path = os.path.join(output_directory, "GuPPyParamtersUsed.json")
+    assert os.path.exists(parameters_file_path), "step 4 should write GuPPyParamtersUsed.json into the output directory"
+    with open(parameters_file_path) as parameters_file:
+        saved_parameters = json.load(parameters_file)
+    # The step-4 fixtures run with removeArtifacts disabled; the snapshot must reflect it.
+    assert saved_parameters["removeArtifacts"] is False
 
     # Ensure timeCorrection_<region>.hdf5 exists with 'timestampNew'
     time_correction_file_path = os.path.join(output_directory, f"timeCorrection_{expected_region}.hdf5")
