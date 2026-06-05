@@ -156,10 +156,10 @@ def test_detect_acquisition_formats_with_external_csv_events(tmp_path, session_s
 
 
 def test_detect_acquisition_formats_after_npm_split_events(tmp_path):
-    # When an NPM session has split-event TTLs, NpmRecordingExtractor.discover_events_and_flags
-    # writes intermediate single-column "event*.csv" files that must subsequently be read by
-    # CsvRecordingExtractor. detect_acquisition_formats must therefore report both "npm" and
-    # "csv" so the read path dispatches CsvRecordingExtractor for those events.
+    # NpmRecordingExtractor demultiplexes in memory and writes no intermediate CSVs, so an NPM
+    # session with split-event TTLs is detected as "npm" only — even after running discover.
+    # NPM owns its event streams end-to-end; only a genuine external single-column TTL file
+    # would add "csv" (covered by test_detect_acquisition_formats_with_external_csv_events).
     src = os.path.join(STUBBED_TESTING_DATA, "npm/sampleData_NPM_4")
     session_copy = tmp_path / "sampleData_NPM_4"
     shutil.copytree(src, session_copy)
@@ -175,4 +175,4 @@ def test_detect_acquisition_formats_after_npm_split_events(tmp_path):
         inputParameters=inputParameters,
     )
 
-    assert detect_acquisition_formats(str(session_copy)) == {"npm", "csv"}
+    assert detect_acquisition_formats(str(session_copy)) == {"npm"}

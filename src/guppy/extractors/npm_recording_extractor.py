@@ -3,6 +3,7 @@ import logging
 import os
 import shutil
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -23,18 +24,45 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
     """
     Extractor for fiber photometry data from Neurophotometrics (NPM) systems.
 
-    Inherits ``read`` and ``save`` from :class:`CsvRecordingExtractor`; only
-    ``discover_events_and_flags`` is overridden to handle NPM-specific multi-column
-    CSV layouts and interleaved channel demultiplexing.
+    NPM files store interleaved channels (and, optionally, a multi-type event
+    column) in multi-column CSVs. This extractor demultiplexes those raw files
+    into per-channel and per-event streams **entirely in memory** via
+    :meth:`decompose`; ``read`` and ``count_samples`` are thin wrappers over it.
+    Nothing is written to the source folder — only the final HDF5 outputs are
+    written, by the inherited :meth:`CsvRecordingExtractor.save`.
 
     Parameters
     ----------
     folder_path : str
         Path to the session folder containing the NPM CSV files.
+    num_ch : int, optional
+        Number of interleaved channels expected. Default is 2.
+    npm_timestamp_column_names : list of str, optional
+        Per-file timestamp column names (for files with multiple timestamp
+        columns). ``None`` lets the extractor pick the first timestamp column.
+    npm_time_units : list of str, optional
+        Per-file timestamp units (``"seconds"``, ``"milliseconds"``, or
+        ``"microseconds"``). ``None`` defaults to seconds per file.
+    npm_split_events : list of bool, optional
+        Per-file flag controlling whether a multi-type event column is split
+        into one event stream per unique value. ``None`` defaults to no split.
     """
 
-    # Inherits from CsvRecordingExtractor to reuse identical read/save logic.
-    # Only overrides discover_events_and_flags() and adds NPM-specific helper methods.
+    def __init__(
+        self,
+        folder_path: str,
+        *,
+        num_ch: int = 2,
+        npm_timestamp_column_names: list[str] | None = None,
+        npm_time_units: list[str] | None = None,
+        npm_split_events: list[bool] | None = None,
+    ) -> None:
+        self.folder_path = folder_path
+        self.num_ch = num_ch
+        self.npm_timestamp_column_names = npm_timestamp_column_names
+        self.npm_time_units = npm_time_units
+        self.npm_split_events = npm_split_events
+        self._decomposed: dict[str, dict[str, np.ndarray]] | None = None
 
     @classmethod
     def discover_events_and_flags(
@@ -42,6 +70,9 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
     ) -> tuple[list[str], list[str]]:
         """
         Discover available events and format flags from NPM files.
+
+        This is read-only: it decomposes the raw NPM files in memory to
+        enumerate the derived stream names, but writes nothing to disk.
 
         Parameters
         ----------
@@ -59,12 +90,64 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         flags : list of str
             Format indicators or file type flags.
         """
-        logger.debug("If it exists, importing NPM file based on the structure of file")
+        npm_timestamp_column_names = None
+        npm_time_units = None
+        npm_split_events = None
         if isinstance(inputParameters, dict):
             npm_timestamp_column_names = inputParameters.get("npm_timestamp_column_names")
             npm_time_units = inputParameters.get("npm_time_units")
             # TODO: come up with a better name for npm_split_events that can be appropriately pluralized for a list
             npm_split_events = inputParameters.get("npm_split_events")
+
+        streams, flag_arr = cls._decompose_streams(
+            folder_path=folder_path,
+            num_ch=num_ch,
+            npm_timestamp_column_names=npm_timestamp_column_names,
+            npm_time_units=npm_time_units,
+            npm_split_events=npm_split_events,
+        )
+        return list(streams.keys()), flag_arr
+
+    @classmethod
+    def _decompose_streams(
+        cls,
+        *,
+        folder_path: str,
+        num_ch: int,
+        npm_timestamp_column_names: list[str] | None,
+        npm_time_units: list[str] | None,
+        npm_split_events: list[bool] | None,
+    ) -> tuple[dict[str, dict[str, np.ndarray]], list[str]]:
+        """
+        Demultiplex raw NPM files into per-channel and per-event streams in memory.
+
+        Pure function: reads the raw NPM CSVs and returns the derived streams,
+        keyed by event name, without writing anything to disk.
+
+        Parameters
+        ----------
+        folder_path : str
+            Path to the folder containing the raw NPM files.
+        num_ch : int
+            Number of interleaved channels expected.
+        npm_timestamp_column_names : list of str or None
+            Per-file timestamp column names; ``None`` for default selection.
+        npm_time_units : list of str or None
+            Per-file timestamp units; ``None`` for seconds.
+        npm_split_events : list of bool or None
+            Per-file event-split flags; ``None`` for no split.
+
+        Returns
+        -------
+        streams : dict
+            Maps event name to a stream dict. Data channels
+            (``file{i}_chev{j}`` / ``chod{j}`` / ``chpr{j}``) carry
+            ``timestamps``, ``data``, and ``sampling_rate``; event streams
+            (``event{value}`` / ``event0``) carry only ``timestamps``.
+        flags : list of str
+            One format flag per raw source file processed.
+        """
+        logger.debug("If it exists, importing NPM file based on the structure of file")
         path = sorted(glob.glob(os.path.join(folder_path, "*.csv"))) + sorted(
             glob.glob(os.path.join(folder_path, "*.doric"))
         )
@@ -72,15 +155,21 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         path_chod = glob.glob(os.path.join(folder_path, "*chod*"))
         path_chpr = glob.glob(os.path.join(folder_path, "*chpr*"))
         path_event = glob.glob(os.path.join(folder_path, "event*"))
-        # path_sig = glob.glob(os.path.join(filepath, 'sig*')) # TODO: what is this for?
         path_chev_chod_event = path_chev + path_chod + path_event + path_chpr
 
         path = sorted(list(set(path) - set(path_chev_chod_event)))
         # Exclude single-column timestamp CSVs — those are handled by CsvRecordingExtractor.
         path = [p for p in path if not (p.endswith(".csv") and _is_event_csv(p))]
-        flag = "None"
-        event_from_filename = []
-        flag_arr = []
+
+        streams: dict[str, dict[str, np.ndarray]] = {}
+        # Track derived stream names in creation order so the cross-file channel
+        # pairing (chod/chpr borrow their paired chev) is deterministic.
+        chev_names: list[str] = []
+        chod_names: list[str] = []
+        chpr_names: list[str] = []
+        event_names: list[str] = []
+        flag_arr: list[str] = []
+        ts_unit = "seconds"
         for i in range(len(path)):
             # TODO: validate npm_timestamp_column_names, npm_time_units, npm_split_events lengths
             if npm_timestamp_column_names is None:
@@ -96,7 +185,6 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             else:
                 split_events = npm_split_events[i]
 
-            dirname = os.path.dirname(path[i])
             ext = os.path.basename(path[i]).split(".")[-1]
             if ext == "doric":
                 raise ValueError(f"Doric files are not supported by NpmRecordingExtractor; got '{path[i]}'.")
@@ -170,15 +258,13 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
                     for j in range(df.shape[1]):
                         if j == 0:
                             timestamps = df.iloc[:, j][indices_dict[keys[k]]]
-                            # timestamps_odd = df.iloc[:,j][odd_indices]
                         else:
-                            d = dict()
-                            d["timestamps"] = timestamps
-                            d["data"] = df.iloc[:, j][indices_dict[keys[k]]]
-
-                            df_ch = pd.DataFrame(d)
-                            df_ch.to_csv(os.path.join(dirname, keys[k] + str(j) + ".csv"), index=False)
-                            event_from_filename.append(keys[k] + str(j))
+                            name = keys[k] + str(j)
+                            streams[name] = {
+                                "timestamps": np.asarray(timestamps, dtype=float),
+                                "data": np.asarray(df.iloc[:, j][indices_dict[keys[k]]], dtype=float),
+                            }
+                            cls._register_channel_name(name, keys[k], chev_names, chod_names, chpr_names)
 
             elif flag == "event_np":
                 type_val = np.array(df.iloc[:, 1])
@@ -187,18 +273,14 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
                     timestamps = np.array(df.iloc[:, 0])
                     for j in range(len(type_val_unique)):
                         idx = np.where(type_val == type_val_unique[j])
-                        d = dict()
-                        d["timestamps"] = timestamps[idx]
-                        df_new = pd.DataFrame(d)
-                        df_new.to_csv(os.path.join(dirname, "event" + str(type_val_unique[j]) + ".csv"), index=False)
-                        event_from_filename.append("event" + str(type_val_unique[j]))
+                        name = "event" + str(type_val_unique[j])
+                        streams[name] = {"timestamps": np.asarray(timestamps[idx], dtype=float)}
+                        event_names.append(name)
                 else:
                     timestamps = np.array(df.iloc[:, 0])
-                    d = dict()
-                    d["timestamps"] = timestamps
-                    df_new = pd.DataFrame(d)
-                    df_new.to_csv(os.path.join(dirname, "event" + str(0) + ".csv"), index=False)
-                    event_from_filename.append("event" + str(0))
+                    name = "event" + str(0)
+                    streams[name] = {"timestamps": np.asarray(timestamps, dtype=float)}
+                    event_names.append(name)
             else:
                 file = f"file{str(i)}_"
                 ts_unit = npm_time_unit
@@ -209,91 +291,139 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
                     for j in range(df.shape[1]):
                         if j == 0:
                             timestamps = df.iloc[:, j][indices_dict[keys[k]]]
-                            # timestamps_odd = df.iloc[:,j][odd_indices]
                         else:
-                            d = dict()
-                            d["timestamps"] = timestamps
-                            d["data"] = df.iloc[:, j][indices_dict[keys[k]]]
+                            name = keys[k] + str(j)
+                            streams[name] = {
+                                "timestamps": np.asarray(timestamps, dtype=float),
+                                "data": np.asarray(df.iloc[:, j][indices_dict[keys[k]]], dtype=float),
+                            }
+                            cls._register_channel_name(name, keys[k], chev_names, chod_names, chpr_names)
 
-                            df_ch = pd.DataFrame(d)
-                            df_ch.to_csv(os.path.join(dirname, keys[k] + str(j) + ".csv"), index=False)
-                            event_from_filename.append(keys[k] + str(j))
-
-            path_chev = glob.glob(os.path.join(folder_path, "*chev*"))
-            path_chod = glob.glob(os.path.join(folder_path, "*chod*"))
-            path_chpr = glob.glob(os.path.join(folder_path, "*chpr*"))
-            path_event = glob.glob(os.path.join(folder_path, "event*"))
-            # path_sig = glob.glob(os.path.join(filepath, 'sig*'))
-            path_chev_chod_chpr = [path_chev, path_chod, path_chpr]
-            if (
-                ("data_np_v2" in flag_arr or "data_np" in flag_arr)
-                and ("event_np" in flag_arr)
-                and (i == len(path) - 1)
-            ) or (
-                ("data_np_v2" in flag_arr or "data_np" in flag_arr) and (i == len(path) - 1)
-            ):  # i==len(path)-1 and or 'event_np' in flag
-                num_path_chev, num_path_chod, num_path_chpr = len(path_chev), len(path_chod), len(path_chpr)
-                arr_len, no_ch = [], []
-                for i in range(len(path_chev_chod_chpr)):
-                    if len(path_chev_chod_chpr[i]) > 0:
-                        arr_len.append(len(path_chev_chod_chpr[i]))
-                    else:
-                        continue
-
-                unique_arr_len = np.unique(np.array(arr_len))
-                if "data_np_v2" in flag_arr:
-                    if ts_unit == "seconds":
-                        divisor = 1
-                    elif ts_unit == "milliseconds":
-                        divisor = 1e3
-                    else:
-                        divisor = 1e6
+        # Normalize timestamps relative to the chev reference and compute sampling
+        # rates. Only runs when at least one data channel is present.
+        if "data_np_v2" in flag_arr or "data_np" in flag_arr:
+            if "data_np_v2" in flag_arr:
+                if ts_unit == "seconds":
+                    divisor = 1
+                elif ts_unit == "milliseconds":
+                    divisor = 1e3
                 else:
-                    divisor = 1000
+                    divisor = 1e6
+            else:
+                divisor = 1000
 
-                df_chev = pd.read_csv(path_chev[0])
-                for j in range(len(path_event)):
-                    df_event = pd.read_csv(path_event[j])
-                    df_event["timestamps"] = (df_event["timestamps"] - df_chev["timestamps"][0]) / divisor
-                    df_event.to_csv(path_event[j], index=False)
-                if unique_arr_len.shape[0] == 1:
-                    for j in range(len(path_chev)):
-                        if file + "chev" in indices_dict.keys():
-                            df_chev = pd.read_csv(path_chev[j])
-                            df_chev["timestamps"] = (df_chev["timestamps"] - df_chev["timestamps"][0]) / divisor
-                            df_chev["sampling_rate"] = np.full(df_chev.shape[0], np.nan)
-                            df_chev.at[0, "sampling_rate"] = df_chev.shape[0] / (
-                                df_chev["timestamps"].iloc[-1] - df_chev["timestamps"].iloc[0]
-                            )
-                            df_chev.to_csv(path_chev[j], index=False)
+            # Events are normalized against the first chev channel's first raw
+            # timestamp (captured before chev itself is normalized below).
+            if chev_names:
+                chev_reference_timestamp = streams[chev_names[0]]["timestamps"][0]
+                for name in event_names:
+                    streams[name]["timestamps"] = (streams[name]["timestamps"] - chev_reference_timestamp) / divisor
 
-                        if file + "chod" in indices_dict.keys():
-                            df_chod = pd.read_csv(path_chod[j])
-                            df_chod["timestamps"] = df_chev["timestamps"]
-                            df_chod["sampling_rate"] = np.full(df_chod.shape[0], np.nan)
-                            df_chod.at[0, "sampling_rate"] = df_chev["sampling_rate"][0]
-                            df_chod.to_csv(path_chod[j], index=False)
+            region_lengths = [len(names) for names in (chev_names, chod_names, chpr_names) if len(names) > 0]
+            if len(set(region_lengths)) > 1:
+                region_counts = {
+                    "chev": len(chev_names),
+                    "chod": len(chod_names),
+                    "chpr": len(chpr_names),
+                }
+                message = (
+                    "Number of channel files must be the same for all regions. "
+                    f"Found per-region counts: {region_counts}."
+                )
+                logger.error(message)
+                raise ValueError(message)
 
-                        if file + "chpr" in indices_dict.keys():
-                            df_chpr = pd.read_csv(path_chpr[j])
-                            df_chpr["timestamps"] = df_chev["timestamps"]
-                            df_chpr["sampling_rate"] = np.full(df_chpr.shape[0], np.nan)
-                            df_chpr.at[0, "sampling_rate"] = df_chev["sampling_rate"][0]
-                            df_chpr.to_csv(path_chpr[j], index=False)
-                else:
-                    region_counts = {
-                        "chev": num_path_chev,
-                        "chod": num_path_chod,
-                        "chpr": num_path_chpr,
-                    }
-                    message = (
-                        "Number of channel files must be the same for all regions. "
-                        f"Found per-region counts: {region_counts}."
-                    )
-                    logger.error(message)
-                    raise ValueError(message)
+            # Each chev channel is normalized to its own first raw timestamp; the
+            # paired chod/chpr channels borrow chev's normalized timestamps and rate.
+            for j in range(len(chev_names)):
+                chev_stream = streams[chev_names[j]]
+                chev_timestamps = (chev_stream["timestamps"] - chev_stream["timestamps"][0]) / divisor
+                sampling_rate = chev_timestamps.shape[0] / (chev_timestamps[-1] - chev_timestamps[0])
+                chev_stream["timestamps"] = chev_timestamps
+                chev_stream["sampling_rate"] = np.array([sampling_rate])
+
+                if j < len(chod_names):
+                    chod_stream = streams[chod_names[j]]
+                    chod_stream["timestamps"] = chev_timestamps
+                    chod_stream["sampling_rate"] = np.array([sampling_rate])
+                if j < len(chpr_names):
+                    chpr_stream = streams[chpr_names[j]]
+                    chpr_stream["timestamps"] = chev_timestamps
+                    chpr_stream["sampling_rate"] = np.array([sampling_rate])
+
         logger.info("Importing of NPM file is done.")
-        return event_from_filename, flag_arr
+        return streams, flag_arr
+
+    @staticmethod
+    def _register_channel_name(
+        name: str, channel_key: str, chev_names: list[str], chod_names: list[str], chpr_names: list[str]
+    ) -> None:
+        """Append ``name`` to the creation-order list for its channel region."""
+        if "chev" in channel_key:
+            chev_names.append(name)
+        elif "chod" in channel_key:
+            chod_names.append(name)
+        elif "chpr" in channel_key:
+            chpr_names.append(name)
+
+    def decompose(self) -> dict[str, dict[str, np.ndarray]]:
+        """
+        Demultiplex this session's raw NPM files into in-memory streams.
+
+        Returns
+        -------
+        dict
+            Maps event name to a stream dict. Data channels carry
+            ``timestamps``, ``data``, and ``sampling_rate``; event streams carry
+            only ``timestamps``. The result is cached on the instance.
+        """
+        if self._decomposed is None:
+            streams, _ = self._decompose_streams(
+                folder_path=self.folder_path,
+                num_ch=self.num_ch,
+                npm_timestamp_column_names=self.npm_timestamp_column_names,
+                npm_time_units=self.npm_time_units,
+                npm_split_events=self.npm_split_events,
+            )
+            self._decomposed = streams
+        return self._decomposed
+
+    def read(self, *, events: list[str], outputPath: str) -> list[dict[str, Any]]:
+        """
+        Read data for the specified events from the in-memory decomposition.
+
+        Parameters
+        ----------
+        events : list of str
+            Event names to read. Each must be a key produced by
+            :meth:`decompose`.
+        outputPath : str
+            Path to the output directory (unused by this extractor; required by
+            the base-class interface).
+
+        Returns
+        -------
+        list of dict
+            One dictionary per event. Data channels produce dicts with keys
+            ``storename``, ``timestamps``, ``data``, and ``sampling_rate``;
+            event streams produce dicts with keys ``storename`` and
+            ``timestamps``.
+        """
+        streams = self.decompose()
+        output_dicts = []
+        for event in events:
+            output_dicts.append({"storename": event, **streams[event]})
+        return output_dicts
+
+    def count_samples(self, *, event: str) -> int:
+        """Return the number of samples for ``event`` from the in-memory decomposition."""
+        streams = self.decompose()
+        if event not in streams:
+            return 0
+        stream = streams[event]
+        if "data" in stream:
+            return len(stream["data"])
+        return len(stream["timestamps"])
 
     def stub(self, *, folder_path: str | Path, duration_in_seconds: float = 1.0) -> None:
         """

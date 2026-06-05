@@ -5,9 +5,12 @@ import types
 import numpy as np
 import panel as pn
 import pytest
+from conftest import STUBBED_TESTING_DATA
 
 import guppy.orchestration.storenames as storenames_module
+from guppy.extractors import NpmRecordingExtractor
 from guppy.orchestration.storenames import (
+    _compute_npm_channel_previews,
     _fetchValues,
     _save,
     build_storenames_template,
@@ -848,3 +851,32 @@ def test_save_button_sets_alert_on_mismatched_lengths(storenames_closures, tmp_p
     selector.callbacks["save"](None)
 
     assert "Alert" in selector.alert_message
+
+
+# ---------------------------------------------------------------------------
+# _compute_npm_channel_previews
+# ---------------------------------------------------------------------------
+
+
+def test_compute_npm_channel_previews_aligns_ragged_channel_lengths():
+    # sampleData_NPM_4 interleaves unevenly: chod has one more sample than chev, so chod
+    # borrows chev's (shorter) timestamps. The preview must align x/y to equal length,
+    # otherwise hv.Curve raises a DataError in the Step-2 GUI.
+    folder_path = os.path.join(STUBBED_TESTING_DATA, "npm", "sampleData_NPM_4")
+    input_parameters = {"noChannels": 2}
+
+    # Confirm the ragged scenario is real: at least one channel stream has unequal
+    # timestamps/data lengths, which is exactly what the alignment guards against.
+    streams = NpmRecordingExtractor(folder_path, num_ch=2).decompose()
+    ragged = [
+        name
+        for name, stream in streams.items()
+        if "data" in stream and len(stream["timestamps"]) != len(stream["data"])
+    ]
+    assert ragged, "Expected at least one ragged chod/chpr channel in sampleData_NPM_4"
+
+    previews = _compute_npm_channel_previews(input_parameters, folder_path)
+
+    assert previews, "Expected chev/chod/chpr previews for an NPM session"
+    for name, preview in previews.items():
+        assert len(preview["x"]) == len(preview["y"]), f"Unequal x/y lengths for preview {name!r}"

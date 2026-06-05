@@ -21,7 +21,7 @@ from guppy.extractors import (
 from guppy.extractors import base_recording_extractor as base_module
 from guppy.extractors.base_recording_extractor import _pool_initializer
 from guppy.frontend.progress import PB_STEPS_FILE, subprocess_main_handler, writeToFile
-from guppy.utils.utils import select_output_dirs
+from guppy.utils.utils import load_npm_params, select_output_dirs
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +115,13 @@ def _build_event_to_extractor(*, folder_path: str, storesList: np.ndarray, input
             extractor = CsvRecordingExtractor(folder_path=folder_path)
             fmt_events, _ = CsvRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
         elif fmt == "npm":
-            extractor = NpmRecordingExtractor(folder_path=folder_path)
+            extractor = NpmRecordingExtractor(
+                folder_path=folder_path,
+                num_ch=num_ch,
+                npm_timestamp_column_names=inputParameters.get("npm_timestamp_column_names"),
+                npm_time_units=inputParameters.get("npm_time_units"),
+                npm_split_events=inputParameters.get("npm_split_events"),
+            )
             fmt_events, _ = NpmRecordingExtractor.discover_events_and_flags(
                 folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
             )
@@ -163,10 +169,13 @@ def orchestrate_read_raw_data(inputParameters: dict[str, object]) -> None:
         for op in select_output_dirs(filepath, selected_outputs.get(filepath)):
             storesList = _load_stores_list(op)
             events = np.unique(storesList[0, :])
+            # NPM decomposition params chosen in Step 2 are persisted in the output dir;
+            # merge them so the NPM extractor reproduces the same streams (e.g. split events).
+            effective_parameters = {**inputParameters, **load_npm_params(op)}
             event_to_extractor = _build_event_to_extractor(
                 folder_path=filepath,
                 storesList=storesList,
-                inputParameters=inputParameters,
+                inputParameters=effective_parameters,
             )
             event_total_samples = {}
             for event in events:
@@ -240,10 +249,12 @@ def orchestrate_read_raw_data(inputParameters: dict[str, object]) -> None:
 
 
 def _load_stores_list(output_dir: str) -> np.ndarray:
-    """Load the storesList CSV (preferring the cached copy if it exists)."""
-    cached_path = os.path.join(output_dir, ".cache_storesList.csv")
-    source_path = cached_path if os.path.exists(cached_path) else os.path.join(output_dir, "storesList.csv")
-    return np.genfromtxt(source_path, dtype="str", delimiter=",").reshape(2, -1)
+    """Load the storesList CSV from the output directory.
+
+    storesList is finalized in step 2 (including TDT split sub-events) and is no
+    longer mutated during extraction, so it is read directly.
+    """
+    return np.genfromtxt(os.path.join(output_dir, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
 
 
 @subprocess_main_handler

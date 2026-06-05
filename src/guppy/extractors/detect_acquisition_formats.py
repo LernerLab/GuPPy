@@ -136,23 +136,22 @@ def detect_acquisition_formats(folder_path: str) -> set[str]:
 
     csv_paths = glob.glob(os.path.join(folder_path, "*.csv"))
 
-    # Multi-column CSV files can be NPM, Doric CSV exports, or 3-column data_csv files
+    # Multi-column CSV files can be NPM, Doric CSV exports, or 3-column data_csv files.
+    # NPM demultiplexes its raw files in memory and never writes intermediates to the
+    # folder, so each modality is detected independently of the others here.
     non_event_csv_paths = [p for p in csv_paths if not _is_event_csv(p)]
-    has_npm_data = False
     if non_event_csv_paths:
         labels = {_classify_csv_file(p) for p in non_event_csv_paths}
         if "npm" in labels:
             formats.add("npm")
-            has_npm_data = True
         if "doric" in labels:
             formats.add("doric")
-        if not has_npm_data and "csv" in labels:
+        if "csv" in labels:
             formats.add("csv")
 
-    # Single-column timestamp CSVs are always read by CsvRecordingExtractor — both
-    # user-supplied external TTL files and the event*.csv intermediates that
-    # NpmRecordingExtractor materializes when npm_split_events is True (NPM extends
-    # CSV but excludes single-column CSVs from its own discover, delegating them to CSV).
+    # Single-column timestamp CSVs are genuine external TTL files read by
+    # CsvRecordingExtractor. NpmRecordingExtractor owns its own event streams in
+    # memory, so single-column files no longer originate from NPM processing.
     if any(_is_event_csv(p) for p in csv_paths):
         formats.add("csv")
 
