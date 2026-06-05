@@ -21,8 +21,8 @@ import panel as pn
 
 from guppy.frontend.frontend_utils import scanPortsAndFind
 from guppy.frontend.parameterized_plotter import ParameterizedPlotter
-from guppy.frontend.visualization_dashboard import VisualizationDashboard
 from guppy.frontend.storenames_selector import StorenamesSelector
+from guppy.frontend.visualization_dashboard import VisualizationDashboard
 from guppy.orchestration.home import build_homepage
 from guppy.orchestration.storenames import build_storenames_template
 
@@ -117,6 +117,11 @@ def screenshot_parameters(page) -> None:
     """
     os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
     template = build_homepage()
+    # The Individual Analysis card is collapsed by default; expand it so the
+    # parameter widgets render and fall inside the clip region below.
+    for card in template.main:
+        if isinstance(card, pn.Card) and card.title == "Individual Analysis":
+            card.collapsed = False
     url = _serve(template)
     page.set_viewport_size({"width": 1280, "height": 1800})
     page.goto(url)
