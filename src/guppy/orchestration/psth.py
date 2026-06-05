@@ -13,6 +13,7 @@ from itertools import repeat
 import numpy as np
 from scipy import signal as ss
 
+from .save_parameters import save_parameters
 from ..analysis.compute_psth import compute_psth
 from ..analysis.cross_correlation import compute_cross_correlation
 from ..analysis.io_utils import (
@@ -484,6 +485,13 @@ def psthForEachStorename(inputParameters: dict[str, object]) -> dict[str, object
     combine_data = inputParameters["combine_data"]
     numProcesses = inputParameters["numberOfCores"]
     inputParameters["step"] = 0
+
+    # Snapshot the parameters being executed into each selected output dir so the
+    # on-disk GuPPyParamtersUsed.json always reflects the last-run configuration.
+    # Group runs aggregate over the average/ dir rather than the individual
+    # selectedOutputs, so skip the snapshot there (steps 3-4 already wrote it per session).
+    if not average:
+        save_parameters(inputParameters=inputParameters)
     if numProcesses == 0:
         numProcesses = mp.cpu_count()
     elif numProcesses > mp.cpu_count():

@@ -164,14 +164,14 @@ class TestApiRuntimeErrors:
         with pytest.raises(RuntimeError, match="files_1"):
             step(**kwargs)
 
-    def test_step1_requires_onclick_process_hook(self, api_workspace, monkeypatch):
+    def test_step1_requires_get_input_parameters_hook(self, api_workspace, monkeypatch):
         monkeypatch.setattr(
             testing_api,
             "build_homepage",
             lambda: FakeTemplate(widgets={"files_1": types.SimpleNamespace(value=None)}),
         )
 
-        with pytest.raises(RuntimeError, match="onclickProcess"):
+        with pytest.raises(RuntimeError, match="getInputParameters"):
             testing_api.step1(
                 base_dir=api_workspace["base_directory"],
                 selected_folders=[api_workspace["session_directory"]],
@@ -181,7 +181,7 @@ class TestApiRuntimeErrors:
         monkeypatch.setattr(
             testing_api,
             "build_homepage",
-            lambda: FakeTemplate(hooks={"onclickProcess": lambda: None}),
+            lambda: FakeTemplate(hooks={"getInputParameters": lambda: {}}),
         )
 
         with pytest.raises(RuntimeError, match="files_1"):

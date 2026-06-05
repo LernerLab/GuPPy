@@ -14,9 +14,10 @@ def test_returns_bootstrap_template(homepage):
     assert isinstance(homepage, pn.template.BootstrapTemplate)
 
 
-def test_hooks_contains_onclick_process(homepage):
-    assert "onclickProcess" in homepage._hooks
-    assert callable(homepage._hooks["onclickProcess"])
+def test_hooks_omits_removed_save_parameters_hook(homepage):
+    # The manual "Save Input Parameters" button (and its onclickProcess hook) was
+    # removed; each consuming step now writes the snapshot automatically.
+    assert "onclickProcess" not in homepage._hooks
 
 
 def test_hooks_contains_onclick_visualization(homepage):
@@ -34,21 +35,6 @@ def test_widgets_contains_files_1(homepage):
     assert hasattr(homepage._widgets["files_1"], "value")
 
 
-def test_onclick_process_calls_save_parameters(homepage, tmp_path, monkeypatch):
-    folder = tmp_path / "session1"
-    folder.mkdir()
-    homepage._widgets["files_1"].value = [str(folder)]
-
-    calls = []
-    monkeypatch.setattr(
-        "guppy.orchestration.home.save_parameters",
-        lambda inputParameters: calls.append(inputParameters),
-    )
-    homepage._hooks["onclickProcess"]()
-    assert len(calls) == 1
-    assert isinstance(calls[0], dict)
-
-
 def test_get_input_parameters_returns_dict(homepage, tmp_path):
     folder = tmp_path / "session1"
     folder.mkdir()
@@ -58,16 +44,16 @@ def test_get_input_parameters_returns_dict(homepage, tmp_path):
     assert isinstance(result, dict)
 
 
-def test_onclick_process_surfaces_no_folder_selected_as_panel_notification(homepage, monkeypatch):
+def test_onclick_surfaces_no_folder_selected_as_panel_notification(homepage, monkeypatch):
     """When no folder is selected, getInputParameters raises and the click
     handler must surface the error as a persistent Panel notification (duration=0)
     rather than letting it propagate, and must not invoke the underlying worker."""
     homepage._widgets["files_1"].value = []
 
-    save_parameters_calls = []
+    visualize_calls = []
     monkeypatch.setattr(
-        "guppy.orchestration.home.save_parameters",
-        lambda inputParameters: save_parameters_calls.append(inputParameters),
+        "guppy.orchestration.home.visualizeResults",
+        lambda params: visualize_calls.append(params),
     )
 
     captured_notifications = []
@@ -78,12 +64,12 @@ def test_onclick_process_surfaces_no_folder_selected_as_panel_notification(homep
     monkeypatch.setattr(pn.state.notifications, "error", fake_error)
 
     # Must not raise — the exception is caught and forwarded to Panel
-    homepage._hooks["onclickProcess"]()
+    homepage._hooks["onclickVisualization"]()
 
     assert len(captured_notifications) == 1
     assert "No folder is selected for analysis" in captured_notifications[0]["message"]
     assert captured_notifications[0]["duration"] == 0
-    assert save_parameters_calls == []
+    assert visualize_calls == []
 
 
 def test_onclick_visualization_surfaces_value_error_as_panel_notification(homepage, tmp_path, monkeypatch):

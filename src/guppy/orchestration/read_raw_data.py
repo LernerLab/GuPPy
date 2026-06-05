@@ -21,6 +21,7 @@ from guppy.extractors import (
 from guppy.extractors import base_recording_extractor as base_module
 from guppy.extractors.base_recording_extractor import _pool_initializer
 from guppy.frontend.progress import PB_STEPS_FILE, subprocess_main_handler, writeToFile
+from guppy.orchestration.save_parameters import save_parameters
 from guppy.utils.utils import load_npm_params, select_output_dirs
 
 logger = logging.getLogger(__name__)
@@ -145,6 +146,9 @@ def orchestrate_read_raw_data(inputParameters: dict[str, object]) -> None:
         and ``noChannels`` among other keys.
     """
     logger.debug("### Reading raw data... ###")
+    # Snapshot the parameters being executed into each selected output dir so the
+    # on-disk GuPPyParamtersUsed.json always reflects the last-run configuration.
+    save_parameters(inputParameters=inputParameters)
     # get input parameters
     inputParameters = inputParameters
     folderNames = inputParameters["folderNames"]

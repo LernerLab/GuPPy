@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from .save_parameters import save_parameters
 from ..frontend.parameterized_plotter import ParameterizedPlotter, remove_cols
 from ..frontend.visualization_dashboard import VisualizationDashboard
 from ..utils.utils import get_all_stores_for_combining_data, read_Df, select_output_dirs
@@ -352,6 +353,13 @@ def visualizeResults(inputParameters: dict[str, object]) -> None:
 
     average = inputParameters["visualizeAverageResults"]
     logger.info(average)
+
+    # Snapshot the parameters being executed into each selected output dir so the
+    # on-disk GuPPyParamtersUsed.json always reflects the last-run configuration.
+    # Average visualization reads from the average/ dir rather than the individual
+    # selectedOutputs, so skip the snapshot there (earlier steps already wrote it per session).
+    if not average:
+        save_parameters(inputParameters=inputParameters)
 
     folderNames = inputParameters["folderNames"]
     folderNamesForAvg = inputParameters["folderNamesForAvg"]

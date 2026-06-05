@@ -38,6 +38,11 @@ def test_step3(step3_fixture_name, request):
     storenames = stores_rows[0]
     assert storenames, "Expected at least one storename in storesList.csv"
 
+    # Step 3 auto-writes the parameter snapshot into the selected output directory.
+    assert os.path.exists(
+        os.path.join(output_directory, "GuPPyParamtersUsed.json")
+    ), "step 3 should write GuPPyParamtersUsed.json into the output directory"
+
     for storename in storenames:
         safe_storename = storename.replace("\\", "_").replace("/", "_")
         storename_file_path = os.path.join(output_directory, f"{safe_storename}.hdf5")
