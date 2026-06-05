@@ -1,7 +1,7 @@
 # v2.0.0-alpha7 (Upcoming)
 
 ## Features
-- Each pipeline step now writes `GuPPyParamtersUsed.json` into its output directory automatically, and selecting an existing output run reloads its saved parameters into the form so the snapshot always matches what was executed and resuming a run no longer overwrites its parameters. Removed the manual "Save Input Parameters" button and renumbered the sidebar steps 1–5. Resolves [#301](https://github.com/LernerLab/GuPPy/issues/301).
+- Each pipeline step now writes `GuPPyParamtersUsed.json` into its output directory automatically, and selecting an existing output run reloads its saved parameters into the form so the snapshot always matches what was executed and resuming a run no longer overwrites its parameters. Removed the manual "Save Input Parameters" button and renumbered the sidebar steps 1–5. Resolves [#301](https://github.com/LernerLab/GuPPy/issues/301). [PR #353](https://github.com/LernerLab/GuPPy/pull/353)
 - Added docstring checks to pre-commit. [PR #311](https://github.com/LernerLab/GuPPy/pull/311)
 - Added numpydoc-style docstrings to all public functions and classes in the extractor layer (`src/guppy/extractors/`). [PR #312](https://github.com/LernerLab/GuPPy/pull/312)
 - Added numpydoc-style docstrings to all public functions and classes in the analysis layer (`src/guppy/analysis/`). [PR #313](https://github.com/LernerLab/GuPPy/pull/313)
@@ -37,6 +37,7 @@
 - Moved TDT epoc split-event determination from step 3 to step 2, so `storesList.csv` is fully settled at discovery time; `read()` no longer mutates `storesList.csv` or leaves a `.cache_storesList.csv` behind, and split sub-events are now labeled by the user in the storenames step. Addresses part of [#329](https://github.com/LernerLab/GuPPy/issues/329). [PR #352](https://github.com/LernerLab/GuPPy/pull/352)
 
 ## Deprecations and Removals
+- Removed the manual "Save Input Parameters" button (Step 1); each pipeline step now writes the parameter snapshot automatically. [PR #353](https://github.com/LernerLab/GuPPy/pull/353)
 
 
 # v2.0.0-alpha6 (April 29th, 2026)
