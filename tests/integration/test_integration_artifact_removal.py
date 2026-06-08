@@ -114,6 +114,16 @@ def test_artifact_removal(tmp_path, artifact_removal_method, coords):
     assert os.path.exists(timecorr), f"Missing {timecorr}"
     with h5py.File(timecorr, "r") as f:
         assert "timestampNew" in f, f"Expected 'timestampNew' dataset in {timecorr}"
+        timestamp_new = f["timestampNew"][:]
+
+    if artifact_removal_method == "concatenate":
+        # Issue #354: concatenate must preserve original recording timestamps. The kept windows
+        # are (4.03, 116.25) and (135.77, 181.31), so the saved series is gapped — it starts at
+        # the first kept sample (~4.03s, not re-stamped to a fresh zero) and contains a jump
+        # spanning the excised ~19.5s region between the two windows.
+        assert timestamp_new[0] > 4.0, f"Expected first timestamp anchored near 4.03s, got {timestamp_new[0]}"
+        max_gap = float(np.max(np.diff(timestamp_new)))
+        assert max_gap > 10.0, f"Expected a gap from the excised window in the timestamps, got max gap {max_gap}"
 
     ttl_fp = os.path.join(out_dir, "port_entries_dms_dms.hdf5")
     assert os.path.exists(ttl_fp), f"Missing TTL-aligned file {ttl_fp}"

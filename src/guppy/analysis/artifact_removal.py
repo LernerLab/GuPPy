@@ -183,7 +183,6 @@ def processTimestampsForArtifacts(
     pair_name_to_corrected_timestamps = {}
     compound_name_to_corrected_ttl_timestamps = {}
     for pair_name in pair_names:
-        sampling_rate = pair_name_to_sampling_rate[pair_name]
         tsNew = pair_name_to_tsNew[pair_name]
         coords = pair_name_to_coords[pair_name]
 
@@ -193,13 +192,7 @@ def processTimestampsForArtifacts(
                 or "signal_" + pair_name.lower() in names_for_storenames[i].lower()
             ):  # changes done
                 data = name_to_data[names_for_storenames[i]]
-                data, timestampNew = eliminateData(
-                    data=data,
-                    ts=tsNew,
-                    coords=coords,
-                    timeForLightsTurnOn=timeForLightsTurnOn,
-                    sampling_rate=sampling_rate,
-                )
+                data, timestampNew = eliminateData(data=data, ts=tsNew, coords=coords)
                 name_to_corrected_data[names_for_storenames[i]] = data
                 pair_name_to_corrected_timestamps[pair_name] = timestampNew
             else:
@@ -207,13 +200,7 @@ def processTimestampsForArtifacts(
                     continue
                 compound_name = names_for_storenames[i] + "_" + pair_name
                 ts = compound_name_to_ttl_timestamps[compound_name]
-                ts = eliminateTs(
-                    ts=ts,
-                    tsNew=tsNew,
-                    coords=coords,
-                    timeForLightsTurnOn=timeForLightsTurnOn,
-                    sampling_rate=sampling_rate,
-                )
+                ts = eliminateTs(ts=ts, coords=coords)
                 compound_name_to_corrected_ttl_timestamps[compound_name] = ts
 
     logger.info("Timestamps processed, artifacts are removed and good chunks are concatenated.")
@@ -225,11 +212,14 @@ def processTimestampsForArtifacts(
     )
 
 
-def eliminateData(
-    *, data: np.ndarray, ts: np.ndarray, coords: np.ndarray, timeForLightsTurnOn: float, sampling_rate: float
-) -> tuple[np.ndarray, np.ndarray]:
+def eliminateData(*, data: np.ndarray, ts: np.ndarray, coords: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """
-    Concatenate non-artifact data chunks and realign their timestamps.
+    Concatenate non-artifact data chunks while preserving their original timestamps.
+
+    The kept samples are concatenated (artifact samples are dropped), but each sample
+    retains its original recording timestamp. The returned ``ts_arr`` is therefore a
+    gapped series (e.g. ``1, 2, 3, 7, 8, 9``) that stays anchored to the acquisition
+    clock instead of being re-stamped onto a fresh continuous timeline.
 
     Parameters
     ----------
@@ -239,17 +229,13 @@ def eliminateData(
         1-D timestamp array.
     coords : np.ndarray
         Shape ``(N, 2)`` array of ``[start, end]`` bounds for good chunks.
-    timeForLightsTurnOn : float
-        Seconds offset used to set the new time zero for the first chunk.
-    sampling_rate : float
-        Sampling rate in Hz; used to compute inter-chunk spacing.
 
     Returns
     -------
     arr : np.ndarray
         Concatenated data from all good chunks.
     ts_arr : np.ndarray
-        Realigned timestamps corresponding to ``arr``.
+        Original (gapped) timestamps corresponding to ``arr``.
     """
 
     if (data == 0).all() == True:
@@ -258,68 +244,34 @@ def eliminateData(
     arr = np.array([])
     ts_arr = np.array([])
     for i in range(coords.shape[0]):
-
         index = np.where((ts > coords[i, 0]) & (ts < coords[i, 1]))[0]
+        arr = np.concatenate((arr, data[index]))
+        ts_arr = np.concatenate((ts_arr, ts[index]))
 
-        if len(arr) == 0:
-            arr = np.concatenate((arr, data[index]))
-            sub = ts[index][0] - timeForLightsTurnOn
-            new_ts = ts[index] - sub
-            ts_arr = np.concatenate((ts_arr, new_ts))
-        else:
-            temp = data[index]
-            # new = temp + (arr[-1]-temp[0])
-            temp_ts = ts[index]
-            new_ts = temp_ts - (temp_ts[0] - ts_arr[-1])
-            arr = np.concatenate((arr, temp))
-            ts_arr = np.concatenate((ts_arr, new_ts + (1 / sampling_rate)))
-
-    # logger.info(arr.shape, ts_arr.shape)
     return arr, ts_arr
 
 
-def eliminateTs(
-    *, ts: np.ndarray, tsNew: np.ndarray, coords: np.ndarray, timeForLightsTurnOn: float, sampling_rate: float
-) -> np.ndarray:
+def eliminateTs(*, ts: np.ndarray, coords: np.ndarray) -> np.ndarray:
     """
-    Realign TTL timestamps to match concatenated non-artifact photometry chunks.
+    Keep only TTL timestamps that fall within good-chunk windows, preserving their original times.
 
     Parameters
     ----------
     ts : np.ndarray
-        TTL timestamp array to realign.
-    tsNew : np.ndarray
-        Corrected photometry timestamp array used as the reference.
+        TTL timestamp array to filter.
     coords : np.ndarray
         Shape ``(N, 2)`` array of ``[start, end]`` bounds for good chunks.
-    timeForLightsTurnOn : float
-        Seconds offset used to set the new time zero for the first chunk.
-    sampling_rate : float
-        Sampling rate in Hz; used to compute inter-chunk spacing.
 
     Returns
     -------
     ts_arr : np.ndarray
-        Realigned TTL timestamps.
+        Original (gapped) TTL timestamps that fall within the good-chunk windows.
     """
 
     ts_arr = np.array([])
-    tsNew_arr = np.array([])
     for i in range(coords.shape[0]):
-        tsNew_index = np.where((tsNew > coords[i, 0]) & (tsNew < coords[i, 1]))[0]
         ts_index = np.where((ts > coords[i, 0]) & (ts < coords[i, 1]))[0]
-
-        if len(tsNew_arr) == 0:
-            sub = tsNew[tsNew_index][0] - timeForLightsTurnOn
-            tsNew_arr = np.concatenate((tsNew_arr, tsNew[tsNew_index] - sub))
-            ts_arr = np.concatenate((ts_arr, ts[ts_index] - sub))
-        else:
-            temp_tsNew = tsNew[tsNew_index]
-            temp_ts = ts[ts_index]
-            new_ts = temp_ts - (temp_tsNew[0] - tsNew_arr[-1])
-            new_tsNew = temp_tsNew - (temp_tsNew[0] - tsNew_arr[-1])
-            tsNew_arr = np.concatenate((tsNew_arr, new_tsNew + (1 / sampling_rate)))
-            ts_arr = np.concatenate((ts_arr, new_ts + (1 / sampling_rate)))
+        ts_arr = np.concatenate((ts_arr, ts[ts_index]))
 
     return ts_arr
 

@@ -22,6 +22,7 @@ def compute_psth(
     sampling_rate: float,
     ts: np.ndarray,
     corrected_timestamps: np.ndarray,
+    gapped_timeline: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, list[object], np.ndarray]:
     """
     Build a peri-stimulus time histogram (PSTH) matrix for one event.
@@ -57,7 +58,12 @@ def compute_psth(
     ts : np.ndarray
         Event timestamp array (s).
     corrected_timestamps : np.ndarray
-        Full corrected photometry timestamp array used for time-based binning.
+        Full corrected photometry timestamp array. Used for time-based binning, and
+        (when ``gapped_timeline`` is True) to map each event time to a sample index.
+    gapped_timeline : bool, optional
+        When True, ``corrected_timestamps`` is a gapped (artifact-removed) series in
+        original recording time, so event times are mapped to sample indices by a
+        nearest-sample lookup instead of ``round(time * sampling_rate)``. Default is False.
 
     Returns
     -------
@@ -120,7 +126,12 @@ def compute_psth(
     # for each timestamp, create trial which will be saved in a PSTH vector
     for i in range(nTs):
         thisTime = ts[i]  # -timeForLightsTurnOn
-        thisIndex = int(round(thisTime * sampling_rate))
+        if gapped_timeline:
+            # corrected_timestamps is gapped (artifact-removed, original recording time),
+            # so index = time * sampling_rate no longer holds; look up the nearest sample.
+            thisIndex = nearest_sample_index(corrected_timestamps, thisTime)
+        else:
+            thisIndex = int(round(thisTime * sampling_rate))
         # nSecPrev (and therefore nTsPrev) is negative by convention; flip to a positive
         # sample count for rowFormation, which expects nTsPrev as a positive lookback length.
         arr = rowFormation(z_score, thisIndex, -1 * nTsPrev, nTsPost)
@@ -191,6 +202,35 @@ def compute_psth(
     columns.append("timestamps")
 
     return psth, psth_baselineUncorrected, columns, ts
+
+
+def nearest_sample_index(timestamps: np.ndarray, target_time: float) -> int:
+    """
+    Return the index of the sample in ``timestamps`` closest to ``target_time``.
+
+    ``timestamps`` must be monotonically increasing (it may be gapped). This maps an
+    event time to a sample index without assuming a uniform, gap-free timeline.
+
+    Parameters
+    ----------
+    timestamps : np.ndarray
+        Monotonically increasing timestamp array.
+    target_time : float
+        Time (s) to locate within ``timestamps``.
+
+    Returns
+    -------
+    int
+        Index of the nearest sample, clamped to ``[0, len(timestamps) - 1]``.
+    """
+    pos = int(np.searchsorted(timestamps, target_time))
+    if pos <= 0:
+        return 0
+    if pos >= timestamps.shape[0]:
+        return timestamps.shape[0] - 1
+    if abs(target_time - timestamps[pos - 1]) <= abs(timestamps[pos] - target_time):
+        return pos - 1
+    return pos
 
 
 def rowFormation(z_score: np.ndarray, thisIndex: int, nTsPrev: int, nTsPost: int) -> np.ndarray:

@@ -48,63 +48,63 @@ def test_eliminate_data_single_window_output_length():
     ts = np.linspace(0, 5, 501)  # 0.01 spacing
     data = np.arange(501, dtype=float)
     coords = np.array([[1.0, 4.0]])
-    result_data, result_ts = eliminateData(
-        data=data, ts=ts, coords=coords, timeForLightsTurnOn=0.0, sampling_rate=100.0
-    )
+    result_data, result_ts = eliminateData(data=data, ts=ts, coords=coords)
     expected_count = np.sum((ts > 1.0) & (ts < 4.0))
     assert result_data.shape[0] == expected_count
     assert result_ts.shape[0] == expected_count
 
 
-def test_eliminate_data_single_window_timestamps_start_at_light_turn_on():
+def test_eliminate_data_single_window_preserves_original_recording_time():
     ts = np.linspace(0, 5, 501)
     data = np.ones(501)
     coords = np.array([[1.0, 4.0]])
-    time_for_lights_turn_on = 0.5
-    _, result_ts = eliminateData(
-        data=data, ts=ts, coords=coords, timeForLightsTurnOn=time_for_lights_turn_on, sampling_rate=100.0
-    )
-    np.testing.assert_allclose(result_ts[0], time_for_lights_turn_on, atol=1e-6)
+    _, result_ts = eliminateData(data=data, ts=ts, coords=coords)
+    # Timestamps are preserved (not re-stamped): the kept samples keep their original times,
+    # so the result equals the in-window subset of ts verbatim.
+    expected_ts = ts[(ts > 1.0) & (ts < 4.0)]
+    np.testing.assert_allclose(result_ts, expected_ts, atol=1e-12)
 
 
-def test_eliminate_data_two_windows_output_length_is_sum_of_windows():
+def test_eliminate_data_two_windows_preserve_gapped_original_timestamps():
     ts = np.linspace(0, 10, 1001)
     data = np.arange(1001, dtype=float)
     coords = np.array([[1.0, 4.0], [6.0, 9.0]])
-    result_data, result_ts = eliminateData(
-        data=data, ts=ts, coords=coords, timeForLightsTurnOn=0.0, sampling_rate=100.0
-    )
+    result_data, result_ts = eliminateData(data=data, ts=ts, coords=coords)
     count_window_1 = np.sum((ts > 1.0) & (ts < 4.0))
     count_window_2 = np.sum((ts > 6.0) & (ts < 9.0))
     assert result_data.shape[0] == count_window_1 + count_window_2
-    assert result_ts.shape[0] == count_window_1 + count_window_2
+    # The two windows are concatenated but each keeps its original time, leaving a gap from
+    # ~3.99 to ~6.01 (samples 4.0-6.0 are dropped). The result is the gapped original series.
+    expected_ts = np.concatenate((ts[(ts > 1.0) & (ts < 4.0)], ts[(ts > 6.0) & (ts < 9.0)]))
+    np.testing.assert_allclose(result_ts, expected_ts, atol=1e-12)
+    # Discontinuity at the window boundary is preserved (spacing >> the 0.01 sample spacing).
+    boundary_gap = result_ts[count_window_1] - result_ts[count_window_1 - 1]
+    assert boundary_gap > 2.0
 
 
 def test_eliminate_data_all_zeros_returns_zero_array():
     ts = np.linspace(0, 5, 501)
     data = np.zeros(501)
     coords = np.array([[1.0, 4.0]])
-    result_data, _ = eliminateData(data=data, ts=ts, coords=coords, timeForLightsTurnOn=0.0, sampling_rate=100.0)
+    result_data, _ = eliminateData(data=data, ts=ts, coords=coords)
     assert (result_data == 0).all()
 
 
 def test_eliminate_ts_all_ttls_inside_window_are_preserved():
-    # tsNew integers: first value strictly inside (0.0, 4.0) is 1.0, so shift = 1.0 - 0.0 = 1.0
-    tsNew = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
+    # Timestamps are preserved (not re-stamped): in-window TTLs are returned verbatim.
     ttl_ts = np.array([1.5, 2.0, 3.5])
     coords = np.array([[0.0, 4.0]])
-    result = eliminateTs(ts=ttl_ts, tsNew=tsNew, coords=coords, timeForLightsTurnOn=0.0, sampling_rate=100.0)
-    np.testing.assert_allclose(result, np.array([0.5, 1.0, 2.5]), atol=1e-6)
+    result = eliminateTs(ts=ttl_ts, coords=coords)
+    np.testing.assert_allclose(result, np.array([1.5, 2.0, 3.5]), atol=1e-12)
 
 
 def test_eliminate_ts_ttls_outside_window_are_dropped():
-    # tsNew integers: first value strictly inside (0.0, 4.0) is 1.0, so shift = 1.0 - 0.0 = 1.0
-    # 0.0 equals the window start so fails the strict >, 4.5 exceeds the window end
-    tsNew = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
+    # 0.0 equals the window start so fails the strict >, 4.5 exceeds the window end.
+    # The kept TTLs retain their original times (no re-stamping).
     ttl_ts = np.array([0.0, 1.5, 2.0, 4.5])
     coords = np.array([[0.0, 4.0]])
-    result = eliminateTs(ts=ttl_ts, tsNew=tsNew, coords=coords, timeForLightsTurnOn=0.0, sampling_rate=100.0)
-    np.testing.assert_allclose(result, np.array([0.5, 1.0]), atol=1e-6)
+    result = eliminateTs(ts=ttl_ts, coords=coords)
+    np.testing.assert_allclose(result, np.array([1.5, 2.0]), atol=1e-12)
 
 
 def test_adding_nan_values_out_of_window_indices_are_nan():
@@ -218,10 +218,11 @@ def test_process_timestamps_for_artifacts_concatenates_data_inside_coords():
     # Only 2 samples inside the window
     assert result_data["control_dms"].shape[0] == 2
     np.testing.assert_array_equal(result_data["control_dms"], np.array([30.0, 40.0]))
-    # First corrected timestamp = timeForLightsTurnOn = 0.5
-    np.testing.assert_allclose(result_ts["dms"][0], 0.5, atol=1e-6)
-    # TTLs: 1.5 and 2.5 inside; 4.5 outside
-    assert result_ttl["TTL1_dms"].shape[0] == 2
+    # Timestamps are preserved in original recording time (not re-stamped): the in-window
+    # samples are ts=2.0 and ts=3.0.
+    np.testing.assert_allclose(result_ts["dms"], np.array([2.0, 3.0]), atol=1e-12)
+    # TTLs: 1.5 and 2.5 inside (preserved verbatim); 4.5 outside
+    np.testing.assert_allclose(result_ttl["TTL1_dms"], np.array([1.5, 2.5]), atol=1e-12)
 
 
 # ── remove_artifacts ──────────────────────────────────────────────────────────

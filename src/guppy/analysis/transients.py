@@ -63,7 +63,7 @@ def analyze_transients(
 
     result = np.asarray(result, dtype=object)
     ts = ts[not_nan_indices]
-    freq, peaksAmp, peaksInd = calculate_freq_amp(result, z_score, z_score_chunks_index, ts)
+    freq, peaksAmp, peaksInd = calculate_freq_amp(result, z_score, z_score_chunks_index, sampling_rate)
     peaks_occurrences = np.array([ts[peaksInd], peaksAmp]).T
     arr = np.array([[freq, np.mean(peaksAmp)]])
     return z_score, ts, peaksInd, peaks_occurrences, arr
@@ -181,7 +181,10 @@ def createChunks(z_score: np.ndarray, sampling_rate: float, window: float) -> tu
 
 
 def calculate_freq_amp(
-    arr: np.ndarray, z_score: np.ndarray, z_score_chunks_index: np.ndarray, timestamps: np.ndarray
+    arr: np.ndarray,
+    z_score: np.ndarray,
+    z_score_chunks_index: np.ndarray,
+    sampling_rate: float,
 ) -> tuple[float, np.ndarray, np.ndarray]:
     """
     Aggregate per-chunk transient results into global frequency and amplitude statistics.
@@ -194,8 +197,8 @@ def calculate_freq_amp(
         Full 1-D z-score array.
     z_score_chunks_index : np.ndarray
         Shape ``(n_chunks, chunk_length)`` global sample indices from :func:`createChunks`.
-    timestamps : np.ndarray
-        Timestamp array aligned with ``z_score``.
+    sampling_rate : float
+        Sampling rate in Hz; used to derive the analyzed duration from the sample count.
 
     Returns
     -------
@@ -220,7 +223,9 @@ def calculate_freq_amp(
 
     peaksInd = peaksInd.ravel()
     peaksInd = peaksInd.astype(int)
-    # logger.info(timestamps)
-    freq = peaksAmp.shape[0] / ((timestamps[-1] - timestamps[0]) / 60)
+    # Duration of the analyzed (kept) signal in minutes. Derived from the sample count so
+    # that artifact-excised gaps are excluded from the denominator regardless of removal method.
+    duration_minutes = (z_score.shape[0] / sampling_rate) / 60
+    freq = peaksAmp.shape[0] / duration_minutes
 
     return freq, peaksAmp, peaksInd

@@ -113,10 +113,11 @@ def test_process_chunks_very_high_threshold_suppresses_peaks():
 def test_calculate_freq_amp_known_single_peak_correct_frequency_and_amplitude():
     # One chunk of 5 samples; peak at local index 2 (global index 2)
     # filteredOutMedianY = 1.0; z_score[2] = 5.0 → amplitude = 4.0
-    # timestamps span 0 to 240 seconds = 4 minutes → freq = 1 peak / 4 min = 0.25
+    # Duration is derived from the sample count: 5 samples / 1 Hz = 5 s = 5/60 min
+    # → freq = 1 peak / (5/60 min) = 12.0 events/min
     z_score = np.array([0.0, 1.0, 5.0, 1.0, 0.0])
     z_score_chunks_index = np.array([[0, 1, 2, 3, 4]])
-    timestamps = np.array([0.0, 60.0, 120.0, 180.0, 240.0])
+    sampling_rate = 1.0
 
     arr = np.empty((1, 7), dtype=object)
     arr[0, 0] = np.array([2])  # peaks at local index 2
@@ -127,19 +128,20 @@ def test_calculate_freq_amp_known_single_peak_correct_frequency_and_amplitude():
     arr[0, 5] = np.full(5, 2.0)  # firstThresholdY
     arr[0, 6] = np.full(5, 1.5)  # secondThresholdY
 
-    freq, peaks_amp, peaks_ind = calculate_freq_amp(arr, z_score, z_score_chunks_index, timestamps)
+    freq, peaks_amp, peaks_ind = calculate_freq_amp(arr, z_score, z_score_chunks_index, sampling_rate)
 
-    np.testing.assert_allclose(freq, 0.25, atol=1e-6)
+    np.testing.assert_allclose(freq, 12.0, atol=1e-6)
     np.testing.assert_allclose(peaks_amp, np.array([4.0]), atol=1e-6)
     np.testing.assert_array_equal(peaks_ind, np.array([2]))
 
 
 def test_calculate_freq_amp_two_chunks_two_peaks_correct_count():
-    # Two chunks of 5, peak in each chunk at local index 2
-    # Global peaks at index 2 and 7; timestamps span 0 to 120s = 2 min → freq = 2/2 = 1.0
+    # Two chunks of 5, peak in each chunk at local index 2; global peaks at index 2 and 7.
+    # Duration from sample count: 10 samples / 1 Hz = 10 s = 10/60 min
+    # → freq = 2 peaks / (10/60 min) = 12.0 events/min
     z_score = np.array([0.0, 1.0, 5.0, 1.0, 0.0, 0.0, 1.0, 6.0, 1.0, 0.0])
     z_score_chunks_index = np.array([[0, 1, 2, 3, 4], [5, 6, 7, 8, 9]])
-    timestamps = np.array([0.0, 24.0, 48.0, 72.0, 96.0, 20.0, 44.0, 68.0, 92.0, 120.0])
+    sampling_rate = 1.0
 
     arr = np.empty((2, 7), dtype=object)
     for row in range(2):
@@ -151,11 +153,11 @@ def test_calculate_freq_amp_two_chunks_two_peaks_correct_count():
         arr[row, 5] = np.full(5, 2.0)
         arr[row, 6] = np.full(5, 1.5)
 
-    freq, peaks_amp, peaks_ind = calculate_freq_amp(arr, z_score, z_score_chunks_index, timestamps)
+    freq, peaks_amp, peaks_ind = calculate_freq_amp(arr, z_score, z_score_chunks_index, sampling_rate)
 
     assert peaks_amp.shape[0] == 2
     assert peaks_ind.shape[0] == 2
-    np.testing.assert_allclose(freq, 1.0, atol=1e-6)
+    np.testing.assert_allclose(freq, 12.0, atol=1e-6)
 
 
 # ── analyze_transients ────────────────────────────────────────────────────────

@@ -60,6 +60,9 @@ def execute_compute_psth(filepath: str, event: str, inputParameters: dict[str, o
     selectForComputePsth = inputParameters["selectForComputePsth"]
     bin_psth_trials = inputParameters["bin_psth_trials"]
     use_time_or_trials = inputParameters["use_time_or_trials"]
+    # Concatenate artifact removal leaves a gapped (original-time) timestamp series, so PSTH
+    # must map event times to sample indices by lookup rather than time * sampling_rate.
+    gapped_timeline = inputParameters["removeArtifacts"] and inputParameters["artifactsRemovalMethod"] == "concatenate"
     nSecPrev, nSecPost = inputParameters["nSecPrev"], inputParameters["nSecPost"]
     baselineStart, baselineEnd = inputParameters["baselineCorrectionStart"], inputParameters["baselineCorrectionEnd"]
     timeInterval = inputParameters["timeInterval"]
@@ -89,7 +92,7 @@ def execute_compute_psth(filepath: str, event: str, inputParameters: dict[str, o
 
         sampling_rate = read_hdf5("timeCorrection_" + name_1, filepath, "sampling_rate")[0]
         ts = read_hdf5(event + "_" + name_1, filepath, "ts")
-        if use_time_or_trials == "Time (min)" and bin_psth_trials > 0:
+        if (use_time_or_trials == "Time (min)" and bin_psth_trials > 0) or gapped_timeline:
             corrected_timestamps = read_hdf5("timeCorrection_" + name_1, filepath, "timestampNew")
         else:
             corrected_timestamps = None
@@ -109,6 +112,7 @@ def execute_compute_psth(filepath: str, event: str, inputParameters: dict[str, o
             sampling_rate,
             ts,
             corrected_timestamps,
+            gapped_timeline,
         )
         write_hdf5(ts, event + "_" + name_1, filepath, "ts")
 

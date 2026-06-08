@@ -1,6 +1,11 @@
 import numpy as np
 
-from guppy.analysis.compute_psth import baselineCorrection, compute_psth, rowFormation
+from guppy.analysis.compute_psth import (
+    baselineCorrection,
+    compute_psth,
+    nearest_sample_index,
+    rowFormation,
+)
 
 # rowFormation is called from compute_psth with positive nTsPrev
 # (the caller negates a negative nSecPrev back to positive before passing here).
@@ -231,3 +236,90 @@ def test_compute_psth_just_use_signal_true_z_scores_each_trial():
     )
     np.testing.assert_allclose(np.nanmean(psth[0, :]), 0.0, atol=1e-10)
     np.testing.assert_allclose(np.nanstd(psth[0, :]), 1.0, atol=1e-10)
+
+
+# ── nearest_sample_index ──────────────────────────────────────────────────────
+
+
+def test_nearest_sample_index_exact_match_in_gapped_array():
+    # Gapped (artifact-removed) timeline: two windows with a gap from 2.9 to 5.0.
+    timestamps = np.concatenate((1.0 + 0.1 * np.arange(20), 5.0 + 0.1 * np.arange(20)))
+    # 5.5 is the 6th sample of the second window → global index 25.
+    assert nearest_sample_index(timestamps, 5.5) == 25
+    # First window sample 1.3 → index 3.
+    assert nearest_sample_index(timestamps, 1.3) == 3
+
+
+def test_nearest_sample_index_rounds_to_closest_neighbor():
+    timestamps = np.array([0.0, 1.0, 2.0, 3.0])
+    # 1.4 is closer to 1.0 (index 1); 1.6 is closer to 2.0 (index 2).
+    assert nearest_sample_index(timestamps, 1.4) == 1
+    assert nearest_sample_index(timestamps, 1.6) == 2
+
+
+def test_nearest_sample_index_clamps_out_of_range():
+    timestamps = np.array([2.0, 3.0, 4.0])
+    assert nearest_sample_index(timestamps, -10.0) == 0
+    assert nearest_sample_index(timestamps, 99.0) == 2
+
+
+# ── gapped-timeline equivalence (issue #354) ──────────────────────────────────
+
+
+def test_compute_psth_gapped_timeline_matches_restamped_continuous():
+    # Issue #354: after concatenate artifact removal, timestamps are gapped (original
+    # recording time) instead of re-stamped onto a continuous 0-based timeline. PSTH must
+    # produce IDENTICAL trials by looking the event time up in the gapped timestamps array
+    # rather than using round(time * sampling_rate).
+    #
+    # Concatenated z-score of 40 kept samples; the physical sample for the event is index 25.
+    z_score = np.arange(40, dtype=float)
+    sampling_rate = 10.0
+
+    # Gapped path: two windows [1.0, 2.9] and [5.0, 6.9]; event at original time 5.5 → index 25.
+    gapped_timestamps = np.concatenate((1.0 + 0.1 * np.arange(20), 5.0 + 0.1 * np.arange(20)))
+    event_original = np.array([5.5])
+    psth_gapped, _, _, _ = compute_psth(
+        z_score=z_score,
+        event="test",
+        filepath="",
+        nSecPrev=-1.0,
+        nSecPost=1.0,
+        timeInterval=0.0,
+        bin_psth_trials=0,
+        use_time_or_trials="none",
+        baselineStart=0,
+        baselineEnd=0,
+        naming="",
+        just_use_signal=False,
+        sampling_rate=sampling_rate,
+        ts=event_original,
+        corrected_timestamps=gapped_timestamps,
+        gapped_timeline=True,
+    )
+
+    # Reference (legacy) path: the equivalent re-stamped continuous time is index/sampling_rate
+    # = 25/10 = 2.5, so round(2.5 * 10) = 25 — the same physical sample.
+    event_restamped = np.array([2.5])
+    psth_reference, _, _, _ = compute_psth(
+        z_score=z_score,
+        event="test",
+        filepath="",
+        nSecPrev=-1.0,
+        nSecPost=1.0,
+        timeInterval=0.0,
+        bin_psth_trials=0,
+        use_time_or_trials="none",
+        baselineStart=0,
+        baselineEnd=0,
+        naming="",
+        just_use_signal=False,
+        sampling_rate=sampling_rate,
+        ts=event_restamped,
+        corrected_timestamps=None,
+        gapped_timeline=False,
+    )
+
+    np.testing.assert_allclose(psth_gapped, psth_reference, atol=1e-9)
+    # Sanity: the extracted trial is the slice centered on index 25 (z_score[14:35]).
+    np.testing.assert_array_equal(psth_gapped[0, :], z_score[14:35])

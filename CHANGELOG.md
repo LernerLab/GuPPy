@@ -18,6 +18,7 @@
 - Added type hints to all functions in the utils, visualization, testing, and root layers. [PR #347](https://github.com/LernerLab/GuPPy/pull/347)
 
 ## Fixes
+- `concatenate` artifact removal now preserves the original recording timestamps of the kept samples (a gapped series) instead of re-stamping them onto a fresh continuous timeline, so processed traces stay anchored to the acquisition clock; PSTH alignment and transient-frequency duration were updated to match. Resolves [#354](https://github.com/LernerLab/GuPPy/issues/354).
 - Fixed bug with step five, which was causing the baseline uncorrected HDF5 file to not exist. [PR #241](https://github.com/LernerLab/GuPPy/pull/241)
 
 ## Improvements
