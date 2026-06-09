@@ -565,6 +565,7 @@ def figure_4_two_stage_walkthrough():
         ax_left.scatter(pt, py, s=110, c=color, zorder=4, edgecolors="none")
     ax_left.set_ylabel("z-score")
     ax_left.set_title("(1) naive threshold misses the smaller event", loc="center", fontsize=11)
+    ax_left.text(0.012, 0.97, "A", transform=ax_left.transAxes, fontsize=15, fontweight="bold", va="top", color="#222")
 
     # Ghost-trace encoding: the trace stays continuous, with samples above the K₁
     # cutoff drawn in faded green (the "ghost" - same data as the rest of the trace,
@@ -577,10 +578,11 @@ def figure_4_two_stage_walkthrough():
     ax_mid.plot(t, trace_above, color=COLOR_TRACE, alpha=0.30, linewidth=1.0, zorder=2.5)
     ax_mid.plot(t, trace_below, color=COLOR_TRACE, linewidth=1.0, zorder=3)
     ax_mid.axhline(
-        first_cutoff, color="#aaaaaa", linewidth=0.6, linestyle=":", zorder=2,
+        first_cutoff, color="#7b4fa3", linewidth=1.4, linestyle=":", zorder=2,
     )
     ax_mid.set_ylabel("z-score")
     ax_mid.set_title("(2) remove samples above K₁ × MAD: noise-only subset", loc="center", fontsize=11)
+    ax_mid.text(0.012, 0.97, "B", transform=ax_mid.transAxes, fontsize=15, fontweight="bold", va="top", color="#222")
 
     noise_low = m_clean - K2 * mad_clean
     noise_high = m_clean + K2 * mad_clean
@@ -597,6 +599,7 @@ def figure_4_two_stage_walkthrough():
         ax_right.scatter(pt, py, s=110, c=color, zorder=4, edgecolors="none")
     ax_right.set_ylabel("z-score")
     ax_right.set_title("(3) two-stage threshold catches both events", loc="center", fontsize=11)
+    ax_right.text(0.012, 0.97, "C", transform=ax_right.transAxes, fontsize=15, fontweight="bold", va="top", color="#222")
 
     # Three semantic groups in three stacked legends: markers, threshold lines,
     # annotations. matplotlib's single fig.legend() can't produce a 2-3-2 layout
@@ -612,7 +615,7 @@ def figure_4_two_stage_walkthrough():
     thresholds_legend = [
         Line2D([0], [0], color="#555555", linestyle="--", linewidth=1.6,
                label="two-stage threshold"),
-        Line2D([0], [0], color="#aaaaaa", linestyle=":", linewidth=0.6,
+        Line2D([0], [0], color="#7b4fa3", linestyle=":", linewidth=1.4,
                label="K₁ cutoff: samples above are trimmed"),
         Line2D([0], [0], color="#aaaaaa", linestyle="--", linewidth=1.0,
                label="naive threshold (for comparison)"),
