@@ -36,7 +36,7 @@ A subtler effect: events that span a chunk boundary slightly bias both adjacent 
 
 ### Addressing outlier-induced bias
 
-Even when the chunk size is in the goldilocks range, the chunk's typical level and noise scale are still sensitive to what samples happen to land in it. A chunk that catches a large event plus its slow decay tail, two events arriving close together, or an artifact that survived preprocessing sees those high-amplitude samples shift the typical level slightly upward and inflate the noise scale substantially (their distance from the typical level is large, so they enter the spread tally at full distance). Both shifts push the detection threshold upward, and smaller real events in the same chunk fall below it.
+Even when the chunk size is in the goldilocks range, the chunk's typical level and noise scale are still sensitive to what samples happen to land in it. A chunk that catches a large event plus its slow decay tail, or two events arriving close together, sees those high-amplitude samples shift the typical level slightly upward and inflate the noise scale substantially (their distance from the typical level is large, so they enter the spread tally at full distance). Both shifts push the detection threshold upward, and smaller real events in the same chunk fall below it.
 
 A one-sided trim of the per-chunk samples addresses this. Before computing the noise reference for a chunk, blank the upward outliers, presumed to be event-driven rather than noise-driven, and recompute the noise reference on what remains. The trimmed samples still participate in detection (they are not removed from the chunk, only from the noise reference). The remaining samples produce a cleaner estimate of the underlying noise scale, and the threshold set against that estimate catches smaller events that the contaminated single-pass version would miss.
 
@@ -47,12 +47,12 @@ In compact form the procedure is:
 1. Compute the median and MAD of the raw chunk. Form a first threshold at *median + K₁ × MAD*, where K₁ is the outlier-filter multiplier.
 2. Set aside samples above the first threshold. These are presumed extreme upward outliers. The filter is one-sided: downward excursions (e.g. a brief loss of coupling) are not removed.
 3. Recompute the median and MAD on the remaining samples. Form a second threshold at *median′ + K₂ × MAD′*, where K₂ is the detection multiplier.
-4. In the original chunk (artifacts included), mark every sample exceeding the second threshold. These are the detected transients.
+4. In the original chunk (including the samples trimmed for the noise estimate), mark every sample exceeding the second threshold. These are the detected transients.
 
 - **K₁** is the cutoff above which raw-chunk samples are excluded from the noise reference.
 - **K₂** is the detection threshold itself, applied against the cleaned median and MAD.
 
-Conceptually, K₁ is set so real events and large artifacts reliably exceed the first-pass cutoff (and are excluded from the noise reference) while pure noise samples mostly stay below it. K₂ is the user's "what counts as a real event" criterion.
+Conceptually, K₁ is set so large transient events reliably exceed the first-pass cutoff (and are excluded from the noise reference) while pure noise samples mostly stay below it. K₂ is the user's "what counts as a real event" criterion.
 
 ## Reading the output
 
