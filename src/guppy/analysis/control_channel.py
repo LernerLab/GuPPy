@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 # This function just creates placeholder Control-HDF5 files that are then immediately overwritten later on in the pipeline.
 # TODO: Refactor this function to avoid unnecessary file creation.
-def add_control_channel(filepath, arr):
+def add_control_channel(filepath: str, arr: np.ndarray) -> np.ndarray:
     """
     Add synthetic control-channel entries to the storesList when no isosbestic control exists.
 
@@ -81,7 +81,7 @@ def add_control_channel(filepath, arr):
     return arr
 
 
-def create_control_channel(filepath, arr, window=5001):
+def create_control_channel(filepath: str, arr: np.ndarray, window: int = 5001) -> None:
     """
     Fit a synthetic control channel from the signal channel and save it.
 
@@ -118,7 +118,7 @@ def create_control_channel(filepath, arr, window=5001):
 
 
 # TODO: figure out why a control channel is created for both timestamp correction and z-score steps.
-def helper_create_control_channel(signal, timestamps, window):
+def helper_create_control_channel(signal: np.ndarray, timestamps: np.ndarray, window: int) -> np.ndarray:
     """
     Fit an exponential control channel to the signal using curve fitting.
 
@@ -159,7 +159,7 @@ def helper_create_control_channel(signal, timestamps, window):
     return control
 
 
-def curveFitFn(x, a, b, c):
+def curveFitFn(x: np.ndarray, a: float, b: float, c: float) -> np.ndarray:
     """
     Evaluate the exponential model ``a + b * exp(-x / c)``.
 

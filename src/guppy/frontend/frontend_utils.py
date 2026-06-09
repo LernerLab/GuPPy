@@ -6,7 +6,7 @@ from random import randint
 logger = logging.getLogger(__name__)
 
 
-def default_root_path():
+def default_root_path() -> str:
     """Starting directory for the GUI's directory pickers.
 
     Honors ``GUPPY_BASE_DIR`` (used by headless tests and the testing API to
@@ -25,7 +25,7 @@ def default_root_path():
 _CHROME_UNSAFE_PORTS = {5060, 5061}
 
 
-def scanPortsAndFind(start_port=5000, end_port=5200, host="127.0.0.1"):
+def scanPortsAndFind(start_port: int = 5000, end_port: int = 5200, host: str = "127.0.0.1") -> int:
     """Find an available TCP port by randomly sampling the given range.
 
     Skips ports that browsers refuse to connect to (Chrome unsafe-port list)

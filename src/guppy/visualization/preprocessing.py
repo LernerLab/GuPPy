@@ -2,6 +2,9 @@ import logging
 import os
 
 import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 
 logger = logging.getLogger(__name__)
 
@@ -10,7 +13,27 @@ if not os.getenv("CI"):
     plt.switch_backend("TKAgg")
 
 
-def visualize_preprocessing(*, suptitle, title, x, y):
+def visualize_preprocessing(*, suptitle: str, title: str, x: np.ndarray, y: np.ndarray) -> tuple[Figure, Axes]:
+    """Plot a preprocessing time series.
+
+    Parameters
+    ----------
+    suptitle : str
+        Figure-level super-title.
+    title : str
+        Axes title.
+    x : np.ndarray
+        Time axis values.
+    y : np.ndarray
+        Signal values to plot.
+
+    Returns
+    -------
+    fig : Figure
+        The created figure.
+    ax : Axes
+        The created axes.
+    """
     fig = plt.figure()
     ax = fig.add_subplot(111)
     ax.plot(x, y)
@@ -20,7 +43,41 @@ def visualize_preprocessing(*, suptitle, title, x, y):
     return fig, ax
 
 
-def visualize_control_signal_fit(x, y1, y2, y3, plot_name, name, artifacts_have_been_removed):
+def visualize_control_signal_fit(
+    x: np.ndarray,
+    y1: np.ndarray,
+    y2: np.ndarray,
+    y3: np.ndarray,
+    plot_name: list[str],
+    name: str,
+    artifacts_have_been_removed: bool,
+) -> tuple[Figure, Axes, Axes, Axes]:
+    """Plot control channel, signal channel, and fitted signal in three stacked axes.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Time axis values shared by all three axes.
+    y1 : np.ndarray
+        Control channel trace (top axes).
+    y2 : np.ndarray
+        Signal channel trace (middle axes).
+    y3 : np.ndarray
+        Fitted control channel trace overlaid on signal (bottom axes).
+    plot_name : list[str]
+        Titles for the three axes (control, signal, fitted).
+    name : str
+        Figure super-title.
+    artifacts_have_been_removed : bool
+        When True, adds a note on the x-axis label that artifacts were removed.
+
+    Returns
+    -------
+    fig : Figure
+        The created figure.
+    ax1, ax2, ax3 : Axes
+        The three stacked axes.
+    """
     fig = plt.figure()
     ax1 = fig.add_subplot(311)
     (line1,) = ax1.plot(x, y1)

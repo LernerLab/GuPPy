@@ -29,6 +29,7 @@ import datetime
 from pathlib import Path
 
 import numpy as np
+from hdmf.common import DynamicTableRegion
 from ndx_events import AnnotatedEventsTable, Events, LabeledEvents
 from ndx_fiber_photometry import (
     BandOpticalFilter,
@@ -54,7 +55,7 @@ _OUTPUT_PATH = (
 )
 
 
-def _add_ndx_fiber_photometry_metadata(nwbfile):
+def _add_ndx_fiber_photometry_metadata(nwbfile: NWBFile) -> DynamicTableRegion:
     """Add all ndx-fiber-photometry v0.1.0 hardware metadata to *nwbfile*.
 
     Uses the v0.1.0 API where devices are instantiated directly from ndx_fiber_photometry
@@ -186,7 +187,7 @@ def _add_ndx_fiber_photometry_metadata(nwbfile):
     return fiber_photometry_table_region
 
 
-def main():
+def main() -> None:
     """Create and write a mock NWB file using ndx-fiber-photometry v0.1 and ndx-events v0.2."""
     nwbfile = NWBFile(
         session_description="Mock session for NWB extractor testing (ndx-fiber-photometry v0.1.0).",

@@ -3,6 +3,8 @@
 import logging
 import multiprocessing as mp
 from abc import ABC, abstractmethod
+from multiprocessing.sharedctypes import Synchronized
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -15,7 +17,7 @@ logger = logging.getLogger(__name__)
 _SAMPLES_DONE: "mp.sharedctypes.Synchronized | None" = None
 
 
-def _pool_initializer(samples_done):
+def _pool_initializer(samples_done: "Synchronized[int]") -> None:
     global _SAMPLES_DONE
     _SAMPLES_DONE = samples_done
 
@@ -96,7 +98,7 @@ class BaseRecordingExtractor(ABC):
         pass
 
     @abstractmethod
-    def stub(self, *, folder_path, duration_in_seconds=1.0):
+    def stub(self, *, folder_path: str | Path, duration_in_seconds: float = 1.0) -> None:
         """
         Create a stubbed copy of the data folder truncated to a short duration.
 
@@ -115,7 +117,12 @@ class BaseRecordingExtractor(ABC):
         pass
 
 
-def read_and_save_events_for_extractor(extractor, events, outputPath, event_total_samples):
+def read_and_save_events_for_extractor(
+    extractor: "BaseRecordingExtractor",
+    events: list[str],
+    outputPath: str,
+    event_total_samples: dict[str, int],
+) -> None:
     """
     Read all events owned by one extractor in a single batched call, save, and
     account progress per event.

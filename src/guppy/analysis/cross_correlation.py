@@ -6,7 +6,7 @@ from scipy import signal
 logger = logging.getLogger(__name__)
 
 
-def compute_cross_correlation(arr_A, arr_B, sample_rate):
+def compute_cross_correlation(arr_A: list[np.ndarray], arr_B: list[np.ndarray], sample_rate: float) -> np.ndarray:
     """
     Compute normalized cross-correlations between paired trial arrays.
 

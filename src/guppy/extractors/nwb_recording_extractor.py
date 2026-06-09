@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from pynwb import NWBHDF5IO
+from pynwb import NWBHDF5IO, NWBFile
 
 from guppy.extractors.base_recording_extractor import BaseRecordingExtractor
 from guppy.utils._hdf5_io import write_hdf5
@@ -24,7 +24,7 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
     """
 
     @classmethod
-    def discover_events_and_flags(cls, folder_path) -> tuple[list[str], list[str]]:
+    def discover_events_and_flags(cls, folder_path: str | Path) -> tuple[list[str], list[str]]:
         """
         Discover available events from an NWB file.
 
@@ -50,7 +50,7 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
 
         return events, []
 
-    def __init__(self, *, folder_path):
+    def __init__(self, *, folder_path: str | Path) -> None:
         self.folder_path = folder_path
 
     def count_samples(self, *, event: str) -> int:
@@ -107,14 +107,14 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
             if "npoints" in output_dict:
                 write_hdf5(output_dict["npoints"], event, outputPath, "npoints")
 
-    def stub(self, *, folder_path, duration_in_seconds=1.0):
+    def stub(self, *, folder_path: str | Path, duration_in_seconds: float = 1.0) -> None:
         """
         Stub method is unnecessary for NWB files.
         """
         raise NotImplementedError("Stub method is unnecessary for NWB files.")
 
 
-def _count_event_samples(*, nwbfile, io, event):
+def _count_event_samples(*, nwbfile: NWBFile, io: NWBHDF5IO, event: str) -> int:
     """Return total samples for ``event`` without materialising bulk data.
 
     For ``FiberPhotometryResponseSeries`` events the result is the dataset's
@@ -135,7 +135,7 @@ def _count_event_samples(*, nwbfile, io, event):
     return 0
 
 
-def _discover_events_from_nwbfile(*, nwbfile, io):
+def _discover_events_from_nwbfile(*, nwbfile: NWBFile, io: NWBHDF5IO) -> list[str]:
     """
     Extract event names from an already-open NWB file.
 
@@ -176,7 +176,7 @@ def _discover_events_from_nwbfile(*, nwbfile, io):
     return events
 
 
-def _read_events_from_nwbfile(*, nwbfile, io, events):
+def _read_events_from_nwbfile(*, nwbfile: NWBFile, io: NWBHDF5IO, events: list[str]) -> list[dict[str, Any]]:
     """
     Read data for specified events from an already-open NWB file.
 
@@ -232,7 +232,7 @@ def _read_events_from_nwbfile(*, nwbfile, io, events):
     return output_dicts
 
 
-def _register_unique_name(seen_names, name, type_label):
+def _register_unique_name(seen_names: set[str], name: str, type_label: str) -> None:
     """Add *name* to *seen_names*, raising ``ValueError`` if already present."""
     if name in seen_names:
         raise ValueError(
@@ -242,7 +242,7 @@ def _register_unique_name(seen_names, name, type_label):
     seen_names.add(name)
 
 
-def _discover_ndx_events_v02(nwbfile, seen_names):
+def _discover_ndx_events_v02(nwbfile: NWBFile, seen_names: set[str]) -> list[str]:
     """Discover event names from ndx-events v0.2 objects (AnnotatedEventsTable, LabeledEvents, Events)."""
     events = []
     for neurodata_object in nwbfile.objects.values():
@@ -260,7 +260,7 @@ def _discover_ndx_events_v02(nwbfile, seen_names):
     return events
 
 
-def _discover_ndx_events_v04(nwbfile, seen_names):
+def _discover_ndx_events_v04(nwbfile: NWBFile, seen_names: set[str]) -> list[str]:
     """Discover event names from ndx-events v0.4 EventsTable objects."""
     events = []
     for table_name, table in nwbfile.events__events_tables.items():
@@ -275,7 +275,7 @@ def _discover_ndx_events_v04(nwbfile, seen_names):
     return events
 
 
-def _build_event_index_v02(nwbfile):
+def _build_event_index_v02(nwbfile: NWBFile) -> dict[str, tuple]:
     """Build a unified event index for ndx-events v0.2 objects.
 
     Returns
@@ -299,7 +299,7 @@ def _build_event_index_v02(nwbfile):
     return index
 
 
-def _build_event_index_v04(nwbfile):
+def _build_event_index_v04(nwbfile: NWBFile) -> dict[str, tuple]:
     """Build a unified event index for ndx-events v0.4 EventsTable objects.
 
     Returns
@@ -319,7 +319,7 @@ def _build_event_index_v04(nwbfile):
     return index
 
 
-def _read_ndx_event(*, event_name, source_info):
+def _read_ndx_event(*, event_name: str, source_info: tuple) -> dict[str, object]:
     """Read timestamps for a single ndx-events event from its indexed source.
 
     Parameters
@@ -365,7 +365,7 @@ def _read_ndx_event(*, event_name, source_info):
     )
 
 
-def _find_nwb_file(folder_path):
+def _find_nwb_file(folder_path: str | Path) -> str:
     """Return the single NWB file path in *folder_path*, raising if not exactly one."""
     nwb_paths = list(Path(folder_path).glob("*.nwb"))
     if len(nwb_paths) > 1:
@@ -378,7 +378,7 @@ def _find_nwb_file(folder_path):
     return str(nwb_paths[0])
 
 
-def _get_ndx_events_version(io):
+def _get_ndx_events_version(io: NWBHDF5IO) -> str | None:
     """Return the ndx-events namespace version string from an open NWBHDF5IO, or None.
 
     Parameters
@@ -398,7 +398,7 @@ def _get_ndx_events_version(io):
     return namespace_catalog.get_namespace("ndx-events").version
 
 
-def _parse_event_name(event, series_name_to_object):
+def _parse_event_name(event: str, series_name_to_object: dict[str, object]) -> tuple[str, int | None]:
     """
     Resolve an event name to a series name and optional column index.
 
@@ -433,7 +433,7 @@ def _parse_event_name(event, series_name_to_object):
     )
 
 
-def _resolve_timing(series, num_samples):
+def _resolve_timing(series: object, num_samples: int) -> tuple[float, np.ndarray]:
     """
     Derive sampling rate and a full timestamps array from an NWB TimeSeries.
 

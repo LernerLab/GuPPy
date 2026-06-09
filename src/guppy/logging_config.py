@@ -19,7 +19,7 @@ from pathlib import Path
 from platformdirs import user_desktop_dir, user_log_dir
 
 
-def get_log_file():
+def get_log_file() -> Path:
     """Get the platform-appropriate log file path.
 
     Returns
@@ -32,7 +32,7 @@ def get_log_file():
     return log_dir / "guppy.log"
 
 
-def setup_logging(*, level=None, console_output=True):
+def setup_logging(*, level: int | None = None, console_output: bool = True) -> None:
     """Configure centralized logging for GuPPy.
 
     This should be called once at application startup, before importing other modules.
@@ -76,7 +76,7 @@ def setup_logging(*, level=None, console_output=True):
         logger.addHandler(console_handler)
 
 
-def export_log_file():
+def export_log_file() -> None:
     """Export the GuPPy log file to Desktop with a timestamped name.
 
     The log file is copied from its hidden platform-specific location to the user's

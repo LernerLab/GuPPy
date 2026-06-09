@@ -2,14 +2,17 @@ import pandas as pd
 import pytest
 
 from guppy.utils.utils import (
+    NPM_PARAM_KEYS,
     discover_output_dirs,
     get_all_stores_for_combining_data,
+    load_npm_params,
     output_dir_for_run,
     parse_run_name,
     read_Df,
     select_output_dirs,
     takeOnlyDirs,
     validate_run_name,
+    write_npm_params,
 )
 
 # ── takeOnlyDirs ──────────────────────────────────────────────────────────────
@@ -343,3 +346,34 @@ def test_get_all_stores_for_combining_data_skips_paths_without_marker():
     folder_names = ["/data/no_match", "/data/x/x_output_1"]
     result = get_all_stores_for_combining_data(folder_names)
     assert result == [["/data/x/x_output_1"]]
+
+
+# ── write_npm_params / load_npm_params ────────────────────────────────────────
+
+
+def test_write_then_load_npm_params_round_trips(tmp_path):
+    output_dir = tmp_path / "session_output_1"
+    output_dir.mkdir()
+    input_parameters = {
+        "npm_split_events": [True, False],
+        "npm_time_units": ["milliseconds", "seconds"],
+        "npm_timestamp_column_names": ["ComputerTimestamp", None],
+        "unrelated_key": "ignored",
+    }
+
+    write_npm_params(
+        output_dir=str(output_dir),
+        npm_params={key: input_parameters[key] for key in NPM_PARAM_KEYS},
+    )
+
+    assert load_npm_params(str(output_dir)) == {
+        "npm_split_events": [True, False],
+        "npm_time_units": ["milliseconds", "seconds"],
+        "npm_timestamp_column_names": ["ComputerTimestamp", None],
+    }
+
+
+def test_load_npm_params_returns_empty_when_file_absent(tmp_path):
+    output_dir = tmp_path / "session_output_1"
+    output_dir.mkdir()
+    assert load_npm_params(str(output_dir)) == {}

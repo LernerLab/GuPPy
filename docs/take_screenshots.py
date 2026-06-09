@@ -10,10 +10,13 @@ Playwright browser binaries must be installed:
     uv run --group test playwright install chromium
 """
 
+from __future__ import annotations
+
 import os
 import socket
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -21,10 +24,14 @@ import panel as pn
 
 from guppy.frontend.frontend_utils import scanPortsAndFind
 from guppy.frontend.parameterized_plotter import ParameterizedPlotter
-from guppy.frontend.visualization_dashboard import VisualizationDashboard
 from guppy.frontend.storenames_selector import StorenamesSelector
+from guppy.frontend.visualization_dashboard import VisualizationDashboard
 from guppy.orchestration.home import build_homepage
 from guppy.orchestration.storenames import build_storenames_template
+
+if TYPE_CHECKING:
+    from panel.template.base import BasicTemplate
+    from playwright.sync_api import Page
 
 REPO_ROOT = Path(__file__).parent.parent
 OUTPUT_DIR = Path(__file__).parent / "_static" / "images"
@@ -44,14 +51,14 @@ def _wait_for_port(port: int, retries: int = 50, delay: float = 0.05) -> None:
     raise RuntimeError(f"Server on port {port} did not start in time.")
 
 
-def _serve(template) -> str:
+def _serve(template: BasicTemplate) -> str:
     port = scanPortsAndFind()
     pn.serve(template, port=port, show=False, threaded=True)
     _wait_for_port(port)
     return f"http://localhost:{port}"
 
 
-def screenshot_homepage(page) -> None:
+def screenshot_homepage(page: Page) -> None:
     """Screenshot 1: the Input Parameters GUI landing page."""
     os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
     template = build_homepage()
@@ -66,7 +73,7 @@ def screenshot_homepage(page) -> None:
     pn.state.kill_all_servers()
 
 
-def screenshot_storenames(page, tmp_path: Path) -> None:
+def screenshot_storenames(page: Page, tmp_path: Path) -> None:
     """Screenshot 2: the Storenames GUI with CSV channel names."""
     # Pass the real sample-data directory so the page title reads
     # "Storenames GUI - sample_data_csv_1" instead of leaking a tmp dir basename.
@@ -86,7 +93,7 @@ def screenshot_storenames(page, tmp_path: Path) -> None:
     pn.state.kill_all_servers()
 
 
-def screenshot_data_selection(page) -> None:
+def screenshot_data_selection(page: Page) -> None:
     """Screenshot for Step 2 substep 1: the file-selector portion of the homepage.
 
     Captures the top of the Individual Analysis card so the reader can see the
@@ -106,7 +113,7 @@ def screenshot_data_selection(page) -> None:
     pn.state.kill_all_servers()
 
 
-def screenshot_parameters(page) -> None:
+def screenshot_parameters(page: Page) -> None:
     """Screenshot for Step 2 substep 2: the parameter widgets in the Individual
     Analysis card.
 
@@ -117,6 +124,11 @@ def screenshot_parameters(page) -> None:
     """
     os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
     template = build_homepage()
+    # The Individual Analysis card is collapsed by default; expand it so the
+    # parameter widgets render and fall inside the clip region below.
+    for card in template.main:
+        if isinstance(card, pn.Card) and card.title == "Individual Analysis":
+            card.collapsed = False
     url = _serve(template)
     page.set_viewport_size({"width": 1280, "height": 1800})
     page.goto(url)
@@ -131,7 +143,7 @@ def screenshot_parameters(page) -> None:
     pn.state.kill_all_servers()
 
 
-def screenshot_sidebar_progress(page, progress_index: int, output_name: str) -> None:
+def screenshot_sidebar_progress(page: Page, progress_index: int, output_name: str) -> None:
     """Screenshot the homepage sidebar with one progress bar mid-fill.
 
     The homepage sidebar contains three Progress indicators (read raw data,
@@ -161,7 +173,7 @@ def screenshot_sidebar_progress(page, progress_index: int, output_name: str) -> 
     pn.state.kill_all_servers()
 
 
-def screenshot_storenames_configured(page, tmp_path: Path) -> None:
+def screenshot_storenames_configured(page: Page, tmp_path: Path) -> None:
     """Screenshot 2b: the Storenames GUI after clicking Select Storenames.
 
     Shows the Configure Storenames panel with one row per channel
@@ -200,14 +212,14 @@ def screenshot_storenames_configured(page, tmp_path: Path) -> None:
     pn.state.kill_all_servers()
 
 
-def screenshot_visualization(page, tmp_path: Path) -> None:
+def screenshot_visualization(page: Page, tmp_path: Path) -> None:
     """Screenshot 3: the Visualization Dashboard with a synthetic PSTH."""
     events = ["RewardPort"]
     n_timepoints = 30
     timestamps = np.linspace(-10.0, 20.0, n_timepoints)
     columns = ["trial_1", "trial_2", "trial_3", "bin_1", "timestamps", "mean", "err", "bin_err_1"]
 
-    def make_df():
+    def make_df() -> pd.DataFrame:
         return pd.DataFrame(
             {col: (timestamps if col == "timestamps" else np.zeros(n_timepoints)) for col in columns}
         )
@@ -243,6 +255,7 @@ def screenshot_visualization(page, tmp_path: Path) -> None:
 
 
 def main() -> None:
+    """Launch a headless browser and regenerate every tutorial screenshot in order."""
     import tempfile
 
     from playwright.sync_api import sync_playwright

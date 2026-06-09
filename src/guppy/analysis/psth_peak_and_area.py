@@ -1,5 +1,6 @@
 import logging
 from collections import OrderedDict
+from collections.abc import Sequence
 
 import numpy as np
 
@@ -8,7 +9,13 @@ from ..utils.validation import validate_peak_windows
 logger = logging.getLogger(__name__)
 
 
-def compute_psth_peak_and_area(psth_mean, timestamps, sampling_rate, peak_startPoint, peak_endPoint):
+def compute_psth_peak_and_area(
+    psth_mean: np.ndarray,
+    timestamps: np.ndarray,
+    sampling_rate: float,
+    peak_startPoint: Sequence[float],
+    peak_endPoint: Sequence[float],
+) -> OrderedDict:
     """
     Compute peak amplitude and area under the curve for each peak window.
 

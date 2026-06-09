@@ -11,7 +11,6 @@ from guppy.testing.consistency import (
     _normalize_psth_index,
     _normalize_psth_label,
     _normalize_psth_str_array,
-    compare_npm_session_files,
     compare_output_folders,
 )
 
@@ -155,45 +154,72 @@ class TestCompareOutputFolders:
 
         assert "plain_data.h5: 'labels' string data differs" in str(raised_error.value)
 
+    def test_compare_output_folders_name_map_compares_renamed_file_by_data(self, tmp_path):
+        # A reference file mapped to a differently-named actual file passes when the data matches.
+        expected_directory = tmp_path / "expected"
+        actual_directory = tmp_path / "actual"
+        expected_directory.mkdir()
+        actual_directory.mkdir()
 
-class TestCompareNpmSessionFiles:
-    def test_compare_npm_session_files_compares_only_top_level_csv_files(self, tmp_path):
-        expected_session_directory = tmp_path / "expected_session"
-        actual_session_directory = tmp_path / "actual_session"
-        expected_session_directory.mkdir()
-        actual_session_directory.mkdir()
+        pd.DataFrame({"value": [1.0, 2.0]}).to_csv(expected_directory / "PAB_0_region.csv", index=False)
+        pd.DataFrame({"value": [1.0, 2.0]}).to_csv(actual_directory / "reward_region.csv", index=False)
 
-        pd.DataFrame({"value": [1.0, 2.0]}).to_csv(expected_session_directory / "event0.csv")
-        pd.DataFrame({"value": [1.0, 2.0]}).to_csv(actual_session_directory / "event0.csv")
-
-        nested_expected_directory = expected_session_directory / "nested"
-        nested_actual_directory = actual_session_directory / "nested"
-        nested_expected_directory.mkdir()
-        nested_actual_directory.mkdir()
-
-        pd.DataFrame({"value": [100.0]}).to_csv(nested_expected_directory / "ignored.csv")
-        pd.DataFrame({"value": [999.0]}).to_csv(nested_actual_directory / "ignored.csv")
-
-        compare_npm_session_files(
-            actual_session_dir=str(actual_session_directory),
-            expected_session_dir=str(expected_session_directory),
+        compare_output_folders(
+            actual_dir=str(actual_directory),
+            expected_dir=str(expected_directory),
+            name_map={"PAB_0_region.csv": "reward_region.csv"},
         )
 
-    def test_compare_npm_session_files_reports_missing_expected_csv(self, tmp_path):
-        expected_session_directory = tmp_path / "expected_session"
-        actual_session_directory = tmp_path / "actual_session"
-        expected_session_directory.mkdir()
-        actual_session_directory.mkdir()
+    def test_compare_output_folders_name_map_renamed_file_reports_data_mismatch(self, tmp_path):
+        expected_directory = tmp_path / "expected"
+        actual_directory = tmp_path / "actual"
+        expected_directory.mkdir()
+        actual_directory.mkdir()
 
-        pd.DataFrame({"value": [1.0]}).to_csv(expected_session_directory / "event0.csv")
+        pd.DataFrame({"value": [1.0]}).to_csv(expected_directory / "PAB_0_region.csv", index=False)
+        pd.DataFrame({"value": [2.0]}).to_csv(actual_directory / "reward_region.csv", index=False)
 
-        with pytest.raises(AssertionError, match="NPM session file comparison failed") as raised_error:
-            compare_npm_session_files(
-                actual_session_dir=str(actual_session_directory),
-                expected_session_dir=str(expected_session_directory),
+        with pytest.raises(AssertionError, match="Output folder comparison failed") as raised_error:
+            compare_output_folders(
+                actual_dir=str(actual_directory),
+                expected_dir=str(expected_directory),
+                name_map={"PAB_0_region.csv": "reward_region.csv"},
+                rtol=1e-12,
+                atol=0.0,
             )
+        assert "PAB_0_region.csv: CSV content differs" in str(raised_error.value)
 
-        assert "MISSING in actual session dir: event0.csv" in str(raised_error.value)
+    def test_compare_output_folders_name_map_none_allows_intentionally_absent_file(self, tmp_path):
+        # A reference file mapped to None is intentionally not produced; its absence is required, not a failure.
+        expected_directory = tmp_path / "expected"
+        actual_directory = tmp_path / "actual"
+        expected_directory.mkdir()
+        actual_directory.mkdir()
+
+        pd.DataFrame({"value": [1.0]}).to_csv(expected_directory / "PAB_.csv", index=False)
+
+        compare_output_folders(
+            actual_dir=str(actual_directory),
+            expected_dir=str(expected_directory),
+            name_map={"PAB_.csv": None},
+        )
+
+    def test_compare_output_folders_name_map_none_fails_when_file_unexpectedly_present(self, tmp_path):
+        expected_directory = tmp_path / "expected"
+        actual_directory = tmp_path / "actual"
+        expected_directory.mkdir()
+        actual_directory.mkdir()
+
+        pd.DataFrame({"value": [1.0]}).to_csv(expected_directory / "PAB_.csv", index=False)
+        pd.DataFrame({"value": [1.0]}).to_csv(actual_directory / "PAB_.csv", index=False)
+
+        with pytest.raises(AssertionError, match="Output folder comparison failed") as raised_error:
+            compare_output_folders(
+                actual_dir=str(actual_directory),
+                expected_dir=str(expected_directory),
+                name_map={"PAB_.csv": None},
+            )
+        assert "UNEXPECTEDLY PRESENT (mapped to None): PAB_.csv" in str(raised_error.value)
 
 
 class TestCompareJsonFilePath:

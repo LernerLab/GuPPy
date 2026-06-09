@@ -26,7 +26,9 @@ from ..visualization.transients import visualize_peaks
 logger = logging.getLogger(__name__)
 
 
-def findFreqAndAmp(filepath, inputParameters, window=15, numProcesses=mp.cpu_count()):
+def findFreqAndAmp(
+    filepath: str, inputParameters: dict[str, object], window: int = 15, numProcesses: int = mp.cpu_count()
+) -> None:
     """Detect transients and compute their frequency and amplitude for one output directory.
 
     Parameters
@@ -77,7 +79,7 @@ def findFreqAndAmp(filepath, inputParameters, window=15, numProcesses=mp.cpu_cou
     logger.info("Frequency and amplitude of transients in z_score data are calculated.")
 
 
-def execute_visualize_peaks(folderNames, inputParameters):
+def execute_visualize_peaks(folderNames: list[str], inputParameters: dict[str, object]) -> None:
     """Plot detected transient peaks for each individual session.
 
     Parameters
@@ -114,7 +116,7 @@ def execute_visualize_peaks(folderNames, inputParameters):
     plt.show()
 
 
-def execute_visualize_peaks_combined(folderNames, inputParameters):
+def execute_visualize_peaks_combined(folderNames: list[str], inputParameters: dict[str, object]) -> None:
     """Plot detected transient peaks for combined (multi-session) data.
 
     Parameters
@@ -155,7 +157,7 @@ def execute_visualize_peaks_combined(folderNames, inputParameters):
     plt.show()
 
 
-def executeFindFreqAndAmp(inputParameters):
+def executeFindFreqAndAmp(inputParameters: dict[str, object]) -> None:
     """Entry point for step-5 transient analysis: dispatches to the appropriate sub-routine.
 
     Parameters
@@ -198,7 +200,9 @@ def executeFindFreqAndAmp(inputParameters):
     logger.info("Transients in z-score data found and frequency and amplitude are calculated.")
 
 
-def execute_find_freq_and_amp(inputParameters, folderNames, moving_window, numProcesses):
+def execute_find_freq_and_amp(
+    inputParameters: dict[str, object], folderNames: list[str], moving_window: int, numProcesses: int
+) -> None:
     """Compute transient frequency and amplitude for each individual session.
 
     Parameters
@@ -228,7 +232,9 @@ def execute_find_freq_and_amp(inputParameters, folderNames, moving_window, numPr
         logger.info("Transients in z-score data found and frequency and amplitude are calculated.")
 
 
-def execute_find_freq_and_amp_combined(inputParameters, folderNames, moving_window, numProcesses):
+def execute_find_freq_and_amp_combined(
+    inputParameters: dict[str, object], folderNames: list[str], moving_window: int, numProcesses: int
+) -> None:
     """Compute transient frequency and amplitude for combined (multi-session) data.
 
     Parameters
@@ -257,7 +263,7 @@ def execute_find_freq_and_amp_combined(inputParameters, folderNames, moving_wind
         inputParameters["step"] += 1
 
 
-def execute_average_for_group(inputParameters, folderNamesForAvg):
+def execute_average_for_group(inputParameters: dict[str, object], folderNamesForAvg: list[str]) -> None:
     """Average transient frequency and amplitude results across all group sessions.
 
     Parameters
@@ -291,7 +297,7 @@ def execute_average_for_group(inputParameters, folderNamesForAvg):
 
 
 @subprocess_main_handler
-def main(input_parameters):
+def main(input_parameters: dict[str, object]) -> None:
     """Subprocess entry point for the transient-analysis step.
 
     Parameters

@@ -28,9 +28,11 @@ from guppy.frontend.storenames_instructions import (
 )
 from guppy.frontend.storenames_selector import StorenamesSelector
 from guppy.utils.utils import (
+    NPM_PARAM_KEYS,
     discover_output_dirs,
     output_dir_for_run,
     validate_run_name,
+    write_npm_params,
 )
 
 pn.extension()
@@ -38,7 +40,7 @@ pn.extension()
 logger = logging.getLogger(__name__)
 
 
-def show_dir(filepath, run_name=None):
+def show_dir(filepath: str, run_name: str | None = None) -> str:
     """Return the path of an output directory without creating it.
 
     Parameters
@@ -69,7 +71,7 @@ def show_dir(filepath, run_name=None):
     return op
 
 
-def make_dir(filepath, run_name=None, run_name_policy="create"):
+def make_dir(filepath: str, run_name: str | None = None, run_name_policy: str = "create") -> str:
     """Create and return an output directory.
 
     Parameters
@@ -115,7 +117,14 @@ def make_dir(filepath, run_name=None, run_name_policy="create"):
     return op
 
 
-def _fetchValues(text, storenames, storename_dropdowns, storename_textboxes, storenames_config, isosbestic_control=False):
+def _fetchValues(
+    text: object,
+    storenames: list,
+    storename_dropdowns: dict,
+    storename_textboxes: dict,
+    storenames_config: dict,
+    isosbestic_control: bool = False,
+) -> str:
     if not storename_dropdowns or not len(storenames) > 0:
         return "####Alert !! \n No storenames selected."
 
@@ -194,7 +203,7 @@ def _fetchValues(text, storenames, storename_dropdowns, storename_textboxes, sto
     return "#### No alerts !!"
 
 
-def _save(storenames_config, select_location):
+def _save(storenames_config: dict, select_location: str, npm_params: dict[str, object] | None = None) -> str:
     arr1, arr2 = np.asarray(storenames_config["storenames"]), np.asarray(storenames_config["names_for_storenames"])
 
     empty_indices = np.where(arr2 == "")[0].tolist()
@@ -256,12 +265,21 @@ def _save(storenames_config, select_location):
     os.mkdir(select_location)
 
     np.savetxt(os.path.join(select_location, "storesList.csv"), arr, delimiter=",", fmt="%s")
+    if npm_params is not None:
+        write_npm_params(output_dir=select_location, npm_params=npm_params)
     logger.info(f"Storeslist file saved at {select_location}")
     logger.info("Storeslist : \n" + str(arr))
     return "#### No alerts !!"
 
 
-def build_storenames_template(events, flags, folder_path, isosbestic_control=False):
+def build_storenames_template(
+    events: list[str],
+    flags: list[str],
+    folder_path: str,
+    isosbestic_control: bool = False,
+    channel_previews: dict[str, dict[str, np.ndarray]] | None = None,
+    npm_params: dict[str, object] | None = None,
+) -> pn.template.BootstrapTemplate:
     """Build and return the Storenames GUI Panel template without serving it.
 
     Parameters
@@ -272,6 +290,14 @@ def build_storenames_template(events, flags, folder_path, isosbestic_control=Fal
         Feature flags (e.g. ``"data_np_v2"``) that control which instructions widget is shown.
     folder_path : str
         Absolute path to the session directory.
+    isosbestic_control : bool, optional
+        Whether isosbestic-control naming applies. Default is False.
+    channel_previews : dict, optional
+        NPM chev/chod/chpr channel traces (``{name: {"x", "y"}}``) used to render
+        the NPM channel-preview plots. Required when the flags indicate NPM data.
+    npm_params : dict, optional
+        NPM decomposition parameters persisted next to ``storesList.csv`` on save
+        so Step 3 can reproduce the decomposition. Set when flags indicate NPM data.
 
     Returns
     -------
@@ -283,7 +309,9 @@ def build_storenames_template(events, flags, folder_path, isosbestic_control=Fal
     template = pn.template.BootstrapTemplate(title="Storenames GUI - {}".format(os.path.basename(folder_path)))
 
     if "data_np_v2" in flags or "data_np" in flags or "event_np" in flags:
-        storenames_instructions = StorenamesInstructionsNPM(folder_path=folder_path)
+        storenames_instructions = StorenamesInstructionsNPM(
+            folder_path=folder_path, channel_previews=channel_previews or {}
+        )
     else:
         storenames_instructions = StorenamesInstructions(folder_path=folder_path)
     storenames_selector = StorenamesSelector(allnames=allnames)
@@ -295,7 +323,7 @@ def build_storenames_template(events, flags, folder_path, isosbestic_control=Fal
     # ------------------------------------------------------------------------------------------------------------------
     # onclick closure functions
     # on clicking overwrite_button, following function is executed
-    def overwrite_button_actions(event):
+    def overwrite_button_actions(event: object) -> None:
         if event.new == "over_write_file":
             options = discover_output_dirs(folder_path)
             storenames_selector.set_select_location_options(options=options)
@@ -304,7 +332,7 @@ def build_storenames_template(events, flags, folder_path, isosbestic_control=Fal
             options = [show_dir(folder_path, run_name=run_name or None)]
             storenames_selector.set_select_location_options(options=options)
 
-    def run_name_input_changed(event):
+    def run_name_input_changed(event: object) -> None:
         if storenames_selector.get_overwrite_mode() != "create_new_file":
             return
         run_name = event.new or None
@@ -316,7 +344,7 @@ def build_storenames_template(events, flags, folder_path, isosbestic_control=Fal
         storenames_selector.set_select_location_options(options=options)
         storenames_selector.set_alert_message("#### No alerts !!")
 
-    def fetchValues(event):
+    def fetchValues(event: object) -> None:
         global storenames
         storenames_config = dict()
         alert_message = _fetchValues(
@@ -331,7 +359,7 @@ def build_storenames_template(events, flags, folder_path, isosbestic_control=Fal
         storenames_selector.set_literal_input_2(storenames_config=storenames_config)
 
     # on clicking 'Select Storenames' button, following function is executed
-    def update_values(event):
+    def update_values(event: object) -> None:
         global storenames, vars_list
 
         arr = storenames_selector.get_take_widgets()
@@ -358,11 +386,13 @@ def build_storenames_template(events, flags, folder_path, isosbestic_control=Fal
         )
 
     # on clicking save button, following function is executed
-    def save_button(event=None):
+    def save_button(event: object = None) -> None:
         global storenames
         storenames_config = storenames_selector.get_literal_input_2()
         select_location = storenames_selector.get_select_location()
-        alert_message = _save(storenames_config=storenames_config, select_location=select_location)
+        alert_message = _save(
+            storenames_config=storenames_config, select_location=select_location, npm_params=npm_params
+        )
         storenames_selector.set_alert_message(alert_message)
         storenames_selector.set_path(os.path.join(select_location, "storesList.csv"))
 
@@ -383,7 +413,9 @@ def build_storenames_template(events, flags, folder_path, isosbestic_control=Fal
     return template
 
 
-def build_storenames_page(inputParameters, events, flags, folder_path):
+def build_storenames_page(
+    inputParameters: dict[str, object], events: list[str], flags: list[str], folder_path: str
+) -> None:
     """Write storesList.csv for one session, headlessly or via the Panel GUI.
 
     In headless mode (``storenames_map`` key present in ``inputParameters``)
@@ -404,6 +436,11 @@ def build_storenames_page(inputParameters, events, flags, folder_path):
     """
     logger.debug("Saving stores list file.")
 
+    # NPM decomposition is parameterized by interactive Step-2 choices; persist them
+    # next to storesList.csv so Step 3 can reproduce the same in-memory decomposition.
+    is_npm = "data_np_v2" in flags or "data_np" in flags or "event_np" in flags
+    npm_params = {key: inputParameters.get(key) for key in NPM_PARAM_KEYS} if is_npm else None
+
     # Headless path: if storenames_map provided, write storesList.csv without building the Panel UI
     storenames_map = inputParameters.get("storenames_map")
     if isinstance(storenames_map, dict) and len(storenames_map) > 0:
@@ -412,12 +449,21 @@ def build_storenames_page(inputParameters, events, flags, folder_path):
         op = make_dir(folder_path, run_name=run_name, run_name_policy=run_name_policy)
         arr = np.asarray([list(storenames_map.keys()), list(storenames_map.values())], dtype=str)
         np.savetxt(os.path.join(op, "storesList.csv"), arr, delimiter=",", fmt="%s")
+        if npm_params is not None:
+            write_npm_params(output_dir=op, npm_params=npm_params)
         logger.info(f"Storeslist file saved at {op}")
         logger.info("Storeslist : \n" + str(arr))
         return
 
+    channel_previews = _compute_npm_channel_previews(inputParameters, folder_path) if is_npm else None
+
     template = build_storenames_template(
-        events, flags, folder_path, isosbestic_control=bool(inputParameters.get("isosbestic_control"))
+        events,
+        flags,
+        folder_path,
+        isosbestic_control=bool(inputParameters.get("isosbestic_control")),
+        channel_previews=channel_previews,
+        npm_params=npm_params,
     )
 
     # creating widgets, adding them to template and showing a GUI on a new browser window
@@ -425,7 +471,47 @@ def build_storenames_page(inputParameters, events, flags, folder_path):
     template.show(port=number)
 
 
-def read_header(inputParameters, num_ch, folder_path, headless):
+def _compute_npm_channel_previews(
+    inputParameters: dict[str, object], folder_path: str
+) -> dict[str, dict[str, np.ndarray]]:
+    """Decompose the NPM session in memory and return chev/chod/chpr preview traces.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters; supplies ``noChannels`` and the NPM
+        configuration populated by :func:`read_header`.
+    folder_path : str
+        Absolute path to the NPM session directory.
+
+    Returns
+    -------
+    dict
+        Maps each chev/chod/chpr channel name to ``{"x": timestamps, "y": data}``.
+    """
+    extractor = NpmRecordingExtractor(
+        folder_path=folder_path,
+        num_ch=inputParameters["noChannels"],
+        npm_timestamp_column_names=inputParameters.get("npm_timestamp_column_names"),
+        npm_time_units=inputParameters.get("npm_time_units"),
+        npm_split_events=inputParameters.get("npm_split_events"),
+    )
+    streams = extractor.decompose()
+    previews = {}
+    for name, stream in streams.items():
+        if "data" in stream and ("chev" in name or "chod" in name or "chpr" in name):
+            x = stream["timestamps"]
+            y = stream["data"]
+            # chod/chpr borrow chev's timestamps, which can be one sample shorter
+            # than their own data (ragged interleaving); align lengths for plotting.
+            n = min(len(x), len(y))
+            previews[name] = {"x": x[:n], "y": y[:n]}
+    return previews
+
+
+def read_header(
+    inputParameters: dict[str, object], num_ch: int, folder_path: str, headless: bool
+) -> tuple[list[str], list[str]]:
     """Discover events and feature flags for a single session folder.
 
     Parameters
@@ -499,7 +585,7 @@ def read_header(inputParameters, num_ch, folder_path, headless):
     return events, flags
 
 
-def orchestrate_storenames_page(inputParameters):
+def orchestrate_storenames_page(inputParameters: dict[str, object]) -> None:
     """Run the step-2 storenames configuration for every selected session folder.
 
     Parameters

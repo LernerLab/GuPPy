@@ -19,6 +19,7 @@ from guppy.orchestration.home import build_homepage
 from guppy.orchestration.preprocess import extractTsAndSignal
 from guppy.orchestration.psth import psthForEachStorename
 from guppy.orchestration.read_raw_data import orchestrate_read_raw_data
+from guppy.orchestration.save_parameters import save_parameters
 from guppy.orchestration.storenames import orchestrate_storenames_page
 from guppy.orchestration.transients import executeFindFreqAndAmp
 from guppy.orchestration.visualize import visualizeResults
@@ -85,14 +86,14 @@ def _normalize_group_selected_runs(
 
 def step1(*, base_dir: str, selected_folders: Iterable[str]) -> None:
     """
-    Run pipeline Step 1 (Save Input Parameters) via the Panel logic.
+    Write ``GuPPyParamtersUsed.json`` into each selected folder (provenance snapshot).
 
-    This calls the exact ``onclickProcess`` function defined in
-    ``savingInputParameters()``, in headless mode. The ``GUPPY_BASE_DIR``
-    environment variable is used to bypass the Tk folder selection dialog.
-    The function programmatically sets the FileSelector value to
-    ``selected_folders`` and triggers the underlying callback that writes
-    ``GuPPyParamtersUsed.json`` into each selected folder.
+    In the GUI this snapshot is now written automatically by each consuming step
+    (steps 2–5); this helper exposes the same ``save_parameters`` write directly
+    for tests and scripted provenance. It builds the form headlessly (using
+    ``GUPPY_BASE_DIR`` to bypass the Tk folder dialog), sets the FileSelector to
+    ``selected_folders``, and calls ``save_parameters`` with the current
+    parameters.
 
     Parameters
     ----------
@@ -106,8 +107,8 @@ def step1(*, base_dir: str, selected_folders: Iterable[str]) -> None:
     Raises
     ------
     RuntimeError
-        If the ``savingInputParameters`` template does not expose the required
-        testing hooks (``_hooks['onclickProcess']`` and ``_widgets['files_1']``).
+        If the template does not expose the required testing hooks
+        (``_hooks['getInputParameters']`` and ``_widgets['files_1']``).
     """
     os.environ["GUPPY_BASE_DIR"] = base_dir
 
@@ -115,14 +116,14 @@ def step1(*, base_dir: str, selected_folders: Iterable[str]) -> None:
     template = build_homepage()
 
     # Sanity checks: ensure hooks/widgets exposed
-    if not hasattr(template, "_hooks") or "onclickProcess" not in template._hooks:
-        raise RuntimeError("savingInputParameters did not expose 'onclickProcess' hook")
+    if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
+        raise RuntimeError("build_homepage did not expose 'getInputParameters' hook")
     if not hasattr(template, "_widgets") or "files_1" not in template._widgets:
-        raise RuntimeError("savingInputParameters did not expose 'files_1' widget")
+        raise RuntimeError("build_homepage did not expose 'files_1' widget")
 
-    # Select folders and trigger actual step-1 logic
+    # Select folders and write the parameter snapshot, mirroring the per-step auto-write.
     template._widgets["files_1"].value = list(selected_folders)
-    template._hooks["onclickProcess"]()
+    save_parameters(inputParameters=template._hooks["getInputParameters"]())
 
 
 def step2(
