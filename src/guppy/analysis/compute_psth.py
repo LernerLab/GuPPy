@@ -22,6 +22,7 @@ def compute_psth(
     sampling_rate: float,
     ts: np.ndarray,
     corrected_timestamps: np.ndarray,
+    timeForLightsTurnOn: float,
 ) -> tuple[np.ndarray, np.ndarray, list[object], np.ndarray]:
     """
     Build a peri-stimulus time histogram (PSTH) matrix for one event.
@@ -57,9 +58,12 @@ def compute_psth(
     ts : np.ndarray
         Event timestamp array (s).
     corrected_timestamps : np.ndarray
-        Full corrected photometry timestamp array (recording-start basis). Its first
-        value is the signal start used to map event times to z-score sample indices,
-        and the array is also used for time-based binning.
+        Full corrected photometry timestamp array (recording-start basis), used for
+        time-based binning.
+    timeForLightsTurnOn : float
+        Lights-on offset (s). Events are stored on the recording-start basis while
+        ``z_score[0]`` corresponds to the lights-on instant, so event times are mapped
+        to z-score sample indices relative to ``timeForLightsTurnOn``.
 
     Returns
     -------
@@ -86,13 +90,12 @@ def compute_psth(
     timeAxisNew = np.concatenate((timeAxis, timeAxis[::-1]))
 
     # reject timestamps for which baseline cannot be calculated because of nan values.
-    # Events are on the recording-start basis (same as corrected_timestamps), so the
-    # time available before an event is measured from the signal start, corrected_timestamps[0].
-    stream_start = corrected_timestamps[0]
+    # Events are on the recording-start basis; z_score[0] is the lights-on instant, so the
+    # time available before an event is measured relative to timeForLightsTurnOn.
     new_ts = []
     for i in range(ts.shape[0]):
         thisTime = ts[i]
-        if (thisTime - stream_start) < abs(baselineStart):
+        if (thisTime - timeForLightsTurnOn) < abs(baselineStart):
             continue
         else:
             new_ts.append(ts[i])
@@ -125,10 +128,9 @@ def compute_psth(
     # for each timestamp, create trial which will be saved in a PSTH vector
     for i in range(nTs):
         thisTime = ts[i]
-        # Events share the recording-start basis with the continuous stream, so map an
-        # event time to its positional index in z_score relative to the signal start
-        # (z_score[0] corresponds to corrected_timestamps[0]).
-        thisIndex = int(round((thisTime - stream_start) * sampling_rate))
+        # Events are on the recording-start basis; z_score[0] corresponds to the lights-on
+        # instant, so subtract timeForLightsTurnOn to get the positional index into z_score.
+        thisIndex = int(round((thisTime - timeForLightsTurnOn) * sampling_rate))
         # nSecPrev (and therefore nTsPrev) is negative by convention; flip to a positive
         # sample count for rowFormation, which expects nTsPrev as a positive lookback length.
         arr = rowFormation(z_score, thisIndex, -1 * nTsPrev, nTsPost)
@@ -146,7 +148,9 @@ def compute_psth(
 
     if use_time_or_trials == "Time (min)" and bin_psth_trials > 0:
         corrected_timestamps = np.divide(corrected_timestamps, 60)
-        ts_min = np.divide(ts, 60)
+        # Bins are built from the continuous timestamps (recording-start basis); shift events
+        # by timeForLightsTurnOn so both sit on the lights-on origin the bin edges assume.
+        ts_min = np.divide(ts - timeForLightsTurnOn, 60)
         bin_steps = np.arange(corrected_timestamps[0], corrected_timestamps[-1] + bin_psth_trials, bin_psth_trials)
         indices_each_step = dict()
         for i in range(1, bin_steps.shape[0]):

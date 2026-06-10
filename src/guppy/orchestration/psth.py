@@ -63,6 +63,7 @@ def execute_compute_psth(filepath: str, event: str, inputParameters: dict[str, o
     nSecPrev, nSecPost = inputParameters["nSecPrev"], inputParameters["nSecPost"]
     baselineStart, baselineEnd = inputParameters["baselineCorrectionStart"], inputParameters["baselineCorrectionEnd"]
     timeInterval = inputParameters["timeInterval"]
+    timeForLightsTurnOn = inputParameters["timeForLightsTurnOn"]
 
     if selectForComputePsth == "z_score":
         path = glob.glob(os.path.join(filepath, "z_score_*"))
@@ -89,9 +90,10 @@ def execute_compute_psth(filepath: str, event: str, inputParameters: dict[str, o
 
         sampling_rate = read_hdf5("timeCorrection_" + name_1, filepath, "sampling_rate")[0]
         ts = read_hdf5(event + "_" + name_1, filepath, "ts")
-        # compute_psth needs the continuous timestamps unconditionally: its first value
-        # is the signal start used to map event times onto z-score sample indices.
-        corrected_timestamps = read_hdf5("timeCorrection_" + name_1, filepath, "timestampNew")
+        if use_time_or_trials == "Time (min)" and bin_psth_trials > 0:
+            corrected_timestamps = read_hdf5("timeCorrection_" + name_1, filepath, "timestampNew")
+        else:
+            corrected_timestamps = None
         psth, psth_baselineUncorrected, cols, ts = compute_psth(
             z_score,
             event,
@@ -108,6 +110,7 @@ def execute_compute_psth(filepath: str, event: str, inputParameters: dict[str, o
             sampling_rate,
             ts,
             corrected_timestamps,
+            timeForLightsTurnOn,
         )
         write_hdf5(ts, event + "_" + name_1, filepath, "ts")
 
