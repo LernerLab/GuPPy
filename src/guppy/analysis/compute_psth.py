@@ -57,7 +57,9 @@ def compute_psth(
     ts : np.ndarray
         Event timestamp array (s).
     corrected_timestamps : np.ndarray
-        Full corrected photometry timestamp array used for time-based binning.
+        Full corrected photometry timestamp array (recording-start basis). Its first
+        value is the signal start used to map event times to z-score sample indices,
+        and the array is also used for time-based binning.
 
     Returns
     -------
@@ -83,11 +85,14 @@ def compute_psth(
     timeAxis = np.linspace(nSecPrev, nSecPost + increment, totalTs + 1)
     timeAxisNew = np.concatenate((timeAxis, timeAxis[::-1]))
 
-    # reject timestamps for which baseline cannot be calculated because of nan values
+    # reject timestamps for which baseline cannot be calculated because of nan values.
+    # Events are on the recording-start basis (same as corrected_timestamps), so the
+    # time available before an event is measured from the signal start, corrected_timestamps[0].
+    stream_start = corrected_timestamps[0]
     new_ts = []
     for i in range(ts.shape[0]):
-        thisTime = ts[i]  # -1 not needed anymore
-        if thisTime < abs(baselineStart):
+        thisTime = ts[i]
+        if (thisTime - stream_start) < abs(baselineStart):
             continue
         else:
             new_ts.append(ts[i])
@@ -119,8 +124,11 @@ def compute_psth(
 
     # for each timestamp, create trial which will be saved in a PSTH vector
     for i in range(nTs):
-        thisTime = ts[i]  # -timeForLightsTurnOn
-        thisIndex = int(round(thisTime * sampling_rate))
+        thisTime = ts[i]
+        # Events share the recording-start basis with the continuous stream, so map an
+        # event time to its positional index in z_score relative to the signal start
+        # (z_score[0] corresponds to corrected_timestamps[0]).
+        thisIndex = int(round((thisTime - stream_start) * sampling_rate))
         # nSecPrev (and therefore nTsPrev) is negative by convention; flip to a positive
         # sample count for rowFormation, which expects nTsPrev as a positive lookback length.
         arr = rowFormation(z_score, thisIndex, -1 * nTsPrev, nTsPost)

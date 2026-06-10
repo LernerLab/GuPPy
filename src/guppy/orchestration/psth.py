@@ -89,10 +89,9 @@ def execute_compute_psth(filepath: str, event: str, inputParameters: dict[str, o
 
         sampling_rate = read_hdf5("timeCorrection_" + name_1, filepath, "sampling_rate")[0]
         ts = read_hdf5(event + "_" + name_1, filepath, "ts")
-        if use_time_or_trials == "Time (min)" and bin_psth_trials > 0:
-            corrected_timestamps = read_hdf5("timeCorrection_" + name_1, filepath, "timestampNew")
-        else:
-            corrected_timestamps = None
+        # compute_psth needs the continuous timestamps unconditionally: its first value
+        # is the signal start used to map event times onto z-score sample indices.
+        corrected_timestamps = read_hdf5("timeCorrection_" + name_1, filepath, "timestampNew")
         psth, psth_baselineUncorrected, cols, ts = compute_psth(
             z_score,
             event,
