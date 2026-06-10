@@ -516,10 +516,10 @@ def figure_4_two_stage_walkthrough():
     event_times = np.array([3.0, 12.0])
 
     events = np.zeros_like(t)
-    events += make_calcium_transient(t, center=event_times[0], amplitude=18.0, rise=0.30, decay=2.0)
-    events += make_calcium_transient(t, center=event_times[1], amplitude=2.4, rise=0.10, decay=0.5)
+    events += make_calcium_transient(t, center=event_times[0], amplitude=7.2, rise=0.30, decay=2.0)
+    events += make_calcium_transient(t, center=event_times[1], amplitude=0.96, rise=0.10, decay=0.5)
 
-    noise = 0.50 * rng.standard_normal(len(t))
+    noise = 0.20 * rng.standard_normal(len(t))
     trace = events + noise
 
     K1 = 2.0
@@ -591,8 +591,8 @@ def figure_4_two_stage_walkthrough():
     ax_mid.set_ylabel("z-score")
     ax_mid.set_title("remove samples above T₁ (median + K₁ × MAD)", loc="center", fontsize=11)
     ax_mid.text(0.012, 0.97, "B", transform=ax_mid.transAxes, fontsize=15, fontweight="bold", va="top", color="#222")
-    ax_mid.annotate("samples excluded from\nthreshold calculation", xy=(4.6, 9.0),
-                    xytext=(6.6, 12.0), fontsize=8.0, color="#2a6a2a", ha="left",
+    ax_mid.annotate("samples excluded from\nthreshold calculation", xy=(4.6, 3.2),
+                    xytext=(6.6, 5.0), fontsize=8.0, color="#2a6a2a", ha="left",
                     arrowprops=dict(arrowstyle="->", color="#5f9e5f", lw=1.0))
 
     ax_right.plot(t, trace, color=COLOR_TRACE, linewidth=1.0, zorder=3)
