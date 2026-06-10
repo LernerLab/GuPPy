@@ -94,9 +94,6 @@ guppy = "guppy.main:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
-[tool.setuptools.package-data]
-guppy = ["resources/*.yaml"]
-
 [tool.black]
 line-length = 120
 target-version = ['py310', 'py311', 'py312', 'py313']

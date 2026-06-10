@@ -6,20 +6,15 @@ import pytest
 from playwright.sync_api import expect
 
 from guppy.frontend.frontend_utils import scanPortsAndFind
-from guppy.orchestration.metadata import (
-    _load_bundled_template,
-    build_project_metadata_template,
-)
-from guppy.utils.nwb_metadata import split_template_into_project_and_session
+from guppy.orchestration.metadata import build_project_metadata_template
 
 
 @pytest.fixture(scope="session")
 def project_metadata_server_url(panel_extension, ui_base_dir, tmp_path_factory):
-    """Serve the Project Metadata GUI on a free local port."""
+    """Serve the Project Metadata GUI (empty form) on a free local port."""
     temporary_folder = tmp_path_factory.mktemp("project_metadata_session")
-    project_metadata, _ = split_template_into_project_and_session(_load_bundled_template())
     template = build_project_metadata_template(
-        project_metadata=project_metadata,
+        project_metadata={},
         project_yaml_path=str(temporary_folder / "nwb_project_metadata.yaml"),
     )
     port = scanPortsAndFind()

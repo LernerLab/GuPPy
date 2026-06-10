@@ -1,17 +1,18 @@
 """Unit tests for the pure NWB-export metadata helpers."""
 
-import importlib.resources
+from pathlib import Path
 
 import pandas as pd
 import pytest
 
 from guppy.utils import nwb_metadata as m
 
+EXAMPLE_METADATA = Path(__file__).resolve().parents[2] / "data" / "fiber_photometry_metadata_example.yaml"
+
 
 @pytest.fixture
-def bundled_template() -> dict:
-    text = importlib.resources.files("guppy").joinpath("resources/fiber_photometry_metadata_template.yaml").read_text()
-    return m.loads_yaml(text)
+def example_metadata() -> dict:
+    return m.load_yaml(EXAMPLE_METADATA)
 
 
 class TestFlattenUnflatten:
@@ -118,19 +119,19 @@ class TestProjectMetadata:
         # Empty component lists are omitted entirely.
         assert "Photodetectors" not in metadata["Ophys"]["FiberPhotometry"]
 
-    def test_project_round_trip_preserves_template_components(self, bundled_template):
-        project, _ = m.split_template_into_project_and_session(bundled_template)
+    def test_project_round_trip_preserves_template_components(self, example_metadata):
+        project, _ = m.split_template_into_project_and_session(example_metadata)
         dataframes, scalars = m.parse_project_metadata_dict(project)
         rebuilt = m.build_project_metadata_dict(dataframes, scalars)
-        original_fp = bundled_template["Ophys"]["FiberPhotometry"]
+        original_fp = example_metadata["Ophys"]["FiberPhotometry"]
         rebuilt_fp = rebuilt["Ophys"]["FiberPhotometry"]
         # Nested records, list fields, and the table all survive the round-trip.
         assert rebuilt_fp["OpticalFibers"] == original_fp["OpticalFibers"]
         assert rebuilt_fp["DichroicMirrorModels"] == original_fp["DichroicMirrorModels"]
         assert rebuilt_fp["FiberPhotometryTable"] == original_fp["FiberPhotometryTable"]
 
-    def test_parse_project_metadata_dict_recovers_table_scalars(self, bundled_template):
-        project, _ = m.split_template_into_project_and_session(bundled_template)
+    def test_parse_project_metadata_dict_recovers_table_scalars(self, example_metadata):
+        project, _ = m.split_template_into_project_and_session(example_metadata)
         _, scalars = m.parse_project_metadata_dict(project)
         assert scalars["fiber_photometry_table_name"] == "fiber_photometry_table"
 
@@ -194,6 +195,6 @@ class TestYamlIO:
     def test_loads_blank_text_returns_empty_dict(self):
         assert m.loads_yaml("") == {}
 
-    def test_bundled_template_loads_and_reserializes_stably(self, bundled_template):
+    def test_example_metadata_loads_and_reserializes_stably(self, example_metadata):
         # Dumping then re-loading the bundled template yields an identical dict.
-        assert m.loads_yaml(m.dumps_yaml(bundled_template)) == bundled_template
+        assert m.loads_yaml(m.dumps_yaml(example_metadata)) == example_metadata

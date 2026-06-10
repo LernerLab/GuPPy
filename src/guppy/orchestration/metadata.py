@@ -7,7 +7,6 @@ authoritative artifact, and Save writes the editor's YAML to disk. The project
 YAML doubles as a reusable, hand-editable source of truth for later runs.
 """
 
-import importlib.resources
 import logging
 import os
 from pathlib import Path
@@ -23,7 +22,6 @@ from ..utils.nwb_metadata import (
     build_session_metadata_dict,
     dump_yaml,
     load_yaml,
-    loads_yaml,
     split_template_into_project_and_session,
 )
 from ..utils.utils import output_dir_for_run
@@ -47,19 +45,19 @@ def _selected_session_runs(inputParameters: dict[str, object]) -> list[tuple[str
     return pairs
 
 
-def _load_bundled_template() -> dict:
-    """Load the packaged starter fiber-photometry metadata template."""
-    text = importlib.resources.files("guppy").joinpath("resources/fiber_photometry_metadata_template.yaml").read_text()
-    return loads_yaml(text)
-
-
 def _bootstrap_project_metadata(project_yaml_path: str) -> dict:
-    """Pick the best available source for the project window's initial metadata."""
+    """Pick the best available source for the project window's initial metadata.
+
+    Reuses the user's own work when present (the project YAML they saved, or the
+    home-directory cache from a prior project); otherwise starts empty -- the form
+    renders fully-structured but blank tables from ``COMPONENT_SCHEMAS``, so the
+    user fills in their own rig rather than overwriting someone else's example.
+    """
     if os.path.exists(project_yaml_path):
         return load_yaml(project_yaml_path)
     if os.path.exists(HOME_CACHE_PATH):
         return load_yaml(HOME_CACHE_PATH)
-    return _load_bundled_template()
+    return {}
 
 
 def build_project_metadata_template(project_metadata: dict, project_yaml_path: str) -> pn.template.BootstrapTemplate:

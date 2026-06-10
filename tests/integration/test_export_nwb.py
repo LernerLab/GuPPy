@@ -17,15 +17,15 @@ from guppy.orchestration.export_nwb import (
 )
 from guppy.utils.nwb_metadata import dump_yaml, load_yaml
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-BUNDLED_TEMPLATE = PROJECT_ROOT / "src" / "guppy" / "resources" / "fiber_photometry_metadata_template.yaml"
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+EXAMPLE_METADATA = PROJECT_ROOT / "data" / "fiber_photometry_metadata_example.yaml"
 
 
 class TestExportSessionToNwb:
     @pytest.fixture
     def project_yaml_path(self, tmp_path) -> str:
-        """The shared hardware/biology template plus project-level NWBFile/Subject fields."""
-        project_metadata = load_yaml(BUNDLED_TEMPLATE)
+        """The shared hardware/biology example plus project-level NWBFile/Subject fields."""
+        project_metadata = load_yaml(EXAMPLE_METADATA)
         project_metadata["NWBFile"] = {"lab": "Lerner Lab", "institution": "Northwestern University"}
         project_metadata["Subject"] = {"species": "Mus musculus"}
         path = tmp_path / "nwb_project_metadata.yaml"
