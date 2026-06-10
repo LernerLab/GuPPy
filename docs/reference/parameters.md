@@ -1,6 +1,6 @@
 # Input parameter reference
 
-Every parameter the GuPPy GUI exposes, organized to match what you see on screen. The page mirrors the three cards on the homepage (**Individual Analysis**, **Group Analysis**, **Visualization Parameters**) and the visual sub-groupings inside each card. Each row gives the parameter as it appears in the GUI, a one-line description of what it does, the data type, the default value, and the accepted values or range. Prose paragraphs underneath cover the parameters that need more than a single line.
+Every parameter the GuPPy GUI exposes, organized to match what you see on screen. The page mirrors the five cards on the homepage (**Input Folder Selection**, **Output Folder Selection**, **Individual Analysis**, **Group Analysis**, **Visualization Parameters**) and the visual sub-groupings inside each card. Each row gives the parameter as it appears in the GUI, a one-line description of what it does, the data type, the default value, and the accepted values or range. Prose paragraphs underneath cover the parameters that need more than a single line.
 
 This is a reference, not a tutorial. If you are running GuPPy for the first time, start with [Your First Analysis](../tutorials/first_analysis.md). The defaults documented here are tuned for a typical 1 kHz dual-wavelength CSV recording and work for the tutorial sample data without modification.
 
@@ -8,11 +8,9 @@ The pipeline-step numbering used in this page matches the steps in [Your First A
 
 ---
 
-## Individual Analysis
+## Input Folder Selection
 
-The largest card on the homepage and the only one open by default. The left column holds a flat list of widgets covering data selection, preprocessing, transient detection, output metric selection, and artifact removal. The right column holds four labeled widget boxes for z-score, PSTH, baseline correction, and peak / AUC parameters.
-
-### Data source
+The first card on the homepage, open by default. Selects the session data the pipeline reads.
 
 *Used by: Step 2 (Load the raw data).*
 
@@ -27,6 +25,26 @@ The largest card on the homepage and the only one open by default. The left colu
 **File browser** holds the list of session folder paths the pipeline will analyze. Multiple folders are allowed for batch runs; all of them must share a common parent directory or the pipeline raises a validation error before any work starts. The pipeline records the common parent automatically and uses it to anchor output locations; this is not a configurable knob.
 
 **DANDI selector** is populated only in `dandi` mode. Each selected DANDI asset URI is materialized into a session directory under a user-chosen output root, and the pipeline records the URI that backed each session.
+
+---
+
+## Output Folder Selection
+
+The second card on the homepage, collapsed by default. Selects which existing per-session output run the later steps read and write.
+
+*Used by: Steps 2–5 (every step that operates on an existing output run: Load the raw data, Preprocess the signal, Compute the PSTH, Visualize the results).*
+
+| Parameter | Description | Type | Default | Options / range |
+|-----------|-------------|------|---------|-----------------|
+| (existing-runs browser) | Existing `*_output_*` run directories the later steps act on. | list of paths | empty | one or more `*_output_*` directories, at least one per selected session |
+
+**Existing-runs browser** lists the `*_output_*` directories that already exist for the selected sessions and lets you pick which run each later step acts on. A run directory is created when you configure channels in the Storenames GUI (Step 1); every step from loading the raw data onward then reads and writes the run you select here. Select at least one run per session that has output directories on disk, or the step raises a descriptive error before any work starts. This is a UI selector, not a saved analysis parameter, so it has no internal name in the index below.
+
+---
+
+## Individual Analysis
+
+The largest card on the homepage and the only one open by default. The left column holds a flat list of widgets covering preprocessing, transient detection, output metric selection, and artifact removal. The right column holds four labeled widget boxes for z-score, PSTH, baseline correction, and peak / AUC parameters.
 
 ### Compute and batching
 
@@ -51,7 +69,7 @@ The largest card on the homepage and the only one open by default. The left colu
 | Eliminate first few seconds | Drop the LED-warmup transient at the start. | int | `1` | non-negative seconds |
 | Window for Moving Average filter | Width of the smoothing kernel. | int | `100` | positive integer, in samples (not seconds) |
 
-**Isosbestic Control Channel?** declares whether the recording includes a 405 nm control channel. When `True`, preprocessing fits the control trace to the signal trace by linear regression and subtracts the fitted control to remove motion artifacts and photobleaching that affect both wavelengths equally. When `False`, the regression-and-subtract step is skipped and only the signal trace is z-scored. See the [isosbestic correction explainer](../explanation/isosbestic_correction.md) for the underlying biology and math.
+**Isosbestic Control Channel?** declares whether the recording includes a 405 nm control channel. When `True`, preprocessing fits the control trace to the signal trace by linear regression and subtracts the fitted control to remove motion artifacts and photobleaching that affect both wavelengths equally. When `False`, GuPPy synthesizes a stand-in control channel by fitting an exponential decay curve (`a + b·exp(-x/c)`) to the signal itself and uses it in place of the missing 405 nm channel, so the same regression-and-subtract step still runs. Because a synthetic control carries no motion information, this mode removes the photobleaching trend but not motion artifacts. See the [isosbestic correction explainer](../explanation/isosbestic_correction.md) for the underlying biology and math.
 
 **Eliminate first few seconds** drops this many seconds from the start of every recording. The first second or two of fiber-photometry data is usually contaminated by the bright transient when the LED first turns on; this parameter exists to discard that. Default `1` is conservative.
 
@@ -222,7 +240,7 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 
 | Internal name | Parameter | Section |
 |---------------|-----------|---------|
-| `abspath` | (auto-derived; not user-set) | [Data source](#data-source) |
+| `abspath` | (auto-derived; not user-set) | [Input Folder Selection](#input-folder-selection) |
 | `artifactsRemovalMethod` | removeArtifacts method | [Artifact removal](#artifact-removal) |
 | `averageForGroup` | Average Group? | [Group Analysis](#group-analysis) |
 | `baselineCorrectionEnd` | Baseline Correction End time | [Baseline Parameters](#baseline-parameters) |
@@ -232,13 +250,13 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 | `bin_psth_trials` | Time(min) / # of trials for binning | [PSTH Parameters](#psth-parameters) |
 | `combine_data` | Combine Data? | [Compute and batching](#compute-and-batching) |
 | `computeCorr` | Compute Cross-correlation | [PSTH Parameters](#psth-parameters) |
-| `dandi_uri_map` | (DANDI selector) | [Data source](#data-source) |
+| `dandi_uri_map` | (DANDI selector) | [Input Folder Selection](#input-folder-selection) |
 | `filter_window` | Window for Moving Average filter | [Signal preprocessing](#signal-preprocessing) |
-| `folderNames` | (file browser, Individual Analysis) | [Data source](#data-source) |
+| `folderNames` | (file browser, Input Folder Selection) | [Input Folder Selection](#input-folder-selection) |
 | `folderNamesForAvg` | (file browser, Group Analysis) | [Group Analysis](#group-analysis) |
 | `highAmpFilt` | HAFT | [Transient detection](#transient-detection) |
 | `isosbestic_control` | Isosbestic Control Channel? | [Signal preprocessing](#signal-preprocessing) |
-| `mode` | Data Source | [Data source](#data-source) |
+| `mode` | Data Source | [Input Folder Selection](#input-folder-selection) |
 | `moving_window` | Moving Window for transients detection (s) | [Transient detection](#transient-detection) |
 | `nSecPost` | Seconds after 0 | [PSTH Parameters](#psth-parameters) |
 | `nSecPrev` | Seconds before 0 | [PSTH Parameters](#psth-parameters) |
