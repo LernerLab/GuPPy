@@ -92,6 +92,9 @@ def eliminateTs(
     for filepath in filepaths:
         tsNew = filepath_to_timestamps[filepath]
         ts = filepath_to_ttl_timestamps[filepath]
+        # Both tsNew (continuous) and ts (events) are on the recording-start basis, so the
+        # same per-session shift keeps them mutually aligned. Inter-session bridging below
+        # uses differences only, which are basis-invariant.
         if len(tsNew_arr) == 0:
             sub = tsNew[0] - timeForLightsTurnOn
             tsNew_arr = np.concatenate((tsNew_arr, tsNew - sub))

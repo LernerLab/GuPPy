@@ -306,6 +306,8 @@ def eliminateTs(
     ts_arr = np.array([])
     tsNew_arr = np.array([])
     for i in range(coords.shape[0]):
+        # tsNew (continuous) and ts (events) are both on the recording-start basis, matching
+        # the basis of the artifact-removal coords, so both windowing comparisons are consistent.
         tsNew_index = np.where((tsNew > coords[i, 0]) & (tsNew < coords[i, 1]))[0]
         ts_index = np.where((ts > coords[i, 0]) & (ts < coords[i, 1]))[0]
 

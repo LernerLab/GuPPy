@@ -63,6 +63,7 @@ def execute_compute_psth(filepath: str, event: str, inputParameters: dict[str, o
     nSecPrev, nSecPost = inputParameters["nSecPrev"], inputParameters["nSecPost"]
     baselineStart, baselineEnd = inputParameters["baselineCorrectionStart"], inputParameters["baselineCorrectionEnd"]
     timeInterval = inputParameters["timeInterval"]
+    timeForLightsTurnOn = inputParameters["timeForLightsTurnOn"]
 
     if selectForComputePsth == "z_score":
         path = glob.glob(os.path.join(filepath, "z_score_*"))
@@ -109,6 +110,7 @@ def execute_compute_psth(filepath: str, event: str, inputParameters: dict[str, o
             sampling_rate,
             ts,
             corrected_timestamps,
+            timeForLightsTurnOn,
         )
         write_hdf5(ts, event + "_" + name_1, filepath, "ts")
 
