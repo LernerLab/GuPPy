@@ -34,13 +34,13 @@ src/guppy/
 │   └── detect_acquisition_formats.py
 │
 ├── orchestration/             ← coordinates each pipeline step, bridging the UI and signal processing backend
-│   ├── save_parameters.py     (Step 1)
-│   ├── storenames.py          (Step 2)
-│   ├── read_raw_data.py       (Step 3)
-│   ├── preprocess.py          (Step 4)
-│   ├── psth.py                (Step 5)
-│   ├── transients.py          (Step 5)
-│   └── visualize.py           (Step 6)
+│   ├── save_parameters.py     (writes GuPPyParamtersUsed.json; invoked automatically by steps 1-5)
+│   ├── storenames.py          (Step 1)
+│   ├── read_raw_data.py       (Step 2)
+│   ├── preprocess.py          (Step 3)
+│   ├── psth.py                (Step 4)
+│   ├── transients.py          (Step 4)
+│   └── visualize.py           (Step 5)
 │
 ├── analysis/                  ← individual signal processing algorithms (z-scoring, artifact removal, PSTH, etc.)
 │   ├── timestamp_correction.py
@@ -132,24 +132,24 @@ flowchart LR
 flowchart LR
     RAW(["Raw files<br/>TDT · Doric · NPM · CSV"])
 
-    S2["storenames.py<br/><i>Step 2</i>"]
+    S2["storenames.py<br/><i>Step 1</i>"]
     F1(["storesList.csv"])
 
-    S3["read_raw_data.py<br/><i>Step 3</i>"]
+    S3["read_raw_data.py<br/><i>Step 2</i>"]
     EX["TDT · Doric · NPM · CSV<br/>extractors"]
     F2(["&lt;storename&gt;.hdf5"])
 
-    S4["preprocess.py<br/><i>Step 4</i>"]
+    S4["preprocess.py<br/><i>Step 3</i>"]
     A4["timestamp_correction<br/>z_score · artifact_removal"]
     V4["visualization.preprocessing"]
     F3(["z_score / dff .hdf5"])
 
-    S5["psth.py · transients.py<br/><i>Step 5</i>"]
+    S5["psth.py · transients.py<br/><i>Step 4</i>"]
     A5["compute_psth · psth_peak_and_area<br/>cross_correlation · transients"]
     V5["visualization.transients"]
     F4(["psth .hdf5 / .pkl<br/>peakArea .csv"])
 
-    S6["visualize.py<br/><i>Step 6</i>"]
+    S6["visualize.py<br/><i>Step 5</i>"]
     DASH(["Panel dashboard"])
 
     RAW --> S2 --> F1 --> S3 --> F2 --> S4 --> F3 --> S5 --> F4 --> S6 --> DASH

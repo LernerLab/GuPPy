@@ -30,7 +30,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
     """
 
     @classmethod
-    def discover_events_and_flags(cls, folder_path) -> tuple[list[str], list[str]]:
+    def discover_events_and_flags(cls, folder_path: str) -> tuple[list[str], list[str]]:
         """
         Discover available events and format flags from TDT files.
 
@@ -58,19 +58,28 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
                 if length < 4:
                     index.append(i)
             allnames = np.delete(allnames, index, 0)
-            events = list(allnames)
+            # Epoc stores that encode multiple behaviours are split into one sub-event per
+            # unique marker value here (at discover time) so storesList is fully settled
+            # before step 3; read() then needs no storesList mutation.
+            split_map = cls._compute_split_map(header_df)
+            events = []
+            for name in allnames:
+                if name in split_map:
+                    events.extend(split_name for split_name, _ in split_map[name])
+                else:
+                    events.append(name)
         else:
             events = []
 
         flags = []
         return events, flags
 
-    def __init__(self, folder_path):
+    def __init__(self, folder_path: str) -> None:
         self.folder_path = folder_path
         self._header_df, _ = self._readtsq(folder_path)
 
     @staticmethod
-    def _readtsq(folder_path):
+    def _readtsq(folder_path: str) -> tuple[pd.DataFrame | int, str | int]:
         logger.debug("Trying to read tsq file.")
         names = ("size", "type", "name", "chan", "sort_code", "timestamp", "fp_loc", "strobe", "format", "frequency")
         formats = (int32, int32, "S4", uint16, uint16, float64, int64, float64, int32, float32)
@@ -100,7 +109,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         logger.info("Data from tsq file fetched.")
         return df, flag
 
-    def _readtev(self, event):
+    def _readtev(self, event: str) -> dict[str, object]:
         data = self._header_df.copy()
         filepath = self.folder_path
 
@@ -187,9 +196,24 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         return event_dict
 
     def count_samples(self, *, event: str) -> int:
-        """Return the total number of samples in ``event`` based on header metadata."""
+        """Return the number of samples in ``event`` based on header metadata.
+
+        Split sub-events are counted from the parent epoc store's header rows whose
+        strobe value matches.
+        """
         data = self._header_df
         names = np.asarray(data["name"], dtype=str)
+
+        split_lookup = {
+            split_name: (parent, value)
+            for parent, entries in self._compute_split_map(data).items()
+            for split_name, value in entries
+        }
+        if event in split_lookup:
+            parent, value = split_lookup[event]
+            parent_strobes = np.asarray(data["strobe"])[np.where(names == parent)[0]]
+            return int(np.count_nonzero(parent_strobes == value))
+
         row = self._ismember(names, event)
         if sum(row) == 0:
             return 0
@@ -206,44 +230,65 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         """
         Read data from TDT TEV/TSQ files for the specified events.
 
-        If an event's data encodes multiple behaviour markers (non-uniform
-        strobe values), it is automatically split into one sub-event per
-        unique marker value and the ``storesList.csv`` in ``outputPath`` is
-        updated accordingly.
+        Split sub-events (one per unique marker value of an epoc store that
+        encodes multiple behaviours) are enumerated up front by
+        :meth:`discover_events_and_flags`, so they appear in ``storesList.csv``
+        before this method runs. Here a requested split sub-event is produced by
+        reading its parent epoc store once and keeping the timestamps whose
+        strobe value matches. This method writes nothing.
 
         Parameters
         ----------
         events : list of str
-            TDT store names to read (case-sensitive, exactly 4 characters).
+            TDT store names to read (case-sensitive). May include split
+            sub-event names (e.g. ``"PrtN5"``).
         outputPath : str
-            Path to the output directory. Used when split-event stores must
-            update ``storesList.csv``.
+            Path to the output directory (unused; required by the base-class
+            interface).
 
         Returns
         -------
         list of dict
-            One dictionary per store (or sub-store after splitting). Each dict
-            contains ``storename``, ``sampling_rate``, ``timestamps``, ``data``,
+            One dictionary per requested event. Each dict contains
+            ``storename``, ``sampling_rate``, ``timestamps``, ``data``,
             ``npoints``, and ``channels``.
         """
+        split_lookup = {
+            split_name: (parent, value)
+            for parent, entries in self._compute_split_map(self._header_df).items()
+            for split_name, value in entries
+        }
+
         output_dicts = []
+        parent_cache: dict[str, dict[str, object]] = {}
         for event in events:
-            event_dict = self._readtev(event=event)
-            if self._event_needs_splitting(data=event_dict["data"], sampling_rate=event_dict["sampling_rate"]):
-                event_dicts = self._split_event_data(event_dict, event)
-                self._split_event_storesList(event_dict, event, outputPath)
+            if event in split_lookup:
+                parent, value = split_lookup[event]
+                if parent not in parent_cache:
+                    parent_cache[parent] = self._readtev(event=parent)
+                parent_dict = parent_cache[parent]
+                idx = np.where(parent_dict["data"] == value)[0]
+                output_dicts.append(
+                    {
+                        "storename": event,
+                        "timestamps": parent_dict["timestamps"][idx],
+                        "sampling_rate": parent_dict["sampling_rate"],
+                        "data": parent_dict["data"],
+                        "npoints": parent_dict["npoints"],
+                        "channels": parent_dict["channels"],
+                    }
+                )
             else:
-                event_dicts = [event_dict]
-            output_dicts.extend(event_dicts)
+                output_dicts.append(self._readtev(event=event))
         return output_dicts
 
     @staticmethod
-    def _ismember(arr, element):
+    def _ismember(arr: np.ndarray, element: str) -> np.ndarray:
         res = [1 if i == element else 0 for i in arr]
         return np.asarray(res)
 
     @staticmethod
-    def _format_split_suffix(value):
+    def _format_split_suffix(value: float) -> str:
         # "{:g}" renders integer-valued codes (int or 5.0) as "5", and collapses
         # float32 precision artifacts (0.10000000149... → "0.1") at 6 significant
         # digits. "." → "p" keeps the suffix free of the "_" / "." delimiters used
@@ -251,7 +296,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         return f"{float(value):g}".replace(".", "p")
 
     @staticmethod
-    def _event_needs_splitting(data, sampling_rate):
+    def _event_needs_splitting(data: np.ndarray, sampling_rate: float) -> bool:
         logger.info("Checking event storename data for creating multiple event names from single event storename...")
         diff = np.diff(data)
         if diff.shape[0] == 0:
@@ -260,53 +305,55 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
             return True
         return False
 
-    def _split_event_data(self, event_dict, event):
-        # Note that new_event is only used for the new storesList and event is still used for the old storesList
-        new_event = event.replace("\\", "")
-        new_event = event.replace("/", "")
-        logger.info(f"Data in event {event} belongs to multiple behavior")
-        logger.debug("Create timestamp files for individual new event.")
-        i_d = np.unique(event_dict["data"])
-        event_dicts = [event_dict]
-        for i in range(i_d.shape[0]):
-            split_event_dict = dict()
-            idx = np.where(event_dict["data"] == i_d[i])[0]
-            split_event_dict["timestamps"] = event_dict["timestamps"][idx]
-            split_event_dict["storename"] = new_event + self._format_split_suffix(i_d[i])
-            split_event_dict["sampling_rate"] = event_dict["sampling_rate"]
-            split_event_dict["data"] = event_dict["data"]
-            split_event_dict["npoints"] = event_dict["npoints"]
-            split_event_dict["channels"] = event_dict["channels"]
-            event_dicts.append(split_event_dict)
-        logger.info("Timestamp files for individual new event are created.")
+    @classmethod
+    def _compute_split_map(cls, header_df: pd.DataFrame | int) -> dict[str, list[tuple[str, float]]]:
+        """
+        Determine which epoc stores split into multiple sub-events, from header metadata.
 
-        return event_dicts
+        For each epoc/marker store (``format == 4``) whose strobe values encode
+        more than one behaviour, returns the per-value split sub-event names.
+        This reads only the ``.tsq`` header (the strobe values live there), so
+        it can run at discover time without touching the ``.tev`` data.
 
-    def _split_event_storesList(self, event_dict, event, outputPath):
-        # Note that new_event is only used for the new storesList and event is still used for the old storesList
-        new_event = event.replace("\\", "")
-        new_event = event.replace("/", "")
-        storesList = np.genfromtxt(os.path.join(outputPath, "storesList.csv"), dtype="str", delimiter=",").reshape(
-            2, -1
-        )
-        logger.info(f"StoresList in event {event} belongs to multiple behavior")
-        logger.debug("Change the stores list file for individual new event.")
-        i_d = np.unique(event_dict["data"])
-        for i in range(i_d.shape[0]):
-            suffix = self._format_split_suffix(i_d[i])
-            storesList = np.concatenate((storesList, [[new_event + suffix], [new_event + "_" + suffix]]), axis=1)
+        Parameters
+        ----------
+        header_df : pd.DataFrame or int
+            The parsed ``.tsq`` header (or ``0`` when no ``.tsq`` is present).
 
-        idx = np.where(storesList[0] == event)[0]
-        storesList = np.delete(storesList, idx, axis=1)
-        if not os.path.exists(os.path.join(outputPath, ".cache_storesList.csv")):
-            os.rename(os.path.join(outputPath, "storesList.csv"), os.path.join(outputPath, ".cache_storesList.csv"))
-        if idx.shape[0] == 0:
-            pass
-        else:
-            np.savetxt(os.path.join(outputPath, "storesList.csv"), storesList, delimiter=",", fmt="%s")
-        logger.info("The stores list file is changed.")
+        Returns
+        -------
+        dict
+            Maps each splitting parent store name to a list of
+            ``(split_sub_event_name, marker_value)`` pairs, ordered by marker value.
+        """
+        if not isinstance(header_df, pd.DataFrame):
+            return {}
 
-    def _save_dict_to_hdf5(self, event_dict, outputPath):
+        names = np.asarray(header_df["name"], dtype=str)
+        formats = np.asarray(header_df["format"])
+        frequencies = np.asarray(header_df["frequency"])
+        strobes = np.asarray(header_df["strobe"])
+
+        split_map: dict[str, list[tuple[str, float]]] = {}
+        for store in np.unique(names):
+            if len(str(store)) < 4:
+                continue
+            indexes = np.where(names == store)[0]
+            first_row = indexes[0]
+            # format == 4 (format_new == 5) marks an epoc/marker store; only those carry
+            # meaningful strobe values (other stores reuse those bytes as a file pointer).
+            if formats[first_row] + 1 != 5:
+                continue
+            data = strobes[indexes]
+            if not cls._event_needs_splitting(data=data, sampling_rate=frequencies[first_row]):
+                continue
+            # Mirror the historical sub-event naming: strip "/" from the store name
+            # and append the formatted marker value (e.g. "PAB/" + 16 -> "PAB16").
+            new_store = store.replace("/", "")
+            split_map[store] = [(new_store + cls._format_split_suffix(value), value) for value in np.unique(data)]
+        return split_map
+
+    def _save_dict_to_hdf5(self, event_dict: dict[str, object], outputPath: str) -> None:
         event = event_dict["storename"]
         write_hdf5(event_dict["storename"], event, outputPath, "storename")
         write_hdf5(event_dict["sampling_rate"], event, outputPath, "sampling_rate")
@@ -330,7 +377,12 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
             self._save_dict_to_hdf5(event_dict=event_dict, outputPath=outputPath)
 
     @staticmethod
-    def _stub_tev_file(tev_file_path, header_df, stubbed_tev_file_path, stream_name_to_num_segments):
+    def _stub_tev_file(
+        tev_file_path: Path | str,
+        header_df: pd.DataFrame,
+        stubbed_tev_file_path: Path | str,
+        stream_name_to_num_segments: dict[str, int],
+    ) -> dict[int, int]:
         """
         Write a truncated TEV file containing only the first N data segments per stream.
 
@@ -397,8 +449,12 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
 
     @staticmethod
     def _stub_tsq_file(
-        header_df, stubbed_tsq_file_path, stream_name_to_num_segments, original_to_new_fp_loc, stub_duration_in_seconds
-    ):
+        header_df: pd.DataFrame,
+        stubbed_tsq_file_path: Path | str,
+        stream_name_to_num_segments: dict[str, int],
+        original_to_new_fp_loc: dict[int, int],
+        stub_duration_in_seconds: float,
+    ) -> None:
         """
         Write a truncated TSQ header file matching the stubbed TEV file.
 
@@ -469,7 +525,9 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         stubbed_tsq_data.tofile(stubbed_tsq_file_path)
 
     @staticmethod
-    def _compute_stream_name_to_num_segments(header_df, stub_duration_in_seconds):
+    def _compute_stream_name_to_num_segments(
+        header_df: pd.DataFrame, stub_duration_in_seconds: float
+    ) -> dict[str, int]:
         """
         Compute the number of TEV segments to retain per stream for a given stub duration.
 
@@ -500,7 +558,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
             stream_name_to_num_segments[stream_name_bytes.decode()] = number_of_segments
         return stream_name_to_num_segments
 
-    def stub(self, *, folder_path, duration_in_seconds=1.0):
+    def stub(self, *, folder_path: str | Path, duration_in_seconds: float = 1.0) -> None:
         """
         Create a stubbed copy of the TDT tank folder with truncated TEV and TSQ files.
 

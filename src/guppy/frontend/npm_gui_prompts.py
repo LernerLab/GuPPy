@@ -26,7 +26,7 @@ def _validate_timestamp_configuration(*, timestamp_column_name: str, time_unit: 
 
 
 # get_multi_event_responses is not covered by tests due to flaky behavior of tkinter messagebox in testing environments.
-def get_multi_event_responses(multiple_event_ttls):  # pragma: no cover
+def get_multi_event_responses(multiple_event_ttls: list[bool]) -> list[bool]:  # pragma: no cover
     """Prompt the user to confirm whether each TTL file contains multiple event types.
 
     Parameters
@@ -63,7 +63,9 @@ def get_multi_event_responses(multiple_event_ttls):  # pragma: no cover
 
 
 # get_timestamp_configuration is not covered by tests due to the use of tkinter GUI elements in the function.
-def get_timestamp_configuration(ts_unit_needs, col_names_ts):  # pragma: no cover
+def get_timestamp_configuration(
+    ts_unit_needs: list[bool], col_names_ts: list[str]
+) -> tuple[list[str], list[str | None]]:  # pragma: no cover
     """Prompt the user to select the timestamp column and time unit for each NPM session.
 
     Parameters

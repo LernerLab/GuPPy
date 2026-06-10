@@ -10,35 +10,34 @@ from guppy.analysis.timestamp_correction import (
 )
 
 
-def test_apply_correction_ttl_tdt_mode_all_above_rec_start_subtracts_both_offsets():
-    # All timestamps >= timeRecStart → subtract both timeRecStart and timeForLightsTurnOn
-    # [10.5-10.0-2.0, 11.0-10.0-2.0, 12.0-10.0-2.0] = [-1.5, -1.0, 0.0]
+def test_apply_correction_ttl_tdt_mode_all_above_rec_start_subtracts_only_rec_start():
+    # All timestamps >= timeRecStart → subtract only timeRecStart (recording-start basis;
+    # timeForLightsTurnOn is no longer subtracted from events)
+    # [10.5-10.0, 11.0-10.0, 12.0-10.0] = [0.5, 1.0, 2.0]
     ttl_timestamps = np.array([10.5, 11.0, 12.0])
     result = applyCorrection_ttl(2.0, 10.0, ttl_timestamps, "tdt")
-    np.testing.assert_allclose(result, np.array([-1.5, -1.0, 0.0]))
+    np.testing.assert_allclose(result, np.array([0.5, 1.0, 2.0]))
 
 
-def test_apply_correction_ttl_tdt_mode_some_below_rec_start_subtracts_only_lights_turn_on():
-    # One timestamp is below timeRecStart → subtract only timeForLightsTurnOn
-    # [9.5-2.0, 11.0-2.0, 12.0-2.0] = [7.5, 9.0, 10.0]
+def test_apply_correction_ttl_tdt_mode_some_below_rec_start_leaves_unchanged():
+    # One timestamp is below timeRecStart (not on the recording clock) → leave unchanged
     ttl_timestamps = np.array([9.5, 11.0, 12.0])
     result = applyCorrection_ttl(2.0, 10.0, ttl_timestamps, "tdt")
-    np.testing.assert_allclose(result, np.array([7.5, 9.0, 10.0]))
+    np.testing.assert_allclose(result, np.array([9.5, 11.0, 12.0]))
 
 
-def test_apply_correction_ttl_csv_mode_subtracts_only_lights_turn_on():
-    # CSV mode always subtracts only timeForLightsTurnOn regardless of timeRecStart
-    # [5.0-3.0, 8.0-3.0, 12.0-3.0] = [2.0, 5.0, 9.0]
+def test_apply_correction_ttl_csv_mode_leaves_timestamps_unchanged():
+    # CSV timestamps are already recording-relative → returned unchanged (no lights-on shift)
     ttl_timestamps = np.array([5.0, 8.0, 12.0])
     result = applyCorrection_ttl(3.0, 0.0, ttl_timestamps, "csv")
-    np.testing.assert_allclose(result, np.array([2.0, 5.0, 9.0]))
+    np.testing.assert_allclose(result, np.array([5.0, 8.0, 12.0]))
 
 
-def test_apply_correction_ttl_tdt_mode_all_at_rec_start_subtracts_both_offsets():
-    # All timestamps >= timeRecStart=100 → [100-100-1, ..., 109-100-1] = [-1, 0, ..., 8]
+def test_apply_correction_ttl_tdt_mode_all_at_rec_start_subtracts_only_rec_start():
+    # All timestamps >= timeRecStart=100 → [100-100, ..., 109-100] = [0, 1, ..., 9]
     ttl_timestamps = np.arange(10, dtype=float) + 100.0
     result = applyCorrection_ttl(1.0, 100.0, ttl_timestamps, "tdt")
-    np.testing.assert_allclose(result, np.arange(-1, 9, dtype=float))
+    np.testing.assert_allclose(result, np.arange(0, 10, dtype=float))
 
 
 def test_check_cntrl_sig_length_control_shorter_returns_control_name():
@@ -111,8 +110,8 @@ def test_timestamp_correction_csv_mode_slices_at_lights_turn_on():
 
 
 def test_decide_naming_applies_csv_correction_to_ttl_and_forms_compound_name():
-    # CSV mode: corrected = TTL - timeForLightsTurnOn
-    # compound_name = "TTL1_dms"; [3-1, 5-1, 7-1] = [2.0, 4.0, 6.0]
+    # CSV mode: events stay on the recording-start basis (unchanged); only the
+    # compound name "TTL1_dms" is formed.
     storesList = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
     name_to_timestamps_ttl = {"TTL1": np.array([3.0, 5.0, 7.0])}
     name_to_timestamps = {
@@ -126,7 +125,7 @@ def test_decide_naming_applies_csv_correction_to_ttl_and_forms_compound_name():
     )
 
     assert "TTL1_dms" in result
-    np.testing.assert_array_equal(result["TTL1_dms"], np.array([2.0, 4.0, 6.0]))
+    np.testing.assert_array_equal(result["TTL1_dms"], np.array([3.0, 5.0, 7.0]))
 
 
 # ── correct_timestamps ────────────────────────────────────────────────────────
@@ -213,5 +212,40 @@ def test_correct_timestamps_returns_all_four_outputs_consistent():
     assert "control_dms" in result_ts
     assert result_ts["control_dms"].shape[0] == 4
     assert "TTL1_dms" in result_ttl
-    # CSV TTL: [2.5-1.0, 3.5-1.0] = [1.5, 2.5]
-    np.testing.assert_array_equal(result_ttl["TTL1_dms"], np.array([1.5, 2.5]))
+    # CSV TTL stays on the recording-start basis (unchanged): [2.5, 3.5]
+    np.testing.assert_array_equal(result_ttl["TTL1_dms"], np.array([2.5, 3.5]))
+
+
+def test_events_and_continuous_share_one_recording_start_basis():
+    # Issue #355: continuous timestampNew and event ts must share a single time basis.
+    # The continuous stream is sliced at >= timeForLightsTurnOn (recording basis) and events
+    # are NOT re-zeroed, so an event at recording time T equals the continuous timestamp at
+    # its matching sample index round((T - timestampNew[0]) * sampling_rate).
+    storesList = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
+    timestamps = np.arange(0.0, 5.0, 0.1)
+    data = np.arange(timestamps.shape[0], dtype=float)
+    name_to_timestamps = {"control_dms": timestamps.copy(), "signal_dms": timestamps.copy()}
+    name_to_data = {"control_dms": data.copy(), "signal_dms": data.copy()}
+    name_to_sampling_rate = {"control_dms": np.array([10.0]), "signal_dms": np.array([10.0])}
+    name_to_npoints = {"control_dms": None, "signal_dms": None}
+    name_to_timestamps_ttl = {"TTL1": np.array([2.4])}
+
+    corrected_ts, _, _, corrected_ttl = correct_timestamps(
+        1.0,
+        storesList,
+        name_to_timestamps,
+        name_to_data,
+        name_to_sampling_rate,
+        name_to_npoints,
+        name_to_timestamps_ttl,
+        mode="csv",
+    )
+
+    timestampNew = corrected_ts["signal_dms"]
+    event = corrected_ttl["TTL1_dms"][0]
+    # Event is on the recording-start basis (NOT re-zeroed to lights-on at 0.0).
+    np.testing.assert_allclose(event, 2.4)
+    # It falls within the continuous timespan and lands on the matching continuous sample.
+    assert timestampNew[0] <= event <= timestampNew[-1]
+    index = int(round((event - timestampNew[0]) * 10.0))
+    np.testing.assert_allclose(timestampNew[index], event)

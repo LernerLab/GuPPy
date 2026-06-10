@@ -10,7 +10,7 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
-def create_Df_for_psth(filepath, event, name, psth, columns):
+def create_Df_for_psth(filepath: str, event: str, name: str, psth: np.ndarray, columns: list[object]) -> None:
     """
     Build a PSTH DataFrame (with mean/error columns) and save it as an HDF5 file.
 
@@ -61,7 +61,9 @@ def create_Df_for_psth(filepath, event, name, psth, columns):
     df.to_hdf(op, key="df", mode="w")
 
 
-def create_Df_for_cross_correlation(filepath, event, name, psth, columns):
+def create_Df_for_cross_correlation(
+    filepath: str, event: str, name: str, psth: np.ndarray, columns: list[object]
+) -> None:
     """
     Build a cross-correlation DataFrame (with mean/error columns) and save it as an HDF5 file.
 
@@ -110,7 +112,7 @@ def create_Df_for_cross_correlation(filepath, event, name, psth, columns):
     df.to_hdf(op, key="df", mode="w")
 
 
-def getCorrCombinations(filepath, inputParameters):
+def getCorrCombinations(filepath: str, inputParameters: dict[str, object]) -> tuple[list[str], list[str]]:
     """
     Determine which channel pairs to cross-correlate in a session directory.
 

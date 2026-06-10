@@ -4,6 +4,7 @@ import panel as pn
 import pytest
 
 from guppy.orchestration.home import build_homepage
+from guppy.orchestration.save_parameters import save_parameters
 
 EXPECTED_JSON_KEYS = {
     "guppy_version",
@@ -48,11 +49,11 @@ def homepage(panel_extension):
     return build_homepage()
 
 
-def test_onclick_process_writes_parameters_json(homepage, tmp_path):
+def test_save_parameters_writes_parameters_json(homepage, tmp_path):
     session_directory = tmp_path / "session1"
     session_directory.mkdir()
     homepage._widgets["files_1"].value = [str(session_directory)]
-    homepage._hooks["onclickProcess"]()
+    save_parameters(homepage._hooks["getInputParameters"]())
     assert (session_directory / "GuPPyParamtersUsed.json").exists()
 
 
@@ -60,7 +61,7 @@ def test_parameters_json_contains_expected_keys(homepage, tmp_path):
     session_directory = tmp_path / "session1"
     session_directory.mkdir()
     homepage._widgets["files_1"].value = [str(session_directory)]
-    homepage._hooks["onclickProcess"]()
+    save_parameters(homepage._hooks["getInputParameters"]())
     with open(session_directory / "GuPPyParamtersUsed.json") as json_file:
         saved_parameters = json.load(json_file)
     assert set(saved_parameters.keys()) == EXPECTED_JSON_KEYS
@@ -70,7 +71,7 @@ def test_get_input_parameters_keys_include_saved_keys(homepage, tmp_path):
     session_directory = tmp_path / "session1"
     session_directory.mkdir()
     homepage._widgets["files_1"].value = [str(session_directory)]
-    homepage._hooks["onclickProcess"]()
+    save_parameters(homepage._hooks["getInputParameters"]())
     with open(session_directory / "GuPPyParamtersUsed.json") as json_file:
         saved_parameters = json.load(json_file)
     in_memory_parameters = homepage._hooks["getInputParameters"]()

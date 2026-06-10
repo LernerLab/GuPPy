@@ -12,10 +12,10 @@ def test_step2_npm_idempotent(tmp_path):
     """
     Step 2 run twice in a row on an NPM dataset should succeed both times.
 
-    After the first run, split_events creates new CSV files (e.g. eventTrue.csv,
-    file0_chev1.csv) whose column structure matches the raw-CSV modality signature.
-    Without a fix, detect_acquisition_formats misidentifies the folder as "csv" on the second
-    run, causing the wrong extractor to be used and the step to fail.
+    NPM demultiplexes in memory and writes no intermediate CSVs into the source folder, so a
+    second run sees the same raw files as the first and detect_acquisition_formats reports the
+    same formats. This guards that re-running Step 2 stays idempotent (no leftover artifacts
+    that could change modality detection or the storesList on the second run).
     """
     session_subdir = "npm/sampleData_NPM_4"
     storenames_map = {

@@ -23,6 +23,7 @@ import datetime
 from pathlib import Path
 
 import numpy as np
+from hdmf.common import DynamicTableRegion
 from ndx_events import AnnotatedEventsTable, Events, LabeledEvents
 from ndx_fiber_photometry import (
     FiberPhotometry,
@@ -61,7 +62,7 @@ _OUTPUT_PATH = (
 )
 
 
-def _add_ndx_fiber_photometry_metadata(nwbfile):
+def _add_ndx_fiber_photometry_metadata(nwbfile: NWBFile) -> DynamicTableRegion:
     """Add all ndx-fiber-photometry hardware metadata to *nwbfile*.
 
     This boilerplate is required to produce a valid NWBFile, but Guppy only
@@ -274,7 +275,7 @@ def _add_ndx_fiber_photometry_metadata(nwbfile):
     return fiber_photometry_table_region
 
 
-def main():
+def main() -> None:
     """Create and write a mock NWB file using ndx-fiber-photometry v0.2 and ndx-events v0.2."""
     nwbfile = NWBFile(
         session_description="Mock session for NWB extractor testing.",
