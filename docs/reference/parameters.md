@@ -44,7 +44,7 @@ The second card on the homepage, collapsed by default. Selects which existing pe
 
 ## Individual Analysis
 
-The largest card on the homepage and the only one open by default. The left column holds a flat list of widgets covering preprocessing, transient detection, output metric selection, and artifact removal. The right column holds four labeled widget boxes for z-score, PSTH, baseline correction, and peak / AUC parameters.
+The largest card on the homepage, collapsed by default (only Input Folder Selection is open on launch). The left column holds a flat list of widgets covering compute settings, preprocessing, transient detection, output metric selection, and artifact removal. The right column holds four labeled widget boxes for z-score, PSTH, baseline correction, and peak / AUC parameters.
 
 ### Compute and batching
 
@@ -65,11 +65,11 @@ The largest card on the homepage and the only one open by default. The left colu
 
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
-| Isosbestic Control Channel? | Use the 405 nm channel to remove motion artifacts. | bool | `True` | `True`, `False` |
+| Isosbestic Control Channel? | Use the isosbestic control channel to remove motion artifacts. | bool | `True` | `True`, `False` |
 | Eliminate first few seconds | Drop the LED-warmup transient at the start. | int | `1` | non-negative seconds |
 | Window for Moving Average filter | Width of the smoothing kernel. | int | `100` | positive integer, in samples (not seconds) |
 
-**Isosbestic Control Channel?** declares whether the recording includes a 405 nm control channel. When `True`, preprocessing fits the control trace to the signal trace by linear regression and subtracts the fitted control to remove motion artifacts and photobleaching that affect both wavelengths equally. When `False`, GuPPy synthesizes a stand-in control channel by fitting an exponential decay curve (`a + b·exp(-x/c)`) to the signal itself and uses it in place of the missing 405 nm channel, so the same regression-and-subtract step still runs. Because a synthetic control carries no motion information, this mode removes the photobleaching trend but not motion artifacts. See the [isosbestic correction explainer](../explanation/isosbestic_correction.md) for the underlying biology and math.
+**Isosbestic Control Channel?** declares whether the recording includes an isosbestic control channel. When `True`, preprocessing fits the isosbestic control channel to the signal trace by linear regression and subtracts the fitted control to remove motion artifacts and photobleaching that affect both wavelengths equally. When `False`, GuPPy synthesizes a stand-in control channel by fitting an exponential decay curve (`a + b·exp(-x/c)`) to the signal itself, then runs the same regression-and-subtract step using this synthetic trace as the control channel that gets fitted and subtracted. Because a synthetic control carries no motion information, this mode removes the photobleaching trend but not motion artifacts. See the [isosbestic correction explainer](../explanation/isosbestic_correction.md) for the underlying biology and math.
 
 **Eliminate first few seconds** drops this many seconds from the start of every recording. The first second or two of fiber-photometry data is usually contaminated by the bright transient when the LED first turns on; this parameter exists to discard that. Default `1` is conservative.
 
@@ -204,7 +204,7 @@ Collapsed by default on the homepage. Configures cross-session averaging.
 | (file browser) | Session folders to include in the cross-session average. | list of paths | empty | absolute paths to session directories |
 | Average Group? | Write averaged outputs to `average/`. | bool | `False` | `True`, `False` |
 
-**File browser** is the list of session folders to include in the cross-session average. Distinct from the Individual-Analysis browser so you can run individual analyses and group analyses against different folder sets in the same configuration.
+**File browser** is the list of session folders to include in the cross-session average. Distinct from the Input Folder Selection browser so you can run individual analyses and group analyses against different folder sets in the same configuration.
 
 **Average Group?** must be `True` for Step 4 to write averaged outputs into the `average/` directory. If `False`, PSTH outputs are per-session only.
 
@@ -231,7 +231,7 @@ Collapsed by default on the homepage. Configures Step 5.
 
 This index is for readers who arrive with an internal parameter name in hand and need to find the corresponding GUI parameter. That happens in four situations:
 
-- **Reproducing or auditing a past analysis** by reading the `GuPPyParamtersUsed.json` snapshot that GuPPy writes after every run; the JSON is keyed by internal names. Selecting a finished output run in the Individual-Analysis output picker also reloads this snapshot back into the form, so you can resume a run without the defaults silently overwriting the parameters the earlier steps used.
+- **Reproducing or auditing a past analysis** by reading the `GuPPyParamtersUsed.json` snapshot that GuPPy writes after every run; the JSON is keyed by internal names. Selecting a finished output run in the Output Folder Selection card also reloads this snapshot back into the form, so you can resume a run without the defaults silently overwriting the parameters the earlier steps used.
 - **Writing a headless or scripted analysis** against the API in `src/guppy/testing/api.py`, which takes a dict keyed by these names.
 - **Debugging a validator or pipeline error**, since error messages cite the internal name (for example `baselineWindowEnd=120 exceeds signal duration 90.5s`).
 - **Reading or contributing to the source code**, where parameter accesses go through the internal names.
