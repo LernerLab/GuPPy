@@ -15,7 +15,13 @@ import panel as pn
 from guppy.frontend.frontend_utils import scanPortsAndFind
 
 from ..frontend.metadata_selector import MetadataSelector
-from ..utils.nwb_metadata import build_metadata_dict, dump_yaml, load_yaml
+from ..utils.nwb_metadata import (
+    Channel,
+    build_metadata_dict,
+    derive_channels,
+    dump_yaml,
+    load_yaml,
+)
 from ..utils.utils import output_dir_for_run
 
 logger = logging.getLogger(__name__)
@@ -35,10 +41,10 @@ def _selected_session_runs(inputParameters: dict[str, object]) -> list[tuple[str
 
 
 def build_metadata_template(
-    session_label: str, metadata: dict, metadata_yaml_path: str
+    session_label: str, channels: list[Channel], metadata: dict, metadata_yaml_path: str
 ) -> pn.template.BootstrapTemplate:
     """Build one session's metadata page (without serving it)."""
-    selector = MetadataSelector(session_label=session_label, initial_metadata=metadata)
+    selector = MetadataSelector(session_label=session_label, channels=channels, initial_metadata=metadata)
     template = pn.template.BootstrapTemplate(title=f"Metadata GUI - {session_label}")
 
     def load_existing(event: object = None) -> None:
@@ -52,7 +58,9 @@ def build_metadata_template(
 
     def build_config(event: object = None) -> None:
         try:
-            built = build_metadata_dict(selector.get_component_dataframes(), selector.get_scalars())
+            built = build_metadata_dict(
+                selector.get_devices(), selector.get_channel_rows(), selector.get_scalars(), channels
+            )
         except ValueError as exception:
             selector.set_alert_message(f"####Alert !! \n {exception}")
             return
@@ -89,7 +97,8 @@ def orchestrate_metadata_page(inputParameters: dict[str, object]) -> None:
         guppy_folder_path = output_dir_for_run(session_path, run_name)
         metadata_yaml_path = os.path.join(guppy_folder_path, METADATA_FILENAME)
         initial_metadata = load_yaml(metadata_yaml_path) if os.path.exists(metadata_yaml_path) else {}
+        channels = derive_channels(guppy_folder_path)
         session_label = f"{os.path.basename(session_path.rstrip(os.sep))} ({run_name})"
-        template = build_metadata_template(session_label, initial_metadata, metadata_yaml_path)
+        template = build_metadata_template(session_label, channels, initial_metadata, metadata_yaml_path)
         if not headless:
             template.show(port=scanPortsAndFind(start_port=5000, end_port=5200))

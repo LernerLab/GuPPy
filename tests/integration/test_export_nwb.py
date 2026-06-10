@@ -15,7 +15,13 @@ from guppy.orchestration.export_nwb import (
     MERGED_METADATA_FILENAME,
     export_session_to_nwb,
 )
-from guppy.utils.nwb_metadata import dump_yaml, load_yaml
+from guppy.utils.nwb_metadata import (
+    build_metadata_dict,
+    derive_channels,
+    dump_yaml,
+    load_yaml,
+    parse_metadata_dict,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE_METADATA = PROJECT_ROOT / "data" / "fiber_photometry_metadata_example.yaml"
@@ -23,16 +29,43 @@ EXAMPLE_METADATA = PROJECT_ROOT / "data" / "fiber_photometry_metadata_example.ya
 
 class TestExportSessionToNwb:
     @pytest.fixture
-    def metadata_yaml_path(self, tmp_path) -> str:
-        """One self-contained metadata overlay: hardware/biology example + session + subject."""
-        metadata = load_yaml(EXAMPLE_METADATA)
-        metadata["NWBFile"] = {
+    def metadata_yaml_path(self, step5_output_tdt, tmp_path) -> str:
+        """Build a session metadata YAML the way the form does: device library + per-channel annotations."""
+        channels = derive_channels(step5_output_tdt["output_directory"])  # 2 dms channels (control, signal)
+        # Reuse the example's hardware/biology library (recombined into merged device entries).
+        devices, _channel_rows, _scalars = parse_metadata_dict(load_yaml(EXAMPLE_METADATA), channels)
+        common = {
+            "emission_wavelength_in_nm": 525.0,
+            "optical_fiber": "optical_fiber",
+            "photodetector": "photodetector",
+            "indicator": "dms_green_fluorophore",
+            "dichroic_mirror": "dichroic_mirror",
+            "emission_filter": "emission_filter",
+        }
+        channel_rows = [
+            {  # control / isosbestic
+                "excitation_wavelength_in_nm": 405.0,
+                "excitation_source": "excitation_source_isosbestic_control",
+                "excitation_filter": "isosbestic_excitation_filter",
+                **common,
+            },
+            {  # signal / calcium
+                "excitation_wavelength_in_nm": 465.0,
+                "excitation_source": "excitation_source_calcium_signal",
+                "excitation_filter": "excitation_filter",
+                **common,
+            },
+        ]
+        scalars = {
             "session_description": "RI30 photometry session",
             "identifier": "Photo_63_207_run1",
             "lab": "Lerner Lab",
             "institution": "Northwestern University",
+            "subject_id": "63_207",
+            "sex": "M",
+            "species": "Mus musculus",
         }
-        metadata["Subject"] = {"subject_id": "63_207", "sex": "M", "species": "Mus musculus"}
+        metadata = build_metadata_dict(devices, channel_rows, scalars, channels)
         path = tmp_path / "nwb_metadata.yaml"
         dump_yaml(metadata, path)
         return str(path)

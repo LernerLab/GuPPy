@@ -1,38 +1,38 @@
-"""Pure helpers for the GuPPy NWB-export metadata form.
+"""Pure core for the GuPPy NWB-export metadata form (channel-centric, schema-driven).
 
-This module is the single source of truth for the shape of the fiber-photometry
-metadata that the neuroconv ``TDTFiberPhotometryGuppyConverter`` consumes. It
-knows nothing about neuroconv, Panel, or the GUI -- it only converts between
-three representations:
+GuPPy owns the fiber-photometry channel structure (it wrote ``storesList.csv``),
+so the form auto-derives everything structural and the user only supplies what
+GuPPy cannot know: the hardware/biology device library, per-channel wavelengths,
+optional coordinates, and which device each channel used.
 
-1. the nested metadata dict / YAML the converter expects,
-2. flat ``pandas`` DataFrames (one per component list) that drive the GUI's
-   editable Tabulator tables, and
-3. the scalar NWBFile / Subject fields.
+This module knows nothing about Panel or neuroconv. It provides:
 
-Keeping all flatten/unflatten and split/merge logic here (driven by the
-declarative :data:`COMPONENT_SCHEMAS`) means the GUI widgets and the serializer
-can never drift, and the whole thing is unit-testable without a browser.
+- :func:`derive_channels` -- the ordered fiber-photometry channels from a session's
+  ``storesList.csv`` (reusing GuPPy's own :func:`get_control_and_signal_channel_names`).
+- :data:`CATEGORIES` + :func:`field_specs` -- a schema-driven description of each
+  device category (fields, required flags, docs, links), introspected from the
+  *installed* ndx-ophys-devices / ndx-fiber-photometry extensions (which is what the
+  converter validates against).
+- :func:`build_metadata_dict` / :func:`parse_metadata_dict` -- convert between the
+  form state and the converter's metadata dict, generating the FiberPhotometryTable
+  rows and FiberPhotometryResponseSeries from the channels.
 """
 
 from __future__ import annotations
 
-import json
+import os
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 import yaml
+
+from ..analysis.io_utils import get_control_and_signal_channel_names
 
 
 class _RobustDumper(yaml.SafeDumper):
-    """A SafeDumper that also handles dict subclasses (neuroconv DeepDict) and numpy scalars/arrays.
-
-    The export step persists the fully-resolved converter metadata for provenance;
-    that dict can contain ``DeepDict`` mappings and numpy values that the plain
-    ``SafeDumper`` cannot represent.
-    """
+    """SafeDumper that also handles dict subclasses (DeepDict) and numpy scalars/arrays."""
 
 
 _RobustDumper.add_multi_representer(dict, yaml.SafeDumper.represent_dict)
@@ -40,225 +40,268 @@ _RobustDumper.add_multi_representer(np.generic, lambda dumper, data: dumper.repr
 _RobustDumper.add_representer(np.ndarray, lambda dumper, data: dumper.represent_data(data.tolist()))
 
 
+# ----------------------------------------------------------------------------------------------------------------------
+# Channels (GuPPy-native, from storesList.csv)
+# ----------------------------------------------------------------------------------------------------------------------
 @dataclass(frozen=True)
-class ComponentSchema:
-    """Describe one fiber-photometry component list for the metadata form.
+class Channel:
+    """One fiber-photometry channel derived from ``storesList.csv``."""
 
-    Attributes
-    ----------
-    key : str
-        The key under ``Ophys.FiberPhotometry`` this component serializes to.
-    category : str
-        Human-readable group the component is shown under in the GUI (used to
-        bundle related tables into one collapsible card).
-    columns : list of str
-        Ordered column names for the flat DataFrame. Nested sub-dict fields are
-        written with dotted names (e.g. ``"fiber_insertion.depth_in_mm"``) and
-        are re-nested on serialize.
-    list_columns : set of str
-        Columns whose cell values are JSON-encoded lists (e.g.
-        ``"wavelength_range_in_nm"`` holding ``"[400, 470]"``).
-    container : str
-        ``"list"`` (default) serializes records directly to a list under
-        ``key``. ``"table_rows"`` wraps the records under ``key`` as
-        ``{"name", "description", "rows": records}``.
+    region: str
+    role: str  # "signal" or "control"
+    store_name: str
+
+    @property
+    def response_series_name(self) -> str:
+        """Conventional FiberPhotometryResponseSeries name for this channel."""
+        suffix = "calcium_signal" if self.role == "signal" else "isosbestic_control"
+        return f"{self.region}_{suffix}"
+
+
+def derive_channels(output_dir: str | Path) -> list[Channel]:
+    """Return the ordered fiber-photometry channels for a GuPPy output directory.
+
+    Reads ``<output_dir>/storesList.csv`` and pairs signal/control names per region
+    using GuPPy's own :func:`get_control_and_signal_channel_names`. Order is canonical
+    (region-sorted, control then signal within a region) so it matches between the
+    form (table rows) and the generated response series.
     """
+    stores_list = np.genfromtxt(os.path.join(output_dir, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
+    store_names = stores_list[0, :]
+    semantic_names = stores_list[1, :]
+    semantic_to_store = {semantic: store for store, semantic in zip(store_names, semantic_names)}
+
+    paired = get_control_and_signal_channel_names(stores_list)  # shape (2, N): row 0 control, row 1 signal
+    channels: list[Channel] = []
+    for column in range(paired.shape[1]):
+        control_name = paired[0, column]
+        signal_name = paired[1, column]
+        region = str(signal_name[len("signal_") :]).lower()
+        channels.append(Channel(region=region, role="control", store_name=str(semantic_to_store[control_name])))
+        channels.append(Channel(region=region, role="signal", store_name=str(semantic_to_store[signal_name])))
+    return channels
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Device-library schema (introspected from the installed extensions)
+# ----------------------------------------------------------------------------------------------------------------------
+@dataclass(frozen=True)
+class FieldSpec:
+    """One editable field of a device entry, derived from the ndx spec."""
+
+    name: str
+    required: bool
+    doc: str
+    dtype: str  # "text" | "float"
+    is_list: bool  # spec shape [2] -> a pair of numbers
+    target: str  # "model" | "instance" | "insertion" | "self"
+    link_target: str | None = None  # category key whose names populate a dropdown
+
+
+@dataclass(frozen=True)
+class CategorySpec:
+    """A user-facing device category and how it maps to ndx metadata keys."""
 
     key: str
-    category: str
-    columns: list[str]
-    list_columns: set[str] = field(default_factory=set)
-    container: str = "list"
+    label: str
+    kind: str  # "merged" (model + instance) or "single"
+    list_key: str  # metadata key for the (single) or instance list
+    model_type: str | None = None
+    instance_type: str | None = None
+    model_list_key: str | None = None
+    single_type: str | None = None
+    has_insertion: bool = False
+    links: dict[str, str] = field(default_factory=dict)  # link field name -> category key
 
 
-COMPONENT_SCHEMAS: dict[str, ComponentSchema] = {
-    "OpticalFiberModels": ComponentSchema(
-        key="OpticalFiberModels",
-        category="Optical Fiber",
-        columns=["name", "description", "manufacturer", "model_number", "numerical_aperture", "core_diameter_in_um"],
+CATEGORIES: dict[str, CategorySpec] = {
+    "optical_fiber": CategorySpec(
+        key="optical_fiber",
+        label="Optical fibers",
+        kind="merged",
+        model_type="OpticalFiberModel",
+        instance_type="OpticalFiber",
+        model_list_key="OpticalFiberModels",
+        list_key="OpticalFibers",
+        has_insertion=True,
     ),
-    "OpticalFibers": ComponentSchema(
-        key="OpticalFibers",
-        category="Optical Fiber",
-        columns=[
-            "name",
-            "description",
-            "model",
-            "serial_number",
-            "fiber_insertion.depth_in_mm",
-            "fiber_insertion.insertion_position_ap_in_mm",
-            "fiber_insertion.insertion_position_ml_in_mm",
-            "fiber_insertion.insertion_position_dv_in_mm",
-            "fiber_insertion.position_reference",
-            "fiber_insertion.hemisphere",
-            "fiber_insertion.insertion_angle_pitch_in_deg",
-            "fiber_insertion.insertion_angle_yaw_in_deg",
-            "fiber_insertion.insertion_angle_roll_in_deg",
-        ],
+    "excitation_source": CategorySpec(
+        key="excitation_source",
+        label="Excitation sources",
+        kind="merged",
+        model_type="ExcitationSourceModel",
+        instance_type="ExcitationSource",
+        model_list_key="ExcitationSourceModels",
+        list_key="ExcitationSources",
     ),
-    "ExcitationSourceModels": ComponentSchema(
-        key="ExcitationSourceModels",
-        category="Excitation",
-        columns=[
-            "name",
-            "description",
-            "manufacturer",
-            "model_number",
-            "source_type",
-            "excitation_mode",
-            "wavelength_range_in_nm",
-        ],
-        list_columns={"wavelength_range_in_nm"},
+    "photodetector": CategorySpec(
+        key="photodetector",
+        label="Photodetectors",
+        kind="merged",
+        model_type="PhotodetectorModel",
+        instance_type="Photodetector",
+        model_list_key="PhotodetectorModels",
+        list_key="Photodetectors",
     ),
-    "ExcitationSources": ComponentSchema(
-        key="ExcitationSources",
-        category="Excitation",
-        columns=["name", "description", "model", "power_in_W", "intensity_in_W_per_m2", "exposure_time_in_s"],
+    "band_optical_filter": CategorySpec(
+        key="band_optical_filter",
+        label="Band optical filters",
+        kind="merged",
+        model_type="BandOpticalFilterModel",
+        instance_type="BandOpticalFilter",
+        model_list_key="BandOpticalFilterModels",
+        list_key="BandOpticalFilters",
     ),
-    "PhotodetectorModels": ComponentSchema(
-        key="PhotodetectorModels",
-        category="Photodetector",
-        columns=[
-            "name",
-            "description",
-            "manufacturer",
-            "model_number",
-            "detector_type",
-            "wavelength_range_in_nm",
-            "gain",
-            "gain_unit",
-        ],
-        list_columns={"wavelength_range_in_nm"},
+    "dichroic_mirror": CategorySpec(
+        key="dichroic_mirror",
+        label="Dichroic mirrors",
+        kind="merged",
+        model_type="DichroicMirrorModel",
+        instance_type="DichroicMirror",
+        model_list_key="DichroicMirrorModels",
+        list_key="DichroicMirrors",
     ),
-    "Photodetectors": ComponentSchema(
-        key="Photodetectors",
-        category="Photodetector",
-        columns=["name", "description", "model", "serial_number"],
+    "indicator": CategorySpec(
+        key="indicator",
+        label="Indicators",
+        kind="single",
+        single_type="Indicator",
+        list_key="FiberPhotometryIndicators",
+        links={"viral_vector_injection": "virus_injection"},
     ),
-    "BandOpticalFilterModels": ComponentSchema(
-        key="BandOpticalFilterModels",
-        category="Optical Filters",
-        columns=[
-            "name",
-            "description",
-            "manufacturer",
-            "model_number",
-            "filter_type",
-            "center_wavelength_in_nm",
-            "bandwidth_in_nm",
-        ],
+    "virus": CategorySpec(
+        key="virus",
+        label="Viruses",
+        kind="single",
+        single_type="ViralVector",
+        list_key="FiberPhotometryViruses",
     ),
-    "BandOpticalFilters": ComponentSchema(
-        key="BandOpticalFilters",
-        category="Optical Filters",
-        columns=["name", "description", "model"],
-    ),
-    "DichroicMirrorModels": ComponentSchema(
-        key="DichroicMirrorModels",
-        category="Dichroic Mirror",
-        columns=[
-            "name",
-            "description",
-            "manufacturer",
-            "model_number",
-            "cut_on_wavelength_in_nm",
-            "reflection_band_in_nm",
-            "transmission_band_in_nm",
-            "angle_of_incidence_in_degrees",
-        ],
-        list_columns={"reflection_band_in_nm", "transmission_band_in_nm"},
-    ),
-    "DichroicMirrors": ComponentSchema(
-        key="DichroicMirrors",
-        category="Dichroic Mirror",
-        columns=["name", "description", "model", "serial_number"],
-    ),
-    "FiberPhotometryViruses": ComponentSchema(
-        key="FiberPhotometryViruses",
-        category="Virus & Indicator",
-        columns=["name", "description", "manufacturer", "construct_name", "titer_in_vg_per_ml"],
-    ),
-    "FiberPhotometryVirusInjections": ComponentSchema(
-        key="FiberPhotometryVirusInjections",
-        category="Virus & Indicator",
-        columns=[
-            "name",
-            "description",
-            "viral_vector",
-            "location",
-            "hemisphere",
-            "reference",
-            "ap_in_mm",
-            "ml_in_mm",
-            "dv_in_mm",
-            "volume_in_uL",
-        ],
-    ),
-    "FiberPhotometryIndicators": ComponentSchema(
-        key="FiberPhotometryIndicators",
-        category="Virus & Indicator",
-        columns=["name", "description", "manufacturer", "label", "viral_vector_injection"],
-    ),
-    "CommandedVoltageSeries": ComponentSchema(
-        key="CommandedVoltageSeries",
-        category="Commanded Voltage",
-        columns=["name", "description", "stream_name", "index", "unit", "frequency"],
-    ),
-    "FiberPhotometryTable": ComponentSchema(
-        key="FiberPhotometryTable",
-        category="Fiber Photometry Table",
-        columns=[
-            "name",
-            "location",
-            "excitation_wavelength_in_nm",
-            "emission_wavelength_in_nm",
-            "indicator",
-            "optical_fiber",
-            "excitation_source",
-            "commanded_voltage_series",
-            "photodetector",
-            "dichroic_mirror",
-            "emission_filter",
-            "excitation_filter",
-        ],
-        container="table_rows",
-    ),
-    "FiberPhotometryResponseSeries": ComponentSchema(
-        key="FiberPhotometryResponseSeries",
-        category="Response Series",
-        columns=[
-            "name",
-            "description",
-            "stream_name",
-            "stream_indices",
-            "unit",
-            "fiber_photometry_table_region",
-            "fiber_photometry_table_region_description",
-        ],
-        list_columns={"fiber_photometry_table_region"},
+    "virus_injection": CategorySpec(
+        key="virus_injection",
+        label="Virus injections",
+        kind="single",
+        single_type="ViralVectorInjection",
+        list_key="FiberPhotometryVirusInjections",
+        links={"viral_vector": "virus"},
     ),
 }
 
-# Scalar (non-table) metadata fields, grouped by the block they serialize to.
-# One self-contained metadata file per session, so there is no project/session
-# split -- every field lives in the same dict. The FiberPhotometryTable
-# name/description belong to the table object (vs its rows).
+# Channel-table link columns -> device category supplying the dropdown options.
+CHANNEL_LINKS: dict[str, str] = {
+    "indicator": "indicator",
+    "optical_fiber": "optical_fiber",
+    "excitation_source": "excitation_source",
+    "photodetector": "photodetector",
+    "dichroic_mirror": "dichroic_mirror",
+    "excitation_filter": "band_optical_filter",
+    "emission_filter": "band_optical_filter",
+}
+CHANNEL_REQUIRED_LINKS = ("indicator", "optical_fiber", "excitation_source", "photodetector")
+CHANNEL_WAVELENGTHS = ("excitation_wavelength_in_nm", "emission_wavelength_in_nm")
+
+# Instance attributes that are deprecated (they belong on the model) or duplicated.
+_INSTANCE_SKIP = {"manufacturer", "model_number", "model_name", "description"}
+
+
+@lru_cache(maxsize=None)
+def _type_attrs(type_name: str) -> tuple[tuple[str, bool, str, str, bool], ...]:
+    """Introspect an installed ndx type: ordered (name, required, doc, dtype, is_list)."""
+    import ndx_fiber_photometry  # noqa: F401  (register extensions)
+    import ndx_ophys_devices  # noqa: F401
+    from pynwb import get_type_map
+
+    catalog = get_type_map().namespace_catalog
+    spec = None
+    for namespace in ("ndx-ophys-devices", "ndx-fiber-photometry"):
+        try:
+            spec = catalog.get_spec(namespace, type_name)
+            break
+        except ValueError:
+            continue
+    assert spec is not None, f"Type {type_name!r} not found in installed ndx namespaces."
+
+    rows = []
+    for attribute in spec.attributes:
+        dtype = "float" if attribute.dtype == "float" else "text"
+        is_list = getattr(attribute, "shape", None) is not None
+        rows.append((attribute.name, bool(attribute.required), attribute.doc, dtype, is_list))
+    return tuple(rows)
+
+
+@lru_cache(maxsize=None)
+def _type_links(type_name: str) -> dict[str, bool]:
+    """Return {link_name: required} for an installed ndx type."""
+    import ndx_fiber_photometry  # noqa: F401
+    import ndx_ophys_devices  # noqa: F401
+    from pynwb import get_type_map
+
+    catalog = get_type_map().namespace_catalog
+    for namespace in ("ndx-ophys-devices", "ndx-fiber-photometry"):
+        try:
+            spec = catalog.get_spec(namespace, type_name)
+            break
+        except ValueError:
+            continue
+    return {
+        link.name: str(getattr(link, "quantity", "?")) in ("1", "+") for link in (getattr(spec, "links", None) or [])
+    }
+
+
+def field_specs(category_key: str) -> list[FieldSpec]:
+    """Return the ordered editable fields for a device category."""
+    category = CATEGORIES[category_key]
+    specs: list[FieldSpec] = [
+        FieldSpec(
+            "name", True, "Unique name for this device (referenced by the channel links).", "text", False, "self"
+        ),
+        FieldSpec("description", False, "Free-form description of the device.", "text", False, "instance"),
+    ]
+
+    if category.kind == "merged":
+        for name, required, doc, dtype, is_list in _type_attrs(category.model_type):
+            if name == "description":
+                continue
+            specs.append(FieldSpec(name, required, doc, dtype, is_list, "model"))
+        for name, required, doc, dtype, is_list in _type_attrs(category.instance_type):
+            if name in _INSTANCE_SKIP:
+                continue
+            specs.append(FieldSpec(name, required, doc, dtype, is_list, "instance"))
+        if category.has_insertion:
+            for name, required, doc, dtype, is_list in _type_attrs("FiberInsertion"):
+                specs.append(FieldSpec(name, required, doc, dtype, is_list, "insertion"))
+    else:  # single object (Indicator / ViralVector / ViralVectorInjection)
+        specs[1] = FieldSpec("description", False, "Free-form description.", "text", False, "self")
+        for name, required, doc, dtype, is_list in _type_attrs(category.single_type):
+            if name == "description":
+                continue
+            specs.append(FieldSpec(name, required, doc, dtype, is_list, "self"))
+        link_required = _type_links(category.single_type)
+        for link_name, target_category in category.links.items():
+            specs.append(
+                FieldSpec(
+                    link_name,
+                    link_required.get(link_name, False),
+                    f"Link to a defined {CATEGORIES[target_category].label.rstrip('s').lower()}.",
+                    "text",
+                    False,
+                    "self",
+                    link_target=target_category,
+                )
+            )
+    return specs
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Scalar (NWBFile / Subject) fields
+# ----------------------------------------------------------------------------------------------------------------------
 NWBFILE_KEYS = ("session_description", "identifier", "lab", "institution", "experimenter")
 SUBJECT_KEYS = ("subject_id", "sex", "age", "date_of_birth", "species", "genotype", "strain")
-TABLE_KEYS = ("fiber_photometry_table_name", "fiber_photometry_table_description")
-
-# experimenter is an NWB list-of-strings; everything else is a plain scalar.
-_LIST_SCALAR_KEYS = {"experimenter"}
 
 
-# ----------------------------------------------------------------------------------------------------------------------
-# Record <-> flat row helpers
-# ----------------------------------------------------------------------------------------------------------------------
 def _is_empty(value: object) -> bool:
-    """Return True for values that should be dropped (blank cells, NaN, None, empty collections)."""
     if value is None:
         return True
-    if isinstance(value, float) and pd.isna(value):
+    if isinstance(value, float) and np.isnan(value):
         return True
     if isinstance(value, str) and value.strip() == "":
         return True
@@ -267,126 +310,117 @@ def _is_empty(value: object) -> bool:
     return False
 
 
-def _get_nested(record: dict, dotted_key: str) -> object:
-    """Read ``record`` at a dotted path, returning None if any level is missing."""
-    current: object = record
-    for part in dotted_key.split("."):
-        if not isinstance(current, dict) or part not in current:
-            return None
-        current = current[part]
-    return current
-
-
-def _set_nested(target: dict, dotted_key: str, value: object) -> None:
-    """Write ``value`` into ``target`` at a dotted path, creating sub-dicts."""
-    parts = dotted_key.split(".")
-    current = target
-    for part in parts[:-1]:
-        current = current.setdefault(part, {})
-    current[parts[-1]] = value
-
-
-def flatten_record(record: dict, schema: ComponentSchema) -> dict:
-    """Flatten a nested metadata record into a flat row keyed by ``schema.columns``.
-
-    Nested sub-dicts become dotted columns and list values become JSON strings,
-    so every cell is a primitive the Tabulator can edit directly.
-    """
-    row: dict = {}
-    for column in schema.columns:
-        value = _get_nested(record, column)
-        if column in schema.list_columns and value is not None:
-            value = json.dumps(value)
-        row[column] = "" if value is None else value
-    return row
-
-
-def unflatten_record(row: dict, schema: ComponentSchema) -> dict:
-    """Rebuild a nested metadata record from a flat row, dropping empty cells.
-
-    Dotted columns are re-nested into sub-dicts; JSON-string list columns are
-    parsed back into lists. Empty/NaN cells are omitted so blank optional fields
-    never overwrite the converter's auto-filled values during a deep merge.
-    """
-    record: dict = {}
-    for column in schema.columns:
-        value = row.get(column)
-        if _is_empty(value):
-            continue
-        if column in schema.list_columns:
-            try:
-                value = json.loads(value) if isinstance(value, str) else value
-            except json.JSONDecodeError as exc:
-                raise ValueError(
-                    f"Column {column!r} must be a JSON list (e.g. '[400, 470]'); got {value!r}: {exc}"
-                ) from exc
-        _set_nested(record, column, value)
-    return record
-
-
-def records_to_dataframe(records: list[dict], schema: ComponentSchema) -> pd.DataFrame:
-    """Convert a list of nested metadata records into a flat DataFrame for editing."""
-    rows = [flatten_record(record, schema) for record in records]
-    return pd.DataFrame(rows, columns=list(schema.columns))
-
-
-def dataframe_to_records(dataframe: pd.DataFrame, schema: ComponentSchema) -> list[dict]:
-    """Convert an edited Tabulator DataFrame back into nested metadata records.
-
-    Fully-empty rows are dropped (they carry no information after empty-cell
-    pruning), which lets the GUI keep a trailing blank row for "add new".
-    """
-    records = []
-    for _, row in dataframe.iterrows():
-        record = unflatten_record(row.to_dict(), schema)
-        if record:
-            records.append(record)
-    return records
-
-
-# ----------------------------------------------------------------------------------------------------------------------
-# Metadata assembly (one self-contained overlay per session)
-# ----------------------------------------------------------------------------------------------------------------------
 def _drop_empty(mapping: dict) -> dict:
-    """Return ``mapping`` without keys whose values are empty."""
     return {key: value for key, value in mapping.items() if not _is_empty(value)}
 
 
-def build_metadata_dict(component_dataframes: dict[str, pd.DataFrame], scalars: dict) -> dict:
-    """Assemble one session's full metadata overlay from edited tables and scalars.
+# ----------------------------------------------------------------------------------------------------------------------
+# Device serialization (merged form entry <-> Model + instance dicts)
+# ----------------------------------------------------------------------------------------------------------------------
+def _serialize_device(category: CategorySpec, entry: dict) -> tuple[dict | None, dict]:
+    """Serialize one form entry into (model_dict | None, object_dict)."""
+    specs = field_specs(category.key)
+    name = entry.get("name", "")
 
-    Parameters
-    ----------
-    component_dataframes : dict
-        Maps each ``COMPONENT_SCHEMAS`` key to its edited DataFrame.
-    scalars : dict
-        Scalar field values (``NWBFILE_KEYS``, ``SUBJECT_KEYS``, ``TABLE_KEYS``).
+    if category.kind == "single":
+        single = _drop_empty({spec.name: entry.get(spec.name) for spec in specs})
+        return None, single
 
-    Returns
-    -------
-    dict
-        Nested metadata with ``NWBFile``, ``Subject`` and ``Ophys.FiberPhotometry``
-        blocks. Empty scalars and empty component lists are omitted.
+    model_name = f"{name}_model"
+    model = {"name": model_name}
+    instance = {"name": name, "model": model_name}
+    insertion: dict = {}
+    for spec in specs:
+        if spec.name in ("name",):
+            continue
+        value = entry.get(spec.name)
+        if _is_empty(value):
+            continue
+        if spec.target == "model":
+            model[spec.name] = value
+        elif spec.target == "insertion":
+            insertion[spec.name] = value
+        else:  # instance (description, serial_number)
+            instance[spec.name] = value
+    if insertion:
+        instance["fiber_insertion"] = insertion
+    return model, instance
+
+
+def _deserialize_device(category: CategorySpec, object_dict: dict, models_by_name: dict[str, dict]) -> dict:
+    """Recombine a Model + instance (or single object) back into one form entry."""
+    if category.kind == "single":
+        return dict(object_dict)
+
+    entry: dict = {"name": object_dict.get("name", "")}
+    if "description" in object_dict:
+        entry["description"] = object_dict["description"]
+    if "serial_number" in object_dict:
+        entry["serial_number"] = object_dict["serial_number"]
+    for sub_key, sub_value in (object_dict.get("fiber_insertion") or {}).items():
+        entry[sub_key] = sub_value
+    model = models_by_name.get(object_dict.get("model", ""), {})
+    for model_key, model_value in model.items():
+        if model_key != "name":
+            entry[model_key] = model_value
+    return entry
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# build / parse
+# ----------------------------------------------------------------------------------------------------------------------
+def build_metadata_dict(
+    devices: dict[str, list[dict]], channel_rows: list[dict], scalars: dict, channels: list[Channel]
+) -> dict:
+    """Assemble the full session metadata overlay from the form state.
+
+    Generates the FiberPhotometryTable rows (one per channel, ``location`` = region)
+    and the FiberPhotometryResponseSeries (one per channel) from ``channels``.
     """
     fiber_photometry: dict = {}
-    for key, schema in COMPONENT_SCHEMAS.items():
-        dataframe = component_dataframes.get(key)
-        if dataframe is None:
+    for category in CATEGORIES.values():
+        models: list[dict] = []
+        objects: list[dict] = []
+        for entry in devices.get(category.key, []):
+            if _is_empty(entry.get("name")):
+                continue
+            model, object_dict = _serialize_device(category, entry)
+            if model is not None:
+                models.append(model)
+            objects.append(object_dict)
+        if not objects:
             continue
-        records = dataframe_to_records(dataframe, schema)
-        if not records:
-            continue
-        if schema.container == "table_rows":
-            table: dict = _drop_empty(
-                {
-                    "name": scalars.get("fiber_photometry_table_name"),
-                    "description": scalars.get("fiber_photometry_table_description"),
-                }
-            )
-            table["rows"] = records
-            fiber_photometry[key] = table
-        else:
-            fiber_photometry[key] = records
+        if category.model_list_key:
+            fiber_photometry[category.model_list_key] = models
+        fiber_photometry[category.list_key] = objects
+
+    table_rows = []
+    response_series = []
+    for index, channel in enumerate(channels):
+        row = {"name": index, "location": channel.region}
+        annotations = channel_rows[index] if index < len(channel_rows) else {}
+        row.update(_drop_empty({key: annotations.get(key) for key in (*CHANNEL_WAVELENGTHS, *CHANNEL_LINKS)}))
+        table_rows.append(row)
+        response_series.append(
+            {
+                "name": channel.response_series_name,
+                "description": f"Fluorescence from the {channel.region} {channel.role} channel.",
+                "stream_name": channel.store_name,
+                "stream_indices": None,
+                "unit": "a.u.",
+                "fiber_photometry_table_region": [index],
+                "fiber_photometry_table_region_description": (
+                    f"FiberPhotometryTable row for the {channel.region} {channel.role} channel."
+                ),
+            }
+        )
+    if table_rows:
+        fiber_photometry["FiberPhotometryTable"] = {
+            "name": scalars.get("fiber_photometry_table_name") or "fiber_photometry_table",
+            "description": scalars.get("fiber_photometry_table_description") or "Fiber photometry table.",
+            "rows": table_rows,
+        }
+        fiber_photometry["FiberPhotometryResponseSeries"] = response_series
 
     nwbfile = _drop_empty({key: scalars.get(key) for key in NWBFILE_KEYS})
     subject = _drop_empty({key: scalars.get(key) for key in SUBJECT_KEYS})
@@ -401,31 +435,30 @@ def build_metadata_dict(component_dataframes: dict[str, pd.DataFrame], scalars: 
     return metadata
 
 
-def parse_metadata_dict(metadata: dict) -> tuple[dict[str, pd.DataFrame], dict]:
-    """Inverse of :func:`build_metadata_dict` for populating the GUI from a dict."""
+def parse_metadata_dict(metadata: dict, channels: list[Channel]) -> tuple[dict[str, list[dict]], list[dict], dict]:
+    """Inverse of :func:`build_metadata_dict` for repopulating the form from a saved dict."""
     fiber_photometry = metadata.get("Ophys", {}).get("FiberPhotometry", {})
-    component_dataframes: dict[str, pd.DataFrame] = {}
-    for key, schema in COMPONENT_SCHEMAS.items():
-        block = fiber_photometry.get(key)
-        if block is None:
-            records: list[dict] = []
-        elif schema.container == "table_rows":
-            records = block.get("rows", [])
-        else:
-            records = block
-        component_dataframes[key] = records_to_dataframe(records, schema)
+
+    devices: dict[str, list[dict]] = {}
+    for category in CATEGORIES.values():
+        models_by_name = {model["name"]: model for model in fiber_photometry.get(category.model_list_key or "", [])}
+        objects = fiber_photometry.get(category.list_key, [])
+        devices[category.key] = [_deserialize_device(category, obj, models_by_name) for obj in objects]
+
+    saved_rows = fiber_photometry.get("FiberPhotometryTable", {}).get("rows", [])
+    channel_rows: list[dict] = []
+    for index, _channel in enumerate(channels):
+        row = saved_rows[index] if index < len(saved_rows) else {}
+        channel_rows.append({key: row.get(key, "") for key in (*CHANNEL_WAVELENGTHS, *CHANNEL_LINKS)})
 
     nwbfile = metadata.get("NWBFile", {})
     subject = metadata.get("Subject", {})
     table = fiber_photometry.get("FiberPhotometryTable", {})
-    scalars: dict = {}
-    for key in NWBFILE_KEYS:
-        scalars[key] = nwbfile.get(key, "")
-    for key in SUBJECT_KEYS:
-        scalars[key] = subject.get(key, "")
+    scalars: dict = {key: nwbfile.get(key, "") for key in NWBFILE_KEYS}
+    scalars.update({key: subject.get(key, "") for key in SUBJECT_KEYS})
     scalars["fiber_photometry_table_name"] = table.get("name", "")
     scalars["fiber_photometry_table_description"] = table.get("description", "")
-    return component_dataframes, scalars
+    return devices, channel_rows, scalars
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -444,7 +477,7 @@ def dump_yaml(metadata: dict, path: str | Path) -> None:
 
 
 def loads_yaml(text: str) -> dict:
-    """Parse a YAML string into a dict (empty/blank text yields an empty dict)."""
+    """Parse a YAML string into a dict (blank text yields an empty dict)."""
     return yaml.safe_load(text) or {}
 
 
