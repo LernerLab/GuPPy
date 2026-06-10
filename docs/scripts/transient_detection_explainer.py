@@ -538,7 +538,12 @@ def figure_4_two_stage_walkthrough():
     mad_clean = np.median(np.abs(kept - m_clean))
     second_threshold = m_clean + K2 * mad_clean
 
-    peak_indices = np.array([np.argmin(np.abs(t - (c + 0.3))) for c in event_times])
+    peak_indices = []
+    for c in event_times:
+        i0 = int(np.argmin(np.abs(t - c)))
+        i1 = int(np.argmin(np.abs(t - (c + 0.6))))
+        peak_indices.append(i0 + int(np.argmax(trace[i0:i1])))
+    peak_indices = np.array(peak_indices)
     peak_t = t[peak_indices]
     peak_y = trace[peak_indices]
 
@@ -546,17 +551,20 @@ def figure_4_two_stage_walkthrough():
     caught_two_stage = peak_y > second_threshold
 
     fig, (ax_left, ax_mid, ax_right) = plt.subplots(
-        3, 1, figsize=(9.5, 6.6), sharex=True, sharey=True,
+        3, 1, figsize=(9.5, 7.0), sharex=True, sharey=True,
         gridspec_kw={"hspace": 0.32},
     )
 
     for ax in (ax_left, ax_mid, ax_right):
         ax.set_xlim(0, duration)
+    ax_left.set_ylim(float(trace.min()) - 1.0, float(trace.max()) + 2.2)
+    ax_left.tick_params(axis="x", length=0)
+    ax_mid.tick_params(axis="x", length=0)
     ax_right.set_xlabel("time (s)")
 
     ax_left.plot(t, trace, color=COLOR_TRACE, linewidth=1.0, zorder=3)
     ax_left.axhline(
-        naive_threshold, color="#555555", linewidth=1.2, linestyle="--", zorder=2,
+        naive_threshold, color="#c79a00", linewidth=2.2, linestyle="-.", zorder=2,
     )
     # Use a larger marker size in fig4 so both TP (red) and FN (navy) circles stay
     # visible at thumbnail render sizes; both rows use the same size for consistency.
@@ -564,7 +572,7 @@ def figure_4_two_stage_walkthrough():
         color = COLOR_ACCEPTED if c else COLOR_REJECTED
         ax_left.scatter(pt, py, s=110, c=color, zorder=4, edgecolors="none")
     ax_left.set_ylabel("z-score")
-    ax_left.set_title("(1) naive threshold misses the smaller event", loc="center", fontsize=11)
+    ax_left.set_title("naive threshold misses the smaller event", loc="center", fontsize=11)
     ax_left.text(0.012, 0.97, "A", transform=ax_left.transAxes, fontsize=15, fontweight="bold", va="top", color="#222")
 
     # Ghost-trace encoding: the trace stays continuous, with samples above the K₁
@@ -578,27 +586,27 @@ def figure_4_two_stage_walkthrough():
     ax_mid.plot(t, trace_above, color=COLOR_TRACE, alpha=0.30, linewidth=1.0, zorder=2.5)
     ax_mid.plot(t, trace_below, color=COLOR_TRACE, linewidth=1.0, zorder=3)
     ax_mid.axhline(
-        first_cutoff, color="#7b4fa3", linewidth=1.4, linestyle=":", zorder=2,
+        first_cutoff, color="#7b4fa3", linewidth=2.2, linestyle=":", zorder=2,
     )
     ax_mid.set_ylabel("z-score")
-    ax_mid.set_title("(2) remove samples above K₁ × MAD: noise-only subset", loc="center", fontsize=11)
+    ax_mid.set_title("remove samples above T₁ (median + K₁ × MAD)", loc="center", fontsize=11)
     ax_mid.text(0.012, 0.97, "B", transform=ax_mid.transAxes, fontsize=15, fontweight="bold", va="top", color="#222")
+    ax_mid.annotate("samples excluded from\nthreshold calculation", xy=(4.6, 9.0),
+                    xytext=(6.6, 12.0), fontsize=8.0, color="#2a6a2a", ha="left",
+                    arrowprops=dict(arrowstyle="->", color="#5f9e5f", lw=1.0))
 
-    noise_low = m_clean - K2 * mad_clean
-    noise_high = m_clean + K2 * mad_clean
-    ax_right.axhspan(noise_low, noise_high, color="#fff5cc", alpha=0.9, zorder=1)
     ax_right.plot(t, trace, color=COLOR_TRACE, linewidth=1.0, zorder=3)
     ax_right.axhline(
-        naive_threshold, color="#aaaaaa", linewidth=1.0, linestyle="--", zorder=1.8,
+        naive_threshold, color="#c79a00", linewidth=2.2, linestyle="-.", zorder=1.8,
     )
     ax_right.axhline(
-        second_threshold, color="#555555", linewidth=1.6, linestyle="--", zorder=2,
+        second_threshold, color="#555555", linewidth=2.2, linestyle="--", zorder=2,
     )
     for pt, py, c in zip(peak_t, peak_y, caught_two_stage):
         color = COLOR_ACCEPTED if c else COLOR_REJECTED
         ax_right.scatter(pt, py, s=110, c=color, zorder=4, edgecolors="none")
     ax_right.set_ylabel("z-score")
-    ax_right.set_title("(3) two-stage threshold catches both events", loc="center", fontsize=11)
+    ax_right.set_title("two-stage threshold T₂ catches both events", loc="center", fontsize=11)
     ax_right.text(0.012, 0.97, "C", transform=ax_right.transAxes, fontsize=15, fontweight="bold", va="top", color="#222")
 
     # Three semantic groups in three stacked legends: markers, threshold lines,
@@ -613,28 +621,21 @@ def figure_4_two_stage_walkthrough():
                markersize=8, label="missed event (FN)"),
     ]
     thresholds_legend = [
-        Line2D([0], [0], color="#555555", linestyle="--", linewidth=1.6,
-               label="two-stage threshold"),
-        Line2D([0], [0], color="#7b4fa3", linestyle=":", linewidth=1.4,
-               label="K₁ cutoff: samples above are trimmed"),
-        Line2D([0], [0], color="#aaaaaa", linestyle="--", linewidth=1.0,
-               label="naive threshold (for comparison)"),
-    ]
-    annotations_legend = [
-        Line2D([0], [0], color=COLOR_TRACE, alpha=0.30, linewidth=1.0,
-               label="trimmed samples (excluded from noise reference)"),
-        Patch(facecolor="#fff5cc", alpha=0.9, label="cleaned noise band"),
+        Line2D([0], [0], color="#555555", linestyle="--", linewidth=2.2,
+               label="T₂: two-stage threshold"),
+        Line2D([0], [0], color="#7b4fa3", linestyle=":", linewidth=2.2,
+               label="T₁: first-pass cutoff"),
+        Line2D([0], [0], color="#c79a00", linestyle="-.", linewidth=2.2,
+               label="naive threshold"),
     ]
     fig.tight_layout()
-    leg_kwargs = dict(loc="lower center", frameon=False, fontsize=9,
+    leg_kwargs = dict(loc="lower center", frameon=False, fontsize=9.5,
                       handletextpad=0.5, columnspacing=1.6)
     leg1 = fig.legend(handles=markers_legend, ncol=2,
-                      bbox_to_anchor=(0.5, 0.13), **leg_kwargs)
+                      bbox_to_anchor=(0.5, 0.085), **leg_kwargs)
     leg2 = fig.legend(handles=thresholds_legend, ncol=3,
-                      bbox_to_anchor=(0.5, 0.07), **leg_kwargs)
-    leg3 = fig.legend(handles=annotations_legend, ncol=2,
-                      bbox_to_anchor=(0.5, 0.01), **leg_kwargs)
-    fig.subplots_adjust(bottom=0.26)
+                      bbox_to_anchor=(0.5, 0.02), **leg_kwargs)
+    fig.subplots_adjust(bottom=0.19)
 
     fig.savefig(OUT / "fig4_two_stage_walkthrough.svg", bbox_inches="tight")
     plt.close(fig)
