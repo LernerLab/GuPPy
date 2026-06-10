@@ -8,7 +8,7 @@ from threading import Thread
 import panel as pn
 
 from .export_nwb import orchestrate_export_nwb_page
-from .metadata import orchestrate_project_metadata_page
+from .metadata import orchestrate_metadata_page
 from .storenames import orchestrate_storenames_page
 from .visualize import visualizeResults
 from ..frontend.input_parameters import ParameterForm
@@ -141,11 +141,11 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
         if error_msg:
             pn.state.notifications.error(error_msg, duration=0)
 
-    def onclickProjectMetadata(event: object = None) -> None:
+    def onclickMetadata(event: object = None) -> None:
         inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
         if inputParameters is None:
             return
-        orchestrate_project_metadata_page(inputParameters)
+        orchestrate_metadata_page(inputParameters)
 
     def onclickExportNwb(event: object = None) -> None:
         inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
@@ -165,7 +165,7 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
         "preprocess": onclickpreprocess,
         "psth_computation": onclickpsth,
         "open_visualization": onclickVisualization,
-        "open_project_metadata": onclickProjectMetadata,
+        "open_metadata": onclickMetadata,
         "export_nwb": onclickExportNwb,
     }
     sidebar.attach_callbacks(button_name_to_onclick_fn=button_name_to_onclick_fn)

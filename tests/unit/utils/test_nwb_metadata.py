@@ -93,36 +93,47 @@ class TestDataframeRoundTrip:
         assert m.dataframe_to_records(dataframe, schema) == records
 
 
-class TestProjectMetadata:
-    def test_build_project_metadata_dict_assembles_blocks(self):
+class TestMetadataAssembly:
+    def test_build_metadata_dict_assembles_all_blocks(self):
         component_dataframes = {key: m.records_to_dataframe([], schema) for key, schema in m.COMPONENT_SCHEMAS.items()}
         component_dataframes["OpticalFibers"] = m.records_to_dataframe(
             [{"name": "optical_fiber", "fiber_insertion": {"depth_in_mm": 2.8}}],
             m.COMPONENT_SCHEMAS["OpticalFibers"],
         )
         scalars = {
+            "session_description": "RI30 session",
+            "identifier": "Photo_63_207",
             "lab": "Lerner Lab",
             "institution": "",
             "experimenter": ["Doe, Jane"],
+            "subject_id": "63_207",
+            "sex": "M",
+            "age": "P90D",
+            "date_of_birth": "",
             "species": "Mus musculus",
             "genotype": "",
             "strain": "",
             "fiber_photometry_table_name": "fiber_photometry_table",
             "fiber_photometry_table_description": "desc",
         }
-        metadata = m.build_project_metadata_dict(component_dataframes, scalars)
-        assert metadata["NWBFile"] == {"lab": "Lerner Lab", "experimenter": ["Doe, Jane"]}
-        assert metadata["Subject"] == {"species": "Mus musculus"}
+        metadata = m.build_metadata_dict(component_dataframes, scalars)
+        # Session and hardware live in the same self-contained dict.
+        assert metadata["NWBFile"] == {
+            "session_description": "RI30 session",
+            "identifier": "Photo_63_207",
+            "lab": "Lerner Lab",
+            "experimenter": ["Doe, Jane"],
+        }
+        assert metadata["Subject"] == {"subject_id": "63_207", "sex": "M", "age": "P90D", "species": "Mus musculus"}
         assert metadata["Ophys"]["FiberPhotometry"]["OpticalFibers"] == [
             {"name": "optical_fiber", "fiber_insertion": {"depth_in_mm": 2.8}}
         ]
         # Empty component lists are omitted entirely.
         assert "Photodetectors" not in metadata["Ophys"]["FiberPhotometry"]
 
-    def test_project_round_trip_preserves_template_components(self, example_metadata):
-        project, _ = m.split_template_into_project_and_session(example_metadata)
-        dataframes, scalars = m.parse_project_metadata_dict(project)
-        rebuilt = m.build_project_metadata_dict(dataframes, scalars)
+    def test_round_trip_preserves_example_components(self, example_metadata):
+        dataframes, scalars = m.parse_metadata_dict(example_metadata)
+        rebuilt = m.build_metadata_dict(dataframes, scalars)
         original_fp = example_metadata["Ophys"]["FiberPhotometry"]
         rebuilt_fp = rebuilt["Ophys"]["FiberPhotometry"]
         # Nested records, list fields, and the table all survive the round-trip.
@@ -130,59 +141,17 @@ class TestProjectMetadata:
         assert rebuilt_fp["DichroicMirrorModels"] == original_fp["DichroicMirrorModels"]
         assert rebuilt_fp["FiberPhotometryTable"] == original_fp["FiberPhotometryTable"]
 
-    def test_parse_project_metadata_dict_recovers_table_scalars(self, example_metadata):
-        project, _ = m.split_template_into_project_and_session(example_metadata)
-        _, scalars = m.parse_project_metadata_dict(project)
+    def test_parse_metadata_dict_recovers_table_scalars(self, example_metadata):
+        _, scalars = m.parse_metadata_dict(example_metadata)
         assert scalars["fiber_photometry_table_name"] == "fiber_photometry_table"
 
-
-class TestSessionMetadata:
-    def test_build_and_parse_session_round_trip(self):
-        scalars = {
-            "session_description": "RI30 session",
-            "identifier": "Photo_63_207",
-            "subject_id": "63_207",
-            "sex": "M",
-            "age": "P90D",
-            "date_of_birth": "",
-        }
-        metadata = m.build_session_metadata_dict(scalars)
-        assert metadata == {
-            "NWBFile": {"session_description": "RI30 session", "identifier": "Photo_63_207"},
-            "Subject": {"subject_id": "63_207", "sex": "M", "age": "P90D"},
-        }
-        recovered = m.parse_session_metadata_dict(metadata)
-        assert recovered["subject_id"] == "63_207"
-        assert recovered["date_of_birth"] == ""
-
-
-class TestSplit:
-    def test_split_partitions_project_and_session_keys(self):
-        full = {
-            "NWBFile": {"lab": "Lerner", "session_description": "s", "identifier": "id"},
-            "Subject": {"species": "Mus musculus", "subject_id": "63", "sex": "M"},
-            "Ophys": {"FiberPhotometry": {"OpticalFibers": [{"name": "f"}]}},
-        }
-        project, session = m.split_template_into_project_and_session(full)
-        assert project["NWBFile"] == {"lab": "Lerner"}
-        assert project["Subject"] == {"species": "Mus musculus"}
-        assert project["Ophys"] == {"FiberPhotometry": {"OpticalFibers": [{"name": "f"}]}}
-        assert session["NWBFile"] == {"session_description": "s", "identifier": "id"}
-        assert session["Subject"] == {"subject_id": "63", "sex": "M"}
-
-
-class TestMerge:
-    def test_merge_precedence_session_over_project_over_base(self):
-        base = {"NWBFile": {"lab": "Base", "institution": "Inst"}, "Subject": {"species": "Mus"}}
-        project = {"NWBFile": {"lab": "Project"}}
-        session = {"NWBFile": {"identifier": "id"}, "Subject": {"subject_id": "63"}}
-        merged = m.merge_metadata(base, project, session)
-        assert merged["NWBFile"] == {"lab": "Project", "institution": "Inst", "identifier": "id"}
-        assert merged["Subject"] == {"species": "Mus", "subject_id": "63"}
-
-    def test_merge_replaces_lists_wholesale(self):
-        merged = m.merge_metadata({"a": [1, 2, 3]}, {"a": [9]})
-        assert merged["a"] == [9]
+    def test_empty_dict_yields_structured_empty_tables(self):
+        # A fresh session (no saved YAML) still renders every component table.
+        dataframes, scalars = m.parse_metadata_dict({})
+        assert set(dataframes) == set(m.COMPONENT_SCHEMAS)
+        assert all(len(dataframe) == 0 for dataframe in dataframes.values())
+        assert list(dataframes["OpticalFibers"].columns) == list(m.COMPONENT_SCHEMAS["OpticalFibers"].columns)
+        assert scalars["session_description"] == ""
 
 
 class TestYamlIO:

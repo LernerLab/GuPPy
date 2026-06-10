@@ -1,38 +1,27 @@
-"""Step 6 orchestration: the Input Project Metadata pages.
+"""Step 6 orchestration: the Input Metadata pages.
 
-Opens one project window (shared hardware/biology overlay) plus one window per
-selected session (per-session description/subject), each modeled on the
-Storenames GUI: structured widgets feed a YAML ``CodeEditor`` that is the
-authoritative artifact, and Save writes the editor's YAML to disk. The project
-YAML doubles as a reusable, hand-editable source of truth for later runs.
+Opens one window per selected session, each editing that session's single
+self-contained ``nwb_metadata.yaml`` (saved in the session's output directory).
+Modeled on the Storenames GUI: structured widgets feed a YAML ``CodeEditor`` that
+is the authoritative artifact, and Save writes the editor's YAML to disk. The
+saved YAML is a reusable, hand-editable source of truth for the Step 7 export.
 """
 
 import logging
 import os
-from pathlib import Path
 
 import panel as pn
 
 from guppy.frontend.frontend_utils import scanPortsAndFind
 
-from ..frontend.project_metadata_selector import ProjectMetadataSelector
-from ..frontend.session_metadata_selector import SessionMetadataSelector
-from ..utils.nwb_metadata import (
-    build_project_metadata_dict,
-    build_session_metadata_dict,
-    dump_yaml,
-    load_yaml,
-    split_template_into_project_and_session,
-)
+from ..frontend.metadata_selector import MetadataSelector
+from ..utils.nwb_metadata import build_metadata_dict, dump_yaml, load_yaml
 from ..utils.utils import output_dir_for_run
 
 logger = logging.getLogger(__name__)
 
-HOME_CACHE_PATH = os.path.join(str(Path.home()), ".guppy_nwb_project_metadata.yaml")
-
-# Filenames for the on-disk metadata overlays, shared with the Step 7 export.
-PROJECT_METADATA_FILENAME = "nwb_project_metadata.yaml"
-SESSION_METADATA_FILENAME = "nwb_session_metadata.yaml"
+# One self-contained metadata file per session, saved in its output directory.
+METADATA_FILENAME = "nwb_metadata.yaml"
 
 
 def _selected_session_runs(inputParameters: dict[str, object]) -> list[tuple[str, str]]:
@@ -45,54 +34,40 @@ def _selected_session_runs(inputParameters: dict[str, object]) -> list[tuple[str
     return pairs
 
 
-def _bootstrap_project_metadata(project_yaml_path: str) -> dict:
-    """Pick the best available source for the project window's initial metadata.
-
-    Reuses the user's own work when present (the project YAML they saved, or the
-    home-directory cache from a prior project); otherwise starts empty -- the form
-    renders fully-structured but blank tables from ``COMPONENT_SCHEMAS``, so the
-    user fills in their own rig rather than overwriting someone else's example.
-    """
-    if os.path.exists(project_yaml_path):
-        return load_yaml(project_yaml_path)
-    if os.path.exists(HOME_CACHE_PATH):
-        return load_yaml(HOME_CACHE_PATH)
-    return {}
-
-
-def build_project_metadata_template(project_metadata: dict, project_yaml_path: str) -> pn.template.BootstrapTemplate:
-    """Build the project-metadata page (without serving it)."""
-    selector = ProjectMetadataSelector(initial_metadata=project_metadata)
-    template = pn.template.BootstrapTemplate(title="Project Metadata GUI")
+def build_metadata_template(
+    session_label: str, metadata: dict, metadata_yaml_path: str
+) -> pn.template.BootstrapTemplate:
+    """Build one session's metadata page (without serving it)."""
+    selector = MetadataSelector(session_label=session_label, initial_metadata=metadata)
+    template = pn.template.BootstrapTemplate(title=f"Metadata GUI - {session_label}")
 
     def load_existing(event: object = None) -> None:
-        source = project_yaml_path if os.path.exists(project_yaml_path) else HOME_CACHE_PATH
-        if not os.path.exists(source):
-            selector.set_alert_message("####Alert !! \n No existing project metadata YAML found.")
+        if not os.path.exists(metadata_yaml_path):
+            selector.set_alert_message("####Alert !! \n No existing metadata YAML found for this session.")
             return
-        metadata = load_yaml(source)
-        selector.set_from_metadata(metadata)
-        selector.set_yaml(metadata)
-        selector.set_alert_message(f"#### Loaded from {source}")
+        loaded = load_yaml(metadata_yaml_path)
+        selector.set_from_metadata(loaded)
+        selector.set_yaml(loaded)
+        selector.set_alert_message(f"#### Loaded from {metadata_yaml_path}")
 
     def build_config(event: object = None) -> None:
         try:
-            metadata = build_project_metadata_dict(selector.get_component_dataframes(), selector.get_scalars())
+            built = build_metadata_dict(selector.get_component_dataframes(), selector.get_scalars())
         except ValueError as exception:
             selector.set_alert_message(f"####Alert !! \n {exception}")
             return
-        selector.set_yaml(metadata)
+        selector.set_yaml(built)
         selector.set_alert_message("#### No alerts !!")
 
     def save(event: object = None) -> None:
         try:
-            metadata = selector.get_yaml()
+            to_save = selector.get_yaml()
         except Exception as exception:
             selector.set_alert_message(f"####Alert !! \n Invalid YAML: {exception}")
             return
-        dump_yaml(metadata, project_yaml_path)
-        dump_yaml(metadata, HOME_CACHE_PATH)
-        selector.set_path(project_yaml_path)
+        os.makedirs(os.path.dirname(metadata_yaml_path), exist_ok=True)
+        dump_yaml(to_save, metadata_yaml_path)
+        selector.set_path(metadata_yaml_path)
         selector.set_alert_message("#### No alerts !!")
 
     selector.attach_callbacks({"load_existing": load_existing, "build_config": build_config, "save": save})
@@ -100,63 +75,21 @@ def build_project_metadata_template(project_metadata: dict, project_yaml_path: s
     return template
 
 
-def build_session_metadata_template(
-    session_label: str, session_metadata: dict, session_yaml_path: str
-) -> pn.template.BootstrapTemplate:
-    """Build a per-session metadata page (without serving it)."""
-    selector = SessionMetadataSelector(session_name=session_label, initial_metadata=session_metadata)
-    template = pn.template.BootstrapTemplate(title=f"Session Metadata GUI - {session_label}")
+def orchestrate_metadata_page(inputParameters: dict[str, object]) -> None:
+    """Open one metadata window per selected session.
 
-    def load_existing(event: object = None) -> None:
-        if not os.path.exists(session_yaml_path):
-            selector.set_alert_message("####Alert !! \n No existing session metadata YAML found.")
-            return
-        metadata = load_yaml(session_yaml_path)
-        selector.set_from_metadata(metadata)
-        selector.set_yaml(metadata)
-        selector.set_alert_message(f"#### Loaded from {session_yaml_path}")
-
-    def build_config(event: object = None) -> None:
-        selector.set_yaml(build_session_metadata_dict(selector.get_scalars()))
-        selector.set_alert_message("#### No alerts !!")
-
-    def save(event: object = None) -> None:
-        try:
-            metadata = selector.get_yaml()
-        except Exception as exception:
-            selector.set_alert_message(f"####Alert !! \n Invalid YAML: {exception}")
-            return
-        os.makedirs(os.path.dirname(session_yaml_path), exist_ok=True)
-        dump_yaml(metadata, session_yaml_path)
-        selector.set_path(session_yaml_path)
-        selector.set_alert_message("#### No alerts !!")
-
-    selector.attach_callbacks({"load_existing": load_existing, "build_config": build_config, "save": save})
-    template.main.append(selector.widget)
-    return template
-
-
-def orchestrate_project_metadata_page(inputParameters: dict[str, object]) -> None:
-    """Open the project window and one window per selected session.
-
+    Each window edits that session's ``nwb_metadata.yaml`` (in its output
+    directory), bootstrapped from the saved file when present and otherwise empty.
     Each window is served on its own port in a new browser tab, mirroring the
     Storenames GUI. Skipped in headless mode (``GUPPY_BASE_DIR`` set).
     """
     headless = bool(os.environ.get("GUPPY_BASE_DIR"))
-    project_yaml_path = os.path.join(inputParameters["abspath"], PROJECT_METADATA_FILENAME)
-
-    full_metadata = _bootstrap_project_metadata(project_yaml_path)
-    project_metadata, session_defaults = split_template_into_project_and_session(full_metadata)
-
-    project_template = build_project_metadata_template(project_metadata, project_yaml_path)
-    if not headless:
-        project_template.show(port=scanPortsAndFind(start_port=5000, end_port=5200))
 
     for session_path, run_name in _selected_session_runs(inputParameters):
         guppy_folder_path = output_dir_for_run(session_path, run_name)
-        session_yaml_path = os.path.join(guppy_folder_path, SESSION_METADATA_FILENAME)
-        initial_metadata = load_yaml(session_yaml_path) if os.path.exists(session_yaml_path) else session_defaults
+        metadata_yaml_path = os.path.join(guppy_folder_path, METADATA_FILENAME)
+        initial_metadata = load_yaml(metadata_yaml_path) if os.path.exists(metadata_yaml_path) else {}
         session_label = f"{os.path.basename(session_path.rstrip(os.sep))} ({run_name})"
-        session_template = build_session_metadata_template(session_label, initial_metadata, session_yaml_path)
+        template = build_metadata_template(session_label, initial_metadata, metadata_yaml_path)
         if not headless:
-            session_template.show(port=scanPortsAndFind(start_port=5000, end_port=5200))
+            template.show(port=scanPortsAndFind(start_port=5000, end_port=5200))

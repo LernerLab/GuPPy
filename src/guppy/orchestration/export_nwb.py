@@ -13,11 +13,7 @@ import panel as pn
 from neuroconv.converters import TDTFiberPhotometryGuppyConverter
 from neuroconv.utils import dict_deep_update, load_dict_from_file
 
-from .metadata import (
-    PROJECT_METADATA_FILENAME,
-    SESSION_METADATA_FILENAME,
-    _selected_session_runs,
-)
+from .metadata import METADATA_FILENAME, _selected_session_runs
 from ..utils.nwb_metadata import dump_yaml
 from ..utils.utils import output_dir_for_run
 
@@ -56,8 +52,7 @@ def export_session_to_nwb(
     *,
     tdt_folder_path: str,
     guppy_folder_path: str,
-    project_yaml_path: str | None,
-    session_yaml_path: str | None,
+    metadata_yaml_path: str | None,
     nwbfile_path: str,
     stub_test: bool = False,
 ) -> str:
@@ -69,9 +64,9 @@ def export_session_to_nwb(
         Path to the raw TDT tank (the session folder).
     guppy_folder_path : str
         Path to the GuPPy ``<session>_output_<run>`` directory.
-    project_yaml_path, session_yaml_path : str or None
-        Project- and session-level metadata overlays. Applied (when present) on
-        top of the converter's auto-filled metadata, in that order.
+    metadata_yaml_path : str or None
+        The session's metadata overlay (``nwb_metadata.yaml``). Applied, when
+        present, on top of the converter's auto-filled metadata.
     nwbfile_path : str
         Output path for the written ``.nwb`` file.
     stub_test : bool, optional
@@ -88,10 +83,8 @@ def export_session_to_nwb(
     )
 
     metadata = converter.get_metadata()
-    if project_yaml_path and os.path.exists(project_yaml_path):
-        metadata = dict_deep_update(metadata, load_dict_from_file(project_yaml_path))
-    if session_yaml_path and os.path.exists(session_yaml_path):
-        metadata = dict_deep_update(metadata, load_dict_from_file(session_yaml_path))
+    if metadata_yaml_path and os.path.exists(metadata_yaml_path):
+        metadata = dict_deep_update(metadata, load_dict_from_file(metadata_yaml_path))
 
     tdt_interface = converter.data_interface_objects["TDTFiberPhotometry"]
     available_streams = set(tdt_interface.load().streams.keys())
@@ -127,16 +120,14 @@ def orchestrate_export_nwb_page(
     for index, (session_path, run_name) in enumerate(pairs, start=1):
         guppy_folder_path = output_dir_for_run(session_path, run_name)
         session_basename = os.path.basename(session_path.rstrip(os.sep))
-        project_yaml_path = os.path.join(inputParameters["abspath"], PROJECT_METADATA_FILENAME)
-        session_yaml_path = os.path.join(guppy_folder_path, SESSION_METADATA_FILENAME)
+        metadata_yaml_path = os.path.join(guppy_folder_path, METADATA_FILENAME)
         nwbfile_path = os.path.join(guppy_folder_path, f"{session_basename}.nwb")
 
         try:
             export_session_to_nwb(
                 tdt_folder_path=session_path,
                 guppy_folder_path=guppy_folder_path,
-                project_yaml_path=project_yaml_path,
-                session_yaml_path=session_yaml_path,
+                metadata_yaml_path=metadata_yaml_path,
                 nwbfile_path=nwbfile_path,
                 stub_test=stub_test,
             )

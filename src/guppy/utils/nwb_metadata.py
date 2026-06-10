@@ -239,16 +239,13 @@ COMPONENT_SCHEMAS: dict[str, ComponentSchema] = {
     ),
 }
 
-# Scalar (non-table) project-level fields, grouped by the metadata block they
-# serialize to. The FiberPhotometryTable name/description are project-level too
-# because the table itself (vs its rows) carries the experiment description.
-PROJECT_NWBFILE_KEYS = ("lab", "institution", "experimenter")
-PROJECT_SUBJECT_KEYS = ("species", "genotype", "strain")
-PROJECT_TABLE_KEYS = ("fiber_photometry_table_name", "fiber_photometry_table_description")
-
-# Per-session fields that vary between sessions and live in the per-session YAML.
-SESSION_NWBFILE_KEYS = ("session_description", "identifier")
-SESSION_SUBJECT_KEYS = ("subject_id", "sex", "age", "date_of_birth")
+# Scalar (non-table) metadata fields, grouped by the block they serialize to.
+# One self-contained metadata file per session, so there is no project/session
+# split -- every field lives in the same dict. The FiberPhotometryTable
+# name/description belong to the table object (vs its rows).
+NWBFILE_KEYS = ("session_description", "identifier", "lab", "institution", "experimenter")
+SUBJECT_KEYS = ("subject_id", "sex", "age", "date_of_birth", "species", "genotype", "strain")
+TABLE_KEYS = ("fiber_photometry_table_name", "fiber_photometry_table_description")
 
 # experimenter is an NWB list-of-strings; everything else is a plain scalar.
 _LIST_SCALAR_KEYS = {"experimenter"}
@@ -258,12 +255,14 @@ _LIST_SCALAR_KEYS = {"experimenter"}
 # Record <-> flat row helpers
 # ----------------------------------------------------------------------------------------------------------------------
 def _is_empty(value: object) -> bool:
-    """Return True for values that should be dropped (blank cells, NaN, None)."""
+    """Return True for values that should be dropped (blank cells, NaN, None, empty collections)."""
     if value is None:
         return True
     if isinstance(value, float) and pd.isna(value):
         return True
     if isinstance(value, str) and value.strip() == "":
+        return True
+    if isinstance(value, (list, tuple, dict)) and len(value) == 0:
         return True
     return False
 
@@ -346,23 +345,22 @@ def dataframe_to_records(dataframe: pd.DataFrame, schema: ComponentSchema) -> li
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-# Project / session metadata assembly
+# Metadata assembly (one self-contained overlay per session)
 # ----------------------------------------------------------------------------------------------------------------------
 def _drop_empty(mapping: dict) -> dict:
     """Return ``mapping`` without keys whose values are empty."""
     return {key: value for key, value in mapping.items() if not _is_empty(value)}
 
 
-def build_project_metadata_dict(component_dataframes: dict[str, pd.DataFrame], scalars: dict) -> dict:
-    """Assemble the project-level metadata overlay from edited tables and scalars.
+def build_metadata_dict(component_dataframes: dict[str, pd.DataFrame], scalars: dict) -> dict:
+    """Assemble one session's full metadata overlay from edited tables and scalars.
 
     Parameters
     ----------
     component_dataframes : dict
         Maps each ``COMPONENT_SCHEMAS`` key to its edited DataFrame.
     scalars : dict
-        Project scalar values (``PROJECT_NWBFILE_KEYS``, ``PROJECT_SUBJECT_KEYS``,
-        ``PROJECT_TABLE_KEYS``).
+        Scalar field values (``NWBFILE_KEYS``, ``SUBJECT_KEYS``, ``TABLE_KEYS``).
 
     Returns
     -------
@@ -390,8 +388,8 @@ def build_project_metadata_dict(component_dataframes: dict[str, pd.DataFrame], s
         else:
             fiber_photometry[key] = records
 
-    nwbfile = _drop_empty({key: scalars.get(key) for key in PROJECT_NWBFILE_KEYS})
-    subject = _drop_empty({key: scalars.get(key) for key in PROJECT_SUBJECT_KEYS})
+    nwbfile = _drop_empty({key: scalars.get(key) for key in NWBFILE_KEYS})
+    subject = _drop_empty({key: scalars.get(key) for key in SUBJECT_KEYS})
 
     metadata: dict = {}
     if nwbfile:
@@ -403,8 +401,8 @@ def build_project_metadata_dict(component_dataframes: dict[str, pd.DataFrame], s
     return metadata
 
 
-def parse_project_metadata_dict(metadata: dict) -> tuple[dict[str, pd.DataFrame], dict]:
-    """Inverse of :func:`build_project_metadata_dict` for populating the GUI from a dict."""
+def parse_metadata_dict(metadata: dict) -> tuple[dict[str, pd.DataFrame], dict]:
+    """Inverse of :func:`build_metadata_dict` for populating the GUI from a dict."""
     fiber_photometry = metadata.get("Ophys", {}).get("FiberPhotometry", {})
     component_dataframes: dict[str, pd.DataFrame] = {}
     for key, schema in COMPONENT_SCHEMAS.items():
@@ -421,90 +419,13 @@ def parse_project_metadata_dict(metadata: dict) -> tuple[dict[str, pd.DataFrame]
     subject = metadata.get("Subject", {})
     table = fiber_photometry.get("FiberPhotometryTable", {})
     scalars: dict = {}
-    for key in PROJECT_NWBFILE_KEYS:
+    for key in NWBFILE_KEYS:
         scalars[key] = nwbfile.get(key, "")
-    for key in PROJECT_SUBJECT_KEYS:
+    for key in SUBJECT_KEYS:
         scalars[key] = subject.get(key, "")
     scalars["fiber_photometry_table_name"] = table.get("name", "")
     scalars["fiber_photometry_table_description"] = table.get("description", "")
     return component_dataframes, scalars
-
-
-def build_session_metadata_dict(scalars: dict) -> dict:
-    """Assemble the per-session metadata overlay from scalar fields."""
-    nwbfile = _drop_empty({key: scalars.get(key) for key in SESSION_NWBFILE_KEYS})
-    subject = _drop_empty({key: scalars.get(key) for key in SESSION_SUBJECT_KEYS})
-    metadata: dict = {}
-    if nwbfile:
-        metadata["NWBFile"] = nwbfile
-    if subject:
-        metadata["Subject"] = subject
-    return metadata
-
-
-def parse_session_metadata_dict(metadata: dict) -> dict:
-    """Inverse of :func:`build_session_metadata_dict`."""
-    nwbfile = metadata.get("NWBFile", {})
-    subject = metadata.get("Subject", {})
-    scalars: dict = {}
-    for key in SESSION_NWBFILE_KEYS:
-        scalars[key] = nwbfile.get(key, "")
-    for key in SESSION_SUBJECT_KEYS:
-        scalars[key] = subject.get(key, "")
-    return scalars
-
-
-def split_template_into_project_and_session(full_metadata: dict) -> tuple[dict, dict]:
-    """Partition a full metadata dict into project-level and per-session overlays.
-
-    The project overlay keeps the entire ``Ophys`` block plus the project NWBFile
-    and Subject keys; the session overlay keeps only the per-session NWBFile and
-    Subject keys.
-    """
-    nwbfile = full_metadata.get("NWBFile", {})
-    subject = full_metadata.get("Subject", {})
-
-    project: dict = {}
-    if "Ophys" in full_metadata:
-        project["Ophys"] = full_metadata["Ophys"]
-    project_nwbfile = {key: nwbfile[key] for key in PROJECT_NWBFILE_KEYS if key in nwbfile}
-    project_subject = {key: subject[key] for key in PROJECT_SUBJECT_KEYS if key in subject}
-    if project_nwbfile:
-        project["NWBFile"] = project_nwbfile
-    if project_subject:
-        project["Subject"] = project_subject
-
-    session: dict = {}
-    session_nwbfile = {key: nwbfile[key] for key in SESSION_NWBFILE_KEYS if key in nwbfile}
-    session_subject = {key: subject[key] for key in SESSION_SUBJECT_KEYS if key in subject}
-    if session_nwbfile:
-        session["NWBFile"] = session_nwbfile
-    if session_subject:
-        session["Subject"] = session_subject
-
-    return project, session
-
-
-def merge_metadata(*metadata_dicts: dict) -> dict:
-    """Deep-merge metadata dicts left-to-right (later wins).
-
-    Nested dicts are merged recursively; every other value (including lists) is
-    replaced wholesale. Used for previewing/testing the project<-session merge;
-    the export step itself uses neuroconv's ``dict_deep_update`` against the
-    converter's auto-filled metadata.
-    """
-    merged: dict = {}
-    for metadata in metadata_dicts:
-        _deep_update(merged, metadata)
-    return merged
-
-
-def _deep_update(target: dict, source: dict) -> None:
-    for key, value in source.items():
-        if isinstance(value, dict) and isinstance(target.get(key), dict):
-            _deep_update(target[key], value)
-        else:
-            target[key] = value
 
 
 # ----------------------------------------------------------------------------------------------------------------------

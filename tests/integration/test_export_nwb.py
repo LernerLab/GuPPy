@@ -23,27 +23,21 @@ EXAMPLE_METADATA = PROJECT_ROOT / "data" / "fiber_photometry_metadata_example.ya
 
 class TestExportSessionToNwb:
     @pytest.fixture
-    def project_yaml_path(self, tmp_path) -> str:
-        """The shared hardware/biology example plus project-level NWBFile/Subject fields."""
-        project_metadata = load_yaml(EXAMPLE_METADATA)
-        project_metadata["NWBFile"] = {"lab": "Lerner Lab", "institution": "Northwestern University"}
-        project_metadata["Subject"] = {"species": "Mus musculus"}
-        path = tmp_path / "nwb_project_metadata.yaml"
-        dump_yaml(project_metadata, path)
-        return str(path)
-
-    @pytest.fixture
-    def session_yaml_path(self, tmp_path) -> str:
-        """The per-session description/subject fields."""
-        session_metadata = {
-            "NWBFile": {"session_description": "RI30 photometry session", "identifier": "Photo_63_207_run1"},
-            "Subject": {"subject_id": "63_207", "sex": "M"},
+    def metadata_yaml_path(self, tmp_path) -> str:
+        """One self-contained metadata overlay: hardware/biology example + session + subject."""
+        metadata = load_yaml(EXAMPLE_METADATA)
+        metadata["NWBFile"] = {
+            "session_description": "RI30 photometry session",
+            "identifier": "Photo_63_207_run1",
+            "lab": "Lerner Lab",
+            "institution": "Northwestern University",
         }
-        path = tmp_path / "nwb_session_metadata.yaml"
-        dump_yaml(session_metadata, path)
+        metadata["Subject"] = {"subject_id": "63_207", "sex": "M", "species": "Mus musculus"}
+        path = tmp_path / "nwb_metadata.yaml"
+        dump_yaml(metadata, path)
         return str(path)
 
-    def test_exports_stubbed_tdt_session(self, step5_output_tdt, project_yaml_path, session_yaml_path, tmp_path):
+    def test_exports_stubbed_tdt_session(self, step5_output_tdt, metadata_yaml_path, tmp_path):
         tdt_folder_path = str(step5_output_tdt["session_copy"])
         guppy_folder_path = str(step5_output_tdt["output_directory"])
         nwbfile_path = tmp_path / "exported.nwb"
@@ -51,8 +45,7 @@ class TestExportSessionToNwb:
         merged_metadata_path = export_session_to_nwb(
             tdt_folder_path=tdt_folder_path,
             guppy_folder_path=guppy_folder_path,
-            project_yaml_path=project_yaml_path,
-            session_yaml_path=session_yaml_path,
+            metadata_yaml_path=metadata_yaml_path,
             nwbfile_path=str(nwbfile_path),
             stub_test=True,
         )

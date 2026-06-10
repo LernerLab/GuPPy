@@ -1,10 +1,11 @@
-"""Panel widget for editing project-level NWB metadata (the reusable hardware/biology overlay).
+"""Panel widget for editing one session's full NWB metadata.
 
-Mirrors :class:`~guppy.frontend.storenames_selector.StorenamesSelector`: structured
-widgets (one editable Tabulator per fiber-photometry component, plus scalar
-NWBFile/Subject fields) feed a YAML ``CodeEditor`` that is the authoritative
-serialized artifact. The orchestration layer wires the ``load_existing`` /
-``build_config`` / ``save`` buttons via :meth:`attach_callbacks`.
+One self-contained form per session: scalar NWBFile/Subject fields plus an
+editable ``Tabulator`` for every fiber-photometry component, all feeding a YAML
+``CodeEditor`` that is the authoritative serialized artifact. Mirrors
+:class:`~guppy.frontend.storenames_selector.StorenamesSelector`; the orchestration
+layer wires the ``load_existing`` / ``build_config`` / ``save`` buttons via
+:meth:`attach_callbacks`.
 """
 
 import logging
@@ -14,32 +15,36 @@ import panel as pn
 
 from ..utils.nwb_metadata import (
     COMPONENT_SCHEMAS,
-    build_project_metadata_dict,
+    build_metadata_dict,
     dumps_yaml,
     loads_yaml,
-    parse_project_metadata_dict,
+    parse_metadata_dict,
 )
 
 logger = logging.getLogger(__name__)
 
 _WIDTH = 1000
+_SEX_OPTIONS = ["", "M", "F", "U", "O"]
 
 
-class ProjectMetadataSelector:
-    """Editor for the shared project-level metadata overlay (hardware, biology, lab).
+class MetadataSelector:
+    """Editor for one session's complete NWB metadata overlay.
 
     Parameters
     ----------
+    session_label : str
+        Human-readable session/run label, shown in the heading.
     initial_metadata : dict
-        Project metadata used to pre-populate the tables and scalar fields (and
-        the YAML editor). Typically bootstrapped from an existing project YAML,
-        a home-directory cache, or the bundled template.
+        Metadata used to pre-populate the tables and scalar fields (and the YAML
+        editor). Bootstrapped from the session's saved YAML, or empty for a fresh
+        session (the tables still render with their schema-defined columns).
     """
 
-    def __init__(self, initial_metadata: dict) -> None:
+    def __init__(self, session_label: str, initial_metadata: dict) -> None:
+        self.session_label = session_label
         self.alert = pn.pane.Alert("#### No alerts !!", alert_type="primary", height=70, width=_WIDTH)
 
-        component_dataframes, scalars = parse_project_metadata_dict(initial_metadata)
+        component_dataframes, scalars = parse_metadata_dict(initial_metadata)
 
         # One editable Tabulator per component, grouped into a collapsible Card per category.
         self.tabulators: dict[str, pn.widgets.Tabulator] = {}
@@ -60,11 +65,26 @@ class ProjectMetadataSelector:
         _flush_category()
         self.component_cards = cards
 
-        # Scalar project-level widgets.
+        # Session + Subject scalar widgets.
+        self.session_description = pn.widgets.TextAreaInput(
+            name="Session description", value=scalars.get("session_description", ""), width=660, height=80
+        )
+        self.identifier = pn.widgets.TextInput(
+            name="Identifier",
+            value=scalars.get("identifier", ""),
+            placeholder="leave blank to auto-generate",
+            width=320,
+        )
         self.lab = pn.widgets.TextInput(name="Lab", value=scalars.get("lab", ""), width=320)
         self.institution = pn.widgets.TextInput(name="Institution", value=scalars.get("institution", ""), width=320)
         self.experimenter = pn.widgets.LiteralInput(
             name="Experimenter (list)", value=scalars.get("experimenter", "") or [], type=list, width=320
+        )
+        self.subject_id = pn.widgets.TextInput(name="Subject ID", value=scalars.get("subject_id", ""), width=320)
+        self.sex = pn.widgets.Select(name="Sex", value=scalars.get("sex", "") or "", options=_SEX_OPTIONS, width=120)
+        self.age = pn.widgets.TextInput(name="Age (ISO 8601, e.g. P90D)", value=scalars.get("age", ""), width=240)
+        self.date_of_birth = pn.widgets.TextInput(
+            name="Date of birth (ISO 8601)", value=scalars.get("date_of_birth", ""), width=240
         )
         self.species = pn.widgets.TextInput(name="Subject species", value=scalars.get("species", ""), width=320)
         self.genotype = pn.widgets.TextInput(name="Subject genotype", value=scalars.get("genotype", ""), width=320)
@@ -80,30 +100,46 @@ class ProjectMetadataSelector:
             width=660,
             height=80,
         )
-        scalar_card = pn.Card(
-            pn.Row(self.lab, self.institution, self.experimenter),
+        session_card = pn.Card(
+            self.session_description,
+            pn.Row(self.identifier, self.lab, self.institution),
+            self.experimenter,
+            title="Session (NWBFile)",
+            collapsed=False,
+            width=_WIDTH,
+        )
+        subject_card = pn.Card(
+            pn.Row(self.subject_id, self.sex),
+            pn.Row(self.age, self.date_of_birth),
             pn.Row(self.species, self.genotype, self.strain),
+            title="Subject",
+            collapsed=False,
+            width=_WIDTH,
+        )
+        table_card = pn.Card(
             pn.Row(self.fiber_photometry_table_name),
             self.fiber_photometry_table_description,
-            title="Session defaults & Subject (project-level)",
-            collapsed=False,
+            title="Fiber photometry table",
+            collapsed=True,
             width=_WIDTH,
         )
 
         self.code_editor = pn.widgets.CodeEditor(value="", theme="tomorrow", language="yaml", height=400, width=_WIDTH)
 
-        self.load_existing = pn.widgets.Button(name="Load Existing Project YAML", width=_WIDTH)
+        self.load_existing = pn.widgets.Button(name="Load Existing Metadata YAML", width=_WIDTH)
         self.build_config = pn.widgets.Button(
             name="Show / Refresh YAML from form above", button_type="primary", width=_WIDTH
         )
-        self.save = pn.widgets.Button(name="Save Project Metadata", button_type="success", width=_WIDTH)
+        self.save = pn.widgets.Button(name="Save Metadata", button_type="success", width=_WIDTH)
         self.path = pn.widgets.TextInput(name="Saved to", disabled=True, width=_WIDTH)
 
         self.widget = pn.Column(
-            pn.pane.Markdown("## Project Metadata (shared across sessions)", width=_WIDTH),
+            pn.pane.Markdown(f"## NWB Metadata — {session_label}", width=_WIDTH),
             self.load_existing,
-            scalar_card,
+            session_card,
+            subject_card,
             pn.pane.Markdown("### Fiber photometry hardware & biology", width=_WIDTH),
+            table_card,
             *self.component_cards,
             pn.layout.Divider(),
             self.build_config,
@@ -117,7 +153,7 @@ class ProjectMetadataSelector:
         )
 
         # Seed the editor with the bootstrapped metadata so it is never empty.
-        self.set_yaml(build_project_metadata_dict(self.get_component_dataframes(), self.get_scalars()))
+        self.set_yaml(build_metadata_dict(self.get_component_dataframes(), self.get_scalars()))
 
     # ------------------------------------------------------------------------------------------------------------------
     # Component table construction
@@ -167,11 +203,17 @@ class ProjectMetadataSelector:
         return {key: tabulator.value for key, tabulator in self.tabulators.items()}
 
     def get_scalars(self) -> dict:
-        """Return the current scalar project-level field values."""
+        """Return the current scalar field values."""
         return {
+            "session_description": self.session_description.value,
+            "identifier": self.identifier.value,
             "lab": self.lab.value,
             "institution": self.institution.value,
             "experimenter": self.experimenter.value,
+            "subject_id": self.subject_id.value,
+            "sex": self.sex.value,
+            "age": self.age.value,
+            "date_of_birth": self.date_of_birth.value,
             "species": self.species.value,
             "genotype": self.genotype.value,
             "strain": self.strain.value,
@@ -181,12 +223,18 @@ class ProjectMetadataSelector:
 
     def set_from_metadata(self, metadata: dict) -> None:
         """Repopulate every Tabulator and scalar widget from a metadata dict."""
-        component_dataframes, scalars = parse_project_metadata_dict(metadata)
+        component_dataframes, scalars = parse_metadata_dict(metadata)
         for key in COMPONENT_SCHEMAS:
             self.tabulators[key].value = component_dataframes[key]
+        self.session_description.value = scalars.get("session_description", "")
+        self.identifier.value = scalars.get("identifier", "")
         self.lab.value = scalars.get("lab", "")
         self.institution.value = scalars.get("institution", "")
         self.experimenter.value = scalars.get("experimenter", "") or []
+        self.subject_id.value = scalars.get("subject_id", "")
+        self.sex.value = scalars.get("sex", "") or ""
+        self.age.value = scalars.get("age", "")
+        self.date_of_birth.value = scalars.get("date_of_birth", "")
         self.species.value = scalars.get("species", "")
         self.genotype.value = scalars.get("genotype", "")
         self.strain.value = scalars.get("strain", "")
