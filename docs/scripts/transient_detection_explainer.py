@@ -760,7 +760,7 @@ def figure_5_summary_statistics():
 if __name__ == "__main__":
     figure_1_transient_extraction()
     figure_2_drift_failure_and_fix()
-    figure_3_threshold_three_regimes()
+    # figure_3_threshold_three_regimes()  # orphaned: the window-size section was removed from the explainer
     figure_4_two_stage_walkthrough()
     figure_5_summary_statistics()
     print("Wrote SVGs to", OUT)
