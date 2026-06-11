@@ -156,6 +156,61 @@ class TestParseMetadata:
         )
 
 
+class TestValidateMetadata:
+    def _complete_metadata(self, channels) -> dict:
+        devices = {
+            "optical_fiber_model": [{"name": "fmodel", "numerical_aperture": 0.48, "manufacturer": "Doric"}],
+            "optical_fiber": [{"name": "fiber", "model": "fmodel"}],
+            "excitation_source_model": [
+                {"name": "smodel", "source_type": "LED", "excitation_mode": "one-photon", "manufacturer": "Thorlabs"}
+            ],
+            "excitation_source": [{"name": "source", "model": "smodel"}],
+            "photodetector_model": [{"name": "pmodel", "detector_type": "photodiode", "manufacturer": "Newport"}],
+            "photodetector": [{"name": "detector", "model": "pmodel"}],
+            "indicator": [{"name": "gcamp", "label": "GCaMP6f"}],
+        }
+        rows = [
+            {
+                "excitation_wavelength_in_nm": 405.0,
+                "emission_wavelength_in_nm": 525.0,
+                "indicator": "gcamp",
+                "optical_fiber": "fiber",
+                "excitation_source": "source",
+                "photodetector": "detector",
+            },
+            {
+                "excitation_wavelength_in_nm": 465.0,
+                "emission_wavelength_in_nm": 525.0,
+                "indicator": "gcamp",
+                "optical_fiber": "fiber",
+                "excitation_source": "source",
+                "photodetector": "detector",
+            },
+        ]
+        scalars = {"session_description": "RI30", "subject_id": "63", "sex": "M", "species": "Mus musculus"}
+        return m.build_metadata_dict(devices, rows, scalars, channels)
+
+    def test_complete_metadata_has_no_errors(self, channels):
+        assert m.validate_metadata_dict(self._complete_metadata(channels), channels) == []
+
+    def test_unlinked_optical_fiber_model_is_reported(self, channels):
+        metadata = self._complete_metadata(channels)
+        # Drop the instance's link to its model -> required-link violation.
+        metadata["Ophys"]["FiberPhotometry"]["OpticalFibers"][0].pop("model")
+        errors = m.validate_metadata_dict(metadata, channels)
+        assert any("optical fiber 'fiber'" in error and "model is required" in error for error in errors)
+
+    def test_dangling_link_and_missing_scalar_and_wavelength(self, channels):
+        metadata = self._complete_metadata(channels)
+        metadata["Subject"].pop("species")
+        metadata["Ophys"]["FiberPhotometry"]["FiberPhotometryTable"]["rows"][0].pop("excitation_wavelength_in_nm")
+        metadata["Ophys"]["FiberPhotometry"]["FiberPhotometryTable"]["rows"][1]["optical_fiber"] = "ghost"
+        errors = m.validate_metadata_dict(metadata, channels)
+        assert any("Subject.species is required" in error for error in errors)
+        assert any("excitation_wavelength_in_nm is required" in error for error in errors)
+        assert any("'ghost' is not a defined optical fiber" in error for error in errors)
+
+
 class TestYamlIO:
     def test_dump_then_load_round_trip(self, tmp_path):
         metadata = {"NWBFile": {"lab": "Lerner"}, "Ophys": {"FiberPhotometry": {"OpticalFibers": [{"name": "f"}]}}}

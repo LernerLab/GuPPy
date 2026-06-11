@@ -49,7 +49,6 @@ class Sidebar:
         )
         self.open_metadata = pn.widgets.Button(name="Input Metadata", button_type="primary", width=300, align="end")
         self.export_nwb = pn.widgets.Button(name="Export to NWB", button_type="primary", width=300, align="end")
-        self.stub_test = pn.widgets.Checkbox(name="Stub test — write short traces only", value=False, width=300)
 
     def attach_callbacks(self, button_name_to_onclick_fn: dict[str, object]) -> None:
         """Register click-handler callbacks on sidebar buttons.
@@ -89,6 +88,5 @@ class Sidebar:
         self.template.sidebar.append(self.mark_down_metadata)
         self.template.sidebar.append(self.open_metadata)
         self.template.sidebar.append(self.mark_down_export_nwb)
-        self.template.sidebar.append(self.stub_test)
         self.template.sidebar.append(self.export_nwb)
         self.template.sidebar.append(self.export_progress)

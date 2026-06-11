@@ -153,9 +153,7 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
             return
         # Runs synchronously (like visualization) so the progress bar and
         # notifications update directly; per-session failures are reported and skipped.
-        orchestrate_export_nwb_page(
-            inputParameters, progress_bar=sidebar.export_progress, stub_test=sidebar.stub_test.value
-        )
+        orchestrate_export_nwb_page(inputParameters, progress_bar=sidebar.export_progress)
 
     # ------------------------------------------------------------------------------------------------------------------
 

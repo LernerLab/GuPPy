@@ -21,6 +21,7 @@ from ..utils.nwb_metadata import (
     derive_channels,
     dump_yaml,
     load_yaml,
+    validate_metadata_dict,
 )
 from ..utils.utils import output_dir_for_run
 
@@ -47,16 +48,13 @@ def build_metadata_template(
     selector = MetadataSelector(session_label=session_label, channels=channels, initial_metadata=metadata)
     template = pn.template.BootstrapTemplate(title=f"Metadata GUI - {session_label}")
 
-    def load_existing(event: object = None) -> None:
-        if not os.path.exists(metadata_yaml_path):
-            selector.set_alert_message("####Alert !! \n No existing metadata YAML found for this session.")
-            return
-        loaded = load_yaml(metadata_yaml_path)
-        selector.set_from_metadata(loaded)
-        selector.set_yaml(loaded)
-        selector.set_alert_message(f"#### Loaded from {metadata_yaml_path}")
+    def _format_errors(errors: list[str]) -> str:
+        return "####Alert !! \n Missing required metadata for NWB export:\n" + "\n".join(
+            f"- {error}" for error in errors
+        )
 
     def build_config(event: object = None) -> None:
+        selector.refresh_link_options()
         try:
             built = build_metadata_dict(
                 selector.get_devices(), selector.get_channel_rows(), selector.get_scalars(), channels
@@ -65,7 +63,8 @@ def build_metadata_template(
             selector.set_alert_message(f"####Alert !! \n {exception}")
             return
         selector.set_yaml(built)
-        selector.set_alert_message("#### No alerts !!")
+        errors = validate_metadata_dict(built, channels)
+        selector.set_alert_message(_format_errors(errors) if errors else "#### No alerts !!")
 
     def save(event: object = None) -> None:
         try:
@@ -73,12 +72,16 @@ def build_metadata_template(
         except Exception as exception:
             selector.set_alert_message(f"####Alert !! \n Invalid YAML: {exception}")
             return
+        errors = validate_metadata_dict(to_save, channels)
+        if errors:
+            selector.set_alert_message(_format_errors(errors))
+            return
         os.makedirs(os.path.dirname(metadata_yaml_path), exist_ok=True)
         dump_yaml(to_save, metadata_yaml_path)
         selector.set_path(metadata_yaml_path)
         selector.set_alert_message("#### No alerts !!")
 
-    selector.attach_callbacks({"load_existing": load_existing, "build_config": build_config, "save": save})
+    selector.attach_callbacks({"build_config": build_config, "save": save})
     template.main.append(selector.widget)
     return template
 

@@ -64,8 +64,9 @@ class MetadataSelector:
         }
         self.channel_records: list[dict] = []
         # Link dropdowns whose options are device names; channel ones are fixed, device ones rebuild.
-        self.channel_link_selects: list[tuple[pn.widgets.Select, str]] = []
-        self.device_link_selects: list[tuple[pn.widgets.Select, str]] = []
+        # Each entry is (select, target_category, required); required links carry no empty option.
+        self.channel_link_selects: list[tuple[pn.widgets.Select, str, bool]] = []
+        self.device_link_selects: list[tuple[pn.widgets.Select, str, bool]] = []
 
         scalar_card = self._build_scalar_section(scalars)
         library_section = self._build_device_library(devices)
@@ -74,7 +75,8 @@ class MetadataSelector:
         self.code_editor = pn.widgets.CodeEditor(
             value="", theme="tomorrow", language="yaml", height=400, sizing_mode="stretch_width"
         )
-        self.load_existing = pn.widgets.Button(name="Load Existing Metadata YAML", sizing_mode="stretch_width")
+        self.load_existing = pn.widgets.FileInput(accept=".yaml,.yml", sizing_mode="stretch_width")
+        self.load_existing.param.watch(self._on_file_upload, "value")
         self.build_config = pn.widgets.Button(
             name="Show / Refresh YAML from form above", button_type="primary", sizing_mode="stretch_width"
         )
@@ -83,6 +85,7 @@ class MetadataSelector:
 
         self.widget = pn.Column(
             pn.pane.Markdown(f"## NWB Metadata — {session_label}"),
+            pn.pane.Markdown("Load metadata from any existing `nwb_metadata.yaml` on disk to pre-populate this form:"),
             self.load_existing,
             scalar_card,
             pn.pane.Markdown("### Device library (define each device once, then link it from the channels below)"),
@@ -99,7 +102,7 @@ class MetadataSelector:
             max_width=1100,
         )
 
-        self._refresh_link_options()
+        self.refresh_link_options()
         self.set_yaml(build_metadata_dict(self.get_devices(), self.get_channel_rows(), self.get_scalars(), channels))
 
     # ------------------------------------------------------------------------------------------------------------------
@@ -202,7 +205,7 @@ class MetadataSelector:
         cards = []
         for key, category in CATEGORIES.items():
             add_button = pn.widgets.Button(name=f"➕ Add {category.singular}", width=240)
-            add_button.on_click(lambda event, k=key: (self._add_device(k, {}), self._refresh_link_options()))
+            add_button.on_click(lambda event, k=key: (self._add_device(k, {}), self.refresh_link_options()))
             for entry in devices.get(key, []):
                 self._add_device(key, entry)
             cards.append(
@@ -257,8 +260,10 @@ class MetadataSelector:
         label = f"{spec.name}{_required_marker(spec.required)}"
         value = entry.get(spec.name)
         if spec.link_target:
-            select = pn.widgets.Select(name=label, options=[""], value=(value or ""), sizing_mode="stretch_width")
-            self.device_link_selects.append((select, spec.link_target))
+            select = pn.widgets.Select(
+                name=label, options=[""], value=(value or ""), description=spec.doc, sizing_mode="stretch_width"
+            )
+            self.device_link_selects.append((select, spec.link_target, spec.required))
             return select
         if spec.options:
             # Enumerated value -> dropdown; include the current value if it isn't a known option.
@@ -309,7 +314,7 @@ class MetadataSelector:
                 select = pn.widgets.Select(
                     name=f"{link_name}{marker}", options=[""], value=(saved.get(link_name) or ""), width=180
                 )
-                self.channel_link_selects.append((select, target))
+                self.channel_link_selects.append((select, target, link_name in CHANNEL_REQUIRED_LINKS))
                 fields[link_name] = select
                 link_widgets.append(select)
             self.channel_records.append({"fields": fields})
@@ -327,16 +332,24 @@ class MetadataSelector:
     # ------------------------------------------------------------------------------------------------------------------
     # Read form state
     # ------------------------------------------------------------------------------------------------------------------
-    def _refresh_link_options(self) -> None:
+    def refresh_link_options(self) -> None:
+        """Repopulate every link dropdown from the currently-defined device names.
+
+        Required links carry no empty option (defaulting to the first available
+        device) so a channel/instance can never be silently left unlinked; if no
+        device of that category exists yet, the only option is empty and the
+        Build/Save validation reports it as missing.
+        """
         names_by_category = {
-            key: [""] + [name for name in (self._entry_name(record) for record in records) if name]
+            key: [name for name in (self._entry_name(record) for record in records) if name]
             for key, records in self.device_entry_records.items()
         }
-        for select, target_category in (*self.channel_link_selects, *self.device_link_selects):
-            options = names_by_category.get(target_category, [""])
+        for select, target_category, required in (*self.channel_link_selects, *self.device_link_selects):
+            names = names_by_category.get(target_category, [])
+            options = list(names) if (required and names) else ["", *names]
             current = select.value
             select.options = options
-            select.value = current if current in options else ""
+            select.value = current if current in options else options[0]
 
     @staticmethod
     def _entry_name(record: dict) -> str:
@@ -428,12 +441,19 @@ class MetadataSelector:
             self.device_containers[key][:] = []
             for entry in devices.get(key, []):
                 self._add_device(key, entry)
-        # Channel rows: set widget values.
+        # Channel wavelengths (non-link) can be set directly; refresh the link dropdowns so the
+        # just-added device names become valid options before assigning the saved link selections.
         for index, record in enumerate(self.channel_records):
             saved = channel_rows[index] if index < len(channel_rows) else {}
             for name, widget in record["fields"].items():
-                widget.value = _as_text(saved.get(name)) if name not in CHANNEL_LINKS else (saved.get(name) or "")
-        self._refresh_link_options()
+                if name not in CHANNEL_LINKS:
+                    widget.value = _as_text(saved.get(name))
+        self.refresh_link_options()
+        for index, record in enumerate(self.channel_records):
+            saved = channel_rows[index] if index < len(channel_rows) else {}
+            for name, widget in record["fields"].items():
+                if name in CHANNEL_LINKS and (saved.get(name) or "") in widget.options:
+                    widget.value = saved.get(name) or ""
 
     # ------------------------------------------------------------------------------------------------------------------
     # YAML editor + callbacks
@@ -454,6 +474,19 @@ class MetadataSelector:
     def set_path(self, value: str) -> None:
         """Set the displayed save path."""
         self.path.value = value
+
+    def _on_file_upload(self, event: object) -> None:
+        """Load an arbitrary metadata YAML the user picked from disk into the form."""
+        if not self.load_existing.value:
+            return
+        try:
+            metadata = loads_yaml(self.load_existing.value.decode("utf-8"))
+        except Exception as exception:
+            self.set_alert_message(f"####Alert !! \n Could not read uploaded YAML: {exception}")
+            return
+        self.set_from_metadata(metadata)
+        self.set_yaml(metadata)
+        self.set_alert_message(f"#### Loaded metadata from {self.load_existing.filename}")
 
     def attach_callbacks(self, button_name_to_onclick_fn: dict[str, object]) -> None:
         """Register click-handler callbacks on this selector's buttons."""

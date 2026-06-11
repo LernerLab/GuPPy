@@ -80,7 +80,6 @@ class TestExportSessionToNwb:
             guppy_folder_path=guppy_folder_path,
             metadata_yaml_path=metadata_yaml_path,
             nwbfile_path=str(nwbfile_path),
-            stub_test=True,
         )
 
         assert nwbfile_path.exists()

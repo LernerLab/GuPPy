@@ -54,7 +54,6 @@ def export_session_to_nwb(
     guppy_folder_path: str,
     metadata_yaml_path: str | None,
     nwbfile_path: str,
-    stub_test: bool = False,
 ) -> str:
     """Convert one GuPPy session/run to NWB and persist the resolved metadata.
 
@@ -69,8 +68,6 @@ def export_session_to_nwb(
         present, on top of the converter's auto-filled metadata.
     nwbfile_path : str
         Output path for the written ``.nwb`` file.
-    stub_test : bool, optional
-        When True, only a short stub of each trace is written. Default False.
 
     Returns
     -------
@@ -94,7 +91,6 @@ def export_session_to_nwb(
         nwbfile_path=nwbfile_path,
         metadata=metadata,
         overwrite=True,
-        stub_test=stub_test,
     )
 
     merged_metadata_path = os.path.join(guppy_folder_path, MERGED_METADATA_FILENAME)
@@ -103,9 +99,7 @@ def export_session_to_nwb(
     return merged_metadata_path
 
 
-def orchestrate_export_nwb_page(
-    inputParameters: dict[str, object], progress_bar: object = None, stub_test: bool = False
-) -> None:
+def orchestrate_export_nwb_page(inputParameters: dict[str, object], progress_bar: object = None) -> None:
     """Export every selected ``(session, run)`` to NWB, updating the progress bar.
 
     Runs synchronously in the caller's thread (like the visualization step), so
@@ -129,7 +123,6 @@ def orchestrate_export_nwb_page(
                 guppy_folder_path=guppy_folder_path,
                 metadata_yaml_path=metadata_yaml_path,
                 nwbfile_path=nwbfile_path,
-                stub_test=stub_test,
             )
             if pn.state.notifications:
                 pn.state.notifications.success(f"Exported {session_basename} ({run_name}) to NWB.")

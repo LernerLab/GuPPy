@@ -289,10 +289,13 @@ def field_specs(category_key: str) -> list[FieldSpec]:
             specs.append(FieldSpec(name, required, doc, dtype, is_list, "insertion"))
     link_required = _type_links(category.ndx_type)
     for link_name, target_category in category.links.items():
+        # An instance structurally needs its model: the converter fails to build an OpticalFiber/etc.
+        # without one, even though the bare ndx link spec leaves the quantity unset. Treat it as required.
+        required = link_name == "model" or link_required.get(link_name, False)
         specs.append(
             FieldSpec(
                 link_name,
-                link_required.get(link_name, False),
+                required,
                 f"Link to a defined {CATEGORIES[target_category].singular}.",
                 "text",
                 False,
@@ -438,6 +441,74 @@ def parse_metadata_dict(metadata: dict, channels: list[Channel]) -> tuple[dict[s
     scalars["fiber_photometry_table_name"] = table.get("name", "")
     scalars["fiber_photometry_table_description"] = table.get("description", "")
     return devices, channel_rows, scalars
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Validation (fail early, before the YAML reaches the converter)
+# ----------------------------------------------------------------------------------------------------------------------
+# NWBFile/Subject scalars the converter genuinely needs to write a valid file.
+_REQUIRED_NWBFILE_KEYS = ("session_description",)
+_REQUIRED_SUBJECT_KEYS = ("subject_id", "sex", "species")
+
+
+def validate_metadata_dict(metadata: dict, channels: list[Channel]) -> list[str]:
+    """Return a list of human-readable problems that would break NWB export.
+
+    Checks the metadata the form would export: required scalars, required device
+    fields and links, referential integrity of every link (it must name a device
+    that is actually defined), and per-channel required wavelengths and links. An
+    empty list means the metadata is complete enough to export.
+    """
+    errors: list[str] = []
+
+    nwbfile = metadata.get("NWBFile", {})
+    for key in _REQUIRED_NWBFILE_KEYS:
+        if _is_empty(nwbfile.get(key)):
+            errors.append(f"NWBFile.{key} is required.")
+    subject = metadata.get("Subject", {})
+    for key in _REQUIRED_SUBJECT_KEYS:
+        if _is_empty(subject.get(key)):
+            errors.append(f"Subject.{key} is required.")
+
+    fiber_photometry = metadata.get("Ophys", {}).get("FiberPhotometry", {})
+    defined_names: dict[str, set[str]] = {
+        category.key: {obj.get("name") for obj in fiber_photometry.get(category.list_key, [])}
+        for category in CATEGORIES.values()
+    }
+
+    for category in CATEGORIES.values():
+        for obj in fiber_photometry.get(category.list_key, []):
+            label = f"{category.singular} '{obj.get('name') or '(unnamed)'}'"
+            for spec in field_specs(category.key):
+                if spec.target == "insertion":
+                    continue
+                value = obj.get(spec.name)
+                if spec.link_target:
+                    if spec.required and _is_empty(value):
+                        errors.append(f"{label}: {spec.name} is required.")
+                    elif not _is_empty(value) and value not in defined_names[spec.link_target]:
+                        errors.append(
+                            f"{label}: {spec.name} '{value}' is not a defined "
+                            f"{CATEGORIES[spec.link_target].singular}."
+                        )
+                elif spec.required and _is_empty(value):
+                    errors.append(f"{label}: {spec.name} is required.")
+
+    rows = fiber_photometry.get("FiberPhotometryTable", {}).get("rows", [])
+    for index, channel in enumerate(channels):
+        row = rows[index] if index < len(rows) else {}
+        label = f"channel {channel.region}/{channel.role}"
+        for wavelength in CHANNEL_WAVELENGTHS:
+            if _is_empty(row.get(wavelength)):
+                errors.append(f"{label}: {wavelength} is required.")
+        for link_name, target in CHANNEL_LINKS.items():
+            value = row.get(link_name)
+            if link_name in CHANNEL_REQUIRED_LINKS and _is_empty(value):
+                errors.append(f"{label}: {link_name} link is required.")
+            elif not _is_empty(value) and value not in defined_names[target]:
+                errors.append(f"{label}: {link_name} '{value}' is not a defined {CATEGORIES[target].singular}.")
+
+    return errors
 
 
 # ----------------------------------------------------------------------------------------------------------------------
