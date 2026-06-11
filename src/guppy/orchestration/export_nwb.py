@@ -2,8 +2,8 @@
 
 Drives the neuroconv :class:`TDTFiberPhotometryGuppyConverter` for each selected
 ``(session, run)`` pair, merging the converter's auto-filled metadata with the
-project- and session-level YAML overlays produced by Step 6, then writing one NWB
-file per output directory and persisting the resolved metadata beside it.
+session-level YAML overlay produced by Step 6, then writing one NWB file per
+output directory.
 """
 
 import logging
@@ -14,12 +14,9 @@ from neuroconv.converters import TDTFiberPhotometryGuppyConverter
 from neuroconv.utils import dict_deep_update, load_dict_from_file
 
 from .metadata import METADATA_FILENAME, _selected_session_runs
-from ..utils.nwb_metadata import dump_yaml
 from ..utils.utils import output_dir_for_run
 
 logger = logging.getLogger(__name__)
-
-MERGED_METADATA_FILENAME = "nwb_metadata_used.yaml"
 
 
 def _prune_absent_commanded_voltage(metadata: dict, available_streams: set[str]) -> None:
@@ -55,7 +52,7 @@ def export_session_to_nwb(
     metadata_yaml_path: str | None,
     nwbfile_path: str,
 ) -> str:
-    """Convert one GuPPy session/run to NWB and persist the resolved metadata.
+    """Convert one GuPPy session/run to NWB.
 
     Parameters
     ----------
@@ -72,7 +69,7 @@ def export_session_to_nwb(
     Returns
     -------
     str
-        The path of the persisted merged-metadata YAML.
+        The path of the written ``.nwb`` file.
     """
     converter = TDTFiberPhotometryGuppyConverter(
         tdt_folder_path=tdt_folder_path,
@@ -93,10 +90,8 @@ def export_session_to_nwb(
         overwrite=True,
     )
 
-    merged_metadata_path = os.path.join(guppy_folder_path, MERGED_METADATA_FILENAME)
-    dump_yaml(metadata, merged_metadata_path)
-    logger.info(f"Wrote NWB file to {nwbfile_path} and resolved metadata to {merged_metadata_path}")
-    return merged_metadata_path
+    logger.info(f"Wrote NWB file to {nwbfile_path}")
+    return nwbfile_path
 
 
 def orchestrate_export_nwb_page(inputParameters: dict[str, object], progress_bar: object = None) -> None:

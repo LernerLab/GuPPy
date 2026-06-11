@@ -5,16 +5,12 @@ which copies ``stubbed_testing_data/tdt/Photo_63_207-181030-103332`` to a temp d
 and runs the real pipeline to produce a populated ``<session>_output_<run>`` dir.
 """
 
-import os
 from pathlib import Path
 
 import pytest
 from pynwb import NWBHDF5IO
 
-from guppy.orchestration.export_nwb import (
-    MERGED_METADATA_FILENAME,
-    export_session_to_nwb,
-)
+from guppy.orchestration.export_nwb import export_session_to_nwb
 from guppy.utils.nwb_metadata import (
     build_metadata_dict,
     derive_channels,
@@ -75,7 +71,7 @@ class TestExportSessionToNwb:
         guppy_folder_path = str(step5_output_tdt["output_directory"])
         nwbfile_path = tmp_path / "exported.nwb"
 
-        merged_metadata_path = export_session_to_nwb(
+        written_path = export_session_to_nwb(
             tdt_folder_path=tdt_folder_path,
             guppy_folder_path=guppy_folder_path,
             metadata_yaml_path=metadata_yaml_path,
@@ -83,8 +79,7 @@ class TestExportSessionToNwb:
         )
 
         assert nwbfile_path.exists()
-        assert os.path.basename(merged_metadata_path) == MERGED_METADATA_FILENAME
-        assert os.path.exists(merged_metadata_path)
+        assert written_path == str(nwbfile_path)
 
         with NWBHDF5IO(str(nwbfile_path), "r") as io:
             nwbfile = io.read()
