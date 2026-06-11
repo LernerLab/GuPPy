@@ -152,9 +152,9 @@ class MetadataSelector:
         self.widget = pn.Column(
             style.page_header("NWB metadata", session_label),
             style.intro_note(
-                "Capture what GuPPy can't infer from your recording. Define each piece of hardware and biology "
-                "once under <strong>Optical hardware</strong> and <strong>Biological reagents</strong>, link them "
-                "to each channel under <strong>Fiber-photometry channels</strong>, then "
+                "Provide the metadata needed to export this session to NWB. Define each piece of hardware and "
+                "biology once under <strong>Optical hardware</strong> and <strong>Biological reagents</strong>, link "
+                "them to each channel under <strong>Fiber-photometry channels</strong>, then "
                 "<strong>Build &amp; preview YAML</strong> and <strong>Save</strong>. The channels themselves are "
                 "fixed by your <code>storesList.csv</code>."
             ),
