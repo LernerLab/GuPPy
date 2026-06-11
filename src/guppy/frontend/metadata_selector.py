@@ -244,7 +244,13 @@ class MetadataSelector:
             sizing_mode="stretch_width",
         )
         if name_widget is not None:
-            name_widget.param.watch(lambda event: setattr(card, "title", event.new or "(unnamed)"), "value")
+
+            def _on_name_change(event: object, card: pn.Card = card) -> None:
+                # Retitle the card and propagate the new name into every link dropdown that points here.
+                card.title = event.new or "(unnamed)"
+                self.refresh_link_options()
+
+            name_widget.param.watch(_on_name_change, "value")
         record = {"container": card, "fields": fields}
         remove.on_click(lambda event: self._remove_device(category_key, record))
         self.device_entry_records[category_key].append(record)
@@ -255,6 +261,8 @@ class MetadataSelector:
             self.device_entry_records[category_key].remove(record)
         if record["container"] in self.device_containers[category_key]:
             self.device_containers[category_key].remove(record["container"])
+        # Drop the removed device from every link dropdown that pointed at it.
+        self.refresh_link_options()
 
     def _make_field_widget(self, spec: FieldSpec, entry: dict) -> pn.viewable.Viewable:
         label = f"{spec.name}{_required_marker(spec.required)}"
@@ -274,11 +282,17 @@ class MetadataSelector:
                 name=label, options=choices, value=current, description=spec.doc, sizing_mode="stretch_width"
             )
         if spec.is_list:
-            low = pn.widgets.TextInput(name=f"{label} [min]", value=_as_text(value, 0), width=160)
-            high = pn.widgets.TextInput(name=f"{label} [max]", value=_as_text(value, 1), width=160)
+            # Spec shape [2] is a numeric (min, max) pair: enforce float entry with FloatInput.
+            low = pn.widgets.FloatInput(name=f"{label} [min]", value=_as_float(value, 0), width=160)
+            high = pn.widgets.FloatInput(name=f"{label} [max]", value=_as_float(value, 1), width=160)
             row = pn.Row(low, high)
             row._field_pair = (low, high)  # noqa: SLF001
             return row
+        if spec.dtype == "float":
+            # Numeric attribute (e.g. numerical_aperture): a FloatInput rejects non-numeric text up front.
+            return pn.widgets.FloatInput(
+                name=label, value=_as_float(value), description=spec.doc, sizing_mode="stretch_width"
+            )
         return pn.widgets.TextInput(
             name=label,
             value=("" if value is None else str(value)),
@@ -298,13 +312,13 @@ class MetadataSelector:
         for index, channel in enumerate(self.channels):
             saved = channel_rows[index] if index < len(channel_rows) else {}
             fields: dict[str, object] = {}
-            excitation = pn.widgets.TextInput(
+            excitation = pn.widgets.FloatInput(
                 name="excitation_wavelength_in_nm *",
-                value=_as_text(saved.get("excitation_wavelength_in_nm")),
+                value=_as_float(saved.get("excitation_wavelength_in_nm")),
                 width=180,
             )
-            emission = pn.widgets.TextInput(
-                name="emission_wavelength_in_nm *", value=_as_text(saved.get("emission_wavelength_in_nm")), width=180
+            emission = pn.widgets.FloatInput(
+                name="emission_wavelength_in_nm *", value=_as_float(saved.get("emission_wavelength_in_nm")), width=180
             )
             fields["excitation_wavelength_in_nm"] = excitation
             fields["emission_wavelength_in_nm"] = emission
@@ -384,7 +398,7 @@ class MetadataSelector:
                 if name in CHANNEL_LINKS:
                     if value:
                         row[name] = value
-                elif str(value).strip():
+                elif value is not None:  # FloatInput wavelength
                     row[name] = float(value)
             rows.append(row)
         return rows
@@ -447,7 +461,7 @@ class MetadataSelector:
             saved = channel_rows[index] if index < len(channel_rows) else {}
             for name, widget in record["fields"].items():
                 if name not in CHANNEL_LINKS:
-                    widget.value = _as_text(saved.get(name))
+                    widget.value = _as_float(saved.get(name))
         self.refresh_link_options()
         for index, record in enumerate(self.channel_records):
             saved = channel_rows[index] if index < len(channel_rows) else {}
@@ -494,15 +508,16 @@ class MetadataSelector:
             getattr(self, button_name).on_click(onclick_fn)
 
 
-def _as_text(value: object, index: int | None = None) -> str:
-    """Render a stored value (or one element of a 2-list) as editable text."""
-    if value is None:
-        return ""
+def _as_float(value: object, index: int | None = None) -> float | None:
+    """Coerce a stored value (or one element of a 2-list) to a float for a FloatInput (None if blank)."""
     if index is not None:
         if isinstance(value, (list, tuple)) and index < len(value):
-            return str(value[index])
-        return ""
-    return str(value)
+            value = value[index]
+        else:
+            return None
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return None
+    return float(value)
 
 
 def _read_widget(spec: FieldSpec, widget: object) -> object:
@@ -511,10 +526,13 @@ def _read_widget(spec: FieldSpec, widget: object) -> object:
         return widget.value or None
     if spec.is_list:
         low, high = widget._field_pair  # noqa: SLF001
-        if low.value.strip() and high.value.strip():
+        if low.value is not None and high.value is not None:
             return [float(low.value), float(high.value)]
         return None
     raw = widget.value
+    if spec.dtype == "float":
+        # FloatInput already yields a float or None.
+        return raw
     if not str(raw).strip():
         return None
-    return float(raw) if spec.dtype == "float" else raw
+    return raw
