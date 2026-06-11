@@ -226,7 +226,7 @@ class MetadataSelector:
         name_widget = None
         for spec in field_specs(category_key):
             if spec.target == "insertion" and not insertion_header_added:
-                rows.append(pn.pane.Markdown("**Fiber insertion** *(required group; coordinates optional)*"))
+                rows.append(pn.pane.Markdown("**Fiber insertion**"))
                 insertion_header_added = True
             widget = self._make_field_widget(spec, entry)
             fields.append((spec, widget))
@@ -274,12 +274,18 @@ class MetadataSelector:
             self.device_link_selects.append((select, spec.link_target, spec.required))
             return select
         if spec.options:
-            # Enumerated value -> dropdown; include the current value if it isn't a known option.
+            # Enumerated value -> dropdown. Required enums carry no empty option (default to the first
+            # choice); optional ones keep a blank. Any unknown current value is preserved as a choice.
             options = list(spec.options)
             current = "" if value is None else str(value)
-            choices = ["", *options] if current in ("", *options) else ["", *options, current]
+            if spec.required:
+                choices = options if current in options else [*options, current] if current else options
+                chosen = current if current in options else (current or options[0])
+            else:
+                choices = ["", *options] if current in ("", *options) else ["", *options, current]
+                chosen = current
             return pn.widgets.Select(
-                name=label, options=choices, value=current, description=spec.doc, sizing_mode="stretch_width"
+                name=label, options=choices, value=chosen, description=spec.doc, sizing_mode="stretch_width"
             )
         if spec.is_list:
             # Spec shape [2] is a numeric (min, max) pair: enforce float entry with FloatInput.

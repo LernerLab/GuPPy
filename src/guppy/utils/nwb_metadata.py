@@ -234,6 +234,7 @@ ENUM_OPTIONS: dict[str, tuple[str, ...]] = {
     "excitation_mode": ("one-photon", "two-photon", "three-photon", "other"),
     "detector_type": ("photodiode", "PMT", "CCD", "CMOS", "EBCCD", "intensified CCD", "FTIR"),
     "filter_type": ("Bandpass", "Bandstop"),
+    "hemisphere": ("left", "right"),
 }
 
 
@@ -286,7 +287,7 @@ def field_specs(category_key: str) -> list[FieldSpec]:
     if category.has_insertion:
         # The fiber_insertion group itself is mandatory (quantity 1); its individual coordinates are optional.
         for name, required, doc, dtype, is_list in _type_attrs("FiberInsertion"):
-            specs.append(FieldSpec(name, required, doc, dtype, is_list, "insertion"))
+            specs.append(FieldSpec(name, required, doc, dtype, is_list, "insertion", options=ENUM_OPTIONS.get(name)))
     link_required = _type_links(category.ndx_type)
     for link_name, target_category in category.links.items():
         # An instance structurally needs its model: the converter fails to build an OpticalFiber/etc.
