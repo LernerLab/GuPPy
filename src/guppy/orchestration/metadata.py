@@ -14,6 +14,7 @@ import panel as pn
 
 from guppy.frontend.frontend_utils import scanPortsAndFind
 
+from ..frontend import nwb_form_style as style
 from ..frontend.metadata_selector import MetadataSelector
 from ..utils.nwb_metadata import (
     Channel,
@@ -46,7 +47,13 @@ def build_metadata_template(
 ) -> pn.template.BootstrapTemplate:
     """Build one session's metadata page (without serving it)."""
     selector = MetadataSelector(session_label=session_label, channels=channels, initial_metadata=metadata)
-    template = pn.template.BootstrapTemplate(title=f"Metadata GUI - {session_label}")
+    template = pn.template.BootstrapTemplate(
+        title=f"Metadata GUI - {session_label}",
+        header_background=style.HEADER_BG,
+        header_color="#FFFFFF",
+        main_max_width="1120px",
+    )
+    template.config.raw_css = [style.DOCUMENT_CSS]
 
     def _format_errors(errors: list[str]) -> str:
         return "####Alert !! \n Missing required metadata for NWB export:\n" + "\n".join(

@@ -5,12 +5,17 @@ annotates each channel with wavelengths and device links (dropdowns), and define
 device library once. Field labels, required markers, and help text come from the
 installed ndx specs via :func:`guppy.utils.nwb_metadata.field_specs`. Structured
 widgets feed a YAML ``CodeEditor`` that is the authoritative serialized artifact.
+
+The visual design ("Clean clinical" register) lives in
+:mod:`guppy.frontend.nwb_form_style`: tokens, per-widget shadow-root stylesheets,
+and the inline-styled HTML chrome helpers used below.
 """
 
 import logging
 
 import panel as pn
 
+from . import nwb_form_style as style
 from ..utils.nwb_metadata import (
     CATEGORIES,
     CHANNEL_LINKS,
@@ -41,10 +46,13 @@ _SCALAR_DOCS = {
     "genotype": "Genetic strain. If absent, assume wild type (WT).",
     "strain": "The strain of the subject, e.g. 'C57BL/6J'.",
 }
+# Device categories describing biology rather than hardware (grouped separately in the library).
+_BIOLOGY_CATEGORIES = {"virus", "virus_injection", "indicator"}
 
 
-def _required_marker(required: bool) -> str:
-    return " *" if required else ""
+def _sheets(required: bool) -> list[str]:
+    """Per-widget stylesheet list for an input (adds the accent required-mark when required)."""
+    return [style.INPUT_STYLESHEET, style.REQUIRED_STYLESHEET] if required else [style.INPUT_STYLESHEET]
 
 
 class MetadataSelector:
@@ -53,7 +61,13 @@ class MetadataSelector:
     def __init__(self, session_label: str, channels: list[Channel], initial_metadata: dict) -> None:
         self.session_label = session_label
         self.channels = channels
-        self.alert = pn.pane.Alert("#### No alerts !!", alert_type="success", sizing_mode="stretch_width")
+        self.alert = pn.pane.Alert(
+            "#### No alerts !!",
+            alert_type="success",
+            sizing_mode="stretch_width",
+            stylesheets=[style.ALERT_STYLESHEET],
+            margin=(0, 0, 10, 0),
+        )
 
         devices, channel_rows, scalars = parse_metadata_dict(initial_metadata, channels)
 
@@ -62,6 +76,7 @@ class MetadataSelector:
         self.device_containers: dict[str, pn.Column] = {
             key: pn.Column(sizing_mode="stretch_width") for key in CATEGORIES
         }
+        self.category_cards: dict[str, pn.Card] = {}
         self.channel_records: list[dict] = []
         # Link dropdowns whose options are device names; channel ones are fixed, device ones rebuild.
         # Each entry is (select, target_category, required); required links carry no empty option.
@@ -75,31 +90,75 @@ class MetadataSelector:
         self.code_editor = pn.widgets.CodeEditor(
             value="", theme="tomorrow", language="yaml", height=400, sizing_mode="stretch_width"
         )
-        self.load_existing = pn.widgets.FileInput(accept=".yaml,.yml", sizing_mode="stretch_width")
+        self.load_existing = pn.widgets.FileInput(accept=".yaml,.yml", width=320)
         self.load_existing.param.watch(self._on_file_upload, "value")
-        self.build_config = pn.widgets.Button(
-            name="Show / Refresh YAML from form above", button_type="primary", sizing_mode="stretch_width"
-        )
-        self.save = pn.widgets.Button(name="Save Metadata", button_type="success", sizing_mode="stretch_width")
-        self.path = pn.widgets.TextInput(name="Saved to", disabled=True, sizing_mode="stretch_width")
-
-        self.widget = pn.Column(
-            pn.pane.Markdown(f"## NWB Metadata — {session_label}"),
-            pn.pane.Markdown("Load metadata from any existing `nwb_metadata.yaml` on disk to pre-populate this form:"),
+        load_strip = pn.Row(
+            style.help_note("Reuse metadata from another session: load any <code>nwb_metadata.yaml</code> on disk."),
+            pn.Spacer(sizing_mode="stretch_width"),
             self.load_existing,
-            scalar_card,
-            pn.pane.Markdown("### Device library (define each device once, then link it from the channels below)"),
-            library_section,
-            channel_card,
-            pn.layout.Divider(),
-            self.build_config,
-            pn.pane.Markdown("Edit the YAML below directly if the form can't express something, then Save."),
+            sizing_mode="stretch_width",
+            styles={
+                "background": style.SURFACE_INSET,
+                "border": f"1px solid {style.BORDER}",
+                "border-radius": "12px",
+                "padding": "12px 18px",
+                "align-items": "center",
+                "margin": "10px 0 6px 0",
+            },
+        )
+        self.build_config = pn.widgets.Button(
+            name="Build & preview YAML",
+            sizing_mode="stretch_width",
+            stylesheets=[style.BUTTON_OUTLINE],
+        )
+        self.save = pn.widgets.Button(
+            name="Save metadata",
+            sizing_mode="stretch_width",
+            stylesheets=[style.BUTTON_ACCENT],
+        )
+        self.path = pn.widgets.TextInput(
+            name="Saved to",
+            disabled=True,
+            sizing_mode="stretch_width",
+            stylesheets=[style.INPUT_STYLESHEET],
+        )
+
+        advanced_card = pn.Card(
+            style.help_note(
+                "The structured form above is the source of truth. Edit this YAML directly only if the form "
+                "can't express something, then Save."
+            ),
             self.code_editor,
+            title="Advanced — raw YAML",
+            collapsed=True,
+            sizing_mode="stretch_width",
+            stylesheets=[style.SECTION_CARD],
+        )
+        action_footer = pn.Column(
             self.alert,
-            self.save,
+            pn.Row(self.build_config, self.save, sizing_mode="stretch_width"),
             self.path,
             sizing_mode="stretch_width",
-            max_width=1100,
+            styles={
+                "background": style.SURFACE,
+                "border": f"1px solid {style.BORDER}",
+                "border-radius": "14px",
+                "padding": "18px 20px",
+                "box-shadow": "0 1px 2px rgba(16,24,40,.04), 0 6px 16px rgba(16,24,40,.05)",
+            },
+        )
+
+        self.widget = pn.Column(
+            style.page_header("NWB metadata", session_label),
+            load_strip,
+            scalar_card,
+            library_section,
+            channel_card,
+            advanced_card,
+            action_footer,
+            sizing_mode="stretch_width",
+            max_width=1080,
+            styles={"padding": "8px 4px 40px 4px"},
         )
 
         self.refresh_link_options()
@@ -110,18 +169,20 @@ class MetadataSelector:
     # ------------------------------------------------------------------------------------------------------------------
     def _build_scalar_section(self, scalars: dict) -> pn.Card:
         text = lambda name, **kw: pn.widgets.TextInput(  # noqa: E731
-            name=f"{name}{_required_marker(name in _REQUIRED_SCALARS)}",
+            name=style.humanize(name),
             value=scalars.get(name, ""),
             description=_SCALAR_DOCS.get(name),
             sizing_mode="stretch_width",
+            stylesheets=_sheets(name in _REQUIRED_SCALARS),
             **kw,
         )
         self.session_description = pn.widgets.TextAreaInput(
-            name="session_description *",
+            name="Session description",
             value=scalars.get("session_description", ""),
             description=_SCALAR_DOCS["session_description"],
             sizing_mode="stretch_width",
             height=70,
+            stylesheets=_sheets(True),
         )
         self.identifier = text("identifier", placeholder="leave blank to auto-generate")
         self.lab = text("lab")
@@ -130,45 +191,55 @@ class MetadataSelector:
         # Experimenter repeater.
         self.experimenter_box = pn.Column(sizing_mode="stretch_width")
         self.experimenter_inputs: list[pn.widgets.TextInput] = []
-        add_experimenter = pn.widgets.Button(name="➕ Add experimenter", button_type="default", width=180)
+        add_experimenter = pn.widgets.Button(name="Add experimenter", width=180, stylesheets=[style.BUTTON_GHOST])
         add_experimenter.on_click(lambda event: self._add_experimenter(""))
         for name in scalars.get("experimenter") or [""]:
             self._add_experimenter(name)
 
         self.subject_id = text("subject_id")
         self.sex = pn.widgets.Select(
-            name="sex *",
+            name="Sex",
             value=scalars.get("sex", "") or "",
             options=_SEX_OPTIONS,
             description=_SCALAR_DOCS["sex"],
-            width=120,
+            width=130,
+            stylesheets=_sheets(True),
         )
         self.species = text("species", placeholder="e.g. Mus musculus")
         self.genotype = text("genotype")
         self.strain = text("strain")
 
         # Age XOR date of birth.
-        self.age = pn.widgets.TextInput(name="age (ISO 8601, e.g. P90D)", value=scalars.get("age", ""), width=260)
+        self.age = pn.widgets.TextInput(
+            name="Age (ISO 8601, e.g. P90D)",
+            value=scalars.get("age", ""),
+            width=270,
+            stylesheets=_sheets(False),
+        )
         self.date_of_birth = pn.widgets.TextInput(
-            name="date_of_birth (ISO 8601)", value=scalars.get("date_of_birth", ""), width=260
+            name="Date of birth (ISO 8601)",
+            value=scalars.get("date_of_birth", ""),
+            width=270,
+            stylesheets=_sheets(False),
         )
         self.age_or_dob = pn.widgets.RadioBoxGroup(
             name="Specify subject by",
             options=["Age", "Date of birth"],
             value="Date of birth" if scalars.get("date_of_birth") else "Age",
             inline=True,
+            stylesheets=[style.RADIO_STYLESHEET],
         )
         self.age_or_dob.param.watch(lambda event: self._sync_age_dob(), "value")
         self._sync_age_dob()
 
         return pn.Card(
+            style.section_label("Session"),
             self.session_description,
             pn.Row(self.identifier, self.lab, self.institution, sizing_mode="stretch_width"),
-            pn.pane.Markdown("**Experimenter**"),
+            style.section_label("Experimenter", "last name first, e.g. Doe, Jane"),
             self.experimenter_box,
             add_experimenter,
-            pn.layout.Divider(),
-            pn.pane.Markdown("**Subject**"),
+            style.section_label("Subject"),
             pn.Row(self.subject_id, self.sex, self.species, sizing_mode="stretch_width"),
             pn.Row(self.genotype, self.strain, sizing_mode="stretch_width"),
             self.age_or_dob,
@@ -176,12 +247,18 @@ class MetadataSelector:
             title="Session & Subject",
             collapsed=False,
             sizing_mode="stretch_width",
+            stylesheets=[style.SECTION_CARD],
         )
 
     def _add_experimenter(self, value: str) -> None:
         row = pn.Row(sizing_mode="stretch_width")
-        text_input = pn.widgets.TextInput(value=value, placeholder="Last, First", sizing_mode="stretch_width")
-        remove = pn.widgets.Button(name="✕", button_type="default", width=40)
+        text_input = pn.widgets.TextInput(
+            value=value,
+            placeholder="Last, First",
+            sizing_mode="stretch_width",
+            stylesheets=[style.INPUT_STYLESHEET],
+        )
+        remove = pn.widgets.Button(name="✕", width=42, stylesheets=[style.BUTTON_CLOSE])
         remove.on_click(lambda event: self._remove_experimenter(row, text_input))
         row[:] = [text_input, remove]
         self.experimenter_inputs.append(text_input)
@@ -202,22 +279,47 @@ class MetadataSelector:
     # Device library
     # ------------------------------------------------------------------------------------------------------------------
     def _build_device_library(self, devices: dict[str, list[dict]]) -> pn.Column:
-        cards = []
-        for key, category in CATEGORIES.items():
-            add_button = pn.widgets.Button(name=f"➕ Add {category.singular}", width=240)
-            add_button.on_click(lambda event, k=key: (self._add_device(k, {}), self.refresh_link_options()))
-            for entry in devices.get(key, []):
-                self._add_device(key, entry)
-            cards.append(
-                pn.Card(
-                    self.device_containers[key],
-                    add_button,
-                    title=category.label,
-                    collapsed=True,
-                    sizing_mode="stretch_width",
-                )
-            )
-        return pn.Column(*cards, sizing_mode="stretch_width")
+        children = [
+            style.section_label("Device library", "define each device once, then link it from the channels below"),
+        ]
+        hardware = [key for key in CATEGORIES if key not in _BIOLOGY_CATEGORIES]
+        biology = [key for key in CATEGORIES if key in _BIOLOGY_CATEGORIES]
+        for group_name, keys in (("Hardware", hardware), ("Biology", biology)):
+            children.append(style.subgroup_label(group_name))
+            for key in keys:
+                children.append(self._build_category_card(key, devices.get(key, [])))
+        return pn.Column(*children, sizing_mode="stretch_width", margin=(8, 0))
+
+    def _build_category_card(self, key: str, entries: list[dict]) -> pn.Card:
+        category = CATEGORIES[key]
+        add_button = pn.widgets.Button(
+            name=f"Add {category.singular}",
+            width=240,
+            stylesheets=[style.BUTTON_OUTLINE],
+        )
+        add_button.on_click(lambda event, k=key: (self._add_device(k, {}), self.refresh_link_options()))
+        card = pn.Card(
+            self.device_containers[key],
+            add_button,
+            title=category.label,
+            collapsed=True,
+            sizing_mode="stretch_width",
+            stylesheets=[style.CATEGORY_CARD],
+            margin=(4, 0),
+        )
+        self.category_cards[key] = card
+        for entry in entries:
+            self._add_device(key, entry)
+        self._retitle_category(key)
+        return card
+
+    def _retitle_category(self, key: str) -> None:
+        """Show the live instance count on a category card so the library is scannable when collapsed."""
+        card = self.category_cards.get(key)
+        if card is None:
+            return
+        count = len(self.device_entry_records[key])
+        card.title = f"{CATEGORIES[key].label}  ·  {count}" if count else CATEGORIES[key].label
 
     def _add_device(self, category_key: str, entry: dict) -> None:
         fields: list[tuple[FieldSpec, object]] = []  # (spec, widget or list-row)
@@ -226,7 +328,7 @@ class MetadataSelector:
         name_widget = None
         for spec in field_specs(category_key):
             if spec.target == "insertion" and not insertion_header_added:
-                rows.append(pn.pane.Markdown("**Fiber insertion**"))
+                rows.append(style.subgroup_label("Fiber insertion (optional)"))
                 insertion_header_added = True
             widget = self._make_field_widget(spec, entry)
             fields.append((spec, widget))
@@ -234,7 +336,7 @@ class MetadataSelector:
             if spec.name == "name":
                 name_widget = widget
 
-        remove = pn.widgets.Button(name="🗑 Remove", button_type="default", width=110)
+        remove = pn.widgets.Button(name="Remove", width=110, stylesheets=[style.BUTTON_GHOST])
         # Each instance is its own collapsible card, titled by its name so a category with many is navigable.
         card = pn.Card(
             *rows,
@@ -242,6 +344,8 @@ class MetadataSelector:
             title=(name_widget.value or "(unnamed)"),
             collapsed=True,
             sizing_mode="stretch_width",
+            stylesheets=[style.INSTANCE_CARD],
+            margin=(4, 0),
         )
         if name_widget is not None:
 
@@ -255,21 +359,28 @@ class MetadataSelector:
         remove.on_click(lambda event: self._remove_device(category_key, record))
         self.device_entry_records[category_key].append(record)
         self.device_containers[category_key].append(card)
+        self._retitle_category(category_key)
 
     def _remove_device(self, category_key: str, record: dict) -> None:
         if record in self.device_entry_records[category_key]:
             self.device_entry_records[category_key].remove(record)
         if record["container"] in self.device_containers[category_key]:
             self.device_containers[category_key].remove(record["container"])
+        self._retitle_category(category_key)
         # Drop the removed device from every link dropdown that pointed at it.
         self.refresh_link_options()
 
     def _make_field_widget(self, spec: FieldSpec, entry: dict) -> pn.viewable.Viewable:
-        label = f"{spec.name}{_required_marker(spec.required)}"
+        label = style.humanize(spec.name)
         value = entry.get(spec.name)
         if spec.link_target:
             select = pn.widgets.Select(
-                name=label, options=[""], value=(value or ""), description=spec.doc, sizing_mode="stretch_width"
+                name=label,
+                options=[""],
+                value=(value or ""),
+                description=spec.doc,
+                sizing_mode="stretch_width",
+                stylesheets=_sheets(spec.required),
             )
             self.device_link_selects.append((select, spec.link_target, spec.required))
             return select
@@ -285,69 +396,107 @@ class MetadataSelector:
                 choices = ["", *options] if current in ("", *options) else ["", *options, current]
                 chosen = current
             return pn.widgets.Select(
-                name=label, options=choices, value=chosen, description=spec.doc, sizing_mode="stretch_width"
+                name=label,
+                options=choices,
+                value=chosen,
+                description=spec.doc,
+                sizing_mode="stretch_width",
+                stylesheets=_sheets(spec.required),
             )
         if spec.is_list:
             # Spec shape [2] is a numeric (min, max) pair: enforce float entry with FloatInput.
-            low = pn.widgets.FloatInput(name=f"{label} [min]", value=_as_float(value, 0), width=160)
-            high = pn.widgets.FloatInput(name=f"{label} [max]", value=_as_float(value, 1), width=160)
+            low = pn.widgets.FloatInput(
+                name=f"{label} [min]",
+                value=_as_float(value, 0),
+                width=160,
+                stylesheets=_sheets(spec.required),
+            )
+            high = pn.widgets.FloatInput(
+                name=f"{label} [max]",
+                value=_as_float(value, 1),
+                width=160,
+                stylesheets=_sheets(spec.required),
+            )
             row = pn.Row(low, high)
             row._field_pair = (low, high)  # noqa: SLF001
             return row
         if spec.dtype == "float":
             # Numeric attribute (e.g. numerical_aperture): a FloatInput rejects non-numeric text up front.
             return pn.widgets.FloatInput(
-                name=label, value=_as_float(value), description=spec.doc, sizing_mode="stretch_width"
+                name=label,
+                value=_as_float(value),
+                description=spec.doc,
+                sizing_mode="stretch_width",
+                stylesheets=_sheets(spec.required),
             )
         return pn.widgets.TextInput(
             name=label,
             value=("" if value is None else str(value)),
             description=spec.doc,
             sizing_mode="stretch_width",
+            stylesheets=_sheets(spec.required),
         )
 
     # ------------------------------------------------------------------------------------------------------------------
     # Channel table (fixed rows)
     # ------------------------------------------------------------------------------------------------------------------
     def _build_channel_table(self, channel_rows: list[dict]) -> pn.Card:
-        header = pn.pane.Markdown(
-            "Rows are fixed by `storesList.csv`. Fill the excitation/emission wavelengths and link each channel "
-            "to the devices defined above."
-        )
-        rows = [header]
+        rows = [
+            style.help_note(
+                "Rows are fixed by <code>storesList.csv</code>. Fill the excitation/emission wavelengths and link "
+                "each channel to the devices defined above."
+            )
+        ]
         for index, channel in enumerate(self.channels):
             saved = channel_rows[index] if index < len(channel_rows) else {}
             fields: dict[str, object] = {}
             excitation = pn.widgets.FloatInput(
-                name="excitation_wavelength_in_nm *",
+                name="Excitation wavelength in nm",
                 value=_as_float(saved.get("excitation_wavelength_in_nm")),
-                width=180,
+                width=184,
+                stylesheets=_sheets(True),
             )
             emission = pn.widgets.FloatInput(
-                name="emission_wavelength_in_nm *", value=_as_float(saved.get("emission_wavelength_in_nm")), width=180
+                name="Emission wavelength in nm",
+                value=_as_float(saved.get("emission_wavelength_in_nm")),
+                width=184,
+                stylesheets=_sheets(True),
             )
             fields["excitation_wavelength_in_nm"] = excitation
             fields["emission_wavelength_in_nm"] = emission
             link_widgets = []
             for link_name, target in CHANNEL_LINKS.items():
-                marker = _required_marker(link_name in CHANNEL_REQUIRED_LINKS)
+                required = link_name in CHANNEL_REQUIRED_LINKS
                 select = pn.widgets.Select(
-                    name=f"{link_name}{marker}", options=[""], value=(saved.get(link_name) or ""), width=180
+                    name=style.humanize(link_name),
+                    options=[""],
+                    value=(saved.get(link_name) or ""),
+                    width=176,
+                    stylesheets=_sheets(required),
                 )
-                self.channel_link_selects.append((select, target, link_name in CHANNEL_REQUIRED_LINKS))
+                self.channel_link_selects.append((select, target, required))
                 fields[link_name] = select
                 link_widgets.append(select)
             self.channel_records.append({"fields": fields})
             rows.append(
-                pn.Column(
-                    pn.pane.Markdown(f"**{channel.region} — {channel.role}**  (`{channel.store_name}`)"),
-                    pn.Row(excitation, emission, *link_widgets[:2]),
-                    pn.Row(*link_widgets[2:]),
-                    pn.layout.Divider(),
+                pn.Card(
+                    style.channel_chip(channel.region, channel.role, channel.store_name),
+                    pn.Row(excitation, emission, *link_widgets[:2], sizing_mode="stretch_width"),
+                    pn.Row(*link_widgets[2:], sizing_mode="stretch_width"),
+                    collapsed=False,
+                    hide_header=True,
                     sizing_mode="stretch_width",
+                    stylesheets=[style.INSTANCE_CARD],
+                    margin=(5, 0),
                 )
             )
-        return pn.Card(*rows, title="Fiber-photometry channels", collapsed=False, sizing_mode="stretch_width")
+        return pn.Card(
+            *rows,
+            title="Fiber-photometry channels",
+            collapsed=False,
+            sizing_mode="stretch_width",
+            stylesheets=[style.SECTION_CARD],
+        )
 
     # ------------------------------------------------------------------------------------------------------------------
     # Read form state
@@ -461,6 +610,7 @@ class MetadataSelector:
             self.device_containers[key][:] = []
             for entry in devices.get(key, []):
                 self._add_device(key, entry)
+            self._retitle_category(key)
         # Channel wavelengths (non-link) can be set directly; refresh the link dropdowns so the
         # just-added device names become valid options before assigning the saved link selections.
         for index, record in enumerate(self.channel_records):

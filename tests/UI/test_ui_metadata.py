@@ -46,22 +46,26 @@ def test_page_title_contains_metadata_gui(page, metadata_server_url):
 @pytest.mark.ui
 def test_session_subject_fields_visible(page, metadata_server_url):
     page.goto(metadata_server_url)
-    expect(page.get_by_text("session_description").first).to_be_visible()
-    expect(page.get_by_text("subject_id").first).to_be_visible()
+    # Labels are humanized from the metadata keys.
+    expect(page.get_by_text("Session description").first).to_be_visible()
+    expect(page.get_by_text("Subject ID").first).to_be_visible()
 
 
 @pytest.mark.ui
 def test_fixed_channel_rows_visible(page, metadata_server_url):
     page.goto(metadata_server_url)
-    # Rows are fixed by storesList; the dms signal/control channels render.
-    expect(page.get_by_text("dms — signal").first).to_be_visible()
-    expect(page.get_by_text("dms — control").first).to_be_visible()
+    # Rows are fixed by storesList; each channel renders a chip with its source store name.
+    expect(page.get_by_text("Dv1A").first).to_be_visible()
+    expect(page.get_by_text("Dv2A").first).to_be_visible()
+    expect(page.get_by_text("signal").first).to_be_visible()
+    expect(page.get_by_text("control").first).to_be_visible()
 
 
 @pytest.mark.ui
 def test_buttons_and_device_library_visible(page, metadata_server_url):
     page.goto(metadata_server_url)
-    expect(page.get_by_role("button", name="Show / Refresh YAML from form above")).to_be_visible()
-    expect(page.get_by_role("button", name="Save Metadata")).to_be_visible()
-    expect(page.get_by_role("button", name="Load Existing Metadata YAML")).to_be_visible()
+    expect(page.get_by_role("button", name="Build & preview YAML")).to_be_visible()
+    expect(page.get_by_role("button", name="Save metadata")).to_be_visible()
+    # The arbitrary-YAML loader is a file input introduced by a labelled utility strip.
+    expect(page.get_by_text("Reuse metadata from another session").first).to_be_visible()
     expect(page.get_by_text("Optical fibers").first).to_be_visible()
