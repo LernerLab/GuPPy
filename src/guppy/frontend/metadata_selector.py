@@ -299,7 +299,7 @@ class MetadataSelector:
                     title=group_name,
                     collapsed=False,
                     sizing_mode="stretch_width",
-                    stylesheets=[style.GROUP_SECTION],
+                    stylesheets=[style.SECTION_CARD],
                     margin=(8, 0),
                 )
             )
@@ -456,7 +456,10 @@ class MetadataSelector:
     # Channel table (fixed rows)
     # ------------------------------------------------------------------------------------------------------------------
     def _build_channel_table(self, channel_rows: list[dict]) -> pn.Card:
-        rows = [style.help_note("Fixed by <code>storesList.csv</code> — annotate each channel below.")]
+        # Three-tier hierarchy mirroring the device library: the white section holds one tinted
+        # group per brain region, each holding the white channel instances (one per role). Channel
+        # records/link-selects are appended in canonical channel order so the read-back stays aligned.
+        region_to_cards: dict[str, list[pn.Card]] = {}
         for index, channel in enumerate(self.channels):
             saved = channel_rows[index] if index < len(channel_rows) else {}
             fields: dict[str, object] = {}
@@ -488,24 +491,34 @@ class MetadataSelector:
                 fields[link_name] = select
                 link_widgets.append(select)
             self.channel_records.append({"fields": fields})
-            rows.append(
-                pn.Card(
-                    style.channel_chip(channel.region, channel.role, channel.store_name),
-                    pn.Row(excitation, emission, *link_widgets[:2], sizing_mode="stretch_width"),
-                    pn.Row(*link_widgets[2:], sizing_mode="stretch_width"),
-                    collapsed=False,
-                    hide_header=True,
-                    sizing_mode="stretch_width",
-                    stylesheets=[style.INSTANCE_CARD],
-                    margin=(8, 6),
-                )
+            instance_card = pn.Card(
+                style.channel_role_chip(channel.role, channel.store_name),
+                pn.Row(excitation, emission, *link_widgets[:2], sizing_mode="stretch_width"),
+                pn.Row(*link_widgets[2:], sizing_mode="stretch_width"),
+                hide_header=True,
+                sizing_mode="stretch_width",
+                stylesheets=[style.INSTANCE_CARD],
+                margin=(6, 0),
             )
+            region_to_cards.setdefault(channel.region, []).append(instance_card)
+
+        region_cards = [
+            pn.Card(
+                *instance_cards,
+                title=region.upper(),
+                collapsed=False,
+                sizing_mode="stretch_width",
+                stylesheets=[style.CATEGORY_CARD],
+                margin=(6, 0),
+            )
+            for region, instance_cards in region_to_cards.items()
+        ]
         return pn.Card(
-            *rows,
+            *region_cards,
             title="Fiber-photometry channels",
             collapsed=False,
             sizing_mode="stretch_width",
-            stylesheets=[style.SECTION_CARD_TINTED],
+            stylesheets=[style.SECTION_CARD],
             margin=(8, 0),
         )
 

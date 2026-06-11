@@ -164,55 +164,8 @@ SECTION_CARD = f"""
 :host > div:last-child {{ padding-bottom: 22px; }}
 """
 
-# Like SECTION_CARD but a tinted field, so the white instance cards placed inside read as
-# distinct, floating items (used for the channels section, matching the device-library look).
-# Generous body padding gives the white channel cards a clear tinted gutter from the edge.
-SECTION_CARD_TINTED = f"""
-:host {{
-  border: 1px solid {BORDER} !important;
-  border-radius: 14px !important;
-  background: {SURFACE_INSET} !important;
-  box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 6px 16px rgba(16,24,40,.05) !important;
-  overflow: hidden;
-}}
-:host .card-header {{
-  background: {SURFACE_INSET} !important;
-  border-bottom: 1px solid #E6EBF1 !important;
-  padding: 15px 24px !important;
-}}
-:host .card-title, :host .card-title * {{
-  color: {INK} !important;
-  font-weight: 600 !important;
-  font-size: 15px !important;
-  letter-spacing: .01em;
-}}
-:host .card-button, :host .card-header svg {{ color: #7A8896 !important; fill: #7A8896 !important; }}
-:host > div {{ padding-left: 22px; padding-right: 22px; }}
-:host > div:first-of-type {{ padding-top: 18px; }}
-:host > div:last-child {{ padding-bottom: 22px; }}
-"""
-
-# A collapsible top-level group whose body is transparent: the header reads as a section divider
-# and the cards inside (device categories) sit on the page field rather than in a nested box.
-GROUP_SECTION = f"""
-:host {{ background: transparent !important; border: none !important; box-shadow: none !important; }}
-:host .card-header {{
-  background: transparent !important;
-  border: none !important;
-  border-bottom: 1px solid {BORDER} !important;
-  padding: 13px 2px !important;
-}}
-:host .card-title, :host .card-title * {{
-  color: {INK} !important;
-  font-weight: 600 !important;
-  font-size: 15px !important;
-  letter-spacing: .01em;
-}}
-:host .card-button, :host .card-header svg {{ color: #7A8896 !important; fill: #7A8896 !important; }}
-:host > div {{ padding-left: 0 !important; padding-right: 0 !important; }}
-"""
-
-# Lighter cards for each device category (a collapsible group within the library).
+# Lighter tinted cards for the items inside a section: each device category (collapsible) and
+# each fiber-photometry channel (header-less). They read as distinct items on the white section.
 CATEGORY_CARD = f"""
 :host {{
   border: 1px solid #E6EBF1 !important;
@@ -235,10 +188,11 @@ CATEGORY_CARD = f"""
 }}
 :host .card-button, :host .card-header svg {{ color: #8A97A4 !important; fill: #8A97A4 !important; }}
 :host > div {{ padding-left: 18px; padding-right: 18px; }}
+:host > div:first-of-type {{ padding-top: 14px; }}
 :host > div:last-child {{ padding-bottom: 16px; }}
 """
 
-# Each device instance (and each channel) inside a category: a white hairline item.
+# Each device instance inside a category: a white hairline item.
 INSTANCE_CARD = f"""
 :host {{
   border: 1px solid {BORDER} !important;
@@ -374,15 +328,14 @@ def intro_note(html: str) -> pn.pane.Markdown:
     )
 
 
-def channel_chip(region: str, role: str, store_name: str) -> pn.pane.Markdown:
-    """A header for one channel row: region + role pill + the source store name."""
+def channel_role_chip(role: str, store_name: str) -> pn.pane.Markdown:
+    """A header for one channel instance: role pill + the source store name (region is the group)."""
     role_color = ACCENT if role == "signal" else "#7A8896"
     role_bg = ACCENT_SOFT if role == "signal" else "#EEF2F6"
     html = (
         f"<div style='display:flex;align-items:center;gap:10px;'>"
-        f"<span style='font-size:14px;font-weight:700;color:{INK};text-transform:uppercase;letter-spacing:.02em;'>{region}</span>"
-        f"<span style='font-size:11.5px;font-weight:600;color:{role_color};background:{role_bg};"
-        f"padding:2px 9px;border-radius:20px;'>{role}</span>"
+        f"<span style='font-size:12px;font-weight:600;color:{role_color};background:{role_bg};"
+        f"padding:2px 11px;border-radius:20px;text-transform:capitalize;'>{role}</span>"
         f"<span style='font-size:12px;color:{INK_FAINT};font-family:ui-monospace,SFMono-Regular,Menlo,monospace;'>{store_name}</span>"
         f"</div>"
     )
