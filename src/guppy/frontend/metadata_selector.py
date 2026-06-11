@@ -133,6 +133,7 @@ class MetadataSelector:
             collapsed=True,
             sizing_mode="stretch_width",
             stylesheets=[style.SECTION_CARD],
+            margin=(8, 0),
         )
         action_footer = pn.Column(
             self.alert,
@@ -150,6 +151,13 @@ class MetadataSelector:
 
         self.widget = pn.Column(
             style.page_header("NWB metadata", session_label),
+            style.intro_note(
+                "Capture what GuPPy can't infer from your recording. Define each piece of hardware and biology "
+                "once under <strong>Optical hardware</strong> and <strong>Biological reagents</strong>, link them "
+                "to each channel under <strong>Fiber-photometry channels</strong>, then "
+                "<strong>Build &amp; preview YAML</strong> and <strong>Save</strong>. The channels themselves are "
+                "fixed by your <code>storesList.csv</code>."
+            ),
             load_strip,
             scalar_card,
             library_section,
@@ -244,10 +252,11 @@ class MetadataSelector:
             pn.Row(self.genotype, self.strain, sizing_mode="stretch_width"),
             self.age_or_dob,
             pn.Row(self.age, self.date_of_birth),
-            title="Session & Subject",
+            title="Core NWB metadata",
             collapsed=False,
             sizing_mode="stretch_width",
             stylesheets=[style.SECTION_CARD],
+            margin=(8, 0),
         )
 
     def _add_experimenter(self, value: str) -> None:
@@ -279,16 +288,22 @@ class MetadataSelector:
     # Device library
     # ------------------------------------------------------------------------------------------------------------------
     def _build_device_library(self, devices: dict[str, list[dict]]) -> pn.Column:
-        children = [
-            style.section_label("Device library", "define each device once, then link it from the channels below"),
-        ]
         hardware = [key for key in CATEGORIES if key not in _BIOLOGY_CATEGORIES]
         biology = [key for key in CATEGORIES if key in _BIOLOGY_CATEGORIES]
-        for group_name, keys in (("Hardware", hardware), ("Biology", biology)):
-            children.append(style.subgroup_label(group_name))
-            for key in keys:
-                children.append(self._build_category_card(key, devices.get(key, [])))
-        return pn.Column(*children, sizing_mode="stretch_width", margin=(8, 0))
+        groups = []
+        for group_name, keys in (("Optical hardware", hardware), ("Biological reagents", biology)):
+            category_cards = [self._build_category_card(key, devices.get(key, [])) for key in keys]
+            groups.append(
+                pn.Card(
+                    *category_cards,
+                    title=group_name,
+                    collapsed=False,
+                    sizing_mode="stretch_width",
+                    stylesheets=[style.GROUP_SECTION],
+                    margin=(8, 0),
+                )
+            )
+        return pn.Column(*groups, sizing_mode="stretch_width")
 
     def _build_category_card(self, key: str, entries: list[dict]) -> pn.Card:
         category = CATEGORIES[key]
@@ -441,12 +456,7 @@ class MetadataSelector:
     # Channel table (fixed rows)
     # ------------------------------------------------------------------------------------------------------------------
     def _build_channel_table(self, channel_rows: list[dict]) -> pn.Card:
-        rows = [
-            style.help_note(
-                "Rows are fixed by <code>storesList.csv</code>. Fill the excitation/emission wavelengths and link "
-                "each channel to the devices defined above."
-            )
-        ]
+        rows = [style.help_note("Fixed by <code>storesList.csv</code> — annotate each channel below.")]
         for index, channel in enumerate(self.channels):
             saved = channel_rows[index] if index < len(channel_rows) else {}
             fields: dict[str, object] = {}
@@ -487,7 +497,7 @@ class MetadataSelector:
                     hide_header=True,
                     sizing_mode="stretch_width",
                     stylesheets=[style.INSTANCE_CARD],
-                    margin=(5, 0),
+                    margin=(8, 6),
                 )
             )
         return pn.Card(
@@ -495,7 +505,8 @@ class MetadataSelector:
             title="Fiber-photometry channels",
             collapsed=False,
             sizing_mode="stretch_width",
-            stylesheets=[style.SECTION_CARD],
+            stylesheets=[style.SECTION_CARD_TINTED],
+            margin=(8, 0),
         )
 
     # ------------------------------------------------------------------------------------------------------------------

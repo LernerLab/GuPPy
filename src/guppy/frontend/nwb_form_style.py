@@ -160,7 +160,56 @@ SECTION_CARD = f"""
 }}
 :host .card-button, :host .card-header svg {{ color: #7A8896 !important; fill: #7A8896 !important; }}
 :host > div {{ padding-left: 26px; padding-right: 26px; }}
+:host > div:first-of-type {{ padding-top: 16px; }}
 :host > div:last-child {{ padding-bottom: 22px; }}
+"""
+
+# Like SECTION_CARD but a tinted field, so the white instance cards placed inside read as
+# distinct, floating items (used for the channels section, matching the device-library look).
+# Generous body padding gives the white channel cards a clear tinted gutter from the edge.
+SECTION_CARD_TINTED = f"""
+:host {{
+  border: 1px solid {BORDER} !important;
+  border-radius: 14px !important;
+  background: {SURFACE_INSET} !important;
+  box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 6px 16px rgba(16,24,40,.05) !important;
+  overflow: hidden;
+}}
+:host .card-header {{
+  background: {SURFACE_INSET} !important;
+  border-bottom: 1px solid #E6EBF1 !important;
+  padding: 15px 24px !important;
+}}
+:host .card-title, :host .card-title * {{
+  color: {INK} !important;
+  font-weight: 600 !important;
+  font-size: 15px !important;
+  letter-spacing: .01em;
+}}
+:host .card-button, :host .card-header svg {{ color: #7A8896 !important; fill: #7A8896 !important; }}
+:host > div {{ padding-left: 22px; padding-right: 22px; }}
+:host > div:first-of-type {{ padding-top: 18px; }}
+:host > div:last-child {{ padding-bottom: 22px; }}
+"""
+
+# A collapsible top-level group whose body is transparent: the header reads as a section divider
+# and the cards inside (device categories) sit on the page field rather than in a nested box.
+GROUP_SECTION = f"""
+:host {{ background: transparent !important; border: none !important; box-shadow: none !important; }}
+:host .card-header {{
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid {BORDER} !important;
+  padding: 13px 2px !important;
+}}
+:host .card-title, :host .card-title * {{
+  color: {INK} !important;
+  font-weight: 600 !important;
+  font-size: 15px !important;
+  letter-spacing: .01em;
+}}
+:host .card-button, :host .card-header svg {{ color: #7A8896 !important; fill: #7A8896 !important; }}
+:host > div {{ padding-left: 0 !important; padding-right: 0 !important; }}
 """
 
 # Lighter cards for each device category (a collapsible group within the library).
@@ -316,6 +365,13 @@ def subgroup_label(text: str) -> pn.pane.Markdown:
 def help_note(text: str) -> pn.pane.Markdown:
     """Muted helper text under a heading."""
     return _markdown(f"<div style='font-size:13px;color:{INK_SOFT};line-height:1.5;'>{text}</div>")
+
+
+def intro_note(html: str) -> pn.pane.Markdown:
+    """A short page-top instruction paragraph (slightly more present than help_note)."""
+    return _markdown(
+        f"<div style='font-size:13.5px;color:{INK};line-height:1.65;max-width:780px;margin:2px 0 4px 0;'>{html}</div>"
+    )
 
 
 def channel_chip(region: str, role: str, store_name: str) -> pn.pane.Markdown:
