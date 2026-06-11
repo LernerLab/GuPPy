@@ -109,8 +109,11 @@ def orchestrate_export_nwb_page(inputParameters: dict[str, object], progress_bar
     for index, (session_path, run_name) in enumerate(pairs, start=1):
         guppy_folder_path = output_dir_for_run(session_path, run_name)
         session_basename = os.path.basename(session_path.rstrip(os.sep))
+        output_dir_name = os.path.basename(guppy_folder_path.rstrip(os.sep))
         metadata_yaml_path = os.path.join(guppy_folder_path, METADATA_FILENAME)
-        nwbfile_path = os.path.join(guppy_folder_path, f"{session_basename}.nwb")
+        # Name the file after the full output directory so exports from multiple runs/sessions
+        # stay distinct and can be aggregated into one folder without renaming.
+        nwbfile_path = os.path.join(guppy_folder_path, f"{output_dir_name}.nwb")
 
         try:
             export_session_to_nwb(
