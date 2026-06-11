@@ -34,57 +34,52 @@ class TestDeriveChannels:
 
 
 class TestFieldSpecs:
-    def test_optical_fiber_fields_required_and_targets(self):
-        specs = {s.name: s for s in m.field_specs("optical_fiber")}
-        assert specs["numerical_aperture"].required is True  # from the installed model spec
-        assert specs["core_diameter_in_um"].required is False
-        assert specs["numerical_aperture"].target == "model"
-        assert specs["serial_number"].target == "instance"
-        # fiber insertion coordinates are exposed and optional
-        assert "depth_in_mm" in specs and specs["depth_in_mm"].target == "insertion"
-        # deprecated instance dupes are dropped
-        assert "model_name" not in specs
+    def test_model_and_instance_are_separate_categories(self):
+        model = {s.name: s for s in m.field_specs("optical_fiber_model")}
+        instance = {s.name: s for s in m.field_specs("optical_fiber")}
+        # The model holds the manufacturer specs (numerical_aperture required).
+        assert model["numerical_aperture"].required is True
+        assert model["core_diameter_in_um"].required is False
+        assert "numerical_aperture" not in instance  # not duplicated onto the instance
+        # The instance links to a model and carries the (mandatory) fiber insertion group.
+        assert instance["model"].link_target == "optical_fiber_model"
+        assert instance["depth_in_mm"].target == "insertion"
+        # Deprecated instance dupes are dropped.
+        assert "model_name" not in instance and "manufacturer" not in instance
 
-    def test_indicator_link_field(self):
-        specs = {s.name: s for s in m.field_specs("indicator")}
-        assert specs["label"].required is True
-        assert specs["viral_vector_injection"].link_target == "virus_injection"
+    def test_enumerated_fields_have_options(self):
+        source = {s.name: s for s in m.field_specs("excitation_source_model")}
+        assert source["source_type"].options == ("LED", "Gas Laser", "Solid-State Laser")
+        detector = {s.name: s for s in m.field_specs("photodetector_model")}
+        assert "PMT" in detector["detector_type"].options
+
+    def test_dependency_order_and_links(self):
+        keys = list(m.CATEGORIES)
+        # model before its instance; virus before injection before indicator.
+        assert keys.index("optical_fiber_model") < keys.index("optical_fiber")
+        assert keys.index("virus") < keys.index("virus_injection") < keys.index("indicator")
+        assert {s.name: s for s in m.field_specs("indicator")}[
+            "viral_vector_injection"
+        ].link_target == "virus_injection"
 
 
 class TestBuildMetadata:
-    def test_merged_device_splits_into_model_and_instance(self, channels):
+    def test_instances_reuse_one_model_and_always_emit_insertion(self, channels):
         devices = {
+            "optical_fiber_model": [{"name": "fmodel", "numerical_aperture": 0.48, "manufacturer": "Doric"}],
             "optical_fiber": [
-                {
-                    "name": "dms_fiber",
-                    "description": "a fiber",
-                    "manufacturer": "Doric",
-                    "numerical_aperture": 0.48,
-                    "core_diameter_in_um": 400.0,
-                    "serial_number": "OF1",
-                    "depth_in_mm": 2.8,
-                    "hemisphere": "right",
-                }
-            ]
+                {"name": "dms_fiber", "model": "fmodel", "serial_number": "OF1", "depth_in_mm": 2.8},
+                {"name": "dls_fiber", "model": "fmodel"},  # reuses the same model; no coordinates
+            ],
         }
-        metadata = m.build_metadata_dict(devices, [{}, {}], {}, channels)
-        fiber_photometry = metadata["Ophys"]["FiberPhotometry"]
+        fiber_photometry = m.build_metadata_dict(devices, [{}, {}], {}, channels)["Ophys"]["FiberPhotometry"]
         assert fiber_photometry["OpticalFiberModels"] == [
-            {
-                "name": "dms_fiber_model",
-                "numerical_aperture": 0.48,
-                "core_diameter_in_um": 400.0,
-                "manufacturer": "Doric",
-            }
+            {"name": "fmodel", "numerical_aperture": 0.48, "manufacturer": "Doric"}
         ]
+        # Both instances link the one model; both carry the mandatory fiber_insertion group (2nd is empty).
         assert fiber_photometry["OpticalFibers"] == [
-            {
-                "name": "dms_fiber",
-                "model": "dms_fiber_model",
-                "description": "a fiber",
-                "serial_number": "OF1",
-                "fiber_insertion": {"depth_in_mm": 2.8, "hemisphere": "right"},
-            }
+            {"name": "dms_fiber", "model": "fmodel", "serial_number": "OF1", "fiber_insertion": {"depth_in_mm": 2.8}},
+            {"name": "dls_fiber", "model": "fmodel", "fiber_insertion": {}},
         ]
 
     def test_generates_table_rows_and_response_series_from_channels(self, channels):
@@ -131,24 +126,33 @@ class TestBuildMetadata:
 
 
 class TestParseMetadata:
-    def test_recombines_example_model_and_instance(self, channels):
+    def test_splits_example_into_model_and_instance_categories(self, channels):
         example = m.load_yaml(EXAMPLE_METADATA)
         devices, channel_rows, scalars = m.parse_metadata_dict(example, channels)
+        # Model and instance land in separate categories; the instance links the model + flattens insertion.
+        assert devices["optical_fiber_model"][0]["name"] == "optical_fiber_model"
+        assert devices["optical_fiber_model"][0]["numerical_aperture"] == 0.48
         fiber = devices["optical_fiber"][0]
-        # name from the instance, numerical_aperture pulled back from the linked model, coords from fiber_insertion
         assert fiber["name"] == "optical_fiber"
-        assert fiber["numerical_aperture"] == 0.48
+        assert fiber["model"] == "optical_fiber_model"
         assert fiber["depth_in_mm"] == 2.8
         assert [d["name"] for d in devices["indicator"]] == ["dms_green_fluorophore", "dls_green_fluorophore"]
 
     def test_round_trip_build_parse_build(self, channels):
-        devices = {"optical_fiber": [{"name": "f", "numerical_aperture": 0.48, "manufacturer": "Doric"}]}
+        devices = {
+            "optical_fiber_model": [{"name": "fmodel", "numerical_aperture": 0.48, "manufacturer": "Doric"}],
+            "optical_fiber": [{"name": "f", "model": "fmodel", "depth_in_mm": 2.8}],
+        }
         rows = [{"excitation_wavelength_in_nm": 405.0}, {"excitation_wavelength_in_nm": 465.0}]
         built = m.build_metadata_dict(devices, rows, {}, channels)
         devices2, rows2, _ = m.parse_metadata_dict(built, channels)
         rebuilt = m.build_metadata_dict(devices2, rows2, {}, channels)
         assert (
             rebuilt["Ophys"]["FiberPhotometry"]["OpticalFibers"] == built["Ophys"]["FiberPhotometry"]["OpticalFibers"]
+        )
+        assert (
+            rebuilt["Ophys"]["FiberPhotometry"]["OpticalFiberModels"]
+            == built["Ophys"]["FiberPhotometry"]["OpticalFiberModels"]
         )
 
 

@@ -27,8 +27,20 @@ from ..utils.nwb_metadata import (
 logger = logging.getLogger(__name__)
 
 _SEX_OPTIONS = ["", "M", "F", "U", "O"]
-# Scalar NWBFile/Subject fields the spec marks as required (Subject needs id/sex/species).
-_REQUIRED_SCALARS = {"session_description", "identifier", "subject_id", "sex", "species"}
+# Scalar NWBFile/Subject fields that are genuinely required (identifier auto-generates if blank).
+_REQUIRED_SCALARS = {"session_description", "subject_id", "sex", "species"}
+# Help text shown as the little "?" tooltip on each session/subject field.
+_SCALAR_DOCS = {
+    "session_description": "A description of the experimental session.",
+    "identifier": "A unique identifier for the session. Auto-generated if left blank.",
+    "lab": "Name of the lab that produced this data.",
+    "institution": "Institution where the experiment was performed.",
+    "subject_id": "Unique identifier for the subject (lab convention).",
+    "sex": "Sex of the subject: M, F, U (unknown) or O (other).",
+    "species": "Latin binomial species name, e.g. 'Mus musculus'.",
+    "genotype": "Genetic strain. If absent, assume wild type (WT).",
+    "strain": "The strain of the subject, e.g. 'C57BL/6J'.",
+}
 
 
 def _required_marker(required: bool) -> str:
@@ -41,7 +53,7 @@ class MetadataSelector:
     def __init__(self, session_label: str, channels: list[Channel], initial_metadata: dict) -> None:
         self.session_label = session_label
         self.channels = channels
-        self.alert = pn.pane.Alert("#### No alerts !!", alert_type="primary", sizing_mode="stretch_width")
+        self.alert = pn.pane.Alert("#### No alerts !!", alert_type="success", sizing_mode="stretch_width")
 
         devices, channel_rows, scalars = parse_metadata_dict(initial_metadata, channels)
 
@@ -97,12 +109,14 @@ class MetadataSelector:
         text = lambda name, **kw: pn.widgets.TextInput(  # noqa: E731
             name=f"{name}{_required_marker(name in _REQUIRED_SCALARS)}",
             value=scalars.get(name, ""),
+            description=_SCALAR_DOCS.get(name),
             sizing_mode="stretch_width",
             **kw,
         )
         self.session_description = pn.widgets.TextAreaInput(
             name="session_description *",
             value=scalars.get("session_description", ""),
+            description=_SCALAR_DOCS["session_description"],
             sizing_mode="stretch_width",
             height=70,
         )
@@ -119,7 +133,13 @@ class MetadataSelector:
             self._add_experimenter(name)
 
         self.subject_id = text("subject_id")
-        self.sex = pn.widgets.Select(name="sex *", value=scalars.get("sex", "") or "", options=_SEX_OPTIONS, width=120)
+        self.sex = pn.widgets.Select(
+            name="sex *",
+            value=scalars.get("sex", "") or "",
+            options=_SEX_OPTIONS,
+            description=_SCALAR_DOCS["sex"],
+            width=120,
+        )
         self.species = text("species", placeholder="e.g. Mus musculus")
         self.genotype = text("genotype")
         self.strain = text("strain")
@@ -181,7 +201,7 @@ class MetadataSelector:
     def _build_device_library(self, devices: dict[str, list[dict]]) -> pn.Column:
         cards = []
         for key, category in CATEGORIES.items():
-            add_button = pn.widgets.Button(name=f"➕ Add {category.label.rstrip('s').lower()}", width=220)
+            add_button = pn.widgets.Button(name=f"➕ Add {category.singular}", width=240)
             add_button.on_click(lambda event, k=key: (self._add_device(k, {}), self._refresh_link_options()))
             for entry in devices.get(key, []):
                 self._add_device(key, entry)
@@ -197,24 +217,35 @@ class MetadataSelector:
         return pn.Column(*cards, sizing_mode="stretch_width")
 
     def _add_device(self, category_key: str, entry: dict) -> None:
-        fields: list[tuple[object, object]] = []  # (spec, widget or list-row)
+        fields: list[tuple[FieldSpec, object]] = []  # (spec, widget or list-row)
         rows = []
+        insertion_header_added = False
+        name_widget = None
         for spec in field_specs(category_key):
+            if spec.target == "insertion" and not insertion_header_added:
+                rows.append(pn.pane.Markdown("**Fiber insertion** *(required group; coordinates optional)*"))
+                insertion_header_added = True
             widget = self._make_field_widget(spec, entry)
             fields.append((spec, widget))
             rows.append(widget)
+            if spec.name == "name":
+                name_widget = widget
+
         remove = pn.widgets.Button(name="🗑 Remove", button_type="default", width=110)
-        container = pn.Column(
+        # Each instance is its own collapsible card, titled by its name so a category with many is navigable.
+        card = pn.Card(
             *rows,
             remove,
-            pn.layout.Divider(),
+            title=(name_widget.value or "(unnamed)"),
+            collapsed=True,
             sizing_mode="stretch_width",
-            styles={"border": "1px solid #ddd", "padding": "6px", "margin-bottom": "6px"},
         )
-        record = {"container": container, "fields": fields}
+        if name_widget is not None:
+            name_widget.param.watch(lambda event: setattr(card, "title", event.new or "(unnamed)"), "value")
+        record = {"container": card, "fields": fields}
         remove.on_click(lambda event: self._remove_device(category_key, record))
         self.device_entry_records[category_key].append(record)
-        self.device_containers[category_key].append(container)
+        self.device_containers[category_key].append(card)
 
     def _remove_device(self, category_key: str, record: dict) -> None:
         if record in self.device_entry_records[category_key]:
@@ -229,6 +260,14 @@ class MetadataSelector:
             select = pn.widgets.Select(name=label, options=[""], value=(value or ""), sizing_mode="stretch_width")
             self.device_link_selects.append((select, spec.link_target))
             return select
+        if spec.options:
+            # Enumerated value -> dropdown; include the current value if it isn't a known option.
+            options = list(spec.options)
+            current = "" if value is None else str(value)
+            choices = ["", *options] if current in ("", *options) else ["", *options, current]
+            return pn.widgets.Select(
+                name=label, options=choices, value=current, description=spec.doc, sizing_mode="stretch_width"
+            )
         if spec.is_list:
             low = pn.widgets.TextInput(name=f"{label} [min]", value=_as_text(value, 0), width=160)
             high = pn.widgets.TextInput(name=f"{label} [max]", value=_as_text(value, 1), width=160)
@@ -408,8 +447,9 @@ class MetadataSelector:
         self.code_editor.value = dumps_yaml(metadata)
 
     def set_alert_message(self, message: str) -> None:
-        """Set the text shown in the alert pane."""
+        """Set the alert text, colored red for errors (messages containing 'Alert') and green otherwise."""
         self.alert.object = message
+        self.alert.alert_type = "danger" if "Alert" in message else "success"
 
     def set_path(self, value: str) -> None:
         """Set the displayed save path."""

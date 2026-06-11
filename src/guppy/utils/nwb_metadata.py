@@ -94,99 +94,125 @@ class FieldSpec:
     doc: str
     dtype: str  # "text" | "float"
     is_list: bool  # spec shape [2] -> a pair of numbers
-    target: str  # "model" | "instance" | "insertion" | "self"
+    target: str  # "self" | "insertion"
     link_target: str | None = None  # category key whose names populate a dropdown
+    options: tuple[str, ...] | None = None  # enumerated choices -> rendered as a dropdown
 
 
 @dataclass(frozen=True)
 class CategorySpec:
-    """A user-facing device category and how it maps to ndx metadata keys."""
+    """A user-facing device category and how it maps to one ndx metadata list."""
 
     key: str
-    label: str
-    kind: str  # "merged" (model + instance) or "single"
-    list_key: str  # metadata key for the (single) or instance list
-    model_type: str | None = None
-    instance_type: str | None = None
-    model_list_key: str | None = None
-    single_type: str | None = None
-    has_insertion: bool = False
-    links: dict[str, str] = field(default_factory=dict)  # link field name -> category key
+    label: str  # plural section title
+    singular: str  # used for the "Add <singular>" button
+    ndx_type: str  # installed type to introspect for fields/docs/required
+    list_key: str  # metadata key under Ophys.FiberPhotometry
+    has_insertion: bool = False  # OpticalFiber: emit a (mandatory) fiber_insertion group
+    skip_deprecated: bool = False  # device instances: drop the deprecated model-ish attrs
+    links: dict[str, str] = field(default_factory=dict)  # link field name -> target category key
 
 
+# Ordered by dependency: a model before the instance that links to it; viral vector before its
+# injection before the indicator that references the injection. Instances are what channels link to.
 CATEGORIES: dict[str, CategorySpec] = {
+    "optical_fiber_model": CategorySpec(
+        "optical_fiber_model", "Optical fiber models", "optical fiber model", "OpticalFiberModel", "OpticalFiberModels"
+    ),
     "optical_fiber": CategorySpec(
-        key="optical_fiber",
-        label="Optical fibers",
-        kind="merged",
-        model_type="OpticalFiberModel",
-        instance_type="OpticalFiber",
-        model_list_key="OpticalFiberModels",
-        list_key="OpticalFibers",
+        "optical_fiber",
+        "Optical fibers",
+        "optical fiber",
+        "OpticalFiber",
+        "OpticalFibers",
         has_insertion=True,
+        skip_deprecated=True,
+        links={"model": "optical_fiber_model"},
+    ),
+    "excitation_source_model": CategorySpec(
+        "excitation_source_model",
+        "Excitation source models",
+        "excitation source model",
+        "ExcitationSourceModel",
+        "ExcitationSourceModels",
     ),
     "excitation_source": CategorySpec(
-        key="excitation_source",
-        label="Excitation sources",
-        kind="merged",
-        model_type="ExcitationSourceModel",
-        instance_type="ExcitationSource",
-        model_list_key="ExcitationSourceModels",
-        list_key="ExcitationSources",
+        "excitation_source",
+        "Excitation sources",
+        "excitation source",
+        "ExcitationSource",
+        "ExcitationSources",
+        skip_deprecated=True,
+        links={"model": "excitation_source_model"},
+    ),
+    "photodetector_model": CategorySpec(
+        "photodetector_model",
+        "Photodetector models",
+        "photodetector model",
+        "PhotodetectorModel",
+        "PhotodetectorModels",
     ),
     "photodetector": CategorySpec(
-        key="photodetector",
-        label="Photodetectors",
-        kind="merged",
-        model_type="PhotodetectorModel",
-        instance_type="Photodetector",
-        model_list_key="PhotodetectorModels",
-        list_key="Photodetectors",
+        "photodetector",
+        "Photodetectors",
+        "photodetector",
+        "Photodetector",
+        "Photodetectors",
+        skip_deprecated=True,
+        links={"model": "photodetector_model"},
+    ),
+    "band_optical_filter_model": CategorySpec(
+        "band_optical_filter_model",
+        "Band optical filter models",
+        "band optical filter model",
+        "BandOpticalFilterModel",
+        "BandOpticalFilterModels",
     ),
     "band_optical_filter": CategorySpec(
-        key="band_optical_filter",
-        label="Band optical filters",
-        kind="merged",
-        model_type="BandOpticalFilterModel",
-        instance_type="BandOpticalFilter",
-        model_list_key="BandOpticalFilterModels",
-        list_key="BandOpticalFilters",
+        "band_optical_filter",
+        "Band optical filters",
+        "band optical filter",
+        "BandOpticalFilter",
+        "BandOpticalFilters",
+        skip_deprecated=True,
+        links={"model": "band_optical_filter_model"},
+    ),
+    "dichroic_mirror_model": CategorySpec(
+        "dichroic_mirror_model",
+        "Dichroic mirror models",
+        "dichroic mirror model",
+        "DichroicMirrorModel",
+        "DichroicMirrorModels",
     ),
     "dichroic_mirror": CategorySpec(
-        key="dichroic_mirror",
-        label="Dichroic mirrors",
-        kind="merged",
-        model_type="DichroicMirrorModel",
-        instance_type="DichroicMirror",
-        model_list_key="DichroicMirrorModels",
-        list_key="DichroicMirrors",
+        "dichroic_mirror",
+        "Dichroic mirrors",
+        "dichroic mirror",
+        "DichroicMirror",
+        "DichroicMirrors",
+        skip_deprecated=True,
+        links={"model": "dichroic_mirror_model"},
+    ),
+    "virus": CategorySpec("virus", "Viruses", "virus", "ViralVector", "FiberPhotometryViruses"),
+    "virus_injection": CategorySpec(
+        "virus_injection",
+        "Virus injections",
+        "virus injection",
+        "ViralVectorInjection",
+        "FiberPhotometryVirusInjections",
+        links={"viral_vector": "virus"},
     ),
     "indicator": CategorySpec(
-        key="indicator",
-        label="Indicators",
-        kind="single",
-        single_type="Indicator",
-        list_key="FiberPhotometryIndicators",
+        "indicator",
+        "Indicators",
+        "indicator",
+        "Indicator",
+        "FiberPhotometryIndicators",
         links={"viral_vector_injection": "virus_injection"},
-    ),
-    "virus": CategorySpec(
-        key="virus",
-        label="Viruses",
-        kind="single",
-        single_type="ViralVector",
-        list_key="FiberPhotometryViruses",
-    ),
-    "virus_injection": CategorySpec(
-        key="virus_injection",
-        label="Virus injections",
-        kind="single",
-        single_type="ViralVectorInjection",
-        list_key="FiberPhotometryVirusInjections",
-        links={"viral_vector": "virus"},
     ),
 }
 
-# Channel-table link columns -> device category supplying the dropdown options.
+# Channel-table link columns -> the (instance) device category supplying the dropdown options.
 CHANNEL_LINKS: dict[str, str] = {
     "indicator": "indicator",
     "optical_fiber": "optical_fiber",
@@ -199,49 +225,46 @@ CHANNEL_LINKS: dict[str, str] = {
 CHANNEL_REQUIRED_LINKS = ("indicator", "optical_fiber", "excitation_source", "photodetector")
 CHANNEL_WAVELENGTHS = ("excitation_wavelength_in_nm", "emission_wavelength_in_nm")
 
-# Instance attributes that are deprecated (they belong on the model) or duplicated.
-_INSTANCE_SKIP = {"manufacturer", "model_number", "model_name", "description"}
+# Deprecated instance attributes that belong on the model (dropped from instance forms).
+_DEPRECATED_INSTANCE_ATTRS = {"manufacturer", "model_number", "model_name"}
+
+# Free-text-in-the-spec fields whose values are effectively enumerated (rendered as dropdowns).
+ENUM_OPTIONS: dict[str, tuple[str, ...]] = {
+    "source_type": ("LED", "Gas Laser", "Solid-State Laser"),
+    "excitation_mode": ("one-photon", "two-photon", "three-photon", "other"),
+    "detector_type": ("photodiode", "PMT", "CCD", "CMOS", "EBCCD", "intensified CCD", "FTIR"),
+    "filter_type": ("Bandpass", "Bandstop"),
+}
 
 
 @lru_cache(maxsize=None)
-def _type_attrs(type_name: str) -> tuple[tuple[str, bool, str, str, bool], ...]:
-    """Introspect an installed ndx type: ordered (name, required, doc, dtype, is_list)."""
+def _type_spec(type_name: str):  # noqa: ANN202  (returns an hdmf Spec)
     import ndx_fiber_photometry  # noqa: F401  (register extensions)
     import ndx_ophys_devices  # noqa: F401
     from pynwb import get_type_map
 
     catalog = get_type_map().namespace_catalog
-    spec = None
     for namespace in ("ndx-ophys-devices", "ndx-fiber-photometry"):
         try:
-            spec = catalog.get_spec(namespace, type_name)
-            break
+            return catalog.get_spec(namespace, type_name)
         except ValueError:
             continue
-    assert spec is not None, f"Type {type_name!r} not found in installed ndx namespaces."
+    raise AssertionError(f"Type {type_name!r} not found in installed ndx namespaces.")
 
+
+def _type_attrs(type_name: str) -> tuple[tuple[str, bool, str, str, bool], ...]:
+    """Introspect an installed ndx type: ordered (name, required, doc, dtype, is_list)."""
     rows = []
-    for attribute in spec.attributes:
+    for attribute in _type_spec(type_name).attributes:
         dtype = "float" if attribute.dtype == "float" else "text"
         is_list = getattr(attribute, "shape", None) is not None
         rows.append((attribute.name, bool(attribute.required), attribute.doc, dtype, is_list))
     return tuple(rows)
 
 
-@lru_cache(maxsize=None)
 def _type_links(type_name: str) -> dict[str, bool]:
     """Return {link_name: required} for an installed ndx type."""
-    import ndx_fiber_photometry  # noqa: F401
-    import ndx_ophys_devices  # noqa: F401
-    from pynwb import get_type_map
-
-    catalog = get_type_map().namespace_catalog
-    for namespace in ("ndx-ophys-devices", "ndx-fiber-photometry"):
-        try:
-            spec = catalog.get_spec(namespace, type_name)
-            break
-        except ValueError:
-            continue
+    spec = _type_spec(type_name)
     return {
         link.name: str(getattr(link, "quantity", "?")) in ("1", "+") for link in (getattr(spec, "links", None) or [])
     }
@@ -251,43 +274,32 @@ def field_specs(category_key: str) -> list[FieldSpec]:
     """Return the ordered editable fields for a device category."""
     category = CATEGORIES[category_key]
     specs: list[FieldSpec] = [
-        FieldSpec(
-            "name", True, "Unique name for this device (referenced by the channel links).", "text", False, "self"
-        ),
-        FieldSpec("description", False, "Free-form description of the device.", "text", False, "instance"),
+        FieldSpec("name", True, "Unique name for this object (referenced by links).", "text", False, "self"),
+        FieldSpec("description", False, "Free-form description.", "text", False, "self"),
     ]
-
-    if category.kind == "merged":
-        for name, required, doc, dtype, is_list in _type_attrs(category.model_type):
-            if name == "description":
-                continue
-            specs.append(FieldSpec(name, required, doc, dtype, is_list, "model"))
-        for name, required, doc, dtype, is_list in _type_attrs(category.instance_type):
-            if name in _INSTANCE_SKIP:
-                continue
-            specs.append(FieldSpec(name, required, doc, dtype, is_list, "instance"))
-        if category.has_insertion:
-            for name, required, doc, dtype, is_list in _type_attrs("FiberInsertion"):
-                specs.append(FieldSpec(name, required, doc, dtype, is_list, "insertion"))
-    else:  # single object (Indicator / ViralVector / ViralVectorInjection)
-        specs[1] = FieldSpec("description", False, "Free-form description.", "text", False, "self")
-        for name, required, doc, dtype, is_list in _type_attrs(category.single_type):
-            if name == "description":
-                continue
-            specs.append(FieldSpec(name, required, doc, dtype, is_list, "self"))
-        link_required = _type_links(category.single_type)
-        for link_name, target_category in category.links.items():
-            specs.append(
-                FieldSpec(
-                    link_name,
-                    link_required.get(link_name, False),
-                    f"Link to a defined {CATEGORIES[target_category].label.rstrip('s').lower()}.",
-                    "text",
-                    False,
-                    "self",
-                    link_target=target_category,
-                )
+    for name, required, doc, dtype, is_list in _type_attrs(category.ndx_type):
+        if name == "description":
+            continue
+        if category.skip_deprecated and name in _DEPRECATED_INSTANCE_ATTRS:
+            continue
+        specs.append(FieldSpec(name, required, doc, dtype, is_list, "self", options=ENUM_OPTIONS.get(name)))
+    if category.has_insertion:
+        # The fiber_insertion group itself is mandatory (quantity 1); its individual coordinates are optional.
+        for name, required, doc, dtype, is_list in _type_attrs("FiberInsertion"):
+            specs.append(FieldSpec(name, required, doc, dtype, is_list, "insertion"))
+    link_required = _type_links(category.ndx_type)
+    for link_name, target_category in category.links.items():
+        specs.append(
+            FieldSpec(
+                link_name,
+                link_required.get(link_name, False),
+                f"Link to a defined {CATEGORIES[target_category].singular}.",
+                "text",
+                False,
+                "self",
+                link_target=target_category,
             )
+        )
     return specs
 
 
@@ -315,54 +327,29 @@ def _drop_empty(mapping: dict) -> dict:
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-# Device serialization (merged form entry <-> Model + instance dicts)
+# Device serialization (one form entry <-> one ndx object dict)
 # ----------------------------------------------------------------------------------------------------------------------
-def _serialize_device(category: CategorySpec, entry: dict) -> tuple[dict | None, dict]:
-    """Serialize one form entry into (model_dict | None, object_dict)."""
-    specs = field_specs(category.key)
-    name = entry.get("name", "")
-
-    if category.kind == "single":
-        single = _drop_empty({spec.name: entry.get(spec.name) for spec in specs})
-        return None, single
-
-    model_name = f"{name}_model"
-    model = {"name": model_name}
-    instance = {"name": name, "model": model_name}
+def _serialize_device(category: CategorySpec, entry: dict) -> dict:
+    """Serialize one form entry into its ndx object dict (nesting the fiber_insertion group)."""
+    obj: dict = {}
     insertion: dict = {}
-    for spec in specs:
-        if spec.name in ("name",):
-            continue
+    for spec in field_specs(category.key):
         value = entry.get(spec.name)
-        if _is_empty(value):
-            continue
-        if spec.target == "model":
-            model[spec.name] = value
-        elif spec.target == "insertion":
-            insertion[spec.name] = value
-        else:  # instance (description, serial_number)
-            instance[spec.name] = value
-    if insertion:
-        instance["fiber_insertion"] = insertion
-    return model, instance
+        if spec.target == "insertion":
+            if not _is_empty(value):
+                insertion[spec.name] = value
+        elif not _is_empty(value):
+            obj[spec.name] = value
+    if category.has_insertion:
+        # Mandatory group (quantity 1): always present, even if the user left the coordinates blank.
+        obj["fiber_insertion"] = insertion
+    return obj
 
 
-def _deserialize_device(category: CategorySpec, object_dict: dict, models_by_name: dict[str, dict]) -> dict:
-    """Recombine a Model + instance (or single object) back into one form entry."""
-    if category.kind == "single":
-        return dict(object_dict)
-
-    entry: dict = {"name": object_dict.get("name", "")}
-    if "description" in object_dict:
-        entry["description"] = object_dict["description"]
-    if "serial_number" in object_dict:
-        entry["serial_number"] = object_dict["serial_number"]
-    for sub_key, sub_value in (object_dict.get("fiber_insertion") or {}).items():
-        entry[sub_key] = sub_value
-    model = models_by_name.get(object_dict.get("model", ""), {})
-    for model_key, model_value in model.items():
-        if model_key != "name":
-            entry[model_key] = model_value
+def _deserialize_device(category: CategorySpec, object_dict: dict) -> dict:
+    """Flatten one ndx object dict back into a form entry (un-nesting fiber_insertion)."""
+    entry = {key: value for key, value in object_dict.items() if key != "fiber_insertion"}
+    entry.update(object_dict.get("fiber_insertion") or {})
     return entry
 
 
@@ -379,20 +366,13 @@ def build_metadata_dict(
     """
     fiber_photometry: dict = {}
     for category in CATEGORIES.values():
-        models: list[dict] = []
-        objects: list[dict] = []
-        for entry in devices.get(category.key, []):
-            if _is_empty(entry.get("name")):
-                continue
-            model, object_dict = _serialize_device(category, entry)
-            if model is not None:
-                models.append(model)
-            objects.append(object_dict)
-        if not objects:
-            continue
-        if category.model_list_key:
-            fiber_photometry[category.model_list_key] = models
-        fiber_photometry[category.list_key] = objects
+        objects = [
+            _serialize_device(category, entry)
+            for entry in devices.get(category.key, [])
+            if not _is_empty(entry.get("name"))
+        ]
+        if objects:
+            fiber_photometry[category.list_key] = objects
 
     table_rows = []
     response_series = []
@@ -441,9 +421,8 @@ def parse_metadata_dict(metadata: dict, channels: list[Channel]) -> tuple[dict[s
 
     devices: dict[str, list[dict]] = {}
     for category in CATEGORIES.values():
-        models_by_name = {model["name"]: model for model in fiber_photometry.get(category.model_list_key or "", [])}
         objects = fiber_photometry.get(category.list_key, [])
-        devices[category.key] = [_deserialize_device(category, obj, models_by_name) for obj in objects]
+        devices[category.key] = [_deserialize_device(category, obj) for obj in objects]
 
     saved_rows = fiber_photometry.get("FiberPhotometryTable", {}).get("rows", [])
     channel_rows: list[dict] = []
