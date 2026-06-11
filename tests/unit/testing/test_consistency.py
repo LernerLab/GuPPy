@@ -36,6 +36,23 @@ class TestNormalizationHelpers:
         assert result.shape == (1, 2)
         assert result.tolist() == [["1.2", "session_2.3"]]
 
+    def test_normalize_psth_label_applies_bare_and_prefixed_offsets(self):
+        # Bare event-ts label shifts by bare_offset.
+        assert _normalize_psth_label("138.238440990448", bare_offset=1.0) == "139.238441"
+        # peak_AUC prefixed label shifts its float suffix by prefixed_offset.
+        assert (
+            _normalize_psth_label("sample_data_csv_1_138.238440990448", prefixed_offset=1.0)
+            == "sample_data_csv_1_139.238441"
+        )
+
+    def test_normalize_psth_label_leaves_session_suffix_unchanged_when_prefixed_offset_zero(self):
+        # Session-run suffixes (e.g. ..._output_1) match the prefixed-float regex but must NOT
+        # be shifted: only peak_AUC files pass a nonzero prefixed_offset.
+        assert (
+            _normalize_psth_label("Photo_048_392-200728-121222_output_1", bare_offset=1.0, prefixed_offset=0.0)
+            == "Photo_048_392-200728-121222_output_1"
+        )
+
 
 class TestPathCollection:
     def test_collect_relative_paths_skips_saved_plots_directory(self, tmp_path):
@@ -133,6 +150,104 @@ class TestCompareOutputFolders:
             actual_file.create_dataset("values", data=np.array([1.0, 2.0]))
 
         compare_output_folders(actual_dir=str(actual_directory), expected_dir=str(expected_directory))
+
+    def test_compare_output_folders_event_ts_offset_reconciles_ts_dataset(self, tmp_path):
+        # Event-timestamp arrays (key "ts") moved to the recording-start basis:
+        # actual == reference + timeForLightsTurnOn.
+        expected_directory = tmp_path / "expected"
+        actual_directory = tmp_path / "actual"
+        expected_directory.mkdir()
+        actual_directory.mkdir()
+
+        with h5py.File(expected_directory / "ttl_region.hdf5", "w") as f:
+            f.create_dataset("ts", data=np.array([138.0, 189.0, 269.0]))
+        with h5py.File(actual_directory / "ttl_region.hdf5", "w") as f:
+            f.create_dataset("ts", data=np.array([139.0, 190.0, 270.0]))
+
+        # With the matching offset the shifted reference equals actual.
+        compare_output_folders(
+            actual_dir=str(actual_directory), expected_dir=str(expected_directory), event_ts_offset=1.0
+        )
+        # Without the offset the basis difference is (correctly) flagged.
+        with pytest.raises(AssertionError, match="'ts' numeric data differs"):
+            compare_output_folders(actual_dir=str(actual_directory), expected_dir=str(expected_directory))
+
+    def test_compare_output_folders_event_ts_offset_shifts_psth_bare_labels(self, tmp_path):
+        # z_score trial columns are bare event-ts floats; the reference is shifted into the
+        # current basis by event_ts_offset.
+        expected_directory = tmp_path / "expected"
+        actual_directory = tmp_path / "actual"
+        expected_directory.mkdir()
+        actual_directory.mkdir()
+
+        with h5py.File(expected_directory / "z_score_region.h5", "w") as f:
+            f.create_dataset("axis0", data=np.array([b"138.238440990448", b"189.68911623954773"]))
+        with h5py.File(actual_directory / "z_score_region.h5", "w") as f:
+            f.create_dataset("axis0", data=np.array([b"139.238440990448", b"190.68911623954773"]))
+
+        compare_output_folders(
+            actual_dir=str(actual_directory), expected_dir=str(expected_directory), event_ts_offset=1.0
+        )
+
+    def test_compare_output_folders_event_ts_offset_does_not_shift_group_session_columns(self, tmp_path):
+        # Group-average trial columns are session-run names (..._output_1) that match the
+        # prefixed-float regex. They must compare equal even when event_ts_offset is set,
+        # because a z_score (non-peak_AUC) file uses prefixed_offset=0.
+        expected_directory = tmp_path / "expected"
+        actual_directory = tmp_path / "actual"
+        expected_directory.mkdir()
+        actual_directory.mkdir()
+
+        cols = np.array([b"Photo_048_output_1", b"Photo_63_output_1"])
+        with h5py.File(expected_directory / "rewarded_z_score_region.h5", "w") as f:
+            f.create_dataset("axis0", data=cols)
+        with h5py.File(actual_directory / "rewarded_z_score_region.h5", "w") as f:
+            f.create_dataset("axis0", data=cols)
+
+        compare_output_folders(
+            actual_dir=str(actual_directory), expected_dir=str(expected_directory), event_ts_offset=1.0
+        )
+
+    def test_compare_output_folders_event_ts_offset_shifts_peak_auc_hdf5_index_not_columns(self, tmp_path):
+        # peak_AUC HDF5 stores event-ts labels in the index axis (axis1) and structural
+        # column names (peak_pos_1, area_1) in axis0/block0_items. Only axis1 must shift;
+        # the "_1" column suffixes match the prefixed-float regex but must NOT shift.
+        expected_directory = tmp_path / "expected"
+        actual_directory = tmp_path / "actual"
+        expected_directory.mkdir()
+        actual_directory.mkdir()
+
+        columns = np.array([b"peak_pos_1", b"area_1"])
+        with h5py.File(expected_directory / "peak_AUC_ttl_region.h5", "w") as f:
+            f.create_dataset("axis0", data=columns)
+            f.create_dataset("block0_items", data=columns)
+            f.create_dataset("axis1", data=np.array([b"sample_1_138.238440990448"]))
+        with h5py.File(actual_directory / "peak_AUC_ttl_region.h5", "w") as f:
+            f.create_dataset("axis0", data=columns)
+            f.create_dataset("block0_items", data=columns)
+            f.create_dataset("axis1", data=np.array([b"sample_1_139.238440990448"]))
+
+        compare_output_folders(
+            actual_dir=str(actual_directory), expected_dir=str(expected_directory), event_ts_offset=1.0
+        )
+
+    def test_compare_output_folders_event_ts_offset_shifts_peak_auc_csv_index(self, tmp_path):
+        # peak_AUC row index is prefixed floats whose suffix IS the event ts → shift the suffix.
+        expected_directory = tmp_path / "expected"
+        actual_directory = tmp_path / "actual"
+        expected_directory.mkdir()
+        actual_directory.mkdir()
+
+        pd.DataFrame({"area": [0.5]}, index=["sample_data_csv_1_138.238440990448"]).to_csv(
+            expected_directory / "peak_AUC_ttl_region.csv"
+        )
+        pd.DataFrame({"area": [0.5]}, index=["sample_data_csv_1_139.238440990448"]).to_csv(
+            actual_directory / "peak_AUC_ttl_region.csv"
+        )
+
+        compare_output_folders(
+            actual_dir=str(actual_directory), expected_dir=str(expected_directory), event_ts_offset=1.0
+        )
 
     def test_compare_output_folders_reports_hdf5_string_mismatch_for_non_psth_file(self, tmp_path):
         expected_directory = tmp_path / "expected"

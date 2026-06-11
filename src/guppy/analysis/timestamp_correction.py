@@ -236,12 +236,20 @@ def applyCorrection_ttl(
     mode: str,
 ) -> np.ndarray:
     """
-    Shift TTL timestamps to align with the corrected photometry time base.
+    Shift TTL timestamps onto the recording-start time base.
+
+    Events are placed on the same recording-start basis as the continuous
+    ``timestampNew`` stream (see :func:`timestampCorrection`): for TDT the
+    recording start (``timeRecStart``) is subtracted; for CSV the timestamps are
+    already recording-relative and are returned unchanged. Events are *not*
+    re-zeroed to ``timeForLightsTurnOn`` — keeping both streams on one shared
+    origin so consumers can co-register them without per-stream offset bookkeeping.
 
     Parameters
     ----------
     timeForLightsTurnOn : float
-        Seconds offset for the new time zero.
+        Seconds offset of the lights-on instant; retained for API compatibility
+        but no longer used to shift events.
     timeRecStart : float
         Absolute start time of the recording (TDT only; ignored for CSV).
     ttl_timestamps : np.ndarray
@@ -252,18 +260,15 @@ def applyCorrection_ttl(
     Returns
     -------
     corrected_ttl_timestamps : np.ndarray
-        TTL timestamps shifted to the corrected time base.
+        TTL timestamps on the recording-start time base.
     """
     corrected_ttl_timestamps = ttl_timestamps
     if mode == "tdt":
         res = (corrected_ttl_timestamps >= timeRecStart).all()
+        # When all TTLs are on the recording clock, rebase them to recording start.
+        # Otherwise they are not on the recording clock; leave them as-is (rare path).
         if res == True:
             corrected_ttl_timestamps = np.subtract(corrected_ttl_timestamps, timeRecStart)
-            corrected_ttl_timestamps = np.subtract(corrected_ttl_timestamps, timeForLightsTurnOn)
-        else:
-            corrected_ttl_timestamps = np.subtract(corrected_ttl_timestamps, timeForLightsTurnOn)
-    elif mode == "csv":
-        corrected_ttl_timestamps = np.subtract(corrected_ttl_timestamps, timeForLightsTurnOn)
     return corrected_ttl_timestamps
 
 
