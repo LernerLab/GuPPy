@@ -59,6 +59,8 @@ dependencies = [
     "selenium",
     "dandi",
     "remfile",
+    "pyyaml",
+    "neuroconv[guppy_tdt] @ git+https://github.com/catalystneuro/neuroconv@guppy",
 ]
 
 [dependency-groups]
