@@ -1,8 +1,6 @@
 # Input parameter reference
 
-Every parameter the GuPPy GUI exposes, organized to match what you see on screen. The page mirrors the three cards on the homepage (**Individual Analysis**, **Group Analysis**, **Visualization Parameters**) and the visual sub-groupings inside each card. Each row gives the parameter as it appears in the GUI, a one-line description of what it does, the data type, the default value, and the accepted values or range. Prose paragraphs underneath cover the parameters that need more than a single line.
-
-This is a reference, not a tutorial. If you are running GuPPy for the first time, start with [Your First Analysis](../tutorials/first_analysis.md). The defaults documented here are tuned for a typical 1 kHz dual-wavelength CSV recording and work for the tutorial sample data without modification.
+Every parameter the GuPPy GUI exposes, organized to match what you see on screen. The page mirrors the three cards on the homepage (**Individual Analysis**, **Group Analysis**, **Visualization Parameters**) and the visual sub-groupings inside each card. Each row gives the parameter as it appears in the GUI, a one-line description of what it does, the data type, the default value, and the accepted values or range. Prose paragraphs underneath cover the parameters that need more than a single line. If this is your first time using GuPPy, follow the [Your First Analysis](../tutorials/first_analysis.md) tutorial instead.
 
 The pipeline-step numbering used in this page matches the steps in [Your First Analysis](../tutorials/first_analysis.md): Step 3 (Load the raw data), Step 4 (Preprocess the signal), Step 5 (Compute the PSTH), Step 6 (Visualize the results).
 
