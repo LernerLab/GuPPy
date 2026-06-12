@@ -10,7 +10,12 @@ from .io_utils import (
 logger = logging.getLogger(__name__)
 
 
-def eliminateData(filepath_to_timestamps, filepath_to_data, timeForLightsTurnOn, sampling_rate):
+def eliminateData(
+    filepath_to_timestamps: dict[str, np.ndarray],
+    filepath_to_data: dict[str, np.ndarray],
+    timeForLightsTurnOn: float,
+    sampling_rate: float,
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Concatenate data from multiple session files and realign their timestamps.
 
@@ -55,7 +60,12 @@ def eliminateData(filepath_to_timestamps, filepath_to_data, timeForLightsTurnOn,
     return arr, ts_arr
 
 
-def eliminateTs(filepath_to_timestamps, filepath_to_ttl_timestamps, timeForLightsTurnOn, sampling_rate):
+def eliminateTs(
+    filepath_to_timestamps: dict[str, np.ndarray],
+    filepath_to_ttl_timestamps: dict[str, np.ndarray],
+    timeForLightsTurnOn: float,
+    sampling_rate: float,
+) -> np.ndarray:
     """
     Realign TTL timestamps to match concatenated multi-session photometry timestamps.
 
@@ -82,6 +92,9 @@ def eliminateTs(filepath_to_timestamps, filepath_to_ttl_timestamps, timeForLight
     for filepath in filepaths:
         tsNew = filepath_to_timestamps[filepath]
         ts = filepath_to_ttl_timestamps[filepath]
+        # Both tsNew (continuous) and ts (events) are on the recording-start basis, so the
+        # same per-session shift keeps them mutually aligned. Inter-session bridging below
+        # uses differences only, which are basis-invariant.
         if len(tsNew_arr) == 0:
             sub = tsNew[0] - timeForLightsTurnOn
             tsNew_arr = np.concatenate((tsNew_arr, tsNew - sub))
@@ -102,10 +115,10 @@ def combine_data(
     pair_name_to_filepath_to_timestamps: dict[str, dict[str, np.ndarray]],
     display_name_to_filepath_to_data: dict[str, dict[str, np.ndarray]],
     compound_name_to_filepath_to_ttl_timestamps: dict[str, dict[str, np.ndarray]],
-    timeForLightsTurnOn,
-    storesList,
-    sampling_rate,
-):
+    timeForLightsTurnOn: float,
+    storesList: np.ndarray,
+    sampling_rate: float,
+) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray]]:
     """
     Combine photometry data and TTL timestamps from multiple session files.
 

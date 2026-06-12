@@ -6,15 +6,15 @@ logger = logging.getLogger(__name__)
 
 
 def remove_artifacts(
-    timeForLightsTurnOn,
-    storesList,
-    pair_name_to_tsNew,
-    pair_name_to_sampling_rate,
-    pair_name_to_coords,
-    name_to_data,
-    compound_name_to_ttl_timestamps,
-    method,
-):
+    timeForLightsTurnOn: float,
+    storesList: np.ndarray,
+    pair_name_to_tsNew: dict[str, np.ndarray],
+    pair_name_to_sampling_rate: dict[str, float],
+    pair_name_to_coords: dict[str, np.ndarray],
+    name_to_data: dict[str, np.ndarray],
+    compound_name_to_ttl_timestamps: dict[str, np.ndarray],
+    method: str,
+) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray] | None, dict[str, np.ndarray]]:
     """
     Remove artifacts from photometry data using the specified method.
 
@@ -78,8 +78,12 @@ def remove_artifacts(
 
 
 def addingNaNtoChunksWithArtifacts(
-    storesList, pair_name_to_tsNew, pair_name_to_coords, name_to_data, compound_name_to_ttl_timestamps
-):
+    storesList: np.ndarray,
+    pair_name_to_tsNew: dict[str, np.ndarray],
+    pair_name_to_coords: dict[str, np.ndarray],
+    name_to_data: dict[str, np.ndarray],
+    compound_name_to_ttl_timestamps: dict[str, np.ndarray],
+) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray]]:
     """
     Replace artifact chunks in control/signal data with NaN values.
 
@@ -134,14 +138,14 @@ def addingNaNtoChunksWithArtifacts(
 
 
 def processTimestampsForArtifacts(
-    timeForLightsTurnOn,
-    storesList,
-    pair_name_to_tsNew,
-    pair_name_to_sampling_rate,
-    pair_name_to_coords,
-    name_to_data,
-    compound_name_to_ttl_timestamps,
-):
+    timeForLightsTurnOn: float,
+    storesList: np.ndarray,
+    pair_name_to_tsNew: dict[str, np.ndarray],
+    pair_name_to_sampling_rate: dict[str, float],
+    pair_name_to_coords: dict[str, np.ndarray],
+    name_to_data: dict[str, np.ndarray],
+    compound_name_to_ttl_timestamps: dict[str, np.ndarray],
+) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray]]:
     """
     Concatenate non-artifact chunks and realign all timestamps.
 
@@ -221,7 +225,9 @@ def processTimestampsForArtifacts(
     )
 
 
-def eliminateData(*, data, ts, coords, timeForLightsTurnOn, sampling_rate):
+def eliminateData(
+    *, data: np.ndarray, ts: np.ndarray, coords: np.ndarray, timeForLightsTurnOn: float, sampling_rate: float
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Concatenate non-artifact data chunks and realign their timestamps.
 
@@ -272,7 +278,9 @@ def eliminateData(*, data, ts, coords, timeForLightsTurnOn, sampling_rate):
     return arr, ts_arr
 
 
-def eliminateTs(*, ts, tsNew, coords, timeForLightsTurnOn, sampling_rate):
+def eliminateTs(
+    *, ts: np.ndarray, tsNew: np.ndarray, coords: np.ndarray, timeForLightsTurnOn: float, sampling_rate: float
+) -> np.ndarray:
     """
     Realign TTL timestamps to match concatenated non-artifact photometry chunks.
 
@@ -298,6 +306,8 @@ def eliminateTs(*, ts, tsNew, coords, timeForLightsTurnOn, sampling_rate):
     ts_arr = np.array([])
     tsNew_arr = np.array([])
     for i in range(coords.shape[0]):
+        # tsNew (continuous) and ts (events) are both on the recording-start basis, matching
+        # the basis of the artifact-removal coords, so both windowing comparisons are consistent.
         tsNew_index = np.where((tsNew > coords[i, 0]) & (tsNew < coords[i, 1]))[0]
         ts_index = np.where((ts > coords[i, 0]) & (ts < coords[i, 1]))[0]
 
@@ -316,7 +326,7 @@ def eliminateTs(*, ts, tsNew, coords, timeForLightsTurnOn, sampling_rate):
     return ts_arr
 
 
-def addingNaNValues(*, data, ts, coords):
+def addingNaNValues(*, data: np.ndarray, ts: np.ndarray, coords: np.ndarray) -> np.ndarray:
     """
     Set data samples outside the good-chunk windows to NaN.
 
@@ -351,7 +361,7 @@ def addingNaNValues(*, data, ts, coords):
     return data
 
 
-def removeTTLs(*, ts, coords):
+def removeTTLs(*, ts: np.ndarray, coords: np.ndarray) -> np.ndarray:
     """
     Keep only TTL timestamps that fall within good-chunk windows.
 

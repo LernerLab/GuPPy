@@ -136,9 +136,9 @@ def test_mixed_modality_npm_csv_ttl(tmp_path):
     A single NPM session is staged in a temporary workspace. A synthesized CSV TTL file
     (single 'timestamps' column, relative seconds matching the NPM recording's output domain)
     is written into the session folder alongside the NPM data files. detect_acquisition_formats
-    detects both 'npm' and 'csv' formats: NPM-generated split-event files (named event*.csv)
-    are suppressed as before, while the external CSV (named csv_event.csv) is passed through
-    to CsvRecordingExtractor.
+    detects both 'npm' and 'csv' formats: NPM owns its photometry channels and split-event TTLs
+    in memory (nothing written to the folder), while the only single-column file on disk — the
+    external csv_event.csv — is passed through to CsvRecordingExtractor.
 
     NPM_1 photometry timestamps are rescaled to relative seconds (~0–120 s). The external
     event CSV uses timestamps in that same relative domain so PSTH alignment succeeds.

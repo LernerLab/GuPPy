@@ -7,7 +7,6 @@ the analysis layer (preprocessing, z-score, transients, etc.).
 
 import logging
 import os
-from typing import Any
 
 import h5py
 import numpy as np
@@ -15,7 +14,7 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
-def read_hdf5(event, filepath, key):
+def read_hdf5(event: str, filepath: str, key: str) -> np.ndarray:
     if event:
         event = event.replace("\\", "_")
         event = event.replace("/", "_")
@@ -34,7 +33,7 @@ def read_hdf5(event, filepath, key):
     return arr
 
 
-def write_hdf5(data: Any, storename: str, output_path: str, key: str) -> None:
+def write_hdf5(data: np.ndarray | float | int | str | bool, storename: str, output_path: str, key: str) -> None:
     storename = storename.replace("\\", "_")
     storename = storename.replace("/", "_")
     op = os.path.join(output_path, storename + ".hdf5")

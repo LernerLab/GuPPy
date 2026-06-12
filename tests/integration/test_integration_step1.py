@@ -55,7 +55,7 @@ def test_step1(tmp_path, default_parameters):
         sessions.append(str(path))
     base_dir = str(base_dir)
 
-    # Act: call actual Panel onclickProcess via the API helper (headless)
+    # Act: write the parameter snapshot via the API helper (headless)
     step1(base_dir=base_dir, selected_folders=sessions)
 
     # Assert: JSON written for each session with key defaults

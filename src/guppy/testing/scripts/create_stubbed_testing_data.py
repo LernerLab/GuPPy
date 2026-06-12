@@ -20,6 +20,7 @@ on the stub folder before reading.
 import shutil
 from pathlib import Path
 
+from guppy.extractors.base_recording_extractor import BaseRecordingExtractor
 from guppy.extractors.csv_recording_extractor import CsvRecordingExtractor
 from guppy.extractors.doric_recording_extractor import DoricRecordingExtractor
 from guppy.extractors.npm_recording_extractor import NpmRecordingExtractor
@@ -38,7 +39,7 @@ STUBBED_TESTING_DATA = PROJECT_ROOT / "stubbed_testing_data"
 # TTL event timestamp, then adding a 0.1 s buffer.
 
 
-def _sessions():
+def _sessions() -> list[tuple[BaseRecordingExtractor, float | None, Path]]:
     tdt = TESTING_DATA / "SampleData_Clean"
     artifacts = TESTING_DATA / "SampleData_with_artifacts"
     doric = TESTING_DATA / "SampleData_Doric"
@@ -134,7 +135,7 @@ def _sessions():
 # ---------------------------------------------------------------------------
 
 
-def main():
+def main() -> None:
     """Generate stubbed testing data for all registered acquisition formats."""
     print(f"Writing stubbed data to: {STUBBED_TESTING_DATA}\n")
     for extractor, duration, destination in _sessions():

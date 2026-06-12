@@ -3,7 +3,7 @@ import os
 import shutil
 
 import pytest
-from conftest import TESTING_DATA
+from conftest import TESTING_DATA, event_ts_offset_for
 
 from guppy.testing import compare_output_folders
 from guppy.testing.api import step2, step3, step4, step5
@@ -76,4 +76,5 @@ def test_consistency(
     compare_output_folders(
         actual_dir=actual_output_dir,
         expected_dir=str(standard_output_dir),
+        event_ts_offset=event_ts_offset_for(tmp_base),
     )

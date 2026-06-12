@@ -38,7 +38,7 @@ By the end you will have:
 
   Each signal CSV has three columns: `timestamps` (seconds), `data` (fluorescence), and `sampling_rate`. The TTL CSV has a single `timestamps` column.
 
-## Step 0: Launch the GuPPy GUI
+## Step 0: Launch GuPPy and choose your data
 
 ```bash
 guppy
@@ -51,11 +51,9 @@ A browser tab opens showing the GuPPy dashboard.
 :align: center
 ```
 
-The page is split into a **sidebar on the left** and a **main area on the right**. The sidebar lists the pipeline buttons in run order, from *Save Input Parameters* at the top through *Visualization* at the bottom, with a progress bar directly under each step that performs background work. The main area is where you select your data folder and configure parameters; settings are grouped into three collapsible cards: *Individual Analysis* (the only one we use in this tutorial), *Group Analysis*, and *Visualization Parameters*. The "Step N" labels in the sidebar match the step numbering used in the rest of this tutorial.
+The page is split into a **sidebar on the left** and a **main area on the right**. The sidebar lists the pipeline buttons in run order, from *Open Storenames GUI* at the top through *Visualization* at the bottom, with a progress bar directly under each step that performs background work. The main area is where you select your data folder and configure parameters; settings are grouped into three collapsible cards: *Individual Analysis* (the only one we use in this tutorial), *Group Analysis*, and *Visualization Parameters*. The five **Step N** labels in the sidebar (Storenames through Visualization) match the numbered pipeline steps below; choosing your data and setting parameters in the main area, covered here in Step 0, is the setup that precedes them.
 
-## Step 1: Select your data and set parameters
-
-This step has two parts. You will pick the session folder you want to analyze, then look over (but not change) the analysis parameters that the rest of the pipeline will use.
+Before running the pipeline you pick the session folder you want to analyze, then look over (but not change) the analysis parameters that the rest of the pipeline will use.
 
 ### Select your data
 
@@ -81,8 +79,12 @@ Each parameter is documented in the parameter reference.
 
 <!-- TODO: link to docs/reference/parameters.md (per-parameter reference: type, default, valid range, effect) once that page exists. -->
 
+:::{note}
+There is no separate "save parameters" action. Each pipeline step records the parameters it ran with into its output folder as `GuPPyParamtersUsed.json`, so that file always reflects the configuration that was actually applied. If you come back later, reselect an existing output folder under **Output Folder Selection**, and GuPPy reloads that run's saved parameters into the form so you can continue (for example, run Preprocess and PSTH) without accidentally overwriting them.
+:::
 
-## Step 2: Label your channels
+
+## Step 1: Label your channels
 
 A **storename** is the human-readable label GuPPy uses for one of your data channels. Raw acquisition files come with cryptic, format-specific names (here, the CSV filenames `Sample_Control_Channel`, `Sample_Signal_Channel`, `Sample_TTL`); GuPPy needs you to map each one to a meaningful name like `control_A`, `signal_A`, or `RewardPort`. Those mapped names are what every downstream step (preprocessing, PSTH, plots, group analysis) refers to. The mapping is saved as `storesList.csv` inside an output folder created next to the session.
 
@@ -139,7 +141,7 @@ The three CSV filenames appear in the left list (**Filter available options**) o
 
 You can close this Storenames tab and return to the original homepage tab to continue.
 
-## Step 3: Load the raw data
+## Step 2: Load the raw data
 
 Click **Read Raw Data**. A progress bar appears in the sidebar directly below the button and fills as the work runs. That bar is the primary signal that the step is in progress.
 
@@ -150,11 +152,11 @@ Click **Read Raw Data**. A progress bar appears in the sidebar directly below th
 
 The other bars on the sidebar (under *Preprocess and Remove Artifacts* and *PSTH Computation*) appear pre-filled at 100% as a styling default; they reset to 0 and fill while their own step is running. So a fully-green bar does not mean that step is done, it just means it has not been touched yet.
 
-GuPPy loads each CSV file and writes the data into the output folder you created in Step 2, one HDF5 file per storename (so for this tutorial: `sample_data_csv_1_output_1/control_A.hdf5`, `.../signal_A.hdf5`, `.../RewardPort.hdf5`). Each file holds the channel's `data`, `timestamps`, and `sampling_rate` datasets plus a few metadata fields. HDF5 is a binary format that stores large numerical arrays efficiently and supports partial reads, which speeds up the later pipeline steps.
+GuPPy loads each CSV file and writes the data into the output folder you created in Step 1, one HDF5 file per storename (so for this tutorial: `sample_data_csv_1_output_1/control_A.hdf5`, `.../signal_A.hdf5`, `.../RewardPort.hdf5`). Each file holds the channel's `data`, `timestamps`, and `sampling_rate` datasets plus a few metadata fields. HDF5 is a binary format that stores large numerical arrays efficiently and supports partial reads, which speeds up the later pipeline steps.
 
 When the progress bar reaches 100% the step is complete. Confirmation messages are also logged to the terminal where you launched `guppy`.
 
-## Step 4: Preprocess the signal
+## Step 3: Preprocess the signal
 
 Click **Preprocess**. As with Read Raw Data, a progress bar appears in the sidebar directly below the button and fills as the work runs.
 
@@ -170,7 +172,7 @@ GuPPy runs the following on the raw signal:
 3. Fits the control channel to the signal channel using a linear regression, then subtracts it. This removes motion artifacts and photobleaching that affect both channels equally.
 4. Computes the z-score and the dF/F (delta F over F) of the corrected signal.
 
-The results are written into the same output folder as Step 3, in four new HDF5 files per region. You do not choose the location or the file names; they follow a fixed convention:
+The results are written into the same output folder as Step 2, in four new HDF5 files per region. You do not choose the location or the file names; they follow a fixed convention:
 
 | File | Contents |
 |------|----------|
@@ -184,7 +186,7 @@ When preprocessing finishes, GuPPy opens a matplotlib window showing the preproc
 <!-- TODO: add screenshot of the matplotlib plot that pops up after preprocess completes (e.g. 05_preprocess_plot.png). This is a separate window, not part of the panel page, so the screenshot script will need a different capture path. -->
 
 
-## Step 5: Compute the PSTH
+## Step 4: Compute the PSTH
 
 Click **Compute PSTH**. As with the previous two steps, a progress bar appears in the sidebar directly below the button and fills as the work runs.
 
@@ -197,7 +199,7 @@ GuPPy aligns the z-scored trace to each event timestamp in `Sample_TTL.csv`, ext
 
 The default window is -10 to +20 seconds. With the sample data you will get a small number of trials (the TTL file has just a handful of timestamps), so the average will be noisy. This is expected for a minimal example dataset.
 
-The outputs land in the same `sample_data_csv_1_output_1/` directory you have been using since Step 2, with one set of files per (event, region) pair. For this tutorial that is the single pair `(RewardPort, A)`:
+The outputs land in the same `sample_data_csv_1_output_1/` directory you have been using since Step 1, with one set of files per (event, region) pair. For this tutorial that is the single pair `(RewardPort, A)`:
 
 | File | Contents |
 |------|----------|
@@ -206,11 +208,11 @@ The outputs land in the same `sample_data_csv_1_output_1/` directory you have be
 | `RewardPort_A_baselineUncorrected_z_score_A.h5` | Same dataframe before baseline correction was applied (kept for inspection) |
 | `peak_AUC_RewardPort_A_z_score_A.csv` and matching `.hdf5` | Peak amplitude and area-under-curve for the trial-mean PSTH |
 
-The visualization step in Step 6 reads these files; you do not need to inspect them by hand.
+The visualization step in Step 5 reads these files; you do not need to inspect them by hand.
 
-## Step 6: Visualize the results
+## Step 5: Visualize the results
 
-Back on the homepage, expand the **Visualization Parameters** card. Leave both settings at their defaults: **z-score or ΔF/F?** stays at `z_score` (the metric we computed in Step 4), and **Visualize Average Results?** stays at `False`. The latter is a group-analysis feature for averaging across multiple sessions and requires `Average Group?` to have been enabled during PSTH computation; we have a single session, so it does not apply here.
+Back on the homepage, expand the **Visualization Parameters** card. Leave both settings at their defaults: **z-score or ΔF/F?** stays at `z_score` (the metric we computed in Step 3), and **Visualize Average Results?** stays at `False`. The latter is a group-analysis feature for averaging across multiple sessions and requires `Average Group?` to have been enabled during PSTH computation; we have a single session, so it does not apply here.
 
 Click **Open Visualization GUI** in the sidebar. A new browser tab opens with the Visualization GUI for this session, organized into two tabs.
 

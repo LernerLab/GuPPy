@@ -27,7 +27,7 @@ logging.getLogger("bokeh.io.export").setLevel(logging.ERROR)
 
 
 # remove unnecessary column names
-def remove_cols(cols):
+def remove_cols(cols: list[str]) -> list[str]:
     """Remove bookkeeping columns from a PSTH column list.
 
     Drops ``"err"``, ``"timestamps"``, and any column matching ``bin_err_*``
@@ -52,7 +52,7 @@ def remove_cols(cols):
 
 
 # make a new directory for saving plots
-def make_dir(filepath):
+def make_dir(filepath: str) -> str:
     """Create (if needed) and return the ``saved_plots`` subdirectory under ``filepath``.
 
     Parameters
@@ -72,7 +72,7 @@ def make_dir(filepath):
     return op
 
 
-def _headless_chrome_options():
+def _headless_chrome_options() -> Options:
     options = Options()
     options.add_argument("--headless")
     options.add_argument("--no-sandbox")
@@ -133,7 +133,7 @@ class ParameterizedPlotter(param.Parameterized):
     results_hm = dict()
     results_psth = dict()
 
-    def __init__(self, **params):
+    def __init__(self, **params: object) -> None:
         super().__init__(**params)
         # Bind selector objects from companion params
         self.param.event_selector.objects = self.event_selector_objects
@@ -157,7 +157,7 @@ class ParameterizedPlotter(param.Parameterized):
 
     # function to save heatmaps when save button on heatmap tab is clicked
     @param.depends("save_hm", watch=True)
-    def save_hm_plots(self):
+    def save_hm_plots(self) -> None:
         """Export the current heatmap to disk in the format selected by ``save_options_heatmap``."""
         plot = self.results_hm["plot"]
         op = self.results_hm["op"]
@@ -182,7 +182,7 @@ class ParameterizedPlotter(param.Parameterized):
 
     # function to save PSTH plots when save button on PSTH tab is clicked
     @param.depends("save_psth", watch=True)
-    def save_psth_plot(self):
+    def save_psth_plot(self) -> None:
         """Export the current PSTH plots to disk in the format selected by ``save_options``."""
         plot, op = [], []
         plot.append(self.results_psth["plot_combine"])
@@ -210,7 +210,7 @@ class ParameterizedPlotter(param.Parameterized):
 
     # function to change Y values based on event selection
     @param.depends("event_selector", watch=True)
-    def _update_x_y(self):
+    def _update_x_y(self) -> None:
         x_value = self.columns_dict[self.event_selector]
         y_value = self.columns_dict[self.event_selector]
         self.param["x"].objects = [x_value[-4]]
@@ -219,7 +219,7 @@ class ParameterizedPlotter(param.Parameterized):
         self.y = self.param["y"].objects[-2]
 
     @param.depends("event_selector_heatmap", watch=True)
-    def _update_df(self):
+    def _update_df(self) -> None:
         cols = self.columns_dict[self.event_selector_heatmap]
         trial_no = range(1, len(remove_cols(cols)[:-2]) + 1)
         trial_ts = ["{} - {}".format(i, j) for i, j in zip(trial_no, remove_cols(cols)[:-2])] + ["All"]
@@ -227,7 +227,7 @@ class ParameterizedPlotter(param.Parameterized):
         self.heatmap_y = [trial_ts[-1]]
 
     @param.depends("event_selector", watch=True)
-    def _update_psth_y(self):
+    def _update_psth_y(self) -> None:
         cols = self.columns_dict[self.event_selector]
         trial_no = range(1, len(remove_cols(cols)[:-2]) + 1)
         trial_ts = ["{} - {}".format(i, j) for i, j in zip(trial_no, remove_cols(cols)[:-2])]
@@ -245,7 +245,7 @@ class ParameterizedPlotter(param.Parameterized):
         "Height_Plot",
         "Width_Plot",
     )
-    def update_selector(self):
+    def update_selector(self) -> hv.NdOverlay | None:
         """Render an overlay of mean PSTH curves for all selected events.
 
         Returns
@@ -335,7 +335,7 @@ class ParameterizedPlotter(param.Parameterized):
     @param.depends(
         "event_selector", "x", "y", "Y_Label", "save_options", "Y_Limit", "X_Limit", "Height_Plot", "Width_Plot"
     )
-    def contPlot(self):
+    def contPlot(self) -> hv.Element:
         """Render the selected PSTH view (mean, single trial, or all-trials datashaded overlay).
 
         Returns
@@ -470,7 +470,7 @@ class ParameterizedPlotter(param.Parameterized):
         "Height_Plot",
         "Width_Plot",
     )
-    def plot_specific_trials(self):
+    def plot_specific_trials(self) -> hv.Element | None:
         """Render the user-selected subset of PSTH trials, optionally with their mean.
 
         Returns
@@ -574,7 +574,7 @@ class ParameterizedPlotter(param.Parameterized):
 
     # function to show heatmaps for each event
     @param.depends("event_selector_heatmap", "color_map", "height_heatmap", "width_heatmap", "heatmap_y")
-    def heatmap(self):
+    def heatmap(self) -> hv.Element:
         """Render a trial heatmap for the selected event.
 
         Returns

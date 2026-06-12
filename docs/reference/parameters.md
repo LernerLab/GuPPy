@@ -1,18 +1,16 @@
 # Input parameter reference
 
-Every parameter the GuPPy GUI exposes, organized to match what you see on screen. The page mirrors the three cards on the homepage (**Individual Analysis**, **Group Analysis**, **Visualization Parameters**) and the visual sub-groupings inside each card. Each row gives the parameter as it appears in the GUI, a one-line description of what it does, the data type, the default value, and the accepted values or range. Prose paragraphs underneath cover the parameters that need more than a single line. If this is your first time using GuPPy, follow the [Your First Analysis](../tutorials/first_analysis.md) tutorial instead.
+Every parameter the GuPPy GUI exposes, organized to match what you see on screen. The page mirrors the five cards on the homepage (**Input Folder Selection**, **Output Folder Selection**, **Individual Analysis**, **Group Analysis**, **Visualization Parameters**) and the visual sub-groupings inside each card. Each row gives the parameter as it appears in the GUI, a one-line description of what it does, the data type, the default value, and the accepted values or range. Prose paragraphs underneath cover the parameters that need more than a single line. If this is your first time using GuPPy, follow the [Your First Analysis](../tutorials/first_analysis.md) tutorial instead.
 
-The pipeline-step numbering used in this page matches the steps in [Your First Analysis](../tutorials/first_analysis.md): Step 3 (Load the raw data), Step 4 (Preprocess the signal), Step 5 (Compute the PSTH), Step 6 (Visualize the results).
+The pipeline-step numbering used in this page matches the steps in [Your First Analysis](../tutorials/first_analysis.md): Step 2 (Load the raw data), Step 3 (Preprocess the signal), Step 4 (Compute the PSTH), Step 5 (Visualize the results).
 
 ---
 
-## Individual Analysis
+## Input Folder Selection
 
-The largest card on the homepage and the only one open by default. The left column holds a flat list of widgets covering data selection, preprocessing, transient detection, output metric selection, and artifact removal. The right column holds four labeled widget boxes for z-score, PSTH, baseline correction, and peak / AUC parameters.
+The first card on the homepage, open by default. Selects the session data the pipeline reads.
 
-### Data source
-
-*Used by: Step 3 (Load the raw data).*
+*Used by: Step 2 (Load the raw data).*
 
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
@@ -25,6 +23,26 @@ The largest card on the homepage and the only one open by default. The left colu
 **File browser** holds the list of session folder paths the pipeline will analyze. Multiple folders are allowed for batch runs; all of them must share a common parent directory or the pipeline raises a validation error before any work starts. The pipeline records the common parent automatically and uses it to anchor output locations; this is not a configurable knob.
 
 **DANDI selector** is populated only in `dandi` mode. Each selected DANDI asset URI is materialized into a session directory under a user-chosen output root, and the pipeline records the URI that backed each session.
+
+---
+
+## Output Folder Selection
+
+The second card on the homepage, collapsed by default. Selects which existing per-session output run the later steps read and write.
+
+*Used by: Steps 2–5 (every step that operates on an existing output run: Load the raw data, Preprocess the signal, Compute the PSTH, Visualize the results).*
+
+| Parameter | Description | Type | Default | Options / range |
+|-----------|-------------|------|---------|-----------------|
+| (existing-runs browser) | Existing `*_output_*` run directories the later steps act on. | list of paths | empty | one or more `*_output_*` directories, at least one per selected session |
+
+**Existing-runs browser** lists the `*_output_*` directories that already exist for the selected sessions and lets you pick which run each later step acts on. A run directory is created when you configure channels in the Storenames GUI (Step 1); every step from loading the raw data onward then reads and writes the run you select here. Select at least one run per session that has output directories on disk, or the step raises a descriptive error before any work starts. This is a UI selector, not a saved analysis parameter, so it has no internal name in the index below.
+
+---
+
+## Individual Analysis
+
+The largest card on the homepage, collapsed by default (only Input Folder Selection is open on launch). The left column holds a flat list of widgets covering compute settings, preprocessing, transient detection, output metric selection, and artifact removal. The right column holds four labeled widget boxes for z-score, PSTH, baseline correction, and peak / AUC parameters.
 
 ### Compute and batching
 
@@ -41,15 +59,15 @@ The largest card on the homepage and the only one open by default. The left colu
 
 ### Signal preprocessing
 
-*Used by: Step 4 (Preprocess the signal).*
+*Used by: Step 3 (Preprocess the signal).*
 
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
-| Isosbestic Control Channel? | Use the 405 nm channel to remove motion artifacts. | bool | `True` | `True`, `False` |
+| Isosbestic Control Channel? | Use the isosbestic control channel to remove motion artifacts. | bool | `True` | `True`, `False` |
 | Eliminate first few seconds | Drop the LED-warmup transient at the start. | int | `1` | non-negative seconds |
 | Window for Moving Average filter | Width of the smoothing kernel. | int | `100` | positive integer, in samples (not seconds) |
 
-**Isosbestic Control Channel?** declares whether the recording includes a 405 nm control channel. When `True`, preprocessing fits the control trace to the signal trace by linear regression and subtracts the fitted control to remove motion artifacts and photobleaching that affect both wavelengths equally. When `False`, the regression-and-subtract step is skipped and only the signal trace is z-scored. See the [isosbestic correction explainer](../explanation/isosbestic_correction.md) for the underlying biology and math.
+**Isosbestic Control Channel?** declares whether the recording includes an isosbestic control channel. When `True`, preprocessing fits the isosbestic control channel to the signal trace by linear regression and subtracts the fitted control to remove motion artifacts and photobleaching that affect both wavelengths equally. When `False`, GuPPy synthesizes a stand-in control channel by fitting an exponential decay curve (`a + b·exp(-x/c)`) to the signal itself, then runs the same regression-and-subtract step using this synthetic trace as the control channel that gets fitted and subtracted. Because a synthetic control carries no motion information, this mode removes the photobleaching trend but not motion artifacts. See the [isosbestic correction explainer](../explanation/isosbestic_correction.md) for the underlying biology and math.
 
 **Eliminate first few seconds** drops this many seconds from the start of every recording. The first second or two of fiber-photometry data is usually contaminated by the bright transient when the LED first turns on; this parameter exists to discard that. Default `1` is conservative.
 
@@ -57,23 +75,23 @@ The largest card on the homepage and the only one open by default. The left colu
 
 ### Output metric selection
 
-*Used by: Step 4 (Preprocess) writes the metrics; Step 5 (Compute the PSTH) and the transient detector read them.*
+*Used by: Step 3 (Preprocess) writes the metrics; Step 4 (Compute the PSTH) and the transient detector read them.*
 
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
-| z_score and/or ΔF/F? (psth) | Metric Step 5 aligns events on. | str | `z_score` | `z_score`, `dff`, `Both` |
+| z_score and/or ΔF/F? (psth) | Metric Step 4 aligns events on. | str | `z_score` | `z_score`, `dff`, `Both` |
 | z_score and/or ΔF/F? (transients) | Metric the transient detector operates on. | str | `z_score` | `z_score`, `dff`, `Both` |
-| z-score plot and/or ΔF/F plot? | Plot pop-up at the end of Step 4. | str | `None` | `z_score`, `dff`, `Both`, `None` |
+| z-score plot and/or ΔF/F plot? | Plot pop-up at the end of Step 3. | str | `None` | `z_score`, `dff`, `Both`, `None` |
 
-**z_score and/or ΔF/F? (psth)** chooses which metric Step 5 uses to align events. Selecting `Both` writes two complete sets of PSTH outputs, one per metric. See the [z-score normalization explainer](../explanation/zscore.md) for what `z_score` is and how it differs from `dff`.
+**z_score and/or ΔF/F? (psth)** chooses which metric Step 4 uses to align events. Selecting `Both` writes two complete sets of PSTH outputs, one per metric. See the [z-score normalization explainer](../explanation/zscore.md) for what `z_score` is and how it differs from `dff`.
 
 **z_score and/or ΔF/F? (transients)** chooses which metric the transient detector operates on. Same `Both` semantics.
 
-**z-score plot and/or ΔF/F plot?** controls the matplotlib plot that pops up at the end of Step 4. `None` skips the plot; the other options open one window for the chosen metric (or two windows for `Both`).
+**z-score plot and/or ΔF/F plot?** controls the matplotlib plot that pops up at the end of Step 3. `None` skips the plot; the other options open one window for the chosen metric (or two windows for `Both`).
 
 ### Transient detection
 
-*Used by: Step 4 (Preprocess) runs the transient detector on the corrected signal.*
+*Used by: Step 3 (Preprocess) runs the transient detector on the corrected signal.*
 
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
@@ -89,7 +107,7 @@ The largest card on the homepage and the only one open by default. The left colu
 
 ### Format-specific (Neurophotometrics)
 
-*Used by: Step 3 (Load the raw data) when the recording is an NPM CSV without `Flags` or `LedState` columns.*
+*Used by: Step 2 (Load the raw data) when the recording is an NPM CSV without `Flags` or `LedState` columns.*
 
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
@@ -99,20 +117,20 @@ The largest card on the homepage and the only one open by default. The left colu
 
 ### Artifact removal
 
-*Used by: Step 4 (Preprocess) runs the interactive removal flow when enabled.*
+*Used by: Step 3 (Preprocess) runs the interactive removal flow when enabled.*
 
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
 | removeArtifacts? | Enable the interactive removal flow. | bool | `False` | `True`, `False` |
 | removeArtifacts method | How dropped chunks are handled. | str | `concatenate` | `concatenate`, `replace with NaN` |
 
-**removeArtifacts?** enables the manual artifact-removal step in Step 4: when `True`, GuPPy presents an interactive plot during preprocessing and lets you select bad chunks to drop. When `False`, no chunks are removed.
+**removeArtifacts?** enables the manual artifact-removal step in Step 3: when `True`, GuPPy presents an interactive plot during preprocessing and lets you select bad chunks to drop. When `False`, no chunks are removed.
 
 **removeArtifacts method** chooses how dropped chunks are handled. `concatenate` removes the bad sections and stitches the surviving good sections together (so the resulting trace is shorter than the input). `replace with NaN` keeps the trace at its original length but masks the dropped samples with NaN, which downstream code treats as missing.
 
 ### Z-score Parameters
 
-*Used by: Step 4 (Preprocess) writes the z-score files.*
+*Used by: Step 3 (Preprocess) writes the z-score files.*
 
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
@@ -126,7 +144,7 @@ The largest card on the homepage and the only one open by default. The left colu
 
 ### PSTH Parameters
 
-*Used by: Step 5 (Compute the PSTH).*
+*Used by: Step 4 (Compute the PSTH).*
 
 See the [PSTH explainer](../explanation/psth.md) for what these parameters configure (the peri-event window, event-timestamp deduplication, binning across events) and the reasoning behind the default values.
 
@@ -149,7 +167,7 @@ See the [PSTH explainer](../explanation/psth.md) for what these parameters confi
 
 ### Baseline Parameters
 
-*Used by: Step 5 (Compute the PSTH) when correcting per-event offsets.*
+*Used by: Step 4 (Compute the PSTH) when correcting per-event offsets.*
 
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
@@ -162,7 +180,7 @@ Set both to `0` to disable baseline correction. If the first event timestamp in 
 
 ### Peak and AUC Parameters
 
-*Used by: Step 5 (Compute the PSTH) computes peak amplitude and area under the curve for each window.*
+*Used by: Step 4 (Compute the PSTH) computes peak amplitude and area under the curve for each window.*
 
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
@@ -177,33 +195,33 @@ The peak / AUC widget is a small table with rows of (start, end) pairs. Each row
 
 Collapsed by default on the homepage. Configures cross-session averaging.
 
-*Used by: Step 5 (Compute the PSTH) writes the averages when enabled.*
+*Used by: Step 4 (Compute the PSTH) writes the averages when enabled.*
 
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
 | (file browser) | Session folders to include in the cross-session average. | list of paths | empty | absolute paths to session directories |
 | Average Group? | Write averaged outputs to `average/`. | bool | `False` | `True`, `False` |
 
-**File browser** is the list of session folders to include in the cross-session average. Distinct from the Individual-Analysis browser so you can run individual analyses and group analyses against different folder sets in the same configuration.
+**File browser** is the list of session folders to include in the cross-session average. Distinct from the Input Folder Selection browser so you can run individual analyses and group analyses against different folder sets in the same configuration.
 
-**Average Group?** must be `True` for Step 5 to write averaged outputs into the `average/` directory. If `False`, PSTH outputs are per-session only.
+**Average Group?** must be `True` for Step 4 to write averaged outputs into the `average/` directory. If `False`, PSTH outputs are per-session only.
 
 ---
 
 ## Visualization Parameters
 
-Collapsed by default on the homepage. Configures Step 6.
+Collapsed by default on the homepage. Configures Step 5.
 
-*Used by: Step 6 (Visualize the results).*
+*Used by: Step 5 (Visualize the results).*
 
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
 | z-score or ΔF/F? (for visualization) | Which metric the Visualization GUI plots. | str | `z_score` | `z_score`, `dff` |
 | Visualize Average Results? | Show cross-session averages instead of per-session. | bool | `False` | `True`, `False` |
 
-**z-score or ΔF/F? (for visualization)** picks which metric the Visualization GUI plots. Must match a metric that Step 4 actually wrote: if you ran preprocessing with the PSTH metric set to `z_score` and try to visualize `dff`, GuPPy raises a descriptive error pointing at the missing files.
+**z-score or ΔF/F? (for visualization)** picks which metric the Visualization GUI plots. Must match a metric that Step 3 actually wrote: if you ran preprocessing with the PSTH metric set to `z_score` and try to visualize `dff`, GuPPy raises a descriptive error pointing at the missing files.
 
-**Visualize Average Results?** decides whether the Visualization GUI shows individual-session results or the cross-session averages produced by Step 5 with `Average Group?` set to `True`. Single-session analyses should leave this `False`.
+**Visualize Average Results?** decides whether the Visualization GUI shows individual-session results or the cross-session averages produced by Step 4 with `Average Group?` set to `True`. Single-session analyses should leave this `False`.
 
 ---
 
@@ -211,7 +229,7 @@ Collapsed by default on the homepage. Configures Step 6.
 
 This index is for readers who arrive with an internal parameter name in hand and need to find the corresponding GUI parameter. That happens in four situations:
 
-- **Reproducing or auditing a past analysis** by reading the `GuPPyParametersUsed.json` snapshot that GuPPy writes after every run; the JSON is keyed by internal names.
+- **Reproducing or auditing a past analysis** by reading the `GuPPyParamtersUsed.json` snapshot that GuPPy writes after every run; the JSON is keyed by internal names. Selecting a finished output run in the Output Folder Selection card also reloads this snapshot back into the form, so you can resume a run without the defaults silently overwriting the parameters the earlier steps used.
 - **Writing a headless or scripted analysis** against the API in `src/guppy/testing/api.py`, which takes a dict keyed by these names.
 - **Debugging a validator or pipeline error**, since error messages cite the internal name (for example `baselineWindowEnd=120 exceeds signal duration 90.5s`).
 - **Reading or contributing to the source code**, where parameter accesses go through the internal names.
@@ -220,7 +238,7 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 
 | Internal name | Parameter | Section |
 |---------------|-----------|---------|
-| `abspath` | (auto-derived; not user-set) | [Data source](#data-source) |
+| `abspath` | (auto-derived; not user-set) | [Input Folder Selection](#input-folder-selection) |
 | `artifactsRemovalMethod` | removeArtifacts method | [Artifact removal](#artifact-removal) |
 | `averageForGroup` | Average Group? | [Group Analysis](#group-analysis) |
 | `baselineCorrectionEnd` | Baseline Correction End time | [Baseline Parameters](#baseline-parameters) |
@@ -230,13 +248,13 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 | `bin_psth_trials` | Time(min) / # of trials for binning | [PSTH Parameters](#psth-parameters) |
 | `combine_data` | Combine Data? | [Compute and batching](#compute-and-batching) |
 | `computeCorr` | Compute Cross-correlation | [PSTH Parameters](#psth-parameters) |
-| `dandi_uri_map` | (DANDI selector) | [Data source](#data-source) |
+| `dandi_uri_map` | (DANDI selector) | [Input Folder Selection](#input-folder-selection) |
 | `filter_window` | Window for Moving Average filter | [Signal preprocessing](#signal-preprocessing) |
-| `folderNames` | (file browser, Individual Analysis) | [Data source](#data-source) |
+| `folderNames` | (file browser, Input Folder Selection) | [Input Folder Selection](#input-folder-selection) |
 | `folderNamesForAvg` | (file browser, Group Analysis) | [Group Analysis](#group-analysis) |
 | `highAmpFilt` | HAFT | [Transient detection](#transient-detection) |
 | `isosbestic_control` | Isosbestic Control Channel? | [Signal preprocessing](#signal-preprocessing) |
-| `mode` | Data Source | [Data source](#data-source) |
+| `mode` | Data Source | [Input Folder Selection](#input-folder-selection) |
 | `moving_window` | Moving Window for transients detection (s) | [Transient detection](#transient-detection) |
 | `nSecPost` | Seconds after 0 | [PSTH Parameters](#psth-parameters) |
 | `nSecPrev` | Seconds before 0 | [PSTH Parameters](#psth-parameters) |

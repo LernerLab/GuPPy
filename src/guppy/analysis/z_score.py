@@ -10,17 +10,17 @@ logger = logging.getLogger(__name__)
 
 
 def compute_z_score(
-    control,
-    signal,
-    tsNew,
-    coords,
-    artifactsRemovalMethod,
-    filter_window,
-    isosbestic_control,
-    zscore_method,
-    baseline_start,
-    baseline_end,
-):
+    control: np.ndarray,
+    signal: np.ndarray,
+    tsNew: np.ndarray,
+    coords: np.ndarray,
+    artifactsRemovalMethod: str,
+    filter_window: int,
+    isosbestic_control: bool,
+    zscore_method: str,
+    baseline_start: float,
+    baseline_end: float,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray | None]:
     """
     Compute the z-score and dF/F for a control/signal channel pair.
 
@@ -107,7 +107,9 @@ def compute_z_score(
     return z_score_arr, norm_data_arr, control_fit_arr, temp_control_arr
 
 
-def execute_controlFit_dff(control, signal, isosbestic_control, filter_window):
+def execute_controlFit_dff(
+    control: np.ndarray, signal: np.ndarray, isosbestic_control: bool, filter_window: int
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Filter channels, fit the control to the signal, and compute dF/F.
 
@@ -144,7 +146,7 @@ def execute_controlFit_dff(control, signal, isosbestic_control, filter_window):
     return norm_data, control_fit
 
 
-def deltaFF(signal, control):
+def deltaFF(signal: np.ndarray, control: np.ndarray) -> np.ndarray:
     """
     Compute dF/F as ``(signal - control) / control * 100``.
 
@@ -169,7 +171,7 @@ def deltaFF(signal, control):
     return normData
 
 
-def controlFit(control, signal):
+def controlFit(control: np.ndarray, signal: np.ndarray) -> np.ndarray:
     """
     Fit a linear model from control to signal and return the fitted values.
 
@@ -191,7 +193,7 @@ def controlFit(control, signal):
     return arr
 
 
-def filterSignal(filter_window, signal):
+def filterSignal(filter_window: int, signal: np.ndarray) -> np.ndarray:
     """
     Apply a moving-average (uniform FIR) filter to a signal array.
 
@@ -221,7 +223,9 @@ def filterSignal(filter_window, signal):
         )
 
 
-def z_score_computation(dff, timestamps, zscore_method, baseline_start, baseline_end):
+def z_score_computation(
+    dff: np.ndarray, timestamps: np.ndarray, zscore_method: str, baseline_start: float, baseline_end: float
+) -> np.ndarray:
     """
     Convert a dF/F array to z-scores using the specified method.
 

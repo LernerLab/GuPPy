@@ -8,6 +8,7 @@ from typing import Literal
 import matplotlib.pyplot as plt
 import numpy as np
 
+from .save_parameters import save_parameters
 from ..analysis.artifact_removal import remove_artifacts
 from ..analysis.combine_data import combine_data
 from ..analysis.control_channel import add_control_channel, create_control_channel
@@ -52,7 +53,7 @@ if not os.getenv("CI") and not headless:
     plt.switch_backend("TKAgg")
 
 
-def execute_preprocessing_visualization(filepath, visualization_type: Literal["z_score", "dff"]):
+def execute_preprocessing_visualization(filepath: str, visualization_type: Literal["z_score", "dff"]) -> None:
     """
     Plot z-score or dF/F signals for all channel pairs in a session output directory.
 
@@ -77,7 +78,7 @@ def execute_preprocessing_visualization(filepath, visualization_type: Literal["z
         fig, ax = visualize_preprocessing(suptitle=name, title=basename, x=x, y=y)
 
 
-def visualizeControlAndSignal(filepath, removeArtifacts):
+def visualizeControlAndSignal(filepath: str, removeArtifacts: bool) -> list:
     """
     Build artifact-removal widgets for each control/signal pair in a session directory.
 
@@ -135,7 +136,7 @@ def visualizeControlAndSignal(filepath, removeArtifacts):
     return widgets
 
 
-def execute_timestamp_correction(folderNames, inputParameters):
+def execute_timestamp_correction(folderNames: list[str], inputParameters: dict[str, object]) -> None:
     """
     Apply timestamp correction to all session output directories.
 
@@ -206,7 +207,7 @@ def execute_timestamp_correction(folderNames, inputParameters):
         logger.info(f"Timestamps corrections finished for {filepath}")
 
 
-def execute_zscore(folderNames, inputParameters):
+def execute_zscore(folderNames: list[str], inputParameters: dict[str, object]) -> None:
     """
     Compute z-score and dF/F for all channel pairs across session output directories.
 
@@ -297,7 +298,7 @@ def execute_zscore(folderNames, inputParameters):
     logger.info("Z-score computation completed.")
 
 
-def visualize_z_score(inputParameters, folderNames):
+def visualize_z_score(inputParameters: dict[str, object], folderNames: list[str]) -> None:
     """
     Display control/signal plots and z-score/dF/F visualizations for all sessions.
 
@@ -344,7 +345,7 @@ def visualize_z_score(inputParameters, folderNames):
     logger.info("Visualization of z-score and dF/F completed.")
 
 
-def execute_artifact_removal(folderNames, inputParameters):
+def execute_artifact_removal(folderNames: list[str], inputParameters: dict[str, object]) -> None:
     """
     Apply artifact removal to all session output directories.
 
@@ -405,7 +406,7 @@ def execute_artifact_removal(folderNames, inputParameters):
     logger.info("Artifact removal completed.")
 
 
-def visualize_artifact_removal(folderNames, inputParameters):
+def visualize_artifact_removal(folderNames: list[str], inputParameters: dict[str, object]) -> None:
     """
     Display control/signal plots after artifact removal for all sessions.
 
@@ -437,7 +438,7 @@ def visualize_artifact_removal(folderNames, inputParameters):
     logger.info("Visualization of artifact removal completed.")
 
 
-def execute_combine_data(folderNames, inputParameters, storesList):
+def execute_combine_data(folderNames: list[str], inputParameters: dict[str, object], storesList: np.ndarray) -> list:
     """
     Concatenate data from multiple session files and save the result to the first output folder.
 
@@ -517,7 +518,7 @@ def execute_combine_data(folderNames, inputParameters, storesList):
     return op
 
 
-def extractTsAndSignal(inputParameters):
+def extractTsAndSignal(inputParameters: dict[str, object]) -> None:
     """
     Orchestrate the full preprocessing pipeline (timestamp correction, z-score, artifact removal).
 
@@ -530,6 +531,10 @@ def extractTsAndSignal(inputParameters):
 
     logger.debug("Extracting signal data and event timestamps...")
     inputParameters = inputParameters
+
+    # Snapshot the parameters being executed into each selected output dir so the
+    # on-disk GuPPyParamtersUsed.json always reflects the last-run configuration.
+    save_parameters(inputParameters=inputParameters)
 
     # storesList = np.genfromtxt(inputParameters['storesListPath'], dtype='str', delimiter=',')
 
@@ -576,7 +581,7 @@ def extractTsAndSignal(inputParameters):
 
 
 @subprocess_main_handler
-def main(input_parameters):
+def main(input_parameters: dict[str, object]) -> None:
     """Subprocess entry point for the preprocessing step.
 
     Parameters
