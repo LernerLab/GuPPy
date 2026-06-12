@@ -12,7 +12,6 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Any
 
 import h5py
 import numpy as np
@@ -31,7 +30,15 @@ _PREFIXED_FLOAT_RE = re.compile(rf"^(.+)_({_FLOAT_PAT})$")
 _PSTH_LABEL_RE = re.compile(rf"^{_FLOAT_PAT}$|^.+_{_FLOAT_PAT}$")
 
 
-def compare_output_folders(*, actual_dir: str, expected_dir: str, rtol: float = 1e-5, atol: float = 1e-8) -> None:
+def compare_output_folders(
+    *,
+    actual_dir: str,
+    expected_dir: str,
+    name_map: dict[str, str | None] | None = None,
+    rtol: float = 1e-5,
+    atol: float = 1e-8,
+    event_ts_offset: float = 0.0,
+) -> None:
     """
     Assert that every file in ``expected_dir`` exists in ``actual_dir`` and is
     numerically identical.
@@ -48,10 +55,25 @@ def compare_output_folders(*, actual_dir: str, expected_dir: str, rtol: float = 
         Path to the output folder produced by the current code under test.
     expected_dir : str
         Path to the reference output folder (e.g. from GuPPy v1.3.0).
+    name_map : dict, optional
+        Per-file overrides for reconciling intentional naming changes without
+        modifying the reference. Keys are expected (reference) relative paths;
+        a string value is the actual relative path to compare against by data
+        value (a rename), and ``None`` marks a reference file the current code
+        intentionally no longer produces (its absence is required, not a
+        failure). Expected paths not in the map compare by identical name.
     rtol : float
         Relative tolerance for numeric comparisons (default 1e-5).
     atol : float
         Absolute tolerance for numeric comparisons (default 1e-8).
+    event_ts_offset : float
+        Seconds added to reference event timestamps before comparison (default 0.0).
+        Reconciles the issue-#355 basis change: current event timestamps are on the
+        recording-start basis while the reference holds the old lights-on basis, so
+        ``current == reference + timeForLightsTurnOn``. Pass the run's
+        ``timeForLightsTurnOn`` to compare event-timestamp HDF5 datasets (key ``ts``)
+        and PSTH/peak_AUC event-time labels up to this known constant shift. All other
+        data (signals, continuous timestamps, peak/area) still compares exactly.
 
     Raises
     ------
@@ -62,24 +84,37 @@ def compare_output_folders(*, actual_dir: str, expected_dir: str, rtol: float = 
     """
     actual_dir = os.path.abspath(actual_dir)
     expected_dir = os.path.abspath(expected_dir)
+    name_map = name_map or {}
 
     expected_files = _collect_relative_paths(expected_dir)
 
     mismatches: list[str] = []
 
     for rel_path in sorted(expected_files):
-        actual_path = os.path.join(actual_dir, rel_path)
+        if rel_path in name_map:
+            mapped = name_map[rel_path]
+            if mapped is None:
+                # Intentionally not reproduced by the current code; its absence is required.
+                if os.path.exists(os.path.join(actual_dir, rel_path)):
+                    mismatches.append(f"UNEXPECTEDLY PRESENT (mapped to None): {rel_path}")
+                continue
+            actual_rel = mapped
+        else:
+            actual_rel = rel_path
+
+        actual_path = os.path.join(actual_dir, actual_rel)
         expected_path = os.path.join(expected_dir, rel_path)
 
         if not os.path.exists(actual_path):
-            mismatches.append(f"MISSING in actual: {rel_path}")
+            detail = actual_rel if actual_rel == rel_path else f"{actual_rel} (mapped from {rel_path})"
+            mismatches.append(f"MISSING in actual: {detail}")
             continue
 
         ext = Path(rel_path).suffix.lower()
         if ext in {".hdf5", ".h5"}:
-            _compare_hdf5(actual_path, expected_path, rel_path, mismatches, rtol, atol)
+            _compare_hdf5(actual_path, expected_path, rel_path, mismatches, rtol, atol, event_ts_offset)
         elif ext == ".csv":
-            _compare_csv(actual_path, expected_path, rel_path, mismatches, rtol, atol)
+            _compare_csv(actual_path, expected_path, rel_path, mismatches, rtol, atol, event_ts_offset)
         elif ext == ".json":
             _compare_json(actual_path, expected_path, rel_path, mismatches)
         # Unknown extensions are skipped silently.
@@ -98,9 +133,9 @@ def compare_output_folders(*, actual_dir: str, expected_dir: str, rtol: float = 
 _PANDAS_AXIS_KEYS = {"axis0", "axis1", "block0_items"}
 
 
-def _normalize_psth_label(label: str) -> str:
+def _normalize_psth_label(label: str, *, bare_offset: float = 0.0, prefixed_offset: float = 0.0) -> str:
     """
-    Canonicalize a single PSTH timestamp label.
+    Canonicalize a single PSTH timestamp label, optionally adding a time offset.
 
     Two forms are handled:
     - Bare float (``"138.238440990448"``): reformatted directly.
@@ -109,27 +144,38 @@ def _normalize_psth_label(label: str) -> str:
 
     Both are rounded to 10 significant figures to eliminate platform-level
     float-repr noise.  Labels that match neither form are returned unchanged.
+
+    ``bare_offset`` and ``prefixed_offset`` shift the parsed float before
+    reformatting. They are used to reconcile the issue-#355 event-timestamp basis
+    change: reference (pre-change) event labels are on the lights-on basis, current
+    labels on the recording-start basis (= reference + ``timeForLightsTurnOn``).
+    Bare-float labels are always event timestamps; prefixed-float labels are event
+    timestamps only in ``peak_AUC`` files (elsewhere the suffix is a session-run
+    index such as ``..._output_1``), so the caller offsets bare and prefixed forms
+    independently.
     """
     if _BARE_FLOAT_RE.match(label):
-        return f"{float(label):.10g}"
+        return f"{float(label) + bare_offset:.10g}"
     m = _PREFIXED_FLOAT_RE.match(label)
     if m:
-        return f"{m.group(1)}_{float(m.group(2)):.10g}"
+        return f"{m.group(1)}_{float(m.group(2)) + prefixed_offset:.10g}"
     return label
 
 
-def _normalize_psth_index(idx: pd.Index) -> pd.Index:
+def _normalize_psth_index(idx: pd.Index, *, bare_offset: float = 0.0, prefixed_offset: float = 0.0) -> pd.Index:
     """Apply :func:`_normalize_psth_label` to every element of a pandas Index."""
-    return pd.Index([_normalize_psth_label(str(lbl)) for lbl in idx])
+    return pd.Index(
+        [_normalize_psth_label(str(lbl), bare_offset=bare_offset, prefixed_offset=prefixed_offset) for lbl in idx]
+    )
 
 
-def _normalize_psth_str_array(arr: np.ndarray) -> np.ndarray:
+def _normalize_psth_str_array(arr: np.ndarray, *, bare_offset: float = 0.0, prefixed_offset: float = 0.0) -> np.ndarray:
     """Apply :func:`_normalize_psth_label` to every element of a string/bytes array."""
     flat = []
     for item in arr.flat:
         if isinstance(item, (bytes, np.bytes_)):
             item = item.decode("utf-8", errors="replace")
-        flat.append(_normalize_psth_label(str(item)))
+        flat.append(_normalize_psth_label(str(item), bare_offset=bare_offset, prefixed_offset=prefixed_offset))
     return np.array(flat, dtype=object).reshape(arr.shape)
 
 
@@ -152,10 +198,11 @@ def _compare_hdf5(
     mismatches: list[str],
     rtol: float,
     atol: float,
+    event_ts_offset: float = 0.0,
 ) -> None:
     """Compare all datasets in two HDF5 files, accumulating mismatches."""
     with h5py.File(actual_path, "r") as actual_f, h5py.File(expected_path, "r") as expected_f:
-        _walk_hdf5_group(actual_f, expected_f, rel_path, "", mismatches, rtol, atol)
+        _walk_hdf5_group(actual_f, expected_f, rel_path, "", mismatches, rtol, atol, event_ts_offset)
 
 
 def _walk_hdf5_group(
@@ -166,6 +213,7 @@ def _walk_hdf5_group(
     mismatches: list[str],
     rtol: float,
     atol: float,
+    event_ts_offset: float = 0.0,
 ) -> None:
     """Recursively walk HDF5 groups, comparing all datasets."""
     for key in expected_group.keys():
@@ -181,12 +229,16 @@ def _walk_hdf5_group(
             if not isinstance(actual_item, h5py.Group):
                 mismatches.append(f"{rel_path}: '{item_path}' is a group in expected but a dataset in actual")
             else:
-                _walk_hdf5_group(actual_item, expected_item, rel_path, item_path, mismatches, rtol, atol)
+                _walk_hdf5_group(
+                    actual_item, expected_item, rel_path, item_path, mismatches, rtol, atol, event_ts_offset
+                )
         elif isinstance(expected_item, h5py.Dataset):
             if not isinstance(actual_item, h5py.Dataset):
                 mismatches.append(f"{rel_path}: '{item_path}' is a dataset in expected but a group in actual")
             else:
-                _compare_hdf5_dataset(actual_item, expected_item, rel_path, item_path, mismatches, rtol, atol)
+                _compare_hdf5_dataset(
+                    actual_item, expected_item, rel_path, item_path, mismatches, rtol, atol, event_ts_offset
+                )
 
 
 def _compare_hdf5_dataset(
@@ -197,6 +249,7 @@ def _compare_hdf5_dataset(
     mismatches: list[str],
     rtol: float,
     atol: float,
+    event_ts_offset: float = 0.0,
 ) -> None:
     """Compare two HDF5 datasets, handling numeric and string dtypes."""
     actual_data = actual_ds[()]
@@ -217,7 +270,8 @@ def _compare_hdf5_dataset(
     if expected_data.dtype.kind in {"S", "U", "O"}:
         item_name = item_path.split("/")[-1]
         filename = Path(rel_path).name
-        is_psth_file = "z_score" in filename or "peak_AUC" in filename or "dff" in filename
+        is_peak_auc = "peak_AUC" in filename
+        is_psth_file = "z_score" in filename or is_peak_auc or "dff" in filename
         if is_psth_file and item_name in _PANDAS_AXIS_KEYS and expected_data.size > 0:
             # Probe the first element: if it looks like a PSTH timestamp label,
             # normalize float-repr noise before comparing.
@@ -225,9 +279,17 @@ def _compare_hdf5_dataset(
             if isinstance(first, (bytes, np.bytes_)):
                 first = first.decode("utf-8", errors="replace")
             if _PSTH_LABEL_RE.match(str(first)):
+                # Bare floats are always event timestamps. Prefixed floats are event
+                # timestamps only in the peak_AUC index axis (axis1, e.g.
+                # "<session>_<event_ts>"); elsewhere the suffix is a structural index
+                # (peak_AUC columns "peak_pos_1", group session names "..._output_1").
+                # Shift the reference (expected) labels into the current basis accordingly.
+                prefixed_offset = event_ts_offset if (is_peak_auc and item_name == "axis1") else 0.0
                 if not np.array_equal(
                     _normalize_psth_str_array(actual_data),
-                    _normalize_psth_str_array(expected_data),
+                    _normalize_psth_str_array(
+                        expected_data, bare_offset=event_ts_offset, prefixed_offset=prefixed_offset
+                    ),
                 ):
                     mismatches.append(f"{rel_path}: '{item_path}' string data differs")
                 return
@@ -235,7 +297,11 @@ def _compare_hdf5_dataset(
             mismatches.append(f"{rel_path}: '{item_path}' string data differs")
         return
 
-    # Numeric datasets: tolerance-based comparison with NaN == NaN.
+    # Numeric datasets: tolerance-based comparison with NaN == NaN. Event-timestamp
+    # datasets (key "ts") moved from the lights-on to the recording-start basis, so the
+    # reference is shifted up by event_ts_offset (the run's timeForLightsTurnOn).
+    if item_path.split("/")[-1] == "ts":
+        expected_data = expected_data + event_ts_offset
     if not np.allclose(actual_data, expected_data, rtol=rtol, atol=atol, equal_nan=True):
         mismatches.append(f"{rel_path}: '{item_path}' numeric data differs")
 
@@ -247,76 +313,25 @@ def _compare_csv(
     mismatches: list[str],
     rtol: float,
     atol: float,
+    event_ts_offset: float = 0.0,
 ) -> None:
     """Compare two CSV files as DataFrames."""
     actual_df = pd.read_csv(actual_path, index_col=0)
     expected_df = pd.read_csv(expected_path, index_col=0)
 
-    # peak_AUC CSVs use PSTH timestamp labels as row indices; normalize
-    # float-repr noise before comparing.
+    # peak_AUC CSVs use PSTH timestamp labels (prefixed event times) as row indices;
+    # normalize float-repr noise and shift the reference index into the current
+    # recording-start basis before comparing.
     if "peak_AUC" in Path(rel_path).name:
         actual_df.index = _normalize_psth_index(actual_df.index)
-        expected_df.index = _normalize_psth_index(expected_df.index)
+        expected_df.index = _normalize_psth_index(
+            expected_df.index, bare_offset=event_ts_offset, prefixed_offset=event_ts_offset
+        )
 
     try:
         pd.testing.assert_frame_equal(actual_df, expected_df, check_exact=False, rtol=rtol, atol=atol, check_names=True)
     except AssertionError as exc:
         mismatches.append(f"{rel_path}: CSV content differs — {exc}")
-
-
-def compare_npm_session_files(
-    *, actual_session_dir: str, expected_session_dir: str, rtol: float = 1e-5, atol: float = 1e-8
-) -> None:
-    """
-    Assert that every top-level CSV file in ``expected_session_dir`` exists in
-    ``actual_session_dir`` and is numerically identical.
-
-    This function is specific to the NPM modality, which writes intermediate
-    CSV files (e.g. ``file0_chev1.csv``, ``event0.csv``) directly into the
-    session folder alongside the ``_output_*`` subdirectory.  Only flat files
-    are examined; subdirectories (including ``_output_*``) are ignored.
-
-    Parameters
-    ----------
-    actual_session_dir : str
-        Path to the session folder produced by the current code under test.
-    expected_session_dir : str
-        Path to the reference session folder (e.g. from GuPPy v1.3.0).
-    rtol : float
-        Relative tolerance for numeric comparisons (default 1e-5).
-    atol : float
-        Absolute tolerance for numeric comparisons (default 1e-8).
-
-    Raises
-    ------
-    AssertionError
-        If any expected CSV is missing from ``actual_session_dir`` or if the
-        content of a shared file does not match.
-    """
-    actual_session_dir = os.path.abspath(actual_session_dir)
-    expected_session_dir = os.path.abspath(expected_session_dir)
-
-    expected_csvs = [
-        fname
-        for fname in os.listdir(expected_session_dir)
-        if os.path.isfile(os.path.join(expected_session_dir, fname)) and Path(fname).suffix.lower() == ".csv"
-    ]
-
-    mismatches: list[str] = []
-
-    for fname in sorted(expected_csvs):
-        actual_path = os.path.join(actual_session_dir, fname)
-        expected_path = os.path.join(expected_session_dir, fname)
-
-        if not os.path.exists(actual_path):
-            mismatches.append(f"MISSING in actual session dir: {fname}")
-            continue
-
-        _compare_csv(actual_path, expected_path, fname, mismatches, rtol, atol)
-
-    if mismatches:
-        summary = "\n".join(mismatches)
-        raise AssertionError(f"NPM session file comparison failed:\n{summary}")
 
 
 def _compare_json(
@@ -337,8 +352,8 @@ def _compare_json(
 
 
 def _compare_json_values(
-    actual: Any,
-    expected: Any,
+    actual: object,
+    expected: object,
     rel_path: str,
     key_path: str,
     mismatches: list[str],

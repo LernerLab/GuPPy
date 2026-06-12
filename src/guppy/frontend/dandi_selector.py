@@ -25,7 +25,7 @@ _DANDISET_ID_PATTERN = re.compile(r"^\d{6}$")
 _MIRROR_ROOT = os.path.join(tempfile.gettempdir(), "guppy_dandi_mirror")
 
 
-def _build_dandiset_mirror(*, dandiset_id, mirror_parent):
+def _build_dandiset_mirror(*, dandiset_id: str, mirror_parent: str) -> tuple[str, int]:
     """Build (or reuse) a temp directory tree mirroring a dandiset's NWB assets.
 
     For every ``.nwb`` asset path returned by the DANDI API, create the
@@ -72,7 +72,7 @@ class DandiSelector:
         ``None`` if none is selected.
     """
 
-    def __init__(self, *, styles=None, mirror_parent=None):
+    def __init__(self, *, styles: dict[str, str] | None = None, mirror_parent: str | None = None) -> None:
         self.styles = styles or dict(background="WhiteSmoke")
         # Allow tests to inject a tmp_path-based parent; default to the
         # module-level stable location.
@@ -130,7 +130,7 @@ class DandiSelector:
             self.output_root_selector,
         )
 
-    def _make_asset_file_selector(self, root_directory):
+    def _make_asset_file_selector(self, root_directory: str) -> pn.widgets.FileSelector:
         """Construct a fresh ``FileSelector`` rooted at ``root_directory``.
 
         Panel's ``FileSelector`` caches its listing at construction time, so we
@@ -149,15 +149,15 @@ class DandiSelector:
         file_selector._directory.visible = False
         return file_selector
 
-    def _swap_asset_file_selector(self, root_directory):
+    def _swap_asset_file_selector(self, root_directory: str) -> None:
         self.asset_file_selector = self._make_asset_file_selector(root_directory)
         self._asset_file_selector_slot[:] = [self.asset_file_selector]
 
-    def _reset_to_empty(self):
+    def _reset_to_empty(self) -> None:
         self._current_mirror_root = None
         self._swap_asset_file_selector(self._mirror_parent)
 
-    def _on_dandiset_change(self, event):
+    def _on_dandiset_change(self, event: object) -> None:
         dandiset_id = (event.new or "").strip()
         if not dandiset_id:
             self._reset_to_empty()
@@ -185,7 +185,7 @@ class DandiSelector:
         self._swap_asset_file_selector(mirror_root)
         self.status.object = f"\u2705 Dandiset {dandiset_id}: {asset_count} NWB asset(s) loaded."
 
-    def _selected_relative_paths(self):
+    def _selected_relative_paths(self) -> list[str]:
         if self._current_mirror_root is None:
             return []
         selected = []
@@ -198,7 +198,7 @@ class DandiSelector:
         return selected
 
     @property
-    def selected_uris(self):
+    def selected_uris(self) -> list[str]:
         """Return the currently selected DANDI URIs.
 
         Returns
@@ -215,7 +215,7 @@ class DandiSelector:
         return [f"dandi://{dandiset_id}/{path}" for path in self._selected_relative_paths()]
 
     @property
-    def output_root(self):
+    def output_root(self) -> str | None:
         """Return the local output directory selected by the user.
 
         Returns

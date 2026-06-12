@@ -12,7 +12,7 @@ from ..utils.utils import takeOnlyDirs
 logger = logging.getLogger(__name__)
 
 
-def find_files(path, glob_path, ignore_case=False):
+def find_files(path: str, glob_path: str, ignore_case: bool = False) -> list[str]:
     """
     List files in ``path`` matching a glob pattern, optionally case-insensitively.
 
@@ -48,7 +48,7 @@ def find_files(path, glob_path, ignore_case=False):
     return [os.path.join(path, n) for n in str_path if rule.match(n)]
 
 
-def check_TDT(filepath):
+def check_TDT(filepath: str) -> bool:
     """
     Return True if ``filepath`` contains TDT ``.tsq`` files.
 
@@ -69,7 +69,7 @@ def check_TDT(filepath):
         return False
 
 
-def decide_naming_convention(filepath):
+def decide_naming_convention(filepath: str) -> np.ndarray:
     """
     Find and pair control/signal HDF5 files in ``filepath``.
 
@@ -103,7 +103,7 @@ def decide_naming_convention(filepath):
     return path
 
 
-def fetchCoords(filepath, naming, data):
+def fetchCoords(filepath: str, naming: str, data: np.ndarray) -> np.ndarray:
     """
     Load artifact-removal boundary coordinates for a channel pair.
 
@@ -143,7 +143,9 @@ def fetchCoords(filepath, naming, data):
     return coords
 
 
-def get_coords(filepath, name, tsNew, removeArtifacts):  # TODO: Make less redundant with fetchCoords
+def get_coords(
+    filepath: str, name: str, tsNew: np.ndarray, removeArtifacts: bool
+) -> np.ndarray:  # TODO: Make less redundant with fetchCoords
     """
     Return artifact-removal boundary coordinates, or a single full-span window.
 
@@ -172,7 +174,7 @@ def get_coords(filepath, name, tsNew, removeArtifacts):  # TODO: Make less redun
     return coords
 
 
-def check_storeslistfile(folderNames):
+def check_storeslistfile(folderNames: list[str]) -> np.ndarray:
     """
     Merge storesList CSVs from all session output directories.
 
@@ -205,7 +207,7 @@ def check_storeslistfile(folderNames):
     return storesList
 
 
-def write_combined_stores_list(op, storesList):
+def write_combined_stores_list(op: list[object], storesList: np.ndarray) -> None:
     """
     Write a combined storesList CSV to each output directory.
 
@@ -221,7 +223,7 @@ def write_combined_stores_list(op, storesList):
         np.savetxt(os.path.join(filepath, "combine_storesList.csv"), storesList, fmt="%s", delimiter=",")
 
 
-def get_control_and_signal_channel_names(storesList):
+def get_control_and_signal_channel_names(storesList: np.ndarray) -> np.ndarray:
     """
     Extract and pair control/signal display names from a storesList array.
 
@@ -282,7 +284,7 @@ def get_control_and_signal_channel_names(storesList):
     return channels_arr
 
 
-def make_dir_for_cross_correlation(filepath):
+def make_dir_for_cross_correlation(filepath: str) -> str:
     """
     Create and return the cross-correlation output subdirectory.
 
@@ -302,7 +304,7 @@ def make_dir_for_cross_correlation(filepath):
     return op
 
 
-def makeAverageDir(filepath):
+def makeAverageDir(filepath: str) -> str:
     """
     Create and return the group-average output subdirectory.
 

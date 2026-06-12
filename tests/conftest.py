@@ -1,3 +1,4 @@
+import json
 import multiprocessing
 import os
 import sys
@@ -32,8 +33,22 @@ STUBBED_TESTING_DATA = Path(PROJECT_ROOT) / "stubbed_testing_data"
 TESTING_DATA = Path(PROJECT_ROOT) / "testing_data"
 
 
+def event_ts_offset_for(base_dir: str | Path) -> float:
+    """Return the ``timeForLightsTurnOn`` used in a pipeline run under ``base_dir``.
+
+    This is the constant by which current event timestamps and PSTH event-time labels
+    shifted relative to the (older, lights-on-basis) reference outputs (issue #355).
+    Pass it as ``event_ts_offset`` to :func:`compare_output_folders` so the consistency
+    suite tolerates exactly that known shift while comparing all other data exactly.
+    """
+    matches = sorted(Path(base_dir).rglob("GuPPyParamtersUsed.json"))
+    assert matches, f"No GuPPyParamtersUsed.json found under {base_dir}"
+    with open(matches[0]) as params_file:
+        return json.load(params_file)["timeForLightsTurnOn"]
+
+
 @pytest.fixture(scope="session")
-def panel_extension():
+def panel_extension() -> None:
     """Call pn.extension() exactly once for the entire test session.
 
     Panel requires this before any widget instantiation.

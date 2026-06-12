@@ -13,6 +13,39 @@ from guppy.orchestration.read_raw_data import (
     orchestrate_read_raw_data,
 )
 
+# orchestrate_read_raw_data writes the parameter snapshot (save_parameters) into each
+# selected output dir before reading, so it needs the full analysis-parameter set.
+DEFAULT_ANALYSIS_PARAMETERS = {
+    "combine_data": False,
+    "isosbestic_control": True,
+    "timeForLightsTurnOn": 1,
+    "filter_window": 100,
+    "removeArtifacts": False,
+    "artifactsRemovalMethod": "concatenate",
+    "noChannels": 2,
+    "zscore_method": "standard z-score",
+    "baselineWindowStart": 0,
+    "baselineWindowEnd": 0,
+    "nSecPrev": -10,
+    "nSecPost": 20,
+    "computeCorr": False,
+    "timeInterval": 2,
+    "bin_psth_trials": 0,
+    "use_time_or_trials": "Time (min)",
+    "baselineCorrectionStart": -5,
+    "baselineCorrectionEnd": 0,
+    "peak_startPoint": [-5.0, 0.0, 5.0],
+    "peak_endPoint": [0.0, 3.0, 10.0],
+    "selectForComputePsth": "z_score",
+    "selectForTransientsComputation": "z_score",
+    "moving_window": 15,
+    "highAmpFilt": 2,
+    "transientsThresh": 3,
+    "plot_zScore_dff": "None",
+    "visualize_zscore_or_dff": "z_score",
+    "averageForGroup": False,
+}
+
 
 class TestOrchestrateReadRawDataErrorEnrichment:
     """Missing-event error must list the events the extractor did discover (issue #270)."""
@@ -33,6 +66,7 @@ class TestOrchestrateReadRawDataErrorEnrichment:
 
     def test_missing_event_error_lists_available_events(self, session_with_bogus_event):
         input_parameters = {
+            **DEFAULT_ANALYSIS_PARAMETERS,
             "folderNames": [session_with_bogus_event],
             "numberOfCores": 1,
             "noChannels": 2,
@@ -141,6 +175,7 @@ class TestProgressFileAccountingEndToEnd:
         # which installs _SAMPLES_DONE in the parent process and calls the
         # read-and-save unit function directly — no pool, no separate patch needed.
         input_parameters = {
+            **DEFAULT_ANALYSIS_PARAMETERS,
             "folderNames": [str(session_folder)],
             "numberOfCores": 1,
             "noChannels": 2,

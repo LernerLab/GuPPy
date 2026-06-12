@@ -3,9 +3,9 @@ import os
 import shutil
 
 import pytest
-from conftest import TESTING_DATA
+from conftest import TESTING_DATA, event_ts_offset_for
 
-from guppy.testing import compare_npm_session_files, compare_output_folders
+from guppy.testing import compare_output_folders
 from guppy.testing.api import step2, step3, step4, step5
 
 CONSISTENCY_CASES = [
@@ -78,9 +78,8 @@ def test_consistency(
     Consistency test: run the full pipeline (Steps 2-5) and assert that the output
     is numerically identical (within tolerance) to the reference output from v1.3.0.
 
-    In addition to the standard output folder comparison, this test also validates
-    the intermediate CSV files that NPM Step 2 writes directly into the session
-    folder (e.g. ``file0_chev1.csv``, ``event0.csv``).
+    NPM now demultiplexes in memory and writes no intermediate CSVs into the session
+    folder, so correctness is validated end-to-end via the final HDF5/output comparison.
     """
     src_session = TESTING_DATA / session_subdir
     assert src_session.is_dir(), f"Sample data not found: {src_session}"
@@ -118,12 +117,5 @@ def test_consistency(
     compare_output_folders(
         actual_dir=actual_output_dir,
         expected_dir=str(standard_output_dir),
-    )
-
-    # NPM also writes intermediate CSVs into the session folder itself; compare
-    # those against the top-level files in the parent of the standard output dir.
-    standard_session_dir = (TESTING_DATA / standard_output_subdir).parent
-    compare_npm_session_files(
-        actual_session_dir=str(session_copy),
-        expected_session_dir=str(standard_session_dir),
+        event_ts_offset=event_ts_offset_for(tmp_base),
     )

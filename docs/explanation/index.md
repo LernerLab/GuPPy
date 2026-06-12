@@ -7,6 +7,7 @@ Explanation pages give background and context: the science behind fiber photomet
 
 fiber_photometry
 zscore
+transient_detection
 cross_correlation
 psth
 artifacts

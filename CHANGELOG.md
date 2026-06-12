@@ -1,6 +1,7 @@
 # v2.0.0-alpha7 (Upcoming)
 
 ## Features
+- Each pipeline step now writes `GuPPyParamtersUsed.json` into its output directory automatically, and selecting an existing output run reloads its saved parameters into the form so the snapshot always matches what was executed and resuming a run no longer overwrites its parameters. Removed the manual "Save Input Parameters" button and renumbered the sidebar steps 1–5. Resolves [#301](https://github.com/LernerLab/GuPPy/issues/301). [PR #353](https://github.com/LernerLab/GuPPy/pull/353)
 - Added docstring checks to pre-commit. [PR #311](https://github.com/LernerLab/GuPPy/pull/311)
 - Added numpydoc-style docstrings to all public functions and classes in the extractor layer (`src/guppy/extractors/`). [PR #312](https://github.com/LernerLab/GuPPy/pull/312)
 - Added numpydoc-style docstrings to all public functions and classes in the analysis layer (`src/guppy/analysis/`). [PR #313](https://github.com/LernerLab/GuPPy/pull/313)
@@ -10,8 +11,14 @@
 - Added numpydoc-style docstrings to all public functions in the testing layer (`src/guppy/testing/`). [PR #318](https://github.com/LernerLab/GuPPy/pull/318)
 - Added parameterized output directories: step 2 accepts a user-supplied run name, steps 1 and 3–6 honour a per-session run-name filter, and `GuPPyParamtersUsed.json` is written into the selected output directories so multiple parameter sets can coexist in one session. [PR #325](https://github.com/LernerLab/GuPPy/pull/325)
 - Added type hint checks to pre-commit. [PR #346](https://github.com/LernerLab/GuPPy/pull/346)
+- Added type hints to all functions in the frontend layer (`src/guppy/frontend/`). [PR #351](https://github.com/LernerLab/GuPPy/pull/351)
+- Added type hints to all functions in the orchestration layer (`src/guppy/orchestration/`). [PR #350](https://github.com/LernerLab/GuPPy/pull/350)
+- Added type hints to all functions in the analysis layer (`src/guppy/analysis/`). [PR #349](https://github.com/LernerLab/GuPPy/pull/349)
+- Added type hints to all functions in the extractors layer (`src/guppy/extractors/`). [PR #348](https://github.com/LernerLab/GuPPy/pull/348)
+- Added type hints to all functions in the utils, visualization, testing, and root layers. [PR #347](https://github.com/LernerLab/GuPPy/pull/347)
 
 ## Fixes
+- Stored event timestamps now share the recording-start time basis with the continuous `timestampNew` stream instead of being re-zeroed to `timeForLightsTurnOn`, so all series can be co-registered without per-stream offset bookkeeping (PSTH results are unchanged). Resolves [#355](https://github.com/LernerLab/GuPPy/issues/355). [PR #356](https://github.com/LernerLab/GuPPy/pull/356)
 - Fixed bug with step five, which was causing the baseline uncorrected HDF5 file to not exist. [PR #241](https://github.com/LernerLab/GuPPy/pull/241)
 
 ## Improvements
@@ -26,10 +33,15 @@
 - Added a PSTH explanation page (origin, the construction operation, drift correction, peak vs AUC summary statistics, and event rejection) at `docs/explanation/psth.md`, with four generated SVG figures and a self-contained PEP 723 script (`docs/scripts/psth_explainer.py`) that regenerates them in place. [PR #315](https://github.com/LernerLab/GuPPy/pull/315)
 - Added a fiber photometry explanation page at `docs/explanation/fiber_photometry.md`, with one hand-illustrated technique schematic (PNG) and two generated SVG figures (population summing, and a space-vs-time landscape placing photometry against electrophysiology, two-photon imaging, and fMRI). The matplotlib figures are produced by a self-contained PEP 723 script at `docs/scripts/fiber_photometry_explainer.py`. [PR #319](https://github.com/LernerLab/GuPPy/pull/319)
 - Added an explanation page on the isosbestic correction at `docs/explanation/isosbestic_correction.md`, covering the two-state GCaMP framework, GuPPy's linear-fit-and-subtract procedure, what the corrected trace does and does not remove, and why the synthetic-exponential fallback is not equivalent. Eight generated SVG figures and a self-contained PEP 723 script (`docs/scripts/isosbestic_explainer.py`) that regenerates them in place. [PR #324](https://github.com/LernerLab/GuPPy/pull/324)
+- Added an input parameter reference page at `docs/reference/parameters.md`, documenting every GUI parameter (description, type, default, accepted range) organised to mirror the homepage cards, with an alphabetical index mapping internal `inputParameters` keys (as written in `GuPPyParametersUsed.json` and the headless API) back to their GUI parameters. Enabled `myst_heading_anchors = 3` in `conf.py` so intra-page section links resolve. [PR #341](https://github.com/LernerLab/GuPPy/pull/341)
+- Added a transient detection explanation page (motivation, basic detector, drift handling via per-chunk MAD, the two-stage outlier-trim scheme, summary statistics, and limitations) at `docs/explanation/transient_detection.md`, with six generated SVG figures and a self-contained PEP 723 script (`docs/scripts/transient_detection_explainer.py`) that regenerates them in place. [PR #332](https://github.com/LernerLab/GuPPy/pull/332)
 - Added an explanation page on artifacts in fiber photometry at `docs/explanation/artifacts.md`, covering the catalogue of common artifacts grouped by recording-chain stage, four property axes (time structure, wavelength dependence, behaviour coupling, frequency content) used to characterise them, a decision tree routing artifacts to correction methods, and upstream avoidance through indicator and protocol choices. Two generated SVG figures and a self-contained PEP 723 script (`docs/scripts/artifacts_explainer.py`) that regenerates them in place.
 - Updated stubbed testing data README.md with complete descriptions of each store name. [PR #343](https://github.com/LernerLab/GuPPy/pull/343)
+- `NpmRecordingExtractor` now demultiplexes interleaved channels and splits events entirely in memory rather than writing intermediate CSVs into the source data folder; the per-file decomposition parameters are persisted to the output directory so step 3 can reproduce them. Addresses part of [#329](https://github.com/LernerLab/GuPPy/issues/329). [PR #352](https://github.com/LernerLab/GuPPy/pull/352)
+- Moved TDT epoc split-event determination from step 3 to step 2, so `storesList.csv` is fully settled at discovery time; `read()` no longer mutates `storesList.csv` or leaves a `.cache_storesList.csv` behind, and split sub-events are now labeled by the user in the storenames step. Addresses part of [#329](https://github.com/LernerLab/GuPPy/issues/329). [PR #352](https://github.com/LernerLab/GuPPy/pull/352)
 
 ## Deprecations and Removals
+- Removed the manual "Save Input Parameters" button (Step 1); each pipeline step now writes the parameter snapshot automatically. [PR #353](https://github.com/LernerLab/GuPPy/pull/353)
 
 
 # v2.0.0-alpha6 (April 29th, 2026)

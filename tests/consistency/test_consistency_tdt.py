@@ -3,7 +3,7 @@ import os
 import shutil
 
 import pytest
-from conftest import TESTING_DATA
+from conftest import TESTING_DATA, event_ts_offset_for
 
 from guppy.testing import compare_output_folders
 from guppy.testing.api import step2, step3, step4, step5
@@ -17,21 +17,31 @@ CONSISTENCY_CASES = [
             "Dv2A": "signal_DMS",
             "PrtN": "port_entries_dms",
         },
+        {},
     ),
     (
         "SampleData_Clean/Photometry-161823",
         "StandardOutputs_Clean/Photometry-161823/Photometry-161823_output_1",
+        # PAB/ is an epoc store that splits into one sub-event per marker value. These are now
+        # enumerated at step 2, so the map references the split sub-events directly (labeled to
+        # match the v1.3.0 reference names). Two artifacts the old flow produced are intentionally
+        # gone and mapped to None (the untouched reference still contains them): the unsplit-parent
+        # orphan PAB_.hdf5 that read() also emitted, and the .cache_storesList.csv left behind when
+        # read() renamed/rewrote storesList — read() no longer mutates storesList at all.
         {
             "405R": "control_region",
             "490R": "signal_region",
-            "PAB/": "ttl",
+            "PAB0": "PAB_0",
+            "PAB16": "PAB_16",
+            "PAB2064": "PAB_2064",
         },
+        {"PAB_.hdf5": None, ".cache_storesList.csv": None},
     ),
 ]
 
 
 @pytest.mark.parametrize(
-    "session_subdir, standard_output_subdir, storenames_map",
+    "session_subdir, standard_output_subdir, storenames_map, name_map",
     CONSISTENCY_CASES,
     ids=[
         "tdt_clean",
@@ -45,6 +55,7 @@ def test_consistency(
     session_subdir,
     standard_output_subdir,
     storenames_map,
+    name_map,
 ):
     """
     Consistency test: run the full pipeline (Steps 2-5) and assert that the output
@@ -86,4 +97,6 @@ def test_consistency(
     compare_output_folders(
         actual_dir=actual_output_dir,
         expected_dir=str(standard_output_dir),
+        event_ts_offset=event_ts_offset_for(tmp_base),
+        name_map=name_map,
     )

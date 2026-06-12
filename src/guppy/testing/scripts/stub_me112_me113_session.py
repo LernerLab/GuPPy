@@ -22,7 +22,7 @@ DESTINATION = PROJECT_ROOT / "stubbed_testing_data" / "tdt" / "ME112-ME113-26042
 DURATION_IN_SECONDS = 25.0
 
 
-def main():
+def main() -> None:
     """Stub the ME112/ME113 TDT session to the configured destination path."""
     extractor = TdtRecordingExtractor(str(SOURCE))
     print(f"Stubbing {SOURCE} → {DESTINATION} ({DURATION_IN_SECONDS}s) ...", end=" ", flush=True)
