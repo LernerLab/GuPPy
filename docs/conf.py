@@ -15,6 +15,7 @@ html_theme = "pydata_sphinx_theme"
 source_suffix = [".rst", ".md"]
 
 myst_enable_extensions = ["colon_fence", "dollarmath"]
+myst_heading_anchors = 3
 
 html_logo = "../assets/GuppyLogo.png"
 
