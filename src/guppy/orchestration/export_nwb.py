@@ -6,17 +6,62 @@ session-level YAML overlay produced by Step 6, then writing one NWB file per
 output directory.
 """
 
+import json
 import logging
 import os
 
 import panel as pn
-from neuroconv.converters import TDTFiberPhotometryGuppyConverter
-from neuroconv.utils import dict_deep_update, load_dict_from_file
 
 from .metadata import METADATA_FILENAME, _selected_session_runs
 from ..utils.utils import output_dir_for_run
 
 logger = logging.getLogger(__name__)
+
+# The artifact-removal method that re-stamps surviving samples onto a fresh, continuous
+# timeline, destroying the anchor to the raw acquisition clock. NWB export needs that anchor
+# to align processed traces back to the source streams, so this method is unsupported here.
+_UNSUPPORTED_ARTIFACT_REMOVAL_METHOD = "concatenate"
+_RAISE_ISSUE_URL = "https://github.com/LernerLab/GuPPy/issues/new"
+
+
+def _validate_artifact_removal_methods(pairs: list[tuple[str, str]]) -> None:
+    """Abort the NWB export batch if any selected session used ``concatenate`` artifact removal.
+
+    ``concatenate`` re-times the kept samples onto a fresh timeline (see GuPPy issue #354),
+    which is incompatible with NWB export's need to align processed traces to the acquisition
+    clock. Reads each session's ``GuPPyParamtersUsed.json`` (the configuration the data was
+    actually processed with) and raises before any file is written.
+
+    Parameters
+    ----------
+    pairs : list of (str, str)
+        ``(session_path, run_name)`` pairs selected for export.
+
+    Raises
+    ------
+    ValueError
+        If any selected session was processed with ``removeArtifacts=True`` and
+        ``artifactsRemovalMethod="concatenate"``.
+    """
+    offending = []
+    for session_path, run_name in pairs:
+        guppy_folder_path = output_dir_for_run(session_path, run_name)
+        with open(os.path.join(guppy_folder_path, "GuPPyParamtersUsed.json")) as parameters_file:
+            parameters = json.load(parameters_file)
+        if parameters.get("removeArtifacts") and (
+            parameters.get("artifactsRemovalMethod") == _UNSUPPORTED_ARTIFACT_REMOVAL_METHOD
+        ):
+            offending.append(f"{os.path.basename(session_path.rstrip(os.sep))} ({run_name})")
+
+    if offending:
+        raise ValueError(
+            f"NWB export does not support the '{_UNSUPPORTED_ARTIFACT_REMOVAL_METHOD}' artifact-removal "
+            f"method because it re-times the kept samples onto a fresh timeline, breaking alignment to the "
+            f"acquisition clock. The following session(s) were processed this way: {', '.join(offending)}. "
+            f"Re-run Step 4 (Preprocess) with artifactsRemovalMethod='replace with NaN', which preserves the "
+            f"original timeline, then export again. If you need '{_UNSUPPORTED_ARTIFACT_REMOVAL_METHOD}' support "
+            f"for NWB export, please raise an issue at {_RAISE_ISSUE_URL}."
+        )
 
 
 def _prune_absent_commanded_voltage(metadata: dict, available_streams: set[str]) -> None:
@@ -71,6 +116,11 @@ def export_session_to_nwb(
     str
         The path of the written ``.nwb`` file.
     """
+    # Imported here rather than at module scope so the pure-Python prerequisite checks in this
+    # module stay importable (and unit-testable) without the heavyweight neuroconv dependency.
+    from neuroconv.converters import TDTFiberPhotometryGuppyConverter
+    from neuroconv.utils import dict_deep_update, load_dict_from_file
+
     converter = TDTFiberPhotometryGuppyConverter(
         tdt_folder_path=tdt_folder_path,
         guppy_folder_path=guppy_folder_path,
@@ -102,6 +152,7 @@ def orchestrate_export_nwb_page(inputParameters: dict[str, object], progress_bar
     is reported and skipped without aborting the rest of the batch.
     """
     pairs = _selected_session_runs(inputParameters)
+    _validate_artifact_removal_methods(pairs)
     if progress_bar is not None:
         progress_bar.max = len(pairs)
         progress_bar.value = 0
