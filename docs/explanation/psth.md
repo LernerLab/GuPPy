@@ -20,7 +20,7 @@ A single event-aligned trace is dominated by noise and by signal unrelated to th
 
 The recovery only works with enough events. With small event counts a few loud individual traces can dominate the average, and the SEM (which shrinks as `1/sqrt(N)`) is itself unreliable as an uncertainty estimate. Where "too few" begins depends on the recording's SNR and the across-event variability, but it is a study-design constraint that the analysis cannot rescue.
 
-The flip side is that PSTH cannot reveal activity that is not consistently locked to the chosen event; transient detection and [cross-correlation](cross_correlation.md) are tools for those questions.
+The flip side is that PSTH cannot reveal activity that is not consistently locked to the chosen event; [transient detection](transient_detection.md) and [cross-correlation](cross_correlation.md) are tools for those questions.
 
 ### Correction for long-term drift
 
