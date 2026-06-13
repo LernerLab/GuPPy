@@ -14,7 +14,7 @@ What the photometer reads (left) equals the artifact components (middle) plus th
 
 The fiber photometry literature names a small set of well-described artifact categories. The table below catalogues them with their physical mechanism.
 
-Rows are grouped by where in the recording chain the contamination originates: from the LED at the excitation source, through the optical path (patchcord, fiber, ferrule, and implant tip), into the tissue under the fiber, and finally into the detection electronics. This grouping helps locate artifacts in the table; which correction method applies follows from other properties of the artifact, introduced in the next section.
+Rows are grouped by where in the recording chain the artifact originates: from the LED at the excitation source, through the optical path (patchcord, fiber, ferrule, and implant tip), into the tissue under the fiber, and finally into the detection electronics. This grouping helps locate artifacts in the table; which correction method applies follows from other properties of the artifact, introduced in the next section.
 
 | Stage | Artifact | What it is |
 | --- | --- | --- |
@@ -27,7 +27,7 @@ Rows are grouped by where in the recording chain the contamination originates: f
 | Tissue | **Indicator photobleaching** | Slow decay of fluorescent intensity over the session as fluorophore molecules are destroyed by absorbed photons. |
 | Tissue | **Hemodynamic absorption** | Blood-volume and oxygenation changes attenuate transmitted light. Hemoglobin's Soret band near 415 nm absorbs much more strongly than 470 nm, and the HbO/HbR ratio shifts the cross-channel ratio over time. |
 | Tissue | **Autofluorescence: tissue** (NADH, FAD, lipofuscin) | Endogenous tissue fluorophores emit in the photometry detection band, with excitation spectra distinct from the indicator's. |
-| Detection | **Electronic: electrical noise** | High-frequency noise injected into the detection path: amplifier electronics, photodetector dark current, ground loops, RF coupling (mobile phones, fluorescent lights). Light at the tissue is unaffected; the contamination is added on top of the photocurrent. If both channels share electronics, the noise appears on both. |
+| Detection | **Electronic: electrical noise** | High-frequency noise injected into the detection path: amplifier electronics, photodetector dark current, ground loops, RF coupling (mobile phones, fluorescent lights). Light at the tissue is unaffected; the noise is added on top of the photocurrent. If both channels share electronics, the noise appears on both. |
 | Detection | **Electrical transients** | Brief non-optical events: solenoid clicks, TTL or valve switching coupling into photodetector electronics through ground loops, capacitive pickup, or shared power rails. Voltage spike on the detector output; if both channels share electronics, the transient appears on both. |
 | Detection | **Optogenetic crosstalk** | Stimulation photons leak through the detection filter and land on the photodetector. Leakage lands on the channel whose filter overlaps the stimulation wavelength (typically the indicator-sensitive channel for blue stim); magnitude depends on filter rejection. |
 
