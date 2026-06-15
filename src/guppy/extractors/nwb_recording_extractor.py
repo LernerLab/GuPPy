@@ -252,7 +252,16 @@ def _discover_ndx_events_v02(nwbfile: NWBFile, seen_names: set[str]) -> list[str
                 events.append(f"{neurodata_object.name}_{label}")
         elif neurodata_object.neurodata_type == "LabeledEvents":
             _register_unique_name(seen_names, neurodata_object.name, "LabeledEvents")
-            for label in neurodata_object.data__labels:
+            # The labels attribute name depends on which class pynwb instantiated, which is
+            # governed by the process-wide type map: the hand-written ndx_events.events.LabeledEvents
+            # (registered once ndx_events is imported) exposes ``.labels``, while the class
+            # auto-generated from the file's cached spec exposes ``.data__labels``. Read whichever
+            # is present so discovery is independent of import order.
+            if hasattr(neurodata_object, "labels"):
+                labels = neurodata_object.labels
+            else:
+                labels = neurodata_object.data__labels
+            for label in labels:
                 events.append(f"{neurodata_object.name}_{label}")
         elif neurodata_object.neurodata_type == "Events":
             _register_unique_name(seen_names, neurodata_object.name, "Events")
