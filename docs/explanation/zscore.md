@@ -2,7 +2,7 @@
 
 ## Background
 
-Even after dF/F has corrected for motion and bleaching, the resulting traces are still in session-specific units. Two recordings of the same brain region in the same animal on different days can produce dF/F traces with very different typical magnitudes purely because of differences in fiber coupling, LED intensity, or accumulated photobleaching from previous sessions. A transient that reaches 5% dF/F in one session and 2% dF/F in another can represent the same underlying event scaled by these incidental factors. Pooling responses across sessions, animals, or experimental conditions therefore requires a further normalization that strips the session-specific scale away and puts every recording on a common, comparable footing.
+Even after [dF/F](isosbestic_correction.md) has corrected for motion and bleaching, the resulting traces are still in session-specific units. Two recordings of the same brain region in the same animal on different days can produce dF/F traces with very different typical magnitudes purely because of differences in fiber coupling, LED intensity, or accumulated photobleaching from previous sessions. A transient that reaches 5% dF/F in one session and 2% dF/F in another can represent the same underlying event scaled by these incidental factors. Pooling responses across sessions, animals, or experimental conditions therefore requires a further normalization that strips the session-specific scale away and puts every recording on a common, comparable footing.
 
 Z-score takes a trace and rescales it so that each value is expressed as a number of standard deviations of the recording's noise distribution. The standard formula subtracts the recording's mean from every sample and divides by its standard deviation:
 
