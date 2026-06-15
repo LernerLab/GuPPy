@@ -346,7 +346,14 @@ def _build_event_index_v02(nwbfile: NWBFile) -> dict[str, tuple]:
             for row_index, label in enumerate(neurodata_object["label"].data):
                 index[f"{neurodata_object.name}_{label}"] = ("annotated", neurodata_object, row_index)
         elif neurodata_type == "LabeledEvents":
-            for label_index, label in enumerate(neurodata_object.data__labels):
+            # ``.labels`` (hand-written class, registered when ndx_events is imported) vs
+            # ``.data__labels`` (class auto-generated from the file's cached spec). Read whichever
+            # is present so reads are independent of import order (see _discover_ndx_events_v02).
+            if hasattr(neurodata_object, "labels"):
+                labels = neurodata_object.labels
+            else:
+                labels = neurodata_object.data__labels
+            for label_index, label in enumerate(labels):
                 index[f"{neurodata_object.name}_{label}"] = ("labeled", neurodata_object, label_index)
         elif neurodata_type == "Events":
             index[neurodata_object.name] = ("events", neurodata_object)
