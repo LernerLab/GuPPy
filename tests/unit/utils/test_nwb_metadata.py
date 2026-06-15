@@ -82,6 +82,10 @@ class TestBuildMetadata:
             {"name": "dls_fiber", "model": "fmodel", "fiber_insertion": {}},
         ]
 
+    def test_empty_channels_and_no_devices_yields_empty_metadata(self):
+        # No channels -> no table/response series; no devices/scalars -> no Ophys/NWBFile/Subject keys.
+        assert m.build_metadata_dict({}, [], {}, []) == {}
+
     def test_generates_table_rows_and_response_series_from_channels(self, channels):
         channel_rows = [
             {"excitation_wavelength_in_nm": 405.0, "emission_wavelength_in_nm": 525.0, "optical_fiber": "dms_fiber"},
@@ -209,6 +213,56 @@ class TestValidateMetadata:
         assert any("Subject.species is required" in error for error in errors)
         assert any("excitation_wavelength_in_nm is required" in error for error in errors)
         assert any("'ghost' is not a defined optical fiber" in error for error in errors)
+
+    def test_missing_nwbfile_session_description_is_reported(self, channels):
+        metadata = self._complete_metadata(channels)
+        metadata["NWBFile"].pop("session_description")
+        errors = m.validate_metadata_dict(metadata, channels)
+        assert any("NWBFile.session_description is required" in error for error in errors)
+
+    def test_missing_required_device_field_is_reported(self, channels):
+        metadata = self._complete_metadata(channels)
+        # numerical_aperture is a required (non-link) field on the optical fiber model.
+        metadata["Ophys"]["FiberPhotometry"]["OpticalFiberModels"][0].pop("numerical_aperture")
+        errors = m.validate_metadata_dict(metadata, channels)
+        assert any("numerical_aperture is required" in error for error in errors)
+
+    def test_dangling_device_link_is_reported(self, channels):
+        metadata = self._complete_metadata(channels)
+        metadata["Ophys"]["FiberPhotometry"]["OpticalFibers"][0]["model"] = "ghost"
+        errors = m.validate_metadata_dict(metadata, channels)
+        assert any("'ghost' is not a defined optical fiber model" in error for error in errors)
+
+    def test_missing_required_channel_link_is_reported(self, channels):
+        metadata = self._complete_metadata(channels)
+        metadata["Ophys"]["FiberPhotometry"]["FiberPhotometryTable"]["rows"][0].pop("indicator")
+        errors = m.validate_metadata_dict(metadata, channels)
+        assert any("indicator link is required" in error for error in errors)
+
+
+class TestIsEmpty:
+    def test_none_and_nan_are_empty(self):
+        assert m._is_empty(None) is True
+        assert m._is_empty(np.nan) is True
+
+    def test_blank_string_and_empty_collections_are_empty(self):
+        assert m._is_empty("   ") is True
+        assert m._is_empty([]) is True
+        assert m._is_empty({}) is True
+
+    def test_meaningful_values_are_not_empty(self):
+        assert m._is_empty("x") is False
+        assert m._is_empty(0.0) is False
+        assert m._is_empty([1]) is False
+
+    def test_drop_empty_filters_empty_values(self):
+        assert m._drop_empty({"a": "x", "b": "", "c": None, "d": []}) == {"a": "x"}
+
+
+class TestTypeIntrospection:
+    def test_unknown_type_raises_assertion_error(self):
+        with pytest.raises(AssertionError, match="not found in installed ndx namespaces"):
+            m._type_spec("ThisTypeDoesNotExist")
 
 
 class TestYamlIO:

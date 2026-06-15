@@ -175,6 +175,8 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
     # Expose minimal hooks and widgets to enable programmatic testing
     template._hooks = {
         "onclickVisualization": onclickVisualization,
+        "onclickMetadata": onclickMetadata,
+        "onclickExportNwb": onclickExportNwb,
         "getInputParameters": parameter_form.getInputParameters,
     }
     template._widgets = {
