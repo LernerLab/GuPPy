@@ -252,7 +252,16 @@ def _discover_ndx_events_v02(nwbfile: NWBFile, seen_names: set[str]) -> list[str
                 events.append(f"{neurodata_object.name}_{label}")
         elif neurodata_object.neurodata_type == "LabeledEvents":
             _register_unique_name(seen_names, neurodata_object.name, "LabeledEvents")
-            for label in neurodata_object.data__labels:
+            # The labels attribute name depends on which class pynwb instantiated, which is
+            # governed by the process-wide type map: the hand-written ndx_events.events.LabeledEvents
+            # (registered once ndx_events is imported) exposes ``.labels``, while the class
+            # auto-generated from the file's cached spec exposes ``.data__labels``. Read whichever
+            # is present so discovery is independent of import order.
+            if hasattr(neurodata_object, "labels"):
+                labels = neurodata_object.labels
+            else:
+                labels = neurodata_object.data__labels
+            for label in labels:
                 events.append(f"{neurodata_object.name}_{label}")
         elif neurodata_object.neurodata_type == "Events":
             _register_unique_name(seen_names, neurodata_object.name, "Events")
@@ -292,7 +301,11 @@ def _build_event_index_v02(nwbfile: NWBFile) -> dict[str, tuple]:
             for row_index, label in enumerate(obj["label"].data):
                 index[f"{obj.name}_{label}"] = ("annotated", obj, row_index)
         elif obj.neurodata_type == "LabeledEvents":
-            for label_index, label in enumerate(obj.data__labels):
+            # ``.labels`` (hand-written class, registered when ndx_events is imported) vs
+            # ``.data__labels`` (class auto-generated from the file's cached spec). Read whichever
+            # is present so reads are independent of import order (see _discover_ndx_events_v02).
+            labels = obj.labels if hasattr(obj, "labels") else obj.data__labels
+            for label_index, label in enumerate(labels):
                 index[f"{obj.name}_{label}"] = ("labeled", obj, label_index)
         elif obj.neurodata_type == "Events":
             index[obj.name] = ("events", obj)
