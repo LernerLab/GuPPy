@@ -10,5 +10,6 @@ zscore
 transient_detection
 cross_correlation
 psth
+artifacts
 isosbestic_correction
 ```

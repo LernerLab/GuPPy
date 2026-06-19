@@ -2,7 +2,7 @@
 
 ## Background
 
-In experiments that record from two brain regions or two cell populations simultaneously, a natural follow-up to computing each region's PSTH is: *do these two signals move together around the event?* And if they do, *does one lead the other?*
+In experiments that record from two brain regions or two cell populations simultaneously, a natural follow-up to computing each region's [PSTH](psth.md) is: *do these two signals move together around the event?* And if they do, *does one lead the other?*
 
 The first half is answered by an ordinary correlation between the two traces. The second half is not. An ordinary correlation compares region A at time `t` with region B at the same time `t`, so a consistent 200 ms offset between them simply registers as a weaker correlation, with no information about which region led. Two regions tightly coupled with a 200 ms lag can look much less correlated than they actually are, and you cannot tell from the result whether A preceded B or the reverse.
 
@@ -17,7 +17,7 @@ Formally, cross-correlation is a similarity-versus-lag curve. Given two time ser
 
 ## Event-locked cross-correlation
 
-The version of this analysis paired with PSTH is event-locked rather than continuous. Instead of cross-correlating the full z-scored traces of the two regions, the **per-event PSTH window** of each region is taken, both already aligned to the same event timestamp, and cross-correlated within that window. The question becomes "do these regions co-fluctuate around the behavioural event?" rather than "are these regions coupled in general?". For event-driven analyses the two are different, because long-timescale baseline coupling between two photometry channels is often dominated by shared physiological drift (movement, photobleaching, breathing artefacts) and is usually not the thing being measured. Restricting to the event window suppresses that contribution. The trade-off is that anything happening outside the PSTH window is invisible; long-range or oscillatory coupling beyond the event has to be computed on the continuous z-scored trace separately.
+The version of this analysis paired with PSTH is event-locked rather than continuous. Instead of cross-correlating the full [z-scored](zscore.md) traces of the two regions, the **per-event PSTH window** of each region is taken, both already aligned to the same event timestamp, and cross-correlated within that window. The question becomes "do these regions co-fluctuate around the behavioural event?" rather than "are these regions coupled in general?". For event-driven analyses the two are different, because long-timescale baseline coupling between two photometry channels is often dominated by shared physiological drift (movement, photobleaching, breathing artefacts) and is usually not the thing being measured. Restricting to the event window suppresses that contribution. The trade-off is that anything happening outside the PSTH window is invisible; long-range or oscillatory coupling beyond the event has to be computed on the continuous z-scored trace separately.
 
 The procedure is:
 
