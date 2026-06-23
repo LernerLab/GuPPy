@@ -169,7 +169,7 @@ GuPPy runs the following on the raw signal:
 
 1. Trims the first few seconds from both channels (the *Eliminate first few seconds* parameter, internally `timeForLightsTurnOn`).
 2. Applies a moving-average filter to reduce high-frequency noise (the *Window for Moving Average filter* parameter, internally `filter_window`).
-3. Fits the control channel to the signal channel using a linear regression, then subtracts it. This removes motion artifacts and photobleaching that affect both channels equally.
+3. Fits the control channel to the signal channel, then subtracts it. This removes motion artifacts and photobleaching that affect both channels equally. The fitting method is configurable (the *Control Channel Fitting Method* parameter, internally `control_fit_method`): the default `IRWLS` is a robust regression that down-weights outliers, with ordinary least-squares (`OLS`) regression available as an alternative.
 4. Computes the z-score and the dF/F (delta F over F) of the corrected signal.
 
 The results are written into the same output folder as Step 2, in four new HDF5 files per region. You do not choose the location or the file names; they follow a fixed convention:

@@ -1,6 +1,8 @@
 import logging
+from typing import Literal
 
 import numpy as np
+import statsmodels.api as sm
 from scipy import signal as ss
 
 from .control_channel import helper_create_control_channel
@@ -20,6 +22,7 @@ def compute_z_score(
     zscore_method: str,
     baseline_start: float,
     baseline_end: float,
+    control_fit_method: Literal["IRWLS", "OLS"] = "IRWLS",
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray | None]:
     """
     Compute the z-score and dF/F for a control/signal channel pair.
@@ -47,6 +50,9 @@ def compute_z_score(
         Baseline window start (s); used only for ``'baseline z-score'``.
     baseline_end : float
         Baseline window end (s); used only for ``'baseline z-score'``.
+    control_fit_method : str, optional
+        Regression method for fitting the control to the signal; ``'IRWLS'``
+        (default) or ``'OLS'``.
 
     Returns
     -------
@@ -74,7 +80,9 @@ def compute_z_score(
         if isosbestic_control == False:
             control_arr = helper_create_control_channel(signal[tsNew_index], tsNew[tsNew_index], window=101)
             signal_arr = signal[tsNew_index]
-            norm_data, control_fit = execute_controlFit_dff(control_arr, signal_arr, isosbestic_control, filter_window)
+            norm_data, control_fit = execute_controlFit_dff(
+                control_arr, signal_arr, isosbestic_control, filter_window, control_fit_method
+            )
             temp_control_arr[tsNew_index] = control_arr
             if i < coords.shape[0] - 1:
                 blank_index = np.where((tsNew > coords[i, 1]) & (tsNew < coords[i + 1, 0]))[0]
@@ -82,7 +90,9 @@ def compute_z_score(
         else:
             control_arr = control[tsNew_index]
             signal_arr = signal[tsNew_index]
-            norm_data, control_fit = execute_controlFit_dff(control_arr, signal_arr, isosbestic_control, filter_window)
+            norm_data, control_fit = execute_controlFit_dff(
+                control_arr, signal_arr, isosbestic_control, filter_window, control_fit_method
+            )
         norm_data_arr[tsNew_index] = norm_data
         control_fit_arr[tsNew_index] = control_fit
 
@@ -108,7 +118,11 @@ def compute_z_score(
 
 
 def execute_controlFit_dff(
-    control: np.ndarray, signal: np.ndarray, isosbestic_control: bool, filter_window: int
+    control: np.ndarray,
+    signal: np.ndarray,
+    isosbestic_control: bool,
+    filter_window: int,
+    control_fit_method: Literal["IRWLS", "OLS"] = "IRWLS",
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Filter channels, fit the control to the signal, and compute dF/F.
@@ -124,6 +138,9 @@ def execute_controlFit_dff(
         When False, only the signal is filtered.
     filter_window : int
         Moving-average filter window length; 0 disables filtering.
+    control_fit_method : str, optional
+        Regression method for fitting the control to the signal; ``'IRWLS'``
+        (default) or ``'OLS'``.
 
     Returns
     -------
@@ -135,12 +152,12 @@ def execute_controlFit_dff(
 
     if isosbestic_control == False:
         signal_smooth = filterSignal(filter_window, signal)  # ss.filtfilt(b, a, signal)
-        control_fit = controlFit(control, signal_smooth)
+        control_fit = controlFit(control, signal_smooth, method=control_fit_method)
         norm_data = deltaFF(signal_smooth, control_fit)
     else:
         control_smooth = filterSignal(filter_window, control)  # ss.filtfilt(b, a, control)
         signal_smooth = filterSignal(filter_window, signal)  # ss.filtfilt(b, a, signal)
-        control_fit = controlFit(control_smooth, signal_smooth)
+        control_fit = controlFit(control_smooth, signal_smooth, method=control_fit_method)
         norm_data = deltaFF(signal_smooth, control_fit)
 
     return norm_data, control_fit
@@ -171,7 +188,7 @@ def deltaFF(signal: np.ndarray, control: np.ndarray) -> np.ndarray:
     return normData
 
 
-def controlFit(control: np.ndarray, signal: np.ndarray) -> np.ndarray:
+def controlFit(control: np.ndarray, signal: np.ndarray, *, method: Literal["IRWLS", "OLS"] = "IRWLS") -> np.ndarray:
     """
     Fit a linear model from control to signal and return the fitted values.
 
@@ -181,6 +198,11 @@ def controlFit(control: np.ndarray, signal: np.ndarray) -> np.ndarray:
         Control channel array.
     signal : np.ndarray
         Signal channel array.
+    method : str, optional
+        Regression method used to fit the line. ``'IRWLS'`` (default) uses
+        Iteratively Re-Weighted Least Squares with a Tukey bisquare norm, which
+        down-weights outliers and matches ordinary least squares on clean data.
+        ``'OLS'`` uses ordinary least squares.
 
     Returns
     -------
@@ -188,9 +210,18 @@ def controlFit(control: np.ndarray, signal: np.ndarray) -> np.ndarray:
         Fitted control values (linear projection onto the signal scale).
     """
 
-    p = np.polyfit(control, signal, 1)
-    arr = (p[0] * control) + p[1]
-    return arr
+    if method == "OLS":
+        p = np.polyfit(control, signal, 1)
+        arr = (p[0] * control) + p[1]
+        return arr
+    elif method == "IRWLS":
+        design_matrix = sm.add_constant(control)
+        results = sm.RLM(signal, design_matrix, M=sm.robust.norms.TukeyBiweight()).fit()
+        return np.asarray(results.fittedvalues)
+    else:
+        raise ValueError(
+            f"control fitting method '{method}' is not recognized. Use 'IRWLS' (robust, default) or 'OLS'."
+        )
 
 
 def filterSignal(filter_window: int, signal: np.ndarray) -> np.ndarray:

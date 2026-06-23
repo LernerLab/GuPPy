@@ -44,22 +44,62 @@ def test_delta_ff_double_signal_returns_one_hundred():
     np.testing.assert_allclose(result, np.full(3, 100.0))
 
 
-def test_control_fit_output_is_linear_transform_of_control():
+@pytest.mark.parametrize("method", ["IRWLS", "OLS"])
+def test_control_fit_output_is_linear_transform_of_control(method):
     rng = np.random.default_rng(seed=0)
     control = rng.standard_normal(500)
     signal = 2.5 * control + 1.0 + 0.01 * rng.standard_normal(500)
-    result = controlFit(control, signal)
+    result = controlFit(control, signal, method=method)
     # result should be a linear function of control; residuals should be small
     residuals = signal - result
     assert residuals.std() < 0.1
 
 
-def test_control_fit_known_linear_signal_returns_exact_fit():
-    # signal = 3.0 * control + 0.5; polyfit should recover this exactly
+def test_control_fit_ols_known_signal_returns_exact_fit():
+    # signal = 3.0 * control + 0.5; ordinary least squares should recover this exactly
     control = np.array([0.0, 1.0, 2.0])
     signal = np.array([0.5, 3.5, 6.5])
-    result = controlFit(control, signal)
+    result = controlFit(control, signal, method="OLS")
     np.testing.assert_allclose(result, np.array([0.5, 3.5, 6.5]), atol=1e-10)
+
+
+def test_control_fit_unknown_method_raises():
+    control = np.array([0.0, 1.0, 2.0])
+    signal = np.array([0.5, 3.5, 6.5])
+    with pytest.raises(ValueError) as exception_info:
+        controlFit(control, signal, method="quadratic")
+    message = str(exception_info.value)
+    assert "quadratic" in message
+    assert "IRWLS" in message
+
+
+def test_control_fit_irwls_downweights_outliers_while_ols_is_pulled_off():
+    # Clean line: signal = 2.0 * control + 1.0, with a handful of large outliers added.
+    # IRWLS should recover the clean line (slope ~2, intercept ~1); ordinary least
+    # squares is dragged toward the outliers.
+    rng = np.random.default_rng(seed=7)
+    control = np.linspace(0.0, 99.0, 100)
+    signal = 2.0 * control + 1.0 + rng.standard_normal(100) * 0.05
+    # Place the outliers in the upper half of the x-range so they lever the
+    # least-squares slope (balanced outliers would only shift the intercept).
+    outlier_indices = [70, 80, 90, 99]
+    signal[outlier_indices] += 200.0
+
+    irwls_fit = controlFit(control, signal, method="IRWLS")
+    ols_fit = controlFit(control, signal, method="OLS")
+
+    # Recover slope/intercept from the fitted values (fit = slope * control + intercept).
+    irwls_slope = (irwls_fit[-1] - irwls_fit[0]) / (control[-1] - control[0])
+    irwls_intercept = irwls_fit[0] - irwls_slope * control[0]
+    ols_slope = (ols_fit[-1] - ols_fit[0]) / (control[-1] - control[0])
+
+    # IRWLS stays close to the true clean line.
+    np.testing.assert_allclose(irwls_slope, 2.0, atol=0.05)
+    np.testing.assert_allclose(irwls_intercept, 1.0, atol=1.0)
+    # Ordinary least squares is visibly pulled off the true slope by the outliers,
+    # and IRWLS is markedly closer to the truth than OLS.
+    assert abs(ols_slope - 2.0) > abs(irwls_slope - 2.0)
+    assert abs(ols_slope - 2.0) > 0.2
 
 
 def test_z_score_computation_standard_has_zero_mean_unit_std():
@@ -166,7 +206,9 @@ def test_execute_control_fit_dff_isosbestic_true_signal_proportional_to_control(
     # signal = 1.5 * control → perfect linear fit → control_fit == signal → norm_data == 0
     control = np.array([1.0, 2.0, 3.0])
     signal = 1.5 * control
-    norm_data, control_fit = execute_controlFit_dff(control, signal, isosbestic_control=True, filter_window=0)
+    norm_data, control_fit = execute_controlFit_dff(
+        control, signal, isosbestic_control=True, filter_window=0, control_fit_method="OLS"
+    )
     np.testing.assert_allclose(norm_data, np.zeros(3), atol=1e-10)
     np.testing.assert_allclose(control_fit, np.array([1.5, 3.0, 4.5]), atol=1e-10)
 
@@ -175,7 +217,9 @@ def test_execute_control_fit_dff_isosbestic_false_signal_offset_from_control():
     # signal = control + 1.0 → perfect linear fit → control_fit == signal → norm_data == 0
     control = np.array([1.0, 2.0, 3.0])
     signal = control + 1.0
-    norm_data, control_fit = execute_controlFit_dff(control, signal, isosbestic_control=False, filter_window=0)
+    norm_data, control_fit = execute_controlFit_dff(
+        control, signal, isosbestic_control=False, filter_window=0, control_fit_method="OLS"
+    )
     np.testing.assert_allclose(norm_data, np.zeros(3), atol=1e-10)
     np.testing.assert_allclose(control_fit, np.array([2.0, 3.0, 4.0]), atol=1e-10)
 

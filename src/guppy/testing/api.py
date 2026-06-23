@@ -365,6 +365,7 @@ def step4(
     baseline_window_start: int = 0,
     baseline_window_end: int = 0,
     isosbestic_control: bool = True,
+    control_fit_method: Literal["IRWLS", "OLS"] = "IRWLS",
     selected_runs: dict[str, list[str]],
 ) -> None:
     """
@@ -413,6 +414,10 @@ def step4(
     isosbestic_control : bool
         Whether a separate isosbestic control channel is present. When ``False``, GuPPy
         synthesizes a control channel from the signal. Defaults to ``True``.
+    control_fit_method : str
+        Regression method for fitting the control channel to the signal. One of
+        ``'IRWLS'`` (robust, down-weights outliers) or ``'OLS'`` (ordinary least
+        squares). Defaults to ``'IRWLS'``.
 
     Raises
     ------
@@ -477,6 +482,9 @@ def step4(
 
     # Inject isosbestic_control
     input_params["isosbestic_control"] = isosbestic_control
+
+    # Inject control fitting method
+    input_params["control_fit_method"] = control_fit_method
 
     # Per-session output-directory subset filter — every session must have at least one run name.
     normalized_selected_runs = _normalize_selected_runs(selected_runs, abs_sessions)

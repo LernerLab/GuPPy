@@ -18,6 +18,7 @@ from guppy.orchestration.read_raw_data import (
 DEFAULT_ANALYSIS_PARAMETERS = {
     "combine_data": False,
     "isosbestic_control": True,
+    "control_fit_method": "IRWLS",
     "timeForLightsTurnOn": 1,
     "filter_window": 100,
     "removeArtifacts": False,

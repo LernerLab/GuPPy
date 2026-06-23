@@ -109,6 +109,7 @@ def test_consistency(
         remove_artifacts=True,
         artifact_removal_method=artifact_removal_method,
         artifact_coords={"dms": coords},
+        control_fit_method="OLS",
         selected_runs=selected_runs,
     )
     step5(**common_kwargs, selected_runs=selected_runs)

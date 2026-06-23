@@ -168,6 +168,13 @@ class ParameterForm:
             name="Isosbestic Control Channel? (bool)", value=True, options=[True, False], width=320
         )
 
+        self.control_fit_method = pn.widgets.Select(
+            name="Control Channel Fitting Method",
+            options=["IRWLS", "OLS"],
+            value="IRWLS",
+            width=320,
+        )
+
         self.numberOfCores = pn.widgets.IntInput(name="# of cores (int)", value=2, width=150)
 
         self.combine_data = pn.widgets.Select(
@@ -353,6 +360,7 @@ class ParameterForm:
             self.explain_time_artifacts,
             pn.Row(self.numberOfCores, self.combine_data),
             self.isosbestic_control,
+            self.control_fit_method,
             self.timeForLightsTurnOn,
             self.moving_avg_filter,
             self.computePsth,
@@ -647,6 +655,7 @@ class ParameterForm:
             "numberOfCores": self.numberOfCores.value,
             "combine_data": self.combine_data.value,
             "isosbestic_control": self.isosbestic_control.value,
+            "control_fit_method": self.control_fit_method.value,
             "timeForLightsTurnOn": self.timeForLightsTurnOn.value,
             "filter_window": self.moving_avg_filter.value,
             "removeArtifacts": self.removeArtifacts.value,
@@ -697,6 +706,7 @@ class ParameterForm:
         return {
             "combine_data": self.combine_data,
             "isosbestic_control": self.isosbestic_control,
+            "control_fit_method": self.control_fit_method,
             "timeForLightsTurnOn": self.timeForLightsTurnOn,
             "filter_window": self.moving_avg_filter,
             "removeArtifacts": self.removeArtifacts,

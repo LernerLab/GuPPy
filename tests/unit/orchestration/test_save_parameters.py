@@ -9,6 +9,7 @@ from guppy.orchestration.save_parameters import save_parameters
 PARAMETER_KEYS = {
     "combine_data",
     "isosbestic_control",
+    "control_fit_method",
     "timeForLightsTurnOn",
     "filter_window",
     "removeArtifacts",
@@ -60,6 +61,7 @@ def base_input_parameters(tmp_path):
         "folderNames": [str(folder)],
         "combine_data": False,
         "isosbestic_control": True,
+        "control_fit_method": "IRWLS",
         "timeForLightsTurnOn": 5.0,
         "filter_window": 100,
         "removeArtifacts": False,
@@ -157,6 +159,7 @@ def test_save_parameters_single_folder(tmp_path):
         "folderNames": [str(folder)],
         "combine_data": True,
         "isosbestic_control": False,
+        "control_fit_method": "OLS",
         "timeForLightsTurnOn": 0.0,
         "filter_window": 200,
         "removeArtifacts": True,

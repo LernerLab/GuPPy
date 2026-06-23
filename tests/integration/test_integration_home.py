@@ -10,6 +10,7 @@ EXPECTED_JSON_KEYS = {
     "guppy_version",
     "combine_data",
     "isosbestic_control",
+    "control_fit_method",
     "timeForLightsTurnOn",
     "filter_window",
     "removeArtifacts",

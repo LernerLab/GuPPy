@@ -64,10 +64,13 @@ The largest card on the homepage, collapsed by default (only Input Folder Select
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
 | Isosbestic Control Channel? | Use the isosbestic control channel to remove motion artifacts. | bool | `True` | `True`, `False` |
+| Control Channel Fitting Method | How the control channel is fit to the signal before subtraction. | str | `IRWLS` | `IRWLS`, `OLS` |
 | Eliminate first few seconds | Drop the LED-warmup transient at the start. | int | `1` | non-negative seconds |
 | Window for Moving Average filter | Width of the smoothing kernel. | int | `100` | positive integer, in samples (not seconds) |
 
-**Isosbestic Control Channel?** declares whether the recording includes an isosbestic control channel. When `True`, preprocessing fits the isosbestic control channel to the signal trace by linear regression and subtracts the fitted control to remove motion artifacts and photobleaching that affect both wavelengths equally. When `False`, GuPPy synthesizes a stand-in control channel by fitting an exponential decay curve (`a + b·exp(-x/c)`) to the signal itself, then runs the same regression-and-subtract step using this synthetic trace as the control channel that gets fitted and subtracted. Because a synthetic control carries no motion information, this mode removes the photobleaching trend but not motion artifacts. See the [isosbestic correction explainer](../explanation/isosbestic_correction.md) for the underlying biology and math.
+**Isosbestic Control Channel?** declares whether the recording includes an isosbestic control channel. When `True`, preprocessing fits the isosbestic control channel to the signal trace and subtracts the fitted control to remove motion artifacts and photobleaching that affect both wavelengths equally. When `False`, GuPPy synthesizes a stand-in control channel by fitting an exponential decay curve (`a + b·exp(-x/c)`) to the signal itself, then runs the same fit-and-subtract step using this synthetic trace as the control channel that gets fitted and subtracted. Because a synthetic control carries no motion information, this mode removes the photobleaching trend but not motion artifacts. See the [isosbestic correction explainer](../explanation/isosbestic_correction.md) for the underlying biology and math.
+
+**Control Channel Fitting Method** chooses how the control channel is rescaled onto the signal before subtraction. `IRWLS` (the default) uses Iteratively Re-Weighted Least Squares with a Tukey bisquare weighting, a robust regression that down-weights outlier samples (transients, brief wavelength-dependent artifacts) so they do not distort the fit. It is equivalent to ordinary least squares on clean data and more reliable when outliers are present, so it is almost always equal to or better than a plain least-squares fit. `OLS` selects ordinary least-squares regression instead. See the [isosbestic correction explainer](../explanation/isosbestic_correction.md) for details.
 
 **Eliminate first few seconds** drops this many seconds from the start of every recording. The first second or two of fiber-photometry data is usually contaminated by the bright transient when the LED first turns on; this parameter exists to discard that. Default `1` is conservative.
 
@@ -248,6 +251,7 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 | `bin_psth_trials` | Time(min) / # of trials for binning | [PSTH Parameters](#psth-parameters) |
 | `combine_data` | Combine Data? | [Compute and batching](#compute-and-batching) |
 | `computeCorr` | Compute Cross-correlation | [PSTH Parameters](#psth-parameters) |
+| `control_fit_method` | Control Channel Fitting Method | [Signal preprocessing](#signal-preprocessing) |
 | `dandi_uri_map` | (DANDI selector) | [Input Folder Selection](#input-folder-selection) |
 | `filter_window` | Window for Moving Average filter | [Signal preprocessing](#signal-preprocessing) |
 | `folderNames` | (file browser, Input Folder Selection) | [Input Folder Selection](#input-folder-selection) |

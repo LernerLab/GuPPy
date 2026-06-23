@@ -53,6 +53,8 @@ def test_step4(step4_fixture_name, expected_region, expected_ttl, request):
         saved_parameters = json.load(parameters_file)
     # The step-4 fixtures run with removeArtifacts disabled; the snapshot must reflect it.
     assert saved_parameters["removeArtifacts"] is False
+    # The control fitting method defaults to IRWLS and is recorded in the snapshot.
+    assert saved_parameters["control_fit_method"] == "IRWLS"
 
     # Ensure timeCorrection_<region>.hdf5 exists with 'timestampNew'
     time_correction_file_path = os.path.join(output_directory, f"timeCorrection_{expected_region}.hdf5")

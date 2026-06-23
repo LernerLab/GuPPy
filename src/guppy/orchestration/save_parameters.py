@@ -29,6 +29,7 @@ def save_parameters(inputParameters: dict[str, object]) -> None:
         "guppy_version": version("guppy-neuro"),
         "combine_data": inputParameters["combine_data"],
         "isosbestic_control": inputParameters["isosbestic_control"],
+        "control_fit_method": inputParameters["control_fit_method"],
         "timeForLightsTurnOn": inputParameters["timeForLightsTurnOn"],
         "filter_window": inputParameters["filter_window"],
         "removeArtifacts": inputParameters["removeArtifacts"],

@@ -67,7 +67,7 @@ def test_consistency_group_analysis(tmp_path):
     selected_runs = {folder: ["1"] for folder in selected_folders}
     step2(**common_kwargs, storenames_map=STORENAMES_MAP)
     step3(**common_kwargs, selected_runs=selected_runs)
-    step4(**common_kwargs, selected_runs=selected_runs)
+    step4(**common_kwargs, control_fit_method="OLS", selected_runs=selected_runs)
     step5(**common_kwargs, selected_runs=selected_runs)
 
     step5(
