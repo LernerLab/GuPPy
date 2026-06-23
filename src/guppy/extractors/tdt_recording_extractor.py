@@ -60,7 +60,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
             allnames = np.delete(allnames, index, 0)
             # Epoc stores that encode multiple behaviours are split into one sub-event per
             # unique marker value here (at discover time) so storesList is fully settled
-            # before step 3; read() then needs no storesList mutation.
+            # before step 2; read() then needs no storesList mutation.
             split_map = cls._compute_split_map(header_df)
             events = []
             for name in allnames:

@@ -158,7 +158,7 @@ def execute_visualize_peaks_combined(folderNames: list[str], inputParameters: di
 
 
 def executeFindFreqAndAmp(inputParameters: dict[str, object]) -> None:
-    """Entry point for step-5 transient analysis: dispatches to the appropriate sub-routine.
+    """Entry point for step-4 transient analysis: dispatches to the appropriate sub-routine.
 
     Parameters
     ----------

@@ -90,7 +90,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                 df = pd.read_csv(path[i], header=1, index_col=False, nrows=10)
                 # Drop trailing all-NaN columns (e.g. "Unnamed: 7" from Doric CSVs with a
                 # trailing comma on each line). They'd otherwise appear as selectable events
-                # in Step 2, then vanish via the read path's own dropna, yielding a cryptic KeyError.
+                # in Step 1, then vanish via the read path's own dropna, yielding a cryptic KeyError.
                 df = df.dropna(axis=1, how="all")
                 df = df.drop(["Time(s)"], axis=1)
                 event_from_filename.extend(list(df.columns))
@@ -173,7 +173,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                 "downstream control-fit (np.polyfit) cannot handle NaN. This typically happens "
                 "with demodulated channels like 'AIn-X - Dem (AOut-Y)' when excitation "
                 "AOut-Y was not driven for this input, or during demodulator warmup at "
-                "recording start. Re-run Step 2 and pick a channel with continuous finite data."
+                "recording start. Re-run Step 1 and pick a channel with continuous finite data."
             )
         if float(np.std(data)) == 0.0:
             raise ValueError(

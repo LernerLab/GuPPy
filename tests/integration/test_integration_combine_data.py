@@ -9,7 +9,7 @@ import pytest
 from conftest import STUBBED_TESTING_DATA
 
 from guppy.frontend.visualization_dashboard import VisualizationDashboard
-from guppy.testing.api import step2, step3, step4, step5, step6
+from guppy.testing.api import step1, step2, step3, step4, step5
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
@@ -58,8 +58,8 @@ def test_combine_data(tmp_path):
     selected_folders = [str(session_copy) for session_copy in session_copies]
     base_dir = str(tmp_base)
 
-    # Step 2: create storesList.csv in the temp copy
-    step2(
+    # Step 1: create storesList.csv in the temp copy
+    step1(
         base_dir=base_dir,
         selected_folders=selected_folders,
         storenames_map=storenames_map,
@@ -70,8 +70,8 @@ def test_combine_data(tmp_path):
 
     selected_runs = {selected_folder: ["1"] for selected_folder in selected_folders}
 
-    # Step 3: read raw data in the temp copy
-    step3(
+    # Step 2: read raw data in the temp copy
+    step2(
         base_dir=base_dir,
         selected_folders=selected_folders,
         npm_timestamp_column_names=npm_timestamp_column_names,
@@ -80,8 +80,8 @@ def test_combine_data(tmp_path):
         selected_runs=selected_runs,
     )
 
-    # Step 4: extract timestamps and signal in the temp copy
-    step4(
+    # Step 3: extract timestamps and signal in the temp copy
+    step3(
         base_dir=base_dir,
         selected_folders=selected_folders,
         npm_timestamp_column_names=npm_timestamp_column_names,
@@ -91,8 +91,8 @@ def test_combine_data(tmp_path):
         selected_runs=selected_runs,
     )
 
-    # Step 5: compute PSTH in the temp copy (headless)
-    step5(
+    # Step 4: compute PSTH in the temp copy (headless)
+    step4(
         base_dir=str(tmp_base),
         selected_folders=selected_folders,
         npm_timestamp_column_names=npm_timestamp_column_names,
@@ -114,7 +114,7 @@ def test_combine_data(tmp_path):
             break
     assert out_dir is not None, f"No storesList.csv found in any output directory under {session_copy}"
     stores_fp = os.path.join(out_dir, "storesList.csv")
-    assert os.path.exists(stores_fp), "Missing storesList.csv after Step 2/3/4"
+    assert os.path.exists(stores_fp), "Missing storesList.csv after Step 1/2/3"
 
     # Ensure timeCorrection_<region>.hdf5 exists with 'timestampNew'
     timecorr = os.path.join(out_dir, f"timeCorrection_{expected_region}.hdf5")
@@ -145,10 +145,10 @@ def test_combine_data(tmp_path):
 
     with patch.object(VisualizationDashboard, "__init__", capturing_init):
         with patch.object(VisualizationDashboard, "show", lambda self: None):
-            step6(
+            step5(
                 base_dir=base_dir,
                 selected_folders=[str(session_copies[0])],
                 selected_runs={str(session_copies[0]): ["1"]},
             )
 
-    assert len(captured_dashboards) >= 1, "step6 created no VisualizationDashboard instances"
+    assert len(captured_dashboards) >= 1, "step5 created no VisualizationDashboard instances"

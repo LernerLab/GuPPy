@@ -1,9 +1,10 @@
 """
 Python API for GuPPy pipeline steps.
 
-Step 1: Save Input Parameters
+Save Input Parameters (automatic provenance)
 - Writes GuPPyParamtersUsed.json into each selected data folder.
-- Mirrors the Panel UI's Step 1 behavior without invoking any UI by default.
+- In the GUI this snapshot is now written automatically by each numbered step;
+  ``save_parameters_snapshot`` exposes the same write directly for tests/scripts.
 
 This module is intentionally minimal and non-invasive.
 """
@@ -84,12 +85,12 @@ def _normalize_group_selected_runs(
     return _normalize_selected_runs(group_selected_runs, abs_group_folders, parameter_name="group_selected_runs")
 
 
-def step1(*, base_dir: str, selected_folders: Iterable[str]) -> None:
+def save_parameters_snapshot(*, base_dir: str, selected_folders: Iterable[str]) -> None:
     """
     Write ``GuPPyParamtersUsed.json`` into each selected folder (provenance snapshot).
 
     In the GUI this snapshot is now written automatically by each consuming step
-    (steps 2–5); this helper exposes the same ``save_parameters`` write directly
+    (steps 1–4); this helper exposes the same ``save_parameters`` write directly
     for tests and scripted provenance. It builds the form headlessly (using
     ``GUPPY_BASE_DIR`` to bypass the Tk folder dialog), sets the FileSelector to
     ``selected_folders``, and calls ``save_parameters`` with the current
@@ -126,7 +127,7 @@ def step1(*, base_dir: str, selected_folders: Iterable[str]) -> None:
     save_parameters(inputParameters=template._hooks["getInputParameters"]())
 
 
-def step2(
+def step1(
     *,
     base_dir: str,
     selected_folders: Iterable[str],
@@ -139,9 +140,9 @@ def step2(
     run_name_policy: Literal["create", "overwrite"] = "create",
 ) -> None:
     """
-    Run pipeline Step 2 (Save Storenames) via the actual Panel-backed logic.
+    Run pipeline Step 1 (Save Storenames) via the actual Panel-backed logic.
 
-    This builds the Step 2 template headlessly (using ``GUPPY_BASE_DIR`` to bypass
+    This builds the Step 1 template headlessly (using ``GUPPY_BASE_DIR`` to bypass
     the folder dialog), sets the FileSelector to ``selected_folders``, retrieves
     the full input parameters via ``getInputParameters()``, injects the provided
     ``storenames_map``, and calls ``execute(inputParameters)`` from
@@ -244,11 +245,11 @@ def step2(
     else:
         input_params["mode"] = "local"
 
-    # Call the underlying Step 2 executor (now headless-aware)
+    # Call the underlying Step 1 executor (now headless-aware)
     orchestrate_storenames_page(input_params)
 
 
-def step3(
+def step2(
     *,
     base_dir: str,
     selected_folders: Iterable[str],
@@ -260,7 +261,7 @@ def step3(
     selected_runs: dict[str, list[str]],
 ) -> None:
     """
-    Run pipeline Step 3 (Read Raw Data) via the actual Panel-backed logic, headlessly.
+    Run pipeline Step 2 (Read Raw Data) via the actual Panel-backed logic, headlessly.
 
     This builds the template headlessly (using ``GUPPY_BASE_DIR`` to bypass
     the folder dialog), sets the FileSelector to ``selected_folders``, retrieves
@@ -346,11 +347,11 @@ def step3(
     else:
         input_params["mode"] = "local"
 
-    # Call the underlying Step 3 worker directly (no subprocess)
+    # Call the underlying Step 2 worker directly (no subprocess)
     orchestrate_read_raw_data(input_params)
 
 
-def step4(
+def step3(
     *,
     base_dir: str,
     selected_folders: Iterable[str],
@@ -369,7 +370,7 @@ def step4(
     selected_runs: dict[str, list[str]],
 ) -> None:
     """
-    Run pipeline Step 4 (Extract timestamps and signal) via the Panel-backed logic, headlessly.
+    Run pipeline Step 3 (Extract timestamps and signal) via the Panel-backed logic, headlessly.
 
     This builds the template headlessly (using ``GUPPY_BASE_DIR`` to bypass
     the folder dialog), sets the FileSelector to ``selected_folders``, retrieves
@@ -391,7 +392,7 @@ def step4(
     npm_split_events : list[bool] | None
         List of booleans indicating whether to split events for NPM files, one per CSV file. None if not applicable.
     combine_data : bool
-        Whether to enable data combining logic in Step 4.
+        Whether to enable data combining logic in Step 3.
     remove_artifacts : bool
         Whether to run artifact removal.
     artifact_removal_method : str | None
@@ -498,11 +499,11 @@ def step4(
                 for pair_name, coords in artifact_coords.items():
                     np.save(os.path.join(output_dir, f"coordsForPreProcessing_{pair_name}.npy"), coords)
 
-    # Call the underlying Step 4 worker directly (no subprocess)
+    # Call the underlying Step 3 worker directly (no subprocess)
     extractTsAndSignal(input_params)
 
 
-def step5(
+def step4(
     *,
     base_dir: str,
     selected_folders: Iterable[str],
@@ -522,7 +523,7 @@ def step5(
     group_selected_runs: dict[str, list[str]] | None = None,
 ) -> None:
     """
-    Run pipeline Step 5 (PSTH Computation) via the Panel-backed logic, headlessly.
+    Run pipeline Step 4 (PSTH Computation) via the Panel-backed logic, headlessly.
 
     This builds the template headlessly (using ``GUPPY_BASE_DIR`` to bypass
     the folder dialog), sets the FileSelector to ``selected_folders``, retrieves
@@ -544,7 +545,7 @@ def step5(
     npm_split_events : list[bool] | None
         List of booleans indicating whether to split events for NPM files, one per CSV file. None if not applicable.
     combine_data : bool
-        Whether to enable combined-session processing mode in Step 5. Defaults to False.
+        Whether to enable combined-session processing mode in Step 4. Defaults to False.
     compute_corr : bool
         Whether to compute cross-correlation between signals. Defaults to False.
     average_for_group : bool
@@ -646,14 +647,14 @@ def step5(
     input_params["bin_psth_trials"] = bin_psth_trials
     input_params["use_time_or_trials"] = use_time_or_trials
 
-    # Call the underlying Step 5 worker directly (no subprocess)
+    # Call the underlying Step 4 worker directly (no subprocess)
     psthForEachStorename(input_params)
 
     # Also compute frequency/amplitude and transients occurrences (normally triggered by CLI main)
     executeFindFreqAndAmp(input_params)
 
 
-def step6(
+def step5(
     *,
     base_dir: str,
     selected_folders: Iterable[str],
@@ -665,7 +666,7 @@ def step6(
     group_selected_runs: dict[str, list[str]] | None = None,
 ) -> None:
     """
-    Run pipeline Step 6 (Visualize Results) via the Panel-backed logic, headlessly.
+    Run pipeline Step 5 (Visualize Results) via the Panel-backed logic, headlessly.
 
     This builds the template headlessly (using ``GUPPY_BASE_DIR`` to bypass
     the folder dialog), sets the FileSelector to ``selected_folders``, retrieves
@@ -749,5 +750,5 @@ def step6(
         [os.path.abspath(f) for f in (input_params.get("folderNamesForAvg") or [])],
     )
 
-    # Call the underlying Step 6 worker directly (no subprocess)
+    # Call the underlying Step 5 worker directly (no subprocess)
     visualizeResults(input_params)

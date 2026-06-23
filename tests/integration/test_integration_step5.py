@@ -1,117 +1,134 @@
+import glob
 import os
+import shutil
+from unittest.mock import patch
 
+import holoviews as hv
 import pandas as pd
 import pytest
+from conftest import STUBBED_TESTING_DATA
 
-from guppy.testing.api import step5
+from guppy.frontend.parameterized_plotter import ParameterizedPlotter
+from guppy.frontend.visualization_dashboard import VisualizationDashboard
+from guppy.testing.api import step1, step2, step3, step4, step5
+
+SESSION_SUBDIR = "csv/sample_data_csv_1"
+STORENAMES_MAP = {
+    "Sample_Control_Channel": "control_region",
+    "Sample_Signal_Channel": "signal_region",
+    "Sample_TTL": "ttl",
+}
 
 
 @pytest.mark.parametrize(
-    "step4_fixture_name, expected_region, expected_ttl",
+    "step5_fixture_name, expected_event_substring",
     [
-        (
-            "step4_output_csv",
-            "region",
-            "ttl",
-        ),
-        (
-            "step4_output_tdt",
-            "dms",
-            "port_entries_dms",
-        ),
-        (
-            "step4_output_npm",
-            "region1",
-            "ttl_region1",
-        ),
-        (
-            "step4_output_doric",
-            "region",
-            "ttl",
-        ),
-        (
-            "step4_output_nwb",
-            "region",
-            "ttl",
-        ),
+        ("step5_output_csv", "ttl"),
+        ("step5_output_tdt", "port_entries"),
+        ("step5_output_npm", "ttl"),
+        ("step5_output_doric", "ttl"),
+        ("step5_output_nwb", "ttl"),
     ],
     ids=["csv_generic", "tdt_clean", "sample_npm_1", "sample_doric_1", "nwb_mock"],
 )
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_step5(step4_fixture_name, expected_region, expected_ttl, request):
+def test_step5(step5_fixture_name, expected_event_substring, request):
     """
-    Validate Step 5 outputs for the representative integration sessions.
-    """
-    pipeline_state = request.getfixturevalue(step4_fixture_name)
-    base_directory = str(pipeline_state["base_directory"])
-    session_copy = str(pipeline_state["session_copy"])
+    Validate Step 5 (visualizeResults) for representative integration sessions.
 
-    step5(
-        base_dir=base_directory,
+    Patches VisualizationDashboard.show to prevent a web server from starting,
+    then asserts that the orchestration logic correctly loaded step-4 output data
+    and constructed valid ParameterizedPlotter instances.
+    """
+    pipeline_state = request.getfixturevalue(step5_fixture_name)
+    captured_dashboards: list[VisualizationDashboard] = pipeline_state["captured_dashboards"]
+
+    assert len(captured_dashboards) >= 1, "visualizeResults created no VisualizationDashboard instances"
+
+    for dashboard in captured_dashboards:
+        assert isinstance(dashboard, VisualizationDashboard)
+        assert isinstance(dashboard.plotter, ParameterizedPlotter)
+
+        event_selector_objects = dashboard.plotter.event_selector_objects
+        assert isinstance(event_selector_objects, list)
+        assert (
+            len(event_selector_objects) >= 1
+        ), "ParameterizedPlotter has no event_selector_objects — data was not loaded"
+
+        columns_dict = dashboard.plotter.columns_dict
+        assert isinstance(columns_dict, dict)
+        assert len(columns_dict) >= 1, "ParameterizedPlotter columns_dict is empty — data was not loaded"
+
+        dataframe = dashboard.plotter.df_new
+        assert isinstance(dataframe, pd.DataFrame)
+        assert not dataframe.empty, "ParameterizedPlotter df_new is empty — PSTH data was not read"
+
+    # Confirm at least one dashboard has an event matching the expected TTL storename
+    all_events = [event for dashboard in captured_dashboards for event in dashboard.plotter.event_selector_objects]
+    matching_events = [event for event in all_events if expected_event_substring in event]
+    assert matching_events, f"No event containing '{expected_event_substring}' found among loaded events: {all_events}"
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+def test_step5_raises_when_visualization_metric_not_computed_in_step4(tmp_path):
+    """
+    Step 5 must raise a ValueError with an actionable message when the requested
+    visualization metric ('z_score') was not computed in step 4 (which only
+    produced 'dff' outputs).
+
+    The error message should:
+    - Name the missing metric.
+    - Name the session(s) it is missing in.
+    - Tell the user to either change the visualization selection or re-run step 4.
+    """
+    source_session = STUBBED_TESTING_DATA / SESSION_SUBDIR
+    assert source_session.is_dir(), f"Sample data not available at expected path: {source_session}"
+
+    temporary_base_directory = tmp_path / "data_root"
+    temporary_base_directory.mkdir(parents=True, exist_ok=True)
+    session_name = source_session.name
+    session_copy = temporary_base_directory / session_name
+    shutil.copytree(source_session, session_copy)
+
+    for output_directory in glob.glob(os.path.join(session_copy, f"{session_name}_output_*")):
+        assert os.path.isdir(output_directory)
+        shutil.rmtree(output_directory)
+    parameters_path = session_copy / "GuPPyParamtersUsed.json"
+    if parameters_path.exists():
+        parameters_path.unlink()
+
+    common_kwargs = dict(
+        base_dir=str(temporary_base_directory),
         selected_folders=[str(session_copy)],
-        npm_timestamp_column_names=pipeline_state["npm_timestamp_column_names"],
-        npm_time_units=pipeline_state["npm_time_units"],
-        npm_split_events=pipeline_state["npm_split_events"],
-        selected_runs={session_copy: ["1"]},
+    )
+    selected_runs = {str(session_copy): ["1"]}
+
+    step1(**common_kwargs, storenames_map=STORENAMES_MAP)
+    step2(**common_kwargs, selected_runs=selected_runs)
+    step3(**common_kwargs, selected_runs=selected_runs)
+    # Step 4: compute only dff (not z_score)
+    step4(
+        **common_kwargs,
+        select_for_compute_psth="dff",
+        select_for_transients="dff",
+        selected_runs=selected_runs,
     )
 
-    output_directory = str(pipeline_state["output_directory"])
-    stores_file_path = os.path.join(output_directory, "storesList.csv")
-    assert os.path.exists(stores_file_path), "Missing storesList.csv after Steps 2-5"
+    hv.extension("bokeh")
 
-    # Expected PSTH outputs (defaults compute z_score PSTH) - only for datasets with TTLs
-    if expected_ttl is None:
-        expected_ttl_names = []
-    elif isinstance(expected_ttl, str):
-        expected_ttl_names = [expected_ttl]
-    else:
-        expected_ttl_names = expected_ttl
+    # Step 5: request z_score visualization — must raise an actionable ValueError
+    with patch.object(VisualizationDashboard, "show", lambda self: None):
+        with pytest.raises(ValueError) as exc_info:
+            step5(
+                **common_kwargs,
+                visualize_zscore_or_dff="z_score",
+                selected_runs=selected_runs,
+            )
 
-    for expected_ttl_name in expected_ttl_names:
-        psth_file_path = os.path.join(
-            output_directory,
-            f"{expected_ttl_name}_{expected_region}_z_score_{expected_region}.h5",
-        )
-        baseline_uncorrected_psth_file_path = os.path.join(
-            output_directory,
-            f"{expected_ttl_name}_{expected_region}_baselineUncorrected_z_score_{expected_region}.h5",
-        )
-        peak_auc_h5_file_path = os.path.join(
-            output_directory,
-            f"peak_AUC_{expected_ttl_name}_{expected_region}_z_score_{expected_region}.h5",
-        )
-        peak_auc_csv_file_path = os.path.join(
-            output_directory,
-            f"peak_AUC_{expected_ttl_name}_{expected_region}_z_score_{expected_region}.csv",
-        )
-
-        # Assert file creation
-        assert os.path.exists(psth_file_path), f"Missing PSTH HDF5: {psth_file_path}"
-        assert os.path.exists(
-            baseline_uncorrected_psth_file_path
-        ), f"Missing baseline-uncorrected PSTH HDF5: {baseline_uncorrected_psth_file_path}"
-        assert os.path.exists(peak_auc_h5_file_path), f"Missing PSTH Peak/AUC HDF5: {peak_auc_h5_file_path}"
-        assert os.path.exists(peak_auc_csv_file_path), f"Missing PSTH Peak/AUC CSV: {peak_auc_csv_file_path}"
-
-        # Basic readability checks: PSTH HDF5 contains a DataFrame with expected columns
-        psth_dataframe = pd.read_hdf(psth_file_path, key="df")
-        assert "timestamps" in psth_dataframe.columns, f"'timestamps' column missing in {psth_file_path}"
-        # The DataFrame should include a 'mean' column per create_Df implementation
-        assert "mean" in psth_dataframe.columns, f"'mean' column missing in {psth_file_path}"
-
-    # Additional artifacts from transients frequency/amplitude computation (Step 5 side-effect)
-    frequency_and_amplitude_h5_file_path = os.path.join(output_directory, f"freqAndAmp_z_score_{expected_region}.h5")
-    frequency_and_amplitude_csv_file_path = os.path.join(output_directory, f"freqAndAmp_z_score_{expected_region}.csv")
-    transients_occurrences_csv_file_path = os.path.join(
-        output_directory,
-        f"transientsOccurrences_z_score_{expected_region}.csv",
-    )
-    assert os.path.exists(
-        frequency_and_amplitude_h5_file_path
-    ), f"Missing freq/amp HDF5: {frequency_and_amplitude_h5_file_path}"
-    assert os.path.exists(
-        frequency_and_amplitude_csv_file_path
-    ), f"Missing freq/amp CSV: {frequency_and_amplitude_csv_file_path}"
-    assert os.path.exists(
-        transients_occurrences_csv_file_path
-    ), f"Missing transients occurrences CSV: {transients_occurrences_csv_file_path}"
+    message = str(exc_info.value)
+    assert "z_score" in message, f"Error message should mention the missing metric. Got: {message}"
+    assert (
+        str(session_copy) in message or session_name in message
+    ), f"Error message should name the session. Got: {message}"
+    assert "dff" in message, f"Error message should suggest the available alternative. Got: {message}"
+    assert "step 4" in message.lower(), f"Error message should mention step 4. Got: {message}"

@@ -15,8 +15,9 @@ def save_parameters(inputParameters: dict[str, object]) -> None:
     For every session listed under ``inputParameters['folderNames']`` the
     configuration is written into each output directory selected by the
     ``selectedOutputs`` filter. When a session has no output directories yet
-    (e.g. the user clicked step 1 before step 2), the file is written at the
-    session root as a fallback so the legacy ordering still works.
+    (e.g. parameters are saved before Storenames (Step 1) creates any output
+    directories), the file is written at the session root as a fallback so the
+    legacy ordering still works.
 
     Parameters
     ----------
@@ -59,8 +60,8 @@ def save_parameters(inputParameters: dict[str, object]) -> None:
     }
     selected_outputs = inputParameters.get("selectedOutputs") or {}
     for session in inputParameters["folderNames"]:
-        # Fall back to the session root when no output dirs exist yet so step 1
-        # can still run before step 2 (legacy ordering).
+        # Fall back to the session root when no output dirs exist yet so parameter
+        # saving can still run before Storenames (Step 1) creates output dirs.
         if not discover_output_dirs(session):
             destinations = [session]
         else:

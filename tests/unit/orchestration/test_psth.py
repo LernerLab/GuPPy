@@ -225,7 +225,7 @@ def test_validate_storenames_single_session_does_not_raise(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# _validate_psth_window_parameters — upfront step-5 input validation
+# _validate_psth_window_parameters — upfront step-4 input validation
 # ---------------------------------------------------------------------------
 
 

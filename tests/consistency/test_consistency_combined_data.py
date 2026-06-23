@@ -6,7 +6,7 @@ import pytest
 from conftest import TESTING_DATA, event_ts_offset_for
 
 from guppy.testing import compare_output_folders
-from guppy.testing.api import step2, step3, step4, step5
+from guppy.testing.api import step1, step2, step3, step4
 
 SESSION_SUBDIRS = [
     "SampleData_Clean/Photo_63_207-181030-103332",
@@ -61,17 +61,17 @@ def test_consistency(tmp_path):
     selected_folders = [str(s) for s in session_copies]
 
     selected_runs = {folder: ["1"] for folder in selected_folders}
-    step2(base_dir=str(tmp_base), selected_folders=selected_folders, storenames_map=STORENAMES_MAP)
-    step3(base_dir=str(tmp_base), selected_folders=selected_folders, selected_runs=selected_runs)
-    step4(
+    step1(base_dir=str(tmp_base), selected_folders=selected_folders, storenames_map=STORENAMES_MAP)
+    step2(base_dir=str(tmp_base), selected_folders=selected_folders, selected_runs=selected_runs)
+    step3(
         base_dir=str(tmp_base),
         selected_folders=selected_folders,
         combine_data=True,
         control_fit_method="OLS",
         selected_runs=selected_runs,
     )
-    # Step 5 is called on the second session only; it receives the full combined PSTH outputs.
-    step5(
+    # Step 4 is called on the second session only; it receives the full combined PSTH outputs.
+    step4(
         base_dir=str(tmp_base),
         selected_folders=[selected_folders[1]],
         selected_runs={selected_folders[1]: ["1"]},

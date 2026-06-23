@@ -283,7 +283,7 @@ def test_read_corrected_timestamps_pairwise_mismatched_pair_names_raises_actiona
     assert "dms" in msg
     assert "vms" in msg
     assert str(tmp_path) in msg
-    assert "re-run step 2" in msg
+    assert "re-run step 1" in msg
 
 
 # ── read_coords_pairwise ──────────────────────────────────────────────────────
@@ -315,7 +315,7 @@ def test_read_coords_pairwise_mismatched_pair_names_raises_actionable_error(tmp_
     assert "dms" in msg
     assert "vms" in msg
     assert str(tmp_path) in msg
-    assert "re-run step 2" in msg
+    assert "re-run step 1" in msg
 
 
 # ── read_corrected_data_dict ──────────────────────────────────────────────────

@@ -6,7 +6,7 @@ import h5py
 import pytest
 from conftest import STUBBED_TESTING_DATA
 
-from guppy.testing.api import step2, step3, step4, step5
+from guppy.testing.api import step1, step2, step3, step4
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
@@ -63,15 +63,15 @@ def test_mixed_modality(tmp_path):
     doric_folder = str(doric_dest)
     selected_folders = [npm_folder, doric_folder]
 
-    # step2 must run per-session: each session's storesList.csv must contain only its own channels.
+    # step1 must run per-session: each session's storesList.csv must contain only its own channels.
     # The pipeline would otherwise try to read Doric channels from the NPM folder (and vice versa).
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[npm_folder],
         storenames_map=npm_storenames_map,
         npm_split_events=[True, True],
     )
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[doric_folder],
         storenames_map=doric_storenames_map,
@@ -79,6 +79,12 @@ def test_mixed_modality(tmp_path):
 
     # Steps 3–5 run once with both sessions; each session's storesList.csv is read independently.
     selected_runs = {folder: ["1"] for folder in selected_folders}
+    step2(
+        base_dir=base_dir,
+        selected_folders=selected_folders,
+        npm_split_events=[True, True],
+        selected_runs=selected_runs,
+    )
     step3(
         base_dir=base_dir,
         selected_folders=selected_folders,
@@ -86,12 +92,6 @@ def test_mixed_modality(tmp_path):
         selected_runs=selected_runs,
     )
     step4(
-        base_dir=base_dir,
-        selected_folders=selected_folders,
-        npm_split_events=[True, True],
-        selected_runs=selected_runs,
-    )
-    step5(
         base_dir=base_dir,
         selected_folders=selected_folders,
         npm_split_events=[True, True],
@@ -127,7 +127,7 @@ def test_mixed_modality_tdt_doric(tmp_path):
     Inter-session mixed modality: TDT session + Doric session processed together.
 
     Each session uses its own acquisition format; modality is auto-detected per folder.
-    Step 2 runs separately per session; steps 3–5 run together across both sessions.
+    Step 1 runs separately per session; steps 2–4 run together across both sessions.
     """
     src_base_dir = str(STUBBED_TESTING_DATA)
     tmp_base = tmp_path / "data_root"
@@ -138,12 +138,12 @@ def test_mixed_modality_tdt_doric(tmp_path):
 
     base_dir = str(tmp_base)
 
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[str(tdt_session)],
         storenames_map={"Dv1A": "control_dms", "Dv2A": "signal_dms", "PrtN": "port_entries_dms"},
     )
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[str(doric_session)],
         storenames_map={
@@ -155,9 +155,9 @@ def test_mixed_modality_tdt_doric(tmp_path):
 
     selected_folders = [str(tdt_session), str(doric_session)]
     selected_runs = {folder: ["1"] for folder in selected_folders}
+    step2(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step3(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
-    step5(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
 
     _assert_pipeline_outputs(tdt_session, expected_region="dms", expected_ttl="port_entries_dms")
     _assert_pipeline_outputs(doric_session, expected_region="region", expected_ttl="ttl")
@@ -169,7 +169,7 @@ def test_mixed_modality_tdt_npm(tmp_path):
     Inter-session mixed modality: TDT session + NPM session processed together.
 
     Each session uses its own acquisition format; modality is auto-detected per folder.
-    Step 2 runs separately per session; steps 3–5 run together across both sessions.
+    Step 1 runs separately per session; steps 2–4 run together across both sessions.
     The NPM session (sampleData_NPM_4) uses split events.
     """
     src_base_dir = str(STUBBED_TESTING_DATA)
@@ -181,12 +181,12 @@ def test_mixed_modality_tdt_npm(tmp_path):
 
     base_dir = str(tmp_base)
 
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[str(tdt_session)],
         storenames_map={"Dv1A": "control_dms", "Dv2A": "signal_dms", "PrtN": "port_entries_dms"},
     )
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[str(npm_session)],
         storenames_map={
@@ -199,13 +199,13 @@ def test_mixed_modality_tdt_npm(tmp_path):
 
     selected_folders = [str(tdt_session), str(npm_session)]
     selected_runs = {folder: ["1"] for folder in selected_folders}
+    step2(
+        base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
+    )
     step3(
         base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
     )
     step4(
-        base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
-    )
-    step5(
         base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
     )
 
@@ -219,7 +219,7 @@ def test_mixed_modality_tdt_csv_data(tmp_path):
     Inter-session mixed modality: TDT session + CSV data session processed together.
 
     Each session uses its own acquisition format; modality is auto-detected per folder.
-    Step 2 runs separately per session; steps 3–5 run together across both sessions.
+    Step 1 runs separately per session; steps 2–4 run together across both sessions.
     """
     src_base_dir = str(STUBBED_TESTING_DATA)
     tmp_base = tmp_path / "data_root"
@@ -230,12 +230,12 @@ def test_mixed_modality_tdt_csv_data(tmp_path):
 
     base_dir = str(tmp_base)
 
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[str(tdt_session)],
         storenames_map={"Dv1A": "control_dms", "Dv2A": "signal_dms", "PrtN": "port_entries_dms"},
     )
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[str(csv_session)],
         storenames_map={
@@ -247,9 +247,9 @@ def test_mixed_modality_tdt_csv_data(tmp_path):
 
     selected_folders = [str(tdt_session), str(csv_session)]
     selected_runs = {folder: ["1"] for folder in selected_folders}
+    step2(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step3(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
-    step5(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
 
     _assert_pipeline_outputs(tdt_session, expected_region="dms", expected_ttl="port_entries_dms")
     _assert_pipeline_outputs(csv_session, expected_region="region", expected_ttl="ttl")
@@ -261,7 +261,7 @@ def test_mixed_modality_nwb_csv(tmp_path):
     Inter-session mixed modality: NWB session + CSV data session processed together.
 
     Each session uses its own acquisition format; modality is auto-detected per folder.
-    Step 2 runs separately per session; steps 3–5 run together across both sessions.
+    Step 1 runs separately per session; steps 2–4 run together across both sessions.
     """
     src_base_dir = str(STUBBED_TESTING_DATA)
     tmp_base = tmp_path / "data_root"
@@ -272,7 +272,7 @@ def test_mixed_modality_nwb_csv(tmp_path):
 
     base_dir = str(tmp_base)
 
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[str(nwb_session)],
         storenames_map={
@@ -281,7 +281,7 @@ def test_mixed_modality_nwb_csv(tmp_path):
             "events": "ttl",
         },
     )
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[str(csv_session)],
         storenames_map={
@@ -293,9 +293,9 @@ def test_mixed_modality_nwb_csv(tmp_path):
 
     selected_folders = [str(nwb_session), str(csv_session)]
     selected_runs = {folder: ["1"] for folder in selected_folders}
+    step2(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step3(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
-    step5(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
 
     _assert_pipeline_outputs(nwb_session, expected_region="region", expected_ttl="ttl")
     _assert_pipeline_outputs(csv_session, expected_region="region", expected_ttl="ttl")
@@ -307,7 +307,7 @@ def test_mixed_modality_nwb_tdt(tmp_path):
     Inter-session mixed modality: NWB session + TDT session processed together.
 
     Each session uses its own acquisition format; modality is auto-detected per folder.
-    Step 2 runs separately per session; steps 3–5 run together across both sessions.
+    Step 1 runs separately per session; steps 2–4 run together across both sessions.
     """
     src_base_dir = str(STUBBED_TESTING_DATA)
     tmp_base = tmp_path / "data_root"
@@ -318,7 +318,7 @@ def test_mixed_modality_nwb_tdt(tmp_path):
 
     base_dir = str(tmp_base)
 
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[str(nwb_session)],
         storenames_map={
@@ -327,7 +327,7 @@ def test_mixed_modality_nwb_tdt(tmp_path):
             "events": "ttl",
         },
     )
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[str(tdt_session)],
         storenames_map={"Dv1A": "control_dms", "Dv2A": "signal_dms", "PrtN": "port_entries_dms"},
@@ -335,9 +335,9 @@ def test_mixed_modality_nwb_tdt(tmp_path):
 
     selected_folders = [str(nwb_session), str(tdt_session)]
     selected_runs = {folder: ["1"] for folder in selected_folders}
+    step2(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step3(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
-    step5(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
 
     _assert_pipeline_outputs(nwb_session, expected_region="region", expected_ttl="ttl")
     _assert_pipeline_outputs(tdt_session, expected_region="dms", expected_ttl="port_entries_dms")
@@ -349,7 +349,7 @@ def test_mixed_modality_nwb_doric(tmp_path):
     Inter-session mixed modality: NWB session + Doric session processed together.
 
     Each session uses its own acquisition format; modality is auto-detected per folder.
-    Step 2 runs separately per session; steps 3–5 run together across both sessions.
+    Step 1 runs separately per session; steps 2–4 run together across both sessions.
     """
     src_base_dir = str(STUBBED_TESTING_DATA)
     tmp_base = tmp_path / "data_root"
@@ -360,7 +360,7 @@ def test_mixed_modality_nwb_doric(tmp_path):
 
     base_dir = str(tmp_base)
 
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[str(nwb_session)],
         storenames_map={
@@ -369,7 +369,7 @@ def test_mixed_modality_nwb_doric(tmp_path):
             "events": "ttl",
         },
     )
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[str(doric_session)],
         storenames_map={
@@ -381,9 +381,9 @@ def test_mixed_modality_nwb_doric(tmp_path):
 
     selected_folders = [str(nwb_session), str(doric_session)]
     selected_runs = {folder: ["1"] for folder in selected_folders}
+    step2(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step3(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
-    step5(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
 
     _assert_pipeline_outputs(nwb_session, expected_region="region", expected_ttl="ttl")
     _assert_pipeline_outputs(doric_session, expected_region="region", expected_ttl="ttl")
@@ -395,7 +395,7 @@ def test_mixed_modality_nwb_npm(tmp_path):
     Inter-session mixed modality: NWB session + NPM session processed together.
 
     Each session uses its own acquisition format; modality is auto-detected per folder.
-    Step 2 runs separately per session; steps 3–5 run together across both sessions.
+    Step 1 runs separately per session; steps 2–4 run together across both sessions.
     The NPM session (sampleData_NPM_4) uses split events.
     """
     src_base_dir = str(STUBBED_TESTING_DATA)
@@ -407,7 +407,7 @@ def test_mixed_modality_nwb_npm(tmp_path):
 
     base_dir = str(tmp_base)
 
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[str(nwb_session)],
         storenames_map={
@@ -416,7 +416,7 @@ def test_mixed_modality_nwb_npm(tmp_path):
             "events": "ttl",
         },
     )
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[str(npm_session)],
         storenames_map={
@@ -429,13 +429,13 @@ def test_mixed_modality_nwb_npm(tmp_path):
 
     selected_folders = [str(nwb_session), str(npm_session)]
     selected_runs = {folder: ["1"] for folder in selected_folders}
+    step2(
+        base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
+    )
     step3(
         base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
     )
     step4(
-        base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
-    )
-    step5(
         base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
     )
 

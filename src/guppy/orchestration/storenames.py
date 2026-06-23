@@ -297,7 +297,7 @@ def build_storenames_template(
         the NPM channel-preview plots. Required when the flags indicate NPM data.
     npm_params : dict, optional
         NPM decomposition parameters persisted next to ``storesList.csv`` on save
-        so Step 3 can reproduce the decomposition. Set when flags indicate NPM data.
+        so Step 2 can reproduce the decomposition. Set when flags indicate NPM data.
 
     Returns
     -------
@@ -436,8 +436,8 @@ def build_storenames_page(
     """
     logger.debug("Saving stores list file.")
 
-    # NPM decomposition is parameterized by interactive Step-2 choices; persist them
-    # next to storesList.csv so Step 3 can reproduce the same in-memory decomposition.
+    # NPM decomposition is parameterized by interactive Step-1 choices; persist them
+    # next to storesList.csv so Step 2 can reproduce the same in-memory decomposition.
     is_npm = "data_np_v2" in flags or "data_np" in flags or "event_np" in flags
     npm_params = {key: inputParameters.get(key) for key in NPM_PARAM_KEYS} if is_npm else None
 
@@ -586,7 +586,7 @@ def read_header(
 
 
 def orchestrate_storenames_page(inputParameters: dict[str, object]) -> None:
-    """Run the step-2 storenames configuration for every selected session folder.
+    """Run the step-1 storenames configuration for every selected session folder.
 
     Parameters
     ----------

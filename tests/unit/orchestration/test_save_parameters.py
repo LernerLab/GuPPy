@@ -227,7 +227,7 @@ def test_save_parameters_filters_to_selected_run_name(base_input_parameters):
 
 
 def test_save_parameters_falls_back_to_session_root_when_no_output_dirs(base_input_parameters):
-    """Step 1 before step 2: no output dirs yet, so the file lands at the session root."""
+    """Save parameters before Storenames (Step 1): no output dirs yet, so the file lands at the session root."""
     session = base_input_parameters["folderNames"][0]
 
     save_parameters(base_input_parameters)

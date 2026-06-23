@@ -9,7 +9,7 @@ import pytest
 from conftest import STUBBED_TESTING_DATA
 
 from guppy.frontend.visualization_dashboard import VisualizationDashboard
-from guppy.testing.api import step2, step3, step4, step5, step6
+from guppy.testing.api import step1, step2, step3, step4, step5
 
 SESSION_SUBDIRS = [
     "tdt/Photo_048_392-200728-121222",
@@ -57,13 +57,13 @@ def test_group_analysis(tmp_path):
     common_kwargs = dict(base_dir=base_dir, selected_folders=selected_folders)
     selected_runs = {folder: ["1"] for folder in selected_folders}
 
-    step2(**common_kwargs, storenames_map=STORENAMES_MAP)
+    step1(**common_kwargs, storenames_map=STORENAMES_MAP)
+    step2(**common_kwargs, selected_runs=selected_runs)
     step3(**common_kwargs, selected_runs=selected_runs)
     step4(**common_kwargs, selected_runs=selected_runs)
-    step5(**common_kwargs, selected_runs=selected_runs)
 
     # Run group averaging pass
-    step5(
+    step4(
         **common_kwargs,
         average_for_group=True,
         group_folders=selected_folders,
@@ -94,10 +94,10 @@ def test_group_analysis(tmp_path):
 
     with patch.object(VisualizationDashboard, "__init__", capturing_init):
         with patch.object(VisualizationDashboard, "show", lambda self: None):
-            step6(
+            step5(
                 base_dir=base_dir,
                 selected_folders=selected_folders,
                 selected_runs=selected_runs,
             )
 
-    assert len(captured_dashboards) >= 1, "step6 created no VisualizationDashboard instances"
+    assert len(captured_dashboards) >= 1, "step5 created no VisualizationDashboard instances"

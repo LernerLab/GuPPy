@@ -9,7 +9,7 @@ from bokeh.document import Document
 from bokeh.io.doc import set_curdoc
 from conftest import STUBBED_TESTING_DATA as TESTING_DATA
 
-from guppy.testing.api import step2, step3, step4, step5
+from guppy.testing.api import step1, step2, step3, step4
 
 SESSION_SUBDIR = "tdt/Photo_048_392-200728-121222"
 STORENAMES_MAP = {
@@ -88,16 +88,16 @@ def test_artifact_removal(tmp_path, artifact_removal_method, coords):
     )
     selected_runs = {str(session_copy): ["1"]}
 
-    step2(**common_kwargs, storenames_map=STORENAMES_MAP)
-    step3(**common_kwargs, selected_runs=selected_runs)
-    step4(
+    step1(**common_kwargs, storenames_map=STORENAMES_MAP)
+    step2(**common_kwargs, selected_runs=selected_runs)
+    step3(
         **common_kwargs,
         remove_artifacts=True,
         artifact_removal_method=artifact_removal_method,
         artifact_coords={"dms": coords},
         selected_runs=selected_runs,
     )
-    step5(**common_kwargs, selected_runs=selected_runs)
+    step4(**common_kwargs, selected_runs=selected_runs)
 
     output_dirs = sorted(glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")))
     assert output_dirs, f"No output directories found in {session_copy}"

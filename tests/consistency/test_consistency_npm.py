@@ -6,7 +6,7 @@ import pytest
 from conftest import TESTING_DATA, event_ts_offset_for
 
 from guppy.testing import compare_output_folders
-from guppy.testing.api import step2, step3, step4, step5
+from guppy.testing.api import step1, step2, step3, step4
 
 CONSISTENCY_CASES = [
     (
@@ -105,10 +105,10 @@ def test_consistency(
     )
 
     selected_runs = {folder: ["1"] for folder in common_kwargs["selected_folders"]}
-    step2(**common_kwargs, storenames_map=storenames_map, **extra_kwargs)
-    step3(**common_kwargs, selected_runs=selected_runs, **extra_kwargs)
-    step4(**common_kwargs, control_fit_method="OLS", selected_runs=selected_runs, **extra_kwargs)
-    step5(**common_kwargs, selected_runs=selected_runs, **extra_kwargs)
+    step1(**common_kwargs, storenames_map=storenames_map, **extra_kwargs)
+    step2(**common_kwargs, selected_runs=selected_runs, **extra_kwargs)
+    step3(**common_kwargs, control_fit_method="OLS", selected_runs=selected_runs, **extra_kwargs)
+    step4(**common_kwargs, selected_runs=selected_runs, **extra_kwargs)
 
     output_dirs = sorted(glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")))
     assert output_dirs, f"No output directory found under {session_copy}"

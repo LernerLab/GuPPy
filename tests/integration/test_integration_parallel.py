@@ -1,7 +1,7 @@
 """
 Parallel-specific integration tests for GuPPy.
 
-These tests exercise the multiprocessing code paths (Step 3 and Step 5) with
+These tests exercise the multiprocessing code paths (Step 2 and Step 4) with
 ``number_of_cores=2``. They are kept separate from the main test suite so that
 the main suite can run under pytest-xdist (``-n auto``) without interference
 from nested worker pools. Run these tests independently without ``-n auto``.
@@ -17,7 +17,7 @@ import pandas as pd
 import pytest
 from conftest import STUBBED_TESTING_DATA
 
-from guppy.testing.api import step2, step3, step4, step5
+from guppy.testing.api import step1, step2, step3, step4
 
 # Use the CSV sample as it is the simplest format — no binary TDT dependencies.
 SESSION_SUBDIR = "csv/sample_data_csv_1"
@@ -54,20 +54,20 @@ def _stage_session(tmp_path):
 @pytest.mark.parallel
 def test_parallel_step3(tmp_path):
     """
-    Step 3 (Read Raw Data) with ``number_of_cores=2`` produces the same HDF5
+    Step 2 (Read Raw Data) with ``number_of_cores=2`` produces the same HDF5
     output files as a single-core run, confirming the multiprocessing pool
     code path is exercised and works correctly.
     """
     tmp_base, session_copy = _stage_session(tmp_path)
 
-    step2(
+    step1(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
         storenames_map=STORENAMES_MAP,
     )
 
-    # Run Step 3 with 2 worker processes
-    step3(
+    # Run Step 2 with 2 worker processes
+    step2(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
         number_of_cores=2,
@@ -99,33 +99,33 @@ def test_parallel_step3(tmp_path):
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_parallel_step5(tmp_path):
     """
-    Full pipeline Steps 2-5 with ``number_of_cores=2`` on Step 3 and Step 5,
+    Full pipeline Steps 2-5 with ``number_of_cores=2`` on Step 2 and Step 4,
     confirming that PSTH, peak/AUC, and transients outputs are produced when
     multiprocessing pools are active.
     """
     tmp_base, session_copy = _stage_session(tmp_path)
 
-    step2(
+    step1(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
         storenames_map=STORENAMES_MAP,
     )
 
     selected_runs = {str(session_copy): ["1"]}
-    step3(
+    step2(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
         number_of_cores=2,
         selected_runs=selected_runs,
     )
 
-    step4(
+    step3(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
         selected_runs=selected_runs,
     )
 
-    step5(
+    step4(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
         number_of_cores=2,

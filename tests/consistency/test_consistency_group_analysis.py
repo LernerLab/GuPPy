@@ -6,7 +6,7 @@ import pytest
 from conftest import TESTING_DATA, event_ts_offset_for
 
 from guppy.testing import compare_output_folders
-from guppy.testing.api import step2, step3, step4, step5
+from guppy.testing.api import step1, step2, step3, step4
 
 SESSION_SUBDIRS = [
     "SampleData_with_artifacts/Photo_048_392-200728-121222",
@@ -65,12 +65,12 @@ def test_consistency_group_analysis(tmp_path):
     )
 
     selected_runs = {folder: ["1"] for folder in selected_folders}
-    step2(**common_kwargs, storenames_map=STORENAMES_MAP)
-    step3(**common_kwargs, selected_runs=selected_runs)
-    step4(**common_kwargs, control_fit_method="OLS", selected_runs=selected_runs)
-    step5(**common_kwargs, selected_runs=selected_runs)
+    step1(**common_kwargs, storenames_map=STORENAMES_MAP)
+    step2(**common_kwargs, selected_runs=selected_runs)
+    step3(**common_kwargs, control_fit_method="OLS", selected_runs=selected_runs)
+    step4(**common_kwargs, selected_runs=selected_runs)
 
-    step5(
+    step4(
         **common_kwargs,
         average_for_group=True,
         group_folders=selected_folders,

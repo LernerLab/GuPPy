@@ -48,7 +48,7 @@ def add_control_channel(filepath: str, arr: np.ndarray) -> np.ndarray:
                 message = (
                     f"Multiple signal channels named '{new_str}' found in storesList for control "
                     f"channel '{storesList[i]}' in '{filepath}'. Each signal name must be unique; "
-                    "check the storesList file and re-run step 2."
+                    "check the storesList file and re-run step 1."
                 )
                 logger.error(message)
                 raise ValueError(message)
@@ -56,7 +56,7 @@ def add_control_channel(filepath: str, arr: np.ndarray) -> np.ndarray:
                 message = (
                     "Isosbestic control channel parameter is set to False, but the storesList file "
                     f"in '{filepath}' contains a control channel '{storesList[i]}' with no matching "
-                    f"signal channel '{new_str}'. Either enable isosbestic control or re-run step 2 "
+                    f"signal channel '{new_str}'. Either enable isosbestic control or re-run step 1 "
                     "to remove the unmatched control entry."
                 )
                 logger.error(message)

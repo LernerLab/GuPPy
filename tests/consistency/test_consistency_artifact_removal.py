@@ -7,7 +7,7 @@ import pytest
 from conftest import TESTING_DATA, event_ts_offset_for
 
 from guppy.testing import compare_output_folders
-from guppy.testing.api import step2, step3, step4, step5
+from guppy.testing.api import step1, step2, step3, step4
 
 # Artifact window coordinates (x/time values only; col 1 is y and not used by the analysis).
 # Each array has shape (4, 2): four click events defining two artifact windows.
@@ -75,7 +75,7 @@ def test_consistency(
     (within tolerance) to the reference output.
 
     Artifact coordinates are hardcoded in this file (read from the reference .npy
-    files) and written to the output directory between Step 3 and Step 4 to bypass
+    files) and written to the output directory between Step 2 and Step 3 to bypass
     the interactive artifact-selection UI.
     """
     src_session = TESTING_DATA / session_subdir
@@ -102,9 +102,9 @@ def test_consistency(
     )
 
     selected_runs = {folder: ["1"] for folder in common_kwargs["selected_folders"]}
-    step2(**common_kwargs, storenames_map=STORENAMES_MAP)
-    step3(**common_kwargs, selected_runs=selected_runs)
-    step4(
+    step1(**common_kwargs, storenames_map=STORENAMES_MAP)
+    step2(**common_kwargs, selected_runs=selected_runs)
+    step3(
         **common_kwargs,
         remove_artifacts=True,
         artifact_removal_method=artifact_removal_method,
@@ -112,7 +112,7 @@ def test_consistency(
         control_fit_method="OLS",
         selected_runs=selected_runs,
     )
-    step5(**common_kwargs, selected_runs=selected_runs)
+    step4(**common_kwargs, selected_runs=selected_runs)
 
     output_dirs = sorted(glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")))
     assert output_dirs, f"No output directory found under {session_copy}"

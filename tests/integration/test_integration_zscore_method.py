@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 from conftest import STUBBED_TESTING_DATA
 
-from guppy.testing.api import step2, step3, step4, step5
+from guppy.testing.api import step1, step2, step3, step4
 
 SESSION_SUBDIR = "csv/sample_data_csv_1"
 STORENAMES_MAP = {
@@ -24,12 +24,12 @@ ZSCORE_METHOD_CASES = [
 
 
 @pytest.mark.parametrize(
-    "zscore_method, step4_extra_kwargs",
+    "zscore_method, step3_extra_kwargs",
     ZSCORE_METHOD_CASES,
     ids=["baseline", "modified"],
 )
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_zscore_method(tmp_path, zscore_method, step4_extra_kwargs):
+def test_zscore_method(tmp_path, zscore_method, step3_extra_kwargs):
     """
     Integration test: run the full pipeline (Steps 2-5) with alternative z-score methods
     and assert that the expected output files are created with the correct structure.
@@ -58,10 +58,10 @@ def test_zscore_method(tmp_path, zscore_method, step4_extra_kwargs):
     )
     selected_runs = {str(session_copy): ["1"]}
 
-    step2(**common_kwargs, storenames_map=STORENAMES_MAP)
-    step3(**common_kwargs, selected_runs=selected_runs)
-    step4(**common_kwargs, zscore_method=zscore_method, selected_runs=selected_runs, **step4_extra_kwargs)
-    step5(**common_kwargs, selected_runs=selected_runs)
+    step1(**common_kwargs, storenames_map=STORENAMES_MAP)
+    step2(**common_kwargs, selected_runs=selected_runs)
+    step3(**common_kwargs, zscore_method=zscore_method, selected_runs=selected_runs, **step3_extra_kwargs)
+    step4(**common_kwargs, selected_runs=selected_runs)
 
     output_directories = sorted(glob.glob(os.path.join(session_copy, f"{session_name}_output_*")))
     assert output_directories, f"No output directories found in {session_copy}"
