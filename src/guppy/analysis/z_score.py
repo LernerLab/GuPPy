@@ -1,4 +1,5 @@
 import logging
+from typing import Literal
 
 import numpy as np
 import statsmodels.api as sm
@@ -21,7 +22,7 @@ def compute_z_score(
     zscore_method: str,
     baseline_start: float,
     baseline_end: float,
-    control_fit_method: str = "IRWLS",
+    control_fit_method: Literal["IRWLS", "OLS"] = "IRWLS",
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray | None]:
     """
     Compute the z-score and dF/F for a control/signal channel pair.
@@ -121,7 +122,7 @@ def execute_controlFit_dff(
     signal: np.ndarray,
     isosbestic_control: bool,
     filter_window: int,
-    control_fit_method: str = "IRWLS",
+    control_fit_method: Literal["IRWLS", "OLS"] = "IRWLS",
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Filter channels, fit the control to the signal, and compute dF/F.
@@ -187,7 +188,7 @@ def deltaFF(signal: np.ndarray, control: np.ndarray) -> np.ndarray:
     return normData
 
 
-def controlFit(control: np.ndarray, signal: np.ndarray, *, method: str = "IRWLS") -> np.ndarray:
+def controlFit(control: np.ndarray, signal: np.ndarray, *, method: Literal["IRWLS", "OLS"] = "IRWLS") -> np.ndarray:
     """
     Fit a linear model from control to signal and return the fitted values.
 

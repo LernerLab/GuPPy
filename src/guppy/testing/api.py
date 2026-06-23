@@ -365,7 +365,7 @@ def step4(
     baseline_window_start: int = 0,
     baseline_window_end: int = 0,
     isosbestic_control: bool = True,
-    control_fit_method: str = "IRWLS",
+    control_fit_method: Literal["IRWLS", "OLS"] = "IRWLS",
     selected_runs: dict[str, list[str]],
 ) -> None:
     """
