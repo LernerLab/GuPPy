@@ -1,6 +1,7 @@
 # v2.0.0-alpha7 (Upcoming)
 
 ## Features
+- Added Iteratively Re-Weighted Least Squares (IRWLS) as the control-channel fitting method and made it the new default (robust to outliers; ordinary least-squares `OLS` fitting remains selectable via the new `control_fit_method` parameter). Resolves [#199](https://github.com/LernerLab/GuPPy/issues/199).
 - Each pipeline step now writes `GuPPyParamtersUsed.json` into its output directory automatically, and selecting an existing output run reloads its saved parameters into the form so the snapshot always matches what was executed and resuming a run no longer overwrites its parameters. Removed the manual "Save Input Parameters" button and renumbered the sidebar steps 1–5. Resolves [#301](https://github.com/LernerLab/GuPPy/issues/301). [PR #353](https://github.com/LernerLab/GuPPy/pull/353)
 - Added docstring checks to pre-commit. [PR #311](https://github.com/LernerLab/GuPPy/pull/311)
 - Added numpydoc-style docstrings to all public functions and classes in the extractor layer (`src/guppy/extractors/`). [PR #312](https://github.com/LernerLab/GuPPy/pull/312)

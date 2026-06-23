@@ -2,7 +2,7 @@ import pytest
 
 
 @pytest.fixture
-def base_input_parameters():
+def base_input_parameters() -> dict[str, object]:
     """Fully-populated inputParameters dict with all keys needed by preprocess and psth tests."""
     return {
         "folderNames": [],
@@ -10,6 +10,7 @@ def base_input_parameters():
         "numberOfCores": 1,
         "noChannels": 2,
         "isosbestic_control": True,
+        "control_fit_method": "IRWLS",
         "timeForLightsTurnOn": 5.0,
         "combine_data": False,
         "removeArtifacts": False,

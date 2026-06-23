@@ -217,8 +217,9 @@ def execute_zscore(folderNames: list[str], inputParameters: dict[str, object]) -
         Session directories (or combined-output folder lists when ``combine_data`` is True).
     inputParameters : dict
         Pipeline configuration; must include ``'filter_window'``, ``'isosbestic_control'``,
-        ``'zscore_method'``, ``'baselineWindowStart'``, ``'baselineWindowEnd'``,
-        ``'removeArtifacts'``, ``'artifactsRemovalMethod'``, and ``'combine_data'``.
+        ``'zscore_method'``, ``'control_fit_method'``, ``'baselineWindowStart'``,
+        ``'baselineWindowEnd'``, ``'removeArtifacts'``, ``'artifactsRemovalMethod'``,
+        and ``'combine_data'``.
     """
 
     plot_zScore_dff = inputParameters["plot_zScore_dff"]
@@ -228,6 +229,7 @@ def execute_zscore(folderNames: list[str], inputParameters: dict[str, object]) -
     filter_window = inputParameters["filter_window"]
     isosbestic_control = inputParameters["isosbestic_control"]
     zscore_method = inputParameters["zscore_method"]
+    control_fit_method = inputParameters["control_fit_method"]
     baseline_start, baseline_end = inputParameters["baselineWindowStart"], inputParameters["baselineWindowEnd"]
 
     storesListPath = []
@@ -285,6 +287,7 @@ def execute_zscore(folderNames: list[str], inputParameters: dict[str, object]) -
                 zscore_method,
                 baseline_start,
                 baseline_end,
+                control_fit_method,
             )
             write_zscore(filepath, name, z_score, dff, control_fit, temp_control_arr)
 

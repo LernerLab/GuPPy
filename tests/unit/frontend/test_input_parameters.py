@@ -537,6 +537,7 @@ SAVED_PARAMETERS = {
     "guppy_version": "test-version",
     "combine_data": True,
     "isosbestic_control": False,
+    "control_fit_method": "OLS",
     "timeForLightsTurnOn": 7,
     "filter_window": 42,
     "removeArtifacts": True,

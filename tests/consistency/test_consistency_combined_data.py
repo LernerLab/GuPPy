@@ -67,6 +67,7 @@ def test_consistency(tmp_path):
         base_dir=str(tmp_base),
         selected_folders=selected_folders,
         combine_data=True,
+        control_fit_method="OLS",
         selected_runs=selected_runs,
     )
     # Step 5 is called on the second session only; it receives the full combined PSTH outputs.

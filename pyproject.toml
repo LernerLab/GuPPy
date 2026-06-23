@@ -55,6 +55,7 @@ dependencies = [
     "platformdirs",
     "pynwb",
     "scipy",
+    "statsmodels",
     "tables",
     "selenium",
     "dandi",
