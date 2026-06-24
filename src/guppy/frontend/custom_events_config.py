@@ -1,5 +1,10 @@
 import logging
 
+# holoviews must be imported before the first pn.extension() call so Panel wires up the HoloViews
+# bokeh opts namespace that the visualization step relies on; importing this module first (it sorts
+# ahead of storenames in home.py) would otherwise leave those opts unregistered. Mirrors the
+# import-then-extension ordering in storenames_instructions.py.
+import holoviews as hv  # noqa: F401
 import panel as pn
 
 pn.extension()
