@@ -9,22 +9,22 @@ import pytest
 from conftest import STUBBED_TESTING_DATA
 
 from guppy.frontend.visualization_dashboard import VisualizationDashboard
-from guppy.testing.api import step2, step3, step4, step5, step6
+from guppy.testing.api import step1, step2, step3, step4, step5
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_cross_correlation(tmp_path):
     """
-    Integration test for Step 5 cross-correlation computation.
+    Integration test for Step 4 cross-correlation computation.
 
     Uses a two-region TDT session (DMS + DLS) with a generic TTL event to verify
     that cross-correlation output files are created when compute_corr=True.
 
     Pipeline executed on a temp copy:
-      - Step 2: save storenames (storesList.csv)
-      - Step 3: read raw data (per-storename HDF5 outputs)
-      - Step 4: extract timestamps/signal, z-score/dFF, time corrections
-      - Step 5: compute PSTH and cross-correlation with compute_corr=True
+      - Step 1: save storenames (storesList.csv)
+      - Step 2: read raw data (per-storename HDF5 outputs)
+      - Step 3: extract timestamps/signal, z-score/dFF, time corrections
+      - Step 4: compute PSTH and cross-correlation with compute_corr=True
 
     Notes:
       - Cross-correlation requires at least two distinct signal regions.
@@ -58,23 +58,23 @@ def test_cross_correlation(tmp_path):
     if params_fp.exists():
         params_fp.unlink()
 
-    step2(
+    step1(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
         storenames_map=storenames_map,
     )
     selected_runs = {str(session_copy): ["1"]}
+    step2(
+        base_dir=str(tmp_base),
+        selected_folders=[str(session_copy)],
+        selected_runs=selected_runs,
+    )
     step3(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
         selected_runs=selected_runs,
     )
     step4(
-        base_dir=str(tmp_base),
-        selected_folders=[str(session_copy)],
-        selected_runs=selected_runs,
-    )
-    step5(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
         compute_corr=True,
@@ -120,10 +120,10 @@ def test_cross_correlation(tmp_path):
 
     with patch.object(VisualizationDashboard, "__init__", capturing_init):
         with patch.object(VisualizationDashboard, "show", lambda self: None):
-            step6(
+            step5(
                 base_dir=str(tmp_base),
                 selected_folders=[str(session_copy)],
                 selected_runs=selected_runs,
             )
 
-    assert len(captured_dashboards) >= 1, "step6 created no VisualizationDashboard instances"
+    assert len(captured_dashboards) >= 1, "step5 created no VisualizationDashboard instances"

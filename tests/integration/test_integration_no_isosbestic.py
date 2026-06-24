@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 from conftest import STUBBED_TESTING_DATA
 
-from guppy.testing.api import step2, step3, step4, step5
+from guppy.testing.api import step1, step2, step3, step4
 
 SESSION_SUBDIR = "csv/sample_data_csv_1"
 # No control channel in the storenames map — mirrors the consistency test for no-isosbestic
@@ -22,7 +22,7 @@ EXPECTED_TTL = "ttl"
 def test_no_isosbestic(tmp_path):
     """
     Integration test: run the full pipeline (Steps 2-5) without an isosbestic control
-    channel (isosbestic_control=False in Step 4) and assert that the expected output
+    channel (isosbestic_control=False in Step 3) and assert that the expected output
     files are created with the correct structure.
 
     When isosbestic_control=False, GuPPy synthesizes a control channel from the signal
@@ -50,10 +50,10 @@ def test_no_isosbestic(tmp_path):
     )
     selected_runs = {str(session_copy): ["1"]}
 
-    step2(**common_kwargs, storenames_map=STORENAMES_MAP)
-    step3(**common_kwargs, selected_runs=selected_runs)
-    step4(**common_kwargs, isosbestic_control=False, selected_runs=selected_runs)
-    step5(**common_kwargs, selected_runs=selected_runs)
+    step1(**common_kwargs, storenames_map=STORENAMES_MAP)
+    step2(**common_kwargs, selected_runs=selected_runs)
+    step3(**common_kwargs, isosbestic_control=False, selected_runs=selected_runs)
+    step4(**common_kwargs, selected_runs=selected_runs)
 
     output_directories = sorted(glob.glob(os.path.join(session_copy, f"{session_name}_output_*")))
     assert output_directories, f"No output directories found in {session_copy}"

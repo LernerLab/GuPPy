@@ -203,12 +203,12 @@ def createPlots(filepath: str, event: np.ndarray, inputParameters: dict[str, obj
         helper_plots(filepath, event, name_arr, inputParameters)
 
 
-def _validate_metric_against_step5_outputs(inputParameters: dict[str, object]) -> None:
-    """Cross-check the visualization metric selection against step-5 PSTH outputs on disk.
+def _validate_metric_against_step4_outputs(inputParameters: dict[str, object]) -> None:
+    """Cross-check the visualization metric selection against step-4 PSTH outputs on disk.
 
-    Step 5 only writes PSTH ``.h5`` files for the metric(s) selected via
+    Step 4 only writes PSTH ``.h5`` files for the metric(s) selected via
     ``selectForComputePsth``.  If the user later requests a different metric in
-    step 6 the downstream ``read_Df`` call will fail with an opaque
+    step 5 the downstream ``read_Df`` call will fail with an opaque
     ``FileNotFoundError``.  This function detects that mismatch early and raises
     a :class:`ValueError` that names the offending sessions and tells the user
     exactly how to fix the problem.
@@ -250,7 +250,7 @@ def _validate_metric_against_step5_outputs(inputParameters: dict[str, object]) -
 
     # PSTH output files use the ".h5" extension (pandas HDF5) and embed the
     # metric name, e.g. "ttl_region_z_score_region.h5" or "ttl_region_dff_region.h5".
-    # Step-4 z-score/dff files use ".hdf5" and are therefore never false-positives.
+    # Step-3 z-score/dff files use ".hdf5" and are therefore never false-positives.
     if visualize_zscore_or_dff == "z_score":
         pattern = "*_z_score_*.h5"
     else:
@@ -263,11 +263,11 @@ def _validate_metric_against_step5_outputs(inputParameters: dict[str, object]) -
         session_lines = "\n  - ".join(missing_sessions)
         raise ValueError(
             f"The visualization metric '{visualize_zscore_or_dff}' was not computed "
-            f"in step 5 for {len(missing_sessions)} session(s):\n"
+            f"in step 4 for {len(missing_sessions)} session(s):\n"
             f"  - {session_lines}\n\n"
             f"To fix this, either:\n"
             f"  1. Change the visualization selection to '{other_metric}', or\n"
-            f"  2. Re-run step 5 with '{visualize_zscore_or_dff}' (or 'Both') enabled."
+            f"  2. Re-run step 4 with '{visualize_zscore_or_dff}' (or 'Both') enabled."
         )
 
 
@@ -279,12 +279,12 @@ def _validate_average_visualization_preconditions(inputParameters: dict[str, obj
     1. ``visualizeAverageResults`` is True, but no folders are selected in the
        group-analysis folder picker — previously the visualization silently
        fell through to individual mode.
-    2. ``visualizeAverageResults`` is True, but step 5 was never run with
+    2. ``visualizeAverageResults`` is True, but step 4 was never run with
        ``averageForGroup`` = True, so no ``average/`` directory exists —
        previously only a terminal warning was logged.
     3. ``visualizeAverageResults`` is True and an ``average/`` folder exists,
        but the folders selected for averaging are not reflected in the saved
-       averaged outputs (e.g. the user deselected them after running step 5).
+       averaged outputs (e.g. the user deselected them after running step 4).
 
     Raises
     ------
@@ -308,12 +308,12 @@ def _validate_average_visualization_preconditions(inputParameters: dict[str, obj
     if not os.path.isdir(average_folder):
         raise ValueError(
             "'Visualize Average Results?' is set to True, but no 'average' "
-            f"directory was found at {average_folder}. Please re-run step 5 "
+            f"directory was found at {average_folder}. Please re-run step 4 "
             "('PSTH Computation') with 'Average Group? (bool)' = True before "
             "visualizing the averaged results."
         )
 
-    # Ensure the average folder contains PSTH outputs; otherwise step 5 was
+    # Ensure the average folder contains PSTH outputs; otherwise step 4 was
     # run without averageForGroup=True even though the folder exists from some
     # earlier run.
     visualize_zscore_or_dff = inputParameters["visualize_zscore_or_dff"]
@@ -326,14 +326,14 @@ def _validate_average_visualization_preconditions(inputParameters: dict[str, obj
             f"'Visualize Average Results?' is set to True and an 'average' "
             f"directory exists at {average_folder}, but it contains no PSTH "
             f"outputs for the '{visualize_zscore_or_dff}' metric. Please "
-            "re-run step 5 ('PSTH Computation') with 'Average Group? (bool)' "
+            "re-run step 4 ('PSTH Computation') with 'Average Group? (bool)' "
             "= True and the appropriate 'z_score and/or ΔF/F? (psth)' "
             "selection before visualizing the averaged results."
         )
 
 
 def visualizeResults(inputParameters: dict[str, object]) -> None:
-    """Entry point for step-6 visualization: validate preconditions and open dashboards.
+    """Entry point for step-5 visualization: validate preconditions and open dashboards.
 
     Parameters
     ----------
@@ -344,12 +344,12 @@ def visualizeResults(inputParameters: dict[str, object]) -> None:
     ------
     ValueError
         When average visualization is requested but prerequisites are not met,
-        or when the visualization metric was not computed in step 5.
+        or when the visualization metric was not computed in step 4.
     """
     inputParameters = inputParameters
 
     _validate_average_visualization_preconditions(inputParameters)
-    _validate_metric_against_step5_outputs(inputParameters)
+    _validate_metric_against_step4_outputs(inputParameters)
 
     average = inputParameters["visualizeAverageResults"]
     logger.info(average)

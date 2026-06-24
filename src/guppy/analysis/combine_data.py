@@ -164,7 +164,7 @@ def combine_data(
             msg = (
                 f"Pair name mismatch in '{filepaths_to_combine[0]}': control file suffix '{name_1}' does not match "
                 f"signal file suffix '{name_2}'. Check the naming convention of your files and the "
-                f"storesList file, then re-run step 2."
+                f"storesList file, then re-run step 1."
             )
             logger.error(msg)
             raise ValueError(msg)

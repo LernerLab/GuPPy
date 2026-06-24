@@ -182,15 +182,15 @@ class ParameterForm:
         )
 
         self.outputs_selector_header = pn.pane.Markdown(
-            "**Existing runs (steps 3–6):** Pick at least one existing output directory per "
-            "selected session. To create a new run, use the Storenames GUI in step 2.",
+            "**Existing runs (steps 2–5):** Pick at least one existing output directory per "
+            "selected session. To create a new run, use the Storenames GUI in step 1.",
             width=950,
         )
         self.outputs_selector = pn.widgets.FileSelector(
             self.folder_path,
             root_directory="/",
             file_pattern="*_output_*",
-            name="Existing runs (steps 3–6)",
+            name="Existing runs (steps 2–5)",
             width=950,
         )
 
@@ -424,9 +424,9 @@ class ParameterForm:
     def validate_selected_outputs_for_consumers(self) -> None:
         """Ensure every selected session that has output dirs on disk also has at least one selected.
 
-        Run this from the click handlers for steps 3–6 (which consume existing
+        Run this from the click handlers for steps 2–5 (which consume existing
         output directories). Skips sessions with no ``_output_<run>`` subdirs
-        yet — those are typically pre-step-2 states.
+        yet — those are typically pre-step-1 states.
         """
         grouped = self._collect_selected_outputs()
         missing = [
@@ -485,7 +485,7 @@ class ParameterForm:
         )
 
     def refresh_individual_outputs(self) -> None:
-        """Re-list the outputs FileSelector so newly-created run dirs (e.g. from step 2) appear."""
+        """Re-list the outputs FileSelector so newly-created run dirs (e.g. from step 1) appear."""
         self.outputs_selector._refresh()
 
     def refresh_group_outputs(self) -> None:
@@ -500,9 +500,9 @@ class ParameterForm:
     @staticmethod
     def _make_outputs_placeholder(scope: str) -> pn.pane.Markdown:
         text = (
-            "**Run-name filter:** No output directories yet — run step 2 first."
+            "**Run-name filter:** No output directories yet — run step 1 first."
             if scope == "individual"
-            else "**Run-name filter (group):** No output directories yet — run step 2 first."
+            else "**Run-name filter (group):** No output directories yet — run step 1 first."
         )
         return pn.pane.Markdown(text, width=520)
 
@@ -634,7 +634,7 @@ class ParameterForm:
             layer (e.g. ``"folderNames"``, ``"zscore_method"``, ``"nSecPrev"``).
         """
         # Re-discover group output dirs so the per-session filters reflect any new dirs
-        # produced by step 2 since the user last deselected/reselected their session folder.
+        # produced by step 1 since the user last deselected/reselected their session folder.
         self.refresh_group_outputs()
 
         if self.source_mode.value == "dandi":
@@ -757,7 +757,7 @@ class ParameterForm:
         """Reload analysis parameters from the saved JSON of the selected output run(s).
 
         Fired when the individual-analysis output selector changes. Lets a user
-        resume a run (e.g. relaunch and run steps 4–5) without the form's
+        resume a run (e.g. relaunch and run steps 3–4) without the form's
         defaults silently overwriting the parameters the earlier steps used.
         When several runs are selected the parameters are applied only if every
         run with a saved snapshot agrees; conflicting snapshots are left for the

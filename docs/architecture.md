@@ -11,8 +11,8 @@ same analysis pipeline is handled by cleaner, better-separated modules.
 
 ```text
 GuPPy/
-├── saveStoresList.py          ← Step 2: store mapping + format detection
-├── readTevTsq.py              ← Step 3: reads raw data from all acquisition formats
+├── saveStoresList.py          ← Step 1: store mapping + format detection
+├── readTevTsq.py              ← Step 2: reads raw data from all acquisition formats
 ├── preprocess.py              ← timestamp correction, z-score, artifact removal
 ├── computePsth.py             ← PSTH computation, peak/area metrics, group averages
 ├── computeCorr.py             ← cross-correlation
@@ -90,19 +90,19 @@ What changed is which code handles each step.
 flowchart LR
     RAW(["Raw files<br/>TDT · Doric · NPM · CSV"])
 
-    S2["saveStoresList.py<br/><i>Step 2</i>"]
+    S2["saveStoresList.py<br/><i>Step 1</i>"]
     F1(["storesList.csv"])
 
-    S3["readTevTsq.py<br/><i>Step 3</i>"]
+    S3["readTevTsq.py<br/><i>Step 2</i>"]
     F2(["&lt;storename&gt;.hdf5"])
 
-    S4["preprocess.py<br/><i>Step 4</i>"]
+    S4["preprocess.py<br/><i>Step 3</i>"]
     F3(["z_score / dff .hdf5"])
 
-    S5["computePsth.py<br/>computeCorr.py<br/>findTransientsFreqAndAmp.py<br/><i>Step 5</i>"]
+    S5["computePsth.py<br/>computeCorr.py<br/>findTransientsFreqAndAmp.py<br/><i>Step 4</i>"]
     F4(["psth .hdf5 / .pkl<br/>peakArea .csv"])
 
-    S6["visualizePlot.py<br/><i>Step 6</i>"]
+    S6["visualizePlot.py<br/><i>Step 5</i>"]
     DASH(["plots"])
 
     RAW --> S2 --> F1 --> S3 --> F2 --> S4 --> F3 --> S5 --> F4 --> S6 --> DASH

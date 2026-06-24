@@ -93,7 +93,7 @@ def decide_naming_convention(filepath: str) -> np.ndarray:
         message = (
             f"Unequal number of control and signal files in '{filepath}': "
             f"found {len(path_1)} control and {len(path_2)} signal file(s). "
-            "Each signal must be paired with a control; re-run step 2 to fix the entries."
+            "Each signal must be paired with a control; re-run step 1 to fix the entries."
         )
         logger.error(message)
         raise ValueError(message)
@@ -265,7 +265,7 @@ def get_control_and_signal_channel_names(storesList: np.ndarray) -> np.ndarray:
                 "Mismatched signal/control region pairs in storesList — "
                 + "; ".join(parts)
                 + ". Every 'signal_<region>' must have a matching 'control_<region>' when "
-                "isosbestic control is enabled. Re-run step 2 (Storenames) to fix the region names."
+                "isosbestic control is enabled. Re-run step 1 (Storenames) to fix the region names."
             )
             logger.error(message)
             raise ValueError(message)
@@ -276,7 +276,7 @@ def get_control_and_signal_channel_names(storesList: np.ndarray) -> np.ndarray:
         message = (
             f"Cannot pair control and signal channels: found {len(control_regions)} control and "
             f"{len(signal_regions)} signal entries in storesList. Each signal must be paired with a control "
-            "when isosbestic control is enabled; re-run step 2 (Storenames) to correct the entries."
+            "when isosbestic control is enabled; re-run step 1 (Storenames) to correct the entries."
         )
         logger.error(message)
         raise ValueError(message)

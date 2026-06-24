@@ -861,7 +861,7 @@ def test_save_button_sets_alert_on_mismatched_lengths(storenames_closures, tmp_p
 def test_compute_npm_channel_previews_aligns_ragged_channel_lengths():
     # sampleData_NPM_4 interleaves unevenly: chod has one more sample than chev, so chod
     # borrows chev's (shorter) timestamps. The preview must align x/y to equal length,
-    # otherwise hv.Curve raises a DataError in the Step-2 GUI.
+    # otherwise hv.Curve raises a DataError in the Step-1 GUI.
     folder_path = os.path.join(STUBBED_TESTING_DATA, "npm", "sampleData_NPM_4")
     input_parameters = {"noChannels": 2}
 

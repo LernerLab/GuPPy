@@ -133,7 +133,7 @@ class TestProgressPoller:
 
 
 class TestProgressFileAccountingEndToEnd:
-    """A full step-3 run with a fake sleeping extractor produces a monotonic, fully
+    """A full step-2 run with a fake sleeping extractor produces a monotonic, fully
     reconciled progress file. Exercises the pre-flight count, pool worker handoff,
     poller writes, and final reconciliation in one shot.
     """

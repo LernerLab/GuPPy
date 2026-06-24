@@ -6,7 +6,7 @@ import pytest
 from conftest import TESTING_DATA, event_ts_offset_for
 
 from guppy.testing import compare_output_folders
-from guppy.testing.api import step2, step3, step4, step5
+from guppy.testing.api import step1, step2, step3, step4
 
 CONSISTENCY_CASES = [
     (
@@ -23,7 +23,7 @@ CONSISTENCY_CASES = [
         "SampleData_Clean/Photometry-161823",
         "StandardOutputs_Clean/Photometry-161823/Photometry-161823_output_1",
         # PAB/ is an epoc store that splits into one sub-event per marker value. These are now
-        # enumerated at step 2, so the map references the split sub-events directly (labeled to
+        # enumerated at step 1, so the map references the split sub-events directly (labeled to
         # match the v1.3.0 reference names). Two artifacts the old flow produced are intentionally
         # gone and mapped to None (the untouched reference still contains them): the unsplit-parent
         # orphan PAB_.hdf5 that read() also emitted, and the .cache_storesList.csv left behind when
@@ -85,10 +85,10 @@ def test_consistency(
     )
 
     selected_runs = {folder: ["1"] for folder in common_kwargs["selected_folders"]}
-    step2(**common_kwargs, storenames_map=storenames_map)
-    step3(**common_kwargs, selected_runs=selected_runs)
-    step4(**common_kwargs, control_fit_method="OLS", selected_runs=selected_runs)
-    step5(**common_kwargs, selected_runs=selected_runs)
+    step1(**common_kwargs, storenames_map=storenames_map)
+    step2(**common_kwargs, selected_runs=selected_runs)
+    step3(**common_kwargs, control_fit_method="OLS", selected_runs=selected_runs)
+    step4(**common_kwargs, selected_runs=selected_runs)
 
     output_dirs = sorted(glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")))
     assert output_dirs, f"No output directory found under {session_copy}"

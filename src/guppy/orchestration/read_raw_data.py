@@ -173,7 +173,7 @@ def orchestrate_read_raw_data(inputParameters: dict[str, object]) -> None:
         for op in select_output_dirs(filepath, selected_outputs.get(filepath)):
             storesList = _load_stores_list(op)
             events = np.unique(storesList[0, :])
-            # NPM decomposition params chosen in Step 2 are persisted in the output dir;
+            # NPM decomposition params chosen in Step 1 are persisted in the output dir;
             # merge them so the NPM extractor reproduces the same streams (e.g. split events).
             effective_parameters = {**inputParameters, **load_npm_params(op)}
             event_to_extractor = _build_event_to_extractor(
@@ -255,7 +255,7 @@ def orchestrate_read_raw_data(inputParameters: dict[str, object]) -> None:
 def _load_stores_list(output_dir: str) -> np.ndarray:
     """Load the storesList CSV from the output directory.
 
-    storesList is finalized in step 2 (including TDT split sub-events) and is no
+    storesList is finalized in step 1 (including TDT split sub-events) and is no
     longer mutated during extraction, so it is read directly.
     """
     return np.genfromtxt(os.path.join(output_dir, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
@@ -263,7 +263,7 @@ def _load_stores_list(output_dir: str) -> np.ndarray:
 
 @subprocess_main_handler
 def main(input_parameters: dict[str, object]) -> None:
-    """Subprocess entry point for step-3 raw-data extraction.
+    """Subprocess entry point for step-2 raw-data extraction.
 
     Parameters
     ----------

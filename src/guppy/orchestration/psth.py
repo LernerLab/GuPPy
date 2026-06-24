@@ -209,13 +209,13 @@ def execute_compute_cross_correlation(filepath: str, event: str, inputParameters
                 raise ValueError(
                     f"Cross-correlation requires at least two distinct signal regions, but only one was "
                     f"found: '{corr_info[0]}'. Please either disable compute_cross_correlation or add a "
-                    f"second signal region in step 2."
+                    f"second signal region in step 1."
                 )
             else:
                 raise ValueError(
                     "Cross-correlation requires at least two distinct signal regions, but no signal "
                     "regions were found. Please either disable compute_cross_correlation or add signal "
-                    "regions in step 2."
+                    "regions in step 1."
                 )
         if "control" in event.lower() or "signal" in event.lower():
             return
@@ -364,7 +364,7 @@ def _validate_storenames_consistent_for_group(storesListPath: np.ndarray) -> Non
         "storenames, but the selected sessions have mismatched or "
         "non-overlapping storenames:\n"
         f"{session_lines}\n"
-        "Fix the storename labels in step 2, deselect the mismatched "
+        "Fix the storename labels in step 1, deselect the mismatched "
         "sessions, or disable 'Average Group? (bool)'."
     )
 
@@ -373,7 +373,7 @@ def _validate_psth_window_parameters(inputParameters: dict[str, object]) -> None
     """Upfront PSTH-window validation, run before any HDF5 IO.
 
     Why: peak-window ordering used to surface only deep inside
-    ``compute_psth_peak_and_area`` (after step 5 had begun), and the PSTH
+    ``compute_psth_peak_and_area`` (after step 4 had begun), and the PSTH
     baseline-correction window had no equivalent of the z-score baseline
     validation added in PR #283. Catching both here gives the user a Panel
     notification before progress starts.
@@ -463,7 +463,7 @@ def execute_average_for_group(inputParameters: dict[str, object]) -> None:
 
 
 def psthForEachStorename(inputParameters: dict[str, object]) -> dict[str, object]:
-    """Entry point for step-5 PSTH computation: validates parameters and dispatches to the appropriate sub-routine.
+    """Entry point for step-4 PSTH computation: validates parameters and dispatches to the appropriate sub-routine.
 
     Parameters
     ----------
@@ -491,7 +491,7 @@ def psthForEachStorename(inputParameters: dict[str, object]) -> dict[str, object
     # Snapshot the parameters being executed into each selected output dir so the
     # on-disk GuPPyParamtersUsed.json always reflects the last-run configuration.
     # Group runs aggregate over the average/ dir rather than the individual
-    # selectedOutputs, so skip the snapshot there (steps 3-4 already wrote it per session).
+    # selectedOutputs, so skip the snapshot there (steps 2-3 already wrote it per session).
     if not average:
         save_parameters(inputParameters=inputParameters)
     if numProcesses == 0:
@@ -521,7 +521,7 @@ def psthForEachStorename(inputParameters: dict[str, object]) -> dict[str, object
 
 @subprocess_main_handler
 def main(input_parameters: dict[str, object]) -> None:
-    """Run step-5 PSTH computation and chain to the transients step.
+    """Run step-4 PSTH computation and chain to the transients step.
 
     Parameters
     ----------

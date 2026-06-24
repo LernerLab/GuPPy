@@ -80,7 +80,7 @@ def test_onclick_visualization_surfaces_value_error_as_panel_notification(homepa
     folder.mkdir()
     homepage._widgets["files_1"].value = [str(folder)]
 
-    error_text = "Metric 'z_score' not found in step-5 outputs"
+    error_text = "Metric 'z_score' not found in step-4 outputs"
 
     def _raise(params):
         raise ValueError(error_text)

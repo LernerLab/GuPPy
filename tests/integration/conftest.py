@@ -8,7 +8,7 @@ import holoviews as hv
 import pytest
 
 from guppy.frontend.visualization_dashboard import VisualizationDashboard
-from guppy.testing.api import step2, step3, step4, step5, step6
+from guppy.testing.api import step1, step2, step3, step4, step5
 from guppy.utils.utils import parse_run_name
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -118,8 +118,8 @@ def _prepare_pipeline_state(
     }
 
 
-def _run_step2(*, pipeline_state: dict[str, str | list[bool] | None]) -> dict[str, str | list[bool] | None]:
-    step2(
+def _run_step1(*, pipeline_state: dict[str, str | list[bool] | None]) -> dict[str, str | list[bool] | None]:
+    step1(
         base_dir=str(pipeline_state["base_directory"]),
         selected_folders=[str(pipeline_state["session_copy"])],
         storenames_map=pipeline_state["storenames_map"],
@@ -137,6 +137,19 @@ def _selected_runs_for_session(*, pipeline_state: dict[str, str | list[bool] | N
     return {session: [parse_run_name(output_directory)]}
 
 
+def _run_step2(*, pipeline_state: dict[str, str | list[bool] | None]) -> dict[str, str | list[bool] | None]:
+    step2(
+        base_dir=str(pipeline_state["base_directory"]),
+        selected_folders=[str(pipeline_state["session_copy"])],
+        npm_timestamp_column_names=pipeline_state["npm_timestamp_column_names"],
+        npm_time_units=pipeline_state["npm_time_units"],
+        npm_split_events=pipeline_state["npm_split_events"],
+        selected_runs=_selected_runs_for_session(pipeline_state=pipeline_state),
+    )
+    pipeline_state["output_directory"] = _locate_output_directory(session_copy=str(pipeline_state["session_copy"]))
+    return pipeline_state
+
+
 def _run_step3(*, pipeline_state: dict[str, str | list[bool] | None]) -> dict[str, str | list[bool] | None]:
     step3(
         base_dir=str(pipeline_state["base_directory"]),
@@ -150,47 +163,59 @@ def _run_step3(*, pipeline_state: dict[str, str | list[bool] | None]) -> dict[st
     return pipeline_state
 
 
-def _run_step4(*, pipeline_state: dict[str, str | list[bool] | None]) -> dict[str, str | list[bool] | None]:
-    step4(
-        base_dir=str(pipeline_state["base_directory"]),
-        selected_folders=[str(pipeline_state["session_copy"])],
-        npm_timestamp_column_names=pipeline_state["npm_timestamp_column_names"],
-        npm_time_units=pipeline_state["npm_time_units"],
-        npm_split_events=pipeline_state["npm_split_events"],
-        selected_runs=_selected_runs_for_session(pipeline_state=pipeline_state),
-    )
-    pipeline_state["output_directory"] = _locate_output_directory(session_copy=str(pipeline_state["session_copy"]))
-    return pipeline_state
-
-
 @pytest.fixture(scope="session")
-def step2_output_csv(tmp_path_factory: pytest.TempPathFactory):
+def step1_output_csv(tmp_path_factory: pytest.TempPathFactory):
     pipeline_state = _prepare_pipeline_state(tmp_path_factory=tmp_path_factory, modality="csv")
-    return _run_step2(pipeline_state=pipeline_state)
+    return _run_step1(pipeline_state=pipeline_state)
 
 
 @pytest.fixture(scope="session")
-def step2_output_tdt(tmp_path_factory: pytest.TempPathFactory):
+def step1_output_tdt(tmp_path_factory: pytest.TempPathFactory):
     pipeline_state = _prepare_pipeline_state(tmp_path_factory=tmp_path_factory, modality="tdt")
-    return _run_step2(pipeline_state=pipeline_state)
+    return _run_step1(pipeline_state=pipeline_state)
 
 
 @pytest.fixture(scope="session")
-def step2_output_npm(tmp_path_factory: pytest.TempPathFactory):
+def step1_output_npm(tmp_path_factory: pytest.TempPathFactory):
     pipeline_state = _prepare_pipeline_state(tmp_path_factory=tmp_path_factory, modality="npm")
-    return _run_step2(pipeline_state=pipeline_state)
+    return _run_step1(pipeline_state=pipeline_state)
 
 
 @pytest.fixture(scope="session")
-def step2_output_doric(tmp_path_factory: pytest.TempPathFactory):
+def step1_output_doric(tmp_path_factory: pytest.TempPathFactory):
     pipeline_state = _prepare_pipeline_state(tmp_path_factory=tmp_path_factory, modality="doric")
-    return _run_step2(pipeline_state=pipeline_state)
+    return _run_step1(pipeline_state=pipeline_state)
 
 
 @pytest.fixture(scope="session")
-def step2_output_nwb(tmp_path_factory: pytest.TempPathFactory):
+def step1_output_nwb(tmp_path_factory: pytest.TempPathFactory):
     pipeline_state = _prepare_pipeline_state(tmp_path_factory=tmp_path_factory, modality="nwb")
-    return _run_step2(pipeline_state=pipeline_state)
+    return _run_step1(pipeline_state=pipeline_state)
+
+
+@pytest.fixture(scope="session")
+def step2_output_csv(step1_output_csv):
+    return _run_step2(pipeline_state=step1_output_csv)
+
+
+@pytest.fixture(scope="session")
+def step2_output_tdt(step1_output_tdt):
+    return _run_step2(pipeline_state=step1_output_tdt)
+
+
+@pytest.fixture(scope="session")
+def step2_output_npm(step1_output_npm):
+    return _run_step2(pipeline_state=step1_output_npm)
+
+
+@pytest.fixture(scope="session")
+def step2_output_doric(step1_output_doric):
+    return _run_step2(pipeline_state=step1_output_doric)
+
+
+@pytest.fixture(scope="session")
+def step2_output_nwb(step1_output_nwb):
+    return _run_step2(pipeline_state=step1_output_nwb)
 
 
 @pytest.fixture(scope="session")
@@ -218,6 +243,46 @@ def step3_output_nwb(step2_output_nwb):
     return _run_step3(pipeline_state=step2_output_nwb)
 
 
+def _run_step4(*, pipeline_state: dict[str, str | list[bool] | None]) -> dict[str, str | list[bool] | None]:
+    step4(
+        base_dir=str(pipeline_state["base_directory"]),
+        selected_folders=[str(pipeline_state["session_copy"])],
+        npm_timestamp_column_names=pipeline_state["npm_timestamp_column_names"],
+        npm_time_units=pipeline_state["npm_time_units"],
+        npm_split_events=pipeline_state["npm_split_events"],
+        selected_runs=_selected_runs_for_session(pipeline_state=pipeline_state),
+    )
+    pipeline_state["output_directory"] = _locate_output_directory(session_copy=str(pipeline_state["session_copy"]))
+    return pipeline_state
+
+
+def _run_step5(*, pipeline_state: dict[str, str | list[bool] | None]) -> dict[str, str | list[bool] | None]:
+    # ParameterizedPlotter uses holoviews opts (e.g. opts.NdOverlay) in reactive methods that Panel
+    # evaluates eagerly during VisualizationDashboard.__init__. The Bokeh backend must be registered
+    # before instantiation or holoviews raises AttributeError.
+    hv.extension("bokeh")
+    captured_dashboards: list[VisualizationDashboard] = []
+    original_init = VisualizationDashboard.__init__
+
+    def capturing_init(self, *, plotter, basename):
+        original_init(self, plotter=plotter, basename=basename)
+        captured_dashboards.append(self)
+
+    with patch.object(VisualizationDashboard, "__init__", capturing_init):
+        with patch.object(VisualizationDashboard, "show", lambda self: None):
+            step5(
+                base_dir=str(pipeline_state["base_directory"]),
+                selected_folders=[str(pipeline_state["session_copy"])],
+                npm_timestamp_column_names=pipeline_state["npm_timestamp_column_names"],
+                npm_time_units=pipeline_state["npm_time_units"],
+                npm_split_events=pipeline_state["npm_split_events"],
+                selected_runs=_selected_runs_for_session(pipeline_state=pipeline_state),
+            )
+
+    pipeline_state["captured_dashboards"] = captured_dashboards
+    return pipeline_state
+
+
 @pytest.fixture(scope="session")
 def step4_output_csv(step3_output_csv):
     return _run_step4(pipeline_state=step3_output_csv)
@@ -243,46 +308,6 @@ def step4_output_nwb(step3_output_nwb):
     return _run_step4(pipeline_state=step3_output_nwb)
 
 
-def _run_step5(*, pipeline_state: dict[str, str | list[bool] | None]) -> dict[str, str | list[bool] | None]:
-    step5(
-        base_dir=str(pipeline_state["base_directory"]),
-        selected_folders=[str(pipeline_state["session_copy"])],
-        npm_timestamp_column_names=pipeline_state["npm_timestamp_column_names"],
-        npm_time_units=pipeline_state["npm_time_units"],
-        npm_split_events=pipeline_state["npm_split_events"],
-        selected_runs=_selected_runs_for_session(pipeline_state=pipeline_state),
-    )
-    pipeline_state["output_directory"] = _locate_output_directory(session_copy=str(pipeline_state["session_copy"]))
-    return pipeline_state
-
-
-def _run_step6(*, pipeline_state: dict[str, str | list[bool] | None]) -> dict[str, str | list[bool] | None]:
-    # ParameterizedPlotter uses holoviews opts (e.g. opts.NdOverlay) in reactive methods that Panel
-    # evaluates eagerly during VisualizationDashboard.__init__. The Bokeh backend must be registered
-    # before instantiation or holoviews raises AttributeError.
-    hv.extension("bokeh")
-    captured_dashboards: list[VisualizationDashboard] = []
-    original_init = VisualizationDashboard.__init__
-
-    def capturing_init(self, *, plotter, basename):
-        original_init(self, plotter=plotter, basename=basename)
-        captured_dashboards.append(self)
-
-    with patch.object(VisualizationDashboard, "__init__", capturing_init):
-        with patch.object(VisualizationDashboard, "show", lambda self: None):
-            step6(
-                base_dir=str(pipeline_state["base_directory"]),
-                selected_folders=[str(pipeline_state["session_copy"])],
-                npm_timestamp_column_names=pipeline_state["npm_timestamp_column_names"],
-                npm_time_units=pipeline_state["npm_time_units"],
-                npm_split_events=pipeline_state["npm_split_events"],
-                selected_runs=_selected_runs_for_session(pipeline_state=pipeline_state),
-            )
-
-    pipeline_state["captured_dashboards"] = captured_dashboards
-    return pipeline_state
-
-
 @pytest.fixture(scope="session")
 def step5_output_csv(step4_output_csv):
     return _run_step5(pipeline_state=step4_output_csv)
@@ -306,28 +331,3 @@ def step5_output_doric(step4_output_doric):
 @pytest.fixture(scope="session")
 def step5_output_nwb(step4_output_nwb):
     return _run_step5(pipeline_state=step4_output_nwb)
-
-
-@pytest.fixture(scope="session")
-def step6_output_csv(step5_output_csv):
-    return _run_step6(pipeline_state=step5_output_csv)
-
-
-@pytest.fixture(scope="session")
-def step6_output_tdt(step5_output_tdt):
-    return _run_step6(pipeline_state=step5_output_tdt)
-
-
-@pytest.fixture(scope="session")
-def step6_output_npm(step5_output_npm):
-    return _run_step6(pipeline_state=step5_output_npm)
-
-
-@pytest.fixture(scope="session")
-def step6_output_doric(step5_output_doric):
-    return _run_step6(pipeline_state=step5_output_doric)
-
-
-@pytest.fixture(scope="session")
-def step6_output_nwb(step5_output_nwb):
-    return _run_step6(pipeline_state=step5_output_nwb)

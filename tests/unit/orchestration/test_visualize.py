@@ -1,5 +1,5 @@
 """
-Unit tests for guppy.orchestration.visualize._validate_metric_against_step5_outputs.
+Unit tests for guppy.orchestration.visualize._validate_metric_against_step4_outputs.
 """
 
 import re
@@ -8,7 +8,7 @@ import pytest
 
 from guppy.orchestration.visualize import (
     _validate_average_visualization_preconditions,
-    _validate_metric_against_step5_outputs,
+    _validate_metric_against_step4_outputs,
 )
 
 # ---------------------------------------------------------------------------
@@ -22,13 +22,13 @@ def _make_session_dir(tmp_path, name="session1"):
     session_dir.mkdir(parents=True, exist_ok=True)
     output_dir = session_dir / f"{name}_output_1"
     output_dir.mkdir(parents=True, exist_ok=True)
-    # select_output_dirs validates that picked outputs have a storesList.csv (re-run step 2 if missing).
+    # select_output_dirs validates that picked outputs have a storesList.csv (re-run step 1 if missing).
     (output_dir / "storesList.csv").write_text("")
     return session_dir, output_dir
 
 
 def _base_params(session_dir, *, visualize_zscore_or_dff="z_score", selected_runs=("1",)):
-    """Minimal inputParameters dict for _validate_metric_against_step5_outputs."""
+    """Minimal inputParameters dict for _validate_metric_against_step4_outputs."""
     return {
         "folderNames": [str(session_dir)],
         "folderNamesForAvg": [],
@@ -46,11 +46,11 @@ def _base_params(session_dir, *, visualize_zscore_or_dff="z_score", selected_run
 
 def test_passes_when_z_score_psth_files_present(tmp_path):
     session_dir, output_dir = _make_session_dir(tmp_path)
-    # Simulate a step-5 PSTH output file for z_score
+    # Simulate a step-4 PSTH output file for z_score
     (output_dir / "ttl_region_z_score_region.h5").write_bytes(b"")
     params = _base_params(session_dir, visualize_zscore_or_dff="z_score")
     # Should not raise
-    _validate_metric_against_step5_outputs(params)
+    _validate_metric_against_step4_outputs(params)
 
 
 def test_raises_when_z_score_psth_files_missing(tmp_path):
@@ -59,7 +59,7 @@ def test_raises_when_z_score_psth_files_missing(tmp_path):
     (output_dir / "ttl_region_dff_region.h5").write_bytes(b"")
     params = _base_params(session_dir, visualize_zscore_or_dff="z_score")
     with pytest.raises(ValueError, match="z_score"):
-        _validate_metric_against_step5_outputs(params)
+        _validate_metric_against_step4_outputs(params)
 
 
 def test_raises_names_missing_session_in_message(tmp_path):
@@ -67,7 +67,7 @@ def test_raises_names_missing_session_in_message(tmp_path):
     (output_dir / "ttl_region_dff_region.h5").write_bytes(b"")
     params = _base_params(session_dir, visualize_zscore_or_dff="z_score")
     with pytest.raises(ValueError, match=re.escape(str(output_dir))):
-        _validate_metric_against_step5_outputs(params)
+        _validate_metric_against_step4_outputs(params)
 
 
 def test_raises_suggests_alternative_metric(tmp_path):
@@ -75,15 +75,15 @@ def test_raises_suggests_alternative_metric(tmp_path):
     (output_dir / "ttl_region_dff_region.h5").write_bytes(b"")
     params = _base_params(session_dir, visualize_zscore_or_dff="z_score")
     with pytest.raises(ValueError, match="dff"):
-        _validate_metric_against_step5_outputs(params)
+        _validate_metric_against_step4_outputs(params)
 
 
-def test_raises_suggests_rerun_step5(tmp_path):
+def test_raises_suggests_rerun_step4(tmp_path):
     session_dir, output_dir = _make_session_dir(tmp_path)
     (output_dir / "ttl_region_dff_region.h5").write_bytes(b"")
     params = _base_params(session_dir, visualize_zscore_or_dff="z_score")
-    with pytest.raises(ValueError, match="Re-run step 5"):
-        _validate_metric_against_step5_outputs(params)
+    with pytest.raises(ValueError, match="Re-run step 4"):
+        _validate_metric_against_step4_outputs(params)
 
 
 # ---------------------------------------------------------------------------
@@ -95,7 +95,7 @@ def test_passes_when_dff_psth_files_present(tmp_path):
     session_dir, output_dir = _make_session_dir(tmp_path)
     (output_dir / "ttl_region_dff_region.h5").write_bytes(b"")
     params = _base_params(session_dir, visualize_zscore_or_dff="dff")
-    _validate_metric_against_step5_outputs(params)
+    _validate_metric_against_step4_outputs(params)
 
 
 def test_raises_when_dff_psth_files_missing(tmp_path):
@@ -103,26 +103,26 @@ def test_raises_when_dff_psth_files_missing(tmp_path):
     (output_dir / "ttl_region_z_score_region.h5").write_bytes(b"")
     params = _base_params(session_dir, visualize_zscore_or_dff="dff")
     with pytest.raises(ValueError, match="dff"):
-        _validate_metric_against_step5_outputs(params)
+        _validate_metric_against_step4_outputs(params)
 
 
 # ---------------------------------------------------------------------------
-# Step-4 .hdf5 files must NOT count as PSTH outputs
+# Step-3 .hdf5 files must NOT count as PSTH outputs
 # ---------------------------------------------------------------------------
 
 
-def test_step4_hdf5_files_do_not_satisfy_check(tmp_path):
-    """z_score_region.hdf5 (step-4 output) must not be mistaken for a PSTH file."""
+def test_step3_hdf5_files_do_not_satisfy_check(tmp_path):
+    """z_score_region.hdf5 (step-3 output) must not be mistaken for a PSTH file."""
     session_dir, output_dir = _make_session_dir(tmp_path)
-    # Only the step-4 intermediate file exists, no step-5 PSTH .h5 file
+    # Only the step-3 intermediate file exists, no step-4 PSTH .h5 file
     (output_dir / "z_score_region.hdf5").write_bytes(b"")
     params = _base_params(session_dir, visualize_zscore_or_dff="z_score")
     with pytest.raises(ValueError, match="z_score"):
-        _validate_metric_against_step5_outputs(params)
+        _validate_metric_against_step4_outputs(params)
 
 
 # ---------------------------------------------------------------------------
-# "Both" metric produced in step 5
+# "Both" metric produced in step 4
 # ---------------------------------------------------------------------------
 
 
@@ -131,7 +131,7 @@ def test_passes_for_z_score_when_both_psth_files_present(tmp_path):
     (output_dir / "ttl_region_z_score_region.h5").write_bytes(b"")
     (output_dir / "ttl_region_dff_region.h5").write_bytes(b"")
     params = _base_params(session_dir, visualize_zscore_or_dff="z_score")
-    _validate_metric_against_step5_outputs(params)
+    _validate_metric_against_step4_outputs(params)
 
 
 def test_passes_for_dff_when_both_psth_files_present(tmp_path):
@@ -139,7 +139,7 @@ def test_passes_for_dff_when_both_psth_files_present(tmp_path):
     (output_dir / "ttl_region_z_score_region.h5").write_bytes(b"")
     (output_dir / "ttl_region_dff_region.h5").write_bytes(b"")
     params = _base_params(session_dir, visualize_zscore_or_dff="dff")
-    _validate_metric_against_step5_outputs(params)
+    _validate_metric_against_step4_outputs(params)
 
 
 # ---------------------------------------------------------------------------
@@ -165,7 +165,7 @@ def test_raises_only_missing_sessions_are_reported(tmp_path):
     }
 
     with pytest.raises(ValueError) as exc_info:
-        _validate_metric_against_step5_outputs(params)
+        _validate_metric_against_step4_outputs(params)
 
     message = str(exc_info.value)
     assert str(output2_dir) in message
@@ -189,7 +189,7 @@ def test_no_op_when_no_output_directories(tmp_path):
     session_dir.mkdir()
     params = _base_params(session_dir, visualize_zscore_or_dff="z_score", selected_runs=())
     # Empty selected_runs simulates "session not picked in the FileSelector" — should not raise.
-    _validate_metric_against_step5_outputs(params)
+    _validate_metric_against_step4_outputs(params)
 
 
 # ---------------------------------------------------------------------------

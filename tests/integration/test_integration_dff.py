@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 from conftest import STUBBED_TESTING_DATA
 
-from guppy.testing.api import step2, step3, step4, step5
+from guppy.testing.api import step1, step2, step3, step4
 
 SESSION_SUBDIR = "csv/sample_data_csv_1"
 STORENAMES_MAP = {
@@ -47,10 +47,10 @@ def test_dff(tmp_path):
     )
     selected_runs = {str(session_copy): ["1"]}
 
-    step2(**common_kwargs, storenames_map=STORENAMES_MAP)
+    step1(**common_kwargs, storenames_map=STORENAMES_MAP)
+    step2(**common_kwargs, selected_runs=selected_runs)
     step3(**common_kwargs, selected_runs=selected_runs)
-    step4(**common_kwargs, selected_runs=selected_runs)
-    step5(
+    step4(
         **common_kwargs,
         select_for_compute_psth="dff",
         select_for_transients="dff",

@@ -1,4 +1,4 @@
-"""Integration tests for the DANDI streaming path through step2 and step3.
+"""Integration tests for the DANDI streaming path through step1 and step2.
 
 These exercise the ``inputParameters["mode"] == "dandi"`` branches in
 ``guppy.orchestration.storenames`` and ``guppy.orchestration.read_raw_data``
@@ -6,7 +6,7 @@ without hitting the network: ``_stream_nwb`` is monkeypatched to open a local
 mock NWB file from ``stubbed_testing_data/nwb/``.
 
 DANDI is a narrower case than the standard per-modality integration tests —
-it only runs step2 and step3 and doesn't fit the shared per-modality fixture
+it only runs step1 and step2 and doesn't fit the shared per-modality fixture
 chain in conftest.py, so it lives in its own self-contained file.
 """
 
@@ -19,7 +19,7 @@ from conftest import STUBBED_TESTING_DATA, _locate_output_directory
 from pynwb import NWBHDF5IO
 
 from guppy.extractors import dandi_nwb_recording_extractor as dandi_module
-from guppy.testing.api import step2, step3
+from guppy.testing.api import step1, step2
 
 MOCK_NWB_FILE = (
     STUBBED_TESTING_DATA
@@ -41,7 +41,7 @@ STORENAMES_MAP = {
 def patched_stream_nwb(monkeypatch):
     """Replace _stream_nwb with a function that opens the local mock NWB file.
 
-    With step3 running serially in the parent process (numberOfCores=1, the api.step3
+    With step2 running serially in the parent process (numberOfCores=1, the api.step2
     default), this single patch is all that's needed — the orchestrator's serial
     path runs in-process and naturally sees this monkeypatch.
     """
@@ -72,8 +72,8 @@ def dandi_pipeline_state(tmp_path):
 
 
 @pytest.fixture
-def step2_dandi_output(dandi_pipeline_state, patched_stream_nwb):
-    step2(
+def step1_dandi_output(dandi_pipeline_state, patched_stream_nwb):
+    step1(
         base_dir=dandi_pipeline_state["base_directory"],
         selected_folders=[dandi_pipeline_state["session_copy"]],
         storenames_map=STORENAMES_MAP,
@@ -86,22 +86,22 @@ def step2_dandi_output(dandi_pipeline_state, patched_stream_nwb):
 
 
 @pytest.fixture
-def step3_dandi_output(step2_dandi_output, patched_stream_nwb):
-    step3(
-        base_dir=step2_dandi_output["base_directory"],
-        selected_folders=[step2_dandi_output["session_copy"]],
-        dandi_uri_map={step2_dandi_output["session_copy"]: SENTINEL_DANDI_URI},
-        selected_runs={step2_dandi_output["session_copy"]: ["1"]},
+def step2_dandi_output(step1_dandi_output, patched_stream_nwb):
+    step2(
+        base_dir=step1_dandi_output["base_directory"],
+        selected_folders=[step1_dandi_output["session_copy"]],
+        dandi_uri_map={step1_dandi_output["session_copy"]: SENTINEL_DANDI_URI},
+        selected_runs={step1_dandi_output["session_copy"]: ["1"]},
     )
-    step2_dandi_output["output_directory"] = _locate_output_directory(session_copy=step2_dandi_output["session_copy"])
-    return step2_dandi_output
+    step1_dandi_output["output_directory"] = _locate_output_directory(session_copy=step1_dandi_output["session_copy"])
+    return step1_dandi_output
 
 
 class TestDandiIntegration:
-    """Exercises the DANDI orchestration branches for step2 and step3."""
+    """Exercises the DANDI orchestration branches for step1 and step2."""
 
-    def test_step2_writes_stores_list(self, step2_dandi_output):
-        stores_file_path = os.path.join(step2_dandi_output["output_directory"], "storesList.csv")
+    def test_step1_writes_stores_list(self, step1_dandi_output):
+        stores_file_path = os.path.join(step1_dandi_output["output_directory"], "storesList.csv")
         assert os.path.exists(stores_file_path)
 
         with open(stores_file_path, newline="") as stores_file:
@@ -111,8 +111,8 @@ class TestDandiIntegration:
         assert stores_rows[0] == list(STORENAMES_MAP.keys())
         assert stores_rows[1] == list(STORENAMES_MAP.values())
 
-    def test_step3_writes_hdf5_per_event(self, step3_dandi_output):
-        output_directory = step3_dandi_output["output_directory"]
+    def test_step2_writes_hdf5_per_event(self, step2_dandi_output):
+        output_directory = step2_dandi_output["output_directory"]
         for raw_storename in STORENAMES_MAP.keys():
             storename_file_path = os.path.join(output_directory, f"{raw_storename}.hdf5")
             assert os.path.exists(
@@ -127,7 +127,7 @@ class TestDandiIntegration:
 class TestDandiIntegrationMultiAsset:
     """Confirm dandi_uri_map routes per-session URIs correctly when multiple assets are selected."""
 
-    def test_step2_writes_stores_list_for_each_session(self, tmp_path, patched_stream_nwb):
+    def test_step1_writes_stores_list_for_each_session(self, tmp_path, patched_stream_nwb):
         base_directory = tmp_path / "dandi_base_multi"
         base_directory.mkdir()
         session_a = base_directory / "session_a"
@@ -140,7 +140,7 @@ class TestDandiIntegrationMultiAsset:
             str(session_b): "dandi://mock/b.nwb",
         }
 
-        step2(
+        step1(
             base_dir=str(base_directory),
             selected_folders=[str(session_a), str(session_b)],
             storenames_map=STORENAMES_MAP,

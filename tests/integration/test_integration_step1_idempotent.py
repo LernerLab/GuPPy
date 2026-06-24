@@ -5,16 +5,16 @@ import shutil
 
 from conftest import STUBBED_TESTING_DATA
 
-from guppy.testing.api import step2
+from guppy.testing.api import step1
 
 
-def test_step2_npm_idempotent(tmp_path):
+def test_step1_npm_idempotent(tmp_path):
     """
-    Step 2 run twice in a row on an NPM dataset should succeed both times.
+    Step 1 run twice in a row on an NPM dataset should succeed both times.
 
     NPM demultiplexes in memory and writes no intermediate CSVs into the source folder, so a
     second run sees the same raw files as the first and detect_acquisition_formats reports the
-    same formats. This guards that re-running Step 2 stays idempotent (no leftover artifacts
+    same formats. This guards that re-running Step 1 stays idempotent (no leftover artifacts
     that could change modality detection or the storesList on the second run).
     """
     session_subdir = "npm/sampleData_NPM_4"
@@ -33,7 +33,7 @@ def test_step2_npm_idempotent(tmp_path):
     session_copy = tmp_base / os.path.basename(src_session)
     shutil.copytree(src_session, session_copy)
 
-    step2_kwargs = dict(
+    step1_kwargs = dict(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
         storenames_map=storenames_map,
@@ -41,10 +41,10 @@ def test_step2_npm_idempotent(tmp_path):
     )
 
     # First run: baseline, should always succeed
-    step2(**step2_kwargs)
+    step1(**step1_kwargs)
 
     # Second run: should also succeed, but currently fails due to modality misdetection
-    step2(**step2_kwargs)
+    step1(**step1_kwargs)
 
     # Validate storesList.csv exists and matches the mapping after the second run
     basename = os.path.basename(session_copy)

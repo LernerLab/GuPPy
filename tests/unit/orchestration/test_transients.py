@@ -20,7 +20,7 @@ def _write_stub_files(output_dir, basename):
     with h5py.File(str(output_dir / f"{basename}.hdf5"), "w"):
         pass
     write_transients_to_hdf5(str(output_dir), basename, STUB_Z_SCORE, STUB_TS, STUB_PEAKS_IND)
-    # select_output_dirs validates that picked outputs have a storesList.csv (re-run step 2 if missing).
+    # select_output_dirs validates that picked outputs have a storesList.csv (re-run step 1 if missing).
     (output_dir / "storesList.csv").write_text("")
 
 

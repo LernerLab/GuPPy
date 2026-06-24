@@ -6,13 +6,13 @@ import pandas as pd
 import pytest
 from conftest import STUBBED_TESTING_DATA
 
-from guppy.testing.api import step2, step3, step4, step5
+from guppy.testing.api import step1, step2, step3, step4
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_bin_psth_trials_by_number_of_trials(tmp_path):
     """
-    Verify that step5 with bin_psth_trials=2 and use_time_or_trials='# of trials'
+    Verify that step4 with bin_psth_trials=2 and use_time_or_trials='# of trials'
     produces bin columns in the per-session PSTH output HDF5, and that running
     group averaging (average_for_group=True) on that binned output also produces
     bin columns in the averaged PSTH — exercising the bin-averaging branch in
@@ -47,13 +47,22 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
     selected_folders = [str(session_copy)]
     selected_runs = {folder: ["1"] for folder in selected_folders}
 
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=selected_folders,
         storenames_map=storenames_map,
         npm_timestamp_column_names=None,
         npm_time_units=None,
         npm_split_events=[True, True],
+    )
+
+    step2(
+        base_dir=base_dir,
+        selected_folders=selected_folders,
+        npm_timestamp_column_names=None,
+        npm_time_units=None,
+        npm_split_events=[True, True],
+        selected_runs=selected_runs,
     )
 
     step3(
@@ -66,15 +75,6 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
     )
 
     step4(
-        base_dir=base_dir,
-        selected_folders=selected_folders,
-        npm_timestamp_column_names=None,
-        npm_time_units=None,
-        npm_split_events=[True, True],
-        selected_runs=selected_runs,
-    )
-
-    step5(
         base_dir=base_dir,
         selected_folders=selected_folders,
         npm_timestamp_column_names=None,
@@ -105,7 +105,7 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
     # Run group averaging on the binned per-session output.  This exercises the
     # `if len(bins_cols) > 0:` branch inside psth_average.averageForGroup, which
     # concatenates and aggregates bin columns across sessions.
-    step5(
+    step4(
         base_dir=base_dir,
         selected_folders=selected_folders,
         npm_timestamp_column_names=None,

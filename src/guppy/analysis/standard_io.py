@@ -276,7 +276,7 @@ def read_corrected_timestamps_pairwise(
             msg = (
                 f"Pair name mismatch in '{filepath}': control file suffix '{name_1[-1]}' does not match "
                 f"signal file suffix '{name_2[-1]}'. Check the naming convention of your files and the "
-                f"storesList file, then re-run step 2."
+                f"storesList file, then re-run step 1."
             )
             logger.error(msg)
             raise ValueError(msg)
@@ -314,7 +314,7 @@ def read_coords_pairwise(filepath: str, pair_name_to_tsNew: dict[str, np.ndarray
             msg = (
                 f"Pair name mismatch in '{filepath}': control file suffix '{name_1[-1]}' does not match "
                 f"signal file suffix '{name_2[-1]}'. Check the naming convention of your files and the "
-                f"storesList file, then re-run step 2."
+                f"storesList file, then re-run step 1."
             )
             logger.error(msg)
             raise ValueError(msg)
@@ -390,7 +390,7 @@ def read_corrected_ttl_timestamps(filepath: str, storesList: np.ndarray) -> dict
                 message = (
                     f"Pair name mismatch in storesList: control channel '{arr[0, i]}' has suffix "
                     f"'{name_1}' but signal channel '{arr[1, i]}' has suffix '{name_2}'. Check the "
-                    "naming convention of your files and the storesList file, then re-run step 2."
+                    "naming convention of your files and the storesList file, then re-run step 1."
                 )
                 logger.error(message)
                 raise ValueError(message)
@@ -469,7 +469,7 @@ def read_timestamps_for_combining_data(
             msg = (
                 f"Pair name mismatch in '{filepaths_to_combine[0]}': control file suffix '{name_1}' does not match "
                 f"signal file suffix '{name_2}'. Check the naming convention of your files and the "
-                f"storesList file, then re-run step 2."
+                f"storesList file, then re-run step 1."
             )
             logger.error(msg)
             raise ValueError(msg)
@@ -510,7 +510,7 @@ def read_data_for_combining_data(
             msg = (
                 f"Pair name mismatch in '{filepaths_to_combine[0]}': control file suffix '{name_1}' does not match "
                 f"signal file suffix '{name_2}'. Check the naming convention of your files and the "
-                f"storesList file, then re-run step 2."
+                f"storesList file, then re-run step 1."
             )
             logger.error(msg)
             raise ValueError(msg)
@@ -558,7 +558,7 @@ def read_ttl_timestamps_for_combining_data(
             message = (
                 f"Pair name mismatch in '{filepaths_to_combine[0]}': control file suffix '{name_1}' does "
                 f"not match signal file suffix '{name_2}'. Check the naming convention of your files and "
-                "the storesList file, then re-run step 2."
+                "the storesList file, then re-run step 1."
             )
             logger.error(message)
             raise ValueError(message)

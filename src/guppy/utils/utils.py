@@ -10,8 +10,8 @@ logger = logging.getLogger(__name__)
 _RUN_NAME_MARKER = "_output_"
 _FORBIDDEN_RUN_NAME_CHARACTERS = ("/", "\\", ":", "\0")
 
-# NPM decomposition parameters chosen interactively in Step 2 are not part of the
-# saved analysis parameters, so they are persisted next to storesList.csv for Step 3.
+# NPM decomposition parameters chosen interactively in Step 1 are not part of the
+# saved analysis parameters, so they are persisted next to storesList.csv for Step 2.
 NPM_PARAMS_FILENAME = ".npm_params.json"
 NPM_PARAM_KEYS = ("npm_split_events", "npm_time_units", "npm_timestamp_column_names")
 
@@ -19,10 +19,10 @@ NPM_PARAM_KEYS = ("npm_split_events", "npm_time_units", "npm_timestamp_column_na
 def write_npm_params(*, output_dir: str, npm_params: dict[str, object]) -> None:
     """Persist the NPM decomposition parameters for one output directory.
 
-    The interactive NPM choices made during Step 2 (event splitting, timestamp
+    The interactive NPM choices made during Step 1 (event splitting, timestamp
     units, timestamp column names) determine how :class:`NpmRecordingExtractor`
     demultiplexes the raw files in memory. They are written next to
-    ``storesList.csv`` so Step 3 can reproduce the identical decomposition.
+    ``storesList.csv`` so Step 2 can reproduce the identical decomposition.
 
     Parameters
     ----------
@@ -185,7 +185,7 @@ def select_output_dirs(session_path: str, selected_runs: list[str]) -> list[str]
         raise ValueError(
             f"Output directory not found in {session_path!r} for run name(s) {missing!r}. "
             f"Available runs: {sorted(available_by_name.keys())!r}. "
-            "Either run step 2 with the requested run name first, or update the selectedOutputs filter."
+            "Either run step 1 with the requested run name first, or update the selectedOutputs filter."
         )
 
     selected = [available_by_name[run] for run in selected_runs]
@@ -193,7 +193,7 @@ def select_output_dirs(session_path: str, selected_runs: list[str]) -> list[str]
     if missing_stores_list:
         raise ValueError(
             f"Selected output directories are missing storesList.csv: {missing_stores_list!r}. "
-            "Re-run step 2 (Save Storenames) for these run names before continuing."
+            "Re-run step 1 (Save Storenames) for these run names before continuing."
         )
     return sorted(selected, key=_run_name_sort_key_for_path)
 

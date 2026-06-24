@@ -105,7 +105,7 @@ def visualizeControlAndSignal(filepath: str, removeArtifacts: bool) -> list:
         message = (
             f"Unequal number of control and signal files in '{filepath}': "
             f"found {len(path_1)} control and {len(path_2)} signal file(s). "
-            "Each signal must be paired with a control; re-run step 2 to fix the entries."
+            "Each signal must be paired with a control; re-run step 1 to fix the entries."
         )
         logger.error(message)
         raise ValueError(message)
@@ -255,7 +255,7 @@ def execute_zscore(folderNames: list[str], inputParameters: dict[str, object]) -
             message = (
                 f"Unequal number of control and signal files in '{filepath}': "
                 f"found {len(controls)} control and {len(signals)} signal file(s). "
-                "Each signal must be paired with a control; re-run step 2 to fix the entries."
+                "Each signal must be paired with a control; re-run step 1 to fix the entries."
             )
             logger.error(message)
             raise ValueError(message)
@@ -268,7 +268,7 @@ def execute_zscore(folderNames: list[str], inputParameters: dict[str, object]) -
                 message = (
                     f"Pair name mismatch in '{filepath}': control file suffix '{name_1[-1]}' does not match "
                     f"signal file suffix '{name_2[-1]}'. Check the naming convention of your files and "
-                    "the storesList file, then re-run step 2."
+                    "the storesList file, then re-run step 1."
                 )
                 logger.error(message)
                 raise ValueError(message)
