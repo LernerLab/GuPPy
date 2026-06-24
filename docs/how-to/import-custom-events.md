@@ -18,12 +18,23 @@ a spreadsheet).
 1. Select your session folder(s) on the homepage as usual.
 2. Click **Import Custom Events** (above *Step 1: Open Storenames GUI* in the
    sidebar). A window opens for each selected session in turn.
+
+   ```{image} ../_static/images/import_custom_events_button.png
+   :alt: The sidebar with the optional Import Custom Events button positioned above Step 1, Open Storenames GUI
+   :width: 50%
+   ```
+
 3. For each event, enter a **name** and paste its **timestamps** — one per row,
    in seconds — into the paste box. The values come straight from a spreadsheet
    column; no header or surrounding text.
 4. Click **Add event** to add another event, then **Save**.
 5. Open the **Storenames GUI**: each imported event now appears as a store
    named after what you typed, ready to label like any other.
+
+```{image} ../_static/images/import_custom_events.png
+:alt: The Import Custom Events pop-out window with two events — movement_onset and reward_delivery — each showing a name field and a paste box of one-per-row timestamps, above the Add event, Overwrite existing, and Save controls
+:width: 100%
+```
 
 Notes:
 
@@ -61,7 +72,3 @@ timestamps
 Place that file in the session folder. GuPPy detects it automatically — no
 configuration needed — and it shows up as a store named `movement_onset` the
 next time you open the Storenames GUI.
-
-Because GuPPy supports exactly this one external format, you stay in control of
-how your source data is converted, and there is no need to wait for GuPPy to add
-a reader for your particular tool.
