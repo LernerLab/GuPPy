@@ -22,6 +22,7 @@ import numpy as np
 import pandas as pd
 import panel as pn
 
+from guppy.frontend.custom_events_config import CustomEventsConfig
 from guppy.frontend.frontend_utils import scanPortsAndFind
 from guppy.frontend.parameterized_plotter import ParameterizedPlotter
 from guppy.frontend.storenames_selector import StorenamesSelector
@@ -69,6 +70,49 @@ def screenshot_homepage(page: Page) -> None:
     page.wait_for_timeout(1000)
     page.screenshot(path=OUTPUT_DIR / "01_homepage.png", full_page=False)
     print("Saved 01_homepage.png")
+
+    pn.state.kill_all_servers()
+
+
+def screenshot_import_custom_events_button(page: Page) -> None:
+    """How-to: the sidebar top showing the Import Custom Events button above Step 1."""
+    os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
+    template = build_homepage()
+    url = _serve(template)
+    page.goto(url)
+    page.get_by_text("Individual Analysis").first.wait_for()
+    page.wait_for_timeout(1000)
+    page.screenshot(
+        path=OUTPUT_DIR / "import_custom_events_button.png",
+        clip={"x": 0, "y": 0, "width": 340, "height": 320},
+    )
+    print("Saved import_custom_events_button.png")
+
+    pn.state.kill_all_servers()
+
+
+def screenshot_import_custom_events(page: Page) -> None:
+    """How-to: the Import Custom Events pop-out with two example events filled in.
+
+    We build the config component directly and set the widget values before serving so the
+    paste boxes render pre-filled (mirroring screenshot_storenames_configured).
+    """
+    config = CustomEventsConfig()
+    config.rows[0][0].value = "movement_onset"
+    config.rows[0][1].value = "5.0\n9.5\n14.2\n21.0"
+    config.add_event_row()
+    config.rows[1][0].value = "reward_delivery"
+    config.rows[1][1].value = "7.3\n12.1\n18.8"
+
+    template = pn.template.BootstrapTemplate(title="Import Custom Events - sample_data_csv_1")
+    template.main.append(config.widget)
+    url = _serve(template)
+
+    page.goto(url)
+    page.get_by_text("Import Custom Events").first.wait_for()
+    page.wait_for_timeout(1000)
+    page.screenshot(path=OUTPUT_DIR / "import_custom_events.png", full_page=False)
+    print("Saved import_custom_events.png")
 
     pn.state.kill_all_servers()
 
@@ -267,6 +311,8 @@ def main() -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             screenshot_homepage(page)
+            screenshot_import_custom_events_button(page)
+            screenshot_import_custom_events(page)
             screenshot_data_selection(page)
             screenshot_parameters(page)
             screenshot_storenames(page, tmp_path)

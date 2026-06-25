@@ -17,6 +17,7 @@ from typing import Iterable, Literal
 import numpy as np
 
 from guppy.orchestration.home import build_homepage
+from guppy.orchestration.import_custom_events import orchestrate_custom_events_page
 from guppy.orchestration.preprocess import extractTsAndSignal
 from guppy.orchestration.psth import psthForEachStorename
 from guppy.orchestration.read_raw_data import orchestrate_read_raw_data
@@ -125,6 +126,49 @@ def save_parameters_snapshot(*, base_dir: str, selected_folders: Iterable[str]) 
     # Select folders and write the parameter snapshot, mirroring the per-step auto-write.
     template._widgets["files_1"].value = list(selected_folders)
     save_parameters(inputParameters=template._hooks["getInputParameters"]())
+
+
+def import_custom_events(
+    *, base_dir: str, selected_folders: Iterable[str], custom_events_map: dict[str, dict[str, list[float]]]
+) -> None:
+    """Write custom event CSVs into sessions via the actual Panel-backed logic, headlessly.
+
+    Mirrors the optional "Import Custom Events" GUI step: builds the form
+    headlessly (using ``GUPPY_BASE_DIR`` to bypass the Tk folder dialog), sets the
+    FileSelector to ``selected_folders``, injects ``custom_events_map``, and calls
+    ``orchestrate_custom_events_page``. Each event is written as a
+    GuPPy-compatible ``<name>.csv`` into its session folder. This is an unnumbered,
+    optional step, so it is not part of the numbered ``step1``–``step5`` sequence.
+
+    Parameters
+    ----------
+    base_dir : str
+        Root directory used to initialize the FileSelector. All ``selected_folders``
+        must reside under this path.
+    selected_folders : Iterable[str]
+        Absolute paths to the session directories to write events into.
+    custom_events_map : dict[str, dict[str, list[float]]]
+        Mapping from session-folder name to ``{event_name: [timestamps]}``. Events
+        are written only into sessions present as keys.
+
+    Raises
+    ------
+    RuntimeError
+        If the template does not expose the required testing hooks/widgets.
+    """
+    os.environ["GUPPY_BASE_DIR"] = base_dir
+
+    template = build_homepage()
+
+    if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
+        raise RuntimeError("build_homepage did not expose 'getInputParameters' hook")
+    if not hasattr(template, "_widgets") or "files_1" not in template._widgets:
+        raise RuntimeError("build_homepage did not expose 'files_1' widget")
+
+    template._widgets["files_1"].value = list(selected_folders)
+    input_params = template._hooks["getInputParameters"]()
+    input_params["custom_events_map"] = custom_events_map
+    orchestrate_custom_events_page(input_params)
 
 
 def step1(

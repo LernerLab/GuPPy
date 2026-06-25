@@ -22,6 +22,7 @@ class Sidebar:
 
     def setup_markdown(self) -> None:
         """Create step-label ``Markdown`` panes and store them as instance attributes."""
+        self.mark_down_import_events = pn.pane.Markdown("""**Import Custom Events (optional)**""", width=300)
         self.mark_down_storenames = pn.pane.Markdown(
             """**Step 1 : Open Storenames GUI <br> and save storenames**""", width=300
         )
@@ -32,6 +33,9 @@ class Sidebar:
 
     def setup_buttons(self) -> None:
         """Create pipeline-step action buttons and store them as instance attributes."""
+        self.import_custom_events = pn.widgets.Button(
+            name="Import Custom Events", button_type="default", width=300, align="end"
+        )
         self.open_storenames = pn.widgets.Button(
             name="Open Storenames GUI", button_type="primary", width=300, align="end"
         )
@@ -67,6 +71,8 @@ class Sidebar:
 
     def add_to_template(self) -> None:
         """Append all sidebar widgets to the template's sidebar area in pipeline order."""
+        self.template.sidebar.append(self.mark_down_import_events)
+        self.template.sidebar.append(self.import_custom_events)
         self.template.sidebar.append(self.mark_down_storenames)
         self.template.sidebar.append(self.open_storenames)
         self.template.sidebar.append(self.mark_down_read)

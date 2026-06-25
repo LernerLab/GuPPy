@@ -7,6 +7,7 @@ from threading import Thread
 
 import panel as pn
 
+from .import_custom_events import orchestrate_custom_events_page
 from .storenames import orchestrate_storenames_page
 from .visualize import visualizeResults
 from ..frontend.input_parameters import ParameterForm
@@ -86,6 +87,12 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
             pn.state.notifications.error(str(e), duration=0)
             return None
 
+    def onclickImportCustomEvents(event: object = None) -> None:
+        inputParameters = _getInputParametersOrNotify()
+        if inputParameters is None:
+            return
+        orchestrate_custom_events_page(inputParameters)
+
     def onclickStorenames(event: object = None) -> None:
         inputParameters = _getInputParametersOrNotify()
         if inputParameters is None:
@@ -142,6 +149,7 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
     # ------------------------------------------------------------------------------------------------------------------
 
     button_name_to_onclick_fn = {
+        "import_custom_events": onclickImportCustomEvents,
         "open_storenames": onclickStorenames,
         "read_rawData": onclickreaddata,
         "preprocess": onclickpreprocess,
@@ -154,6 +162,7 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
     # Expose minimal hooks and widgets to enable programmatic testing
     template._hooks = {
         "onclickVisualization": onclickVisualization,
+        "onclickImportCustomEvents": onclickImportCustomEvents,
         "getInputParameters": parameter_form.getInputParameters,
     }
     template._widgets = {
