@@ -53,7 +53,7 @@ dependencies = [
     "panel",
     "param",
     "platformdirs",
-    "pynwb",
+    "pynwb<4",
     "scipy",
     "statsmodels",
     "tables",
