@@ -23,6 +23,7 @@
 - Unified the pipeline step numbering on the canonical Storenames = Step 1 scheme across the testing API, tests, error messages, comments, and docs, so error messages that tell the user to re-run a step now match the GUI sidebar labels. [PR #361](https://github.com/LernerLab/GuPPy/pull/361)
 - Stored event timestamps now share the recording-start time basis with the continuous `timestampNew` stream instead of being re-zeroed to `timeForLightsTurnOn`, so all series can be co-registered without per-stream offset bookkeeping (PSTH results are unchanged). Resolves [#355](https://github.com/LernerLab/GuPPy/issues/355). [PR #356](https://github.com/LernerLab/GuPPy/pull/356)
 - Fixed bug with step five, which was causing the baseline uncorrected HDF5 file to not exist. [PR #241](https://github.com/LernerLab/GuPPy/pull/241)
+- Pinned pynwb < 4 to avoid issues with the NWB extractor. [PR #363](https://github.com/LernerLab/GuPPy/pull/363)
 
 ## Improvements
 - Hoisted step-3 multiprocessing pool out of the per-session loop and batched reads per `(session, extractor)` pair: ~3.3× faster DANDI streaming and ~2.2× faster local NWB on representative sessions.
