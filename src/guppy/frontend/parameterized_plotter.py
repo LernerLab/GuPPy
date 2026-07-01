@@ -2,6 +2,7 @@ import logging
 import math
 import os
 import re
+from collections.abc import Callable
 
 import datashader as ds
 import holoviews as hv
@@ -49,6 +50,27 @@ def remove_cols(cols: list[str]) -> list[str]:
     cols = [i for i in cols if i not in remove_cols]
 
     return cols
+
+
+def overview_y_options(cols: list[str]) -> list[str]:
+    """Whole-event y-selector options for the single-event overview plot.
+
+    Filters :func:`remove_cols` output down to the whole-event views — ``"mean"``,
+    the datashaded ``"All"`` trials, and any ``bin_*`` subset averages — dropping
+    individual trial columns, which are inspected in the selected-trials plot.
+
+    Parameters
+    ----------
+    cols : list of str
+        Full list of column names from a PSTH DataFrame (including ``"All"``).
+
+    Returns
+    -------
+    list of str
+        Options containing only ``"mean"``, ``"All"``, and bin averages.
+    """
+    bin_pattern = re.compile("bin_")
+    return [col for col in remove_cols(cols) if col in ("mean", "All") or bin_pattern.match(col)]
 
 
 # make a new directory for saving plots
@@ -110,21 +132,37 @@ class ParameterizedPlotter(param.Parameterized):
     x_max = param.Number(default=None)
     select_trials_checkbox = param.ListSelector(default=["just trials"], objects=["mean", "just trials"])
     Y_Label = param.ObjectSelector(default="y", objects=["y", "z-score", "\u0394F/F"])
-    save_options = param.ObjectSelector(
-        default="None", objects=["None", "save_png_format", "save_svg_format", "save_both_format"]
-    )
-    save_options_heatmap = param.ObjectSelector(
-        default="None", objects=["None", "save_png_format", "save_svg_format", "save_both_format"]
-    )
+    _SAVE_FORMATS = ["None", "save_png_format", "save_svg_format", "save_both_format"]
+    # Independent save-format selector per plot so each can be exported on its own.
+    save_options_cont = param.ObjectSelector(default="None", objects=_SAVE_FORMATS)
+    save_options_overlay = param.ObjectSelector(default="None", objects=_SAVE_FORMATS)
+    save_options_trials = param.ObjectSelector(default="None", objects=_SAVE_FORMATS)
+    save_options_heatmap = param.ObjectSelector(default="None", objects=_SAVE_FORMATS)
     color_map = param.ObjectSelector(default="plasma")
+    trace_color = param.Color(default="#0000ff")
+    mean_color = param.Color(default="#000000")
+    # Categorical palette used to colour the per-event curves in the comparison plot.
+    overlay_palette = param.ObjectSelector(
+        default="Category10", objects=["Category10", "Category20", "Colorblind", "Dark2", "Set1"]
+    )
     height_heatmap = param.ObjectSelector(default=600, objects=list(np.arange(0, 5100, 100))[1:])
     width_heatmap = param.ObjectSelector(default=1000, objects=list(np.arange(0, 5100, 100))[1:])
     Height_Plot = param.ObjectSelector(default=300, objects=list(np.arange(0, 5100, 100))[1:])
     Width_Plot = param.ObjectSelector(default=1000, objects=list(np.arange(0, 5100, 100))[1:])
     save_hm = param.Action(lambda x: x.param.trigger("save_hm"), label="Save")
-    save_psth = param.Action(lambda x: x.param.trigger("save_psth"), label="Save")
-    X_Limit = param.Range(default=(-5, 10))
-    Y_Limit = param.Range(bounds=(-50, 50.0))
+    save_cont = param.Action(lambda x: x.param.trigger("save_cont"), label="Save")
+    save_overlay = param.Action(lambda x: x.param.trigger("save_overlay"), label="Save")
+    save_trials = param.Action(lambda x: x.param.trigger("save_trials"), label="Save")
+    # Each PSTH plot owns an independent pair of axis-range params so that
+    # zooming/panning one plot (synced back via _range_sync_hook) does not move
+    # the others.  X ranges default to the padded PSTH window (set in __init__);
+    # Y ranges start as None and auto-fit to the data on first render.
+    cont_X = param.Range(default=None)
+    cont_Y = param.Range(default=None)
+    overlay_X = param.Range(default=None)
+    overlay_Y = param.Range(default=None)
+    trials_X = param.Range(default=None)
+    trials_Y = param.Range(default=None)
 
     x = param.ObjectSelector(default=None)
     y = param.ObjectSelector(default=None)
@@ -150,63 +188,154 @@ class ParameterizedPlotter(param.Parameterized):
         self.event_selector_heatmap = self.event_selector_heatmap_objects[0]
         self.selector_for_multipe_events_plot = [self.selector_for_multipe_events_plot_objects[0]]
         self.x = self.x_objects[0]
-        self.y = self.y_objects[-2]
+        # _update_x_y (fired by setting event_selector above) has already filtered the
+        # y options to the overview views; take the default from those filtered options.
+        self.y = self.param["y"].objects[-2]
         self.heatmap_y = [self.heatmap_y_objects[-1]]
 
-        self.param.X_Limit.bounds = (self.x_min, self.x_max)
+        self.cont_X = (self.x_min, self.x_max)
+        self.overlay_X = (self.x_min, self.x_max)
+        self.trials_X = (self.x_min, self.x_max)
 
-    # function to save heatmaps when save button on heatmap tab is clicked
+        # Live Bokeh figure per plot, refreshed by _range_sync_hook on each render.
+        # Range params are deliberately NOT in the plot methods' @param.depends
+        # lists: a range change drives the live figure directly (below) instead of
+        # triggering a re-render, so an interactive zoom/pan is never interrupted.
+        self._figures: dict[str, object] = {}
+        for plot_key, x_name, y_name in self._RANGE_PLOTS:
+            self.param.watch(self._make_figure_range_pusher(plot_key, x_name, y_name), [x_name, y_name])
+
+        # Track the data selection each plot last rendered so the Y range can
+        # auto-refit when the selection (event, trace, trials) changes, while
+        # still honouring a manual zoom/typed range within a single selection.
+        self._selection_keys: dict[str, object] = {}
+
+    _RANGE_PLOTS = (
+        ("cont", "cont_X", "cont_Y"),
+        ("overlay", "overlay_X", "overlay_Y"),
+        ("trials", "trials_X", "trials_Y"),
+    )
+
+    @staticmethod
+    def _assign_range(axis_range: object, bounds: tuple) -> None:
+        """Set a Bokeh range's ``start``/``end`` only when they actually differ."""
+        low, high = float(bounds[0]), float(bounds[1])
+        if (axis_range.start, axis_range.end) != (low, high):
+            axis_range.start, axis_range.end = low, high
+
+    def _make_figure_range_pusher(self, plot_key: str, x_name: str, y_name: str) -> Callable[[object], None]:
+        """Build a param watcher that pushes a range param onto the live Bokeh figure.
+
+        This is the field/zoom -> plot direction that does not go through a
+        re-render: editing a number box (or a programmatic range update) moves the
+        already-rendered figure's axes in place.  Writing the same value the figure
+        already has is a no-op, so this never fights an in-progress zoom.
+        """
+
+        def push(event: object) -> None:
+            figure = self._figures.get(plot_key)
+            if figure is None:
+                return
+            x_range, y_range = getattr(self, x_name), getattr(self, y_name)
+            if x_range is not None:
+                self._assign_range(figure.x_range, x_range)
+            if y_range is not None:
+                self._assign_range(figure.y_range, y_range)
+
+        return push
+
+    def _range_sync_hook(self, plot_key: str, x_name: str, y_name: str) -> Callable[[object, object], None]:
+        """Build a HoloViews ``hooks`` callback that mirrors Bokeh zoom/pan into params.
+
+        Attached to a plot via ``.opts(hooks=[...])``, the returned hook records the
+        rendered Bokeh figure (so number-box edits can drive it) and listens for
+        changes to the figure's x/y ranges, writing them back into the
+        ``x_name``/``y_name`` range params so the plot's number-entry boxes stay in
+        sync when the user zooms or pans that plot directly.
+        """
+
+        def hook(plot: object, element: object) -> None:
+            figure = plot.state
+            self._figures[plot_key] = figure
+
+            def sync(attr: str, old: object, new: object) -> None:
+                x_range = (figure.x_range.start, figure.x_range.end)
+                y_range = (figure.y_range.start, figure.y_range.end)
+                if None not in x_range and getattr(self, x_name) != x_range:
+                    setattr(self, x_name, (float(x_range[0]), float(x_range[1])))
+                if None not in y_range and getattr(self, y_name) != y_range:
+                    setattr(self, y_name, (float(y_range[0]), float(y_range[1])))
+
+            for axis_range in (figure.x_range, figure.y_range):
+                axis_range.on_change("start", sync)
+                axis_range.on_change("end", sync)
+
+        return hook
+
+    def _reset_y_on_selection_change(self, plot_key: str, y_name: str, selection: object) -> None:
+        """Clear a plot's Y range when its data selection changes, forcing a re-autofit.
+
+        The plot methods only auto-fit ``y_name`` when it is ``None``; setting it
+        back to ``None`` here whenever ``selection`` differs from the last render
+        makes a new event/trace/trial choice refit to that data, while a manual
+        zoom or typed range persists across renders that keep the same selection.
+        """
+        if self._selection_keys.get(plot_key) != selection:
+            self._selection_keys[plot_key] = selection
+            setattr(self, y_name, None)
+
+    @staticmethod
+    def _export_plot(plot: object, op: str, save_opts: str) -> int | None:
+        """Export a single plot to disk in the requested format(s).
+
+        Parameters
+        ----------
+        plot : holoviews.Element
+            The plot to render and export.
+        op : str
+            Output path without extension; ``.png``/``.svg`` are appended.
+        save_opts : str
+            One of ``"None"``, ``"save_png_format"``, ``"save_svg_format"``,
+            ``"save_both_format"``.
+
+        Returns
+        -------
+        int or None
+            ``0`` when ``save_opts`` is ``"None"`` (nothing exported), else ``None``.
+        """
+        if save_opts == "None":
+            return 0
+        with selenium.webdriver.Chrome(options=_headless_chrome_options()) as webdriver:
+            if save_opts in ("save_svg_format", "save_both_format"):
+                rendered = hv.render(plot, backend="bokeh")
+                rendered.output_backend = "svg"
+                export_svgs(rendered, filename=op + ".svg", webdriver=webdriver)
+            if save_opts in ("save_png_format", "save_both_format"):
+                rendered = hv.render(plot, backend="bokeh")
+                export_png(rendered, filename=op + ".png", webdriver=webdriver)
+        return None
+
     @param.depends("save_hm", watch=True)
-    def save_hm_plots(self) -> None:
-        """Export the current heatmap to disk in the format selected by ``save_options_heatmap``."""
-        plot = self.results_hm["plot"]
-        op = self.results_hm["op"]
-        save_opts = self.save_options_heatmap
-        logger.info(save_opts)
-        if save_opts == "None":
-            return 0
-        with selenium.webdriver.Chrome(options=_headless_chrome_options()) as webdriver:
-            if save_opts == "save_svg_format":
-                p = hv.render(plot, backend="bokeh")
-                p.output_backend = "svg"
-                export_svgs(p, filename=op + ".svg", webdriver=webdriver)
-            elif save_opts == "save_png_format":
-                p = hv.render(plot, backend="bokeh")
-                export_png(p, filename=op + ".png", webdriver=webdriver)
-            elif save_opts == "save_both_format":
-                p = hv.render(plot, backend="bokeh")
-                p.output_backend = "svg"
-                export_svgs(p, filename=op + ".svg", webdriver=webdriver)
-                p_png = hv.render(plot, backend="bokeh")
-                export_png(p_png, filename=op + ".png", webdriver=webdriver)
+    def save_hm_plots(self) -> int | None:
+        """Export the current heatmap in the format selected by ``save_options_heatmap``."""
+        return self._export_plot(self.results_hm["plot"], self.results_hm["op"], self.save_options_heatmap)
 
-    # function to save PSTH plots when save button on PSTH tab is clicked
-    @param.depends("save_psth", watch=True)
-    def save_psth_plot(self) -> None:
-        """Export the current PSTH plots to disk in the format selected by ``save_options``."""
-        plot, op = [], []
-        plot.append(self.results_psth["plot_combine"])
-        op.append(self.results_psth["op_combine"])
-        plot.append(self.results_psth["plot"])
-        op.append(self.results_psth["op"])
-        save_opts = self.save_options
-        if save_opts == "None":
-            return 0
-        with selenium.webdriver.Chrome(options=_headless_chrome_options()) as webdriver:
-            for temp_plot, temp_op in zip(plot, op):
-                if save_opts == "save_svg_format":
-                    p = hv.render(temp_plot, backend="bokeh")
-                    p.output_backend = "svg"
-                    export_svgs(p, filename=temp_op + ".svg", webdriver=webdriver)
-                elif save_opts == "save_png_format":
-                    p = hv.render(temp_plot, backend="bokeh")
-                    export_png(p, filename=temp_op + ".png", webdriver=webdriver)
-                elif save_opts == "save_both_format":
-                    p = hv.render(temp_plot, backend="bokeh")
-                    p.output_backend = "svg"
-                    export_svgs(p, filename=temp_op + ".svg", webdriver=webdriver)
-                    p_png = hv.render(temp_plot, backend="bokeh")
-                    export_png(p_png, filename=temp_op + ".png", webdriver=webdriver)
+    @param.depends("save_cont", watch=True)
+    def save_cont_plot(self) -> int | None:
+        """Export the single-event PSTH plot in the format selected by ``save_options_cont``."""
+        return self._export_plot(self.results_psth["plot"], self.results_psth["op"], self.save_options_cont)
+
+    @param.depends("save_overlay", watch=True)
+    def save_overlay_plot(self) -> int | None:
+        """Export the multi-event comparison plot in the format selected by ``save_options_overlay``."""
+        return self._export_plot(
+            self.results_psth["plot_combine"], self.results_psth["op_combine"], self.save_options_overlay
+        )
+
+    @param.depends("save_trials", watch=True)
+    def save_trials_plot(self) -> int | None:
+        """Export the selected-trials plot in the format selected by ``save_options_trials``."""
+        return self._export_plot(self.results_psth["trials"], self.results_psth["op_trials"], self.save_options_trials)
 
     # function to change Y values based on event selection
     @param.depends("event_selector", watch=True)
@@ -214,7 +343,7 @@ class ParameterizedPlotter(param.Parameterized):
         x_value = self.columns_dict[self.event_selector]
         y_value = self.columns_dict[self.event_selector]
         self.param["x"].objects = [x_value[-4]]
-        self.param["y"].objects = remove_cols(y_value)
+        self.param["y"].objects = overview_y_options(y_value)
         self.x = x_value[-4]
         self.y = self.param["y"].objects[-2]
 
@@ -239,9 +368,7 @@ class ParameterizedPlotter(param.Parameterized):
     @param.depends(
         "selector_for_multipe_events_plot",
         "Y_Label",
-        "save_options",
-        "X_Limit",
-        "Y_Limit",
+        "overlay_palette",
         "Height_Plot",
         "Width_Plot",
     )
@@ -274,8 +401,9 @@ class ParameterizedPlotter(param.Parameterized):
                 cols_spread.append(arr[i] + "_" + "mean")
 
         if len(arr) > 0:
-            if self.Y_Limit == None:
-                self.Y_Limit = (np.nanmin(np.asarray(data_curve)) - 0.5, np.nanmax(np.asarray(data_curve)) + 0.5)
+            self._reset_y_on_selection_change("overlay", "overlay_Y", tuple(arr))
+            if self.overlay_Y is None:
+                self.overlay_Y = (np.nanmin(np.asarray(data_curve)) - 0.5, np.nanmax(np.asarray(data_curve)) + 0.5)
 
             if "bin" in arr[i]:
                 split = arr[i].rsplit("_", 2)
@@ -303,8 +431,8 @@ class ParameterizedPlotter(param.Parameterized):
                     c: hv.Curve((df_curve["timestamps"], df_curve[c]), kdims=["Time (s)"]).opts(
                         width=int(self.Width_Plot),
                         height=int(self.Height_Plot),
-                        xlim=self.X_Limit,
-                        ylim=self.Y_Limit,
+                        xlim=self.overlay_X,
+                        ylim=self.overlay_Y,
                     )
                     for c in cols_curve[:-1]
                 }
@@ -318,22 +446,33 @@ class ParameterizedPlotter(param.Parameterized):
                     for d in cols_spread[:-1]
                 }
             )
-            plot_combine = ((overlay * spread).opts(opts.NdOverlay(xlabel="Time (s)", ylabel=self.Y_Label))).opts(
-                shared_axes=False
+            # Colour each event's curve (and its matching spread) from the chosen
+            # categorical palette; curves and spreads share the same cols order so
+            # the cycle assigns consistent per-event colours.
+            palette_colors = hv.Cycle(self.overlay_palette)
+            plot_combine = (
+                (overlay * spread)
+                .opts(opts.NdOverlay(xlabel="Time (s)", ylabel=self.Y_Label))
+                .opts(opts.Curve(color=palette_colors), opts.Spread(fill_color=palette_colors))
+                .opts(shared_axes=False)
             )
-            # plot_err = new_df.hvplot.area(x='timestamps', y=[], y2=[])
-            save_opts = self.save_options
             op = make_dir(self.filepath)
             op_filename = os.path.join(op, str(arr) + "_mean")
 
+            plot_combine = plot_combine.opts(hooks=[self._range_sync_hook("overlay", "overlay_X", "overlay_Y")])
             self.results_psth["plot_combine"] = plot_combine
             self.results_psth["op_combine"] = op_filename
-            # self.save_plots(plot_combine, save_opts, op_filename)
             return plot_combine
 
     # function to plot mean PSTH, single trial in PSTH and all the trials of PSTH with mean
     @param.depends(
-        "event_selector", "x", "y", "Y_Label", "save_options", "Y_Limit", "X_Limit", "Height_Plot", "Width_Plot"
+        "event_selector",
+        "x",
+        "y",
+        "Y_Label",
+        "Height_Plot",
+        "Width_Plot",
+        "trace_color",
     )
     def contPlot(self) -> hv.Element:
         """Render the selected PSTH view (mean, single trial, or all-trials datashaded overlay).
@@ -345,18 +484,17 @@ class ParameterizedPlotter(param.Parameterized):
             ``NdOverlay``, depending on the value of ``y``.
         """
         df1 = self.df_new[self.event_selector]
-        # height = self.Heigth_Plot
-        # width = self.Width_Plot
-        # logger.info(height, width)
+        self._reset_y_on_selection_change("cont", "cont_Y", (self.event_selector, self.y))
         if self.y == "All":
-            if self.Y_Limit == None:
-                self.Y_Limit = (np.nanmin(np.asarray(df1)) - 0.5, np.nanmax(np.asarray(df1)) - 0.5)
+            if self.cont_Y is None:
+                self.cont_Y = (np.nanmin(np.asarray(df1)) - 0.5, np.nanmax(np.asarray(df1)) - 0.5)
 
-            options = self.param["y"].objects
-            regex = re.compile("bin_[(]")
-            remove_bin_trials = [options[i] for i in range(len(options)) if not regex.match(options[i])]
+            # Individual trial columns come from the data (the y-selector lists only
+            # overview views), i.e. everything left after dropping bins and the mean.
+            bin_regex = re.compile("bin_")
+            trial_cols = [c for c in remove_cols(list(df1.columns)) if c != "mean" and not bin_regex.match(c)]
 
-            ndoverlay = hv.NdOverlay({c: hv.Curve((df1[self.x], df1[c])) for c in remove_bin_trials[:-2]})
+            ndoverlay = hv.NdOverlay({c: hv.Curve((df1[self.x], df1[c])) for c in trial_cols})
             img1 = datashade(ndoverlay, normalization="linear", aggregator=ds.count())
             x_points = df1[self.x]
             y_points = df1["mean"]
@@ -366,16 +504,15 @@ class ParameterizedPlotter(param.Parameterized):
                     width=int(self.Width_Plot),
                     height=int(self.Height_Plot),
                     line_width=4,
-                    color="black",
-                    xlim=self.X_Limit,
-                    ylim=self.Y_Limit,
+                    color=self.trace_color,
+                    xlim=self.cont_X,
+                    ylim=self.cont_Y,
                     xlabel="Time (s)",
                     ylabel=self.Y_Label,
                 )
             )
 
-            save_opts = self.save_options
-
+            img = img.opts(hooks=[self._range_sync_hook("cont", "cont_X", "cont_Y")])
             op = make_dir(self.filepath)
             op_filename = os.path.join(op, self.event_selector + "_" + self.y)
             self.results_psth["plot"] = img
@@ -396,15 +533,15 @@ class ParameterizedPlotter(param.Parameterized):
 
             index = np.arange(0, xpoints.shape[0], 3)
 
-            if self.Y_Limit == None:
-                self.Y_Limit = (np.nanmin(ypoints) - 0.5, np.nanmax(ypoints) + 0.5)
+            if self.cont_Y is None:
+                self.cont_Y = (np.nanmin(ypoints) - 0.5, np.nanmax(ypoints) + 0.5)
 
             ropts_curve = dict(
                 width=int(self.Width_Plot),
                 height=int(self.Height_Plot),
-                xlim=self.X_Limit,
-                ylim=self.Y_Limit,
-                color="blue",
+                xlim=self.cont_X,
+                ylim=self.cont_Y,
+                color=self.trace_color,
                 xlabel="Time (s)",
                 ylabel=self.Y_Label,
             )
@@ -412,7 +549,7 @@ class ParameterizedPlotter(param.Parameterized):
                 width=int(self.Width_Plot),
                 height=int(self.Height_Plot),
                 fill_alpha=0.3,
-                fill_color="blue",
+                fill_color=self.trace_color,
                 line_width=0,
             )
 
@@ -421,39 +558,35 @@ class ParameterizedPlotter(param.Parameterized):
                 (xpoints[index], ypoints[index], err[index], err[index])
             )  # .opts(**ropts_spread) #vdims=['y', 'yerrpos', 'yerrneg']
             plot = (plot_curve * plot_spread).opts({"Curve": ropts_curve, "Spread": ropts_spread})
-
-            save_opts = self.save_options
+            plot = plot.opts(hooks=[self._range_sync_hook("cont", "cont_X", "cont_Y")])
             op = make_dir(self.filepath)
             op_filename = os.path.join(op, self.event_selector + "_" + self.y)
             self.results_psth["plot"] = plot
             self.results_psth["op"] = op_filename
-            # self.save_plots(plot, save_opts, op_filename)
 
             return plot
 
         else:
             xpoints = df1[self.x]
             ypoints = df1[self.y]
-            if self.Y_Limit == None:
-                self.Y_Limit = (np.nanmin(ypoints) - 0.5, np.nanmax(ypoints) + 0.5)
+            if self.cont_Y is None:
+                self.cont_Y = (np.nanmin(ypoints) - 0.5, np.nanmax(ypoints) + 0.5)
 
             ropts_curve = dict(
                 width=int(self.Width_Plot),
                 height=int(self.Height_Plot),
-                xlim=self.X_Limit,
-                ylim=self.Y_Limit,
-                color="blue",
+                xlim=self.cont_X,
+                ylim=self.cont_Y,
+                color=self.trace_color,
                 xlabel="Time (s)",
                 ylabel=self.Y_Label,
             )
             plot = hv.Curve((xpoints, ypoints)).opts({"Curve": ropts_curve})
-
-            save_opts = self.save_options
+            plot = plot.opts(hooks=[self._range_sync_hook("cont", "cont_X", "cont_Y")])
             op = make_dir(self.filepath)
             op_filename = os.path.join(op, self.event_selector + "_" + self.y)
             self.results_psth["plot"] = plot
             self.results_psth["op"] = op_filename
-            # self.save_plots(plot, save_opts, op_filename)
 
             return plot
 
@@ -464,11 +597,10 @@ class ParameterizedPlotter(param.Parameterized):
         "psth_y",
         "select_trials_checkbox",
         "Y_Label",
-        "save_options",
-        "Y_Limit",
-        "X_Limit",
         "Height_Plot",
         "Width_Plot",
+        "trace_color",
+        "mean_color",
     )
     def plot_specific_trials(self) -> hv.Element | None:
         """Render the user-selected subset of PSTH trials, optionally with their mean.
@@ -481,96 +613,69 @@ class ParameterizedPlotter(param.Parameterized):
             ``None`` when ``psth_y`` is not set.
         """
         df_psth = self.df_new[self.event_selector]
-        # if self.Y_Limit==None:
-        # 	self.Y_Limit = (np.nanmin(ypoints)-0.5, np.nanmax(ypoints)+0.5)
 
-        if self.psth_y == None:
+        if not self.psth_y:
             return None
-        else:
-            selected_trials = [s.split(" - ")[1] for s in list(self.psth_y)]
+        selected_trials = [s.split(" - ")[1] for s in list(self.psth_y)]
 
-        index = np.arange(0, df_psth["timestamps"].shape[0], 3)
+        # Refit the y-axis whenever the event / trial selection / display mode changes.
+        self._reset_y_on_selection_change(
+            "trials", "trials_Y", (self.event_selector, tuple(self.psth_y), tuple(self.select_trials_checkbox))
+        )
+        if self.trials_Y is None:
+            selected = np.asarray(df_psth[selected_trials])
+            self.trials_Y = (np.nanmin(selected) - 0.5, np.nanmax(selected) + 0.5)
 
-        if self.select_trials_checkbox == ["just trials"]:
+        timestamps = df_psth["timestamps"]
+        index = np.arange(0, timestamps.shape[0], 3)
+
+        show_mean = "mean" in self.select_trials_checkbox
+        # Fall back to individual trials when nothing is checked so the plot is never blank.
+        show_trials = ("just trials" in self.select_trials_checkbox) or not show_mean
+
+        axis_opts = dict(
+            width=int(self.Width_Plot),
+            height=int(self.Height_Plot),
+            xlim=self.trials_X,
+            ylim=self.trials_Y,
+            xlabel="Time (s)",
+            ylabel=self.Y_Label,
+        )
+
+        layers = []
+        if show_trials:
             overlay = hv.NdOverlay(
-                {
-                    c: hv.Curve((df_psth["timestamps"][index], df_psth[c][index]), kdims=["Time (s)"])
-                    for c in selected_trials
-                }
+                {c: hv.Curve((timestamps[index], df_psth[c][index]), kdims=["Time (s)"]) for c in selected_trials}
             )
-            ropts = dict(
-                width=int(self.Width_Plot),
-                height=int(self.Height_Plot),
-                xlim=self.X_Limit,
-                ylim=self.Y_Limit,
-                xlabel="Time (s)",
-                ylabel=self.Y_Label,
-            )
-            return overlay.opts(**ropts)
-        elif self.select_trials_checkbox == ["mean"]:
+            layers.append(overlay.opts(**axis_opts))
+        if show_mean:
             arr = np.asarray(df_psth[selected_trials])
             mean = np.nanmean(arr, axis=1)
             err = np.nanstd(arr, axis=1) / math.sqrt(arr.shape[1])
-            ropts_curve = dict(
-                width=int(self.Width_Plot),
-                height=int(self.Height_Plot),
-                xlim=self.X_Limit,
-                ylim=self.Y_Limit,
-                color="blue",
-                xlabel="Time (s)",
-                ylabel=self.Y_Label,
-            )
+            # Contrast the mean against the trials when both are shown; otherwise use the trace colour.
+            mean_curve_color = self.mean_color if show_trials else self.trace_color
+            ropts_curve = dict(color=mean_curve_color, **axis_opts)
             ropts_spread = dict(
                 width=int(self.Width_Plot),
                 height=int(self.Height_Plot),
                 fill_alpha=0.3,
-                fill_color="blue",
+                fill_color=mean_curve_color,
                 line_width=0,
             )
-            plot_curve = hv.Curve((df_psth["timestamps"][index], mean[index]))
-            plot_spread = hv.Spread((df_psth["timestamps"][index], mean[index], err[index], err[index]))
-            plot = (plot_curve * plot_spread).opts({"Curve": ropts_curve, "Spread": ropts_spread})
-            return plot
-        elif self.select_trials_checkbox == ["mean", "just trials"]:
-            overlay = hv.NdOverlay(
-                {
-                    c: hv.Curve((df_psth["timestamps"][index], df_psth[c][index]), kdims=["Time (s)"])
-                    for c in selected_trials
-                }
-            )
-            ropts_overlay = dict(
-                width=int(self.Width_Plot),
-                height=int(self.Height_Plot),
-                xlim=self.X_Limit,
-                ylim=self.Y_Limit,
-                xlabel="Time (s)",
-                ylabel=self.Y_Label,
-            )
+            plot_curve = hv.Curve((timestamps[index], mean[index]))
+            plot_spread = hv.Spread((timestamps[index], mean[index], err[index], err[index]))
+            layers.append((plot_curve * plot_spread).opts({"Curve": ropts_curve, "Spread": ropts_spread}))
 
-            arr = np.asarray(df_psth[selected_trials])
-            mean = np.nanmean(arr, axis=1)
-            err = np.nanstd(arr, axis=1) / math.sqrt(arr.shape[1])
-            ropts_curve = dict(
-                width=int(self.Width_Plot),
-                height=int(self.Height_Plot),
-                xlim=self.X_Limit,
-                ylim=self.Y_Limit,
-                color="black",
-                xlabel="Time (s)",
-                ylabel=self.Y_Label,
-            )
-            ropts_spread = dict(
-                width=int(self.Width_Plot),
-                height=int(self.Height_Plot),
-                fill_alpha=0.3,
-                fill_color="black",
-                line_width=0,
-            )
-            plot_curve = hv.Curve((df_psth["timestamps"][index], mean[index]))
-            plot_spread = hv.Spread((df_psth["timestamps"][index], mean[index], err[index], err[index]))
+        result = layers[0]
+        for extra_layer in layers[1:]:
+            result = result * extra_layer
+        result = result.opts(hooks=[self._range_sync_hook("trials", "trials_X", "trials_Y")])
 
-            plot = (plot_curve * plot_spread).opts({"Curve": ropts_curve, "Spread": ropts_spread})
-            return overlay.opts(**ropts_overlay) * plot
+        op = make_dir(self.filepath)
+        op_filename = os.path.join(op, self.event_selector + "_selected_trials")
+        self.results_psth["trials"] = result
+        self.results_psth["op_trials"] = op_filename
+        return result
 
     # function to show heatmaps for each event
     @param.depends("event_selector_heatmap", "color_map", "height_heatmap", "width_heatmap", "heatmap_y")

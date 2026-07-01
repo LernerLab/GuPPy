@@ -9,8 +9,33 @@ import pytest
 from guppy.frontend.parameterized_plotter import (
     ParameterizedPlotter,
     make_dir,
+    overview_y_options,
     remove_cols,
 )
+
+
+class _FakeRange:
+    """Minimal stand-in for a Bokeh ``Range1d`` used to exercise _range_sync_hook."""
+
+    def __init__(self, start, end):
+        self.start = start
+        self.end = end
+        self.callbacks = []
+
+    def on_change(self, attr, callback):
+        self.callbacks.append(callback)
+
+
+class _FakeFigure:
+    def __init__(self):
+        self.x_range = _FakeRange(0.0, 1.0)
+        self.y_range = _FakeRange(-1.0, 1.0)
+
+
+class _FakePlot:
+    def __init__(self, figure):
+        self.state = figure
+
 
 # ---------------------------------------------------------------------------
 # remove_cols utility
@@ -29,6 +54,17 @@ def test_remove_cols_keeps_trial_mean_and_bin_columns():
     columns = ["trial_1", "trial_2", "timestamps", "mean", "err", "bin_1", "bin_err_trial_1"]
     result = remove_cols(columns)
     assert result == ["trial_1", "trial_2", "mean", "bin_1"]
+
+
+# ---------------------------------------------------------------------------
+# overview_y_options utility
+# ---------------------------------------------------------------------------
+
+
+def test_overview_y_options_keeps_mean_all_and_bins_drops_trials():
+    columns = ["trial_1", "trial_2", "bin_(0-5)", "timestamps", "mean", "err", "bin_err_(0-5)", "All"]
+    result = overview_y_options(columns)
+    assert result == ["bin_(0-5)", "mean", "All"]
 
 
 # ---------------------------------------------------------------------------
@@ -75,17 +111,36 @@ class TestParameterizedPlotter:
         # x_objects[0] == "timestamps"
         assert plotter.x == "timestamps"
 
-    def test_y_set_to_second_to_last_y_object(self, plotter):
-        # __init__ sets self.y = self.y_objects[-2] explicitly after the watcher fires.
-        # y_objects == ["trial_1", "mean"] so y_objects[-2] == "trial_1".
-        assert plotter.y == "trial_1"
+    def test_y_options_exclude_individual_trials(self, plotter):
+        # The overview y-selector keeps only whole-event views (bins, mean, All),
+        # not individual trial columns; here that leaves ["bin_1", "mean"].
+        assert plotter.param["y"].objects == ["bin_1", "mean"]
+
+    def test_y_default_is_overview_option(self, plotter):
+        # Default is objects[-2]; with ["bin_1", "mean"] that is "bin_1".
+        assert plotter.y == "bin_1"
 
     def test_heatmap_y_set_to_last_heatmap_y_object(self, plotter):
         # heatmap_y_objects[-1] == "All"
         assert plotter.heatmap_y == ["All"]
 
-    def test_x_limit_bounds_set_from_x_min_x_max(self, plotter):
-        assert plotter.param.X_Limit.bounds == (-5.0, 10.0)
+    def test_x_ranges_initialized_from_x_min_x_max(self, plotter):
+        # Each plot's X range is seeded with the padded PSTH window in __init__.
+        assert plotter.cont_X == (-5.0, 10.0)
+        assert plotter.overlay_X == (-5.0, 10.0)
+        assert plotter.trials_X == (-5.0, 10.0)
+
+    def test_y_ranges_start_unset_for_autofit(self, plotter):
+        # Y ranges are left as None so the first render auto-fits to the data.
+        assert plotter.cont_Y is None
+        assert plotter.overlay_Y is None
+        assert plotter.trials_Y is None
+
+    def test_default_trace_color(self, plotter):
+        assert plotter.trace_color == "#0000ff"
+
+    def test_default_mean_color(self, plotter):
+        assert plotter.mean_color == "#000000"
 
     def test_default_select_trials_checkbox(self, plotter):
         assert plotter.select_trials_checkbox == ["just trials"]
@@ -94,7 +149,12 @@ class TestParameterizedPlotter:
         assert plotter.Y_Label == "y"
 
     def test_default_save_options(self, plotter):
-        assert plotter.save_options == "None"
+        assert plotter.save_options_cont == "None"
+        assert plotter.save_options_overlay == "None"
+        assert plotter.save_options_trials == "None"
+
+    def test_default_overlay_palette(self, plotter):
+        assert plotter.overlay_palette == "Category10"
 
     def test_default_height_plot(self, plotter):
         assert plotter.Height_Plot == 300
@@ -104,7 +164,7 @@ class TestParameterizedPlotter:
 
     def test_update_x_y_fires_on_event_selector_change(self, plotter):
         # Changing event_selector triggers _update_x_y watcher.
-        # columns[-4] == "timestamps"; remove_cols(columns)[-2] == "bin_1"
+        # columns[-4] == "timestamps"; overview_y_options(columns)[-2] == "bin_1"
         plotter.event_selector = "event2"
         assert plotter.x == "timestamps"
         assert plotter.y == "bin_1"
@@ -132,17 +192,38 @@ class TestParameterizedPlotter:
         # Reset
         plotter.event_selector = "event1"
 
-    def test_save_psth_plot_creates_png(self, plotter_for_save):
-        plotter_for_save.save_options = "save_png_format"
-        plotter_for_save.save_psth_plot()
+    def test_save_cont_plot_creates_png(self, plotter_for_save):
+        plotter_for_save.save_options_cont = "save_png_format"
+        plotter_for_save.save_cont_plot()
         assert Path(plotter_for_save.results_psth["op"] + ".png").exists()
-        assert Path(plotter_for_save.results_psth["op_combine"] + ".png").exists()
 
-    def test_save_psth_plot_creates_svg(self, plotter_for_save):
-        plotter_for_save.save_options = "save_svg_format"
-        plotter_for_save.save_psth_plot()
-        assert Path(plotter_for_save.results_psth["op"] + ".svg").exists()
+    def test_save_overlay_plot_creates_svg(self, plotter_for_save):
+        plotter_for_save.save_options_overlay = "save_svg_format"
+        plotter_for_save.save_overlay_plot()
         assert Path(plotter_for_save.results_psth["op_combine"] + ".svg").exists()
+
+    def test_save_trials_plot_creates_png(self, plotter_for_save):
+        plotter_for_save.save_options_trials = "save_png_format"
+        plotter_for_save.save_trials_plot()
+        assert Path(plotter_for_save.results_psth["op_trials"] + ".png").exists()
+
+    def test_save_cont_plot_returns_zero_when_none(self, plotter_for_save):
+        plotter_for_save.save_options_cont = "None"
+        assert plotter_for_save.save_cont_plot() == 0
+
+    def test_save_overlay_plot_returns_zero_when_none(self, plotter_for_save):
+        plotter_for_save.save_options_overlay = "None"
+        assert plotter_for_save.save_overlay_plot() == 0
+
+    def test_save_trials_plot_returns_zero_when_none(self, plotter_for_save):
+        plotter_for_save.save_options_trials = "None"
+        assert plotter_for_save.save_trials_plot() == 0
+
+    def test_save_cont_plot_creates_png_and_svg_when_both(self, plotter_for_save):
+        plotter_for_save.save_options_cont = "save_both_format"
+        plotter_for_save.save_cont_plot()
+        assert Path(plotter_for_save.results_psth["op"] + ".png").exists()
+        assert Path(plotter_for_save.results_psth["op"] + ".svg").exists()
 
     def test_save_hm_plots_creates_png(self, plotter_for_save):
         plotter_for_save.save_options_heatmap = "save_png_format"
@@ -154,24 +235,10 @@ class TestParameterizedPlotter:
         plotter_for_save.save_hm_plots()
         assert Path(plotter_for_save.results_hm["op"] + ".svg").exists()
 
-    def test_save_psth_plot_returns_zero_when_save_options_none(self, plotter_for_save):
-        plotter_for_save.save_options = "None"
-        result = plotter_for_save.save_psth_plot()
-        assert result == 0
-
     def test_save_hm_plots_returns_zero_when_save_options_none(self, plotter_for_save):
         plotter_for_save.save_options_heatmap = "None"
         result = plotter_for_save.save_hm_plots()
         assert result == 0
-
-    def test_save_psth_plot_creates_png_and_svg_when_save_both(self, plotter_for_save):
-        plotter_for_save.save_options = "save_both_format"
-        plotter_for_save.save_psth_plot()
-
-        assert Path(plotter_for_save.results_psth["op"] + ".png").exists()
-        assert Path(plotter_for_save.results_psth["op"] + ".svg").exists()
-        assert Path(plotter_for_save.results_psth["op_combine"] + ".png").exists()
-        assert Path(plotter_for_save.results_psth["op_combine"] + ".svg").exists()
 
     def test_save_hm_plots_creates_png_and_svg_when_save_both(self, plotter_for_save):
         plotter_for_save.save_options_heatmap = "save_both_format"
@@ -221,6 +288,96 @@ class TestParameterizedPlotter:
 
         assert image is not None
         assert plotter.results_hm["op"].endswith(os.path.join("saved_plots", "event1_heatmap"))
+
+    def test_cont_plot_renders_with_custom_trace_color(self, plotter):
+        # Default y is "bin_1", which hits the trace_color branch of contPlot.
+        plotter.trace_color = "#ff8800"
+
+        plot = plotter.contPlot()
+
+        assert plot is not None
+
+    def test_cont_plot_all_trials_renders_with_custom_trace_color(self, plotter):
+        # The all-trials mean line uses trace_color (mean_color belongs to plot 3 now).
+        plotter.param["y"].objects = ["trial_1", "trial_2", "trial_3", "bin_1", "mean", "All"]
+        plotter.y = "All"
+        plotter.trace_color = "#12ab34"
+
+        plot = plotter.contPlot()
+
+        assert plot is not None
+
+    def test_plot_specific_trials_mean_renders_with_custom_trace_color(self, plotter):
+        plotter.psth_y = ["1 - trial_1", "2 - trial_2"]
+        plotter.select_trials_checkbox = ["mean"]
+        plotter.trace_color = "#ff8800"
+
+        plot = plotter.plot_specific_trials()
+
+        assert plot is not None
+
+    def test_plot_specific_trials_mean_and_trials_renders_with_custom_mean_color(self, plotter):
+        plotter.psth_y = ["1 - trial_1", "2 - trial_2"]
+        plotter.select_trials_checkbox = ["mean", "just trials"]
+        plotter.mean_color = "#12ab34"
+
+        plot = plotter.plot_specific_trials()
+
+        assert plot is not None
+
+    def test_plot_specific_trials_just_trials_renders(self, plotter):
+        # Regression: the just-trials branch must auto-fit trials_Y before render,
+        # otherwise HoloViews rejects ylim=None at render time.
+        plotter.psth_y = ["1 - trial_1", "2 - trial_2"]
+        plotter.select_trials_checkbox = ["just trials"]
+
+        plot = plotter.plot_specific_trials()
+        hv.render(plot)
+
+        assert plotter.trials_Y is not None
+
+    def test_range_sync_hook_writes_zoom_into_named_params(self, plotter):
+        # The hook mirrors a Bokeh zoom/pan of the figure into the plot's own range params.
+        hook = plotter._range_sync_hook("cont", "cont_X", "cont_Y")
+        figure = _FakeFigure()
+        hook(_FakePlot(figure), None)  # registers on_change callbacks
+
+        figure.x_range.start, figure.x_range.end = 2.0, 6.0
+        figure.y_range.start, figure.y_range.end = -0.5, 0.5
+        figure.x_range.callbacks[0]("end", 1.0, 6.0)  # simulate Bokeh firing the callback
+
+        assert plotter.cont_X == (2.0, 6.0)
+        assert plotter.cont_Y == (-0.5, 0.5)
+
+    def test_range_param_change_pushes_to_live_figure(self, plotter):
+        # A range param edit moves the already-rendered figure in place (no re-render),
+        # which is what keeps an interactive zoom from being interrupted.
+        figure = _FakeFigure()
+        plotter._figures["cont"] = figure
+
+        plotter.cont_X = (0.0, 3.0)
+        plotter.cont_Y = (-2.0, 2.0)
+
+        assert (figure.x_range.start, figure.x_range.end) == (0.0, 3.0)
+        assert (figure.y_range.start, figure.y_range.end) == (-2.0, 2.0)
+
+    def test_range_params_not_in_plot_dependencies(self, plotter):
+        # Range params must stay out of the plot methods' @param.depends lists so a
+        # zoom/pan does not trigger a re-render that would fight the user's gesture.
+        for method in ("contPlot", "update_selector", "plot_specific_trials"):
+            dependencies = {dependency.name for dependency in plotter.param.method_dependencies(method)}
+            assert dependencies.isdisjoint({"cont_X", "cont_Y", "overlay_X", "overlay_Y", "trials_X", "trials_Y"})
+
+    def test_range_sync_hook_only_touches_named_params(self, plotter):
+        # Syncing cont_X/cont_Y must not disturb the overlay/trials ranges.
+        hook = plotter._range_sync_hook("cont", "cont_X", "cont_Y")
+        figure = _FakeFigure()
+        hook(_FakePlot(figure), None)
+        figure.x_range.start, figure.x_range.end = 2.0, 6.0
+        figure.x_range.callbacks[0]("end", 1.0, 6.0)
+
+        assert plotter.overlay_X == (-5.0, 10.0)
+        assert plotter.trials_X == (-5.0, 10.0)
 
 
 # ---------------------------------------------------------------------------
@@ -274,6 +431,8 @@ def plotter_for_save(tmp_path, panel_extension):
         "op_combine": op_prefix + "_combine",
         "plot": curve,
         "op": op_prefix,
+        "trials": curve,
+        "op_trials": op_prefix + "_trials",
     }
     plotter.results_hm = {
         "plot": curve,

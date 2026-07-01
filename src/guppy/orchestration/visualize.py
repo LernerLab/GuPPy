@@ -8,7 +8,11 @@ import numpy as np
 import pandas as pd
 
 from .save_parameters import save_parameters
-from ..frontend.parameterized_plotter import ParameterizedPlotter, remove_cols
+from ..frontend.parameterized_plotter import (
+    ParameterizedPlotter,
+    overview_y_options,
+    remove_cols,
+)
 from ..frontend.visualization_dashboard import VisualizationDashboard
 from ..utils.utils import get_all_stores_for_combining_data, read_Df, select_output_dirs
 
@@ -114,15 +118,17 @@ def helper_plots(filepath: str, event: list[str], name: list[str] | str, inputPa
         multiple_plots_options = new_event + multiple_plots_options
     else:
         multiple_plots_options = new_event
-    x_min = float(inputParameters["nSecPrev"]) - 20
-    x_max = float(inputParameters["nSecPost"]) + 20
+    # Default the x-axis to the actual PSTH window (nSecPrev is negative by
+    # convention) so the traces fill the plot; users can still type/zoom beyond it.
+    x_min = float(inputParameters["nSecPrev"])
+    x_max = float(inputParameters["nSecPost"])
     colormaps = plt.colormaps()
     new_colormaps = ["plasma", "plasma_r", "magma", "magma_r", "inferno", "inferno_r", "viridis", "viridis_r"]
     set_a = set(colormaps)
     set_b = set(new_colormaps)
     colormaps = new_colormaps + list(set_a.difference(set_b))
     x = [columns_dict[new_event[0]][-4]]
-    y = remove_cols(columns_dict[new_event[0]])
+    y = overview_y_options(columns_dict[new_event[0]])
     trial_no = range(1, len(remove_cols(columns_dict[heatmap_options[0]])[:-2]) + 1)
     trial_ts = [
         "{} - {}".format(i, j) for i, j in zip(trial_no, remove_cols(columns_dict[heatmap_options[0]])[:-2])
