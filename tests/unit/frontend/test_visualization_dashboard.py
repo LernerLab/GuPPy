@@ -42,6 +42,33 @@ class TestVisualizationDashboard:
         content = first_object.object if hasattr(first_object, "object") else str(first_object)
         assert BASENAME in content
 
+    def test_psth_tab_uses_number_inputs_for_axis_limits(self, dashboard):
+        # 3 plots x 2 axes x (min, max) = 12 FloatInput boxes.
+        number_inputs = list(dashboard._psth_tab.select(pn.widgets.FloatInput))
+        assert len(number_inputs) == 12
+
+    def test_psth_tab_has_trace_and_mean_color_pickers(self, dashboard):
+        color_pickers = list(dashboard._psth_tab.select(pn.widgets.ColorPicker))
+        assert len(color_pickers) == 2
+
+    def test_range_number_inputs_param_updates_boxes(self, dashboard):
+        row = dashboard._range_number_inputs(name="cont_X", label="X")
+        minimum, maximum = row[0], row[1]
+
+        dashboard.plotter.cont_X = (1.0, 2.0)
+
+        assert minimum.value == 1.0
+        assert maximum.value == 2.0
+
+    def test_range_number_inputs_boxes_update_param(self, dashboard):
+        row = dashboard._range_number_inputs(name="cont_Y", label="Y")
+        minimum, maximum = row[0], row[1]
+
+        minimum.value = -3.0
+        maximum.value = 4.0
+
+        assert dashboard.plotter.cont_Y == (-3.0, 4.0)
+
     def test_heatmap_tab_embeds_heatmap(self, dashboard, plotter):
         # Panel wraps the heatmap reactive method in a ParamMethod inside a pn.Row.
         heatmap_row = dashboard._heatmap_tab.objects[-1]

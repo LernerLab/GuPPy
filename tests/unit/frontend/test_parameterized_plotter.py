@@ -12,6 +12,30 @@ from guppy.frontend.parameterized_plotter import (
     remove_cols,
 )
 
+
+class _FakeRange:
+    """Minimal stand-in for a Bokeh ``Range1d`` used to exercise _range_sync_hook."""
+
+    def __init__(self, start, end):
+        self.start = start
+        self.end = end
+        self.callbacks = []
+
+    def on_change(self, attr, callback):
+        self.callbacks.append(callback)
+
+
+class _FakeFigure:
+    def __init__(self):
+        self.x_range = _FakeRange(0.0, 1.0)
+        self.y_range = _FakeRange(-1.0, 1.0)
+
+
+class _FakePlot:
+    def __init__(self, figure):
+        self.state = figure
+
+
 # ---------------------------------------------------------------------------
 # remove_cols utility
 # ---------------------------------------------------------------------------
@@ -84,8 +108,23 @@ class TestParameterizedPlotter:
         # heatmap_y_objects[-1] == "All"
         assert plotter.heatmap_y == ["All"]
 
-    def test_x_limit_bounds_set_from_x_min_x_max(self, plotter):
-        assert plotter.param.X_Limit.bounds == (-5.0, 10.0)
+    def test_x_ranges_initialized_from_x_min_x_max(self, plotter):
+        # Each plot's X range is seeded with the padded PSTH window in __init__.
+        assert plotter.cont_X == (-5.0, 10.0)
+        assert plotter.overlay_X == (-5.0, 10.0)
+        assert plotter.trials_X == (-5.0, 10.0)
+
+    def test_y_ranges_start_unset_for_autofit(self, plotter):
+        # Y ranges are left as None so the first render auto-fits to the data.
+        assert plotter.cont_Y is None
+        assert plotter.overlay_Y is None
+        assert plotter.trials_Y is None
+
+    def test_default_trace_color(self, plotter):
+        assert plotter.trace_color == "#0000ff"
+
+    def test_default_mean_color(self, plotter):
+        assert plotter.mean_color == "#000000"
 
     def test_default_select_trials_checkbox(self, plotter):
         assert plotter.select_trials_checkbox == ["just trials"]
@@ -221,6 +260,76 @@ class TestParameterizedPlotter:
 
         assert image is not None
         assert plotter.results_hm["op"].endswith(os.path.join("saved_plots", "event1_heatmap"))
+
+    def test_cont_plot_renders_with_custom_trace_color(self, plotter):
+        # Default y is "bin_1", which hits the trace_color branch of contPlot.
+        plotter.trace_color = "#ff8800"
+
+        plot = plotter.contPlot()
+
+        assert plot is not None
+
+    def test_cont_plot_all_trials_renders_with_custom_mean_color(self, plotter):
+        plotter.param["y"].objects = ["trial_1", "trial_2", "trial_3", "bin_1", "mean", "All"]
+        plotter.y = "All"
+        plotter.mean_color = "#12ab34"
+
+        plot = plotter.contPlot()
+
+        assert plot is not None
+
+    def test_plot_specific_trials_mean_renders_with_custom_trace_color(self, plotter):
+        plotter.psth_y = ["1 - trial_1", "2 - trial_2"]
+        plotter.select_trials_checkbox = ["mean"]
+        plotter.trace_color = "#ff8800"
+
+        plot = plotter.plot_specific_trials()
+
+        assert plot is not None
+
+    def test_plot_specific_trials_mean_and_trials_renders_with_custom_mean_color(self, plotter):
+        plotter.psth_y = ["1 - trial_1", "2 - trial_2"]
+        plotter.select_trials_checkbox = ["mean", "just trials"]
+        plotter.mean_color = "#12ab34"
+
+        plot = plotter.plot_specific_trials()
+
+        assert plot is not None
+
+    def test_plot_specific_trials_just_trials_renders(self, plotter):
+        # Regression: the just-trials branch must auto-fit trials_Y before render,
+        # otherwise HoloViews rejects ylim=None at render time.
+        plotter.psth_y = ["1 - trial_1", "2 - trial_2"]
+        plotter.select_trials_checkbox = ["just trials"]
+
+        plot = plotter.plot_specific_trials()
+        hv.render(plot)
+
+        assert plotter.trials_Y is not None
+
+    def test_range_sync_hook_writes_zoom_into_named_params(self, plotter):
+        # The hook mirrors a Bokeh zoom/pan of the figure into the plot's own range params.
+        hook = plotter._range_sync_hook("cont_X", "cont_Y")
+        figure = _FakeFigure()
+        hook(_FakePlot(figure), None)  # registers on_change callbacks
+
+        figure.x_range.start, figure.x_range.end = 2.0, 6.0
+        figure.y_range.start, figure.y_range.end = -0.5, 0.5
+        figure.x_range.callbacks[0]("end", 1.0, 6.0)  # simulate Bokeh firing the callback
+
+        assert plotter.cont_X == (2.0, 6.0)
+        assert plotter.cont_Y == (-0.5, 0.5)
+
+    def test_range_sync_hook_only_touches_named_params(self, plotter):
+        # Syncing cont_X/cont_Y must not disturb the overlay/trials ranges.
+        hook = plotter._range_sync_hook("cont_X", "cont_Y")
+        figure = _FakeFigure()
+        hook(_FakePlot(figure), None)
+        figure.x_range.start, figure.x_range.end = 2.0, 6.0
+        figure.x_range.callbacks[0]("end", 1.0, 6.0)
+
+        assert plotter.overlay_X == (-5.0, 10.0)
+        assert plotter.trials_X == (-5.0, 10.0)
 
 
 # ---------------------------------------------------------------------------

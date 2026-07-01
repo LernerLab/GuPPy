@@ -2,6 +2,7 @@ import logging
 import math
 import os
 import re
+from collections.abc import Callable
 
 import datashader as ds
 import holoviews as hv
@@ -117,14 +118,24 @@ class ParameterizedPlotter(param.Parameterized):
         default="None", objects=["None", "save_png_format", "save_svg_format", "save_both_format"]
     )
     color_map = param.ObjectSelector(default="plasma")
+    trace_color = param.Color(default="#0000ff")
+    mean_color = param.Color(default="#000000")
     height_heatmap = param.ObjectSelector(default=600, objects=list(np.arange(0, 5100, 100))[1:])
     width_heatmap = param.ObjectSelector(default=1000, objects=list(np.arange(0, 5100, 100))[1:])
     Height_Plot = param.ObjectSelector(default=300, objects=list(np.arange(0, 5100, 100))[1:])
     Width_Plot = param.ObjectSelector(default=1000, objects=list(np.arange(0, 5100, 100))[1:])
     save_hm = param.Action(lambda x: x.param.trigger("save_hm"), label="Save")
     save_psth = param.Action(lambda x: x.param.trigger("save_psth"), label="Save")
-    X_Limit = param.Range(default=(-5, 10))
-    Y_Limit = param.Range(bounds=(-50, 50.0))
+    # Each PSTH plot owns an independent pair of axis-range params so that
+    # zooming/panning one plot (synced back via _range_sync_hook) does not move
+    # the others.  X ranges default to the padded PSTH window (set in __init__);
+    # Y ranges start as None and auto-fit to the data on first render.
+    cont_X = param.Range(default=None)
+    cont_Y = param.Range(default=None)
+    overlay_X = param.Range(default=None)
+    overlay_Y = param.Range(default=None)
+    trials_X = param.Range(default=None)
+    trials_Y = param.Range(default=None)
 
     x = param.ObjectSelector(default=None)
     y = param.ObjectSelector(default=None)
@@ -153,7 +164,35 @@ class ParameterizedPlotter(param.Parameterized):
         self.y = self.y_objects[-2]
         self.heatmap_y = [self.heatmap_y_objects[-1]]
 
-        self.param.X_Limit.bounds = (self.x_min, self.x_max)
+        self.cont_X = (self.x_min, self.x_max)
+        self.overlay_X = (self.x_min, self.x_max)
+        self.trials_X = (self.x_min, self.x_max)
+
+    def _range_sync_hook(self, x_name: str, y_name: str) -> Callable[[object, object], None]:
+        """Build a HoloViews ``hooks`` callback that mirrors Bokeh zoom/pan into params.
+
+        Attached to a plot via ``.opts(hooks=[...])``, the returned hook listens
+        for changes to the rendered figure's x/y ranges and writes them back into
+        the ``x_name``/``y_name`` range params, so the plot's number-entry boxes
+        stay in sync when the user zooms or pans that plot directly.
+        """
+
+        def hook(plot: object, element: object) -> None:
+            figure = plot.state
+
+            def sync(attr: str, old: object, new: object) -> None:
+                x_range = (figure.x_range.start, figure.x_range.end)
+                y_range = (figure.y_range.start, figure.y_range.end)
+                if None not in x_range and getattr(self, x_name) != x_range:
+                    setattr(self, x_name, (float(x_range[0]), float(x_range[1])))
+                if None not in y_range and getattr(self, y_name) != y_range:
+                    setattr(self, y_name, (float(y_range[0]), float(y_range[1])))
+
+            for axis_range in (figure.x_range, figure.y_range):
+                axis_range.on_change("start", sync)
+                axis_range.on_change("end", sync)
+
+        return hook
 
     # function to save heatmaps when save button on heatmap tab is clicked
     @param.depends("save_hm", watch=True)
@@ -240,8 +279,8 @@ class ParameterizedPlotter(param.Parameterized):
         "selector_for_multipe_events_plot",
         "Y_Label",
         "save_options",
-        "X_Limit",
-        "Y_Limit",
+        "overlay_X",
+        "overlay_Y",
         "Height_Plot",
         "Width_Plot",
     )
@@ -274,8 +313,8 @@ class ParameterizedPlotter(param.Parameterized):
                 cols_spread.append(arr[i] + "_" + "mean")
 
         if len(arr) > 0:
-            if self.Y_Limit == None:
-                self.Y_Limit = (np.nanmin(np.asarray(data_curve)) - 0.5, np.nanmax(np.asarray(data_curve)) + 0.5)
+            if self.overlay_Y is None:
+                self.overlay_Y = (np.nanmin(np.asarray(data_curve)) - 0.5, np.nanmax(np.asarray(data_curve)) + 0.5)
 
             if "bin" in arr[i]:
                 split = arr[i].rsplit("_", 2)
@@ -303,8 +342,8 @@ class ParameterizedPlotter(param.Parameterized):
                     c: hv.Curve((df_curve["timestamps"], df_curve[c]), kdims=["Time (s)"]).opts(
                         width=int(self.Width_Plot),
                         height=int(self.Height_Plot),
-                        xlim=self.X_Limit,
-                        ylim=self.Y_Limit,
+                        xlim=self.overlay_X,
+                        ylim=self.overlay_Y,
                     )
                     for c in cols_curve[:-1]
                 }
@@ -326,6 +365,7 @@ class ParameterizedPlotter(param.Parameterized):
             op = make_dir(self.filepath)
             op_filename = os.path.join(op, str(arr) + "_mean")
 
+            plot_combine = plot_combine.opts(hooks=[self._range_sync_hook("overlay_X", "overlay_Y")])
             self.results_psth["plot_combine"] = plot_combine
             self.results_psth["op_combine"] = op_filename
             # self.save_plots(plot_combine, save_opts, op_filename)
@@ -333,7 +373,17 @@ class ParameterizedPlotter(param.Parameterized):
 
     # function to plot mean PSTH, single trial in PSTH and all the trials of PSTH with mean
     @param.depends(
-        "event_selector", "x", "y", "Y_Label", "save_options", "Y_Limit", "X_Limit", "Height_Plot", "Width_Plot"
+        "event_selector",
+        "x",
+        "y",
+        "Y_Label",
+        "save_options",
+        "cont_Y",
+        "cont_X",
+        "Height_Plot",
+        "Width_Plot",
+        "trace_color",
+        "mean_color",
     )
     def contPlot(self) -> hv.Element:
         """Render the selected PSTH view (mean, single trial, or all-trials datashaded overlay).
@@ -349,8 +399,8 @@ class ParameterizedPlotter(param.Parameterized):
         # width = self.Width_Plot
         # logger.info(height, width)
         if self.y == "All":
-            if self.Y_Limit == None:
-                self.Y_Limit = (np.nanmin(np.asarray(df1)) - 0.5, np.nanmax(np.asarray(df1)) - 0.5)
+            if self.cont_Y is None:
+                self.cont_Y = (np.nanmin(np.asarray(df1)) - 0.5, np.nanmax(np.asarray(df1)) - 0.5)
 
             options = self.param["y"].objects
             regex = re.compile("bin_[(]")
@@ -366,14 +416,15 @@ class ParameterizedPlotter(param.Parameterized):
                     width=int(self.Width_Plot),
                     height=int(self.Height_Plot),
                     line_width=4,
-                    color="black",
-                    xlim=self.X_Limit,
-                    ylim=self.Y_Limit,
+                    color=self.mean_color,
+                    xlim=self.cont_X,
+                    ylim=self.cont_Y,
                     xlabel="Time (s)",
                     ylabel=self.Y_Label,
                 )
             )
 
+            img = img.opts(hooks=[self._range_sync_hook("cont_X", "cont_Y")])
             save_opts = self.save_options
 
             op = make_dir(self.filepath)
@@ -396,15 +447,15 @@ class ParameterizedPlotter(param.Parameterized):
 
             index = np.arange(0, xpoints.shape[0], 3)
 
-            if self.Y_Limit == None:
-                self.Y_Limit = (np.nanmin(ypoints) - 0.5, np.nanmax(ypoints) + 0.5)
+            if self.cont_Y is None:
+                self.cont_Y = (np.nanmin(ypoints) - 0.5, np.nanmax(ypoints) + 0.5)
 
             ropts_curve = dict(
                 width=int(self.Width_Plot),
                 height=int(self.Height_Plot),
-                xlim=self.X_Limit,
-                ylim=self.Y_Limit,
-                color="blue",
+                xlim=self.cont_X,
+                ylim=self.cont_Y,
+                color=self.trace_color,
                 xlabel="Time (s)",
                 ylabel=self.Y_Label,
             )
@@ -412,7 +463,7 @@ class ParameterizedPlotter(param.Parameterized):
                 width=int(self.Width_Plot),
                 height=int(self.Height_Plot),
                 fill_alpha=0.3,
-                fill_color="blue",
+                fill_color=self.trace_color,
                 line_width=0,
             )
 
@@ -421,6 +472,7 @@ class ParameterizedPlotter(param.Parameterized):
                 (xpoints[index], ypoints[index], err[index], err[index])
             )  # .opts(**ropts_spread) #vdims=['y', 'yerrpos', 'yerrneg']
             plot = (plot_curve * plot_spread).opts({"Curve": ropts_curve, "Spread": ropts_spread})
+            plot = plot.opts(hooks=[self._range_sync_hook("cont_X", "cont_Y")])
 
             save_opts = self.save_options
             op = make_dir(self.filepath)
@@ -434,19 +486,20 @@ class ParameterizedPlotter(param.Parameterized):
         else:
             xpoints = df1[self.x]
             ypoints = df1[self.y]
-            if self.Y_Limit == None:
-                self.Y_Limit = (np.nanmin(ypoints) - 0.5, np.nanmax(ypoints) + 0.5)
+            if self.cont_Y is None:
+                self.cont_Y = (np.nanmin(ypoints) - 0.5, np.nanmax(ypoints) + 0.5)
 
             ropts_curve = dict(
                 width=int(self.Width_Plot),
                 height=int(self.Height_Plot),
-                xlim=self.X_Limit,
-                ylim=self.Y_Limit,
-                color="blue",
+                xlim=self.cont_X,
+                ylim=self.cont_Y,
+                color=self.trace_color,
                 xlabel="Time (s)",
                 ylabel=self.Y_Label,
             )
             plot = hv.Curve((xpoints, ypoints)).opts({"Curve": ropts_curve})
+            plot = plot.opts(hooks=[self._range_sync_hook("cont_X", "cont_Y")])
 
             save_opts = self.save_options
             op = make_dir(self.filepath)
@@ -465,10 +518,12 @@ class ParameterizedPlotter(param.Parameterized):
         "select_trials_checkbox",
         "Y_Label",
         "save_options",
-        "Y_Limit",
-        "X_Limit",
+        "trials_Y",
+        "trials_X",
         "Height_Plot",
         "Width_Plot",
+        "trace_color",
+        "mean_color",
     )
     def plot_specific_trials(self) -> hv.Element | None:
         """Render the user-selected subset of PSTH trials, optionally with their mean.
@@ -481,13 +536,16 @@ class ParameterizedPlotter(param.Parameterized):
             ``None`` when ``psth_y`` is not set.
         """
         df_psth = self.df_new[self.event_selector]
-        # if self.Y_Limit==None:
-        # 	self.Y_Limit = (np.nanmin(ypoints)-0.5, np.nanmax(ypoints)+0.5)
+        # trials_Y is left as None here so the y-axis auto-fits per selection.
 
         if self.psth_y == None:
             return None
         else:
             selected_trials = [s.split(" - ")[1] for s in list(self.psth_y)]
+
+        if self.trials_Y is None:
+            selected = np.asarray(df_psth[selected_trials])
+            self.trials_Y = (np.nanmin(selected) - 0.5, np.nanmax(selected) + 0.5)
 
         index = np.arange(0, df_psth["timestamps"].shape[0], 3)
 
@@ -501,10 +559,11 @@ class ParameterizedPlotter(param.Parameterized):
             ropts = dict(
                 width=int(self.Width_Plot),
                 height=int(self.Height_Plot),
-                xlim=self.X_Limit,
-                ylim=self.Y_Limit,
+                xlim=self.trials_X,
+                ylim=self.trials_Y,
                 xlabel="Time (s)",
                 ylabel=self.Y_Label,
+                hooks=[self._range_sync_hook("trials_X", "trials_Y")],
             )
             return overlay.opts(**ropts)
         elif self.select_trials_checkbox == ["mean"]:
@@ -514,9 +573,9 @@ class ParameterizedPlotter(param.Parameterized):
             ropts_curve = dict(
                 width=int(self.Width_Plot),
                 height=int(self.Height_Plot),
-                xlim=self.X_Limit,
-                ylim=self.Y_Limit,
-                color="blue",
+                xlim=self.trials_X,
+                ylim=self.trials_Y,
+                color=self.trace_color,
                 xlabel="Time (s)",
                 ylabel=self.Y_Label,
             )
@@ -524,12 +583,13 @@ class ParameterizedPlotter(param.Parameterized):
                 width=int(self.Width_Plot),
                 height=int(self.Height_Plot),
                 fill_alpha=0.3,
-                fill_color="blue",
+                fill_color=self.trace_color,
                 line_width=0,
             )
             plot_curve = hv.Curve((df_psth["timestamps"][index], mean[index]))
             plot_spread = hv.Spread((df_psth["timestamps"][index], mean[index], err[index], err[index]))
             plot = (plot_curve * plot_spread).opts({"Curve": ropts_curve, "Spread": ropts_spread})
+            plot = plot.opts(hooks=[self._range_sync_hook("trials_X", "trials_Y")])
             return plot
         elif self.select_trials_checkbox == ["mean", "just trials"]:
             overlay = hv.NdOverlay(
@@ -541,8 +601,8 @@ class ParameterizedPlotter(param.Parameterized):
             ropts_overlay = dict(
                 width=int(self.Width_Plot),
                 height=int(self.Height_Plot),
-                xlim=self.X_Limit,
-                ylim=self.Y_Limit,
+                xlim=self.trials_X,
+                ylim=self.trials_Y,
                 xlabel="Time (s)",
                 ylabel=self.Y_Label,
             )
@@ -553,9 +613,9 @@ class ParameterizedPlotter(param.Parameterized):
             ropts_curve = dict(
                 width=int(self.Width_Plot),
                 height=int(self.Height_Plot),
-                xlim=self.X_Limit,
-                ylim=self.Y_Limit,
-                color="black",
+                xlim=self.trials_X,
+                ylim=self.trials_Y,
+                color=self.mean_color,
                 xlabel="Time (s)",
                 ylabel=self.Y_Label,
             )
@@ -563,14 +623,15 @@ class ParameterizedPlotter(param.Parameterized):
                 width=int(self.Width_Plot),
                 height=int(self.Height_Plot),
                 fill_alpha=0.3,
-                fill_color="black",
+                fill_color=self.mean_color,
                 line_width=0,
             )
             plot_curve = hv.Curve((df_psth["timestamps"][index], mean[index]))
             plot_spread = hv.Spread((df_psth["timestamps"][index], mean[index], err[index], err[index]))
 
             plot = (plot_curve * plot_spread).opts({"Curve": ropts_curve, "Spread": ropts_spread})
-            return overlay.opts(**ropts_overlay) * plot
+            combined = overlay.opts(**ropts_overlay) * plot
+            return combined.opts(hooks=[self._range_sync_hook("trials_X", "trials_Y")])
 
     # function to show heatmaps for each event
     @param.depends("event_selector_heatmap", "color_map", "height_heatmap", "width_heatmap", "heatmap_y")

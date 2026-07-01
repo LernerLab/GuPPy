@@ -32,6 +32,51 @@ class VisualizationDashboard:
         self._psth_tab = self._build_psth_tab()
         self._heatmap_tab = self._build_heatmap_tab()
 
+    def _range_number_inputs(self, *, name: str, label: str) -> pn.Row:
+        """Return two-way-bound min/max number boxes for a plotter ``Range`` param.
+
+        Editing a box writes ``(min, max)`` into ``plotter.<name>``, which
+        re-renders the associated plot; the plotter's range-sync hook writing
+        into that same param (on a Bokeh zoom/pan) updates the boxes, so the
+        numbers always reflect the plot's current axis range.
+
+        Parameters
+        ----------
+        name : str
+            Name of the ``param.Range`` on the plotter (e.g. ``"cont_X"``).
+        label : str
+            Prefix for the two box labels (e.g. ``"X"`` -> "X min"/"X max").
+        """
+        plotter = self.plotter
+        current = getattr(plotter, name)
+        minimum = pn.widgets.FloatInput(
+            name=f"{label} min", width=90, value=None if current is None else float(current[0])
+        )
+        maximum = pn.widgets.FloatInput(
+            name=f"{label} max", width=90, value=None if current is None else float(current[1])
+        )
+        # Guard so param->box updates don't echo back as box->param writes.
+        state = {"syncing": False}
+
+        def from_param(event: object) -> None:
+            state["syncing"] = True
+            value = event.new
+            minimum.value = None if value is None else float(value[0])
+            maximum.value = None if value is None else float(value[1])
+            state["syncing"] = False
+
+        def to_param(event: object) -> None:
+            if state["syncing"] or minimum.value is None or maximum.value is None:
+                return
+            new_range = (minimum.value, maximum.value)
+            if getattr(plotter, name) != new_range:
+                setattr(plotter, name, new_range)
+
+        plotter.param.watch(from_param, name)
+        minimum.param.watch(to_param, "value")
+        maximum.param.watch(to_param, "value")
+        return pn.Row(minimum, maximum, margin=(0, 15, 0, 0))
+
     def _build_psth_tab(self) -> pn.Column:
         """Build the PSTH tab with controls and plot panels."""
         psth_checkbox = pn.Param(
@@ -80,20 +125,34 @@ class VisualizationDashboard:
             self.plotter.param.save_options, widgets={"save_options": {"type": pn.widgets.Select, "width": 70}}
         )
 
-        xlimit_plot = pn.Param(
-            self.plotter.param.X_Limit, widgets={"X_Limit": {"type": pn.widgets.RangeSlider, "width": 180}}
+        trace_color = pn.Param(
+            self.plotter.param.trace_color, widgets={"trace_color": {"type": pn.widgets.ColorPicker, "width": 90}}
         )
-        ylimit_plot = pn.Param(
-            self.plotter.param.Y_Limit, widgets={"Y_Limit": {"type": pn.widgets.RangeSlider, "width": 180}}
+        mean_color = pn.Param(
+            self.plotter.param.mean_color, widgets={"mean_color": {"type": pn.widgets.ColorPicker, "width": 90}}
         )
         save_psth = pn.Param(
             self.plotter.param.save_psth, widgets={"save_psth": {"type": pn.widgets.Button, "width": 400}}
         )
 
+        # Each plot owns an independent axis-limit control that also snaps to Bokeh zoom/pan.
+        cont_limits = pn.Row(
+            self._range_number_inputs(name="cont_X", label="X"), self._range_number_inputs(name="cont_Y", label="Y")
+        )
+        overlay_limits = pn.Row(
+            self._range_number_inputs(name="overlay_X", label="X"),
+            self._range_number_inputs(name="overlay_Y", label="Y"),
+        )
+        trials_limits = pn.Row(
+            self._range_number_inputs(name="trials_X", label="X"),
+            self._range_number_inputs(name="trials_Y", label="Y"),
+        )
+
         options = pn.Column(
             event_selector,
             pn.Row(x_selector, y_selector),
-            pn.Row(xlimit_plot, ylimit_plot),
+            cont_limits,
+            pn.Row(trace_color, mean_color),
             pn.Row(width_plot, height_plot, ylabel, save_opts),
             save_psth,
         )
@@ -104,7 +163,11 @@ class VisualizationDashboard:
             "## " + self.basename,
             pn.Row(options_selectors, pn.Column(psth_checkbox, psth_y_parameters), width=1200),
             self.plotter.contPlot,
+            pn.pane.Markdown("**Multi-event overlay axis limits**"),
+            overlay_limits,
             self.plotter.update_selector,
+            pn.pane.Markdown("**Selected-trials axis limits**"),
+            trials_limits,
             self.plotter.plot_specific_trials,
         )
 
