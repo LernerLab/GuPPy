@@ -148,27 +148,54 @@ class VisualizationDashboard:
             self._range_number_inputs(name="trials_Y", label="Y"),
         )
 
-        options = pn.Column(
-            event_selector,
-            pn.Row(x_selector, y_selector),
-            cont_limits,
-            pn.Row(trace_color, mean_color),
-            pn.Row(width_plot, height_plot, ylabel, save_opts),
-            save_psth,
+        # Controls that affect every plot live in one shared card; each plot then
+        # gets its own card holding only the controls that drive it, so it is
+        # always clear which control belongs to which plot.
+        shared_settings = pn.Card(
+            pn.Row(width_plot, height_plot, ylabel),
+            title="Display settings (all plots)",
+            collapsed=False,
         )
 
-        options_selectors = pn.Row(options, parameters)
+        single_event_plot = pn.Card(
+            event_selector,
+            pn.Row(x_selector, y_selector),
+            pn.Row(trace_color, mean_color),
+            pn.pane.Markdown("**Axis limits**"),
+            cont_limits,
+            pn.Row(save_opts, save_psth),
+            pn.pane.Markdown("_Save exports this plot and the multi-event comparison plot below._"),
+            self.plotter.contPlot,
+            title="1 · Single-event PSTH (mean, one trial, or all trials)",
+            collapsed=False,
+        )
+
+        comparison_plot = pn.Card(
+            pn.pane.Markdown("Tick events to overlay their mean traces:"),
+            parameters,
+            pn.pane.Markdown("**Axis limits**"),
+            overlay_limits,
+            self.plotter.update_selector,
+            title="2 · Multi-event comparison",
+            collapsed=False,
+        )
+
+        selected_trials_plot = pn.Card(
+            pn.pane.Markdown("_Uses the event and trace colors chosen in section 1._"),
+            pn.Row(psth_checkbox, psth_y_parameters),
+            pn.pane.Markdown("**Axis limits**"),
+            trials_limits,
+            self.plotter.plot_specific_trials,
+            title="3 · Selected trials (of the section-1 event)",
+            collapsed=False,
+        )
 
         return pn.Column(
             "## " + self.basename,
-            pn.Row(options_selectors, pn.Column(psth_checkbox, psth_y_parameters), width=1200),
-            self.plotter.contPlot,
-            pn.pane.Markdown("**Multi-event overlay axis limits**"),
-            overlay_limits,
-            self.plotter.update_selector,
-            pn.pane.Markdown("**Selected-trials axis limits**"),
-            trials_limits,
-            self.plotter.plot_specific_trials,
+            shared_settings,
+            single_event_plot,
+            comparison_plot,
+            selected_trials_plot,
         )
 
     def _build_heatmap_tab(self) -> pn.Column:

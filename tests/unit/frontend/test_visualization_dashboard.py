@@ -25,11 +25,12 @@ class TestVisualizationDashboard:
         assert BASENAME in content
 
     def test_psth_tab_embeds_reactive_plots(self, dashboard, plotter):
-        # Panel wraps each reactive method in a ParamMethod pane. Verify that the
-        # three panes corresponding to contPlot, update_selector, and plot_specific_trials
-        # are present by inspecting the .object attribute of each ParamMethod.
-        objects = dashboard._psth_tab.objects
-        wrapped_methods = [obj.object for obj in objects if hasattr(obj, "object") and callable(obj.object)]
+        # Panel wraps each reactive method in a ParamMethod pane. Each plot now lives
+        # inside its own Card, so search the tab recursively for the three panes.
+        panes = dashboard._psth_tab.select(
+            lambda obj: hasattr(obj, "object") and callable(getattr(obj, "object", None))
+        )
+        wrapped_methods = [pane.object for pane in panes]
         assert plotter.contPlot in wrapped_methods
         assert plotter.update_selector in wrapped_methods
         assert plotter.plot_specific_trials in wrapped_methods
