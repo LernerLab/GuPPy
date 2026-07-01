@@ -309,7 +309,7 @@ class TestParameterizedPlotter:
 
     def test_range_sync_hook_writes_zoom_into_named_params(self, plotter):
         # The hook mirrors a Bokeh zoom/pan of the figure into the plot's own range params.
-        hook = plotter._range_sync_hook("cont_X", "cont_Y")
+        hook = plotter._range_sync_hook("cont", "cont_X", "cont_Y")
         figure = _FakeFigure()
         hook(_FakePlot(figure), None)  # registers on_change callbacks
 
@@ -320,9 +320,28 @@ class TestParameterizedPlotter:
         assert plotter.cont_X == (2.0, 6.0)
         assert plotter.cont_Y == (-0.5, 0.5)
 
+    def test_range_param_change_pushes_to_live_figure(self, plotter):
+        # A range param edit moves the already-rendered figure in place (no re-render),
+        # which is what keeps an interactive zoom from being interrupted.
+        figure = _FakeFigure()
+        plotter._figures["cont"] = figure
+
+        plotter.cont_X = (0.0, 3.0)
+        plotter.cont_Y = (-2.0, 2.0)
+
+        assert (figure.x_range.start, figure.x_range.end) == (0.0, 3.0)
+        assert (figure.y_range.start, figure.y_range.end) == (-2.0, 2.0)
+
+    def test_range_params_not_in_plot_dependencies(self, plotter):
+        # Range params must stay out of the plot methods' @param.depends lists so a
+        # zoom/pan does not trigger a re-render that would fight the user's gesture.
+        for method in ("contPlot", "update_selector", "plot_specific_trials"):
+            dependencies = {dependency.name for dependency in plotter.param.method_dependencies(method)}
+            assert dependencies.isdisjoint({"cont_X", "cont_Y", "overlay_X", "overlay_Y", "trials_X", "trials_Y"})
+
     def test_range_sync_hook_only_touches_named_params(self, plotter):
         # Syncing cont_X/cont_Y must not disturb the overlay/trials ranges.
-        hook = plotter._range_sync_hook("cont_X", "cont_Y")
+        hook = plotter._range_sync_hook("cont", "cont_X", "cont_Y")
         figure = _FakeFigure()
         hook(_FakePlot(figure), None)
         figure.x_range.start, figure.x_range.end = 2.0, 6.0

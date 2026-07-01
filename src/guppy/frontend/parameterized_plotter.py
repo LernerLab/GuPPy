@@ -168,17 +168,61 @@ class ParameterizedPlotter(param.Parameterized):
         self.overlay_X = (self.x_min, self.x_max)
         self.trials_X = (self.x_min, self.x_max)
 
-    def _range_sync_hook(self, x_name: str, y_name: str) -> Callable[[object, object], None]:
+        # Live Bokeh figure per plot, refreshed by _range_sync_hook on each render.
+        # Range params are deliberately NOT in the plot methods' @param.depends
+        # lists: a range change drives the live figure directly (below) instead of
+        # triggering a re-render, so an interactive zoom/pan is never interrupted.
+        self._figures: dict[str, object] = {}
+        for plot_key, x_name, y_name in self._RANGE_PLOTS:
+            self.param.watch(self._make_figure_range_pusher(plot_key, x_name, y_name), [x_name, y_name])
+
+    _RANGE_PLOTS = (
+        ("cont", "cont_X", "cont_Y"),
+        ("overlay", "overlay_X", "overlay_Y"),
+        ("trials", "trials_X", "trials_Y"),
+    )
+
+    @staticmethod
+    def _assign_range(axis_range: object, bounds: tuple) -> None:
+        """Set a Bokeh range's ``start``/``end`` only when they actually differ."""
+        low, high = float(bounds[0]), float(bounds[1])
+        if (axis_range.start, axis_range.end) != (low, high):
+            axis_range.start, axis_range.end = low, high
+
+    def _make_figure_range_pusher(self, plot_key: str, x_name: str, y_name: str) -> Callable[[object], None]:
+        """Build a param watcher that pushes a range param onto the live Bokeh figure.
+
+        This is the field/zoom -> plot direction that does not go through a
+        re-render: editing a number box (or a programmatic range update) moves the
+        already-rendered figure's axes in place.  Writing the same value the figure
+        already has is a no-op, so this never fights an in-progress zoom.
+        """
+
+        def push(event: object) -> None:
+            figure = self._figures.get(plot_key)
+            if figure is None:
+                return
+            x_range, y_range = getattr(self, x_name), getattr(self, y_name)
+            if x_range is not None:
+                self._assign_range(figure.x_range, x_range)
+            if y_range is not None:
+                self._assign_range(figure.y_range, y_range)
+
+        return push
+
+    def _range_sync_hook(self, plot_key: str, x_name: str, y_name: str) -> Callable[[object, object], None]:
         """Build a HoloViews ``hooks`` callback that mirrors Bokeh zoom/pan into params.
 
-        Attached to a plot via ``.opts(hooks=[...])``, the returned hook listens
-        for changes to the rendered figure's x/y ranges and writes them back into
-        the ``x_name``/``y_name`` range params, so the plot's number-entry boxes
-        stay in sync when the user zooms or pans that plot directly.
+        Attached to a plot via ``.opts(hooks=[...])``, the returned hook records the
+        rendered Bokeh figure (so number-box edits can drive it) and listens for
+        changes to the figure's x/y ranges, writing them back into the
+        ``x_name``/``y_name`` range params so the plot's number-entry boxes stay in
+        sync when the user zooms or pans that plot directly.
         """
 
         def hook(plot: object, element: object) -> None:
             figure = plot.state
+            self._figures[plot_key] = figure
 
             def sync(attr: str, old: object, new: object) -> None:
                 x_range = (figure.x_range.start, figure.x_range.end)
@@ -279,8 +323,6 @@ class ParameterizedPlotter(param.Parameterized):
         "selector_for_multipe_events_plot",
         "Y_Label",
         "save_options",
-        "overlay_X",
-        "overlay_Y",
         "Height_Plot",
         "Width_Plot",
     )
@@ -365,7 +407,7 @@ class ParameterizedPlotter(param.Parameterized):
             op = make_dir(self.filepath)
             op_filename = os.path.join(op, str(arr) + "_mean")
 
-            plot_combine = plot_combine.opts(hooks=[self._range_sync_hook("overlay_X", "overlay_Y")])
+            plot_combine = plot_combine.opts(hooks=[self._range_sync_hook("overlay", "overlay_X", "overlay_Y")])
             self.results_psth["plot_combine"] = plot_combine
             self.results_psth["op_combine"] = op_filename
             # self.save_plots(plot_combine, save_opts, op_filename)
@@ -378,8 +420,6 @@ class ParameterizedPlotter(param.Parameterized):
         "y",
         "Y_Label",
         "save_options",
-        "cont_Y",
-        "cont_X",
         "Height_Plot",
         "Width_Plot",
         "trace_color",
@@ -424,7 +464,7 @@ class ParameterizedPlotter(param.Parameterized):
                 )
             )
 
-            img = img.opts(hooks=[self._range_sync_hook("cont_X", "cont_Y")])
+            img = img.opts(hooks=[self._range_sync_hook("cont", "cont_X", "cont_Y")])
             save_opts = self.save_options
 
             op = make_dir(self.filepath)
@@ -472,7 +512,7 @@ class ParameterizedPlotter(param.Parameterized):
                 (xpoints[index], ypoints[index], err[index], err[index])
             )  # .opts(**ropts_spread) #vdims=['y', 'yerrpos', 'yerrneg']
             plot = (plot_curve * plot_spread).opts({"Curve": ropts_curve, "Spread": ropts_spread})
-            plot = plot.opts(hooks=[self._range_sync_hook("cont_X", "cont_Y")])
+            plot = plot.opts(hooks=[self._range_sync_hook("cont", "cont_X", "cont_Y")])
 
             save_opts = self.save_options
             op = make_dir(self.filepath)
@@ -499,7 +539,7 @@ class ParameterizedPlotter(param.Parameterized):
                 ylabel=self.Y_Label,
             )
             plot = hv.Curve((xpoints, ypoints)).opts({"Curve": ropts_curve})
-            plot = plot.opts(hooks=[self._range_sync_hook("cont_X", "cont_Y")])
+            plot = plot.opts(hooks=[self._range_sync_hook("cont", "cont_X", "cont_Y")])
 
             save_opts = self.save_options
             op = make_dir(self.filepath)
@@ -518,8 +558,6 @@ class ParameterizedPlotter(param.Parameterized):
         "select_trials_checkbox",
         "Y_Label",
         "save_options",
-        "trials_Y",
-        "trials_X",
         "Height_Plot",
         "Width_Plot",
         "trace_color",
@@ -563,7 +601,7 @@ class ParameterizedPlotter(param.Parameterized):
                 ylim=self.trials_Y,
                 xlabel="Time (s)",
                 ylabel=self.Y_Label,
-                hooks=[self._range_sync_hook("trials_X", "trials_Y")],
+                hooks=[self._range_sync_hook("trials", "trials_X", "trials_Y")],
             )
             return overlay.opts(**ropts)
         elif self.select_trials_checkbox == ["mean"]:
@@ -589,7 +627,7 @@ class ParameterizedPlotter(param.Parameterized):
             plot_curve = hv.Curve((df_psth["timestamps"][index], mean[index]))
             plot_spread = hv.Spread((df_psth["timestamps"][index], mean[index], err[index], err[index]))
             plot = (plot_curve * plot_spread).opts({"Curve": ropts_curve, "Spread": ropts_spread})
-            plot = plot.opts(hooks=[self._range_sync_hook("trials_X", "trials_Y")])
+            plot = plot.opts(hooks=[self._range_sync_hook("trials", "trials_X", "trials_Y")])
             return plot
         elif self.select_trials_checkbox == ["mean", "just trials"]:
             overlay = hv.NdOverlay(
@@ -631,7 +669,7 @@ class ParameterizedPlotter(param.Parameterized):
 
             plot = (plot_curve * plot_spread).opts({"Curve": ropts_curve, "Spread": ropts_spread})
             combined = overlay.opts(**ropts_overlay) * plot
-            return combined.opts(hooks=[self._range_sync_hook("trials_X", "trials_Y")])
+            return combined.opts(hooks=[self._range_sync_hook("trials", "trials_X", "trials_Y")])
 
     # function to show heatmaps for each event
     @param.depends("event_selector_heatmap", "color_map", "height_heatmap", "width_heatmap", "heatmap_y")
