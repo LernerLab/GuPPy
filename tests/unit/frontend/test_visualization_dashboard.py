@@ -52,6 +52,16 @@ class TestVisualizationDashboard:
         color_pickers = list(dashboard._psth_tab.select(pn.widgets.ColorPicker))
         assert len(color_pickers) == 2
 
+    def test_psth_tab_trial_picker_is_cross_selector(self, dashboard):
+        # Both the event picker and the trial picker are CrossSelectors.
+        cross_selectors = list(dashboard._psth_tab.select(pn.widgets.CrossSelector))
+        assert len(cross_selectors) == 2
+
+    def test_save_controls_expose_format_and_button(self, dashboard):
+        row = dashboard._save_controls(options_name="save_options_cont", action_name="save_cont")
+        assert list(row.select(pn.widgets.Select))
+        assert list(row.select(pn.widgets.Button))
+
     def test_range_number_inputs_param_updates_boxes(self, dashboard):
         row = dashboard._range_number_inputs(name="cont_X", label="X")
         minimum, maximum = row[0], row[1]

@@ -49,11 +49,13 @@ class VisualizationDashboard:
         """
         plotter = self.plotter
         current = getattr(plotter, name)
+        # format="0.00" keeps the displayed value to two decimals (the underlying
+        # float value is unrounded); width=110 leaves room for a couple of digits.
         minimum = pn.widgets.FloatInput(
-            name=f"{label} min", width=90, value=None if current is None else float(current[0])
+            name=f"{label} min", width=110, format="0.00", value=None if current is None else float(current[0])
         )
         maximum = pn.widgets.FloatInput(
-            name=f"{label} max", width=90, value=None if current is None else float(current[1])
+            name=f"{label} max", width=110, format="0.00", value=None if current is None else float(current[1])
         )
         # Guard so param->box updates don't echo back as box->param writes.
         state = {"syncing": False}
@@ -77,6 +79,18 @@ class VisualizationDashboard:
         maximum.param.watch(to_param, "value")
         return pn.Row(minimum, maximum, margin=(0, 15, 0, 0))
 
+    def _save_controls(self, *, options_name: str, action_name: str) -> pn.Row:
+        """Return a format selector + Save button bound to one plot's save params."""
+        options = pn.Param(
+            getattr(self.plotter.param, options_name),
+            widgets={options_name: {"type": pn.widgets.Select, "width": 150, "name": "Save format"}},
+        )
+        button = pn.Param(
+            getattr(self.plotter.param, action_name),
+            widgets={action_name: {"type": pn.widgets.Button, "width": 120}},
+        )
+        return pn.Row(options, pn.Column(pn.Spacer(height=25), button))
+
     def _build_psth_tab(self) -> pn.Column:
         """Build the PSTH tab with controls and plot panels."""
         psth_checkbox = pn.Param(
@@ -95,24 +109,22 @@ class VisualizationDashboard:
                 "selector_for_multipe_events_plot": {"type": pn.widgets.CrossSelector, "width": 550, "align": "start"}
             },
         )
+        # A CrossSelector (like the multi-event picker) makes the chosen trials
+        # visually obvious in a dedicated "selected" column.
         psth_y_parameters = pn.Param(
             self.plotter.param.psth_y,
             widgets={
-                "psth_y": {
-                    "type": pn.widgets.MultiSelect,
-                    "name": "Trial # - Timestamps",
-                    "width": 200,
-                    "size": 15,
-                    "align": "start",
-                }
+                "psth_y": {"type": pn.widgets.CrossSelector, "name": "Trials to show", "width": 420, "align": "start"}
             },
         )
 
         event_selector = pn.Param(
             self.plotter.param.event_selector, widgets={"event_selector": {"type": pn.widgets.Select, "width": 400}}
         )
-        x_selector = pn.Param(self.plotter.param.x, widgets={"x": {"type": pn.widgets.Select, "width": 180}})
-        y_selector = pn.Param(self.plotter.param.y, widgets={"y": {"type": pn.widgets.Select, "width": 180}})
+        # The x-axis is always "timestamps" (single option), so no x-selector is shown.
+        y_selector = pn.Param(
+            self.plotter.param.y, widgets={"y": {"type": pn.widgets.Select, "name": "View", "width": 180}}
+        )
 
         width_plot = pn.Param(
             self.plotter.param.Width_Plot, widgets={"Width_Plot": {"type": pn.widgets.Select, "width": 70}}
@@ -121,9 +133,6 @@ class VisualizationDashboard:
             self.plotter.param.Height_Plot, widgets={"Height_Plot": {"type": pn.widgets.Select, "width": 70}}
         )
         ylabel = pn.Param(self.plotter.param.Y_Label, widgets={"Y_Label": {"type": pn.widgets.Select, "width": 70}})
-        save_opts = pn.Param(
-            self.plotter.param.save_options, widgets={"save_options": {"type": pn.widgets.Select, "width": 70}}
-        )
 
         trace_color = pn.Param(
             self.plotter.param.trace_color, widgets={"trace_color": {"type": pn.widgets.ColorPicker, "width": 90}}
@@ -131,9 +140,15 @@ class VisualizationDashboard:
         mean_color = pn.Param(
             self.plotter.param.mean_color, widgets={"mean_color": {"type": pn.widgets.ColorPicker, "width": 90}}
         )
-        save_psth = pn.Param(
-            self.plotter.param.save_psth, widgets={"save_psth": {"type": pn.widgets.Button, "width": 400}}
+        overlay_palette = pn.Param(
+            self.plotter.param.overlay_palette,
+            widgets={"overlay_palette": {"type": pn.widgets.Select, "width": 150}},
         )
+
+        # Independent save controls (format selector + button) for each plot.
+        save_cont = self._save_controls(options_name="save_options_cont", action_name="save_cont")
+        save_overlay = self._save_controls(options_name="save_options_overlay", action_name="save_overlay")
+        save_trials = self._save_controls(options_name="save_options_trials", action_name="save_trials")
 
         # Each plot owns an independent axis-limit control that also snaps to Bokeh zoom/pan.
         cont_limits = pn.Row(
@@ -159,12 +174,11 @@ class VisualizationDashboard:
 
         single_event_plot = pn.Card(
             event_selector,
-            pn.Row(x_selector, y_selector),
-            pn.Row(trace_color, mean_color),
+            y_selector,
+            pn.Row(trace_color),
             pn.pane.Markdown("**Axis limits**"),
             cont_limits,
-            pn.Row(save_opts, save_psth),
-            pn.pane.Markdown("_Save exports this plot and the multi-event comparison plot below._"),
+            save_cont,
             self.plotter.contPlot,
             title="1 · Single-event PSTH (mean, one trial, or all trials)",
             collapsed=False,
@@ -173,18 +187,26 @@ class VisualizationDashboard:
         comparison_plot = pn.Card(
             pn.pane.Markdown("Tick events to overlay their mean traces:"),
             parameters,
+            pn.Row(overlay_palette),
             pn.pane.Markdown("**Axis limits**"),
             overlay_limits,
+            save_overlay,
             self.plotter.update_selector,
             title="2 · Multi-event comparison",
             collapsed=False,
         )
 
         selected_trials_plot = pn.Card(
-            pn.pane.Markdown("_Uses the event and trace colors chosen in section 1._"),
-            pn.Row(psth_checkbox, psth_y_parameters),
+            pn.pane.Markdown(
+                "_Uses the event and trace color chosen in section 1. Mean color (below) colors the mean overlay._"
+            ),
+            psth_checkbox,
+            pn.Row(mean_color),
+            pn.pane.Markdown("Move trials into the right-hand column to plot them:"),
+            psth_y_parameters,
             pn.pane.Markdown("**Axis limits**"),
             trials_limits,
+            save_trials,
             self.plotter.plot_specific_trials,
             title="3 · Selected trials (of the section-1 event)",
             collapsed=False,

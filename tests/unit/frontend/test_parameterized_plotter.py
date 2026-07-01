@@ -9,6 +9,7 @@ import pytest
 from guppy.frontend.parameterized_plotter import (
     ParameterizedPlotter,
     make_dir,
+    overview_y_options,
     remove_cols,
 )
 
@@ -56,6 +57,17 @@ def test_remove_cols_keeps_trial_mean_and_bin_columns():
 
 
 # ---------------------------------------------------------------------------
+# overview_y_options utility
+# ---------------------------------------------------------------------------
+
+
+def test_overview_y_options_keeps_mean_all_and_bins_drops_trials():
+    columns = ["trial_1", "trial_2", "bin_(0-5)", "timestamps", "mean", "err", "bin_err_(0-5)", "All"]
+    result = overview_y_options(columns)
+    assert result == ["bin_(0-5)", "mean", "All"]
+
+
+# ---------------------------------------------------------------------------
 # make_dir utility
 # ---------------------------------------------------------------------------
 
@@ -99,10 +111,14 @@ class TestParameterizedPlotter:
         # x_objects[0] == "timestamps"
         assert plotter.x == "timestamps"
 
-    def test_y_set_to_second_to_last_y_object(self, plotter):
-        # __init__ sets self.y = self.y_objects[-2] explicitly after the watcher fires.
-        # y_objects == ["trial_1", "mean"] so y_objects[-2] == "trial_1".
-        assert plotter.y == "trial_1"
+    def test_y_options_exclude_individual_trials(self, plotter):
+        # The overview y-selector keeps only whole-event views (bins, mean, All),
+        # not individual trial columns; here that leaves ["bin_1", "mean"].
+        assert plotter.param["y"].objects == ["bin_1", "mean"]
+
+    def test_y_default_is_overview_option(self, plotter):
+        # Default is objects[-2]; with ["bin_1", "mean"] that is "bin_1".
+        assert plotter.y == "bin_1"
 
     def test_heatmap_y_set_to_last_heatmap_y_object(self, plotter):
         # heatmap_y_objects[-1] == "All"
@@ -133,7 +149,12 @@ class TestParameterizedPlotter:
         assert plotter.Y_Label == "y"
 
     def test_default_save_options(self, plotter):
-        assert plotter.save_options == "None"
+        assert plotter.save_options_cont == "None"
+        assert plotter.save_options_overlay == "None"
+        assert plotter.save_options_trials == "None"
+
+    def test_default_overlay_palette(self, plotter):
+        assert plotter.overlay_palette == "Category10"
 
     def test_default_height_plot(self, plotter):
         assert plotter.Height_Plot == 300
@@ -143,7 +164,7 @@ class TestParameterizedPlotter:
 
     def test_update_x_y_fires_on_event_selector_change(self, plotter):
         # Changing event_selector triggers _update_x_y watcher.
-        # columns[-4] == "timestamps"; remove_cols(columns)[-2] == "bin_1"
+        # columns[-4] == "timestamps"; overview_y_options(columns)[-2] == "bin_1"
         plotter.event_selector = "event2"
         assert plotter.x == "timestamps"
         assert plotter.y == "bin_1"
@@ -171,17 +192,38 @@ class TestParameterizedPlotter:
         # Reset
         plotter.event_selector = "event1"
 
-    def test_save_psth_plot_creates_png(self, plotter_for_save):
-        plotter_for_save.save_options = "save_png_format"
-        plotter_for_save.save_psth_plot()
+    def test_save_cont_plot_creates_png(self, plotter_for_save):
+        plotter_for_save.save_options_cont = "save_png_format"
+        plotter_for_save.save_cont_plot()
         assert Path(plotter_for_save.results_psth["op"] + ".png").exists()
-        assert Path(plotter_for_save.results_psth["op_combine"] + ".png").exists()
 
-    def test_save_psth_plot_creates_svg(self, plotter_for_save):
-        plotter_for_save.save_options = "save_svg_format"
-        plotter_for_save.save_psth_plot()
-        assert Path(plotter_for_save.results_psth["op"] + ".svg").exists()
+    def test_save_overlay_plot_creates_svg(self, plotter_for_save):
+        plotter_for_save.save_options_overlay = "save_svg_format"
+        plotter_for_save.save_overlay_plot()
         assert Path(plotter_for_save.results_psth["op_combine"] + ".svg").exists()
+
+    def test_save_trials_plot_creates_png(self, plotter_for_save):
+        plotter_for_save.save_options_trials = "save_png_format"
+        plotter_for_save.save_trials_plot()
+        assert Path(plotter_for_save.results_psth["op_trials"] + ".png").exists()
+
+    def test_save_cont_plot_returns_zero_when_none(self, plotter_for_save):
+        plotter_for_save.save_options_cont = "None"
+        assert plotter_for_save.save_cont_plot() == 0
+
+    def test_save_overlay_plot_returns_zero_when_none(self, plotter_for_save):
+        plotter_for_save.save_options_overlay = "None"
+        assert plotter_for_save.save_overlay_plot() == 0
+
+    def test_save_trials_plot_returns_zero_when_none(self, plotter_for_save):
+        plotter_for_save.save_options_trials = "None"
+        assert plotter_for_save.save_trials_plot() == 0
+
+    def test_save_cont_plot_creates_png_and_svg_when_both(self, plotter_for_save):
+        plotter_for_save.save_options_cont = "save_both_format"
+        plotter_for_save.save_cont_plot()
+        assert Path(plotter_for_save.results_psth["op"] + ".png").exists()
+        assert Path(plotter_for_save.results_psth["op"] + ".svg").exists()
 
     def test_save_hm_plots_creates_png(self, plotter_for_save):
         plotter_for_save.save_options_heatmap = "save_png_format"
@@ -193,24 +235,10 @@ class TestParameterizedPlotter:
         plotter_for_save.save_hm_plots()
         assert Path(plotter_for_save.results_hm["op"] + ".svg").exists()
 
-    def test_save_psth_plot_returns_zero_when_save_options_none(self, plotter_for_save):
-        plotter_for_save.save_options = "None"
-        result = plotter_for_save.save_psth_plot()
-        assert result == 0
-
     def test_save_hm_plots_returns_zero_when_save_options_none(self, plotter_for_save):
         plotter_for_save.save_options_heatmap = "None"
         result = plotter_for_save.save_hm_plots()
         assert result == 0
-
-    def test_save_psth_plot_creates_png_and_svg_when_save_both(self, plotter_for_save):
-        plotter_for_save.save_options = "save_both_format"
-        plotter_for_save.save_psth_plot()
-
-        assert Path(plotter_for_save.results_psth["op"] + ".png").exists()
-        assert Path(plotter_for_save.results_psth["op"] + ".svg").exists()
-        assert Path(plotter_for_save.results_psth["op_combine"] + ".png").exists()
-        assert Path(plotter_for_save.results_psth["op_combine"] + ".svg").exists()
 
     def test_save_hm_plots_creates_png_and_svg_when_save_both(self, plotter_for_save):
         plotter_for_save.save_options_heatmap = "save_both_format"
@@ -269,10 +297,11 @@ class TestParameterizedPlotter:
 
         assert plot is not None
 
-    def test_cont_plot_all_trials_renders_with_custom_mean_color(self, plotter):
+    def test_cont_plot_all_trials_renders_with_custom_trace_color(self, plotter):
+        # The all-trials mean line uses trace_color (mean_color belongs to plot 3 now).
         plotter.param["y"].objects = ["trial_1", "trial_2", "trial_3", "bin_1", "mean", "All"]
         plotter.y = "All"
-        plotter.mean_color = "#12ab34"
+        plotter.trace_color = "#12ab34"
 
         plot = plotter.contPlot()
 
@@ -402,6 +431,8 @@ def plotter_for_save(tmp_path, panel_extension):
         "op_combine": op_prefix + "_combine",
         "plot": curve,
         "op": op_prefix,
+        "trials": curve,
+        "op_trials": op_prefix + "_trials",
     }
     plotter.results_hm = {
         "plot": curve,
