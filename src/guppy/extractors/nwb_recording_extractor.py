@@ -235,11 +235,6 @@ def _read_events_from_nwbfile(*, nwbfile: NWBFile, io: NWBHDF5IO, events: list[s
     return output_dicts
 
 
-def _unique_preserving_order(values: np.ndarray) -> list:
-    """Return the unique elements of *values* in first-seen order."""
-    return list(dict.fromkeys(values.tolist()))
-
-
 def _register_unique_name(seen_names: set[str], name: str, type_label: str) -> None:
     """Add *name* to *seen_names*, raising ``ValueError`` if already present."""
     if name in seen_names:
@@ -281,7 +276,7 @@ def _discover_core_events_tables(nwbfile: NWBFile, seen_names: set[str]) -> list
     for table_name, table in (getattr(nwbfile, "events", None) or {}).items():
         _register_unique_name(seen_names, table_name, "EventsTable")
         if "annotation" in table.colnames:
-            for annotation_value in _unique_preserving_order(np.asarray(table["annotation"][:])):
+            for annotation_value in np.unique(np.asarray(table["annotation"][:])):
                 events.append(f"{table_name}_{annotation_value}")
         else:
             events.append(table_name)
@@ -324,7 +319,7 @@ def _build_core_events_index(nwbfile: NWBFile) -> dict[str, tuple]:
     index = {}
     for table_name, table in (getattr(nwbfile, "events", None) or {}).items():
         if "annotation" in table.colnames:
-            for annotation_value in _unique_preserving_order(np.asarray(table["annotation"][:])):
+            for annotation_value in np.unique(np.asarray(table["annotation"][:])):
                 index[f"{table_name}_{annotation_value}"] = ("core", table, annotation_value)
         else:
             index[table_name] = ("core", table, None)
