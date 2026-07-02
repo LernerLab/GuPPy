@@ -26,12 +26,8 @@ MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_FILE = (
     MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_FOLDER / "mock_nwbfile_ndx_fiber_photometry_v0_1_ndx_events_v0_2.nwb"
 )
 
-MOCK_NWB_NDX_EVENTS_V0_4_FOLDER = (
-    STUBBED_TESTING_DATA / "nwb" / "mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_4"
-)
-MOCK_NWB_NDX_EVENTS_V0_4_FILE = (
-    MOCK_NWB_NDX_EVENTS_V0_4_FOLDER / "mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_4.nwb"
-)
+MOCK_NWB_CORE_EVENTS_FOLDER = STUBBED_TESTING_DATA / "nwb" / "mock_nwbfile_ndx_fiber_photometry_v0_2_core_events"
+MOCK_NWB_CORE_EVENTS_FILE = MOCK_NWB_CORE_EVENTS_FOLDER / "mock_nwbfile_ndx_fiber_photometry_v0_2_core_events.nwb"
 
 _NUM_SAMPLES = 3000
 _SAMPLING_RATE = 30.0
@@ -95,10 +91,45 @@ class TestRegisterUniqueName:
             _register_unique_name(seen, "my_series", "FiberPhotometryResponseSeries")
 
 
+class _FakeEventsColumn:
+    """Minimal stand-in for a VectorData column supporting ``column[:]`` indexing."""
+
+    def __init__(self, values):
+        self._values = np.asarray(values)
+
+    def __getitem__(self, key):
+        return self._values[key]
+
+
+class _FakeEventsTable:
+    """Minimal stand-in for a core ``EventsTable`` supporting ``table[column_name]`` access."""
+
+    def __init__(self, **columns):
+        self._columns = {name: _FakeEventsColumn(values) for name, values in columns.items()}
+
+    def __getitem__(self, name):
+        return self._columns[name]
+
+
 class TestReadNdxEvent:
     def test_raises_for_unknown_tag(self):
-        with pytest.raises(ValueError, match=r"Expected one of 'annotated', 'labeled', 'events', 'v04'"):
+        with pytest.raises(ValueError, match=r"Expected one of 'annotated', 'labeled', 'events', 'core'"):
             _read_ndx_event(event_name="bogus", source_info=("invalid_tag",))
+
+    def test_core_event_without_annotation_returns_all_timestamps(self):
+        table = _FakeEventsTable(timestamp=[1.0, 2.0, 3.0])
+        result = _read_ndx_event(event_name="simple_events", source_info=("core", table, None))
+        assert result["storename"] == "simple_events"
+        np.testing.assert_array_equal(result["timestamps"], np.array([1.0, 2.0, 3.0]))
+
+    def test_core_event_filters_by_annotation_value(self):
+        table = _FakeEventsTable(
+            timestamp=[41.0, 42.0, 55.0, 56.0],
+            annotation=["Reward", "Reward", "Punishment", "Punishment"],
+        )
+        result = _read_ndx_event(event_name="annotated_events_Reward", source_info=("core", table, "Reward"))
+        assert result["storename"] == "annotated_events_Reward"
+        np.testing.assert_array_equal(result["timestamps"], np.array([41.0, 42.0]))
 
 
 class TestResolveTiming:
@@ -261,17 +292,17 @@ class TestNwbRecordingExtractorNdxFiberPhotometryV010Events(NwbRecordingExtracto
 
 
 # ---------------------------------------------------------------------------
-# Contract tests for ndx-events v0.4 mock NWB file
+# Contract tests for core (pynwb 4.0) EventsTable mock NWB file
 # ---------------------------------------------------------------------------
 
 
-class TestNwbRecordingExtractorNdxEventsV04SimpleEvents(NwbRecordingExtractorTestMixin):
-    """Contract tests for the ndx-events v0.4 mock file using a plain EventsTable as the TTL channel."""
+class TestNwbRecordingExtractorCoreEventsSimple(NwbRecordingExtractorTestMixin):
+    """Contract tests for the core-events mock file using a plain ``EventsTable`` as the TTL channel."""
 
     extractor_class = NwbRecordingExtractor
-    folder_path = str(MOCK_NWB_NDX_EVENTS_V0_4_FOLDER)
-    file_path = str(MOCK_NWB_NDX_EVENTS_V0_4_FILE)
-    extractor_instance = NwbRecordingExtractor(folder_path=str(MOCK_NWB_NDX_EVENTS_V0_4_FOLDER))
+    folder_path = str(MOCK_NWB_CORE_EVENTS_FOLDER)
+    file_path = str(MOCK_NWB_CORE_EVENTS_FILE)
+    extractor_instance = NwbRecordingExtractor(folder_path=str(MOCK_NWB_CORE_EVENTS_FOLDER))
     control_event = "fiber_photometry_response_series_0"
     signal_event = "fiber_photometry_response_series_1"
     ttl_event = "simple_events"
@@ -279,8 +310,8 @@ class TestNwbRecordingExtractorNdxEventsV04SimpleEvents(NwbRecordingExtractorTes
         "fiber_photometry_response_series_0",
         "fiber_photometry_response_series_1",
         "simple_events",
-        "categorized_events_event_type_Reward",
-        "categorized_events_event_type_Punishment",
+        "annotated_events_Reward",
+        "annotated_events_Punishment",
     ]
 
     @pytest.fixture
@@ -289,22 +320,22 @@ class TestNwbRecordingExtractorNdxEventsV04SimpleEvents(NwbRecordingExtractorTes
         return np.arange(45, 55, dtype=np.float64)
 
 
-class TestNwbRecordingExtractorNdxEventsV04CategoricalEvents(NwbRecordingExtractorTestMixin):
-    """Contract tests for the ndx-events v0.4 mock file using a categorical EventsTable as the TTL channel."""
+class TestNwbRecordingExtractorCoreEventsAnnotated(NwbRecordingExtractorTestMixin):
+    """Contract tests for the core-events mock file using an annotated ``EventsTable`` as the TTL channel."""
 
     extractor_class = NwbRecordingExtractor
-    folder_path = str(MOCK_NWB_NDX_EVENTS_V0_4_FOLDER)
-    file_path = str(MOCK_NWB_NDX_EVENTS_V0_4_FILE)
-    extractor_instance = NwbRecordingExtractor(folder_path=str(MOCK_NWB_NDX_EVENTS_V0_4_FOLDER))
+    folder_path = str(MOCK_NWB_CORE_EVENTS_FOLDER)
+    file_path = str(MOCK_NWB_CORE_EVENTS_FILE)
+    extractor_instance = NwbRecordingExtractor(folder_path=str(MOCK_NWB_CORE_EVENTS_FOLDER))
     control_event = "fiber_photometry_response_series_0"
     signal_event = "fiber_photometry_response_series_1"
-    ttl_event = "categorized_events_event_type_Reward"
+    ttl_event = "annotated_events_Reward"
     expected_events = [
         "fiber_photometry_response_series_0",
         "fiber_photometry_response_series_1",
         "simple_events",
-        "categorized_events_event_type_Reward",
-        "categorized_events_event_type_Punishment",
+        "annotated_events_Reward",
+        "annotated_events_Punishment",
     ]
 
     @pytest.fixture

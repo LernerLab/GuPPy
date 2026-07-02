@@ -1,6 +1,7 @@
 # v2.0.0-alpha7 (Upcoming)
 
 ## Features
+- Added support for pynwb 4.0, including the new core `EventsTable` event type (NWB Schema 2.10.0); each `EventsTable` becomes a store, split into one store per unique value of its optional text `annotation` column. Dropped support for the `ndx-events` 0.4 extension, which is unreadable under pynwb 4.0. [PR #364](https://github.com/LernerLab/GuPPy/pull/364)
 - Added an optional "Import Custom Events" GUI step for pasting external behavioral timestamps (copied from a spreadsheet column), written as GuPPy-compatible single-column CSVs that surface as stores in the Storenames GUI; advanced users can hand-build the same CSV format, documented in a new how-to guide. [PR #362](https://github.com/LernerLab/GuPPy/pull/362)
 - Added Iteratively Re-Weighted Least Squares (IRWLS) as the control-channel fitting method and made it the new default (robust to outliers; ordinary least-squares `OLS` fitting remains selectable via the new `control_fit_method` parameter). [PR #359](https://github.com/LernerLab/GuPPy/pull/359)
 - Each pipeline step now writes `GuPPyParamtersUsed.json` into its output directory automatically, and selecting an existing output run reloads its saved parameters into the form so the snapshot always matches what was executed and resuming a run no longer overwrites its parameters. Removed the manual "Save Input Parameters" button and renumbered the sidebar steps 1–5. Resolves [#301](https://github.com/LernerLab/GuPPy/issues/301). [PR #353](https://github.com/LernerLab/GuPPy/pull/353)
@@ -23,7 +24,6 @@
 - Unified the pipeline step numbering on the canonical Storenames = Step 1 scheme across the testing API, tests, error messages, comments, and docs, so error messages that tell the user to re-run a step now match the GUI sidebar labels. [PR #361](https://github.com/LernerLab/GuPPy/pull/361)
 - Stored event timestamps now share the recording-start time basis with the continuous `timestampNew` stream instead of being re-zeroed to `timeForLightsTurnOn`, so all series can be co-registered without per-stream offset bookkeeping (PSTH results are unchanged). Resolves [#355](https://github.com/LernerLab/GuPPy/issues/355). [PR #356](https://github.com/LernerLab/GuPPy/pull/356)
 - Fixed bug with step five, which was causing the baseline uncorrected HDF5 file to not exist. [PR #241](https://github.com/LernerLab/GuPPy/pull/241)
-- Pinned pynwb < 4 to avoid issues with the NWB extractor. [PR #363](https://github.com/LernerLab/GuPPy/pull/363)
 
 ## Improvements
 - Hoisted step-3 multiprocessing pool out of the per-session loop and batched reads per `(session, extractor)` pair: ~3.3× faster DANDI streaming and ~2.2× faster local NWB on representative sessions.

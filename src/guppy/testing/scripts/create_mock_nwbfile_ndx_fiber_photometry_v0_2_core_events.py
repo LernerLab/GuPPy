@@ -1,26 +1,28 @@
-"""Generate a mock NWB file for testing the NWB recording extractor with ndx-events v0.4.
+"""Generate a mock NWB file for testing the NWB recording extractor with core pynwb 4.0 events.
 
-IMPORTANT: This script must be run with ndx-fiber-photometry==0.2.3 and ndx-events==0.4.0 installed.
+IMPORTANT: This script must be run with pynwb>=4 and ndx-fiber-photometry==0.2.3 installed.
+
+The events types (``EventsTable``, ``TimestampVectorData``) are part of the core NWB schema as of
+NWB Schema 2.10.0 / pynwb 4.0, so no events extension is required.
 
 To run, create the isolated conda environment defined alongside this script:
-    conda env create -f src/guppy/testing/scripts/environment_ndx_fiber_photometry_v0_2_ndx_events_v0_4.yaml
-    conda activate guppy_ndx_fiber_photometry_v0_2_ndx_events_v0_4
+    conda env create -f src/guppy/testing/scripts/environment_ndx_fiber_photometry_v0_2_core_events.yaml
+    conda activate guppy_ndx_fiber_photometry_v0_2_core_events
 
 Then run from the project root:
-    python src/guppy/testing/scripts/create_mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_4.py
+    python src/guppy/testing/scripts/create_mock_nwbfile_ndx_fiber_photometry_v0_2_core_events.py
 
 The output is written to
-stubbed_testing_data/nwb/mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_4/mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_4.nwb,
+stubbed_testing_data/nwb/mock_nwbfile_ndx_fiber_photometry_v0_2_core_events/mock_nwbfile_ndx_fiber_photometry_v0_2_core_events.nwb,
 relative to the repository root. The directory is created if it does not exist.
 
 The file contains:
 - FiberPhotometryResponseSeries with 3000 samples at 30 Hz across 2 channels (control, signal)
-- EventsTable named "simple_events" (timestamps 45–54 s, no categorical columns)
+- Core EventsTable named "simple_events" (timestamps 45–54 s, no annotation column)
   → discovers as one event "simple_events"
-- EventsTable named "categorized_events" with a CategoricalVectorData column "event_type"
-  containing meanings "Reward" (timestamps 41–45 s) and "Punishment" (timestamps 55–59 s)
-  → discovers as two events "categorized_events_event_type_Reward"
-  and "categorized_events_event_type_Punishment"
+- Core EventsTable named "annotated_events" with a text "annotation" column containing
+  "Reward" (timestamps 41–45 s) and "Punishment" (timestamps 55–59 s)
+  → discovers as two events "annotated_events_Reward" and "annotated_events_Punishment"
 """
 
 import datetime
@@ -28,12 +30,6 @@ from pathlib import Path
 
 import numpy as np
 from hdmf.common import DynamicTableRegion
-from ndx_events import (
-    CategoricalVectorData,
-    EventsTable,
-    MeaningsTable,
-    NdxEventsNWBFile,
-)
 from ndx_fiber_photometry import (
     FiberPhotometry,
     FiberPhotometryIndicators,
@@ -58,7 +54,8 @@ from ndx_ophys_devices import (
     ViralVector,
     ViralVectorInjection,
 )
-from pynwb import NWBHDF5IO
+from pynwb import NWBHDF5IO, NWBFile
+from pynwb.event import EventsTable
 
 # Output path relative to this script's location (repo_root/stubbed_testing_data/nwb/...)
 _REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -66,12 +63,12 @@ _OUTPUT_PATH = (
     _REPO_ROOT
     / "stubbed_testing_data"
     / "nwb"
-    / "mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_4"
-    / "mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_4.nwb"
+    / "mock_nwbfile_ndx_fiber_photometry_v0_2_core_events"
+    / "mock_nwbfile_ndx_fiber_photometry_v0_2_core_events.nwb"
 )
 
 
-def _add_ndx_fiber_photometry_metadata(nwbfile: NdxEventsNWBFile) -> DynamicTableRegion:
+def _add_ndx_fiber_photometry_metadata(nwbfile: NWBFile) -> DynamicTableRegion:
     """Add all ndx-fiber-photometry hardware metadata to *nwbfile*.
 
     This boilerplate is required to produce a valid NWBFile, but Guppy only
@@ -80,7 +77,7 @@ def _add_ndx_fiber_photometry_metadata(nwbfile: NdxEventsNWBFile) -> DynamicTabl
 
     Parameters
     ----------
-    nwbfile : NdxEventsNWBFile
+    nwbfile : pynwb.NWBFile
         The file to populate in-place.
 
     Returns
@@ -285,10 +282,10 @@ def _add_ndx_fiber_photometry_metadata(nwbfile: NdxEventsNWBFile) -> DynamicTabl
 
 
 def main() -> None:
-    """Create and write a mock NWB file using ndx-fiber-photometry v0.2 and ndx-events v0.4."""
-    nwbfile = NdxEventsNWBFile(
-        session_description="Mock session for NWB extractor testing (ndx-events v0.4).",
-        identifier="mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_4",
+    """Create and write a mock NWB file using ndx-fiber-photometry v0.2 and core pynwb 4.0 events."""
+    nwbfile = NWBFile(
+        session_description="Mock session for NWB extractor testing (core pynwb 4.0 events).",
+        identifier="mock_nwbfile_ndx_fiber_photometry_v0_2_core_events",
         session_start_time=datetime.datetime.now(datetime.timezone.utc),
     )
 
@@ -308,40 +305,26 @@ def main() -> None:
         )
     )
 
-    # --- Simple EventsTable: timestamps 45–54 s, no categorical columns ---
+    # --- Simple EventsTable: timestamps 45–54 s, no annotation column ---
     # Discovers as a single event named "simple_events".
-    simple_events = EventsTable(name="simple_events", description="Mock events with no categorical columns.")
+    simple_events = EventsTable(name="simple_events", description="Mock events with no annotation column.")
     for timestamp in np.arange(45, 55, dtype=np.float64):
         simple_events.add_row(timestamp=timestamp)
     nwbfile.add_events_table(simple_events)
 
-    # --- Categorical EventsTable: timestamps 41–59 s, two meanings ---
-    # A CategoricalVectorData column "event_type" with values "Reward" and "Punishment".
-    # Discovers as "categorized_events_event_type_Reward" and
-    # "categorized_events_event_type_Punishment".
-    event_type_meanings = MeaningsTable(
-        name="event_type_meanings",
-        description="Meanings for the event_type column.",
+    # --- Annotated EventsTable: timestamps 41–59 s, text "annotation" column ---
+    # An "annotation" column with values "Reward" and "Punishment".
+    # Discovers as "annotated_events_Reward" and "annotated_events_Punishment".
+    annotated_events = EventsTable(
+        name="annotated_events",
+        description="Mock events with a text annotation column.",
     )
-    event_type_meanings.add_row(value="Reward", meaning="Times when the subject received juice reward.")
-    event_type_meanings.add_row(value="Punishment", meaning="Times when the subject received a mild shock.")
-
-    categorized_events = EventsTable(
-        name="categorized_events",
-        description="Mock events with a categorical event_type column.",
-        meanings_tables=[event_type_meanings],
-    )
-    categorized_events.add_column(
-        name="event_type",
-        description="Categorical label for each event.",
-        col_cls=CategoricalVectorData,
-        meanings=event_type_meanings,
-    )
+    annotated_events.add_column(name="annotation", description="Text label for each event.")
     for timestamp in np.arange(41, 46, dtype=np.float64):
-        categorized_events.add_row(timestamp=timestamp, event_type="Reward")
+        annotated_events.add_row(timestamp=timestamp, annotation="Reward")
     for timestamp in np.arange(55, 60, dtype=np.float64):
-        categorized_events.add_row(timestamp=timestamp, event_type="Punishment")
-    nwbfile.add_events_table(categorized_events)
+        annotated_events.add_row(timestamp=timestamp, annotation="Punishment")
+    nwbfile.add_events_table(annotated_events)
 
     _OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     with NWBHDF5IO(_OUTPUT_PATH, "w") as io:
