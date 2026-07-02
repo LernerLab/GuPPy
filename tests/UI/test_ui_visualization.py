@@ -97,7 +97,7 @@ def test_trials_checkbox_options_visible(page, visualization_server_url):
 @pytest.mark.ui
 def test_trials_to_show_picker_visible(page, visualization_server_url):
     page.goto(visualization_server_url)
-    expect(page.get_by_text("Trials to show").first).to_be_visible()
+    expect(page.get_by_text("Move trials into the right-hand column to plot them:").first).to_be_visible()
 
 
 @pytest.mark.ui
