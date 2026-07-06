@@ -706,6 +706,8 @@ def step5(
     npm_time_units: list[str] | None = None,
     npm_split_events: list[bool] | None = None,
     visualize_zscore_or_dff: str = "z_score",
+    visualize_average_results: bool = False,
+    group_folders: list[str] | None = None,
     selected_runs: dict[str, list[str]],
     group_selected_runs: dict[str, list[str]] | None = None,
 ) -> None:
@@ -735,6 +737,13 @@ def step5(
         List of booleans indicating whether to split events for NPM files. None if not applicable.
     visualize_zscore_or_dff : str
         Signal type to visualize. One of ``'z_score'`` or ``'dff'``. Defaults to ``'z_score'``.
+    visualize_average_results : bool
+        When ``True``, visualize the group-averaged results from the ``average/``
+        directory instead of the individual sessions. Injected as
+        ``visualizeAverageResults``. Defaults to ``False``.
+    group_folders : list[str] | None
+        Session directories whose group average is being visualized; required when
+        ``visualize_average_results`` is ``True``. Injected as ``folderNamesForAvg``.
 
     Raises
     ------
@@ -787,12 +796,14 @@ def step5(
     # Inject visualization signal-type selection
     input_params["visualize_zscore_or_dff"] = visualize_zscore_or_dff
 
+    # Inject group-average visualization selection
+    input_params["visualizeAverageResults"] = visualize_average_results
+    abs_group_folders = [os.path.abspath(f) for f in group_folders] if group_folders else []
+    input_params["folderNamesForAvg"] = abs_group_folders
+
     # Per-session output-directory subset filter for individual + group visualization
     input_params["selectedOutputs"] = _normalize_selected_runs(selected_runs, abs_sessions)
-    input_params["groupSelectedOutputs"] = _normalize_group_selected_runs(
-        group_selected_runs,
-        [os.path.abspath(f) for f in (input_params.get("folderNamesForAvg") or [])],
-    )
+    input_params["groupSelectedOutputs"] = _normalize_group_selected_runs(group_selected_runs, abs_group_folders)
 
     # Call the underlying Step 5 worker directly (no subprocess)
     visualizeResults(input_params)
