@@ -201,13 +201,12 @@ class ParameterizedPlotter(param.Parameterized):
         self.overlay_X = (self.x_min, self.x_max)
         self.trials_X = (self.x_min, self.x_max)
 
-        # Live Bokeh figure per plot, refreshed by _range_sync_hook on each render.
+        # Live Bokeh figure per plot, recorded by _range_sync_hook on each render.
         # Range params are deliberately NOT in the plot methods' @param.depends
-        # lists: a range change drives the live figure directly (below) instead of
-        # triggering a re-render, so an interactive zoom/pan is never interrupted.
+        # lists: a typed-box edit drives the live figure directly (via
+        # move_figure_to_range, called from the box callback) instead of triggering
+        # a re-render, so an interactive zoom/pan is never interrupted.
         self._figures: dict[str, object] = {}
-        for plot_key, x_name, y_name in self._RANGE_PLOTS:
-            self.param.watch(self._make_figure_range_pusher(plot_key, x_name, y_name), [x_name, y_name])
 
         # Track the data selection each plot last rendered so the Y range can
         # auto-refit when the selection (event, trace, trials) changes, while
@@ -227,26 +226,37 @@ class ParameterizedPlotter(param.Parameterized):
         if (axis_range.start, axis_range.end) != (low, high):
             axis_range.start, axis_range.end = low, high
 
-    def _make_figure_range_pusher(self, plot_key: str, x_name: str, y_name: str) -> Callable[[object], None]:
-        """Build a param watcher that pushes a range param onto the live Bokeh figure.
+    def move_figure_to_range(self, name: str) -> None:
+        """Move a plot's live Bokeh figure to match its current range params.
 
-        This is the field/zoom -> plot direction that does not go through a
-        re-render: editing a number box (or a programmatic range update) moves the
-        already-rendered figure's axes in place.  Writing the same value the figure
-        already has is a no-op, so this never fights an in-progress zoom.
+        Called from the number-box callback so that typing a new limit moves the
+        already-rendered figure in place (no re-render). Writing the same value the
+        figure already has is a no-op, so this never fights an in-progress zoom.
+
+        This is deliberately NOT a watcher on the range params: a render also writes
+        those params (to auto-fit and to keep the boxes in sync), and mutating the
+        stale figure mid-re-render is illegal under Bokeh's document lock. Only a
+        genuine box edit needs to move the figure, so only the box edit calls this.
+
+        Parameters
+        ----------
+        name : str
+            Name of the range param that changed (e.g. ``"cont_X"``); the matching
+            plot's figure is moved to its current x and y ranges.
         """
-
-        def push(event: object) -> None:
-            figure = self._figures.get(plot_key)
-            if figure is None:
-                return
-            x_range, y_range = getattr(self, x_name), getattr(self, y_name)
-            if x_range is not None:
-                self._assign_range(figure.x_range, x_range)
-            if y_range is not None:
-                self._assign_range(figure.y_range, y_range)
-
-        return push
+        for plot_key, x_name, y_name in self._RANGE_PLOTS:
+            if name in (x_name, y_name):
+                break
+        else:
+            return
+        figure = self._figures.get(plot_key)
+        if figure is None:
+            return
+        x_range, y_range = getattr(self, x_name), getattr(self, y_name)
+        if x_range is not None:
+            self._assign_range(figure.x_range, x_range)
+        if y_range is not None:
+            self._assign_range(figure.y_range, y_range)
 
     def _range_sync_hook(self, plot_key: str, x_name: str, y_name: str) -> Callable[[object, object], None]:
         """Build a HoloViews ``hooks`` callback that mirrors Bokeh zoom/pan into params.

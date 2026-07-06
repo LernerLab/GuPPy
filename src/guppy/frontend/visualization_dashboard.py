@@ -35,10 +35,10 @@ class VisualizationDashboard:
     def _range_number_inputs(self, *, name: str, label: str) -> pn.Row:
         """Return two-way-bound min/max number boxes for a plotter ``Range`` param.
 
-        Editing a box writes ``(min, max)`` into ``plotter.<name>``, which
-        re-renders the associated plot; the plotter's range-sync hook writing
-        into that same param (on a Bokeh zoom/pan) updates the boxes, so the
-        numbers always reflect the plot's current axis range.
+        Editing a box writes ``(min, max)`` into ``plotter.<name>`` and moves the
+        live figure in place via ``move_figure_to_range``; conversely the plotter's
+        range-sync hook writing into that same param (on a Bokeh zoom/pan) updates
+        the boxes, so the numbers always reflect the plot's current axis range.
 
         Parameters
         ----------
@@ -73,6 +73,9 @@ class VisualizationDashboard:
             new_range = (minimum.value, maximum.value)
             if getattr(plotter, name) != new_range:
                 setattr(plotter, name, new_range)
+                # A typed box edit is the one case that must move the already-rendered
+                # figure in place; a render writes these params too, but must not.
+                plotter.move_figure_to_range(name)
 
         plotter.param.watch(from_param, name)
         minimum.param.watch(to_param, "value")

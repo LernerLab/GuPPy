@@ -6,6 +6,18 @@ from guppy.frontend.visualization_dashboard import VisualizationDashboard
 BASENAME = "test_session"
 
 
+class _FakeRange:
+    def __init__(self, start, end):
+        self.start = start
+        self.end = end
+
+
+class _FakeFigure:
+    def __init__(self):
+        self.x_range = _FakeRange(0.0, 1.0)
+        self.y_range = _FakeRange(-1.0, 1.0)
+
+
 @pytest.fixture
 def dashboard(plotter, panel_extension):
     return VisualizationDashboard(plotter=plotter, basename=BASENAME)
@@ -122,6 +134,18 @@ class TestVisualizationDashboard:
         maximum.value = 4.0
 
         assert dashboard.plotter.cont_Y == (-3.0, 4.0)
+
+    def test_range_number_inputs_box_edit_moves_live_figure(self, dashboard):
+        # End-to-end: typing a box value moves the already-rendered figure in place.
+        figure = _FakeFigure()
+        dashboard.plotter._figures["cont"] = figure
+        row = dashboard._range_number_inputs(name="cont_X", label="X")
+        minimum, maximum = row[0], row[1]
+
+        minimum.value = 0.0
+        maximum.value = 3.0
+
+        assert (figure.x_range.start, figure.x_range.end) == (0.0, 3.0)
 
     def test_heatmap_tab_embeds_heatmap(self, dashboard, plotter):
         # Panel wraps the heatmap reactive method in a ParamMethod inside a pn.Row.

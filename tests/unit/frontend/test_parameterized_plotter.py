@@ -349,17 +349,32 @@ class TestParameterizedPlotter:
         assert plotter.cont_X == (2.0, 6.0)
         assert plotter.cont_Y == (-0.5, 0.5)
 
-    def test_range_param_change_pushes_to_live_figure(self, plotter):
-        # A range param edit moves the already-rendered figure in place (no re-render),
-        # which is what keeps an interactive zoom from being interrupted.
+    def test_move_figure_to_range_moves_live_figure(self, plotter):
+        # A typed box edit sets the range params then calls move_figure_to_range to
+        # move the already-rendered figure in place (no re-render), which is what
+        # keeps an interactive zoom from being interrupted.
         figure = _FakeFigure()
         plotter._figures["cont"] = figure
 
         plotter.cont_X = (0.0, 3.0)
         plotter.cont_Y = (-2.0, 2.0)
+        plotter.move_figure_to_range("cont_X")
 
         assert (figure.x_range.start, figure.x_range.end) == (0.0, 3.0)
         assert (figure.y_range.start, figure.y_range.end) == (-2.0, 2.0)
+
+    def test_range_param_change_alone_does_not_move_figure(self, plotter):
+        # Setting a range param is no longer a figure side-effect on its own: a render
+        # writes these params too and must not touch the stale figure. Only an explicit
+        # move_figure_to_range (from a box edit) moves it.
+        figure = _FakeFigure()
+        plotter._figures["cont"] = figure
+        original = (figure.x_range.start, figure.x_range.end, figure.y_range.start, figure.y_range.end)
+
+        plotter.cont_X = (0.0, 3.0)
+        plotter.cont_Y = (-2.0, 2.0)
+
+        assert (figure.x_range.start, figure.x_range.end, figure.y_range.start, figure.y_range.end) == original
 
     def test_range_params_not_in_plot_dependencies(self, plotter):
         # Range params must stay out of the plot methods' @param.depends lists so a
@@ -417,6 +432,24 @@ class TestParameterizedPlotter:
     def test_overlay_color_overrides_in_update_selector_dependencies(self, plotter):
         dependencies = {dependency.name for dependency in plotter.param.method_dependencies("update_selector")}
         assert "overlay_color_overrides" in dependencies
+
+    def test_update_selector_autofit_does_not_push_to_live_figure(self, plotter):
+        # Regression: selecting a new event refits overlay_Y mid-render. That must NOT
+        # mutate the already-rendered figure -- a raw Bokeh range write during a
+        # re-render violates the server's document lock and crashes the callback.
+        figure = _FakeFigure()
+        plotter._figures["overlay"] = figure
+        original_y_range = (figure.y_range.start, figure.y_range.end)
+
+        plotter.selector_for_multipe_events_plot = ["event1", "event2"]
+        plot = plotter.update_selector()
+
+        assert plot is not None
+        # The auto-fit still ran (so the number boxes reflect the new data)...
+        assert plotter.overlay_Y is not None
+        # ...but the live figure was left untouched: only a typed box edit moves it,
+        # never a render, so the range param write here has no figure side-effect.
+        assert (figure.y_range.start, figure.y_range.end) == original_y_range
 
 
 # ---------------------------------------------------------------------------
