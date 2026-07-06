@@ -379,6 +379,45 @@ class TestParameterizedPlotter:
         assert plotter.overlay_X == (-5.0, 10.0)
         assert plotter.trials_X == (-5.0, 10.0)
 
+    def test_default_overlay_color_overrides_is_empty(self, plotter):
+        assert plotter.overlay_color_overrides == {}
+
+    def test_overlay_effective_colors_uses_palette_when_no_overrides(self, plotter):
+        # Category10 palette; two events selected in order -> its first two colors.
+        plotter.selector_for_multipe_events_plot = ["event1", "event2"]
+
+        assert plotter.overlay_effective_colors() == {"event1": "#1f77b4", "event2": "#ff7f0e"}
+
+    def test_overlay_effective_colors_override_wins(self, plotter):
+        # An explicit override replaces only that event's color; the other keeps its palette color.
+        plotter.selector_for_multipe_events_plot = ["event1", "event2"]
+        plotter.overlay_color_overrides = {"event2": "#123456"}
+
+        assert plotter.overlay_effective_colors() == {"event1": "#1f77b4", "event2": "#123456"}
+
+    def test_overlay_effective_colors_cycles_palette_beyond_its_length(self, plotter):
+        # Dark2 has 8 colors; a 9th event wraps back to the first color.
+        events = [f"event{i}" for i in range(9)]
+        plotter.param.selector_for_multipe_events_plot.objects = events
+        plotter.overlay_palette = "Dark2"
+        plotter.selector_for_multipe_events_plot = events
+
+        colors = plotter.overlay_effective_colors()
+        assert colors["event0"] == "#1b9e77"
+        assert colors["event8"] == colors["event0"]
+
+    def test_update_selector_renders_with_override_color(self, plotter):
+        plotter.selector_for_multipe_events_plot = ["event1", "event2"]
+        plotter.overlay_color_overrides = {"event1": "#abcdef"}
+
+        plot = plotter.update_selector()
+
+        assert plot is not None
+
+    def test_overlay_color_overrides_in_update_selector_dependencies(self, plotter):
+        dependencies = {dependency.name for dependency in plotter.param.method_dependencies("update_selector")}
+        assert "overlay_color_overrides" in dependencies
+
 
 # ---------------------------------------------------------------------------
 # plotter_for_save fixture (function-scoped, used only in this module)

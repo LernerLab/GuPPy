@@ -49,8 +49,51 @@ class TestVisualizationDashboard:
         assert len(number_inputs) == 12
 
     def test_psth_tab_has_trace_and_mean_color_pickers(self, dashboard):
-        color_pickers = list(dashboard._psth_tab.select(pn.widgets.ColorPicker))
-        assert len(color_pickers) == 2
+        # trace_color and mean_color are exposed by name; per-event pickers add a
+        # dynamic number on top, so assert these two static pickers are present
+        # rather than a fixed total count.
+        picker_names = {picker.name for picker in dashboard._psth_tab.select(pn.widgets.ColorPicker)}
+        assert {"Trace color", "Mean color"} <= picker_names
+
+    def test_per_event_color_pickers_card_is_collapsed(self, dashboard):
+        card = dashboard._per_event_color_pickers()
+        assert isinstance(card, pn.Card)
+        assert card.collapsed is True
+
+    def test_per_event_color_pickers_one_per_selected_event(self, dashboard):
+        dashboard.plotter.selector_for_multipe_events_plot = ["event1", "event2"]
+        card = dashboard._per_event_color_pickers()
+        # Each event is a Row of [ColorPicker, Markdown label]; the label carries the name.
+        labels = [pane.object for pane in card.select(pn.pane.Markdown)]
+        assert labels == ["event1", "event2"]
+        assert len(list(card.select(pn.widgets.ColorPicker))) == 2
+
+    def test_per_event_color_picker_value_writes_override(self, dashboard):
+        dashboard.plotter.selector_for_multipe_events_plot = ["event1", "event2"]
+        card = dashboard._per_event_color_pickers()
+        pickers = list(card.select(pn.widgets.ColorPicker))
+        labels = [pane.object for pane in card.select(pn.pane.Markdown)]
+        pickers_by_event = dict(zip(labels, pickers))
+
+        pickers_by_event["event2"].value = "#123456"
+
+        assert dashboard.plotter.overlay_color_overrides == {"event2": "#123456"}
+
+    def test_per_event_color_pickers_reset_button_clears_overrides(self, dashboard):
+        dashboard.plotter.selector_for_multipe_events_plot = ["event1", "event2"]
+        dashboard.plotter.overlay_color_overrides = {"event1": "#111111"}
+        card = dashboard._per_event_color_pickers()
+        reset_button = next(iter(card.select(pn.widgets.Button)))
+
+        reset_button.clicks += 1
+
+        assert dashboard.plotter.overlay_color_overrides == {}
+
+    def test_per_event_color_pickers_rebuild_on_selection_change(self, dashboard):
+        card = dashboard._per_event_color_pickers()
+        dashboard.plotter.selector_for_multipe_events_plot = ["event1", "event2"]
+        labels = [pane.object for pane in card.select(pn.pane.Markdown)]
+        assert labels == ["event1", "event2"]
 
     def test_psth_tab_trial_picker_is_cross_selector(self, dashboard):
         # Both the event picker and the trial picker are CrossSelectors.

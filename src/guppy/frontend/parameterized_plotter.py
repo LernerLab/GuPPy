@@ -145,6 +145,10 @@ class ParameterizedPlotter(param.Parameterized):
     overlay_palette = param.ObjectSelector(
         default="Category10", objects=["Category10", "Category20", "Colorblind", "Dark2", "Set1"]
     )
+    # Per-event colour overrides for the comparison plot, keyed by the selection label
+    # (the entries of ``selector_for_multipe_events_plot``). Only events the user has
+    # explicitly recoloured appear here; every other event falls back to ``overlay_palette``.
+    overlay_color_overrides = param.Dict(default={})
     height_heatmap = param.ObjectSelector(default=600, objects=list(np.arange(0, 5100, 100))[1:])
     width_heatmap = param.ObjectSelector(default=1000, objects=list(np.arange(0, 5100, 100))[1:])
     Height_Plot = param.ObjectSelector(default=300, objects=list(np.arange(0, 5100, 100))[1:])
@@ -365,10 +369,31 @@ class ParameterizedPlotter(param.Parameterized):
 
         # function to plot multiple PSTHs into one plot
 
+    def overlay_effective_colors(self) -> dict[str, str]:
+        """Return the effective comparison-plot colour for each selected event.
+
+        The colour for an event is its explicit override from
+        ``overlay_color_overrides`` when present, otherwise the palette colour at
+        that event's position in the current selection (cycling through
+        ``overlay_palette`` so long selections wrap around).
+
+        Returns
+        -------
+        dict of str to str
+            Maps each entry of ``selector_for_multipe_events_plot`` to a hex
+            colour string, preserving the selection order.
+        """
+        base_colors = hv.Cycle(self.overlay_palette).values
+        return {
+            event: self.overlay_color_overrides.get(event, base_colors[i % len(base_colors)])
+            for i, event in enumerate(self.selector_for_multipe_events_plot)
+        }
+
     @param.depends(
         "selector_for_multipe_events_plot",
         "Y_Label",
         "overlay_palette",
+        "overlay_color_overrides",
         "Height_Plot",
         "Width_Plot",
     )
@@ -446,10 +471,12 @@ class ParameterizedPlotter(param.Parameterized):
                     for d in cols_spread[:-1]
                 }
             )
-            # Colour each event's curve (and its matching spread) from the chosen
-            # categorical palette; curves and spreads share the same cols order so
-            # the cycle assigns consistent per-event colours.
-            palette_colors = hv.Cycle(self.overlay_palette)
+            # Colour each event's curve (and its matching spread) from its effective
+            # colour (per-event override, else the chosen palette). Curves and spreads
+            # are built in the same selection order, so a positional cycle over this
+            # list assigns consistent per-event colours.
+            effective_colors = self.overlay_effective_colors()
+            palette_colors = hv.Cycle([effective_colors[event] for event in arr])
             plot_combine = (
                 (overlay * spread)
                 .opts(opts.NdOverlay(xlabel="Time (s)", ylabel=self.Y_Label))

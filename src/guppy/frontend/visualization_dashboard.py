@@ -91,6 +91,47 @@ class VisualizationDashboard:
         )
         return pn.Row(options, pn.Column(pn.Spacer(height=25), button))
 
+    def _per_event_color_pickers(self) -> pn.Card:
+        """Return a collapsed card of per-event color pickers for the comparison plot.
+
+        Holds one ``ColorPicker`` per currently-selected event (each seeded with the
+        event's effective color -- its override, else its palette color) inside a
+        fixed-height scrollable column, plus a "Reset to palette" button that clears
+        all overrides. The picker list is rebuilt whenever the event selection or the
+        palette changes so it always matches the events being plotted.
+        """
+        plotter = self.plotter
+        # Roomy enough for long event names to sit on one line so only the vertical
+        # scrollbar ever appears; the swatch itself is kept small and square (below)
+        # and the name is a separate label, so the swatch is not stretched to fit.
+        pickers = pn.Column(scroll="y", height=250, width=520)
+
+        def rebuild(*events: object) -> None:
+            effective_colors = plotter.overlay_effective_colors()
+            rows = []
+            for event, color in effective_colors.items():
+                picker = pn.widgets.ColorPicker(value=color, width=50)
+
+                def to_override(picker_event: object, event: str = event) -> None:
+                    plotter.overlay_color_overrides = {**plotter.overlay_color_overrides, event: picker_event.new}
+
+                picker.param.watch(to_override, "value")
+                label = pn.pane.Markdown(event, margin=(8, 0, 0, 6))
+                rows.append(pn.Row(picker, label))
+            pickers.objects = rows
+
+        reset = pn.widgets.Button(name="Reset to palette", width=150)
+
+        def on_reset(event: object) -> None:
+            plotter.overlay_color_overrides = {}
+            rebuild()
+
+        reset.on_click(on_reset)
+        plotter.param.watch(rebuild, ["selector_for_multipe_events_plot", "overlay_palette"])
+        rebuild()
+
+        return pn.Card(pickers, reset, title="Per-event colors (optional)", collapsed=True)
+
     def _build_psth_tab(self) -> pn.Column:
         """Build the PSTH tab with controls and plot panels."""
         psth_checkbox = pn.Param(
@@ -144,6 +185,7 @@ class VisualizationDashboard:
             self.plotter.param.overlay_palette,
             widgets={"overlay_palette": {"type": pn.widgets.Select, "width": 150}},
         )
+        per_event_colors = self._per_event_color_pickers()
 
         # Independent save controls (format selector + button) for each plot.
         save_cont = self._save_controls(options_name="save_options_cont", action_name="save_cont")
@@ -188,6 +230,7 @@ class VisualizationDashboard:
             pn.pane.Markdown("Tick events to overlay their mean traces:"),
             parameters,
             pn.Row(overlay_palette),
+            per_event_colors,
             pn.pane.Markdown("**Axis limits**"),
             overlay_limits,
             save_overlay,
