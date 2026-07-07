@@ -94,6 +94,46 @@ def test_make_dir_is_idempotent(tmp_path):
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture
+def single_trial_plotter(tmp_path, panel_extension):
+    """Plotter whose event heatmap has a single trial row.
+
+    This is the shape a group average takes when only one selected session
+    contributes to an event (e.g. one 'novel object' session averaged alongside
+    one 'novel female' session). Under the "All" heatmap selection the ``bin_1``
+    row is dropped, leaving exactly one trial row so ``heatmap()`` takes its
+    single-trial branch.
+    """
+    columns = ["trial_1", "bin_1", "timestamps", "mean", "err", "bin_err_1"]
+    n_timepoints = 30
+    timestamps = np.linspace(-5.0, 10.0, n_timepoints)
+
+    def make_event_dataframe():
+        return pd.DataFrame(
+            {column: (timestamps if column == "timestamps" else np.arange(float(n_timepoints))) for column in columns}
+        )
+
+    events = ["event1", "event2"]
+    columns_dict = {event: columns + ["All"] for event in events}
+    df_new = pd.concat([make_event_dataframe() for event in events], keys=events, axis=1)
+
+    return ParameterizedPlotter(
+        event_selector_objects=events,
+        event_selector_heatmap_objects=events,
+        selector_for_multipe_events_plot_objects=events,
+        color_map_objects=["plasma", "viridis"],
+        x_objects=["timestamps"],
+        y_objects=["mean", "All"],
+        heatmap_y_objects=["1 - trial_1", "All"],
+        psth_y_objects=None,
+        filepath=str(tmp_path),
+        columns_dict=columns_dict,
+        df_new=df_new,
+        x_min=-5.0,
+        x_max=10.0,
+    )
+
+
 class TestParameterizedPlotter:
     def test_constructs(self, plotter):
         assert isinstance(plotter, ParameterizedPlotter)
@@ -288,6 +328,23 @@ class TestParameterizedPlotter:
 
         assert image is not None
         assert plotter.results_hm["op"].endswith(os.path.join("saved_plots", "event1_heatmap"))
+
+    def test_heatmap_single_trial_uses_datashaded_path(self, single_trial_plotter, plotter):
+        # A single-trial heatmap used to build a raw QuadMesh spanning the full
+        # ~30k-sample time axis, which overflowed Bokeh's client-side renderer
+        # ("Maximum call stack size exceeded") and blanked the whole dashboard.
+        # The fix duplicates the lone trial into a 2-row mesh so it flows through
+        # the same datashaded overlay as multi-trial heatmaps -- so a single-trial
+        # heatmap must return the same element type as a multi-trial one, not the
+        # old bare single-row QuadMesh.
+        single = single_trial_plotter.heatmap()
+        multi = plotter.heatmap()
+
+        assert single is not None
+        assert not isinstance(single, hv.QuadMesh)
+        assert type(single) is type(multi)
+        # The datashaded element must render to Bokeh without raising.
+        hv.render(single)
 
     def test_cont_plot_renders_with_custom_trace_color(self, plotter):
         # Default y is "bin_1", which hits the trace_color branch of contPlot.

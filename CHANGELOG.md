@@ -21,6 +21,8 @@
 - Added type hints to all functions in the utils, visualization, testing, and root layers. [PR #347](https://github.com/LernerLab/GuPPy/pull/347)
 
 ## Fixes
+- Group averaging now only requires the selected sessions to share the same fiber (control/signal) storenames rather than an identical full storename set, so sessions recorded from the same region under different behavioral conditions (e.g. Novel Object vs Novel Female) can be averaged together for cross-condition group figures. [PR #369](https://github.com/LernerLab/GuPPy/pull/369)
+- Fixed the visualization dashboard rendering blank (only the title bar, no plots or controls) when an event's group average had a single contributing session: the single-trial heatmap drew a raw QuadMesh across the full time axis, overflowing Bokeh's client-side renderer. Single-trial heatmaps now use the same datashaded path as multi-trial ones. [PR #369](https://github.com/LernerLab/GuPPy/pull/369)
 - Unified the pipeline step numbering on the canonical Storenames = Step 1 scheme across the testing API, tests, error messages, comments, and docs, so error messages that tell the user to re-run a step now match the GUI sidebar labels. [PR #361](https://github.com/LernerLab/GuPPy/pull/361)
 - Stored event timestamps now share the recording-start time basis with the continuous `timestampNew` stream instead of being re-zeroed to `timeForLightsTurnOn`, so all series can be co-registered without per-stream offset bookkeeping (PSTH results are unchanged). Resolves [#355](https://github.com/LernerLab/GuPPy/issues/355). [PR #356](https://github.com/LernerLab/GuPPy/pull/356)
 - Fixed bug with step five, which was causing the baseline uncorrected HDF5 file to not exist. [PR #241](https://github.com/LernerLab/GuPPy/pull/241)

@@ -755,56 +755,42 @@ class ParameterizedPlotter(param.Parameterized):
         clim = (np.nanmin(z_score), np.nanmax(z_score))
         font_size = {"labels": 16, "yticks": 6}
 
+        # A single-trial heatmap (e.g. a group average with only one contributing
+        # session) cannot be datashaded (datashade needs >=2 rows to infer cell
+        # edges) and, drawn as a raw QuadMesh over the full ~30k-sample time axis,
+        # overflows Bokeh's client-side renderer ("Maximum call stack size
+        # exceeded"), which blanks the entire dashboard. Duplicate the lone trial
+        # into a 2-row mesh so it flows through the same datashaded path as the
+        # multi-trial case and renders as a single uniform band; ``yticks`` (kept
+        # from before the duplication) still shows the one trial.
         if event_ts_for_each_event.shape[0] == 1:
-            dummy_image = hv.QuadMesh((time, event_ts_for_each_event, z_score)).opts(colorbar=True, clim=clim)
-            image = (
-                (dummy_image).opts(
-                    opts.QuadMesh(
-                        width=int(width),
-                        height=int(height),
-                        cmap=process_cmap(self.color_map, provider="matplotlib"),
-                        colorbar=True,
-                        ylabel="Trials",
-                        xlabel="Time (s)",
-                        fontsize=font_size,
-                        yticks=yticks,
-                    )
-                )
-            ).opts(shared_axes=False)
+            z_score = np.vstack([z_score, z_score])
+            event_ts_for_each_event = np.array([1, 2])
 
-            save_opts = self.save_options_heatmap
-            op = make_dir(self.filepath)
-            op_filename = os.path.join(op, self.event_selector_heatmap + "_" + "heatmap")
-            self.results_hm["plot"] = image
-            self.results_hm["op"] = op_filename
-            # self.save_plots(image, save_opts, op_filename)
-            return image
-        else:
-            ropts = dict(
-                width=int(width),
-                height=int(height),
-                ylabel="Trials",
-                xlabel="Time (s)",
-                fontsize=font_size,
-                yticks=yticks,
-                invert_yaxis=True,
-            )
-            dummy_image = hv.QuadMesh((time[0:100], event_ts_for_each_event, z_score[:, 0:100])).opts(
-                colorbar=True, cmap=process_cmap(self.color_map, provider="matplotlib"), clim=clim
-            )
-            actual_image = hv.QuadMesh((time, event_ts_for_each_event, z_score))
+        ropts = dict(
+            width=int(width),
+            height=int(height),
+            ylabel="Trials",
+            xlabel="Time (s)",
+            fontsize=font_size,
+            yticks=yticks,
+            invert_yaxis=True,
+        )
+        dummy_image = hv.QuadMesh((time[0:100], event_ts_for_each_event, z_score[:, 0:100])).opts(
+            colorbar=True, cmap=process_cmap(self.color_map, provider="matplotlib"), clim=clim
+        )
+        actual_image = hv.QuadMesh((time, event_ts_for_each_event, z_score))
 
-            dynspread_img = datashade(actual_image, cmap=process_cmap(self.color_map, provider="matplotlib")).opts(
-                **ropts
-            )  # clims=self.C_Limit, cnorm='log'
-            image = ((dummy_image * dynspread_img).opts(opts.QuadMesh(width=int(width), height=int(height)))).opts(
-                shared_axes=False
-            )
+        dynspread_img = datashade(actual_image, cmap=process_cmap(self.color_map, provider="matplotlib")).opts(
+            **ropts
+        )  # clims=self.C_Limit, cnorm='log'
+        image = ((dummy_image * dynspread_img).opts(opts.QuadMesh(width=int(width), height=int(height)))).opts(
+            shared_axes=False
+        )
 
-            save_opts = self.save_options_heatmap
-            op = make_dir(self.filepath)
-            op_filename = os.path.join(op, self.event_selector_heatmap + "_" + "heatmap")
-            self.results_hm["plot"] = image
-            self.results_hm["op"] = op_filename
+        op = make_dir(self.filepath)
+        op_filename = os.path.join(op, self.event_selector_heatmap + "_" + "heatmap")
+        self.results_hm["plot"] = image
+        self.results_hm["op"] = op_filename
 
-            return image
+        return image
