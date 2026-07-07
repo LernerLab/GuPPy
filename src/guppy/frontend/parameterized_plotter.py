@@ -170,6 +170,15 @@ class ParameterizedPlotter(param.Parameterized):
     overlay_Y = param.Range(default=None)
     trials_X = param.Range(default=None)
     trials_Y = param.Range(default=None)
+    # Heat map axis + color-scale ranges, mirroring the per-line-plot pattern.
+    # heatmap_X/Y are driven live by the zoom/pan hook (kept OUT of @param.depends);
+    # heatmap_clim IS in @param.depends because a colour-scale change has no live-pan
+    # equivalent and must re-render. All three auto-fit on selection change.
+    heatmap_X = param.Range(default=None)
+    heatmap_Y = param.Range(default=None)
+    heatmap_clim = param.Range(default=None)
+    # Independent of the PSTH hide_minor_ticks toggle.
+    hide_minor_ticks_heatmap = param.Boolean(default=False)
 
     x = param.ObjectSelector(default=None)
     y = param.ObjectSelector(default=None)
@@ -203,6 +212,7 @@ class ParameterizedPlotter(param.Parameterized):
         self.cont_X = (self.x_min, self.x_max)
         self.overlay_X = (self.x_min, self.x_max)
         self.trials_X = (self.x_min, self.x_max)
+        self.heatmap_X = (self.x_min, self.x_max)
 
         # Live Bokeh figure per plot, recorded by _range_sync_hook on each render.
         # Range params are deliberately NOT in the plot methods' @param.depends
@@ -220,6 +230,7 @@ class ParameterizedPlotter(param.Parameterized):
         ("cont", "cont_X", "cont_Y"),
         ("overlay", "overlay_X", "overlay_Y"),
         ("trials", "trials_X", "trials_Y"),
+        ("heatmap", "heatmap_X", "heatmap_Y"),
     )
 
     @staticmethod
@@ -289,19 +300,25 @@ class ParameterizedPlotter(param.Parameterized):
 
         return hook
 
-    def _hide_minor_ticks_hook(self, plot: object, element: object) -> None:
-        """HoloViews ``hooks`` callback that hides the Bokeh axis minor ticks when requested.
+    def _hide_minor_ticks_hook(self, attr: str) -> Callable[[object, object], None]:
+        """Build a HoloViews ``hooks`` callback that hides the Bokeh axis minor ticks.
 
-        Attached to a plot via ``.opts(hooks=[...])``, this removes the small tick marks
-        between the axis numbers on both axes when ``hide_minor_ticks`` is set. When it is
-        not set the freshly rendered figure keeps Bokeh's default minor ticks, so no
-        restore step is needed.
+        Attached to a plot via ``.opts(hooks=[...])``, the returned hook removes the
+        small tick marks between the axis numbers on both axes when the boolean param
+        named ``attr`` is set. When it is not set the freshly rendered figure keeps
+        Bokeh's default minor ticks, so no restore step is needed. The param name is a
+        factory argument so the PSTH plots and the heatmap can each drive their own
+        independent toggle (``hide_minor_ticks`` vs ``hide_minor_ticks_heatmap``).
         """
-        if not self.hide_minor_ticks:
-            return
-        figure = plot.state
-        figure.xaxis.minor_tick_line_color = None
-        figure.yaxis.minor_tick_line_color = None
+
+        def hook(plot: object, element: object) -> None:
+            if not getattr(self, attr):
+                return
+            figure = plot.state
+            figure.xaxis.minor_tick_line_color = None
+            figure.yaxis.minor_tick_line_color = None
+
+        return hook
 
     def _reset_y_on_selection_change(self, plot_key: str, y_name: str, selection: object) -> None:
         """Clear a plot's Y range when its data selection changes, forcing a re-autofit.
@@ -515,7 +532,10 @@ class ParameterizedPlotter(param.Parameterized):
             op_filename = os.path.join(op, str(arr) + "_mean")
 
             plot_combine = plot_combine.opts(
-                hooks=[self._range_sync_hook("overlay", "overlay_X", "overlay_Y"), self._hide_minor_ticks_hook]
+                hooks=[
+                    self._range_sync_hook("overlay", "overlay_X", "overlay_Y"),
+                    self._hide_minor_ticks_hook("hide_minor_ticks"),
+                ]
             )
             self.results_psth["plot_combine"] = plot_combine
             self.results_psth["op_combine"] = op_filename
@@ -570,7 +590,12 @@ class ParameterizedPlotter(param.Parameterized):
                 )
             )
 
-            img = img.opts(hooks=[self._range_sync_hook("cont", "cont_X", "cont_Y"), self._hide_minor_ticks_hook])
+            img = img.opts(
+                hooks=[
+                    self._range_sync_hook("cont", "cont_X", "cont_Y"),
+                    self._hide_minor_ticks_hook("hide_minor_ticks"),
+                ]
+            )
             op = make_dir(self.filepath)
             op_filename = os.path.join(op, self.event_selector + "_" + self.y)
             self.results_psth["plot"] = img
@@ -616,7 +641,12 @@ class ParameterizedPlotter(param.Parameterized):
                 (xpoints[index], ypoints[index], err[index], err[index])
             )  # .opts(**ropts_spread) #vdims=['y', 'yerrpos', 'yerrneg']
             plot = (plot_curve * plot_spread).opts({"Curve": ropts_curve, "Spread": ropts_spread})
-            plot = plot.opts(hooks=[self._range_sync_hook("cont", "cont_X", "cont_Y"), self._hide_minor_ticks_hook])
+            plot = plot.opts(
+                hooks=[
+                    self._range_sync_hook("cont", "cont_X", "cont_Y"),
+                    self._hide_minor_ticks_hook("hide_minor_ticks"),
+                ]
+            )
             op = make_dir(self.filepath)
             op_filename = os.path.join(op, self.event_selector + "_" + self.y)
             self.results_psth["plot"] = plot
@@ -640,7 +670,12 @@ class ParameterizedPlotter(param.Parameterized):
                 ylabel=self.Y_Label,
             )
             plot = hv.Curve((xpoints, ypoints)).opts({"Curve": ropts_curve})
-            plot = plot.opts(hooks=[self._range_sync_hook("cont", "cont_X", "cont_Y"), self._hide_minor_ticks_hook])
+            plot = plot.opts(
+                hooks=[
+                    self._range_sync_hook("cont", "cont_X", "cont_Y"),
+                    self._hide_minor_ticks_hook("hide_minor_ticks"),
+                ]
+            )
             op = make_dir(self.filepath)
             op_filename = os.path.join(op, self.event_selector + "_" + self.y)
             self.results_psth["plot"] = plot
@@ -729,7 +764,10 @@ class ParameterizedPlotter(param.Parameterized):
         for extra_layer in layers[1:]:
             result = result * extra_layer
         result = result.opts(
-            hooks=[self._range_sync_hook("trials", "trials_X", "trials_Y"), self._hide_minor_ticks_hook]
+            hooks=[
+                self._range_sync_hook("trials", "trials_X", "trials_Y"),
+                self._hide_minor_ticks_hook("hide_minor_ticks"),
+            ]
         )
 
         op = make_dir(self.filepath)
@@ -739,7 +777,15 @@ class ParameterizedPlotter(param.Parameterized):
         return result
 
     # function to show heatmaps for each event
-    @param.depends("event_selector_heatmap", "color_map", "height_heatmap", "width_heatmap", "heatmap_y")
+    @param.depends(
+        "event_selector_heatmap",
+        "color_map",
+        "height_heatmap",
+        "width_heatmap",
+        "heatmap_y",
+        "heatmap_clim",
+        "hide_minor_ticks_heatmap",
+    )
     def heatmap(self) -> hv.Element:
         """Render a trial heatmap for the selected event.
 
@@ -749,6 +795,13 @@ class ParameterizedPlotter(param.Parameterized):
             A ``QuadMesh`` (single trial) or a datashaded ``QuadMesh`` overlay
             (multiple trials), coloured by the selected colour map.
         """
+        # Refit the colour scale and the Trials axis whenever the event or trial
+        # selection changes; a manual clim/zoom persists across renders that keep
+        # the same selection (same convention as the PSTH Y-range auto-fit).
+        selection = (self.event_selector_heatmap, tuple(self.heatmap_y))
+        self._reset_y_on_selection_change("heatmap_Y", "heatmap_Y", selection)
+        self._reset_y_on_selection_change("heatmap_clim", "heatmap_clim", selection)
+
         height = self.height_heatmap
         width = self.width_heatmap
         df_hm = self.df_new[self.event_selector_heatmap]
@@ -776,7 +829,17 @@ class ParameterizedPlotter(param.Parameterized):
             event_ts_for_each_event = np.arange(1, z_score.shape[0] + 1)
             yticks = list(event_ts_for_each_event)
 
-        clim = (np.nanmin(z_score), np.nanmax(z_score))
+        # Auto-fit the colour scale and Trials axis to the current selection on
+        # first render (or after a selection change reset them above). ``trial_numbers``
+        # is captured before the single-trial duplication below so the Y range and
+        # ticks reflect the real trials, and its 0.5 padding gives the lone-trial case
+        # a non-degenerate range.
+        trial_numbers = event_ts_for_each_event
+        if self.heatmap_clim is None:
+            self.heatmap_clim = (float(np.nanmin(z_score)), float(np.nanmax(z_score)))
+        if self.heatmap_Y is None:
+            self.heatmap_Y = (float(trial_numbers.min()) - 0.5, float(trial_numbers.max()) + 0.5)
+        clim = self.heatmap_clim
         font_size = {"labels": 16, "yticks": 6}
 
         # A single-trial heatmap (e.g. a group average with only one contributing
@@ -799,17 +862,32 @@ class ParameterizedPlotter(param.Parameterized):
             fontsize=font_size,
             yticks=yticks,
             invert_yaxis=True,
+            xlim=self.heatmap_X,
+            ylim=self.heatmap_Y,
         )
         dummy_image = hv.QuadMesh((time[0:100], event_ts_for_each_event, z_score[:, 0:100])).opts(
             colorbar=True, cmap=process_cmap(self.color_map, provider="matplotlib"), clim=clim
         )
         actual_image = hv.QuadMesh((time, event_ts_for_each_event, z_score))
 
-        dynspread_img = datashade(actual_image, cmap=process_cmap(self.color_map, provider="matplotlib")).opts(
-            **ropts
-        )  # clims=self.C_Limit, cnorm='log'
+        # Shade the data with the SAME linear colour limits as the dummy colorbar so
+        # the legend actually matches the pixels. Without clims/cnorm here, datashade
+        # auto-normalizes the data to its own min/max (and eq-hist), so the colour-scale
+        # boxes would move only the colorbar and never recolour the data.
+        dynspread_img = datashade(
+            actual_image,
+            cmap=process_cmap(self.color_map, provider="matplotlib"),
+            cnorm="linear",
+            clims=clim,
+        ).opts(**ropts)
         image = ((dummy_image * dynspread_img).opts(opts.QuadMesh(width=int(width), height=int(height)))).opts(
             shared_axes=False
+        )
+        image = image.opts(
+            hooks=[
+                self._range_sync_hook("heatmap", "heatmap_X", "heatmap_Y"),
+                self._hide_minor_ticks_hook("hide_minor_ticks_heatmap"),
+            ]
         )
 
         op = make_dir(self.filepath)

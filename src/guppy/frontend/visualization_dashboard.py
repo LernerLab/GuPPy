@@ -292,24 +292,38 @@ class VisualizationDashboard:
         height_heatmap = pn.Param(
             self.plotter.param.height_heatmap, widgets={"height_heatmap": {"type": pn.widgets.Select, "width": 150}}
         )
-        save_hm = pn.Param(self.plotter.param.save_hm, widgets={"save_hm": {"type": pn.widgets.Button, "width": 150}})
-        save_options_heatmap = pn.Param(
-            self.plotter.param.save_options_heatmap,
-            widgets={"save_options_heatmap": {"type": pn.widgets.Select, "width": 150}},
+        hide_minor_ticks_heatmap = pn.Param(
+            self.plotter.param.hide_minor_ticks_heatmap,
+            widgets={"hide_minor_ticks_heatmap": {"type": pn.widgets.Checkbox, "name": "Hide minor tick marks"}},
         )
 
-        return pn.Column(
-            "## " + self.basename,
-            pn.Row(
-                event_selector_heatmap,
-                color_map,
-                width_heatmap,
-                height_heatmap,
-                save_options_heatmap,
-                pn.Column(pn.Spacer(height=25), save_hm),
-            ),
-            pn.Row(self.plotter.heatmap, heatmap_y_parameters),
+        # Independent save controls (format selector + button), matching the PSTH plots.
+        save_hm = self._save_controls(options_name="save_options_heatmap", action_name="save_hm")
+
+        # Numeric axis limits (X/Y snap to Bokeh zoom/pan) and the colour-scale (clim)
+        # limits, all reusing the PSTH tab's _range_number_inputs helper. The X/Y boxes
+        # move the live figure in place; the colour-scale boxes re-render (heatmap_clim
+        # is in heatmap()'s @param.depends), for which move_figure_to_range is a no-op.
+        axis_limits = pn.Row(
+            self._range_number_inputs(name="heatmap_X", label="X"),
+            self._range_number_inputs(name="heatmap_Y", label="Y"),
         )
+        color_limits = self._range_number_inputs(name="heatmap_clim", label="Color scale")
+
+        heatmap_card = pn.Card(
+            pn.Row(event_selector_heatmap, color_map, width_heatmap, height_heatmap),
+            hide_minor_ticks_heatmap,
+            pn.pane.Markdown("**Axis limits**"),
+            axis_limits,
+            pn.pane.Markdown("**Color scale limits**"),
+            color_limits,
+            save_hm,
+            pn.Row(self.plotter.heatmap, heatmap_y_parameters),
+            title="Trial heatmap",
+            collapsed=False,
+        )
+
+        return pn.Column("## " + self.basename, heatmap_card)
 
     def build_template(self) -> pn.template.MaterialTemplate:
         """Build and return the Panel template without serving it."""
