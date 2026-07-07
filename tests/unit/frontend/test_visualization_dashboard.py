@@ -158,8 +158,29 @@ class TestVisualizationDashboard:
         assert plotter.hide_minor_ticks is True
 
     def test_heatmap_tab_embeds_heatmap(self, dashboard, plotter):
-        # Panel wraps the heatmap reactive method in a ParamMethod inside a pn.Row.
-        heatmap_row = dashboard._heatmap_tab.objects[-1]
-        assert isinstance(heatmap_row, pn.Row)
-        wrapped_methods = [obj.object for obj in heatmap_row.objects if hasattr(obj, "object") and callable(obj.object)]
-        assert plotter.heatmap in wrapped_methods
+        # The heatmap reactive method is wrapped in a ParamMethod pane nested inside the
+        # heatmap Card, so search the tab recursively (as the PSTH tab test does).
+        panes = dashboard._heatmap_tab.select(
+            lambda obj: hasattr(obj, "object") and callable(getattr(obj, "object", None))
+        )
+        assert plotter.heatmap in [pane.object for pane in panes]
+
+    def test_heatmap_tab_uses_number_inputs_for_axis_and_color_limits(self, dashboard):
+        # X + Y + colour-scale = 3 ranges x (min, max) = 6 FloatInput boxes.
+        number_inputs = list(dashboard._heatmap_tab.select(pn.widgets.FloatInput))
+        assert len(number_inputs) == 6
+
+    def test_heatmap_tab_has_hide_minor_ticks_checkbox(self, dashboard, plotter):
+        checkboxes = {box.name: box for box in dashboard._heatmap_tab.select(pn.widgets.Checkbox)}
+        assert "Hide minor tick marks" in checkboxes
+
+        checkbox = checkboxes["Hide minor tick marks"]
+        assert checkbox.value is False  # ticks shown by default
+
+        checkbox.value = True
+        assert plotter.hide_minor_ticks_heatmap is True
+
+    def test_heatmap_tab_has_save_controls(self, dashboard):
+        assert list(dashboard._heatmap_tab.select(pn.widgets.Button))
+        selects = {select.name for select in dashboard._heatmap_tab.select(pn.widgets.Select)}
+        assert "Save format" in selects

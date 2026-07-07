@@ -134,6 +134,49 @@ def single_trial_plotter(tmp_path, panel_extension):
     )
 
 
+@pytest.fixture
+def varied_heatmap_plotter(tmp_path, panel_extension):
+    """Plotter whose heatmap trials hold non-constant values.
+
+    The default ``plotter`` fixture fills every trial with zeros, so a colour-scale
+    change maps every cell to the same colour and cannot reveal whether the clim
+    reached the data. This fixture gives each of three trials a distinct linear ramp
+    so different colour limits produce visibly different shaded pixels.
+    """
+    columns = ["trial_1", "trial_2", "trial_3", "bin_1", "timestamps", "mean", "err", "bin_err_1"]
+    n_timepoints = 30
+    timestamps = np.linspace(-5.0, 10.0, n_timepoints)
+    ramp = np.linspace(-2.0, 2.0, n_timepoints)
+
+    def make_event_dataframe():
+        values = {"timestamps": timestamps}
+        for offset, column in enumerate(["trial_1", "trial_2", "trial_3"]):
+            values[column] = ramp + offset
+        for column in ("bin_1", "mean", "err", "bin_err_1"):
+            values[column] = ramp
+        return pd.DataFrame(values, columns=columns)
+
+    events = ["event1", "event2"]
+    columns_dict = {event: columns for event in events}
+    df_new = pd.concat([make_event_dataframe() for event in events], keys=events, axis=1)
+
+    return ParameterizedPlotter(
+        event_selector_objects=events,
+        event_selector_heatmap_objects=events,
+        selector_for_multipe_events_plot_objects=events,
+        color_map_objects=["plasma", "viridis"],
+        x_objects=["timestamps"],
+        y_objects=["trial_1", "mean"],
+        heatmap_y_objects=["1 - trial_1", "2 - trial_2", "3 - trial_3", "All"],
+        psth_y_objects=None,
+        filepath=str(tmp_path),
+        columns_dict=columns_dict,
+        df_new=df_new,
+        x_min=-5.0,
+        x_max=10.0,
+    )
+
+
 class TestParameterizedPlotter:
     def test_constructs(self, plotter):
         assert isinstance(plotter, ParameterizedPlotter)
@@ -478,6 +521,103 @@ class TestParameterizedPlotter:
 
         assert plotter.overlay_X == (-5.0, 10.0)
         assert plotter.trials_X == (-5.0, 10.0)
+
+    # ---- heatmap customization (parity with the PSTH line plots) ----
+
+    def test_heatmap_x_range_initialized_from_x_min_x_max(self, plotter):
+        # The heatmap X (Time) range is seeded with the padded PSTH window like the line plots.
+        assert plotter.heatmap_X == (-5.0, 10.0)
+
+    def test_heatmap_y_and_clim_start_unset_for_autofit(self, plotter):
+        # Trials axis and colour scale start None so the first render auto-fits them.
+        assert plotter.heatmap_Y is None
+        assert plotter.heatmap_clim is None
+
+    def test_hide_minor_ticks_heatmap_defaults_to_false(self, plotter):
+        assert plotter.hide_minor_ticks_heatmap is False
+
+    def test_range_plots_includes_heatmap(self, plotter):
+        assert ("heatmap", "heatmap_X", "heatmap_Y") in plotter._RANGE_PLOTS
+
+    def test_move_figure_to_range_moves_heatmap_figure(self, plotter):
+        figure = _FakeFigure()
+        plotter._figures["heatmap"] = figure
+
+        plotter.heatmap_X = (0.0, 3.0)
+        plotter.heatmap_Y = (1.0, 5.0)
+        plotter.move_figure_to_range("heatmap_X")
+
+        assert (figure.x_range.start, figure.x_range.end) == (0.0, 3.0)
+        assert (figure.y_range.start, figure.y_range.end) == (1.0, 5.0)
+
+    def test_heatmap_autofits_clim_and_y_on_render(self, plotter):
+        image = plotter.heatmap()
+
+        assert image is not None
+        assert plotter.heatmap_clim is not None
+        assert plotter.heatmap_Y is not None
+
+    def test_heatmap_honours_clim_override(self, plotter):
+        # A user-set colour scale survives a render whose selection is unchanged.
+        plotter.heatmap()  # first render stores the selection and auto-fits clim
+        plotter.heatmap_clim = (-1.5, 2.5)
+
+        plotter.heatmap()
+
+        assert plotter.heatmap_clim == (-1.5, 2.5)
+
+    def test_heatmap_refits_clim_on_selection_change(self, plotter):
+        # Changing the trial selection discards a stale colour scale and refits to the new data.
+        plotter.heatmap()
+        plotter.heatmap_clim = (999.0, 1000.0)
+
+        plotter.heatmap_y = ["1 - trial_1", "2 - trial_2"]
+        plotter.heatmap()
+
+        assert plotter.heatmap_clim != (999.0, 1000.0)
+        assert plotter.heatmap_clim[1] < 999.0
+
+    def test_heatmap_color_limits_recolor_the_data_not_just_the_colorbar(self, varied_heatmap_plotter):
+        # Regression: the colour-scale limits must drive the datashaded pixels, not only
+        # the dummy colorbar. Two different clims over the same data must yield different
+        # shaded image data.
+        plotter = varied_heatmap_plotter
+
+        def shaded_image(clim):
+            plotter.heatmap_clim = clim
+            figure = hv.render(plotter.heatmap())
+            for renderer in figure.renderers:
+                data = getattr(renderer, "data_source", None)
+                if data is not None and "image" in data.data:
+                    return np.asarray(data.data["image"][0])
+            raise AssertionError("no datashaded image glyph found")
+
+        wide = shaded_image((-3.0, 3.0))
+        narrow = shaded_image((-0.2, 0.2))
+        assert not np.array_equal(wide, narrow)
+
+    def test_minor_ticks_shown_by_default_on_heatmap(self, plotter):
+        figure = hv.render(plotter.heatmap())
+        assert figure.xaxis[0].minor_tick_line_color is not None
+        assert figure.yaxis[0].minor_tick_line_color is not None
+
+    def test_hide_minor_ticks_removes_them_on_heatmap(self, plotter):
+        plotter.hide_minor_ticks_heatmap = True
+        figure = hv.render(plotter.heatmap())
+        assert figure.xaxis[0].minor_tick_line_color is None
+        assert figure.yaxis[0].minor_tick_line_color is None
+
+    def test_heatmap_axis_ranges_not_in_dependencies(self, plotter):
+        # heatmap_X/Y are hook-driven, so they must stay out of heatmap()'s @param.depends
+        # (a zoom/pan must not trigger a re-render that fights the gesture).
+        dependencies = {dependency.name for dependency in plotter.param.method_dependencies("heatmap")}
+        assert dependencies.isdisjoint({"heatmap_X", "heatmap_Y"})
+
+    def test_heatmap_clim_and_ticks_in_dependencies(self, plotter):
+        # A colour-scale or tick-visibility change has no live-figure equivalent, so both
+        # must re-render.
+        dependencies = {dependency.name for dependency in plotter.param.method_dependencies("heatmap")}
+        assert {"heatmap_clim", "hide_minor_ticks_heatmap"}.issubset(dependencies)
 
     def test_default_overlay_color_overrides_is_empty(self, plotter):
         assert plotter.overlay_color_overrides == {}
