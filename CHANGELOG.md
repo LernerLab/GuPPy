@@ -1,6 +1,7 @@
 # v2.0.0-alpha7 (Upcoming)
 
 ## Features
+- Added a "Hide minor tick marks" toggle to the visualization dashboard's PSTH tab that removes the small ticks between axis numbers on the three line plots for a cleaner look (ticks shown by default). [PR #370](https://github.com/LernerLab/GuPPy/pull/370)
 - Reorganized the visualization dashboard's PSTH tab into per-plot cards with numeric axis-range inputs (that snap to zoom), color pickers, a comparison-plot palette selector, and per-plot save buttons. [PR #365](https://github.com/LernerLab/GuPPy/pull/365)
 - Added an optional "Import Custom Events" GUI step for pasting external behavioral timestamps (copied from a spreadsheet column), written as GuPPy-compatible single-column CSVs that surface as stores in the Storenames GUI; advanced users can hand-build the same CSV format, documented in a new how-to guide. [PR #362](https://github.com/LernerLab/GuPPy/pull/362)
 - Added Iteratively Re-Weighted Least Squares (IRWLS) as the control-channel fitting method and made it the new default (robust to outliers; ordinary least-squares `OLS` fitting remains selectable via the new `control_fit_method` parameter). [PR #359](https://github.com/LernerLab/GuPPy/pull/359)

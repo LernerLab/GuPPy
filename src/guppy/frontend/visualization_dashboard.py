@@ -177,6 +177,10 @@ class VisualizationDashboard:
             self.plotter.param.Height_Plot, widgets={"Height_Plot": {"type": pn.widgets.Select, "width": 70}}
         )
         ylabel = pn.Param(self.plotter.param.Y_Label, widgets={"Y_Label": {"type": pn.widgets.Select, "width": 70}})
+        hide_minor_ticks = pn.Param(
+            self.plotter.param.hide_minor_ticks,
+            widgets={"hide_minor_ticks": {"type": pn.widgets.Checkbox, "name": "Hide minor tick marks"}},
+        )
 
         trace_color = pn.Param(
             self.plotter.param.trace_color, widgets={"trace_color": {"type": pn.widgets.ColorPicker, "width": 90}}
@@ -213,6 +217,7 @@ class VisualizationDashboard:
         # always clear which control belongs to which plot.
         shared_settings = pn.Card(
             pn.Row(width_plot, height_plot, ylabel),
+            hide_minor_ticks,
             title="Display settings (all plots)",
             collapsed=False,
         )

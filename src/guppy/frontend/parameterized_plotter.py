@@ -141,6 +141,9 @@ class ParameterizedPlotter(param.Parameterized):
     color_map = param.ObjectSelector(default="plasma")
     trace_color = param.Color(default="#0000ff")
     mean_color = param.Color(default="#000000")
+    # When True, hide the minor tick marks between axis numbers on the PSTH line plots
+    # for a cleaner look. Ticks are shown by default; the user opts in to hide them.
+    hide_minor_ticks = param.Boolean(default=False)
     # Categorical palette used to colour the per-event curves in the comparison plot.
     overlay_palette = param.ObjectSelector(
         default="Category10", objects=["Category10", "Category20", "Colorblind", "Dark2", "Set1"]
@@ -286,6 +289,20 @@ class ParameterizedPlotter(param.Parameterized):
 
         return hook
 
+    def _hide_minor_ticks_hook(self, plot: object, element: object) -> None:
+        """HoloViews ``hooks`` callback that hides the Bokeh axis minor ticks when requested.
+
+        Attached to a plot via ``.opts(hooks=[...])``, this removes the small tick marks
+        between the axis numbers on both axes when ``hide_minor_ticks`` is set. When it is
+        not set the freshly rendered figure keeps Bokeh's default minor ticks, so no
+        restore step is needed.
+        """
+        if not self.hide_minor_ticks:
+            return
+        figure = plot.state
+        figure.xaxis.minor_tick_line_color = None
+        figure.yaxis.minor_tick_line_color = None
+
     def _reset_y_on_selection_change(self, plot_key: str, y_name: str, selection: object) -> None:
         """Clear a plot's Y range when its data selection changes, forcing a re-autofit.
 
@@ -406,6 +423,7 @@ class ParameterizedPlotter(param.Parameterized):
         "overlay_color_overrides",
         "Height_Plot",
         "Width_Plot",
+        "hide_minor_ticks",
     )
     def update_selector(self) -> hv.NdOverlay | None:
         """Render an overlay of mean PSTH curves for all selected events.
@@ -496,7 +514,9 @@ class ParameterizedPlotter(param.Parameterized):
             op = make_dir(self.filepath)
             op_filename = os.path.join(op, str(arr) + "_mean")
 
-            plot_combine = plot_combine.opts(hooks=[self._range_sync_hook("overlay", "overlay_X", "overlay_Y")])
+            plot_combine = plot_combine.opts(
+                hooks=[self._range_sync_hook("overlay", "overlay_X", "overlay_Y"), self._hide_minor_ticks_hook]
+            )
             self.results_psth["plot_combine"] = plot_combine
             self.results_psth["op_combine"] = op_filename
             return plot_combine
@@ -510,6 +530,7 @@ class ParameterizedPlotter(param.Parameterized):
         "Height_Plot",
         "Width_Plot",
         "trace_color",
+        "hide_minor_ticks",
     )
     def contPlot(self) -> hv.Element:
         """Render the selected PSTH view (mean, single trial, or all-trials datashaded overlay).
@@ -549,7 +570,7 @@ class ParameterizedPlotter(param.Parameterized):
                 )
             )
 
-            img = img.opts(hooks=[self._range_sync_hook("cont", "cont_X", "cont_Y")])
+            img = img.opts(hooks=[self._range_sync_hook("cont", "cont_X", "cont_Y"), self._hide_minor_ticks_hook])
             op = make_dir(self.filepath)
             op_filename = os.path.join(op, self.event_selector + "_" + self.y)
             self.results_psth["plot"] = img
@@ -595,7 +616,7 @@ class ParameterizedPlotter(param.Parameterized):
                 (xpoints[index], ypoints[index], err[index], err[index])
             )  # .opts(**ropts_spread) #vdims=['y', 'yerrpos', 'yerrneg']
             plot = (plot_curve * plot_spread).opts({"Curve": ropts_curve, "Spread": ropts_spread})
-            plot = plot.opts(hooks=[self._range_sync_hook("cont", "cont_X", "cont_Y")])
+            plot = plot.opts(hooks=[self._range_sync_hook("cont", "cont_X", "cont_Y"), self._hide_minor_ticks_hook])
             op = make_dir(self.filepath)
             op_filename = os.path.join(op, self.event_selector + "_" + self.y)
             self.results_psth["plot"] = plot
@@ -619,7 +640,7 @@ class ParameterizedPlotter(param.Parameterized):
                 ylabel=self.Y_Label,
             )
             plot = hv.Curve((xpoints, ypoints)).opts({"Curve": ropts_curve})
-            plot = plot.opts(hooks=[self._range_sync_hook("cont", "cont_X", "cont_Y")])
+            plot = plot.opts(hooks=[self._range_sync_hook("cont", "cont_X", "cont_Y"), self._hide_minor_ticks_hook])
             op = make_dir(self.filepath)
             op_filename = os.path.join(op, self.event_selector + "_" + self.y)
             self.results_psth["plot"] = plot
@@ -638,6 +659,7 @@ class ParameterizedPlotter(param.Parameterized):
         "Width_Plot",
         "trace_color",
         "mean_color",
+        "hide_minor_ticks",
     )
     def plot_specific_trials(self) -> hv.Element | None:
         """Render the user-selected subset of PSTH trials, optionally with their mean.
@@ -706,7 +728,9 @@ class ParameterizedPlotter(param.Parameterized):
         result = layers[0]
         for extra_layer in layers[1:]:
             result = result * extra_layer
-        result = result.opts(hooks=[self._range_sync_hook("trials", "trials_X", "trials_Y")])
+        result = result.opts(
+            hooks=[self._range_sync_hook("trials", "trials_X", "trials_Y"), self._hide_minor_ticks_hook]
+        )
 
         op = make_dir(self.filepath)
         op_filename = os.path.join(op, self.event_selector + "_selected_trials")
