@@ -393,6 +393,34 @@ class TestParameterizedPlotter:
 
         assert plotter.trials_Y is not None
 
+    def test_hide_minor_ticks_defaults_to_false(self, plotter):
+        assert plotter.hide_minor_ticks is False
+
+    def test_minor_ticks_shown_by_default_on_cont_plot(self, plotter):
+        # With the default (False) the freshly rendered figure keeps Bokeh's minor ticks.
+        figure = hv.render(plotter.contPlot())
+        assert figure.xaxis[0].minor_tick_line_color is not None
+        assert figure.yaxis[0].minor_tick_line_color is not None
+
+    def test_hide_minor_ticks_removes_them_on_cont_plot(self, plotter):
+        plotter.hide_minor_ticks = True
+        figure = hv.render(plotter.contPlot())
+        assert figure.xaxis[0].minor_tick_line_color is None
+        assert figure.yaxis[0].minor_tick_line_color is None
+
+    def test_hide_minor_ticks_removes_them_on_comparison_plot(self, plotter):
+        plotter.hide_minor_ticks = True
+        figure = hv.render(plotter.update_selector())
+        assert figure.xaxis[0].minor_tick_line_color is None
+        assert figure.yaxis[0].minor_tick_line_color is None
+
+    def test_hide_minor_ticks_removes_them_on_selected_trials_plot(self, plotter):
+        plotter.psth_y = ["1 - trial_1", "2 - trial_2"]
+        plotter.hide_minor_ticks = True
+        figure = hv.render(plotter.plot_specific_trials())
+        assert figure.xaxis[0].minor_tick_line_color is None
+        assert figure.yaxis[0].minor_tick_line_color is None
+
     def test_range_sync_hook_writes_zoom_into_named_params(self, plotter):
         # The hook mirrors a Bokeh zoom/pan of the figure into the plot's own range params.
         hook = plotter._range_sync_hook("cont", "cont_X", "cont_Y")
