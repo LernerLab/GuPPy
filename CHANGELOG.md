@@ -1,4 +1,14 @@
-# v2.0.0-alpha7 (Upcoming)
+# v2.0.0-alpha8 (Upcoming)
+
+## Features
+
+## Fixes
+
+## Improvements
+
+## Deprecations and Removals
+
+# v2.0.0-alpha7 (July 7th, 2026)
 
 ## Features
 - Added a "Hide minor tick marks" toggle to the visualization dashboard's PSTH tab that removes the small ticks between axis numbers on the three line plots for a cleaner look (ticks shown by default). [PR #370](https://github.com/LernerLab/GuPPy/pull/370)
