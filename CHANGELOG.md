@@ -3,6 +3,7 @@
 ## Features
 
 ## Fixes
+- The Heat Map's first and last trial rows no longer render at half height: the Trials (Y) axis now always spans the full cell edges on every render, and its manual axis-limit boxes (which could clip the edge rows) were removed since the axis only encodes trial number. [PR #374](https://github.com/LernerLab/GuPPy/pull/374)
 
 ## Improvements
 
@@ -11,10 +12,9 @@
 # v2.0.0-alpha8 (July 7th, 2026)
 
 ## Features
-- Brought the visualization dashboard's Heat Map tab up to parity with the PSTH line plots: numeric X (Time) axis-limit boxes that snap to zoom/pan, editable colour-scale (clim) limits that recolour the datashaded data (not just the colorbar), and an independent "Hide minor tick marks" toggle. [PR #372](https://github.com/LernerLab/GuPPy/pull/372)
+- Brought the visualization dashboard's Heat Map tab up to parity with the PSTH line plots: numeric X (Time) and Y (Trials) axis-limit boxes that snap to zoom/pan, editable colour-scale (clim) limits that recolour the datashaded data (not just the colorbar), and an independent "Hide minor tick marks" toggle. [PR #372](https://github.com/LernerLab/GuPPy/pull/372)
 
 ## Fixes
-- The Heat Map's first and last trial rows no longer render at half height: the Trials (Y) axis now always spans the full cell edges on every render, and its manual axis-limit boxes (which could clip the edge rows) were removed since the axis only encodes trial number. [PR #374](https://github.com/LernerLab/GuPPy/pull/374)
 
 ## Improvements
 
