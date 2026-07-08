@@ -651,6 +651,33 @@ class TestParameterizedPlotter:
         assert figure.xaxis[0].minor_tick_line_color is None
         assert figure.yaxis[0].minor_tick_line_color is None
 
+    def test_ticks_point_outward_by_default_on_heatmap(self, plotter):
+        figure = hv.render(plotter.heatmap())
+        # Bokeh's default is outward-pointing ticks (positive "out" length).
+        assert figure.xaxis[0].major_tick_out > 0
+        assert figure.yaxis[0].major_tick_out > 0
+
+    def test_ticks_inside_flips_ticks_inward_on_heatmap(self, plotter):
+        plotter.ticks_inside_heatmap = True
+        figure = hv.render(plotter.heatmap())
+        for axis in (figure.xaxis[0], figure.yaxis[0]):
+            assert (axis.major_tick_in, axis.major_tick_out) == (6, 0)
+            assert (axis.minor_tick_in, axis.minor_tick_out) == (4, 0)
+
+    def test_full_outline_shown_by_default_on_heatmap(self, plotter):
+        figure = hv.render(plotter.heatmap())
+        assert figure.outline_line_color is not None
+
+    def test_hide_outer_border_drops_outline_and_keeps_left_bottom(self, plotter):
+        plotter.hide_outer_border_heatmap = True
+        figure = hv.render(plotter.heatmap())
+        # The four-sided outline (top/right/bottom/left frame) is gone, but the bottom
+        # (x) and left (y) axis lines are drawn separately by Bokeh and remain, leaving
+        # an open L-shaped frame.
+        assert figure.outline_line_color is None
+        assert figure.xaxis[0].axis_line_color is not None
+        assert figure.yaxis[0].axis_line_color is not None
+
     def test_heatmap_axis_ranges_not_in_dependencies(self, plotter):
         # heatmap_X is hook-driven, so it must stay out of heatmap()'s @param.depends
         # (a zoom/pan must not trigger a re-render that fights the gesture).

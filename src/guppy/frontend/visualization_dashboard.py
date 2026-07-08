@@ -296,6 +296,15 @@ class VisualizationDashboard:
             self.plotter.param.hide_minor_ticks_heatmap,
             widgets={"hide_minor_ticks_heatmap": {"type": pn.widgets.Checkbox, "name": "Hide minor tick marks"}},
         )
+        # Opt-in styling toggles (defaults keep Bokeh's standard look).
+        ticks_inside_heatmap = pn.Param(
+            self.plotter.param.ticks_inside_heatmap,
+            widgets={"ticks_inside_heatmap": {"type": pn.widgets.Checkbox, "name": "Ticks inside"}},
+        )
+        hide_outer_border_heatmap = pn.Param(
+            self.plotter.param.hide_outer_border_heatmap,
+            widgets={"hide_outer_border_heatmap": {"type": pn.widgets.Checkbox, "name": "Hide top/right border"}},
+        )
 
         # Independent save controls (format selector + button), matching the PSTH plots.
         save_hm = self._save_controls(options_name="save_options_heatmap", action_name="save_hm")
@@ -311,7 +320,7 @@ class VisualizationDashboard:
 
         heatmap_card = pn.Card(
             pn.Row(event_selector_heatmap, color_map, width_heatmap, height_heatmap),
-            hide_minor_ticks_heatmap,
+            pn.Row(hide_minor_ticks_heatmap, ticks_inside_heatmap, hide_outer_border_heatmap),
             pn.pane.Markdown("**Axis limits**"),
             axis_limits,
             pn.pane.Markdown("**Color scale limits**"),

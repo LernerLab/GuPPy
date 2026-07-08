@@ -180,6 +180,10 @@ class ParameterizedPlotter(param.Parameterized):
     heatmap_clim = param.Range(default=None)
     # Independent of the PSTH hide_minor_ticks toggle.
     hide_minor_ticks_heatmap = param.Boolean(default=False)
+    # Opt-in heatmap styling toggles (defaults keep Bokeh's standard look): draw the
+    # axis ticks pointing inward, and drop the top/right frame lines for an open look.
+    ticks_inside_heatmap = param.Boolean(default=False)
+    hide_outer_border_heatmap = param.Boolean(default=False)
 
     x = param.ObjectSelector(default=None)
     y = param.ObjectSelector(default=None)
@@ -334,6 +338,43 @@ class ParameterizedPlotter(param.Parameterized):
             figure = plot.state
             figure.xaxis.minor_tick_line_color = None
             figure.yaxis.minor_tick_line_color = None
+
+        return hook
+
+    def _ticks_inside_hook(self, attr: str) -> Callable[[object, object], None]:
+        """Build a HoloViews ``hooks`` callback that points the axis ticks inward.
+
+        Attached to a plot via ``.opts(hooks=[...])``, the returned hook flips both
+        axes' major and minor ticks to point into the plot area when the boolean
+        param named ``attr`` is set. When it is not set the freshly rendered figure
+        keeps Bokeh's default outward ticks, so no restore step is needed.
+        """
+
+        def hook(plot: object, element: object) -> None:
+            if not getattr(self, attr):
+                return
+            figure = plot.state
+            for axis in (figure.xaxis, figure.yaxis):
+                axis.major_tick_in, axis.major_tick_out = 6, 0
+                axis.minor_tick_in, axis.minor_tick_out = 4, 0
+
+        return hook
+
+    def _hide_outer_border_hook(self, attr: str) -> Callable[[object, object], None]:
+        """Build a HoloViews ``hooks`` callback that removes the top/right frame lines.
+
+        Attached to a plot via ``.opts(hooks=[...])``, the returned hook drops the
+        figure's four-sided outline when the boolean param named ``attr`` is set. The
+        bottom (x) and left (y) axis lines are drawn separately by Bokeh and remain,
+        so only the top and right edges disappear, leaving an open L-shaped frame.
+        When the param is not set the freshly rendered figure keeps its full outline,
+        so no restore step is needed.
+        """
+
+        def hook(plot: object, element: object) -> None:
+            if not getattr(self, attr):
+                return
+            plot.state.outline_line_color = None
 
         return hook
 
@@ -802,6 +843,8 @@ class ParameterizedPlotter(param.Parameterized):
         "heatmap_y",
         "heatmap_clim",
         "hide_minor_ticks_heatmap",
+        "ticks_inside_heatmap",
+        "hide_outer_border_heatmap",
     )
     def heatmap(self) -> hv.Element:
         """Render a trial heatmap for the selected event.
@@ -905,6 +948,8 @@ class ParameterizedPlotter(param.Parameterized):
             hooks=[
                 self._range_sync_hook("heatmap", "heatmap_X"),
                 self._hide_minor_ticks_hook("hide_minor_ticks_heatmap"),
+                self._ticks_inside_hook("ticks_inside_heatmap"),
+                self._hide_outer_border_hook("hide_outer_border_heatmap"),
             ]
         )
 
