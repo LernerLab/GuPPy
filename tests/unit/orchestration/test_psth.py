@@ -3,8 +3,8 @@ import numpy as np
 import pytest
 
 from guppy.orchestration.psth import (
+    _validate_fiber_regions_consistent_for_group,
     _validate_psth_window_parameters,
-    _validate_storenames_consistent_for_group,
     execute_average_for_group,
     execute_compute_cross_correlation,
     execute_compute_psth,
@@ -146,7 +146,7 @@ def test_execute_compute_cross_correlation_raises_for_no_regions(psth_output_dir
 
 
 # ---------------------------------------------------------------------------
-# _validate_storenames_consistent_for_group
+# _validate_fiber_regions_consistent_for_group
 # ---------------------------------------------------------------------------
 
 
@@ -158,53 +158,65 @@ def _write_stores_list(output_dir, storenames):
     (output_dir / "storesList.csv").write_text("\n".join(rows) + "\n")
 
 
-def test_validate_storenames_consistent_passes_when_all_match(tmp_path):
+def test_validate_fiber_regions_consistent_passes_when_all_match(tmp_path):
     output_1 = tmp_path / "session1" / "session1_output_1"
     output_2 = tmp_path / "session2" / "session2_output_1"
     _write_stores_list(output_1, ["control_DMS", "signal_DMS", "port_entries"])
     _write_stores_list(output_2, ["control_DMS", "signal_DMS", "port_entries"])
 
     # Should not raise
-    _validate_storenames_consistent_for_group(np.array([str(output_1), str(output_2)]))
+    _validate_fiber_regions_consistent_for_group(np.array([str(output_1), str(output_2)]))
 
 
-def test_validate_storenames_consistent_allows_reordered_storenames(tmp_path):
+def test_validate_fiber_regions_consistent_allows_reordered_storenames(tmp_path):
     output_1 = tmp_path / "session1" / "session1_output_1"
     output_2 = tmp_path / "session2" / "session2_output_1"
     _write_stores_list(output_1, ["control_DMS", "signal_DMS", "port_entries"])
     _write_stores_list(output_2, ["signal_DMS", "port_entries", "control_DMS"])
 
-    _validate_storenames_consistent_for_group(np.array([str(output_1), str(output_2)]))
+    _validate_fiber_regions_consistent_for_group(np.array([str(output_1), str(output_2)]))
 
 
-def test_validate_storenames_raises_for_non_overlapping_storenames(tmp_path):
+def test_validate_fiber_regions_allows_same_region_different_event(tmp_path):
+    # Issue #368: sessions recorded from the same fiber region (DMS) but under
+    # different behavioral conditions must be allowed to average together.
+    output_1 = tmp_path / "session1" / "session1_output_1"
+    output_2 = tmp_path / "session2" / "session2_output_1"
+    _write_stores_list(output_1, ["control_DMS", "signal_DMS", "novelobject"])
+    _write_stores_list(output_2, ["control_DMS", "signal_DMS", "novelfemale1"])
+
+    # Fiber storenames match; only the event differs → should not raise
+    _validate_fiber_regions_consistent_for_group(np.array([str(output_1), str(output_2)]))
+
+
+def test_validate_fiber_regions_raises_for_non_overlapping_fibers(tmp_path):
     output_1 = tmp_path / "session1" / "session1_output_1"
     output_2 = tmp_path / "session2" / "session2_output_1"
     _write_stores_list(output_1, ["control_DMS_A", "signal_DMS_A", "port_entries_A"])
     _write_stores_list(output_2, ["control_DMS_B", "signal_DMS_B", "port_entries_B"])
 
-    with pytest.raises(ValueError, match="mismatched or non-overlapping storenames"):
-        _validate_storenames_consistent_for_group(np.array([str(output_1), str(output_2)]))
+    with pytest.raises(ValueError, match="mismatched control/signal storenames"):
+        _validate_fiber_regions_consistent_for_group(np.array([str(output_1), str(output_2)]))
 
 
-def test_validate_storenames_raises_for_mismatched_region_labels(tmp_path):
+def test_validate_fiber_regions_raises_for_mismatched_region_labels(tmp_path):
     output_1 = tmp_path / "session1" / "session1_output_1"
     output_2 = tmp_path / "session2" / "session2_output_1"
     _write_stores_list(output_1, ["control_region1", "signal_region1", "port_entries1"])
     _write_stores_list(output_2, ["control_region2", "signal_region2", "port_entries2"])
 
-    with pytest.raises(ValueError, match="mismatched or non-overlapping storenames"):
-        _validate_storenames_consistent_for_group(np.array([str(output_1), str(output_2)]))
+    with pytest.raises(ValueError, match="mismatched control/signal storenames"):
+        _validate_fiber_regions_consistent_for_group(np.array([str(output_1), str(output_2)]))
 
 
-def test_validate_storenames_error_message_lists_session_name_and_storenames(tmp_path):
+def test_validate_fiber_regions_error_message_lists_session_name_and_storenames(tmp_path):
     output_1 = tmp_path / "session1" / "session1_output_1"
     output_2 = tmp_path / "session2" / "session2_output_1"
     _write_stores_list(output_1, ["control_region1", "signal_region1"])
     _write_stores_list(output_2, ["control_region2", "signal_region2"])
 
     with pytest.raises(ValueError) as exc_info:
-        _validate_storenames_consistent_for_group(np.array([str(output_1), str(output_2)]))
+        _validate_fiber_regions_consistent_for_group(np.array([str(output_1), str(output_2)]))
     message = str(exc_info.value)
     # Session folder names
     assert "session1" in message
@@ -216,12 +228,12 @@ def test_validate_storenames_error_message_lists_session_name_and_storenames(tmp
     assert "signal_region2" in message
 
 
-def test_validate_storenames_single_session_does_not_raise(tmp_path):
+def test_validate_fiber_regions_single_session_does_not_raise(tmp_path):
     output_1 = tmp_path / "session1" / "session1_output_1"
     _write_stores_list(output_1, ["control_DMS", "signal_DMS"])
 
     # Single session → trivially consistent
-    _validate_storenames_consistent_for_group(np.array([str(output_1)]))
+    _validate_fiber_regions_consistent_for_group(np.array([str(output_1)]))
 
 
 # ---------------------------------------------------------------------------

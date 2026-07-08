@@ -331,41 +331,57 @@ def execute_psth_combined(inputParameters: dict[str, object]) -> None:
         inputParameters["step"] += 1
 
 
-def _validate_storenames_consistent_for_group(storesListPath: np.ndarray) -> None:
-    """Check that every session output directory exposes the same storenames.
+def _validate_fiber_regions_consistent_for_group(storesListPath: np.ndarray) -> None:
+    """Check that every session shares the same fiber (control/signal) storenames.
 
-    Group averaging only produces meaningful results when all sessions share the
-    same set of storenames (the second row of each storesList.csv).  Detect the
-    mismatch up-front and raise a clear error listing the offending sessions,
-    instead of letting it surface downstream as an opaque ``IndexError``.
+    Group averaging buckets each session's data by its fiber-region basename
+    (``z_score_<region>`` / ``dff_<region>``) and averages each behavioral event
+    independently, skipping sessions that lack a given event.  Sessions may
+    therefore differ in their *event* storenames — that is the intended
+    cross-condition workflow (e.g. ``novelobject`` sessions averaged alongside
+    ``novelfemale1`` sessions).  What must agree is the set of *fiber* storenames:
+    averaging across different brain regions produces meaningless per-region
+    single-session "averages".  Detect that mismatch up-front and raise a clear
+    error listing the offending sessions.
+
+    Fiber storenames follow the codebase-wide convention that their names contain
+    ``control`` or ``signal``; every other storename is treated as a behavioral
+    event and ignored here.
 
     Raises
     ------
     ValueError
-        When the sessions disagree on the set of storenames.
+        When the sessions disagree on the set of fiber (control/signal) storenames.
     """
-    per_session_stores = {}
+    per_session_fibers = {}
     for output_dir in storesListPath:
         session_stores_list = np.genfromtxt(
             os.path.join(output_dir, "storesList.csv"), dtype="str", delimiter=","
         ).reshape(2, -1)
-        per_session_stores[output_dir] = tuple(sorted(set(session_stores_list[1, :])))
+        fiber_stores = tuple(
+            sorted(
+                name for name in set(session_stores_list[1, :]) if "control" in name.lower() or "signal" in name.lower()
+            )
+        )
+        per_session_fibers[output_dir] = fiber_stores
 
-    unique_store_sets = set(per_session_stores.values())
-    if len(unique_store_sets) <= 1:
+    unique_fiber_sets = set(per_session_fibers.values())
+    if len(unique_fiber_sets) <= 1:
         return
 
     session_lines = "\n".join(
-        f"  - {os.path.basename(os.path.dirname(output_dir))}: " f"{', '.join(stores) if stores else '(no storenames)'}"
-        for output_dir, stores in per_session_stores.items()
+        f"  - {os.path.basename(os.path.dirname(output_dir))}: "
+        f"{', '.join(stores) if stores else '(no control/signal storenames)'}"
+        for output_dir, stores in per_session_fibers.items()
     )
     raise ValueError(
-        "Group averaging requires every selected session to share the same "
-        "storenames, but the selected sessions have mismatched or "
-        "non-overlapping storenames:\n"
+        "Group averaging requires every selected session to share the same fiber "
+        "regions, but the selected sessions have mismatched control/signal "
+        "storenames:\n"
         f"{session_lines}\n"
-        "Fix the storename labels in step 1, deselect the mismatched "
-        "sessions, or disable 'Average Group? (bool)'."
+        "Event storenames may differ across sessions, but the control/signal "
+        "storenames must match. Fix the storename labels in step 1, deselect the "
+        "mismatched sessions, or disable 'Average Group? (bool)'."
     )
 
 
@@ -411,8 +427,8 @@ def execute_average_for_group(inputParameters: dict[str, object]) -> None:
     Raises
     ------
     ValueError
-        When ``folderNamesForAvg`` is empty or storenames are inconsistent
-        across sessions.
+        When ``folderNamesForAvg`` is empty or the fiber (control/signal)
+        storenames are inconsistent across sessions.
     """
     folderNamesForAvg = inputParameters["folderNamesForAvg"]
     if len(folderNamesForAvg) == 0:
@@ -430,7 +446,7 @@ def execute_average_for_group(inputParameters: dict[str, object]) -> None:
         storesListPath.append(select_output_dirs(filepath, group_selected_outputs.get(filepath)))
     storesListPath = np.concatenate(storesListPath)
 
-    _validate_storenames_consistent_for_group(storesListPath)
+    _validate_fiber_regions_consistent_for_group(storesListPath)
 
     storesList = np.asarray([[], []])
     for i in range(storesListPath.shape[0]):

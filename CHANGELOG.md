@@ -1,7 +1,25 @@
-# v2.0.0-alpha7 (Upcoming)
+# v2.0.0-alpha9 (Upcoming)
 
 ## Features
 - Added support for pynwb 4.0, including the new core `EventsTable` event type (NWB Schema 2.10.0); each `EventsTable` becomes a store, split into one store per unique value of its optional text `annotation` column. Dropped support for the `ndx-events` 0.4 extension, which is unreadable under pynwb 4.0. [PR #367](https://github.com/LernerLab/GuPPy/pull/367)
+
+## Fixes
+- The Heat Map's first and last trial rows no longer render at half height: the Trials (Y) axis now always spans the full cell edges on every render, and its manual axis-limit boxes (which could clip the edge rows) were removed since the axis only encodes trial number. [PR #374](https://github.com/LernerLab/GuPPy/pull/374)
+
+## Improvements
+
+## Deprecations and Removals
+
+# v2.0.0-alpha8 (July 7th, 2026)
+
+## Features
+- Brought the visualization dashboard's Heat Map tab up to parity with the PSTH line plots: numeric X (Time) and Y (Trials) axis-limit boxes that snap to zoom/pan, editable colour-scale (clim) limits that recolour the datashaded data (not just the colorbar), and an independent "Hide minor tick marks" toggle. [PR #372](https://github.com/LernerLab/GuPPy/pull/372)
+
+# v2.0.0-alpha7 (July 7th, 2026)
+
+## Features
+- Added a "Hide minor tick marks" toggle to the visualization dashboard's PSTH tab that removes the small ticks between axis numbers on the three line plots for a cleaner look (ticks shown by default). [PR #370](https://github.com/LernerLab/GuPPy/pull/370)
+- Reorganized the visualization dashboard's PSTH tab into per-plot cards with numeric axis-range inputs (that snap to zoom), color pickers, a comparison-plot palette selector, and per-plot save buttons. [PR #365](https://github.com/LernerLab/GuPPy/pull/365)
 - Added an optional "Import Custom Events" GUI step for pasting external behavioral timestamps (copied from a spreadsheet column), written as GuPPy-compatible single-column CSVs that surface as stores in the Storenames GUI; advanced users can hand-build the same CSV format, documented in a new how-to guide. [PR #362](https://github.com/LernerLab/GuPPy/pull/362)
 - Added Iteratively Re-Weighted Least Squares (IRWLS) as the control-channel fitting method and made it the new default (robust to outliers; ordinary least-squares `OLS` fitting remains selectable via the new `control_fit_method` parameter). [PR #359](https://github.com/LernerLab/GuPPy/pull/359)
 - Each pipeline step now writes `GuPPyParamtersUsed.json` into its output directory automatically, and selecting an existing output run reloads its saved parameters into the form so the snapshot always matches what was executed and resuming a run no longer overwrites its parameters. Removed the manual "Save Input Parameters" button and renumbered the sidebar steps 1–5. Resolves [#301](https://github.com/LernerLab/GuPPy/issues/301). [PR #353](https://github.com/LernerLab/GuPPy/pull/353)
@@ -21,6 +39,8 @@
 - Added type hints to all functions in the utils, visualization, testing, and root layers. [PR #347](https://github.com/LernerLab/GuPPy/pull/347)
 
 ## Fixes
+- Group averaging now only requires the selected sessions to share the same fiber (control/signal) storenames rather than an identical full storename set, so sessions recorded from the same region under different behavioral conditions (e.g. Novel Object vs Novel Female) can be averaged together for cross-condition group figures. [PR #369](https://github.com/LernerLab/GuPPy/pull/369)
+- Fixed the visualization dashboard rendering blank (only the title bar, no plots or controls) when an event's group average had a single contributing session: the single-trial heatmap drew a raw QuadMesh across the full time axis, overflowing Bokeh's client-side renderer. Single-trial heatmaps now use the same datashaded path as multi-trial ones. [PR #369](https://github.com/LernerLab/GuPPy/pull/369)
 - Unified the pipeline step numbering on the canonical Storenames = Step 1 scheme across the testing API, tests, error messages, comments, and docs, so error messages that tell the user to re-run a step now match the GUI sidebar labels. [PR #361](https://github.com/LernerLab/GuPPy/pull/361)
 - Stored event timestamps now share the recording-start time basis with the continuous `timestampNew` stream instead of being re-zeroed to `timeForLightsTurnOn`, so all series can be co-registered without per-stream offset bookkeeping (PSTH results are unchanged). Resolves [#355](https://github.com/LernerLab/GuPPy/issues/355). [PR #356](https://github.com/LernerLab/GuPPy/pull/356)
 - Fixed bug with step five, which was causing the baseline uncorrected HDF5 file to not exist. [PR #241](https://github.com/LernerLab/GuPPy/pull/241)
