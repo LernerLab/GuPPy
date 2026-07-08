@@ -477,6 +477,21 @@ class TestParameterizedPlotter:
         assert plotter.cont_X == (2.0, 6.0)
         assert plotter.cont_Y == (-0.5, 0.5)
 
+    def test_range_sync_hook_ignores_incomplete_y_range(self, plotter):
+        # A y range still reporting a None endpoint (mid-initialization) must not be
+        # written back into the param, while the x range still syncs normally.
+        hook = plotter._range_sync_hook("cont", "cont_X", "cont_Y")
+        figure = _FakeFigure()
+        hook(_FakePlot(figure), None)
+
+        plotter.cont_Y = (-2.0, 2.0)
+        figure.y_range.start, figure.y_range.end = None, 2.0  # incomplete y range
+        figure.x_range.start, figure.x_range.end = 2.0, 6.0
+        figure.x_range.callbacks[0]("end", 1.0, 6.0)  # simulate Bokeh firing the callback
+
+        assert plotter.cont_X == (2.0, 6.0)  # x still synced
+        assert plotter.cont_Y == (-2.0, 2.0)  # incomplete y range left untouched
+
     def test_move_figure_to_range_moves_live_figure(self, plotter):
         # A typed box edit sets the range params then calls move_figure_to_range to
         # move the already-rendered figure in place (no re-render), which is what
@@ -539,6 +554,21 @@ class TestParameterizedPlotter:
     def test_range_plots_includes_heatmap(self, plotter):
         # The heatmap pairs no Y range: its Trials axis is fixed, never zoom-synced.
         assert ("heatmap", "heatmap_X", None) in plotter._RANGE_PLOTS
+
+    def test_range_sync_hook_syncs_heatmap_x_only(self, plotter):
+        # The heatmap hook is built with no y_name: an x zoom/pan is mirrored into
+        # heatmap_X, and the Trials (Y) axis is never registered for sync, so a fixed
+        # Y range can never be written back and clip the edge rows.
+        hook = plotter._range_sync_hook("heatmap", "heatmap_X")
+        figure = _FakeFigure()
+        hook(_FakePlot(figure), None)  # registers on_change callbacks
+
+        assert figure.y_range.callbacks == []  # the Trials axis is not zoom-synced
+
+        figure.x_range.start, figure.x_range.end = 2.0, 6.0
+        figure.x_range.callbacks[0]("end", 1.0, 6.0)  # simulate Bokeh firing the callback
+
+        assert plotter.heatmap_X == (2.0, 6.0)
 
     def test_move_figure_to_range_moves_heatmap_x_only(self, plotter):
         figure = _FakeFigure()
