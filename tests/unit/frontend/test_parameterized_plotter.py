@@ -528,34 +528,48 @@ class TestParameterizedPlotter:
         # The heatmap X (Time) range is seeded with the padded PSTH window like the line plots.
         assert plotter.heatmap_X == (-5.0, 10.0)
 
-    def test_heatmap_y_and_clim_start_unset_for_autofit(self, plotter):
-        # Trials axis and colour scale start None so the first render auto-fits them.
-        assert plotter.heatmap_Y is None
+    def test_heatmap_clim_starts_unset_for_autofit(self, plotter):
+        # The colour scale starts None so the first render auto-fits it. (The Trials
+        # axis has no stored range; its ylim is computed fresh on every render.)
         assert plotter.heatmap_clim is None
 
     def test_hide_minor_ticks_heatmap_defaults_to_false(self, plotter):
         assert plotter.hide_minor_ticks_heatmap is False
 
     def test_range_plots_includes_heatmap(self, plotter):
-        assert ("heatmap", "heatmap_X", "heatmap_Y") in plotter._RANGE_PLOTS
+        # The heatmap pairs no Y range: its Trials axis is fixed, never zoom-synced.
+        assert ("heatmap", "heatmap_X", None) in plotter._RANGE_PLOTS
 
-    def test_move_figure_to_range_moves_heatmap_figure(self, plotter):
+    def test_move_figure_to_range_moves_heatmap_x_only(self, plotter):
         figure = _FakeFigure()
         plotter._figures["heatmap"] = figure
+        original_y_range = (figure.y_range.start, figure.y_range.end)
 
         plotter.heatmap_X = (0.0, 3.0)
-        plotter.heatmap_Y = (1.0, 5.0)
         plotter.move_figure_to_range("heatmap_X")
 
         assert (figure.x_range.start, figure.x_range.end) == (0.0, 3.0)
-        assert (figure.y_range.start, figure.y_range.end) == (1.0, 5.0)
+        # The heatmap has no Y range param, so the figure's y range is left untouched.
+        assert (figure.y_range.start, figure.y_range.end) == original_y_range
 
-    def test_heatmap_autofits_clim_and_y_on_render(self, plotter):
+    def test_heatmap_autofits_clim_on_render(self, plotter):
         image = plotter.heatmap()
 
         assert image is not None
         assert plotter.heatmap_clim is not None
-        assert plotter.heatmap_Y is not None
+
+    def test_heatmap_y_range_always_spans_full_cells(self, plotter):
+        # Regression: the Trials axis must always span the full cell edges
+        # (min - 0.5, max + 0.5) so the first and last trial rows render at full
+        # height. The default selection ("All") has 3 trials -> edges at 0.5 and 3.5.
+        figure = hv.render(plotter.heatmap())
+        assert {figure.y_range.start, figure.y_range.end} == {0.5, 3.5}
+
+        # Simulate a zoom that previously would have been written back and clipped the
+        # edge rows; re-rendering must recompute the full-cell ylim and ignore it.
+        figure.y_range.start, figure.y_range.end = 3.0, 1.0
+        refigure = hv.render(plotter.heatmap())
+        assert {refigure.y_range.start, refigure.y_range.end} == {0.5, 3.5}
 
     def test_heatmap_honours_clim_override(self, plotter):
         # A user-set colour scale survives a render whose selection is unchanged.
@@ -608,10 +622,10 @@ class TestParameterizedPlotter:
         assert figure.yaxis[0].minor_tick_line_color is None
 
     def test_heatmap_axis_ranges_not_in_dependencies(self, plotter):
-        # heatmap_X/Y are hook-driven, so they must stay out of heatmap()'s @param.depends
+        # heatmap_X is hook-driven, so it must stay out of heatmap()'s @param.depends
         # (a zoom/pan must not trigger a re-render that fights the gesture).
         dependencies = {dependency.name for dependency in plotter.param.method_dependencies("heatmap")}
-        assert dependencies.isdisjoint({"heatmap_X", "heatmap_Y"})
+        assert dependencies.isdisjoint({"heatmap_X"})
 
     def test_heatmap_clim_and_ticks_in_dependencies(self, plotter):
         # A colour-scale or tick-visibility change has no live-figure equivalent, so both

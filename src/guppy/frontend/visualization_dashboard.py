@@ -300,14 +300,13 @@ class VisualizationDashboard:
         # Independent save controls (format selector + button), matching the PSTH plots.
         save_hm = self._save_controls(options_name="save_options_heatmap", action_name="save_hm")
 
-        # Numeric axis limits (X/Y snap to Bokeh zoom/pan) and the colour-scale (clim)
-        # limits, all reusing the PSTH tab's _range_number_inputs helper. The X/Y boxes
+        # Numeric X-axis limits (snap to Bokeh zoom/pan) and the colour-scale (clim)
+        # limits, both reusing the PSTH tab's _range_number_inputs helper. The X boxes
         # move the live figure in place; the colour-scale boxes re-render (heatmap_clim
         # is in heatmap()'s @param.depends), for which move_figure_to_range is a no-op.
-        axis_limits = pn.Row(
-            self._range_number_inputs(name="heatmap_X", label="X"),
-            self._range_number_inputs(name="heatmap_Y", label="Y"),
-        )
+        # The Trials (Y) axis is intentionally not exposed: it always spans every trial
+        # row at full height, computed fresh on each render.
+        axis_limits = self._range_number_inputs(name="heatmap_X", label="X")
         color_limits = self._range_number_inputs(name="heatmap_clim", label="Color scale")
 
         heatmap_card = pn.Card(

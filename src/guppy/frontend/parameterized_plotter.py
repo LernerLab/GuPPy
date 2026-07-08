@@ -171,11 +171,12 @@ class ParameterizedPlotter(param.Parameterized):
     trials_X = param.Range(default=None)
     trials_Y = param.Range(default=None)
     # Heat map axis + color-scale ranges, mirroring the per-line-plot pattern.
-    # heatmap_X/Y are driven live by the zoom/pan hook (kept OUT of @param.depends);
+    # heatmap_X is driven live by the zoom/pan hook (kept OUT of @param.depends);
     # heatmap_clim IS in @param.depends because a colour-scale change has no live-pan
-    # equivalent and must re-render. All three auto-fit on selection change.
+    # equivalent and must re-render. Both auto-fit on selection change. The Trials
+    # (Y) axis has no user control: it always shows every trial row at full height,
+    # so its ylim is computed fresh on each render rather than stored as a param.
     heatmap_X = param.Range(default=None)
-    heatmap_Y = param.Range(default=None)
     heatmap_clim = param.Range(default=None)
     # Independent of the PSTH hide_minor_ticks toggle.
     hide_minor_ticks_heatmap = param.Boolean(default=False)
@@ -230,7 +231,7 @@ class ParameterizedPlotter(param.Parameterized):
         ("cont", "cont_X", "cont_Y"),
         ("overlay", "overlay_X", "overlay_Y"),
         ("trials", "trials_X", "trials_Y"),
-        ("heatmap", "heatmap_X", "heatmap_Y"),
+        ("heatmap", "heatmap_X", None),
     )
 
     @staticmethod
@@ -266,13 +267,16 @@ class ParameterizedPlotter(param.Parameterized):
         figure = self._figures.get(plot_key)
         if figure is None:
             return
-        x_range, y_range = getattr(self, x_name), getattr(self, y_name)
+        x_range = getattr(self, x_name)
+        y_range = None if y_name is None else getattr(self, y_name)
         if x_range is not None:
             self._assign_range(figure.x_range, x_range)
         if y_range is not None:
             self._assign_range(figure.y_range, y_range)
 
-    def _range_sync_hook(self, plot_key: str, x_name: str, y_name: str) -> Callable[[object, object], None]:
+    def _range_sync_hook(
+        self, plot_key: str, x_name: str, y_name: str | None = None
+    ) -> Callable[[object, object], None]:
         """Build a HoloViews ``hooks`` callback that mirrors Bokeh zoom/pan into params.
 
         Attached to a plot via ``.opts(hooks=[...])``, the returned hook records the
@@ -280,6 +284,17 @@ class ParameterizedPlotter(param.Parameterized):
         changes to the figure's x/y ranges, writing them back into the
         ``x_name``/``y_name`` range params so the plot's number-entry boxes stay in
         sync when the user zooms or pans that plot directly.
+
+        Parameters
+        ----------
+        plot_key : str
+            Key under which the rendered figure is recorded in ``self._figures``.
+        x_name : str
+            Name of the ``param.Range`` mirrored from the figure's x range.
+        y_name : str or None, optional
+            Name of the ``param.Range`` mirrored from the figure's y range, or
+            ``None`` to leave the y range unsynced (the heatmap's Trials axis is
+            fixed, so its range must never be written back).
         """
 
         def hook(plot: object, element: object) -> None:
@@ -288,13 +303,15 @@ class ParameterizedPlotter(param.Parameterized):
 
             def sync(attr: str, old: object, new: object) -> None:
                 x_range = (figure.x_range.start, figure.x_range.end)
-                y_range = (figure.y_range.start, figure.y_range.end)
                 if None not in x_range and getattr(self, x_name) != x_range:
                     setattr(self, x_name, (float(x_range[0]), float(x_range[1])))
-                if None not in y_range and getattr(self, y_name) != y_range:
-                    setattr(self, y_name, (float(y_range[0]), float(y_range[1])))
+                if y_name is not None:
+                    y_range = (figure.y_range.start, figure.y_range.end)
+                    if None not in y_range and getattr(self, y_name) != y_range:
+                        setattr(self, y_name, (float(y_range[0]), float(y_range[1])))
 
-            for axis_range in (figure.x_range, figure.y_range):
+            axis_ranges = (figure.x_range,) if y_name is None else (figure.x_range, figure.y_range)
+            for axis_range in axis_ranges:
                 axis_range.on_change("start", sync)
                 axis_range.on_change("end", sync)
 
@@ -795,11 +812,11 @@ class ParameterizedPlotter(param.Parameterized):
             A ``QuadMesh`` (single trial) or a datashaded ``QuadMesh`` overlay
             (multiple trials), coloured by the selected colour map.
         """
-        # Refit the colour scale and the Trials axis whenever the event or trial
-        # selection changes; a manual clim/zoom persists across renders that keep
-        # the same selection (same convention as the PSTH Y-range auto-fit).
+        # Refit the colour scale whenever the event or trial selection changes; a
+        # manual clim persists across renders that keep the same selection (same
+        # convention as the PSTH Y-range auto-fit). The Trials axis has no user
+        # control, so it needs no reset.
         selection = (self.event_selector_heatmap, tuple(self.heatmap_y))
-        self._reset_y_on_selection_change("heatmap_Y", "heatmap_Y", selection)
         self._reset_y_on_selection_change("heatmap_clim", "heatmap_clim", selection)
 
         height = self.height_heatmap
@@ -829,17 +846,18 @@ class ParameterizedPlotter(param.Parameterized):
             event_ts_for_each_event = np.arange(1, z_score.shape[0] + 1)
             yticks = list(event_ts_for_each_event)
 
-        # Auto-fit the colour scale and Trials axis to the current selection on
-        # first render (or after a selection change reset them above). ``trial_numbers``
-        # is captured before the single-trial duplication below so the Y range and
-        # ticks reflect the real trials, and its 0.5 padding gives the lone-trial case
-        # a non-degenerate range.
+        # Auto-fit the colour scale to the current selection on first render (or
+        # after a selection change reset it above). ``trial_numbers`` is captured
+        # before the single-trial duplication below so the Y range and ticks reflect
+        # the real trials, and its 0.5 padding gives the lone-trial case a
+        # non-degenerate range.
         trial_numbers = event_ts_for_each_event
         if self.heatmap_clim is None:
             self.heatmap_clim = (float(np.nanmin(z_score)), float(np.nanmax(z_score)))
-        if self.heatmap_Y is None:
-            self.heatmap_Y = (float(trial_numbers.min()) - 0.5, float(trial_numbers.max()) + 0.5)
         clim = self.heatmap_clim
+        # Always span the full cell edges so the first and last trial rows render at
+        # full height; recomputed every render so no stale/zoomed range can clip them.
+        ylim = (float(trial_numbers.min()) - 0.5, float(trial_numbers.max()) + 0.5)
         font_size = {"labels": 16, "yticks": 6}
 
         # A single-trial heatmap (e.g. a group average with only one contributing
@@ -863,7 +881,7 @@ class ParameterizedPlotter(param.Parameterized):
             yticks=yticks,
             invert_yaxis=True,
             xlim=self.heatmap_X,
-            ylim=self.heatmap_Y,
+            ylim=ylim,
         )
         dummy_image = hv.QuadMesh((time[0:100], event_ts_for_each_event, z_score[:, 0:100])).opts(
             colorbar=True, cmap=process_cmap(self.color_map, provider="matplotlib"), clim=clim
@@ -885,7 +903,7 @@ class ParameterizedPlotter(param.Parameterized):
         )
         image = image.opts(
             hooks=[
-                self._range_sync_hook("heatmap", "heatmap_X", "heatmap_Y"),
+                self._range_sync_hook("heatmap", "heatmap_X"),
                 self._hide_minor_ticks_hook("hide_minor_ticks_heatmap"),
             ]
         )
