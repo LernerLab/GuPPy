@@ -23,6 +23,9 @@ The file contains:
 - Core EventsTable named "annotated_events" with a text "annotation" column containing
   "Reward" (timestamps 41–45 s) and "Punishment" (timestamps 55–59 s)
   → discovers as two events "annotated_events_Reward" and "annotated_events_Punishment"
+- Core EventsTable named "strobe_events" with a text "strobe" code column (codes 16, 2064,
+  0 at timestamps 60–64 s), mirroring NeuroConv's TDTEventsInterface output
+  → discovers as "strobe_events_0", "strobe_events_16", "strobe_events_2064"
 """
 
 import datetime
@@ -325,6 +328,19 @@ def main() -> None:
     for timestamp in np.arange(55, 60, dtype=np.float64):
         annotated_events.add_row(timestamp=timestamp, annotation="Punishment")
     nwbfile.add_events_table(annotated_events)
+
+    # --- Strobe EventsTable: timestamps 60–64 s, text "strobe" code column ---
+    # Mirrors what NeuroConv's TDTEventsInterface writes for a coded (strobe) epoc:
+    # a single value column named "strobe" (not "annotation"). Codes are 16, 2064, 0.
+    # Discovers as "strobe_events_0", "strobe_events_16", "strobe_events_2064".
+    strobe_events = EventsTable(
+        name="strobe_events",
+        description="Mock events with a strobe code column, as written by TDTEventsInterface.",
+    )
+    strobe_events.add_column(name="strobe", description="Strobe code for each event.")
+    for timestamp, strobe_code in zip(np.arange(60, 65, dtype=np.float64), ["16", "2064", "0", "16", "2064"]):
+        strobe_events.add_row(timestamp=timestamp, strobe=strobe_code)
+    nwbfile.add_events_table(strobe_events)
 
     _OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     with NWBHDF5IO(_OUTPUT_PATH, "w") as io:

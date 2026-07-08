@@ -7,6 +7,7 @@ from pynwb import TimeSeries, read_nwb
 
 from guppy.extractors.nwb_recording_extractor import (
     NwbRecordingExtractor,
+    _core_events_split_column,
     _find_nwb_file,
     _parse_event_name,
     _read_ndx_event,
@@ -104,11 +105,37 @@ class _FakeEventsColumn:
 class _FakeEventsTable:
     """Minimal stand-in for a core ``EventsTable`` supporting ``table[column_name]`` access."""
 
-    def __init__(self, **columns):
-        self._columns = {name: _FakeEventsColumn(values) for name, values in columns.items()}
+    def __init__(self, name="events", **columns):
+        self.name = name
+        self.colnames = tuple(columns)
+        self._columns = {column_name: _FakeEventsColumn(values) for column_name, values in columns.items()}
 
     def __getitem__(self, name):
         return self._columns[name]
+
+
+class TestCoreEventsSplitColumn:
+    def test_timestamp_only_returns_none(self):
+        table = _FakeEventsTable(timestamp=[1.0, 2.0, 3.0])
+        assert _core_events_split_column(table) is None
+
+    def test_ignores_duration_column(self):
+        table = _FakeEventsTable(timestamp=[1.0, 2.0], duration=[0.1, 0.1])
+        assert _core_events_split_column(table) is None
+
+    def test_single_value_column_is_split_column(self):
+        table = _FakeEventsTable(timestamp=[1.0, 2.0], strobe=["16", "2064"])
+        assert _core_events_split_column(table) == "strobe"
+
+    def test_multiple_value_columns_raise_not_implemented(self):
+        table = _FakeEventsTable(
+            name="merged",
+            timestamp=[1.0, 2.0],
+            event_type=["a", "b"],
+            strobe=["16", "2064"],
+        )
+        with pytest.raises(NotImplementedError, match=r"multiple value columns.*raise an issue"):
+            _core_events_split_column(table)
 
 
 class TestReadNdxEvent:
@@ -116,9 +143,9 @@ class TestReadNdxEvent:
         with pytest.raises(ValueError, match=r"Expected one of 'annotated', 'labeled', 'events', 'core'"):
             _read_ndx_event(event_name="bogus", source_info=("invalid_tag",))
 
-    def test_core_event_without_annotation_returns_all_timestamps(self):
+    def test_core_event_without_value_column_returns_all_timestamps(self):
         table = _FakeEventsTable(timestamp=[1.0, 2.0, 3.0])
-        result = _read_ndx_event(event_name="simple_events", source_info=("core", table, None))
+        result = _read_ndx_event(event_name="simple_events", source_info=("core", table, None, None))
         assert result["storename"] == "simple_events"
         np.testing.assert_array_equal(result["timestamps"], np.array([1.0, 2.0, 3.0]))
 
@@ -127,9 +154,20 @@ class TestReadNdxEvent:
             timestamp=[41.0, 42.0, 55.0, 56.0],
             annotation=["Reward", "Reward", "Punishment", "Punishment"],
         )
-        result = _read_ndx_event(event_name="annotated_events_Reward", source_info=("core", table, "Reward"))
+        result = _read_ndx_event(
+            event_name="annotated_events_Reward", source_info=("core", table, "annotation", "Reward")
+        )
         assert result["storename"] == "annotated_events_Reward"
         np.testing.assert_array_equal(result["timestamps"], np.array([41.0, 42.0]))
+
+    def test_core_event_filters_by_strobe_value(self):
+        table = _FakeEventsTable(
+            timestamp=[160.7, 165.7, 165.8, 210.8, 215.8],
+            strobe=["16", "2064", "0", "16", "2064"],
+        )
+        result = _read_ndx_event(event_name="PAB_16", source_info=("core", table, "strobe", "16"))
+        assert result["storename"] == "PAB_16"
+        np.testing.assert_array_equal(result["timestamps"], np.array([160.7, 210.8]))
 
 
 class TestResolveTiming:
@@ -312,6 +350,9 @@ class TestNwbRecordingExtractorCoreEventsSimple(NwbRecordingExtractorTestMixin):
         "simple_events",
         "annotated_events_Reward",
         "annotated_events_Punishment",
+        "strobe_events_0",
+        "strobe_events_16",
+        "strobe_events_2064",
     ]
 
     @pytest.fixture
@@ -336,9 +377,43 @@ class TestNwbRecordingExtractorCoreEventsAnnotated(NwbRecordingExtractorTestMixi
         "simple_events",
         "annotated_events_Reward",
         "annotated_events_Punishment",
+        "strobe_events_0",
+        "strobe_events_16",
+        "strobe_events_2064",
     ]
 
     @pytest.fixture
     def expected_ttl_timestamps(self):
         # Reward timestamps: 41, 42, 43, 44, 45
         return np.array([41.0, 42.0, 43.0, 44.0, 45.0])
+
+
+class TestNwbRecordingExtractorCoreEventsStrobe(NwbRecordingExtractorTestMixin):
+    """Contract tests for the core-events mock file using a strobe-coded ``EventsTable``.
+
+    Mirrors NeuroConv's TDTEventsInterface output: a single "strobe" value column (not
+    "annotation"), which the reader splits per code.
+    """
+
+    extractor_class = NwbRecordingExtractor
+    folder_path = str(MOCK_NWB_CORE_EVENTS_FOLDER)
+    file_path = str(MOCK_NWB_CORE_EVENTS_FILE)
+    extractor_instance = NwbRecordingExtractor(folder_path=str(MOCK_NWB_CORE_EVENTS_FOLDER))
+    control_event = "fiber_photometry_response_series_0"
+    signal_event = "fiber_photometry_response_series_1"
+    ttl_event = "strobe_events_16"
+    expected_events = [
+        "fiber_photometry_response_series_0",
+        "fiber_photometry_response_series_1",
+        "simple_events",
+        "annotated_events_Reward",
+        "annotated_events_Punishment",
+        "strobe_events_0",
+        "strobe_events_16",
+        "strobe_events_2064",
+    ]
+
+    @pytest.fixture
+    def expected_ttl_timestamps(self):
+        # strobe codes [16, 2064, 0, 16, 2064] at timestamps 60..64, so code 16 -> 60, 63.
+        return np.array([60.0, 63.0])

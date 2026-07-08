@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from hdmf.common import DynamicTable
 from pynwb import NWBHDF5IO, NWBFile
 
 from guppy.extractors.base_recording_extractor import BaseRecordingExtractor
@@ -264,22 +265,57 @@ def _discover_ndx_events_v02(nwbfile: NWBFile, seen_names: set[str]) -> list[str
     return events
 
 
+def _core_events_split_column(table: DynamicTable) -> str | None:
+    """Return the column an ``EventsTable`` should be split on, or ``None`` for a single event.
+
+    A core (pynwb 4.0) ``EventsTable`` always has a ``timestamp`` column and may have a
+    ``duration`` column; any remaining column is a value column carrying a per-event
+    category (e.g. ``annotation`` from a hand-built file, or ``strobe`` / ``event_type``
+    written by NeuroConv's events interfaces). We split the table into one event per
+    unique value of that column.
+
+    Returns
+    -------
+    str or None
+        The name of the single value column to split on, or ``None`` when the table has
+        no value column (it then yields a single event named after the table).
+
+    Raises
+    ------
+    NotImplementedError
+        If the table has more than one value column. Splitting on a combination of
+        columns is not supported.
+    """
+    value_columns = [column for column in table.colnames if column not in ("timestamp", "duration")]
+    if len(value_columns) == 0:
+        return None
+    elif len(value_columns) == 1:
+        return value_columns[0]
+    else:
+        raise NotImplementedError(
+            f"EventsTable {table.name!r} has multiple value columns {value_columns!r}, but splitting "
+            "events on more than one column is not supported. If you need multi-column splitting, "
+            "please raise an issue at https://github.com/LernerLab/GuPPy/issues."
+        )
+
+
 def _discover_core_events_tables(nwbfile: NWBFile, seen_names: set[str]) -> list[str]:
     """Discover event names from core (pynwb 4.0) ``EventsTable`` objects.
 
-    Each ``EventsTable`` in ``nwbfile.events`` maps to one or more events. A table with an
-    ``annotation`` column yields one event per unique annotation value
-    (``{table_name}_{annotation_value}``); a table without one yields a single event
-    ``{table_name}``.
+    Each ``EventsTable`` in ``nwbfile.events`` maps to one or more events. A table with a
+    single value column (any column other than ``timestamp``/``duration``) yields one event
+    per unique value of that column (``{table_name}_{value}``); a table without one yields a
+    single event ``{table_name}``.
     """
     events = []
     for table_name, table in (getattr(nwbfile, "events", None) or {}).items():
         _register_unique_name(seen_names, table_name, "EventsTable")
-        if "annotation" in table.colnames:
-            for annotation_value in np.unique(np.asarray(table["annotation"][:])):
-                events.append(f"{table_name}_{annotation_value}")
-        else:
+        split_column = _core_events_split_column(table)
+        if split_column is None:
             events.append(table_name)
+        else:
+            for value in np.unique(np.asarray(table[split_column][:])):
+                events.append(f"{table_name}_{value}")
     return events
 
 
@@ -314,15 +350,16 @@ def _build_core_events_index(nwbfile: NWBFile) -> dict[str, tuple]:
     Returns
     -------
     dict
-        Mapping of event name to ``("core", table, annotation_value_or_None)``.
+        Mapping of event name to ``("core", table, split_column_or_None, value_or_None)``.
     """
     index = {}
     for table_name, table in (getattr(nwbfile, "events", None) or {}).items():
-        if "annotation" in table.colnames:
-            for annotation_value in np.unique(np.asarray(table["annotation"][:])):
-                index[f"{table_name}_{annotation_value}"] = ("core", table, annotation_value)
+        split_column = _core_events_split_column(table)
+        if split_column is None:
+            index[table_name] = ("core", table, None, None)
         else:
-            index[table_name] = ("core", table, None)
+            for value in np.unique(np.asarray(table[split_column][:])):
+                index[f"{table_name}_{value}"] = ("core", table, split_column, value)
     return index
 
 
@@ -359,11 +396,11 @@ def _read_ndx_event(*, event_name: str, source_info: tuple) -> dict[str, object]
         return {"storename": event_name, "timestamps": np.array(obj.timestamps[:])}
 
     if tag == "core":
-        _, table, annotation_value = source_info
+        _, table, split_column, split_value = source_info
         all_timestamps = np.array(table["timestamp"][:])
-        if annotation_value is not None:
-            all_annotations = np.asarray(table["annotation"][:])
-            return {"storename": event_name, "timestamps": all_timestamps[all_annotations == annotation_value]}
+        if split_column is not None:
+            all_values = np.asarray(table[split_column][:])
+            return {"storename": event_name, "timestamps": all_timestamps[all_values == split_value]}
         return {"storename": event_name, "timestamps": all_timestamps}
 
     raise ValueError(
