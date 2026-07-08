@@ -166,9 +166,10 @@ class TestVisualizationDashboard:
         assert plotter.heatmap in [pane.object for pane in panes]
 
     def test_heatmap_tab_uses_number_inputs_for_axis_and_color_limits(self, dashboard):
-        # X + Y + colour-scale = 3 ranges x (min, max) = 6 FloatInput boxes.
+        # X + colour-scale = 2 ranges x (min, max) = 4 FloatInput boxes. (The Trials
+        # (Y) axis is fixed and has no controls.)
         number_inputs = list(dashboard._heatmap_tab.select(pn.widgets.FloatInput))
-        assert len(number_inputs) == 6
+        assert len(number_inputs) == 4
 
     def test_heatmap_tab_has_hide_minor_ticks_checkbox(self, dashboard, plotter):
         checkboxes = {box.name: box for box in dashboard._heatmap_tab.select(pn.widgets.Checkbox)}
@@ -179,6 +180,26 @@ class TestVisualizationDashboard:
 
         checkbox.value = True
         assert plotter.hide_minor_ticks_heatmap is True
+
+    def test_heatmap_tab_has_ticks_inside_checkbox(self, dashboard, plotter):
+        checkboxes = {box.name: box for box in dashboard._heatmap_tab.select(pn.widgets.Checkbox)}
+        assert "Ticks inside" in checkboxes
+
+        checkbox = checkboxes["Ticks inside"]
+        assert checkbox.value is False  # ticks point outward by default
+
+        checkbox.value = True
+        assert plotter.ticks_inside_heatmap is True
+
+    def test_heatmap_tab_has_hide_outer_border_checkbox(self, dashboard, plotter):
+        checkboxes = {box.name: box for box in dashboard._heatmap_tab.select(pn.widgets.Checkbox)}
+        assert "Hide top/right border" in checkboxes
+
+        checkbox = checkboxes["Hide top/right border"]
+        assert checkbox.value is False  # full border shown by default
+
+        checkbox.value = True
+        assert plotter.hide_outer_border_heatmap is True
 
     def test_heatmap_tab_has_save_controls(self, dashboard):
         assert list(dashboard._heatmap_tab.select(pn.widgets.Button))

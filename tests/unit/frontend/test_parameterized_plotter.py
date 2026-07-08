@@ -477,6 +477,21 @@ class TestParameterizedPlotter:
         assert plotter.cont_X == (2.0, 6.0)
         assert plotter.cont_Y == (-0.5, 0.5)
 
+    def test_range_sync_hook_ignores_incomplete_y_range(self, plotter):
+        # A y range still reporting a None endpoint (mid-initialization) must not be
+        # written back into the param, while the x range still syncs normally.
+        hook = plotter._range_sync_hook("cont", "cont_X", "cont_Y")
+        figure = _FakeFigure()
+        hook(_FakePlot(figure), None)
+
+        plotter.cont_Y = (-2.0, 2.0)
+        figure.y_range.start, figure.y_range.end = None, 2.0  # incomplete y range
+        figure.x_range.start, figure.x_range.end = 2.0, 6.0
+        figure.x_range.callbacks[0]("end", 1.0, 6.0)  # simulate Bokeh firing the callback
+
+        assert plotter.cont_X == (2.0, 6.0)  # x still synced
+        assert plotter.cont_Y == (-2.0, 2.0)  # incomplete y range left untouched
+
     def test_move_figure_to_range_moves_live_figure(self, plotter):
         # A typed box edit sets the range params then calls move_figure_to_range to
         # move the already-rendered figure in place (no re-render), which is what
@@ -528,34 +543,63 @@ class TestParameterizedPlotter:
         # The heatmap X (Time) range is seeded with the padded PSTH window like the line plots.
         assert plotter.heatmap_X == (-5.0, 10.0)
 
-    def test_heatmap_y_and_clim_start_unset_for_autofit(self, plotter):
-        # Trials axis and colour scale start None so the first render auto-fits them.
-        assert plotter.heatmap_Y is None
+    def test_heatmap_clim_starts_unset_for_autofit(self, plotter):
+        # The colour scale starts None so the first render auto-fits it. (The Trials
+        # axis has no stored range; its ylim is computed fresh on every render.)
         assert plotter.heatmap_clim is None
 
     def test_hide_minor_ticks_heatmap_defaults_to_false(self, plotter):
         assert plotter.hide_minor_ticks_heatmap is False
 
     def test_range_plots_includes_heatmap(self, plotter):
-        assert ("heatmap", "heatmap_X", "heatmap_Y") in plotter._RANGE_PLOTS
+        # The heatmap pairs no Y range: its Trials axis is fixed, never zoom-synced.
+        assert ("heatmap", "heatmap_X", None) in plotter._RANGE_PLOTS
 
-    def test_move_figure_to_range_moves_heatmap_figure(self, plotter):
+    def test_range_sync_hook_syncs_heatmap_x_only(self, plotter):
+        # The heatmap hook is built with no y_name: an x zoom/pan is mirrored into
+        # heatmap_X, and the Trials (Y) axis is never registered for sync, so a fixed
+        # Y range can never be written back and clip the edge rows.
+        hook = plotter._range_sync_hook("heatmap", "heatmap_X")
+        figure = _FakeFigure()
+        hook(_FakePlot(figure), None)  # registers on_change callbacks
+
+        assert figure.y_range.callbacks == []  # the Trials axis is not zoom-synced
+
+        figure.x_range.start, figure.x_range.end = 2.0, 6.0
+        figure.x_range.callbacks[0]("end", 1.0, 6.0)  # simulate Bokeh firing the callback
+
+        assert plotter.heatmap_X == (2.0, 6.0)
+
+    def test_move_figure_to_range_moves_heatmap_x_only(self, plotter):
         figure = _FakeFigure()
         plotter._figures["heatmap"] = figure
+        original_y_range = (figure.y_range.start, figure.y_range.end)
 
         plotter.heatmap_X = (0.0, 3.0)
-        plotter.heatmap_Y = (1.0, 5.0)
         plotter.move_figure_to_range("heatmap_X")
 
         assert (figure.x_range.start, figure.x_range.end) == (0.0, 3.0)
-        assert (figure.y_range.start, figure.y_range.end) == (1.0, 5.0)
+        # The heatmap has no Y range param, so the figure's y range is left untouched.
+        assert (figure.y_range.start, figure.y_range.end) == original_y_range
 
-    def test_heatmap_autofits_clim_and_y_on_render(self, plotter):
+    def test_heatmap_autofits_clim_on_render(self, plotter):
         image = plotter.heatmap()
 
         assert image is not None
         assert plotter.heatmap_clim is not None
-        assert plotter.heatmap_Y is not None
+
+    def test_heatmap_y_range_always_spans_full_cells(self, plotter):
+        # Regression: the Trials axis must always span the full cell edges
+        # (min - 0.5, max + 0.5) so the first and last trial rows render at full
+        # height. The default selection ("All") has 3 trials -> edges at 0.5 and 3.5.
+        figure = hv.render(plotter.heatmap())
+        assert {figure.y_range.start, figure.y_range.end} == {0.5, 3.5}
+
+        # Simulate a zoom that previously would have been written back and clipped the
+        # edge rows; re-rendering must recompute the full-cell ylim and ignore it.
+        figure.y_range.start, figure.y_range.end = 3.0, 1.0
+        refigure = hv.render(plotter.heatmap())
+        assert {refigure.y_range.start, refigure.y_range.end} == {0.5, 3.5}
 
     def test_heatmap_honours_clim_override(self, plotter):
         # A user-set colour scale survives a render whose selection is unchanged.
@@ -607,11 +651,38 @@ class TestParameterizedPlotter:
         assert figure.xaxis[0].minor_tick_line_color is None
         assert figure.yaxis[0].minor_tick_line_color is None
 
+    def test_ticks_point_outward_by_default_on_heatmap(self, plotter):
+        figure = hv.render(plotter.heatmap())
+        # Bokeh's default is outward-pointing ticks (positive "out" length).
+        assert figure.xaxis[0].major_tick_out > 0
+        assert figure.yaxis[0].major_tick_out > 0
+
+    def test_ticks_inside_flips_ticks_inward_on_heatmap(self, plotter):
+        plotter.ticks_inside_heatmap = True
+        figure = hv.render(plotter.heatmap())
+        for axis in (figure.xaxis[0], figure.yaxis[0]):
+            assert (axis.major_tick_in, axis.major_tick_out) == (6, 0)
+            assert (axis.minor_tick_in, axis.minor_tick_out) == (4, 0)
+
+    def test_full_outline_shown_by_default_on_heatmap(self, plotter):
+        figure = hv.render(plotter.heatmap())
+        assert figure.outline_line_color is not None
+
+    def test_hide_outer_border_drops_outline_and_keeps_left_bottom(self, plotter):
+        plotter.hide_outer_border_heatmap = True
+        figure = hv.render(plotter.heatmap())
+        # The four-sided outline (top/right/bottom/left frame) is gone, but the bottom
+        # (x) and left (y) axis lines are drawn separately by Bokeh and remain, leaving
+        # an open L-shaped frame.
+        assert figure.outline_line_color is None
+        assert figure.xaxis[0].axis_line_color is not None
+        assert figure.yaxis[0].axis_line_color is not None
+
     def test_heatmap_axis_ranges_not_in_dependencies(self, plotter):
-        # heatmap_X/Y are hook-driven, so they must stay out of heatmap()'s @param.depends
+        # heatmap_X is hook-driven, so it must stay out of heatmap()'s @param.depends
         # (a zoom/pan must not trigger a re-render that fights the gesture).
         dependencies = {dependency.name for dependency in plotter.param.method_dependencies("heatmap")}
-        assert dependencies.isdisjoint({"heatmap_X", "heatmap_Y"})
+        assert dependencies.isdisjoint({"heatmap_X"})
 
     def test_heatmap_clim_and_ticks_in_dependencies(self, plotter):
         # A colour-scale or tick-visibility change has no live-figure equivalent, so both
