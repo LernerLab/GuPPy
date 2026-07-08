@@ -1,4 +1,14 @@
-# v2.0.0-alpha8 (Upcoming)
+# v2.0.0-alpha9 (Upcoming)
+
+## Features
+
+## Fixes
+
+## Improvements
+
+## Deprecations and Removals
+
+# v2.0.0-alpha8 (July 7th, 2026)
 
 ## Features
 - Brought the visualization dashboard's Heat Map tab up to parity with the PSTH line plots: numeric X (Time) axis-limit boxes that snap to zoom/pan, editable colour-scale (clim) limits that recolour the datashaded data (not just the colorbar), and an independent "Hide minor tick marks" toggle. [PR #372](https://github.com/LernerLab/GuPPy/pull/372)
