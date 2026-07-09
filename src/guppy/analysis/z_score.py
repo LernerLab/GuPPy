@@ -151,12 +151,12 @@ def execute_controlFit_dff(
     """
 
     if isosbestic_control == False:
-        signal_smooth = filterSignal(filter_window, signal)  # ss.filtfilt(b, a, signal)
+        signal_smooth = filterSignal(filter_window, signal)
         control_fit = controlFit(control, signal_smooth, method=control_fit_method)
         norm_data = deltaFF(signal_smooth, control_fit)
     else:
-        control_smooth = filterSignal(filter_window, control)  # ss.filtfilt(b, a, control)
-        signal_smooth = filterSignal(filter_window, signal)  # ss.filtfilt(b, a, signal)
+        control_smooth = filterSignal(filter_window, control)
+        signal_smooth = filterSignal(filter_window, signal)
         control_fit = controlFit(control_smooth, signal_smooth, method=control_fit_method)
         norm_data = deltaFF(signal_smooth, control_fit)
 
@@ -182,7 +182,6 @@ def deltaFF(signal: np.ndarray, control: np.ndarray) -> np.ndarray:
 
     res = np.subtract(signal, control)
     normData = np.divide(res, control)
-    # deltaFF = normData
     normData = normData * 100
 
     return normData

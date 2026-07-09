@@ -153,7 +153,6 @@ def helper_create_control_channel(signal: np.ndarray, timestamps: np.ndarray, wi
     except Exception as e:
         logger.error(str(e))
 
-    # logger.info('Curve Fit Parameters : ', popt)
     control = curveFitFn(timestamps, *popt)
 
     return control

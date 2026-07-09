@@ -34,10 +34,6 @@ def create_Df_for_psth(filepath: str, event: str, name: str, psth: np.ndarray, c
     else:
         op = os.path.join(filepath, event + ".h5")
 
-    # check if file already exists
-    # if os.path.exists(op):
-    # 	return 0
-
     # removing psth binned trials
     columns = np.array(columns, dtype="str")
     regex = re.compile("bin_*")
@@ -51,8 +47,6 @@ def create_Df_for_psth(filepath: str, event: str, name: str, psth: np.ndarray, c
         err = err.reshape(-1, 1)
         psth = np.hstack((psth, mean))
         psth = np.hstack((psth, err))
-        # timestamps = np.asarray(read_Df(filepath, 'ts_psth', ''))
-        # psth = np.hstack((psth, timestamps))
 
     columns = np.asarray(columns)
     columns = np.append(columns, ["mean", "err"])
@@ -85,10 +79,6 @@ def create_Df_for_cross_correlation(
     else:
         op = os.path.join(filepath, event + ".h5")
 
-    # check if file already exists
-    # if os.path.exists(op):
-    # 	return 0
-
     # removing psth binned trials
     columns = list(np.array(columns, dtype="str"))
     regex = re.compile("bin_*")
@@ -102,8 +92,6 @@ def create_Df_for_cross_correlation(
         err = err.reshape(-1, 1)
         psth = np.hstack((psth, mean))
         psth = np.hstack((psth, err))
-        # timestamps = np.asarray(read_Df(filepath, 'ts_psth', ''))
-        # psth = np.hstack((psth, timestamps))
 
     columns = np.asarray(columns)
     columns = np.append(columns, ["mean", "err"])

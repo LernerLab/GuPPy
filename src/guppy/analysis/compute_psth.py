@@ -123,7 +123,7 @@ def compute_psth(
 
     # initialize PSTH vector
     psth = np.full((nTs, totalTs + 1), np.nan)
-    psth_baselineUncorrected = np.full((nTs, totalTs + 1), np.nan)  # extra
+    psth_baselineUncorrected = np.full((nTs, totalTs + 1), np.nan)
 
     # for each timestamp, create trial which will be saved in a PSTH vector
     for i in range(nTs):
@@ -141,7 +141,7 @@ def compute_psth(
         else:
             arr = arr
 
-        psth_baselineUncorrected[i, :] = arr  # extra
+        psth_baselineUncorrected[i, :] = arr
         psth[i, :] = baselineCorrection(arr, timeAxis, baselineStart, baselineEnd)
 
     columns = list(ts)

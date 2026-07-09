@@ -47,7 +47,6 @@ def averageForGroup(folderNames: list[str], inputParameters: dict[str, object]) 
 
         for j in range(len(path_temp)):
             basename = (os.path.basename(path_temp[j])).split(".")[0]
-            # name = name[0]
             temp = [folderNames[i], basename]
             path.append(temp)
 
@@ -66,7 +65,7 @@ def averageForGroup(folderNames: list[str], inputParameters: dict[str, object]) 
     op = makeAverageDir(abspath)
 
     for i in range(len(new_path)):
-        arr = []  # np.zeros((len(new_path[i]), 2))
+        arr = []
         fileName = []
         temp_path = new_path[i]
         for j in range(len(temp_path)):

@@ -122,7 +122,7 @@ def addingNaNtoChunksWithArtifacts(
             if (
                 "control_" + pair_name.lower() in names_for_storenames[i].lower()
                 or "signal_" + pair_name.lower() in names_for_storenames[i].lower()
-            ):  # changes done
+            ):
                 data = name_to_data[names_for_storenames[i]].reshape(-1)
                 data = addingNaNValues(data=data, ts=tsNew, coords=coords)
                 name_to_corrected_data[names_for_storenames[i]] = data
@@ -193,7 +193,7 @@ def processTimestampsForArtifacts(
             if (
                 "control_" + pair_name.lower() in names_for_storenames[i].lower()
                 or "signal_" + pair_name.lower() in names_for_storenames[i].lower()
-            ):  # changes done
+            ):
                 data = name_to_data[names_for_storenames[i]]
                 data, timestampNew = eliminateData(
                     data=data,

@@ -9,6 +9,7 @@
 
 ## Improvements
 - Deduplicated copy-pasted code: shared timestamp-realignment kernels for artifact-removal and multi-session combining, a shared group-averaging preamble, a single pipeline-step launch helper in the homepage, and shared ndx-fiber-photometry boilerplate across the mock-NWB generators. [PR #377](https://github.com/LernerLab/GuPPy/pull/377)
+- Removed commented-out dead code throughout `src/guppy/` and clarified the remaining comments. [PR #376](https://github.com/LernerLab/GuPPy/pull/376)
 
 ## Deprecations and Removals
 

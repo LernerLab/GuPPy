@@ -121,7 +121,7 @@ def execute_compute_psth(filepath: str, event: str, inputParameters: dict[str, o
             basename,
             psth_baselineUncorrected,
             columns=cols,
-        )  # extra
+        )
         create_Df_for_psth(filepath, event + "_" + name_1, basename, psth, columns=cols)
         logger.info(f"PSTH for event {event} computed.")
 
@@ -143,7 +143,6 @@ def execute_compute_psth_peak_and_area(filepath: str, event: str, inputParameter
     if "control" in event.lower() or "signal" in event.lower():
         return 0
 
-    # sampling_rate = read_hdf5(storesList[0,0], filepath, 'sampling_rate')
     peak_startPoint = inputParameters["peak_startPoint"]
     peak_endPoint = inputParameters["peak_endPoint"]
     selectForComputePsth = inputParameters["selectForComputePsth"]
@@ -168,16 +167,13 @@ def execute_compute_psth_peak_and_area(filepath: str, event: str, inputParameter
         trials_names = [cols[i] for i in range(len(cols)) if regex_trials.match(cols[i])]
         psth_mean_bin_names = trials_names + bin_names + ["mean"]
         psth_mean_bin_mean = np.asarray(psth[psth_mean_bin_names])
-        timestamps = np.asarray(psth["timestamps"]).ravel()  # np.asarray(read_Df(filepath, 'ts_psth', '')).ravel()
+        timestamps = np.asarray(psth["timestamps"]).ravel()
         peak_area = compute_psth_peak_and_area(
             psth_mean_bin_mean, timestamps, sampling_rate, peak_startPoint, peak_endPoint
-        )  # peak, area =
-        # arr = np.array([[peak, area]])
+        )
         fileName = [os.path.basename(os.path.dirname(filepath))]
         index = [fileName[0] + "_" + s for s in psth_mean_bin_names]
-        write_peak_and_area_to_hdf5(
-            filepath, peak_area, event + "_" + name_1 + "_" + basename, index=index
-        )  # columns=['peak', 'area']
+        write_peak_and_area_to_hdf5(filepath, peak_area, event + "_" + name_1 + "_" + basename, index=index)
         write_peak_and_area_to_csv(filepath, peak_area, event + "_" + name_1 + "_" + basename, index=index)
         logger.info(f"Peak and Area for PSTH mean signal for event {event} computed.")
 
@@ -287,10 +283,6 @@ def orchestrate_psth(inputParameters: dict[str, object]) -> None:
                 cr.starmap(
                     execute_compute_cross_correlation, zip(repeat(filepath), storesList[1, :], repeat(inputParameters))
                 )
-
-                # for k in range(storesList.shape[1]):
-                # 	storenamePsth(filepath, storesList[1,k], inputParameters)
-                # 	findPSTHPeakAndArea(filepath, storesList[1,k], inputParameters)
 
             writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
             inputParameters["step"] += 1
@@ -485,8 +477,6 @@ def psthForEachStorename(inputParameters: dict[str, object]) -> dict[str, object
 
     _validate_psth_window_parameters(inputParameters)
 
-    # storesList = np.genfromtxt(inputParameters['storesListPath'], dtype='str', delimiter=',')
-
     average = inputParameters["averageForGroup"]
     combine_data = inputParameters["combine_data"]
     numProcesses = inputParameters["numberOfCores"]
@@ -509,11 +499,11 @@ def psthForEachStorename(inputParameters: dict[str, object]) -> dict[str, object
 
     logger.info(f"Average for group : {average}")
 
-    # for average following if statement will be executed
+    # Group-average analysis aggregates PSTHs across all sessions in the group.
     if average == True:
         execute_average_for_group(inputParameters)
 
-    # for individual analysis following else statement will be executed
+    # Otherwise each session is analyzed individually.
     else:
         if combine_data == True:
             execute_psth_combined(inputParameters)

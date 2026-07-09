@@ -95,9 +95,9 @@ def visualizeControlAndSignal(filepath: str, removeArtifacts: bool) -> list:
     widgets : list of ArtifactRemovalWidget
         One widget per channel pair.
     """
-    path_1 = find_files(filepath, "control_*", ignore_case=True)  # glob.glob(os.path.join(filepath, 'control*'))
+    path_1 = find_files(filepath, "control_*", ignore_case=True)
 
-    path_2 = find_files(filepath, "signal_*", ignore_case=True)  # glob.glob(os.path.join(filepath, 'signal*'))
+    path_2 = find_files(filepath, "signal_*", ignore_case=True)
 
     path = sorted(path_1 + path_2, key=str.casefold)
 
@@ -246,8 +246,8 @@ def execute_zscore(folderNames: list[str], inputParameters: dict[str, object]) -
     for j in range(len(storesListPath)):
         filepath = storesListPath[j]
         logger.debug(f"Computing z-score for each of the data in {filepath}")
-        path_1 = find_files(filepath, "control_*", ignore_case=True)  # glob.glob(os.path.join(filepath, 'control*'))
-        path_2 = find_files(filepath, "signal_*", ignore_case=True)  # glob.glob(os.path.join(filepath, 'signal*'))
+        path_1 = find_files(filepath, "control_*", ignore_case=True)
+        path_2 = find_files(filepath, "signal_*", ignore_case=True)
         path = sorted(path_1 + path_2, key=str.casefold)
         if len(path) % 2 != 0:
             controls = sorted(p for p in path if "control_" in os.path.basename(p).lower())
@@ -539,8 +539,6 @@ def extractTsAndSignal(inputParameters: dict[str, object]) -> None:
     # on-disk GuPPyParamtersUsed.json always reflects the last-run configuration.
     save_parameters(inputParameters=inputParameters)
 
-    # storesList = np.genfromtxt(inputParameters['storesListPath'], dtype='str', delimiter=',')
-
     folderNames = inputParameters["folderNames"]
     timeForLightsTurnOn = inputParameters["timeForLightsTurnOn"]
     isosbestic_control = inputParameters["isosbestic_control"]
@@ -556,8 +554,6 @@ def extractTsAndSignal(inputParameters: dict[str, object]) -> None:
     for i in range(len(folderNames)):
         storesListPath.append(select_output_dirs(folderNames[i], selected_outputs.get(folderNames[i])))
     storesListPath = np.concatenate(storesListPath)
-    # pbMaxValue = storesListPath.shape[0] + len(folderNames)
-    # writeToFile(str((pbMaxValue+1)*10)+'\n'+str(10)+'\n')
     if combine_data == False:
         pbMaxValue = storesListPath.shape[0] + len(folderNames)
         writeToFile(str((pbMaxValue + 1) * 10) + "\n" + str(10) + "\n", file_path=PB_STEPS_FILE)

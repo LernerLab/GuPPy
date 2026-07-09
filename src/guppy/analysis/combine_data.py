@@ -116,7 +116,6 @@ def combine_data(
     compound_name_to_ttl_timestamps : dict
         Compound TTL name → combined TTL timestamp array.
     """
-    # filepaths_to_combine = [folder1_output_i, folder2_output_i, ...]
     logger.debug("Processing timestamps for combining data...")
 
     names_for_storenames = storesList[1, :]
