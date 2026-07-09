@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 from threading import Thread
+from typing import Callable
 
 import panel as pn
 
@@ -87,6 +88,26 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
             pn.state.notifications.error(str(e), duration=0)
             return None
 
+    def _run_worker_with_progress(
+        worker: Callable[[dict[str, object]], None],
+        progress_widget: pn.indicators.Progress,
+        *,
+        add_curr_dir: bool = False,
+    ) -> None:
+        # Shared launch pattern for the pipeline steps that run a worker in a background
+        # thread while a progress bar polls PB_STEPS_FILE.
+        inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
+        if inputParameters is None:
+            return
+        if add_curr_dir:
+            inputParameters["curr_dir"] = current_dir
+        thread = Thread(target=worker, args=(inputParameters,))
+        thread.start()
+        error_msg = readPBIncrementValues(progress_widget, file_path=PB_STEPS_FILE)
+        thread.join()
+        if error_msg:
+            pn.state.notifications.error(error_msg, duration=0)
+
     def onclickImportCustomEvents(event: object = None) -> None:
         inputParameters = _getInputParametersOrNotify()
         if inputParameters is None:
@@ -113,38 +134,13 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
             pn.state.notifications.error(str(e), duration=0)
 
     def onclickreaddata(event: object = None) -> None:
-        inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
-        if inputParameters is None:
-            return
-        thread = Thread(target=readRawData, args=(inputParameters,))
-        thread.start()
-        error_msg = readPBIncrementValues(sidebar.read_progress, file_path=PB_STEPS_FILE)
-        thread.join()
-        if error_msg:
-            pn.state.notifications.error(error_msg, duration=0)
+        _run_worker_with_progress(readRawData, sidebar.read_progress)
 
     def onclickpreprocess(event: object = None) -> None:
-        inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
-        if inputParameters is None:
-            return
-        thread = Thread(target=preprocess, args=(inputParameters,))
-        thread.start()
-        error_msg = readPBIncrementValues(sidebar.extract_progress, file_path=PB_STEPS_FILE)
-        thread.join()
-        if error_msg:
-            pn.state.notifications.error(error_msg, duration=0)
+        _run_worker_with_progress(preprocess, sidebar.extract_progress)
 
     def onclickpsth(event: object = None) -> None:
-        inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
-        if inputParameters is None:
-            return
-        inputParameters["curr_dir"] = current_dir
-        thread = Thread(target=psthComputation, args=(inputParameters,))
-        thread.start()
-        error_msg = readPBIncrementValues(sidebar.psth_progress, file_path=PB_STEPS_FILE)
-        thread.join()
-        if error_msg:
-            pn.state.notifications.error(error_msg, duration=0)
+        _run_worker_with_progress(psthComputation, sidebar.psth_progress, add_curr_dir=True)
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -163,6 +159,9 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
     template._hooks = {
         "onclickVisualization": onclickVisualization,
         "onclickImportCustomEvents": onclickImportCustomEvents,
+        "onclickreaddata": onclickreaddata,
+        "onclickpreprocess": onclickpreprocess,
+        "onclickpsth": onclickpsth,
         "getInputParameters": parameter_form.getInputParameters,
     }
     template._widgets = {

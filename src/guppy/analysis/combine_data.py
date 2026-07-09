@@ -6,6 +6,7 @@ import numpy as np
 from .io_utils import (
     decide_naming_convention,
 )
+from .realignment import concatenate_and_realign_data, realign_ttl_timestamps
 
 logger = logging.getLogger(__name__)
 
@@ -38,26 +39,8 @@ def eliminateData(
         Realigned timestamps corresponding to ``arr``.
     """
 
-    arr = np.array([])
-    ts_arr = np.array([])
-    filepaths = list(filepath_to_timestamps.keys())
-    for filepath in filepaths:
-        ts = filepath_to_timestamps[filepath]
-        data = filepath_to_data[filepath]
-
-        if len(arr) == 0:
-            arr = np.concatenate((arr, data))
-            sub = ts[0] - timeForLightsTurnOn
-            new_ts = ts - sub
-            ts_arr = np.concatenate((ts_arr, new_ts))
-        else:
-            temp = data
-            temp_ts = ts
-            new_ts = temp_ts - (temp_ts[0] - ts_arr[-1])
-            arr = np.concatenate((arr, temp))
-            ts_arr = np.concatenate((ts_arr, new_ts + (1 / sampling_rate)))
-
-    return arr, ts_arr
+    segments = [(filepath_to_data[filepath], filepath_to_timestamps[filepath]) for filepath in filepath_to_timestamps]
+    return concatenate_and_realign_data(segments, timeForLightsTurnOn=timeForLightsTurnOn, sampling_rate=sampling_rate)
 
 
 def eliminateTs(
@@ -86,28 +69,13 @@ def eliminateTs(
         Realigned TTL timestamps concatenated across all sessions.
     """
 
-    ts_arr = np.array([])
-    tsNew_arr = np.array([])
-    filepaths = list(filepath_to_timestamps.keys())
-    for filepath in filepaths:
-        tsNew = filepath_to_timestamps[filepath]
-        ts = filepath_to_ttl_timestamps[filepath]
-        # Both tsNew (continuous) and ts (events) are on the recording-start basis, so the
-        # same per-session shift keeps them mutually aligned. Inter-session bridging below
-        # uses differences only, which are basis-invariant.
-        if len(tsNew_arr) == 0:
-            sub = tsNew[0] - timeForLightsTurnOn
-            tsNew_arr = np.concatenate((tsNew_arr, tsNew - sub))
-            ts_arr = np.concatenate((ts_arr, ts - sub))
-        else:
-            temp_tsNew = tsNew
-            temp_ts = ts
-            new_ts = temp_ts - (temp_tsNew[0] - tsNew_arr[-1])
-            new_tsNew = temp_tsNew - (temp_tsNew[0] - tsNew_arr[-1])
-            tsNew_arr = np.concatenate((tsNew_arr, new_tsNew + (1 / sampling_rate)))
-            ts_arr = np.concatenate((ts_arr, new_ts + (1 / sampling_rate)))
-
-    return ts_arr
+    # Both tsNew (continuous) and ts (events) are on the recording-start basis, so the same
+    # per-session shift keeps them mutually aligned; the inter-session bridging uses differences
+    # only, which are basis-invariant.
+    pairs = [
+        (filepath_to_timestamps[filepath], filepath_to_ttl_timestamps[filepath]) for filepath in filepath_to_timestamps
+    ]
+    return realign_ttl_timestamps(pairs, timeForLightsTurnOn=timeForLightsTurnOn, sampling_rate=sampling_rate)
 
 
 def combine_data(

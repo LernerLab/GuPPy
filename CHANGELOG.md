@@ -8,6 +8,7 @@
 - The Heat Map's first and last trial rows no longer render at half height: the Trials (Y) axis now always spans the full cell edges on every render, and its manual axis-limit boxes (which could clip the edge rows) were removed since the axis only encodes trial number. [PR #374](https://github.com/LernerLab/GuPPy/pull/374)
 
 ## Improvements
+- Deduplicated copy-pasted code: shared timestamp-realignment kernels for artifact-removal and multi-session combining, a shared group-averaging preamble, a single pipeline-step launch helper in the homepage, and shared ndx-fiber-photometry boilerplate across the mock-NWB generators. [PR #377](https://github.com/LernerLab/GuPPy/pull/377)
 - Removed commented-out dead code throughout `src/guppy/` and clarified the remaining comments. [PR #376](https://github.com/LernerLab/GuPPy/pull/376)
 
 ## Deprecations and Removals
