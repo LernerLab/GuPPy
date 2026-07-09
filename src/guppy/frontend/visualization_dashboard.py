@@ -1,4 +1,6 @@
 import logging
+from collections.abc import Callable
+from io import BytesIO
 
 import panel as pn
 
@@ -82,17 +84,39 @@ class VisualizationDashboard:
         maximum.param.watch(to_param, "value")
         return pn.Row(minimum, maximum, margin=(0, 15, 0, 0))
 
-    def _save_controls(self, *, options_name: str, action_name: str) -> pn.Row:
-        """Return a format selector + Save button bound to one plot's save params."""
+    def _save_controls(self, *, options_name: str, callback: Callable[[], BytesIO], base_name: str) -> pn.Row:
+        """Return a format selector + a "Save As…" download button for one plot.
+
+        The button streams the freshly rendered plot to the browser, which prompts
+        the user for a filename and location (the standard download flow). The
+        suggested filename tracks the chosen format's extension.
+
+        Parameters
+        ----------
+        options_name : str
+            Name of the plotter's ``png``/``svg`` format param for this plot.
+        callback : callable
+            Zero-argument function returning the encoded image buffer to download.
+        base_name : str
+            Default filename stem shown in the browser's save dialog.
+        """
         options = pn.Param(
             getattr(self.plotter.param, options_name),
-            widgets={options_name: {"type": pn.widgets.Select, "width": 150, "name": "Save format"}},
+            widgets={options_name: {"type": pn.widgets.Select, "width": 90, "name": "Format"}},
         )
-        button = pn.Param(
-            getattr(self.plotter.param, action_name),
-            widgets={action_name: {"type": pn.widgets.Button, "width": 120}},
+        download = pn.widgets.FileDownload(
+            callback=callback,
+            filename=f"{base_name}.{getattr(self.plotter, options_name)}",
+            label="Save As…",
+            button_type="default",
+            width=140,
         )
-        return pn.Row(options, pn.Column(pn.Spacer(height=25), button))
+
+        def _sync_extension(event: object) -> None:
+            download.filename = f"{base_name}.{event.new}"
+
+        self.plotter.param.watch(_sync_extension, options_name)
+        return pn.Row(options, pn.Column(pn.Spacer(height=25), download))
 
     def _per_event_color_pickers(self) -> pn.Card:
         """Return a collapsed card of per-event color pickers for the comparison plot.
@@ -195,9 +219,15 @@ class VisualizationDashboard:
         per_event_colors = self._per_event_color_pickers()
 
         # Independent save controls (format selector + button) for each plot.
-        save_cont = self._save_controls(options_name="save_options_cont", action_name="save_cont")
-        save_overlay = self._save_controls(options_name="save_options_overlay", action_name="save_overlay")
-        save_trials = self._save_controls(options_name="save_options_trials", action_name="save_trials")
+        save_cont = self._save_controls(
+            options_name="save_options_cont", callback=self.plotter.download_cont, base_name="psth"
+        )
+        save_overlay = self._save_controls(
+            options_name="save_options_overlay", callback=self.plotter.download_overlay, base_name="psth_comparison"
+        )
+        save_trials = self._save_controls(
+            options_name="save_options_trials", callback=self.plotter.download_trials, base_name="psth_trials"
+        )
 
         # Each plot owns an independent axis-limit control that also snaps to Bokeh zoom/pan.
         cont_limits = pn.Row(
@@ -307,7 +337,9 @@ class VisualizationDashboard:
         )
 
         # Independent save controls (format selector + button), matching the PSTH plots.
-        save_hm = self._save_controls(options_name="save_options_heatmap", action_name="save_hm")
+        save_hm = self._save_controls(
+            options_name="save_options_heatmap", callback=self.plotter.download_heatmap, base_name="heatmap"
+        )
 
         # Numeric X-axis limits (snap to Bokeh zoom/pan) and the colour-scale (clim)
         # limits, both reusing the PSTH tab's _range_number_inputs helper. The X boxes

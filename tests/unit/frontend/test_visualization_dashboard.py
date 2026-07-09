@@ -112,10 +112,21 @@ class TestVisualizationDashboard:
         cross_selectors = list(dashboard._psth_tab.select(pn.widgets.CrossSelector))
         assert len(cross_selectors) == 2
 
-    def test_save_controls_expose_format_and_button(self, dashboard):
-        row = dashboard._save_controls(options_name="save_options_cont", action_name="save_cont")
+    def test_save_controls_expose_format_and_download(self, dashboard):
+        row = dashboard._save_controls(
+            options_name="save_options_cont", callback=dashboard.plotter.download_cont, base_name="psth"
+        )
         assert list(row.select(pn.widgets.Select))
-        assert list(row.select(pn.widgets.Button))
+        download = row.select(pn.widgets.FileDownload)
+        assert download and download[0].filename == "psth.png"
+
+    def test_save_controls_filename_tracks_format(self, dashboard):
+        row = dashboard._save_controls(
+            options_name="save_options_cont", callback=dashboard.plotter.download_cont, base_name="psth"
+        )
+        download = row.select(pn.widgets.FileDownload)[0]
+        dashboard.plotter.save_options_cont = "svg"
+        assert download.filename == "psth.svg"
 
     def test_range_number_inputs_param_updates_boxes(self, dashboard):
         row = dashboard._range_number_inputs(name="cont_X", label="X")
@@ -202,6 +213,6 @@ class TestVisualizationDashboard:
         assert plotter.hide_outer_border_heatmap is True
 
     def test_heatmap_tab_has_save_controls(self, dashboard):
-        assert list(dashboard._heatmap_tab.select(pn.widgets.Button))
+        assert list(dashboard._heatmap_tab.select(pn.widgets.FileDownload))
         selects = {select.name for select in dashboard._heatmap_tab.select(pn.widgets.Select)}
-        assert "Save format" in selects
+        assert "Format" in selects

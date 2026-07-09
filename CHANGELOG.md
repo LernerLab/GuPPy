@@ -3,6 +3,7 @@
 ## Features
 
 ## Fixes
+- The visualization dashboard's plot Save buttons are now "Save As…" browser downloads that let you choose the filename and location, and they render the current view (respecting live zoom/pan and typed axis limits) instead of a stale earlier render; saving no longer freezes the plot's controls until a page refresh, and render failures now surface as notifications instead of failing silently. [PR #375](https://github.com/LernerLab/GuPPy/pull/375)
 - The Heat Map's first and last trial rows no longer render at half height: the Trials (Y) axis now always spans the full cell edges on every render, and its manual axis-limit boxes (which could clip the edge rows) were removed since the axis only encodes trial number. [PR #374](https://github.com/LernerLab/GuPPy/pull/374)
 
 ## Improvements
