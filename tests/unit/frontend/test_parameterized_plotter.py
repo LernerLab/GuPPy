@@ -1,9 +1,11 @@
 import os
-from pathlib import Path
+from io import BytesIO
+from types import SimpleNamespace
 
 import holoviews as hv
 import numpy as np
 import pandas as pd
+import panel as pn
 import pytest
 
 from guppy.frontend.parameterized_plotter import (
@@ -35,6 +37,19 @@ class _FakeFigure:
 class _FakePlot:
     def __init__(self, figure):
         self.state = figure
+
+
+class _FakeNotifications:
+    """Records ``pn.state.notifications`` calls so _notify can be tested headlessly."""
+
+    def __init__(self):
+        self.calls = []
+
+    def __getattr__(self, level):
+        def record(message, **kwargs):
+            self.calls.append((level, message, kwargs))
+
+        return record
 
 
 # ---------------------------------------------------------------------------
@@ -232,9 +247,13 @@ class TestParameterizedPlotter:
         assert plotter.Y_Label == "y"
 
     def test_default_save_options(self, plotter):
-        assert plotter.save_options_cont == "None"
-        assert plotter.save_options_overlay == "None"
-        assert plotter.save_options_trials == "None"
+        assert plotter.save_options_cont == "png"
+        assert plotter.save_options_overlay == "png"
+        assert plotter.save_options_trials == "png"
+        assert plotter.save_options_heatmap == "png"
+
+    def test_save_formats_are_png_and_svg(self, plotter):
+        assert plotter.param["save_options_cont"].objects == ["png", "svg"]
 
     def test_default_overlay_palette(self, plotter):
         assert plotter.overlay_palette == "Category10"
@@ -275,60 +294,90 @@ class TestParameterizedPlotter:
         # Reset
         plotter.event_selector = "event1"
 
-    def test_save_cont_plot_creates_png(self, plotter_for_save):
-        plotter_for_save.save_options_cont = "save_png_format"
-        plotter_for_save.save_cont_plot()
-        assert Path(plotter_for_save.results_psth["op"] + ".png").exists()
+    def test_download_cont_forwards_selected_format(self, plotter_for_save, capture_render):
+        plotter_for_save.save_options_cont = "svg"
+        plotter_for_save.download_cont()
+        assert capture_render["save_format"] == "svg"
 
-    def test_save_overlay_plot_creates_svg(self, plotter_for_save):
-        plotter_for_save.save_options_overlay = "save_svg_format"
-        plotter_for_save.save_overlay_plot()
-        assert Path(plotter_for_save.results_psth["op_combine"] + ".svg").exists()
+    def test_download_heatmap_forwards_selected_format(self, plotter_for_save, capture_render):
+        plotter_for_save.save_options_heatmap = "svg"
+        plotter_for_save.download_heatmap()
+        assert capture_render["save_format"] == "svg"
 
-    def test_save_trials_plot_creates_png(self, plotter_for_save):
-        plotter_for_save.save_options_trials = "save_png_format"
-        plotter_for_save.save_trials_plot()
-        assert Path(plotter_for_save.results_psth["op_trials"] + ".png").exists()
+    def test_download_returns_image_buffer(self, plotter_for_save, capture_render):
+        buffer = plotter_for_save.download_cont()
+        # capture_render fills the buffer with sentinel bytes standing in for a render.
+        assert buffer.read() == b"image-bytes"
 
-    def test_save_cont_plot_returns_zero_when_none(self, plotter_for_save):
-        plotter_for_save.save_options_cont = "None"
-        assert plotter_for_save.save_cont_plot() == 0
+    def test_download_sets_exporting_flag_during_render_and_resets(self, plotter_for_save, monkeypatch):
+        seen = {}
 
-    def test_save_overlay_plot_returns_zero_when_none(self, plotter_for_save):
-        plotter_for_save.save_options_overlay = "None"
-        assert plotter_for_save.save_overlay_plot() == 0
+        def fake_render(plot, save_format):
+            seen["exporting_during_render"] = plotter_for_save._exporting
+            return BytesIO(b"image-bytes")
 
-    def test_save_trials_plot_returns_zero_when_none(self, plotter_for_save):
-        plotter_for_save.save_options_trials = "None"
-        assert plotter_for_save.save_trials_plot() == 0
+        monkeypatch.setattr(ParameterizedPlotter, "_render_to_bytes", staticmethod(fake_render))
+        plotter_for_save.download_cont()
+        assert seen["exporting_during_render"] is True
+        assert plotter_for_save._exporting is False
 
-    def test_save_cont_plot_creates_png_and_svg_when_both(self, plotter_for_save):
-        plotter_for_save.save_options_cont = "save_both_format"
-        plotter_for_save.save_cont_plot()
-        assert Path(plotter_for_save.results_psth["op"] + ".png").exists()
-        assert Path(plotter_for_save.results_psth["op"] + ".svg").exists()
+    def test_download_cont_renders_current_x_range(self, plotter_for_save, capture_render):
+        # Bug #1: a live zoom writes cont_X, and the download must render that current
+        # view, not the range baked into the last reactive render.
+        plotter_for_save.cont_X = (0.0, 5.0)
+        plotter_for_save.download_cont()
+        figure = hv.render(capture_render["plot"], backend="bokeh")
+        assert (figure.x_range.start, figure.x_range.end) == (0.0, 5.0)
 
-    def test_save_hm_plots_creates_png(self, plotter_for_save):
-        plotter_for_save.save_options_heatmap = "save_png_format"
-        plotter_for_save.save_hm_plots()
-        assert Path(plotter_for_save.results_hm["op"] + ".png").exists()
+    def test_download_heatmap_renders_current_x_range(self, plotter_for_save, capture_render):
+        plotter_for_save.heatmap_X = (1.0, 6.0)
+        plotter_for_save.download_heatmap()
+        figure = hv.render(capture_render["plot"], backend="bokeh")
+        assert (figure.x_range.start, figure.x_range.end) == (1.0, 6.0)
 
-    def test_save_hm_plots_creates_svg(self, plotter_for_save):
-        plotter_for_save.save_options_heatmap = "save_svg_format"
-        plotter_for_save.save_hm_plots()
-        assert Path(plotter_for_save.results_hm["op"] + ".svg").exists()
+    def test_download_cont_surfaces_render_error(self, plotter_for_save, capture_notifications, monkeypatch):
+        def boom(plot, save_format):
+            raise RuntimeError("chrome failed to launch")
 
-    def test_save_hm_plots_returns_zero_when_save_options_none(self, plotter_for_save):
-        plotter_for_save.save_options_heatmap = "None"
-        result = plotter_for_save.save_hm_plots()
-        assert result == 0
+        monkeypatch.setattr(ParameterizedPlotter, "_render_to_bytes", staticmethod(boom))
+        buffer = plotter_for_save.download_cont()
+        assert buffer.read() == b""
+        assert capture_notifications == [("error", "Could not save plot: chrome failed to launch")]
 
-    def test_save_hm_plots_creates_png_and_svg_when_save_both(self, plotter_for_save):
-        plotter_for_save.save_options_heatmap = "save_both_format"
-        plotter_for_save.save_hm_plots()
+    def test_download_overlay_warns_and_skips_when_no_events(
+        self, plotter_for_save, capture_render, capture_notifications
+    ):
+        plotter_for_save.selector_for_multipe_events_plot = []
+        buffer = plotter_for_save.download_overlay()
+        assert buffer.read() == b""
+        assert capture_render == {}
+        assert capture_notifications == [("warning", "No events selected — nothing to save.")]
 
-        assert Path(plotter_for_save.results_hm["op"] + ".png").exists()
-        assert Path(plotter_for_save.results_hm["op"] + ".svg").exists()
+    def test_download_trials_warns_and_skips_when_no_trials(
+        self, plotter_for_save, capture_render, capture_notifications
+    ):
+        plotter_for_save.psth_y = []
+        buffer = plotter_for_save.download_trials()
+        assert buffer.read() == b""
+        assert capture_render == {}
+        assert capture_notifications == [("warning", "No trials selected — nothing to save.")]
+
+    def test_notify_is_noop_without_notifications(self, monkeypatch):
+        # In headless/test contexts pn.state.notifications is None; _notify must not raise.
+        monkeypatch.setattr(pn, "state", SimpleNamespace(notifications=None))
+        ParameterizedPlotter._notify("error", "ignored")
+
+    def test_notify_shows_error_persistently(self, monkeypatch):
+        recorder = _FakeNotifications()
+        monkeypatch.setattr(pn, "state", SimpleNamespace(notifications=recorder))
+        ParameterizedPlotter._notify("error", "boom")
+        assert recorder.calls == [("error", "boom", {"duration": 0})]
+
+    def test_notify_shows_other_levels_with_default_dismiss(self, monkeypatch):
+        recorder = _FakeNotifications()
+        monkeypatch.setattr(pn, "state", SimpleNamespace(notifications=recorder))
+        ParameterizedPlotter._notify("warning", "heads up")
+        assert recorder.calls == [("warning", "heads up", {})]
 
     def test_update_selector_handles_bin_series_selection(self, plotter):
         plotter.param.selector_for_multipe_events_plot.objects = ["event1", "event2", "event1_bin_1"]
@@ -476,6 +525,20 @@ class TestParameterizedPlotter:
 
         assert plotter.cont_X == (2.0, 6.0)
         assert plotter.cont_Y == (-0.5, 0.5)
+
+    def test_range_sync_hook_skips_recording_export_figure(self, plotter):
+        # While saving, the off-screen export figure must not replace the live one,
+        # or the number-box controls would drive a dead figure until a page refresh.
+        live_figure = _FakeFigure()
+        plotter._figures["cont"] = live_figure
+
+        hook = plotter._range_sync_hook("cont", "cont_X", "cont_Y")
+        plotter._exporting = True
+        export_figure = _FakeFigure()
+        hook(_FakePlot(export_figure), None)
+
+        assert plotter._figures["cont"] is live_figure
+        assert export_figure.x_range.callbacks == []  # no range listeners wired up
 
     def test_range_sync_hook_ignores_incomplete_y_range(self, plotter):
         # A y range still reporting a None endpoint (mid-initialization) must not be
@@ -755,10 +818,10 @@ class TestParameterizedPlotter:
 
 @pytest.fixture
 def plotter_for_save(tmp_path, panel_extension):
-    """ParameterizedPlotter with results_psth and results_hm pre-populated.
+    """ParameterizedPlotter with enough data for the ``download_*`` methods to render.
 
-    Uses a minimal hv.Curve so save_psth_plot / save_hm_plots can render and
-    export without needing a full pipeline run.
+    The download methods re-render their plot from current params, so no cached
+    ``results_*`` state is needed here.
     """
     columns = ["trial_1", "trial_2", "trial_3", "bin_1", "timestamps", "mean", "err", "bin_err_1"]
     n_timepoints = 30
@@ -773,7 +836,7 @@ def plotter_for_save(tmp_path, panel_extension):
     columns_dict = {event: columns for event in events}
     df_new = pd.concat([make_event_dataframe() for event in events], keys=events, axis=1)
 
-    plotter = ParameterizedPlotter(
+    return ParameterizedPlotter(
         event_selector_objects=events,
         event_selector_heatmap_objects=events,
         selector_for_multipe_events_plot_objects=events,
@@ -789,22 +852,33 @@ def plotter_for_save(tmp_path, panel_extension):
         x_max=10.0,
     )
 
-    saved_plots_dir = tmp_path / "saved_plots"
-    saved_plots_dir.mkdir()
-    curve = hv.Curve(([0, 1, 2], [0, 1, 0]))
-    op_prefix = str(saved_plots_dir / "test_plot")
 
-    plotter.results_psth = {
-        "plot_combine": curve,
-        "op_combine": op_prefix + "_combine",
-        "plot": curve,
-        "op": op_prefix,
-        "trials": curve,
-        "op_trials": op_prefix + "_trials",
-    }
-    plotter.results_hm = {
-        "plot": curve,
-        "op": op_prefix + "_hm",
-    }
+@pytest.fixture
+def capture_render(monkeypatch):
+    """Replace the Selenium/Chrome render with a recorder of its arguments.
 
-    return plotter
+    Keeps the download tests off a real browser while capturing the element and
+    format each ``download_*`` method renders, and returns sentinel bytes so the
+    buffer reaching ``FileDownload`` can be asserted on.
+    """
+    recorded = {}
+
+    def fake_render(plot, save_format):
+        recorded["plot"] = plot
+        recorded["save_format"] = save_format
+        return BytesIO(b"image-bytes")
+
+    monkeypatch.setattr(ParameterizedPlotter, "_render_to_bytes", staticmethod(fake_render))
+    return recorded
+
+
+@pytest.fixture
+def capture_notifications(monkeypatch):
+    """Record ``(level, message)`` pairs the plotter would surface in the UI."""
+    recorded = []
+    monkeypatch.setattr(
+        ParameterizedPlotter,
+        "_notify",
+        staticmethod(lambda level, message: recorded.append((level, message))),
+    )
+    return recorded

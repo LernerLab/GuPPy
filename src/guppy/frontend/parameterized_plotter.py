@@ -3,6 +3,7 @@ import math
 import os
 import re
 from collections.abc import Callable
+from io import BytesIO
 
 import datashader as ds
 import holoviews as hv
@@ -11,7 +12,7 @@ import pandas as pd
 import panel as pn
 import param
 import selenium
-from bokeh.io import export_png, export_svgs
+from bokeh.io.export import get_screenshot_as_png, get_svgs
 from holoviews import opts
 from holoviews.operation.datashader import datashade
 from holoviews.plotting.util import process_cmap
@@ -94,9 +95,12 @@ def make_dir(filepath: str) -> str:
     return op
 
 
-def _headless_chrome_options() -> Options:
+def _headless_chrome_options() -> Options:  # pragma: no cover - configures a real browser subprocess
     options = Options()
-    options.add_argument("--headless")
+    # Modern Chrome (109+) needs the "=new" form; the bare "--headless" flag is
+    # deprecated and can pop a visible blank window instead of running headless.
+    options.add_argument("--headless=new")
+    options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     return options
@@ -132,12 +136,12 @@ class ParameterizedPlotter(param.Parameterized):
     x_max = param.Number(default=None)
     select_trials_checkbox = param.ListSelector(default=["just trials"], objects=["mean", "just trials"])
     Y_Label = param.ObjectSelector(default="y", objects=["y", "z-score", "\u0394F/F"])
-    _SAVE_FORMATS = ["None", "save_png_format", "save_svg_format", "save_both_format"]
+    _SAVE_FORMATS = ["png", "svg"]
     # Independent save-format selector per plot so each can be exported on its own.
-    save_options_cont = param.ObjectSelector(default="None", objects=_SAVE_FORMATS)
-    save_options_overlay = param.ObjectSelector(default="None", objects=_SAVE_FORMATS)
-    save_options_trials = param.ObjectSelector(default="None", objects=_SAVE_FORMATS)
-    save_options_heatmap = param.ObjectSelector(default="None", objects=_SAVE_FORMATS)
+    save_options_cont = param.ObjectSelector(default="png", objects=_SAVE_FORMATS)
+    save_options_overlay = param.ObjectSelector(default="png", objects=_SAVE_FORMATS)
+    save_options_trials = param.ObjectSelector(default="png", objects=_SAVE_FORMATS)
+    save_options_heatmap = param.ObjectSelector(default="png", objects=_SAVE_FORMATS)
     color_map = param.ObjectSelector(default="plasma")
     trace_color = param.Color(default="#0000ff")
     mean_color = param.Color(default="#000000")
@@ -156,10 +160,6 @@ class ParameterizedPlotter(param.Parameterized):
     width_heatmap = param.ObjectSelector(default=1000, objects=list(np.arange(0, 5100, 100))[1:])
     Height_Plot = param.ObjectSelector(default=300, objects=list(np.arange(0, 5100, 100))[1:])
     Width_Plot = param.ObjectSelector(default=1000, objects=list(np.arange(0, 5100, 100))[1:])
-    save_hm = param.Action(lambda x: x.param.trigger("save_hm"), label="Save")
-    save_cont = param.Action(lambda x: x.param.trigger("save_cont"), label="Save")
-    save_overlay = param.Action(lambda x: x.param.trigger("save_overlay"), label="Save")
-    save_trials = param.Action(lambda x: x.param.trigger("save_trials"), label="Save")
     # Each PSTH plot owns an independent pair of axis-range params so that
     # zooming/panning one plot (synced back via _range_sync_hook) does not move
     # the others.  X ranges default to the padded PSTH window (set in __init__);
@@ -230,6 +230,11 @@ class ParameterizedPlotter(param.Parameterized):
         # auto-refit when the selection (event, trace, trials) changes, while
         # still honouring a manual zoom/typed range within a single selection.
         self._selection_keys: dict[str, object] = {}
+
+        # Set while rendering a plot for a "Save As…" download. The off-screen
+        # export figure must not be mistaken for the live one, so _range_sync_hook
+        # skips recording it (see _render_download).
+        self._exporting = False
 
     _RANGE_PLOTS = (
         ("cont", "cont_X", "cont_Y"),
@@ -302,6 +307,11 @@ class ParameterizedPlotter(param.Parameterized):
         """
 
         def hook(plot: object, element: object) -> None:
+            # A "Save As…" export renders an off-screen throwaway figure; recording it
+            # (or wiring its range listeners) would leave the live controls driving a
+            # dead figure until a browser refresh, so skip the hook entirely then.
+            if self._exporting:
+                return
             figure = plot.state
             self._figures[plot_key] = figure
 
@@ -391,57 +401,101 @@ class ParameterizedPlotter(param.Parameterized):
             setattr(self, y_name, None)
 
     @staticmethod
-    def _export_plot(plot: object, op: str, save_opts: str) -> int | None:
-        """Export a single plot to disk in the requested format(s).
+    def _render_to_bytes(plot: object, save_format: str) -> BytesIO:  # pragma: no cover - drives headless Chrome
+        """Render a plot to an in-memory image buffer in the requested format.
+
+        Rendering rasterizes through headless Chrome (via Selenium), the same
+        mechanism Bokeh's file exporters use, but the bytes are returned instead
+        of written to disk so a browser download can stream them to wherever the
+        user chooses to save.
 
         Parameters
         ----------
         plot : holoviews.Element
-            The plot to render and export.
-        op : str
-            Output path without extension; ``.png``/``.svg`` are appended.
-        save_opts : str
-            One of ``"None"``, ``"save_png_format"``, ``"save_svg_format"``,
-            ``"save_both_format"``.
+            The plot to render.
+        save_format : str
+            Either ``"png"`` or ``"svg"``.
 
         Returns
         -------
-        int or None
-            ``0`` when ``save_opts`` is ``"None"`` (nothing exported), else ``None``.
+        io.BytesIO
+            Buffer positioned at the start, holding the encoded image.
         """
-        if save_opts == "None":
-            return 0
+        buffer = BytesIO()
         with selenium.webdriver.Chrome(options=_headless_chrome_options()) as webdriver:
-            if save_opts in ("save_svg_format", "save_both_format"):
-                rendered = hv.render(plot, backend="bokeh")
+            rendered = hv.render(plot, backend="bokeh")
+            if save_format == "svg":
                 rendered.output_backend = "svg"
-                export_svgs(rendered, filename=op + ".svg", webdriver=webdriver)
-            if save_opts in ("save_png_format", "save_both_format"):
-                rendered = hv.render(plot, backend="bokeh")
-                export_png(rendered, filename=op + ".png", webdriver=webdriver)
-        return None
+                buffer.write(get_svgs(rendered, driver=webdriver)[0].encode("utf-8"))
+            else:
+                get_screenshot_as_png(rendered, driver=webdriver).save(buffer, format="PNG")
+        buffer.seek(0)
+        return buffer
 
-    @param.depends("save_hm", watch=True)
-    def save_hm_plots(self) -> int | None:
-        """Export the current heatmap in the format selected by ``save_options_heatmap``."""
-        return self._export_plot(self.results_hm["plot"], self.results_hm["op"], self.save_options_heatmap)
+    @staticmethod
+    def _notify(level: str, message: str) -> None:
+        """Surface a message in the Panel UI, when notifications are available.
 
-    @param.depends("save_cont", watch=True)
-    def save_cont_plot(self) -> int | None:
-        """Export the single-event PSTH plot in the format selected by ``save_options_cont``."""
-        return self._export_plot(self.results_psth["plot"], self.results_psth["op"], self.save_options_cont)
+        Notifications are ``None`` in headless/test contexts, so this is a no-op
+        there. Errors are shown persistently (``duration=0``); other levels use
+        Panel's default auto-dismiss.
+        """
+        notifications = pn.state.notifications
+        if notifications is None:
+            return
+        if level == "error":
+            notifications.error(message, duration=0)
+        else:
+            getattr(notifications, level)(message)
 
-    @param.depends("save_overlay", watch=True)
-    def save_overlay_plot(self) -> int | None:
-        """Export the multi-event comparison plot in the format selected by ``save_options_overlay``."""
-        return self._export_plot(
-            self.results_psth["plot_combine"], self.results_psth["op_combine"], self.save_options_overlay
+    def _render_download(self, plot: object, save_format: str, *, nothing_selected_message: str) -> BytesIO:
+        """Render ``plot`` for a browser download, reporting problems as notifications.
+
+        Returns an empty buffer (so the download simply yields nothing) when there
+        is no plot to save or the Chrome render fails; either way the reason is
+        surfaced to the user instead of failing silently.
+        """
+        if plot is None:
+            self._notify("warning", nothing_selected_message)
+            return BytesIO()
+        # Guard the render so _range_sync_hook ignores the off-screen export figure
+        # and leaves the live figure (and its number-box controls) intact.
+        self._exporting = True
+        try:
+            return self._render_to_bytes(plot, save_format)
+        except Exception as error:
+            self._notify("error", f"Could not save plot: {error}")
+            return BytesIO()
+        finally:
+            self._exporting = False
+
+    # The download_* methods back the "Save As…" FileDownload buttons. Each
+    # re-renders its plot so the download reflects the current zoom/pan/limits
+    # rather than the element cached at the last reactive render (the live range
+    # params are deliberately not allowed to re-trigger those renders).
+    def download_heatmap(self) -> BytesIO:
+        """Return the current heatmap view as an image buffer for browser download."""
+        return self._render_download(self.heatmap(), self.save_options_heatmap, nothing_selected_message="")
+
+    def download_cont(self) -> BytesIO:
+        """Return the current single-event PSTH view as an image buffer for browser download."""
+        return self._render_download(self.contPlot(), self.save_options_cont, nothing_selected_message="")
+
+    def download_overlay(self) -> BytesIO:
+        """Return the current multi-event comparison view as an image buffer for browser download."""
+        return self._render_download(
+            self.update_selector(),
+            self.save_options_overlay,
+            nothing_selected_message="No events selected — nothing to save.",
         )
 
-    @param.depends("save_trials", watch=True)
-    def save_trials_plot(self) -> int | None:
-        """Export the selected-trials plot in the format selected by ``save_options_trials``."""
-        return self._export_plot(self.results_psth["trials"], self.results_psth["op_trials"], self.save_options_trials)
+    def download_trials(self) -> BytesIO:
+        """Return the current selected-trials view as an image buffer for browser download."""
+        return self._render_download(
+            self.plot_specific_trials(),
+            self.save_options_trials,
+            nothing_selected_message="No trials selected — nothing to save.",
+        )
 
     # function to change Y values based on event selection
     @param.depends("event_selector", watch=True)
