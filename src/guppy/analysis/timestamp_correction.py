@@ -133,7 +133,6 @@ def timestampCorrection(
     for i in range(channels_arr.shape[1]):
         control_name = channels_arr[0, i]
         signal_name = channels_arr[1, i]
-        # dirname = os.path.dirname(path[i])
         idx = np.where(names_for_storenames == indices[i])[0]
 
         name = names_for_storenames[idx][0]

@@ -84,9 +84,9 @@ def decide_naming_convention(filepath: str) -> np.ndarray:
         Shape ``(2, N)`` array where row 0 contains control file paths and
         row 1 contains the matching signal file paths.
     """
-    path_1 = find_files(filepath, "control_*", ignore_case=True)  # glob.glob(os.path.join(filepath, 'control*'))
+    path_1 = find_files(filepath, "control_*", ignore_case=True)
 
-    path_2 = find_files(filepath, "signal_*", ignore_case=True)  # glob.glob(os.path.join(filepath, 'signal*'))
+    path_2 = find_files(filepath, "signal_*", ignore_case=True)
 
     path = sorted(path_1 + path_2, key=str.casefold)
     if len(path) % 2 != 0:

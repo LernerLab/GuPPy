@@ -120,7 +120,7 @@ def addingNaNtoChunksWithArtifacts(
             if (
                 "control_" + pair_name.lower() in names_for_storenames[i].lower()
                 or "signal_" + pair_name.lower() in names_for_storenames[i].lower()
-            ):  # changes done
+            ):
                 data = name_to_data[names_for_storenames[i]].reshape(-1)
                 data = addingNaNValues(data=data, ts=tsNew, coords=coords)
                 name_to_corrected_data[names_for_storenames[i]] = data
@@ -191,7 +191,7 @@ def processTimestampsForArtifacts(
             if (
                 "control_" + pair_name.lower() in names_for_storenames[i].lower()
                 or "signal_" + pair_name.lower() in names_for_storenames[i].lower()
-            ):  # changes done
+            ):
                 data = name_to_data[names_for_storenames[i]]
                 data, timestampNew = eliminateData(
                     data=data,
@@ -268,13 +268,11 @@ def eliminateData(
             ts_arr = np.concatenate((ts_arr, new_ts))
         else:
             temp = data[index]
-            # new = temp + (arr[-1]-temp[0])
             temp_ts = ts[index]
             new_ts = temp_ts - (temp_ts[0] - ts_arr[-1])
             arr = np.concatenate((arr, temp))
             ts_arr = np.concatenate((ts_arr, new_ts + (1 / sampling_rate)))
 
-    # logger.info(arr.shape, ts_arr.shape)
     return arr, ts_arr
 
 

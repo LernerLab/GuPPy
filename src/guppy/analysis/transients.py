@@ -123,7 +123,6 @@ def processChunks(
     newPeaks = np.full(arrValues.shape[0], np.nan)
     newPeaks[peaks] = peaks + arrIndexes[0]
 
-    # madY = np.full(arrValues.shape[0], mad)
     medianY = np.full(arrValues.shape[0], median)
     filteredOutMedianY = np.full(arrValues.shape[0], filteredOutMedian)
 
@@ -220,7 +219,6 @@ def calculate_freq_amp(
 
     peaksInd = peaksInd.ravel()
     peaksInd = peaksInd.astype(int)
-    # logger.info(timestamps)
     freq = peaksAmp.shape[0] / ((timestamps[-1] - timestamps[0]) / 60)
 
     return freq, peaksAmp, peaksInd

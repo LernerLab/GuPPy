@@ -75,7 +75,6 @@ def helper_plots(filepath: str, event: list[str], name: list[str] | str, inputPa
                 cols = list(temp_df.columns)
                 regex = re.compile("bin_[(]")
                 bins[new_event[-1]] = [cols[i] for i in range(len(cols)) if regex.match(cols[i])]
-                # bins.append(keep_cols)
                 frames.append(temp_df)
 
         df = pd.concat(frames, keys=new_event, axis=1)
@@ -111,7 +110,6 @@ def helper_plots(filepath: str, event: list[str], name: list[str] | str, inputPa
         for i in range(len(bins_keys)):
             arr = bins[bins_keys[i]]
             if len(arr) > 0:
-                # heatmap_options.append('{}_bin'.format(bins_keys[i]))
                 for j in arr:
                     multiple_plots_options.append("{}_{}".format(bins_keys[i], j))
 
@@ -372,9 +370,7 @@ def visualizeResults(inputParameters: dict[str, object]) -> None:
     combine_data = inputParameters["combine_data"]
 
     if average == True and len(folderNamesForAvg) > 0:
-        # folderNames = folderNamesForAvg
         filepath_avg = os.path.join(inputParameters["abspath"], "average")
-        # filepath = os.path.join(inputParameters['abspath'], folderNames[0])
         group_selected_outputs = inputParameters.get("groupSelectedOutputs") or {}
         storesListPath = []
         for i in range(len(folderNamesForAvg)):
@@ -432,7 +428,3 @@ def visualizeResults(inputParameters: dict[str, object]) -> None:
                     ).reshape(2, -1)
 
                     createPlots(filepath, storesList[1, :], inputParameters)
-
-
-# logger.info(sys.argv[1:])
-# visualizeResults(sys.argv[1:][0])
