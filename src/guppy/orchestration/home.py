@@ -159,6 +159,9 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
     template._hooks = {
         "onclickVisualization": onclickVisualization,
         "onclickImportCustomEvents": onclickImportCustomEvents,
+        "onclickreaddata": onclickreaddata,
+        "onclickpreprocess": onclickpreprocess,
+        "onclickpsth": onclickpsth,
         "getInputParameters": parameter_form.getInputParameters,
     }
     template._widgets = {
