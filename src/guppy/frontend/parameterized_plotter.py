@@ -712,7 +712,6 @@ class ParameterizedPlotter(param.Parameterized):
             op_filename = os.path.join(op, self.event_selector + "_" + self.y)
             self.results_psth["plot"] = img
             self.results_psth["op"] = op_filename
-            # self.save_plots(img, save_opts, op_filename)
 
             return img
 
@@ -748,10 +747,8 @@ class ParameterizedPlotter(param.Parameterized):
                 line_width=0,
             )
 
-            plot_curve = hv.Curve((xpoints[index], ypoints[index]))  # .opts(**ropts_curve)
-            plot_spread = hv.Spread(
-                (xpoints[index], ypoints[index], err[index], err[index])
-            )  # .opts(**ropts_spread) #vdims=['y', 'yerrpos', 'yerrneg']
+            plot_curve = hv.Curve((xpoints[index], ypoints[index]))
+            plot_spread = hv.Spread((xpoints[index], ypoints[index], err[index], err[index]))
             plot = (plot_curve * plot_spread).opts({"Curve": ropts_curve, "Spread": ropts_spread})
             plot = plot.opts(
                 hooks=[

@@ -80,7 +80,6 @@ def averageForGroup(folderNames: list[str], event: str, inputParameters: dict[st
         bins_cols = []
         temp_path = new_path[i]
         for j in range(len(temp_path)):
-            # logger.info(os.path.join(temp_path[j][0], temp_path[j][1]+'_{}.h5'.format(temp_path[j][2])))
             if not os.path.exists(os.path.join(temp_path[j][0], temp_path[j][1] + "_{}.h5".format(temp_path[j][2]))):
                 continue
             else:
@@ -146,7 +145,7 @@ def averageForGroup(folderNames: list[str], event: str, inputParameters: dict[st
             )
             continue
         index = list(np.concatenate(index))
-        new_df = pd.concat(arr, axis=0)  # os.path.join(filepath, 'peak_AUC_'+name+'.csv')
+        new_df = pd.concat(arr, axis=0)
         new_df.to_csv(os.path.join(op, "peak_AUC_{}_{}.csv".format(temp_path[j][1], temp_path[j][2])), index=index)
         new_df.to_hdf(
             os.path.join(op, "peak_AUC_{}_{}.h5".format(temp_path[j][1], temp_path[j][2])),

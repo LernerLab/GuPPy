@@ -5,7 +5,6 @@ import holoviews as hv
 import numpy as np
 import panel as pn
 
-# hv.extension()
 pn.extension()
 
 logger = logging.getLogger(__name__)

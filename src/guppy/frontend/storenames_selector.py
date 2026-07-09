@@ -40,13 +40,11 @@ class StorenamesSelector:
         self.literal_input_1 = pn.widgets.LiteralInput(
             name="Number of times you want the above storename (list)", value=[], type=list
         )
-        # self.literal_input_2 = pn.widgets.LiteralInput(name='Names for Storenames (list)', type=list)
 
         self.repeat_storenames = pn.widgets.Checkbox(name="Storenames to repeat", value=False)
         self.repeat_storename_wd = pn.WidgetBox("", width=600)
 
         self.repeat_storenames.link(self.repeat_storename_wd, callbacks={"value": self.callback})
-        # self.repeat_storename_wd = pn.WidgetBox('Storenames to repeat (leave blank if not needed)', multi_choice, literal_input_1, background="white", width=600)
 
         self.update_options = pn.widgets.Button(name="Select Storenames", width=600)
         self.save = pn.widgets.Button(name="Save", width=600)

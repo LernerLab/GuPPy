@@ -137,8 +137,6 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
 
         eventNew = np.array(list(event))
 
-        # logger.info(allnames)
-        # logger.info(eventNew)
         row = self._ismember(data["name"], event)
 
         if sum(row) == 0:

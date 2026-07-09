@@ -104,7 +104,6 @@ def get_timestamp_configuration(
         timestamps_combo = ttk.Combobox(window, values=col_names_ts, textvariable=holdComboboxValues["timestamps"])
         timestamps_combo.grid(row=0, column=2, pady=25, padx=25)
         timestamps_combo.current(0)
-        # timestamps_combo.bind("<<ComboboxSelected>>", comboBoxSelected)
 
         time_unit_label = ttk.Label(window, text="Select timestamps unit : ").grid(row=1, column=1, pady=25, padx=25)
         holdComboboxValues["time_unit"] = StringVar()
@@ -115,7 +114,6 @@ def get_timestamp_configuration(
         )
         time_unit_combo.grid(row=1, column=2, pady=25, padx=25)
         time_unit_combo.current(0)
-        # time_unit_combo.bind("<<ComboboxSelected>>", comboBoxSelected)
         window.lift()
         window.after(500, lambda: window.lift())
         window.mainloop()
