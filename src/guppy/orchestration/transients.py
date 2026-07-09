@@ -8,6 +8,7 @@ import sys
 import matplotlib.pyplot as plt
 import numpy as np
 
+from .group_utils import gather_group_stores_list_paths
 from ..analysis.io_utils import (
     read_hdf5,
 )
@@ -278,19 +279,7 @@ def execute_average_for_group(inputParameters: dict[str, object], folderNamesFor
     ValueError
         When ``folderNamesForAvg`` is empty.
     """
-    if len(folderNamesForAvg) == 0:
-        message = (
-            "No folders selected for group averaging (folderNamesForAvg is empty in inputParameters). "
-            "Select folders in the 'Group Folders for Averaging' picker before running the average step."
-        )
-        logger.error(message)
-        raise ValueError(message)
-    group_selected_outputs = inputParameters.get("groupSelectedOutputs") or {}
-    storesListPath = []
-    for i in range(len(folderNamesForAvg)):
-        filepath = folderNamesForAvg[i]
-        storesListPath.append(select_output_dirs(filepath, group_selected_outputs.get(filepath)))
-    storesListPath = np.concatenate(storesListPath)
+    storesListPath = gather_group_stores_list_paths(inputParameters, folderNamesForAvg)
     averageForGroup(storesListPath, inputParameters)
     writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
     inputParameters["step"] += 1

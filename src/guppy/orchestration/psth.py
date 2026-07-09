@@ -13,6 +13,7 @@ from itertools import repeat
 import numpy as np
 from scipy import signal as ss
 
+from .group_utils import gather_group_stores_list_paths
 from .save_parameters import save_parameters
 from ..analysis.compute_psth import compute_psth
 from ..analysis.cross_correlation import compute_cross_correlation
@@ -431,20 +432,7 @@ def execute_average_for_group(inputParameters: dict[str, object]) -> None:
         storenames are inconsistent across sessions.
     """
     folderNamesForAvg = inputParameters["folderNamesForAvg"]
-    if len(folderNamesForAvg) == 0:
-        message = (
-            "No folders selected for group averaging (folderNamesForAvg is empty in inputParameters). "
-            "Select folders in the 'Group Folders for Averaging' picker before running the average step."
-        )
-        logger.error(message)
-        raise ValueError(message)
-
-    group_selected_outputs = inputParameters.get("groupSelectedOutputs") or {}
-    storesListPath = []
-    for i in range(len(folderNamesForAvg)):
-        filepath = folderNamesForAvg[i]
-        storesListPath.append(select_output_dirs(filepath, group_selected_outputs.get(filepath)))
-    storesListPath = np.concatenate(storesListPath)
+    storesListPath = gather_group_stores_list_paths(inputParameters, folderNamesForAvg)
 
     _validate_fiber_regions_consistent_for_group(storesListPath)
 

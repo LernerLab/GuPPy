@@ -2,6 +2,8 @@ import logging
 
 import numpy as np
 
+from .realignment import concatenate_and_realign_data, realign_ttl_timestamps
+
 logger = logging.getLogger(__name__)
 
 
@@ -255,27 +257,12 @@ def eliminateData(
     if (data == 0).all() == True:
         data = np.zeros(ts.shape[0])
 
-    arr = np.array([])
-    ts_arr = np.array([])
+    segments = []
     for i in range(coords.shape[0]):
-
         index = np.where((ts > coords[i, 0]) & (ts < coords[i, 1]))[0]
+        segments.append((data[index], ts[index]))
 
-        if len(arr) == 0:
-            arr = np.concatenate((arr, data[index]))
-            sub = ts[index][0] - timeForLightsTurnOn
-            new_ts = ts[index] - sub
-            ts_arr = np.concatenate((ts_arr, new_ts))
-        else:
-            temp = data[index]
-            # new = temp + (arr[-1]-temp[0])
-            temp_ts = ts[index]
-            new_ts = temp_ts - (temp_ts[0] - ts_arr[-1])
-            arr = np.concatenate((arr, temp))
-            ts_arr = np.concatenate((ts_arr, new_ts + (1 / sampling_rate)))
-
-    # logger.info(arr.shape, ts_arr.shape)
-    return arr, ts_arr
+    return concatenate_and_realign_data(segments, timeForLightsTurnOn=timeForLightsTurnOn, sampling_rate=sampling_rate)
 
 
 def eliminateTs(
@@ -303,27 +290,15 @@ def eliminateTs(
         Realigned TTL timestamps.
     """
 
-    ts_arr = np.array([])
-    tsNew_arr = np.array([])
+    # tsNew (continuous) and ts (events) are both on the recording-start basis, matching the basis
+    # of the artifact-removal coords, so both windowing comparisons are consistent.
+    pairs = []
     for i in range(coords.shape[0]):
-        # tsNew (continuous) and ts (events) are both on the recording-start basis, matching
-        # the basis of the artifact-removal coords, so both windowing comparisons are consistent.
         tsNew_index = np.where((tsNew > coords[i, 0]) & (tsNew < coords[i, 1]))[0]
         ts_index = np.where((ts > coords[i, 0]) & (ts < coords[i, 1]))[0]
+        pairs.append((tsNew[tsNew_index], ts[ts_index]))
 
-        if len(tsNew_arr) == 0:
-            sub = tsNew[tsNew_index][0] - timeForLightsTurnOn
-            tsNew_arr = np.concatenate((tsNew_arr, tsNew[tsNew_index] - sub))
-            ts_arr = np.concatenate((ts_arr, ts[ts_index] - sub))
-        else:
-            temp_tsNew = tsNew[tsNew_index]
-            temp_ts = ts[ts_index]
-            new_ts = temp_ts - (temp_tsNew[0] - tsNew_arr[-1])
-            new_tsNew = temp_tsNew - (temp_tsNew[0] - tsNew_arr[-1])
-            tsNew_arr = np.concatenate((tsNew_arr, new_tsNew + (1 / sampling_rate)))
-            ts_arr = np.concatenate((ts_arr, new_ts + (1 / sampling_rate)))
-
-    return ts_arr
+    return realign_ttl_timestamps(pairs, timeForLightsTurnOn=timeForLightsTurnOn, sampling_rate=sampling_rate)
 
 
 def addingNaNValues(*, data: np.ndarray, ts: np.ndarray, coords: np.ndarray) -> np.ndarray:
