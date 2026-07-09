@@ -95,7 +95,7 @@ def make_dir(filepath: str) -> str:
     return op
 
 
-def _headless_chrome_options() -> Options:
+def _headless_chrome_options() -> Options:  # pragma: no cover - configures a real browser subprocess
     options = Options()
     # Modern Chrome (109+) needs the "=new" form; the bare "--headless" flag is
     # deprecated and can pop a visible blank window instead of running headless.
@@ -401,7 +401,7 @@ class ParameterizedPlotter(param.Parameterized):
             setattr(self, y_name, None)
 
     @staticmethod
-    def _render_to_bytes(plot: object, save_format: str) -> BytesIO:
+    def _render_to_bytes(plot: object, save_format: str) -> BytesIO:  # pragma: no cover - drives headless Chrome
         """Render a plot to an in-memory image buffer in the requested format.
 
         Rendering rasterizes through headless Chrome (via Selenium), the same

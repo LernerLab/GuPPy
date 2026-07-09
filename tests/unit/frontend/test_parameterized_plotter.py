@@ -1,9 +1,11 @@
 import os
 from io import BytesIO
+from types import SimpleNamespace
 
 import holoviews as hv
 import numpy as np
 import pandas as pd
+import panel as pn
 import pytest
 
 from guppy.frontend.parameterized_plotter import (
@@ -35,6 +37,19 @@ class _FakeFigure:
 class _FakePlot:
     def __init__(self, figure):
         self.state = figure
+
+
+class _FakeNotifications:
+    """Records ``pn.state.notifications`` calls so _notify can be tested headlessly."""
+
+    def __init__(self):
+        self.calls = []
+
+    def __getattr__(self, level):
+        def record(message, **kwargs):
+            self.calls.append((level, message, kwargs))
+
+        return record
 
 
 # ---------------------------------------------------------------------------
@@ -346,6 +361,23 @@ class TestParameterizedPlotter:
         assert buffer.read() == b""
         assert capture_render == {}
         assert capture_notifications == [("warning", "No trials selected — nothing to save.")]
+
+    def test_notify_is_noop_without_notifications(self, monkeypatch):
+        # In headless/test contexts pn.state.notifications is None; _notify must not raise.
+        monkeypatch.setattr(pn, "state", SimpleNamespace(notifications=None))
+        ParameterizedPlotter._notify("error", "ignored")
+
+    def test_notify_shows_error_persistently(self, monkeypatch):
+        recorder = _FakeNotifications()
+        monkeypatch.setattr(pn, "state", SimpleNamespace(notifications=recorder))
+        ParameterizedPlotter._notify("error", "boom")
+        assert recorder.calls == [("error", "boom", {"duration": 0})]
+
+    def test_notify_shows_other_levels_with_default_dismiss(self, monkeypatch):
+        recorder = _FakeNotifications()
+        monkeypatch.setattr(pn, "state", SimpleNamespace(notifications=recorder))
+        ParameterizedPlotter._notify("warning", "heads up")
+        assert recorder.calls == [("warning", "heads up", {})]
 
     def test_update_selector_handles_bin_series_selection(self, plotter):
         plotter.param.selector_for_multipe_events_plot.objects = ["event1", "event2", "event1_bin_1"]
