@@ -220,7 +220,7 @@ class DandiNwbRecordingExtractor(NwbRecordingExtractor):
         sample_counts: dict[str, int] = {}
         byte_counts: dict[str, int] = {}
         for neurodata_object in nwbfile.objects.values():
-            if neurodata_object.neurodata_type != "FiberPhotometryResponseSeries":
+            if getattr(neurodata_object, "neurodata_type", None) != "FiberPhotometryResponseSeries":
                 continue
             data = neurodata_object.data
             total_samples = int(data.shape[0])

@@ -1,6 +1,7 @@
 # v2.0.0-alpha9 (Upcoming)
 
 ## Features
+- Added support for pynwb 4.0, including the new core `EventsTable` event type (NWB Schema 2.10.0); each `EventsTable` becomes a store, split into one store per unique value of its optional text `annotation` column. Dropped support for the `ndx-events` 0.4 extension, which is unreadable under pynwb 4.0. [PR #367](https://github.com/LernerLab/GuPPy/pull/367)
 
 ## Fixes
 - The visualization dashboard's plot Save buttons are now "Save As…" browser downloads that let you choose the filename and location, and they render the current view (respecting live zoom/pan and typed axis limits) instead of a stale earlier render; saving no longer freezes the plot's controls until a page refresh, and render failures now surface as notifications instead of failing silently. [PR #375](https://github.com/LernerLab/GuPPy/pull/375)
@@ -14,12 +15,6 @@
 
 ## Features
 - Brought the visualization dashboard's Heat Map tab up to parity with the PSTH line plots: numeric X (Time) and Y (Trials) axis-limit boxes that snap to zoom/pan, editable colour-scale (clim) limits that recolour the datashaded data (not just the colorbar), and an independent "Hide minor tick marks" toggle. [PR #372](https://github.com/LernerLab/GuPPy/pull/372)
-
-## Fixes
-
-## Improvements
-
-## Deprecations and Removals
 
 # v2.0.0-alpha7 (July 7th, 2026)
 
@@ -50,7 +45,6 @@
 - Unified the pipeline step numbering on the canonical Storenames = Step 1 scheme across the testing API, tests, error messages, comments, and docs, so error messages that tell the user to re-run a step now match the GUI sidebar labels. [PR #361](https://github.com/LernerLab/GuPPy/pull/361)
 - Stored event timestamps now share the recording-start time basis with the continuous `timestampNew` stream instead of being re-zeroed to `timeForLightsTurnOn`, so all series can be co-registered without per-stream offset bookkeeping (PSTH results are unchanged). Resolves [#355](https://github.com/LernerLab/GuPPy/issues/355). [PR #356](https://github.com/LernerLab/GuPPy/pull/356)
 - Fixed bug with step five, which was causing the baseline uncorrected HDF5 file to not exist. [PR #241](https://github.com/LernerLab/GuPPy/pull/241)
-- Pinned pynwb < 4 to avoid issues with the NWB extractor. [PR #363](https://github.com/LernerLab/GuPPy/pull/363)
 
 ## Improvements
 - Hoisted step-3 multiprocessing pool out of the per-session loop and batched reads per `(session, extractor)` pair: ~3.3× faster DANDI streaming and ~2.2× faster local NWB on representative sessions.

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from hdmf.common import DynamicTable
 from pynwb import NWBHDF5IO, NWBFile
 
 from guppy.extractors.base_recording_extractor import BaseRecordingExtractor
@@ -118,12 +119,14 @@ def _count_event_samples(*, nwbfile: NWBFile, io: NWBHDF5IO, event: str) -> int:
     """Return total samples for ``event`` without materialising bulk data.
 
     For ``FiberPhotometryResponseSeries`` events the result is the dataset's
-    leading dimension. For ndx-events events the result is ``0`` because
-    they carry only sparse event timestamps and contribute negligibly to
-    progress-bar weighting.
+    leading dimension. For ndx-events and core ``EventsTable`` events the result
+    is ``0`` because they carry only sparse event timestamps and contribute
+    negligibly to progress-bar weighting.
     """
     series_name_to_object = {
-        obj.name: obj for obj in nwbfile.objects.values() if obj.neurodata_type == "FiberPhotometryResponseSeries"
+        obj.name: obj
+        for obj in nwbfile.objects.values()
+        if getattr(obj, "neurodata_type", None) == "FiberPhotometryResponseSeries"
     }
     if event in series_name_to_object:
         return int(series_name_to_object[event].data.shape[0])
@@ -156,7 +159,7 @@ def _discover_events_from_nwbfile(*, nwbfile: NWBFile, io: NWBHDF5IO) -> list[st
     ndx_events_version = _get_ndx_events_version(io)
 
     for neurodata_object in nwbfile.objects.values():
-        if neurodata_object.neurodata_type != "FiberPhotometryResponseSeries":
+        if getattr(neurodata_object, "neurodata_type", None) != "FiberPhotometryResponseSeries":
             continue
         series_name = neurodata_object.name
         _register_unique_name(seen_names, series_name, "FiberPhotometryResponseSeries")
@@ -170,8 +173,8 @@ def _discover_events_from_nwbfile(*, nwbfile: NWBFile, io: NWBHDF5IO) -> list[st
 
     if ndx_events_version is not None and ndx_events_version.startswith("0.2"):
         events.extend(_discover_ndx_events_v02(nwbfile, seen_names))
-    elif ndx_events_version is not None and ndx_events_version.startswith("0.4"):
-        events.extend(_discover_ndx_events_v04(nwbfile, seen_names))
+
+    events.extend(_discover_core_events_tables(nwbfile, seen_names))
 
     return events
 
@@ -198,14 +201,15 @@ def _read_events_from_nwbfile(*, nwbfile: NWBFile, io: NWBHDF5IO, events: list[s
     ndx_events_version = _get_ndx_events_version(io)
 
     series_name_to_object = {
-        obj.name: obj for obj in nwbfile.objects.values() if obj.neurodata_type == "FiberPhotometryResponseSeries"
+        obj.name: obj
+        for obj in nwbfile.objects.values()
+        if getattr(obj, "neurodata_type", None) == "FiberPhotometryResponseSeries"
     }
 
     event_index = {}
     if ndx_events_version is not None and ndx_events_version.startswith("0.2"):
         event_index = _build_event_index_v02(nwbfile)
-    elif ndx_events_version is not None and ndx_events_version.startswith("0.4"):
-        event_index = _build_event_index_v04(nwbfile)
+    event_index.update(_build_core_events_index(nwbfile))
 
     output_dicts = []
     for event in events:
@@ -246,32 +250,72 @@ def _discover_ndx_events_v02(nwbfile: NWBFile, seen_names: set[str]) -> list[str
     """Discover event names from ndx-events v0.2 objects (AnnotatedEventsTable, LabeledEvents, Events)."""
     events = []
     for neurodata_object in nwbfile.objects.values():
-        if neurodata_object.neurodata_type == "AnnotatedEventsTable":
+        neurodata_type = getattr(neurodata_object, "neurodata_type", None)
+        if neurodata_type == "AnnotatedEventsTable":
             _register_unique_name(seen_names, neurodata_object.name, "AnnotatedEventsTable")
             for label in neurodata_object["label"].data:
                 events.append(f"{neurodata_object.name}_{label}")
-        elif neurodata_object.neurodata_type == "LabeledEvents":
+        elif neurodata_type == "LabeledEvents":
             _register_unique_name(seen_names, neurodata_object.name, "LabeledEvents")
             for label in neurodata_object.data__labels:
                 events.append(f"{neurodata_object.name}_{label}")
-        elif neurodata_object.neurodata_type == "Events":
+        elif neurodata_type == "Events":
             _register_unique_name(seen_names, neurodata_object.name, "Events")
             events.append(neurodata_object.name)
     return events
 
 
-def _discover_ndx_events_v04(nwbfile: NWBFile, seen_names: set[str]) -> list[str]:
-    """Discover event names from ndx-events v0.4 EventsTable objects."""
+def _core_events_split_column(table: DynamicTable) -> str | None:
+    """Return the column an ``EventsTable`` should be split on, or ``None`` for a single event.
+
+    A core (pynwb 4.0) ``EventsTable`` always has a ``timestamp`` column and may have a
+    ``duration`` column; any remaining column is a value column carrying a per-event
+    category (e.g. ``annotation`` from a hand-built file, or ``strobe`` / ``event_type``
+    written by NeuroConv's events interfaces). We split the table into one event per
+    unique value of that column.
+
+    Returns
+    -------
+    str or None
+        The name of the single value column to split on, or ``None`` when the table has
+        no value column (it then yields a single event named after the table).
+
+    Raises
+    ------
+    NotImplementedError
+        If the table has more than one value column. Splitting on a combination of
+        columns is not supported.
+    """
+    value_columns = [column for column in table.colnames if column not in ("timestamp", "duration")]
+    if len(value_columns) == 0:
+        return None
+    elif len(value_columns) == 1:
+        return value_columns[0]
+    else:
+        raise NotImplementedError(
+            f"EventsTable {table.name!r} has multiple value columns {value_columns!r}, but splitting "
+            "events on more than one column is not supported. If you need multi-column splitting, "
+            "please raise an issue at https://github.com/LernerLab/GuPPy/issues."
+        )
+
+
+def _discover_core_events_tables(nwbfile: NWBFile, seen_names: set[str]) -> list[str]:
+    """Discover event names from core (pynwb 4.0) ``EventsTable`` objects.
+
+    Each ``EventsTable`` in ``nwbfile.events`` maps to one or more events. A table with a
+    single value column (any column other than ``timestamp``/``duration``) yields one event
+    per unique value of that column (``{table_name}_{value}``); a table without one yields a
+    single event ``{table_name}``.
+    """
     events = []
-    for table_name, table in nwbfile.events__events_tables.items():
+    for table_name, table in (getattr(nwbfile, "events", None) or {}).items():
         _register_unique_name(seen_names, table_name, "EventsTable")
-        categorical_columns = [col for col in table.columns if col.neurodata_type == "CategoricalVectorData"]
-        if categorical_columns:
-            for col in categorical_columns:
-                for meaning_value in col.meanings["value"].data[:]:
-                    events.append(f"{table_name}_{col.name}_{meaning_value}")
-        else:
+        split_column = _core_events_split_column(table)
+        if split_column is None:
             events.append(table_name)
+        else:
+            for value in np.unique(np.asarray(table[split_column][:])):
+                events.append(f"{table_name}_{value}")
     return events
 
 
@@ -288,46 +332,47 @@ def _build_event_index_v02(nwbfile: NWBFile) -> dict[str, tuple]:
     """
     index = {}
     for obj in nwbfile.objects.values():
-        if obj.neurodata_type == "AnnotatedEventsTable":
+        neurodata_type = getattr(obj, "neurodata_type", None)
+        if neurodata_type == "AnnotatedEventsTable":
             for row_index, label in enumerate(obj["label"].data):
                 index[f"{obj.name}_{label}"] = ("annotated", obj, row_index)
-        elif obj.neurodata_type == "LabeledEvents":
+        elif neurodata_type == "LabeledEvents":
             for label_index, label in enumerate(obj.data__labels):
                 index[f"{obj.name}_{label}"] = ("labeled", obj, label_index)
-        elif obj.neurodata_type == "Events":
+        elif neurodata_type == "Events":
             index[obj.name] = ("events", obj)
     return index
 
 
-def _build_event_index_v04(nwbfile: NWBFile) -> dict[str, tuple]:
-    """Build a unified event index for ndx-events v0.4 EventsTable objects.
+def _build_core_events_index(nwbfile: NWBFile) -> dict[str, tuple]:
+    """Build a unified event index for core (pynwb 4.0) ``EventsTable`` objects.
 
     Returns
     -------
     dict
-        Mapping of event name to ``("v04", table, categorical_col_or_None, meaning_value_or_None)``.
+        Mapping of event name to ``("core", table, split_column_or_None, value_or_None)``.
     """
     index = {}
-    for table_name, table in nwbfile.events__events_tables.items():
-        categorical_columns = [col for col in table.columns if col.neurodata_type == "CategoricalVectorData"]
-        if categorical_columns:
-            for col in categorical_columns:
-                for meaning_value in col.meanings["value"].data[:]:
-                    index[f"{table_name}_{col.name}_{meaning_value}"] = ("v04", table, col, meaning_value)
+    for table_name, table in (getattr(nwbfile, "events", None) or {}).items():
+        split_column = _core_events_split_column(table)
+        if split_column is None:
+            index[table_name] = ("core", table, None, None)
         else:
-            index[table_name] = ("v04", table, None, None)
+            for value in np.unique(np.asarray(table[split_column][:])):
+                index[f"{table_name}_{value}"] = ("core", table, split_column, value)
     return index
 
 
 def _read_ndx_event(*, event_name: str, source_info: tuple) -> dict[str, object]:
-    """Read timestamps for a single ndx-events event from its indexed source.
+    """Read timestamps for a single event from its indexed source.
 
     Parameters
     ----------
     event_name : str
         The event name (used as ``storename``).
     source_info : tuple
-        Tagged tuple from ``_build_event_index_v02`` or ``_build_event_index_v04``.
+        Tagged tuple from ``_build_event_index_v02`` (ndx-events v0.2) or
+        ``_build_core_events_index`` (core ``EventsTable``).
 
     Returns
     -------
@@ -350,17 +395,16 @@ def _read_ndx_event(*, event_name: str, source_info: tuple) -> dict[str, object]
         _, obj = source_info
         return {"storename": event_name, "timestamps": np.array(obj.timestamps[:])}
 
-    if tag == "v04":
-        _, table, categorical_col, meaning_value = source_info
-        timestamp_col = next(col for col in table.columns if col.name == "timestamp")
-        all_timestamps = np.array(timestamp_col.data[:])
-        if categorical_col is not None:
-            all_data = np.array(categorical_col.data[:])
-            return {"storename": event_name, "timestamps": all_timestamps[all_data == meaning_value]}
+    if tag == "core":
+        _, table, split_column, split_value = source_info
+        all_timestamps = np.array(table["timestamp"][:])
+        if split_column is not None:
+            all_values = np.asarray(table[split_column][:])
+            return {"storename": event_name, "timestamps": all_timestamps[all_values == split_value]}
         return {"storename": event_name, "timestamps": all_timestamps}
 
     raise ValueError(
-        f"Unknown event source tag: {tag!r}. Expected one of 'annotated', 'labeled', 'events', 'v04'. "
+        f"Unknown event source tag: {tag!r}. Expected one of 'annotated', 'labeled', 'events', 'core'. "
         "This indicates an internal inconsistency in the NWB event index."
     )
 
