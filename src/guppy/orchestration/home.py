@@ -103,10 +103,10 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
             inputParameters["curr_dir"] = current_dir
         thread = Thread(target=worker, args=(inputParameters,))
         thread.start()
-        error_msg = readPBIncrementValues(progress_widget, file_path=PB_STEPS_FILE)
+        error_message = readPBIncrementValues(progress_widget, file_path=PB_STEPS_FILE)
         thread.join()
-        if error_msg:
-            pn.state.notifications.error(error_msg, duration=0)
+        if error_message:
+            pn.state.notifications.error(error_message, duration=0)
 
     def onclickImportCustomEvents(event: object = None) -> None:
         inputParameters = _getInputParametersOrNotify()

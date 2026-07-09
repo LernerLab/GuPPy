@@ -126,16 +126,16 @@ def timestampCorrection(
     name_to_corrected_data = {}
     storenames = storesList[0, :]
     names_for_storenames = storesList[1, :]
-    channels_arr = get_control_and_signal_channel_names(storesList)
+    control_signal_names = get_control_and_signal_channel_names(storesList)
 
-    indices = check_cntrl_sig_length(channels_arr, name_to_data)
+    indices = check_cntrl_sig_length(control_signal_names, name_to_data)
 
-    for i in range(channels_arr.shape[1]):
-        control_name = channels_arr[0, i]
-        signal_name = channels_arr[1, i]
-        idx = np.where(names_for_storenames == indices[i])[0]
+    for i in range(control_signal_names.shape[1]):
+        control_name = control_signal_names[0, i]
+        signal_name = control_signal_names[1, i]
+        match_index = np.where(names_for_storenames == indices[i])[0]
 
-        name = names_for_storenames[idx][0]
+        name = names_for_storenames[match_index][0]
         timestamp = name_to_timestamps[name]
         sampling_rate = name_to_sampling_rate[name]
         npoints = name_to_npoints[name]
@@ -202,17 +202,17 @@ def decide_naming_and_applyCorrection_ttl(
     logger.debug("Applying correction of timestamps to the data and event timestamps")
     storenames = storesList[0, :]
     names_for_storenames = storesList[1, :]
-    arr = get_control_and_signal_channel_names(storesList)
-    indices = check_cntrl_sig_length(arr, name_to_data)
+    control_signal_names = get_control_and_signal_channel_names(storesList)
+    indices = check_cntrl_sig_length(control_signal_names, name_to_data)
 
     compound_name_to_corrected_ttl_timestamps = {}
     for ttl_name, ttl_timestamps in name_to_timestamps_ttl.items():
-        for i in range(arr.shape[1]):
-            name_1 = arr[0, i].split("_")[-1]
+        for i in range(control_signal_names.shape[1]):
+            name_1 = control_signal_names[0, i].split("_")[-1]
 
-            idx = np.where(names_for_storenames == indices[i])[0]
+            match_index = np.where(names_for_storenames == indices[i])[0]
 
-            name = names_for_storenames[idx][0]
+            name = names_for_storenames[match_index][0]
             timestamps = name_to_timestamps[name]
             timeRecStart = timestamps[0]
             corrected_ttl_timestamps = applyCorrection_ttl(
@@ -263,21 +263,21 @@ def applyCorrection_ttl(
     """
     corrected_ttl_timestamps = ttl_timestamps
     if mode == "tdt":
-        res = (corrected_ttl_timestamps >= timeRecStart).all()
+        all_on_recording_clock = (corrected_ttl_timestamps >= timeRecStart).all()
         # When all TTLs are on the recording clock, rebase them to recording start.
         # Otherwise they are not on the recording clock; leave them as-is (rare path).
-        if res == True:
+        if all_on_recording_clock == True:
             corrected_ttl_timestamps = np.subtract(corrected_ttl_timestamps, timeRecStart)
     return corrected_ttl_timestamps
 
 
-def check_cntrl_sig_length(channels_arr: np.ndarray, name_to_data: dict[str, np.ndarray]) -> list[str]:
+def check_cntrl_sig_length(control_signal_names: np.ndarray, name_to_data: dict[str, np.ndarray]) -> list[str]:
     """
     Identify the shorter channel in each control/signal pair.
 
     Parameters
     ----------
-    channels_arr : np.ndarray
+    control_signal_names : np.ndarray
         Shape ``(2, N)`` array where row 0 is control names and row 1 is signal names.
     name_to_data : dict
         Display name → data array.
@@ -290,9 +290,9 @@ def check_cntrl_sig_length(channels_arr: np.ndarray, name_to_data: dict[str, np.
     """
 
     indices = []
-    for i in range(channels_arr.shape[1]):
-        control_name = channels_arr[0, i]
-        signal_name = channels_arr[1, i]
+    for i in range(control_signal_names.shape[1]):
+        control_name = control_signal_names[0, i]
+        signal_name = control_signal_names[1, i]
         control = name_to_data[control_name]
         signal = name_to_data[signal_name]
         if control.shape[0] < signal.shape[0]:

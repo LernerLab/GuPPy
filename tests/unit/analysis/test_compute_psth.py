@@ -118,7 +118,7 @@ def test_compute_psth_single_timestamp_no_corrections_returns_expected_row():
         naming="",
         just_use_signal=False,
         sampling_rate=10.0,
-        ts=ts,
+        event_timestamps=ts,
         corrected_timestamps=corrected_timestamps,
         timeForLightsTurnOn=0.0,
     )
@@ -149,7 +149,7 @@ def test_compute_psth_early_timestamps_filtered_by_baseline_window():
         naming="",
         just_use_signal=False,
         sampling_rate=10.0,
-        ts=ts,
+        event_timestamps=ts,
         corrected_timestamps=corrected_timestamps,
         timeForLightsTurnOn=0.0,
     )
@@ -176,7 +176,7 @@ def test_compute_psth_burst_timestamps_within_time_interval_are_dropped():
         naming="",
         just_use_signal=False,
         sampling_rate=10.0,
-        ts=ts,
+        event_timestamps=ts,
         corrected_timestamps=corrected_timestamps,
         timeForLightsTurnOn=0.0,
     )
@@ -204,7 +204,7 @@ def test_compute_psth_binning_by_trials_produces_correct_bin_mean_and_sem():
         naming="",
         just_use_signal=False,
         sampling_rate=10.0,
-        ts=ts,
+        event_timestamps=ts,
         corrected_timestamps=corrected_timestamps,
         timeForLightsTurnOn=0.0,
     )
@@ -237,7 +237,7 @@ def test_compute_psth_just_use_signal_true_z_scores_each_trial():
         naming="",
         just_use_signal=True,
         sampling_rate=10.0,
-        ts=ts,
+        event_timestamps=ts,
         corrected_timestamps=corrected_timestamps,
         timeForLightsTurnOn=0.0,
     )
@@ -268,7 +268,7 @@ def test_compute_psth_index_is_relative_to_lights_on_origin():
         naming="",
         just_use_signal=False,
         sampling_rate=sampling_rate,
-        ts=ts,
+        event_timestamps=ts,
         corrected_timestamps=corrected_timestamps,
         timeForLightsTurnOn=5.0,
     )
@@ -297,7 +297,7 @@ def test_compute_psth_index_shifts_with_lights_on_origin():
         naming="",
         just_use_signal=False,
         sampling_rate=10.0,
-        ts=ts,
+        event_timestamps=ts,
         corrected_timestamps=corrected_timestamps,
         timeForLightsTurnOn=0.0,
     )

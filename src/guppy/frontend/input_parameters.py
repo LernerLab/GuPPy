@@ -17,12 +17,12 @@ from ..utils.validation import (
 logger = logging.getLogger(__name__)
 
 
-def checkSameLocation(arr: list[str], abspath: object) -> str:
-    """Check that all paths in ``arr`` share the same parent directory.
+def checkSameLocation(paths: list[str], abspath: object) -> str:
+    """Check that all ``paths`` share the same parent directory.
 
     Parameters
     ----------
-    arr : sequence of str
+    paths : sequence of str
         Paths to validate.
     abspath : object
         Ignored; retained for backwards-compatibility with existing callers.
@@ -30,12 +30,12 @@ def checkSameLocation(arr: list[str], abspath: object) -> str:
     Returns
     -------
     str
-        The common parent directory of all paths in ``arr``.
+        The common parent directory of all ``paths``.
     """
     # abspath retained as a positional arg for backwards compatibility with existing
-    # callers; only the contents of arr are inspected.
+    # callers; only the contents of paths are inspected.
     del abspath
-    return validate_same_parent_directory(paths=list(arr))
+    return validate_same_parent_directory(paths=list(paths))
 
 
 def getAbsPath(files_1: pn.widgets.FileSelector, files_2: pn.widgets.FileSelector) -> str:
@@ -451,7 +451,7 @@ class ParameterForm:
           starting directory set to the first session so the user lands on one session's
           outputs and can navigate up to switch between sessions.
         """
-        sessions = [s for s in (event.new or []) if os.path.isdir(s)]
+        sessions = [session for session in (event.new or []) if os.path.isdir(session)]
         if not sessions:
             root_target = default_root_path()
             directory_target = default_root_path()
@@ -767,8 +767,8 @@ class ParameterForm:
         for output_dir in event.new or []:
             json_path = os.path.join(output_dir, "GuPPyParamtersUsed.json")
             if os.path.exists(json_path):
-                with open(json_path) as f:
-                    saved.append(json.load(f))
+                with open(json_path) as parameters_file:
+                    saved.append(json.load(parameters_file))
         if not saved:
             return
 

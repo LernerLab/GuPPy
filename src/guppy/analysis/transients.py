@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 def analyze_transients(
-    ts: np.ndarray,
+    timestamps: np.ndarray,
     window: float,
     numProcesses: int,
     highAmpFilt: float,
@@ -23,7 +23,7 @@ def analyze_transients(
 
     Parameters
     ----------
-    ts : np.ndarray
+    timestamps : np.ndarray
         Timestamp array corresponding to ``z_score``.
     window : float
         Chunk duration in seconds for parallel processing.
@@ -43,44 +43,44 @@ def analyze_transients(
     -------
     z_score : np.ndarray
         NaN-free z-score array used for analysis.
-    ts : np.ndarray
+    timestamps : np.ndarray
         NaN-free timestamp array aligned with the returned ``z_score``.
     peaksInd : np.ndarray
         Integer indices of detected transient peaks in ``z_score``.
     peaks_occurrences : np.ndarray
         Shape ``(n_peaks, 2)`` array of ``[timestamp, amplitude]`` for each peak.
-    arr : np.ndarray
+    freq_and_amplitude : np.ndarray
         Shape ``(1, 2)`` array of ``[frequency (events/min), mean amplitude]``.
     """
     not_nan_indices = ~np.isnan(z_score)
     z_score = z_score[not_nan_indices]
     z_score_chunks, z_score_chunks_index = createChunks(z_score, sampling_rate, window)
 
-    with mp.Pool(numProcesses) as p:
-        result = p.starmap(
+    with mp.Pool(numProcesses) as pool:
+        result = pool.starmap(
             processChunks, zip(z_score_chunks, z_score_chunks_index, repeat(highAmpFilt), repeat(transientsThresh))
         )
 
     result = np.asarray(result, dtype=object)
-    ts = ts[not_nan_indices]
-    freq, peaksAmp, peaksInd = calculate_freq_amp(result, z_score, z_score_chunks_index, ts)
-    peaks_occurrences = np.array([ts[peaksInd], peaksAmp]).T
-    arr = np.array([[freq, np.mean(peaksAmp)]])
-    return z_score, ts, peaksInd, peaks_occurrences, arr
+    timestamps = timestamps[not_nan_indices]
+    freq, peaksAmp, peaksInd = calculate_freq_amp(result, z_score, z_score_chunks_index, timestamps)
+    peaks_occurrences = np.array([timestamps[peaksInd], peaksAmp]).T
+    freq_and_amplitude = np.array([[freq, np.mean(peaksAmp)]])
+    return z_score, timestamps, peaksInd, peaks_occurrences, freq_and_amplitude
 
 
 def processChunks(
-    arrValues: np.ndarray, arrIndexes: np.ndarray, highAmpFilt: float, transientsThresh: float
+    chunk_values: np.ndarray, chunk_indices: np.ndarray, highAmpFilt: float, transientsThresh: float
 ) -> tuple[np.ndarray, float, float, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Apply the two-threshold MAD transient-detection algorithm to one chunk.
 
     Parameters
     ----------
-    arrValues : np.ndarray
+    chunk_values : np.ndarray
         Z-score values for this chunk (may contain NaN padding).
-    arrIndexes : np.ndarray
-        Global sample indices corresponding to ``arrValues``.
+    chunk_indices : np.ndarray
+        Global sample indices corresponding to ``chunk_values``.
     highAmpFilt : float
         MAD multiplier for the first (high-amplitude exclusion) threshold.
     transientsThresh : float
@@ -91,40 +91,40 @@ def processChunks(
     tuple
         ``(peaks, mad, filteredOutMad, medianY, filteredOutMedianY,
         firstThresholdY, secondThresholdY)`` — detected peak indices and
-        diagnostic arrays aligned with ``arrValues``.
+        diagnostic arrays aligned with ``chunk_values``.
     """
 
-    arrValues = arrValues[~np.isnan(arrValues)]
-    median = np.median(arrValues)
+    chunk_values = chunk_values[~np.isnan(chunk_values)]
+    median = np.median(chunk_values)
 
-    mad = np.median(np.abs(arrValues - median))
+    mad = np.median(np.abs(chunk_values - median))
 
     firstThreshold = median + (highAmpFilt * mad)
 
-    greaterThanMad = np.where(arrValues > firstThreshold)[0]
+    greaterThanMad = np.where(chunk_values > firstThreshold)[0]
 
-    arr = np.arange(arrValues.shape[0])
-    lowerThanMad = np.isin(arr, greaterThanMad, invert=True)
-    filteredOut = arrValues[np.where(lowerThanMad == True)[0]]
+    sample_indices = np.arange(chunk_values.shape[0])
+    lowerThanMad = np.isin(sample_indices, greaterThanMad, invert=True)
+    filteredOut = chunk_values[np.where(lowerThanMad == True)[0]]
 
     filteredOutMedian = np.median(filteredOut)
     filteredOutMad = np.median(np.abs(filteredOut - np.median(filteredOut)))
     secondThreshold = filteredOutMedian + (transientsThresh * filteredOutMad)
 
-    greaterThanThreshIndex = np.where(arrValues > secondThreshold)[0]
-    greaterThanThreshValues = arrValues[greaterThanThreshIndex]
-    temp = np.zeros(arrValues.shape[0])
-    temp[greaterThanThreshIndex] = greaterThanThreshValues
-    peaks = argrelextrema(temp, np.greater)[0]
+    greaterThanThreshIndex = np.where(chunk_values > secondThreshold)[0]
+    greaterThanThreshValues = chunk_values[greaterThanThreshIndex]
+    thresholded_values = np.zeros(chunk_values.shape[0])
+    thresholded_values[greaterThanThreshIndex] = greaterThanThreshValues
+    peaks = argrelextrema(thresholded_values, np.greater)[0]
 
-    firstThresholdY = np.full(arrValues.shape[0], firstThreshold)
-    secondThresholdY = np.full(arrValues.shape[0], secondThreshold)
+    firstThresholdY = np.full(chunk_values.shape[0], firstThreshold)
+    secondThresholdY = np.full(chunk_values.shape[0], secondThreshold)
 
-    newPeaks = np.full(arrValues.shape[0], np.nan)
-    newPeaks[peaks] = peaks + arrIndexes[0]
+    newPeaks = np.full(chunk_values.shape[0], np.nan)
+    newPeaks[peaks] = peaks + chunk_indices[0]
 
-    medianY = np.full(arrValues.shape[0], median)
-    filteredOutMedianY = np.full(arrValues.shape[0], filteredOutMedian)
+    medianY = np.full(chunk_values.shape[0], median)
+    filteredOutMedianY = np.full(chunk_values.shape[0], filteredOutMedian)
 
     return peaks, mad, filteredOutMad, medianY, filteredOutMedianY, firstThresholdY, secondThresholdY
 
@@ -180,14 +180,14 @@ def createChunks(z_score: np.ndarray, sampling_rate: float, window: float) -> tu
 
 
 def calculate_freq_amp(
-    arr: np.ndarray, z_score: np.ndarray, z_score_chunks_index: np.ndarray, timestamps: np.ndarray
+    chunk_results: np.ndarray, z_score: np.ndarray, z_score_chunks_index: np.ndarray, timestamps: np.ndarray
 ) -> tuple[float, np.ndarray, np.ndarray]:
     """
     Aggregate per-chunk transient results into global frequency and amplitude statistics.
 
     Parameters
     ----------
-    arr : np.ndarray
+    chunk_results : np.ndarray
         Object array returned by ``processChunks``; each row is a chunk result tuple.
     z_score : np.ndarray
         Full 1-D z-score array.
@@ -205,8 +205,8 @@ def calculate_freq_amp(
     peaksInd : np.ndarray
         Global integer indices of detected peaks in ``z_score``.
     """
-    peaks = arr[:, 0]
-    filteredOutMedian = arr[:, 4]
+    peaks = chunk_results[:, 0]
+    filteredOutMedian = chunk_results[:, 4]
     count = 0
     peaksAmp = np.array([])
     peaksInd = np.array([])

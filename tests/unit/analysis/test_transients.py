@@ -169,7 +169,7 @@ def test_analyze_transients_output_shapes_are_correct():
     timestamps = np.linspace(0, 4, 40)
 
     cleaned_z, cleaned_ts, peaks_ind, peaks_occurrences, arr = analyze_transients(
-        ts=timestamps,
+        timestamps=timestamps,
         window=2,
         numProcesses=1,
         highAmpFilt=3.0,

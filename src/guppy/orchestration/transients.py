@@ -60,14 +60,20 @@ def findFreqAndAmp(
         name_1 = basename.split("_")[-1]
         sampling_rate = read_hdf5("timeCorrection_" + name_1, filepath, "sampling_rate")[0]
         z_score = read_hdf5("", path[i], "data")
-        ts = read_hdf5("timeCorrection_" + name_1, filepath, "timestampNew")
-        z_score, ts, peaksInd, peaks_occurrences, arr = analyze_transients(
-            ts, window, numProcesses, highAmpFilt, transientsThresh, sampling_rate, z_score
+        timestamps = read_hdf5("timeCorrection_" + name_1, filepath, "timestampNew")
+        z_score, timestamps, peaksInd, peaks_occurrences, freq_and_amp = analyze_transients(
+            timestamps, window, numProcesses, highAmpFilt, transientsThresh, sampling_rate, z_score
         )
         fileName = [os.path.basename(os.path.dirname(filepath))]
-        write_freq_and_amp_to_hdf5(filepath, arr, basename, index=fileName, columns=["freq (events/min)", "amplitude"])
+        write_freq_and_amp_to_hdf5(
+            filepath, freq_and_amp, basename, index=fileName, columns=["freq (events/min)", "amplitude"]
+        )
         write_freq_and_amp_to_csv(
-            filepath, arr, "freqAndAmp_" + basename + ".csv", index=fileName, columns=["freq (events/min)", "amplitude"]
+            filepath,
+            freq_and_amp,
+            "freqAndAmp_" + basename + ".csv",
+            index=fileName,
+            columns=["freq (events/min)", "amplitude"],
         )
         write_freq_and_amp_to_csv(
             filepath,
@@ -76,7 +82,7 @@ def findFreqAndAmp(
             index=np.arange(peaks_occurrences.shape[0]),
             columns=["timestamps", "amplitude"],
         )
-        write_transients_to_hdf5(filepath, basename, z_score, ts, peaksInd)
+        write_transients_to_hdf5(filepath, basename, z_score, timestamps, peaksInd)
     logger.info("Frequency and amplitude of transients in z_score data are calculated.")
 
 
@@ -107,11 +113,11 @@ def execute_visualize_peaks(folderNames: list[str], inputParameters: dict[str, o
 
             for i in range(len(path)):
                 basename = (os.path.basename(path[i])).split(".")[0]
-                z_score, ts, peaksInd = read_transients_from_hdf5(filepath, basename)
+                z_score, timestamps, peaksInd = read_transients_from_hdf5(filepath, basename)
 
                 suptitle = os.path.basename(os.path.dirname(path[i]))
                 title = (os.path.basename(path[i])).split(".")[0]
-                visualize_peaks(title, suptitle, z_score, ts, peaksInd)
+                visualize_peaks(title, suptitle, z_score, timestamps, peaksInd)
 
     logger.info("Frequency and amplitude of transients in z_score data are visualized.")
     plt.show()
@@ -135,9 +141,9 @@ def execute_visualize_peaks_combined(folderNames: list[str], inputParameters: di
         filepath = folderNames[i]
         storesListPath.append(select_output_dirs(filepath, selected_outputs.get(filepath)))
     storesListPath = list(np.concatenate(storesListPath).flatten())
-    op = get_all_stores_for_combining_data(storesListPath)
-    for i in range(len(op)):
-        filepath = op[i][0]
+    combined_output_groups = get_all_stores_for_combining_data(storesListPath)
+    for i in range(len(combined_output_groups)):
+        filepath = combined_output_groups[i][0]
 
         if selectForTransientsComputation == "z_score":
             path = glob.glob(os.path.join(filepath, "z_score_*"))
@@ -148,11 +154,11 @@ def execute_visualize_peaks_combined(folderNames: list[str], inputParameters: di
 
         for i in range(len(path)):
             basename = (os.path.basename(path[i])).split(".")[0]
-            z_score, ts, peaksInd = read_transients_from_hdf5(filepath, basename)
+            z_score, timestamps, peaksInd = read_transients_from_hdf5(filepath, basename)
 
             suptitle = os.path.basename(os.path.dirname(path[i]))
             title = (os.path.basename(path[i])).split(".")[0]
-            visualize_peaks(title, suptitle, z_score, ts, peaksInd)
+            visualize_peaks(title, suptitle, z_score, timestamps, peaksInd)
 
     logger.info("Frequency and amplitude of transients in z_score data are calculated.")
     plt.show()
@@ -255,9 +261,9 @@ def execute_find_freq_and_amp_combined(
         filepath = folderNames[i]
         storesListPath.append(select_output_dirs(filepath, selected_outputs.get(filepath)))
     storesListPath = list(np.concatenate(storesListPath).flatten())
-    op = get_all_stores_for_combining_data(storesListPath)
-    for i in range(len(op)):
-        filepath = op[i][0]
+    combined_output_groups = get_all_stores_for_combining_data(storesListPath)
+    for i in range(len(combined_output_groups)):
+        filepath = combined_output_groups[i][0]
         storesList = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
         findFreqAndAmp(filepath, inputParameters, window=moving_window, numProcesses=numProcesses)
         writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)

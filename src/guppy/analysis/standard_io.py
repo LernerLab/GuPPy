@@ -39,7 +39,7 @@ def read_control_and_signal(
     name_to_npoints : dict
         Display name → npoints array (or None for CSV datasets).
     """
-    channels_arr = get_control_and_signal_channel_names(storesList)
+    control_signal_names = get_control_and_signal_channel_names(storesList)
     storenames = storesList[0, :]
     names_for_storenames = storesList[1, :]
 
@@ -48,13 +48,13 @@ def read_control_and_signal(
     name_to_sampling_rate = {}
     name_to_npoints = {}
 
-    for i in range(channels_arr.shape[1]):
-        control_name = channels_arr[0, i]
-        signal_name = channels_arr[1, i]
-        idx_c = np.where(names_for_storenames == control_name)[0]
-        idx_s = np.where(names_for_storenames == signal_name)[0]
-        control_storename = storenames[idx_c[0]]
-        signal_storename = storenames[idx_s[0]]
+    for i in range(control_signal_names.shape[1]):
+        control_name = control_signal_names[0, i]
+        signal_name = control_signal_names[1, i]
+        control_index = np.where(names_for_storenames == control_name)[0]
+        signal_index = np.where(names_for_storenames == signal_name)[0]
+        control_storename = storenames[control_index[0]]
+        signal_storename = storenames[signal_index[0]]
 
         control_data = read_hdf5(control_storename, filepath, "data")
         signal_data = read_hdf5(signal_storename, filepath, "data")
@@ -97,13 +97,13 @@ def read_ttl(filepath: str, storesList: np.ndarray) -> dict[str, np.ndarray]:
     name_to_timestamps : dict
         Display name → TTL timestamp array for each non-channel store.
     """
-    channels_arr = get_control_and_signal_channel_names(storesList)
+    control_signal_names = get_control_and_signal_channel_names(storesList)
     storenames = storesList[0, :]
     names_for_storenames = storesList[1, :]
 
     name_to_timestamps = {}
     for storename, name in zip(storenames, names_for_storenames):
-        if name in channels_arr:
+        if name in control_signal_names:
             continue
         timestamps = read_hdf5(storename, filepath, "timestamps")
         name_to_timestamps[name] = timestamps
@@ -221,7 +221,7 @@ def write_zscore(
     z_score: np.ndarray,
     dff: np.ndarray,
     control_fit: np.ndarray,
-    temp_control_arr: np.ndarray | None,
+    synthetic_control: np.ndarray | None,
 ) -> None:
     """
     Write z-score, dF/F, and fitted-control arrays to HDF5 files.
@@ -238,14 +238,14 @@ def write_zscore(
         Delta-F/F signal array.
     control_fit : np.ndarray
         Fitted control channel array.
-    temp_control_arr : np.ndarray or None
+    synthetic_control : np.ndarray or None
         Synthetic control array when no isosbestic control is present; None otherwise.
     """
     write_hdf5(z_score, "z_score_" + name, filepath, "data")
     write_hdf5(dff, "dff_" + name, filepath, "data")
     write_hdf5(control_fit, "cntrl_sig_fit_" + name, filepath, "data")
-    if temp_control_arr is not None:
-        write_hdf5(temp_control_arr, "control_" + name, filepath, "data")
+    if synthetic_control is not None:
+        write_hdf5(synthetic_control, "control_" + name, filepath, "data")
 
 
 def read_corrected_timestamps_pairwise(
@@ -273,13 +273,13 @@ def read_corrected_timestamps_pairwise(
         name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")
         name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")
         if name_1[-1] != name_2[-1]:
-            msg = (
+            message = (
                 f"Pair name mismatch in '{filepath}': control file suffix '{name_1[-1]}' does not match "
                 f"signal file suffix '{name_2[-1]}'. Check the naming convention of your files and the "
                 f"storesList file, then re-run step 1."
             )
-            logger.error(msg)
-            raise ValueError(msg)
+            logger.error(message)
+            raise ValueError(message)
         name = name_1[-1]
 
         tsNew = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
@@ -311,13 +311,13 @@ def read_coords_pairwise(filepath: str, pair_name_to_tsNew: dict[str, np.ndarray
         name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")
         name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")
         if name_1[-1] != name_2[-1]:
-            msg = (
+            message = (
                 f"Pair name mismatch in '{filepath}': control file suffix '{name_1[-1]}' does not match "
                 f"signal file suffix '{name_2[-1]}'. Check the naming convention of your files and the "
                 f"storesList file, then re-run step 1."
             )
-            logger.error(msg)
-            raise ValueError(msg)
+            logger.error(message)
+            raise ValueError(message)
         pair_name = name_1[-1]
 
         tsNew = pair_name_to_tsNew[pair_name]
@@ -377,26 +377,26 @@ def read_corrected_ttl_timestamps(filepath: str, storesList: np.ndarray) -> dict
     compound_name_to_ttl_timestamps = {}
     storenames = storesList[0, :]
     names_for_storenames = storesList[1, :]
-    arr = get_control_and_signal_channel_names(storesList)
+    control_signal_names = get_control_and_signal_channel_names(storesList)
 
     for storename, name in zip(storenames, names_for_storenames):
-        if name in arr:
+        if name in control_signal_names:
             continue
         ttl_name = name
-        for i in range(arr.shape[1]):
-            name_1 = arr[0, i].split("_")[-1]
-            name_2 = arr[1, i].split("_")[-1]
+        for i in range(control_signal_names.shape[1]):
+            name_1 = control_signal_names[0, i].split("_")[-1]
+            name_2 = control_signal_names[1, i].split("_")[-1]
             if name_1 != name_2:
                 message = (
-                    f"Pair name mismatch in storesList: control channel '{arr[0, i]}' has suffix "
-                    f"'{name_1}' but signal channel '{arr[1, i]}' has suffix '{name_2}'. Check the "
+                    f"Pair name mismatch in storesList: control channel '{control_signal_names[0, i]}' has suffix "
+                    f"'{name_1}' but signal channel '{control_signal_names[1, i]}' has suffix '{name_2}'. Check the "
                     "naming convention of your files and the storesList file, then re-run step 1."
                 )
                 logger.error(message)
                 raise ValueError(message)
             compound_name = ttl_name + "_" + name_1
-            ts = read_hdf5(compound_name, filepath, "ts")
-            compound_name_to_ttl_timestamps[compound_name] = ts
+            ttl_timestamps = read_hdf5(compound_name, filepath, "ts")
+            compound_name_to_ttl_timestamps[compound_name] = ttl_timestamps
 
     return compound_name_to_ttl_timestamps
 
@@ -466,13 +466,13 @@ def read_timestamps_for_combining_data(
         name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")[-1]
         name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")[-1]
         if name_1 != name_2:
-            msg = (
+            message = (
                 f"Pair name mismatch in '{filepaths_to_combine[0]}': control file suffix '{name_1}' does not match "
                 f"signal file suffix '{name_2}'. Check the naming convention of your files and the "
                 f"storesList file, then re-run step 1."
             )
-            logger.error(msg)
-            raise ValueError(msg)
+            logger.error(message)
+            raise ValueError(message)
         pair_name = name_1
         pair_name_to_filepath_to_timestamps[pair_name] = {}
         for filepath in filepaths_to_combine:
@@ -507,13 +507,13 @@ def read_data_for_combining_data(
         name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")[-1]
         name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")[-1]
         if name_1 != name_2:
-            msg = (
+            message = (
                 f"Pair name mismatch in '{filepaths_to_combine[0]}': control file suffix '{name_1}' does not match "
                 f"signal file suffix '{name_2}'. Check the naming convention of your files and the "
                 f"storesList file, then re-run step 1."
             )
-            logger.error(msg)
-            raise ValueError(msg)
+            logger.error(message)
+            raise ValueError(message)
         pair_name = name_1
         for i in range(len(names_for_storenames)):
             if not (
@@ -573,10 +573,10 @@ def read_ttl_timestamps_for_combining_data(
             compound_name_to_filepath_to_ttl_timestamps[compound_name] = {}
             for filepath in filepaths_to_combine:
                 if os.path.exists(os.path.join(filepath, names_for_storenames[i] + "_" + pair_name + ".hdf5")):
-                    ts = read_hdf5(names_for_storenames[i] + "_" + pair_name, filepath, "ts").reshape(-1)
+                    ttl_timestamps = read_hdf5(names_for_storenames[i] + "_" + pair_name, filepath, "ts").reshape(-1)
                 else:
-                    ts = np.array([])
-                compound_name_to_filepath_to_ttl_timestamps[compound_name][filepath] = ts
+                    ttl_timestamps = np.array([])
+                compound_name_to_filepath_to_ttl_timestamps[compound_name][filepath] = ttl_timestamps
 
     return compound_name_to_filepath_to_ttl_timestamps
 
@@ -605,11 +605,11 @@ def write_combined_data(
         write_hdf5(tsNew, "timeCorrection_" + pair_name, output_filepath, "timestampNew")
     for display_name, data in display_name_to_data.items():
         write_hdf5(data, display_name, output_filepath, "data")
-    for compound_name, ts in compound_name_to_ttl_timestamps.items():
-        write_hdf5(ts, compound_name, output_filepath, "ts")
+    for compound_name, ttl_timestamps in compound_name_to_ttl_timestamps.items():
+        write_hdf5(ttl_timestamps, compound_name, output_filepath, "ts")
 
 
-def write_peak_and_area_to_hdf5(filepath: str, arr: object, name: str, index: list[object] = []) -> None:
+def write_peak_and_area_to_hdf5(filepath: str, peak_and_area_data: object, name: str, index: list[object] = []) -> None:
     """
     Save peak and area-under-curve metrics to an HDF5 file.
 
@@ -617,7 +617,7 @@ def write_peak_and_area_to_hdf5(filepath: str, arr: object, name: str, index: li
     ----------
     filepath : str
         Output directory.
-    arr : array-like
+    peak_and_area_data : array-like
         Metrics data to store in the DataFrame.
     name : str
         Filename stem; the file is written as ``peak_AUC_<name>.h5``.
@@ -625,15 +625,15 @@ def write_peak_and_area_to_hdf5(filepath: str, arr: object, name: str, index: li
         Row index labels. Default is an empty list.
     """
 
-    op = os.path.join(filepath, "peak_AUC_" + name + ".h5")
+    output_path = os.path.join(filepath, "peak_AUC_" + name + ".h5")
     dirname = os.path.dirname(filepath)
 
-    df = pd.DataFrame(arr, index=index)
+    df = pd.DataFrame(peak_and_area_data, index=index)
 
-    df.to_hdf(op, key="df", mode="w")
+    df.to_hdf(output_path, key="df", mode="w")
 
 
-def write_peak_and_area_to_csv(filepath: str, arr: object, name: str, index: list[object] = []) -> None:
+def write_peak_and_area_to_csv(filepath: str, peak_and_area_data: object, name: str, index: list[object] = []) -> None:
     """
     Save peak and area-under-curve metrics to a CSV file.
 
@@ -641,21 +641,21 @@ def write_peak_and_area_to_csv(filepath: str, arr: object, name: str, index: lis
     ----------
     filepath : str
         Output directory.
-    arr : array-like
+    peak_and_area_data : array-like
         Metrics data to store in the DataFrame.
     name : str
         Filename stem; the file is written as ``peak_AUC_<name>.csv``.
     index : list, optional
         Row index labels. Default is an empty list.
     """
-    op = os.path.join(filepath, "peak_AUC_" + name + ".csv")
-    df = pd.DataFrame(arr, index=index)
+    output_path = os.path.join(filepath, "peak_AUC_" + name + ".csv")
+    df = pd.DataFrame(peak_and_area_data, index=index)
 
-    df.to_csv(op)
+    df.to_csv(output_path)
 
 
 def write_freq_and_amp_to_hdf5(
-    filepath: str, arr: object, name: str, index: list[object] = [], columns: list[object] = []
+    filepath: str, freq_and_amp_data: object, name: str, index: list[object] = [], columns: list[object] = []
 ) -> None:
     """
     Save transient frequency and amplitude metrics to an HDF5 file.
@@ -664,7 +664,7 @@ def write_freq_and_amp_to_hdf5(
     ----------
     filepath : str
         Output directory.
-    arr : array-like
+    freq_and_amp_data : array-like
         Metrics data to store in the DataFrame.
     name : str
         Filename stem; the file is written as ``freqAndAmp_<name>.h5``.
@@ -674,16 +674,16 @@ def write_freq_and_amp_to_hdf5(
         Column labels. Default is an empty list.
     """
 
-    op = os.path.join(filepath, "freqAndAmp_" + name + ".h5")
+    output_path = os.path.join(filepath, "freqAndAmp_" + name + ".h5")
     dirname = os.path.dirname(filepath)
 
-    df = pd.DataFrame(arr, index=index, columns=columns)
+    df = pd.DataFrame(freq_and_amp_data, index=index, columns=columns)
 
-    df.to_hdf(op, key="df", mode="w")
+    df.to_hdf(output_path, key="df", mode="w")
 
 
 def write_freq_and_amp_to_csv(
-    filepath: str, arr: object, name: str, index: list[object] = [], columns: list[object] = []
+    filepath: str, freq_and_amp_data: object, name: str, index: list[object] = [], columns: list[object] = []
 ) -> None:
     """
     Save transient frequency and amplitude metrics to a CSV file.
@@ -692,7 +692,7 @@ def write_freq_and_amp_to_csv(
     ----------
     filepath : str
         Output directory.
-    arr : array-like
+    freq_and_amp_data : array-like
         Metrics data to store in the DataFrame.
     name : str
         Output filename (written directly inside ``filepath``).
@@ -701,9 +701,9 @@ def write_freq_and_amp_to_csv(
     columns : list, optional
         Column labels. Default is an empty list.
     """
-    op = os.path.join(filepath, name)
-    df = pd.DataFrame(arr, index=index, columns=columns)
-    df.to_csv(op)
+    output_path = os.path.join(filepath, name)
+    df = pd.DataFrame(freq_and_amp_data, index=index, columns=columns)
+    df.to_csv(output_path)
 
 
 def read_freq_and_amp_from_hdf5(filepath: str, name: str) -> pd.DataFrame:
@@ -722,14 +722,14 @@ def read_freq_and_amp_from_hdf5(filepath: str, name: str) -> pd.DataFrame:
     df : pd.DataFrame
         DataFrame of frequency and amplitude metrics.
     """
-    op = os.path.join(filepath, "freqAndAmp_" + name + ".h5")
-    df = pd.read_hdf(op, key="df", mode="r")
+    output_path = os.path.join(filepath, "freqAndAmp_" + name + ".h5")
+    df = pd.read_hdf(output_path, key="df", mode="r")
 
     return df
 
 
 def write_transients_to_hdf5(
-    filepath: str, name: str, z_score: np.ndarray, ts: np.ndarray, peaksInd: np.ndarray
+    filepath: str, name: str, z_score: np.ndarray, timestamps: np.ndarray, peaksInd: np.ndarray
 ) -> None:
     """
     Write transient detection outputs (z-score, timestamps, peak indices) to HDF5.
@@ -742,14 +742,14 @@ def write_transients_to_hdf5(
         Channel suffix used to build the HDF5 event key.
     z_score : np.ndarray
         Z-scored signal array (NaN-free).
-    ts : np.ndarray
+    timestamps : np.ndarray
         Timestamp array corresponding to ``z_score``.
     peaksInd : np.ndarray
         Integer indices of detected transient peaks in ``z_score``.
     """
     event = f"transient_outputs_{name}"
     write_hdf5(z_score, event, filepath, "z_score")
-    write_hdf5(ts, event, filepath, "timestamps")
+    write_hdf5(timestamps, event, filepath, "timestamps")
     write_hdf5(peaksInd, event, filepath, "peaksInd")
 
 
@@ -768,13 +768,13 @@ def read_transients_from_hdf5(filepath: str, name: str) -> tuple[np.ndarray, np.
     -------
     z_score : np.ndarray
         Z-scored signal array.
-    ts : np.ndarray
+    timestamps : np.ndarray
         Timestamp array.
     peaksInd : np.ndarray
         Integer indices of detected transient peaks.
     """
     event = f"transient_outputs_{name}"
     z_score = read_hdf5(event, filepath, "z_score")
-    ts = read_hdf5(event, filepath, "timestamps")
+    timestamps = read_hdf5(event, filepath, "timestamps")
     peaksInd = read_hdf5(event, filepath, "peaksInd")
-    return z_score, ts, peaksInd
+    return z_score, timestamps, peaksInd

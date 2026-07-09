@@ -56,65 +56,65 @@ def compute_z_score(
 
     Returns
     -------
-    z_score_arr : np.ndarray
+    z_scores : np.ndarray
         Computed z-score array.
-    norm_data_arr : np.ndarray
+    normalized_data : np.ndarray
         Normalized dF/F array (NaN-filled where artifacts were removed).
-    control_fit_arr : np.ndarray
+    fitted_control : np.ndarray
         Fitted control channel array (NaN-filled where artifacts were removed).
-    temp_control_arr : np.ndarray or None
+    synthetic_control : np.ndarray or None
         Synthetic control array (when ``isosbestic_control=False``); None otherwise.
     """
     if (control == 0).all() == True:
         control = np.zeros(tsNew.shape[0])
 
-    z_score_arr = np.array([])
-    norm_data_arr = np.full(tsNew.shape[0], np.nan)
-    control_fit_arr = np.full(tsNew.shape[0], np.nan)
-    temp_control_arr = np.full(tsNew.shape[0], np.nan)
+    z_scores = np.array([])
+    normalized_data = np.full(tsNew.shape[0], np.nan)
+    fitted_control = np.full(tsNew.shape[0], np.nan)
+    synthetic_control = np.full(tsNew.shape[0], np.nan)
 
     # for artifacts removal, each chunk which was selected by user is being processed individually and then
     # z-score is calculated
     for i in range(coords.shape[0]):
-        tsNew_index = np.where((tsNew > coords[i, 0]) & (tsNew < coords[i, 1]))[0]
+        chunk_indices = np.where((tsNew > coords[i, 0]) & (tsNew < coords[i, 1]))[0]
         if isosbestic_control == False:
-            control_arr = helper_create_control_channel(signal[tsNew_index], tsNew[tsNew_index], window=101)
-            signal_arr = signal[tsNew_index]
+            control_segment = helper_create_control_channel(signal[chunk_indices], tsNew[chunk_indices], window=101)
+            signal_segment = signal[chunk_indices]
             norm_data, control_fit = execute_controlFit_dff(
-                control_arr, signal_arr, isosbestic_control, filter_window, control_fit_method
+                control_segment, signal_segment, isosbestic_control, filter_window, control_fit_method
             )
-            temp_control_arr[tsNew_index] = control_arr
+            synthetic_control[chunk_indices] = control_segment
             if i < coords.shape[0] - 1:
-                blank_index = np.where((tsNew > coords[i, 1]) & (tsNew < coords[i + 1, 0]))[0]
-                temp_control_arr[blank_index] = np.full(blank_index.shape[0], np.nan)
+                gap_indices = np.where((tsNew > coords[i, 1]) & (tsNew < coords[i + 1, 0]))[0]
+                synthetic_control[gap_indices] = np.full(gap_indices.shape[0], np.nan)
         else:
-            control_arr = control[tsNew_index]
-            signal_arr = signal[tsNew_index]
+            control_segment = control[chunk_indices]
+            signal_segment = signal[chunk_indices]
             norm_data, control_fit = execute_controlFit_dff(
-                control_arr, signal_arr, isosbestic_control, filter_window, control_fit_method
+                control_segment, signal_segment, isosbestic_control, filter_window, control_fit_method
             )
-        norm_data_arr[tsNew_index] = norm_data
-        control_fit_arr[tsNew_index] = control_fit
+        normalized_data[chunk_indices] = norm_data
+        fitted_control[chunk_indices] = control_fit
 
     if artifactsRemovalMethod == "concatenate":
-        norm_data_arr = norm_data_arr[~np.isnan(norm_data_arr)]
-        control_fit_arr = control_fit_arr[~np.isnan(control_fit_arr)]
-    z_score = z_score_computation(norm_data_arr, tsNew, zscore_method, baseline_start, baseline_end)
-    z_score_arr = np.concatenate((z_score_arr, z_score))
+        normalized_data = normalized_data[~np.isnan(normalized_data)]
+        fitted_control = fitted_control[~np.isnan(fitted_control)]
+    z_score = z_score_computation(normalized_data, tsNew, zscore_method, baseline_start, baseline_end)
+    z_scores = np.concatenate((z_scores, z_score))
 
     # handle the case if there are chunks being cut in the front and the end
     if isosbestic_control == False:
         coords = coords.flatten()
         # front chunk
-        idx = np.where((tsNew >= tsNew[0]) & (tsNew < coords[0]))[0]
-        temp_control_arr[idx] = np.full(idx.shape[0], np.nan)
+        front_chunk_indices = np.where((tsNew >= tsNew[0]) & (tsNew < coords[0]))[0]
+        synthetic_control[front_chunk_indices] = np.full(front_chunk_indices.shape[0], np.nan)
         # end chunk
-        idx = np.where((tsNew > coords[-1]) & (tsNew <= tsNew[-1]))[0]
-        temp_control_arr[idx] = np.full(idx.shape[0], np.nan)
+        end_chunk_indices = np.where((tsNew > coords[-1]) & (tsNew <= tsNew[-1]))[0]
+        synthetic_control[end_chunk_indices] = np.full(end_chunk_indices.shape[0], np.nan)
     else:
-        temp_control_arr = None
+        synthetic_control = None
 
-    return z_score_arr, norm_data_arr, control_fit_arr, temp_control_arr
+    return z_scores, normalized_data, fitted_control, synthetic_control
 
 
 def execute_controlFit_dff(
@@ -180,8 +180,8 @@ def deltaFF(signal: np.ndarray, control: np.ndarray) -> np.ndarray:
         Percent dF/F array.
     """
 
-    res = np.subtract(signal, control)
-    normData = np.divide(res, control)
+    difference = np.subtract(signal, control)
+    normData = np.divide(difference, control)
     normData = normData * 100
 
     return normData
@@ -205,14 +205,14 @@ def controlFit(control: np.ndarray, signal: np.ndarray, *, method: Literal["IRWL
 
     Returns
     -------
-    arr : np.ndarray
+    fitted_values : np.ndarray
         Fitted control values (linear projection onto the signal scale).
     """
 
     if method == "OLS":
-        p = np.polyfit(control, signal, 1)
-        arr = (p[0] * control) + p[1]
-        return arr
+        coefficients = np.polyfit(control, signal, 1)
+        fitted_values = (coefficients[0] * control) + coefficients[1]
+        return fitted_values
     elif method == "IRWLS":
         design_matrix = sm.add_constant(control)
         results = sm.RLM(signal, design_matrix, M=sm.robust.norms.TukeyBiweight()).fit()
@@ -295,19 +295,19 @@ def z_score_computation(
             range_label="signal timespan",
         )
 
-        idx = np.where((timestamps > baseline_start) & (timestamps < baseline_end))[0]
-        if idx.shape[0] == 0:
-            msg = (
+        baseline_indices = np.where((timestamps > baseline_start) & (timestamps < baseline_end))[0]
+        if baseline_indices.shape[0] == 0:
+            message = (
                 f"No signal samples found in the baseline window "
                 f"({baseline_start}, {baseline_end})s; "
                 f"signal timespan is [{ts_min:.4g}, {ts_max:.4g}]s — "
                 f"choose baselineWindowStart and baselineWindowEnd within this range."
             )
-            logger.error(msg)
-            raise ValueError(msg)
+            logger.error(message)
+            raise ValueError(message)
         else:
-            baseline_mean = np.nanmean(dff[idx])
-            baseline_std = np.nanstd(dff[idx])
+            baseline_mean = np.nanmean(dff[baseline_indices])
+            baseline_std = np.nanstd(dff[baseline_indices])
             numerator = np.subtract(dff, baseline_mean)
             zscore = np.divide(numerator, baseline_std)
     else:

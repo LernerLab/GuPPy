@@ -90,32 +90,34 @@ def _build_event_to_extractor(*, folder_path: str, storesList: np.ndarray, input
     if inputParameters is not None and inputParameters.get("mode") == "dandi":
         dandi_uri = inputParameters["dandi_uri_map"][folder_path]
         extractor = DandiNwbRecordingExtractor(folder_path=dandi_uri)
-        fmt_events, _ = DandiNwbRecordingExtractor.discover_events_and_flags(folder_path=dandi_uri)
-        for event in fmt_events:
+        format_events, _ = DandiNwbRecordingExtractor.discover_events_and_flags(folder_path=dandi_uri)
+        for event in format_events:
             event_to_extractor[event] = extractor
         return event_to_extractor
 
     num_ch = inputParameters["noChannels"]
     all_formats = detect_acquisition_formats(folder_path)
     # Doric extractor requires a store-name→event-type mapping built from storesList
-    event_name_to_event_type = {storesList[0, col]: storesList[1, col] for col in range(storesList.shape[1])}
+    event_name_to_event_type = {
+        storesList[0, column_index]: storesList[1, column_index] for column_index in range(storesList.shape[1])
+    }
 
-    for fmt in sorted(all_formats):
-        if fmt == "nwb":
+    for acquisition_format in sorted(all_formats):
+        if acquisition_format == "nwb":
             extractor = NwbRecordingExtractor(folder_path=folder_path)
-            fmt_events, _ = NwbRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
-        elif fmt == "tdt":
+            format_events, _ = NwbRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+        elif acquisition_format == "tdt":
             extractor = TdtRecordingExtractor(folder_path=folder_path)
-            fmt_events, _ = TdtRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
-        elif fmt == "doric":
+            format_events, _ = TdtRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+        elif acquisition_format == "doric":
             extractor = DoricRecordingExtractor(
                 folder_path=folder_path, event_name_to_event_type=event_name_to_event_type
             )
-            fmt_events, _ = DoricRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
-        elif fmt == "csv":
+            format_events, _ = DoricRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+        elif acquisition_format == "csv":
             extractor = CsvRecordingExtractor(folder_path=folder_path)
-            fmt_events, _ = CsvRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
-        elif fmt == "npm":
+            format_events, _ = CsvRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+        elif acquisition_format == "npm":
             extractor = NpmRecordingExtractor(
                 folder_path=folder_path,
                 num_ch=num_ch,
@@ -123,13 +125,15 @@ def _build_event_to_extractor(*, folder_path: str, storesList: np.ndarray, input
                 npm_time_units=inputParameters.get("npm_time_units"),
                 npm_split_events=inputParameters.get("npm_split_events"),
             )
-            fmt_events, _ = NpmRecordingExtractor.discover_events_and_flags(
+            format_events, _ = NpmRecordingExtractor.discover_events_and_flags(
                 folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
             )
         else:
-            raise ValueError(f"Format not recognized: '{fmt}'. Expected one of 'nwb', 'tdt', 'csv', 'doric', 'npm'.")
+            raise ValueError(
+                f"Format not recognized: '{acquisition_format}'. Expected one of 'nwb', 'tdt', 'csv', 'doric', 'npm'."
+            )
 
-        for event in fmt_events:
+        for event in format_events:
             if event not in event_to_extractor:
                 event_to_extractor[event] = extractor
 
@@ -170,12 +174,12 @@ def orchestrate_read_raw_data(inputParameters: dict[str, object]) -> None:
     tasks = []
     total_samples = 0
     for filepath in folderNames:
-        for op in select_output_dirs(filepath, selected_outputs.get(filepath)):
-            storesList = _load_stores_list(op)
+        for output_dir in select_output_dirs(filepath, selected_outputs.get(filepath)):
+            storesList = _load_stores_list(output_dir)
             events = np.unique(storesList[0, :])
             # NPM decomposition params chosen in Step 1 are persisted in the output dir;
             # merge them so the NPM extractor reproduces the same streams (e.g. split events).
-            effective_parameters = {**inputParameters, **load_npm_params(op)}
+            effective_parameters = {**inputParameters, **load_npm_params(output_dir)}
             event_to_extractor = _build_event_to_extractor(
                 folder_path=filepath,
                 storesList=storesList,
@@ -203,7 +207,7 @@ def orchestrate_read_raw_data(inputParameters: dict[str, object]) -> None:
                     (
                         extractor,
                         grouped_events,
-                        op,
+                        output_dir,
                         {event: event_total_samples[event] for event in grouped_events},
                     )
                 )

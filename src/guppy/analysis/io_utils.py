@@ -37,15 +37,15 @@ def find_files(path: str, glob_path: str, ignore_case: bool = False) -> list[str
     )
 
     no_bytes_path = os.listdir(os.path.expanduser(path))
-    str_path = []
+    decoded_names = []
 
     # converting byte object to string
-    for x in no_bytes_path:
+    for raw_name in no_bytes_path:
         try:
-            str_path.append(x.decode("utf-8"))
+            decoded_names.append(raw_name.decode("utf-8"))
         except:
-            str_path.append(x)
-    return [os.path.join(path, n) for n in str_path if rule.match(n)]
+            decoded_names.append(raw_name)
+    return [os.path.join(path, name) for name in decoded_names if rule.match(name)]
 
 
 def check_TDT(filepath: str) -> bool:
@@ -207,19 +207,19 @@ def check_storeslistfile(folderNames: list[str]) -> np.ndarray:
     return storesList
 
 
-def write_combined_stores_list(op: list[object], storesList: np.ndarray) -> None:
+def write_combined_stores_list(output_dirs: list[object], storesList: np.ndarray) -> None:
     """
     Write a combined storesList CSV to each output directory.
 
     Parameters
     ----------
-    op : list
+    output_dirs : list
         Sequence of ``[filepath, ...]`` entries; ``filepath`` is the output directory.
     storesList : np.ndarray
         2-D storesList array with rows [storenames, display_names].
     """
-    for k in range(len(op)):
-        filepath = op[k][0]
+    for k in range(len(output_dirs)):
+        filepath = output_dirs[k][0]
         np.savetxt(os.path.join(filepath, "combine_storesList.csv"), storesList, fmt="%s", delimiter=",")
 
 
@@ -234,22 +234,22 @@ def get_control_and_signal_channel_names(storesList: np.ndarray) -> np.ndarray:
 
     Returns
     -------
-    channels_arr : np.ndarray
+    control_signal_names : np.ndarray
         Shape ``(2, N)`` array where row 0 is control display names and
         row 1 is the matching signal display names.
     """
     storenames = storesList[0, :]
     names_for_storenames = storesList[1, :]
 
-    channels_arr = []
+    control_signal_names = []
     for i in range(names_for_storenames.shape[0]):
         if "control" in names_for_storenames[i].lower() or "signal" in names_for_storenames[i].lower():
-            channels_arr.append(names_for_storenames[i])
+            control_signal_names.append(names_for_storenames[i])
 
-    channels_arr = sorted(channels_arr, key=str.casefold)
+    control_signal_names = sorted(control_signal_names, key=str.casefold)
 
-    signal_regions = {name[len("signal_") :] for name in channels_arr if name.lower().startswith("signal_")}
-    control_regions = {name[len("control_") :] for name in channels_arr if name.lower().startswith("control_")}
+    signal_regions = {name[len("signal_") :] for name in control_signal_names if name.lower().startswith("signal_")}
+    control_regions = {name[len("control_") :] for name in control_signal_names if name.lower().startswith("control_")}
     # Only enforce region pairing when both signal and control channels are present
     # (signal-only / control-only configurations are valid when isosbestic control is disabled).
     if signal_regions and control_regions:
@@ -271,7 +271,7 @@ def get_control_and_signal_channel_names(storesList: np.ndarray) -> np.ndarray:
             raise ValueError(message)
 
     try:
-        channels_arr = np.asarray(channels_arr).reshape(2, -1)
+        control_signal_names = np.asarray(control_signal_names).reshape(2, -1)
     except ValueError:
         message = (
             f"Cannot pair control and signal channels: found {len(control_regions)} control and "
@@ -281,7 +281,7 @@ def get_control_and_signal_channel_names(storesList: np.ndarray) -> np.ndarray:
         logger.error(message)
         raise ValueError(message)
 
-    return channels_arr
+    return control_signal_names
 
 
 def make_dir_for_cross_correlation(filepath: str) -> str:
@@ -295,13 +295,13 @@ def make_dir_for_cross_correlation(filepath: str) -> str:
 
     Returns
     -------
-    op : str
+    output_dir : str
         Path to the cross-correlation output directory.
     """
-    op = os.path.join(filepath, "cross_correlation_output")
-    if not os.path.exists(op):
-        os.mkdir(op)
-    return op
+    output_dir = os.path.join(filepath, "cross_correlation_output")
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
+    return output_dir
 
 
 def makeAverageDir(filepath: str) -> str:
@@ -315,12 +315,12 @@ def makeAverageDir(filepath: str) -> str:
 
     Returns
     -------
-    op : str
+    output_dir : str
         Path to the average output directory.
     """
 
-    op = os.path.join(filepath, "average")
-    if not os.path.exists(op):
-        os.mkdir(op)
+    output_dir = os.path.join(filepath, "average")
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
 
-    return op
+    return output_dir

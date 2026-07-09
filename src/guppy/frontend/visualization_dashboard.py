@@ -376,5 +376,5 @@ class VisualizationDashboard:
         """Serve the dashboard in a browser on an available port."""
         logger.info("app")
         template = self.build_template()
-        number = scanPortsAndFind(start_port=5000, end_port=5200)
-        template.show(port=number)
+        port = scanPortsAndFind(start_port=5000, end_port=5200)
+        template.show(port=port)

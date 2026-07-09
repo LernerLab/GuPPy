@@ -18,44 +18,44 @@ def read_hdf5(event: str, filepath: str, key: str) -> np.ndarray:
     if event:
         event = event.replace("\\", "_")
         event = event.replace("/", "_")
-        op = os.path.join(filepath, event + ".hdf5")
+        hdf5_path = os.path.join(filepath, event + ".hdf5")
     else:
-        op = filepath
+        hdf5_path = filepath
 
-    if os.path.exists(op):
-        with h5py.File(op, "r") as f:
-            arr = np.asarray(f[key])
+    if os.path.exists(hdf5_path):
+        with h5py.File(hdf5_path, "r") as hdf5_file:
+            data = np.asarray(hdf5_file[key])
     else:
-        message = f"HDF5 file '{op}' does not exist (event={event!r}, key={key!r})."
+        message = f"HDF5 file '{hdf5_path}' does not exist (event={event!r}, key={key!r})."
         logger.error(message)
         raise FileNotFoundError(message)
 
-    return arr
+    return data
 
 
 def write_hdf5(data: np.ndarray | float | int | str | bool, storename: str, output_path: str, key: str) -> None:
     storename = storename.replace("\\", "_")
     storename = storename.replace("/", "_")
-    op = os.path.join(output_path, storename + ".hdf5")
+    hdf5_path = os.path.join(output_path, storename + ".hdf5")
 
-    if not os.path.exists(op):
-        with h5py.File(op, "w") as f:
+    if not os.path.exists(hdf5_path):
+        with h5py.File(hdf5_path, "w") as hdf5_file:
             if isinstance(data, np.ndarray):
-                f.create_dataset(key, data=data, maxshape=(None,), chunks=True)
+                hdf5_file.create_dataset(key, data=data, maxshape=(None,), chunks=True)
             else:
-                f.create_dataset(key, data=data)
+                hdf5_file.create_dataset(key, data=data)
     else:
-        with h5py.File(op, "r+") as f:
-            if key in list(f.keys()):
+        with h5py.File(hdf5_path, "r+") as hdf5_file:
+            if key in list(hdf5_file.keys()):
                 if isinstance(data, np.ndarray):
-                    f[key].resize(data.shape)
-                    arr = f[key]
-                    arr[:] = data
+                    hdf5_file[key].resize(data.shape)
+                    dataset = hdf5_file[key]
+                    dataset[:] = data
                 else:
-                    arr = f[key]
-                    arr[()] = data
+                    dataset = hdf5_file[key]
+                    dataset[()] = data
             else:
                 if isinstance(data, np.ndarray):
-                    f.create_dataset(key, data=data, maxshape=(None,), chunks=True)
+                    hdf5_file.create_dataset(key, data=data, maxshape=(None,), chunks=True)
                 else:
-                    f.create_dataset(key, data=data)
+                    hdf5_file.create_dataset(key, data=data)

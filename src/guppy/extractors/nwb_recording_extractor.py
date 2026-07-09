@@ -124,9 +124,9 @@ def _count_event_samples(*, nwbfile: NWBFile, io: NWBHDF5IO, event: str) -> int:
     negligibly to progress-bar weighting.
     """
     series_name_to_object = {
-        obj.name: obj
-        for obj in nwbfile.objects.values()
-        if getattr(obj, "neurodata_type", None) == "FiberPhotometryResponseSeries"
+        neurodata_object.name: neurodata_object
+        for neurodata_object in nwbfile.objects.values()
+        if getattr(neurodata_object, "neurodata_type", None) == "FiberPhotometryResponseSeries"
     }
     if event in series_name_to_object:
         return int(series_name_to_object[event].data.shape[0])
@@ -201,9 +201,9 @@ def _read_events_from_nwbfile(*, nwbfile: NWBFile, io: NWBHDF5IO, events: list[s
     ndx_events_version = _get_ndx_events_version(io)
 
     series_name_to_object = {
-        obj.name: obj
-        for obj in nwbfile.objects.values()
-        if getattr(obj, "neurodata_type", None) == "FiberPhotometryResponseSeries"
+        neurodata_object.name: neurodata_object
+        for neurodata_object in nwbfile.objects.values()
+        if getattr(neurodata_object, "neurodata_type", None) == "FiberPhotometryResponseSeries"
     }
 
     event_index = {}
@@ -331,16 +331,16 @@ def _build_event_index_v02(nwbfile: NWBFile) -> dict[str, tuple]:
         ``("events", object)``.
     """
     index = {}
-    for obj in nwbfile.objects.values():
-        neurodata_type = getattr(obj, "neurodata_type", None)
+    for neurodata_object in nwbfile.objects.values():
+        neurodata_type = getattr(neurodata_object, "neurodata_type", None)
         if neurodata_type == "AnnotatedEventsTable":
-            for row_index, label in enumerate(obj["label"].data):
-                index[f"{obj.name}_{label}"] = ("annotated", obj, row_index)
+            for row_index, label in enumerate(neurodata_object["label"].data):
+                index[f"{neurodata_object.name}_{label}"] = ("annotated", neurodata_object, row_index)
         elif neurodata_type == "LabeledEvents":
-            for label_index, label in enumerate(obj.data__labels):
-                index[f"{obj.name}_{label}"] = ("labeled", obj, label_index)
+            for label_index, label in enumerate(neurodata_object.data__labels):
+                index[f"{neurodata_object.name}_{label}"] = ("labeled", neurodata_object, label_index)
         elif neurodata_type == "Events":
-            index[obj.name] = ("events", obj)
+            index[neurodata_object.name] = ("events", neurodata_object)
     return index
 
 
@@ -382,18 +382,18 @@ def _read_ndx_event(*, event_name: str, source_info: tuple) -> dict[str, object]
     tag = source_info[0]
 
     if tag == "annotated":
-        _, obj, row_index = source_info
-        return {"storename": event_name, "timestamps": np.array(obj["event_times"][row_index])}
+        _, neurodata_object, row_index = source_info
+        return {"storename": event_name, "timestamps": np.array(neurodata_object["event_times"][row_index])}
 
     if tag == "labeled":
-        _, obj, label_index = source_info
-        all_timestamps = np.array(obj.timestamps[:])
-        all_data = np.array(obj.data[:])
+        _, neurodata_object, label_index = source_info
+        all_timestamps = np.array(neurodata_object.timestamps[:])
+        all_data = np.array(neurodata_object.data[:])
         return {"storename": event_name, "timestamps": all_timestamps[all_data == label_index]}
 
     if tag == "events":
-        _, obj = source_info
-        return {"storename": event_name, "timestamps": np.array(obj.timestamps[:])}
+        _, neurodata_object = source_info
+        return {"storename": event_name, "timestamps": np.array(neurodata_object.timestamps[:])}
 
     if tag == "core":
         _, table, split_column, split_value = source_info

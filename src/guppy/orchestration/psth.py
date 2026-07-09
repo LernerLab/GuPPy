@@ -90,12 +90,12 @@ def execute_compute_psth(filepath: str, event: str, inputParameters: dict[str, o
             just_use_signal = False
 
         sampling_rate = read_hdf5("timeCorrection_" + name_1, filepath, "sampling_rate")[0]
-        ts = read_hdf5(event + "_" + name_1, filepath, "ts")
+        timestamps = read_hdf5(event + "_" + name_1, filepath, "ts")
         if use_time_or_trials == "Time (min)" and bin_psth_trials > 0:
             corrected_timestamps = read_hdf5("timeCorrection_" + name_1, filepath, "timestampNew")
         else:
             corrected_timestamps = None
-        psth, psth_baselineUncorrected, cols, ts = compute_psth(
+        psth, psth_baselineUncorrected, columns, timestamps = compute_psth(
             z_score,
             event,
             filepath,
@@ -109,20 +109,20 @@ def execute_compute_psth(filepath: str, event: str, inputParameters: dict[str, o
             name_1,
             just_use_signal,
             sampling_rate,
-            ts,
+            timestamps,
             corrected_timestamps,
             timeForLightsTurnOn,
         )
-        write_hdf5(ts, event + "_" + name_1, filepath, "ts")
+        write_hdf5(timestamps, event + "_" + name_1, filepath, "ts")
 
         create_Df_for_psth(
             filepath,
             event + "_" + name_1 + "_baselineUncorrected",
             basename,
             psth_baselineUncorrected,
-            columns=cols,
+            columns=columns,
         )
-        create_Df_for_psth(filepath, event + "_" + name_1, basename, psth, columns=cols)
+        create_Df_for_psth(filepath, event + "_" + name_1, basename, psth, columns=columns)
         logger.info(f"PSTH for event {event} computed.")
 
 
@@ -160,11 +160,11 @@ def execute_compute_psth_peak_and_area(filepath: str, event: str, inputParameter
         name_1 = basename.split("_")[-1]
         sampling_rate = read_hdf5("timeCorrection_" + name_1, filepath, "sampling_rate")[0]
         psth = read_Df(filepath, event + "_" + name_1, basename)
-        cols = list(psth.columns)
+        columns = list(psth.columns)
         regex = re.compile("bin_[(]")
-        bin_names = [cols[i] for i in range(len(cols)) if regex.match(cols[i])]
+        bin_names = [columns[i] for i in range(len(columns)) if regex.match(columns[i])]
         regex_trials = re.compile("[+-]?([0-9]*[.])?[0-9]+")
-        trials_names = [cols[i] for i in range(len(cols)) if regex_trials.match(cols[i])]
+        trials_names = [columns[i] for i in range(len(columns)) if regex_trials.match(columns[i])]
         psth_mean_bin_names = trials_names + bin_names + ["mean"]
         psth_mean_bin_mean = np.asarray(psth[psth_mean_bin_names])
         timestamps = np.asarray(psth["timestamps"]).ravel()
@@ -172,7 +172,7 @@ def execute_compute_psth_peak_and_area(filepath: str, event: str, inputParameter
             psth_mean_bin_mean, timestamps, sampling_rate, peak_startPoint, peak_endPoint
         )
         fileName = [os.path.basename(os.path.dirname(filepath))]
-        index = [fileName[0] + "_" + s for s in psth_mean_bin_names]
+        index = [fileName[0] + "_" + name for name in psth_mean_bin_names]
         write_peak_and_area_to_hdf5(filepath, peak_area, event + "_" + name_1 + "_" + basename, index=index)
         write_peak_and_area_to_csv(filepath, peak_area, event + "_" + name_1 + "_" + basename, index=index)
         logger.info(f"Peak and Area for PSTH mean signal for event {event} computed.")
@@ -225,20 +225,20 @@ def execute_compute_cross_correlation(filepath: str, event: str, inputParameters
                     sample_rate = 1 / (psth_a["timestamps"][1] - psth_a["timestamps"][0])
                     psth_a = psth_a.drop(columns=["timestamps", "err", "mean"])
                     psth_b = psth_b.drop(columns=["timestamps", "err", "mean"])
-                    cols_a, cols_b = np.array(psth_a.columns), np.array(psth_b.columns)
-                    if np.intersect1d(cols_a, cols_b).size > 0:
-                        cols = list(np.intersect1d(cols_a, cols_b))
+                    columns_a, columns_b = np.array(psth_a.columns), np.array(psth_b.columns)
+                    if np.intersect1d(columns_a, columns_b).size > 0:
+                        columns = list(np.intersect1d(columns_a, columns_b))
                     else:
-                        cols = list(cols_a)
-                    arr_A, arr_B = np.array(psth_a).T, np.array(psth_b).T
-                    cross_corr = compute_cross_correlation(arr_A, arr_B, sample_rate)
-                    cols.append("timestamps")
+                        columns = list(columns_a)
+                    psth_array_a, psth_array_b = np.array(psth_a).T, np.array(psth_b).T
+                    cross_corr = compute_cross_correlation(psth_array_a, psth_array_b, sample_rate)
+                    columns.append("timestamps")
                     create_Df_for_cross_correlation(
                         make_dir_for_cross_correlation(filepath),
                         "corr_" + event,
                         type[j] + "_" + corr_info[i - 1] + "_" + corr_info[i],
                         cross_corr,
-                        cols,
+                        columns,
                     )
                 logger.info(f"Cross-correlation for event {event} computed.")
 
@@ -271,16 +271,18 @@ def orchestrate_psth(inputParameters: dict[str, object]) -> None:
                 2, -1
             )
 
-            with mp.Pool(numProcesses) as p:
-                p.starmap(execute_compute_psth, zip(repeat(filepath), storesList[1, :], repeat(inputParameters)))
+            with mp.Pool(numProcesses) as psth_pool:
+                psth_pool.starmap(
+                    execute_compute_psth, zip(repeat(filepath), storesList[1, :], repeat(inputParameters))
+                )
 
-            with mp.Pool(numProcesses) as pq:
-                pq.starmap(
+            with mp.Pool(numProcesses) as peak_area_pool:
+                peak_area_pool.starmap(
                     execute_compute_psth_peak_and_area, zip(repeat(filepath), storesList[1, :], repeat(inputParameters))
                 )
 
-            with mp.Pool(numProcesses) as cr:
-                cr.starmap(
+            with mp.Pool(numProcesses) as cross_correlation_pool:
+                cross_correlation_pool.starmap(
                     execute_compute_cross_correlation, zip(repeat(filepath), storesList[1, :], repeat(inputParameters))
                 )
 
@@ -303,23 +305,28 @@ def execute_psth_combined(inputParameters: dict[str, object]) -> None:
     for i in range(len(folderNames)):
         storesListPath.append(select_output_dirs(folderNames[i], selected_outputs.get(folderNames[i])))
     storesListPath = list(np.concatenate(storesListPath).flatten())
-    op = get_all_stores_for_combining_data(storesListPath)
-    writeToFile(str((len(op) + len(op) + 1) * 10) + "\n" + str(10) + "\n", file_path=PB_STEPS_FILE)
-    for i in range(len(op)):
+    combined_output_groups = get_all_stores_for_combining_data(storesListPath)
+    writeToFile(
+        str((len(combined_output_groups) + len(combined_output_groups) + 1) * 10) + "\n" + str(10) + "\n",
+        file_path=PB_STEPS_FILE,
+    )
+    for i in range(len(combined_output_groups)):
         storesList = np.asarray([[], []])
-        for j in range(len(op[i])):
+        for j in range(len(combined_output_groups[i])):
             storesList = np.concatenate(
                 (
                     storesList,
-                    np.genfromtxt(os.path.join(op[i][j], "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1),
+                    np.genfromtxt(
+                        os.path.join(combined_output_groups[i][j], "storesList.csv"), dtype="str", delimiter=","
+                    ).reshape(2, -1),
                 ),
                 axis=1,
             )
         storesList = np.unique(storesList, axis=1)
         for k in range(storesList.shape[1]):
-            execute_compute_psth(op[i][0], storesList[1, k], inputParameters)
-            execute_compute_psth_peak_and_area(op[i][0], storesList[1, k], inputParameters)
-            execute_compute_cross_correlation(op[i][0], storesList[1, k], inputParameters)
+            execute_compute_psth(combined_output_groups[i][0], storesList[1, k], inputParameters)
+            execute_compute_psth_peak_and_area(combined_output_groups[i][0], storesList[1, k], inputParameters)
+            execute_compute_cross_correlation(combined_output_groups[i][0], storesList[1, k], inputParameters)
         writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
         inputParameters["step"] += 1
 
@@ -440,8 +447,8 @@ def execute_average_for_group(inputParameters: dict[str, object]) -> None:
             axis=1,
         )
     storesList = np.unique(storesList, axis=1)
-    op = makeAverageDir(inputParameters["abspath"])
-    np.savetxt(os.path.join(op, "storesList.csv"), storesList, delimiter=",", fmt="%s")
+    average_dir = makeAverageDir(inputParameters["abspath"])
+    np.savetxt(os.path.join(average_dir, "storesList.csv"), storesList, delimiter=",", fmt="%s")
     pbMaxValue = 0
     for j in range(storesList.shape[1]):
         if "control" in storesList[1, j].lower() or "signal" in storesList[1, j].lower():

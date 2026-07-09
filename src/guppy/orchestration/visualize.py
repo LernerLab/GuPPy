@@ -71,22 +71,22 @@ def helper_plots(filepath: str, event: list[str], name: list[str] | str, inputPa
             for j in range(len(name)):
                 new_event.append(event_name[i] + "_" + name[j].split("_")[-1])
                 new_name = name[j]
-                temp_df = read_Df(filepath, new_event[-1], new_name)
-                cols = list(temp_df.columns)
+                event_df = read_Df(filepath, new_event[-1], new_name)
+                columns = list(event_df.columns)
                 regex = re.compile("bin_[(]")
-                bins[new_event[-1]] = [cols[i] for i in range(len(cols)) if regex.match(cols[i])]
-                frames.append(temp_df)
+                bins[new_event[-1]] = [columns[i] for i in range(len(columns)) if regex.match(columns[i])]
+                frames.append(event_df)
 
         df = pd.concat(frames, keys=new_event, axis=1)
     else:
         new_event = list(np.unique(np.array(event)))
         frames, bins = [], {}
         for i in range(len(new_event)):
-            temp_df = read_Df(filepath, new_event[i], "")
-            cols = list(temp_df.columns)
+            event_df = read_Df(filepath, new_event[i], "")
+            columns = list(event_df.columns)
             regex = re.compile("bin_[(]")
-            bins[new_event[i]] = [cols[i] for i in range(len(cols)) if regex.match(cols[i])]
-            frames.append(temp_df)
+            bins[new_event[i]] = [columns[i] for i in range(len(columns)) if regex.match(columns[i])]
+            frames.append(event_df)
 
         df = pd.concat(frames, keys=new_event, axis=1)
 
@@ -108,9 +108,9 @@ def helper_plots(filepath: str, event: list[str], name: list[str] | str, inputPa
     if len(bins_keys) > 0:
         bins_new = bins
         for i in range(len(bins_keys)):
-            arr = bins[bins_keys[i]]
-            if len(arr) > 0:
-                for j in arr:
+            bin_columns = bins[bins_keys[i]]
+            if len(bin_columns) > 0:
+                for j in bin_columns:
                     multiple_plots_options.append("{}_{}".format(bins_keys[i], j))
 
         multiple_plots_options = new_event + multiple_plots_options
@@ -122,9 +122,9 @@ def helper_plots(filepath: str, event: list[str], name: list[str] | str, inputPa
     x_max = float(inputParameters["nSecPost"])
     colormaps = plt.colormaps()
     new_colormaps = ["plasma", "plasma_r", "magma", "magma_r", "inferno", "inferno_r", "viridis", "viridis_r"]
-    set_a = set(colormaps)
-    set_b = set(new_colormaps)
-    colormaps = new_colormaps + list(set_a.difference(set_b))
+    all_colormaps_set = set(colormaps)
+    preferred_colormaps_set = set(new_colormaps)
+    colormaps = new_colormaps + list(all_colormaps_set.difference(preferred_colormaps_set))
     x = [columns_dict[new_event[0]][-4]]
     y = overview_y_options(columns_dict[new_event[0]])
     trial_no = range(1, len(remove_cols(columns_dict[heatmap_options[0]])[:-2]) + 1)
@@ -185,8 +185,8 @@ def createPlots(filepath: str, event: np.ndarray, inputParameters: dict[str, obj
         elif visualize_zscore_or_dff == "dff":
             path = glob.glob(os.path.join(filepath, "dff_*"))
 
-    name_arr = []
-    event_arr = []
+    names = []
+    event_names = []
 
     index = []
     for i in range(len(event)):
@@ -198,13 +198,13 @@ def createPlots(filepath: str, event: np.ndarray, inputParameters: dict[str, obj
     for i in range(len(path)):
         name = (os.path.basename(path[i])).split(".")
         name = name[0]
-        name_arr.append(name)
+        names.append(name)
 
     if average == True:
         logger.info("average")
-        helper_plots(filepath, name_arr, "", inputParameters)
+        helper_plots(filepath, names, "", inputParameters)
     else:
-        helper_plots(filepath, event, name_arr, inputParameters)
+        helper_plots(filepath, event, names, inputParameters)
 
 
 def _validate_metric_against_step4_outputs(inputParameters: dict[str, object]) -> None:
@@ -260,7 +260,7 @@ def _validate_metric_against_step4_outputs(inputParameters: dict[str, object]) -
     else:
         pattern = "*_dff_*.h5"
 
-    missing_sessions = [od for od in output_dirs if not glob.glob(os.path.join(od, pattern))]
+    missing_sessions = [output_dir for output_dir in output_dirs if not glob.glob(os.path.join(output_dir, pattern))]
 
     if missing_sessions:
         other_metric = "dff" if visualize_zscore_or_dff == "z_score" else "z_score"
@@ -400,21 +400,23 @@ def visualizeResults(inputParameters: dict[str, object]) -> None:
                 filepath = folderNames[i]
                 storesListPath.append(select_output_dirs(filepath, selected_outputs.get(filepath)))
             storesListPath = list(np.concatenate(storesListPath).flatten())
-            op = get_all_stores_for_combining_data(storesListPath)
-            for i in range(len(op)):
+            combined_output_groups = get_all_stores_for_combining_data(storesListPath)
+            for i in range(len(combined_output_groups)):
                 storesList = np.asarray([[], []])
-                for j in range(len(op[i])):
+                for j in range(len(combined_output_groups[i])):
                     storesList = np.concatenate(
                         (
                             storesList,
-                            np.genfromtxt(os.path.join(op[i][j], "storesList.csv"), dtype="str", delimiter=",").reshape(
-                                2, -1
-                            ),
+                            np.genfromtxt(
+                                os.path.join(combined_output_groups[i][j], "storesList.csv"),
+                                dtype="str",
+                                delimiter=",",
+                            ).reshape(2, -1),
                         ),
                         axis=1,
                     )
                 storesList = np.unique(storesList, axis=1)
-                filepath = op[i][0]
+                filepath = combined_output_groups[i][0]
                 createPlots(filepath, storesList[1, :], inputParameters)
         else:
             for i in range(len(folderNames)):

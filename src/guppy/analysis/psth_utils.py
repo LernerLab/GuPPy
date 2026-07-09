@@ -30,9 +30,9 @@ def create_Df_for_psth(filepath: str, event: str, name: str, psth: np.ndarray, c
     event = event.replace("\\", "_")
     event = event.replace("/", "_")
     if name:
-        op = os.path.join(filepath, event + "_{}.h5".format(name))
+        output_path = os.path.join(filepath, event + "_{}.h5".format(name))
     else:
-        op = os.path.join(filepath, event + ".h5")
+        output_path = os.path.join(filepath, event + ".h5")
 
     # removing psth binned trials
     columns = np.array(columns, dtype="str")
@@ -43,16 +43,18 @@ def create_Df_for_psth(filepath: str, event: str, name: str, psth: np.ndarray, c
     psth = psth.T
     if psth.ndim > 1:
         mean = np.nanmean(psth[:, single_trials_index], axis=1).reshape(-1, 1)
-        err = np.nanstd(psth[:, single_trials_index], axis=1) / math.sqrt(psth[:, single_trials_index].shape[1])
-        err = err.reshape(-1, 1)
+        standard_error = np.nanstd(psth[:, single_trials_index], axis=1) / math.sqrt(
+            psth[:, single_trials_index].shape[1]
+        )
+        standard_error = standard_error.reshape(-1, 1)
         psth = np.hstack((psth, mean))
-        psth = np.hstack((psth, err))
+        psth = np.hstack((psth, standard_error))
 
     columns = np.asarray(columns)
     columns = np.append(columns, ["mean", "err"])
     df = pd.DataFrame(psth, index=None, columns=list(columns), dtype="float32")
 
-    df.to_hdf(op, key="df", mode="w")
+    df.to_hdf(output_path, key="df", mode="w")
 
 
 def create_Df_for_cross_correlation(
@@ -75,9 +77,9 @@ def create_Df_for_cross_correlation(
         Column labels for the trials axis. Default is an empty list.
     """
     if name:
-        op = os.path.join(filepath, event + "_{}.h5".format(name))
+        output_path = os.path.join(filepath, event + "_{}.h5".format(name))
     else:
-        op = os.path.join(filepath, event + ".h5")
+        output_path = os.path.join(filepath, event + ".h5")
 
     # removing psth binned trials
     columns = list(np.array(columns, dtype="str"))
@@ -88,16 +90,18 @@ def create_Df_for_cross_correlation(
     psth = psth.T
     if psth.ndim > 1:
         mean = np.nanmean(psth[:, single_trials_index], axis=1).reshape(-1, 1)
-        err = np.nanstd(psth[:, single_trials_index], axis=1) / math.sqrt(psth[:, single_trials_index].shape[1])
-        err = err.reshape(-1, 1)
+        standard_error = np.nanstd(psth[:, single_trials_index], axis=1) / math.sqrt(
+            psth[:, single_trials_index].shape[1]
+        )
+        standard_error = standard_error.reshape(-1, 1)
         psth = np.hstack((psth, mean))
-        psth = np.hstack((psth, err))
+        psth = np.hstack((psth, standard_error))
 
     columns = np.asarray(columns)
     columns = np.append(columns, ["mean", "err"])
     df = pd.DataFrame(psth, index=None, columns=columns, dtype="float32")
 
-    df.to_hdf(op, key="df", mode="w")
+    df.to_hdf(output_path, key="df", mode="w")
 
 
 def getCorrCombinations(filepath: str, inputParameters: dict[str, object]) -> tuple[list[str], list[str]]:

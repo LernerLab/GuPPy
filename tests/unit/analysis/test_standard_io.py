@@ -64,7 +64,7 @@ def test_write_zscore_creates_four_hdf5_files(tmp_path):
     dff = np.array([0.1, 0.2, 0.3])
     control_fit = np.array([2.0, 2.1, 2.2])
 
-    write_zscore(str(tmp_path), "dms", z_score, dff, control_fit, temp_control_arr=None)
+    write_zscore(str(tmp_path), "dms", z_score, dff, control_fit, synthetic_control=None)
 
     assert (tmp_path / "z_score_dms.hdf5").exists()
     assert (tmp_path / "dff_dms.hdf5").exists()
@@ -76,7 +76,7 @@ def test_write_zscore_creates_four_hdf5_files(tmp_path):
 def test_write_zscore_with_temp_control_writes_control_file(tmp_path):
     z_score = np.array([0.5])
     temp_control = np.array([1.0, np.nan, 2.0])
-    write_zscore(str(tmp_path), "dms", z_score, z_score, z_score, temp_control_arr=temp_control)
+    write_zscore(str(tmp_path), "dms", z_score, z_score, z_score, synthetic_control=temp_control)
 
     result = h5py.File(tmp_path / "control_dms.hdf5", "r")["data"][:]
     np.testing.assert_array_equal(result[0], 1.0)

@@ -33,10 +33,10 @@ def eliminateData(
 
     Returns
     -------
-    arr : np.ndarray
+    concatenated_data : np.ndarray
         Concatenated data across all sessions.
-    ts_arr : np.ndarray
-        Realigned timestamps corresponding to ``arr``.
+    realigned_timestamps : np.ndarray
+        Realigned timestamps corresponding to ``concatenated_data``.
     """
 
     segments = [(filepath_to_data[filepath], filepath_to_timestamps[filepath]) for filepath in filepath_to_timestamps]
@@ -65,7 +65,7 @@ def eliminateTs(
 
     Returns
     -------
-    ts_arr : np.ndarray
+    realigned_ttl_timestamps : np.ndarray
         Realigned TTL timestamps concatenated across all sessions.
     """
 
@@ -128,13 +128,13 @@ def combine_data(
         name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")[-1]
         name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")[-1]
         if name_1 != name_2:
-            msg = (
+            message = (
                 f"Pair name mismatch in '{filepaths_to_combine[0]}': control file suffix '{name_1}' does not match "
                 f"signal file suffix '{name_2}'. Check the naming convention of your files and the "
                 f"storesList file, then re-run step 1."
             )
-            logger.error(msg)
-            raise ValueError(msg)
+            logger.error(message)
+            raise ValueError(message)
         pair_name = name_1
 
         for i in range(len(names_for_storenames)):
@@ -160,12 +160,12 @@ def combine_data(
                 filepath_to_timestamps = pair_name_to_filepath_to_timestamps[pair_name]
                 filepath_to_ttl_timestamps = compound_name_to_filepath_to_ttl_timestamps[compound_name]
 
-                ts = eliminateTs(
+                ttl_timestamps = eliminateTs(
                     filepath_to_timestamps,
                     filepath_to_ttl_timestamps,
                     timeForLightsTurnOn,
                     sampling_rate,
                 )
-                compound_name_to_ttl_timestamps[compound_name] = ts
+                compound_name_to_ttl_timestamps[compound_name] = ttl_timestamps
 
     return pair_name_to_tsNew, display_name_to_data, compound_name_to_ttl_timestamps

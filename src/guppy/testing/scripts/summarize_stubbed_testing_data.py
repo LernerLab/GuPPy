@@ -263,8 +263,8 @@ def _summarize_session(session: _SessionConfig, working_folder_path: Path) -> _S
     if ttl_event is not None:
         if hasattr(extractor, "_readtev"):
             # TDT: use _readtev directly to avoid storesList.csv dependency for multi-behavior epocs
-            S = extractor._readtev(ttl_event)
-            number_of_ttls = len(S["timestamps"])
+            readtev_result = extractor._readtev(ttl_event)
+            number_of_ttls = len(readtev_result["timestamps"])
         else:
             ttl_result = extractor.read(events=[ttl_event], outputPath="")
             number_of_ttls = len(ttl_result[0]["timestamps"])
@@ -309,7 +309,7 @@ def main() -> None:
 
     modality_width = max(len(col_modality), max(len(row["modality"]) for row in rows))
     name_width = max(len(col_name), max(len(row["name"]) for row in rows))
-    size_width = max(len(col_size), max(len(s) for s in size_strings))
+    size_width = max(len(col_size), max(len(size_string) for size_string in size_strings))
     duration_width = max(len(col_duration), max(len(f"{row['duration']:.1f}") for row in rows))
     ttl_channel_width = max(len(col_ttl_channel), max(len(row["ttl_channel"]) for row in rows))
     number_of_ttls_width = max(len(col_number_of_ttls), max(len(str(row["number_of_ttls"])) for row in rows))

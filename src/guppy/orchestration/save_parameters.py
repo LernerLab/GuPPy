@@ -67,8 +67,8 @@ def save_parameters(inputParameters: dict[str, object]) -> None:
         else:
             destinations = select_output_dirs(session, selected_outputs.get(session))
         for destination in destinations:
-            with open(os.path.join(destination, "GuPPyParamtersUsed.json"), "w") as f:
-                json.dump(analysisParameters, f, indent=4)
+            with open(os.path.join(destination, "GuPPyParamtersUsed.json"), "w") as parameters_file:
+                json.dump(analysisParameters, parameters_file, indent=4)
             logger.info(f"Input Parameters file saved at {destination}")
 
     logger.info("#" * 400)
