@@ -142,7 +142,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         if sum(name_matches) == 0:
             available = sorted(str(name) for name in allnames)
             message = (
-                f"Requested TDT store name '{event}' not found in tank "
+                f"Requested TDT store id '{event}' not found in tank "
                 f"'{self.folder_path}' (case-sensitive). Available stores: {available}."
             )
             logger.error(message)
@@ -238,7 +238,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         Parameters
         ----------
         events : list of str
-            TDT store names to read (case-sensitive). May include split
+            TDT store ids to read (case-sensitive). May include split
             sub-event names (e.g. ``"PrtN5"``).
         outputPath : str
             Path to the output directory (unused; required by the base-class
@@ -321,7 +321,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         Returns
         -------
         dict
-            Maps each splitting parent store name to a list of
+            Maps each splitting parent store id to a list of
             ``(split_sub_event_name, marker_value)`` pairs, ordered by marker value.
         """
         if not isinstance(header_df, pd.DataFrame):
@@ -345,7 +345,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
             strobe_values = strobes[indexes]
             if not cls._event_needs_splitting(data=strobe_values, sampling_rate=frequencies[first_row]):
                 continue
-            # Mirror the historical sub-event naming: strip "/" from the store name
+            # Mirror the historical sub-event naming: strip "/" from the store id
             # and append the formatted marker value (e.g. "PAB/" + 16 -> "PAB16").
             new_store = store.replace("/", "")
             split_map[store] = [

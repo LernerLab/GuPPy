@@ -28,9 +28,7 @@ class StoreLabelingSelector:
             )
 
         # creating different buttons and selectors for the GUI
-        self.cross_selector = pn.widgets.CrossSelector(
-            name="Store Names Selection", value=[], options=allnames, width=600
-        )
+        self.cross_selector = pn.widgets.CrossSelector(name="Store Selection", value=[], options=allnames, width=600)
         self.multi_choice = pn.widgets.MultiChoice(
             name="Select Stores which you want more than once (multi-choice: multiple options selection)",
             value=[],
@@ -38,7 +36,7 @@ class StoreLabelingSelector:
         )
 
         self.literal_input_1 = pn.widgets.LiteralInput(
-            name="Number of times you want the above store_id (list)", value=[], type=list
+            name="Number of times you want the above store (list)", value=[], type=list
         )
 
         self.repeat_stores = pn.widgets.Checkbox(name="Stores to repeat", value=False)
@@ -49,9 +47,9 @@ class StoreLabelingSelector:
         self.update_options = pn.widgets.Button(name="Select Stores", width=600)
         self.save = pn.widgets.Button(name="Save", width=600)
 
-        self.text = pn.widgets.LiteralInput(value=[], name="Selected Store Names", type=list, width=600)
+        self.text = pn.widgets.LiteralInput(value=[], name="Selected Stores", type=list, width=600)
 
-        self.path = pn.widgets.TextInput(name="Location to Stores List file", width=600)
+        self.path = pn.widgets.TextInput(name="Location to storesList file", width=600)
 
         self.mark_down_for_overwrite = pn.pane.Markdown(
             """

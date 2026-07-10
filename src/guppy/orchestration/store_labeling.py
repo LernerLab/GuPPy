@@ -287,7 +287,7 @@ def build_store_labeling_template(
     Parameters
     ----------
     events : list of str
-        Storename strings discovered from the data acquisition files.
+        store_id strings discovered from the data acquisition files.
     flags : list of str
         Feature flags (e.g. ``"data_np_v2"``) that control which instructions widget is shown.
     folder_path : str
@@ -422,7 +422,7 @@ def build_store_labeling_page(
 
     In headless mode (``store_id_to_store_label`` key present in ``inputParameters``)
     the mapping is written directly.  Otherwise a Panel GUI is launched in a
-    browser so the user can assign semantic labels interactively.
+    browser so the user can assign store labels interactively.
 
     Parameters
     ----------
@@ -430,7 +430,7 @@ def build_store_labeling_page(
         Full pipeline input parameters; may contain ``store_id_to_store_label`` for
         headless operation.
     events : list of str
-        Storename strings discovered from the acquisition files.
+        store_id strings discovered from the acquisition files.
     flags : list of str
         Feature flags (e.g. ``"data_np_v2"``) passed to the GUI template.
     folder_path : str

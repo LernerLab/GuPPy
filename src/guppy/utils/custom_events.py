@@ -74,7 +74,7 @@ def write_custom_event_csv(*, name: str, timestamps: list[float], folder_path: s
     """Write timestamps as a GuPPy-compatible event CSV named after the event.
 
     The file is written as ``<name>.csv`` into ``folder_path`` with a single
-    ``timestamps`` column. The filename (minus ``.csv``) becomes the store name
+    ``timestamps`` column. The filename (minus ``.csv``) becomes the store_id
     surfaced in the Label Stores GUI.
 
     Parameters

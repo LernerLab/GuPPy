@@ -206,7 +206,7 @@ def step1(
     selected_folders : Iterable[str]
         Absolute paths to the session directories to process.
     store_id_to_store_label : dict[str, str]
-        Mapping from raw store_ids (e.g., "Dv1A") to semantic names
+        Mapping from raw store_ids (e.g., "Dv1A") to store labels
         (e.g., "control_DMS"). Insertion order is preserved.
     npm_timestamp_column_names : list[str | None] | None
         List of timestamp column names for NPM files, one per CSV file. None if not applicable.
@@ -248,16 +248,16 @@ def step1(
     # Validate store_id_to_store_label
     if not isinstance(store_id_to_store_label, dict) or not store_id_to_store_label:
         raise ValueError("store_id_to_store_label must be a non-empty dict[str, str]")
-    for raw_storename, semantic_name in store_id_to_store_label.items():
-        if not isinstance(raw_storename, str) or not raw_storename.strip():
+    for store_id, store_label in store_id_to_store_label.items():
+        if not isinstance(store_id, str) or not store_id.strip():
             raise ValueError(
-                f"Invalid store_id key: {raw_storename!r}. Keys must be non-empty strings (the raw store name "
+                f"Invalid store_id key: {store_id!r}. Keys must be non-empty strings (the store id "
                 "from the acquisition file)."
             )
-        if not isinstance(semantic_name, str) or not semantic_name.strip():
+        if not isinstance(store_label, str) or not store_label.strip():
             raise ValueError(
-                f"Invalid semantic name for key {raw_storename!r}: {semantic_name!r}. Values must be non-empty "
-                "strings (the semantic label such as 'control_DMS' or 'signal_NAc')."
+                f"Invalid store_label for store_id {store_id!r}: {store_label!r}. Values must be non-empty "
+                "strings (the store label such as 'control_DMS' or 'signal_NAc')."
             )
 
     # Headless build: set base_dir and construct the template

@@ -11,7 +11,7 @@ def test_save_to_file_button_removed(page, live_server_url):
 @pytest.mark.ui
 def test_open_storenames_gui_button_visible(page, live_server_url):
     page.goto(live_server_url)
-    expect(page.get_by_role("button", name="Open Label Stores GUI")).to_be_visible()
+    expect(page.get_by_role("button", name="Label Stores")).to_be_visible()
 
 
 @pytest.mark.ui
@@ -41,7 +41,7 @@ def test_open_visualization_gui_button_visible(page, live_server_url):
 @pytest.mark.ui
 def test_step_1_label_visible(page, live_server_url):
     page.goto(live_server_url)
-    expect(page.get_by_text("Step 1 : Open Label Stores GUI").first).to_be_visible()
+    expect(page.get_by_text("Step 1 : Label Stores").first).to_be_visible()
 
 
 @pytest.mark.ui

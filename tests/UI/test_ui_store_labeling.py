@@ -72,7 +72,7 @@ def test_save_button_visible(page, storenames_server_url):
 @pytest.mark.ui
 def test_selected_store_names_label_visible(page, storenames_server_url):
     page.goto(storenames_server_url)
-    expect(page.get_by_text("Selected Store Names").first).to_be_visible()
+    expect(page.get_by_text("Selected Stores").first).to_be_visible()
 
 
 @pytest.mark.ui

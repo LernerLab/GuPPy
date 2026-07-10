@@ -16,11 +16,11 @@ Use this when you have a list of event times to hand (e.g. a column copied from
 a spreadsheet).
 
 1. Select your session folder(s) on the homepage as usual.
-2. Click **Import Custom Events** (above *Step 1: Open Label Stores GUI* in the
+2. Click **Import Custom Events** (above *Step 1: Label Stores* in the
    sidebar). A window opens for each selected session in turn.
 
    ```{image} ../_static/images/import_custom_events_button.png
-   :alt: The sidebar with the optional Import Custom Events button positioned above Step 1, Open Label Stores GUI
+   :alt: The sidebar with the optional Import Custom Events button positioned above Step 1, Label Stores
    :width: 50%
    ```
 

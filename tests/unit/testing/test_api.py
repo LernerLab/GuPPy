@@ -107,9 +107,9 @@ class TestStep1Validation:
         [
             ({}, "store_id_to_store_label must be a non-empty dict"),
             ({"": "signal_region"}, "Invalid store_id key"),
-            ({"RawSignal": ""}, "Invalid semantic name"),
+            ({"RawSignal": ""}, "Invalid store_label"),
             ({1: "signal_region"}, "Invalid store_id key"),
-            ({"RawSignal": None}, "Invalid semantic name"),
+            ({"RawSignal": None}, "Invalid store_label"),
         ],
     )
     def test_step1_validates_storenames_map(self, api_workspace, store_id_to_store_label, message):

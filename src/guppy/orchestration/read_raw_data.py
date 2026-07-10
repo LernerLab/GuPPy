@@ -75,7 +75,7 @@ def _build_event_to_extractor(*, folder_path: str, store_array: np.ndarray, inpu
     folder_path : str
         Path to the session folder.
     store_array : np.ndarray, shape (2, n)
-        Row 0: original store names. Row 1: semantic labels.
+        Row 0: store IDs. Row 1: store labels.
     inputParameters : dict
         Full pipeline input parameters (needed for NPM extractor configuration).
 

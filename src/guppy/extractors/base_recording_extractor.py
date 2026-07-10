@@ -70,7 +70,7 @@ class BaseRecordingExtractor(ABC):
         Parameters
         ----------
         events : list of str
-            List of event/store names to extract from the data.
+            List of event/store IDs to extract from the data.
         outputPath : str
             Path to the output directory.
 

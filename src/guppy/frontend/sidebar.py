@@ -23,9 +23,7 @@ class Sidebar:
     def setup_markdown(self) -> None:
         """Create step-label ``Markdown`` panes and store them as instance attributes."""
         self.mark_down_import_events = pn.pane.Markdown("""**Import Custom Events (optional)**""", width=300)
-        self.mark_down_label_stores = pn.pane.Markdown(
-            """**Step 1 : Open Label Stores GUI <br> and label stores**""", width=300
-        )
+        self.mark_down_label_stores = pn.pane.Markdown("""**Step 1 : Label Stores**""", width=300)
         self.mark_down_read = pn.pane.Markdown("""**Step 2 : Read Raw Data**""", width=300)
         self.mark_down_preprocess = pn.pane.Markdown("""**Step 3 : Preprocess and Remove Artifacts**""", width=300)
         self.mark_down_psth = pn.pane.Markdown("""**Step 4 : PSTH Computation**""", width=300)
@@ -36,9 +34,7 @@ class Sidebar:
         self.import_custom_events = pn.widgets.Button(
             name="Import Custom Events", button_type="default", width=300, align="end"
         )
-        self.open_label_stores = pn.widgets.Button(
-            name="Open Label Stores GUI", button_type="primary", width=300, align="end"
-        )
+        self.open_label_stores = pn.widgets.Button(name="Label Stores", button_type="primary", width=300, align="end")
         self.read_rawData = pn.widgets.Button(name="Read Raw Data", button_type="primary", width=300, align="end")
         self.preprocess = pn.widgets.Button(
             name="Preprocess and Remove Artifacts", button_type="primary", width=300, align="end"
