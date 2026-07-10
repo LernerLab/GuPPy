@@ -129,7 +129,7 @@ class RecordingExtractorTestMixin:
         assert isinstance(result, list)
         assert all(isinstance(output_dict, dict) for output_dict in result)
 
-    def test_read_output_dicts_have_storename_string(self, tmp_path, isolated_extractor_instance):
+    def test_read_output_dicts_have_store_id_string(self, tmp_path, isolated_extractor_instance):
         result = isolated_extractor_instance.read(events=self.expected_events, outputPath=str(tmp_path))
         for output_dict in result:
             assert "store_id" in output_dict
@@ -143,16 +143,16 @@ class RecordingExtractorTestMixin:
         isolated_extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
 
         for output_dict in output_dicts:
-            sanitized_storename = output_dict["store_id"].replace("\\", "_").replace("/", "_")
-            assert (tmp_path / f"{sanitized_storename}.hdf5").exists()
+            sanitized_store_id = output_dict["store_id"].replace("\\", "_").replace("/", "_")
+            assert (tmp_path / f"{sanitized_store_id}.hdf5").exists()
 
     def test_save_hdf5_has_timestamps_dataset(self, tmp_path, isolated_extractor_instance):
         output_dicts = isolated_extractor_instance.read(events=self.expected_events, outputPath=str(tmp_path))
         isolated_extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
 
         for output_dict in output_dicts:
-            sanitized_storename = output_dict["store_id"].replace("\\", "_").replace("/", "_")
-            with h5py.File(tmp_path / f"{sanitized_storename}.hdf5", "r") as file:
+            sanitized_store_id = output_dict["store_id"].replace("\\", "_").replace("/", "_")
+            with h5py.File(tmp_path / f"{sanitized_store_id}.hdf5", "r") as file:
                 assert "timestamps" in file
 
     # --- roundtrip tests ---
@@ -163,16 +163,16 @@ class RecordingExtractorTestMixin:
         output_dicts = isolated_extractor_instance.read(events=[self.control_event], outputPath=str(tmp_path))
         isolated_extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
 
-        sanitized_storename = self.control_event.replace("\\", "_").replace("/", "_")
-        with h5py.File(tmp_path / f"{sanitized_storename}.hdf5", "r") as file:
+        sanitized_store_id = self.control_event.replace("\\", "_").replace("/", "_")
+        with h5py.File(tmp_path / f"{sanitized_store_id}.hdf5", "r") as file:
             np.testing.assert_array_equal(file["timestamps"][:], expected_control_timestamps)
 
     def test_roundtrip_control_data_preserved(self, tmp_path, isolated_extractor_instance, expected_control_data):
         output_dicts = isolated_extractor_instance.read(events=[self.control_event], outputPath=str(tmp_path))
         isolated_extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
 
-        sanitized_storename = self.control_event.replace("\\", "_").replace("/", "_")
-        with h5py.File(tmp_path / f"{sanitized_storename}.hdf5", "r") as file:
+        sanitized_store_id = self.control_event.replace("\\", "_").replace("/", "_")
+        with h5py.File(tmp_path / f"{sanitized_store_id}.hdf5", "r") as file:
             np.testing.assert_array_equal(file["data"][:], expected_control_data)
 
     def test_roundtrip_signal_timestamps_preserved(
@@ -181,16 +181,16 @@ class RecordingExtractorTestMixin:
         output_dicts = isolated_extractor_instance.read(events=[self.signal_event], outputPath=str(tmp_path))
         isolated_extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
 
-        sanitized_storename = self.signal_event.replace("\\", "_").replace("/", "_")
-        with h5py.File(tmp_path / f"{sanitized_storename}.hdf5", "r") as file:
+        sanitized_store_id = self.signal_event.replace("\\", "_").replace("/", "_")
+        with h5py.File(tmp_path / f"{sanitized_store_id}.hdf5", "r") as file:
             np.testing.assert_array_equal(file["timestamps"][:], expected_signal_timestamps)
 
     def test_roundtrip_signal_data_preserved(self, tmp_path, isolated_extractor_instance, expected_signal_data):
         output_dicts = isolated_extractor_instance.read(events=[self.signal_event], outputPath=str(tmp_path))
         isolated_extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
 
-        sanitized_storename = self.signal_event.replace("\\", "_").replace("/", "_")
-        with h5py.File(tmp_path / f"{sanitized_storename}.hdf5", "r") as file:
+        sanitized_store_id = self.signal_event.replace("\\", "_").replace("/", "_")
+        with h5py.File(tmp_path / f"{sanitized_store_id}.hdf5", "r") as file:
             np.testing.assert_array_equal(file["data"][:], expected_signal_data)
 
     def test_roundtrip_ttl_timestamps_preserved(self, tmp_path, isolated_extractor_instance, expected_ttl_timestamps):
@@ -199,8 +199,8 @@ class RecordingExtractorTestMixin:
         output_dicts = isolated_extractor_instance.read(events=[self.ttl_event], outputPath=str(tmp_path))
         isolated_extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
 
-        sanitized_storename = self.ttl_event.replace("\\", "_").replace("/", "_")
-        with h5py.File(tmp_path / f"{sanitized_storename}.hdf5", "r") as file:
+        sanitized_store_id = self.ttl_event.replace("\\", "_").replace("/", "_")
+        with h5py.File(tmp_path / f"{sanitized_store_id}.hdf5", "r") as file:
             np.testing.assert_array_equal(file["timestamps"][:], expected_ttl_timestamps)
 
     # --- stub tests ---

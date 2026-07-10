@@ -21,7 +21,7 @@ from guppy.testing.api import step1, step2, step3, step4
 
 # Use the CSV sample as it is the simplest format — no binary TDT dependencies.
 SESSION_SUBDIR = "csv/sample_data_csv_1"
-STORENAMES_MAP = {
+STORE_ID_TO_STORE_LABEL = {
     "Sample_Control_Channel": "control_region",
     "Sample_Signal_Channel": "signal_region",
     "Sample_TTL": "ttl",
@@ -63,7 +63,7 @@ def test_parallel_step3(tmp_path):
     step1(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
-        store_id_to_store_label=STORENAMES_MAP,
+        store_id_to_store_label=STORE_ID_TO_STORE_LABEL,
     )
 
     # Run Step 2 with 2 worker processes
@@ -86,8 +86,8 @@ def test_parallel_step3(tmp_path):
     with open(stores_filepath, newline="") as stores_file:
         rows = list(csv.reader(stores_file))
     assert len(rows) == 2, "storesList.csv should have 2 rows"
-    raw_storenames = rows[0]
-    for store_id in raw_storenames:
+    store_ids = rows[0]
+    for store_id in store_ids:
         safe_name = store_id.replace("\\", "_").replace("/", "_")
         h5_path = os.path.join(out_dir, f"{safe_name}.hdf5")
         assert os.path.exists(h5_path), f"Missing HDF5 for store_id {store_id!r}: {h5_path}"
@@ -108,7 +108,7 @@ def test_parallel_step5(tmp_path):
     step1(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
-        store_id_to_store_label=STORENAMES_MAP,
+        store_id_to_store_label=STORE_ID_TO_STORE_LABEL,
     )
 
     selected_runs = {str(session_copy): ["1"]}

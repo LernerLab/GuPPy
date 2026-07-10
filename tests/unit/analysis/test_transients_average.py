@@ -52,7 +52,7 @@ def test_average_for_group_creates_combined_freq_amp_file(tmp_path):
     np.testing.assert_allclose(df["amplitude"].values, np.array([1.5, 2.5]))
 
 
-def test_average_for_group_handles_non_overlapping_storenames_without_indexerror(tmp_path):
+def test_average_for_group_handles_non_overlapping_stores_without_indexerror(tmp_path):
     """Non-overlapping store_ids across sessions must not cause an IndexError.
 
     Regression test for issue #274.

@@ -35,20 +35,20 @@ def api_workspace(tmp_path):
 
 
 @pytest.fixture
-def valid_storenames_map():
+def valid_store_id_to_store_label():
     return {"RawSignal": "signal_region"}
 
 
 class TestSharedApiValidation:
     @pytest.mark.parametrize("step_name", ["step1", "step2", "step3", "step4", "step5"])
-    def test_steps_require_existing_base_directory(self, api_workspace, valid_storenames_map, step_name):
+    def test_steps_require_existing_base_directory(self, api_workspace, valid_store_id_to_store_label, step_name):
         step = getattr(testing_api, step_name)
         kwargs = {
             "base_dir": api_workspace["missing_base_directory"],
             "selected_folders": [api_workspace["session_directory"]],
         }
         if step_name == "step1":
-            kwargs["store_id_to_store_label"] = valid_storenames_map
+            kwargs["store_id_to_store_label"] = valid_store_id_to_store_label
         if step_name in ("step2", "step3", "step4", "step5"):
             kwargs["selected_runs"] = {api_workspace["session_directory"]: ["1"]}
 
@@ -56,14 +56,14 @@ class TestSharedApiValidation:
             step(**kwargs)
 
     @pytest.mark.parametrize("step_name", ["step1", "step2", "step3", "step4", "step5"])
-    def test_steps_require_selected_folders(self, api_workspace, valid_storenames_map, step_name):
+    def test_steps_require_selected_folders(self, api_workspace, valid_store_id_to_store_label, step_name):
         step = getattr(testing_api, step_name)
         kwargs = {
             "base_dir": api_workspace["base_directory"],
             "selected_folders": [],
         }
         if step_name == "step1":
-            kwargs["store_id_to_store_label"] = valid_storenames_map
+            kwargs["store_id_to_store_label"] = valid_store_id_to_store_label
         if step_name in ("step2", "step3", "step4", "step5"):
             kwargs["selected_runs"] = {}
 
@@ -71,14 +71,14 @@ class TestSharedApiValidation:
             step(**kwargs)
 
     @pytest.mark.parametrize("step_name", ["step1", "step2", "step3", "step4", "step5"])
-    def test_steps_reject_missing_session_directory(self, api_workspace, valid_storenames_map, step_name):
+    def test_steps_reject_missing_session_directory(self, api_workspace, valid_store_id_to_store_label, step_name):
         step = getattr(testing_api, step_name)
         kwargs = {
             "base_dir": api_workspace["base_directory"],
             "selected_folders": [api_workspace["missing_session_directory"]],
         }
         if step_name == "step1":
-            kwargs["store_id_to_store_label"] = valid_storenames_map
+            kwargs["store_id_to_store_label"] = valid_store_id_to_store_label
         if step_name in ("step2", "step3", "step4", "step5"):
             kwargs["selected_runs"] = {api_workspace["missing_session_directory"]: ["1"]}
 
@@ -86,14 +86,14 @@ class TestSharedApiValidation:
             step(**kwargs)
 
     @pytest.mark.parametrize("step_name", ["step1", "step2", "step3", "step4", "step5"])
-    def test_steps_require_sessions_under_base_directory(self, api_workspace, valid_storenames_map, step_name):
+    def test_steps_require_sessions_under_base_directory(self, api_workspace, valid_store_id_to_store_label, step_name):
         step = getattr(testing_api, step_name)
         kwargs = {
             "base_dir": api_workspace["base_directory"],
             "selected_folders": [api_workspace["foreign_session_directory"]],
         }
         if step_name == "step1":
-            kwargs["store_id_to_store_label"] = valid_storenames_map
+            kwargs["store_id_to_store_label"] = valid_store_id_to_store_label
         if step_name in ("step2", "step3", "step4", "step5"):
             kwargs["selected_runs"] = {api_workspace["foreign_session_directory"]: ["1"]}
 
@@ -112,7 +112,7 @@ class TestStep1Validation:
             ({"RawSignal": None}, "Invalid store_label"),
         ],
     )
-    def test_step1_validates_storenames_map(self, api_workspace, store_id_to_store_label, message):
+    def test_step1_validates_store_id_to_store_label(self, api_workspace, store_id_to_store_label, message):
         with pytest.raises(ValueError, match=message):
             testing_api.step1(
                 base_dir=api_workspace["base_directory"],
@@ -123,7 +123,9 @@ class TestStep1Validation:
 
 class TestApiRuntimeErrors:
     @pytest.mark.parametrize("step_name", ["step1", "step2", "step3", "step4", "step5"])
-    def test_steps_require_get_input_parameters_hook(self, api_workspace, valid_storenames_map, monkeypatch, step_name):
+    def test_steps_require_get_input_parameters_hook(
+        self, api_workspace, valid_store_id_to_store_label, monkeypatch, step_name
+    ):
         monkeypatch.setattr(
             testing_api,
             "build_homepage",
@@ -136,7 +138,7 @@ class TestApiRuntimeErrors:
             "selected_folders": [api_workspace["session_directory"]],
         }
         if step_name == "step1":
-            kwargs["store_id_to_store_label"] = valid_storenames_map
+            kwargs["store_id_to_store_label"] = valid_store_id_to_store_label
         if step_name in ("step2", "step3", "step4", "step5"):
             kwargs["selected_runs"] = {api_workspace["session_directory"]: ["1"]}
 
@@ -144,7 +146,7 @@ class TestApiRuntimeErrors:
             step(**kwargs)
 
     @pytest.mark.parametrize("step_name", ["step1", "step2", "step3", "step4", "step5"])
-    def test_steps_require_files_widget(self, api_workspace, valid_storenames_map, monkeypatch, step_name):
+    def test_steps_require_files_widget(self, api_workspace, valid_store_id_to_store_label, monkeypatch, step_name):
         monkeypatch.setattr(
             testing_api,
             "build_homepage",
@@ -157,7 +159,7 @@ class TestApiRuntimeErrors:
             "selected_folders": [api_workspace["session_directory"]],
         }
         if step_name == "step1":
-            kwargs["store_id_to_store_label"] = valid_storenames_map
+            kwargs["store_id_to_store_label"] = valid_store_id_to_store_label
         if step_name in ("step2", "step3", "step4", "step5"):
             kwargs["selected_runs"] = {api_workspace["session_directory"]: ["1"]}
 

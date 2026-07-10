@@ -13,7 +13,7 @@ from guppy.frontend.visualization_dashboard import VisualizationDashboard
 from guppy.testing.api import step1, step2, step3, step4, step5
 
 SESSION_SUBDIR = "csv/sample_data_csv_1"
-STORENAMES_MAP = {
+STORE_ID_TO_STORE_LABEL = {
     "Sample_Control_Channel": "control_region",
     "Sample_Signal_Channel": "signal_region",
     "Sample_TTL": "ttl",
@@ -103,7 +103,7 @@ def test_step5_raises_when_visualization_metric_not_computed_in_step4(tmp_path):
     )
     selected_runs = {str(session_copy): ["1"]}
 
-    step1(**common_kwargs, store_id_to_store_label=STORENAMES_MAP)
+    step1(**common_kwargs, store_id_to_store_label=STORE_ID_TO_STORE_LABEL)
     step2(**common_kwargs, selected_runs=selected_runs)
     step3(**common_kwargs, selected_runs=selected_runs)
     # Step 4: compute only dff (not z_score)

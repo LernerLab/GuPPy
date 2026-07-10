@@ -44,12 +44,12 @@ def test_step2(step2_fixture_name, request):
     ), "step 2 should write GuPPyParamtersUsed.json into the output directory"
 
     for store_id in store_ids:
-        safe_storename = store_id.replace("\\", "_").replace("/", "_")
-        storename_file_path = os.path.join(output_directory, f"{safe_storename}.hdf5")
-        assert os.path.exists(storename_file_path), f"Missing HDF5 for store_id {store_id!r} at {storename_file_path}"
+        safe_store_id = store_id.replace("\\", "_").replace("/", "_")
+        store_id_file_path = os.path.join(output_directory, f"{safe_store_id}.hdf5")
+        assert os.path.exists(store_id_file_path), f"Missing HDF5 for store_id {store_id!r} at {store_id_file_path}"
 
-        with h5py.File(storename_file_path, "r") as storename_file:
-            assert "timestamps" in storename_file, "Expected 'timestamps' dataset in HDF5"
+        with h5py.File(store_id_file_path, "r") as store_id_file:
+            assert "timestamps" in store_id_file, "Expected 'timestamps' dataset in HDF5"
 
 
 class TestStep2ProgressFileAccounting:

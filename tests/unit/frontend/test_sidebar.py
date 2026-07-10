@@ -35,10 +35,10 @@ class TestSidebar:
     def test_attach_callbacks_triggers_function(self, sidebar):
         calls = []
 
-        def on_storenames(event=None):
+        def on_label_stores(event=None):
             calls.append(event)
 
-        sidebar.attach_callbacks({"open_label_stores": on_storenames})
+        sidebar.attach_callbacks({"open_label_stores": on_label_stores})
         sidebar.open_label_stores.clicks += 1
 
         assert len(calls) == 1

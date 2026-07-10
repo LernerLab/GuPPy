@@ -11,7 +11,7 @@ from guppy.testing.api import step1, step2, step3, step4
 SESSION_SUBDIR = "SampleData_csv/sample_data_csv_1"
 STANDARD_OUTPUT_SUBDIR = "StandardOutputs_dff/sample_data_csv_1/sample_data_csv_1_output_1"
 
-STORENAMES_MAP = {
+STORE_ID_TO_STORE_LABEL = {
     "Sample_Control_Channel": "control_region",
     "Sample_Signal_Channel": "signal_region",
     "Sample_TTL": "ttl",
@@ -50,7 +50,7 @@ def test_consistency_dff(tmp_path):
     )
 
     selected_runs = {folder: ["1"] for folder in common_kwargs["selected_folders"]}
-    step1(**common_kwargs, store_id_to_store_label=STORENAMES_MAP)
+    step1(**common_kwargs, store_id_to_store_label=STORE_ID_TO_STORE_LABEL)
     step2(**common_kwargs, selected_runs=selected_runs)
     step3(**common_kwargs, control_fit_method="OLS", selected_runs=selected_runs)
     step4(**common_kwargs, select_for_compute_psth="dff", select_for_transients="dff", selected_runs=selected_runs)

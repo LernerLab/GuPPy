@@ -9,7 +9,7 @@ def test_save_to_file_button_removed(page, live_server_url):
 
 
 @pytest.mark.ui
-def test_open_storenames_gui_button_visible(page, live_server_url):
+def test_label_stores_button_visible(page, live_server_url):
     page.goto(live_server_url)
     expect(page.get_by_role("button", name="Label Stores")).to_be_visible()
 

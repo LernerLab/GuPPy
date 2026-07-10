@@ -10,7 +10,7 @@ def show_config_button():
 
 
 @pytest.fixture
-def storenames_config_instance(panel_extension, show_config_button):
+def store_labeling_config_instance(panel_extension, show_config_button):
     return StoreLabelingConfig(
         show_config_button=show_config_button,
         store_id_dropdowns={},
@@ -20,10 +20,10 @@ def storenames_config_instance(panel_extension, show_config_button):
     )
 
 
-class TestStorenamesConfig:
+class TestStoreLabelingConfig:
     # ── Empty store_ids ──────────────────────────────────────────────────────
 
-    def test_empty_storenames_yields_no_widgets(self, panel_extension, show_config_button):
+    def test_empty_store_ids_yields_no_widgets(self, panel_extension, show_config_button):
         config = StoreLabelingConfig(
             show_config_button=show_config_button,
             store_id_dropdowns={},
@@ -35,7 +35,7 @@ class TestStorenamesConfig:
 
     # ── Single store_id, no cache ────────────────────────────────────────────
 
-    def test_single_storename_widget_count(self, panel_extension, show_config_button):
+    def test_single_store_id_widget_count(self, panel_extension, show_config_button):
         # markdown header + 1 row + spacer + show button + instructions markdown = 5
         config = StoreLabelingConfig(
             show_config_button=show_config_button,
@@ -46,7 +46,7 @@ class TestStorenamesConfig:
         )
         assert len(config.config_widgets) == 5
 
-    def test_single_storename_dropdown_in_dict(self, panel_extension, show_config_button):
+    def test_single_store_id_dropdown_in_dict(self, panel_extension, show_config_button):
         dropdowns = {}
         StoreLabelingConfig(
             show_config_button=show_config_button,
@@ -58,7 +58,7 @@ class TestStorenamesConfig:
         assert "Dv1A_0" in dropdowns
         assert dropdowns["Dv1A_0"].value == ""
 
-    def test_single_storename_textbox_in_dict(self, panel_extension, show_config_button):
+    def test_single_store_id_textbox_in_dict(self, panel_extension, show_config_button):
         textboxes = {}
         StoreLabelingConfig(
             show_config_button=show_config_button,
@@ -72,35 +72,35 @@ class TestStorenamesConfig:
 
     # ── _parse_cached_value ───────────────────────────────────────────────────
 
-    def test_parse_cached_value_control_prefix(self, storenames_config_instance):
-        result = storenames_config_instance._parse_cached_value("control_DMS")
+    def test_parse_cached_value_control_prefix(self, store_labeling_config_instance):
+        result = store_labeling_config_instance._parse_cached_value("control_DMS")
         assert result == ("control", "DMS")
 
-    def test_parse_cached_value_signal_prefix(self, storenames_config_instance):
-        result = storenames_config_instance._parse_cached_value("signal_DLS")
+    def test_parse_cached_value_signal_prefix(self, store_labeling_config_instance):
+        result = store_labeling_config_instance._parse_cached_value("signal_DLS")
         assert result == ("signal", "DLS")
 
-    def test_parse_cached_value_no_prefix_treated_as_event(self, storenames_config_instance):
-        result = storenames_config_instance._parse_cached_value("RewardedPort")
+    def test_parse_cached_value_no_prefix_treated_as_event(self, store_labeling_config_instance):
+        result = store_labeling_config_instance._parse_cached_value("RewardedPort")
         assert result == ("event TTLs", "RewardedPort")
 
-    def test_parse_cached_value_empty_string(self, storenames_config_instance):
-        result = storenames_config_instance._parse_cached_value("")
+    def test_parse_cached_value_empty_string(self, store_labeling_config_instance):
+        result = store_labeling_config_instance._parse_cached_value("")
         assert result == ("", "")
 
     # ── _get_help_text ────────────────────────────────────────────────────────
 
-    def test_get_help_text_control(self, storenames_config_instance):
-        assert storenames_config_instance._get_help_text("control") == "*Type appropriate region name*"
+    def test_get_help_text_control(self, store_labeling_config_instance):
+        assert store_labeling_config_instance._get_help_text("control") == "*Type appropriate region name*"
 
-    def test_get_help_text_signal(self, storenames_config_instance):
-        assert storenames_config_instance._get_help_text("signal") == "*Type appropriate region name*"
+    def test_get_help_text_signal(self, store_labeling_config_instance):
+        assert store_labeling_config_instance._get_help_text("signal") == "*Type appropriate region name*"
 
-    def test_get_help_text_event_ttls(self, storenames_config_instance):
-        assert storenames_config_instance._get_help_text("event TTLs") == "*Type event name for the TTLs*"
+    def test_get_help_text_event_ttls(self, store_labeling_config_instance):
+        assert store_labeling_config_instance._get_help_text("event TTLs") == "*Type event name for the TTLs*"
 
-    def test_get_help_text_empty(self, storenames_config_instance):
-        assert storenames_config_instance._get_help_text("") == ""
+    def test_get_help_text_empty(self, store_labeling_config_instance):
+        assert store_labeling_config_instance._get_help_text("") == ""
 
     # ── Cache pre-population ──────────────────────────────────────────────────
 

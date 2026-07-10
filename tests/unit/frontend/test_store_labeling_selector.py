@@ -1,7 +1,7 @@
 from guppy.frontend.store_labeling_selector import StoreLabelingSelector
 
 
-class TestStorenamesSelector:
+class TestStoreLabelingSelector:
     def test_empty_allnames_shows_alert(self, panel_extension):
         selector = StoreLabelingSelector(allnames=[])
         assert "No store_ids found" in selector.alert.object
@@ -14,14 +14,14 @@ class TestStorenamesSelector:
         assert selector.multi_choice.options == allnames
         assert selector.cross_selector.value == []
 
-    def test_repeat_storenames_true_populates_widget_box(self, panel_extension):
+    def test_repeat_stores_true_populates_widget_box(self, panel_extension):
         selector = StoreLabelingSelector(allnames=["Dv1A"])
         selector.repeat_stores.value = True
         assert len(selector.repeat_store_wd.objects) > 0
         assert selector.multi_choice in selector.repeat_store_wd.objects
         assert selector.literal_input_1 in selector.repeat_store_wd.objects
 
-    def test_repeat_storenames_false_clears_widget_box(self, panel_extension):
+    def test_repeat_stores_false_clears_widget_box(self, panel_extension):
         selector = StoreLabelingSelector(allnames=["Dv1A"])
         selector.repeat_stores.value = True
         selector.repeat_stores.value = False
@@ -62,7 +62,7 @@ class TestStorenamesSelector:
         selector.set_change_widgets(["Dv1A"])
         assert selector.text.value == ["Dv1A"]
 
-    def test_configure_storenames_visible_when_storenames_present(self, panel_extension):
+    def test_configure_store_ids_visible_when_store_ids_present(self, panel_extension):
         selector = StoreLabelingSelector(allnames=["Dv1A"])
         selector.configure_store_ids(
             store_id_dropdowns={},
@@ -72,7 +72,7 @@ class TestStorenamesSelector:
         )
         assert selector.store_id_config_widgets.visible is True
 
-    def test_configure_storenames_hidden_when_storenames_empty(self, panel_extension):
+    def test_configure_store_ids_hidden_when_store_ids_empty(self, panel_extension):
         selector = StoreLabelingSelector(allnames=["Dv1A"])
         selector.configure_store_ids(
             store_id_dropdowns={},

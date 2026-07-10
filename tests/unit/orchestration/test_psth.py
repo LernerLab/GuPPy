@@ -168,7 +168,7 @@ def test_validate_fiber_regions_consistent_passes_when_all_match(tmp_path):
     _validate_fiber_regions_consistent_for_group(np.array([str(output_1), str(output_2)]))
 
 
-def test_validate_fiber_regions_consistent_allows_reordered_storenames(tmp_path):
+def test_validate_fiber_regions_consistent_allows_reordered_stores(tmp_path):
     output_1 = tmp_path / "session1" / "session1_output_1"
     output_2 = tmp_path / "session2" / "session2_output_1"
     _write_stores_list(output_1, ["control_DMS", "signal_DMS", "port_entries"])
@@ -209,7 +209,7 @@ def test_validate_fiber_regions_raises_for_mismatched_region_labels(tmp_path):
         _validate_fiber_regions_consistent_for_group(np.array([str(output_1), str(output_2)]))
 
 
-def test_validate_fiber_regions_error_message_lists_session_name_and_storenames(tmp_path):
+def test_validate_fiber_regions_error_message_lists_session_name_and_store_ids(tmp_path):
     output_1 = tmp_path / "session1" / "session1_output_1"
     output_2 = tmp_path / "session2" / "session2_output_1"
     _write_stores_list(output_1, ["control_region1", "signal_region1"])

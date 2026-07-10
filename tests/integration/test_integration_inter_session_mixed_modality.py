@@ -25,12 +25,12 @@ def test_mixed_modality(tmp_path):
     npm_session_subdir = "npm/sampleData_NPM_4"
     doric_session_subdir = "doric/sample_doric_3"
 
-    npm_storenames_map = {
+    npm_store_id_to_store_label = {
         "file0_chev1": "control_region1",
         "file0_chod1": "signal_region1",
         "eventTrue": "ttl_true_region1",
     }
-    doric_storenames_map = {
+    doric_store_id_to_store_label = {
         "CAM1_EXC1/ROI01": "control_region",
         "CAM1_EXC2/ROI01": "signal_region",
         "DigitalIO/CAM1": "ttl",
@@ -68,13 +68,13 @@ def test_mixed_modality(tmp_path):
     step1(
         base_dir=base_dir,
         selected_folders=[npm_folder],
-        store_id_to_store_label=npm_storenames_map,
+        store_id_to_store_label=npm_store_id_to_store_label,
         npm_split_events=[True, True],
     )
     step1(
         base_dir=base_dir,
         selected_folders=[doric_folder],
-        store_id_to_store_label=doric_storenames_map,
+        store_id_to_store_label=doric_store_id_to_store_label,
     )
 
     # Steps 3–5 run once with both sessions; each session's storesList.csv is read independently.

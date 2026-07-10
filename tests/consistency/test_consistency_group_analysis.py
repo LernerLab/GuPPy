@@ -15,7 +15,7 @@ SESSION_SUBDIRS = [
 
 STANDARD_OUTPUT_SUBDIR = "StandardOutputs_group_analysis/average"
 
-STORENAMES_MAP = {
+STORE_ID_TO_STORE_LABEL = {
     "Dv1A": "control_region",
     "Dv2A": "signal_region",
     "LNRW": "rewarded_nose_pokes",
@@ -65,7 +65,7 @@ def test_consistency_group_analysis(tmp_path):
     )
 
     selected_runs = {folder: ["1"] for folder in selected_folders}
-    step1(**common_kwargs, store_id_to_store_label=STORENAMES_MAP)
+    step1(**common_kwargs, store_id_to_store_label=STORE_ID_TO_STORE_LABEL)
     step2(**common_kwargs, selected_runs=selected_runs)
     step3(**common_kwargs, control_fit_method="OLS", selected_runs=selected_runs)
     step4(**common_kwargs, selected_runs=selected_runs)

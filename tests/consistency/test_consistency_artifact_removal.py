@@ -30,7 +30,7 @@ _COORDS_NAN = np.array(
     ]
 )
 
-STORENAMES_MAP = {
+STORE_ID_TO_STORE_LABEL = {
     "Dv1A": "control_dms",
     "Dv2A": "signal_dms",
     "PrtN": "port_entries_dms",
@@ -102,7 +102,7 @@ def test_consistency(
     )
 
     selected_runs = {folder: ["1"] for folder in common_kwargs["selected_folders"]}
-    step1(**common_kwargs, store_id_to_store_label=STORENAMES_MAP)
+    step1(**common_kwargs, store_id_to_store_label=STORE_ID_TO_STORE_LABEL)
     step2(**common_kwargs, selected_runs=selected_runs)
     step3(
         **common_kwargs,

@@ -12,7 +12,7 @@ from conftest import STUBBED_TESTING_DATA as TESTING_DATA
 from guppy.testing.api import step1, step2, step3, step4
 
 SESSION_SUBDIR = "tdt/Photo_048_392-200728-121222"
-STORENAMES_MAP = {
+STORE_ID_TO_STORE_LABEL = {
     "Dv1A": "control_dms",
     "Dv2A": "signal_dms",
     "PrtN": "port_entries_dms",
@@ -88,7 +88,7 @@ def test_artifact_removal(tmp_path, artifact_removal_method, coords):
     )
     selected_runs = {str(session_copy): ["1"]}
 
-    step1(**common_kwargs, store_id_to_store_label=STORENAMES_MAP)
+    step1(**common_kwargs, store_id_to_store_label=STORE_ID_TO_STORE_LABEL)
     step2(**common_kwargs, selected_runs=selected_runs)
     step3(
         **common_kwargs,

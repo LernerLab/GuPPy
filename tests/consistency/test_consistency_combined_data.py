@@ -18,7 +18,7 @@ STANDARD_OUTPUT_SUBDIRS = [
     "StandardOutputs_combined/Photo_048_392-200728-121222/Photo_048_392-200728-121222_output_1",
 ]
 
-STORENAMES_MAP = {
+STORE_ID_TO_STORE_LABEL = {
     "Dv1A": "control_dms",
     "Dv2A": "signal_dms",
     "PrtN": "port_entries_dms",
@@ -61,7 +61,7 @@ def test_consistency(tmp_path):
     selected_folders = [str(s) for s in session_copies]
 
     selected_runs = {folder: ["1"] for folder in selected_folders}
-    step1(base_dir=str(tmp_base), selected_folders=selected_folders, store_id_to_store_label=STORENAMES_MAP)
+    step1(base_dir=str(tmp_base), selected_folders=selected_folders, store_id_to_store_label=STORE_ID_TO_STORE_LABEL)
     step2(base_dir=str(tmp_base), selected_folders=selected_folders, selected_runs=selected_runs)
     step3(
         base_dir=str(tmp_base),

@@ -9,7 +9,7 @@ from conftest import STUBBED_TESTING_DATA
 from guppy.testing.api import step1, step2, step3, step4
 
 SESSION_SUBDIR = "csv/sample_data_csv_1"
-STORENAMES_MAP = {
+STORE_ID_TO_STORE_LABEL = {
     "Sample_Control_Channel": "control_region",
     "Sample_Signal_Channel": "signal_region",
     "Sample_TTL": "ttl",
@@ -58,7 +58,7 @@ def test_zscore_method(tmp_path, zscore_method, step3_extra_kwargs):
     )
     selected_runs = {str(session_copy): ["1"]}
 
-    step1(**common_kwargs, store_id_to_store_label=STORENAMES_MAP)
+    step1(**common_kwargs, store_id_to_store_label=STORE_ID_TO_STORE_LABEL)
     step2(**common_kwargs, selected_runs=selected_runs)
     step3(**common_kwargs, zscore_method=zscore_method, selected_runs=selected_runs, **step3_extra_kwargs)
     step4(**common_kwargs, selected_runs=selected_runs)

@@ -16,7 +16,7 @@ SESSION_SUBDIRS = [
     "tdt/Photo_048_392-200728-121222",
     "tdt/Photo_63_207-181030-103332",
 ]
-STORENAMES_MAP = {
+STORE_ID_TO_STORE_LABEL = {
     "Dv1A": "control_dms",
     "Dv2A": "signal_dms",
     "PrtN": "port_entries_dms",
@@ -26,7 +26,7 @@ EXPECTED_TTL = "port_entries_dms"
 
 # Two sessions that share the same fiber region (dms) but record different behavioral
 # events, so each event's group average has a single contributing session (n=1).
-DISJOINT_STORENAMES = {
+DISJOINT_STORE_ID_TO_STORE_LABEL = {
     "tdt/Photo_048_392-200728-121222": {
         "Dv1A": "control_dms",
         "Dv2A": "signal_dms",
@@ -85,7 +85,7 @@ def test_group_analysis(copied_sessions):
     common_kwargs = dict(base_dir=base_dir, selected_folders=selected_folders)
     selected_runs = {folder: ["1"] for folder in selected_folders}
 
-    step1(**common_kwargs, store_id_to_store_label=STORENAMES_MAP)
+    step1(**common_kwargs, store_id_to_store_label=STORE_ID_TO_STORE_LABEL)
     step2(**common_kwargs, selected_runs=selected_runs)
     step3(**common_kwargs, selected_runs=selected_runs)
     step4(**common_kwargs, selected_runs=selected_runs)
@@ -149,7 +149,11 @@ def test_group_analysis_different_event_names_per_session(copied_sessions):
     # Step 1 is run per session so each gets a different behavioral-event store_id
     # while sharing the same control/signal (dms) fiber region.
     for session_folder, subdir in zip(selected_folders, SESSION_SUBDIRS):
-        step1(base_dir=base_dir, selected_folders=[session_folder], store_id_to_store_label=DISJOINT_STORENAMES[subdir])
+        step1(
+            base_dir=base_dir,
+            selected_folders=[session_folder],
+            store_id_to_store_label=DISJOINT_STORE_ID_TO_STORE_LABEL[subdir],
+        )
 
     common_kwargs = dict(base_dir=base_dir, selected_folders=selected_folders)
     step2(**common_kwargs, selected_runs=selected_runs)

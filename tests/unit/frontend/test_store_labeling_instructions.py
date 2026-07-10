@@ -8,7 +8,7 @@ from guppy.frontend.store_labeling_instructions import (
 )
 
 
-class TestStorenamesInstructions:
+class TestStoreLabelingInstructions:
     def test_widget_first_object_contains_basename(self, panel_extension, tmp_path):
         session_dir = tmp_path / "my_session"
         session_dir.mkdir()
@@ -18,14 +18,14 @@ class TestStorenamesInstructions:
         content = first_object.object if hasattr(first_object, "object") else str(first_object)
         assert "my_session" in content
 
-    def test_markdown_contains_select_storenames_text(self, panel_extension, tmp_path):
+    def test_markdown_contains_select_stores_text(self, panel_extension, tmp_path):
         session_dir = tmp_path / "session"
         session_dir.mkdir()
         instructions = StoreLabelingInstructions(folder_path=str(session_dir))
         assert "Select Stores" in instructions.mark_down.object
 
 
-class TestStorenamesInstructionsNPM:
+class TestStoreLabelingInstructionsNPM:
     @staticmethod
     def _preview():
         """Return an in-memory channel preview ({"x", "y"} arrays)."""
