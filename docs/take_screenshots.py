@@ -131,8 +131,8 @@ def screenshot_label_stores(page: Page, tmp_path: Path) -> None:
     page.goto(url)
     page.get_by_text("Select Stores").first.wait_for()
     page.wait_for_timeout(1000)
-    page.screenshot(path=OUTPUT_DIR / "02_storenames.png", full_page=False)
-    print("Saved 02_storenames.png")
+    page.screenshot(path=OUTPUT_DIR / "02_label_stores.png", full_page=False)
+    print("Saved 02_label_stores.png")
 
     pn.state.kill_all_servers()
 
@@ -250,8 +250,8 @@ def screenshot_label_stores_configured(page: Page, tmp_path: Path) -> None:
     page.goto(url)
     page.get_by_text("Label Stores").first.wait_for()
     page.wait_for_timeout(1500)
-    page.screenshot(path=OUTPUT_DIR / "02b_storenames_configured.png", full_page=False)
-    print("Saved 02b_storenames_configured.png")
+    page.screenshot(path=OUTPUT_DIR / "02b_label_stores_configured.png", full_page=False)
+    print("Saved 02b_label_stores_configured.png")
 
     pn.state.kill_all_servers()
 

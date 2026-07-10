@@ -90,7 +90,7 @@ A **store** is the human-readable label GuPPy uses for one of your data channels
 
 Click **Label Stores** in the sidebar. A new browser tab opens with the Label Stores panel for the selected folder.
 
-```{image} ../_static/images/02_storenames.png
+```{image} ../_static/images/02_label_stores.png
 :alt: Label Stores GUI with the three sample CSV channels listed as available options
 :align: center
 ```
@@ -101,7 +101,7 @@ The three CSV filenames appear in the left list (**Filter available options**) o
 
 2. **Click "Select Label Stores".** A new *Configure Label Stores* section appears below, with one row per channel. Each row has a **Type** dropdown and a **Name** text field.
 
-   ```{image} ../_static/images/02b_storenames_configured.png
+   ```{image} ../_static/images/02b_label_stores_configured.png
    :alt: Label Stores GUI after clicking Select Label Stores, showing the Configure Label Stores section with a Type dropdown and Name field for each of the three channels
    :align: center
    ```
