@@ -64,20 +64,12 @@ class TestStoreLabelingSelector:
 
     def test_configure_store_ids_visible_when_store_ids_present(self, panel_extension):
         selector = StoreLabelingSelector(allnames=["Dv1A"])
-        selector.configure_store_ids(
-            store_id_dropdowns={},
-            store_id_textboxes={},
-            store_ids=["Dv1A"],
-            store_id_to_store_labels={},
-        )
+        selector.store_ids = ["Dv1A"]
+        selector.configure_store_ids(store_id_to_store_labels={})
         assert selector.store_id_config_widgets.visible is True
 
     def test_configure_store_ids_hidden_when_store_ids_empty(self, panel_extension):
         selector = StoreLabelingSelector(allnames=["Dv1A"])
-        selector.configure_store_ids(
-            store_id_dropdowns={},
-            store_id_textboxes={},
-            store_ids=[],
-            store_id_to_store_labels={},
-        )
+        selector.store_ids = []
+        selector.configure_store_ids(store_id_to_store_labels={})
         assert selector.store_id_config_widgets.visible is False

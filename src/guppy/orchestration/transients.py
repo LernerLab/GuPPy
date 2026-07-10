@@ -21,7 +21,11 @@ from ..analysis.standard_io import (
 from ..analysis.transients import analyze_transients
 from ..analysis.transients_average import averageForGroup
 from ..frontend.progress import PB_STEPS_FILE, subprocess_main_handler, writeToFile
-from ..utils.utils import get_all_stores_for_combining_data, select_run_folders
+from ..utils.utils import (
+    get_all_stores_for_combining_data,
+    is_headless,
+    select_run_folders,
+)
 from ..visualization.transients import visualize_peaks
 
 logger = logging.getLogger(__name__)
@@ -196,7 +200,7 @@ def executeFindFreqAndAmp(inputParameters: dict[str, object]) -> None:
     if average == True:
         execute_average_for_group(inputParameters, group_session_folders)
     else:
-        headless = bool(os.environ.get("GUPPY_BASE_DIR"))
+        headless = is_headless()
         if combine_data == True:
             execute_find_freq_and_amp_combined(inputParameters, session_folders, moving_window, numProcesses)
             if not headless:

@@ -16,6 +16,22 @@ NPM_PARAMS_FILENAME = ".npm_params.json"
 NPM_PARAM_KEYS = ("npm_split_events", "npm_time_units", "npm_timestamp_column_names")
 
 
+def is_headless() -> bool:
+    """Report whether GuPPy is running in headless/test mode.
+
+    Headless mode is signalled by the ``GUPPY_BASE_DIR`` environment variable,
+    which the testing API sets to bypass the Tk folder dialog. Code paths that
+    open GUI dialogs or interactive matplotlib backends should be skipped when
+    this returns ``True``.
+
+    Returns
+    -------
+    bool
+        ``True`` when ``GUPPY_BASE_DIR`` is set, ``False`` otherwise.
+    """
+    return bool(os.environ.get("GUPPY_BASE_DIR"))
+
+
 def write_npm_params(*, run_folder: str, npm_params: dict[str, object]) -> None:
     """Persist the NPM decomposition parameters for one output directory.
 
