@@ -1,10 +1,10 @@
 import logging
-import os
 
 import numpy as np
 
 from .io_utils import (
     decide_naming_convention,
+    region_from_channel_path,
 )
 from .realignment import concatenate_and_realign_data, realign_ttl_timestamps
 
@@ -125,12 +125,12 @@ def combine_data(
     store_label_to_data = {}
     compound_name_to_ttl_timestamps = {}
     for j in range(path.shape[1]):
-        name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")[-1]
-        name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")[-1]
+        name_1 = region_from_channel_path(path[0, j])
+        name_2 = region_from_channel_path(path[1, j])
         if name_1 != name_2:
             message = (
-                f"Pair name mismatch in '{filepaths_to_combine[0]}': control file suffix '{name_1}' does not match "
-                f"signal file suffix '{name_2}'. Check the naming convention of your files and the "
+                f"Pair name mismatch in '{filepaths_to_combine[0]}': control file region '{name_1}' does not match "
+                f"signal file region '{name_2}'. Check the naming convention of your files and the "
                 f"storesList file, then re-run step 1."
             )
             logger.error(message)

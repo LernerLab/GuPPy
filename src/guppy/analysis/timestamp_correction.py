@@ -2,7 +2,7 @@ import logging
 
 import numpy as np
 
-from .io_utils import get_control_and_signal_channel_names
+from .io_utils import get_control_and_signal_channel_names, region_from_channel_label
 
 logger = logging.getLogger(__name__)
 
@@ -210,7 +210,7 @@ def decide_naming_and_applyCorrection_ttl(
     compound_name_to_corrected_ttl_timestamps = {}
     for ttl_name, ttl_timestamps in store_label_to_timestamps_ttl.items():
         for i in range(control_signal_names.shape[1]):
-            name_1 = control_signal_names[0, i].split("_")[-1]
+            name_1 = region_from_channel_label(control_signal_names[0, i])
 
             match_index = np.where(store_labels == indices[i])[0]
 

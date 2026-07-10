@@ -123,58 +123,68 @@ def _fetchValues(
     store_ids: list,
     store_id_dropdowns: dict,
     store_id_textboxes: dict,
+    store_id_control_refs: dict,
     store_labeling_config: dict,
     isosbestic_control: bool = False,
 ) -> str:
     if not store_id_dropdowns or not len(store_ids) > 0:
         return "####Alert !! \n No store_ids selected."
 
-    comboBoxValues, textBoxValues = [], []
     dropdown_keys = list(store_id_dropdowns.keys())
 
-    # Get dropdown values
+    # First pass: resolve each signal row's name. The name is entered only on the
+    # signal row and is the pair name; a control inherits it by reference, so the
+    # two can never be mismatched and underscores in the name are preserved.
+    signal_key_to_name = {}
     for key in dropdown_keys:
-        comboBoxValues.append(store_id_dropdowns[key].value)
-
-    # Get textbox values (all store_ids always have a textbox)
-    for key in dropdown_keys:
-        textbox_value = store_id_textboxes[key].value or ""
-        textBoxValues.append(textbox_value)
-
-        # Validation: Check for whitespace
-        if len(textbox_value.split()) > 1:
-            return "####Alert !! \n Whitespace is not allowed in the text box entry."
-
-        # Validation: Check for empty required fields
-        dropdown_value = store_id_dropdowns[key].value
-        if not textbox_value and dropdown_value in ["control", "signal", "event TTLs"]:
-            return "####Alert !! \n One of the text box entry is empty."
-
-    if len(comboBoxValues) != len(textBoxValues):
-        return "####Alert !! \n Number of entries in combo box and text box should be same."
+        if store_id_dropdowns[key].value == "signal":
+            signal_key_to_name[key] = store_id_textboxes[key].value or ""
 
     store_labels = []
-    signal_regions = []
-    control_regions = []
-    for i in range(len(comboBoxValues)):
-        if comboBoxValues[i] == "control" or comboBoxValues[i] == "signal":
-            if "_" in textBoxValues[i]:
-                return "####Alert !! \n Please do not use underscore in region name."
-            store_labels.append("{}_{}".format(comboBoxValues[i], textBoxValues[i]))
-            if comboBoxValues[i] == "signal":
-                signal_regions.append(textBoxValues[i])
-            else:
-                control_regions.append(textBoxValues[i])
-        elif comboBoxValues[i] == "event TTLs":
-            store_labels.append(textBoxValues[i])
+    signal_names = []
+    signals_with_control = set()
+    for key in dropdown_keys:
+        dropdown_value = store_id_dropdowns[key].value
+        if dropdown_value == "signal":
+            name = store_id_textboxes[key].value or ""
+            if not name:
+                return "####Alert !! \n One of the text box entry is empty."
+            if len(name.split()) > 1:
+                return "####Alert !! \n Whitespace is not allowed in the text box entry."
+            store_labels.append("signal_{}".format(name))
+            signal_names.append(name)
+        elif dropdown_value == "control":
+            signal_key = store_id_control_refs[key].value
+            if not signal_key:
+                return (
+                    "####Alert !! \n Every control must be assigned to a signal. "
+                    "Select the signal each control belongs to."
+                )
+            signal_name = signal_key_to_name.get(signal_key, "")
+            store_labels.append("control_{}".format(signal_name))
+            signals_with_control.add(signal_name)
+        elif dropdown_value == "event TTLs":
+            name = store_id_textboxes[key].value or ""
+            if not name:
+                return "####Alert !! \n One of the text box entry is empty."
+            if len(name.split()) > 1:
+                return "####Alert !! \n Whitespace is not allowed in the text box entry."
+            store_labels.append(name)
         else:
-            store_labels.append(comboBoxValues[i])
+            store_labels.append(dropdown_value)
 
-    # Validation: reject duplicate store_labels entries
+    # Validation: signal names are the pair keys and must be unique.
+    duplicate_signals = sorted({name for name in signal_names if signal_names.count(name) > 1})
+    if duplicate_signals:
+        return "####Alert !! \n Duplicate signal name(s): {}. " "Each signal must have a unique name.".format(
+            ", ".join(duplicate_signals)
+        )
+
+    # Validation: reject duplicate store_labels (e.g. two controls assigned to the same signal).
     seen = set()
     duplicates = []
     for name in store_labels:
-        if name in seen and name not in duplicates:
+        if name and name in seen and name not in duplicates:
             duplicates.append(name)
         seen.add(name)
     if duplicates:
@@ -183,21 +193,15 @@ def _fetchValues(
             "Each name (e.g. 'signal_DMS', 'lever_press') must be unique.".format(", ".join(duplicates))
         )
 
-    # Validation: when isosbestic control is enabled, every signal_<R> must have a
-    # matching control_<R> and vice versa. Skipped when isosbestic_control is False
-    # (signal-only configurations are valid in that case).
-    signal_without_control = sorted(set(signal_regions) - set(control_regions))
-    control_without_signal = sorted(set(control_regions) - set(signal_regions))
-    if isosbestic_control and (signal_without_control or control_without_signal):
-        parts = []
-        if signal_without_control:
-            parts.append("signal region(s) without a matching control: {}".format(", ".join(signal_without_control)))
-        if control_without_signal:
-            parts.append("control region(s) without a matching signal: {}".format(", ".join(control_without_signal)))
-        return (
-            "####Alert !! \n Mismatched signal/control region pairs — {}. "
-            "Every 'signal_<region>' must have a matching 'control_<region>'.".format("; ".join(parts))
-        )
+    # Validation: when isosbestic control is enabled, every signal must have a control
+    # assigned to it. Skipped when isosbestic_control is False (signal-only is valid then).
+    if isosbestic_control:
+        signals_without_control = sorted(set(signal_names) - signals_with_control)
+        if signals_without_control:
+            return (
+                "####Alert !! \n Isosbestic control is enabled but these signals have no control "
+                "assigned: {}. Assign a control to each signal.".format(", ".join(signals_without_control))
+            )
 
     store_labeling_config["store_ids"] = text.value
     store_labeling_config["store_labels"] = store_labels
@@ -350,6 +354,7 @@ def build_store_labeling_template(
             store_ids=store_labeling_selector.store_ids,
             store_id_dropdowns=store_labeling_selector.store_id_dropdowns,
             store_id_textboxes=store_labeling_selector.store_id_textboxes,
+            store_id_control_refs=store_labeling_selector.store_id_control_refs,
             store_labeling_config=store_labeling_config,
             isosbestic_control=isosbestic_control,
         )

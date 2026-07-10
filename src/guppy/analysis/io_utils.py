@@ -11,6 +11,80 @@ from ..utils.utils import takeOnlyDirs
 
 logger = logging.getLogger(__name__)
 
+SIGNAL_PREFIX = "signal_"
+CONTROL_PREFIX = "control_"
+ZSCORE_PREFIX = "z_score_"
+DFF_PREFIX = "dff_"
+
+
+def region_from_channel_label(label: str) -> str:
+    """
+    Return the region/pair name of a control or signal channel label.
+
+    The role is encoded as a fixed leading prefix (``signal_`` / ``control_``), so the
+    region is recovered by stripping that prefix rather than by splitting on the last
+    underscore. This keeps region names that themselves contain underscores intact.
+
+    Parameters
+    ----------
+    label : str
+        Channel label, e.g. ``"signal_DMS"`` or ``"control_left_hemisphere"``.
+
+    Returns
+    -------
+    str
+        The region/pair name with its original case preserved, e.g. ``"DMS"`` or
+        ``"left_hemisphere"``. Labels without a control/signal prefix are returned
+        unchanged.
+    """
+    lowered = label.lower()
+    if lowered.startswith(SIGNAL_PREFIX):
+        return label[len(SIGNAL_PREFIX) :]
+    if lowered.startswith(CONTROL_PREFIX):
+        return label[len(CONTROL_PREFIX) :]
+    return label
+
+
+def region_from_preprocessed_label(label: str) -> str:
+    """
+    Return the region/pair name of a ``z_score_*`` / ``dff_*`` label or basename.
+
+    The prefix is stripped rather than split on the last underscore, so region names
+    containing underscores are preserved.
+
+    Parameters
+    ----------
+    label : str
+        Label or extension-stripped basename, e.g. ``"z_score_left_hemisphere"``.
+
+    Returns
+    -------
+    str
+        The region/pair name, e.g. ``"left_hemisphere"``.
+    """
+    if label.startswith(ZSCORE_PREFIX):
+        return label[len(ZSCORE_PREFIX) :]
+    if label.startswith(DFF_PREFIX):
+        return label[len(DFF_PREFIX) :]
+    return label
+
+
+def region_from_channel_path(path: str) -> str:
+    """
+    Return the region/pair name of a ``control_*`` / ``signal_*`` HDF5 file path.
+
+    Parameters
+    ----------
+    path : str
+        File path such as ``".../signal_left_hemisphere.hdf5"``.
+
+    Returns
+    -------
+    str
+        The region/pair name, e.g. ``"left_hemisphere"``.
+    """
+    return region_from_channel_label(os.path.splitext(os.path.basename(path))[0])
+
 
 def find_files(path: str, glob_path: str, ignore_case: bool = False) -> list[str]:
     """
@@ -84,21 +158,34 @@ def decide_naming_convention(filepath: str) -> np.ndarray:
         Shape ``(2, N)`` array where row 0 contains control file paths and
         row 1 contains the matching signal file paths.
     """
-    path_1 = find_files(filepath, "control_*", ignore_case=True)
+    control_paths = find_files(filepath, "control_*", ignore_case=True)
+    signal_paths = find_files(filepath, "signal_*", ignore_case=True)
 
-    path_2 = find_files(filepath, "signal_*", ignore_case=True)
+    # Pair by region name (fixed-prefix strip) rather than by sort position so that
+    # region names containing underscores are handled correctly.
+    control_by_region = {region_from_channel_label(os.path.splitext(os.path.basename(p))[0]): p for p in control_paths}
+    signal_by_region = {region_from_channel_label(os.path.splitext(os.path.basename(p))[0]): p for p in signal_paths}
 
-    path = sorted(path_1 + path_2, key=str.casefold)
-    if len(path) % 2 != 0:
+    if set(control_by_region) != set(signal_by_region):
+        control_without_signal = sorted(set(control_by_region) - set(signal_by_region))
+        signal_without_control = sorted(set(signal_by_region) - set(control_by_region))
+        parts = []
+        if control_without_signal:
+            parts.append(f"control file(s) without a matching signal: {', '.join(control_without_signal)}")
+        if signal_without_control:
+            parts.append(f"signal file(s) without a matching control: {', '.join(signal_without_control)}")
         message = (
-            f"Unequal number of control and signal files in '{filepath}': "
-            f"found {len(path_1)} control and {len(path_2)} signal file(s). "
-            "Each signal must be paired with a control; re-run step 1 to fix the entries."
+            f"Mismatched control/signal files in '{filepath}' — "
+            + "; ".join(parts)
+            + ". Each signal must be paired with a control; re-run step 1 to fix the entries."
         )
         logger.error(message)
         raise ValueError(message)
 
-    path = np.asarray(path).reshape(2, -1)
+    regions = sorted(control_by_region, key=str.casefold)
+    path = np.asarray(
+        [[control_by_region[region] for region in regions], [signal_by_region[region] for region in regions]]
+    )
 
     return path
 
@@ -238,48 +325,41 @@ def get_control_and_signal_channel_names(store_array: np.ndarray) -> np.ndarray:
         Shape ``(2, N)`` array where row 0 is control display names and
         row 1 is the matching signal display names.
     """
-    store_ids = store_array[0, :]
     store_labels = store_array[1, :]
 
-    control_signal_names = []
-    for i in range(store_labels.shape[0]):
-        if "control" in store_labels[i].lower() or "signal" in store_labels[i].lower():
-            control_signal_names.append(store_labels[i])
+    # Group control and signal labels by their region/pair name (fixed-prefix strip)
+    # so pairing is explicit rather than dependent on sort order. This keeps region
+    # names that contain underscores intact.
+    control_by_region = {}
+    signal_by_region = {}
+    for label in store_labels:
+        lowered = label.lower()
+        if lowered.startswith(CONTROL_PREFIX):
+            control_by_region[region_from_channel_label(label)] = label
+        elif lowered.startswith(SIGNAL_PREFIX):
+            signal_by_region[region_from_channel_label(label)] = label
 
-    control_signal_names = sorted(control_signal_names, key=str.casefold)
-
-    signal_regions = {name[len("signal_") :] for name in control_signal_names if name.lower().startswith("signal_")}
-    control_regions = {name[len("control_") :] for name in control_signal_names if name.lower().startswith("control_")}
-    # Only enforce region pairing when both signal and control channels are present
-    # (signal-only / control-only configurations are valid when isosbestic control is disabled).
-    if signal_regions and control_regions:
-        signal_without_control = sorted(signal_regions - control_regions)
-        control_without_signal = sorted(control_regions - signal_regions)
-        if signal_without_control or control_without_signal:
-            parts = []
-            if signal_without_control:
-                parts.append(f"signal region(s) without a matching control: {', '.join(signal_without_control)}")
-            if control_without_signal:
-                parts.append(f"control region(s) without a matching signal: {', '.join(control_without_signal)}")
-            message = (
-                "Mismatched signal/control region pairs in storesList — "
-                + "; ".join(parts)
-                + ". Every 'signal_<region>' must have a matching 'control_<region>' when "
-                "isosbestic control is enabled. Re-run step 1 (Label Stores) to fix the region names."
-            )
-            logger.error(message)
-            raise ValueError(message)
-
-    try:
-        control_signal_names = np.asarray(control_signal_names).reshape(2, -1)
-    except ValueError:
+    signal_without_control = sorted(set(signal_by_region) - set(control_by_region), key=str.casefold)
+    control_without_signal = sorted(set(control_by_region) - set(signal_by_region), key=str.casefold)
+    if signal_without_control or control_without_signal:
+        parts = []
+        if signal_without_control:
+            parts.append(f"signal region(s) without a matching control: {', '.join(signal_without_control)}")
+        if control_without_signal:
+            parts.append(f"control region(s) without a matching signal: {', '.join(control_without_signal)}")
         message = (
-            f"Cannot pair control and signal channels: found {len(control_regions)} control and "
-            f"{len(signal_regions)} signal entries in storesList. Each signal must be paired with a control "
-            "when isosbestic control is enabled; re-run step 1 (Label Stores) to correct the entries."
+            "Mismatched signal/control region pairs in storesList — "
+            + "; ".join(parts)
+            + ". Every 'signal_<region>' must have a matching 'control_<region>'. "
+            "Re-run step 1 (Label Stores) to fix the region names."
         )
         logger.error(message)
         raise ValueError(message)
+
+    regions = sorted(control_by_region, key=str.casefold)
+    control_signal_names = np.asarray(
+        [[control_by_region[region] for region in regions], [signal_by_region[region] for region in regions]]
+    )
 
     return control_signal_names
 

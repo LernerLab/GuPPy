@@ -21,6 +21,7 @@ from ..analysis.io_utils import (
     make_dir_for_cross_correlation,
     makeAverageDir,
     read_hdf5,
+    region_from_preprocessed_label,
     write_hdf5,
 )
 from ..analysis.psth_average import averageForGroup
@@ -79,7 +80,7 @@ def execute_compute_psth(filepath: str, event: str, inputParameters: dict[str, o
     for i in range(len(path)):
         logger.info(f"Computing PSTH for event {event}...")
         basename = (os.path.basename(path[i])).split(".")[0]
-        name_1 = basename.split("_")[-1]
+        name_1 = region_from_preprocessed_label(basename)
         control = read_hdf5("control_" + name_1, os.path.dirname(path[i]), "data")
         if (control == 0).all() == True:
             signal = read_hdf5("signal_" + name_1, os.path.dirname(path[i]), "data")
@@ -157,7 +158,7 @@ def execute_compute_psth_peak_and_area(filepath: str, event: str, inputParameter
     for i in range(len(path)):
         logger.info(f"Computing peak and area for PSTH mean signal for event {event}...")
         basename = (os.path.basename(path[i])).split(".")[0]
-        name_1 = basename.split("_")[-1]
+        name_1 = region_from_preprocessed_label(basename)
         sampling_rate = read_hdf5("timeCorrection_" + name_1, filepath, "sampling_rate")[0]
         psth = read_Df(filepath, event + "_" + name_1, basename)
         columns = list(psth.columns)
