@@ -8,7 +8,7 @@
 - The Heat Map's first and last trial rows no longer render at half height: the Trials (Y) axis now always spans the full cell edges on every render, and its manual axis-limit boxes (which could clip the edge rows) were removed since the axis only encodes trial number. [PR #374](https://github.com/LernerLab/GuPPy/pull/374)
 
 ## Improvements
-- Removed global-variable state where avoidable: the Label Stores GUI's store selection now lives on the `StoreLabelingSelector` object instead of a module global shared through button callbacks, and the duplicated headless-mode check is centralized in a single `is_headless()` helper. [PR #NNN](https://github.com/LernerLab/GuPPy/pull/NNN)
+- Removed global-variable state where avoidable: the Label Stores GUI's store selection now lives on the `StoreLabelingSelector` object instead of a module global shared through button callbacks, and the duplicated headless-mode check is centralized in a single `is_headless()` helper. [PR #380](https://github.com/LernerLab/GuPPy/pull/380)
 - Renamed vague variable names (`arr`, `d`, `ts`, `op`, `cols`, suffixed `*_arr`, etc.) throughout `src/guppy/` to descriptive, context-appropriate names; behavior-preserving (consistency suite unchanged). [PR #378](https://github.com/LernerLab/GuPPy/pull/378)
 - Deduplicated copy-pasted code: shared timestamp-realignment kernels for artifact-removal and multi-session combining, a shared group-averaging preamble, a single pipeline-step launch helper in the homepage, and shared ndx-fiber-photometry boilerplate across the mock-NWB generators. [PR #377](https://github.com/LernerLab/GuPPy/pull/377)
 - Removed commented-out dead code throughout `src/guppy/` and clarified the remaining comments. [PR #376](https://github.com/LernerLab/GuPPy/pull/376)
