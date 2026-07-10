@@ -33,10 +33,10 @@ def read_hdf5(event: str, filepath: str, key: str) -> np.ndarray:
     return data
 
 
-def write_hdf5(data: np.ndarray | float | int | str | bool, storename: str, output_path: str, key: str) -> None:
-    storename = storename.replace("\\", "_")
-    storename = storename.replace("/", "_")
-    hdf5_path = os.path.join(output_path, storename + ".hdf5")
+def write_hdf5(data: np.ndarray | float | int | str | bool, store_id: str, output_path: str, key: str) -> None:
+    store_id = store_id.replace("\\", "_")
+    store_id = store_id.replace("/", "_")
+    hdf5_path = os.path.join(output_path, store_id + ".hdf5")
 
     if not os.path.exists(hdf5_path):
         with h5py.File(hdf5_path, "w") as hdf5_file:

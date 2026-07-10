@@ -16,11 +16,11 @@ def test_remove_artifacts_raises_for_invalid_method():
     with pytest.raises(ValueError, match=r"Invalid artifact removal method 'bogus'"):
         remove_artifacts(
             timeForLightsTurnOn=0.0,
-            storesList=np.array([["c"], ["control_dms"]]),
+            store_array=np.array([["c"], ["control_dms"]]),
             pair_name_to_tsNew={},
             pair_name_to_sampling_rate={},
             pair_name_to_coords={},
-            name_to_data={},
+            store_label_to_data={},
             compound_name_to_ttl_timestamps={},
             method="bogus",
         )
@@ -30,11 +30,11 @@ def test_remove_artifacts_invalid_method_message_lists_allowed_methods():
     with pytest.raises(ValueError) as exception_info:
         remove_artifacts(
             timeForLightsTurnOn=0.0,
-            storesList=np.array([["c"], ["control_dms"]]),
+            store_array=np.array([["c"], ["control_dms"]]),
             pair_name_to_tsNew={},
             pair_name_to_sampling_rate={},
             pair_name_to_coords={},
-            name_to_data={},
+            store_label_to_data={},
             compound_name_to_ttl_timestamps={},
             method="bogus",
         )
@@ -170,14 +170,14 @@ def test_remove_ttls_two_windows_returns_timestamps_from_both():
 
 
 def test_adding_nan_to_chunks_sets_nan_outside_coords_for_signal_and_control():
-    storesList = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
+    store_array = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
     tsNew = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
     coords = np.array([[1.0, 4.0]])
-    name_to_data = {"control_dms": np.ones(6), "signal_dms": np.ones(6) * 2.0}
+    store_label_to_data = {"control_dms": np.ones(6), "signal_dms": np.ones(6) * 2.0}
     compound_name_to_ttl_timestamps = {"TTL1_dms": np.array([1.5, 2.5, 4.5])}
 
     result_data, _ = addingNaNtoChunksWithArtifacts(
-        storesList, {"dms": tsNew}, {"dms": coords}, name_to_data, compound_name_to_ttl_timestamps
+        store_array, {"dms": tsNew}, {"dms": coords}, store_label_to_data, compound_name_to_ttl_timestamps
     )
 
     # ts=[0,1,2,3,4,5]: strictly inside (1,4) → indices 2,3; outside → 0,1,4,5 must be NaN
@@ -189,14 +189,14 @@ def test_adding_nan_to_chunks_sets_nan_outside_coords_for_signal_and_control():
 
 
 def test_adding_nan_to_chunks_drops_ttls_outside_coords():
-    storesList = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
+    store_array = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
     tsNew = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
     coords = np.array([[1.0, 4.0]])
-    name_to_data = {"control_dms": np.ones(6), "signal_dms": np.ones(6)}
+    store_label_to_data = {"control_dms": np.ones(6), "signal_dms": np.ones(6)}
     compound_name_to_ttl_timestamps = {"TTL1_dms": np.array([1.5, 2.5, 4.5])}
 
     _, result_ttl = addingNaNtoChunksWithArtifacts(
-        storesList, {"dms": tsNew}, {"dms": coords}, name_to_data, compound_name_to_ttl_timestamps
+        store_array, {"dms": tsNew}, {"dms": coords}, store_label_to_data, compound_name_to_ttl_timestamps
     )
 
     # 4.5 is outside (1, 4); only 1.5 and 2.5 are kept
@@ -207,18 +207,24 @@ def test_adding_nan_to_chunks_drops_ttls_outside_coords():
 
 
 def test_process_timestamps_for_artifacts_concatenates_data_inside_coords():
-    storesList = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
+    store_array = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
     tsNew = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
     coords = np.array([[1.0, 4.0]])
     # ts strictly inside (1, 4): indices 2 and 3 (ts=2.0, ts=3.0)
-    name_to_data = {
+    store_label_to_data = {
         "control_dms": np.array([10.0, 20.0, 30.0, 40.0, 50.0, 60.0]),
         "signal_dms": np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
     }
     compound_name_to_ttl_timestamps = {"TTL1_dms": np.array([1.5, 2.5, 4.5])}
 
     result_data, result_ts, result_ttl = processTimestampsForArtifacts(
-        0.5, storesList, {"dms": tsNew}, {"dms": 100.0}, {"dms": coords}, name_to_data, compound_name_to_ttl_timestamps
+        0.5,
+        store_array,
+        {"dms": tsNew},
+        {"dms": 100.0},
+        {"dms": coords},
+        store_label_to_data,
+        compound_name_to_ttl_timestamps,
     )
 
     # Only 2 samples inside the window
@@ -234,19 +240,19 @@ def test_process_timestamps_for_artifacts_concatenates_data_inside_coords():
 
 
 def test_remove_artifacts_concatenate_method_returns_correct_data():
-    storesList = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
+    store_array = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
     tsNew = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
     coords = np.array([[1.0, 4.0]])
-    name_to_data = {"control_dms": np.ones(6), "signal_dms": np.ones(6) * 2.0}
+    store_label_to_data = {"control_dms": np.ones(6), "signal_dms": np.ones(6) * 2.0}
     compound_name_to_ttl_timestamps = {"TTL1_dms": np.array([1.5, 2.5, 4.5])}
 
     result_data, result_ts, result_ttl = remove_artifacts(
         0.5,
-        storesList,
+        store_array,
         {"dms": tsNew},
         {"dms": 100.0},
         {"dms": coords},
-        name_to_data,
+        store_label_to_data,
         compound_name_to_ttl_timestamps,
         method="concatenate",
     )
@@ -257,19 +263,19 @@ def test_remove_artifacts_concatenate_method_returns_correct_data():
 
 
 def test_remove_artifacts_replace_with_nan_method_returns_nan_outside_coords():
-    storesList = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
+    store_array = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
     tsNew = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
     coords = np.array([[1.0, 4.0]])
-    name_to_data = {"control_dms": np.ones(6), "signal_dms": np.ones(6)}
+    store_label_to_data = {"control_dms": np.ones(6), "signal_dms": np.ones(6)}
     compound_name_to_ttl_timestamps = {"TTL1_dms": np.array([1.5, 2.5, 4.5])}
 
     result_data, result_ts, result_ttl = remove_artifacts(
         0.0,
-        storesList,
+        store_array,
         {"dms": tsNew},
         {"dms": 100.0},
         {"dms": coords},
-        name_to_data,
+        store_label_to_data,
         compound_name_to_ttl_timestamps,
         method="replace with NaN",
     )

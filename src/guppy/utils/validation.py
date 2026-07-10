@@ -21,7 +21,7 @@ Conventions
     can be evaluated from the form alone (folder selected, DANDI URI present).
   * Orchestration (``src/guppy/orchestration/``): pre-execution prerequisite
     checks that depend on the cross-product of multiple parameters or on
-    on-disk state (storenames consistency, peak-window ordering, metric
+    on-disk state (store_ids consistency, peak-window ordering, metric
     availability against step-4 outputs).
   * Analysis (``src/guppy/analysis/``): parameter-vs-data checks that need a
     loaded signal (baseline window inside signal timespan).

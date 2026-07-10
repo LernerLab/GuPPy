@@ -81,10 +81,10 @@ def eliminateTs(
 def combine_data(
     filepaths_to_combine: list[str],
     pair_name_to_filepath_to_timestamps: dict[str, dict[str, np.ndarray]],
-    display_name_to_filepath_to_data: dict[str, dict[str, np.ndarray]],
+    store_label_to_filepath_to_data: dict[str, dict[str, np.ndarray]],
     compound_name_to_filepath_to_ttl_timestamps: dict[str, dict[str, np.ndarray]],
     timeForLightsTurnOn: float,
-    storesList: np.ndarray,
+    store_array: np.ndarray,
     sampling_rate: float,
 ) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray]]:
     """
@@ -96,14 +96,14 @@ def combine_data(
         Ordered list of session output directories to concatenate.
     pair_name_to_filepath_to_timestamps : dict
         ``{pair_name: {filepath: timestamps_array}}``.
-    display_name_to_filepath_to_data : dict
-        ``{display_name: {filepath: data_array}}``.
+    store_label_to_filepath_to_data : dict
+        ``{store_label: {filepath: data_array}}``.
     compound_name_to_filepath_to_ttl_timestamps : dict
         ``{compound_name: {filepath: ttl_timestamps_array}}``.
     timeForLightsTurnOn : float
         Seconds offset used to set the new time zero.
-    storesList : np.ndarray
-        2-D array with rows [storenames, display_names].
+    store_array : np.ndarray
+        2-D array with rows [store_id, store_label].
     sampling_rate : float
         Sampling rate in Hz.
 
@@ -111,18 +111,18 @@ def combine_data(
     -------
     pair_name_to_tsNew : dict
         Pair name → combined and realigned timestamp array.
-    display_name_to_data : dict
-        Display name → combined data array.
+    store_label_to_data : dict
+        Store label → combined data array.
     compound_name_to_ttl_timestamps : dict
         Compound TTL name → combined TTL timestamp array.
     """
     logger.debug("Processing timestamps for combining data...")
 
-    names_for_storenames = storesList[1, :]
+    store_labels = store_array[1, :]
     path = decide_naming_convention(filepaths_to_combine[0])
 
     pair_name_to_tsNew = {}
-    display_name_to_data = {}
+    store_label_to_data = {}
     compound_name_to_ttl_timestamps = {}
     for j in range(path.shape[1]):
         name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")[-1]
@@ -137,14 +137,14 @@ def combine_data(
             raise ValueError(message)
         pair_name = name_1
 
-        for i in range(len(names_for_storenames)):
+        for i in range(len(store_labels)):
             if (
-                "control_" + pair_name.lower() in names_for_storenames[i].lower()
-                or "signal_" + pair_name.lower() in names_for_storenames[i].lower()
+                "control_" + pair_name.lower() in store_labels[i].lower()
+                or "signal_" + pair_name.lower() in store_labels[i].lower()
             ):
-                display_name = names_for_storenames[i]
+                store_label = store_labels[i]
                 filepath_to_timestamps = pair_name_to_filepath_to_timestamps[pair_name]
-                filepath_to_data = display_name_to_filepath_to_data[display_name]
+                filepath_to_data = store_label_to_filepath_to_data[store_label]
                 data, timestampNew = eliminateData(
                     filepath_to_timestamps,
                     filepath_to_data,
@@ -152,11 +152,11 @@ def combine_data(
                     sampling_rate,
                 )
                 pair_name_to_tsNew[pair_name] = timestampNew
-                display_name_to_data[display_name] = data
+                store_label_to_data[store_label] = data
             else:
-                if "control" in names_for_storenames[i].lower() or "signal" in names_for_storenames[i].lower():
+                if "control" in store_labels[i].lower() or "signal" in store_labels[i].lower():
                     continue
-                compound_name = names_for_storenames[i] + "_" + pair_name
+                compound_name = store_labels[i] + "_" + pair_name
                 filepath_to_timestamps = pair_name_to_filepath_to_timestamps[pair_name]
                 filepath_to_ttl_timestamps = compound_name_to_filepath_to_ttl_timestamps[compound_name]
 
@@ -168,4 +168,4 @@ def combine_data(
                 )
                 compound_name_to_ttl_timestamps[compound_name] = ttl_timestamps
 
-    return pair_name_to_tsNew, display_name_to_data, compound_name_to_ttl_timestamps
+    return pair_name_to_tsNew, store_label_to_data, compound_name_to_ttl_timestamps

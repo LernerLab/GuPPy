@@ -15,10 +15,10 @@ def test_step1_npm_idempotent(tmp_path):
     NPM demultiplexes in memory and writes no intermediate CSVs into the source folder, so a
     second run sees the same raw files as the first and detect_acquisition_formats reports the
     same formats. This guards that re-running Step 1 stays idempotent (no leftover artifacts
-    that could change modality detection or the storesList on the second run).
+    that could change modality detection or the store_array on the second run).
     """
     session_subdir = "npm/sampleData_NPM_4"
-    storenames_map = {
+    store_id_to_store_label = {
         "file0_chev1": "control_region1",
         "file0_chod1": "signal_region1",
         "eventTrue": "ttl_true_region1",
@@ -36,7 +36,7 @@ def test_step1_npm_idempotent(tmp_path):
     step1_kwargs = dict(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
-        storenames_map=storenames_map,
+        store_id_to_store_label=store_id_to_store_label,
         npm_split_events=[True, True],
     )
 
@@ -48,13 +48,13 @@ def test_step1_npm_idempotent(tmp_path):
 
     # Validate storesList.csv exists and matches the mapping after the second run
     basename = os.path.basename(session_copy)
-    output_dirs = sorted(glob.glob(os.path.join(session_copy, f"{basename}_output_*")))
-    assert output_dirs, f"No output directories found in {session_copy}"
-    out_dir = next((d for d in output_dirs if os.path.exists(os.path.join(d, "storesList.csv"))), None)
+    run_folders = sorted(glob.glob(os.path.join(session_copy, f"{basename}_output_*")))
+    assert run_folders, f"No output directories found in {session_copy}"
+    out_dir = next((d for d in run_folders if os.path.exists(os.path.join(d, "storesList.csv"))), None)
     assert out_dir is not None, f"No storesList.csv found under {session_copy}"
 
     with open(os.path.join(out_dir, "storesList.csv"), newline="") as f:
         rows = list(csv.reader(f))
     assert len(rows) == 2
-    assert rows[0] == list(storenames_map.keys())
-    assert rows[1] == list(storenames_map.values())
+    assert rows[0] == list(store_id_to_store_label.keys())
+    assert rows[1] == list(store_id_to_store_label.values())

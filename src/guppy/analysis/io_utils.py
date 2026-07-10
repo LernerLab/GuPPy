@@ -174,63 +174,63 @@ def get_coords(
     return coords
 
 
-def check_storeslistfile(folderNames: list[str]) -> np.ndarray:
+def check_storeslistfile(session_folders: list[str]) -> np.ndarray:
     """
     Merge storesList CSVs from all session output directories.
 
     Parameters
     ----------
-    folderNames : list of str
+    session_folders : list of str
         Session directories whose output subdirectories contain ``storesList.csv`` files.
 
     Returns
     -------
-    storesList : np.ndarray
-        2-D array with rows [storenames, display_names] merged across all sessions.
+    store_array : np.ndarray
+        2-D array with rows [store_id, store_label] merged across all sessions.
     """
-    storesList = np.array([[], []])
-    for i in range(len(folderNames)):
-        filepath = folderNames[i]
-        storesListPath = takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*")))
-        for j in range(len(storesListPath)):
-            filepath = storesListPath[j]
-            storesList = np.concatenate(
+    store_array = np.array([[], []])
+    for i in range(len(session_folders)):
+        filepath = session_folders[i]
+        run_folders = takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*")))
+        for j in range(len(run_folders)):
+            filepath = run_folders[j]
+            store_array = np.concatenate(
                 (
-                    storesList,
+                    store_array,
                     np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1),
                 ),
                 axis=1,
             )
 
-    storesList = np.unique(storesList, axis=1)
+    store_array = np.unique(store_array, axis=1)
 
-    return storesList
+    return store_array
 
 
-def write_combined_stores_list(output_dirs: list[object], storesList: np.ndarray) -> None:
+def write_combined_stores_list(run_folders: list[object], store_array: np.ndarray) -> None:
     """
     Write a combined storesList CSV to each output directory.
 
     Parameters
     ----------
-    output_dirs : list
+    run_folders : list
         Sequence of ``[filepath, ...]`` entries; ``filepath`` is the output directory.
-    storesList : np.ndarray
-        2-D storesList array with rows [storenames, display_names].
+    store_array : np.ndarray
+        2-D store array with rows [store_id, store_label].
     """
-    for k in range(len(output_dirs)):
-        filepath = output_dirs[k][0]
-        np.savetxt(os.path.join(filepath, "combine_storesList.csv"), storesList, fmt="%s", delimiter=",")
+    for k in range(len(run_folders)):
+        filepath = run_folders[k][0]
+        np.savetxt(os.path.join(filepath, "combine_storesList.csv"), store_array, fmt="%s", delimiter=",")
 
 
-def get_control_and_signal_channel_names(storesList: np.ndarray) -> np.ndarray:
+def get_control_and_signal_channel_names(store_array: np.ndarray) -> np.ndarray:
     """
-    Extract and pair control/signal display names from a storesList array.
+    Extract and pair control/signal display names from a store_array array.
 
     Parameters
     ----------
-    storesList : np.ndarray
-        2-D array with rows [storenames, display_names].
+    store_array : np.ndarray
+        2-D array with rows [store_id, store_label].
 
     Returns
     -------
@@ -238,13 +238,13 @@ def get_control_and_signal_channel_names(storesList: np.ndarray) -> np.ndarray:
         Shape ``(2, N)`` array where row 0 is control display names and
         row 1 is the matching signal display names.
     """
-    storenames = storesList[0, :]
-    names_for_storenames = storesList[1, :]
+    store_ids = store_array[0, :]
+    store_labels = store_array[1, :]
 
     control_signal_names = []
-    for i in range(names_for_storenames.shape[0]):
-        if "control" in names_for_storenames[i].lower() or "signal" in names_for_storenames[i].lower():
-            control_signal_names.append(names_for_storenames[i])
+    for i in range(store_labels.shape[0]):
+        if "control" in store_labels[i].lower() or "signal" in store_labels[i].lower():
+            control_signal_names.append(store_labels[i])
 
     control_signal_names = sorted(control_signal_names, key=str.casefold)
 
@@ -265,7 +265,7 @@ def get_control_and_signal_channel_names(storesList: np.ndarray) -> np.ndarray:
                 "Mismatched signal/control region pairs in storesList — "
                 + "; ".join(parts)
                 + ". Every 'signal_<region>' must have a matching 'control_<region>' when "
-                "isosbestic control is enabled. Re-run step 1 (Storenames) to fix the region names."
+                "isosbestic control is enabled. Re-run step 1 (Label Stores) to fix the region names."
             )
             logger.error(message)
             raise ValueError(message)
@@ -276,7 +276,7 @@ def get_control_and_signal_channel_names(storesList: np.ndarray) -> np.ndarray:
         message = (
             f"Cannot pair control and signal channels: found {len(control_regions)} control and "
             f"{len(signal_regions)} signal entries in storesList. Each signal must be paired with a control "
-            "when isosbestic control is enabled; re-run step 1 (Storenames) to correct the entries."
+            "when isosbestic control is enabled; re-run step 1 (Label Stores) to correct the entries."
         )
         logger.error(message)
         raise ValueError(message)
@@ -295,13 +295,13 @@ def make_dir_for_cross_correlation(filepath: str) -> str:
 
     Returns
     -------
-    output_dir : str
+    run_folder : str
         Path to the cross-correlation output directory.
     """
-    output_dir = os.path.join(filepath, "cross_correlation_output")
-    if not os.path.exists(output_dir):
-        os.mkdir(output_dir)
-    return output_dir
+    run_folder = os.path.join(filepath, "cross_correlation_output")
+    if not os.path.exists(run_folder):
+        os.mkdir(run_folder)
+    return run_folder
 
 
 def makeAverageDir(filepath: str) -> str:
@@ -315,12 +315,12 @@ def makeAverageDir(filepath: str) -> str:
 
     Returns
     -------
-    output_dir : str
+    run_folder : str
         Path to the average output directory.
     """
 
-    output_dir = os.path.join(filepath, "average")
-    if not os.path.exists(output_dir):
-        os.mkdir(output_dir)
+    run_folder = os.path.join(filepath, "average")
+    if not os.path.exists(run_folder):
+        os.mkdir(run_folder)
 
-    return output_dir
+    return run_folder

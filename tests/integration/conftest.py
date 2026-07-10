@@ -18,7 +18,7 @@ STUBBED_TESTING_DATA = PROJECT_ROOT / "stubbed_testing_data"
 REPRESENTATIVE_SESSIONS = {
     "csv": {
         "session_subdir": "csv/sample_data_csv_1",
-        "storenames_map": {
+        "store_id_to_store_label": {
             "Sample_Control_Channel": "control_region",
             "Sample_Signal_Channel": "signal_region",
             "Sample_TTL": "ttl",
@@ -29,7 +29,7 @@ REPRESENTATIVE_SESSIONS = {
     },
     "tdt": {
         "session_subdir": "tdt/Photo_63_207-181030-103332",
-        "storenames_map": {
+        "store_id_to_store_label": {
             "Dv1A": "control_dms",
             "Dv2A": "signal_dms",
             "PrtN": "port_entries_dms",
@@ -40,7 +40,7 @@ REPRESENTATIVE_SESSIONS = {
     },
     "npm": {
         "session_subdir": "npm/sampleData_NPM_5",
-        "storenames_map": {
+        "store_id_to_store_label": {
             "file0_chev1": "control_region1",
             "file0_chod1": "signal_region1",
             "event0": "ttl_region1",
@@ -51,7 +51,7 @@ REPRESENTATIVE_SESSIONS = {
     },
     "doric": {
         "session_subdir": "doric/sample_doric_1",
-        "storenames_map": {
+        "store_id_to_store_label": {
             "AIn-1 - Raw": "control_region",
             "AIn-2 - Raw": "signal_region",
             "DI--O-1": "ttl",
@@ -62,7 +62,7 @@ REPRESENTATIVE_SESSIONS = {
     },
     "nwb": {
         "session_subdir": "nwb/mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_2",
-        "storenames_map": {
+        "store_id_to_store_label": {
             "fiber_photometry_response_series_0": "control_region",
             "fiber_photometry_response_series_1": "signal_region",
             "events": "ttl",
@@ -111,7 +111,7 @@ def _prepare_pipeline_state(
     return {
         "base_directory": str(temporary_base_directory),
         "session_copy": str(session_copy_path),
-        "storenames_map": representative_config["storenames_map"],
+        "store_id_to_store_label": representative_config["store_id_to_store_label"],
         "npm_timestamp_column_names": representative_config["npm_timestamp_column_names"],
         "npm_time_units": representative_config["npm_time_units"],
         "npm_split_events": representative_config["npm_split_events"],
@@ -122,7 +122,7 @@ def _run_step1(*, pipeline_state: dict[str, str | list[bool] | None]) -> dict[st
     step1(
         base_dir=str(pipeline_state["base_directory"]),
         selected_folders=[str(pipeline_state["session_copy"])],
-        storenames_map=pipeline_state["storenames_map"],
+        store_id_to_store_label=pipeline_state["store_id_to_store_label"],
         npm_timestamp_column_names=pipeline_state["npm_timestamp_column_names"],
         npm_time_units=pipeline_state["npm_time_units"],
         npm_split_events=pipeline_state["npm_split_events"],

@@ -1,7 +1,7 @@
 """Integration tests for the DANDI streaming path through step1 and step2.
 
 These exercise the ``inputParameters["mode"] == "dandi"`` branches in
-``guppy.orchestration.storenames`` and ``guppy.orchestration.read_raw_data``
+``guppy.orchestration.store_labeling`` and ``guppy.orchestration.read_raw_data``
 without hitting the network: ``_stream_nwb`` is monkeypatched to open a local
 mock NWB file from ``stubbed_testing_data/nwb/``.
 
@@ -76,7 +76,7 @@ def step1_dandi_output(dandi_pipeline_state, patched_stream_nwb):
     step1(
         base_dir=dandi_pipeline_state["base_directory"],
         selected_folders=[dandi_pipeline_state["session_copy"]],
-        storenames_map=STORENAMES_MAP,
+        store_id_to_store_label=STORENAMES_MAP,
         dandi_uri_map={dandi_pipeline_state["session_copy"]: SENTINEL_DANDI_URI},
     )
     dandi_pipeline_state["output_directory"] = _locate_output_directory(
@@ -117,7 +117,7 @@ class TestDandiIntegration:
             storename_file_path = os.path.join(output_directory, f"{raw_storename}.hdf5")
             assert os.path.exists(
                 storename_file_path
-            ), f"Missing HDF5 for storename {raw_storename!r} at {storename_file_path}"
+            ), f"Missing HDF5 for store_id {raw_storename!r} at {storename_file_path}"
 
             with h5py.File(storename_file_path, "r") as storename_file:
                 assert "timestamps" in storename_file
@@ -143,7 +143,7 @@ class TestDandiIntegrationMultiAsset:
         step1(
             base_dir=str(base_directory),
             selected_folders=[str(session_a), str(session_b)],
-            storenames_map=STORENAMES_MAP,
+            store_id_to_store_label=STORENAMES_MAP,
             dandi_uri_map=dandi_uri_map,
         )
 

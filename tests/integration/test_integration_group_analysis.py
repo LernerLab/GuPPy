@@ -85,7 +85,7 @@ def test_group_analysis(copied_sessions):
     common_kwargs = dict(base_dir=base_dir, selected_folders=selected_folders)
     selected_runs = {folder: ["1"] for folder in selected_folders}
 
-    step1(**common_kwargs, storenames_map=STORENAMES_MAP)
+    step1(**common_kwargs, store_id_to_store_label=STORENAMES_MAP)
     step2(**common_kwargs, selected_runs=selected_runs)
     step3(**common_kwargs, selected_runs=selected_runs)
     step4(**common_kwargs, selected_runs=selected_runs)
@@ -136,7 +136,7 @@ def test_group_analysis_different_event_names_per_session(copied_sessions):
     """Group-average and visualize two sessions that share the same fiber region but
     record different behavioral events (one 'rewarded', one 'unrewarded').
 
-    Reproduces issue #368: the sessions have non-identical storename sets, so this
+    Reproduces issue #368: the sessions have non-identical store_id sets, so this
     exercises the relaxed fiber-region validation (averaging is no longer blocked).
     Because each event is present in only one session, its group average has a single
     contributing session (n=1), which also exercises the single-trial heatmap that
@@ -146,10 +146,10 @@ def test_group_analysis_different_event_names_per_session(copied_sessions):
     temporary_base_directory = Path(base_dir)
     selected_runs = {folder: ["1"] for folder in selected_folders}
 
-    # Step 1 is run per session so each gets a different behavioral-event storename
+    # Step 1 is run per session so each gets a different behavioral-event store_id
     # while sharing the same control/signal (dms) fiber region.
     for session_folder, subdir in zip(selected_folders, SESSION_SUBDIRS):
-        step1(base_dir=base_dir, selected_folders=[session_folder], storenames_map=DISJOINT_STORENAMES[subdir])
+        step1(base_dir=base_dir, selected_folders=[session_folder], store_id_to_store_label=DISJOINT_STORENAMES[subdir])
 
     common_kwargs = dict(base_dir=base_dir, selected_folders=selected_folders)
     step2(**common_kwargs, selected_runs=selected_runs)

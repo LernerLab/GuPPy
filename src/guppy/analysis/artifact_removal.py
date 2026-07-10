@@ -9,11 +9,11 @@ logger = logging.getLogger(__name__)
 
 def remove_artifacts(
     timeForLightsTurnOn: float,
-    storesList: np.ndarray,
+    store_array: np.ndarray,
     pair_name_to_tsNew: dict[str, np.ndarray],
     pair_name_to_sampling_rate: dict[str, float],
     pair_name_to_coords: dict[str, np.ndarray],
-    name_to_data: dict[str, np.ndarray],
+    store_label_to_data: dict[str, np.ndarray],
     compound_name_to_ttl_timestamps: dict[str, np.ndarray],
     method: str,
 ) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray] | None, dict[str, np.ndarray]]:
@@ -24,15 +24,15 @@ def remove_artifacts(
     ----------
     timeForLightsTurnOn : float
         Seconds offset for when lights turned on; used as the new time zero.
-    storesList : np.ndarray
-        2-D array with rows [storenames, display_names].
+    store_array : np.ndarray
+        2-D array with rows [store_id, store_label].
     pair_name_to_tsNew : dict
         Mapping from pair name to corrected timestamp array.
     pair_name_to_sampling_rate : dict
         Mapping from pair name to sampling rate (Hz).
     pair_name_to_coords : dict
         Mapping from pair name to artifact-boundary coordinates array.
-    name_to_data : dict
+    store_label_to_data : dict
         Mapping from display name to raw data array.
     compound_name_to_ttl_timestamps : dict
         Mapping from compound TTL name to timestamp array.
@@ -41,7 +41,7 @@ def remove_artifacts(
 
     Returns
     -------
-    name_to_corrected_data : dict
+    store_label_to_corrected_data : dict
         Display name → corrected data array.
     pair_name_to_corrected_timestamps : dict or None
         Pair name → corrected timestamp array, or ``None`` for the NaN method.
@@ -49,24 +49,24 @@ def remove_artifacts(
         Compound TTL name → corrected TTL timestamp array.
     """
     if method == "concatenate":
-        name_to_corrected_data, pair_name_to_corrected_timestamps, compound_name_to_corrected_ttl_timestamps = (
+        store_label_to_corrected_data, pair_name_to_corrected_timestamps, compound_name_to_corrected_ttl_timestamps = (
             processTimestampsForArtifacts(
                 timeForLightsTurnOn,
-                storesList,
+                store_array,
                 pair_name_to_tsNew,
                 pair_name_to_sampling_rate,
                 pair_name_to_coords,
-                name_to_data,
+                store_label_to_data,
                 compound_name_to_ttl_timestamps,
             )
         )
         logger.info("Artifacts removed using concatenate method.")
     elif method == "replace with NaN":
-        name_to_corrected_data, compound_name_to_corrected_ttl_timestamps = addingNaNtoChunksWithArtifacts(
-            storesList,
+        store_label_to_corrected_data, compound_name_to_corrected_ttl_timestamps = addingNaNtoChunksWithArtifacts(
+            store_array,
             pair_name_to_tsNew,
             pair_name_to_coords,
-            name_to_data,
+            store_label_to_data,
             compound_name_to_ttl_timestamps,
         )
         pair_name_to_corrected_timestamps = None
@@ -76,14 +76,14 @@ def remove_artifacts(
         logger.error(message)
         raise ValueError(message)
 
-    return name_to_corrected_data, pair_name_to_corrected_timestamps, compound_name_to_corrected_ttl_timestamps
+    return store_label_to_corrected_data, pair_name_to_corrected_timestamps, compound_name_to_corrected_ttl_timestamps
 
 
 def addingNaNtoChunksWithArtifacts(
-    storesList: np.ndarray,
+    store_array: np.ndarray,
     pair_name_to_tsNew: dict[str, np.ndarray],
     pair_name_to_coords: dict[str, np.ndarray],
-    name_to_data: dict[str, np.ndarray],
+    store_label_to_data: dict[str, np.ndarray],
     compound_name_to_ttl_timestamps: dict[str, np.ndarray],
 ) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray]]:
     """
@@ -91,61 +91,61 @@ def addingNaNtoChunksWithArtifacts(
 
     Parameters
     ----------
-    storesList : np.ndarray
-        2-D array with rows [storenames, display_names].
+    store_array : np.ndarray
+        2-D array with rows [store_id, store_label].
     pair_name_to_tsNew : dict
         Mapping from pair name to corrected timestamp array.
     pair_name_to_coords : dict
         Mapping from pair name to artifact-boundary coordinates array.
-    name_to_data : dict
+    store_label_to_data : dict
         Mapping from display name to raw data array.
     compound_name_to_ttl_timestamps : dict
         Mapping from compound TTL name to timestamp array.
 
     Returns
     -------
-    name_to_corrected_data : dict
+    store_label_to_corrected_data : dict
         Display name → data array with artifact samples set to NaN.
     compound_name_to_corrected_ttl_timestamps : dict
         Compound TTL name → TTL timestamps with artifact-window events removed.
     """
     logger.debug("Replacing chunks with artifacts by NaN values.")
-    names_for_storenames = storesList[1, :]
+    store_labels = store_array[1, :]
     pair_names = pair_name_to_tsNew.keys()
 
-    name_to_corrected_data = {}
+    store_label_to_corrected_data = {}
     compound_name_to_corrected_ttl_timestamps = {}
     for pair_name in pair_names:
         tsNew = pair_name_to_tsNew[pair_name]
         coords = pair_name_to_coords[pair_name]
-        for i in range(len(names_for_storenames)):
+        for i in range(len(store_labels)):
             if (
-                "control_" + pair_name.lower() in names_for_storenames[i].lower()
-                or "signal_" + pair_name.lower() in names_for_storenames[i].lower()
+                "control_" + pair_name.lower() in store_labels[i].lower()
+                or "signal_" + pair_name.lower() in store_labels[i].lower()
             ):
-                data = name_to_data[names_for_storenames[i]].reshape(-1)
+                data = store_label_to_data[store_labels[i]].reshape(-1)
                 data = addingNaNValues(data=data, timestamps=tsNew, coords=coords)
-                name_to_corrected_data[names_for_storenames[i]] = data
+                store_label_to_corrected_data[store_labels[i]] = data
             else:
-                if "control" in names_for_storenames[i].lower() or "signal" in names_for_storenames[i].lower():
+                if "control" in store_labels[i].lower() or "signal" in store_labels[i].lower():
                     continue
-                ttl_name = names_for_storenames[i]
+                ttl_name = store_labels[i]
                 compound_name = ttl_name + "_" + pair_name
                 ttl_timestamps = compound_name_to_ttl_timestamps[compound_name].reshape(-1)
                 ttl_timestamps = removeTTLs(ttl_timestamps=ttl_timestamps, coords=coords)
                 compound_name_to_corrected_ttl_timestamps[compound_name] = ttl_timestamps
     logger.info("Chunks with artifacts are replaced by NaN values.")
 
-    return name_to_corrected_data, compound_name_to_corrected_ttl_timestamps
+    return store_label_to_corrected_data, compound_name_to_corrected_ttl_timestamps
 
 
 def processTimestampsForArtifacts(
     timeForLightsTurnOn: float,
-    storesList: np.ndarray,
+    store_array: np.ndarray,
     pair_name_to_tsNew: dict[str, np.ndarray],
     pair_name_to_sampling_rate: dict[str, float],
     pair_name_to_coords: dict[str, np.ndarray],
-    name_to_data: dict[str, np.ndarray],
+    store_label_to_data: dict[str, np.ndarray],
     compound_name_to_ttl_timestamps: dict[str, np.ndarray],
 ) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray]]:
     """
@@ -155,22 +155,22 @@ def processTimestampsForArtifacts(
     ----------
     timeForLightsTurnOn : float
         Seconds offset for when lights turned on; used as the new time zero.
-    storesList : np.ndarray
-        2-D array with rows [storenames, display_names].
+    store_array : np.ndarray
+        2-D array with rows [store_id, store_label].
     pair_name_to_tsNew : dict
         Mapping from pair name to corrected timestamp array.
     pair_name_to_sampling_rate : dict
         Mapping from pair name to sampling rate (Hz).
     pair_name_to_coords : dict
         Mapping from pair name to artifact-boundary coordinates array.
-    name_to_data : dict
+    store_label_to_data : dict
         Mapping from display name to raw data array.
     compound_name_to_ttl_timestamps : dict
         Mapping from compound TTL name to timestamp array.
 
     Returns
     -------
-    name_to_corrected_data : dict
+    store_label_to_corrected_data : dict
         Display name → concatenated data array with artifacts removed.
     pair_name_to_corrected_timestamps : dict
         Pair name → realigned timestamp array.
@@ -178,10 +178,10 @@ def processTimestampsForArtifacts(
         Compound TTL name → realigned TTL timestamp array.
     """
     logger.debug("Processing timestamps to get rid of artifacts using concatenate method...")
-    names_for_storenames = storesList[1, :]
+    store_labels = store_array[1, :]
     pair_names = pair_name_to_tsNew.keys()
 
-    name_to_corrected_data = {}
+    store_label_to_corrected_data = {}
     pair_name_to_corrected_timestamps = {}
     compound_name_to_corrected_ttl_timestamps = {}
     for pair_name in pair_names:
@@ -189,12 +189,12 @@ def processTimestampsForArtifacts(
         tsNew = pair_name_to_tsNew[pair_name]
         coords = pair_name_to_coords[pair_name]
 
-        for i in range(len(names_for_storenames)):
+        for i in range(len(store_labels)):
             if (
-                "control_" + pair_name.lower() in names_for_storenames[i].lower()
-                or "signal_" + pair_name.lower() in names_for_storenames[i].lower()
+                "control_" + pair_name.lower() in store_labels[i].lower()
+                or "signal_" + pair_name.lower() in store_labels[i].lower()
             ):
-                data = name_to_data[names_for_storenames[i]]
+                data = store_label_to_data[store_labels[i]]
                 data, timestampNew = eliminateData(
                     data=data,
                     timestamps=tsNew,
@@ -202,12 +202,12 @@ def processTimestampsForArtifacts(
                     timeForLightsTurnOn=timeForLightsTurnOn,
                     sampling_rate=sampling_rate,
                 )
-                name_to_corrected_data[names_for_storenames[i]] = data
+                store_label_to_corrected_data[store_labels[i]] = data
                 pair_name_to_corrected_timestamps[pair_name] = timestampNew
             else:
-                if "control" in names_for_storenames[i].lower() or "signal" in names_for_storenames[i].lower():
+                if "control" in store_labels[i].lower() or "signal" in store_labels[i].lower():
                     continue
-                compound_name = names_for_storenames[i] + "_" + pair_name
+                compound_name = store_labels[i] + "_" + pair_name
                 ttl_timestamps = compound_name_to_ttl_timestamps[compound_name]
                 ttl_timestamps = eliminateTs(
                     ttl_timestamps=ttl_timestamps,
@@ -221,7 +221,7 @@ def processTimestampsForArtifacts(
     logger.info("Timestamps processed, artifacts are removed and good chunks are concatenated.")
 
     return (
-        name_to_corrected_data,
+        store_label_to_corrected_data,
         pair_name_to_corrected_timestamps,
         compound_name_to_corrected_ttl_timestamps,
     )

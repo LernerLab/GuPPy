@@ -9,7 +9,7 @@ from typing import Callable
 import panel as pn
 
 from .import_custom_events import orchestrate_custom_events_page
-from .storenames import orchestrate_storenames_page
+from .store_labeling import orchestrate_store_labeling_page
 from .visualize import visualizeResults
 from ..frontend.input_parameters import ParameterForm
 from ..frontend.progress import PB_STEPS_FILE, readPBIncrementValues
@@ -82,7 +82,7 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
         try:
             input_parameters = parameter_form.getInputParameters()
             if require_selected_outputs:
-                parameter_form.validate_selected_outputs_for_consumers()
+                parameter_form.validate_selected_runs_for_consumers()
             return input_parameters
         except Exception as e:
             pn.state.notifications.error(str(e), duration=0)
@@ -114,11 +114,11 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
             return
         orchestrate_custom_events_page(inputParameters)
 
-    def onclickStorenames(event: object = None) -> None:
+    def onclickLabelStores(event: object = None) -> None:
         inputParameters = _getInputParametersOrNotify()
         if inputParameters is None:
             return
-        orchestrate_storenames_page(inputParameters)
+        orchestrate_store_labeling_page(inputParameters)
         # Newly-created output dirs become available for filtering on the next
         # step without requiring the user to deselect/reselect their session.
         parameter_form.refresh_individual_outputs()
@@ -146,7 +146,7 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
 
     button_name_to_onclick_fn = {
         "import_custom_events": onclickImportCustomEvents,
-        "open_storenames": onclickStorenames,
+        "open_label_stores": onclickLabelStores,
         "read_rawData": onclickreaddata,
         "preprocess": onclickpreprocess,
         "psth_computation": onclickpsth,

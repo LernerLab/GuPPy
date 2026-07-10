@@ -78,7 +78,7 @@ class BaseRecordingExtractor(ABC):
         -------
         list of dict
             List of dictionaries containing extracted data. Each dictionary
-            represents one event/store and contains keys such as 'storename',
+            represents one event/store and contains keys such as 'store_id',
             'timestamps', 'data', 'sampling_rate', etc.
         """
         pass

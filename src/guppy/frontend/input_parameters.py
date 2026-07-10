@@ -8,7 +8,7 @@ import panel as pn
 
 from .dandi_selector import DandiSelector
 from .frontend_utils import default_root_path
-from ..utils.utils import discover_output_dirs, parse_run_name
+from ..utils.utils import discover_run_folders, parse_run_name
 from ..utils.validation import (
     validate_required_folder_selection,
     validate_same_parent_directory,
@@ -87,7 +87,7 @@ class ParameterForm:
         self.add_to_template()
         self.files_1.param.watch(self._retarget_outputs_selector, "value")
         self.files_2.param.watch(self._rebuild_group_selected_outputs_widgets, "value")
-        self.outputs_selector.param.watch(self._load_parameters_from_selected_outputs, "value")
+        self.outputs_selector.param.watch(self._load_parameters_from_selected_runs, "value")
 
     def setup_individual_parameters(self) -> None:
         """Build all widgets for the individual-analysis card and store them as instance attributes."""
@@ -120,7 +120,7 @@ class ParameterForm:
         )
         self.source_mode.param.watch(self._on_source_mode_change, "value")
 
-        self.files_1 = pn.widgets.FileSelector(self.folder_path, root_directory="/", name="folderNames", width=950)
+        self.files_1 = pn.widgets.FileSelector(self.folder_path, root_directory="/", name="session_folders", width=950)
 
         self.dandi_selector = DandiSelector(styles=self.styles)
         # Hidden by default; shown when source_mode == "dandi"
@@ -183,7 +183,7 @@ class ParameterForm:
 
         self.outputs_selector_header = pn.pane.Markdown(
             "**Existing runs (steps 2–5):** Pick at least one existing output directory per "
-            "selected session. To create a new run, use the Storenames GUI in step 1.",
+            "selected session. To create a new run, use the Label Stores GUI in step 1.",
             width=950,
         )
         self.outputs_selector = pn.widgets.FileSelector(
@@ -413,7 +413,7 @@ class ParameterForm:
         self.files_1.visible = not is_dandi
         self.dandi_selector.panel.visible = is_dandi
 
-    def _collect_selected_outputs(self) -> dict[str, list[str]]:
+    def _collect_selected_runs(self) -> dict[str, list[str]]:
         """Group the FileSelector's selected output dirs by parent session."""
         grouped: dict[str, list[str]] = {}
         for path in self.outputs_selector.value or []:
@@ -421,18 +421,18 @@ class ParameterForm:
             grouped.setdefault(session, []).append(parse_run_name(path))
         return grouped
 
-    def validate_selected_outputs_for_consumers(self) -> None:
+    def validate_selected_runs_for_consumers(self) -> None:
         """Ensure every selected session that has output dirs on disk also has at least one selected.
 
         Run this from the click handlers for steps 2–5 (which consume existing
         output directories). Skips sessions with no ``_output_<run>`` subdirs
         yet — those are typically pre-step-1 states.
         """
-        grouped = self._collect_selected_outputs()
+        grouped = self._collect_selected_runs()
         missing = [
             session
             for session in (self.files_1.value or [])
-            if discover_output_dirs(session) and not grouped.get(session)
+            if discover_run_folders(session) and not grouped.get(session)
         ]
         if missing:
             raise ValueError(
@@ -513,7 +513,7 @@ class ParameterForm:
         new_objects = []
         new_store = {}
         for session in sessions or []:
-            run_names = [parse_run_name(directory) for directory in discover_output_dirs(session)]
+            run_names = [parse_run_name(directory) for directory in discover_run_folders(session)]
             # Skip sessions with no output dirs — nothing to filter, no widget needed.
             if not run_names:
                 continue
@@ -584,7 +584,7 @@ class ParameterForm:
         )
 
         self.files_2 = pn.widgets.FileSelector(
-            self.folder_path, root_directory="/", name="folderNamesForAvg", width=950
+            self.folder_path, root_directory="/", name="group_session_folders", width=950
         )
 
         self.averageForGroup = pn.widgets.Select(
@@ -631,7 +631,7 @@ class ParameterForm:
         dict
             Flat dictionary containing every parameter needed to run the GuPPy
             pipeline, keyed by the parameter names expected by the orchestration
-            layer (e.g. ``"folderNames"``, ``"zscore_method"``, ``"nSecPrev"``).
+            layer (e.g. ``"session_folders"``, ``"zscore_method"``, ``"nSecPrev"``).
         """
         # Re-discover group output dirs so the per-session filters reflect any new dirs
         # produced by step 1 since the user last deselected/reselected their session folder.
@@ -651,7 +651,7 @@ class ParameterForm:
             "mode": mode,
             "dandi_uri_map": dandi_uri_map,
             "abspath": abspath_value,
-            "folderNames": folder_names,
+            "session_folders": folder_names,
             "numberOfCores": self.numberOfCores.value,
             "combine_data": self.combine_data.value,
             "isosbestic_control": self.isosbestic_control.value,
@@ -681,11 +681,11 @@ class ParameterForm:
             "transientsThresh": self.transientsThresh.value,
             "plot_zScore_dff": self.plot_zScore_dff.value,
             "visualize_zscore_or_dff": self.visualize_zscore_or_dff.value,
-            "folderNamesForAvg": self.files_2.value,
+            "group_session_folders": self.files_2.value,
             "averageForGroup": self.averageForGroup.value,
             "visualizeAverageResults": self.visualizeAverageResults.value,
-            "selectedOutputs": self._collect_selected_outputs(),
-            "groupSelectedOutputs": {
+            "selected_runs": self._collect_selected_runs(),
+            "group_selected_runs": {
                 session: [widget.value] for session, widget in self.group_selected_outputs_widgets.items()
             },
         }
@@ -753,7 +753,7 @@ class ParameterForm:
             df["Peak End time"] = parameters["peak_endPoint"]
             self.df_widget.value = df
 
-    def _load_parameters_from_selected_outputs(self, event: object) -> None:
+    def _load_parameters_from_selected_runs(self, event: object) -> None:
         """Reload analysis parameters from the saved JSON of the selected output run(s).
 
         Fired when the individual-analysis output selector changes. Lets a user
@@ -764,8 +764,8 @@ class ParameterForm:
         user to reconcile.
         """
         saved = []
-        for output_dir in event.new or []:
-            json_path = os.path.join(output_dir, "GuPPyParamtersUsed.json")
+        for run_folder in event.new or []:
+            json_path = os.path.join(run_folder, "GuPPyParamtersUsed.json")
             if os.path.exists(json_path):
                 with open(json_path) as parameters_file:
                     saved.append(json.load(parameters_file))

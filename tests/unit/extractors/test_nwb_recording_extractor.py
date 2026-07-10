@@ -146,7 +146,7 @@ class TestReadNdxEvent:
     def test_core_event_without_value_column_returns_all_timestamps(self):
         table = _FakeEventsTable(timestamp=[1.0, 2.0, 3.0])
         result = _read_ndx_event(event_name="simple_events", source_info=("core", table, None, None))
-        assert result["storename"] == "simple_events"
+        assert result["store_id"] == "simple_events"
         np.testing.assert_array_equal(result["timestamps"], np.array([1.0, 2.0, 3.0]))
 
     def test_core_event_filters_by_annotation_value(self):
@@ -157,7 +157,7 @@ class TestReadNdxEvent:
         result = _read_ndx_event(
             event_name="annotated_events_Reward", source_info=("core", table, "annotation", "Reward")
         )
-        assert result["storename"] == "annotated_events_Reward"
+        assert result["store_id"] == "annotated_events_Reward"
         np.testing.assert_array_equal(result["timestamps"], np.array([41.0, 42.0]))
 
     def test_core_event_filters_by_strobe_value(self):
@@ -166,7 +166,7 @@ class TestReadNdxEvent:
             strobe=["16", "2064", "0", "16", "2064"],
         )
         result = _read_ndx_event(event_name="PAB_16", source_info=("core", table, "strobe", "16"))
-        assert result["storename"] == "PAB_16"
+        assert result["store_id"] == "PAB_16"
         np.testing.assert_array_equal(result["timestamps"], np.array([160.7, 210.8]))
 
 

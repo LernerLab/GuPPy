@@ -10,8 +10,8 @@ pn.extension()
 logger = logging.getLogger(__name__)
 
 
-class StorenamesInstructions:
-    """Panel widget displaying storenames-configuration instructions for a session folder.
+class StoreLabelingInstructions:
+    """Panel widget displaying store_ids-configuration instructions for a session folder.
 
     Parameters
     ----------
@@ -28,31 +28,31 @@ class StorenamesInstructions:
 
                     ### Instructions to follow :
 
-                    - Check Storenames to repeat checkbox and see instructions in “Github Wiki” for duplicating storenames.
-                    Otherwise do not check the Storenames to repeat checkbox.<br>
-                    - Select storenames from list and click “Select Storenames” to populate area below.<br>
-                    - Enter names for storenames, in order, using the following naming convention:<br>
+                    - Check Stores to repeat checkbox and see instructions in “Github Wiki” for duplicating stores.
+                    Otherwise do not check the Stores to repeat checkbox.<br>
+                    - Select stores from list and click “Select Stores” to populate area below.<br>
+                    - Enter names for store_ids, in order, using the following naming convention:<br>
                         Isosbestic = “control_region” (ex: Dv1A= control_DMS)<br>
                         Signal= “signal_region” (ex: Dv2A= signal_DMS)<br>
                         TTLs can be named using any convention (ex: PrtR = RewardedPortEntries) but should be kept consistent for later group analysis
 
                     ```
-                    {"storenames": ["Dv1A", "Dv2A",
+                    {"store_ids": ["Dv1A", "Dv2A",
                                     "Dv3B", "Dv4B",
                                     "LNRW", "LNnR",
                                     "PrtN", "PrtR",
                                     "RNPS"],
-                    "names_for_storenames": ["control_DMS", "signal_DMS",
+                    "store_labels": ["control_DMS", "signal_DMS",
                                             "control_DLS", "signal_DLS",
                                             "RewardedNosepoke", "UnrewardedNosepoke",
                                             "UnrewardedPort", "RewardedPort",
                                             "InactiveNosepoke"]}
                     ```
-                    - If user has saved storenames before, clicking "Select Storenames" button will pop up a dialog box
-                    showing previously used names for storenames. Select names for storenames by checking a checkbox and
-                    click on "Show" to populate the text area in the Storenames GUI. Close the dialog box.
+                    - If user has saved stores before, clicking "Select Stores" button will pop up a dialog box
+                    showing previously used names for store_ids. Select names for store_ids by checking a checkbox and
+                    click on "Show" to populate the text area in the Label Stores GUI. Close the dialog box.
 
-                    - Select “create new” or “overwrite” to generate a new storenames list or replace a previous one
+                    - Select “create new” or “overwrite” to generate a new store_ids list or replace a previous one
                     - Click Save
 
                     """,
@@ -62,8 +62,8 @@ class StorenamesInstructions:
         self.widget = pn.Column("# " + os.path.basename(folder_path), self.mark_down)
 
 
-class StorenamesInstructionsNPM(StorenamesInstructions):
-    """Storenames instructions panel extended with NPM-specific channel preview plots.
+class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
+    """Label Stores instructions panel extended with NPM-specific channel preview plots.
 
     Adds a channel selector and a live HoloViews curve so the user can inspect
     each NPM channel before assigning it a signal or control role. The decomposed
@@ -101,7 +101,7 @@ class StorenamesInstructionsNPM(StorenamesInstructions):
                                         named “chod” and a channel named “chev”
                                         - View the plots below and, for each site,
                                         determine whether the “chev” or “chod” channel is signal or control
-                                        - When you give your storenames, name the channels appropriately.
+                                        - When you give your store_ids, name the channels appropriately.
                                         For example, “chev1” might be “signal_A” and
                                         “chod1” might be “control_A” (or vice versa).
 

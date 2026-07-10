@@ -63,7 +63,7 @@ class MockRecordingExtractor(BaseRecordingExtractor):
         Parameters
         ----------
         events : list of str
-            Event names to read. Each name becomes the ``storename`` in the
+            Event names to read. Each name becomes the ``store_id`` in the
             returned dict.
         outputPath : str
             Ignored; present to match the BaseRecordingExtractor interface.
@@ -72,7 +72,7 @@ class MockRecordingExtractor(BaseRecordingExtractor):
         -------
         list of dict
             One dict per event, each containing:
-            ``storename`` (str), ``timestamps`` (ndarray), ``data`` (ndarray),
+            ``store_id`` (str), ``timestamps`` (ndarray), ``data`` (ndarray),
             ``sampling_rate`` (float).
         """
         duration = MockRecordingExtractor._stub_folder_path_to_duration.get(str(self.folder_path))
@@ -85,7 +85,7 @@ class MockRecordingExtractor(BaseRecordingExtractor):
         for event in events:
             output_dicts.append(
                 {
-                    "storename": event,
+                    "store_id": event,
                     "timestamps": np.arange(number_of_samples, dtype=float) / _MOCK_SAMPLING_RATE,
                     "data": np.linspace(0.0, 1.0, original_number_of_samples)[:number_of_samples],
                     "sampling_rate": _MOCK_SAMPLING_RATE,
@@ -118,12 +118,12 @@ class MockRecordingExtractor(BaseRecordingExtractor):
         Parameters
         ----------
         output_dicts : list of dict
-            Dicts returned by ``read()``. Each dict must have a ``storename``
+            Dicts returned by ``read()``. Each dict must have a ``store_id``
             key; all other keys are written as HDF5 datasets.
         outputPath : str
             Directory in which HDF5 files are written.
         """
         for output_dict in output_dicts:
-            storename = output_dict["storename"]
+            store_id = output_dict["store_id"]
             for key, value in output_dict.items():
-                write_hdf5(value, storename, outputPath, key)
+                write_hdf5(value, store_id, outputPath, key)

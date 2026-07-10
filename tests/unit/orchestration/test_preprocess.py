@@ -183,29 +183,29 @@ def test_execute_combine_data_raises_for_mismatched_sampling_rates(monkeypatch, 
     """When timeCorrection_*.hdf5 files report different sampling rates, the message
     lists both rates and the offending paths."""
     folder_names = ["/tmp/session_a", "/tmp/session_b"]
-    storesList = np.array([["ctrl0", "sig0"], ["control_dms", "signal_dms"]])
+    store_array = np.array([["ctrl0", "sig0"], ["control_dms", "signal_dms"]])
 
     monkeypatch.setattr(
-        "guppy.orchestration.preprocess.select_output_dirs",
+        "guppy.orchestration.preprocess.select_run_folders",
         lambda session, selected: (
-            [folder_names[0] + "/output_dir"] if "session_a" in session else [folder_names[1] + "/output_dir"]
+            [folder_names[0] + "/run_folder"] if "session_a" in session else [folder_names[1] + "/run_folder"]
         ),
     )
     monkeypatch.setattr(
         "guppy.orchestration.preprocess.glob.glob",
         lambda pattern: (
-            [f"{folder_names[0]}/output_dir/timeCorrection_dms.hdf5"]
+            [f"{folder_names[0]}/run_folder/timeCorrection_dms.hdf5"]
             if "session_a" in pattern
-            else [f"{folder_names[1]}/output_dir/timeCorrection_dms.hdf5"] if "session_b" in pattern else []
+            else [f"{folder_names[1]}/run_folder/timeCorrection_dms.hdf5"] if "session_b" in pattern else []
         ),
     )
 
     rates = iter([np.array([100.0]), np.array([250.0])])
     monkeypatch.setattr("guppy.orchestration.preprocess.read_hdf5", lambda *a, **k: next(rates))
-    monkeypatch.setattr("guppy.orchestration.preprocess.np.genfromtxt", lambda *a, **k: storesList)
+    monkeypatch.setattr("guppy.orchestration.preprocess.np.genfromtxt", lambda *a, **k: store_array)
 
     with pytest.raises(ValueError, match="sampling rates differ"):
-        execute_combine_data(folder_names, base_input_parameters, storesList)
+        execute_combine_data(folder_names, base_input_parameters, store_array)
 
 
 def test_execute_zscore_shows_plot_when_not_headless(monkeypatch, base_input_parameters):

@@ -177,8 +177,8 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
         -------
         list of dict
             One dictionary per event. Data CSVs produce dicts with keys
-            ``storename``, ``timestamps``, ``data``, and ``sampling_rate``;
-            event CSVs produce dicts with keys ``storename`` and ``timestamps``.
+            ``store_id``, ``timestamps``, ``data``, and ``sampling_rate``;
+            event CSVs produce dicts with keys ``store_id`` and ``timestamps``.
         """
         output_dicts = []
         for event in events:
@@ -187,7 +187,7 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
             if "data" in columns_lowercase:
                 output_dicts.append(
                     {
-                        "storename": event,
+                        "store_id": event,
                         "timestamps": dataframe["timestamps"].dropna().to_numpy(),
                         "data": dataframe["data"].dropna().to_numpy(),
                         "sampling_rate": dataframe["sampling_rate"].dropna().to_numpy()[:1],
@@ -196,7 +196,7 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
             else:
                 output_dicts.append(
                     {
-                        "storename": event,
+                        "store_id": event,
                         "timestamps": dataframe["timestamps"].dropna().to_numpy(),
                     }
                 )
@@ -254,8 +254,8 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
             Path to the output directory where HDF5 files are written.
         """
         for output_dict in output_dicts:
-            storename = output_dict["storename"]
+            store_id = output_dict["store_id"]
             for key, value in output_dict.items():
-                if key == "storename":
+                if key == "store_id":
                     continue
-                write_hdf5(value, storename, outputPath, key)
+                write_hdf5(value, store_id, outputPath, key)

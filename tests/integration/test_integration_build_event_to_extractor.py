@@ -44,8 +44,8 @@ NWB_STORENAMES_MAP = {
 }
 
 
-def _make_stores_list(storenames_map):
-    return np.array([list(storenames_map.keys()), list(storenames_map.values())])
+def _make_stores_list(store_id_to_store_label):
+    return np.array([list(store_id_to_store_label.keys()), list(store_id_to_store_label.values())])
 
 
 def test_doric_session_routes_all_events_to_doric_extractor(tmp_path):
@@ -55,7 +55,7 @@ def test_doric_session_routes_all_events_to_doric_extractor(tmp_path):
     input_parameters = {"noChannels": 2}
     result = _build_event_to_extractor(
         folder_path=str(session_copy),
-        storesList=stores_list,
+        store_array=stores_list,
         inputParameters=input_parameters,
     )
     assert result
@@ -70,7 +70,7 @@ def test_csv_session_routes_all_events_to_csv_extractor(tmp_path):
     input_parameters = {"noChannels": 2}
     result = _build_event_to_extractor(
         folder_path=str(session_copy),
-        storesList=stores_list,
+        store_array=stores_list,
         inputParameters=input_parameters,
     )
     assert result
@@ -85,7 +85,7 @@ def test_tdt_session_routes_all_events_to_tdt_extractor(tmp_path):
     input_parameters = {"noChannels": 2}
     result = _build_event_to_extractor(
         folder_path=str(session_copy),
-        storesList=stores_list,
+        store_array=stores_list,
         inputParameters=input_parameters,
     )
     assert result
@@ -105,7 +105,7 @@ def test_npm_session_routes_all_events_to_npm_extractor(tmp_path):
     }
     result = _build_event_to_extractor(
         folder_path=str(session_copy),
-        storesList=stores_list,
+        store_array=stores_list,
         inputParameters=input_parameters,
     )
     assert result
@@ -134,7 +134,7 @@ def test_mixed_tdt_csv_session_partitions_events_correctly(tmp_path):
     input_parameters = {"noChannels": 2}
     result = _build_event_to_extractor(
         folder_path=str(session_copy),
-        storesList=stores_list,
+        store_array=stores_list,
         inputParameters=input_parameters,
     )
     assert isinstance(result["Dv1A"], TdtRecordingExtractor)
@@ -149,7 +149,7 @@ def test_nwb_session_routes_all_events_to_nwb_extractor(tmp_path):
     input_parameters = {"noChannels": 2}
     result = _build_event_to_extractor(
         folder_path=str(session_copy),
-        storesList=stores_list,
+        store_array=stores_list,
         inputParameters=input_parameters,
     )
     assert result

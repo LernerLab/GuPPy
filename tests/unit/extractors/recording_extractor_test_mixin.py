@@ -132,9 +132,9 @@ class RecordingExtractorTestMixin:
     def test_read_output_dicts_have_storename_string(self, tmp_path, isolated_extractor_instance):
         result = isolated_extractor_instance.read(events=self.expected_events, outputPath=str(tmp_path))
         for output_dict in result:
-            assert "storename" in output_dict
-            assert isinstance(output_dict["storename"], str)
-            assert len(output_dict["storename"]) > 0
+            assert "store_id" in output_dict
+            assert isinstance(output_dict["store_id"], str)
+            assert len(output_dict["store_id"]) > 0
 
     # --- save tests ---
 
@@ -143,7 +143,7 @@ class RecordingExtractorTestMixin:
         isolated_extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
 
         for output_dict in output_dicts:
-            sanitized_storename = output_dict["storename"].replace("\\", "_").replace("/", "_")
+            sanitized_storename = output_dict["store_id"].replace("\\", "_").replace("/", "_")
             assert (tmp_path / f"{sanitized_storename}.hdf5").exists()
 
     def test_save_hdf5_has_timestamps_dataset(self, tmp_path, isolated_extractor_instance):
@@ -151,7 +151,7 @@ class RecordingExtractorTestMixin:
         isolated_extractor_instance.save(output_dicts=output_dicts, outputPath=str(tmp_path))
 
         for output_dict in output_dicts:
-            sanitized_storename = output_dict["storename"].replace("\\", "_").replace("/", "_")
+            sanitized_storename = output_dict["store_id"].replace("\\", "_").replace("/", "_")
             with h5py.File(tmp_path / f"{sanitized_storename}.hdf5", "r") as file:
                 assert "timestamps" in file
 

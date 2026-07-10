@@ -47,7 +47,7 @@ def test_dff(tmp_path):
     )
     selected_runs = {str(session_copy): ["1"]}
 
-    step1(**common_kwargs, storenames_map=STORENAMES_MAP)
+    step1(**common_kwargs, store_id_to_store_label=STORENAMES_MAP)
     step2(**common_kwargs, selected_runs=selected_runs)
     step3(**common_kwargs, selected_runs=selected_runs)
     step4(

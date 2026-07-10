@@ -75,7 +75,7 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
         Returns
         -------
         list of dict
-            One dictionary per event with keys: ``storename``, ``sampling_rate``,
+            One dictionary per event with keys: ``store_id``, ``sampling_rate``,
             ``timestamps``, ``data``, ``npoints``.
         """
         nwb_path = _find_nwb_file(self.folder_path)
@@ -98,8 +98,9 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
             Directory where one ``.hdf5`` file per event will be written.
         """
         for output_dict in output_dicts:
-            event = output_dict["storename"]
-            write_hdf5(output_dict["storename"], event, outputPath, "storename")
+            event = output_dict["store_id"]
+            # HDF5 dataset key kept as "storename" (persisted on-disk field name, like storesList.csv); the value is a store_id.
+            write_hdf5(output_dict["store_id"], event, outputPath, "storename")
             write_hdf5(output_dict["timestamps"], event, outputPath, "timestamps")
             if "sampling_rate" in output_dict:
                 write_hdf5(output_dict["sampling_rate"], event, outputPath, "sampling_rate")
@@ -195,7 +196,7 @@ def _read_events_from_nwbfile(*, nwbfile: NWBFile, io: NWBHDF5IO, events: list[s
     Returns
     -------
     list of dict
-        One dictionary per event with keys: ``storename``, ``sampling_rate``,
+        One dictionary per event with keys: ``store_id``, ``sampling_rate``,
         ``timestamps``, ``data``, ``npoints``.
     """
     ndx_events_version = _get_ndx_events_version(io)
@@ -225,7 +226,7 @@ def _read_events_from_nwbfile(*, nwbfile: NWBFile, io: NWBHDF5IO, events: list[s
 
         output_dicts.append(
             {
-                "storename": event,
+                "store_id": event,
                 "sampling_rate": sampling_rate,
                 "timestamps": timestamps,
                 "data": channel_data,
@@ -369,7 +370,7 @@ def _read_ndx_event(*, event_name: str, source_info: tuple) -> dict[str, object]
     Parameters
     ----------
     event_name : str
-        The event name (used as ``storename``).
+        The event name (used as ``store_id``).
     source_info : tuple
         Tagged tuple from ``_build_event_index_v02`` (ndx-events v0.2) or
         ``_build_core_events_index`` (core ``EventsTable``).
@@ -377,31 +378,31 @@ def _read_ndx_event(*, event_name: str, source_info: tuple) -> dict[str, object]
     Returns
     -------
     dict
-        ``{"storename": ..., "timestamps": ...}``
+        ``{"store_id": ..., "timestamps": ...}``
     """
     tag = source_info[0]
 
     if tag == "annotated":
         _, neurodata_object, row_index = source_info
-        return {"storename": event_name, "timestamps": np.array(neurodata_object["event_times"][row_index])}
+        return {"store_id": event_name, "timestamps": np.array(neurodata_object["event_times"][row_index])}
 
     if tag == "labeled":
         _, neurodata_object, label_index = source_info
         all_timestamps = np.array(neurodata_object.timestamps[:])
         all_data = np.array(neurodata_object.data[:])
-        return {"storename": event_name, "timestamps": all_timestamps[all_data == label_index]}
+        return {"store_id": event_name, "timestamps": all_timestamps[all_data == label_index]}
 
     if tag == "events":
         _, neurodata_object = source_info
-        return {"storename": event_name, "timestamps": np.array(neurodata_object.timestamps[:])}
+        return {"store_id": event_name, "timestamps": np.array(neurodata_object.timestamps[:])}
 
     if tag == "core":
         _, table, split_column, split_value = source_info
         all_timestamps = np.array(table["timestamp"][:])
         if split_column is not None:
             all_values = np.asarray(table[split_column][:])
-            return {"storename": event_name, "timestamps": all_timestamps[all_values == split_value]}
-        return {"storename": event_name, "timestamps": all_timestamps}
+            return {"store_id": event_name, "timestamps": all_timestamps[all_values == split_value]}
+        return {"store_id": event_name, "timestamps": all_timestamps}
 
     raise ValueError(
         f"Unknown event source tag: {tag!r}. Expected one of 'annotated', 'labeled', 'events', 'core'. "

@@ -75,7 +75,7 @@ def write_custom_event_csv(*, name: str, timestamps: list[float], folder_path: s
 
     The file is written as ``<name>.csv`` into ``folder_path`` with a single
     ``timestamps`` column. The filename (minus ``.csv``) becomes the store name
-    surfaced in the Storenames GUI.
+    surfaced in the Label Stores GUI.
 
     Parameters
     ----------

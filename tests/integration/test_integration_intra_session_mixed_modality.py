@@ -28,10 +28,10 @@ def _stage_session(src_base_dir, session_subdir, tmp_base):
 
 def _assert_intra_session_outputs(session_copy, expected_region, expected_ttl):
     dest_name = os.path.basename(session_copy)
-    output_dirs = sorted(glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")))
-    assert output_dirs, f"No output directories found in {session_copy}"
+    run_folders = sorted(glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")))
+    assert run_folders, f"No output directories found in {session_copy}"
     out_dir = None
-    for d in output_dirs:
+    for d in run_folders:
         if os.path.exists(os.path.join(d, "storesList.csv")):
             out_dir = d
             break
@@ -75,7 +75,7 @@ def test_mixed_modality_tdt_csv_ttl(tmp_path):
     step1(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        storenames_map={"Dv1A": "control_dms", "Dv2A": "signal_dms", "csv_port_entries": "port_entries_dms"},
+        store_id_to_store_label={"Dv1A": "control_dms", "Dv2A": "signal_dms", "csv_port_entries": "port_entries_dms"},
     )
     selected_runs = {str(session_copy): ["1"]}
     step2(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
@@ -114,7 +114,7 @@ def test_mixed_modality_doric_csv_ttl(tmp_path):
     step1(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        storenames_map={
+        store_id_to_store_label={
             "CAM1_EXC1/ROI01": "control_region",
             "CAM1_EXC2/ROI01": "signal_region",
             "csv_doric_event": "ttl_region",
@@ -160,7 +160,7 @@ def test_mixed_modality_npm_csv_ttl(tmp_path):
     step1(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        storenames_map={
+        store_id_to_store_label={
             "file0_chev1": "signal_region",
             "file0_chod1": "control_region",
             "csv_event": "ttl_region",
@@ -218,7 +218,7 @@ def test_mixed_modality_nwb_csv_ttl(tmp_path):
     step1(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        storenames_map={
+        store_id_to_store_label={
             "fiber_photometry_response_series_0": "control_region",
             "fiber_photometry_response_series_1": "signal_region",
             "csv_nwb_event": "ttl_region",

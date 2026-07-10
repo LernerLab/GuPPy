@@ -48,7 +48,7 @@ class TestSharedApiValidation:
             "selected_folders": [api_workspace["session_directory"]],
         }
         if step_name == "step1":
-            kwargs["storenames_map"] = valid_storenames_map
+            kwargs["store_id_to_store_label"] = valid_storenames_map
         if step_name in ("step2", "step3", "step4", "step5"):
             kwargs["selected_runs"] = {api_workspace["session_directory"]: ["1"]}
 
@@ -63,7 +63,7 @@ class TestSharedApiValidation:
             "selected_folders": [],
         }
         if step_name == "step1":
-            kwargs["storenames_map"] = valid_storenames_map
+            kwargs["store_id_to_store_label"] = valid_storenames_map
         if step_name in ("step2", "step3", "step4", "step5"):
             kwargs["selected_runs"] = {}
 
@@ -78,7 +78,7 @@ class TestSharedApiValidation:
             "selected_folders": [api_workspace["missing_session_directory"]],
         }
         if step_name == "step1":
-            kwargs["storenames_map"] = valid_storenames_map
+            kwargs["store_id_to_store_label"] = valid_storenames_map
         if step_name in ("step2", "step3", "step4", "step5"):
             kwargs["selected_runs"] = {api_workspace["missing_session_directory"]: ["1"]}
 
@@ -93,7 +93,7 @@ class TestSharedApiValidation:
             "selected_folders": [api_workspace["foreign_session_directory"]],
         }
         if step_name == "step1":
-            kwargs["storenames_map"] = valid_storenames_map
+            kwargs["store_id_to_store_label"] = valid_storenames_map
         if step_name in ("step2", "step3", "step4", "step5"):
             kwargs["selected_runs"] = {api_workspace["foreign_session_directory"]: ["1"]}
 
@@ -103,21 +103,21 @@ class TestSharedApiValidation:
 
 class TestStep1Validation:
     @pytest.mark.parametrize(
-        ("storenames_map", "message"),
+        ("store_id_to_store_label", "message"),
         [
-            ({}, "storenames_map must be a non-empty dict"),
-            ({"": "signal_region"}, "Invalid storename key"),
+            ({}, "store_id_to_store_label must be a non-empty dict"),
+            ({"": "signal_region"}, "Invalid store_id key"),
             ({"RawSignal": ""}, "Invalid semantic name"),
-            ({1: "signal_region"}, "Invalid storename key"),
+            ({1: "signal_region"}, "Invalid store_id key"),
             ({"RawSignal": None}, "Invalid semantic name"),
         ],
     )
-    def test_step1_validates_storenames_map(self, api_workspace, storenames_map, message):
+    def test_step1_validates_storenames_map(self, api_workspace, store_id_to_store_label, message):
         with pytest.raises(ValueError, match=message):
             testing_api.step1(
                 base_dir=api_workspace["base_directory"],
                 selected_folders=[api_workspace["session_directory"]],
-                storenames_map=storenames_map,
+                store_id_to_store_label=store_id_to_store_label,
             )
 
 
@@ -136,7 +136,7 @@ class TestApiRuntimeErrors:
             "selected_folders": [api_workspace["session_directory"]],
         }
         if step_name == "step1":
-            kwargs["storenames_map"] = valid_storenames_map
+            kwargs["store_id_to_store_label"] = valid_storenames_map
         if step_name in ("step2", "step3", "step4", "step5"):
             kwargs["selected_runs"] = {api_workspace["session_directory"]: ["1"]}
 
@@ -157,7 +157,7 @@ class TestApiRuntimeErrors:
             "selected_folders": [api_workspace["session_directory"]],
         }
         if step_name == "step1":
-            kwargs["storenames_map"] = valid_storenames_map
+            kwargs["store_id_to_store_label"] = valid_storenames_map
         if step_name in ("step2", "step3", "step4", "step5"):
             kwargs["selected_runs"] = {api_workspace["session_directory"]: ["1"]}
 

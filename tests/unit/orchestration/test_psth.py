@@ -15,11 +15,11 @@ from guppy.orchestration.psth import (
 @pytest.fixture
 def psth_output_dir(tmp_path):
     """Create a minimal output directory with a z_score_DMS.hdf5 for glob discovery."""
-    output_dir = tmp_path / "session1" / "session1_output_1"
-    output_dir.mkdir(parents=True)
-    with h5py.File(str(output_dir / "z_score_DMS.hdf5"), "w") as hdf5_file:
+    run_folder = tmp_path / "session1" / "session1_output_1"
+    run_folder.mkdir(parents=True)
+    with h5py.File(str(run_folder / "z_score_DMS.hdf5"), "w") as hdf5_file:
         hdf5_file.create_dataset("data", data=np.zeros(100))
-    return output_dir
+    return run_folder
 
 
 # ---------------------------------------------------------------------------
@@ -89,7 +89,7 @@ def test_execute_compute_cross_correlation_raises_when_concatenate_and_remove_ar
 
 
 def test_execute_average_for_group_raises_for_empty_folders(base_input_parameters):
-    base_input_parameters["folderNamesForAvg"] = []
+    base_input_parameters["group_session_folders"] = []
     with pytest.raises(ValueError, match="No folders selected for group averaging"):
         execute_average_for_group(base_input_parameters)
 
@@ -150,12 +150,12 @@ def test_execute_compute_cross_correlation_raises_for_no_regions(psth_output_dir
 # ---------------------------------------------------------------------------
 
 
-def _write_stores_list(output_dir, storenames):
-    """Write a minimal storesList.csv with 'raw' labels in row 0 and storenames in row 1."""
-    output_dir.mkdir(parents=True, exist_ok=True)
-    raw_labels = [f"raw{i}" for i in range(len(storenames))]
-    rows = [",".join(raw_labels), ",".join(storenames)]
-    (output_dir / "storesList.csv").write_text("\n".join(rows) + "\n")
+def _write_stores_list(run_folder, store_ids):
+    """Write a minimal storesList.csv with 'raw' labels in row 0 and store_ids in row 1."""
+    run_folder.mkdir(parents=True, exist_ok=True)
+    raw_labels = [f"raw{i}" for i in range(len(store_ids))]
+    rows = [",".join(raw_labels), ",".join(store_ids)]
+    (run_folder / "storesList.csv").write_text("\n".join(rows) + "\n")
 
 
 def test_validate_fiber_regions_consistent_passes_when_all_match(tmp_path):
@@ -185,7 +185,7 @@ def test_validate_fiber_regions_allows_same_region_different_event(tmp_path):
     _write_stores_list(output_1, ["control_DMS", "signal_DMS", "novelobject"])
     _write_stores_list(output_2, ["control_DMS", "signal_DMS", "novelfemale1"])
 
-    # Fiber storenames match; only the event differs → should not raise
+    # Fiber store_ids match; only the event differs → should not raise
     _validate_fiber_regions_consistent_for_group(np.array([str(output_1), str(output_2)]))
 
 
@@ -195,7 +195,7 @@ def test_validate_fiber_regions_raises_for_non_overlapping_fibers(tmp_path):
     _write_stores_list(output_1, ["control_DMS_A", "signal_DMS_A", "port_entries_A"])
     _write_stores_list(output_2, ["control_DMS_B", "signal_DMS_B", "port_entries_B"])
 
-    with pytest.raises(ValueError, match="mismatched control/signal storenames"):
+    with pytest.raises(ValueError, match="mismatched control/signal store_ids"):
         _validate_fiber_regions_consistent_for_group(np.array([str(output_1), str(output_2)]))
 
 
@@ -205,7 +205,7 @@ def test_validate_fiber_regions_raises_for_mismatched_region_labels(tmp_path):
     _write_stores_list(output_1, ["control_region1", "signal_region1", "port_entries1"])
     _write_stores_list(output_2, ["control_region2", "signal_region2", "port_entries2"])
 
-    with pytest.raises(ValueError, match="mismatched control/signal storenames"):
+    with pytest.raises(ValueError, match="mismatched control/signal store_ids"):
         _validate_fiber_regions_consistent_for_group(np.array([str(output_1), str(output_2)]))
 
 
@@ -221,7 +221,7 @@ def test_validate_fiber_regions_error_message_lists_session_name_and_storenames(
     # Session folder names
     assert "session1" in message
     assert "session2" in message
-    # Storenames for each session
+    # Store IDs for each session
     assert "control_region1" in message
     assert "signal_region1" in message
     assert "control_region2" in message

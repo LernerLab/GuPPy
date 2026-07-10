@@ -53,7 +53,7 @@ def test_average_for_group_creates_combined_freq_amp_file(tmp_path):
 
 
 def test_average_for_group_handles_non_overlapping_storenames_without_indexerror(tmp_path):
-    """Non-overlapping storenames across sessions must not cause an IndexError.
+    """Non-overlapping store_ids across sessions must not cause an IndexError.
 
     Regression test for issue #274.
     """

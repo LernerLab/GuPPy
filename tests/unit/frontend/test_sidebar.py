@@ -14,7 +14,7 @@ def sidebar(panel_extension):
 class TestSidebar:
     def test_all_buttons_exist_with_primary_type(self, sidebar):
         button_names = [
-            "open_storenames",
+            "open_label_stores",
             "read_rawData",
             "preprocess",
             "psth_computation",
@@ -38,8 +38,8 @@ class TestSidebar:
         def on_storenames(event=None):
             calls.append(event)
 
-        sidebar.attach_callbacks({"open_storenames": on_storenames})
-        sidebar.open_storenames.clicks += 1
+        sidebar.attach_callbacks({"open_label_stores": on_storenames})
+        sidebar.open_label_stores.clicks += 1
 
         assert len(calls) == 1
 
@@ -50,7 +50,7 @@ class TestSidebar:
 
         objects = template.sidebar.objects
         assert len(objects) > 0
-        assert sidebar.open_storenames in objects
+        assert sidebar.open_label_stores in objects
         assert sidebar.read_progress in objects
         assert sidebar.extract_progress in objects
         assert sidebar.psth_progress in objects

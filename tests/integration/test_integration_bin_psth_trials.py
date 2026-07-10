@@ -19,7 +19,7 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
     psth_average.averageForGroup.
     """
     session_subdir = "csv/sample_data_csv_1"
-    storenames_map = {
+    store_id_to_store_label = {
         "Sample_Control_Channel": "control_region",
         "Sample_Signal_Channel": "signal_region",
         "Sample_TTL": "ttl",
@@ -50,7 +50,7 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
     step1(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        storenames_map=storenames_map,
+        store_id_to_store_label=store_id_to_store_label,
         npm_timestamp_column_names=None,
         npm_time_units=None,
         npm_split_events=[True, True],

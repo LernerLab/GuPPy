@@ -61,7 +61,7 @@ def test_consistency(tmp_path):
     selected_folders = [str(s) for s in session_copies]
 
     selected_runs = {folder: ["1"] for folder in selected_folders}
-    step1(base_dir=str(tmp_base), selected_folders=selected_folders, storenames_map=STORENAMES_MAP)
+    step1(base_dir=str(tmp_base), selected_folders=selected_folders, store_id_to_store_label=STORENAMES_MAP)
     step2(base_dir=str(tmp_base), selected_folders=selected_folders, selected_runs=selected_runs)
     step3(
         base_dir=str(tmp_base),
@@ -79,9 +79,9 @@ def test_consistency(tmp_path):
 
     for session_copy, standard_output_dir in zip(session_copies, standard_output_dirs):
         dest_name = session_copy.name
-        output_dirs = sorted(glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")))
-        assert output_dirs, f"No output directory found under {session_copy}"
-        actual_output_dir = output_dirs[0]
+        run_folders = sorted(glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")))
+        assert run_folders, f"No output directory found under {session_copy}"
+        actual_output_dir = run_folders[0]
 
         compare_output_folders(
             actual_dir=actual_output_dir,

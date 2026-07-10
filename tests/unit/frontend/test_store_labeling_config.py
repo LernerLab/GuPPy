@@ -1,7 +1,7 @@
 import panel as pn
 import pytest
 
-from guppy.frontend.storenames_config import StorenamesConfig
+from guppy.frontend.store_labeling_config import StoreLabelingConfig
 
 
 @pytest.fixture
@@ -11,61 +11,61 @@ def show_config_button():
 
 @pytest.fixture
 def storenames_config_instance(panel_extension, show_config_button):
-    return StorenamesConfig(
+    return StoreLabelingConfig(
         show_config_button=show_config_button,
-        storename_dropdowns={},
-        storename_textboxes={},
-        storenames=["Dv1A"],
-        storenames_cache={},
+        store_id_dropdowns={},
+        store_id_textboxes={},
+        store_ids=["Dv1A"],
+        store_id_to_store_labels={},
     )
 
 
 class TestStorenamesConfig:
-    # ── Empty storenames ──────────────────────────────────────────────────────
+    # ── Empty store_ids ──────────────────────────────────────────────────────
 
     def test_empty_storenames_yields_no_widgets(self, panel_extension, show_config_button):
-        config = StorenamesConfig(
+        config = StoreLabelingConfig(
             show_config_button=show_config_button,
-            storename_dropdowns={},
-            storename_textboxes={},
-            storenames=[],
-            storenames_cache={},
+            store_id_dropdowns={},
+            store_id_textboxes={},
+            store_ids=[],
+            store_id_to_store_labels={},
         )
         assert config.config_widgets == []
 
-    # ── Single storename, no cache ────────────────────────────────────────────
+    # ── Single store_id, no cache ────────────────────────────────────────────
 
     def test_single_storename_widget_count(self, panel_extension, show_config_button):
         # markdown header + 1 row + spacer + show button + instructions markdown = 5
-        config = StorenamesConfig(
+        config = StoreLabelingConfig(
             show_config_button=show_config_button,
-            storename_dropdowns={},
-            storename_textboxes={},
-            storenames=["Dv1A"],
-            storenames_cache={},
+            store_id_dropdowns={},
+            store_id_textboxes={},
+            store_ids=["Dv1A"],
+            store_id_to_store_labels={},
         )
         assert len(config.config_widgets) == 5
 
     def test_single_storename_dropdown_in_dict(self, panel_extension, show_config_button):
         dropdowns = {}
-        StorenamesConfig(
+        StoreLabelingConfig(
             show_config_button=show_config_button,
-            storename_dropdowns=dropdowns,
-            storename_textboxes={},
-            storenames=["Dv1A"],
-            storenames_cache={},
+            store_id_dropdowns=dropdowns,
+            store_id_textboxes={},
+            store_ids=["Dv1A"],
+            store_id_to_store_labels={},
         )
         assert "Dv1A_0" in dropdowns
         assert dropdowns["Dv1A_0"].value == ""
 
     def test_single_storename_textbox_in_dict(self, panel_extension, show_config_button):
         textboxes = {}
-        StorenamesConfig(
+        StoreLabelingConfig(
             show_config_button=show_config_button,
-            storename_dropdowns={},
-            storename_textboxes=textboxes,
-            storenames=["Dv1A"],
-            storenames_cache={},
+            store_id_dropdowns={},
+            store_id_textboxes=textboxes,
+            store_ids=["Dv1A"],
+            store_id_to_store_labels={},
         )
         assert "Dv1A_0" in textboxes
         assert textboxes["Dv1A_0"].value == ""
@@ -107,12 +107,12 @@ class TestStorenamesConfig:
     def test_cache_control_pre_populates_dropdown_and_textbox(self, panel_extension, show_config_button):
         dropdowns = {}
         textboxes = {}
-        StorenamesConfig(
+        StoreLabelingConfig(
             show_config_button=show_config_button,
-            storename_dropdowns=dropdowns,
-            storename_textboxes=textboxes,
-            storenames=["Dv1A"],
-            storenames_cache={"Dv1A": ["control_DMS"]},
+            store_id_dropdowns=dropdowns,
+            store_id_textboxes=textboxes,
+            store_ids=["Dv1A"],
+            store_id_to_store_labels={"Dv1A": ["control_DMS"]},
         )
         assert dropdowns["Dv1A_0"].value == "control"
         assert textboxes["Dv1A_0"].value == "DMS"
@@ -120,12 +120,12 @@ class TestStorenamesConfig:
     def test_cache_signal_pre_populates_dropdown_and_textbox(self, panel_extension, show_config_button):
         dropdowns = {}
         textboxes = {}
-        StorenamesConfig(
+        StoreLabelingConfig(
             show_config_button=show_config_button,
-            storename_dropdowns=dropdowns,
-            storename_textboxes=textboxes,
-            storenames=["Dv2A"],
-            storenames_cache={"Dv2A": ["signal_DLS"]},
+            store_id_dropdowns=dropdowns,
+            store_id_textboxes=textboxes,
+            store_ids=["Dv2A"],
+            store_id_to_store_labels={"Dv2A": ["signal_DLS"]},
         )
         assert dropdowns["Dv2A_0"].value == "signal"
         assert textboxes["Dv2A_0"].value == "DLS"
@@ -133,12 +133,12 @@ class TestStorenamesConfig:
     def test_cache_event_ttl_pre_populates_dropdown_and_textbox(self, panel_extension, show_config_button):
         dropdowns = {}
         textboxes = {}
-        StorenamesConfig(
+        StoreLabelingConfig(
             show_config_button=show_config_button,
-            storename_dropdowns=dropdowns,
-            storename_textboxes=textboxes,
-            storenames=["PrtR"],
-            storenames_cache={"PrtR": ["RewardedPort"]},
+            store_id_dropdowns=dropdowns,
+            store_id_textboxes=textboxes,
+            store_ids=["PrtR"],
+            store_id_to_store_labels={"PrtR": ["RewardedPort"]},
         )
         assert dropdowns["PrtR_0"].value == "event TTLs"
         assert textboxes["PrtR_0"].value == "RewardedPort"
@@ -147,12 +147,12 @@ class TestStorenamesConfig:
 
     def test_dropdown_change_updates_help_pane(self, panel_extension, show_config_button):
         dropdowns = {}
-        config = StorenamesConfig(
+        config = StoreLabelingConfig(
             show_config_button=show_config_button,
-            storename_dropdowns=dropdowns,
-            storename_textboxes={},
-            storenames=["Dv1A"],
-            storenames_cache={},
+            store_id_dropdowns=dropdowns,
+            store_id_textboxes={},
+            store_ids=["Dv1A"],
+            store_id_to_store_labels={},
         )
         dropdown = dropdowns["Dv1A_0"]
         help_pane = config._dropdown_help_map[dropdown]
@@ -163,12 +163,12 @@ class TestStorenamesConfig:
 
     def test_dropdown_change_to_event_updates_help_pane(self, panel_extension, show_config_button):
         dropdowns = {}
-        config = StorenamesConfig(
+        config = StoreLabelingConfig(
             show_config_button=show_config_button,
-            storename_dropdowns=dropdowns,
-            storename_textboxes={},
-            storenames=["PrtR"],
-            storenames_cache={},
+            store_id_dropdowns=dropdowns,
+            store_id_textboxes={},
+            store_ids=["PrtR"],
+            store_id_to_store_labels={},
         )
         dropdown = dropdowns["PrtR_0"]
         help_pane = config._dropdown_help_map[dropdown]

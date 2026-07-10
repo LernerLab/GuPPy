@@ -3,7 +3,7 @@ import logging
 import os
 from importlib.metadata import version
 
-from guppy.utils.utils import discover_output_dirs, select_output_dirs
+from guppy.utils.utils import discover_run_folders, select_run_folders
 
 logger = logging.getLogger(__name__)
 
@@ -12,10 +12,10 @@ def save_parameters(inputParameters: dict[str, object]) -> None:
     """
     Write the analysis configuration JSON to each selected output directory.
 
-    For every session listed under ``inputParameters['folderNames']`` the
+    For every session listed under ``inputParameters['session_folders']`` the
     configuration is written into each output directory selected by the
-    ``selectedOutputs`` filter. When a session has no output directories yet
-    (e.g. parameters are saved before Storenames (Step 1) creates any output
+    ``selected_runs`` filter. When a session has no output directories yet
+    (e.g. parameters are saved before Label Stores (Step 1) creates any output
     directories), the file is written at the session root as a fallback so the
     legacy ordering still works.
 
@@ -58,14 +58,14 @@ def save_parameters(inputParameters: dict[str, object]) -> None:
         "visualize_zscore_or_dff": inputParameters["visualize_zscore_or_dff"],
         "averageForGroup": inputParameters["averageForGroup"],
     }
-    selected_outputs = inputParameters.get("selectedOutputs") or {}
-    for session in inputParameters["folderNames"]:
+    selected_runs = inputParameters.get("selected_runs") or {}
+    for session in inputParameters["session_folders"]:
         # Fall back to the session root when no output dirs exist yet so parameter
-        # saving can still run before Storenames (Step 1) creates output dirs.
-        if not discover_output_dirs(session):
+        # saving can still run before Label Stores (Step 1) creates output dirs.
+        if not discover_run_folders(session):
             destinations = [session]
         else:
-            destinations = select_output_dirs(session, selected_outputs.get(session))
+            destinations = select_run_folders(session, selected_runs.get(session))
         for destination in destinations:
             with open(os.path.join(destination, "GuPPyParamtersUsed.json"), "w") as parameters_file:
                 json.dump(analysisParameters, parameters_file, indent=4)

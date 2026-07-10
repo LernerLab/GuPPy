@@ -61,7 +61,7 @@ def build_custom_events_template(folder_path: str) -> pn.template.BootstrapTempl
             written.append(os.path.basename(csv_path))
 
         if not written:
-            config.set_alert_message("#### No events to save — continue to the Storenames GUI.")
+            config.set_alert_message("#### No events to save — continue to the Label Stores GUI.")
             return
         message = "#### Saved: " + ", ".join(written)
         if warnings:
@@ -114,13 +114,13 @@ def orchestrate_custom_events_page(inputParameters: dict[str, object]) -> None:
     Parameters
     ----------
     inputParameters : dict
-        Full pipeline input parameters; uses ``folderNames`` and ``abspath``,
+        Full pipeline input parameters; uses ``session_folders`` and ``abspath``,
         and optionally ``custom_events_map`` for headless operation.
     """
-    folderNames = inputParameters["folderNames"]
-    logger.info(folderNames)
+    session_folders = inputParameters["session_folders"]
+    logger.info(session_folders)
 
-    for i in folderNames:
+    for i in session_folders:
         folder_path = os.path.join(inputParameters["abspath"], i)
         build_custom_events_page(inputParameters, folder_path)
     logger.info("#" * 400)

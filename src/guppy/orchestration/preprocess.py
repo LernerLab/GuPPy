@@ -42,7 +42,7 @@ from ..analysis.timestamp_correction import correct_timestamps
 from ..analysis.z_score import compute_z_score
 from ..frontend.artifact_removal import ArtifactRemovalWidget
 from ..frontend.progress import PB_STEPS_FILE, subprocess_main_handler, writeToFile
-from ..utils.utils import get_all_stores_for_combining_data, select_output_dirs
+from ..utils.utils import get_all_stores_for_combining_data, select_run_folders
 from ..visualization.preprocessing import visualize_preprocessing
 
 logger = logging.getLogger(__name__)
@@ -136,13 +136,13 @@ def visualizeControlAndSignal(filepath: str, removeArtifacts: bool) -> list:
     return widgets
 
 
-def execute_timestamp_correction(folderNames: list[str], inputParameters: dict[str, object]) -> None:
+def execute_timestamp_correction(session_folders: list[str], inputParameters: dict[str, object]) -> None:
     """
     Apply timestamp correction to all session output directories.
 
     Parameters
     ----------
-    folderNames : list of str
+    session_folders : list of str
         Session directories to process.
     inputParameters : dict
         Pipeline configuration; must include ``'timeForLightsTurnOn'`` and
@@ -152,68 +152,70 @@ def execute_timestamp_correction(folderNames: list[str], inputParameters: dict[s
     timeForLightsTurnOn = inputParameters["timeForLightsTurnOn"]
     isosbestic_control = inputParameters["isosbestic_control"]
 
-    selected_outputs = inputParameters.get("selectedOutputs") or {}
-    for i in range(len(folderNames)):
-        filepath = folderNames[i]
-        storesListPath = select_output_dirs(filepath, selected_outputs.get(filepath))
-        mode = "tdt" if check_TDT(folderNames[i]) else "csv"
+    selected_runs = inputParameters.get("selected_runs") or {}
+    for i in range(len(session_folders)):
+        filepath = session_folders[i]
+        run_folders = select_run_folders(filepath, selected_runs.get(filepath))
+        mode = "tdt" if check_TDT(session_folders[i]) else "csv"
         logger.debug(f"Timestamps corrections started for {filepath}")
-        for j in range(len(storesListPath)):
-            filepath = storesListPath[j]
-            storesList = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(
+        for j in range(len(run_folders)):
+            filepath = run_folders[j]
+            store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(
                 2, -1
             )
 
             if isosbestic_control == False:
-                storesList = add_control_channel(filepath, storesList)
+                store_array = add_control_channel(filepath, store_array)
 
-            control_and_signal_dicts = read_control_and_signal(filepath, storesList)
-            name_to_data, name_to_timestamps, name_to_sampling_rate, name_to_npoints = control_and_signal_dicts
-            name_to_timestamps_ttl = read_ttl(filepath, storesList)
+            control_and_signal_dicts = read_control_and_signal(filepath, store_array)
+            store_label_to_data, store_label_to_timestamps, store_label_to_sampling_rate, store_label_to_npoints = (
+                control_and_signal_dicts
+            )
+            store_label_to_timestamps_ttl = read_ttl(filepath, store_array)
 
             timestamps_dicts = correct_timestamps(
                 timeForLightsTurnOn,
-                storesList,
-                name_to_timestamps,
-                name_to_data,
-                name_to_sampling_rate,
-                name_to_npoints,
-                name_to_timestamps_ttl,
+                store_array,
+                store_label_to_timestamps,
+                store_label_to_data,
+                store_label_to_sampling_rate,
+                store_label_to_npoints,
+                store_label_to_timestamps_ttl,
                 mode=mode,
             )
             (
-                name_to_corrected_timestamps,
-                name_to_correctionIndex,
-                name_to_corrected_data,
+                store_label_to_corrected_timestamps,
+                store_label_to_correction_index,
+                store_label_to_corrected_data,
                 compound_name_to_corrected_ttl_timestamps,
             ) = timestamps_dicts
 
             write_corrected_timestamps(
                 filepath,
-                name_to_corrected_timestamps,
-                name_to_timestamps,
-                name_to_sampling_rate,
-                name_to_correctionIndex,
+                store_label_to_corrected_timestamps,
+                store_label_to_timestamps,
+                store_label_to_sampling_rate,
+                store_label_to_correction_index,
             )
-            write_corrected_data(filepath, name_to_corrected_data)
+            write_corrected_data(filepath, store_label_to_corrected_data)
             write_corrected_ttl_timestamps(filepath, compound_name_to_corrected_ttl_timestamps)
 
             # check if isosbestic control is false and also if new control channel is added
             if isosbestic_control == False:
-                create_control_channel(filepath, storesList, window=101)
+                create_control_channel(filepath, store_array, window=101)
 
             writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
             inputParameters["step"] += 1
         logger.info(f"Timestamps corrections finished for {filepath}")
 
 
-def execute_zscore(folderNames: list[str], inputParameters: dict[str, object]) -> None:
+def execute_zscore(session_folders: list[str], inputParameters: dict[str, object]) -> None:
     """
     Compute z-score and dF/F for all channel pairs across session output directories.
 
     Parameters
     ----------
-    folderNames : list of str
+    session_folders : list of str
         Session directories (or combined-output folder lists when ``combine_data`` is True).
     inputParameters : dict
         Pipeline configuration; must include ``'filter_window'``, ``'isosbestic_control'``,
@@ -232,19 +234,17 @@ def execute_zscore(folderNames: list[str], inputParameters: dict[str, object]) -
     control_fit_method = inputParameters["control_fit_method"]
     baseline_start, baseline_end = inputParameters["baselineWindowStart"], inputParameters["baselineWindowEnd"]
 
-    storesListPath = []
-    for i in range(len(folderNames)):
+    run_folders = []
+    for i in range(len(session_folders)):
         if combine_data == True:
-            storesListPath.append([folderNames[i][0]])
+            run_folders.append([session_folders[i][0]])
         else:
-            filepath = folderNames[i]
-            storesListPath.append(
-                select_output_dirs(filepath, (inputParameters.get("selectedOutputs") or {}).get(filepath))
-            )
-    storesListPath = np.concatenate(storesListPath)
+            filepath = session_folders[i]
+            run_folders.append(select_run_folders(filepath, (inputParameters.get("selected_runs") or {}).get(filepath)))
+    run_folders = np.concatenate(run_folders)
 
-    for j in range(len(storesListPath)):
-        filepath = storesListPath[j]
+    for j in range(len(run_folders)):
+        filepath = run_folders[j]
         logger.debug(f"Computing z-score for each of the data in {filepath}")
         path_1 = find_files(filepath, "control_*", ignore_case=True)
         path_2 = find_files(filepath, "signal_*", ignore_case=True)
@@ -301,7 +301,7 @@ def execute_zscore(folderNames: list[str], inputParameters: dict[str, object]) -
     logger.info("Z-score computation completed.")
 
 
-def visualize_z_score(inputParameters: dict[str, object], folderNames: list[str]) -> None:
+def visualize_z_score(inputParameters: dict[str, object], session_folders: list[str]) -> None:
     """
     Display control/signal plots and z-score/dF/F visualizations for all sessions.
 
@@ -310,27 +310,25 @@ def visualize_z_score(inputParameters: dict[str, object], folderNames: list[str]
     inputParameters : dict
         Pipeline configuration; must include ``'plot_zScore_dff'``, ``'combine_data'``,
         and ``'removeArtifacts'``.
-    folderNames : list of str
+    session_folders : list of str
         Session directories to visualize.
     """
     plot_zScore_dff = inputParameters["plot_zScore_dff"]
     combine_data = inputParameters["combine_data"]
     remove_artifacts = inputParameters["removeArtifacts"]
 
-    storesListPath = []
-    for i in range(len(folderNames)):
+    run_folders = []
+    for i in range(len(session_folders)):
         if combine_data == True:
-            storesListPath.append([folderNames[i][0]])
+            run_folders.append([session_folders[i][0]])
         else:
-            filepath = folderNames[i]
-            storesListPath.append(
-                select_output_dirs(filepath, (inputParameters.get("selectedOutputs") or {}).get(filepath))
-            )
-    storesListPath = np.concatenate(storesListPath)
+            filepath = session_folders[i]
+            run_folders.append(select_run_folders(filepath, (inputParameters.get("selected_runs") or {}).get(filepath)))
+    run_folders = np.concatenate(run_folders)
 
     widgets = []
-    for j in range(len(storesListPath)):
-        filepath = storesListPath[j]
+    for j in range(len(run_folders)):
+        filepath = run_folders[j]
 
         if not remove_artifacts:
             # a reference to widgets has to persist in the same scope as plt.show() is called
@@ -348,13 +346,13 @@ def visualize_z_score(inputParameters: dict[str, object], folderNames: list[str]
     logger.info("Visualization of z-score and dF/F completed.")
 
 
-def execute_artifact_removal(folderNames: list[str], inputParameters: dict[str, object]) -> None:
+def execute_artifact_removal(session_folders: list[str], inputParameters: dict[str, object]) -> None:
     """
     Apply artifact removal to all session output directories.
 
     Parameters
     ----------
-    folderNames : list of str
+    session_folders : list of str
         Session directories to process.
     inputParameters : dict
         Pipeline configuration; must include ``'timeForLightsTurnOn'``,
@@ -365,94 +363,92 @@ def execute_artifact_removal(folderNames: list[str], inputParameters: dict[str, 
     artifactsRemovalMethod = inputParameters["artifactsRemovalMethod"]
     combine_data = inputParameters["combine_data"]
 
-    storesListPath = []
-    for i in range(len(folderNames)):
+    run_folders = []
+    for i in range(len(session_folders)):
         if combine_data == True:
-            storesListPath.append([folderNames[i][0]])
+            run_folders.append([session_folders[i][0]])
         else:
-            filepath = folderNames[i]
-            storesListPath.append(
-                select_output_dirs(filepath, (inputParameters.get("selectedOutputs") or {}).get(filepath))
-            )
+            filepath = session_folders[i]
+            run_folders.append(select_run_folders(filepath, (inputParameters.get("selected_runs") or {}).get(filepath)))
 
-    storesListPath = np.concatenate(storesListPath)
+    run_folders = np.concatenate(run_folders)
 
-    for j in range(len(storesListPath)):
-        filepath = storesListPath[j]
-        storesList = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
+    for j in range(len(run_folders)):
+        filepath = run_folders[j]
+        store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
 
-        name_to_data = read_corrected_data_dict(filepath, storesList)
+        store_label_to_data = read_corrected_data_dict(filepath, store_array)
         pair_name_to_tsNew, pair_name_to_sampling_rate = read_corrected_timestamps_pairwise(filepath)
         pair_name_to_coords = read_coords_pairwise(filepath, pair_name_to_tsNew)
-        compound_name_to_ttl_timestamps = read_corrected_ttl_timestamps(filepath, storesList)
+        compound_name_to_ttl_timestamps = read_corrected_ttl_timestamps(filepath, store_array)
 
         logger.debug("Removing artifacts from the data...")
-        name_to_data, pair_name_to_timestamps, compound_name_to_ttl_timestamps = remove_artifacts(
+        store_label_to_data, pair_name_to_timestamps, compound_name_to_ttl_timestamps = remove_artifacts(
             timeForLightsTurnOn,
-            storesList,
+            store_array,
             pair_name_to_tsNew,
             pair_name_to_sampling_rate,
             pair_name_to_coords,
-            name_to_data,
+            store_label_to_data,
             compound_name_to_ttl_timestamps,
             method=artifactsRemovalMethod,
         )
 
-        write_artifact_removal(filepath, name_to_data, pair_name_to_timestamps, compound_name_to_ttl_timestamps)
+        write_artifact_removal(filepath, store_label_to_data, pair_name_to_timestamps, compound_name_to_ttl_timestamps)
 
         writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
         inputParameters["step"] += 1
 
     headless = bool(os.environ.get("GUPPY_BASE_DIR"))
     if not headless:
-        visualize_artifact_removal(folderNames, inputParameters)
+        visualize_artifact_removal(session_folders, inputParameters)
     logger.info("Artifact removal completed.")
 
 
-def visualize_artifact_removal(folderNames: list[str], inputParameters: dict[str, object]) -> None:
+def visualize_artifact_removal(session_folders: list[str], inputParameters: dict[str, object]) -> None:
     """
     Display control/signal plots after artifact removal for all sessions.
 
     Parameters
     ----------
-    folderNames : list of str
+    session_folders : list of str
         Session directories to visualize.
     inputParameters : dict
         Pipeline configuration; must include ``'combine_data'``.
     """
     combine_data = inputParameters["combine_data"]
 
-    storesListPath = []
-    for i in range(len(folderNames)):
+    run_folders = []
+    for i in range(len(session_folders)):
         if combine_data == True:
-            storesListPath.append([folderNames[i][0]])
+            run_folders.append([session_folders[i][0]])
         else:
-            filepath = folderNames[i]
-            storesListPath.append(
-                select_output_dirs(filepath, (inputParameters.get("selectedOutputs") or {}).get(filepath))
-            )
+            filepath = session_folders[i]
+            run_folders.append(select_run_folders(filepath, (inputParameters.get("selected_runs") or {}).get(filepath)))
 
-    storesListPath = np.concatenate(storesListPath)
+    run_folders = np.concatenate(run_folders)
 
-    for j in range(len(storesListPath)):
-        filepath = storesListPath[j]
+    for j in range(len(run_folders)):
+        filepath = run_folders[j]
         visualizeControlAndSignal(filepath, removeArtifacts=True)
     plt.show()
     logger.info("Visualization of artifact removal completed.")
 
 
-def execute_combine_data(folderNames: list[str], inputParameters: dict[str, object], storesList: np.ndarray) -> list:
+def execute_combine_data(
+    session_folders: list[str], inputParameters: dict[str, object], store_array: np.ndarray
+) -> list:
     """
     Concatenate data from multiple session files and save the result to the first output folder.
 
     Parameters
     ----------
-    folderNames : list of str
+    session_folders : list of str
         Session directories whose output subdirectories are to be combined.
     inputParameters : dict
         Pipeline configuration; must include ``'timeForLightsTurnOn'``.
-    storesList : np.ndarray
-        2-D storesList array with rows [storenames, display_names].
+    store_array : np.ndarray
+        2-D store array with rows [store_id, store_label].
 
     Returns
     -------
@@ -461,19 +457,19 @@ def execute_combine_data(folderNames: list[str], inputParameters: dict[str, obje
     """
     logger.debug("Combining Data from different data files...")
     timeForLightsTurnOn = inputParameters["timeForLightsTurnOn"]
-    selected_outputs = inputParameters.get("selectedOutputs") or {}
-    output_folders = []
-    for i in range(len(folderNames)):
-        filepath = folderNames[i]
-        output_folders.append(select_output_dirs(filepath, selected_outputs.get(filepath)))
+    selected_runs = inputParameters.get("selected_runs") or {}
+    run_folders = []
+    for i in range(len(session_folders)):
+        filepath = session_folders[i]
+        run_folders.append(select_run_folders(filepath, selected_runs.get(filepath)))
 
-    output_folders = list(np.concatenate(output_folders).flatten())
+    run_folders = list(np.concatenate(run_folders).flatten())
     sampling_rate_filepaths = []
-    for i in range(len(folderNames)):
-        filepath = folderNames[i]
-        storesListPath = select_output_dirs(filepath, selected_outputs.get(filepath))
-        for j in range(len(storesListPath)):
-            filepath = storesListPath[j]
+    for i in range(len(session_folders)):
+        filepath = session_folders[i]
+        session_run_folders = select_run_folders(filepath, selected_runs.get(filepath))
+        for j in range(len(session_run_folders)):
+            filepath = session_run_folders[j]
             storesList_new = np.genfromtxt(
                 os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=","
             ).reshape(2, -1)
@@ -496,26 +492,26 @@ def execute_combine_data(folderNames: list[str], inputParameters: dict[str, obje
         raise ValueError(message)
 
     # get the output folders informatinos
-    combined_output_groups = get_all_stores_for_combining_data(output_folders)
+    combined_output_groups = get_all_stores_for_combining_data(run_folders)
 
     # processing timestamps for combining the data
     for filepaths_to_combine in combined_output_groups:
         pair_name_to_filepath_to_timestamps = read_timestamps_for_combining_data(filepaths_to_combine)
-        display_name_to_filepath_to_data = read_data_for_combining_data(filepaths_to_combine, storesList)
+        store_label_to_filepath_to_data = read_data_for_combining_data(filepaths_to_combine, store_array)
         compound_name_to_filepath_to_ttl_timestamps = read_ttl_timestamps_for_combining_data(
-            filepaths_to_combine, storesList
+            filepaths_to_combine, store_array
         )
-        pair_name_to_tsNew, display_name_to_data, compound_name_to_ttl_timestamps = combine_data(
+        pair_name_to_tsNew, store_label_to_data, compound_name_to_ttl_timestamps = combine_data(
             filepaths_to_combine,
             pair_name_to_filepath_to_timestamps,
-            display_name_to_filepath_to_data,
+            store_label_to_filepath_to_data,
             compound_name_to_filepath_to_ttl_timestamps,
             timeForLightsTurnOn,
-            storesList,
+            store_array,
             sampling_rate[0],
         )
         output_filepath = filepaths_to_combine[0]
-        write_combined_data(output_filepath, pair_name_to_tsNew, display_name_to_data, compound_name_to_ttl_timestamps)
+        write_combined_data(output_filepath, pair_name_to_tsNew, store_label_to_data, compound_name_to_ttl_timestamps)
     logger.info("Data is combined from different data files.")
 
     return combined_output_groups
@@ -528,7 +524,7 @@ def extractTsAndSignal(inputParameters: dict[str, object]) -> None:
     Parameters
     ----------
     inputParameters : dict
-        Full pipeline configuration, including ``'folderNames'``, ``'timeForLightsTurnOn'``,
+        Full pipeline configuration, including ``'session_folders'``, ``'timeForLightsTurnOn'``,
         ``'isosbestic_control'``, ``'removeArtifacts'``, and ``'combine_data'``.
     """
 
@@ -539,7 +535,7 @@ def extractTsAndSignal(inputParameters: dict[str, object]) -> None:
     # on-disk GuPPyParamtersUsed.json always reflects the last-run configuration.
     save_parameters(inputParameters=inputParameters)
 
-    folderNames = inputParameters["folderNames"]
+    session_folders = inputParameters["session_folders"]
     timeForLightsTurnOn = inputParameters["timeForLightsTurnOn"]
     isosbestic_control = inputParameters["isosbestic_control"]
     remove_artifacts = inputParameters["removeArtifacts"]
@@ -549,28 +545,28 @@ def extractTsAndSignal(inputParameters: dict[str, object]) -> None:
     logger.info(f"Remove Artifacts : {remove_artifacts}")
     logger.info(f"Combine Data : {combine_data}")
     logger.info(f"Isosbestic Control Channel : {isosbestic_control}")
-    selected_outputs = inputParameters.get("selectedOutputs") or {}
-    storesListPath = []
-    for i in range(len(folderNames)):
-        storesListPath.append(select_output_dirs(folderNames[i], selected_outputs.get(folderNames[i])))
-    storesListPath = np.concatenate(storesListPath)
+    selected_runs = inputParameters.get("selected_runs") or {}
+    run_folders = []
+    for i in range(len(session_folders)):
+        run_folders.append(select_run_folders(session_folders[i], selected_runs.get(session_folders[i])))
+    run_folders = np.concatenate(run_folders)
     if combine_data == False:
-        pbMaxValue = storesListPath.shape[0] + len(folderNames)
+        pbMaxValue = run_folders.shape[0] + len(session_folders)
         writeToFile(str((pbMaxValue + 1) * 10) + "\n" + str(10) + "\n", file_path=PB_STEPS_FILE)
-        execute_timestamp_correction(folderNames, inputParameters)
-        execute_zscore(folderNames, inputParameters)
+        execute_timestamp_correction(session_folders, inputParameters)
+        execute_zscore(session_folders, inputParameters)
         headless = bool(os.environ.get("GUPPY_BASE_DIR"))
         if not headless:
-            visualize_z_score(inputParameters, folderNames)
+            visualize_z_score(inputParameters, session_folders)
         if remove_artifacts == True:
-            execute_artifact_removal(folderNames, inputParameters)
+            execute_artifact_removal(session_folders, inputParameters)
     else:
-        pbMaxValue = 1 + len(folderNames)
+        pbMaxValue = 1 + len(session_folders)
         writeToFile(str((pbMaxValue) * 10) + "\n" + str(10) + "\n", file_path=PB_STEPS_FILE)
-        execute_timestamp_correction(folderNames, inputParameters)
-        storesList = check_storeslistfile(folderNames)
-        combined_output_folders = execute_combine_data(folderNames, inputParameters, storesList)
-        write_combined_stores_list(combined_output_folders, storesList)
+        execute_timestamp_correction(session_folders, inputParameters)
+        store_array = check_storeslistfile(session_folders)
+        combined_output_folders = execute_combine_data(session_folders, inputParameters, store_array)
+        write_combined_stores_list(combined_output_folders, store_array)
         execute_zscore(combined_output_folders, inputParameters)
         headless = bool(os.environ.get("GUPPY_BASE_DIR"))
         if not headless:

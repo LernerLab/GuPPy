@@ -36,7 +36,7 @@ The second card on the homepage, collapsed by default. Selects which existing pe
 |-----------|-------------|------|---------|-----------------|
 | (existing-runs browser) | Existing `*_output_*` run directories the later steps act on. | list of paths | empty | one or more `*_output_*` directories, at least one per selected session |
 
-**Existing-runs browser** lists the `*_output_*` directories that already exist for the selected sessions and lets you pick which run each later step acts on. A run directory is created when you configure channels in the Storenames GUI (Step 1); every step from loading the raw data onward then reads and writes the run you select here. Select at least one run per session that has output directories on disk, or the step raises a descriptive error before any work starts. This is a UI selector, not a saved analysis parameter, so it has no internal name in the index below.
+**Existing-runs browser** lists the `*_output_*` directories that already exist for the selected sessions and lets you pick which run each later step acts on. A run directory is created when you configure channels in the Label Stores GUI (Step 1); every step from loading the raw data onward then reads and writes the run you select here. Select at least one run per session that has output directories on disk, or the step raises a descriptive error before any work starts. This is a UI selector, not a saved analysis parameter, so it has no internal name in the index below.
 
 ---
 
@@ -254,8 +254,8 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 | `control_fit_method` | Control Channel Fitting Method | [Signal preprocessing](#signal-preprocessing) |
 | `dandi_uri_map` | (DANDI selector) | [Input Folder Selection](#input-folder-selection) |
 | `filter_window` | Window for Moving Average filter | [Signal preprocessing](#signal-preprocessing) |
-| `folderNames` | (file browser, Input Folder Selection) | [Input Folder Selection](#input-folder-selection) |
-| `folderNamesForAvg` | (file browser, Group Analysis) | [Group Analysis](#group-analysis) |
+| `session_folders` | (file browser, Input Folder Selection) | [Input Folder Selection](#input-folder-selection) |
+| `group_session_folders` | (file browser, Group Analysis) | [Group Analysis](#group-analysis) |
 | `highAmpFilt` | HAFT | [Transient detection](#transient-detection) |
 | `isosbestic_control` | Isosbestic Control Channel? | [Signal preprocessing](#signal-preprocessing) |
 | `mode` | Data Source | [Input Folder Selection](#input-folder-selection) |

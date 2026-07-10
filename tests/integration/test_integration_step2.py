@@ -34,19 +34,19 @@ def test_step2(step2_fixture_name, request):
     with open(stores_file_path, newline="") as stores_file:
         stores_rows = list(csv.reader(stores_file))
 
-    assert len(stores_rows) == 2, "storesList.csv should be 2 rows (storenames, names_for_storenames)"
-    storenames = stores_rows[0]
-    assert storenames, "Expected at least one storename in storesList.csv"
+    assert len(stores_rows) == 2, "storesList.csv should be 2 rows (store_ids, store_labels)"
+    store_ids = stores_rows[0]
+    assert store_ids, "Expected at least one store_id in storesList.csv"
 
     # Step 2 auto-writes the parameter snapshot into the selected output directory.
     assert os.path.exists(
         os.path.join(output_directory, "GuPPyParamtersUsed.json")
     ), "step 2 should write GuPPyParamtersUsed.json into the output directory"
 
-    for storename in storenames:
-        safe_storename = storename.replace("\\", "_").replace("/", "_")
+    for store_id in store_ids:
+        safe_storename = store_id.replace("\\", "_").replace("/", "_")
         storename_file_path = os.path.join(output_directory, f"{safe_storename}.hdf5")
-        assert os.path.exists(storename_file_path), f"Missing HDF5 for storename {storename!r} at {storename_file_path}"
+        assert os.path.exists(storename_file_path), f"Missing HDF5 for store_id {store_id!r} at {storename_file_path}"
 
         with h5py.File(storename_file_path, "r") as storename_file:
             assert "timestamps" in storename_file, "Expected 'timestamps' dataset in HDF5"
@@ -78,7 +78,7 @@ class TestStep2ProgressFileAccounting:
         step1(
             base_dir=str(base_directory),
             selected_folders=[str(session_copy)],
-            storenames_map=config["storenames_map"],
+            store_id_to_store_label=config["store_id_to_store_label"],
         )
         output_directory = _locate_output_directory(session_copy=str(session_copy))
 
