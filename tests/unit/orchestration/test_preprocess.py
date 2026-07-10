@@ -2,9 +2,11 @@ import numpy as np
 import pytest
 
 from guppy.orchestration.preprocess import (
+    execute_artifact_removal,
     execute_combine_data,
     execute_preprocessing_visualization,
     execute_zscore,
+    extractTsAndSignal,
     visualize_artifact_removal,
     visualize_z_score,
     visualizeControlAndSignal,
@@ -254,3 +256,156 @@ def test_execute_zscore_shows_plot_when_not_headless(monkeypatch, base_input_par
 
     assert write_calls == [("/tmp/session_output_1", "DMS")]
     assert len(show_calls) == 1
+
+
+@pytest.fixture
+def stub_artifact_removal_io(monkeypatch):
+    """Patch execute_artifact_removal's disk I/O so only its visualization branch is exercised."""
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.select_run_folders", lambda session, selected: ["/tmp/session_1/run_1"]
+    )
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.np.genfromtxt", lambda *a, **k: np.array([["ctrl0"], ["control_dms"]])
+    )
+    monkeypatch.setattr("guppy.orchestration.preprocess.read_corrected_data_dict", lambda filepath, store_array: {})
+    monkeypatch.setattr("guppy.orchestration.preprocess.read_corrected_timestamps_pairwise", lambda filepath: ({}, {}))
+    monkeypatch.setattr("guppy.orchestration.preprocess.read_coords_pairwise", lambda filepath, tsNew: {})
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.read_corrected_ttl_timestamps", lambda filepath, store_array: {}
+    )
+    monkeypatch.setattr("guppy.orchestration.preprocess.remove_artifacts", lambda *a, **k: ({}, {}, {}))
+    monkeypatch.setattr("guppy.orchestration.preprocess.write_artifact_removal", lambda *a, **k: None)
+    monkeypatch.setattr("guppy.orchestration.preprocess.writeToFile", lambda text, file_path: None)
+
+
+def test_execute_artifact_removal_visualizes_when_not_headless(
+    monkeypatch, base_input_parameters, stub_artifact_removal_io
+):
+    """When not headless, execute_artifact_removal calls visualize_artifact_removal after processing."""
+    base_input_parameters["combine_data"] = False
+    monkeypatch.delenv("GUPPY_BASE_DIR", raising=False)
+
+    visualize_calls = []
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.visualize_artifact_removal",
+        lambda folders, params: visualize_calls.append((folders, params)),
+    )
+
+    execute_artifact_removal(["/tmp/session_1"], base_input_parameters)
+
+    assert visualize_calls == [(["/tmp/session_1"], base_input_parameters)]
+
+
+def test_execute_artifact_removal_skips_visualization_when_headless(
+    monkeypatch, base_input_parameters, stub_artifact_removal_io
+):
+    """When headless, execute_artifact_removal does not open the artifact-removal visualization."""
+    base_input_parameters["combine_data"] = False
+    monkeypatch.setenv("GUPPY_BASE_DIR", "/tmp/base")
+
+    visualize_calls = []
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.visualize_artifact_removal",
+        lambda folders, params: visualize_calls.append((folders, params)),
+    )
+
+    execute_artifact_removal(["/tmp/session_1"], base_input_parameters)
+
+    assert visualize_calls == []
+
+
+@pytest.fixture
+def stub_extract_ts_and_signal_io(monkeypatch):
+    """Patch extractTsAndSignal's sub-steps so only its dispatch/visualization branches run."""
+    monkeypatch.setattr("guppy.orchestration.preprocess.save_parameters", lambda *, inputParameters: None)
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.select_run_folders", lambda session, selected: ["/tmp/session_1/run_1"]
+    )
+    monkeypatch.setattr("guppy.orchestration.preprocess.writeToFile", lambda text, file_path: None)
+    monkeypatch.setattr("guppy.orchestration.preprocess.execute_timestamp_correction", lambda folders, params: None)
+    monkeypatch.setattr("guppy.orchestration.preprocess.execute_zscore", lambda folders, params: None)
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.check_storeslistfile", lambda folders: np.array([["ctrl0"], ["control_dms"]])
+    )
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.execute_combine_data", lambda folders, params, store_array: ["/tmp/combined_1"]
+    )
+    monkeypatch.setattr("guppy.orchestration.preprocess.write_combined_stores_list", lambda folders, store_array: None)
+
+
+def test_extract_ts_and_signal_visualizes_and_removes_artifacts_when_not_headless(
+    monkeypatch, base_input_parameters, stub_extract_ts_and_signal_io
+):
+    """Non-combine path: extractTsAndSignal visualizes z-score and runs artifact removal when not headless."""
+    base_input_parameters["session_folders"] = ["/tmp/session_1"]
+    base_input_parameters["combine_data"] = False
+    base_input_parameters["removeArtifacts"] = True
+    monkeypatch.delenv("GUPPY_BASE_DIR", raising=False)
+
+    visualize_calls = []
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.visualize_z_score",
+        lambda params, folders: visualize_calls.append((params, folders)),
+    )
+    artifact_calls = []
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.execute_artifact_removal",
+        lambda folders, params: artifact_calls.append((folders, params)),
+    )
+
+    extractTsAndSignal(base_input_parameters)
+
+    assert visualize_calls == [(base_input_parameters, ["/tmp/session_1"])]
+    assert artifact_calls == [(["/tmp/session_1"], base_input_parameters)]
+
+
+def test_extract_ts_and_signal_combine_visualizes_when_not_headless(
+    monkeypatch, base_input_parameters, stub_extract_ts_and_signal_io
+):
+    """Combine path: extractTsAndSignal visualizes z-score and runs artifact removal on the combined folders."""
+    base_input_parameters["session_folders"] = ["/tmp/session_1"]
+    base_input_parameters["combine_data"] = True
+    base_input_parameters["removeArtifacts"] = True
+    monkeypatch.delenv("GUPPY_BASE_DIR", raising=False)
+
+    visualize_calls = []
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.visualize_z_score",
+        lambda params, folders: visualize_calls.append((params, folders)),
+    )
+    artifact_calls = []
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.execute_artifact_removal",
+        lambda folders, params: artifact_calls.append((folders, params)),
+    )
+
+    extractTsAndSignal(base_input_parameters)
+
+    assert visualize_calls == [(base_input_parameters, ["/tmp/combined_1"])]
+    assert artifact_calls == [(["/tmp/combined_1"], base_input_parameters)]
+
+
+def test_extract_ts_and_signal_combine_skips_visualization_when_headless(
+    monkeypatch, base_input_parameters, stub_extract_ts_and_signal_io
+):
+    """Combine path when headless: z-score visualization is skipped but artifact removal still runs."""
+    base_input_parameters["session_folders"] = ["/tmp/session_1"]
+    base_input_parameters["combine_data"] = True
+    base_input_parameters["removeArtifacts"] = True
+    monkeypatch.setenv("GUPPY_BASE_DIR", "/tmp/base")
+
+    visualize_calls = []
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.visualize_z_score",
+        lambda params, folders: visualize_calls.append((params, folders)),
+    )
+    artifact_calls = []
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.execute_artifact_removal",
+        lambda folders, params: artifact_calls.append((folders, params)),
+    )
+
+    extractTsAndSignal(base_input_parameters)
+
+    assert visualize_calls == []
+    assert artifact_calls == [(["/tmp/combined_1"], base_input_parameters)]
