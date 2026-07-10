@@ -78,7 +78,7 @@ def test_selected_stores_label_visible(page, store_labeling_server_url):
 @pytest.mark.ui
 def test_location_to_stores_list_file_label_visible(page, store_labeling_server_url):
     page.goto(store_labeling_server_url)
-    expect(page.get_by_text("Location to Stores List file").first).to_be_visible()
+    expect(page.get_by_text("Location to storesList file").first).to_be_visible()
 
 
 @pytest.mark.ui
