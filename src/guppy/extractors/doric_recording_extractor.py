@@ -155,33 +155,63 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
     def _validate_signal_control_data(event: str, data: np.ndarray, event_type: str) -> None:
         """Raise ValueError if ``data`` is unusable as a photometry signal/control trace.
 
-        Rejects channels that are all-NaN, mostly-NaN (>=50%), or zero-variance —
-        the three failure modes seen in real Doric exports (unused demodulation
-        channels fill with NaN; AOut / LED-drive channels are constant).
+        Rejects channels that are empty, entirely non-finite (all NaN/inf), or
+        zero-variance on their finite samples — the failure modes seen in real
+        Doric exports (unused demodulation channels fill entirely with NaN;
+        AOut / LED-drive channels are constant). Sparse non-finite samples are
+        tolerated here and dropped jointly by the reader (see
+        ``_drop_nonfinite_samples``) so control and signal stay aligned.
         """
         if data.size == 0:
             raise ValueError(f"Doric channel {event!r} is empty and cannot be used as a {event_type} channel.")
         finite_mask = np.isfinite(data)
-        nonfinite_count = int((~finite_mask).sum())
-        if nonfinite_count > 0:
-            # Even one NaN/inf breaks the downstream np.polyfit in z_score.controlFit (SVD error).
-            # This is common in Doric 'AIn-X - Dem (AOut-Y)' channels where AOut-Y was not
-            # driven (all-NaN demod output) or during demodulator warmup at recording start.
+        if not finite_mask.any():
+            # An all-NaN/inf channel has no usable samples. This is common in Doric
+            # 'AIn-X - Dem (AOut-Y)' channels where AOut-Y was not driven for this input.
             raise ValueError(
-                f"Doric channel {event!r} contains {nonfinite_count} non-finite value(s) "
-                f"(NaN/inf) out of {data.size} and cannot be used as a {event_type} channel — "
-                "downstream control-fit (np.polyfit) cannot handle NaN. This typically happens "
-                "with demodulated channels like 'AIn-X - Dem (AOut-Y)' when excitation "
-                "AOut-Y was not driven for this input, or during demodulator warmup at "
-                "recording start. Re-run Step 1 and pick a channel with continuous finite data."
+                f"Doric channel {event!r} is entirely non-finite (all {data.size} values are NaN/inf) "
+                f"and cannot be used as a {event_type} channel. This typically happens with demodulated "
+                "channels like 'AIn-X - Dem (AOut-Y)' when excitation AOut-Y was not driven for this "
+                "input. Re-run Step 1 and pick a channel with continuous finite data."
             )
-        if float(np.std(data)) == 0.0:
+        if float(np.std(data[finite_mask])) == 0.0:
             raise ValueError(
                 f"Doric channel {event!r} is constant (std=0) and cannot be used as a "
                 f"{event_type} channel. This is typical of analog output ('AOut') / LED "
                 "excitation channels, which do not contain fluorescence data. Pick a "
                 "demodulated or raw photometry channel instead."
             )
+
+    @staticmethod
+    def _drop_nonfinite_samples(output_dicts: list[dict[str, object]]) -> list[dict[str, object]]:
+        """Return ``output_dicts`` with non-finite samples dropped jointly.
+
+        Signal/control channels (identified by a ``"data"`` entry) share one
+        timebase and must stay positionally aligned downstream — alignment is
+        index-based, not timestamp-based — so a sample index is dropped when
+        *any* of them is non-finite there. This mirrors the joint
+        ``dropna(how="any")`` the CSV path applies at the dataframe level. TTL
+        channels (timestamps only) pass through untouched, as do the channels
+        when nothing is non-finite.
+        """
+        signal_control_dicts = [event_dict for event_dict in output_dicts if "data" in event_dict]
+        if not signal_control_dicts:
+            return output_dicts
+        finite_mask = np.logical_and.reduce([np.isfinite(event_dict["data"]) for event_dict in signal_control_dicts])
+        if finite_mask.all():
+            return output_dicts
+        return [
+            (
+                {
+                    **event_dict,
+                    "timestamps": event_dict["timestamps"][finite_mask],
+                    "data": event_dict["data"][finite_mask],
+                }
+                if "data" in event_dict
+                else event_dict
+            )
+            for event_dict in output_dicts
+        ]
 
     def count_samples(self, *, event: str) -> int:
         """Return the number of samples for ``event`` using only metadata reads."""
@@ -276,6 +306,8 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
             raise ValueError(message)
 
         df = pd.read_csv(path[0], header=1, index_col=False)
+        # Treat inf like NaN so both are dropped jointly (dropna alone ignores inf).
+        df = df.replace([np.inf, -np.inf], np.nan)
         df = df.dropna(axis=1, how="all")
         df = df.dropna(axis=0, how="any")
         df["Time(s)"] = df["Time(s)"] - df["Time(s)"].to_numpy()[0]
@@ -494,7 +526,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
             logger.error(message)
             raise FileNotFoundError(message)
 
-        return output_dicts
+        return self._drop_nonfinite_samples(output_dicts)
 
     def stub(self, *, folder_path: Path | str, duration_in_seconds: float = 1.0) -> None:
         """
