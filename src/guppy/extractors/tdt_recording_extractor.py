@@ -355,8 +355,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
 
     def _save_dict_to_hdf5(self, event_dict: dict[str, object], outputPath: str) -> None:
         event = event_dict["store_id"]
-        # HDF5 dataset key kept as "storename" (persisted on-disk field name, like storesList.csv); the value is a store_id.
-        write_hdf5(event_dict["store_id"], event, outputPath, "storename")
+        write_hdf5(event_dict["store_id"], event, outputPath, "store_id")
         write_hdf5(event_dict["sampling_rate"], event, outputPath, "sampling_rate")
         write_hdf5(event_dict["timestamps"], event, outputPath, "timestamps")
         write_hdf5(event_dict["data"], event, outputPath, "data")

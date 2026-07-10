@@ -20,6 +20,12 @@ import pandas as pd
 # Subdirectories to skip entirely (plots are not numerically reproducible).
 _SKIP_DIRS = {"saved_plots"}
 
+# HDF5 dataset keys renamed since the committed fixtures were generated. Maps an
+# expected (old) dataset key to its current (new) name in freshly-produced
+# output, so the comparison stays valid without regenerating the fixtures. The
+# dataset values are unchanged, only the field name (storename -> store_id).
+_HDF5_KEY_RENAMES = {"storename": "store_id"}
+
 # Matches PSTH timestamp labels in two forms:
 #   bare float:     "138.238440990448"
 #   prefixed float: "sample_data_csv_1_409.86189556121826"
@@ -220,12 +226,15 @@ def _walk_hdf5_group(
     """Recursively walk HDF5 groups, comparing all datasets."""
     for key in expected_group.keys():
         item_path = f"{group_path}/{key}" if group_path else key
-        if key not in actual_group:
+        # Top-level dataset keys may have been renamed since the fixtures were
+        # generated; look up the current name on the actual side.
+        actual_key = _HDF5_KEY_RENAMES.get(key, key) if not group_path else key
+        if actual_key not in actual_group:
             mismatches.append(f"{rel_path}: missing HDF5 key '{item_path}' in actual")
             continue
 
         expected_item = expected_group[key]
-        actual_item = actual_group[key]
+        actual_item = actual_group[actual_key]
 
         if isinstance(expected_item, h5py.Group):
             if not isinstance(actual_item, h5py.Group):

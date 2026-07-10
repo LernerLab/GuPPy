@@ -99,8 +99,7 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
         """
         for output_dict in output_dicts:
             event = output_dict["store_id"]
-            # HDF5 dataset key kept as "storename" (persisted on-disk field name, like storesList.csv); the value is a store_id.
-            write_hdf5(output_dict["store_id"], event, outputPath, "storename")
+            write_hdf5(output_dict["store_id"], event, outputPath, "store_id")
             write_hdf5(output_dict["timestamps"], event, outputPath, "timestamps")
             if "sampling_rate" in output_dict:
                 write_hdf5(output_dict["sampling_rate"], event, outputPath, "sampling_rate")
