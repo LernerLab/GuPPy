@@ -20,25 +20,25 @@ def concatenate_and_realign_data(
 
     Returns
     -------
-    arr : np.ndarray
+    concatenated_data : np.ndarray
         Concatenated data across all segments.
-    ts_arr : np.ndarray
-        Realigned timestamps corresponding to ``arr``.
+    realigned_timestamps : np.ndarray
+        Realigned timestamps corresponding to ``concatenated_data``.
     """
-    arr = np.array([])
-    ts_arr = np.array([])
+    concatenated_data = np.array([])
+    realigned_timestamps = np.array([])
     for data_segment, ts_segment in segments:
-        if len(arr) == 0:
-            arr = np.concatenate((arr, data_segment))
-            sub = ts_segment[0] - timeForLightsTurnOn
-            new_ts = ts_segment - sub
-            ts_arr = np.concatenate((ts_arr, new_ts))
+        if len(concatenated_data) == 0:
+            concatenated_data = np.concatenate((concatenated_data, data_segment))
+            offset = ts_segment[0] - timeForLightsTurnOn
+            shifted_timestamps = ts_segment - offset
+            realigned_timestamps = np.concatenate((realigned_timestamps, shifted_timestamps))
         else:
-            new_ts = ts_segment - (ts_segment[0] - ts_arr[-1])
-            arr = np.concatenate((arr, data_segment))
-            ts_arr = np.concatenate((ts_arr, new_ts + (1 / sampling_rate)))
+            shifted_timestamps = ts_segment - (ts_segment[0] - realigned_timestamps[-1])
+            concatenated_data = np.concatenate((concatenated_data, data_segment))
+            realigned_timestamps = np.concatenate((realigned_timestamps, shifted_timestamps + (1 / sampling_rate)))
 
-    return arr, ts_arr
+    return concatenated_data, realigned_timestamps
 
 
 def realign_ttl_timestamps(
@@ -63,20 +63,24 @@ def realign_ttl_timestamps(
 
     Returns
     -------
-    ts_arr : np.ndarray
+    realigned_ttl_timestamps : np.ndarray
         Realigned TTL timestamps concatenated across all segments.
     """
-    ts_arr = np.array([])
-    tsNew_arr = np.array([])
+    realigned_ttl_timestamps = np.array([])
+    realigned_reference_timestamps = np.array([])
     for tsNew_segment, ts_segment in pairs:
-        if len(tsNew_arr) == 0:
-            sub = tsNew_segment[0] - timeForLightsTurnOn
-            tsNew_arr = np.concatenate((tsNew_arr, tsNew_segment - sub))
-            ts_arr = np.concatenate((ts_arr, ts_segment - sub))
+        if len(realigned_reference_timestamps) == 0:
+            offset = tsNew_segment[0] - timeForLightsTurnOn
+            realigned_reference_timestamps = np.concatenate((realigned_reference_timestamps, tsNew_segment - offset))
+            realigned_ttl_timestamps = np.concatenate((realigned_ttl_timestamps, ts_segment - offset))
         else:
-            new_ts = ts_segment - (tsNew_segment[0] - tsNew_arr[-1])
-            new_tsNew = tsNew_segment - (tsNew_segment[0] - tsNew_arr[-1])
-            tsNew_arr = np.concatenate((tsNew_arr, new_tsNew + (1 / sampling_rate)))
-            ts_arr = np.concatenate((ts_arr, new_ts + (1 / sampling_rate)))
+            shifted_ttl_timestamps = ts_segment - (tsNew_segment[0] - realigned_reference_timestamps[-1])
+            shifted_reference_timestamps = tsNew_segment - (tsNew_segment[0] - realigned_reference_timestamps[-1])
+            realigned_reference_timestamps = np.concatenate(
+                (realigned_reference_timestamps, shifted_reference_timestamps + (1 / sampling_rate))
+            )
+            realigned_ttl_timestamps = np.concatenate(
+                (realigned_ttl_timestamps, shifted_ttl_timestamps + (1 / sampling_rate))
+            )
 
-    return ts_arr
+    return realigned_ttl_timestamps

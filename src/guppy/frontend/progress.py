@@ -67,8 +67,8 @@ def readPBIncrementValues(
                         progressBar.bar_color = "danger"
                         os.remove(file_path)
                         if os.path.exists(error_file_path):
-                            with open(error_file_path, "r") as ef:
-                                error_message = ef.read().strip()
+                            with open(error_file_path, "r") as error_file:
+                                error_message = error_file.read().strip()
                             os.remove(error_file_path)
                         break
                     progressBar.max = maximum

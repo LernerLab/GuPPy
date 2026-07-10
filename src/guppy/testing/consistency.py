@@ -110,12 +110,12 @@ def compare_output_folders(
             mismatches.append(f"MISSING in actual: {detail}")
             continue
 
-        ext = Path(rel_path).suffix.lower()
-        if ext in {".hdf5", ".h5"}:
+        extension = Path(rel_path).suffix.lower()
+        if extension in {".hdf5", ".h5"}:
             _compare_hdf5(actual_path, expected_path, rel_path, mismatches, rtol, atol, event_ts_offset)
-        elif ext == ".csv":
+        elif extension == ".csv":
             _compare_csv(actual_path, expected_path, rel_path, mismatches, rtol, atol, event_ts_offset)
-        elif ext == ".json":
+        elif extension == ".json":
             _compare_json(actual_path, expected_path, rel_path, mismatches)
         # Unknown extensions are skipped silently.
 
@@ -156,27 +156,29 @@ def _normalize_psth_label(label: str, *, bare_offset: float = 0.0, prefixed_offs
     """
     if _BARE_FLOAT_RE.match(label):
         return f"{float(label) + bare_offset:.10g}"
-    m = _PREFIXED_FLOAT_RE.match(label)
-    if m:
-        return f"{m.group(1)}_{float(m.group(2)) + prefixed_offset:.10g}"
+    match = _PREFIXED_FLOAT_RE.match(label)
+    if match:
+        return f"{match.group(1)}_{float(match.group(2)) + prefixed_offset:.10g}"
     return label
 
 
-def _normalize_psth_index(idx: pd.Index, *, bare_offset: float = 0.0, prefixed_offset: float = 0.0) -> pd.Index:
+def _normalize_psth_index(index: pd.Index, *, bare_offset: float = 0.0, prefixed_offset: float = 0.0) -> pd.Index:
     """Apply :func:`_normalize_psth_label` to every element of a pandas Index."""
     return pd.Index(
-        [_normalize_psth_label(str(lbl), bare_offset=bare_offset, prefixed_offset=prefixed_offset) for lbl in idx]
+        [_normalize_psth_label(str(label), bare_offset=bare_offset, prefixed_offset=prefixed_offset) for label in index]
     )
 
 
-def _normalize_psth_str_array(arr: np.ndarray, *, bare_offset: float = 0.0, prefixed_offset: float = 0.0) -> np.ndarray:
+def _normalize_psth_str_array(
+    string_array: np.ndarray, *, bare_offset: float = 0.0, prefixed_offset: float = 0.0
+) -> np.ndarray:
     """Apply :func:`_normalize_psth_label` to every element of a string/bytes array."""
     flat = []
-    for item in arr.flat:
+    for item in string_array.flat:
         if isinstance(item, (bytes, np.bytes_)):
             item = item.decode("utf-8", errors="replace")
         flat.append(_normalize_psth_label(str(item), bare_offset=bare_offset, prefixed_offset=prefixed_offset))
-    return np.array(flat, dtype=object).reshape(arr.shape)
+    return np.array(flat, dtype=object).reshape(string_array.shape)
 
 
 def _collect_relative_paths(root: str) -> list[str]:
@@ -184,10 +186,10 @@ def _collect_relative_paths(root: str) -> list[str]:
     result: list[str] = []
     for dirpath, dirnames, filenames in os.walk(root):
         # Prune skipped directories in-place so os.walk does not descend into them.
-        dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS]
-        for fname in filenames:
-            full = os.path.join(dirpath, fname)
-            result.append(os.path.relpath(full, root))
+        dirnames[:] = [dirname for dirname in dirnames if dirname not in _SKIP_DIRS]
+        for filename in filenames:
+            full_path = os.path.join(dirpath, filename)
+            result.append(os.path.relpath(full_path, root))
     return result
 
 
@@ -341,10 +343,10 @@ def _compare_json(
     mismatches: list[str],
 ) -> None:
     """Compare two JSON files with NaN-safe value comparison."""
-    with open(actual_path) as f:
-        actual_data = json.load(f)
-    with open(expected_path) as f:
-        expected_data = json.load(f)
+    with open(actual_path) as actual_file:
+        actual_data = json.load(actual_file)
+    with open(expected_path) as expected_file:
+        expected_data = json.load(expected_file)
 
     json_mismatches: list[str] = []
     _compare_json_values(actual_data, expected_data, rel_path, "", json_mismatches)
@@ -365,11 +367,13 @@ def _compare_json_values(
         if not isinstance(actual, dict):
             mismatches.append(f"{location}: expected dict, got {type(actual).__name__}")
             return
-        for k in expected:
-            if k not in actual:
-                mismatches.append(f"{location}: missing key '{k}' in actual")
+        for key in expected:
+            if key not in actual:
+                mismatches.append(f"{location}: missing key '{key}' in actual")
             else:
-                _compare_json_values(actual[k], expected[k], rel_path, f"{key_path}.{k}" if key_path else k, mismatches)
+                _compare_json_values(
+                    actual[key], expected[key], rel_path, f"{key_path}.{key}" if key_path else key, mismatches
+                )
 
     elif isinstance(expected, list):
         if not isinstance(actual, list):
@@ -378,8 +382,8 @@ def _compare_json_values(
         if len(actual) != len(expected):
             mismatches.append(f"{location}: list length mismatch: actual={len(actual)} expected={len(expected)}")
             return
-        for i, (a, e) in enumerate(zip(actual, expected)):
-            _compare_json_values(a, e, rel_path, f"{key_path}[{i}]", mismatches)
+        for i, (actual_item, expected_item) in enumerate(zip(actual, expected)):
+            _compare_json_values(actual_item, expected_item, rel_path, f"{key_path}[{i}]", mismatches)
 
     else:
         # Scalar: handle NaN

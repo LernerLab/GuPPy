@@ -191,9 +191,9 @@ def validate_same_parent_directory(*, paths: Sequence[str]) -> np.ndarray:
     ValueError
         If the paths span more than one parent directory.
     """
-    parents = np.unique(np.asarray([os.path.dirname(p) for p in paths]))
+    parents = np.unique(np.asarray([os.path.dirname(path) for path in paths]))
     if len(parents) > 1:
-        path_to_parent = "\n".join(f"  - {p} (parent: {os.path.dirname(p)})" for p in paths)
+        path_to_parent = "\n".join(f"  - {path} (parent: {os.path.dirname(path)})" for path in paths)
         message = (
             "All the folders selected should be at the same location, but the selected folders "
             f"span {len(parents)} parent directories:\n{path_to_parent}"

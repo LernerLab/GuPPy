@@ -29,7 +29,7 @@ logging.getLogger("bokeh.io.export").setLevel(logging.ERROR)
 
 
 # remove unnecessary column names
-def remove_cols(cols: list[str]) -> list[str]:
+def remove_cols(columns: list[str]) -> list[str]:
     """Remove bookkeeping columns from a PSTH column list.
 
     Drops ``"err"``, ``"timestamps"``, and any column matching ``bin_err_*``
@@ -37,7 +37,7 @@ def remove_cols(cols: list[str]) -> list[str]:
 
     Parameters
     ----------
-    cols : list of str
+    columns : list of str
         Full list of column names from a PSTH DataFrame.
 
     Returns
@@ -46,14 +46,14 @@ def remove_cols(cols: list[str]) -> list[str]:
         Filtered column list with bookkeeping columns removed.
     """
     regex = re.compile("bin_err_*")
-    remove_cols = [cols[i] for i in range(len(cols)) if regex.match(cols[i])]
-    remove_cols = remove_cols + ["err", "timestamps"]
-    cols = [i for i in cols if i not in remove_cols]
+    columns_to_remove = [columns[i] for i in range(len(columns)) if regex.match(columns[i])]
+    columns_to_remove = columns_to_remove + ["err", "timestamps"]
+    columns = [column for column in columns if column not in columns_to_remove]
 
-    return cols
+    return columns
 
 
-def overview_y_options(cols: list[str]) -> list[str]:
+def overview_y_options(columns: list[str]) -> list[str]:
     """Whole-event y-selector options for the single-event overview plot.
 
     Filters :func:`remove_cols` output down to the whole-event views — ``"mean"``,
@@ -62,7 +62,7 @@ def overview_y_options(cols: list[str]) -> list[str]:
 
     Parameters
     ----------
-    cols : list of str
+    columns : list of str
         Full list of column names from a PSTH DataFrame (including ``"All"``).
 
     Returns
@@ -71,7 +71,7 @@ def overview_y_options(cols: list[str]) -> list[str]:
         Options containing only ``"mean"``, ``"All"``, and bin averages.
     """
     bin_pattern = re.compile("bin_")
-    return [col for col in remove_cols(cols) if col in ("mean", "All") or bin_pattern.match(col)]
+    return [column for column in remove_cols(columns) if column in ("mean", "All") or bin_pattern.match(column)]
 
 
 # make a new directory for saving plots
@@ -88,11 +88,11 @@ def make_dir(filepath: str) -> str:
     str
         Absolute path to the ``saved_plots`` directory.
     """
-    op = os.path.join(filepath, "saved_plots")
-    if not os.path.exists(op):
-        os.mkdir(op)
+    output_dir = os.path.join(filepath, "saved_plots")
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
 
-    return op
+    return output_dir
 
 
 def _headless_chrome_options() -> Options:  # pragma: no cover - configures a real browser subprocess
@@ -246,9 +246,9 @@ class ParameterizedPlotter(param.Parameterized):
     @staticmethod
     def _assign_range(axis_range: object, bounds: tuple) -> None:
         """Set a Bokeh range's ``start``/``end`` only when they actually differ."""
-        low, high = float(bounds[0]), float(bounds[1])
-        if (axis_range.start, axis_range.end) != (low, high):
-            axis_range.start, axis_range.end = low, high
+        range_start, range_end = float(bounds[0]), float(bounds[1])
+        if (axis_range.start, axis_range.end) != (range_start, range_end):
+            axis_range.start, axis_range.end = range_start, range_end
 
     def move_figure_to_range(self, name: str) -> None:
         """Move a plot's live Bokeh figure to match its current range params.
@@ -315,7 +315,7 @@ class ParameterizedPlotter(param.Parameterized):
             figure = plot.state
             self._figures[plot_key] = figure
 
-            def sync(attr: str, old: object, new: object) -> None:
+            def sync(attribute_name: str, old_value: object, new_value: object) -> None:
                 x_range = (figure.x_range.start, figure.x_range.end)
                 if None not in x_range and getattr(self, x_name) != x_range:
                     setattr(self, x_name, (float(x_range[0]), float(x_range[1])))
@@ -331,19 +331,19 @@ class ParameterizedPlotter(param.Parameterized):
 
         return hook
 
-    def _hide_minor_ticks_hook(self, attr: str) -> Callable[[object, object], None]:
+    def _hide_minor_ticks_hook(self, param_name: str) -> Callable[[object, object], None]:
         """Build a HoloViews ``hooks`` callback that hides the Bokeh axis minor ticks.
 
         Attached to a plot via ``.opts(hooks=[...])``, the returned hook removes the
         small tick marks between the axis numbers on both axes when the boolean param
-        named ``attr`` is set. When it is not set the freshly rendered figure keeps
+        named ``param_name`` is set. When it is not set the freshly rendered figure keeps
         Bokeh's default minor ticks, so no restore step is needed. The param name is a
         factory argument so the PSTH plots and the heatmap can each drive their own
         independent toggle (``hide_minor_ticks`` vs ``hide_minor_ticks_heatmap``).
         """
 
         def hook(plot: object, element: object) -> None:
-            if not getattr(self, attr):
+            if not getattr(self, param_name):
                 return
             figure = plot.state
             figure.xaxis.minor_tick_line_color = None
@@ -351,17 +351,17 @@ class ParameterizedPlotter(param.Parameterized):
 
         return hook
 
-    def _ticks_inside_hook(self, attr: str) -> Callable[[object, object], None]:
+    def _ticks_inside_hook(self, param_name: str) -> Callable[[object, object], None]:
         """Build a HoloViews ``hooks`` callback that points the axis ticks inward.
 
         Attached to a plot via ``.opts(hooks=[...])``, the returned hook flips both
         axes' major and minor ticks to point into the plot area when the boolean
-        param named ``attr`` is set. When it is not set the freshly rendered figure
+        param named ``param_name`` is set. When it is not set the freshly rendered figure
         keeps Bokeh's default outward ticks, so no restore step is needed.
         """
 
         def hook(plot: object, element: object) -> None:
-            if not getattr(self, attr):
+            if not getattr(self, param_name):
                 return
             figure = plot.state
             for axis in (figure.xaxis, figure.yaxis):
@@ -370,11 +370,11 @@ class ParameterizedPlotter(param.Parameterized):
 
         return hook
 
-    def _hide_outer_border_hook(self, attr: str) -> Callable[[object, object], None]:
+    def _hide_outer_border_hook(self, param_name: str) -> Callable[[object, object], None]:
         """Build a HoloViews ``hooks`` callback that removes the top/right frame lines.
 
         Attached to a plot via ``.opts(hooks=[...])``, the returned hook drops the
-        figure's four-sided outline when the boolean param named ``attr`` is set. The
+        figure's four-sided outline when the boolean param named ``param_name`` is set. The
         bottom (x) and left (y) axis lines are drawn separately by Bokeh and remain,
         so only the top and right edges disappear, leaving an open L-shaped frame.
         When the param is not set the freshly rendered figure keeps its full outline,
@@ -382,7 +382,7 @@ class ParameterizedPlotter(param.Parameterized):
         """
 
         def hook(plot: object, element: object) -> None:
-            if not getattr(self, attr):
+            if not getattr(self, param_name):
                 return
             plot.state.outline_line_color = None
 
@@ -509,17 +509,17 @@ class ParameterizedPlotter(param.Parameterized):
 
     @param.depends("event_selector_heatmap", watch=True)
     def _update_df(self) -> None:
-        cols = self.columns_dict[self.event_selector_heatmap]
-        trial_no = range(1, len(remove_cols(cols)[:-2]) + 1)
-        trial_ts = ["{} - {}".format(i, j) for i, j in zip(trial_no, remove_cols(cols)[:-2])] + ["All"]
+        columns = self.columns_dict[self.event_selector_heatmap]
+        trial_no = range(1, len(remove_cols(columns)[:-2]) + 1)
+        trial_ts = ["{} - {}".format(i, j) for i, j in zip(trial_no, remove_cols(columns)[:-2])] + ["All"]
         self.param["heatmap_y"].objects = trial_ts
         self.heatmap_y = [trial_ts[-1]]
 
     @param.depends("event_selector", watch=True)
     def _update_psth_y(self) -> None:
-        cols = self.columns_dict[self.event_selector]
-        trial_no = range(1, len(remove_cols(cols)[:-2]) + 1)
-        trial_ts = ["{} - {}".format(i, j) for i, j in zip(trial_no, remove_cols(cols)[:-2])]
+        columns = self.columns_dict[self.event_selector]
+        trial_no = range(1, len(remove_cols(columns)[:-2]) + 1)
+        trial_ts = ["{} - {}".format(i, j) for i, j in zip(trial_no, remove_cols(columns)[:-2])]
         self.param["psth_y"].objects = trial_ts
         self.psth_y = [trial_ts[0]]
 
@@ -563,69 +563,74 @@ class ParameterizedPlotter(param.Parameterized):
             Overlay of mean curves with spread bands, or ``None`` when no
             events are selected.
         """
-        data_curve, cols_curve, data_spread, cols_spread = [], [], [], []
-        arr = self.selector_for_multipe_events_plot
-        df1 = self.df_new
-        for i in range(len(arr)):
-            if "bin" in arr[i]:
-                split = arr[i].rsplit("_", 2)
+        data_curve, columns_curve, data_spread, columns_spread = [], [], [], []
+        selected_events = self.selector_for_multipe_events_plot
+        event_dataframes = self.df_new
+        for i in range(len(selected_events)):
+            if "bin" in selected_events[i]:
+                split = selected_events[i].rsplit("_", 2)
                 df_name = split[0]  #'{}_{}'.format(split[0], split[1])
                 col_name_mean = "{}_{}".format(split[-2], split[-1])
                 col_name_err = "{}_err_{}".format(split[-2], split[-1])
-                data_curve.append(df1[df_name][col_name_mean])
-                cols_curve.append(arr[i])
-                data_spread.append(df1[df_name][col_name_err])
-                cols_spread.append(arr[i])
+                data_curve.append(event_dataframes[df_name][col_name_mean])
+                columns_curve.append(selected_events[i])
+                data_spread.append(event_dataframes[df_name][col_name_err])
+                columns_spread.append(selected_events[i])
             else:
-                data_curve.append(df1[arr[i]]["mean"])
-                cols_curve.append(arr[i] + "_" + "mean")
-                data_spread.append(df1[arr[i]]["err"])
-                cols_spread.append(arr[i] + "_" + "mean")
+                data_curve.append(event_dataframes[selected_events[i]]["mean"])
+                columns_curve.append(selected_events[i] + "_" + "mean")
+                data_spread.append(event_dataframes[selected_events[i]]["err"])
+                columns_spread.append(selected_events[i] + "_" + "mean")
 
-        if len(arr) > 0:
-            self._reset_y_on_selection_change("overlay", "overlay_Y", tuple(arr))
+        if len(selected_events) > 0:
+            self._reset_y_on_selection_change("overlay", "overlay_Y", tuple(selected_events))
             if self.overlay_Y is None:
                 self.overlay_Y = (np.nanmin(np.asarray(data_curve)) - 0.5, np.nanmax(np.asarray(data_curve)) + 0.5)
 
-            if "bin" in arr[i]:
-                split = arr[i].rsplit("_", 2)
+            if "bin" in selected_events[i]:
+                split = selected_events[i].rsplit("_", 2)
                 df_name = split[0]
-                data_curve.append(df1[df_name]["timestamps"])
-                cols_curve.append("timestamps")
-                data_spread.append(df1[df_name]["timestamps"])
-                cols_spread.append("timestamps")
+                data_curve.append(event_dataframes[df_name]["timestamps"])
+                columns_curve.append("timestamps")
+                data_spread.append(event_dataframes[df_name]["timestamps"])
+                columns_spread.append("timestamps")
             else:
-                data_curve.append(df1[arr[i]]["timestamps"])
-                cols_curve.append("timestamps")
-                data_spread.append(df1[arr[i]]["timestamps"])
-                cols_spread.append("timestamps")
+                data_curve.append(event_dataframes[selected_events[i]]["timestamps"])
+                columns_curve.append("timestamps")
+                data_spread.append(event_dataframes[selected_events[i]]["timestamps"])
+                columns_spread.append("timestamps")
             df_curve = pd.concat(data_curve, axis=1)
             df_spread = pd.concat(data_spread, axis=1)
-            df_curve.columns = cols_curve
-            df_spread.columns = cols_spread
+            df_curve.columns = columns_curve
+            df_spread.columns = columns_spread
 
-            ts = df_curve["timestamps"]
-            index = np.arange(0, ts.shape[0], 3)
+            timestamps = df_curve["timestamps"]
+            index = np.arange(0, timestamps.shape[0], 3)
             df_curve = df_curve.loc[index, :]
             df_spread = df_spread.loc[index, :]
             overlay = hv.NdOverlay(
                 {
-                    c: hv.Curve((df_curve["timestamps"], df_curve[c]), kdims=["Time (s)"]).opts(
+                    curve_column: hv.Curve((df_curve["timestamps"], df_curve[curve_column]), kdims=["Time (s)"]).opts(
                         width=int(self.Width_Plot),
                         height=int(self.Height_Plot),
                         xlim=self.overlay_X,
                         ylim=self.overlay_Y,
                     )
-                    for c in cols_curve[:-1]
+                    for curve_column in columns_curve[:-1]
                 }
             )
             spread = hv.NdOverlay(
                 {
-                    d: hv.Spread(
-                        (df_spread["timestamps"], df_curve[d], df_spread[d], df_spread[d]),
+                    spread_column: hv.Spread(
+                        (
+                            df_spread["timestamps"],
+                            df_curve[spread_column],
+                            df_spread[spread_column],
+                            df_spread[spread_column],
+                        ),
                         vdims=["y", "yerrpos", "yerrneg"],
                     ).opts(line_width=0, fill_alpha=0.3)
-                    for d in cols_spread[:-1]
+                    for spread_column in columns_spread[:-1]
                 }
             )
             # Colour each event's curve (and its matching spread) from its effective
@@ -633,15 +638,15 @@ class ParameterizedPlotter(param.Parameterized):
             # are built in the same selection order, so a positional cycle over this
             # list assigns consistent per-event colours.
             effective_colors = self.overlay_effective_colors()
-            palette_colors = hv.Cycle([effective_colors[event] for event in arr])
+            palette_colors = hv.Cycle([effective_colors[event] for event in selected_events])
             plot_combine = (
                 (overlay * spread)
                 .opts(opts.NdOverlay(xlabel="Time (s)", ylabel=self.Y_Label))
                 .opts(opts.Curve(color=palette_colors), opts.Spread(fill_color=palette_colors))
                 .opts(shared_axes=False)
             )
-            op = make_dir(self.filepath)
-            op_filename = os.path.join(op, str(arr) + "_mean")
+            output_dir = make_dir(self.filepath)
+            output_filename = os.path.join(output_dir, str(selected_events) + "_mean")
 
             plot_combine = plot_combine.opts(
                 hooks=[
@@ -650,7 +655,7 @@ class ParameterizedPlotter(param.Parameterized):
                 ]
             )
             self.results_psth["plot_combine"] = plot_combine
-            self.results_psth["op_combine"] = op_filename
+            self.results_psth["op_combine"] = output_filename
             return plot_combine
 
     # function to plot mean PSTH, single trial in PSTH and all the trials of PSTH with mean
@@ -673,23 +678,32 @@ class ParameterizedPlotter(param.Parameterized):
             A ``Curve``, ``Spread``-overlaid ``Curve``, or datashaded
             ``NdOverlay``, depending on the value of ``y``.
         """
-        df1 = self.df_new[self.event_selector]
+        event_dataframe = self.df_new[self.event_selector]
         self._reset_y_on_selection_change("cont", "cont_Y", (self.event_selector, self.y))
         if self.y == "All":
             if self.cont_Y is None:
-                self.cont_Y = (np.nanmin(np.asarray(df1)) - 0.5, np.nanmax(np.asarray(df1)) - 0.5)
+                self.cont_Y = (
+                    np.nanmin(np.asarray(event_dataframe)) - 0.5,
+                    np.nanmax(np.asarray(event_dataframe)) - 0.5,
+                )
 
             # Individual trial columns come from the data (the y-selector lists only
             # overview views), i.e. everything left after dropping bins and the mean.
             bin_regex = re.compile("bin_")
-            trial_cols = [c for c in remove_cols(list(df1.columns)) if c != "mean" and not bin_regex.match(c)]
+            trial_columns = [
+                column
+                for column in remove_cols(list(event_dataframe.columns))
+                if column != "mean" and not bin_regex.match(column)
+            ]
 
-            ndoverlay = hv.NdOverlay({c: hv.Curve((df1[self.x], df1[c])) for c in trial_cols})
-            img1 = datashade(ndoverlay, normalization="linear", aggregator=ds.count())
-            x_points = df1[self.x]
-            y_points = df1["mean"]
-            img2 = hv.Curve((x_points, y_points))
-            img = (img1 * img2).opts(
+            ndoverlay = hv.NdOverlay(
+                {column: hv.Curve((event_dataframe[self.x], event_dataframe[column])) for column in trial_columns}
+            )
+            trials_image = datashade(ndoverlay, normalization="linear", aggregator=ds.count())
+            x_points = event_dataframe[self.x]
+            y_points = event_dataframe["mean"]
+            mean_curve = hv.Curve((x_points, y_points))
+            image = (trials_image * mean_curve).opts(
                 opts.Curve(
                     width=int(self.Width_Plot),
                     height=int(self.Height_Plot),
@@ -702,28 +716,28 @@ class ParameterizedPlotter(param.Parameterized):
                 )
             )
 
-            img = img.opts(
+            image = image.opts(
                 hooks=[
                     self._range_sync_hook("cont", "cont_X", "cont_Y"),
                     self._hide_minor_ticks_hook("hide_minor_ticks"),
                 ]
             )
-            op = make_dir(self.filepath)
-            op_filename = os.path.join(op, self.event_selector + "_" + self.y)
-            self.results_psth["plot"] = img
-            self.results_psth["op"] = op_filename
+            output_dir = make_dir(self.filepath)
+            output_filename = os.path.join(output_dir, self.event_selector + "_" + self.y)
+            self.results_psth["plot"] = image
+            self.results_psth["op"] = output_filename
 
-            return img
+            return image
 
         elif self.y == "mean" or "bin" in self.y:
 
-            xpoints = df1[self.x]
-            ypoints = df1[self.y]
+            xpoints = event_dataframe[self.x]
+            ypoints = event_dataframe[self.y]
             if self.y == "mean":
-                err = df1["err"]
+                standard_error = event_dataframe["err"]
             else:
                 split = self.y.split("_")
-                err = df1["{}_err_{}".format(split[0], split[1])]
+                standard_error = event_dataframe["{}_err_{}".format(split[0], split[1])]
 
             index = np.arange(0, xpoints.shape[0], 3)
 
@@ -748,7 +762,7 @@ class ParameterizedPlotter(param.Parameterized):
             )
 
             plot_curve = hv.Curve((xpoints[index], ypoints[index]))
-            plot_spread = hv.Spread((xpoints[index], ypoints[index], err[index], err[index]))
+            plot_spread = hv.Spread((xpoints[index], ypoints[index], standard_error[index], standard_error[index]))
             plot = (plot_curve * plot_spread).opts({"Curve": ropts_curve, "Spread": ropts_spread})
             plot = plot.opts(
                 hooks=[
@@ -756,16 +770,16 @@ class ParameterizedPlotter(param.Parameterized):
                     self._hide_minor_ticks_hook("hide_minor_ticks"),
                 ]
             )
-            op = make_dir(self.filepath)
-            op_filename = os.path.join(op, self.event_selector + "_" + self.y)
+            output_dir = make_dir(self.filepath)
+            output_filename = os.path.join(output_dir, self.event_selector + "_" + self.y)
             self.results_psth["plot"] = plot
-            self.results_psth["op"] = op_filename
+            self.results_psth["op"] = output_filename
 
             return plot
 
         else:
-            xpoints = df1[self.x]
-            ypoints = df1[self.y]
+            xpoints = event_dataframe[self.x]
+            ypoints = event_dataframe[self.y]
             if self.cont_Y is None:
                 self.cont_Y = (np.nanmin(ypoints) - 0.5, np.nanmax(ypoints) + 0.5)
 
@@ -785,10 +799,10 @@ class ParameterizedPlotter(param.Parameterized):
                     self._hide_minor_ticks_hook("hide_minor_ticks"),
                 ]
             )
-            op = make_dir(self.filepath)
-            op_filename = os.path.join(op, self.event_selector + "_" + self.y)
+            output_dir = make_dir(self.filepath)
+            output_filename = os.path.join(output_dir, self.event_selector + "_" + self.y)
             self.results_psth["plot"] = plot
-            self.results_psth["op"] = op_filename
+            self.results_psth["op"] = output_filename
 
             return plot
 
@@ -819,15 +833,15 @@ class ParameterizedPlotter(param.Parameterized):
 
         if not self.psth_y:
             return None
-        selected_trials = [s.split(" - ")[1] for s in list(self.psth_y)]
+        selected_trials = [trial_label.split(" - ")[1] for trial_label in list(self.psth_y)]
 
         # Refit the y-axis whenever the event / trial selection / display mode changes.
         self._reset_y_on_selection_change(
             "trials", "trials_Y", (self.event_selector, tuple(self.psth_y), tuple(self.select_trials_checkbox))
         )
         if self.trials_Y is None:
-            selected = np.asarray(df_psth[selected_trials])
-            self.trials_Y = (np.nanmin(selected) - 0.5, np.nanmax(selected) + 0.5)
+            selected_trial_data = np.asarray(df_psth[selected_trials])
+            self.trials_Y = (np.nanmin(selected_trial_data) - 0.5, np.nanmax(selected_trial_data) + 0.5)
 
         timestamps = df_psth["timestamps"]
         index = np.arange(0, timestamps.shape[0], 3)
@@ -848,13 +862,16 @@ class ParameterizedPlotter(param.Parameterized):
         layers = []
         if show_trials:
             overlay = hv.NdOverlay(
-                {c: hv.Curve((timestamps[index], df_psth[c][index]), kdims=["Time (s)"]) for c in selected_trials}
+                {
+                    trial: hv.Curve((timestamps[index], df_psth[trial][index]), kdims=["Time (s)"])
+                    for trial in selected_trials
+                }
             )
             layers.append(overlay.opts(**axis_opts))
         if show_mean:
-            arr = np.asarray(df_psth[selected_trials])
-            mean = np.nanmean(arr, axis=1)
-            err = np.nanstd(arr, axis=1) / math.sqrt(arr.shape[1])
+            trial_values = np.asarray(df_psth[selected_trials])
+            mean = np.nanmean(trial_values, axis=1)
+            standard_error = np.nanstd(trial_values, axis=1) / math.sqrt(trial_values.shape[1])
             # Contrast the mean against the trials when both are shown; otherwise use the trace colour.
             mean_curve_color = self.mean_color if show_trials else self.trace_color
             ropts_curve = dict(color=mean_curve_color, **axis_opts)
@@ -866,7 +883,7 @@ class ParameterizedPlotter(param.Parameterized):
                 line_width=0,
             )
             plot_curve = hv.Curve((timestamps[index], mean[index]))
-            plot_spread = hv.Spread((timestamps[index], mean[index], err[index], err[index]))
+            plot_spread = hv.Spread((timestamps[index], mean[index], standard_error[index], standard_error[index]))
             layers.append((plot_curve * plot_spread).opts({"Curve": ropts_curve, "Spread": ropts_spread}))
 
         result = layers[0]
@@ -879,10 +896,10 @@ class ParameterizedPlotter(param.Parameterized):
             ]
         )
 
-        op = make_dir(self.filepath)
-        op_filename = os.path.join(op, self.event_selector + "_selected_trials")
+        output_dir = make_dir(self.filepath)
+        output_filename = os.path.join(output_dir, self.event_selector + "_selected_trials")
         self.results_psth["trials"] = result
-        self.results_psth["op_trials"] = op_filename
+        self.results_psth["op_trials"] = output_filename
         return result
 
     # function to show heatmaps for each event
@@ -916,26 +933,26 @@ class ParameterizedPlotter(param.Parameterized):
         height = self.height_heatmap
         width = self.width_heatmap
         df_hm = self.df_new[self.event_selector_heatmap]
-        cols = list(df_hm.columns)
+        columns = list(df_hm.columns)
         regex = re.compile("bin_err_*")
-        drop_cols = [cols[i] for i in range(len(cols)) if regex.match(cols[i])]
-        drop_cols = ["err", "mean"] + drop_cols
-        df_hm = df_hm.drop(drop_cols, axis=1)
-        cols = list(df_hm.columns)
-        bin_cols = [cols[i] for i in range(len(cols)) if re.compile("bin_*").match(cols[i])]
+        columns_to_drop = [columns[i] for i in range(len(columns)) if regex.match(columns[i])]
+        columns_to_drop = ["err", "mean"] + columns_to_drop
+        df_hm = df_hm.drop(columns_to_drop, axis=1)
+        columns = list(df_hm.columns)
+        bin_columns = [columns[i] for i in range(len(columns)) if re.compile("bin_*").match(columns[i])]
         time = np.asarray(df_hm["timestamps"])
         event_ts_for_each_event = np.arange(1, len(df_hm.columns[:-1]) + 1)
         yticks = list(event_ts_for_each_event)
         z_score = np.asarray(df_hm[df_hm.columns[:-1]]).T
 
         if self.heatmap_y[0] == "All":
-            indices = np.arange(z_score.shape[0] - len(bin_cols))
+            indices = np.arange(z_score.shape[0] - len(bin_columns))
             z_score = z_score[indices, :]
             event_ts_for_each_event = np.arange(1, z_score.shape[0] + 1)
             yticks = list(event_ts_for_each_event)
         else:
             remove_all = list(set(self.heatmap_y) - set(["All"]))
-            indices = sorted([int(s.split("-")[0]) - 1 for s in remove_all])
+            indices = sorted([int(trial_label.split("-")[0]) - 1 for trial_label in remove_all])
             z_score = z_score[indices, :]
             event_ts_for_each_event = np.arange(1, z_score.shape[0] + 1)
             yticks = list(event_ts_for_each_event)
@@ -986,13 +1003,13 @@ class ParameterizedPlotter(param.Parameterized):
         # the legend actually matches the pixels. Without clims/cnorm here, datashade
         # auto-normalizes the data to its own min/max (and eq-hist), so the colour-scale
         # boxes would move only the colorbar and never recolour the data.
-        dynspread_img = datashade(
+        dynspread_image = datashade(
             actual_image,
             cmap=process_cmap(self.color_map, provider="matplotlib"),
             cnorm="linear",
             clims=clim,
         ).opts(**ropts)
-        image = ((dummy_image * dynspread_img).opts(opts.QuadMesh(width=int(width), height=int(height)))).opts(
+        image = ((dummy_image * dynspread_image).opts(opts.QuadMesh(width=int(width), height=int(height)))).opts(
             shared_axes=False
         )
         image = image.opts(
@@ -1004,9 +1021,9 @@ class ParameterizedPlotter(param.Parameterized):
             ]
         )
 
-        op = make_dir(self.filepath)
-        op_filename = os.path.join(op, self.event_selector_heatmap + "_" + "heatmap")
+        output_dir = make_dir(self.filepath)
+        output_filename = os.path.join(output_dir, self.event_selector_heatmap + "_" + "heatmap")
         self.results_hm["plot"] = image
-        self.results_hm["op"] = op_filename
+        self.results_hm["op"] = output_filename
 
         return image

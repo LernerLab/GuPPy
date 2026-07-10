@@ -192,7 +192,7 @@ class StorenamesSelector:
             One entry per widget in ``take_widgets`` containing that widget's
             current value.
         """
-        return [w.value for w in self.take_widgets]
+        return [widget.value for widget in self.take_widgets]
 
     def set_change_widgets(self, value: object) -> None:
         """Set all ``change_widgets`` to ``value``.
@@ -202,8 +202,8 @@ class StorenamesSelector:
         value : object
             Value to assign to every widget in the ``change_widgets`` box.
         """
-        for w in self.change_widgets:
-            w.value = value
+        for widget in self.change_widgets:
+            widget.value = value
 
     def get_cross_selector(self) -> list[str]:
         """Return the storenames currently selected in the cross-selector.

@@ -64,11 +64,11 @@ def show_dir(filepath: str, run_name: str | None = None) -> str:
 
     i = 1
     while True:
-        op = output_dir_for_run(filepath, str(i))
-        if not os.path.exists(op):
+        output_dir = output_dir_for_run(filepath, str(i))
+        if not os.path.exists(output_dir):
             break
         i += 1
-    return op
+    return output_dir
 
 
 def make_dir(filepath: str, run_name: str | None = None, run_name_policy: str = "create") -> str:
@@ -95,26 +95,26 @@ def make_dir(filepath: str, run_name: str | None = None, run_name_policy: str = 
     if run_name is None:
         i = 1
         while True:
-            op = output_dir_for_run(filepath, str(i))
-            if not os.path.exists(op):
-                os.mkdir(op)
-                return op
+            output_dir = output_dir_for_run(filepath, str(i))
+            if not os.path.exists(output_dir):
+                os.mkdir(output_dir)
+                return output_dir
             i += 1
 
     validate_run_name(run_name)
     if run_name_policy not in ("create", "overwrite"):
         raise ValueError(f"run_name_policy must be 'create' or 'overwrite'; got {run_name_policy!r}.")
-    op = output_dir_for_run(filepath, run_name)
-    if os.path.exists(op):
+    output_dir = output_dir_for_run(filepath, run_name)
+    if os.path.exists(output_dir):
         if run_name_policy == "create":
             raise ValueError(
-                f"Output directory already exists: {op!r}. "
+                f"Output directory already exists: {output_dir!r}. "
                 "Choose a different runName or set runNamePolicy='overwrite' to replace it."
             )
-        shutil.rmtree(op)
-        logger.info(f"Cleared output directory for overwrite: {op}")
-    os.mkdir(op)
-    return op
+        shutil.rmtree(output_dir)
+        logger.info(f"Cleared output directory for overwrite: {output_dir}")
+    os.mkdir(output_dir)
+    return output_dir
 
 
 def _fetchValues(
@@ -204,26 +204,28 @@ def _fetchValues(
 
 
 def _save(storenames_config: dict, select_location: str, npm_params: dict[str, object] | None = None) -> str:
-    arr1, arr2 = np.asarray(storenames_config["storenames"]), np.asarray(storenames_config["names_for_storenames"])
+    storenames_array = np.asarray(storenames_config["storenames"])
+    names_for_storenames_array = np.asarray(storenames_config["names_for_storenames"])
 
-    empty_indices = np.where(arr2 == "")[0].tolist()
+    empty_indices = np.where(names_for_storenames_array == "")[0].tolist()
     if empty_indices:
         detail = (
             f"Empty string in the list names_for_storenames at index {empty_indices[0]} "
-            f"(storename {arr1[empty_indices[0]]!r})."
+            f"(storename {storenames_array[empty_indices[0]]!r})."
             if len(empty_indices) == 1
             else (
                 f"Empty strings in the list names_for_storenames at {len(empty_indices)} indices: "
-                f"{empty_indices} (storenames {[str(arr1[i]) for i in empty_indices]})."
+                f"{empty_indices} (storenames {[str(storenames_array[i]) for i in empty_indices]})."
             )
         )
         alert_message = f"#### Alert !! \n {detail} Provide a semantic name for each storename."
         logger.error(detail)
         return alert_message
 
-    if arr1.shape[0] != arr2.shape[0]:
+    if storenames_array.shape[0] != names_for_storenames_array.shape[0]:
         detail = (
-            f"Length of list storenames ({arr1.shape[0]}) and names_for_storenames ({arr2.shape[0]}) "
+            f"Length of list storenames ({storenames_array.shape[0]}) and names_for_storenames "
+            f"({names_for_storenames_array.shape[0]}) "
             "is not equal; each storename must be paired with exactly one semantic name."
         )
         alert_message = f"#### Alert !! \n {detail}"
@@ -233,42 +235,42 @@ def _save(storenames_config: dict, select_location: str, npm_params: dict[str, o
     if not os.path.exists(os.path.join(Path.home(), ".storesList.json")):
         storenames_cache = dict()
 
-        for i in range(arr1.shape[0]):
-            if arr1[i] in storenames_cache:
-                storenames_cache[arr1[i]].append(arr2[i])
-                storenames_cache[arr1[i]] = list(set(storenames_cache[arr1[i]]))
+        for i in range(storenames_array.shape[0]):
+            if storenames_array[i] in storenames_cache:
+                storenames_cache[storenames_array[i]].append(names_for_storenames_array[i])
+                storenames_cache[storenames_array[i]] = list(set(storenames_cache[storenames_array[i]]))
             else:
-                storenames_cache[arr1[i]] = [arr2[i]]
+                storenames_cache[storenames_array[i]] = [names_for_storenames_array[i]]
 
-        with open(os.path.join(Path.home(), ".storesList.json"), "w") as f:
-            json.dump(storenames_cache, f, indent=4)
+        with open(os.path.join(Path.home(), ".storesList.json"), "w") as cache_file:
+            json.dump(storenames_cache, cache_file, indent=4)
     else:
-        with open(os.path.join(Path.home(), ".storesList.json")) as f:
-            storenames_cache = json.load(f)
+        with open(os.path.join(Path.home(), ".storesList.json")) as cache_file:
+            storenames_cache = json.load(cache_file)
 
-        for i in range(arr1.shape[0]):
-            if arr1[i] in storenames_cache:
-                storenames_cache[arr1[i]].append(arr2[i])
-                storenames_cache[arr1[i]] = list(set(storenames_cache[arr1[i]]))
+        for i in range(storenames_array.shape[0]):
+            if storenames_array[i] in storenames_cache:
+                storenames_cache[storenames_array[i]].append(names_for_storenames_array[i])
+                storenames_cache[storenames_array[i]] = list(set(storenames_cache[storenames_array[i]]))
             else:
-                storenames_cache[arr1[i]] = [arr2[i]]
+                storenames_cache[storenames_array[i]] = [names_for_storenames_array[i]]
 
-        with open(os.path.join(Path.home(), ".storesList.json"), "w") as f:
-            json.dump(storenames_cache, f, indent=4)
+        with open(os.path.join(Path.home(), ".storesList.json"), "w") as cache_file:
+            json.dump(storenames_cache, cache_file, indent=4)
 
-    arr = np.asarray([arr1, arr2])
-    logger.info(arr)
+    stores_list_array = np.asarray([storenames_array, names_for_storenames_array])
+    logger.info(stores_list_array)
     if os.path.exists(select_location):
         # Overwrite mode: clear all derived data from the previous run before saving the new storesList.
         shutil.rmtree(select_location)
         logger.info(f"Cleared output directory for overwrite: {select_location}")
     os.mkdir(select_location)
 
-    np.savetxt(os.path.join(select_location, "storesList.csv"), arr, delimiter=",", fmt="%s")
+    np.savetxt(os.path.join(select_location, "storesList.csv"), stores_list_array, delimiter=",", fmt="%s")
     if npm_params is not None:
         write_npm_params(output_dir=select_location, npm_params=npm_params)
     logger.info(f"Storeslist file saved at {select_location}")
-    logger.info("Storeslist : \n" + str(arr))
+    logger.info("Storeslist : \n" + str(stores_list_array))
     return "#### No alerts !!"
 
 
@@ -362,13 +364,13 @@ def build_storenames_template(
     def update_values(event: object) -> None:
         global storenames, vars_list
 
-        arr = storenames_selector.get_take_widgets()
-        new_arr = []
-        for i in range(len(arr[1])):
-            for j in range(arr[1][i]):
-                new_arr.append(arr[0][i])
-        if len(new_arr) > 0:
-            storenames = storenames_selector.get_cross_selector() + new_arr
+        take_widgets = storenames_selector.get_take_widgets()
+        expanded_storenames = []
+        for i in range(len(take_widgets[1])):
+            for j in range(take_widgets[1][i]):
+                expanded_storenames.append(take_widgets[0][i])
+        if len(expanded_storenames) > 0:
+            storenames = storenames_selector.get_cross_selector() + expanded_storenames
         else:
             storenames = storenames_selector.get_cross_selector()
         storenames_selector.set_change_widgets(storenames)
@@ -446,13 +448,13 @@ def build_storenames_page(
     if isinstance(storenames_map, dict) and len(storenames_map) > 0:
         run_name = inputParameters.get("runName") or None
         run_name_policy = inputParameters.get("runNamePolicy", "create")
-        op = make_dir(folder_path, run_name=run_name, run_name_policy=run_name_policy)
-        arr = np.asarray([list(storenames_map.keys()), list(storenames_map.values())], dtype=str)
-        np.savetxt(os.path.join(op, "storesList.csv"), arr, delimiter=",", fmt="%s")
+        output_dir = make_dir(folder_path, run_name=run_name, run_name_policy=run_name_policy)
+        stores_list_array = np.asarray([list(storenames_map.keys()), list(storenames_map.values())], dtype=str)
+        np.savetxt(os.path.join(output_dir, "storesList.csv"), stores_list_array, delimiter=",", fmt="%s")
         if npm_params is not None:
-            write_npm_params(output_dir=op, npm_params=npm_params)
-        logger.info(f"Storeslist file saved at {op}")
-        logger.info("Storeslist : \n" + str(arr))
+            write_npm_params(output_dir=output_dir, npm_params=npm_params)
+        logger.info(f"Storeslist file saved at {output_dir}")
+        logger.info("Storeslist : \n" + str(stores_list_array))
         return
 
     channel_previews = _compute_npm_channel_previews(inputParameters, folder_path) if is_npm else None

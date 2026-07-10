@@ -52,7 +52,11 @@ def _normalize_selected_runs(
                 f"{parameter_name} key {session_key!r} is not in selected_folders; "
                 f"expected one of {sorted(abs_sessions_set)!r}."
             )
-        if not isinstance(run_names, list) or not run_names or not all(isinstance(r, str) and r for r in run_names):
+        if (
+            not isinstance(run_names, list)
+            or not run_names
+            or not all(isinstance(run_name, str) and run_name for run_name in run_names)
+        ):
             raise ValueError(
                 f"{parameter_name}[{session_key!r}] must be a non-empty list of non-empty strings; "
                 f"got {run_names!r}."
@@ -230,30 +234,30 @@ def step1(
     sessions = list(selected_folders or [])
     if not sessions:
         raise ValueError("selected_folders must be a non-empty iterable of session directories")
-    abs_sessions = [os.path.abspath(s) for s in sessions]
-    for s in abs_sessions:
-        if not os.path.isdir(s):
-            raise ValueError(f"Session path does not exist or is not a directory: {s}")
-        parent = os.path.dirname(s)
+    abs_sessions = [os.path.abspath(session) for session in sessions]
+    for session in abs_sessions:
+        if not os.path.isdir(session):
+            raise ValueError(f"Session path does not exist or is not a directory: {session}")
+        parent = os.path.dirname(session)
         if parent != base_dir:
             raise ValueError(
                 f"All selected_folders must share the same parent equal to base_dir. "
-                f"Got parent {parent!r} for session {s!r}, expected {base_dir!r}"
+                f"Got parent {parent!r} for session {session!r}, expected {base_dir!r}"
             )
 
     # Validate storenames_map
     if not isinstance(storenames_map, dict) or not storenames_map:
         raise ValueError("storenames_map must be a non-empty dict[str, str]")
-    for k, v in storenames_map.items():
-        if not isinstance(k, str) or not k.strip():
+    for raw_storename, semantic_name in storenames_map.items():
+        if not isinstance(raw_storename, str) or not raw_storename.strip():
             raise ValueError(
-                f"Invalid storename key: {k!r}. Keys must be non-empty strings (the raw store name "
+                f"Invalid storename key: {raw_storename!r}. Keys must be non-empty strings (the raw store name "
                 "from the acquisition file)."
             )
-        if not isinstance(v, str) or not v.strip():
+        if not isinstance(semantic_name, str) or not semantic_name.strip():
             raise ValueError(
-                f"Invalid semantic name for key {k!r}: {v!r}. Values must be non-empty strings "
-                "(the semantic label such as 'control_DMS' or 'signal_NAc')."
+                f"Invalid semantic name for key {raw_storename!r}: {semantic_name!r}. Values must be non-empty "
+                "strings (the semantic label such as 'control_DMS' or 'signal_NAc')."
             )
 
     # Headless build: set base_dir and construct the template
@@ -348,15 +352,15 @@ def step2(
     sessions = list(selected_folders or [])
     if not sessions:
         raise ValueError("selected_folders must be a non-empty iterable of session directories")
-    abs_sessions = [os.path.abspath(s) for s in sessions]
-    for s in abs_sessions:
-        if not os.path.isdir(s):
-            raise ValueError(f"Session path does not exist or is not a directory: {s}")
-        parent = os.path.dirname(s)
+    abs_sessions = [os.path.abspath(session) for session in sessions]
+    for session in abs_sessions:
+        if not os.path.isdir(session):
+            raise ValueError(f"Session path does not exist or is not a directory: {session}")
+        parent = os.path.dirname(session)
         if parent != base_dir:
             raise ValueError(
                 f"All selected_folders must share the same parent equal to base_dir. "
-                f"Got parent {parent!r} for session {s!r}, expected {base_dir!r}"
+                f"Got parent {parent!r} for session {session!r}, expected {base_dir!r}"
             )
 
     # Headless build: set base_dir and construct the template
@@ -482,15 +486,15 @@ def step3(
     sessions = list(selected_folders or [])
     if not sessions:
         raise ValueError("selected_folders must be a non-empty iterable of session directories")
-    abs_sessions = [os.path.abspath(s) for s in sessions]
-    for s in abs_sessions:
-        if not os.path.isdir(s):
-            raise ValueError(f"Session path does not exist or is not a directory: {s}")
-        parent = os.path.dirname(s)
+    abs_sessions = [os.path.abspath(session) for session in sessions]
+    for session in abs_sessions:
+        if not os.path.isdir(session):
+            raise ValueError(f"Session path does not exist or is not a directory: {session}")
+        parent = os.path.dirname(session)
         if parent != base_dir:
             raise ValueError(
                 f"All selected_folders must share the same parent equal to base_dir. "
-                f"Got parent {parent!r} for session {s!r}, expected {base_dir!r}"
+                f"Got parent {parent!r} for session {session!r}, expected {base_dir!r}"
             )
 
     # Headless build: set base_dir and construct the template
@@ -635,15 +639,15 @@ def step4(
     sessions = list(selected_folders or [])
     if not sessions:
         raise ValueError("selected_folders must be a non-empty iterable of session directories")
-    abs_sessions = [os.path.abspath(s) for s in sessions]
-    for s in abs_sessions:
-        if not os.path.isdir(s):
-            raise ValueError(f"Session path does not exist or is not a directory: {s}")
-        parent = os.path.dirname(s)
+    abs_sessions = [os.path.abspath(session) for session in sessions]
+    for session in abs_sessions:
+        if not os.path.isdir(session):
+            raise ValueError(f"Session path does not exist or is not a directory: {session}")
+        parent = os.path.dirname(session)
         if parent != base_dir:
             raise ValueError(
                 f"All selected_folders must share the same parent equal to base_dir. "
-                f"Got parent {parent!r} for session {s!r}, expected {base_dir!r}"
+                f"Got parent {parent!r} for session {session!r}, expected {base_dir!r}"
             )
 
     # Headless build: set base_dir and construct the template
@@ -673,7 +677,7 @@ def step4(
 
     # Inject group analysis parameters
     input_params["averageForGroup"] = average_for_group
-    abs_group_folders = [os.path.abspath(f) for f in group_folders] if group_folders else []
+    abs_group_folders = [os.path.abspath(folder) for folder in group_folders] if group_folders else []
     input_params["folderNamesForAvg"] = abs_group_folders
 
     # Per-session output-directory subset filter for individual + group analysis
@@ -763,15 +767,15 @@ def step5(
     sessions = list(selected_folders or [])
     if not sessions:
         raise ValueError("selected_folders must be a non-empty iterable of session directories")
-    abs_sessions = [os.path.abspath(s) for s in sessions]
-    for s in abs_sessions:
-        if not os.path.isdir(s):
-            raise ValueError(f"Session path does not exist or is not a directory: {s}")
-        parent = os.path.dirname(s)
+    abs_sessions = [os.path.abspath(session) for session in sessions]
+    for session in abs_sessions:
+        if not os.path.isdir(session):
+            raise ValueError(f"Session path does not exist or is not a directory: {session}")
+        parent = os.path.dirname(session)
         if parent != base_dir:
             raise ValueError(
                 f"All selected_folders must share the same parent equal to base_dir. "
-                f"Got parent {parent!r} for session {s!r}, expected {base_dir!r}"
+                f"Got parent {parent!r} for session {session!r}, expected {base_dir!r}"
             )
 
     # Headless build: set base_dir and construct the template
@@ -798,7 +802,7 @@ def step5(
 
     # Inject group-average visualization selection
     input_params["visualizeAverageResults"] = visualize_average_results
-    abs_group_folders = [os.path.abspath(f) for f in group_folders] if group_folders else []
+    abs_group_folders = [os.path.abspath(folder) for folder in group_folders] if group_folders else []
     input_params["folderNamesForAvg"] = abs_group_folders
 
     # Per-session output-directory subset filter for individual + group visualization

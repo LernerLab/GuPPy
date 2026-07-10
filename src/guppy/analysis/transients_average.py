@@ -37,18 +37,18 @@ def averageForGroup(folderNames: list[str], inputParameters: dict[str, object]) 
 
     for i in range(len(folderNames)):
         if selectForTransientsComputation == "z_score":
-            path_temp = glob.glob(os.path.join(folderNames[i], "z_score_*"))
+            matched_paths = glob.glob(os.path.join(folderNames[i], "z_score_*"))
         elif selectForTransientsComputation == "dff":
-            path_temp = glob.glob(os.path.join(folderNames[i], "dff_*"))
+            matched_paths = glob.glob(os.path.join(folderNames[i], "dff_*"))
         else:
-            path_temp = glob.glob(os.path.join(folderNames[i], "z_score_*")) + glob.glob(
+            matched_paths = glob.glob(os.path.join(folderNames[i], "z_score_*")) + glob.glob(
                 os.path.join(folderNames[i], "dff_*")
             )
 
-        for j in range(len(path_temp)):
-            basename = (os.path.basename(path_temp[j])).split(".")[0]
-            temp = [folderNames[i], basename]
-            path.append(temp)
+        for j in range(len(matched_paths)):
+            basename = (os.path.basename(matched_paths[j])).split(".")[0]
+            entry = [folderNames[i], basename]
+            path.append(entry)
 
     naming = []
     for i in range(len(path)):
@@ -59,29 +59,35 @@ def averageForGroup(folderNames: list[str], inputParameters: dict[str, object]) 
     # or non-overlapping storenames across sessions do not cause an IndexError.
     new_path = [[] for _ in range(len(naming))]
     for i in range(len(path)):
-        idx = np.where(naming == path[i][1])[0][0]
-        new_path[idx].append(path[i])
+        index = np.where(naming == path[i][1])[0][0]
+        new_path[index].append(path[i])
 
-    op = makeAverageDir(abspath)
+    output_dir = makeAverageDir(abspath)
 
     for i in range(len(new_path)):
-        arr = []
+        freq_and_amp_values = []
         fileName = []
-        temp_path = new_path[i]
-        for j in range(len(temp_path)):
-            if not os.path.exists(os.path.join(temp_path[j][0], "freqAndAmp_" + temp_path[j][1] + ".h5")):
+        session_entries = new_path[i]
+        for j in range(len(session_entries)):
+            if not os.path.exists(os.path.join(session_entries[j][0], "freqAndAmp_" + session_entries[j][1] + ".h5")):
                 continue
             else:
-                df = read_freq_and_amp_from_hdf5(temp_path[j][0], temp_path[j][1])
-                arr.append(np.array([df["freq (events/min)"].iloc[0], df["amplitude"].iloc[0]]))
-                fileName.append(os.path.basename(temp_path[j][0]))
+                df = read_freq_and_amp_from_hdf5(session_entries[j][0], session_entries[j][1])
+                freq_and_amp_values.append(np.array([df["freq (events/min)"].iloc[0], df["amplitude"].iloc[0]]))
+                fileName.append(os.path.basename(session_entries[j][0]))
 
-        arr = np.asarray(arr)
-        write_freq_and_amp_to_hdf5(op, arr, temp_path[j][1], index=fileName, columns=["freq (events/min)", "amplitude"])
+        freq_and_amp_values = np.asarray(freq_and_amp_values)
+        write_freq_and_amp_to_hdf5(
+            output_dir,
+            freq_and_amp_values,
+            session_entries[j][1],
+            index=fileName,
+            columns=["freq (events/min)", "amplitude"],
+        )
         write_freq_and_amp_to_csv(
-            op,
-            arr,
-            "freqAndAmp_" + temp_path[j][1] + ".csv",
+            output_dir,
+            freq_and_amp_values,
+            "freqAndAmp_" + session_entries[j][1] + ".csv",
             index=fileName,
             columns=["freq (events/min)", "amplitude"],
         )

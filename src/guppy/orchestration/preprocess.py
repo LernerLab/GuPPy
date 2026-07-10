@@ -120,7 +120,7 @@ def visualizeControlAndSignal(filepath: str, removeArtifacts: bool) -> list:
 
         ts_path = os.path.join(filepath, "timeCorrection_" + name_1[-1] + ".hdf5")
         cntrl_sig_fit_path = os.path.join(filepath, "cntrl_sig_fit_" + name_1[-1] + ".hdf5")
-        ts = read_hdf5("", ts_path, "timestampNew")
+        timestamps = read_hdf5("", ts_path, "timestampNew")
 
         control = read_hdf5("", path[0, i], "data").reshape(-1)
         signal = read_hdf5("", path[1, i], "data").reshape(-1)
@@ -131,7 +131,7 @@ def visualizeControlAndSignal(filepath: str, removeArtifacts: bool) -> list:
             (os.path.basename(path[1, i])).split(".")[0],
             (os.path.basename(cntrl_sig_fit_path)).split(".")[0],
         ]
-        widget = ArtifactRemovalWidget(filepath, ts, control, signal, cntrl_sig_fit, plot_name, removeArtifacts)
+        widget = ArtifactRemovalWidget(filepath, timestamps, control, signal, cntrl_sig_fit, plot_name, removeArtifacts)
         widgets.append(widget)
     return widgets
 
@@ -250,8 +250,8 @@ def execute_zscore(folderNames: list[str], inputParameters: dict[str, object]) -
         path_2 = find_files(filepath, "signal_*", ignore_case=True)
         path = sorted(path_1 + path_2, key=str.casefold)
         if len(path) % 2 != 0:
-            controls = sorted(p for p in path if "control_" in os.path.basename(p).lower())
-            signals = sorted(p for p in path if "signal_" in os.path.basename(p).lower())
+            controls = sorted(file_path for file_path in path if "control_" in os.path.basename(file_path).lower())
+            signals = sorted(file_path for file_path in path if "signal_" in os.path.basename(file_path).lower())
             message = (
                 f"Unequal number of control and signal files in '{filepath}': "
                 f"found {len(controls)} control and {len(signals)} signal file(s). "
@@ -276,7 +276,7 @@ def execute_zscore(folderNames: list[str], inputParameters: dict[str, object]) -
 
             control, signal, tsNew = read_corrected_data(path[0, i], path[1, i], filepath, name)
             coords = get_coords(filepath, name, tsNew, remove_artifacts)
-            z_score, dff, control_fit, temp_control_arr = compute_z_score(
+            z_score, dff, control_fit, control_array = compute_z_score(
                 control,
                 signal,
                 tsNew,
@@ -289,7 +289,7 @@ def execute_zscore(folderNames: list[str], inputParameters: dict[str, object]) -
                 baseline_end,
                 control_fit_method,
             )
-            write_zscore(filepath, name, z_score, dff, control_fit, temp_control_arr)
+            write_zscore(filepath, name, z_score, dff, control_fit, control_array)
 
         logger.info(f"z-score for the data in {filepath} computed.")
         writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
@@ -456,19 +456,19 @@ def execute_combine_data(folderNames: list[str], inputParameters: dict[str, obje
 
     Returns
     -------
-    op : list
+    combined_output_groups : list
         List of ``[output_filepath, ...]`` entries for combined output directories.
     """
     logger.debug("Combining Data from different data files...")
     timeForLightsTurnOn = inputParameters["timeForLightsTurnOn"]
     selected_outputs = inputParameters.get("selectedOutputs") or {}
-    op_folder = []
+    output_folders = []
     for i in range(len(folderNames)):
         filepath = folderNames[i]
-        op_folder.append(select_output_dirs(filepath, selected_outputs.get(filepath)))
+        output_folders.append(select_output_dirs(filepath, selected_outputs.get(filepath)))
 
-    op_folder = list(np.concatenate(op_folder).flatten())
-    sampling_rate_fp = []
+    output_folders = list(np.concatenate(output_folders).flatten())
+    sampling_rate_filepaths = []
     for i in range(len(folderNames)):
         filepath = folderNames[i]
         storesListPath = select_output_dirs(filepath, selected_outputs.get(filepath))
@@ -477,29 +477,29 @@ def execute_combine_data(folderNames: list[str], inputParameters: dict[str, obje
             storesList_new = np.genfromtxt(
                 os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=","
             ).reshape(2, -1)
-            sampling_rate_fp.append(glob.glob(os.path.join(filepath, "timeCorrection_*")))
+            sampling_rate_filepaths.append(glob.glob(os.path.join(filepath, "timeCorrection_*")))
 
     # check if sampling rate is same for both data
-    sampling_rate_fp = np.concatenate(sampling_rate_fp)
+    sampling_rate_filepaths = np.concatenate(sampling_rate_filepaths)
     sampling_rate = []
-    for i in range(sampling_rate_fp.shape[0]):
-        sampling_rate.append(read_hdf5("", sampling_rate_fp[i], "sampling_rate"))
+    for i in range(sampling_rate_filepaths.shape[0]):
+        sampling_rate.append(read_hdf5("", sampling_rate_filepaths[i], "sampling_rate"))
 
-    res = all(i == sampling_rate[0] for i in sampling_rate)
-    if res == False:
+    all_sampling_rates_equal = all(i == sampling_rate[0] for i in sampling_rate)
+    if all_sampling_rates_equal == False:
         rates = [float(np.asarray(rate).reshape(-1)[0]) for rate in sampling_rate]
         message = (
-            f"Cannot combine data: sampling rates differ across files {sampling_rate_fp.tolist()} "
+            f"Cannot combine data: sampling rates differ across files {sampling_rate_filepaths.tolist()} "
             f"(rates={rates}). All files being combined must share the same sampling rate."
         )
         logger.error(message)
         raise ValueError(message)
 
     # get the output folders informatinos
-    op = get_all_stores_for_combining_data(op_folder)
+    combined_output_groups = get_all_stores_for_combining_data(output_folders)
 
     # processing timestamps for combining the data
-    for filepaths_to_combine in op:
+    for filepaths_to_combine in combined_output_groups:
         pair_name_to_filepath_to_timestamps = read_timestamps_for_combining_data(filepaths_to_combine)
         display_name_to_filepath_to_data = read_data_for_combining_data(filepaths_to_combine, storesList)
         compound_name_to_filepath_to_ttl_timestamps = read_ttl_timestamps_for_combining_data(
@@ -518,7 +518,7 @@ def execute_combine_data(folderNames: list[str], inputParameters: dict[str, obje
         write_combined_data(output_filepath, pair_name_to_tsNew, display_name_to_data, compound_name_to_ttl_timestamps)
     logger.info("Data is combined from different data files.")
 
-    return op
+    return combined_output_groups
 
 
 def extractTsAndSignal(inputParameters: dict[str, object]) -> None:
@@ -569,14 +569,14 @@ def extractTsAndSignal(inputParameters: dict[str, object]) -> None:
         writeToFile(str((pbMaxValue) * 10) + "\n" + str(10) + "\n", file_path=PB_STEPS_FILE)
         execute_timestamp_correction(folderNames, inputParameters)
         storesList = check_storeslistfile(folderNames)
-        op_folder = execute_combine_data(folderNames, inputParameters, storesList)
-        write_combined_stores_list(op_folder, storesList)
-        execute_zscore(op_folder, inputParameters)
+        combined_output_folders = execute_combine_data(folderNames, inputParameters, storesList)
+        write_combined_stores_list(combined_output_folders, storesList)
+        execute_zscore(combined_output_folders, inputParameters)
         headless = bool(os.environ.get("GUPPY_BASE_DIR"))
         if not headless:
-            visualize_z_score(inputParameters, op_folder)
+            visualize_z_score(inputParameters, combined_output_folders)
         if remove_artifacts == True:
-            execute_artifact_removal(op_folder, inputParameters)
+            execute_artifact_removal(combined_output_folders, inputParameters)
 
 
 @subprocess_main_handler

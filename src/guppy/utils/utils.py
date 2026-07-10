@@ -69,9 +69,9 @@ def takeOnlyDirs(paths: list[str]) -> list[str]:
         Subset of ``paths`` containing only directories.
     """
     removePaths = []
-    for p in paths:
-        if os.path.isfile(p):
-            removePaths.append(p)
+    for path in paths:
+        if os.path.isfile(path):
+            removePaths.append(path)
     return list(set(paths) - set(removePaths))
 
 
@@ -189,7 +189,9 @@ def select_output_dirs(session_path: str, selected_runs: list[str]) -> list[str]
         )
 
     selected = [available_by_name[run] for run in selected_runs]
-    missing_stores_list = [d for d in selected if not os.path.exists(os.path.join(d, "storesList.csv"))]
+    missing_stores_list = [
+        output_dir for output_dir in selected if not os.path.exists(os.path.join(output_dir, "storesList.csv"))
+    ]
     if missing_stores_list:
         raise ValueError(
             f"Selected output directories are missing storesList.csv: {missing_stores_list!r}. "
@@ -302,9 +304,9 @@ def read_Df(filepath: str, event: str, name: str) -> pd.DataFrame:
     event = event.replace("\\", "_")
     event = event.replace("/", "_")
     if name:
-        op = os.path.join(filepath, event + "_{}.h5".format(name))
+        hdf5_path = os.path.join(filepath, event + "_{}.h5".format(name))
     else:
-        op = os.path.join(filepath, event + ".h5")
-    df = pd.read_hdf(op, key="df", mode="r")
+        hdf5_path = os.path.join(filepath, event + ".h5")
+    df = pd.read_hdf(hdf5_path, key="df", mode="r")
 
     return df

@@ -83,11 +83,11 @@ class StorenamesInstructionsNPM(StorenamesInstructions):
 
     def __init__(self, folder_path: str, *, channel_previews: dict[str, dict[str, np.ndarray]]) -> None:
         super().__init__(folder_path=folder_path)
-        self.d = {
+        self.channel_preview_arrays = {
             name: {"x": np.asarray(preview["x"]), "y": np.asarray(preview["y"])}
             for name, preview in channel_previews.items()
         }
-        keys = list(self.d.keys())
+        channel_names = list(self.channel_preview_arrays.keys())
         self.mark_down_np = pn.pane.Markdown(
             """
                                         ### Extra Instructions to follow when using Neurophotometrics data :
@@ -108,7 +108,7 @@ class StorenamesInstructionsNPM(StorenamesInstructions):
                                             """
         )
         self.plot_select = pn.widgets.Select(
-            name="Select channel to see correspondings channels", options=keys, value=keys[0]
+            name="Select channel to see correspondings channels", options=channel_names, value=channel_names[0]
         )
         self.plot_pane = pn.pane.HoloViews(self._make_plot(self.plot_select.value), width=550)
         self.plot_select.param.watch(self._on_plot_select_change, "value")
@@ -122,7 +122,8 @@ class StorenamesInstructionsNPM(StorenamesInstructions):
         )
 
     def _make_plot(self, plot_key: str) -> hv.Curve:
-        return hv.Curve((self.d[plot_key]["x"], self.d[plot_key]["y"])).opts(width=550)
+        preview = self.channel_preview_arrays[plot_key]
+        return hv.Curve((preview["x"], preview["y"])).opts(width=550)
 
     def _on_plot_select_change(self, event: object) -> None:
         self.plot_pane.object = self._make_plot(event.new)
