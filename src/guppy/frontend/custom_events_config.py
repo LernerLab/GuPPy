@@ -2,8 +2,8 @@ import logging
 
 # holoviews must be imported before the first pn.extension() call so Panel wires up the HoloViews
 # bokeh opts namespace that the visualization step relies on; importing this module first (it sorts
-# ahead of storenames in home.py) would otherwise leave those opts unregistered. Mirrors the
-# import-then-extension ordering in storenames_instructions.py.
+# ahead of store_ids in home.py) would otherwise leave those opts unregistered. Mirrors the
+# import-then-extension ordering in store_labeling_instructions.py.
 import holoviews as hv  # noqa: F401
 import panel as pn
 
@@ -20,7 +20,7 @@ manually scored events). For each event, enter a **name** and paste its
 column. Click **Add event** for more, then **Save**.
 
 Each event is written into this session as ``<name>.csv`` and appears as a
-selectable store the next time you open the Storenames GUI. This step is
+selectable store the next time you open the Label Stores GUI. This step is
 optional — leave it empty and just continue if you have no custom events.
 """
 

@@ -13,6 +13,7 @@
 - Removed commented-out dead code throughout `src/guppy/` and clarified the remaining comments. [PR #376](https://github.com/LernerLab/GuPPy/pull/376)
 
 ## Deprecations and Removals
+- Standardized the store/session/run vocabulary across the codebase, GUI, and persisted contracts, and rebranded Step 1 "Save Storenames" to "Label Stores" (see the new [Glossary](https://guppy.readthedocs.io/en/latest/reference/glossary.html)). Breaking, hard cutover with no migration: `GuPPyParamtersUsed.json` keys `folderNames`→`session_folders`, `folderNamesForAvg`→`group_session_folders`, `runName`→`run_name`, `runNamePolicy`→`run_name_policy`, `selectedOutputs`→`selected_runs`, `groupSelectedOutputs`→`group_selected_runs`, and the headless `storenames_map` parameter→`store_id_to_store_label`; `storesList.csv` rows are now `store_id` (row 0) and `store_label` (row 1). Old session output folders are not migrated — re-run Step 1 to regenerate them. [PR #379](https://github.com/LernerLab/GuPPy/pull/379)
 
 # v2.0.0-alpha8 (July 7th, 2026)
 

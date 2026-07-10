@@ -35,7 +35,7 @@ src/guppy/
 │
 ├── orchestration/             ← coordinates each pipeline step, bridging the UI and signal processing backend
 │   ├── save_parameters.py     (writes GuPPyParamtersUsed.json; invoked automatically by steps 1-5)
-│   ├── storenames.py          (Step 1)
+│   ├── store_labeling.py          (Step 1)
 │   ├── read_raw_data.py       (Step 2)
 │   ├── preprocess.py          (Step 3)
 │   ├── psth.py                (Step 4)
@@ -59,8 +59,8 @@ src/guppy/
 │
 ├── frontend/                  ← Panel UI components (parameter forms, store selectors, visualization dashboard)
 │   ├── input_parameters.py
-│   ├── storenames_selector.py
-│   ├── storenames_config.py
+│   ├── store_labeling_selector.py
+│   ├── store_labeling_config.py
 │   ├── artifact_removal.py
 │   ├── visualization_dashboard.py
 │   ├── parameterized_plotter.py
@@ -94,7 +94,7 @@ flowchart LR
     F1(["storesList.csv"])
 
     S3["readTevTsq.py<br/><i>Step 2</i>"]
-    F2(["&lt;storename&gt;.hdf5"])
+    F2(["&lt;store_id&gt;.hdf5"])
 
     S4["preprocess.py<br/><i>Step 3</i>"]
     F3(["z_score / dff .hdf5"])
@@ -132,12 +132,12 @@ flowchart LR
 flowchart LR
     RAW(["Raw files<br/>TDT · Doric · NPM · CSV"])
 
-    S2["storenames.py<br/><i>Step 1</i>"]
+    S2["store_labeling.py<br/><i>Step 1</i>"]
     F1(["storesList.csv"])
 
     S3["read_raw_data.py<br/><i>Step 2</i>"]
     EX["TDT · Doric · NPM · CSV<br/>extractors"]
-    F2(["&lt;storename&gt;.hdf5"])
+    F2(["&lt;store_id&gt;.hdf5"])
 
     S4["preprocess.py<br/><i>Step 3</i>"]
     A4["timestamp_correction<br/>z_score · artifact_removal"]

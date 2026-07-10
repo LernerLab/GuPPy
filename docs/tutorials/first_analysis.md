@@ -6,7 +6,7 @@ By the end you will have:
 
 - Launched the GuPPy GUI
 - Selected your data and reviewed the analysis parameters
-- Labeled your channels with storenames
+- Labeled your channels with stores
 - Loaded the raw data into HDF5
 - Preprocessed the signal
 - Computed the PSTH
@@ -51,7 +51,7 @@ A browser tab opens showing the GuPPy dashboard.
 :align: center
 ```
 
-The page is split into a **sidebar on the left** and a **main area on the right**. The sidebar lists the pipeline buttons in run order, from *Open Storenames GUI* at the top through *Visualization* at the bottom, with a progress bar directly under each step that performs background work. The main area is where you select your data folder and configure parameters; settings are grouped into three collapsible cards: *Individual Analysis* (the only one we use in this tutorial), *Group Analysis*, and *Visualization Parameters*. The five **Step N** labels in the sidebar (Storenames through Visualization) match the numbered pipeline steps below; choosing your data and setting parameters in the main area, covered here in Step 0, is the setup that precedes them.
+The page is split into a **sidebar on the left** and a **main area on the right**. The sidebar lists the pipeline buttons in run order, from *Label Stores* at the top through *Visualization* at the bottom, with a progress bar directly under each step that performs background work. The main area is where you select your data folder and configure parameters; settings are grouped into three collapsible cards: *Individual Analysis* (the only one we use in this tutorial), *Group Analysis*, and *Visualization Parameters*. The five **Step N** labels in the sidebar (Label Stores through Visualization) match the numbered pipeline steps below; choosing your data and setting parameters in the main area, covered here in Step 0, is the setup that precedes them.
 
 Before running the pipeline you pick the session folder you want to analyze, then look over (but not change) the analysis parameters that the rest of the pipeline will use.
 
@@ -86,12 +86,12 @@ There is no separate "save parameters" action. Each pipeline step records the pa
 
 ## Step 1: Label your channels
 
-A **storename** is the human-readable label GuPPy uses for one of your data channels. Raw acquisition files come with cryptic, format-specific names (here, the CSV filenames `Sample_Control_Channel`, `Sample_Signal_Channel`, `Sample_TTL`); GuPPy needs you to map each one to a meaningful name like `control_A`, `signal_A`, or `RewardPort`. Those mapped names are what every downstream step (preprocessing, PSTH, plots, group analysis) refers to. The mapping is saved as `storesList.csv` inside an output folder created next to the session.
+A **store** is the human-readable label GuPPy uses for one of your data channels. Raw acquisition files come with cryptic, format-specific names (here, the CSV filenames `Sample_Control_Channel`, `Sample_Signal_Channel`, `Sample_TTL`); GuPPy needs you to map each one to a meaningful name like `control_A`, `signal_A`, or `RewardPort`. Those mapped names are what every downstream step (preprocessing, PSTH, plots, group analysis) refers to. The mapping is saved as `storesList.csv` inside an output folder created next to the session.
 
-Click **Open Storenames GUI** in the sidebar. A new browser tab opens with the Storenames panel for the selected folder.
+Click **Label Stores** in the sidebar. A new browser tab opens with the Label Stores panel for the selected folder.
 
-```{image} ../_static/images/02_storenames.png
-:alt: Storenames GUI with the three sample CSV channels listed as available options
+```{image} ../_static/images/02_label_stores.png
+:alt: Label Stores GUI with the three sample CSV channels listed as available options
 :align: center
 ```
 
@@ -99,10 +99,10 @@ The three CSV filenames appear in the left list (**Filter available options**) o
 
 1. **Move all three channels to the right list.** Click each of `Sample_Control_Channel`, `Sample_Signal_Channel`, `Sample_TTL` in the left list and use the `>>` button to move it to the right. (Or shift-click to select all three at once before clicking `>>`.)
 
-2. **Click "Select Storenames".** A new *Configure Storenames* section appears below, with one row per channel. Each row has a **Type** dropdown and a **Name** text field.
+2. **Click "Select Label Stores".** A new *Configure Label Stores* section appears below, with one row per channel. Each row has a **Type** dropdown and a **Name** text field.
 
-   ```{image} ../_static/images/02b_storenames_configured.png
-   :alt: Storenames GUI after clicking Select Storenames, showing the Configure Storenames section with a Type dropdown and Name field for each of the three channels
+   ```{image} ../_static/images/02b_label_stores_configured.png
+   :alt: Label Stores GUI after clicking Select Label Stores, showing the Configure Label Stores section with a Type dropdown and Name field for each of the three channels
    :align: center
    ```
 
@@ -117,7 +117,7 @@ The three CSV filenames appear in the left list (**Filter available options**) o
    | `Sample_Signal_Channel` | `signal` | `A` |
    | `Sample_TTL` | `event TTLs` | `RewardPort` |
 
-   GuPPy combines the dropdown and text field into the final storename: `control` + `A` becomes `control_A`, `signal` + `A` becomes `signal_A`, and the event TTL keeps the name as-is (`RewardPort`). If the control and signal Name fields differ, saving will fail with `Mismatched signal/control region pairs — Every 'signal_<region>' must have a matching 'control_<region>'.`
+   GuPPy combines the dropdown and text field into the final store: `control` + `A` becomes `control_A`, `signal` + `A` becomes `signal_A`, and the event TTL keeps the name as-is (`RewardPort`). If the control and signal Name fields differ, saving will fail with `Mismatched signal/control region pairs — Every 'signal_<region>' must have a matching 'control_<region>'.`
 
 4. **Click "Show Selected Configuration".** This applies your row entries to the JSON editor below, which should now read something like:
 
@@ -131,7 +131,7 @@ The three CSV filenames appear in the left list (**Filter available options**) o
 
 5. **Choose the output directory.** Use the **over-write storeslist file or create a new one?** menu button and select `create_new_file`.
 
-   Despite the menu's name, this choice does more than name a file. It picks the **output directory** for the entire analysis pipeline. From this point on, every downstream step (Read Raw Data, Preprocess, PSTH Computation, Visualization) writes its outputs (HDF5 files, PSTH results, plots) into that directory and reads `storesList.csv` from it to know which raw channel maps to which storename. `create_new_file` makes a fresh subdirectory inside the session folder, named `<session>_output_<N>/` with `<N>` auto-incremented (`_output_1` on the first run, `_output_2` on the second, and so on).
+   Despite the menu's name, this choice does more than name a file. It picks the **output directory** for the entire analysis pipeline. From this point on, every downstream step (Read Raw Data, Preprocess, PSTH Computation, Visualization) writes its outputs (HDF5 files, PSTH results, plots) into that directory and reads `storesList.csv` from it to know which raw channel maps to which store. `create_new_file` makes a fresh subdirectory inside the session folder, named `<session>_output_<N>/` with `<N>` auto-incremented (`_output_1` on the first run, `_output_2` on the second, and so on).
 
    :::{note}
    The other menu option, `over_write_file`, is for re-running on a session that already has an output subdirectory. It lets you point at an existing `<session>_output_<N>/`, deletes everything inside it (the previous `storesList.csv` plus any HDF5 and PSTH results from the previous run), and starts that subdirectory over fresh. Pick `over_write_file` only when you genuinely want that destructive behavior. For the tutorial, ignore it.
@@ -139,7 +139,7 @@ The three CSV filenames appear in the left list (**Filter available options**) o
 
 6. **Click Save.** GuPPy creates the output subdirectory (e.g. `sample_data_csv_1_output_1/`) and writes `storesList.csv` into it. The downstream steps will read and write inside this folder.
 
-You can close this Storenames tab and return to the original homepage tab to continue.
+You can close this Label Stores tab and return to the original homepage tab to continue.
 
 ## Step 2: Load the raw data
 
@@ -152,7 +152,7 @@ Click **Read Raw Data**. A progress bar appears in the sidebar directly below th
 
 The other bars on the sidebar (under *Preprocess and Remove Artifacts* and *PSTH Computation*) appear pre-filled at 100% as a styling default; they reset to 0 and fill while their own step is running. So a fully-green bar does not mean that step is done, it just means it has not been touched yet.
 
-GuPPy loads each CSV file and writes the data into the output folder you created in Step 1, one HDF5 file per storename (so for this tutorial: `sample_data_csv_1_output_1/control_A.hdf5`, `.../signal_A.hdf5`, `.../RewardPort.hdf5`). Each file holds the channel's `data`, `timestamps`, and `sampling_rate` datasets plus a few metadata fields. HDF5 is a binary format that stores large numerical arrays efficiently and supports partial reads, which speeds up the later pipeline steps.
+GuPPy loads each CSV file and writes the data into the output folder you created in Step 1, one HDF5 file per store (so for this tutorial: `sample_data_csv_1_output_1/control_A.hdf5`, `.../signal_A.hdf5`, `.../RewardPort.hdf5`). Each file holds the channel's `data`, `timestamps`, and `sampling_rate` datasets plus a few metadata fields. HDF5 is a binary format that stores large numerical arrays efficiently and supports partial reads, which speeds up the later pipeline steps.
 
 When the progress bar reaches 100% the step is complete. Confirmation messages are also logged to the terminal where you launched `guppy`.
 

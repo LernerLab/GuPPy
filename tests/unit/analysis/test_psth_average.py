@@ -112,8 +112,8 @@ def test_average_for_group_creates_averaged_psth_file(tmp_path):
     assert (tmp_path / "average" / "event_lever_dms_z_score_dms.h5").exists()
 
 
-def test_average_for_group_handles_non_overlapping_storenames_without_indexerror(tmp_path):
-    """Sessions with entirely non-overlapping storenames must not raise IndexError.
+def test_average_for_group_handles_non_overlapping_stores_without_indexerror(tmp_path):
+    """Sessions with entirely non-overlapping store_ids must not raise IndexError.
 
     Regression test for issue #274 — previously ``new_path`` was sized by the
     largest per-session file count, which could be smaller than the number of

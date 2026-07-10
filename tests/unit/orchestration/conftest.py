@@ -5,7 +5,7 @@ import pytest
 def base_input_parameters() -> dict[str, object]:
     """Fully-populated inputParameters dict with all keys needed by preprocess and psth tests."""
     return {
-        "folderNames": [],
+        "session_folders": [],
         "step": 0,
         "numberOfCores": 1,
         "noChannels": 2,
@@ -31,7 +31,7 @@ def base_input_parameters() -> dict[str, object]:
         "computeCorr": False,
         "peak_startPoint": 0.0,
         "peak_endPoint": 5.0,
-        "storenames_map": {},
+        "store_id_to_store_label": {},
         "averageForGroup": False,
         "selectForTransientsComputation": "z_score",
         "moving_window": 15,

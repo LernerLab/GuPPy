@@ -58,9 +58,9 @@ class TestOrchestrateReadRawDataErrorEnrichment:
         session_folder = tmp_path / "sample_doric_1"
         shutil.copytree(source_folder, session_folder)
 
-        output_folder = session_folder / "sample_doric_1_output_1"
-        output_folder.mkdir()
-        stores_list_path = output_folder / "storesList.csv"
+        run_folder = session_folder / "sample_doric_1_output_1"
+        run_folder.mkdir()
+        stores_list_path = run_folder / "storesList.csv"
         stores_list_path.write_text("NotARealEvent\nsignal_DMS\n")
 
         return str(session_folder)
@@ -68,10 +68,10 @@ class TestOrchestrateReadRawDataErrorEnrichment:
     def test_missing_event_error_lists_available_events(self, session_with_bogus_event):
         input_parameters = {
             **DEFAULT_ANALYSIS_PARAMETERS,
-            "folderNames": [session_with_bogus_event],
+            "session_folders": [session_with_bogus_event],
             "numberOfCores": 1,
             "noChannels": 2,
-            "selectedOutputs": {session_with_bogus_event: ["1"]},
+            "selected_runs": {session_with_bogus_event: ["1"]},
         }
         with pytest.raises(ValueError) as exception_info:
             orchestrate_read_raw_data(input_parameters)
@@ -146,9 +146,9 @@ class TestProgressFileAccountingEndToEnd:
 
         # Build a session folder with a storesList.csv referencing two fake events.
         session_folder = tmp_path / "session"
-        output_folder = session_folder / "session_output_1"
-        output_folder.mkdir(parents=True)
-        (output_folder / "storesList.csv").write_text("event_a,event_b\nsignal_a,signal_b\n")
+        run_folder = session_folder / "session_output_1"
+        run_folder.mkdir(parents=True)
+        (run_folder / "storesList.csv").write_text("event_a,event_b\nsignal_a,signal_b\n")
 
         # Fake extractor that sleeps inside read so the poller has time to tick.
         # count_samples reports per-event totals; read+save are no-ops on disk.
@@ -160,14 +160,14 @@ class TestProgressFileAccountingEndToEnd:
 
             def read(self, *, events, outputPath):
                 time.sleep(0.4)
-                return [{"storename": event, "timestamps": [0.0]} for event in events]
+                return [{"store_id": event, "timestamps": [0.0]} for event in events]
 
             def save(self, *, output_dicts, outputPath):
                 return None
 
         fake_extractor = _SleepingExtractor()
 
-        def fake_build_event_to_extractor(*, folder_path, storesList, inputParameters):
+        def fake_build_event_to_extractor(*, folder_path, store_array, inputParameters):
             return {"event_a": fake_extractor, "event_b": fake_extractor}
 
         monkeypatch.setattr(read_raw_data_module, "_build_event_to_extractor", fake_build_event_to_extractor)
@@ -177,10 +177,10 @@ class TestProgressFileAccountingEndToEnd:
         # read-and-save unit function directly — no pool, no separate patch needed.
         input_parameters = {
             **DEFAULT_ANALYSIS_PARAMETERS,
-            "folderNames": [str(session_folder)],
+            "session_folders": [str(session_folder)],
             "numberOfCores": 1,
             "noChannels": 2,
-            "selectedOutputs": {str(session_folder): ["1"]},
+            "selected_runs": {str(session_folder): ["1"]},
         }
         orchestrate_read_raw_data(input_parameters)
 

@@ -16,13 +16,13 @@ from .standard_io import (
 logger = logging.getLogger(__name__)
 
 
-def averageForGroup(folderNames: list[str], inputParameters: dict[str, object]) -> None:
+def averageForGroup(session_folders: list[str], inputParameters: dict[str, object]) -> None:
     """
     Combine transient frequency and amplitude results across a group of sessions.
 
     Parameters
     ----------
-    folderNames : list of str
+    session_folders : list of str
         Session directories whose output subdirectories contain precomputed
         ``freqAndAmp_*.h5`` files.
     inputParameters : dict
@@ -35,19 +35,19 @@ def averageForGroup(folderNames: list[str], inputParameters: dict[str, object]) 
     abspath = inputParameters["abspath"]
     selectForTransientsComputation = inputParameters["selectForTransientsComputation"]
 
-    for i in range(len(folderNames)):
+    for i in range(len(session_folders)):
         if selectForTransientsComputation == "z_score":
-            matched_paths = glob.glob(os.path.join(folderNames[i], "z_score_*"))
+            matched_paths = glob.glob(os.path.join(session_folders[i], "z_score_*"))
         elif selectForTransientsComputation == "dff":
-            matched_paths = glob.glob(os.path.join(folderNames[i], "dff_*"))
+            matched_paths = glob.glob(os.path.join(session_folders[i], "dff_*"))
         else:
-            matched_paths = glob.glob(os.path.join(folderNames[i], "z_score_*")) + glob.glob(
-                os.path.join(folderNames[i], "dff_*")
+            matched_paths = glob.glob(os.path.join(session_folders[i], "z_score_*")) + glob.glob(
+                os.path.join(session_folders[i], "dff_*")
             )
 
         for j in range(len(matched_paths)):
             basename = (os.path.basename(matched_paths[j])).split(".")[0]
-            entry = [folderNames[i], basename]
+            entry = [session_folders[i], basename]
             path.append(entry)
 
     naming = []
@@ -56,13 +56,13 @@ def averageForGroup(folderNames: list[str], inputParameters: dict[str, object]) 
     naming = np.unique(np.asarray(naming))
 
     # Size by the number of unique basenames across all folders so that mismatched
-    # or non-overlapping storenames across sessions do not cause an IndexError.
+    # or non-overlapping store_ids across sessions do not cause an IndexError.
     new_path = [[] for _ in range(len(naming))]
     for i in range(len(path)):
         index = np.where(naming == path[i][1])[0][0]
         new_path[index].append(path[i])
 
-    output_dir = makeAverageDir(abspath)
+    run_folder = makeAverageDir(abspath)
 
     for i in range(len(new_path)):
         freq_and_amp_values = []
@@ -78,14 +78,14 @@ def averageForGroup(folderNames: list[str], inputParameters: dict[str, object]) 
 
         freq_and_amp_values = np.asarray(freq_and_amp_values)
         write_freq_and_amp_to_hdf5(
-            output_dir,
+            run_folder,
             freq_and_amp_values,
             session_entries[j][1],
             index=fileName,
             columns=["freq (events/min)", "amplitude"],
         )
         write_freq_and_amp_to_csv(
-            output_dir,
+            run_folder,
             freq_and_amp_values,
             "freqAndAmp_" + session_entries[j][1] + ".csv",
             index=fileName,

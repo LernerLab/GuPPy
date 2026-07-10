@@ -13,7 +13,7 @@ from guppy.frontend.visualization_dashboard import VisualizationDashboard
 from guppy.testing.api import step1, step2, step3, step4, step5
 
 SESSION_SUBDIR = "csv/sample_data_csv_1"
-STORENAMES_MAP = {
+STORE_ID_TO_STORE_LABEL = {
     "Sample_Control_Channel": "control_region",
     "Sample_Signal_Channel": "signal_region",
     "Sample_TTL": "ttl",
@@ -63,7 +63,7 @@ def test_step5(step5_fixture_name, expected_event_substring, request):
         assert isinstance(dataframe, pd.DataFrame)
         assert not dataframe.empty, "ParameterizedPlotter df_new is empty — PSTH data was not read"
 
-    # Confirm at least one dashboard has an event matching the expected TTL storename
+    # Confirm at least one dashboard has an event matching the expected TTL store_id
     all_events = [event for dashboard in captured_dashboards for event in dashboard.plotter.event_selector_objects]
     matching_events = [event for event in all_events if expected_event_substring in event]
     assert matching_events, f"No event containing '{expected_event_substring}' found among loaded events: {all_events}"
@@ -103,7 +103,7 @@ def test_step5_raises_when_visualization_metric_not_computed_in_step4(tmp_path):
     )
     selected_runs = {str(session_copy): ["1"]}
 
-    step1(**common_kwargs, storenames_map=STORENAMES_MAP)
+    step1(**common_kwargs, store_id_to_store_label=STORE_ID_TO_STORE_LABEL)
     step2(**common_kwargs, selected_runs=selected_runs)
     step3(**common_kwargs, selected_runs=selected_runs)
     # Step 4: compute only dff (not z_score)

@@ -18,7 +18,7 @@ def test_combine_data(tmp_path):
         "tdt/Photo_048_392-200728-121222",
         "tdt/Photo_63_207-181030-103332",
     ]
-    storenames_map = {
+    store_id_to_store_label = {
         "Dv1A": "control_dms",
         "Dv2A": "signal_dms",
         "PrtN": "port_entries_dms",
@@ -62,7 +62,7 @@ def test_combine_data(tmp_path):
     step1(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        storenames_map=storenames_map,
+        store_id_to_store_label=store_id_to_store_label,
         npm_timestamp_column_names=npm_timestamp_column_names,
         npm_time_units=npm_time_units,
         npm_split_events=npm_split_events,
@@ -105,10 +105,10 @@ def test_combine_data(tmp_path):
     # Validate outputs exist in the temp copy
     session_copy = selected_folders[0]  # Outputs are written to the first session folder
     basename = os.path.basename(session_copy)
-    output_dirs = sorted(glob.glob(os.path.join(session_copy, f"{basename}_output_*")))
-    assert output_dirs, f"No output directories found in {session_copy}"
+    run_folders = sorted(glob.glob(os.path.join(session_copy, f"{basename}_output_*")))
+    assert run_folders, f"No output directories found in {session_copy}"
     out_dir = None
-    for d in output_dirs:
+    for d in run_folders:
         if os.path.exists(os.path.join(d, "storesList.csv")):
             out_dir = d
             break

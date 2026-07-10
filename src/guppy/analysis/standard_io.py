@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 def read_control_and_signal(
-    filepath: str, storesList: np.ndarray
+    filepath: str, store_array: np.ndarray
 ) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray | None]]:
     """
     Load control and signal channel arrays from HDF5 files.
@@ -25,63 +25,63 @@ def read_control_and_signal(
     ----------
     filepath : str
         Session output directory.
-    storesList : np.ndarray
-        2-D array with rows [storenames, display_names].
+    store_array : np.ndarray
+        2-D array with rows [store_id, store_label].
 
     Returns
     -------
-    name_to_data : dict
-        Display name → data array.
-    name_to_timestamps : dict
-        Display name → timestamp array.
-    name_to_sampling_rate : dict
-        Display name → sampling-rate array.
-    name_to_npoints : dict
-        Display name → npoints array (or None for CSV datasets).
+    store_label_to_data : dict
+        Store label → data array.
+    store_label_to_timestamps : dict
+        Store label → timestamp array.
+    store_label_to_sampling_rate : dict
+        Store label → sampling-rate array.
+    store_label_to_npoints : dict
+        Store label → npoints array (or None for CSV datasets).
     """
-    control_signal_names = get_control_and_signal_channel_names(storesList)
-    storenames = storesList[0, :]
-    names_for_storenames = storesList[1, :]
+    control_signal_names = get_control_and_signal_channel_names(store_array)
+    store_ids = store_array[0, :]
+    store_labels = store_array[1, :]
 
-    name_to_data = {}
-    name_to_timestamps = {}
-    name_to_sampling_rate = {}
-    name_to_npoints = {}
+    store_label_to_data = {}
+    store_label_to_timestamps = {}
+    store_label_to_sampling_rate = {}
+    store_label_to_npoints = {}
 
     for i in range(control_signal_names.shape[1]):
         control_name = control_signal_names[0, i]
         signal_name = control_signal_names[1, i]
-        control_index = np.where(names_for_storenames == control_name)[0]
-        signal_index = np.where(names_for_storenames == signal_name)[0]
-        control_storename = storenames[control_index[0]]
-        signal_storename = storenames[signal_index[0]]
+        control_index = np.where(store_labels == control_name)[0]
+        signal_index = np.where(store_labels == signal_name)[0]
+        control_store_id = store_ids[control_index[0]]
+        signal_store_id = store_ids[signal_index[0]]
 
-        control_data = read_hdf5(control_storename, filepath, "data")
-        signal_data = read_hdf5(signal_storename, filepath, "data")
-        control_timestamps = read_hdf5(control_storename, filepath, "timestamps")
-        signal_timestamps = read_hdf5(signal_storename, filepath, "timestamps")
-        control_sampling_rate = read_hdf5(control_storename, filepath, "sampling_rate")
-        signal_sampling_rate = read_hdf5(signal_storename, filepath, "sampling_rate")
+        control_data = read_hdf5(control_store_id, filepath, "data")
+        signal_data = read_hdf5(signal_store_id, filepath, "data")
+        control_timestamps = read_hdf5(control_store_id, filepath, "timestamps")
+        signal_timestamps = read_hdf5(signal_store_id, filepath, "timestamps")
+        control_sampling_rate = read_hdf5(control_store_id, filepath, "sampling_rate")
+        signal_sampling_rate = read_hdf5(signal_store_id, filepath, "sampling_rate")
         try:  # TODO: define npoints for csv datasets
-            control_npoints = read_hdf5(control_storename, filepath, "npoints")
-            signal_npoints = read_hdf5(signal_storename, filepath, "npoints")
+            control_npoints = read_hdf5(control_store_id, filepath, "npoints")
+            signal_npoints = read_hdf5(signal_store_id, filepath, "npoints")
         except KeyError:  # npoints is not defined for csv datasets
             control_npoints = None
             signal_npoints = None
 
-        name_to_data[control_name] = control_data
-        name_to_data[signal_name] = signal_data
-        name_to_timestamps[control_name] = control_timestamps
-        name_to_timestamps[signal_name] = signal_timestamps
-        name_to_sampling_rate[control_name] = control_sampling_rate
-        name_to_sampling_rate[signal_name] = signal_sampling_rate
-        name_to_npoints[control_name] = control_npoints
-        name_to_npoints[signal_name] = signal_npoints
+        store_label_to_data[control_name] = control_data
+        store_label_to_data[signal_name] = signal_data
+        store_label_to_timestamps[control_name] = control_timestamps
+        store_label_to_timestamps[signal_name] = signal_timestamps
+        store_label_to_sampling_rate[control_name] = control_sampling_rate
+        store_label_to_sampling_rate[signal_name] = signal_sampling_rate
+        store_label_to_npoints[control_name] = control_npoints
+        store_label_to_npoints[signal_name] = signal_npoints
 
-    return name_to_data, name_to_timestamps, name_to_sampling_rate, name_to_npoints
+    return store_label_to_data, store_label_to_timestamps, store_label_to_sampling_rate, store_label_to_npoints
 
 
-def read_ttl(filepath: str, storesList: np.ndarray) -> dict[str, np.ndarray]:
+def read_ttl(filepath: str, store_array: np.ndarray) -> dict[str, np.ndarray]:
     """
     Load TTL event timestamps from HDF5 files, skipping control/signal channels.
 
@@ -89,34 +89,34 @@ def read_ttl(filepath: str, storesList: np.ndarray) -> dict[str, np.ndarray]:
     ----------
     filepath : str
         Session output directory.
-    storesList : np.ndarray
-        2-D array with rows [storenames, display_names].
+    store_array : np.ndarray
+        2-D array with rows [store_id, store_label].
 
     Returns
     -------
-    name_to_timestamps : dict
-        Display name → TTL timestamp array for each non-channel store.
+    store_label_to_timestamps : dict
+        Store label → TTL timestamp array for each non-channel store.
     """
-    control_signal_names = get_control_and_signal_channel_names(storesList)
-    storenames = storesList[0, :]
-    names_for_storenames = storesList[1, :]
+    control_signal_names = get_control_and_signal_channel_names(store_array)
+    store_ids = store_array[0, :]
+    store_labels = store_array[1, :]
 
-    name_to_timestamps = {}
-    for storename, name in zip(storenames, names_for_storenames):
-        if name in control_signal_names:
+    store_label_to_timestamps = {}
+    for store_id, store_label in zip(store_ids, store_labels):
+        if store_label in control_signal_names:
             continue
-        timestamps = read_hdf5(storename, filepath, "timestamps")
-        name_to_timestamps[name] = timestamps
+        timestamps = read_hdf5(store_id, filepath, "timestamps")
+        store_label_to_timestamps[store_label] = timestamps
 
-    return name_to_timestamps
+    return store_label_to_timestamps
 
 
 def write_corrected_timestamps(
     filepath: str,
     corrected_name_to_timestamps: dict[str, np.ndarray],
-    name_to_timestamps: dict[str, np.ndarray],
-    name_to_sampling_rate: dict[str, np.ndarray],
-    name_to_correctionIndex: dict[str, np.ndarray],
+    store_label_to_timestamps: dict[str, np.ndarray],
+    store_label_to_sampling_rate: dict[str, np.ndarray],
+    store_label_to_correction_index: dict[str, np.ndarray],
 ) -> None:
     """
     Write timestamp-correction HDF5 datasets for all channel pairs.
@@ -126,18 +126,18 @@ def write_corrected_timestamps(
     filepath : str
         Session output directory.
     corrected_name_to_timestamps : dict
-        Display name → corrected timestamp array.
-    name_to_timestamps : dict
-        Display name → original timestamp array.
-    name_to_sampling_rate : dict
-        Display name → sampling-rate array.
-    name_to_correctionIndex : dict
-        Display name → index array used to slice the original timestamps.
+        Store label → corrected timestamp array.
+    store_label_to_timestamps : dict
+        Store label → original timestamp array.
+    store_label_to_sampling_rate : dict
+        Store label → sampling-rate array.
+    store_label_to_correction_index : dict
+        Store label → index array used to slice the original timestamps.
     """
-    for name, correctionIndex in name_to_correctionIndex.items():
-        timestamps = name_to_timestamps[name]
+    for name, correctionIndex in store_label_to_correction_index.items():
+        timestamps = store_label_to_timestamps[name]
         corrected_timestamps = corrected_name_to_timestamps[name]
-        sampling_rate = name_to_sampling_rate[name]
+        sampling_rate = store_label_to_sampling_rate[name]
         if sampling_rate.shape == ():  # numpy scalar
             sampling_rate = np.asarray([sampling_rate])
         name_1 = name.split("_")[-1]
@@ -147,7 +147,7 @@ def write_corrected_timestamps(
         write_hdf5(sampling_rate, "timeCorrection_" + name_1, filepath, "sampling_rate")
 
 
-def write_corrected_data(filepath: str, name_to_corrected_data: dict[str, np.ndarray]) -> None:
+def write_corrected_data(filepath: str, store_label_to_corrected_data: dict[str, np.ndarray]) -> None:
     """
     Write corrected data arrays to HDF5 files.
 
@@ -155,10 +155,10 @@ def write_corrected_data(filepath: str, name_to_corrected_data: dict[str, np.nda
     ----------
     filepath : str
         Session output directory.
-    name_to_corrected_data : dict
-        Display name → corrected data array.
+    store_label_to_corrected_data : dict
+        Store label → corrected data array.
     """
-    for name, data in name_to_corrected_data.items():
+    for name, data in store_label_to_corrected_data.items():
         write_hdf5(data, name, filepath, "data")
 
 
@@ -327,7 +327,7 @@ def read_coords_pairwise(filepath: str, pair_name_to_tsNew: dict[str, np.ndarray
 
 
 def read_corrected_data_dict(
-    filepath: str, storesList: np.ndarray
+    filepath: str, store_array: np.ndarray
 ) -> dict[str, np.ndarray]:  # TODO: coordinate with read_corrected_data
     """
     Load corrected control and signal data arrays into a flat dict.
@@ -336,29 +336,29 @@ def read_corrected_data_dict(
     ----------
     filepath : str
         Session output directory.
-    storesList : np.ndarray
-        2-D array with rows [storenames, display_names].
+    store_array : np.ndarray
+        2-D array with rows [store_id, store_label].
 
     Returns
     -------
-    name_to_corrected_data : dict
-        Display name → 1-D corrected data array.
+    store_label_to_corrected_data : dict
+        Store label → 1-D corrected data array.
     """
-    name_to_corrected_data = {}
-    storenames = storesList[0, :]
-    names_for_storenames = storesList[1, :]
-    control_and_signal_names = get_control_and_signal_channel_names(storesList)
+    store_label_to_corrected_data = {}
+    store_ids = store_array[0, :]
+    store_labels = store_array[1, :]
+    control_and_signal_names = get_control_and_signal_channel_names(store_array)
 
-    for storename, name in zip(storenames, names_for_storenames):
-        if name not in control_and_signal_names:
+    for store_id, store_label in zip(store_ids, store_labels):
+        if store_label not in control_and_signal_names:
             continue
-        data = read_hdf5(name, filepath, "data").reshape(-1)
-        name_to_corrected_data[name] = data
+        data = read_hdf5(store_label, filepath, "data").reshape(-1)
+        store_label_to_corrected_data[store_label] = data
 
-    return name_to_corrected_data
+    return store_label_to_corrected_data
 
 
-def read_corrected_ttl_timestamps(filepath: str, storesList: np.ndarray) -> dict[str, np.ndarray]:
+def read_corrected_ttl_timestamps(filepath: str, store_array: np.ndarray) -> dict[str, np.ndarray]:
     """
     Load corrected TTL timestamps for all non-channel stores.
 
@@ -366,8 +366,8 @@ def read_corrected_ttl_timestamps(filepath: str, storesList: np.ndarray) -> dict
     ----------
     filepath : str
         Session output directory.
-    storesList : np.ndarray
-        2-D array with rows [storenames, display_names].
+    store_array : np.ndarray
+        2-D array with rows [store_id, store_label].
 
     Returns
     -------
@@ -375,14 +375,14 @@ def read_corrected_ttl_timestamps(filepath: str, storesList: np.ndarray) -> dict
         Compound TTL name → TTL timestamp array.
     """
     compound_name_to_ttl_timestamps = {}
-    storenames = storesList[0, :]
-    names_for_storenames = storesList[1, :]
-    control_signal_names = get_control_and_signal_channel_names(storesList)
+    store_ids = store_array[0, :]
+    store_labels = store_array[1, :]
+    control_signal_names = get_control_and_signal_channel_names(store_array)
 
-    for storename, name in zip(storenames, names_for_storenames):
-        if name in control_signal_names:
+    for store_id, store_label in zip(store_ids, store_labels):
+        if store_label in control_signal_names:
             continue
-        ttl_name = name
+        ttl_name = store_label
         for i in range(control_signal_names.shape[1]):
             name_1 = control_signal_names[0, i].split("_")[-1]
             name_2 = control_signal_names[1, i].split("_")[-1]
@@ -420,7 +420,7 @@ def write_artifact_corrected_timestamps(
 
 def write_artifact_removal(
     filepath: str,
-    name_to_corrected_data: dict[str, np.ndarray],
+    store_label_to_corrected_data: dict[str, np.ndarray],
     pair_name_to_corrected_timestamps: dict[str, np.ndarray] | None,
     compound_name_to_corrected_ttl_timestamps: dict[str, np.ndarray] | None = None,
 ) -> None:
@@ -431,14 +431,14 @@ def write_artifact_removal(
     ----------
     filepath : str
         Session output directory.
-    name_to_corrected_data : dict
-        Display name → corrected data array.
+    store_label_to_corrected_data : dict
+        Store label → corrected data array.
     pair_name_to_corrected_timestamps : dict or None
         Pair name → corrected timestamp array; skipped when None.
     compound_name_to_corrected_ttl_timestamps : dict, optional
         Compound TTL name → corrected TTL timestamp array. Default is None.
     """
-    write_corrected_data(filepath, name_to_corrected_data)
+    write_corrected_data(filepath, store_label_to_corrected_data)
     write_corrected_ttl_timestamps(filepath, compound_name_to_corrected_ttl_timestamps)
     if pair_name_to_corrected_timestamps is not None:
         write_artifact_corrected_timestamps(filepath, pair_name_to_corrected_timestamps)
@@ -483,7 +483,7 @@ def read_timestamps_for_combining_data(
 
 
 def read_data_for_combining_data(
-    filepaths_to_combine: list[str], storesList: np.ndarray
+    filepaths_to_combine: list[str], store_array: np.ndarray
 ) -> dict[str, dict[str, np.ndarray]]:
     """
     Load corrected channel data from all session files for the combine-data step.
@@ -492,17 +492,17 @@ def read_data_for_combining_data(
     ----------
     filepaths_to_combine : list of str
         Ordered list of session output directories.
-    storesList : np.ndarray
-        2-D array with rows [storenames, display_names].
+    store_array : np.ndarray
+        2-D array with rows [store_id, store_label].
 
     Returns
     -------
-    display_name_to_filepath_to_data : dict
+    store_label_to_filepath_to_data : dict
         ``{display_name: {filepath: data_array}}``.
     """
-    names_for_storenames = storesList[1, :]
+    store_labels = store_array[1, :]
     path = decide_naming_convention(filepaths_to_combine[0])
-    display_name_to_filepath_to_data: dict[str, dict[str, np.ndarray]] = {}
+    store_label_to_filepath_to_data: dict[str, dict[str, np.ndarray]] = {}
     for j in range(path.shape[1]):
         name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")[-1]
         name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")[-1]
@@ -515,23 +515,23 @@ def read_data_for_combining_data(
             logger.error(message)
             raise ValueError(message)
         pair_name = name_1
-        for i in range(len(names_for_storenames)):
+        for i in range(len(store_labels)):
             if not (
-                "control_" + pair_name.lower() in names_for_storenames[i].lower()
-                or "signal_" + pair_name.lower() in names_for_storenames[i].lower()
+                "control_" + pair_name.lower() in store_labels[i].lower()
+                or "signal_" + pair_name.lower() in store_labels[i].lower()
             ):
                 continue
-            display_name = names_for_storenames[i]
-            display_name_to_filepath_to_data[display_name] = {}
+            display_name = store_labels[i]
+            store_label_to_filepath_to_data[display_name] = {}
             for filepath in filepaths_to_combine:
                 data = read_hdf5(display_name, filepath, "data").reshape(-1)
-                display_name_to_filepath_to_data[display_name][filepath] = data
+                store_label_to_filepath_to_data[display_name][filepath] = data
 
-    return display_name_to_filepath_to_data
+    return store_label_to_filepath_to_data
 
 
 def read_ttl_timestamps_for_combining_data(
-    filepaths_to_combine: list[str], storesList: np.ndarray
+    filepaths_to_combine: list[str], store_array: np.ndarray
 ) -> dict[str, dict[str, np.ndarray]]:
     """
     Load corrected TTL timestamps from all session files for the combine-data step.
@@ -540,15 +540,15 @@ def read_ttl_timestamps_for_combining_data(
     ----------
     filepaths_to_combine : list of str
         Ordered list of session output directories.
-    storesList : np.ndarray
-        2-D array with rows [storenames, display_names].
+    store_array : np.ndarray
+        2-D array with rows [store_id, store_label].
 
     Returns
     -------
     compound_name_to_filepath_to_ttl_timestamps : dict
         ``{compound_name: {filepath: ttl_timestamps_array}}``.
     """
-    names_for_storenames = storesList[1, :]
+    store_labels = store_array[1, :]
     path = decide_naming_convention(filepaths_to_combine[0])
     compound_name_to_filepath_to_ttl_timestamps: dict[str, dict[str, np.ndarray]] = {}
     for j in range(path.shape[1]):
@@ -563,17 +563,17 @@ def read_ttl_timestamps_for_combining_data(
             logger.error(message)
             raise ValueError(message)
         pair_name = name_1
-        for i in range(len(names_for_storenames)):
+        for i in range(len(store_labels)):
             if (
-                "control_" + pair_name.lower() in names_for_storenames[i].lower()
-                or "signal_" + pair_name.lower() in names_for_storenames[i].lower()
+                "control_" + pair_name.lower() in store_labels[i].lower()
+                or "signal_" + pair_name.lower() in store_labels[i].lower()
             ):
                 continue
-            compound_name = names_for_storenames[i] + "_" + pair_name
+            compound_name = store_labels[i] + "_" + pair_name
             compound_name_to_filepath_to_ttl_timestamps[compound_name] = {}
             for filepath in filepaths_to_combine:
-                if os.path.exists(os.path.join(filepath, names_for_storenames[i] + "_" + pair_name + ".hdf5")):
-                    ttl_timestamps = read_hdf5(names_for_storenames[i] + "_" + pair_name, filepath, "ts").reshape(-1)
+                if os.path.exists(os.path.join(filepath, store_labels[i] + "_" + pair_name + ".hdf5")):
+                    ttl_timestamps = read_hdf5(store_labels[i] + "_" + pair_name, filepath, "ts").reshape(-1)
                 else:
                     ttl_timestamps = np.array([])
                 compound_name_to_filepath_to_ttl_timestamps[compound_name][filepath] = ttl_timestamps
@@ -584,7 +584,7 @@ def read_ttl_timestamps_for_combining_data(
 def write_combined_data(
     output_filepath: str,
     pair_name_to_tsNew: dict[str, np.ndarray],
-    display_name_to_data: dict[str, np.ndarray],
+    store_label_to_data: dict[str, np.ndarray],
     compound_name_to_ttl_timestamps: dict[str, np.ndarray],
 ) -> None:
     """
@@ -596,14 +596,14 @@ def write_combined_data(
         Destination session output directory.
     pair_name_to_tsNew : dict
         Pair name → combined timestamp array.
-    display_name_to_data : dict
-        Display name → combined data array.
+    store_label_to_data : dict
+        Store label → combined data array.
     compound_name_to_ttl_timestamps : dict
         Compound TTL name → combined TTL timestamp array.
     """
     for pair_name, tsNew in pair_name_to_tsNew.items():
         write_hdf5(tsNew, "timeCorrection_" + pair_name, output_filepath, "timestampNew")
-    for display_name, data in display_name_to_data.items():
+    for display_name, data in store_label_to_data.items():
         write_hdf5(data, display_name, output_filepath, "data")
     for compound_name, ttl_timestamps in compound_name_to_ttl_timestamps.items():
         write_hdf5(ttl_timestamps, compound_name, output_filepath, "ts")

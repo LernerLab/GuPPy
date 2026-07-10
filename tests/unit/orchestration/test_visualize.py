@@ -20,22 +20,22 @@ def _make_session_dir(tmp_path, name="session1"):
     """Return a session directory that contains one output sub-directory."""
     session_dir = tmp_path / name
     session_dir.mkdir(parents=True, exist_ok=True)
-    output_dir = session_dir / f"{name}_output_1"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    # select_output_dirs validates that picked outputs have a storesList.csv (re-run step 1 if missing).
-    (output_dir / "storesList.csv").write_text("")
-    return session_dir, output_dir
+    run_folder = session_dir / f"{name}_output_1"
+    run_folder.mkdir(parents=True, exist_ok=True)
+    # select_run_folders validates that picked outputs have a storesList.csv (re-run step 1 if missing).
+    (run_folder / "storesList.csv").write_text("")
+    return session_dir, run_folder
 
 
 def _base_params(session_dir, *, visualize_zscore_or_dff="z_score", selected_runs=("1",)):
     """Minimal inputParameters dict for _validate_metric_against_step4_outputs."""
     return {
-        "folderNames": [str(session_dir)],
-        "folderNamesForAvg": [],
+        "session_folders": [str(session_dir)],
+        "group_session_folders": [],
         "visualizeAverageResults": False,
         "combine_data": False,
         "visualize_zscore_or_dff": visualize_zscore_or_dff,
-        "selectedOutputs": {str(session_dir): list(selected_runs)},
+        "selected_runs": {str(session_dir): list(selected_runs)},
     }
 
 
@@ -45,42 +45,42 @@ def _base_params(session_dir, *, visualize_zscore_or_dff="z_score", selected_run
 
 
 def test_passes_when_z_score_psth_files_present(tmp_path):
-    session_dir, output_dir = _make_session_dir(tmp_path)
+    session_dir, run_folder = _make_session_dir(tmp_path)
     # Simulate a step-4 PSTH output file for z_score
-    (output_dir / "ttl_region_z_score_region.h5").write_bytes(b"")
+    (run_folder / "ttl_region_z_score_region.h5").write_bytes(b"")
     params = _base_params(session_dir, visualize_zscore_or_dff="z_score")
     # Should not raise
     _validate_metric_against_step4_outputs(params)
 
 
 def test_raises_when_z_score_psth_files_missing(tmp_path):
-    session_dir, output_dir = _make_session_dir(tmp_path)
+    session_dir, run_folder = _make_session_dir(tmp_path)
     # Only dff PSTH files exist
-    (output_dir / "ttl_region_dff_region.h5").write_bytes(b"")
+    (run_folder / "ttl_region_dff_region.h5").write_bytes(b"")
     params = _base_params(session_dir, visualize_zscore_or_dff="z_score")
     with pytest.raises(ValueError, match="z_score"):
         _validate_metric_against_step4_outputs(params)
 
 
 def test_raises_names_missing_session_in_message(tmp_path):
-    session_dir, output_dir = _make_session_dir(tmp_path)
-    (output_dir / "ttl_region_dff_region.h5").write_bytes(b"")
+    session_dir, run_folder = _make_session_dir(tmp_path)
+    (run_folder / "ttl_region_dff_region.h5").write_bytes(b"")
     params = _base_params(session_dir, visualize_zscore_or_dff="z_score")
-    with pytest.raises(ValueError, match=re.escape(str(output_dir))):
+    with pytest.raises(ValueError, match=re.escape(str(run_folder))):
         _validate_metric_against_step4_outputs(params)
 
 
 def test_raises_suggests_alternative_metric(tmp_path):
-    session_dir, output_dir = _make_session_dir(tmp_path)
-    (output_dir / "ttl_region_dff_region.h5").write_bytes(b"")
+    session_dir, run_folder = _make_session_dir(tmp_path)
+    (run_folder / "ttl_region_dff_region.h5").write_bytes(b"")
     params = _base_params(session_dir, visualize_zscore_or_dff="z_score")
     with pytest.raises(ValueError, match="dff"):
         _validate_metric_against_step4_outputs(params)
 
 
 def test_raises_suggests_rerun_step4(tmp_path):
-    session_dir, output_dir = _make_session_dir(tmp_path)
-    (output_dir / "ttl_region_dff_region.h5").write_bytes(b"")
+    session_dir, run_folder = _make_session_dir(tmp_path)
+    (run_folder / "ttl_region_dff_region.h5").write_bytes(b"")
     params = _base_params(session_dir, visualize_zscore_or_dff="z_score")
     with pytest.raises(ValueError, match="Re-run step 4"):
         _validate_metric_against_step4_outputs(params)
@@ -92,15 +92,15 @@ def test_raises_suggests_rerun_step4(tmp_path):
 
 
 def test_passes_when_dff_psth_files_present(tmp_path):
-    session_dir, output_dir = _make_session_dir(tmp_path)
-    (output_dir / "ttl_region_dff_region.h5").write_bytes(b"")
+    session_dir, run_folder = _make_session_dir(tmp_path)
+    (run_folder / "ttl_region_dff_region.h5").write_bytes(b"")
     params = _base_params(session_dir, visualize_zscore_or_dff="dff")
     _validate_metric_against_step4_outputs(params)
 
 
 def test_raises_when_dff_psth_files_missing(tmp_path):
-    session_dir, output_dir = _make_session_dir(tmp_path)
-    (output_dir / "ttl_region_z_score_region.h5").write_bytes(b"")
+    session_dir, run_folder = _make_session_dir(tmp_path)
+    (run_folder / "ttl_region_z_score_region.h5").write_bytes(b"")
     params = _base_params(session_dir, visualize_zscore_or_dff="dff")
     with pytest.raises(ValueError, match="dff"):
         _validate_metric_against_step4_outputs(params)
@@ -113,9 +113,9 @@ def test_raises_when_dff_psth_files_missing(tmp_path):
 
 def test_step3_hdf5_files_do_not_satisfy_check(tmp_path):
     """z_score_region.hdf5 (step-3 output) must not be mistaken for a PSTH file."""
-    session_dir, output_dir = _make_session_dir(tmp_path)
+    session_dir, run_folder = _make_session_dir(tmp_path)
     # Only the step-3 intermediate file exists, no step-4 PSTH .h5 file
-    (output_dir / "z_score_region.hdf5").write_bytes(b"")
+    (run_folder / "z_score_region.hdf5").write_bytes(b"")
     params = _base_params(session_dir, visualize_zscore_or_dff="z_score")
     with pytest.raises(ValueError, match="z_score"):
         _validate_metric_against_step4_outputs(params)
@@ -127,17 +127,17 @@ def test_step3_hdf5_files_do_not_satisfy_check(tmp_path):
 
 
 def test_passes_for_z_score_when_both_psth_files_present(tmp_path):
-    session_dir, output_dir = _make_session_dir(tmp_path)
-    (output_dir / "ttl_region_z_score_region.h5").write_bytes(b"")
-    (output_dir / "ttl_region_dff_region.h5").write_bytes(b"")
+    session_dir, run_folder = _make_session_dir(tmp_path)
+    (run_folder / "ttl_region_z_score_region.h5").write_bytes(b"")
+    (run_folder / "ttl_region_dff_region.h5").write_bytes(b"")
     params = _base_params(session_dir, visualize_zscore_or_dff="z_score")
     _validate_metric_against_step4_outputs(params)
 
 
 def test_passes_for_dff_when_both_psth_files_present(tmp_path):
-    session_dir, output_dir = _make_session_dir(tmp_path)
-    (output_dir / "ttl_region_z_score_region.h5").write_bytes(b"")
-    (output_dir / "ttl_region_dff_region.h5").write_bytes(b"")
+    session_dir, run_folder = _make_session_dir(tmp_path)
+    (run_folder / "ttl_region_z_score_region.h5").write_bytes(b"")
+    (run_folder / "ttl_region_dff_region.h5").write_bytes(b"")
     params = _base_params(session_dir, visualize_zscore_or_dff="dff")
     _validate_metric_against_step4_outputs(params)
 
@@ -156,12 +156,12 @@ def test_raises_only_missing_sessions_are_reported(tmp_path):
     (output2_dir / "ttl_region_dff_region.h5").write_bytes(b"")
 
     params = {
-        "folderNames": [str(session1_dir), str(session2_dir)],
-        "folderNamesForAvg": [],
+        "session_folders": [str(session1_dir), str(session2_dir)],
+        "group_session_folders": [],
         "visualizeAverageResults": False,
         "combine_data": False,
         "visualize_zscore_or_dff": "z_score",
-        "selectedOutputs": {str(session1_dir): ["1"], str(session2_dir): ["1"]},
+        "selected_runs": {str(session1_dir): ["1"], str(session2_dir): ["1"]},
     }
 
     with pytest.raises(ValueError) as exc_info:
@@ -181,9 +181,9 @@ def test_raises_only_missing_sessions_are_reported(tmp_path):
 def test_no_op_when_no_output_directories(tmp_path):
     """When no *_output_* dirs exist the function returns silently.
 
-    The homepage gate `validate_selected_outputs_for_consumers` skips sessions with
+    The homepage gate `validate_selected_runs_for_consumers` skips sessions with
     no output dirs on disk, so they reach orchestration with no entry in
-    selectedOutputs. The validator must skip such sessions instead of erroring.
+    selected_runs. The validator must skip such sessions instead of erroring.
     """
     session_dir = tmp_path / "empty_session"
     session_dir.mkdir()
@@ -207,7 +207,7 @@ def _avg_params(
     return {
         "abspath": str(tmp_path),
         "visualizeAverageResults": visualize_average_results,
-        "folderNamesForAvg": folder_names_for_avg if folder_names_for_avg is not None else [],
+        "group_session_folders": folder_names_for_avg if folder_names_for_avg is not None else [],
         "visualize_zscore_or_dff": visualize_zscore_or_dff,
     }
 
@@ -219,7 +219,7 @@ def test_precondition_noop_when_visualize_average_false(tmp_path):
 
 
 def test_precondition_raises_when_no_folders_selected_for_avg(tmp_path):
-    """visualizeAverageResults=True with empty folderNamesForAvg → actionable error."""
+    """visualizeAverageResults=True with empty group_session_folders → actionable error."""
     params = _avg_params(tmp_path, folder_names_for_avg=[])
     with pytest.raises(ValueError, match="no folders are selected"):
         _validate_average_visualization_preconditions(params)

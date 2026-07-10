@@ -3,13 +3,13 @@ import pytest
 
 from guppy.utils.utils import (
     NPM_PARAM_KEYS,
-    discover_output_dirs,
+    discover_run_folders,
     get_all_stores_for_combining_data,
     load_npm_params,
-    output_dir_for_run,
     parse_run_name,
     read_Df,
-    select_output_dirs,
+    run_folder_for_run,
+    select_run_folders,
     takeOnlyDirs,
     validate_run_name,
     write_npm_params,
@@ -166,26 +166,26 @@ def test_parse_run_name_raises_when_marker_missing():
         parse_run_name("/sessions/no_match_here")
 
 
-# ── output_dir_for_run ────────────────────────────────────────────────────────
+# ── run_folder_for_run ────────────────────────────────────────────────────────
 
 
 def test_output_dir_for_run_builds_expected_path(tmp_path):
     session = tmp_path / "mySession"
     session.mkdir()
-    result = output_dir_for_run(str(session), "baseline")
+    result = run_folder_for_run(str(session), "baseline")
     assert result == str(session / "mySession_output_baseline")
 
 
 def test_output_dir_for_run_does_not_create_directory(tmp_path):
     session = tmp_path / "mySession"
     session.mkdir()
-    result = output_dir_for_run(str(session), "x")
+    result = run_folder_for_run(str(session), "x")
     import os as _os
 
     assert not _os.path.exists(result)
 
 
-# ── discover_output_dirs ──────────────────────────────────────────────────────
+# ── discover_run_folders ──────────────────────────────────────────────────────
 
 
 def test_discover_output_dirs_returns_only_output_dirs(tmp_path):
@@ -196,7 +196,7 @@ def test_discover_output_dirs_returns_only_output_dirs(tmp_path):
     (session / "unrelated.txt").touch()
     (session / "raw_data").mkdir()
 
-    result = discover_output_dirs(str(session))
+    result = discover_run_folders(str(session))
 
     assert result == [
         str(session / "mySession_output_1"),
@@ -212,7 +212,7 @@ def test_discover_output_dirs_orders_numeric_then_alpha(tmp_path):
     (session / "mySession_output_baseline").mkdir()
     (session / "mySession_output_alpha").mkdir()
 
-    result = [parse_run_name(directory) for directory in discover_output_dirs(str(session))]
+    result = [parse_run_name(directory) for directory in discover_run_folders(str(session))]
 
     assert result == ["2", "10", "alpha", "baseline"]
 
@@ -221,10 +221,10 @@ def test_discover_output_dirs_empty_when_no_outputs(tmp_path):
     session = tmp_path / "mySession"
     session.mkdir()
 
-    assert discover_output_dirs(str(session)) == []
+    assert discover_run_folders(str(session)) == []
 
 
-# ── select_output_dirs ────────────────────────────────────────────────────────
+# ── select_run_folders ────────────────────────────────────────────────────────
 
 
 def test_select_output_dirs_none_raises(tmp_path):
@@ -233,7 +233,7 @@ def test_select_output_dirs_none_raises(tmp_path):
     (session / "mySession_output_1").mkdir()
 
     with pytest.raises(ValueError, match="explicit non-empty list"):
-        select_output_dirs(str(session), None)
+        select_run_folders(str(session), None)
 
 
 def test_select_output_dirs_filters_to_requested_runs(tmp_path):
@@ -244,7 +244,7 @@ def test_select_output_dirs_filters_to_requested_runs(tmp_path):
         directory.mkdir()
         (directory / "storesList.csv").touch()
 
-    result = select_output_dirs(str(session), ["baseline"])
+    result = select_run_folders(str(session), ["baseline"])
 
     assert result == [str(session / "mySession_output_baseline")]
 
@@ -256,7 +256,7 @@ def test_select_output_dirs_raises_for_missing_run_name(tmp_path):
     (session / "mySession_output_1" / "storesList.csv").touch()
 
     with pytest.raises(ValueError, match="Output directory not found"):
-        select_output_dirs(str(session), ["nonexistent"])
+        select_run_folders(str(session), ["nonexistent"])
 
 
 def test_select_output_dirs_raises_when_storeslist_missing(tmp_path):
@@ -265,7 +265,7 @@ def test_select_output_dirs_raises_when_storeslist_missing(tmp_path):
     (session / "mySession_output_baseline").mkdir()  # no storesList.csv
 
     with pytest.raises(ValueError, match="storesList.csv"):
-        select_output_dirs(str(session), ["baseline"])
+        select_run_folders(str(session), ["baseline"])
 
 
 def test_select_output_dirs_empty_list_raises(tmp_path):
@@ -274,7 +274,7 @@ def test_select_output_dirs_empty_list_raises(tmp_path):
     (session / "mySession_output_1").mkdir()
 
     with pytest.raises(ValueError, match="explicit non-empty list"):
-        select_output_dirs(str(session), [])
+        select_run_folders(str(session), [])
 
 
 # ── validate_run_name ─────────────────────────────────────────────────────────
@@ -352,8 +352,8 @@ def test_get_all_stores_for_combining_data_skips_paths_without_marker():
 
 
 def test_write_then_load_npm_params_round_trips(tmp_path):
-    output_dir = tmp_path / "session_output_1"
-    output_dir.mkdir()
+    run_folder = tmp_path / "session_output_1"
+    run_folder.mkdir()
     input_parameters = {
         "npm_split_events": [True, False],
         "npm_time_units": ["milliseconds", "seconds"],
@@ -362,11 +362,11 @@ def test_write_then_load_npm_params_round_trips(tmp_path):
     }
 
     write_npm_params(
-        output_dir=str(output_dir),
+        run_folder=str(run_folder),
         npm_params={key: input_parameters[key] for key in NPM_PARAM_KEYS},
     )
 
-    assert load_npm_params(str(output_dir)) == {
+    assert load_npm_params(str(run_folder)) == {
         "npm_split_events": [True, False],
         "npm_time_units": ["milliseconds", "seconds"],
         "npm_timestamp_column_names": ["ComputerTimestamp", None],
@@ -374,6 +374,6 @@ def test_write_then_load_npm_params_round_trips(tmp_path):
 
 
 def test_load_npm_params_returns_empty_when_file_absent(tmp_path):
-    output_dir = tmp_path / "session_output_1"
-    output_dir.mkdir()
-    assert load_npm_params(str(output_dir)) == {}
+    run_folder = tmp_path / "session_output_1"
+    run_folder.mkdir()
+    assert load_npm_params(str(run_folder)) == {}

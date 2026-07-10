@@ -3,20 +3,20 @@ import logging
 
 import panel as pn
 
-from .storenames_config import StorenamesConfig
+from .store_labeling_config import StoreLabelingConfig
 
 pn.extension()
 
 logger = logging.getLogger(__name__)
 
 
-class StorenamesSelector:
-    """Panel widget for selecting, naming, and saving storenames for a session.
+class StoreLabelingSelector:
+    """Panel widget for selecting, naming, and saving store_ids for a session.
 
     Parameters
     ----------
     allnames : list of str
-        All storenames discovered from the data files, offered as selectable
+        All store_ids discovered from the data files, offered as selectable
         options in the cross-selector and multi-choice widgets.
     """
 
@@ -24,38 +24,36 @@ class StorenamesSelector:
         self.alert = pn.pane.Alert("#### No alerts !!", alert_type="danger", height=80, width=600)
         if len(allnames) == 0:
             self.alert.object = (
-                "####Alert !! \n No storenames found. There are not any TDT files or csv files to look for storenames."
+                "####Alert !! \n No store_ids found. There are not any TDT files or csv files to look for store_ids."
             )
 
         # creating different buttons and selectors for the GUI
-        self.cross_selector = pn.widgets.CrossSelector(
-            name="Store Names Selection", value=[], options=allnames, width=600
-        )
+        self.cross_selector = pn.widgets.CrossSelector(name="Store Selection", value=[], options=allnames, width=600)
         self.multi_choice = pn.widgets.MultiChoice(
-            name="Select Storenames which you want more than once (multi-choice: multiple options selection)",
+            name="Select Stores which you want more than once (multi-choice: multiple options selection)",
             value=[],
             options=allnames,
         )
 
         self.literal_input_1 = pn.widgets.LiteralInput(
-            name="Number of times you want the above storename (list)", value=[], type=list
+            name="Number of times you want the above store (list)", value=[], type=list
         )
 
-        self.repeat_storenames = pn.widgets.Checkbox(name="Storenames to repeat", value=False)
-        self.repeat_storename_wd = pn.WidgetBox("", width=600)
+        self.repeat_stores = pn.widgets.Checkbox(name="Stores to repeat", value=False)
+        self.repeat_store_wd = pn.WidgetBox("", width=600)
 
-        self.repeat_storenames.link(self.repeat_storename_wd, callbacks={"value": self.callback})
+        self.repeat_stores.link(self.repeat_store_wd, callbacks={"value": self.callback})
 
-        self.update_options = pn.widgets.Button(name="Select Storenames", width=600)
+        self.update_options = pn.widgets.Button(name="Select Stores", width=600)
         self.save = pn.widgets.Button(name="Save", width=600)
 
-        self.text = pn.widgets.LiteralInput(value=[], name="Selected Store Names", type=list, width=600)
+        self.text = pn.widgets.LiteralInput(value=[], name="Selected Stores", type=list, width=600)
 
-        self.path = pn.widgets.TextInput(name="Location to Stores List file", width=600)
+        self.path = pn.widgets.TextInput(name="Location to storesList file", width=600)
 
         self.mark_down_for_overwrite = pn.pane.Markdown(
             """
-**Choose how to save this storesList:**
+**Choose how to save this store_array:**
 
 - **create_new_file** — create a new output folder. Optionally set **Run name** below; leave blank to use the next available integer.
 - **over_write_file** — replace an existing output folder. Pick which one in **Select location of the file to over-write**.
@@ -91,17 +89,17 @@ class StorenamesSelector:
 
         self.change_widgets = pn.WidgetBox(self.text)
 
-        # Panel-based storename configuration (replaces Tkinter dialog)
-        self.storename_config_widgets = pn.Column(visible=False)
+        # Panel-based store_id configuration (replaces Tkinter dialog)
+        self.store_id_config_widgets = pn.Column(visible=False)
         self.show_config_button = pn.widgets.Button(name="Show Selected Configuration", width=600)
 
         self.widget = pn.Column(
-            self.repeat_storenames,
-            self.repeat_storename_wd,
+            self.repeat_stores,
+            self.repeat_store_wd,
             pn.Spacer(height=20),
             self.cross_selector,
             self.update_options,
-            self.storename_config_widgets,
+            self.store_id_config_widgets,
             pn.Spacer(height=10),
             self.text,
             self.literal_input_2,
@@ -115,14 +113,14 @@ class StorenamesSelector:
         )
 
     def callback(self, target: pn.WidgetBox, event: object) -> None:
-        """Show or hide the storenames-to-repeat widget box based on the checkbox state.
+        """Show or hide the store_ids-to-repeat widget box based on the checkbox state.
 
         Parameters
         ----------
         target : pn.WidgetBox
             The widget box to populate or clear.
         event : param.parameterized.Event
-            The watch event fired by ``repeat_storenames``; ``event.new`` is the
+            The watch event fired by ``repeat_stores``; ``event.new`` is the
             new checkbox value.
         """
         if event.new == True:
@@ -161,30 +159,30 @@ class StorenamesSelector:
         self.alert.object = message
 
     def get_literal_input_2(self) -> dict[str, object]:  # TODO: come up with a better name for this method.
-        """Parse and return the JSON storenames mapping from the code editor widget.
+        """Parse and return the JSON store_ids mapping from the code editor widget.
 
         Returns
         -------
         dict
             Parsed JSON object from the ``literal_input_2`` code editor.
         """
-        storenames_config = json.loads(self.literal_input_2.value)
-        return storenames_config
+        store_labeling_config = json.loads(self.literal_input_2.value)
+        return store_labeling_config
 
     def set_literal_input_2(
-        self, storenames_config: dict[str, object]
+        self, store_labeling_config: dict[str, object]
     ) -> None:  # TODO: come up with a better name for this method.
-        """Serialise ``storenames_config`` as pretty-printed JSON and set the code editor value.
+        """Serialise ``store_labeling_config`` as pretty-printed JSON and set the code editor value.
 
         Parameters
         ----------
-        storenames_config : dict
+        store_labeling_config : dict
             Dictionary to serialise into the ``literal_input_2`` code editor.
         """
-        self.literal_input_2.value = str(json.dumps(storenames_config, indent=2))
+        self.literal_input_2.value = str(json.dumps(store_labeling_config, indent=2))
 
     def get_take_widgets(self) -> list[object]:
-        """Return the current values of the repeat-storenames widgets.
+        """Return the current values of the repeat-store_ids widgets.
 
         Returns
         -------
@@ -206,7 +204,7 @@ class StorenamesSelector:
             widget.value = value
 
     def get_cross_selector(self) -> list[str]:
-        """Return the storenames currently selected in the cross-selector.
+        """Return the store_ids currently selected in the cross-selector.
 
         Returns
         -------
@@ -280,35 +278,35 @@ class StorenamesSelector:
         """
         return self._current_overwrite_mode
 
-    def configure_storenames(
+    def configure_store_ids(
         self,
-        storename_dropdowns: dict[str, pn.widgets.Select],
-        storename_textboxes: dict[str, pn.widgets.TextInput],
-        storenames: list[str],
-        storenames_cache: dict[str, list[str]],
+        store_id_dropdowns: dict[str, pn.widgets.Select],
+        store_id_textboxes: dict[str, pn.widgets.TextInput],
+        store_ids: list[str],
+        store_id_to_store_labels: dict[str, list[str]],
     ) -> None:
-        """Build the storename-configuration panel and make it visible.
+        """Build the store_id-configuration panel and make it visible.
 
         Parameters
         ----------
-        storename_dropdowns : dict
-            Mutable mapping populated by ``StorenamesConfig`` with dropdown widgets.
-        storename_textboxes : dict
-            Mutable mapping populated by ``StorenamesConfig`` with text-input widgets.
-        storenames : list of str
-            Raw storenames selected by the user.
-        storenames_cache : dict
-            Previously saved storename assignments for pre-population.
+        store_id_dropdowns : dict
+            Mutable mapping populated by ``StoreLabelingConfig`` with dropdown widgets.
+        store_id_textboxes : dict
+            Mutable mapping populated by ``StoreLabelingConfig`` with text-input widgets.
+        store_ids : list of str
+            Raw store_ids selected by the user.
+        store_id_to_store_labels : dict
+            Previously saved store_id assignments for pre-population.
         """
-        # Create Panel widgets for storename configuration
-        self.storenames_config = StorenamesConfig(
+        # Create Panel widgets for store_id configuration
+        self.store_labeling_config = StoreLabelingConfig(
             show_config_button=self.show_config_button,
-            storename_dropdowns=storename_dropdowns,
-            storename_textboxes=storename_textboxes,
-            storenames=storenames,
-            storenames_cache=storenames_cache,
+            store_id_dropdowns=store_id_dropdowns,
+            store_id_textboxes=store_id_textboxes,
+            store_ids=store_ids,
+            store_id_to_store_labels=store_id_to_store_labels,
         )
 
         # Update the configuration panel
-        self.storename_config_widgets.objects = self.storenames_config.config_widgets
-        self.storename_config_widgets.visible = len(storenames) > 0
+        self.store_id_config_widgets.objects = self.store_labeling_config.config_widgets
+        self.store_id_config_widgets.visible = len(store_ids) > 0

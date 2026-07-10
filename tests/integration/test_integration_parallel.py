@@ -21,7 +21,7 @@ from guppy.testing.api import step1, step2, step3, step4
 
 # Use the CSV sample as it is the simplest format — no binary TDT dependencies.
 SESSION_SUBDIR = "csv/sample_data_csv_1"
-STORENAMES_MAP = {
+STORE_ID_TO_STORE_LABEL = {
     "Sample_Control_Channel": "control_region",
     "Sample_Signal_Channel": "signal_region",
     "Sample_TTL": "ttl",
@@ -42,8 +42,8 @@ def _stage_session(tmp_path):
     shutil.copytree(src_session, session_copy)
 
     # Remove any pre-existing output dirs and parameter file from the copy
-    for output_dir in glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")):
-        shutil.rmtree(output_dir)
+    for run_folder in glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")):
+        shutil.rmtree(run_folder)
     params_filepath = session_copy / "GuPPyParamtersUsed.json"
     if params_filepath.exists():
         params_filepath.unlink()
@@ -63,7 +63,7 @@ def test_parallel_step3(tmp_path):
     step1(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
-        storenames_map=STORENAMES_MAP,
+        store_id_to_store_label=STORE_ID_TO_STORE_LABEL,
     )
 
     # Run Step 2 with 2 worker processes
@@ -76,21 +76,21 @@ def test_parallel_step3(tmp_path):
 
     # Locate the output directory
     basename = os.path.basename(session_copy)
-    output_dirs = sorted(glob.glob(os.path.join(session_copy, f"{basename}_output_*")))
-    assert output_dirs, f"No output directories found under {session_copy}"
-    out_dir = next((d for d in output_dirs if os.path.exists(os.path.join(d, "storesList.csv"))), None)
+    run_folders = sorted(glob.glob(os.path.join(session_copy, f"{basename}_output_*")))
+    assert run_folders, f"No output directories found under {session_copy}"
+    out_dir = next((d for d in run_folders if os.path.exists(os.path.join(d, "storesList.csv"))), None)
     assert out_dir is not None, "No storesList.csv found in any output directory"
 
-    # Verify that per-storename HDF5 files were written for each raw storename
+    # Verify that per-store_id HDF5 files were written for each raw store_id
     stores_filepath = os.path.join(out_dir, "storesList.csv")
     with open(stores_filepath, newline="") as stores_file:
         rows = list(csv.reader(stores_file))
     assert len(rows) == 2, "storesList.csv should have 2 rows"
-    raw_storenames = rows[0]
-    for storename in raw_storenames:
-        safe_name = storename.replace("\\", "_").replace("/", "_")
+    store_ids = rows[0]
+    for store_id in store_ids:
+        safe_name = store_id.replace("\\", "_").replace("/", "_")
         h5_path = os.path.join(out_dir, f"{safe_name}.hdf5")
-        assert os.path.exists(h5_path), f"Missing HDF5 for storename {storename!r}: {h5_path}"
+        assert os.path.exists(h5_path), f"Missing HDF5 for store_id {store_id!r}: {h5_path}"
         with h5py.File(h5_path, "r") as h5_file:
             assert "timestamps" in h5_file, f"Missing 'timestamps' dataset in {h5_path}"
 
@@ -108,7 +108,7 @@ def test_parallel_step5(tmp_path):
     step1(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
-        storenames_map=STORENAMES_MAP,
+        store_id_to_store_label=STORE_ID_TO_STORE_LABEL,
     )
 
     selected_runs = {str(session_copy): ["1"]}
@@ -134,9 +134,9 @@ def test_parallel_step5(tmp_path):
 
     # Locate output directory
     basename = os.path.basename(session_copy)
-    output_dirs = sorted(glob.glob(os.path.join(session_copy, f"{basename}_output_*")))
-    assert output_dirs, f"No output directories found under {session_copy}"
-    out_dir = next((d for d in output_dirs if os.path.exists(os.path.join(d, "storesList.csv"))), None)
+    run_folders = sorted(glob.glob(os.path.join(session_copy, f"{basename}_output_*")))
+    assert run_folders, f"No output directories found under {session_copy}"
+    out_dir = next((d for d in run_folders if os.path.exists(os.path.join(d, "storesList.csv"))), None)
     assert out_dir is not None, "No storesList.csv found in any output directory"
 
     # PSTH and peak/AUC outputs

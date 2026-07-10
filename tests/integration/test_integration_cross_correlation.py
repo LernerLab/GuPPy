@@ -21,8 +21,8 @@ def test_cross_correlation(tmp_path):
     that cross-correlation output files are created when compute_corr=True.
 
     Pipeline executed on a temp copy:
-      - Step 1: save storenames (storesList.csv)
-      - Step 2: read raw data (per-storename HDF5 outputs)
+      - Step 1: save store_ids (storesList.csv)
+      - Step 2: read raw data (per-store_id HDF5 outputs)
       - Step 3: extract timestamps/signal, z-score/dFF, time corrections
       - Step 4: compute PSTH and cross-correlation with compute_corr=True
 
@@ -32,7 +32,7 @@ def test_cross_correlation(tmp_path):
         so the output file is corr_port_entries_z_score_dls_dms.h5.
     """
     session_subdir = "tdt/Photo_63_207-181030-103332"
-    storenames_map = {
+    store_id_to_store_label = {
         "Dv1A": "control_dms",
         "Dv2A": "signal_dms",
         "Dv3B": "control_dls",
@@ -61,7 +61,7 @@ def test_cross_correlation(tmp_path):
     step1(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
-        storenames_map=storenames_map,
+        store_id_to_store_label=store_id_to_store_label,
     )
     selected_runs = {str(session_copy): ["1"]}
     step2(
@@ -83,10 +83,10 @@ def test_cross_correlation(tmp_path):
 
     # Locate output directory
     basename = os.path.basename(session_copy)
-    output_dirs = sorted(glob.glob(os.path.join(session_copy, f"{basename}_output_*")))
-    assert output_dirs, f"No output directories found in {session_copy}"
+    run_folders = sorted(glob.glob(os.path.join(session_copy, f"{basename}_output_*")))
+    assert run_folders, f"No output directories found in {session_copy}"
     out_dir = None
-    for d in output_dirs:
+    for d in run_folders:
         if os.path.exists(os.path.join(d, "storesList.csv")):
             out_dir = d
             break

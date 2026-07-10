@@ -42,43 +42,43 @@ def test_apply_correction_ttl_tdt_mode_all_at_rec_start_subtracts_only_rec_start
 
 def test_check_cntrl_sig_length_control_shorter_returns_control_name():
     channels_arr = np.array([["control_DMS"], ["signal_DMS"]])
-    name_to_data = {
+    store_label_to_data = {
         "control_DMS": np.ones(50),
         "signal_DMS": np.ones(100),
     }
-    result = check_cntrl_sig_length(channels_arr, name_to_data)
+    result = check_cntrl_sig_length(channels_arr, store_label_to_data)
     assert result == ["control_DMS"]
 
 
 def test_check_cntrl_sig_length_signal_shorter_returns_signal_name():
     channels_arr = np.array([["control_DMS"], ["signal_DMS"]])
-    name_to_data = {
+    store_label_to_data = {
         "control_DMS": np.ones(100),
         "signal_DMS": np.ones(50),
     }
-    result = check_cntrl_sig_length(channels_arr, name_to_data)
+    result = check_cntrl_sig_length(channels_arr, store_label_to_data)
     assert result == ["signal_DMS"]
 
 
 def test_check_cntrl_sig_length_equal_length_returns_signal_name():
     channels_arr = np.array([["control_DMS"], ["signal_DMS"]])
-    name_to_data = {
+    store_label_to_data = {
         "control_DMS": np.ones(100),
         "signal_DMS": np.ones(100),
     }
-    result = check_cntrl_sig_length(channels_arr, name_to_data)
+    result = check_cntrl_sig_length(channels_arr, store_label_to_data)
     assert result == ["signal_DMS"]
 
 
 def test_check_cntrl_sig_length_multiple_pairs():
     channels_arr = np.array([["control_DMS", "control_NAc"], ["signal_DMS", "signal_NAc"]])
-    name_to_data = {
+    store_label_to_data = {
         "control_DMS": np.ones(80),
         "signal_DMS": np.ones(100),
         "control_NAc": np.ones(100),
         "signal_NAc": np.ones(70),
     }
-    result = check_cntrl_sig_length(channels_arr, name_to_data)
+    result = check_cntrl_sig_length(channels_arr, store_label_to_data)
     assert result == ["control_DMS", "signal_NAc"]
 
 
@@ -89,16 +89,22 @@ def test_timestamp_correction_csv_mode_slices_at_lights_turn_on():
     # CSV mode: correctionIndex = where timestamp >= timeForLightsTurnOn
     # timestamps = [0, 1, 2, 3, 4, 5]; timeForLightsTurnOn = 2.0
     # → correctionIndex = [2, 3, 4, 5]; timestampNew = [2.0, 3.0, 4.0, 5.0]
-    storesList = np.array([["ctrl0", "sig0"], ["control_dms", "signal_dms"]])
+    store_array = np.array([["ctrl0", "sig0"], ["control_dms", "signal_dms"]])
     timestamps = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
     data = np.array([10.0, 20.0, 30.0, 40.0, 50.0, 60.0])
-    name_to_timestamps = {"control_dms": timestamps.copy(), "signal_dms": timestamps.copy()}
-    name_to_data = {"control_dms": data.copy(), "signal_dms": data.copy() * 2}
-    name_to_sampling_rate = {"control_dms": np.array([100.0]), "signal_dms": np.array([100.0])}
-    name_to_npoints = {"control_dms": None, "signal_dms": None}
+    store_label_to_timestamps = {"control_dms": timestamps.copy(), "signal_dms": timestamps.copy()}
+    store_label_to_data = {"control_dms": data.copy(), "signal_dms": data.copy() * 2}
+    store_label_to_sampling_rate = {"control_dms": np.array([100.0]), "signal_dms": np.array([100.0])}
+    store_label_to_npoints = {"control_dms": None, "signal_dms": None}
 
     result_ts, result_idx, result_data = timestampCorrection(
-        2.0, storesList, name_to_timestamps, name_to_data, name_to_sampling_rate, name_to_npoints, mode="csv"
+        2.0,
+        store_array,
+        store_label_to_timestamps,
+        store_label_to_data,
+        store_label_to_sampling_rate,
+        store_label_to_npoints,
+        mode="csv",
     )
 
     np.testing.assert_array_equal(result_ts["control_dms"], np.array([2.0, 3.0, 4.0, 5.0]))
@@ -112,16 +118,16 @@ def test_timestamp_correction_csv_mode_slices_at_lights_turn_on():
 def test_decide_naming_applies_csv_correction_to_ttl_and_forms_compound_name():
     # CSV mode: events stay on the recording-start basis (unchanged); only the
     # compound name "TTL1_dms" is formed.
-    storesList = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
-    name_to_timestamps_ttl = {"TTL1": np.array([3.0, 5.0, 7.0])}
-    name_to_timestamps = {
+    store_array = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
+    store_label_to_timestamps_ttl = {"TTL1": np.array([3.0, 5.0, 7.0])}
+    store_label_to_timestamps = {
         "control_dms": np.array([1.0, 2.0, 3.0, 4.0]),
         "signal_dms": np.array([1.0, 2.0, 3.0, 4.0]),
     }
-    name_to_data = {"control_dms": np.ones(4), "signal_dms": np.ones(4)}
+    store_label_to_data = {"control_dms": np.ones(4), "signal_dms": np.ones(4)}
 
     result = decide_naming_and_applyCorrection_ttl(
-        1.0, storesList, name_to_timestamps_ttl, name_to_timestamps, name_to_data, mode="csv"
+        1.0, store_array, store_label_to_timestamps_ttl, store_label_to_timestamps, store_label_to_data, mode="csv"
     )
 
     assert "TTL1_dms" in result
@@ -135,76 +141,76 @@ def test_decide_naming_applies_csv_correction_to_ttl_and_forms_compound_name():
 
 
 def test_timestamp_correction_raises_for_invalid_mode():
-    storesList = np.array([["ctrl0", "sig0"], ["control_dms", "signal_dms"]])
-    name_to_timestamps = {"control_dms": np.zeros(3), "signal_dms": np.zeros(3)}
-    name_to_data = {"control_dms": np.zeros(3), "signal_dms": np.zeros(3)}
-    name_to_sampling_rate = {"control_dms": np.array([100.0]), "signal_dms": np.array([100.0])}
-    name_to_npoints = {"control_dms": None, "signal_dms": None}
+    store_array = np.array([["ctrl0", "sig0"], ["control_dms", "signal_dms"]])
+    store_label_to_timestamps = {"control_dms": np.zeros(3), "signal_dms": np.zeros(3)}
+    store_label_to_data = {"control_dms": np.zeros(3), "signal_dms": np.zeros(3)}
+    store_label_to_sampling_rate = {"control_dms": np.array([100.0]), "signal_dms": np.array([100.0])}
+    store_label_to_npoints = {"control_dms": None, "signal_dms": None}
     with pytest.raises(ValueError, match=r"Mode 'invalid' is not supported"):
         timestampCorrection(
             0.0,
-            storesList,
-            name_to_timestamps,
-            name_to_data,
-            name_to_sampling_rate,
-            name_to_npoints,
+            store_array,
+            store_label_to_timestamps,
+            store_label_to_data,
+            store_label_to_sampling_rate,
+            store_label_to_npoints,
             mode="invalid",
         )
 
 
 def test_timestamp_correction_surfaces_mismatched_region_pairs_via_storeslist():
     """control_dms paired with signal_vms — surfaces from get_control_and_signal_channel_names."""
-    storesList = np.array([["ctrl0", "sig0"], ["control_dms", "signal_vms"]])
-    name_to_timestamps = {"control_dms": np.zeros(3), "signal_vms": np.zeros(3)}
-    name_to_data = {"control_dms": np.zeros(3), "signal_vms": np.zeros(3)}
-    name_to_sampling_rate = {"control_dms": np.array([100.0]), "signal_vms": np.array([100.0])}
-    name_to_npoints = {"control_dms": None, "signal_vms": None}
+    store_array = np.array([["ctrl0", "sig0"], ["control_dms", "signal_vms"]])
+    store_label_to_timestamps = {"control_dms": np.zeros(3), "signal_vms": np.zeros(3)}
+    store_label_to_data = {"control_dms": np.zeros(3), "signal_vms": np.zeros(3)}
+    store_label_to_sampling_rate = {"control_dms": np.array([100.0]), "signal_vms": np.array([100.0])}
+    store_label_to_npoints = {"control_dms": None, "signal_vms": None}
     with pytest.raises(ValueError, match="Mismatched signal/control region pairs"):
         timestampCorrection(
             0.0,
-            storesList,
-            name_to_timestamps,
-            name_to_data,
-            name_to_sampling_rate,
-            name_to_npoints,
+            store_array,
+            store_label_to_timestamps,
+            store_label_to_data,
+            store_label_to_sampling_rate,
+            store_label_to_npoints,
             mode="csv",
         )
 
 
 def test_decide_naming_surfaces_mismatched_region_pairs_via_storeslist():
-    storesList = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_vms", "TTL1"]])
-    name_to_timestamps_ttl = {"TTL1": np.array([1.0, 2.0])}
-    name_to_timestamps = {"control_dms": np.zeros(3), "signal_vms": np.zeros(3)}
-    name_to_data = {"control_dms": np.zeros(3), "signal_vms": np.zeros(3)}
+    store_array = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_vms", "TTL1"]])
+    store_label_to_timestamps_ttl = {"TTL1": np.array([1.0, 2.0])}
+    store_label_to_timestamps = {"control_dms": np.zeros(3), "signal_vms": np.zeros(3)}
+    store_label_to_data = {"control_dms": np.zeros(3), "signal_vms": np.zeros(3)}
     with pytest.raises(ValueError, match="Mismatched signal/control region pairs"):
         decide_naming_and_applyCorrection_ttl(
             0.0,
-            storesList,
-            name_to_timestamps_ttl,
-            name_to_timestamps,
-            name_to_data,
+            store_array,
+            store_label_to_timestamps_ttl,
+            store_label_to_timestamps,
+            store_label_to_data,
             mode="csv",
         )
 
 
 def test_correct_timestamps_returns_all_four_outputs_consistent():
-    storesList = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
+    store_array = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
     timestamps = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
     data = np.arange(5, dtype=float)
-    name_to_timestamps = {"control_dms": timestamps.copy(), "signal_dms": timestamps.copy()}
-    name_to_data = {"control_dms": data.copy(), "signal_dms": data.copy()}
-    name_to_sampling_rate = {"control_dms": np.array([100.0]), "signal_dms": np.array([100.0])}
-    name_to_npoints = {"control_dms": None, "signal_dms": None}
-    name_to_timestamps_ttl = {"TTL1": np.array([2.5, 3.5])}
+    store_label_to_timestamps = {"control_dms": timestamps.copy(), "signal_dms": timestamps.copy()}
+    store_label_to_data = {"control_dms": data.copy(), "signal_dms": data.copy()}
+    store_label_to_sampling_rate = {"control_dms": np.array([100.0]), "signal_dms": np.array([100.0])}
+    store_label_to_npoints = {"control_dms": None, "signal_dms": None}
+    store_label_to_timestamps_ttl = {"TTL1": np.array([2.5, 3.5])}
 
     result_ts, result_idx, result_data, result_ttl = correct_timestamps(
         1.0,
-        storesList,
-        name_to_timestamps,
-        name_to_data,
-        name_to_sampling_rate,
-        name_to_npoints,
-        name_to_timestamps_ttl,
+        store_array,
+        store_label_to_timestamps,
+        store_label_to_data,
+        store_label_to_sampling_rate,
+        store_label_to_npoints,
+        store_label_to_timestamps_ttl,
         mode="csv",
     )
 
@@ -221,23 +227,23 @@ def test_events_and_continuous_share_one_recording_start_basis():
     # The continuous stream is sliced at >= timeForLightsTurnOn (recording basis) and events
     # are NOT re-zeroed, so an event at recording time T equals the continuous timestamp at
     # its matching sample index round((T - timestampNew[0]) * sampling_rate).
-    storesList = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
+    store_array = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
     timestamps = np.arange(0.0, 5.0, 0.1)
     data = np.arange(timestamps.shape[0], dtype=float)
-    name_to_timestamps = {"control_dms": timestamps.copy(), "signal_dms": timestamps.copy()}
-    name_to_data = {"control_dms": data.copy(), "signal_dms": data.copy()}
-    name_to_sampling_rate = {"control_dms": np.array([10.0]), "signal_dms": np.array([10.0])}
-    name_to_npoints = {"control_dms": None, "signal_dms": None}
-    name_to_timestamps_ttl = {"TTL1": np.array([2.4])}
+    store_label_to_timestamps = {"control_dms": timestamps.copy(), "signal_dms": timestamps.copy()}
+    store_label_to_data = {"control_dms": data.copy(), "signal_dms": data.copy()}
+    store_label_to_sampling_rate = {"control_dms": np.array([10.0]), "signal_dms": np.array([10.0])}
+    store_label_to_npoints = {"control_dms": None, "signal_dms": None}
+    store_label_to_timestamps_ttl = {"TTL1": np.array([2.4])}
 
     corrected_ts, _, _, corrected_ttl = correct_timestamps(
         1.0,
-        storesList,
-        name_to_timestamps,
-        name_to_data,
-        name_to_sampling_rate,
-        name_to_npoints,
-        name_to_timestamps_ttl,
+        store_array,
+        store_label_to_timestamps,
+        store_label_to_data,
+        store_label_to_sampling_rate,
+        store_label_to_npoints,
+        store_label_to_timestamps_ttl,
         mode="csv",
     )
 

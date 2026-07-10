@@ -59,8 +59,8 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
                     short_name_indices.append(i)
             allnames = np.delete(allnames, short_name_indices, 0)
             # Epoc stores that encode multiple behaviours are split into one sub-event per
-            # unique marker value here (at discover time) so storesList is fully settled
-            # before step 2; read() then needs no storesList mutation.
+            # unique marker value here (at discover time) so store_array is fully settled
+            # before step 2; read() then needs no store_array mutation.
             split_map = cls._compute_split_map(header_df)
             events = []
             for name in allnames:
@@ -142,7 +142,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         if sum(name_matches) == 0:
             available = sorted(str(name) for name in allnames)
             message = (
-                f"Requested TDT store name '{event}' not found in tank "
+                f"Requested TDT store id '{event}' not found in tank "
                 f"'{self.folder_path}' (case-sensitive). Available stores: {available}."
             )
             logger.error(message)
@@ -165,7 +165,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
 
         event_dict = dict()
 
-        event_dict["storename"] = str(event)
+        event_dict["store_id"] = str(event)
         event_dict["sampling_rate"] = header_df["frequency"][first_row]
         event_dict["timestamps"] = np.asarray(header_df["timestamp"][allIndexesWhereEventIsPresent[0]])
         event_dict["channels"] = np.asarray(header_df["chan"][allIndexesWhereEventIsPresent[0]])
@@ -238,7 +238,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         Parameters
         ----------
         events : list of str
-            TDT store names to read (case-sensitive). May include split
+            TDT store ids to read (case-sensitive). May include split
             sub-event names (e.g. ``"PrtN5"``).
         outputPath : str
             Path to the output directory (unused; required by the base-class
@@ -248,7 +248,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         -------
         list of dict
             One dictionary per requested event. Each dict contains
-            ``storename``, ``sampling_rate``, ``timestamps``, ``data``,
+            ``store_id``, ``sampling_rate``, ``timestamps``, ``data``,
             ``npoints``, and ``channels``.
         """
         split_lookup = {
@@ -268,7 +268,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
                 matching_indices = np.where(parent_dict["data"] == value)[0]
                 output_dicts.append(
                     {
-                        "storename": event,
+                        "store_id": event,
                         "timestamps": parent_dict["timestamps"][matching_indices],
                         "sampling_rate": parent_dict["sampling_rate"],
                         "data": parent_dict["data"],
@@ -295,7 +295,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
 
     @staticmethod
     def _event_needs_splitting(data: np.ndarray, sampling_rate: float) -> bool:
-        logger.info("Checking event storename data for creating multiple event names from single event storename...")
+        logger.info("Checking event store_id data for creating multiple event names from single event store_id...")
         diff = np.diff(data)
         if diff.shape[0] == 0:
             return False
@@ -321,7 +321,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         Returns
         -------
         dict
-            Maps each splitting parent store name to a list of
+            Maps each splitting parent store id to a list of
             ``(split_sub_event_name, marker_value)`` pairs, ordered by marker value.
         """
         if not isinstance(header_df, pd.DataFrame):
@@ -345,7 +345,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
             strobe_values = strobes[indexes]
             if not cls._event_needs_splitting(data=strobe_values, sampling_rate=frequencies[first_row]):
                 continue
-            # Mirror the historical sub-event naming: strip "/" from the store name
+            # Mirror the historical sub-event naming: strip "/" from the store id
             # and append the formatted marker value (e.g. "PAB/" + 16 -> "PAB16").
             new_store = store.replace("/", "")
             split_map[store] = [
@@ -354,8 +354,8 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         return split_map
 
     def _save_dict_to_hdf5(self, event_dict: dict[str, object], outputPath: str) -> None:
-        event = event_dict["storename"]
-        write_hdf5(event_dict["storename"], event, outputPath, "storename")
+        event = event_dict["store_id"]
+        write_hdf5(event_dict["store_id"], event, outputPath, "store_id")
         write_hdf5(event_dict["sampling_rate"], event, outputPath, "sampling_rate")
         write_hdf5(event_dict["timestamps"], event, outputPath, "timestamps")
         write_hdf5(event_dict["data"], event, outputPath, "data")

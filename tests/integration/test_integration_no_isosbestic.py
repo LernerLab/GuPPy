@@ -9,8 +9,8 @@ from conftest import STUBBED_TESTING_DATA
 from guppy.testing.api import step1, step2, step3, step4
 
 SESSION_SUBDIR = "csv/sample_data_csv_1"
-# No control channel in the storenames map — mirrors the consistency test for no-isosbestic
-STORENAMES_MAP = {
+# No control channel in the store_ids map — mirrors the consistency test for no-isosbestic
+STORE_ID_TO_STORE_LABEL = {
     "Sample_Signal_Channel": "signal_region",
     "Sample_TTL": "ttl",
 }
@@ -50,7 +50,7 @@ def test_no_isosbestic(tmp_path):
     )
     selected_runs = {str(session_copy): ["1"]}
 
-    step1(**common_kwargs, storenames_map=STORENAMES_MAP)
+    step1(**common_kwargs, store_id_to_store_label=STORE_ID_TO_STORE_LABEL)
     step2(**common_kwargs, selected_runs=selected_runs)
     step3(**common_kwargs, isosbestic_control=False, selected_runs=selected_runs)
     step4(**common_kwargs, selected_runs=selected_runs)

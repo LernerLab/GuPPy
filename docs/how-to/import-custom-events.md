@@ -5,7 +5,7 @@ acquisition system — for example movement onsets thresholded from a velocity
 trace, or events scored by hand from video. This guide shows the two ways to
 bring those timestamps in. Both produce the same artifact: a GuPPy-compatible
 event CSV in the session folder that appears as a selectable store in the
-Storenames GUI.
+Label Stores GUI.
 
 This is an **optional** step. If all the events you care about are already in
 the recording, skip it.
@@ -16,11 +16,11 @@ Use this when you have a list of event times to hand (e.g. a column copied from
 a spreadsheet).
 
 1. Select your session folder(s) on the homepage as usual.
-2. Click **Import Custom Events** (above *Step 1: Open Storenames GUI* in the
+2. Click **Import Custom Events** (above *Step 1: Label Stores* in the
    sidebar). A window opens for each selected session in turn.
 
    ```{image} ../_static/images/import_custom_events_button.png
-   :alt: The sidebar with the optional Import Custom Events button positioned above Step 1, Open Storenames GUI
+   :alt: The sidebar with the optional Import Custom Events button positioned above Step 1, Label Stores
    :width: 50%
    ```
 
@@ -28,7 +28,7 @@ a spreadsheet).
    in seconds — into the paste box. The values come straight from a spreadsheet
    column; no header or surrounding text.
 4. Click **Add event** to add another event, then **Save**.
-5. Open the **Storenames GUI**: each imported event now appears as a store
+5. Open the **Label Stores GUI**: each imported event now appears as a store
    named after what you typed, ready to label like any other.
 
 ```{image} ../_static/images/import_custom_events.png
@@ -71,4 +71,4 @@ timestamps
 
 Place that file in the session folder. GuPPy detects it automatically — no
 configuration needed — and it shows up as a store named `movement_onset` the
-next time you open the Storenames GUI.
+next time you open the Label Stores GUI.

@@ -25,12 +25,12 @@ def test_mixed_modality(tmp_path):
     npm_session_subdir = "npm/sampleData_NPM_4"
     doric_session_subdir = "doric/sample_doric_3"
 
-    npm_storenames_map = {
+    npm_store_id_to_store_label = {
         "file0_chev1": "control_region1",
         "file0_chod1": "signal_region1",
         "eventTrue": "ttl_true_region1",
     }
-    doric_storenames_map = {
+    doric_store_id_to_store_label = {
         "CAM1_EXC1/ROI01": "control_region",
         "CAM1_EXC2/ROI01": "signal_region",
         "DigitalIO/CAM1": "ttl",
@@ -68,13 +68,13 @@ def test_mixed_modality(tmp_path):
     step1(
         base_dir=base_dir,
         selected_folders=[npm_folder],
-        storenames_map=npm_storenames_map,
+        store_id_to_store_label=npm_store_id_to_store_label,
         npm_split_events=[True, True],
     )
     step1(
         base_dir=base_dir,
         selected_folders=[doric_folder],
-        storenames_map=doric_storenames_map,
+        store_id_to_store_label=doric_store_id_to_store_label,
     )
 
     # Steps 3–5 run once with both sessions; each session's storesList.csv is read independently.
@@ -141,12 +141,12 @@ def test_mixed_modality_tdt_doric(tmp_path):
     step1(
         base_dir=base_dir,
         selected_folders=[str(tdt_session)],
-        storenames_map={"Dv1A": "control_dms", "Dv2A": "signal_dms", "PrtN": "port_entries_dms"},
+        store_id_to_store_label={"Dv1A": "control_dms", "Dv2A": "signal_dms", "PrtN": "port_entries_dms"},
     )
     step1(
         base_dir=base_dir,
         selected_folders=[str(doric_session)],
-        storenames_map={
+        store_id_to_store_label={
             "CAM1_EXC1/ROI01": "control_region",
             "CAM1_EXC2/ROI01": "signal_region",
             "DigitalIO/CAM1": "ttl",
@@ -184,12 +184,12 @@ def test_mixed_modality_tdt_npm(tmp_path):
     step1(
         base_dir=base_dir,
         selected_folders=[str(tdt_session)],
-        storenames_map={"Dv1A": "control_dms", "Dv2A": "signal_dms", "PrtN": "port_entries_dms"},
+        store_id_to_store_label={"Dv1A": "control_dms", "Dv2A": "signal_dms", "PrtN": "port_entries_dms"},
     )
     step1(
         base_dir=base_dir,
         selected_folders=[str(npm_session)],
-        storenames_map={
+        store_id_to_store_label={
             "file0_chev1": "control_region1",
             "file0_chod1": "signal_region1",
             "eventTrue": "ttl_true_region1",
@@ -233,12 +233,12 @@ def test_mixed_modality_tdt_csv_data(tmp_path):
     step1(
         base_dir=base_dir,
         selected_folders=[str(tdt_session)],
-        storenames_map={"Dv1A": "control_dms", "Dv2A": "signal_dms", "PrtN": "port_entries_dms"},
+        store_id_to_store_label={"Dv1A": "control_dms", "Dv2A": "signal_dms", "PrtN": "port_entries_dms"},
     )
     step1(
         base_dir=base_dir,
         selected_folders=[str(csv_session)],
-        storenames_map={
+        store_id_to_store_label={
             "Sample_Control_Channel": "control_region",
             "Sample_Signal_Channel": "signal_region",
             "Sample_TTL": "ttl",
@@ -275,7 +275,7 @@ def test_mixed_modality_nwb_csv(tmp_path):
     step1(
         base_dir=base_dir,
         selected_folders=[str(nwb_session)],
-        storenames_map={
+        store_id_to_store_label={
             "fiber_photometry_response_series_0": "control_region",
             "fiber_photometry_response_series_1": "signal_region",
             "events": "ttl",
@@ -284,7 +284,7 @@ def test_mixed_modality_nwb_csv(tmp_path):
     step1(
         base_dir=base_dir,
         selected_folders=[str(csv_session)],
-        storenames_map={
+        store_id_to_store_label={
             "Sample_Control_Channel": "control_region",
             "Sample_Signal_Channel": "signal_region",
             "Sample_TTL": "ttl",
@@ -321,7 +321,7 @@ def test_mixed_modality_nwb_tdt(tmp_path):
     step1(
         base_dir=base_dir,
         selected_folders=[str(nwb_session)],
-        storenames_map={
+        store_id_to_store_label={
             "fiber_photometry_response_series_0": "control_region",
             "fiber_photometry_response_series_1": "signal_region",
             "events": "ttl",
@@ -330,7 +330,7 @@ def test_mixed_modality_nwb_tdt(tmp_path):
     step1(
         base_dir=base_dir,
         selected_folders=[str(tdt_session)],
-        storenames_map={"Dv1A": "control_dms", "Dv2A": "signal_dms", "PrtN": "port_entries_dms"},
+        store_id_to_store_label={"Dv1A": "control_dms", "Dv2A": "signal_dms", "PrtN": "port_entries_dms"},
     )
 
     selected_folders = [str(nwb_session), str(tdt_session)]
@@ -363,7 +363,7 @@ def test_mixed_modality_nwb_doric(tmp_path):
     step1(
         base_dir=base_dir,
         selected_folders=[str(nwb_session)],
-        storenames_map={
+        store_id_to_store_label={
             "fiber_photometry_response_series_0": "control_region",
             "fiber_photometry_response_series_1": "signal_region",
             "events": "ttl",
@@ -372,7 +372,7 @@ def test_mixed_modality_nwb_doric(tmp_path):
     step1(
         base_dir=base_dir,
         selected_folders=[str(doric_session)],
-        storenames_map={
+        store_id_to_store_label={
             "CAM1_EXC1/ROI01": "control_region",
             "CAM1_EXC2/ROI01": "signal_region",
             "DigitalIO/CAM1": "ttl",
@@ -410,7 +410,7 @@ def test_mixed_modality_nwb_npm(tmp_path):
     step1(
         base_dir=base_dir,
         selected_folders=[str(nwb_session)],
-        storenames_map={
+        store_id_to_store_label={
             "fiber_photometry_response_series_0": "control_region",
             "fiber_photometry_response_series_1": "signal_region",
             "events": "ttl",
@@ -419,7 +419,7 @@ def test_mixed_modality_nwb_npm(tmp_path):
     step1(
         base_dir=base_dir,
         selected_folders=[str(npm_session)],
-        storenames_map={
+        store_id_to_store_label={
             "file0_chev1": "control_region1",
             "file0_chod1": "signal_region1",
             "eventTrue": "ttl_true_region1",
@@ -445,10 +445,10 @@ def test_mixed_modality_nwb_npm(tmp_path):
 
 def _assert_pipeline_outputs(session_copy, expected_region, expected_ttl):
     basename = os.path.basename(session_copy)
-    output_dirs = sorted(glob.glob(os.path.join(session_copy, f"{basename}_output_*")))
-    assert output_dirs, f"No output directories found in {session_copy}"
+    run_folders = sorted(glob.glob(os.path.join(session_copy, f"{basename}_output_*")))
+    assert run_folders, f"No output directories found in {session_copy}"
     out_dir = None
-    for d in output_dirs:
+    for d in run_folders:
         if os.path.exists(os.path.join(d, "storesList.csv")):
             out_dir = d
             break

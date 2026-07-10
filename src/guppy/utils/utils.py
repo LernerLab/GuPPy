@@ -16,7 +16,7 @@ NPM_PARAMS_FILENAME = ".npm_params.json"
 NPM_PARAM_KEYS = ("npm_split_events", "npm_time_units", "npm_timestamp_column_names")
 
 
-def write_npm_params(*, output_dir: str, npm_params: dict[str, object]) -> None:
+def write_npm_params(*, run_folder: str, npm_params: dict[str, object]) -> None:
     """Persist the NPM decomposition parameters for one output directory.
 
     The interactive NPM choices made during Step 1 (event splitting, timestamp
@@ -26,21 +26,21 @@ def write_npm_params(*, output_dir: str, npm_params: dict[str, object]) -> None:
 
     Parameters
     ----------
-    output_dir : str
+    run_folder : str
         Output directory where ``storesList.csv`` is written.
     npm_params : dict
         The NPM parameters (keys in :data:`NPM_PARAM_KEYS`) to persist.
     """
-    with open(os.path.join(output_dir, NPM_PARAMS_FILENAME), "w") as file:
+    with open(os.path.join(run_folder, NPM_PARAMS_FILENAME), "w") as file:
         json.dump(npm_params, file, indent=4)
 
 
-def load_npm_params(output_dir: str) -> dict[str, object]:
+def load_npm_params(run_folder: str) -> dict[str, object]:
     """Load persisted NPM decomposition parameters from an output directory.
 
     Parameters
     ----------
-    output_dir : str
+    run_folder : str
         Output directory possibly containing the NPM parameters file.
 
     Returns
@@ -48,7 +48,7 @@ def load_npm_params(output_dir: str) -> dict[str, object]:
     dict
         The persisted NPM parameters, or an empty dict if none were written.
     """
-    npm_params_path = os.path.join(output_dir, NPM_PARAMS_FILENAME)
+    npm_params_path = os.path.join(run_folder, NPM_PARAMS_FILENAME)
     if not os.path.exists(npm_params_path):
         return {}
     with open(npm_params_path) as file:
@@ -75,7 +75,7 @@ def takeOnlyDirs(paths: list[str]) -> list[str]:
     return list(set(paths) - set(removePaths))
 
 
-def parse_run_name(output_dir: str) -> str:
+def parse_run_name(run_folder: str) -> str:
     """Return the run-name suffix of an output directory.
 
     Splits the directory's basename on the last occurrence of ``_output_`` and
@@ -84,7 +84,7 @@ def parse_run_name(output_dir: str) -> str:
 
     Parameters
     ----------
-    output_dir : str
+    run_folder : str
         Path to an ``<session_basename>_output_<run_name>`` directory.
 
     Returns
@@ -99,17 +99,17 @@ def parse_run_name(output_dir: str) -> str:
     """
     # Strip both separators so trailing forward slashes are tolerated on Windows
     # (where os.sep is "\\" but paths can still use "/").
-    basename = os.path.basename(output_dir.rstrip("/\\"))
+    basename = os.path.basename(run_folder.rstrip("/\\"))
     index = basename.rfind(_RUN_NAME_MARKER)
     if index < 0:
         raise ValueError(
-            f"Cannot parse run name from {output_dir!r}: basename {basename!r} does not match "
+            f"Cannot parse run name from {run_folder!r}: basename {basename!r} does not match "
             f"'<session_basename>_output_<run_name>' pattern."
         )
     return basename[index + len(_RUN_NAME_MARKER) :]
 
 
-def discover_output_dirs(session_path: str) -> list[str]:
+def discover_run_folders(session_path: str) -> list[str]:
     """Return all output directories within a session, sorted by run name.
 
     Parameters
@@ -128,7 +128,7 @@ def discover_output_dirs(session_path: str) -> list[str]:
     return sorted(candidates, key=_run_name_sort_key_for_path)
 
 
-def output_dir_for_run(session_path: str, run_name: str) -> str:
+def run_folder_for_run(session_path: str, run_name: str) -> str:
     """Build the path of the output directory for a given run name.
 
     Does not check whether the directory exists.
@@ -149,7 +149,7 @@ def output_dir_for_run(session_path: str, run_name: str) -> str:
     return os.path.join(session_path, basename + _RUN_NAME_MARKER + run_name)
 
 
-def select_output_dirs(session_path: str, selected_runs: list[str]) -> list[str]:
+def select_run_folders(session_path: str, selected_runs: list[str]) -> list[str]:
     """Filter a session's output directories to those matching ``selected_runs``.
 
     Parameters
@@ -174,28 +174,28 @@ def select_output_dirs(session_path: str, selected_runs: list[str]) -> list[str]
     """
     if not selected_runs:
         raise ValueError(
-            f"select_output_dirs requires an explicit non-empty list of run names for session "
+            f"select_run_folders requires an explicit non-empty list of run names for session "
             f"{session_path!r}; got {selected_runs!r}. Pick at least one existing _output_<run> "
             "directory in the Output Folder Selection panel."
         )
-    available = discover_output_dirs(session_path)
+    available = discover_run_folders(session_path)
     available_by_name = {parse_run_name(directory): directory for directory in available}
     missing = [run for run in selected_runs if run not in available_by_name]
     if missing:
         raise ValueError(
             f"Output directory not found in {session_path!r} for run name(s) {missing!r}. "
             f"Available runs: {sorted(available_by_name.keys())!r}. "
-            "Either run step 1 with the requested run name first, or update the selectedOutputs filter."
+            "Either run step 1 with the requested run name first, or update the selected_runs filter."
         )
 
     selected = [available_by_name[run] for run in selected_runs]
-    missing_stores_list = [
-        output_dir for output_dir in selected if not os.path.exists(os.path.join(output_dir, "storesList.csv"))
+    missing_stores = [
+        run_folder for run_folder in selected if not os.path.exists(os.path.join(run_folder, "storesList.csv"))
     ]
-    if missing_stores_list:
+    if missing_stores:
         raise ValueError(
-            f"Selected output directories are missing storesList.csv: {missing_stores_list!r}. "
-            "Re-run step 1 (Save Storenames) for these run names before continuing."
+            f"Selected output directories are missing storesList.csv: {missing_stores!r}. "
+            "Re-run step 1 (Label Stores) for these run names before continuing."
         )
     return sorted(selected, key=_run_name_sort_key_for_path)
 
@@ -219,22 +219,22 @@ def validate_run_name(run_name: str) -> None:
         If ``run_name`` is invalid.
     """
     if not isinstance(run_name, str):
-        raise ValueError(f"runName must be a string; got {type(run_name).__name__}.")
+        raise ValueError(f"run_name must be a string; got {type(run_name).__name__}.")
     if not run_name:
-        raise ValueError("runName must be a non-empty string.")
+        raise ValueError("run_name must be a non-empty string.")
     if run_name.strip() != run_name or not run_name.strip():
-        raise ValueError(f"runName {run_name!r} must not contain leading/trailing whitespace or be all whitespace.")
+        raise ValueError(f"run_name {run_name!r} must not contain leading/trailing whitespace or be all whitespace.")
     for character in _FORBIDDEN_RUN_NAME_CHARACTERS:
         if character in run_name:
             raise ValueError(
-                f"runName {run_name!r} contains forbidden character {character!r}. "
+                f"run_name {run_name!r} contains forbidden character {character!r}. "
                 f"Path separators and null bytes are not allowed."
             )
     if ".." in run_name:
-        raise ValueError(f"runName {run_name!r} must not contain '..' (path traversal).")
+        raise ValueError(f"run_name {run_name!r} must not contain '..' (path traversal).")
     if _RUN_NAME_MARKER in run_name:
         raise ValueError(
-            f"runName {run_name!r} must not contain the substring {_RUN_NAME_MARKER!r}; "
+            f"run_name {run_name!r} must not contain the substring {_RUN_NAME_MARKER!r}; "
             "this would break parsing of the output directory name."
         )
 
@@ -256,12 +256,12 @@ def _run_name_sort_key_for_path(path: str) -> tuple[int, int, str]:
     return _run_name_sort_key(run_name)
 
 
-def get_all_stores_for_combining_data(folderNames: list[str]) -> list[list[str]]:
+def get_all_stores_for_combining_data(run_folders: list[str]) -> list[list[str]]:
     """Group output directories by run-name suffix for cross-session combining.
 
     Parameters
     ----------
-    folderNames : list of str
+    run_folders : list of str
         Paths to ``<basename>_output_<run_name>`` directories across all sessions.
 
     Returns
@@ -272,7 +272,7 @@ def get_all_stores_for_combining_data(folderNames: list[str]) -> list[list[str]]
         first (numerically) and then alphanumeric run names (case-insensitive).
     """
     run_name_to_paths = {}
-    for path in folderNames:
+    for path in run_folders:
         try:
             run_name = parse_run_name(path)
         except ValueError:

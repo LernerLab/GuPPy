@@ -8,7 +8,7 @@ from conftest import TESTING_DATA, event_ts_offset_for
 from guppy.testing import compare_output_folders
 from guppy.testing.api import step1, step2, step3, step4
 
-STORENAMES_MAP = {
+STORE_ID_TO_STORE_LABEL = {
     "Sample_Control_Channel": "control_region",
     "Sample_Signal_Channel": "signal_region",
     "Sample_TTL": "ttl",
@@ -69,14 +69,14 @@ def test_consistency_zscore_method(
     )
 
     selected_runs = {folder: ["1"] for folder in common_kwargs["selected_folders"]}
-    step1(**common_kwargs, storenames_map=STORENAMES_MAP)
+    step1(**common_kwargs, store_id_to_store_label=STORE_ID_TO_STORE_LABEL)
     step2(**common_kwargs, selected_runs=selected_runs)
     step3(**common_kwargs, control_fit_method="OLS", selected_runs=selected_runs, **step3_extra_kwargs)
     step4(**common_kwargs, selected_runs=selected_runs)
 
-    output_dirs = sorted(glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")))
-    assert output_dirs, f"No output directory found under {session_copy}"
-    actual_output_dir = output_dirs[0]
+    run_folders = sorted(glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")))
+    assert run_folders, f"No output directory found under {session_copy}"
+    actual_output_dir = run_folders[0]
 
     compare_output_folders(
         actual_dir=actual_output_dir,

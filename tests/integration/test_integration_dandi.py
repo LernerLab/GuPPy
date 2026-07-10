@@ -1,7 +1,7 @@
 """Integration tests for the DANDI streaming path through step1 and step2.
 
 These exercise the ``inputParameters["mode"] == "dandi"`` branches in
-``guppy.orchestration.storenames`` and ``guppy.orchestration.read_raw_data``
+``guppy.orchestration.store_labeling`` and ``guppy.orchestration.read_raw_data``
 without hitting the network: ``_stream_nwb`` is monkeypatched to open a local
 mock NWB file from ``stubbed_testing_data/nwb/``.
 
@@ -30,7 +30,7 @@ MOCK_NWB_FILE = (
 
 SENTINEL_DANDI_URI = "dandi://mock/events.nwb"
 
-STORENAMES_MAP = {
+STORE_ID_TO_STORE_LABEL = {
     "fiber_photometry_response_series_0": "control_region",
     "fiber_photometry_response_series_1": "signal_region",
     "events": "ttl",
@@ -76,7 +76,7 @@ def step1_dandi_output(dandi_pipeline_state, patched_stream_nwb):
     step1(
         base_dir=dandi_pipeline_state["base_directory"],
         selected_folders=[dandi_pipeline_state["session_copy"]],
-        storenames_map=STORENAMES_MAP,
+        store_id_to_store_label=STORE_ID_TO_STORE_LABEL,
         dandi_uri_map={dandi_pipeline_state["session_copy"]: SENTINEL_DANDI_URI},
     )
     dandi_pipeline_state["output_directory"] = _locate_output_directory(
@@ -108,20 +108,18 @@ class TestDandiIntegration:
             stores_rows = list(csv.reader(stores_file))
 
         assert len(stores_rows) == 2
-        assert stores_rows[0] == list(STORENAMES_MAP.keys())
-        assert stores_rows[1] == list(STORENAMES_MAP.values())
+        assert stores_rows[0] == list(STORE_ID_TO_STORE_LABEL.keys())
+        assert stores_rows[1] == list(STORE_ID_TO_STORE_LABEL.values())
 
     def test_step2_writes_hdf5_per_event(self, step2_dandi_output):
         output_directory = step2_dandi_output["output_directory"]
-        for raw_storename in STORENAMES_MAP.keys():
-            storename_file_path = os.path.join(output_directory, f"{raw_storename}.hdf5")
-            assert os.path.exists(
-                storename_file_path
-            ), f"Missing HDF5 for storename {raw_storename!r} at {storename_file_path}"
+        for store_id in STORE_ID_TO_STORE_LABEL.keys():
+            store_id_file_path = os.path.join(output_directory, f"{store_id}.hdf5")
+            assert os.path.exists(store_id_file_path), f"Missing HDF5 for store_id {store_id!r} at {store_id_file_path}"
 
-            with h5py.File(storename_file_path, "r") as storename_file:
-                assert "timestamps" in storename_file
-                assert storename_file["timestamps"].shape[0] > 0
+            with h5py.File(store_id_file_path, "r") as store_id_file:
+                assert "timestamps" in store_id_file
+                assert store_id_file["timestamps"].shape[0] > 0
 
 
 class TestDandiIntegrationMultiAsset:
@@ -143,7 +141,7 @@ class TestDandiIntegrationMultiAsset:
         step1(
             base_dir=str(base_directory),
             selected_folders=[str(session_a), str(session_b)],
-            storenames_map=STORENAMES_MAP,
+            store_id_to_store_label=STORE_ID_TO_STORE_LABEL,
             dandi_uri_map=dandi_uri_map,
         )
 

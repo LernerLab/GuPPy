@@ -88,11 +88,11 @@ def make_dir(filepath: str) -> str:
     str
         Absolute path to the ``saved_plots`` directory.
     """
-    output_dir = os.path.join(filepath, "saved_plots")
-    if not os.path.exists(output_dir):
-        os.mkdir(output_dir)
+    run_folder = os.path.join(filepath, "saved_plots")
+    if not os.path.exists(run_folder):
+        os.mkdir(run_folder)
 
-    return output_dir
+    return run_folder
 
 
 def _headless_chrome_options() -> Options:  # pragma: no cover - configures a real browser subprocess
@@ -645,8 +645,8 @@ class ParameterizedPlotter(param.Parameterized):
                 .opts(opts.Curve(color=palette_colors), opts.Spread(fill_color=palette_colors))
                 .opts(shared_axes=False)
             )
-            output_dir = make_dir(self.filepath)
-            output_filename = os.path.join(output_dir, str(selected_events) + "_mean")
+            run_folder = make_dir(self.filepath)
+            output_filename = os.path.join(run_folder, str(selected_events) + "_mean")
 
             plot_combine = plot_combine.opts(
                 hooks=[
@@ -722,8 +722,8 @@ class ParameterizedPlotter(param.Parameterized):
                     self._hide_minor_ticks_hook("hide_minor_ticks"),
                 ]
             )
-            output_dir = make_dir(self.filepath)
-            output_filename = os.path.join(output_dir, self.event_selector + "_" + self.y)
+            run_folder = make_dir(self.filepath)
+            output_filename = os.path.join(run_folder, self.event_selector + "_" + self.y)
             self.results_psth["plot"] = image
             self.results_psth["op"] = output_filename
 
@@ -770,8 +770,8 @@ class ParameterizedPlotter(param.Parameterized):
                     self._hide_minor_ticks_hook("hide_minor_ticks"),
                 ]
             )
-            output_dir = make_dir(self.filepath)
-            output_filename = os.path.join(output_dir, self.event_selector + "_" + self.y)
+            run_folder = make_dir(self.filepath)
+            output_filename = os.path.join(run_folder, self.event_selector + "_" + self.y)
             self.results_psth["plot"] = plot
             self.results_psth["op"] = output_filename
 
@@ -799,8 +799,8 @@ class ParameterizedPlotter(param.Parameterized):
                     self._hide_minor_ticks_hook("hide_minor_ticks"),
                 ]
             )
-            output_dir = make_dir(self.filepath)
-            output_filename = os.path.join(output_dir, self.event_selector + "_" + self.y)
+            run_folder = make_dir(self.filepath)
+            output_filename = os.path.join(run_folder, self.event_selector + "_" + self.y)
             self.results_psth["plot"] = plot
             self.results_psth["op"] = output_filename
 
@@ -896,8 +896,8 @@ class ParameterizedPlotter(param.Parameterized):
             ]
         )
 
-        output_dir = make_dir(self.filepath)
-        output_filename = os.path.join(output_dir, self.event_selector + "_selected_trials")
+        run_folder = make_dir(self.filepath)
+        output_filename = os.path.join(run_folder, self.event_selector + "_selected_trials")
         self.results_psth["trials"] = result
         self.results_psth["op_trials"] = output_filename
         return result
@@ -1021,8 +1021,8 @@ class ParameterizedPlotter(param.Parameterized):
             ]
         )
 
-        output_dir = make_dir(self.filepath)
-        output_filename = os.path.join(output_dir, self.event_selector_heatmap + "_" + "heatmap")
+        run_folder = make_dir(self.filepath)
+        output_filename = os.path.join(run_folder, self.event_selector_heatmap + "_" + "heatmap")
         self.results_hm["plot"] = image
         self.results_hm["op"] = output_filename
 

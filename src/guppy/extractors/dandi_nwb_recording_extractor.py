@@ -265,7 +265,7 @@ class DandiNwbRecordingExtractor(NwbRecordingExtractor):
         Returns
         -------
         list of dict
-            One dictionary per event with keys: ``storename``, ``sampling_rate``,
+            One dictionary per event with keys: ``store_id``, ``sampling_rate``,
             ``timestamps``, ``data``, ``npoints``.
         """
         dandiset_id, asset_path = parse_dandi_uri(self.folder_path)

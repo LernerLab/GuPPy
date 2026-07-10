@@ -15,7 +15,7 @@ from conftest import STUBBED_TESTING_DATA
 from guppy.testing.api import step1, step2, step3
 
 CSV_SESSION = "csv/sample_data_csv_1"
-CSV_STORENAMES = {
+CSV_STORE_ID_TO_STORE_LABEL = {
     "Sample_Control_Channel": "control_region",
     "Sample_Signal_Channel": "signal_region",
     "Sample_TTL": "ttl",
@@ -47,7 +47,7 @@ class TestStep1RunName:
         step1(
             base_dir=base,
             selected_folders=[session],
-            storenames_map=CSV_STORENAMES,
+            store_id_to_store_label=CSV_STORE_ID_TO_STORE_LABEL,
             run_name="baseline",
         )
         expected = os.path.join(session, f"{os.path.basename(session)}_output_baseline")
@@ -59,13 +59,13 @@ class TestStep1RunName:
         step1(
             base_dir=base,
             selected_folders=[session],
-            storenames_map=CSV_STORENAMES,
+            store_id_to_store_label=CSV_STORE_ID_TO_STORE_LABEL,
             run_name="baseline",
         )
         step1(
             base_dir=base,
             selected_folders=[session],
-            storenames_map=CSV_STORENAMES,
+            store_id_to_store_label=CSV_STORE_ID_TO_STORE_LABEL,
             run_name="strict",
         )
         session_basename = os.path.basename(session)
@@ -77,14 +77,14 @@ class TestStep1RunName:
         step1(
             base_dir=base,
             selected_folders=[session],
-            storenames_map=CSV_STORENAMES,
+            store_id_to_store_label=CSV_STORE_ID_TO_STORE_LABEL,
             run_name="baseline",
         )
         with pytest.raises(ValueError, match="already exists"):
             step1(
                 base_dir=base,
                 selected_folders=[session],
-                storenames_map=CSV_STORENAMES,
+                store_id_to_store_label=CSV_STORE_ID_TO_STORE_LABEL,
                 run_name="baseline",
                 run_name_policy="create",
             )
@@ -94,7 +94,7 @@ class TestStep1RunName:
         step1(
             base_dir=base,
             selected_folders=[session],
-            storenames_map=CSV_STORENAMES,
+            store_id_to_store_label=CSV_STORE_ID_TO_STORE_LABEL,
             run_name="baseline",
         )
         existing = os.path.join(session, f"{os.path.basename(session)}_output_baseline")
@@ -105,7 +105,7 @@ class TestStep1RunName:
         step1(
             base_dir=base,
             selected_folders=[session],
-            storenames_map=CSV_STORENAMES,
+            store_id_to_store_label=CSV_STORE_ID_TO_STORE_LABEL,
             run_name="baseline",
             run_name_policy="overwrite",
         )
@@ -115,7 +115,7 @@ class TestStep1RunName:
 
     def test_legacy_unspecified_run_name_uses_integer_suffix(self, csv_session_copy):
         base, session = csv_session_copy
-        step1(base_dir=base, selected_folders=[session], storenames_map=CSV_STORENAMES)
+        step1(base_dir=base, selected_folders=[session], store_id_to_store_label=CSV_STORE_ID_TO_STORE_LABEL)
         expected = os.path.join(session, f"{os.path.basename(session)}_output_1")
         assert os.path.isdir(expected)
 
@@ -127,7 +127,7 @@ class TestStep2SelectedRuns:
             step1(
                 base_dir=base,
                 selected_folders=[session],
-                storenames_map=CSV_STORENAMES,
+                store_id_to_store_label=CSV_STORE_ID_TO_STORE_LABEL,
                 run_name=run_name,
             )
 
@@ -151,7 +151,7 @@ class TestStep2SelectedRuns:
         step1(
             base_dir=base,
             selected_folders=[session],
-            storenames_map=CSV_STORENAMES,
+            store_id_to_store_label=CSV_STORE_ID_TO_STORE_LABEL,
             run_name="baseline",
         )
         with pytest.raises(ValueError, match="Output directory not found"):
@@ -169,7 +169,7 @@ class TestStep3SelectedRuns:
             step1(
                 base_dir=base,
                 selected_folders=[session],
-                storenames_map=CSV_STORENAMES,
+                store_id_to_store_label=CSV_STORE_ID_TO_STORE_LABEL,
                 run_name=run_name,
             )
         # Run step 2 only for the dir that step 3 will operate on; the unselected

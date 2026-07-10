@@ -204,7 +204,7 @@ class TdtRecordingExtractorSplitTestMixin(TdtRecordingExtractorTestMixin):
             result = self.extractor_instance.read(events=[split_name], outputPath="")
             expected_timestamps = parent_dict["timestamps"][np.where(parent_dict["data"] == value)[0]]
             np.testing.assert_array_equal(result[0]["timestamps"], expected_timestamps)
-            assert result[0]["storename"] == split_name
+            assert result[0]["store_id"] == split_name
 
     def test_read_split_subevents_writes_nothing(self, tmp_path):
         before = set(os.listdir(tmp_path))

@@ -14,7 +14,7 @@ from ..frontend.parameterized_plotter import (
     remove_cols,
 )
 from ..frontend.visualization_dashboard import VisualizationDashboard
-from ..utils.utils import get_all_stores_for_combining_data, read_Df, select_output_dirs
+from ..utils.utils import get_all_stores_for_combining_data, read_Df, select_run_folders
 
 logger = logging.getLogger(__name__)
 
@@ -159,7 +159,7 @@ def createPlots(filepath: str, event: np.ndarray, inputParameters: dict[str, obj
     filepath : str
         Path to the session output directory.
     event : list of str
-        Storenames (row 1 of storesList) to include in the visualization.
+        Store labels (row 1 of store_array) to include in the visualization.
     inputParameters : dict
         Full pipeline input parameters.
     """
@@ -230,26 +230,26 @@ def _validate_metric_against_step4_outputs(inputParameters: dict[str, object]) -
     """
     visualize_zscore_or_dff = inputParameters["visualize_zscore_or_dff"]
     average = inputParameters["visualizeAverageResults"]
-    folderNames = inputParameters["folderNames"]
-    folderNamesForAvg = inputParameters["folderNamesForAvg"]
+    session_folders = inputParameters["session_folders"]
+    group_session_folders = inputParameters["group_session_folders"]
 
     # Collect all output directories that will be visualised
-    output_dirs = []
-    source_folders = folderNamesForAvg if (average and len(folderNamesForAvg) > 0) else folderNames
+    run_folders = []
+    source_folders = group_session_folders if (average and len(group_session_folders) > 0) else session_folders
     selected_outputs_for_validation = (
-        (inputParameters.get("groupSelectedOutputs") or {})
-        if (average and len(folderNamesForAvg) > 0)
-        else (inputParameters.get("selectedOutputs") or {})
+        (inputParameters.get("group_selected_runs") or {})
+        if (average and len(group_session_folders) > 0)
+        else (inputParameters.get("selected_runs") or {})
     )
     for filepath in source_folders:
         runs = selected_outputs_for_validation.get(filepath)
         if not runs:
-            # Session not in selectedOutputs (e.g. it has no _output_* dirs yet, which the
-            # homepage gate `validate_selected_outputs_for_consumers` skips). Nothing to validate.
+            # Session not in selected_runs (e.g. it has no _output_* dirs yet, which the
+            # homepage gate `validate_selected_runs_for_consumers` skips). Nothing to validate.
             continue
-        output_dirs.extend(select_output_dirs(filepath, runs))
+        run_folders.extend(select_run_folders(filepath, runs))
 
-    if not output_dirs:
+    if not run_folders:
         return  # Nothing to check; the main function will handle the empty case.
 
     # PSTH output files use the ".h5" extension (pandas HDF5) and embed the
@@ -260,7 +260,7 @@ def _validate_metric_against_step4_outputs(inputParameters: dict[str, object]) -
     else:
         pattern = "*_dff_*.h5"
 
-    missing_sessions = [output_dir for output_dir in output_dirs if not glob.glob(os.path.join(output_dir, pattern))]
+    missing_sessions = [run_folder for run_folder in run_folders if not glob.glob(os.path.join(run_folder, pattern))]
 
     if missing_sessions:
         other_metric = "dff" if visualize_zscore_or_dff == "z_score" else "z_score"
@@ -298,8 +298,8 @@ def _validate_average_visualization_preconditions(inputParameters: dict[str, obj
     if not inputParameters["visualizeAverageResults"]:
         return
 
-    folderNamesForAvg = inputParameters["folderNamesForAvg"]
-    if len(folderNamesForAvg) == 0:
+    group_session_folders = inputParameters["group_session_folders"]
+    if len(group_session_folders) == 0:
         raise ValueError(
             "'Visualize Average Results?' is set to True, but no folders are "
             "selected in the Group Analysis folder picker. Please either "
@@ -361,52 +361,52 @@ def visualizeResults(inputParameters: dict[str, object]) -> None:
     # Snapshot the parameters being executed into each selected output dir so the
     # on-disk GuPPyParamtersUsed.json always reflects the last-run configuration.
     # Average visualization reads from the average/ dir rather than the individual
-    # selectedOutputs, so skip the snapshot there (earlier steps already wrote it per session).
+    # selected_runs, so skip the snapshot there (earlier steps already wrote it per session).
     if not average:
         save_parameters(inputParameters=inputParameters)
 
-    folderNames = inputParameters["folderNames"]
-    folderNamesForAvg = inputParameters["folderNamesForAvg"]
+    session_folders = inputParameters["session_folders"]
+    group_session_folders = inputParameters["group_session_folders"]
     combine_data = inputParameters["combine_data"]
 
-    if average == True and len(folderNamesForAvg) > 0:
+    if average == True and len(group_session_folders) > 0:
         filepath_avg = os.path.join(inputParameters["abspath"], "average")
-        group_selected_outputs = inputParameters.get("groupSelectedOutputs") or {}
-        storesListPath = []
-        for i in range(len(folderNamesForAvg)):
-            filepath = folderNamesForAvg[i]
-            storesListPath.append(select_output_dirs(filepath, group_selected_outputs.get(filepath)))
-        storesListPath = np.concatenate(storesListPath)
-        storesList = np.asarray([[], []])
-        for i in range(storesListPath.shape[0]):
-            storesList = np.concatenate(
+        group_selected_runs = inputParameters.get("group_selected_runs") or {}
+        run_folders = []
+        for i in range(len(group_session_folders)):
+            filepath = group_session_folders[i]
+            run_folders.append(select_run_folders(filepath, group_selected_runs.get(filepath)))
+        run_folders = np.concatenate(run_folders)
+        store_array = np.asarray([[], []])
+        for i in range(run_folders.shape[0]):
+            store_array = np.concatenate(
                 (
-                    storesList,
-                    np.genfromtxt(
-                        os.path.join(storesListPath[i], "storesList.csv"), dtype="str", delimiter=","
-                    ).reshape(2, -1),
+                    store_array,
+                    np.genfromtxt(os.path.join(run_folders[i], "storesList.csv"), dtype="str", delimiter=",").reshape(
+                        2, -1
+                    ),
                 ),
                 axis=1,
             )
-        storesList = np.unique(storesList, axis=1)
+        store_array = np.unique(store_array, axis=1)
 
-        createPlots(filepath_avg, np.unique(storesList[1, :]), inputParameters)
+        createPlots(filepath_avg, np.unique(store_array[1, :]), inputParameters)
 
     else:
-        selected_outputs = inputParameters.get("selectedOutputs") or {}
+        selected_runs = inputParameters.get("selected_runs") or {}
         if combine_data == True:
-            storesListPath = []
-            for i in range(len(folderNames)):
-                filepath = folderNames[i]
-                storesListPath.append(select_output_dirs(filepath, selected_outputs.get(filepath)))
-            storesListPath = list(np.concatenate(storesListPath).flatten())
-            combined_output_groups = get_all_stores_for_combining_data(storesListPath)
+            run_folders = []
+            for i in range(len(session_folders)):
+                filepath = session_folders[i]
+                run_folders.append(select_run_folders(filepath, selected_runs.get(filepath)))
+            run_folders = list(np.concatenate(run_folders).flatten())
+            combined_output_groups = get_all_stores_for_combining_data(run_folders)
             for i in range(len(combined_output_groups)):
-                storesList = np.asarray([[], []])
+                store_array = np.asarray([[], []])
                 for j in range(len(combined_output_groups[i])):
-                    storesList = np.concatenate(
+                    store_array = np.concatenate(
                         (
-                            storesList,
+                            store_array,
                             np.genfromtxt(
                                 os.path.join(combined_output_groups[i][j], "storesList.csv"),
                                 dtype="str",
@@ -415,18 +415,18 @@ def visualizeResults(inputParameters: dict[str, object]) -> None:
                         ),
                         axis=1,
                     )
-                storesList = np.unique(storesList, axis=1)
+                store_array = np.unique(store_array, axis=1)
                 filepath = combined_output_groups[i][0]
-                createPlots(filepath, storesList[1, :], inputParameters)
+                createPlots(filepath, store_array[1, :], inputParameters)
         else:
-            for i in range(len(folderNames)):
+            for i in range(len(session_folders)):
 
-                filepath = folderNames[i]
-                storesListPath = select_output_dirs(filepath, selected_outputs.get(filepath))
-                for j in range(len(storesListPath)):
-                    filepath = storesListPath[j]
-                    storesList = np.genfromtxt(
+                filepath = session_folders[i]
+                run_folders = select_run_folders(filepath, selected_runs.get(filepath))
+                for j in range(len(run_folders)):
+                    filepath = run_folders[j]
+                    store_array = np.genfromtxt(
                         os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=","
                     ).reshape(2, -1)
 
-                    createPlots(filepath, storesList[1, :], inputParameters)
+                    createPlots(filepath, store_array[1, :], inputParameters)

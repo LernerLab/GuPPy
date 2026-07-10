@@ -10,7 +10,7 @@ from guppy.testing.api import step1
 
 
 @pytest.mark.parametrize(
-    "session_subdir, storenames_map",
+    "session_subdir, store_id_to_store_label",
     [
         (
             "csv/sample_data_csv_1",
@@ -151,13 +151,13 @@ from guppy.testing.api import step1
         "nwb_mock",
     ],
 )
-def test_step1(tmp_path, session_subdir, storenames_map):
+def test_step1(tmp_path, session_subdir, store_id_to_store_label):
     """
-    Step 1 integration test (Save Storenames) using real sample data, isolated to a temporary workspace.
+    Step 1 integration test (Label Stores) using real sample data, isolated to a temporary workspace.
     For each dataset:
       - Copies the session into a temp workspace
       - Cleans any copied *_output_* artifacts (using a specific glob to avoid non-dirs)
-      - Calls step1 headlessly with an explicit, deterministic storenames_map
+      - Calls step1 headlessly with an explicit, deterministic store_id_to_store_label
       - Asserts storesList.csv exists and exactly matches the provided mapping (2xN)
     """
     if session_subdir == "npm/sampleData_NPM_1":
@@ -200,7 +200,7 @@ def test_step1(tmp_path, session_subdir, storenames_map):
     step1(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
-        storenames_map=storenames_map,
+        store_id_to_store_label=store_id_to_store_label,
         npm_timestamp_column_names=npm_timestamp_column_names,
         npm_time_units=npm_time_units,
         npm_split_events=npm_split_events,
@@ -208,11 +208,11 @@ def test_step1(tmp_path, session_subdir, storenames_map):
 
     # Validate storesList.csv exists and matches the mapping exactly (order-preserved)
     basename = os.path.basename(session_copy)
-    output_dirs = sorted(glob.glob(os.path.join(session_copy, f"{basename}_output_*")))
-    assert output_dirs, f"No output directories found in {session_copy}"
+    run_folders = sorted(glob.glob(os.path.join(session_copy, f"{basename}_output_*")))
+    assert run_folders, f"No output directories found in {session_copy}"
 
     out_dir = None
-    for d in output_dirs:
+    for d in run_folders:
         if os.path.exists(os.path.join(d, "storesList.csv")):
             out_dir = d
             break
@@ -225,9 +225,9 @@ def test_step1(tmp_path, session_subdir, storenames_map):
         reader = csv.reader(f)
         rows = list(reader)
 
-    assert len(rows) == 2, f"Expected 2 rows (storenames, names_for_storenames), got {len(rows)}"
-    assert rows[0] == list(storenames_map.keys()), "Row 0 (storenames) mismatch"
-    assert rows[1] == list(storenames_map.values()), "Row 1 (names_for_storenames) mismatch"
+    assert len(rows) == 2, f"Expected 2 rows (store_ids, store_labels), got {len(rows)}"
+    assert rows[0] == list(store_id_to_store_label.keys()), "Row 0 (store_ids) mismatch"
+    assert rows[1] == list(store_id_to_store_label.values()), "Row 1 (store_labels) mismatch"
 
     # NPM now demultiplexes in memory: Step 1 must NOT write any intermediate CSVs into the
     # source session folder, and must persist the decomposition params next to storesList.csv.

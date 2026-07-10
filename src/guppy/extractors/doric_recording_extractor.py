@@ -295,9 +295,9 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                 sampling_rate = np.array([1 / (timestamps[-1] - timestamps[-2])])
                 data = np.array(df[event])
                 self._validate_signal_control_data(event, data, event_type)
-                storename = event
+                store_id = event
                 event_dict = {
-                    "storename": storename,
+                    "store_id": store_id,
                     "sampling_rate": sampling_rate,
                     "timestamps": timestamps,
                     "data": data,
@@ -308,8 +308,8 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                 indices = np.where(ttl <= 0)[0]
                 diff_indices = np.where(np.diff(indices) > 1)[0]
                 timestamps = df["Time(s)"][indices[diff_indices] + 1].to_numpy()
-                storename = event
-                event_dict = {"storename": storename, "timestamps": timestamps}
+                store_id = event
+                event_dict = {"store_id": store_id, "timestamps": timestamps}
                 output_dicts.append(event_dict)
 
         return output_dicts
@@ -382,9 +382,9 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                 timestamps = np.array(doric_file[decide_path[match_index].rsplit("/", 1)[0] + "/Time"])
                 self._validate_signal_control_data(event, data, event_type)
                 sampling_rate = np.array([1 / (timestamps[-1] - timestamps[-2])])
-                storename = event
+                store_id = event
                 event_dict = {
-                    "storename": storename,
+                    "store_id": store_id,
                     "sampling_rate": sampling_rate,
                     "timestamps": timestamps,
                     "data": data,
@@ -417,8 +417,8 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                 indices = np.where(ttl <= 0)[0]
                 diff_indices = np.where(np.diff(indices) > 1)[0]
                 timestamps = timestamps[indices[diff_indices] + 1]
-                storename = event
-                event_dict = {"storename": storename, "timestamps": timestamps}
+                store_id = event
+                event_dict = {"store_id": store_id, "timestamps": timestamps}
                 output_dicts.append(event_dict)
 
         return output_dicts
@@ -438,9 +438,9 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                 data = np.array(console[event][event])
                 self._validate_signal_control_data(event, data, event_type)
                 sampling_rate = np.array([1 / (timestamps[-1] - timestamps[-2])])
-                storename = event
+                store_id = event
                 event_dict = {
-                    "storename": storename,
+                    "store_id": store_id,
                     "sampling_rate": sampling_rate,
                     "timestamps": timestamps,
                     "data": data,
@@ -452,8 +452,8 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                 indices = np.where(ttl <= 0)[0]
                 diff_indices = np.where(np.diff(indices) > 1)[0]
                 timestamps = timestamps[indices[diff_indices] + 1]
-                storename = event
-                event_dict = {"storename": storename, "timestamps": timestamps}
+                store_id = event
+                event_dict = {"store_id": store_id, "timestamps": timestamps}
                 output_dicts.append(event_dict)
 
         return output_dicts
@@ -478,8 +478,8 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
         -------
         list of dict
             One dictionary per event. Signal/control dicts contain
-            ``storename``, ``sampling_rate``, ``timestamps``, and ``data``;
-            TTL dicts contain ``storename`` and ``timestamps``.
+            ``store_id``, ``sampling_rate``, ``timestamps``, and ``data``;
+            TTL dicts contain ``store_id`` and ``timestamps``.
         """
         flag = self._check_doric()
         if flag == "doric_csv":
@@ -625,12 +625,12 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
             Path to the output directory where HDF5 files are written.
         """
         for event_dict in output_dicts:
-            storename = event_dict["storename"]
-            write_hdf5(data=event_dict["timestamps"], storename=storename, output_path=outputPath, key="timestamps")
+            store_id = event_dict["store_id"]
+            write_hdf5(data=event_dict["timestamps"], store_id=store_id, output_path=outputPath, key="timestamps")
 
             if "sampling_rate" in event_dict:
                 write_hdf5(
-                    data=event_dict["sampling_rate"], storename=storename, output_path=outputPath, key="sampling_rate"
+                    data=event_dict["sampling_rate"], store_id=store_id, output_path=outputPath, key="sampling_rate"
                 )
             if "data" in event_dict:
-                write_hdf5(data=event_dict["data"], storename=storename, output_path=outputPath, key="data")
+                write_hdf5(data=event_dict["data"], store_id=store_id, output_path=outputPath, key="data")

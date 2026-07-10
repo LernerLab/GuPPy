@@ -405,14 +405,14 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         -------
         list of dict
             One dictionary per event. Data channels produce dicts with keys
-            ``storename``, ``timestamps``, ``data``, and ``sampling_rate``;
-            event streams produce dicts with keys ``storename`` and
+            ``store_id``, ``timestamps``, ``data``, and ``sampling_rate``;
+            event streams produce dicts with keys ``store_id`` and
             ``timestamps``.
         """
         streams = self.decompose()
         output_dicts = []
         for event in events:
-            output_dicts.append({"storename": event, **streams[event]})
+            output_dicts.append({"store_id": event, **streams[event]})
         return output_dicts
 
     def count_samples(self, *, event: str) -> int:

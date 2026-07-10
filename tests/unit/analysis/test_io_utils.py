@@ -199,10 +199,10 @@ def test_get_coords_with_artifact_removal_delegates_to_fetch_coords(tmp_path):
 def test_check_storeslistfile_reads_stores_list_from_output_subdirectory(tmp_path):
     session_dir = tmp_path / "session"
     session_dir.mkdir()
-    output_dir = session_dir / "session_output_1"
-    output_dir.mkdir()
+    run_folder = session_dir / "session_output_1"
+    run_folder.mkdir()
     stores_list = np.array([["sig0", "ctrl0"], ["signal_dms", "control_dms"]])
-    np.savetxt(output_dir / "storesList.csv", stores_list, fmt="%s", delimiter=",")
+    np.savetxt(run_folder / "storesList.csv", stores_list, fmt="%s", delimiter=",")
     result = check_storeslistfile([str(session_dir)])
     # np.unique sorts columns; "ctrl0"/"control_dms" < "sig0"/"signal_dms"
     np.testing.assert_array_equal(result, np.array([["ctrl0", "sig0"], ["control_dms", "signal_dms"]]))
@@ -212,11 +212,11 @@ def test_check_storeslistfile_reads_stores_list_from_output_subdirectory(tmp_pat
 
 
 def test_write_combined_stores_list_creates_csv_in_each_output_path(tmp_path):
-    output_dir = tmp_path / "output"
-    output_dir.mkdir()
+    run_folder = tmp_path / "output"
+    run_folder.mkdir()
     stores_list = np.array([["sig0"], ["signal_dms"]])
-    write_combined_stores_list([[str(output_dir)]], stores_list)
-    result = np.genfromtxt(output_dir / "combine_storesList.csv", dtype="str", delimiter=",").reshape(2, -1)
+    write_combined_stores_list([[str(run_folder)]], stores_list)
+    result = np.genfromtxt(run_folder / "combine_storesList.csv", dtype="str", delimiter=",").reshape(2, -1)
     np.testing.assert_array_equal(result, stores_list)
 
 
