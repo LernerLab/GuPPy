@@ -236,12 +236,8 @@ def screenshot_label_stores_configured(page: Page, tmp_path: Path) -> None:
     selector = StoreLabelingSelector(allnames=events)
     selector.cross_selector.value = events
     selector.set_change_widgets(events)
-    selector.configure_store_ids(
-        store_id_dropdowns={},
-        store_id_textboxes={},
-        store_ids=events,
-        store_id_to_store_labels={},
-    )
+    selector.store_ids = events
+    selector.configure_store_ids(store_id_to_store_labels={})
 
     template = pn.template.BootstrapTemplate(title="Label Stores GUI - sample_data_csv_1")
     template.main.append(selector.widget)

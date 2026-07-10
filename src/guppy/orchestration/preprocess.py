@@ -42,14 +42,17 @@ from ..analysis.timestamp_correction import correct_timestamps
 from ..analysis.z_score import compute_z_score
 from ..frontend.artifact_removal import ArtifactRemovalWidget
 from ..frontend.progress import PB_STEPS_FILE, subprocess_main_handler, writeToFile
-from ..utils.utils import get_all_stores_for_combining_data, select_run_folders
+from ..utils.utils import (
+    get_all_stores_for_combining_data,
+    is_headless,
+    select_run_folders,
+)
 from ..visualization.preprocessing import visualize_preprocessing
 
 logger = logging.getLogger(__name__)
 
 # Only set matplotlib backend if not in CI or headless (GUPPY_BASE_DIR) environment
-headless = bool(os.environ.get("GUPPY_BASE_DIR"))
-if not os.getenv("CI") and not headless:
+if not os.getenv("CI") and not is_headless():
     plt.switch_backend("TKAgg")
 
 
@@ -295,8 +298,7 @@ def execute_zscore(session_folders: list[str], inputParameters: dict[str, object
         writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
         inputParameters["step"] += 1
 
-    headless = bool(os.environ.get("GUPPY_BASE_DIR"))
-    if not headless:
+    if not is_headless():
         plt.show()
     logger.info("Z-score computation completed.")
 
@@ -399,8 +401,7 @@ def execute_artifact_removal(session_folders: list[str], inputParameters: dict[s
         writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
         inputParameters["step"] += 1
 
-    headless = bool(os.environ.get("GUPPY_BASE_DIR"))
-    if not headless:
+    if not is_headless():
         visualize_artifact_removal(session_folders, inputParameters)
     logger.info("Artifact removal completed.")
 
@@ -555,8 +556,7 @@ def extractTsAndSignal(inputParameters: dict[str, object]) -> None:
         writeToFile(str((pbMaxValue + 1) * 10) + "\n" + str(10) + "\n", file_path=PB_STEPS_FILE)
         execute_timestamp_correction(session_folders, inputParameters)
         execute_zscore(session_folders, inputParameters)
-        headless = bool(os.environ.get("GUPPY_BASE_DIR"))
-        if not headless:
+        if not is_headless():
             visualize_z_score(inputParameters, session_folders)
         if remove_artifacts == True:
             execute_artifact_removal(session_folders, inputParameters)
@@ -568,8 +568,7 @@ def extractTsAndSignal(inputParameters: dict[str, object]) -> None:
         combined_output_folders = execute_combine_data(session_folders, inputParameters, store_array)
         write_combined_stores_list(combined_output_folders, store_array)
         execute_zscore(combined_output_folders, inputParameters)
-        headless = bool(os.environ.get("GUPPY_BASE_DIR"))
-        if not headless:
+        if not is_headless():
             visualize_z_score(inputParameters, combined_output_folders)
         if remove_artifacts == True:
             execute_artifact_removal(combined_output_folders, inputParameters)

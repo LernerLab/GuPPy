@@ -30,6 +30,7 @@ from guppy.frontend.store_labeling_selector import StoreLabelingSelector
 from guppy.utils.utils import (
     NPM_PARAM_KEYS,
     discover_run_folders,
+    is_headless,
     run_folder_for_run,
     validate_run_name,
     write_npm_params,
@@ -318,10 +319,6 @@ def build_store_labeling_template(
         store_labeling_instructions = StoreLabelingInstructions(folder_path=folder_path)
     store_labeling_selector = StoreLabelingSelector(allnames=allnames)
 
-    store_ids = []
-    store_id_dropdowns = {}
-    store_id_textboxes = {}
-
     # ------------------------------------------------------------------------------------------------------------------
     # onclick closure functions
     # on clicking overwrite_button, following function is executed
@@ -347,13 +344,12 @@ def build_store_labeling_template(
         store_labeling_selector.set_alert_message("#### No alerts !!")
 
     def fetchValues(event: object) -> None:
-        global store_ids
         store_labeling_config = dict()
         alert_message = _fetchValues(
             text=store_labeling_selector.text,
-            store_ids=store_ids,
-            store_id_dropdowns=store_id_dropdowns,
-            store_id_textboxes=store_id_textboxes,
+            store_ids=store_labeling_selector.store_ids,
+            store_id_dropdowns=store_labeling_selector.store_id_dropdowns,
+            store_id_textboxes=store_labeling_selector.store_id_textboxes,
             store_labeling_config=store_labeling_config,
             isosbestic_control=isosbestic_control,
         )
@@ -362,8 +358,6 @@ def build_store_labeling_template(
 
     # on clicking 'Select Stores' button, following function is executed
     def update_values(event: object) -> None:
-        global store_ids, vars_list
-
         take_widgets = store_labeling_selector.get_take_widgets()
         expanded_store_ids = []
         for i in range(len(take_widgets[1])):
@@ -373,6 +367,7 @@ def build_store_labeling_template(
             store_ids = store_labeling_selector.get_cross_selector() + expanded_store_ids
         else:
             store_ids = store_labeling_selector.get_cross_selector()
+        store_labeling_selector.store_ids = store_ids
         store_labeling_selector.set_change_widgets(store_ids)
 
         store_id_to_store_labels = dict()
@@ -380,16 +375,10 @@ def build_store_labeling_template(
             with open(os.path.join(Path.home(), ".storesList.json")) as f:
                 store_id_to_store_labels = json.load(f)
 
-        store_labeling_selector.configure_store_ids(
-            store_id_dropdowns=store_id_dropdowns,
-            store_id_textboxes=store_id_textboxes,
-            store_ids=store_ids,
-            store_id_to_store_labels=store_id_to_store_labels,
-        )
+        store_labeling_selector.configure_store_ids(store_id_to_store_labels=store_id_to_store_labels)
 
     # on clicking save button, following function is executed
     def save_button(event: object = None) -> None:
-        global store_ids
         store_labeling_config = store_labeling_selector.get_literal_input_2()
         select_location = store_labeling_selector.get_select_location()
         alert_message = _save(
@@ -602,7 +591,7 @@ def orchestrate_store_labeling_page(inputParameters: dict[str, object]) -> None:
     session_folders = inputParameters["session_folders"]
     isosbestic_control = inputParameters["isosbestic_control"]
     num_ch = inputParameters["noChannels"]
-    headless = bool(os.environ.get("GUPPY_BASE_DIR"))
+    headless = is_headless()
 
     logger.info(session_folders)
 

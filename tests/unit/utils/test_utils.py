@@ -5,6 +5,7 @@ from guppy.utils.utils import (
     NPM_PARAM_KEYS,
     discover_run_folders,
     get_all_stores_for_combining_data,
+    is_headless,
     load_npm_params,
     parse_run_name,
     read_Df,
@@ -377,3 +378,16 @@ def test_load_npm_params_returns_empty_when_file_absent(tmp_path):
     run_folder = tmp_path / "session_output_1"
     run_folder.mkdir()
     assert load_npm_params(str(run_folder)) == {}
+
+
+# ── is_headless ───────────────────────────────────────────────────────────────
+
+
+def test_is_headless_true_when_base_dir_set(monkeypatch):
+    monkeypatch.setenv("GUPPY_BASE_DIR", "/some/base/dir")
+    assert is_headless() is True
+
+
+def test_is_headless_false_when_base_dir_unset(monkeypatch):
+    monkeypatch.delenv("GUPPY_BASE_DIR", raising=False)
+    assert is_headless() is False

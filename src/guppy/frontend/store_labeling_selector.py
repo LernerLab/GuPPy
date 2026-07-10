@@ -93,6 +93,14 @@ class StoreLabelingSelector:
         self.store_id_config_widgets = pn.Column(visible=False)
         self.show_config_button = pn.widgets.Button(name="Show Selected Configuration", width=600)
 
+        # Store-selection state shared across the GUI button callbacks. ``store_ids``
+        # is the list of store_ids the user selected; ``store_id_dropdowns`` and
+        # ``store_id_textboxes`` are populated by ``configure_store_ids`` and read
+        # back when the configuration is applied.
+        self.store_ids: list[str] = []
+        self.store_id_dropdowns: dict[str, pn.widgets.Select] = {}
+        self.store_id_textboxes: dict[str, pn.widgets.TextInput] = {}
+
         self.widget = pn.Column(
             self.repeat_stores,
             self.repeat_store_wd,
@@ -278,35 +286,27 @@ class StoreLabelingSelector:
         """
         return self._current_overwrite_mode
 
-    def configure_store_ids(
-        self,
-        store_id_dropdowns: dict[str, pn.widgets.Select],
-        store_id_textboxes: dict[str, pn.widgets.TextInput],
-        store_ids: list[str],
-        store_id_to_store_labels: dict[str, list[str]],
-    ) -> None:
-        """Build the store_id-configuration panel and make it visible.
+    def configure_store_ids(self, store_id_to_store_labels: dict[str, list[str]]) -> None:
+        """Build the store_id-configuration panel for ``self.store_ids`` and make it visible.
+
+        Reads the currently selected store_ids from ``self.store_ids`` and
+        populates ``self.store_id_dropdowns`` / ``self.store_id_textboxes`` with
+        the per-store dropdown and text-input widgets.
 
         Parameters
         ----------
-        store_id_dropdowns : dict
-            Mutable mapping populated by ``StoreLabelingConfig`` with dropdown widgets.
-        store_id_textboxes : dict
-            Mutable mapping populated by ``StoreLabelingConfig`` with text-input widgets.
-        store_ids : list of str
-            Raw store_ids selected by the user.
         store_id_to_store_labels : dict
             Previously saved store_id assignments for pre-population.
         """
         # Create Panel widgets for store_id configuration
         self.store_labeling_config = StoreLabelingConfig(
             show_config_button=self.show_config_button,
-            store_id_dropdowns=store_id_dropdowns,
-            store_id_textboxes=store_id_textboxes,
-            store_ids=store_ids,
+            store_id_dropdowns=self.store_id_dropdowns,
+            store_id_textboxes=self.store_id_textboxes,
+            store_ids=self.store_ids,
             store_id_to_store_labels=store_id_to_store_labels,
         )
 
         # Update the configuration panel
         self.store_id_config_widgets.objects = self.store_labeling_config.config_widgets
-        self.store_id_config_widgets.visible = len(store_ids) > 0
+        self.store_id_config_widgets.visible = len(self.store_ids) > 0

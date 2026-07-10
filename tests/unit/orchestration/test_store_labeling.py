@@ -7,7 +7,6 @@ import panel as pn
 import pytest
 from conftest import STUBBED_TESTING_DATA
 
-import guppy.orchestration.store_labeling as store_labeling_module
 from guppy.extractors import NpmRecordingExtractor
 from guppy.orchestration.store_labeling import (
     _compute_npm_channel_previews,
@@ -542,6 +541,9 @@ class CapturingStoreLabelingSelector:
         self._take_widgets = [[], []]
         self._select_location_value = ""
         self.widget = types.SimpleNamespace()
+        self.store_ids = []
+        self.store_id_dropdowns = {}
+        self.store_id_textboxes = {}
         self.configure_store_ids_calls = []
 
     def set_select_location_options(self, options):
@@ -583,9 +585,9 @@ class CapturingStoreLabelingSelector:
     def get_overwrite_mode(self):
         return getattr(self, "_overwrite_mode_value", "create_new_file")
 
-    def configure_store_ids(self, store_id_dropdowns, store_id_textboxes, store_ids, store_id_to_store_labels):
+    def configure_store_ids(self, store_id_to_store_labels):
         self.configure_store_ids_calls.append(
-            {"store_ids": list(store_ids), "store_id_to_store_labels": dict(store_id_to_store_labels)}
+            {"store_ids": list(self.store_ids), "store_id_to_store_labels": dict(store_id_to_store_labels)}
         )
 
 
@@ -709,18 +711,18 @@ def test_run_name_input_changed_invalid_run_name_sets_alert(store_labeling_closu
 # ---------------------------------------------------------------------------
 
 
-def test_fetch_values_sets_alert_message_when_no_store_ids_configured(store_labeling_closures, monkeypatch):
+def test_fetch_values_sets_alert_message_when_no_store_ids_configured(store_labeling_closures):
     selector, _ = store_labeling_closures
-    monkeypatch.setattr(store_labeling_module, "store_ids", [], raising=False)
+    selector.store_ids = []
 
     selector.callbacks["show_config_button"](types.SimpleNamespace())
 
     assert "Alert" in selector.alert_message
 
 
-def test_fetch_values_always_calls_set_literal_input_2(store_labeling_closures, monkeypatch):
+def test_fetch_values_always_calls_set_literal_input_2(store_labeling_closures):
     selector, _ = store_labeling_closures
-    monkeypatch.setattr(store_labeling_module, "store_ids", [], raising=False)
+    selector.store_ids = []
 
     selector.callbacks["show_config_button"](types.SimpleNamespace())
 
@@ -729,9 +731,9 @@ def test_fetch_values_always_calls_set_literal_input_2(store_labeling_closures, 
 
 
 def test_fetch_values_delegates_to_fetch_values_function(store_labeling_closures, monkeypatch):
-    """fetchValues passes the module-level store_ids to _fetchValues and relays results to the selector."""
+    """fetchValues passes the selector's store_ids to _fetchValues and relays results to the selector."""
     selector, _ = store_labeling_closures
-    monkeypatch.setattr(store_labeling_module, "store_ids", ["Dv1A"], raising=False)
+    selector.store_ids = ["Dv1A"]
 
     captured_args = {}
 
