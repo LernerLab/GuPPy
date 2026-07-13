@@ -30,6 +30,7 @@ from ..analysis.psth_utils import (
     create_Df_for_cross_correlation,
     create_Df_for_psth,
     getCorrCombinations,
+    match_trials_by_timestamp,
 )
 from ..analysis.standard_io import (
     write_peak_and_area_to_csv,
@@ -226,13 +227,28 @@ def execute_compute_cross_correlation(filepath: str, event: str, inputParameters
                     sample_rate = 1 / (psth_a["timestamps"][1] - psth_a["timestamps"][0])
                     psth_a = psth_a.drop(columns=["timestamps", "err", "mean"])
                     psth_b = psth_b.drop(columns=["timestamps", "err", "mean"])
-                    psth_array_a, psth_array_b = np.array(psth_a).T, np.array(psth_b).T
-                    # Uneven artifact removal can leave the two regions with different trial
-                    # counts; compute_cross_correlation correlates the first n_trials matched
-                    # trials, so label exactly those columns to keep the output DataFrame consistent.
-                    n_trials = min(psth_array_a.shape[0], psth_array_b.shape[0])
+                    # Uneven artifact removal can leave the two regions with a slightly
+                    # different set of surviving trials; pair them by event timestamp so
+                    # only the trials both regions kept are correlated (and labeled).
+                    indices_a, indices_b, matched_labels = match_trials_by_timestamp(
+                        list(psth_a.columns), list(psth_b.columns)
+                    )
+                    if len(matched_labels) == 0:
+                        raise ValueError(
+                            f"No matching trials between regions '{corr_info[i - 1]}' and "
+                            f"'{corr_info[i]}' for event '{event}'; cross-correlation cannot be computed."
+                        )
+                    if len(matched_labels) < max(len(psth_a.columns), len(psth_b.columns)):
+                        logger.warning(
+                            f"Regions '{corr_info[i - 1]}' and '{corr_info[i]}' have a different set of "
+                            f"surviving trials for event '{event}' (uneven artifact removal): "
+                            f"{len(psth_a.columns)} vs {len(psth_b.columns)} trials, {len(matched_labels)} matched. "
+                            f"Cross-correlating only the matched trials."
+                        )
+                    psth_array_a = np.array(psth_a).T[indices_a]
+                    psth_array_b = np.array(psth_b).T[indices_b]
                     cross_corr = compute_cross_correlation(psth_array_a, psth_array_b, sample_rate)
-                    columns = [str(label) for label in list(psth_a.columns)[:n_trials]]
+                    columns = [str(label) for label in matched_labels]
                     columns.append("timestamps")
                     create_Df_for_cross_correlation(
                         make_dir_for_cross_correlation(filepath),

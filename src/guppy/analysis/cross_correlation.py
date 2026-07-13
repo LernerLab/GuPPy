@@ -30,44 +30,28 @@ def compute_cross_correlation(
     Raises
     ------
     ValueError
-        If either region has no trials to correlate.
+        If there are no trials to correlate.
 
     Notes
     -----
-    Independent artifact removal can leave the two regions with a different
-    number of trials, or with trials of different sample lengths. The two
-    regions are aligned to their common trial count and common per-trial sample
-    length so the correlation is always well-defined and rectangular; a warning
-    is logged whenever an alignment discards data.
+    The two trial sequences must already be paired: ``signal_a_trials[k]`` is
+    correlated with ``signal_b_trials[k]``. The caller is responsible for
+    reconciling the two regions' trials (see
+    :func:`guppy.analysis.psth_utils.match_trials_by_timestamp`) so that uneven
+    artifact removal does not misalign them.
     """
     a_trials = list(signal_a_trials)
     b_trials = list(signal_b_trials)
-
-    n_trials = min(len(a_trials), len(b_trials))
-    if n_trials == 0:
+    if len(a_trials) == 0 or len(b_trials) == 0:
         message = (
             "Cross-correlation requires at least one trial in each region, but received "
             f"{len(a_trials)} trial(s) for the first region and {len(b_trials)} for the second."
         )
         logger.error(message)
         raise ValueError(message)
-    if len(a_trials) != len(b_trials):
-        logger.warning(
-            f"Cross-correlation received {len(a_trials)} trials for the first region and "
-            f"{len(b_trials)} for the second (uneven artifact removal across regions); "
-            f"correlating the first {n_trials} matched trials."
-        )
-    a_trials = a_trials[:n_trials]
-    b_trials = b_trials[:n_trials]
-
-    # Align every trial to a common sample length so each correlation has the same
-    # length and the stacked result is rectangular (regions may differ in sample count).
-    common_length = min(trial.shape[0] for trial in (*a_trials, *b_trials))
 
     cross_corr = list()
     for trial_a, trial_b in zip(a_trials, b_trials):
-        trial_a = trial_a[:common_length]
-        trial_b = trial_b[:common_length]
         if np.isnan(trial_a).any() or np.isnan(trial_b).any():
             corr = signal.correlate(trial_a, trial_b, method="direct")
         else:
@@ -75,7 +59,7 @@ def compute_cross_correlation(
         corr_norm = corr / np.max(np.abs(corr))
         cross_corr.append(corr_norm)
 
-    lag = signal.correlation_lags(common_length, common_length)
+    lag = signal.correlation_lags(len(a_trials[0]), len(b_trials[0]))
     lag_msec = np.array(lag / sample_rate, dtype="float32").reshape(1, -1)
 
     cross_correlations = np.array(cross_corr, dtype="float32")
