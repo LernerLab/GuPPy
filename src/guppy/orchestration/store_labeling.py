@@ -200,7 +200,8 @@ def _fetchValues(
         if signals_without_control:
             return (
                 "####Alert !! \n Isosbestic control is enabled but these signals have no control "
-                "assigned: {}. Assign a control to each signal.".format(", ".join(signals_without_control))
+                "assigned: {}. Assign a control to each signal, or disable the isosbestic control "
+                "parameter to synthesize a control from each signal instead.".format(", ".join(signals_without_control))
             )
 
     store_labeling_config["store_ids"] = text.value
