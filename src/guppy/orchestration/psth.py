@@ -226,13 +226,13 @@ def execute_compute_cross_correlation(filepath: str, event: str, inputParameters
                     sample_rate = 1 / (psth_a["timestamps"][1] - psth_a["timestamps"][0])
                     psth_a = psth_a.drop(columns=["timestamps", "err", "mean"])
                     psth_b = psth_b.drop(columns=["timestamps", "err", "mean"])
-                    columns_a, columns_b = np.array(psth_a.columns), np.array(psth_b.columns)
-                    if np.intersect1d(columns_a, columns_b).size > 0:
-                        columns = list(np.intersect1d(columns_a, columns_b))
-                    else:
-                        columns = list(columns_a)
                     psth_array_a, psth_array_b = np.array(psth_a).T, np.array(psth_b).T
+                    # Uneven artifact removal can leave the two regions with different trial
+                    # counts; compute_cross_correlation correlates the first n_trials matched
+                    # trials, so label exactly those columns to keep the output DataFrame consistent.
+                    n_trials = min(psth_array_a.shape[0], psth_array_b.shape[0])
                     cross_corr = compute_cross_correlation(psth_array_a, psth_array_b, sample_rate)
+                    columns = [str(label) for label in list(psth_a.columns)[:n_trials]]
                     columns.append("timestamps")
                     create_Df_for_cross_correlation(
                         make_dir_for_cross_correlation(filepath),
