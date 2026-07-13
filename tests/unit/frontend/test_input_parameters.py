@@ -275,6 +275,67 @@ class TestParameterForm:
         assert result["dandi_uri_map"] is None
 
 
+class TestNumericParameterValidation:
+    def test_defaults_pass(self, parameter_form):
+        # The default form values are all valid, so config-time validation must not raise.
+        parameter_form.getInputParameters()
+
+    def test_zero_cores_raises(self, parameter_form):
+        parameter_form.numberOfCores.value = 0
+        with pytest.raises(ValueError, match="numberOfCores=0 must be greater than 0"):
+            parameter_form.getInputParameters()
+
+    def test_cores_exceeding_host_raises(self, parameter_form):
+        parameter_form.numberOfCores.value = 10_000_000
+        with pytest.raises(ValueError, match=r"exceeds the \d+ core\(s\) available"):
+            parameter_form.getInputParameters()
+
+    def test_negative_filter_window_raises(self, parameter_form):
+        parameter_form.moving_avg_filter.value = -1
+        with pytest.raises(ValueError, match="filter_window=-1 must be 0 or greater"):
+            parameter_form.getInputParameters()
+
+    def test_zero_filter_window_allowed(self, parameter_form):
+        parameter_form.moving_avg_filter.value = 0
+        parameter_form.getInputParameters()
+
+    def test_negative_time_for_lights_turn_on_raises(self, parameter_form):
+        parameter_form.timeForLightsTurnOn.value = -1
+        with pytest.raises(ValueError, match="timeForLightsTurnOn=-1 must be 0 or greater"):
+            parameter_form.getInputParameters()
+
+    def test_zero_time_for_lights_turn_on_allowed(self, parameter_form):
+        parameter_form.timeForLightsTurnOn.value = 0
+        parameter_form.getInputParameters()
+
+    def test_zero_moving_window_raises(self, parameter_form):
+        parameter_form.moving_wd.value = 0
+        with pytest.raises(ValueError, match="moving_window=0 must be greater than 0"):
+            parameter_form.getInputParameters()
+
+    def test_zero_high_amp_filt_raises(self, parameter_form):
+        parameter_form.highAmpFilt.value = 0
+        with pytest.raises(ValueError, match="highAmpFilt=0 must be greater than 0"):
+            parameter_form.getInputParameters()
+
+    def test_negative_transients_thresh_raises(self, parameter_form):
+        parameter_form.transientsThresh.value = -3
+        with pytest.raises(ValueError, match="transientsThresh=-3 must be greater than 0"):
+            parameter_form.getInputParameters()
+
+    def test_nsecprev_equal_to_nsecpost_raises(self, parameter_form):
+        parameter_form.nSecPrev.value = 5
+        parameter_form.nSecPost.value = 5
+        with pytest.raises(ValueError, match="nSecPrev=5 must be strictly less than nSecPost=5"):
+            parameter_form.getInputParameters()
+
+    def test_nsecprev_greater_than_nsecpost_raises(self, parameter_form):
+        parameter_form.nSecPrev.value = 30
+        parameter_form.nSecPost.value = 20
+        with pytest.raises(ValueError, match="nSecPrev=30 must be strictly less than nSecPost=20"):
+            parameter_form.getInputParameters()
+
+
 class _FakeAsset:
     def __init__(self, path):
         self.path = path
