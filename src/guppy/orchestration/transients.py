@@ -11,6 +11,7 @@ import numpy as np
 from .group_utils import gather_group_run_folders
 from ..analysis.io_utils import (
     read_hdf5,
+    region_from_preprocessed_label,
 )
 from ..analysis.standard_io import (
     read_transients_from_hdf5,
@@ -61,7 +62,7 @@ def findFreqAndAmp(
 
     for i in range(len(path)):
         basename = (os.path.basename(path[i])).split(".")[0]
-        name_1 = basename.split("_")[-1]
+        name_1 = region_from_preprocessed_label(basename)
         sampling_rate = read_hdf5("timeCorrection_" + name_1, filepath, "sampling_rate")[0]
         z_score = read_hdf5("", path[i], "data")
         timestamps = read_hdf5("timeCorrection_" + name_1, filepath, "timestampNew")

@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 
 from .save_parameters import save_parameters
+from ..analysis.io_utils import region_from_preprocessed_label
 from ..frontend.parameterized_plotter import (
     ParameterizedPlotter,
     overview_y_options,
@@ -69,7 +70,7 @@ def helper_plots(filepath: str, event: list[str], name: list[str] | str, inputPa
         for i in range(len(event_name)):
 
             for j in range(len(name)):
-                new_event.append(event_name[i] + "_" + name[j].split("_")[-1])
+                new_event.append(event_name[i] + "_" + region_from_preprocessed_label(name[j]))
                 new_name = name[j]
                 event_df = read_Df(filepath, new_event[-1], new_name)
                 columns = list(event_df.columns)

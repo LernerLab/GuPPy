@@ -6,14 +6,22 @@ pn.extension()
 
 logger = logging.getLogger(__name__)
 
+# Sentinel option shown in a control's "control for" dropdown before a signal is chosen.
+NO_SIGNAL_OPTION = "— select signal —"
+
 
 class StoreLabelingConfig:
     """Panel widget that renders a configuration row for each discovered store_id.
 
     Each row lets the user classify a store_id as ``"control"``, ``"signal"``,
-    or ``"event TTLs"`` and enter a region or event name.  Selections are stored
-    in-place in the provided ``store_id_dropdowns`` and ``store_id_textboxes``
-    dictionaries so the orchestration layer can read them back later.
+    or ``"event TTLs"``.  ``signal`` and ``event TTLs`` rows provide a free-text
+    name box; ``control`` rows instead pick which signal store they are the
+    control for (via a dropdown), so the pair name is entered exactly once — on
+    the signal row — and a control can never be mismatched to the wrong region.
+
+    Selections are stored in-place in the provided ``store_id_dropdowns``,
+    ``store_id_textboxes`` and ``store_id_control_refs`` dictionaries so the
+    orchestration layer can read them back later.
 
     Parameters
     ----------
@@ -21,11 +29,14 @@ class StoreLabelingConfig:
         Button appended at the bottom of the configuration panel; the caller
         is responsible for wiring its click handler.
     store_id_dropdowns : dict
-        Mutable mapping that will be populated with ``{key: Select}`` entries.
+        Mutable mapping that will be populated with ``{key: Select}`` (Type).
         Cleared on entry.
     store_id_textboxes : dict
-        Mutable mapping that will be populated with ``{key: TextInput}`` entries.
-        Cleared on entry.
+        Mutable mapping that will be populated with ``{key: TextInput}`` (Name,
+        used for signal/event rows). Cleared on entry.
+    store_id_control_refs : dict
+        Mutable mapping populated with ``{key: Select}`` (the "control for"
+        signal picker, used for control rows). Cleared on entry.
     store_ids : list of str
         Raw store_id strings discovered from the data files.
     store_id_to_store_labels : dict
@@ -38,13 +49,25 @@ class StoreLabelingConfig:
         show_config_button: pn.widgets.Button,
         store_id_dropdowns: dict[str, pn.widgets.Select],
         store_id_textboxes: dict[str, pn.widgets.TextInput],
+        store_id_control_refs: dict[str, pn.widgets.Select],
         store_ids: list[str],
         store_id_to_store_labels: dict[str, list[str]],
     ) -> None:
         self.config_widgets = []
         self._dropdown_help_map = {}
+        self._dropdown_to_key = {}
+        # Per control-row widget_key → the signal region it was assigned to in a
+        # previous session (from cache), so we can re-select it once options exist.
+        self._control_desired_region = {}
+        # Ordered widget keys, and per-key the store_id it belongs to.
+        self._widget_keys = []
+        self._widget_key_to_store_id = {}
         store_id_dropdowns.clear()
         store_id_textboxes.clear()
+        store_id_control_refs.clear()
+        self.store_id_dropdowns = store_id_dropdowns
+        self.store_id_textboxes = store_id_textboxes
+        self.store_id_control_refs = store_id_control_refs
 
         if len(store_ids) == 0:
             return
@@ -56,7 +79,12 @@ class StoreLabelingConfig:
         )
 
         for i, store_id in enumerate(store_ids):
-            self.setup_store_id(i, store_id, store_id_dropdowns, store_id_textboxes, store_id_to_store_labels)
+            self.setup_store_id(
+                i, store_id, store_id_dropdowns, store_id_textboxes, store_id_control_refs, store_id_to_store_labels
+            )
+
+        # Populate the "control for" dropdowns from the initial signal assignments.
+        self._refresh_control_options()
 
         # Add show button
         self.config_widgets.append(pn.Spacer(height=20))
@@ -70,14 +98,15 @@ class StoreLabelingConfig:
 
     def _on_dropdown_value_change(self, event: object) -> None:
         help_pane = self._dropdown_help_map.get(event.obj)
-        if help_pane is None:
-            return
-        dropdown_value = event.new
-        help_pane.object = self._get_help_text(dropdown_value=dropdown_value)
+        if help_pane is not None:
+            help_pane.object = self._get_help_text(dropdown_value=event.new)
+        self._apply_row_visibility(event.obj)
+        # A row switching to/from "signal" changes the available control targets.
+        self._refresh_control_options()
 
     def _get_help_text(self, dropdown_value: str) -> str:
         if dropdown_value == "control":
-            return "*Type appropriate region name*"
+            return "*Select the signal this control belongs to*"
         elif dropdown_value == "signal":
             return "*Type appropriate region name*"
         elif dropdown_value == "event TTLs":
@@ -96,12 +125,53 @@ class StoreLabelingConfig:
         else:
             return "", ""
 
+    def _apply_row_visibility(self, dropdown: pn.widgets.Select) -> None:
+        """Show the Name box for signal/event rows and the signal picker for control rows."""
+        widget_key = self._dropdown_to_key[dropdown]
+        dropdown_value = dropdown.value
+        self.store_id_textboxes[widget_key].visible = dropdown_value in ("signal", "event TTLs")
+        self.store_id_control_refs[widget_key].visible = dropdown_value == "control"
+
+    def _signal_options(self) -> dict[str, str]:
+        """Map ``"<store_id> – <name>"`` → widget_key for every row currently marked signal."""
+        options = {}
+        for widget_key in self._widget_keys:
+            if self.store_id_dropdowns[widget_key].value != "signal":
+                continue
+            store_id = self._widget_key_to_store_id[widget_key]
+            name = self.store_id_textboxes[widget_key].value or "(unnamed)"
+            options[f"{store_id} – {name}"] = widget_key
+        return options
+
+    def _refresh_control_options(self) -> None:
+        """Refresh every control row's signal-picker options from the current signal rows."""
+        signal_options = self._signal_options()
+        options = {NO_SIGNAL_OPTION: "", **signal_options}
+        valid_values = set(options.values())
+        for widget_key in self._widget_keys:
+            control_ref = self.store_id_control_refs[widget_key]
+            previous_value = control_ref.value
+            control_ref.options = options
+            if previous_value in valid_values and previous_value != "":
+                control_ref.value = previous_value
+            else:
+                # Re-select a cached assignment once its signal region becomes available.
+                desired_region = self._control_desired_region.get(widget_key)
+                restored = ""
+                if desired_region is not None:
+                    for label, key in signal_options.items():
+                        if self.store_id_textboxes[key].value == desired_region:
+                            restored = key
+                            break
+                control_ref.value = restored
+
     def setup_store_id(
         self,
         i: int,
         store_id: str,
         store_id_dropdowns: dict[str, pn.widgets.Select],
         store_id_textboxes: dict[str, pn.widgets.TextInput],
+        store_id_control_refs: dict[str, pn.widgets.Select],
         store_id_to_store_labels: dict[str, list[str]],
     ) -> None:
         """Build and register a configuration row for a single store_id.
@@ -114,9 +184,11 @@ class StoreLabelingConfig:
         store_id : str
             Raw store_id string (e.g. ``"Dv1A"``).
         store_id_dropdowns : dict
-            Mutable mapping to which the new ``Select`` widget is added.
+            Mutable mapping to which the new ``Select`` (Type) widget is added.
         store_id_textboxes : dict
-            Mutable mapping to which the new ``TextInput`` widget is added.
+            Mutable mapping to which the new ``TextInput`` (Name) widget is added.
+        store_id_control_refs : dict
+            Mutable mapping to which the new ``Select`` (control-for) widget is added.
         store_id_to_store_labels : dict
             Previously saved assignments used to pre-populate the widgets.
         """
@@ -140,15 +212,25 @@ class StoreLabelingConfig:
             if f"{store_id}_{i}" not in store_id_dropdowns
             else f"{store_id}_{i}_{len(store_id_dropdowns)}"
         )
+        self._widget_keys.append(widget_key)
+        self._widget_key_to_store_id[widget_key] = store_id
 
         dropdown = pn.widgets.Select(name="Type", value=default_type, options=options, width=150)
         store_id_dropdowns[widget_key] = dropdown
+        self._dropdown_to_key[dropdown] = widget_key
 
-        # Always show textbox and help pane so every row has a uniform layout
+        # Name box (used for signal / event TTLs rows)
         textbox = pn.widgets.TextInput(
             name="Name", value=default_name, placeholder="Enter region/event name", width=200
         )
         store_id_textboxes[widget_key] = textbox
+        textbox.param.watch(lambda event: self._refresh_control_options(), "value")
+
+        # Signal picker (used for control rows) — options filled by _refresh_control_options
+        control_ref = pn.widgets.Select(name="Control for", value="", options={NO_SIGNAL_OPTION: ""}, width=250)
+        store_id_control_refs[widget_key] = control_ref
+        if default_type == "control":
+            self._control_desired_region[widget_key] = default_name
 
         initial_help_text = self._get_help_text(default_type)
         help_pane = pn.pane.Markdown(
@@ -156,9 +238,14 @@ class StoreLabelingConfig:
         )
         self._dropdown_help_map[dropdown] = help_pane
         dropdown.param.watch(self._on_dropdown_value_change, "value")
-        # Wrap dropdown in a column with a same-height spacer so it bottom-aligns with the textbox
+
+        # Show the Name box for signal/event rows, the signal picker for control rows.
+        textbox.visible = default_type in ("signal", "event TTLs")
+        control_ref.visible = default_type == "control"
+
+        # Wrap dropdown in a column with a same-height spacer so it bottom-aligns with the inputs
         row_widgets.append(pn.Column(pn.Spacer(height=20), dropdown))
-        row_widgets.append(pn.Column(help_pane, textbox))
+        row_widgets.append(pn.Column(help_pane, textbox, control_ref))
 
         # Add the row to config widgets
         self.config_widgets.append(pn.Row(*row_widgets, margin=(5, 0)))

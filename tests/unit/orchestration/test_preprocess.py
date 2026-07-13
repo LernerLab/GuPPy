@@ -64,8 +64,8 @@ def test_visualize_control_and_signal_returns_widgets_without_real_panel(monkeyp
     signal_path = f"{filepath}/signal_DMS.hdf5"
 
     monkeypatch.setattr(
-        "guppy.orchestration.preprocess.find_files",
-        lambda path, pattern, ignore_case=True: [control_path] if "control" in pattern else [signal_path],
+        "guppy.orchestration.preprocess.decide_naming_convention",
+        lambda filepath: np.array([[control_path], [signal_path]]),
     )
 
     def fake_read_hdf5(name, path, dataset_name):
@@ -145,38 +145,30 @@ def test_visualize_artifact_removal_invokes_widget_visualization_and_show(monkey
 # ── error paths ───────────────────────────────────────────────────────────────
 
 
-def test_visualize_control_and_signal_raises_for_unequal_file_counts(monkeypatch):
-    """Three control files but only two signal files → odd total → raises with counts."""
-    monkeypatch.setattr(
-        "guppy.orchestration.preprocess.find_files",
-        lambda path, pattern, ignore_case=True: (
-            ["/tmp/ctrl_a.hdf5", "/tmp/ctrl_b.hdf5", "/tmp/ctrl_c.hdf5"]
-            if "control" in pattern
-            else ["/tmp/sig_a.hdf5", "/tmp/sig_b.hdf5"]
-        ),
-    )
-    with pytest.raises(ValueError, match="Unequal number of control and signal files"):
-        visualizeControlAndSignal("/tmp/session_output_1", removeArtifacts=False)
+def test_visualize_control_and_signal_raises_for_mismatched_regions(tmp_path):
+    """A control region with no matching signal region raises a pairing error."""
+    (tmp_path / "control_dms.hdf5").touch()
+    (tmp_path / "signal_vms.hdf5").touch()
+    with pytest.raises(ValueError) as exception_info:
+        visualizeControlAndSignal(str(tmp_path), removeArtifacts=False)
+    message = str(exception_info.value)
+    assert "Mismatched control/signal files" in message
+    assert "dms" in message
+    assert "vms" in message
 
 
-def test_execute_zscore_raises_for_pair_name_mismatch(monkeypatch, base_input_parameters):
-    """control_dms paired with signal_vms (different suffixes) — raises with both suffixes."""
-    folder_names = [["/tmp/session_output_1"]]
+def test_execute_zscore_raises_for_mismatched_regions(tmp_path, base_input_parameters):
+    """control_dms paired with signal_vms (different regions) — raises naming both regions."""
+    run_folder = tmp_path / "session_output_1"
+    run_folder.mkdir()
+    (run_folder / "control_dms.hdf5").touch()
+    (run_folder / "signal_vms.hdf5").touch()
     base_input_parameters["combine_data"] = True
 
-    monkeypatch.setattr(
-        "guppy.orchestration.preprocess.find_files",
-        lambda path, pattern, ignore_case=True: (
-            ["/tmp/session_output_1/control_dms.hdf5"]
-            if "control" in pattern
-            else ["/tmp/session_output_1/signal_vms.hdf5"]
-        ),
-    )
-
     with pytest.raises(ValueError) as exception_info:
-        execute_zscore(folder_names, base_input_parameters)
+        execute_zscore([[str(run_folder)]], base_input_parameters)
     message = str(exception_info.value)
-    assert "Pair name mismatch" in message
+    assert "Mismatched control/signal files" in message
     assert "dms" in message
     assert "vms" in message
 
@@ -218,8 +210,8 @@ def test_execute_zscore_shows_plot_when_not_headless(monkeypatch, base_input_par
     monkeypatch.delenv("GUPPY_BASE_DIR", raising=False)
 
     monkeypatch.setattr(
-        "guppy.orchestration.preprocess.find_files",
-        lambda filepath, pattern, ignore_case=True: [f"{filepath}/{pattern.replace('*', 'DMS')}.hdf5"],
+        "guppy.orchestration.preprocess.decide_naming_convention",
+        lambda filepath: np.array([[f"{filepath}/control_DMS.hdf5"], [f"{filepath}/signal_DMS.hdf5"]]),
     )
     monkeypatch.setattr(
         "guppy.orchestration.preprocess.read_corrected_data",

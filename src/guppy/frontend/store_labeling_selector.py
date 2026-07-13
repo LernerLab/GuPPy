@@ -100,6 +100,9 @@ class StoreLabelingSelector:
         self.store_ids: list[str] = []
         self.store_id_dropdowns: dict[str, pn.widgets.Select] = {}
         self.store_id_textboxes: dict[str, pn.widgets.TextInput] = {}
+        # Control rows reference the signal store they pair with (widget_key), so the
+        # pair name is entered only once (on the signal row) and cannot be mismatched.
+        self.store_id_control_refs: dict[str, pn.widgets.Select] = {}
 
         self.widget = pn.Column(
             self.repeat_stores,
@@ -303,6 +306,7 @@ class StoreLabelingSelector:
             show_config_button=self.show_config_button,
             store_id_dropdowns=self.store_id_dropdowns,
             store_id_textboxes=self.store_id_textboxes,
+            store_id_control_refs=self.store_id_control_refs,
             store_ids=self.store_ids,
             store_id_to_store_labels=store_id_to_store_labels,
         )

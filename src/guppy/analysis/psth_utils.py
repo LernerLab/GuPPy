@@ -7,6 +7,8 @@ import re
 import numpy as np
 import pandas as pd
 
+from .io_utils import region_from_preprocessed_label
+
 logger = logging.getLogger(__name__)
 
 
@@ -134,7 +136,7 @@ def getCorrCombinations(filepath: str, inputParameters: dict[str, object]) -> tu
     type = list()
     for i in range(len(path)):
         basename = (os.path.basename(path[i])).split(".")[0]
-        names.append(basename.split("_")[-1])
+        names.append(region_from_preprocessed_label(basename))
         type.append((os.path.basename(path[i])).split(".")[0].split("_" + names[-1], 1)[0])
 
     names = list(np.unique(np.array(names)))

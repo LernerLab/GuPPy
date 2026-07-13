@@ -15,9 +15,10 @@ from ..analysis.control_channel import add_control_channel, create_control_chann
 from ..analysis.io_utils import (
     check_storeslistfile,
     check_TDT,
-    find_files,
+    decide_naming_convention,
     get_coords,
     read_hdf5,
+    region_from_channel_path,
     write_combined_stores_list,
 )
 from ..analysis.standard_io import (
@@ -75,7 +76,8 @@ def execute_preprocessing_visualization(filepath: str, visualization_type: Liter
 
     for i in range(len(path)):
         basename = (os.path.basename(path[i])).split(".")[0]
-        name_1 = basename.split("_")[-1]
+        # Strip the fixed "z_score_"/"dff_" prefix so region names may contain underscores.
+        name_1 = basename[len(visualization_type) + 1 :]
         x = read_hdf5("timeCorrection_" + name_1, filepath, "timestampNew")
         y = read_hdf5("", path[i], "data")
         fig, ax = visualize_preprocessing(suptitle=name, title=basename, x=x, y=y)
@@ -98,31 +100,15 @@ def visualizeControlAndSignal(filepath: str, removeArtifacts: bool) -> list:
     widgets : list of ArtifactRemovalWidget
         One widget per channel pair.
     """
-    path_1 = find_files(filepath, "control_*", ignore_case=True)
-
-    path_2 = find_files(filepath, "signal_*", ignore_case=True)
-
-    path = sorted(path_1 + path_2, key=str.casefold)
-
-    if len(path) % 2 != 0:
-        message = (
-            f"Unequal number of control and signal files in '{filepath}': "
-            f"found {len(path_1)} control and {len(path_2)} signal file(s). "
-            "Each signal must be paired with a control; re-run step 1 to fix the entries."
-        )
-        logger.error(message)
-        raise ValueError(message)
-
-    path = np.asarray(path).reshape(2, -1)
+    path = decide_naming_convention(filepath)
 
     widgets = []
     for i in range(path.shape[1]):
 
-        name_1 = ((os.path.basename(path[0, i])).split(".")[0]).split("_")
-        name_2 = ((os.path.basename(path[1, i])).split(".")[0]).split("_")
+        name_1 = region_from_channel_path(path[0, i])
 
-        ts_path = os.path.join(filepath, "timeCorrection_" + name_1[-1] + ".hdf5")
-        cntrl_sig_fit_path = os.path.join(filepath, "cntrl_sig_fit_" + name_1[-1] + ".hdf5")
+        ts_path = os.path.join(filepath, "timeCorrection_" + name_1 + ".hdf5")
+        cntrl_sig_fit_path = os.path.join(filepath, "cntrl_sig_fit_" + name_1 + ".hdf5")
         timestamps = read_hdf5("", ts_path, "timestampNew")
 
         control = read_hdf5("", path[0, i], "data").reshape(-1)
@@ -249,33 +235,10 @@ def execute_zscore(session_folders: list[str], inputParameters: dict[str, object
     for j in range(len(run_folders)):
         filepath = run_folders[j]
         logger.debug(f"Computing z-score for each of the data in {filepath}")
-        path_1 = find_files(filepath, "control_*", ignore_case=True)
-        path_2 = find_files(filepath, "signal_*", ignore_case=True)
-        path = sorted(path_1 + path_2, key=str.casefold)
-        if len(path) % 2 != 0:
-            controls = sorted(file_path for file_path in path if "control_" in os.path.basename(file_path).lower())
-            signals = sorted(file_path for file_path in path if "signal_" in os.path.basename(file_path).lower())
-            message = (
-                f"Unequal number of control and signal files in '{filepath}': "
-                f"found {len(controls)} control and {len(signals)} signal file(s). "
-                "Each signal must be paired with a control; re-run step 1 to fix the entries."
-            )
-            logger.error(message)
-            raise ValueError(message)
-        path = np.asarray(path).reshape(2, -1)
+        path = decide_naming_convention(filepath)
 
         for i in range(path.shape[1]):
-            name_1 = ((os.path.basename(path[0, i])).split(".")[0]).split("_")
-            name_2 = ((os.path.basename(path[1, i])).split(".")[0]).split("_")
-            if name_1[-1] != name_2[-1]:
-                message = (
-                    f"Pair name mismatch in '{filepath}': control file suffix '{name_1[-1]}' does not match "
-                    f"signal file suffix '{name_2[-1]}'. Check the naming convention of your files and "
-                    "the storesList file, then re-run step 1."
-                )
-                logger.error(message)
-                raise ValueError(message)
-            name = name_1[-1]
+            name = region_from_channel_path(path[0, i])
 
             control, signal, tsNew = read_corrected_data(path[0, i], path[1, i], filepath, name)
             coords = get_coords(filepath, name, tsNew, remove_artifacts)

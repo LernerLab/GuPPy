@@ -31,27 +31,16 @@ class StoreLabelingInstructions:
                     - Check Stores to repeat checkbox and see instructions in “Github Wiki” for duplicating stores.
                     Otherwise do not check the Stores to repeat checkbox.<br>
                     - Select stores from list and click “Select Stores” to populate area below.<br>
-                    - Enter names for store_ids, in order, using the following naming convention:<br>
-                        Isosbestic = “control_region” (ex: Dv1A= control_DMS)<br>
-                        Signal= “signal_region” (ex: Dv2A= signal_DMS)<br>
-                        TTLs can be named using any convention (ex: PrtR = RewardedPortEntries) but should be kept consistent for later group analysis
-
-                    ```
-                    {"store_ids": ["Dv1A", "Dv2A",
-                                    "Dv3B", "Dv4B",
-                                    "LNRW", "LNnR",
-                                    "PrtN", "PrtR",
-                                    "RNPS"],
-                    "store_labels": ["control_DMS", "signal_DMS",
-                                            "control_DLS", "signal_DLS",
-                                            "RewardedNosepoke", "UnrewardedNosepoke",
-                                            "UnrewardedPort", "RewardedPort",
-                                            "InactiveNosepoke"]}
-                    ```
-                    - If user has saved stores before, clicking "Select Stores" button will pop up a dialog box
-                    showing previously used names for store_ids. Select names for store_ids by checking a checkbox and
-                    click on "Show" to populate the text area in the Label Stores GUI. Close the dialog box.
-
+                    - For each store, choose a **Type** and provide a label:<br>
+                        **signal** — enter the region name (e.g. `DMS`). Any name is allowed,
+                        including underscores (e.g. `left_hemisphere`).<br>
+                        **control** — choose, from the **Control for** dropdown, which signal this
+                        control belongs to. The pair name is taken from that signal, so you enter it
+                        only once and a control can never be mismatched to the wrong region.<br>
+                        **event TTLs** — enter an event name (e.g. `RewardedPortEntries`). Keep event
+                        names consistent across sessions for later group analysis.<br>
+                    - If user has saved stores before, clicking "Select Stores" pre-fills each store with its
+                    previously used Type and label.
                     - Select “create new” or “overwrite” to generate a new store_ids list or replace a previous one
                     - Click Save
 
@@ -101,9 +90,10 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
                                         named “chod” and a channel named “chev”
                                         - View the plots below and, for each site,
                                         determine whether the “chev” or “chod” channel is signal or control
-                                        - When you give your store_ids, name the channels appropriately.
-                                        For example, “chev1” might be “signal_A” and
-                                        “chod1” might be “control_A” (or vice versa).
+                                        - Label the channels using the Type dropdowns. For example,
+                                        mark “chev1” as **signal** and name it “A”, then mark “chod1”
+                                        as **control** and set its **Control for** to “chev1” (or vice
+                                        versa).
 
                                             """
         )
