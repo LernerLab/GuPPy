@@ -47,7 +47,7 @@ def _classify_csv_file(path: str) -> str:
         if columns[0].lower() != "timestamps":
             message = (
                 f"CSV file '{path}' has 1 column named '{columns[0]}', but the only-supported "
-                "single-column CSV format requires the column to be named 'timestamps' (lower case)."
+                "single-column CSV format requires the column to be named 'timestamps' (case-insensitive)."
             )
             logger.error(message)
             raise ValueError(message)
@@ -59,7 +59,7 @@ def _classify_csv_file(path: str) -> str:
             return "csv"
         message = (
             f"CSV file '{path}' has columns {list(columns)}, but the 3-column CSV format "
-            "requires column names 'timestamps', 'data', 'sampling_rate' (all lower case)."
+            "requires column names 'timestamps', 'data', 'sampling_rate' (case-insensitive)."
         )
         logger.error(message)
         raise ValueError(message)
