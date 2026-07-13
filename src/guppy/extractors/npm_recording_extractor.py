@@ -597,12 +597,15 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
 
         else:
             columns = np.array(list(df.columns))
-            if "flags" in np.char.lower(np.array(columns)):
-                columns_to_drop = ["FrameCounter", "Flags"]
-                state = np.array(df["Flags"])
-            elif "ledstate" in np.char.lower(np.array(columns)):
-                columns_to_drop = ["FrameCounter", "LedState"]
-                state = np.array(df["LedState"])
+            # Detection matches these columns case-insensitively, so resolve the
+            # actual (possibly mixed-case) column names before indexing.
+            column_by_name = cls._column_by_lowercase_name(df)
+            if "flags" in column_by_name:
+                columns_to_drop = [column_by_name["framecounter"], column_by_name["flags"]]
+                state = np.array(df[column_by_name["flags"]])
+            elif "ledstate" in column_by_name:
+                columns_to_drop = [column_by_name["framecounter"], column_by_name["ledstate"]]
+                state = np.array(df[column_by_name["ledstate"]])
             else:
                 message = (
                     "File type indicates Neurophotometrics newer version data but the columns do not "

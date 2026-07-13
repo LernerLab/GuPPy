@@ -68,6 +68,27 @@ def test_decide_indices_v2_flag_raises_when_flags_and_ledstate_columns_missing()
         NpmRecordingExtractor.decide_indices("file0_", dataframe, "data_np_v2", num_ch=2)
 
 
+@pytest.mark.parametrize("state_column", ["Flags", "flags", "FLAGS", "LedState", "ledstate", "LEDSTATE"])
+def test_decide_indices_v2_resolves_flag_columns_case_insensitively(state_column):
+    # Detection matches Flags/LedState case-insensitively, so decide_indices must
+    # resolve the actual (possibly mixed-case) column name before indexing (issue #381).
+    dataframe = pd.DataFrame(
+        {
+            "FrameCounter": range(12),
+            state_column: [0, 0, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2],
+            "Timestamp": np.arange(12) * 0.01,
+            "Signal": np.arange(12, dtype=float),
+        }
+    )
+    result_df, indices_dict, num_channels = NpmRecordingExtractor.decide_indices(
+        "file0_", dataframe, "data_np_v2", num_ch=2
+    )
+    np.testing.assert_array_equal(indices_dict["file0_chev"], [2, 4, 6, 8, 10])
+    np.testing.assert_array_equal(indices_dict["file0_chod"], [3, 5, 7, 9, 11])
+    assert num_channels == 2
+    assert list(result_df.columns) == ["Timestamp", "Signal"]
+
+
 # ---------------------------------------------------------------------------
 # _update_df_with_timestamp_columns
 # ---------------------------------------------------------------------------
