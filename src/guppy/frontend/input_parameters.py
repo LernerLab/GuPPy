@@ -10,6 +10,8 @@ from .dandi_selector import DandiSelector
 from .frontend_utils import default_root_path
 from ..utils.utils import discover_run_folders, parse_run_name
 from ..utils.validation import (
+    validate_non_negative,
+    validate_positive,
     validate_required_folder_selection,
     validate_same_parent_directory,
 )
@@ -623,6 +625,47 @@ class ParameterForm:
         self.template.main.append(self.group)
         self.template.main.append(self.visualize)
 
+    def _validate_numeric_parameters(self) -> None:
+        """Validate the scalar numeric parameters at config time.
+
+        Enforces the documented positivity, non-negativity, ordering, and
+        host-core constraints on the numeric widgets so bad values are rejected
+        with an informative message before any pipeline step starts, instead of
+        failing late (or silently producing wrong results) mid-analysis. The
+        step handlers surface the raised ``ValueError`` as a Panel notification.
+
+        Raises
+        ------
+        ValueError
+            If any numeric parameter is out of its documented range.
+        """
+        number_of_cores = self.numberOfCores.value
+        validate_positive(value=number_of_cores, name="numberOfCores")
+        available_cores = os.cpu_count() or 1
+        if number_of_cores > available_cores:
+            message = (
+                f"numberOfCores={number_of_cores} exceeds the {available_cores} core(s) available on "
+                f"this machine; choose a value between 1 and {available_cores}."
+            )
+            logger.error(message)
+            raise ValueError(message)
+
+        # filter_window and timeForLightsTurnOn accept 0 (0 disables filtering /
+        # eliminates no data); the rest are strictly positive.
+        validate_non_negative(value=self.moving_avg_filter.value, name="filter_window")
+        validate_non_negative(value=self.timeForLightsTurnOn.value, name="timeForLightsTurnOn")
+        validate_positive(value=self.moving_wd.value, name="moving_window")
+        validate_positive(value=self.highAmpFilt.value, name="highAmpFilt")
+        validate_positive(value=self.transientsThresh.value, name="transientsThresh")
+
+        if self.nSecPrev.value >= self.nSecPost.value:
+            message = (
+                f"nSecPrev={self.nSecPrev.value} must be strictly less than nSecPost={self.nSecPost.value}; "
+                "the PSTH window runs from nSecPrev (seconds before the event) to nSecPost (seconds after)."
+            )
+            logger.error(message)
+            raise ValueError(message)
+
     def getInputParameters(self) -> dict[str, object]:
         """Collect and return all current widget values as an input-parameters dictionary.
 
@@ -636,6 +679,8 @@ class ParameterForm:
         # Re-discover group output dirs so the per-session filters reflect any new dirs
         # produced by step 1 since the user last deselected/reselected their session folder.
         self.refresh_group_outputs()
+
+        self._validate_numeric_parameters()
 
         if self.source_mode.value == "dandi":
             folder_names, abspath_value, dandi_uri_map = self._resolve_dandi_sessions()

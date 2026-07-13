@@ -92,7 +92,7 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
                 if columns[0].lower() != "timestamps":
                     message = (
                         f"CSV file '{path[i]}' has 1 column named '{columns[0]}', but the only-supported "
-                        "single-column CSV format requires the column to be named 'timestamps' (lower case)."
+                        "single-column CSV format requires the column to be named 'timestamps' (case-insensitive)."
                     )
                     logger.error(message)
                     raise ValueError(message)
@@ -104,7 +104,7 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
                 if (np.sort(required_columns) == np.sort(lowercase_columns)).all() == False:
                     message = (
                         f"CSV file '{path[i]}' has columns {list(columns)}, but the 3-column CSV format "
-                        "requires column names 'timestamps', 'data', 'sampling_rate' (all lower case)."
+                        "requires column names 'timestamps', 'data', 'sampling_rate' (case-insensitive)."
                     )
                     logger.error(message)
                     raise ValueError(message)
@@ -127,6 +127,16 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
 
     def __init__(self, folder_path: str) -> None:
         self.folder_path = folder_path
+
+    @staticmethod
+    def _column_by_lowercase_name(dataframe: pd.DataFrame) -> dict[str, str]:
+        """Map each lower-cased column name to its actual column name.
+
+        Detection accepts column names case-insensitively, so reads must resolve
+        the actual (possibly mixed-case) column name rather than assuming lower
+        case. See :func:`guppy.extractors.detect_acquisition_formats._classify_csv_file`.
+        """
+        return {str(column).lower(): column for column in dataframe.columns}
 
     @staticmethod
     def _check_header(df: pd.DataFrame) -> tuple[list[str], list[float]]:
@@ -183,21 +193,21 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
         output_dicts = []
         for event in events:
             dataframe = self._read_csv(event=event)
-            columns_lowercase = [column.lower() for column in dataframe.columns]
-            if "data" in columns_lowercase:
+            column_by_name = self._column_by_lowercase_name(dataframe)
+            if "data" in column_by_name:
                 output_dicts.append(
                     {
                         "store_id": event,
-                        "timestamps": dataframe["timestamps"].dropna().to_numpy(),
-                        "data": dataframe["data"].dropna().to_numpy(),
-                        "sampling_rate": dataframe["sampling_rate"].dropna().to_numpy()[:1],
+                        "timestamps": dataframe[column_by_name["timestamps"]].dropna().to_numpy(),
+                        "data": dataframe[column_by_name["data"]].dropna().to_numpy(),
+                        "sampling_rate": dataframe[column_by_name["sampling_rate"]].dropna().to_numpy()[:1],
                     }
                 )
             else:
                 output_dicts.append(
                     {
                         "store_id": event,
-                        "timestamps": dataframe["timestamps"].dropna().to_numpy(),
+                        "timestamps": dataframe[column_by_name["timestamps"]].dropna().to_numpy(),
                     }
                 )
         return output_dicts
@@ -231,7 +241,8 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
         for event_name, flag in zip(event_names, flags):
             if flag == "data_csv":
                 dataframe = pd.read_csv(Path(self.folder_path) / f"{event_name}.csv", index_col=False)
-                first_data_timestamp = dataframe["timestamps"].iloc[0]
+                column_by_name = self._column_by_lowercase_name(dataframe)
+                first_data_timestamp = dataframe[column_by_name["timestamps"]].iloc[0]
                 break
 
         cutoff_timestamp = first_data_timestamp + duration_in_seconds
@@ -239,7 +250,8 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
         for event_name, flag in zip(event_names, flags):
             csv_path = folder_path / f"{event_name}.csv"
             dataframe = pd.read_csv(csv_path, index_col=False)
-            dataframe = dataframe[dataframe["timestamps"] <= cutoff_timestamp]
+            column_by_name = self._column_by_lowercase_name(dataframe)
+            dataframe = dataframe[dataframe[column_by_name["timestamps"]] <= cutoff_timestamp]
             dataframe.to_csv(csv_path, index=False)
 
     def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str) -> None:

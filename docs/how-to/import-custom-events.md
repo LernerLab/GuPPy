@@ -55,7 +55,8 @@ folder.
 
 The format is deliberately minimal:
 
-- A single column with the header `timestamps` (lowercase).
+- A single column with the header `timestamps` (matched case-insensitively, so
+  `Timestamps` or `TIMESTAMPS` work too).
 - One event time per row, in **seconds**, on the same time base as the
   recording.
 - The **file name** (minus `.csv`) becomes the event/store name.
