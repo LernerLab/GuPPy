@@ -4,11 +4,50 @@ import numpy as np
 import pytest
 
 from guppy.utils.validation import (
+    validate_non_negative,
     validate_peak_windows,
+    validate_positive,
     validate_required_folder_selection,
     validate_same_parent_directory,
     validate_window_bounds,
 )
+
+
+class TestValidatePositive:
+    def test_positive_value_returns_none(self):
+        assert validate_positive(value=3, name="moving_window") is None
+
+    def test_zero_raises(self):
+        with pytest.raises(ValueError, match="moving_window=0 must be greater than 0"):
+            validate_positive(value=0, name="moving_window")
+
+    def test_negative_raises(self):
+        with pytest.raises(ValueError, match="highAmpFilt=-2 must be greater than 0"):
+            validate_positive(value=-2, name="highAmpFilt")
+
+    def test_non_numeric_raises(self):
+        with pytest.raises(ValueError, match="transientsThresh='x' is not a valid number"):
+            validate_positive(value="x", name="transientsThresh")
+
+    def test_bool_rejected_as_non_numeric(self):
+        with pytest.raises(ValueError, match="is not a valid number"):
+            validate_positive(value=True, name="numberOfCores")
+
+
+class TestValidateNonNegative:
+    def test_positive_value_returns_none(self):
+        assert validate_non_negative(value=100, name="filter_window") is None
+
+    def test_zero_returns_none(self):
+        assert validate_non_negative(value=0, name="filter_window") is None
+
+    def test_negative_raises(self):
+        with pytest.raises(ValueError, match="filter_window=-1 must be 0 or greater"):
+            validate_non_negative(value=-1, name="filter_window")
+
+    def test_non_numeric_raises(self):
+        with pytest.raises(ValueError, match="timeForLightsTurnOn='' is not a valid number"):
+            validate_non_negative(value="", name="timeForLightsTurnOn")
 
 
 class TestValidateWindowBounds:

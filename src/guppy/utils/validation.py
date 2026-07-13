@@ -101,6 +101,56 @@ def validate_window_bounds(
         raise ValueError(message)
 
 
+def validate_positive(*, value: float, name: str) -> None:
+    """Validate that ``value`` is a positive number (strictly greater than 0).
+
+    Parameters
+    ----------
+    value : numeric
+        The candidate value.
+    name : str
+        Parameter name used in error messages (e.g. ``"moving_window"``).
+
+    Raises
+    ------
+    ValueError
+        If ``value`` is non-numeric / NaN, or is less than or equal to 0.
+    """
+    if not _is_finite_number(value):
+        message = f"{name}={value!r} is not a valid number; provide a positive numeric value."
+        logger.error(message)
+        raise ValueError(message)
+    if value <= 0:
+        message = f"{name}={value} must be greater than 0; choose a positive value."
+        logger.error(message)
+        raise ValueError(message)
+
+
+def validate_non_negative(*, value: float, name: str) -> None:
+    """Validate that ``value`` is a non-negative number (0 or greater).
+
+    Parameters
+    ----------
+    value : numeric
+        The candidate value.
+    name : str
+        Parameter name used in error messages (e.g. ``"filter_window"``).
+
+    Raises
+    ------
+    ValueError
+        If ``value`` is non-numeric / NaN, or is less than 0.
+    """
+    if not _is_finite_number(value):
+        message = f"{name}={value!r} is not a valid number; provide a non-negative numeric value."
+        logger.error(message)
+        raise ValueError(message)
+    if value < 0:
+        message = f"{name}={value} must be 0 or greater; choose a non-negative value."
+        logger.error(message)
+        raise ValueError(message)
+
+
 def validate_peak_windows(*, peak_starts: Sequence[float], peak_ends: Sequence[float]) -> tuple[np.ndarray, np.ndarray]:
     """Validate paired peak-window arrays and return them with NaN padding stripped.
 
