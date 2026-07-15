@@ -125,7 +125,7 @@ def test_average_for_group_handles_non_overlapping_stores_without_indexerror(tmp
     session1.mkdir()
     session2.mkdir()
 
-    # Non-overlapping region labels across sessions
+    # Non-overlapping recording-site labels across sessions
     (session1 / "z_score_regionA.hdf5").touch()
     (session2 / "z_score_regionB.hdf5").touch()
 

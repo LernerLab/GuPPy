@@ -158,14 +158,14 @@ def test_timestamp_correction_raises_for_invalid_mode():
         )
 
 
-def test_timestamp_correction_surfaces_mismatched_region_pairs_via_storeslist():
+def test_timestamp_correction_surfaces_mismatched_recording_site_pairs_via_storeslist():
     """control_dms paired with signal_vms — surfaces from get_control_and_signal_channel_names."""
     store_array = np.array([["ctrl0", "sig0"], ["control_dms", "signal_vms"]])
     store_label_to_timestamps = {"control_dms": np.zeros(3), "signal_vms": np.zeros(3)}
     store_label_to_data = {"control_dms": np.zeros(3), "signal_vms": np.zeros(3)}
     store_label_to_sampling_rate = {"control_dms": np.array([100.0]), "signal_vms": np.array([100.0])}
     store_label_to_npoints = {"control_dms": None, "signal_vms": None}
-    with pytest.raises(ValueError, match="Mismatched signal/control region pairs"):
+    with pytest.raises(ValueError, match="Mismatched signal/control recording-site pairs"):
         timestampCorrection(
             0.0,
             store_array,
@@ -177,12 +177,12 @@ def test_timestamp_correction_surfaces_mismatched_region_pairs_via_storeslist():
         )
 
 
-def test_decide_naming_surfaces_mismatched_region_pairs_via_storeslist():
+def test_decide_naming_surfaces_mismatched_recording_site_pairs_via_storeslist():
     store_array = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_vms", "TTL1"]])
     store_label_to_timestamps_ttl = {"TTL1": np.array([1.0, 2.0])}
     store_label_to_timestamps = {"control_dms": np.zeros(3), "signal_vms": np.zeros(3)}
     store_label_to_data = {"control_dms": np.zeros(3), "signal_vms": np.zeros(3)}
-    with pytest.raises(ValueError, match="Mismatched signal/control region pairs"):
+    with pytest.raises(ValueError, match="Mismatched signal/control recording-site pairs"):
         decide_naming_and_applyCorrection_ttl(
             0.0,
             store_array,

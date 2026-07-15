@@ -32,11 +32,11 @@ class StoreLabelingInstructions:
                     Otherwise do not check the Stores to repeat checkbox.<br>
                     - Select stores from list and click “Select Stores” to populate area below.<br>
                     - For each store, choose a **Type** and provide a label:<br>
-                        **signal** — enter the region name (e.g. `DMS`). Any name is allowed,
+                        **signal** — enter the recording-site name (e.g. `DMS`). Any name is allowed,
                         including underscores (e.g. `left_hemisphere`).<br>
                         **control** — choose, from the **Control for** dropdown, which signal this
                         control belongs to. The pair name is taken from that signal, so you enter it
-                        only once and a control can never be mismatched to the wrong region.<br>
+                        only once and a control can never be mismatched to the wrong recording site.<br>
                         **event TTLs** — enter an event name (e.g. `RewardedPortEntries`). Keep event
                         names consistent across sessions for later group analysis.<br>
                     - If user has saved stores before, clicking "Select Stores" pre-fills each store with its

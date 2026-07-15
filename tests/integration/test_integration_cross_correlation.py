@@ -17,7 +17,7 @@ def test_cross_correlation(tmp_path):
     """
     Integration test for Step 4 cross-correlation computation.
 
-    Uses a two-region TDT session (DMS + DLS) with a generic TTL event to verify
+    Uses a two-recording-site TDT session (DMS + DLS) with a generic TTL event to verify
     that cross-correlation output files are created when compute_corr=True.
 
     Pipeline executed on a temp copy:
@@ -27,7 +27,7 @@ def test_cross_correlation(tmp_path):
       - Step 4: compute PSTH and cross-correlation with compute_corr=True
 
     Notes:
-      - Cross-correlation requires at least two distinct signal regions.
+      - Cross-correlation requires at least two distinct signal recording sites.
       - getCorrCombinations returns np.unique(["dls", "dms"]) → ["dls", "dms"],
         so the output file is corr_port_entries_z_score_dls_dms.h5.
     """
@@ -92,11 +92,11 @@ def test_cross_correlation(tmp_path):
             break
     assert out_dir is not None, f"No storesList.csv found in any output directory under {session_copy}"
 
-    # Standard PSTH outputs for both regions
-    for region in ("dms", "dls"):
-        freq_amp_h5 = os.path.join(out_dir, f"freqAndAmp_z_score_{region}.h5")
-        freq_amp_csv = os.path.join(out_dir, f"freqAndAmp_z_score_{region}.csv")
-        trans_occ_csv = os.path.join(out_dir, f"transientsOccurrences_z_score_{region}.csv")
+    # Standard PSTH outputs for both recording sites
+    for recording_site in ("dms", "dls"):
+        freq_amp_h5 = os.path.join(out_dir, f"freqAndAmp_z_score_{recording_site}.h5")
+        freq_amp_csv = os.path.join(out_dir, f"freqAndAmp_z_score_{recording_site}.csv")
+        trans_occ_csv = os.path.join(out_dir, f"transientsOccurrences_z_score_{recording_site}.csv")
         assert os.path.exists(freq_amp_h5), f"Missing freq/amp HDF5: {freq_amp_h5}"
         assert os.path.exists(freq_amp_csv), f"Missing freq/amp CSV: {freq_amp_csv}"
         assert os.path.exists(trans_occ_csv), f"Missing transients occurrences CSV: {trans_occ_csv}"

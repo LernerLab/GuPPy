@@ -272,7 +272,7 @@ class ParameterForm:
                         interval, it will be deleted for the calculation of PSTH.
                         - ***Compute Cross-correlation :*** Make this parameter ```True```, when user wants
                         to compute cross-correlation between PSTHs of two different signals or signals
-                        recorded from different brain regions.
+                        recorded from different recording sites.
                         """,
             width=580,
         )

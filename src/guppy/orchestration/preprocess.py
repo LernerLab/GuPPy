@@ -18,7 +18,7 @@ from ..analysis.io_utils import (
     decide_naming_convention,
     get_coords,
     read_hdf5,
-    region_from_channel_path,
+    recording_site_from_channel_path,
     write_combined_stores_list,
 )
 from ..analysis.standard_io import (
@@ -76,7 +76,7 @@ def execute_preprocessing_visualization(filepath: str, visualization_type: Liter
 
     for i in range(len(path)):
         basename = (os.path.basename(path[i])).split(".")[0]
-        # Strip the fixed "z_score_"/"dff_" prefix so region names may contain underscores.
+        # Strip the fixed "z_score_"/"dff_" prefix so recording-site names may contain underscores.
         name_1 = basename[len(visualization_type) + 1 :]
         x = read_hdf5("timeCorrection_" + name_1, filepath, "timestampNew")
         y = read_hdf5("", path[i], "data")
@@ -105,7 +105,7 @@ def visualizeControlAndSignal(filepath: str, removeArtifacts: bool) -> list:
     widgets = []
     for i in range(path.shape[1]):
 
-        name_1 = region_from_channel_path(path[0, i])
+        name_1 = recording_site_from_channel_path(path[0, i])
 
         ts_path = os.path.join(filepath, "timeCorrection_" + name_1 + ".hdf5")
         cntrl_sig_fit_path = os.path.join(filepath, "cntrl_sig_fit_" + name_1 + ".hdf5")
@@ -238,7 +238,7 @@ def execute_zscore(session_folders: list[str], inputParameters: dict[str, object
         path = decide_naming_convention(filepath)
 
         for i in range(path.shape[1]):
-            name = region_from_channel_path(path[0, i])
+            name = recording_site_from_channel_path(path[0, i])
 
             control, signal, tsNew = read_corrected_data(path[0, i], path[1, i], filepath, name)
             coords = get_coords(filepath, name, tsNew, remove_artifacts)

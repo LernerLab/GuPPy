@@ -403,7 +403,7 @@ def test_read_ttl_timestamps_for_combining_data_returns_nested_dict(tmp_path):
 # ── Combining-data suffix mismatch error paths ────────────────────────────────
 
 
-def test_read_timestamps_for_combining_data_mismatched_regions_raises(tmp_path):
+def test_read_timestamps_for_combining_data_mismatched_recording_sites_raises(tmp_path):
     session = tmp_path / "session"
     session.mkdir()
     (session / "control_dms.hdf5").touch()
@@ -416,7 +416,7 @@ def test_read_timestamps_for_combining_data_mismatched_regions_raises(tmp_path):
     assert "vms" in message
 
 
-def test_read_data_for_combining_data_mismatched_regions_raises(tmp_path):
+def test_read_data_for_combining_data_mismatched_recording_sites_raises(tmp_path):
     session = tmp_path / "session"
     session.mkdir()
     (session / "control_dms.hdf5").touch()
@@ -426,7 +426,7 @@ def test_read_data_for_combining_data_mismatched_regions_raises(tmp_path):
         read_data_for_combining_data([str(session)], store_array)
 
 
-def test_read_ttl_timestamps_for_combining_data_mismatched_regions_raises(tmp_path):
+def test_read_ttl_timestamps_for_combining_data_mismatched_recording_sites_raises(tmp_path):
     session = tmp_path / "session"
     session.mkdir()
     (session / "control_dms.hdf5").touch()

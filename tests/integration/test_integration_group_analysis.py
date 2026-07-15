@@ -21,10 +21,10 @@ STORE_ID_TO_STORE_LABEL = {
     "Dv2A": "signal_dms",
     "PrtN": "port_entries_dms",
 }
-EXPECTED_REGION = "dms"
+EXPECTED_RECORDING_SITE = "dms"
 EXPECTED_TTL = "port_entries_dms"
 
-# Two sessions that share the same fiber region (dms) but record different behavioral
+# Two sessions that share the same fiber recording site (dms) but record different behavioral
 # events, so each event's group average has a single contributing session (n=1).
 DISJOINT_STORE_ID_TO_STORE_LABEL = {
     "tdt/Photo_048_392-200728-121222": {
@@ -104,7 +104,7 @@ def test_group_analysis(copied_sessions):
 
     group_psth_file_path = os.path.join(
         average_directory,
-        f"{EXPECTED_TTL}_{EXPECTED_REGION}_z_score_{EXPECTED_REGION}.h5",
+        f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.h5",
     )
     assert os.path.exists(group_psth_file_path), f"Missing group PSTH HDF5: {group_psth_file_path}"
 
@@ -133,11 +133,11 @@ def test_group_analysis(copied_sessions):
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_group_analysis_different_event_names_per_session(copied_sessions):
-    """Group-average and visualize two sessions that share the same fiber region but
+    """Group-average and visualize two sessions that share the same fiber recording site but
     record different behavioral events (one 'rewarded', one 'unrewarded').
 
     Reproduces issue #368: the sessions have non-identical store_id sets, so this
-    exercises the relaxed fiber-region validation (averaging is no longer blocked).
+    exercises the relaxed fiber recording-site validation (averaging is no longer blocked).
     Because each event is present in only one session, its group average has a single
     contributing session (n=1), which also exercises the single-trial heatmap that
     previously blanked the visualization dashboard with a Bokeh stack overflow.
@@ -147,7 +147,7 @@ def test_group_analysis_different_event_names_per_session(copied_sessions):
     selected_runs = {folder: ["1"] for folder in selected_folders}
 
     # Step 1 is run per session so each gets a different behavioral-event store_id
-    # while sharing the same control/signal (dms) fiber region.
+    # while sharing the same control/signal (dms) fiber recording site.
     for session_folder, subdir in zip(selected_folders, SESSION_SUBDIRS):
         step1(
             base_dir=base_dir,
@@ -175,7 +175,7 @@ def test_group_analysis_different_event_names_per_session(copied_sessions):
         "unrewarded_nose_pokes": "Photo_63_207-181030-103332_output_1",
     }
     for event, contributing_session in expected_columns_by_event.items():
-        average_path = average_directory / f"{event}_{EXPECTED_REGION}_z_score_{EXPECTED_REGION}.h5"
+        average_path = average_directory / f"{event}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.h5"
         assert average_path.exists(), f"Missing group PSTH for event {event!r}: {average_path}"
         average_dataframe = pd.read_hdf(average_path, key="df")
         # n=1: exactly the one session that recorded this event contributed.

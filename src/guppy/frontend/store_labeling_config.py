@@ -17,7 +17,7 @@ class StoreLabelingConfig:
     or ``"event TTLs"``.  ``signal`` and ``event TTLs`` rows provide a free-text
     name box; ``control`` rows instead pick which signal store they are the
     control for (via a dropdown), so the pair name is entered exactly once — on
-    the signal row — and a control can never be mismatched to the wrong region.
+    the signal row — and a control can never be mismatched to the wrong recording site.
 
     Selections are stored in-place in the provided ``store_id_dropdowns``,
     ``store_id_textboxes`` and ``store_id_control_refs`` dictionaries so the
@@ -56,9 +56,9 @@ class StoreLabelingConfig:
         self.config_widgets = []
         self._dropdown_help_map = {}
         self._dropdown_to_key = {}
-        # Per control-row widget_key → the signal region it was assigned to in a
+        # Per control-row widget_key → the signal recording site it was assigned to in a
         # previous session (from cache), so we can re-select it once options exist.
-        self._control_desired_region = {}
+        self._control_desired_recording_site = {}
         # Ordered widget keys, and per-key the store_id it belongs to.
         self._widget_keys = []
         self._widget_key_to_store_id = {}
@@ -108,7 +108,7 @@ class StoreLabelingConfig:
         if dropdown_value == "control":
             return "*Select the signal this control belongs to*"
         elif dropdown_value == "signal":
-            return "*Type appropriate region name*"
+            return "*Type appropriate recording-site name*"
         elif dropdown_value == "event TTLs":
             return "*Type event name for the TTLs*"
         else:
@@ -155,12 +155,12 @@ class StoreLabelingConfig:
             if previous_value in valid_values and previous_value != "":
                 control_ref.value = previous_value
             else:
-                # Re-select a cached assignment once its signal region becomes available.
-                desired_region = self._control_desired_region.get(widget_key)
+                # Re-select a cached assignment once its signal recording site becomes available.
+                desired_recording_site = self._control_desired_recording_site.get(widget_key)
                 restored = ""
-                if desired_region is not None:
+                if desired_recording_site is not None:
                     for label, key in signal_options.items():
-                        if self.store_id_textboxes[key].value == desired_region:
+                        if self.store_id_textboxes[key].value == desired_recording_site:
                             restored = key
                             break
                 control_ref.value = restored
@@ -221,7 +221,7 @@ class StoreLabelingConfig:
 
         # Name box (used for signal / event TTLs rows)
         textbox = pn.widgets.TextInput(
-            name="Name", value=default_name, placeholder="Enter region/event name", width=200
+            name="Name", value=default_name, placeholder="Enter recording-site/event name", width=200
         )
         store_id_textboxes[widget_key] = textbox
         textbox.param.watch(lambda event: self._refresh_control_options(), "value")
@@ -230,7 +230,7 @@ class StoreLabelingConfig:
         control_ref = pn.widgets.Select(name="Control for", value="", options={NO_SIGNAL_OPTION: ""}, width=250)
         store_id_control_refs[widget_key] = control_ref
         if default_type == "control":
-            self._control_desired_region[widget_key] = default_name
+            self._control_desired_recording_site[widget_key] = default_name
 
         initial_help_text = self._get_help_text(default_type)
         help_pane = pn.pane.Markdown(

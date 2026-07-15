@@ -15,6 +15,17 @@ store_label
   The user-supplied analytic label for a store (e.g. `signal_DMS`,
   `control_DMS`, `reward`), assigned in Step 1 (Label Stores).
 
+recording_site
+  One fiber photometry recording site: a signal channel paired with its
+  optional isosbestic control channel, both sharing the same label suffix. In
+  a multi-fiber recording each fiber is its own recording site (e.g. `DMS`,
+  `DLS`). The suffix appears in the `store_label` pair `signal_<recording_site>`
+  / `control_<recording_site>` (e.g. `signal_DMS` / `control_DMS`), and in the
+  preprocessed outputs `z_score_<recording_site>` / `dff_<recording_site>`. The
+  suffix is a user-chosen identifier — often an anatomical brain region — but
+  "recording site" refers to the fiber's signal-plus-control pair, not the
+  anatomy itself.
+
 session
   One recording — a single mouse, day, and rig session. The atomic input to
   analysis.

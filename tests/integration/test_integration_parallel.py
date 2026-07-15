@@ -26,7 +26,7 @@ STORE_ID_TO_STORE_LABEL = {
     "Sample_Signal_Channel": "signal_region",
     "Sample_TTL": "ttl",
 }
-EXPECTED_REGION = "region"
+EXPECTED_RECORDING_SITE = "region"
 EXPECTED_TTL = "ttl"
 
 
@@ -140,12 +140,16 @@ def test_parallel_step5(tmp_path):
     assert out_dir is not None, "No storesList.csv found in any output directory"
 
     # PSTH and peak/AUC outputs
-    psth_h5 = os.path.join(out_dir, f"{EXPECTED_TTL}_{EXPECTED_REGION}_z_score_{EXPECTED_REGION}.h5")
+    psth_h5 = os.path.join(out_dir, f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.h5")
     psth_baseline_uncorr_h5 = os.path.join(
-        out_dir, f"{EXPECTED_TTL}_{EXPECTED_REGION}_baselineUncorrected_z_score_{EXPECTED_REGION}.h5"
+        out_dir, f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_baselineUncorrected_z_score_{EXPECTED_RECORDING_SITE}.h5"
     )
-    peak_auc_h5 = os.path.join(out_dir, f"peak_AUC_{EXPECTED_TTL}_{EXPECTED_REGION}_z_score_{EXPECTED_REGION}.h5")
-    peak_auc_csv = os.path.join(out_dir, f"peak_AUC_{EXPECTED_TTL}_{EXPECTED_REGION}_z_score_{EXPECTED_REGION}.csv")
+    peak_auc_h5 = os.path.join(
+        out_dir, f"peak_AUC_{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.h5"
+    )
+    peak_auc_csv = os.path.join(
+        out_dir, f"peak_AUC_{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.csv"
+    )
 
     assert os.path.exists(psth_h5), f"Missing PSTH HDF5: {psth_h5}"
     assert os.path.exists(psth_baseline_uncorr_h5), f"Missing baseline-uncorrected PSTH HDF5: {psth_baseline_uncorr_h5}"
@@ -158,9 +162,9 @@ def test_parallel_step5(tmp_path):
     assert "mean" in dataframe.columns, f"'mean' column missing in {psth_h5}"
 
     # Transients outputs
-    freq_amp_h5 = os.path.join(out_dir, f"freqAndAmp_z_score_{EXPECTED_REGION}.h5")
-    freq_amp_csv = os.path.join(out_dir, f"freqAndAmp_z_score_{EXPECTED_REGION}.csv")
-    trans_occ_csv = os.path.join(out_dir, f"transientsOccurrences_z_score_{EXPECTED_REGION}.csv")
+    freq_amp_h5 = os.path.join(out_dir, f"freqAndAmp_z_score_{EXPECTED_RECORDING_SITE}.h5")
+    freq_amp_csv = os.path.join(out_dir, f"freqAndAmp_z_score_{EXPECTED_RECORDING_SITE}.csv")
+    trans_occ_csv = os.path.join(out_dir, f"transientsOccurrences_z_score_{EXPECTED_RECORDING_SITE}.csv")
     assert os.path.exists(freq_amp_h5), f"Missing freq/amp HDF5: {freq_amp_h5}"
     assert os.path.exists(freq_amp_csv), f"Missing freq/amp CSV: {freq_amp_csv}"
     assert os.path.exists(trans_occ_csv), f"Missing transients occurrences CSV: {trans_occ_csv}"

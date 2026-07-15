@@ -155,14 +155,14 @@ See the [PSTH explainer](../explanation/psth.md) for what these parameters confi
 |-----------|-------------|------|---------|-----------------|
 | Seconds before 0 | Pre-event window edge. | int | `-10` | typically negative; defines the pre-event window |
 | Seconds after 0 | Post-event window edge. | int | `20` | typically positive; defines the post-event window |
-| Compute Cross-correlation | Cross-correlate PSTHs across regions. | bool | `False` | `True`, `False`. Requires at least two distinct signal regions; raises `ValueError` otherwise. |
+| Compute Cross-correlation | Cross-correlate PSTHs across recording sites. | bool | `False` | `True`, `False`. Requires at least two distinct signal recording sites; raises `ValueError` otherwise. |
 | Time Interval (s) | Minimum spacing for accepted event timestamps. | int | `2` | seconds; bursts of event timestamps closer than this are discarded as duplicates |
 | Bin PSTH trials | Binning unit (time vs count). | str | `Time (min)` | `Time (min)`, `# of trials` |
 | Time(min) / # of trials for binning | Bin size; `0` disables binning. | int | `0` | `0` disables binning; positive values use the unit selected above |
 
 **Seconds before 0** and **Seconds after 0** define the peri-event window. Defaults give a 30-second window from 10 s before to 20 s after each event timestamp.
 
-**Compute Cross-correlation** turns on cross-correlation between PSTHs of two distinct signal regions, useful for detecting coordinated activity between brain areas. The pipeline raises a descriptive `ValueError` when this is `True` but only one signal region is configured. See the [cross-correlation explainer](../explanation/cross_correlation.md) for interpretation guidance.
+**Compute Cross-correlation** turns on cross-correlation between PSTHs of two distinct signal recording sites, useful for detecting coordinated activity between brain areas. The pipeline raises a descriptive `ValueError` when this is `True` but only one signal recording site is configured. See the [cross-correlation explainer](../explanation/cross_correlation.md) for interpretation guidance.
 
 **Time Interval (s)** suppresses bursts of event timestamps. If two event timestamps in the input are closer than this number of seconds, the second one is dropped before PSTH alignment, preventing double-counted overlapping windows.
 

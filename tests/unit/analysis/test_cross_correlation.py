@@ -69,6 +69,6 @@ def test_single_pair_values_are_hand_computed():
     np.testing.assert_allclose(result[1], np.array([-2.0, -1.0, 0.0, 1.0, 2.0], dtype="float32"), atol=1e-6)
 
 
-def test_empty_region_raises():
-    with pytest.raises(ValueError, match="requires at least one trial in each region"):
+def test_empty_recording_site_raises():
+    with pytest.raises(ValueError, match="requires at least one trial in each recording site"):
         compute_cross_correlation([], [np.array([1.0, 2.0, 3.0])], sample_rate=1.0)

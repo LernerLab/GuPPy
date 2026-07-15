@@ -7,7 +7,7 @@ import re
 import numpy as np
 import pandas as pd
 
-from .io_utils import region_from_preprocessed_label
+from .io_utils import recording_site_from_preprocessed_label
 
 logger = logging.getLogger(__name__)
 
@@ -62,22 +62,22 @@ def create_Df_for_psth(filepath: str, event: str, name: str, psth: np.ndarray, c
 def match_trials_by_timestamp(
     labels_a: list[object], labels_b: list[object]
 ) -> tuple[np.ndarray, np.ndarray, list[object]]:
-    """Pair two regions' PSTH trial columns by the event they came from.
+    """Pair two recording sites' PSTH trial columns by the event they came from.
 
     Cross-correlation runs only with the ``replace with NaN`` artifact method, so
-    both regions keep full-length signals sampled on the same time base; the same
-    event therefore has near-identical timestamps in each region, differing only
-    by sub-sample jitter. Independent artifact removal can still leave one region
-    without a boundary trial the other kept, so trials are matched by nearest
-    timestamp within half the smallest inter-event gap. Burst rejection keeps
-    events well separated, so a genuine match is unambiguous and an unmatched
-    trial (present in one region only) is dropped from both. Non-numeric columns
-    (e.g. binned-trial aggregates) are matched by exact label.
+    both recording sites keep full-length signals sampled on the same time base; the
+    same event therefore has near-identical timestamps in each recording site,
+    differing only by sub-sample jitter. Independent artifact removal can still leave
+    one recording site without a boundary trial the other kept, so trials are matched
+    by nearest timestamp within half the smallest inter-event gap. Burst rejection
+    keeps events well separated, so a genuine match is unambiguous and an unmatched
+    trial (present in one recording site only) is dropped from both. Non-numeric
+    columns (e.g. binned-trial aggregates) are matched by exact label.
 
     Parameters
     ----------
     labels_a, labels_b : list
-        Trial-column labels for the two regions. Trial columns are event
+        Trial-column labels for the two recording sites. Trial columns are event
         timestamps (numeric, possibly as strings when read back from HDF5);
         other columns (binned aggregates) are matched by exact label.
 
@@ -213,7 +213,7 @@ def getCorrCombinations(filepath: str, inputParameters: dict[str, object]) -> tu
     type = list()
     for i in range(len(path)):
         basename = (os.path.basename(path[i])).split(".")[0]
-        names.append(region_from_preprocessed_label(basename))
+        names.append(recording_site_from_preprocessed_label(basename))
         type.append((os.path.basename(path[i])).split(".")[0].split("_" + names[-1], 1)[0])
 
     names = list(np.unique(np.array(names)))

@@ -291,9 +291,9 @@ def test_discover_raises_for_data_csv_three_columns(tmp_path):
         NpmRecordingExtractor.discover_events_and_flags(folder_path=str(tmp_path), num_ch=2, inputParameters={})
 
 
-def test_discover_raises_when_region_channel_counts_do_not_match(tmp_path):
+def test_discover_raises_when_channel_group_counts_do_not_match(tmp_path):
     # Two data_np_v2 files with different channel counts (2 vs 3, by LedState) decompose
-    # into unequal per-region counts (chev=2, chod=2, chpr=1), which is rejected.
+    # into unequal per-channel-group counts (chev=2, chod=2, chpr=1), which is rejected.
     two_channel_csv = (
         "FrameCounter,LedState,Timestamp,Signal\n"
         "0,0,0.00,0.0\n1,0,0.01,0.0\n2,1,0.02,1.0\n3,2,0.03,2.0\n4,1,0.04,3.0\n5,2,0.05,4.0\n"
@@ -307,7 +307,7 @@ def test_discover_raises_when_region_channel_counts_do_not_match(tmp_path):
     (tmp_path / "a_data.csv").write_text(two_channel_csv)
     (tmp_path / "b_data.csv").write_text(three_channel_csv)
 
-    with pytest.raises(ValueError, match=r"Number of channel files must be the same for all regions"):
+    with pytest.raises(ValueError, match=r"Number of channel files must match across channel groups"):
         NpmRecordingExtractor.discover_events_and_flags(folder_path=str(tmp_path), num_ch=2, inputParameters={})
 
 

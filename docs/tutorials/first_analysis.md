@@ -106,7 +106,7 @@ The three CSV filenames appear in the left list (**Filter available options**) o
    :align: center
    ```
 
-3. **Fill out one row per channel.** The **Name** field is a *brain region identifier*, not a description of the channel's role. The control and signal rows must use the **same Name** because GuPPy uses that match to pair the isosbestic (405 nm) control trace with the calcium-dependent (470 nm) signal trace from the same fiber, then fits and subtracts one from the other during preprocessing to remove motion artifacts and photobleaching. In a multi-fiber recording, each fiber gets its own identifier (e.g. `DMS`, `DLS`) so each control is paired with its own signal. In this single-fiber tutorial we use `A`. The event TTL row uses a free-form event name instead.
+3. **Fill out one row per channel.** The **Name** field is a *recording-site identifier*, not a description of the channel's role. The control and signal rows must use the **same Name** because GuPPy uses that match to pair the isosbestic (405 nm) control trace with the calcium-dependent (470 nm) signal trace from the same fiber, then fits and subtracts one from the other during preprocessing to remove motion artifacts and photobleaching. In a multi-fiber recording, each fiber gets its own identifier (e.g. `DMS`, `DLS`) so each control is paired with its own signal. In this single-fiber tutorial we use `A`. The event TTL row uses a free-form event name instead.
 
    <!-- TODO: link to docs/explanation/fiber_photometry.md (signal vs. isosbestic, z-score methods) once that page exists, for the deeper "why" of pairing. -->
 
@@ -117,7 +117,7 @@ The three CSV filenames appear in the left list (**Filter available options**) o
    | `Sample_Signal_Channel` | `signal` | `A` |
    | `Sample_TTL` | `event TTLs` | `RewardPort` |
 
-   GuPPy combines the dropdown and text field into the final store: `control` + `A` becomes `control_A`, `signal` + `A` becomes `signal_A`, and the event TTL keeps the name as-is (`RewardPort`). If the control and signal Name fields differ, saving will fail with `Mismatched signal/control region pairs — Every 'signal_<region>' must have a matching 'control_<region>'.`
+   GuPPy combines the dropdown and text field into the final store: `control` + `A` becomes `control_A`, `signal` + `A` becomes `signal_A`, and the event TTL keeps the name as-is (`RewardPort`). If the control and signal Name fields differ, saving will fail with `Mismatched signal/control recording-site pairs in storesList — Every 'signal_<recording_site>' must have a matching 'control_<recording_site>'.`
 
 4. **Click "Show Selected Configuration".** This applies your row entries to the JSON editor below, which should now read something like:
 
@@ -172,7 +172,7 @@ GuPPy runs the following on the raw signal:
 3. Fits the control channel to the signal channel, then subtracts it. This removes motion artifacts and photobleaching that affect both channels equally. The fitting method is configurable (the *Control Channel Fitting Method* parameter, internally `control_fit_method`): the default `IRWLS` is a robust regression that down-weights outliers, with ordinary least-squares (`OLS`) regression available as an alternative.
 4. Computes the z-score and the dF/F (delta F over F) of the corrected signal.
 
-The results are written into the same output folder as Step 2, in four new HDF5 files per region. You do not choose the location or the file names; they follow a fixed convention:
+The results are written into the same output folder as Step 2, in four new HDF5 files per recording site. You do not choose the location or the file names; they follow a fixed convention:
 
 | File | Contents |
 |------|----------|
@@ -199,7 +199,7 @@ GuPPy aligns the z-scored trace to each event timestamp in `Sample_TTL.csv`, ext
 
 The default window is -10 to +20 seconds. With the sample data you will get a small number of trials (the TTL file has just a handful of timestamps), so the average will be noisy. This is expected for a minimal example dataset.
 
-The outputs land in the same `sample_data_csv_1_output_1/` directory you have been using since Step 1, with one set of files per (event, region) pair. For this tutorial that is the single pair `(RewardPort, A)`:
+The outputs land in the same `sample_data_csv_1_output_1/` directory you have been using since Step 1, with one set of files per (event, recording site) pair. For this tutorial that is the single pair `(RewardPort, A)`:
 
 | File | Contents |
 |------|----------|
