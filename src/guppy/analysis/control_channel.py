@@ -9,7 +9,7 @@ from scipy.optimize import curve_fit
 
 from .io_utils import (
     read_hdf5,
-    region_from_channel_label,
+    recording_site_from_channel_label,
     write_hdf5,
 )
 
@@ -42,7 +42,7 @@ def add_control_channel(filepath: str, store_array: np.ndarray) -> np.ndarray:
     # check a case if there is isosbestic control channel present
     for i in range(store_labels_lower.shape[0]):
         if "control" in store_labels_lower[i].lower():
-            name = region_from_channel_label(store_labels_lower[i])
+            name = recording_site_from_channel_label(store_labels_lower[i])
             expected_signal_name = "signal_" + str(name).lower()
             find_signal = [True for i in store_labels_lower if i == expected_signal_name]
             if len(find_signal) > 1:
@@ -67,7 +67,7 @@ def add_control_channel(filepath: str, store_array: np.ndarray) -> np.ndarray:
 
     for i in range(store_labels_lower.shape[0]):
         if "signal" in store_labels_lower[i].lower():
-            name = region_from_channel_label(store_labels_lower[i])
+            name = recording_site_from_channel_label(store_labels_lower[i])
             expected_control_name = "control_" + str(name).lower()
             find_signal = [True for i in store_labels_lower if i == expected_control_name]
             if len(find_signal) == 0:
@@ -78,7 +78,7 @@ def add_control_channel(filepath: str, store_array: np.ndarray) -> np.ndarray:
                 store_array = np.concatenate(
                     (
                         store_array,
-                        [["cntrl" + str(i)], ["control_" + region_from_channel_label(store_array[1, i])]],
+                        [["cntrl" + str(i)], ["control_" + recording_site_from_channel_label(store_array[1, i])]],
                     ),
                     axis=1,
                 )
@@ -109,7 +109,7 @@ def create_control_channel(filepath: str, store_array: np.ndarray, window: int =
         event_name, event = store_labels[i], store_ids[i]
         if "control" in event_name.lower() and "cntrl" in event.lower():
             logger.debug("Creating control channel from signal channel using curve-fitting")
-            name = region_from_channel_label(event_name)
+            name = recording_site_from_channel_label(event_name)
             signal = read_hdf5("signal_" + name, filepath, "data")
             timestampNew = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
             sampling_rate = np.full(timestampNew.shape, np.nan)

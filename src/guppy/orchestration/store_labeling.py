@@ -133,7 +133,7 @@ def _fetchValues(
     dropdown_keys = list(store_id_dropdowns.keys())
 
     # First pass: resolve each signal row's name. The name is entered only on the
-    # signal row and is the pair name; a control inherits it by reference, so the
+    # signal row and is the recording-site name; a control inherits it by reference, so the
     # two can never be mismatched and underscores in the name are preserved.
     signal_key_to_name = {}
     for key in dropdown_keys:

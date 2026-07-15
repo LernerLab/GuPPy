@@ -17,13 +17,14 @@ ZSCORE_PREFIX = "z_score_"
 DFF_PREFIX = "dff_"
 
 
-def region_from_channel_label(label: str) -> str:
+def recording_site_from_channel_label(label: str) -> str:
     """
-    Return the region/pair name of a control or signal channel label.
+    Return the recording-site name of a control or signal channel label.
 
     The role is encoded as a fixed leading prefix (``signal_`` / ``control_``), so the
-    region is recovered by stripping that prefix rather than by splitting on the last
-    underscore. This keeps region names that themselves contain underscores intact.
+    recording site is recovered by stripping that prefix rather than by splitting on the
+    last underscore. This keeps recording-site names that themselves contain underscores
+    intact.
 
     Parameters
     ----------
@@ -33,7 +34,7 @@ def region_from_channel_label(label: str) -> str:
     Returns
     -------
     str
-        The region/pair name with its original case preserved, e.g. ``"DMS"`` or
+        The recording-site name with its original case preserved, e.g. ``"DMS"`` or
         ``"left_hemisphere"``. Labels without a control/signal prefix are returned
         unchanged.
     """
@@ -45,12 +46,12 @@ def region_from_channel_label(label: str) -> str:
     return label
 
 
-def region_from_preprocessed_label(label: str) -> str:
+def recording_site_from_preprocessed_label(label: str) -> str:
     """
-    Return the region/pair name of a ``z_score_*`` / ``dff_*`` label or basename.
+    Return the recording-site name of a ``z_score_*`` / ``dff_*`` label or basename.
 
-    The prefix is stripped rather than split on the last underscore, so region names
-    containing underscores are preserved.
+    The prefix is stripped rather than split on the last underscore, so recording-site
+    names containing underscores are preserved.
 
     Parameters
     ----------
@@ -60,7 +61,7 @@ def region_from_preprocessed_label(label: str) -> str:
     Returns
     -------
     str
-        The region/pair name, e.g. ``"left_hemisphere"``.
+        The recording-site name, e.g. ``"left_hemisphere"``.
     """
     if label.startswith(ZSCORE_PREFIX):
         return label[len(ZSCORE_PREFIX) :]
@@ -69,9 +70,9 @@ def region_from_preprocessed_label(label: str) -> str:
     return label
 
 
-def region_from_channel_path(path: str) -> str:
+def recording_site_from_channel_path(path: str) -> str:
     """
-    Return the region/pair name of a ``control_*`` / ``signal_*`` HDF5 file path.
+    Return the recording-site name of a ``control_*`` / ``signal_*`` HDF5 file path.
 
     Parameters
     ----------
@@ -81,9 +82,9 @@ def region_from_channel_path(path: str) -> str:
     Returns
     -------
     str
-        The region/pair name, e.g. ``"left_hemisphere"``.
+        The recording-site name, e.g. ``"left_hemisphere"``.
     """
-    return region_from_channel_label(os.path.splitext(os.path.basename(path))[0])
+    return recording_site_from_channel_label(os.path.splitext(os.path.basename(path))[0])
 
 
 def find_files(path: str, glob_path: str, ignore_case: bool = False) -> list[str]:
@@ -161,14 +162,18 @@ def decide_naming_convention(filepath: str) -> np.ndarray:
     control_paths = find_files(filepath, "control_*", ignore_case=True)
     signal_paths = find_files(filepath, "signal_*", ignore_case=True)
 
-    # Pair by region name (fixed-prefix strip) rather than by sort position so that
-    # region names containing underscores are handled correctly.
-    control_by_region = {region_from_channel_label(os.path.splitext(os.path.basename(p))[0]): p for p in control_paths}
-    signal_by_region = {region_from_channel_label(os.path.splitext(os.path.basename(p))[0]): p for p in signal_paths}
+    # Pair by recording-site name (fixed-prefix strip) rather than by sort position so
+    # that recording-site names containing underscores are handled correctly.
+    control_by_recording_site = {
+        recording_site_from_channel_label(os.path.splitext(os.path.basename(p))[0]): p for p in control_paths
+    }
+    signal_by_recording_site = {
+        recording_site_from_channel_label(os.path.splitext(os.path.basename(p))[0]): p for p in signal_paths
+    }
 
-    if set(control_by_region) != set(signal_by_region):
-        control_without_signal = sorted(set(control_by_region) - set(signal_by_region))
-        signal_without_control = sorted(set(signal_by_region) - set(control_by_region))
+    if set(control_by_recording_site) != set(signal_by_recording_site):
+        control_without_signal = sorted(set(control_by_recording_site) - set(signal_by_recording_site))
+        signal_without_control = sorted(set(signal_by_recording_site) - set(control_by_recording_site))
         parts = []
         if control_without_signal:
             parts.append(f"control file(s) without a matching signal: {', '.join(control_without_signal)}")
@@ -182,9 +187,12 @@ def decide_naming_convention(filepath: str) -> np.ndarray:
         logger.error(message)
         raise ValueError(message)
 
-    regions = sorted(control_by_region, key=str.casefold)
+    recording_sites = sorted(control_by_recording_site, key=str.casefold)
     path = np.asarray(
-        [[control_by_region[region] for region in regions], [signal_by_region[region] for region in regions]]
+        [
+            [control_by_recording_site[recording_site] for recording_site in recording_sites],
+            [signal_by_recording_site[recording_site] for recording_site in recording_sites],
+        ]
     )
 
     return path
@@ -327,38 +335,41 @@ def get_control_and_signal_channel_names(store_array: np.ndarray) -> np.ndarray:
     """
     store_labels = store_array[1, :]
 
-    # Group control and signal labels by their region/pair name (fixed-prefix strip)
-    # so pairing is explicit rather than dependent on sort order. This keeps region
-    # names that contain underscores intact.
-    control_by_region = {}
-    signal_by_region = {}
+    # Group control and signal labels by their recording-site name (fixed-prefix strip)
+    # so pairing is explicit rather than dependent on sort order. This keeps
+    # recording-site names that contain underscores intact.
+    control_by_recording_site = {}
+    signal_by_recording_site = {}
     for label in store_labels:
         lowered = label.lower()
         if lowered.startswith(CONTROL_PREFIX):
-            control_by_region[region_from_channel_label(label)] = label
+            control_by_recording_site[recording_site_from_channel_label(label)] = label
         elif lowered.startswith(SIGNAL_PREFIX):
-            signal_by_region[region_from_channel_label(label)] = label
+            signal_by_recording_site[recording_site_from_channel_label(label)] = label
 
-    signal_without_control = sorted(set(signal_by_region) - set(control_by_region), key=str.casefold)
-    control_without_signal = sorted(set(control_by_region) - set(signal_by_region), key=str.casefold)
+    signal_without_control = sorted(set(signal_by_recording_site) - set(control_by_recording_site), key=str.casefold)
+    control_without_signal = sorted(set(control_by_recording_site) - set(signal_by_recording_site), key=str.casefold)
     if signal_without_control or control_without_signal:
         parts = []
         if signal_without_control:
-            parts.append(f"signal region(s) without a matching control: {', '.join(signal_without_control)}")
+            parts.append(f"signal recording site(s) without a matching control: {', '.join(signal_without_control)}")
         if control_without_signal:
-            parts.append(f"control region(s) without a matching signal: {', '.join(control_without_signal)}")
+            parts.append(f"control recording site(s) without a matching signal: {', '.join(control_without_signal)}")
         message = (
-            "Mismatched signal/control region pairs in storesList — "
+            "Mismatched signal/control recording-site pairs in storesList — "
             + "; ".join(parts)
-            + ". Every 'signal_<region>' must have a matching 'control_<region>'. "
-            "Re-run step 1 (Label Stores) to fix the region names."
+            + ". Every 'signal_<recording_site>' must have a matching 'control_<recording_site>'. "
+            "Re-run step 1 (Label Stores) to fix the recording-site names."
         )
         logger.error(message)
         raise ValueError(message)
 
-    regions = sorted(control_by_region, key=str.casefold)
+    recording_sites = sorted(control_by_recording_site, key=str.casefold)
     control_signal_names = np.asarray(
-        [[control_by_region[region] for region in regions], [signal_by_region[region] for region in regions]]
+        [
+            [control_by_recording_site[recording_site] for recording_site in recording_sites],
+            [signal_by_recording_site[recording_site] for recording_site in recording_sites],
+        ]
     )
 
     return control_signal_names

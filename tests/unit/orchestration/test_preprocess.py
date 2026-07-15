@@ -145,8 +145,8 @@ def test_visualize_artifact_removal_invokes_widget_visualization_and_show(monkey
 # ── error paths ───────────────────────────────────────────────────────────────
 
 
-def test_visualize_control_and_signal_raises_for_mismatched_regions(tmp_path):
-    """A control region with no matching signal region raises a pairing error."""
+def test_visualize_control_and_signal_raises_for_mismatched_recording_sites(tmp_path):
+    """A control recording site with no matching signal recording site raises a pairing error."""
     (tmp_path / "control_dms.hdf5").touch()
     (tmp_path / "signal_vms.hdf5").touch()
     with pytest.raises(ValueError) as exception_info:
@@ -157,8 +157,8 @@ def test_visualize_control_and_signal_raises_for_mismatched_regions(tmp_path):
     assert "vms" in message
 
 
-def test_execute_zscore_raises_for_mismatched_regions(tmp_path, base_input_parameters):
-    """control_dms paired with signal_vms (different regions) — raises naming both regions."""
+def test_execute_zscore_raises_for_mismatched_recording_sites(tmp_path, base_input_parameters):
+    """control_dms paired with signal_vms (different recording sites) — raises naming both recording sites."""
     run_folder = tmp_path / "session_output_1"
     run_folder.mkdir()
     (run_folder / "control_dms.hdf5").touch()

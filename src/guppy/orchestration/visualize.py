@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 from .save_parameters import save_parameters
-from ..analysis.io_utils import region_from_preprocessed_label
+from ..analysis.io_utils import recording_site_from_preprocessed_label
 from ..frontend.parameterized_plotter import (
     ParameterizedPlotter,
     overview_y_options,
@@ -70,7 +70,7 @@ def helper_plots(filepath: str, event: list[str], name: list[str] | str, inputPa
         for i in range(len(event_name)):
 
             for j in range(len(name)):
-                new_event.append(event_name[i] + "_" + region_from_preprocessed_label(name[j]))
+                new_event.append(event_name[i] + "_" + recording_site_from_preprocessed_label(name[j]))
                 new_name = name[j]
                 event_df = read_Df(filepath, new_event[-1], new_name)
                 columns = list(event_df.columns)
@@ -254,7 +254,7 @@ def _validate_metric_against_step4_outputs(inputParameters: dict[str, object]) -
         return  # Nothing to check; the main function will handle the empty case.
 
     # PSTH output files use the ".h5" extension (pandas HDF5) and embed the
-    # metric name, e.g. "ttl_region_z_score_region.h5" or "ttl_region_dff_region.h5".
+    # metric name, e.g. "<event>_z_score_<recording_site>.h5" or "<event>_dff_<recording_site>.h5".
     # Step-3 z-score/dff files use ".hdf5" and are therefore never false-positives.
     if visualize_zscore_or_dff == "z_score":
         pattern = "*_z_score_*.h5"

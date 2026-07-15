@@ -7,7 +7,7 @@ from guppy.testing.api import step4
 
 
 @pytest.mark.parametrize(
-    "step3_fixture_name, expected_region, expected_ttl",
+    "step3_fixture_name, expected_recording_site, expected_ttl",
     [
         (
             "step3_output_csv",
@@ -38,7 +38,7 @@ from guppy.testing.api import step4
     ids=["csv_generic", "tdt_clean", "sample_npm_1", "sample_doric_1", "nwb_mock"],
 )
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_step4(step3_fixture_name, expected_region, expected_ttl, request):
+def test_step4(step3_fixture_name, expected_recording_site, expected_ttl, request):
     """
     Validate Step 4 outputs for the representative integration sessions.
     """
@@ -70,19 +70,19 @@ def test_step4(step3_fixture_name, expected_region, expected_ttl, request):
     for expected_ttl_name in expected_ttl_names:
         psth_file_path = os.path.join(
             output_directory,
-            f"{expected_ttl_name}_{expected_region}_z_score_{expected_region}.h5",
+            f"{expected_ttl_name}_{expected_recording_site}_z_score_{expected_recording_site}.h5",
         )
         baseline_uncorrected_psth_file_path = os.path.join(
             output_directory,
-            f"{expected_ttl_name}_{expected_region}_baselineUncorrected_z_score_{expected_region}.h5",
+            f"{expected_ttl_name}_{expected_recording_site}_baselineUncorrected_z_score_{expected_recording_site}.h5",
         )
         peak_auc_h5_file_path = os.path.join(
             output_directory,
-            f"peak_AUC_{expected_ttl_name}_{expected_region}_z_score_{expected_region}.h5",
+            f"peak_AUC_{expected_ttl_name}_{expected_recording_site}_z_score_{expected_recording_site}.h5",
         )
         peak_auc_csv_file_path = os.path.join(
             output_directory,
-            f"peak_AUC_{expected_ttl_name}_{expected_region}_z_score_{expected_region}.csv",
+            f"peak_AUC_{expected_ttl_name}_{expected_recording_site}_z_score_{expected_recording_site}.csv",
         )
 
         # Assert file creation
@@ -100,11 +100,15 @@ def test_step4(step3_fixture_name, expected_region, expected_ttl, request):
         assert "mean" in psth_dataframe.columns, f"'mean' column missing in {psth_file_path}"
 
     # Additional artifacts from transients frequency/amplitude computation (Step 4 side-effect)
-    frequency_and_amplitude_h5_file_path = os.path.join(output_directory, f"freqAndAmp_z_score_{expected_region}.h5")
-    frequency_and_amplitude_csv_file_path = os.path.join(output_directory, f"freqAndAmp_z_score_{expected_region}.csv")
+    frequency_and_amplitude_h5_file_path = os.path.join(
+        output_directory, f"freqAndAmp_z_score_{expected_recording_site}.h5"
+    )
+    frequency_and_amplitude_csv_file_path = os.path.join(
+        output_directory, f"freqAndAmp_z_score_{expected_recording_site}.csv"
+    )
     transients_occurrences_csv_file_path = os.path.join(
         output_directory,
-        f"transientsOccurrences_z_score_{expected_region}.csv",
+        f"transientsOccurrences_z_score_{expected_recording_site}.csv",
     )
     assert os.path.exists(
         frequency_and_amplitude_h5_file_path

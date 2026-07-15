@@ -9,19 +9,19 @@ from conftest import STUBBED_TESTING_DATA
 from guppy.testing.api import step1, step2, step3, step4
 
 SESSION_SUBDIR = "csv/sample_data_csv_1"
-# Region name deliberately contains an underscore — the core of issue #383. Before the
+# Recording-site name deliberately contains an underscore — the core of issue #383. Before the
 # fix, split("_")[-1] recovered "ms" instead of "d_ms" and the pipeline broke silently.
-EXPECTED_REGION = "d_ms"
+EXPECTED_RECORDING_SITE = "d_ms"
 EXPECTED_TTL = "ttl"
 
 # isosbestic_control=True uses a real control channel; False synthesizes one from the signal.
 ISOSBESTIC_STORE_MAP = {
-    "Sample_Control_Channel": f"control_{EXPECTED_REGION}",
-    "Sample_Signal_Channel": f"signal_{EXPECTED_REGION}",
+    "Sample_Control_Channel": f"control_{EXPECTED_RECORDING_SITE}",
+    "Sample_Signal_Channel": f"signal_{EXPECTED_RECORDING_SITE}",
     "Sample_TTL": EXPECTED_TTL,
 }
 NO_ISOSBESTIC_STORE_MAP = {
-    "Sample_Signal_Channel": f"signal_{EXPECTED_REGION}",
+    "Sample_Signal_Channel": f"signal_{EXPECTED_RECORDING_SITE}",
     "Sample_TTL": EXPECTED_TTL,
 }
 
@@ -34,10 +34,10 @@ NO_ISOSBESTIC_STORE_MAP = {
         pytest.param(False, NO_ISOSBESTIC_STORE_MAP, id="no_isosbestic"),
     ],
 )
-def test_underscore_region_runs_end_to_end(tmp_path, isosbestic_control, store_id_to_store_label):
-    """A region name containing an underscore flows through the full pipeline (Steps 1-4).
+def test_underscore_recording_site_runs_end_to_end(tmp_path, isosbestic_control, store_id_to_store_label):
+    """A recording-site name containing an underscore flows through the full pipeline (Steps 1-4).
 
-    This is the direct regression test for issue #383: the region key is threaded through
+    This is the direct regression test for issue #383: the recording-site key is threaded through
     timestamp correction, control fitting, dF/F, PSTH, peak/AUC and transients purely by
     constructing filenames from the known pair name, never by splitting on the last
     underscore — so an underscore in the name no longer corrupts the outputs.
@@ -78,12 +78,16 @@ def test_underscore_region_runs_end_to_end(tmp_path, isosbestic_control, store_i
             break
     assert output_directory is not None, f"No storesList.csv found in any output directory under {session_copy}"
 
-    # The full underscore region must appear intact in every derived artifact name.
-    psth_file_path = os.path.join(output_directory, f"{EXPECTED_TTL}_{EXPECTED_REGION}_z_score_{EXPECTED_REGION}.h5")
-    peak_auc_h5_file_path = os.path.join(
-        output_directory, f"peak_AUC_{EXPECTED_TTL}_{EXPECTED_REGION}_z_score_{EXPECTED_REGION}.h5"
+    # The full underscore recording site must appear intact in every derived artifact name.
+    psth_file_path = os.path.join(
+        output_directory, f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.h5"
     )
-    frequency_and_amplitude_h5_file_path = os.path.join(output_directory, f"freqAndAmp_z_score_{EXPECTED_REGION}.h5")
+    peak_auc_h5_file_path = os.path.join(
+        output_directory, f"peak_AUC_{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.h5"
+    )
+    frequency_and_amplitude_h5_file_path = os.path.join(
+        output_directory, f"freqAndAmp_z_score_{EXPECTED_RECORDING_SITE}.h5"
+    )
 
     assert os.path.exists(psth_file_path), f"Missing PSTH HDF5: {psth_file_path}"
     assert os.path.exists(peak_auc_h5_file_path), f"Missing peak/AUC HDF5: {peak_auc_h5_file_path}"

@@ -6,7 +6,7 @@ import pytest
 
 
 @pytest.mark.parametrize(
-    "step3_fixture_name, expected_region, expected_ttl",
+    "step3_fixture_name, expected_recording_site, expected_ttl",
     [
         (
             "step3_output_csv",
@@ -37,7 +37,7 @@ import pytest
     ids=["csv_generic", "tdt_clean", "sample_npm_1", "sample_doric_1", "nwb_mock"],
 )
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_step3(step3_fixture_name, expected_region, expected_ttl, request):
+def test_step3(step3_fixture_name, expected_recording_site, expected_ttl, request):
     """
     Validate Step 3 outputs for the representative integration sessions.
     """
@@ -56,13 +56,13 @@ def test_step3(step3_fixture_name, expected_region, expected_ttl, request):
     # The control fitting method defaults to IRWLS and is recorded in the snapshot.
     assert saved_parameters["control_fit_method"] == "IRWLS"
 
-    # Ensure timeCorrection_<region>.hdf5 exists with 'timestampNew'
-    time_correction_file_path = os.path.join(output_directory, f"timeCorrection_{expected_region}.hdf5")
+    # Ensure timeCorrection_<recording_site>.hdf5 exists with 'timestampNew'
+    time_correction_file_path = os.path.join(output_directory, f"timeCorrection_{expected_recording_site}.hdf5")
     assert os.path.exists(time_correction_file_path), f"Missing {time_correction_file_path}"
     with h5py.File(time_correction_file_path, "r") as time_correction_file:
         assert "timestampNew" in time_correction_file, f"Expected 'timestampNew' dataset in {time_correction_file_path}"
 
-    # If TTLs exist, check their per-region 'ts' outputs
+    # If TTLs exist, check their per-recording-site 'ts' outputs
     if expected_ttl is None:
         expected_ttl_names = []
     elif isinstance(expected_ttl, str):
@@ -71,7 +71,7 @@ def test_step3(step3_fixture_name, expected_region, expected_ttl, request):
         expected_ttl_names = expected_ttl
 
     for expected_ttl_name in expected_ttl_names:
-        ttl_file_path = os.path.join(output_directory, f"{expected_ttl_name}_{expected_region}.hdf5")
+        ttl_file_path = os.path.join(output_directory, f"{expected_ttl_name}_{expected_recording_site}.hdf5")
         assert os.path.exists(ttl_file_path), f"Missing TTL-aligned file {ttl_file_path}"
         with h5py.File(ttl_file_path, "r") as ttl_file:
             assert "ts" in ttl_file, f"Expected 'ts' dataset in {ttl_file_path}"

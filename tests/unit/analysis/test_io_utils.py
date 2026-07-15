@@ -14,9 +14,9 @@ from guppy.analysis.io_utils import (
     make_dir_for_cross_correlation,
     makeAverageDir,
     read_hdf5,
-    region_from_channel_label,
-    region_from_channel_path,
-    region_from_preprocessed_label,
+    recording_site_from_channel_label,
+    recording_site_from_channel_path,
+    recording_site_from_preprocessed_label,
     write_combined_stores_list,
     write_hdf5,
 )
@@ -73,8 +73,8 @@ def test_decide_naming_convention_unequal_counts_raises(tmp_path):
     assert "control file(s) without a matching signal: NAc" in message
 
 
-def test_decide_naming_convention_pairs_regions_with_underscores(tmp_path):
-    # Region names contain underscores; pairing must still be correct.
+def test_decide_naming_convention_pairs_recording_sites_with_underscores(tmp_path):
+    # Recording-site names contain underscores; pairing must still be correct.
     (tmp_path / "control_left_hemisphere.hdf5").touch()
     (tmp_path / "signal_left_hemisphere.hdf5").touch()
     result = decide_naming_convention(str(tmp_path))
@@ -248,50 +248,50 @@ def test_get_control_and_signal_channel_names_filters_and_sorts_channels():
 def test_get_control_and_signal_channel_names_raises_for_odd_count():
     # Three control/signal entries cannot reshape to (2, -1)
     stores_list = np.array([["s0", "c0", "c1"], ["signal_dms", "control_dms", "control_nac"]])
-    with pytest.raises(ValueError, match="control region.*without a matching signal.*nac"):
+    with pytest.raises(ValueError, match="control recording site.*without a matching signal.*nac"):
         get_control_and_signal_channel_names(stores_list)
 
 
-def test_get_control_and_signal_channel_names_error_names_unmatched_signal_region():
+def test_get_control_and_signal_channel_names_error_names_unmatched_signal_recording_site():
     stores_list = np.array([["s0", "s1", "c0"], ["signal_dms", "signal_nac", "control_dms"]])
-    with pytest.raises(ValueError, match="signal region.*without a matching control.*nac"):
+    with pytest.raises(ValueError, match="signal recording site.*without a matching control.*nac"):
         get_control_and_signal_channel_names(stores_list)
 
 
 def test_get_control_and_signal_channel_names_signal_only_raises_mismatch_error():
-    # Signals with no matching controls are unpaired and must be reported by region.
+    # Signals with no matching controls are unpaired and must be reported by recording site.
     stores_list = np.array([["s0", "s1", "s2"], ["signal_dms", "signal_nac", "signal_vta"]])
-    with pytest.raises(ValueError, match="signal region.*without a matching control.*dms, nac, vta"):
+    with pytest.raises(ValueError, match="signal recording site.*without a matching control.*dms, nac, vta"):
         get_control_and_signal_channel_names(stores_list)
 
 
-def test_get_control_and_signal_channel_names_pairs_regions_with_underscores():
-    # Region names containing underscores must pair correctly (no last-underscore split).
+def test_get_control_and_signal_channel_names_pairs_recording_sites_with_underscores():
+    # Recording-site names containing underscores must pair correctly (no last-underscore split).
     stores_list = np.array([["c0", "s0", "e0"], ["control_left_hemisphere", "signal_left_hemisphere", "port_entry"]])
     result = get_control_and_signal_channel_names(stores_list)
     np.testing.assert_array_equal(result, np.array([["control_left_hemisphere"], ["signal_left_hemisphere"]]))
 
 
-# ── region_from_* helpers ─────────────────────────────────────────────────────
+# ── recording_site_from_* helpers ─────────────────────────────────────────────────────
 
 
-def test_region_from_channel_label_strips_role_prefix_preserving_underscores():
-    assert region_from_channel_label("signal_left_hemisphere") == "left_hemisphere"
-    assert region_from_channel_label("control_DMS") == "DMS"
-    # Case-insensitive prefix detection, region case preserved.
-    assert region_from_channel_label("Signal_D_MS") == "D_MS"
+def test_recording_site_from_channel_label_strips_role_prefix_preserving_underscores():
+    assert recording_site_from_channel_label("signal_left_hemisphere") == "left_hemisphere"
+    assert recording_site_from_channel_label("control_DMS") == "DMS"
+    # Case-insensitive prefix detection, recording-site case preserved.
+    assert recording_site_from_channel_label("Signal_D_MS") == "D_MS"
     # Non-channel labels pass through unchanged.
-    assert region_from_channel_label("port_entry") == "port_entry"
+    assert recording_site_from_channel_label("port_entry") == "port_entry"
 
 
-def test_region_from_channel_path_strips_prefix_and_extension():
-    assert region_from_channel_path("/a/b/signal_left_hemisphere.hdf5") == "left_hemisphere"
-    assert region_from_channel_path("control_d_ms.hdf5") == "d_ms"
+def test_recording_site_from_channel_path_strips_prefix_and_extension():
+    assert recording_site_from_channel_path("/a/b/signal_left_hemisphere.hdf5") == "left_hemisphere"
+    assert recording_site_from_channel_path("control_d_ms.hdf5") == "d_ms"
 
 
-def test_region_from_preprocessed_label_strips_zscore_or_dff_prefix():
-    assert region_from_preprocessed_label("z_score_left_hemisphere") == "left_hemisphere"
-    assert region_from_preprocessed_label("dff_d_ms") == "d_ms"
+def test_recording_site_from_preprocessed_label_strips_zscore_or_dff_prefix():
+    assert recording_site_from_preprocessed_label("z_score_left_hemisphere") == "left_hemisphere"
+    assert recording_site_from_preprocessed_label("dff_d_ms") == "d_ms"
 
 
 # ── make_dir_for_cross_correlation ────────────────────────────────────────────

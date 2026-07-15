@@ -78,7 +78,7 @@ class TestStoreLabelingConfig:
         assert store_labeling_config_instance._get_help_text("control") == "*Select the signal this control belongs to*"
 
     def test_get_help_text_signal(self, store_labeling_config_instance):
-        assert store_labeling_config_instance._get_help_text("signal") == "*Type appropriate region name*"
+        assert store_labeling_config_instance._get_help_text("signal") == "*Type appropriate recording-site name*"
 
     def test_get_help_text_event_ttls(self, store_labeling_config_instance):
         assert store_labeling_config_instance._get_help_text("event TTLs") == "*Type event name for the TTLs*"
@@ -92,7 +92,7 @@ class TestStoreLabelingConfig:
         _, dropdowns, textboxes, _ = build_config(show_config_button, ["Dv1A"], {"Dv1A": ["control_DMS"]})
         assert dropdowns["Dv1A_0"].value == "control"
         # The control's own Name box is unused (it references a signal), but the cached
-        # region is remembered so it can re-select the signal once one is defined.
+        # recording site is remembered so it can re-select the signal once one is defined.
         assert textboxes["Dv1A_0"].value == "DMS"
 
     def test_cache_signal_pre_populates_dropdown_and_textbox(self, panel_extension, show_config_button):

@@ -36,7 +36,7 @@ def compute_cross_correlation(
     -----
     The two trial sequences must already be paired: ``signal_a_trials[k]`` is
     correlated with ``signal_b_trials[k]``. The caller is responsible for
-    reconciling the two regions' trials (see
+    reconciling the two recording sites' trials (see
     :func:`guppy.analysis.psth_utils.match_trials_by_timestamp`) so that uneven
     artifact removal does not misalign them.
     """
@@ -44,8 +44,8 @@ def compute_cross_correlation(
     b_trials = list(signal_b_trials)
     if len(a_trials) == 0 or len(b_trials) == 0:
         message = (
-            "Cross-correlation requires at least one trial in each region, but received "
-            f"{len(a_trials)} trial(s) for the first region and {len(b_trials)} for the second."
+            "Cross-correlation requires at least one trial in each recording site, but received "
+            f"{len(a_trials)} trial(s) for the first recording site and {len(b_trials)} for the second."
         )
         logger.error(message)
         raise ValueError(message)

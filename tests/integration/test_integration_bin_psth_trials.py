@@ -24,7 +24,7 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
         "Sample_Signal_Channel": "signal_region",
         "Sample_TTL": "ttl",
     }
-    expected_region = "region"
+    expected_recording_site = "region"
     expected_ttl = "ttl"
 
     source_session = os.path.join(str(STUBBED_TESTING_DATA), session_subdir)
@@ -91,7 +91,7 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
 
     psth_file_path = os.path.join(
         output_directory,
-        f"{expected_ttl}_{expected_region}_z_score_{expected_region}.h5",
+        f"{expected_ttl}_{expected_recording_site}_z_score_{expected_recording_site}.h5",
     )
     assert os.path.exists(psth_file_path), f"Missing PSTH HDF5: {psth_file_path}"
 
@@ -124,7 +124,7 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
 
     average_psth_file_path = os.path.join(
         average_directory,
-        f"{expected_ttl}_{expected_region}_z_score_{expected_region}.h5",
+        f"{expected_ttl}_{expected_recording_site}_z_score_{expected_recording_site}.h5",
     )
     assert os.path.exists(average_psth_file_path), f"Missing averaged PSTH HDF5: {average_psth_file_path}"
 

@@ -10,7 +10,7 @@ import pandas as pd
 from .io_utils import (
     make_dir_for_cross_correlation,
     makeAverageDir,
-    region_from_preprocessed_label,
+    recording_site_from_preprocessed_label,
     write_hdf5,
 )
 from .psth_utils import create_Df_for_psth, getCorrCombinations
@@ -57,7 +57,7 @@ def averageForGroup(session_folders: list[str], event: str, inputParameters: dic
         for j in range(len(matched_paths)):
             basename = (os.path.basename(matched_paths[j])).split(".")[0]
             write_hdf5(np.array([]), basename, run_folder, "data")
-            name_1 = region_from_preprocessed_label(basename)
+            name_1 = recording_site_from_preprocessed_label(basename)
             entry = [session_folders[i], event + "_" + name_1, basename]
             path.append(entry)
 

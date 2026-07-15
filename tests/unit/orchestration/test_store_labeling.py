@@ -381,8 +381,8 @@ def test_fetchValues_returns_alert_when_required_textbox_empty():
     assert "Alert" in result
 
 
-def test_fetchValues_allows_underscore_in_region_name():
-    """Underscores in a region name are now allowed (issue #383)."""
+def test_fetchValues_allows_underscore_in_recording_site_name():
+    """Underscores in a recording-site name are now allowed (issue #383)."""
     text, store_ids, dropdowns, textboxes, control_refs = _build_fetchValues_args(
         dropdown_values={"Dv2A": "signal"},
         textbox_values={"Dv2A": "left_hemisphere"},

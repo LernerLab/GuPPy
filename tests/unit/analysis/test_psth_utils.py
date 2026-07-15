@@ -107,7 +107,7 @@ def test_match_identical_labels_pairs_all_trials():
 
 
 def test_match_subsample_jitter_still_pairs():
-    # Same events, corrected slightly differently per region (sub-sample jitter).
+    # Same events, corrected slightly differently per recording site (sub-sample jitter).
     labels_a = [10.0, 20.0, 30.0]
     labels_b = [10.002, 20.001, 29.998]
     indices_a, indices_b, matched = match_trials_by_timestamp(labels_a, labels_b)
@@ -115,8 +115,8 @@ def test_match_subsample_jitter_still_pairs():
     np.testing.assert_array_equal(indices_b, [0, 1, 2])
 
 
-def test_match_drops_trial_present_in_only_one_region():
-    # Region B is missing the 20.0 event; only 10.0 and 30.0 are shared.
+def test_match_drops_trial_present_in_only_one_recording_site():
+    # Recording site B is missing the 20.0 event; only 10.0 and 30.0 are shared.
     labels_a = [10.0, 20.0, 30.0]
     labels_b = [10.0, 30.0]
     indices_a, indices_b, matched = match_trials_by_timestamp(labels_a, labels_b)

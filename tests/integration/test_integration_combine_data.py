@@ -23,7 +23,7 @@ def test_combine_data(tmp_path):
         "Dv2A": "signal_dms",
         "PrtN": "port_entries_dms",
     }
-    expected_region = "dms"
+    expected_recording_site = "dms"
     expected_ttl = "port_entries_dms"
 
     npm_timestamp_column_names = None
@@ -116,13 +116,13 @@ def test_combine_data(tmp_path):
     stores_fp = os.path.join(out_dir, "storesList.csv")
     assert os.path.exists(stores_fp), "Missing storesList.csv after Step 1/2/3"
 
-    # Ensure timeCorrection_<region>.hdf5 exists with 'timestampNew'
-    timecorr = os.path.join(out_dir, f"timeCorrection_{expected_region}.hdf5")
+    # Ensure timeCorrection_<recording_site>.hdf5 exists with 'timestampNew'
+    timecorr = os.path.join(out_dir, f"timeCorrection_{expected_recording_site}.hdf5")
     assert os.path.exists(timecorr), f"Missing {timecorr}"
     with h5py.File(timecorr, "r") as f:
         assert "timestampNew" in f, f"Expected 'timestampNew' dataset in {timecorr}"
 
-    # If TTLs exist, check their per-region 'ts' outputs
+    # If TTLs exist, check their per-recording-site 'ts' outputs
     if expected_ttl is None:
         expected_ttls = []
     elif isinstance(expected_ttl, str):
@@ -130,7 +130,7 @@ def test_combine_data(tmp_path):
     else:
         expected_ttls = expected_ttl
     for expected_ttl in expected_ttls:
-        ttl_fp = os.path.join(out_dir, f"{expected_ttl}_{expected_region}.hdf5")
+        ttl_fp = os.path.join(out_dir, f"{expected_ttl}_{expected_recording_site}.hdf5")
         assert os.path.exists(ttl_fp), f"Missing TTL-aligned file {ttl_fp}"
         with h5py.File(ttl_fp, "r") as f:
             assert "ts" in f, f"Expected 'ts' dataset in {ttl_fp}"

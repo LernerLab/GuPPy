@@ -9,8 +9,8 @@ from .io_utils import (
     fetchCoords,
     get_control_and_signal_channel_names,
     read_hdf5,
-    region_from_channel_label,
-    region_from_channel_path,
+    recording_site_from_channel_label,
+    recording_site_from_channel_path,
     write_hdf5,
 )
 
@@ -142,7 +142,7 @@ def write_corrected_timestamps(
         sampling_rate = store_label_to_sampling_rate[name]
         if sampling_rate.shape == ():  # numpy scalar
             sampling_rate = np.asarray([sampling_rate])
-        name_1 = region_from_channel_label(name)
+        name_1 = recording_site_from_channel_label(name)
         write_hdf5(np.asarray([timestamps[0]]), "timeCorrection_" + name_1, filepath, "timeRecStart")
         write_hdf5(corrected_timestamps, "timeCorrection_" + name_1, filepath, "timestampNew")
         write_hdf5(correctionIndex, "timeCorrection_" + name_1, filepath, "correctionIndex")
@@ -272,12 +272,12 @@ def read_corrected_timestamps_pairwise(
     pair_name_to_sampling_rate = {}
     path = decide_naming_convention(filepath)
     for j in range(path.shape[1]):
-        name_1 = region_from_channel_path(path[0, j])
-        name_2 = region_from_channel_path(path[1, j])
+        name_1 = recording_site_from_channel_path(path[0, j])
+        name_2 = recording_site_from_channel_path(path[1, j])
         if name_1 != name_2:
             message = (
-                f"Pair name mismatch in '{filepath}': control file region '{name_1}' does not match "
-                f"signal file region '{name_2}'. Check the naming convention of your files and the "
+                f"Pair name mismatch in '{filepath}': control file recording site '{name_1}' does not match "
+                f"signal file recording site '{name_2}'. Check the naming convention of your files and the "
                 f"storesList file, then re-run step 1."
             )
             logger.error(message)
@@ -310,12 +310,12 @@ def read_coords_pairwise(filepath: str, pair_name_to_tsNew: dict[str, np.ndarray
     pair_name_to_coords = {}
     path = decide_naming_convention(filepath)
     for j in range(path.shape[1]):
-        name_1 = region_from_channel_path(path[0, j])
-        name_2 = region_from_channel_path(path[1, j])
+        name_1 = recording_site_from_channel_path(path[0, j])
+        name_2 = recording_site_from_channel_path(path[1, j])
         if name_1 != name_2:
             message = (
-                f"Pair name mismatch in '{filepath}': control file region '{name_1}' does not match "
-                f"signal file region '{name_2}'. Check the naming convention of your files and the "
+                f"Pair name mismatch in '{filepath}': control file recording site '{name_1}' does not match "
+                f"signal file recording site '{name_2}'. Check the naming convention of your files and the "
                 f"storesList file, then re-run step 1."
             )
             logger.error(message)
@@ -386,13 +386,14 @@ def read_corrected_ttl_timestamps(filepath: str, store_array: np.ndarray) -> dic
             continue
         ttl_name = store_label
         for i in range(control_signal_names.shape[1]):
-            name_1 = region_from_channel_label(control_signal_names[0, i])
-            name_2 = region_from_channel_label(control_signal_names[1, i])
+            name_1 = recording_site_from_channel_label(control_signal_names[0, i])
+            name_2 = recording_site_from_channel_label(control_signal_names[1, i])
             if name_1 != name_2:
                 message = (
-                    f"Pair name mismatch in storesList: control channel '{control_signal_names[0, i]}' has region "
-                    f"'{name_1}' but signal channel '{control_signal_names[1, i]}' has region '{name_2}'. Check the "
-                    "naming convention of your files and the storesList file, then re-run step 1."
+                    f"Pair name mismatch in storesList: control channel '{control_signal_names[0, i]}' has "
+                    f"recording site '{name_1}' but signal channel '{control_signal_names[1, i]}' has recording "
+                    f"site '{name_2}'. Check the naming convention of your files and the storesList file, then "
+                    "re-run step 1."
                 )
                 logger.error(message)
                 raise ValueError(message)
@@ -465,13 +466,13 @@ def read_timestamps_for_combining_data(
     path = decide_naming_convention(filepaths_to_combine[0])
     pair_name_to_filepath_to_timestamps: dict[str, dict[str, np.ndarray]] = {}
     for j in range(path.shape[1]):
-        name_1 = region_from_channel_path(path[0, j])
-        name_2 = region_from_channel_path(path[1, j])
+        name_1 = recording_site_from_channel_path(path[0, j])
+        name_2 = recording_site_from_channel_path(path[1, j])
         if name_1 != name_2:
             message = (
-                f"Pair name mismatch in '{filepaths_to_combine[0]}': control file region '{name_1}' does not match "
-                f"signal file region '{name_2}'. Check the naming convention of your files and the "
-                f"storesList file, then re-run step 1."
+                f"Pair name mismatch in '{filepaths_to_combine[0]}': control file recording site '{name_1}' does "
+                f"not match signal file recording site '{name_2}'. Check the naming convention of your files and "
+                f"the storesList file, then re-run step 1."
             )
             logger.error(message)
             raise ValueError(message)
@@ -506,13 +507,13 @@ def read_data_for_combining_data(
     path = decide_naming_convention(filepaths_to_combine[0])
     store_label_to_filepath_to_data: dict[str, dict[str, np.ndarray]] = {}
     for j in range(path.shape[1]):
-        name_1 = region_from_channel_path(path[0, j])
-        name_2 = region_from_channel_path(path[1, j])
+        name_1 = recording_site_from_channel_path(path[0, j])
+        name_2 = recording_site_from_channel_path(path[1, j])
         if name_1 != name_2:
             message = (
-                f"Pair name mismatch in '{filepaths_to_combine[0]}': control file region '{name_1}' does not match "
-                f"signal file region '{name_2}'. Check the naming convention of your files and the "
-                f"storesList file, then re-run step 1."
+                f"Pair name mismatch in '{filepaths_to_combine[0]}': control file recording site '{name_1}' does "
+                f"not match signal file recording site '{name_2}'. Check the naming convention of your files and "
+                f"the storesList file, then re-run step 1."
             )
             logger.error(message)
             raise ValueError(message)
@@ -554,12 +555,12 @@ def read_ttl_timestamps_for_combining_data(
     path = decide_naming_convention(filepaths_to_combine[0])
     compound_name_to_filepath_to_ttl_timestamps: dict[str, dict[str, np.ndarray]] = {}
     for j in range(path.shape[1]):
-        name_1 = region_from_channel_path(path[0, j])
-        name_2 = region_from_channel_path(path[1, j])
+        name_1 = recording_site_from_channel_path(path[0, j])
+        name_2 = recording_site_from_channel_path(path[1, j])
         if name_1 != name_2:
             message = (
-                f"Pair name mismatch in '{filepaths_to_combine[0]}': control file region '{name_1}' does "
-                f"not match signal file region '{name_2}'. Check the naming convention of your files and "
+                f"Pair name mismatch in '{filepaths_to_combine[0]}': control file recording site '{name_1}' does "
+                f"not match signal file recording site '{name_2}'. Check the naming convention of your files and "
                 "the storesList file, then re-run step 1."
             )
             logger.error(message)

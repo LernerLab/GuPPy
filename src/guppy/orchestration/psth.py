@@ -21,7 +21,7 @@ from ..analysis.io_utils import (
     make_dir_for_cross_correlation,
     makeAverageDir,
     read_hdf5,
-    region_from_preprocessed_label,
+    recording_site_from_preprocessed_label,
     write_hdf5,
 )
 from ..analysis.psth_average import averageForGroup
@@ -81,7 +81,7 @@ def execute_compute_psth(filepath: str, event: str, inputParameters: dict[str, o
     for i in range(len(path)):
         logger.info(f"Computing PSTH for event {event}...")
         basename = (os.path.basename(path[i])).split(".")[0]
-        name_1 = region_from_preprocessed_label(basename)
+        name_1 = recording_site_from_preprocessed_label(basename)
         control = read_hdf5("control_" + name_1, os.path.dirname(path[i]), "data")
         if (control == 0).all() == True:
             signal = read_hdf5("signal_" + name_1, os.path.dirname(path[i]), "data")
@@ -159,7 +159,7 @@ def execute_compute_psth_peak_and_area(filepath: str, event: str, inputParameter
     for i in range(len(path)):
         logger.info(f"Computing peak and area for PSTH mean signal for event {event}...")
         basename = (os.path.basename(path[i])).split(".")[0]
-        name_1 = region_from_preprocessed_label(basename)
+        name_1 = recording_site_from_preprocessed_label(basename)
         sampling_rate = read_hdf5("timeCorrection_" + name_1, filepath, "sampling_rate")[0]
         psth = read_Df(filepath, event + "_" + name_1, basename)
         columns = list(psth.columns)
@@ -181,7 +181,7 @@ def execute_compute_psth_peak_and_area(filepath: str, event: str, inputParameter
 
 
 def execute_compute_cross_correlation(filepath: str, event: str, inputParameters: dict[str, object]) -> None:
-    """Compute and save cross-correlation between brain regions for a single event.
+    """Compute and save cross-correlation between recording sites for a single event.
 
     Parameters
     ----------
@@ -206,15 +206,15 @@ def execute_compute_cross_correlation(filepath: str, event: str, inputParameters
         if len(corr_info) < 2:
             if corr_info:
                 raise ValueError(
-                    f"Cross-correlation requires at least two distinct signal regions, but only one was "
-                    f"found: '{corr_info[0]}'. Please either disable compute_cross_correlation or add a "
-                    f"second signal region in step 1."
+                    f"Cross-correlation requires at least two distinct signal recording sites, but only one "
+                    f"was found: '{corr_info[0]}'. Please either disable compute_cross_correlation or add a "
+                    f"second signal recording site in step 1."
                 )
             else:
                 raise ValueError(
-                    "Cross-correlation requires at least two distinct signal regions, but no signal "
-                    "regions were found. Please either disable compute_cross_correlation or add signal "
-                    "regions in step 1."
+                    "Cross-correlation requires at least two distinct signal recording sites, but no signal "
+                    "recording sites were found. Please either disable compute_cross_correlation or add "
+                    "signal recording sites in step 1."
                 )
         if "control" in event.lower() or "signal" in event.lower():
             return
@@ -227,20 +227,20 @@ def execute_compute_cross_correlation(filepath: str, event: str, inputParameters
                     sample_rate = 1 / (psth_a["timestamps"][1] - psth_a["timestamps"][0])
                     psth_a = psth_a.drop(columns=["timestamps", "err", "mean"])
                     psth_b = psth_b.drop(columns=["timestamps", "err", "mean"])
-                    # Uneven artifact removal can leave the two regions with a slightly
-                    # different set of surviving trials; pair them by event timestamp so
-                    # only the trials both regions kept are correlated (and labeled).
+                    # Uneven artifact removal can leave the two recording sites with a
+                    # slightly different set of surviving trials; pair them by event timestamp
+                    # so only the trials both recording sites kept are correlated (and labeled).
                     indices_a, indices_b, matched_labels = match_trials_by_timestamp(
                         list(psth_a.columns), list(psth_b.columns)
                     )
                     if len(matched_labels) == 0:
                         raise ValueError(
-                            f"No matching trials between regions '{corr_info[i - 1]}' and "
+                            f"No matching trials between recording sites '{corr_info[i - 1]}' and "
                             f"'{corr_info[i]}' for event '{event}'; cross-correlation cannot be computed."
                         )
                     if len(matched_labels) < max(len(psth_a.columns), len(psth_b.columns)):
                         logger.warning(
-                            f"Regions '{corr_info[i - 1]}' and '{corr_info[i]}' have a different set of "
+                            f"Recording sites '{corr_info[i - 1]}' and '{corr_info[i]}' have a different set of "
                             f"surviving trials for event '{event}' (uneven artifact removal): "
                             f"{len(psth_a.columns)} vs {len(psth_b.columns)} trials, {len(matched_labels)} matched. "
                             f"Cross-correlating only the matched trials."
@@ -349,16 +349,16 @@ def execute_psth_combined(inputParameters: dict[str, object]) -> None:
         inputParameters["step"] += 1
 
 
-def _validate_fiber_regions_consistent_for_group(run_folders: np.ndarray) -> None:
+def _validate_fiber_recording_sites_consistent_for_group(run_folders: np.ndarray) -> None:
     """Check that every session shares the same fiber (control/signal) store_ids.
 
-    Group averaging buckets each session's data by its fiber-region basename
-    (``z_score_<region>`` / ``dff_<region>``) and averages each behavioral event
-    independently, skipping sessions that lack a given event.  Sessions may
-    therefore differ in their *event* store_ids — that is the intended
+    Group averaging buckets each session's data by its fiber recording-site basename
+    (``z_score_<recording_site>`` / ``dff_<recording_site>``) and averages each
+    behavioral event independently, skipping sessions that lack a given event.  Sessions
+    may therefore differ in their *event* store_ids — that is the intended
     cross-condition workflow (e.g. ``novelobject`` sessions averaged alongside
     ``novelfemale1`` sessions).  What must agree is the set of *fiber* store_ids:
-    averaging across different brain regions produces meaningless per-region
+    averaging across different recording sites produces meaningless per-recording-site
     single-session "averages".  Detect that mismatch up-front and raise a clear
     error listing the offending sessions.
 
@@ -394,7 +394,7 @@ def _validate_fiber_regions_consistent_for_group(run_folders: np.ndarray) -> Non
     )
     raise ValueError(
         "Group averaging requires every selected session to share the same fiber "
-        "regions, but the selected sessions have mismatched control/signal "
+        "recording sites, but the selected sessions have mismatched control/signal "
         "store_ids:\n"
         f"{session_lines}\n"
         "Event store_ids may differ across sessions, but the control/signal "
@@ -451,7 +451,7 @@ def execute_average_for_group(inputParameters: dict[str, object]) -> None:
     group_session_folders = inputParameters["group_session_folders"]
     run_folders = gather_group_run_folders(inputParameters, group_session_folders)
 
-    _validate_fiber_regions_consistent_for_group(run_folders)
+    _validate_fiber_recording_sites_consistent_for_group(run_folders)
 
     store_array = np.asarray([[], []])
     for i in range(run_folders.shape[0]):

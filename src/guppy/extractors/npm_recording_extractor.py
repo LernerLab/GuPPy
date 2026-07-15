@@ -319,16 +319,16 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
                 for name in event_names:
                     streams[name]["timestamps"] = (streams[name]["timestamps"] - chev_reference_timestamp) / divisor
 
-            region_lengths = [len(names) for names in (chev_names, chod_names, chpr_names) if len(names) > 0]
-            if len(set(region_lengths)) > 1:
-                region_counts = {
+            channel_group_lengths = [len(names) for names in (chev_names, chod_names, chpr_names) if len(names) > 0]
+            if len(set(channel_group_lengths)) > 1:
+                channel_group_counts = {
                     "chev": len(chev_names),
                     "chod": len(chod_names),
                     "chpr": len(chpr_names),
                 }
                 message = (
-                    "Number of channel files must be the same for all regions. "
-                    f"Found per-region counts: {region_counts}."
+                    "Number of channel files must match across channel groups (chev/chod/chpr). "
+                    f"Found per-channel-group counts: {channel_group_counts}."
                 )
                 logger.error(message)
                 raise ValueError(message)
@@ -358,7 +358,7 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
     def _register_channel_name(
         name: str, channel_key: str, chev_names: list[str], chod_names: list[str], chpr_names: list[str]
     ) -> None:
-        """Append ``name`` to the creation-order list for its channel region."""
+        """Append ``name`` to the creation-order list for its channel group."""
         if "chev" in channel_key:
             chev_names.append(name)
         elif "chod" in channel_key:

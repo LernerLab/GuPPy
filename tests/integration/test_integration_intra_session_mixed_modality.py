@@ -26,7 +26,7 @@ def _stage_session(src_base_dir, session_subdir, tmp_base):
     return session_copy
 
 
-def _assert_intra_session_outputs(session_copy, expected_region, expected_ttl):
+def _assert_intra_session_outputs(session_copy, expected_recording_site, expected_ttl):
     dest_name = os.path.basename(session_copy)
     run_folders = sorted(glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")))
     assert run_folders, f"No output directories found in {session_copy}"
@@ -37,12 +37,12 @@ def _assert_intra_session_outputs(session_copy, expected_region, expected_ttl):
             break
     assert out_dir is not None, f"No storesList.csv found under {session_copy}"
 
-    timecorr = os.path.join(out_dir, f"timeCorrection_{expected_region}.hdf5")
+    timecorr = os.path.join(out_dir, f"timeCorrection_{expected_recording_site}.hdf5")
     assert os.path.exists(timecorr), f"Missing {timecorr}"
     with h5py.File(timecorr, "r") as f:
         assert "timestampNew" in f
 
-    ttl_fp = os.path.join(out_dir, f"{expected_ttl}_{expected_region}.hdf5")
+    ttl_fp = os.path.join(out_dir, f"{expected_ttl}_{expected_recording_site}.hdf5")
     assert os.path.exists(ttl_fp), f"Missing TTL-aligned file {ttl_fp}"
     with h5py.File(ttl_fp, "r") as f:
         assert "ts" in f
@@ -82,7 +82,7 @@ def test_mixed_modality_tdt_csv_ttl(tmp_path):
     step3(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
 
-    _assert_intra_session_outputs(session_copy, expected_region="dms", expected_ttl="port_entries_dms")
+    _assert_intra_session_outputs(session_copy, expected_recording_site="dms", expected_ttl="port_entries_dms")
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
@@ -125,7 +125,7 @@ def test_mixed_modality_doric_csv_ttl(tmp_path):
     step3(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
 
-    _assert_intra_session_outputs(session_copy, expected_region="region", expected_ttl="ttl_region")
+    _assert_intra_session_outputs(session_copy, expected_recording_site="region", expected_ttl="ttl_region")
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
@@ -187,7 +187,7 @@ def test_mixed_modality_npm_csv_ttl(tmp_path):
         selected_runs=selected_runs,
     )
 
-    _assert_intra_session_outputs(session_copy, expected_region="region", expected_ttl="ttl_region")
+    _assert_intra_session_outputs(session_copy, expected_recording_site="region", expected_ttl="ttl_region")
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
@@ -229,4 +229,4 @@ def test_mixed_modality_nwb_csv_ttl(tmp_path):
     step3(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
 
-    _assert_intra_session_outputs(session_copy, expected_region="region", expected_ttl="ttl_region")
+    _assert_intra_session_outputs(session_copy, expected_recording_site="region", expected_ttl="ttl_region")
