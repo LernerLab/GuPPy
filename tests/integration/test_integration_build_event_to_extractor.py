@@ -1,7 +1,6 @@
 import shutil
 
 import numpy as np
-from conftest import STUBBED_TESTING_DATA
 
 from guppy.extractors import (
     CsvRecordingExtractor,
@@ -11,6 +10,7 @@ from guppy.extractors import (
     TdtRecordingExtractor,
 )
 from guppy.orchestration.read_raw_data import _build_event_to_extractor
+from guppy_test_data import STUBBED_TESTING_DATA
 
 CSV_SESSION = STUBBED_TESTING_DATA / "csv" / "sample_data_csv_1"
 DORIC_SESSION = STUBBED_TESTING_DATA / "doric" / "sample_doric_1"

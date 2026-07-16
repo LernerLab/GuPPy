@@ -4,7 +4,6 @@ import os
 import shutil
 
 import pytest
-from conftest import STUBBED_TESTING_DATA
 
 from guppy.extractors import NpmRecordingExtractor
 from guppy.extractors.detect_acquisition_formats import (
@@ -13,6 +12,7 @@ from guppy.extractors.detect_acquisition_formats import (
     _is_float,
     detect_acquisition_formats,
 )
+from guppy_test_data import STUBBED_TESTING_DATA
 
 # ---------------------------------------------------------------------------
 # _is_float

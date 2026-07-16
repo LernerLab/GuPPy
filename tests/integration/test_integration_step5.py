@@ -6,11 +6,11 @@ from unittest.mock import patch
 import holoviews as hv
 import pandas as pd
 import pytest
-from conftest import STUBBED_TESTING_DATA
 
 from guppy.frontend.parameterized_plotter import ParameterizedPlotter
 from guppy.frontend.visualization_dashboard import VisualizationDashboard
 from guppy.testing.api import step1, step2, step3, step4, step5
+from guppy_test_data import STUBBED_TESTING_DATA
 
 SESSION_SUBDIR = "csv/sample_data_csv_1"
 STORE_ID_TO_STORE_LABEL = {

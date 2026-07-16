@@ -3,10 +3,10 @@ import os
 import shutil
 
 import pytest
-from conftest import TESTING_DATA, event_ts_offset_for
 
 from guppy.testing import compare_output_folders
 from guppy.testing.api import step1, step2, step3, step4
+from guppy_test_data import TESTING_DATA, event_ts_offset_for
 
 SESSION_SUBDIR = "SampleData_csv/sample_data_csv_1"
 STANDARD_OUTPUT_SUBDIR = "StandardOutputs_dff/sample_data_csv_1/sample_data_csv_1_output_1"

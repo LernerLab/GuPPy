@@ -3,10 +3,10 @@ import os
 import shutil
 
 import pytest
-from conftest import TESTING_DATA, event_ts_offset_for
 
 from guppy.testing import compare_output_folders
 from guppy.testing.api import step1, step2, step3, step4
+from guppy_test_data import TESTING_DATA, event_ts_offset_for
 
 STORE_ID_TO_STORE_LABEL = {
     "Sample_Control_Channel": "control_region",

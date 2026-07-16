@@ -311,7 +311,7 @@ def test_discover_raises_when_channel_group_counts_do_not_match(tmp_path):
         NpmRecordingExtractor.discover_events_and_flags(folder_path=str(tmp_path), num_ch=2, inputParameters={})
 
 
-from conftest import STUBBED_TESTING_DATA
+from guppy_test_data import STUBBED_TESTING_DATA
 
 # ---------------------------------------------------------------------------
 # Shared fixtures and stub tests for all NPM test classes
