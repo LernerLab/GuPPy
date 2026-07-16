@@ -5,13 +5,11 @@ import shutil
 import h5py
 import numpy as np
 import pytest
-from conftest import (
-    REPRESENTATIVE_SESSIONS,
-    STUBBED_TESTING_DATA,
-    _locate_output_directory,
-)
 
 from guppy.testing.api import step1, step2
+from guppy_test_data import STUBBED_TESTING_DATA
+
+from .integration_helpers import REPRESENTATIVE_SESSIONS, _locate_output_directory
 
 
 @pytest.mark.parametrize(

@@ -138,7 +138,7 @@ fixable = ["ALL"]
 
 [tool.ruff.lint.isort]
 relative-imports-order = "closest-to-furthest"
-known-first-party = ["guppy"]
+known-first-party = ["guppy", "guppy_test_data"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"
@@ -155,6 +155,10 @@ sigterm = true
 branch = true
 
 [tool.pytest.ini_options]
+# Put the tests/ dir on sys.path (relative to rootdir, before collection) so shared test
+# modules like guppy_test_data are importable no matter which directory pytest is invoked from.
+# src is intentionally omitted: guppy is editable-installed, so adding src would shadow it.
+pythonpath = ["tests"]
 markers = [
     "full_data: marks tests that require the full testing_data download (deselect with '-m not full_data')",
     "parallel: marks tests that verify GuPPy multiprocessing behavior (run separately from the main suite)",

@@ -4,9 +4,9 @@ import os
 import shutil
 
 import pytest
-from conftest import STUBBED_TESTING_DATA
 
 from guppy.testing.api import step1
+from guppy_test_data import STUBBED_TESTING_DATA
 
 
 @pytest.mark.parametrize(

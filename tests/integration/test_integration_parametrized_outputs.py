@@ -10,9 +10,9 @@ import os
 import shutil
 
 import pytest
-from conftest import STUBBED_TESTING_DATA
 
 from guppy.testing.api import step1, step2, step3
+from guppy_test_data import STUBBED_TESTING_DATA
 
 CSV_SESSION = "csv/sample_data_csv_1"
 CSV_STORE_ID_TO_STORE_LABEL = {

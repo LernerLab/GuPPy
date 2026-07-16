@@ -5,7 +5,6 @@ import types
 import numpy as np
 import panel as pn
 import pytest
-from conftest import STUBBED_TESTING_DATA
 
 from guppy.extractors import NpmRecordingExtractor
 from guppy.orchestration.store_labeling import (
@@ -16,6 +15,7 @@ from guppy.orchestration.store_labeling import (
     make_dir,
     show_dir,
 )
+from guppy_test_data import STUBBED_TESTING_DATA
 
 # ---------------------------------------------------------------------------
 # Helpers

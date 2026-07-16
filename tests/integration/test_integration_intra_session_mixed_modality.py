@@ -5,9 +5,9 @@ import shutil
 import h5py
 import numpy as np
 import pytest
-from conftest import STUBBED_TESTING_DATA
 
 from guppy.testing.api import step1, step2, step3, step4
+from guppy_test_data import STUBBED_TESTING_DATA
 
 
 def _stage_session(src_base_dir, session_subdir, tmp_base):

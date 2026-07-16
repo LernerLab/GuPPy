@@ -30,7 +30,7 @@ def test_check_header_returns_all_columns_and_numeric_conversions(columns, expec
     assert float_conversions == expected_floats
 
 
-from conftest import STUBBED_TESTING_DATA
+from guppy_test_data import STUBBED_TESTING_DATA
 
 
 class TestCsvRecordingExtractor(RecordingExtractorTestMixin):

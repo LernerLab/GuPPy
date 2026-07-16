@@ -7,9 +7,9 @@ import numpy as np
 import pytest
 from bokeh.document import Document
 from bokeh.io.doc import set_curdoc
-from conftest import STUBBED_TESTING_DATA as TESTING_DATA
 
 from guppy.testing.api import step1, step2, step3, step4
+from guppy_test_data import STUBBED_TESTING_DATA as TESTING_DATA
 
 SESSION_SUBDIR = "tdt/Photo_048_392-200728-121222"
 STORE_ID_TO_STORE_LABEL = {
