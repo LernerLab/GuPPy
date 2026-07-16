@@ -4,9 +4,9 @@ import shutil
 
 import pandas as pd
 import pytest
-from conftest import STUBBED_TESTING_DATA
 
 from guppy.testing.api import step1, step2, step3, step4
+from guppy_test_data import STUBBED_TESTING_DATA
 
 SESSION_SUBDIR = "csv/sample_data_csv_1"
 # Recording-site name deliberately contains an underscore — the core of issue #383. Before the

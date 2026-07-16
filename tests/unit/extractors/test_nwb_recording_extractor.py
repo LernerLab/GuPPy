@@ -2,7 +2,6 @@
 
 import numpy as np
 import pytest
-from conftest import STUBBED_TESTING_DATA
 from pynwb import TimeSeries, read_nwb
 
 from guppy.extractors.nwb_recording_extractor import (
@@ -14,6 +13,7 @@ from guppy.extractors.nwb_recording_extractor import (
     _register_unique_name,
     _resolve_timing,
 )
+from guppy_test_data import STUBBED_TESTING_DATA
 
 from .recording_extractor_test_mixin import RecordingExtractorTestMixin
 

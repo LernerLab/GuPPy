@@ -15,11 +15,13 @@ import os
 
 import h5py
 import pytest
-from conftest import STUBBED_TESTING_DATA, _locate_output_directory
 from pynwb import NWBHDF5IO
 
 from guppy.extractors import dandi_nwb_recording_extractor as dandi_module
 from guppy.testing.api import step1, step2
+from guppy_test_data import STUBBED_TESTING_DATA
+
+from .integration_helpers import _locate_output_directory
 
 MOCK_NWB_FILE = (
     STUBBED_TESTING_DATA

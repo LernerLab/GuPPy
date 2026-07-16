@@ -9,7 +9,6 @@ DANDI-specific URI parsing / IO-lifetime wiring without any network access.
 
 import numpy as np
 import pytest
-from conftest import STUBBED_TESTING_DATA
 from pynwb import NWBHDF5IO
 
 from guppy.extractors import dandi_nwb_recording_extractor as dandi_module
@@ -19,6 +18,7 @@ from guppy.extractors.dandi_nwb_recording_extractor import (
     is_dandi_uri,
     parse_dandi_uri,
 )
+from guppy_test_data import STUBBED_TESTING_DATA
 
 from .test_nwb_recording_extractor import NwbRecordingExtractorTestMixin
 

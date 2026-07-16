@@ -3,9 +3,8 @@ import glob
 import os
 import shutil
 
-from conftest import STUBBED_TESTING_DATA
-
 from guppy.testing.api import step1
+from guppy_test_data import STUBBED_TESTING_DATA
 
 
 def test_step1_npm_idempotent(tmp_path):

@@ -5,9 +5,9 @@ import shutil
 
 import numpy as np
 import pytest
-from conftest import STUBBED_TESTING_DATA
 
 from guppy.extractors.tdt_recording_extractor import TdtRecordingExtractor
+from guppy_test_data import STUBBED_TESTING_DATA
 
 from .recording_extractor_test_mixin import RecordingExtractorTestMixin
 

@@ -86,7 +86,7 @@ def test_access_keys_doricV6_excludes_time_datasets(tmp_path):
     assert set(keys) == {"Signals/Region0G", "Signals/Region1G"}
 
 
-from conftest import STUBBED_TESTING_DATA
+from guppy_test_data import STUBBED_TESTING_DATA
 
 # ---------------------------------------------------------------------------
 # Shared fixtures for all Doric test classes

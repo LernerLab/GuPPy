@@ -10,9 +10,8 @@ import glob
 import os
 import shutil
 
-from conftest import STUBBED_TESTING_DATA
-
 from guppy.testing.api import step1, step2
+from guppy_test_data import STUBBED_TESTING_DATA
 
 
 def test_step2_reproduces_split_events_from_persisted_params(tmp_path):
