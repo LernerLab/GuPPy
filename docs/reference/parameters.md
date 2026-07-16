@@ -65,12 +65,17 @@ The largest card on the homepage, collapsed by default (only Input Folder Select
 |-----------|-------------|------|---------|-----------------|
 | Isosbestic Control Channel? | Use the isosbestic control channel to remove motion artifacts. | bool | `True` | `True`, `False` |
 | Control Channel Fitting Method | How the control channel is fit to the signal before subtraction. | str | `IRWLS` | `IRWLS`, `OLS` |
+| Control Fit Window | Whether the control-to-signal fit is estimated over the full trace or a baseline epoch. | str | `full trace` | `full trace`, `baseline epoch` |
+| Control Fit Window Start Time (s) | Start of the baseline epoch used to estimate the fit. | int | `0` | seconds, must be `< Control Fit Window End Time` and within the signal's recorded timespan |
+| Control Fit Window End Time (s) | End of the baseline epoch used to estimate the fit. | int | `0` | seconds, must be `> Control Fit Window Start Time` and within the signal's recorded timespan |
 | Eliminate first few seconds | Drop the LED-warmup transient at the start. | int | `1` | non-negative seconds |
 | Window for Moving Average filter | Width of the smoothing kernel. | int | `100` | positive integer, in samples (not seconds) |
 
 **Isosbestic Control Channel?** declares whether the recording includes an isosbestic control channel. When `True`, preprocessing fits the isosbestic control channel to the signal trace and subtracts the fitted control to remove motion artifacts and photobleaching that affect both wavelengths equally. When `False`, GuPPy synthesizes a stand-in control channel by fitting an exponential decay curve (`a + b·exp(-x/c)`) to the signal itself, then runs the same fit-and-subtract step using this synthetic trace as the control channel that gets fitted and subtracted. Because a synthetic control carries no motion information, this mode removes the photobleaching trend but not motion artifacts. See the [isosbestic correction explainer](../explanation/isosbestic_correction.md) for the underlying biology and math.
 
 **Control Channel Fitting Method** chooses how the control channel is rescaled onto the signal before subtraction. `IRWLS` (the default) uses Iteratively Re-Weighted Least Squares with a Tukey bisquare weighting, a robust regression that down-weights outlier samples (transients, brief wavelength-dependent artifacts) so they do not distort the fit. It is equivalent to ordinary least squares on clean data and more reliable when outliers are present, so it is almost always equal to or better than a plain least-squares fit. `OLS` selects ordinary least-squares regression instead. See the [isosbestic correction explainer](../explanation/isosbestic_correction.md) for details.
+
+**Control Fit Window** chooses which part of the recording the control-to-signal fit is estimated from. `full trace` (the default) estimates the fit coefficients over the whole recording, matching prior behavior. `baseline epoch` estimates the coefficients from only the window set by **Control Fit Window Start Time (s)** and **Control Fit Window End Time (s)**, then applies those fixed coefficients across the entire recording. Use it when a sustained step-change in the signal — such as a drug injection — would otherwise distort a full-trace fit: fitting on the clean pre-injection window keeps the coefficients stable while the measured control channel continues to correct motion and photobleaching after the injection. This mode requires an isosbestic control channel (**Isosbestic Control Channel?** set to `True`). Both time bounds are in seconds; the validator enforces start < end and that both fall within the signal's recorded timespan, and it reports an error if the window contains no data after artifact removal.
 
 **Eliminate first few seconds** drops this many seconds from the start of every recording. The first second or two of fiber-photometry data is usually contaminated by the bright transient when the LED first turns on; this parameter exists to discard that. Default `1` is conservative.
 
@@ -252,6 +257,9 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 | `combine_data` | Combine Data? | [Compute and batching](#compute-and-batching) |
 | `computeCorr` | Compute Cross-correlation | [PSTH Parameters](#psth-parameters) |
 | `control_fit_method` | Control Channel Fitting Method | [Signal preprocessing](#signal-preprocessing) |
+| `controlFitWindowEnd` | Control Fit Window End Time (s) | [Signal preprocessing](#signal-preprocessing) |
+| `controlFitWindowMode` | Control Fit Window | [Signal preprocessing](#signal-preprocessing) |
+| `controlFitWindowStart` | Control Fit Window Start Time (s) | [Signal preprocessing](#signal-preprocessing) |
 | `dandi_uri_map` | (DANDI selector) | [Input Folder Selection](#input-folder-selection) |
 | `filter_window` | Window for Moving Average filter | [Signal preprocessing](#signal-preprocessing) |
 | `session_folders` | (file browser, Input Folder Selection) | [Input Folder Selection](#input-folder-selection) |
