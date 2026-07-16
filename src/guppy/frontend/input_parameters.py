@@ -177,6 +177,19 @@ class ParameterForm:
             width=320,
         )
 
+        self.control_fit_window_mode = pn.widgets.Select(
+            name="Control Fit Window",
+            options=["full trace", "baseline epoch"],
+            value="full trace",
+            width=320,
+        )
+        self.control_fit_window_strt = pn.widgets.IntInput(
+            name="Control Fit Window Start Time (s) (int)", value=0, width=320
+        )
+        self.control_fit_window_end = pn.widgets.IntInput(
+            name="Control Fit Window End Time (s) (int)", value=0, width=320
+        )
+
         self.numberOfCores = pn.widgets.IntInput(name="# of cores (int)", value=2, width=150)
 
         self.combine_data = pn.widgets.Select(
@@ -363,6 +376,9 @@ class ParameterForm:
             pn.Row(self.numberOfCores, self.combine_data),
             self.isosbestic_control,
             self.control_fit_method,
+            self.control_fit_window_mode,
+            self.control_fit_window_strt,
+            self.control_fit_window_end,
             self.timeForLightsTurnOn,
             self.moving_avg_filter,
             self.computePsth,
@@ -701,6 +717,9 @@ class ParameterForm:
             "combine_data": self.combine_data.value,
             "isosbestic_control": self.isosbestic_control.value,
             "control_fit_method": self.control_fit_method.value,
+            "controlFitWindowMode": self.control_fit_window_mode.value,
+            "controlFitWindowStart": self.control_fit_window_strt.value,
+            "controlFitWindowEnd": self.control_fit_window_end.value,
             "timeForLightsTurnOn": self.timeForLightsTurnOn.value,
             "filter_window": self.moving_avg_filter.value,
             "removeArtifacts": self.removeArtifacts.value,
@@ -752,6 +771,9 @@ class ParameterForm:
             "combine_data": self.combine_data,
             "isosbestic_control": self.isosbestic_control,
             "control_fit_method": self.control_fit_method,
+            "controlFitWindowMode": self.control_fit_window_mode,
+            "controlFitWindowStart": self.control_fit_window_strt,
+            "controlFitWindowEnd": self.control_fit_window_end,
             "timeForLightsTurnOn": self.timeForLightsTurnOn,
             "filter_window": self.moving_avg_filter,
             "removeArtifacts": self.removeArtifacts,

@@ -1,9 +1,11 @@
 # v2.0.0-alpha9 (Upcoming)
 
 ## Features
+- Added a baseline-epoch mode for isosbestic control fitting: fit coefficients can now be estimated from a user-specified pre-injection window and applied across the whole recording, so a step-change (e.g. a drug injection) no longer corrupts the control fit. [PR #XXX](https://github.com/LernerLab/GuPPy/pull/XXX)
 - Added support for pynwb 4.0, including the new core `EventsTable` event type (NWB Schema 2.10.0); each `EventsTable` becomes a store, split into one store per unique value of its optional text `annotation` column. Dropped support for the `ndx-events` 0.4 extension, which is unreadable under pynwb 4.0. [PR #367](https://github.com/LernerLab/GuPPy/pull/367)
 
 ## Fixes
+- Removing a large artifact that leaves a short surviving segment now raises a clear error naming the segment, its sample count, and the moving-average filter requirement, instead of the opaque scipy "input vector x must be greater than padlen" message. [PR #XXX](https://github.com/LernerLab/GuPPy/pull/XXX)
 - Cross-correlation between two brain regions no longer crashes when independent artifact removal leaves the regions with a different set of surviving trials: trials are now paired by matching event timestamps (only the events both regions kept are correlated) instead of being lined up by position, so a per-region trial mismatch produces a valid result instead of a `ValueError` that forced an application restart. [PR #388](https://github.com/LernerLab/GuPPy/pull/388)
 - CSV and NPM inputs now read successfully regardless of the case of their column names: detection already matched column names case-insensitively, but the read step indexed them by exact lower case, so a valid file with `Timestamps`/`Data`/`Sampling_Rate` (CSV) or `Flags`/`LedState` (NPM) headers passed detection and then crashed with a `KeyError`. [PR #386](https://github.com/LernerLab/GuPPy/pull/386)
 - Numeric analysis parameters are now range-checked at config time with an informative notification instead of failing late: `numberOfCores` must be between 1 and the host's core count; `filter_window` and `timeForLightsTurnOn` must be non-negative; `moving_window`, `highAmpFilt`, and `transientsThresh` must be positive; and `nSecPrev` must be strictly less than `nSecPost`. [PR #387](https://github.com/LernerLab/GuPPy/pull/387)
