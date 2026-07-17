@@ -216,6 +216,38 @@ def test_compute_psth_binning_by_trials_produces_correct_bin_mean_and_sem():
     assert "bin_err_(0-2)" in columns
 
 
+def test_compute_psth_time_binning_places_events_on_recording_start_basis():
+    # Events are binned on the recording-start basis (event_timestamps/60), independent of
+    # timeForLightsTurnOn. bins [1-6] and [6-11] min; the two events (3.0 and 6.5 min) split
+    # one per bin, so each bin's mean is that event's trial value.
+    z_score = np.concatenate((np.full(2500, 3.0), np.full(1500, 5.0)))
+    ts = np.array([180.0, 390.0])
+    corrected_timestamps = np.arange(60.0, 660.0, 0.1)
+    psth, _, columns, _ = compute_psth(
+        z_score=z_score,
+        event="test",
+        filepath="",
+        nSecPrev=-1.0,
+        nSecPost=1.0,
+        timeInterval=0.0,
+        bin_psth_trials=5,
+        use_time_or_trials="Time (min)",
+        baselineStart=0,
+        baselineEnd=0,
+        naming="",
+        just_use_signal=False,
+        sampling_rate=10.0,
+        event_timestamps=ts,
+        corrected_timestamps=corrected_timestamps,
+        timeForLightsTurnOn=60.0,
+    )
+    # Rows 0,1 = trials; row 2 = "1.0-6.0" mean; row 4 = "6.0-11.0" mean.
+    assert "bin_(1.0-6.0)" in columns
+    assert "bin_(6.0-11.0)" in columns
+    np.testing.assert_allclose(psth[2, :], np.full(21, 3.0))
+    np.testing.assert_allclose(psth[4, :], np.full(21, 5.0))
+
+
 def test_compute_psth_just_use_signal_true_z_scores_each_trial():
     # With just_use_signal=True each trial row is z-scored:
     # result = (arr - nanmean(arr)) / nanstd(arr) → mean=0, population std=1
