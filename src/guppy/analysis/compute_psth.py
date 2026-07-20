@@ -148,14 +148,12 @@ def compute_psth(
 
     if use_time_or_trials == "Time (min)" and bin_psth_trials > 0:
         corrected_timestamps = np.divide(corrected_timestamps, 60)
-        # Bins are built from the continuous timestamps (recording-start basis); shift events
-        # by timeForLightsTurnOn so both sit on the lights-on origin the bin edges assume.
-        ts_min = np.divide(event_timestamps - timeForLightsTurnOn, 60)
+        event_timestamps_in_mins = np.divide(event_timestamps, 60)
         bin_steps = np.arange(corrected_timestamps[0], corrected_timestamps[-1] + bin_psth_trials, bin_psth_trials)
         indices_each_step = dict()
         for i in range(1, bin_steps.shape[0]):
             indices_each_step[f"{np.around(bin_steps[i-1],0)}-{np.around(bin_steps[i],0)}"] = np.where(
-                (ts_min >= bin_steps[i - 1]) & (ts_min <= bin_steps[i])
+                (event_timestamps_in_mins >= bin_steps[i - 1]) & (event_timestamps_in_mins <= bin_steps[i])
             )[0]
     elif use_time_or_trials == "# of trials" and bin_psth_trials > 0:
         bin_steps = np.arange(0, event_timestamps.shape[0], bin_psth_trials)
