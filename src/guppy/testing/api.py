@@ -415,6 +415,9 @@ def step3(
     baseline_window_end: int = 0,
     isosbestic_control: bool = True,
     control_fit_method: Literal["IRWLS", "OLS"] = "IRWLS",
+    control_fit_window_mode: Literal["full trace", "baseline epoch"] = "full trace",
+    control_fit_window_start: int = 0,
+    control_fit_window_end: int = 0,
     selected_runs: dict[str, list[str]],
 ) -> None:
     """
@@ -467,6 +470,16 @@ def step3(
         Regression method for fitting the control channel to the signal. One of
         ``'IRWLS'`` (robust, down-weights outliers) or ``'OLS'`` (ordinary least
         squares). Defaults to ``'IRWLS'``.
+    control_fit_window_mode : str
+        Control-fit mode. ``'full trace'`` (default) re-fits within each artifact-removal
+        chunk. ``'baseline epoch'`` estimates fit coefficients once from the fit window
+        (isosbestic control only) and applies them across the whole trace.
+    control_fit_window_start : int
+        Fit-window start in seconds. Only used when ``control_fit_window_mode`` is
+        ``'baseline epoch'``. Defaults to 0.
+    control_fit_window_end : int
+        Fit-window end in seconds. Only used when ``control_fit_window_mode`` is
+        ``'baseline epoch'``. Defaults to 0.
 
     Raises
     ------
@@ -534,6 +547,11 @@ def step3(
 
     # Inject control fitting method
     input_params["control_fit_method"] = control_fit_method
+
+    # Inject control fit window parameters
+    input_params["controlFitWindowMode"] = control_fit_window_mode
+    input_params["controlFitWindowStart"] = control_fit_window_start
+    input_params["controlFitWindowEnd"] = control_fit_window_end
 
     # Per-session output-directory subset filter — every session must have at least one run name.
     normalized_selected_runs = _normalize_selected_runs(selected_runs, abs_sessions)

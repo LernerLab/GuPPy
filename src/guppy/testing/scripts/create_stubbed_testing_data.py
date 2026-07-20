@@ -20,6 +20,9 @@ on the stub folder before reading.
 import shutil
 from pathlib import Path
 
+import numpy as np
+import pandas as pd
+
 from guppy.extractors.base_recording_extractor import BaseRecordingExtractor
 from guppy.extractors.csv_recording_extractor import CsvRecordingExtractor
 from guppy.extractors.doric_recording_extractor import DoricRecordingExtractor
@@ -131,6 +134,52 @@ def _sessions() -> list[tuple[BaseRecordingExtractor, float | None, Path]]:
 
 
 # ---------------------------------------------------------------------------
+# Synthetic injection CSV session
+# ---------------------------------------------------------------------------
+# Unlike the sessions above (truncated from real recordings), this session is
+# fully synthesized so it can demonstrate baseline-epoch control fitting: the
+# 465 nm signal has a sustained step-change at the injection time while the
+# 405 nm isosbestic control does not. Fitting the control->signal model over
+# the full trace is corrupted by the step, whereas fitting only the
+# pre-injection window recovers the true relationship.
+
+INJECTION_CSV_SAMPLING_RATE = 100.0  # Hz — kept low so the committed CSVs stay small
+INJECTION_CSV_DURATION = 120.0  # s
+INJECTION_TIME = 60.0  # s — signal step onset and one of the TTL pulses
+INJECTION_TTL_TIMES = (20.0, 40.0, 60.0, 80.0, 100.0)  # s — 5 pulses, one at injection
+# True pre-injection control->signal relationship (signal = SLOPE * control + INTERCEPT).
+INJECTION_TRUE_SLOPE = 1.5
+INJECTION_TRUE_INTERCEPT = 10.0
+INJECTION_STEP_AMPLITUDE = 40.0  # sustained signal increase after injection
+
+
+def _write_injection_csv_session(destination: Path) -> None:
+    """Synthesize the injection CSV session and write its three channel CSVs."""
+    rng = np.random.default_rng(200)  # deterministic — issue #200
+    num_samples = int(round(INJECTION_CSV_DURATION * INJECTION_CSV_SAMPLING_RATE))
+    timestamps = np.arange(num_samples) / INJECTION_CSV_SAMPLING_RATE
+
+    # 405 nm isosbestic control: photobleaching decay + slow motion wiggle + noise. No injection step.
+    bleach = 30.0 * np.exp(-timestamps / 60.0)
+    motion = 2.0 * np.sin(2.0 * np.pi * 0.05 * timestamps)
+    control = 100.0 + bleach + motion + rng.normal(0.0, 0.5, num_samples)
+
+    # 465 nm signal: shares bleaching/motion via the linear relationship, plus a sustained
+    # post-injection step (the effect that breaks a full-trace fit).
+    step = np.where(timestamps >= INJECTION_TIME, INJECTION_STEP_AMPLITUDE, 0.0)
+    signal = INJECTION_TRUE_SLOPE * control + INJECTION_TRUE_INTERCEPT + step + rng.normal(0.0, 0.5, num_samples)
+
+    destination.mkdir(parents=True, exist_ok=True)
+    for name, data in (("Sample_Control_Channel", control), ("Sample_Signal_Channel", signal)):
+        sampling_rate_column = np.full(num_samples, np.nan)
+        sampling_rate_column[0] = INJECTION_CSV_SAMPLING_RATE
+        frame = pd.DataFrame({"timestamps": timestamps, "data": data, "sampling_rate": sampling_rate_column})
+        frame.to_csv(destination / f"{name}.csv", index=False)
+
+    pd.DataFrame({"timestamps": np.array(INJECTION_TTL_TIMES)}).to_csv(destination / "Sample_TTL.csv", index=False)
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -147,6 +196,11 @@ def main() -> None:
             print(f"  {modality:5s} {destination.name} ({duration}s) ...", end=" ", flush=True)
             extractor.stub(folder_path=destination, duration_in_seconds=duration)
         print("done")
+
+    injection_destination = STUBBED_TESTING_DATA / "csv" / "sample_data_csv_injection_1"
+    print(f"  CSV   {injection_destination.name} (synthetic) ...", end=" ", flush=True)
+    _write_injection_csv_session(injection_destination)
+    print("done")
     print("\nDone.")
 
 

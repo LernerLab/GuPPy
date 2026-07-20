@@ -222,6 +222,16 @@ def execute_zscore(session_folders: list[str], inputParameters: dict[str, object
     zscore_method = inputParameters["zscore_method"]
     control_fit_method = inputParameters["control_fit_method"]
     baseline_start, baseline_end = inputParameters["baselineWindowStart"], inputParameters["baselineWindowEnd"]
+    control_fit_window_mode = inputParameters["controlFitWindowMode"]
+    control_fit_window_start = inputParameters["controlFitWindowStart"]
+    control_fit_window_end = inputParameters["controlFitWindowEnd"]
+
+    if control_fit_window_mode == "baseline epoch" and isosbestic_control == False:
+        raise ValueError(
+            "controlFitWindowMode='baseline epoch' requires an isosbestic control channel, but "
+            "isosbestic_control is False. Enable the isosbestic control channel, or set the control fit "
+            "window back to 'full trace'."
+        )
 
     run_folders = []
     for i in range(len(session_folders)):
@@ -254,6 +264,9 @@ def execute_zscore(session_folders: list[str], inputParameters: dict[str, object
                 baseline_start,
                 baseline_end,
                 control_fit_method,
+                control_fit_window_mode,
+                control_fit_window_start,
+                control_fit_window_end,
             )
             write_zscore(filepath, name, z_score, dff, control_fit, control_array)
 
