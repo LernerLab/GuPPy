@@ -618,3 +618,69 @@ def test_discover_raises_for_standard_csv_in_doric_extractor(tmp_path):
     csv_path.write_text("timestamps,data,sampling_rate\n0.1,1.0,250\n0.2,1.1,250\n")
     with pytest.raises(ValueError, match=r"appears to be a standard .csv"):
         DoricRecordingExtractor.discover_events_and_flags(str(tmp_path))
+
+
+# ---------------------------------------------------------------------------
+# _detect_ttl_onsets — rising-edge detection (issue #394)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "ttl, expected",
+    [
+        # A pulse still high at the final sample: its rising edge (index 6) must be
+        # reported. This is the regression for issue #394 — the old gap-between-lows
+        # scan dropped it for want of a trailing low sample.
+        ([0, 0, 1, 1, 0, 0, 1, 1], [2.0, 6.0]),
+        # An interior pulse bracketed by lows on both sides.
+        ([0, 0, 1, 1, 0, 0], [2.0]),
+        # A pulse already high at sample 0 has no observed transition and is skipped;
+        # only the later low->high edge (index 4) is reported.
+        ([1, 1, 0, 0, 1, 1], [4.0]),
+        # Constant lines carry no rising edge.
+        ([0, 0, 0], []),
+        ([1, 1, 1], []),
+    ],
+)
+def test_detect_ttl_onsets(ttl, expected):
+    ttl = np.array(ttl)
+    # Timestamps equal to sample indices, so each onset time is its sample index.
+    timestamps = np.arange(len(ttl), dtype=float)
+    onsets = DoricRecordingExtractor._detect_ttl_onsets(ttl, timestamps)
+    np.testing.assert_array_equal(onsets, np.array(expected, dtype=float))
+
+
+# A TTL whose final pulse (rising at index 9) is still high at the last sample. On the
+# builders' np.linspace(0.0, 1.0, 11) time base, indices 2 and 9 land on 0.2 and 0.9.
+_TRAILING_PULSE_TTL = np.array([0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1], dtype=float)
+_TRAILING_PULSE_ONSETS = np.array([0.2, 0.9])
+
+
+class TestTrailingPulseReadPaths:
+    """Each read path (V1, V6, CSV) surfaces a final-sample rising edge end to end."""
+
+    def test_v1_read_reports_trailing_onset(self, tmp_path):
+        hdf5_path = tmp_path / "session.doric"
+        _make_doric_v1(hdf5_path, {"DI--O-1": _TRAILING_PULSE_TTL})
+        extractor = DoricRecordingExtractor(str(tmp_path), {"DI--O-1": "ttl"})
+        result = extractor.read(events=["DI--O-1"], outputPath="")
+        np.testing.assert_array_equal(result[0]["timestamps"], _TRAILING_PULSE_ONSETS)
+
+    def test_v6_read_reports_trailing_onset(self, tmp_path):
+        hdf5_path = tmp_path / "session.doric"
+        TestDoricV6Validation()._make_v6(
+            hdf5_path,
+            {"Signals/Series0001/DigitalIO/CAM1": _TRAILING_PULSE_TTL},
+        )
+        extractor = DoricRecordingExtractor(str(tmp_path), {"DigitalIO/CAM1": "ttl"})
+        result = extractor.read(events=["DigitalIO/CAM1"], outputPath="")
+        np.testing.assert_array_equal(result[0]["timestamps"], _TRAILING_PULSE_ONSETS)
+
+    def test_csv_read_reports_trailing_onset(self, tmp_path):
+        csv_path = tmp_path / "session.csv"
+        times = np.linspace(0.0, 1.0, 11)
+        rows = "".join(f"{time},{int(level)},\n" for time, level in zip(times, _TRAILING_PULSE_TTL))
+        csv_path.write_text("---,Digital I/O | Ch.1,\n" "Time(s),DI/O-1,\n" + rows)
+        extractor = DoricRecordingExtractor(str(tmp_path), {"DI/O-1": "ttl"})
+        result = extractor.read(events=["DI/O-1"], outputPath="")
+        np.testing.assert_array_equal(result[0]["timestamps"], _TRAILING_PULSE_ONSETS)
