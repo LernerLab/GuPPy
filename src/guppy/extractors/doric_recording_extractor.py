@@ -152,6 +152,34 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
         return elements[:-1], last_element
 
     @staticmethod
+    def _detect_ttl_onsets(ttl: np.ndarray, timestamps: np.ndarray) -> np.ndarray:
+        """Return the onset time of each low->high transition in a TTL trace.
+
+        A rising edge is a sample that is high (``> 0``) whose immediate predecessor is low
+        (``<= 0``); its onset is that sample's timestamp. A pulse already high at the first
+        sample has no observed transition and is not reported. Unlike a gap-between-lows scan,
+        a pulse still high at the final sample IS reported — its rising edge was observed
+        regardless of when the recording happened to stop.
+
+        Parameters
+        ----------
+        ttl : np.ndarray
+            Densely-sampled digital trace (``> 0`` treated as high).
+        timestamps : np.ndarray
+            Sample times aligned to ``ttl``.
+
+        Returns
+        -------
+        np.ndarray
+            Timestamps of the rising edges.
+        """
+        ttl = np.asarray(ttl)
+        timestamps = np.asarray(timestamps)
+        high = ttl > 0
+        rising_edges = np.flatnonzero(~high[:-1] & high[1:]) + 1
+        return timestamps[rising_edges]
+
+    @staticmethod
     def _validate_signal_control_data(event: str, data: np.ndarray, event_type: str) -> None:
         """Raise ValueError if ``data`` is unusable as a photometry signal/control trace.
 
@@ -336,10 +364,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                 }
                 output_dicts.append(event_dict)
             else:
-                ttl = df[event]
-                indices = np.where(ttl <= 0)[0]
-                diff_indices = np.where(np.diff(indices) > 1)[0]
-                timestamps = df["Time(s)"][indices[diff_indices] + 1].to_numpy()
+                timestamps = self._detect_ttl_onsets(df[event].to_numpy(), df["Time(s)"].to_numpy())
                 store_id = event
                 event_dict = {"store_id": store_id, "timestamps": timestamps}
                 output_dicts.append(event_dict)
@@ -446,9 +471,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                 match_index = matching_indices[0]
                 ttl = np.array(doric_file[decide_path[match_index]])
                 timestamps = np.array(doric_file[decide_path[match_index].rsplit("/", 1)[0] + "/Time"])
-                indices = np.where(ttl <= 0)[0]
-                diff_indices = np.where(np.diff(indices) > 1)[0]
-                timestamps = timestamps[indices[diff_indices] + 1]
+                timestamps = self._detect_ttl_onsets(ttl, timestamps)
                 store_id = event
                 event_dict = {"store_id": store_id, "timestamps": timestamps}
                 output_dicts.append(event_dict)
@@ -481,9 +504,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
             else:
                 timestamps = np.array(console["Time(s)"]["Console_time(s)"])
                 ttl = np.array(console[event][event])
-                indices = np.where(ttl <= 0)[0]
-                diff_indices = np.where(np.diff(indices) > 1)[0]
-                timestamps = timestamps[indices[diff_indices] + 1]
+                timestamps = self._detect_ttl_onsets(ttl, timestamps)
                 store_id = event
                 event_dict = {"store_id": store_id, "timestamps": timestamps}
                 output_dicts.append(event_dict)
