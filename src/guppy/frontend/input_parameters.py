@@ -156,10 +156,13 @@ class ParameterForm:
                                 or "LedState".
                                 - ***removeArtifacts? :*** Make this parameter ``` True``` if there are
                                 artifacts and user wants to remove the artifacts.
-                                - ***removeArtifacts method :*** Selecting ```concatenate``` will remove bad
-                                chunks and concatenate the selected good chunks together.
-                                Selecting ```replace with NaN``` will replace bad chunks with NaN
-                                values.
+                                - ***removeArtifacts method :*** Selecting ```replace with NaN```
+                                (recommended, default) will replace bad chunks with NaN values,
+                                preserving the original recording timeline.
+                                Selecting ```concatenate``` will remove bad chunks and concatenate the
+                                selected good chunks together; this is discouraged because it re-times
+                                the kept samples onto a new timeline (breaking alignment to the
+                                acquisition clock) and is not supported by NWB export.
                                 """,
             width=350,
         )
@@ -241,7 +244,10 @@ class ParameterForm:
         )
 
         self.artifactsRemovalMethod = pn.widgets.Select(
-            name="removeArtifacts method", value="concatenate", options=["concatenate", "replace with NaN"], width=150
+            name="removeArtifacts method",
+            value="replace with NaN",
+            options=["concatenate", "replace with NaN"],
+            width=150,
         )
 
         self.no_channels_np = pn.widgets.IntInput(

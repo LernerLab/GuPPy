@@ -176,7 +176,7 @@ class TestParameterForm:
         assert parameter_form.removeArtifacts.options == [True, False]
 
     def test_artifacts_removal_method_default(self, parameter_form):
-        assert parameter_form.artifactsRemovalMethod.value == "concatenate"
+        assert parameter_form.artifactsRemovalMethod.value == "replace with NaN"
         assert "concatenate" in parameter_form.artifactsRemovalMethod.options
         assert "replace with NaN" in parameter_form.artifactsRemovalMethod.options
 

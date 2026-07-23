@@ -20,7 +20,7 @@ def default_parameters():
         "timeForLightsTurnOn": 1,
         "filter_window": 100,
         "removeArtifacts": False,
-        "artifactsRemovalMethod": "concatenate",
+        "artifactsRemovalMethod": "replace with NaN",
         "noChannels": 2,
         "zscore_method": "standard z-score",
         "baselineWindowStart": 0,

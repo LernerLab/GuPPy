@@ -3,6 +3,7 @@
 ## Features
 - Added a baseline-epoch mode for isosbestic control fitting: fit coefficients can now be estimated from a user-specified pre-injection window and applied across the whole recording, so a step-change (e.g. a drug injection) no longer corrupts the control fit. [PR #392](https://github.com/LernerLab/GuPPy/pull/392)
 - Added support for pynwb 4.0, including the new core `EventsTable` event type (NWB Schema 2.10.0); each `EventsTable` becomes a store, split into one store per unique value of its optional text `annotation` column. Dropped support for the `ndx-events` 0.4 extension, which is unreadable under pynwb 4.0. [PR #367](https://github.com/LernerLab/GuPPy/pull/367)
+- Soft-deprecated the `concatenate` artifact-removal method: `replace with NaN` is now the default because `concatenate` re-times the kept samples onto a fresh timeline, breaking alignment to the acquisition clock. [PR #396](https://github.com/LernerLab/GuPPy/pull/396)
 
 ## Fixes
 - Doric TTL/digital-event channels no longer drop the final event when a recording stops mid-pulse: onset detection now flags every observed low→high transition directly, instead of scanning for gaps between low samples (which could only see a pulse bracketed by a low sample on both sides, so a pulse still high at the last sample was silently dropped). [PR #395](https://github.com/LernerLab/GuPPy/pull/395)
