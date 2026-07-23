@@ -47,7 +47,7 @@ _RobustDumper.add_representer(np.ndarray, lambda dumper, data: dumper.represent_
 class Channel:
     """One fiber-photometry channel derived from ``storesList.csv``."""
 
-    region: str
+    recording_site: str
     role: str  # "signal" or "control"
     store_name: str
 
@@ -55,16 +55,16 @@ class Channel:
     def response_series_name(self) -> str:
         """Conventional FiberPhotometryResponseSeries name for this channel."""
         suffix = "calcium_signal" if self.role == "signal" else "isosbestic_control"
-        return f"{self.region}_{suffix}"
+        return f"{self.recording_site}_{suffix}"
 
 
 def derive_channels(output_dir: str | Path) -> list[Channel]:
     """Return the ordered fiber-photometry channels for a GuPPy output directory.
 
-    Reads ``<output_dir>/storesList.csv`` and pairs signal/control names per region
+    Reads ``<output_dir>/storesList.csv`` and pairs signal/control names per recording site
     using GuPPy's own :func:`get_control_and_signal_channel_names`. Order is canonical
-    (region-sorted, control then signal within a region) so it matches between the
-    form (table rows) and the generated response series.
+    (recording-site-sorted, control then signal within a recording site) so it matches between
+    the form (table rows) and the generated response series.
     """
     stores_list = np.genfromtxt(os.path.join(output_dir, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
     store_names = stores_list[0, :]
@@ -76,9 +76,13 @@ def derive_channels(output_dir: str | Path) -> list[Channel]:
     for column in range(paired.shape[1]):
         control_name = paired[0, column]
         signal_name = paired[1, column]
-        region = str(signal_name[len("signal_") :]).lower()
-        channels.append(Channel(region=region, role="control", store_name=str(semantic_to_store[control_name])))
-        channels.append(Channel(region=region, role="signal", store_name=str(semantic_to_store[signal_name])))
+        recording_site = str(signal_name[len("signal_") :]).lower()
+        channels.append(
+            Channel(recording_site=recording_site, role="control", store_name=str(semantic_to_store[control_name]))
+        )
+        channels.append(
+            Channel(recording_site=recording_site, role="signal", store_name=str(semantic_to_store[signal_name]))
+        )
     return channels
 
 
@@ -365,7 +369,7 @@ def build_metadata_dict(
 ) -> dict:
     """Assemble the full session metadata overlay from the form state.
 
-    Generates the FiberPhotometryTable rows (one per channel, ``location`` = region)
+    Generates the FiberPhotometryTable rows (one per channel, ``location`` = recording site)
     and the FiberPhotometryResponseSeries (one per channel) from ``channels``.
     """
     fiber_photometry: dict = {}
@@ -381,20 +385,20 @@ def build_metadata_dict(
     table_rows = []
     response_series = []
     for index, channel in enumerate(channels):
-        row = {"name": index, "location": channel.region}
+        row = {"name": index, "location": channel.recording_site}
         annotations = channel_rows[index] if index < len(channel_rows) else {}
         row.update(_drop_empty({key: annotations.get(key) for key in (*CHANNEL_WAVELENGTHS, *CHANNEL_LINKS)}))
         table_rows.append(row)
         response_series.append(
             {
                 "name": channel.response_series_name,
-                "description": f"Fluorescence from the {channel.region} {channel.role} channel.",
+                "description": f"Fluorescence from the {channel.recording_site} {channel.role} channel.",
                 "stream_name": channel.store_name,
                 "stream_indices": None,
                 "unit": "a.u.",
                 "fiber_photometry_table_region": [index],
                 "fiber_photometry_table_region_description": (
-                    f"FiberPhotometryTable row for the {channel.region} {channel.role} channel."
+                    f"FiberPhotometryTable row for the {channel.recording_site} {channel.role} channel."
                 ),
             }
         )
@@ -498,7 +502,7 @@ def validate_metadata_dict(metadata: dict, channels: list[Channel]) -> list[str]
     rows = fiber_photometry.get("FiberPhotometryTable", {}).get("rows", [])
     for index, channel in enumerate(channels):
         row = rows[index] if index < len(rows) else {}
-        label = f"channel {channel.region}/{channel.role}"
+        label = f"channel {channel.recording_site}/{channel.role}"
         for wavelength in CHANNEL_WAVELENGTHS:
             if _is_empty(row.get(wavelength)):
                 errors.append(f"{label}: {wavelength} is required.")

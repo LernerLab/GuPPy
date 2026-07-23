@@ -457,9 +457,9 @@ class MetadataSelector:
     # ------------------------------------------------------------------------------------------------------------------
     def _build_channel_table(self, channel_rows: list[dict]) -> pn.Card:
         # Three-tier hierarchy mirroring the device library: the white section holds one tinted
-        # group per brain region, each holding the white channel instances (one per role). Channel
+        # group per recording site, each holding the white channel instances (one per role). Channel
         # records/link-selects are appended in canonical channel order so the read-back stays aligned.
-        region_to_cards: dict[str, list[pn.Card]] = {}
+        recording_site_to_cards: dict[str, list[pn.Card]] = {}
         for index, channel in enumerate(self.channels):
             saved = channel_rows[index] if index < len(channel_rows) else {}
             fields: dict[str, object] = {}
@@ -500,21 +500,21 @@ class MetadataSelector:
                 stylesheets=[style.INSTANCE_CARD],
                 margin=(6, 0),
             )
-            region_to_cards.setdefault(channel.region, []).append(instance_card)
+            recording_site_to_cards.setdefault(channel.recording_site, []).append(instance_card)
 
-        region_cards = [
+        recording_site_cards = [
             pn.Card(
                 *instance_cards,
-                title=region.upper(),
+                title=recording_site.upper(),
                 collapsed=False,
                 sizing_mode="stretch_width",
                 stylesheets=[style.CATEGORY_CARD],
                 margin=(6, 0),
             )
-            for region, instance_cards in region_to_cards.items()
+            for recording_site, instance_cards in recording_site_to_cards.items()
         ]
         return pn.Card(
-            *region_cards,
+            *recording_site_cards,
             title="Fiber-photometry channels",
             collapsed=False,
             sizing_mode="stretch_width",

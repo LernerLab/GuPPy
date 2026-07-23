@@ -12,7 +12,7 @@ EXAMPLE_METADATA = Path(__file__).resolve().parents[2] / "data" / "fiber_photome
 
 @pytest.fixture
 def channels() -> list[m.Channel]:
-    # Canonical order: control then signal within a region.
+    # Canonical order: control then signal within a recording site.
     return [m.Channel("dms", "control", "Dv1A"), m.Channel("dms", "signal", "Dv2A")]
 
 
@@ -25,7 +25,7 @@ class TestDeriveChannels:
             fmt="%s",
         )
         channels = m.derive_channels(str(tmp_path))
-        assert [(c.region, c.role, c.store_name) for c in channels] == [
+        assert [(c.recording_site, c.role, c.store_name) for c in channels] == [
             ("dms", "control", "Dv1A"),
             ("dms", "signal", "Dv2A"),
         ]

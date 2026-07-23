@@ -329,7 +329,7 @@ def intro_note(html: str) -> pn.pane.Markdown:
 
 
 def channel_role_chip(role: str, store_name: str) -> pn.pane.Markdown:
-    """A header for one channel instance: role pill + the source store name (region is the group)."""
+    """A header for one channel instance: role pill + the source store name (recording site is the group)."""
     role_color = ACCENT if role == "signal" else "#7A8896"
     role_bg = ACCENT_SOFT if role == "signal" else "#EEF2F6"
     html = (
