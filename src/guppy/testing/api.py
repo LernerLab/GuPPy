@@ -410,6 +410,7 @@ def step3(
     remove_artifacts: bool = False,
     artifact_removal_method: str | None = None,
     artifact_coords: dict[str, np.ndarray] | None = None,
+    tonic_epochs: dict[str, "pd.DataFrame"] | None = None,
     zscore_method: str = "standard z-score",
     baseline_window_start: int = 0,
     baseline_window_end: int = 0,
@@ -454,6 +455,11 @@ def step3(
         column 0) to write as ``coordsForPreProcessing_<pair_name>.npy`` into every
         ``_output_*`` directory before artifact removal runs. Bypasses the interactive
         artifact-selection UI. Ignored when ``remove_artifacts`` is False.
+    tonic_epochs : dict[str, pd.DataFrame] | None
+        Mapping of recording-site name to an epoch-window DataFrame (columns
+        ``label``, ``start``, ``end``) to write as ``tonic_epochs_<site>.csv``
+        into every run folder before preprocessing runs. When provided, enables
+        tonic analysis (``computeTonic``) and bypasses the interactive epoch page.
     zscore_method : str
         Z-score computation method. One of ``'standard z-score'``, ``'baseline z-score'``,
         or ``'modified z-score'``. Defaults to ``'standard z-score'``.
@@ -564,6 +570,16 @@ def step3(
             for run_folder in select_run_folders(session, normalized_selected_runs[session]):
                 for pair_name, coords in artifact_coords.items():
                     np.save(os.path.join(run_folder, f"coordsForPreProcessing_{pair_name}.npy"), coords)
+
+    # Enable tonic analysis and write per-site epoch windows into each output
+    # directory so the preprocessing worker computes tonic means without the
+    # interactive epoch page.
+    input_params["computeTonic"] = tonic_epochs is not None
+    if tonic_epochs:
+        for session in abs_sessions:
+            for run_folder in select_run_folders(session, normalized_selected_runs[session]):
+                for site, epochs in tonic_epochs.items():
+                    epochs.to_csv(os.path.join(run_folder, f"tonic_epochs_{site}.csv"), index=False)
 
     # Call the underlying Step 3 worker directly (no subprocess)
     extractTsAndSignal(input_params)

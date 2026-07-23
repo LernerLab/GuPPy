@@ -26,6 +26,7 @@ DEFAULT_ANALYSIS_PARAMETERS = {
     "filter_window": 100,
     "removeArtifacts": False,
     "artifactsRemovalMethod": "concatenate",
+    "computeTonic": False,
     "noChannels": 2,
     "zscore_method": "standard z-score",
     "baselineWindowStart": 0,

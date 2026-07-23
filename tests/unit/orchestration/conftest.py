@@ -18,6 +18,7 @@ def base_input_parameters() -> dict[str, object]:
         "combine_data": False,
         "removeArtifacts": False,
         "artifactsRemovalMethod": "replace with NaN",
+        "computeTonic": False,
         "filter_window": 100,
         "zscore_method": "standard z-score",
         "baselineWindowStart": 0.0,

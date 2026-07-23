@@ -1,6 +1,7 @@
 # v2.0.0-alpha9 (Upcoming)
 
 ## Features
+- Added an opt-in tonic/basal fluorescence analysis mode for pharmacological experiments: enable "Compute tonic/basal analysis" and, during preprocessing, define named epoch windows (e.g. baseline vs. post-injection) per recording site on the preprocessed trace; GuPPy then averages the z-score and dF/F over each window and saves the per-epoch means to `tonic_<site>.h5`, with a Step-5 dashboard tab that shows the windows on the trace and the difference from a chosen baseline epoch. PSTH analysis is unaffected. [PR #397](https://github.com/LernerLab/GuPPy/pull/397)
 - Added a baseline-epoch mode for isosbestic control fitting: fit coefficients can now be estimated from a user-specified pre-injection window and applied across the whole recording, so a step-change (e.g. a drug injection) no longer corrupts the control fit. [PR #392](https://github.com/LernerLab/GuPPy/pull/392)
 - Added support for pynwb 4.0, including the new core `EventsTable` event type (NWB Schema 2.10.0); each `EventsTable` becomes a store, split into one store per unique value of its optional text `annotation` column. Dropped support for the `ndx-events` 0.4 extension, which is unreadable under pynwb 4.0. [PR #367](https://github.com/LernerLab/GuPPy/pull/367)
 - Soft-deprecated the `concatenate` artifact-removal method: `replace with NaN` is now the default because `concatenate` re-times the kept samples onto a fresh timeline, breaking alignment to the acquisition clock. [PR #396](https://github.com/LernerLab/GuPPy/pull/396)

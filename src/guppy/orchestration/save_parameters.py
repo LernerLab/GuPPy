@@ -38,6 +38,7 @@ def save_parameters(inputParameters: dict[str, object]) -> None:
         "filter_window": inputParameters["filter_window"],
         "removeArtifacts": inputParameters["removeArtifacts"],
         "artifactsRemovalMethod": inputParameters["artifactsRemovalMethod"],
+        "computeTonic": inputParameters["computeTonic"],
         "noChannels": inputParameters["noChannels"],
         "zscore_method": inputParameters["zscore_method"],
         "baselineWindowStart": inputParameters["baselineWindowStart"],

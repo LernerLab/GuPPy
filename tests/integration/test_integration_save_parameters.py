@@ -21,6 +21,7 @@ def default_parameters():
         "filter_window": 100,
         "removeArtifacts": False,
         "artifactsRemovalMethod": "replace with NaN",
+        "computeTonic": False,
         "noChannels": 2,
         "zscore_method": "standard z-score",
         "baselineWindowStart": 0,

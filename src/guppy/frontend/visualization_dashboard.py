@@ -5,6 +5,7 @@ from io import BytesIO
 import panel as pn
 
 from .frontend_utils import scanPortsAndFind
+from .tonic_epochs import build_tonic_results_view
 
 pn.extension()
 
@@ -33,6 +34,7 @@ class VisualizationDashboard:
         self.basename = basename
         self._psth_tab = self._build_psth_tab()
         self._heatmap_tab = self._build_heatmap_tab()
+        self._tonic_tab = build_tonic_results_view(plotter.filepath)
 
     def _range_number_inputs(self, *, name: str, label: str) -> pn.Row:
         """Return two-way-bound min/max number boxes for a plotter ``Range`` param.
@@ -368,7 +370,11 @@ class VisualizationDashboard:
     def build_template(self) -> pn.template.MaterialTemplate:
         """Build and return the Panel template without serving it."""
         template = pn.template.MaterialTemplate(title="Visualization GUI")
-        app = pn.Tabs(("PSTH", self._psth_tab), ("Heat Map", self._heatmap_tab))
+        app = pn.Tabs(
+            ("PSTH", self._psth_tab),
+            ("Heat Map", self._heatmap_tab),
+            ("Tonic", self._tonic_tab),
+        )
         template.main.append(app)
         return template
 
