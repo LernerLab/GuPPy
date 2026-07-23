@@ -606,6 +606,7 @@ SAVED_PARAMETERS = {
     "filter_window": 42,
     "removeArtifacts": True,
     "artifactsRemovalMethod": "replace with NaN",
+    "computeTonic": True,
     "noChannels": 3,
     "zscore_method": "modified z-score",
     "baselineWindowStart": 2,

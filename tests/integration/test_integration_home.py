@@ -18,6 +18,7 @@ EXPECTED_JSON_KEYS = {
     "filter_window",
     "removeArtifacts",
     "artifactsRemovalMethod",
+    "computeTonic",
     "noChannels",
     "zscore_method",
     "baselineWindowStart",

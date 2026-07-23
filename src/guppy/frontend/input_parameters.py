@@ -250,6 +250,10 @@ class ParameterForm:
             width=150,
         )
 
+        self.computeTonic = pn.widgets.Select(
+            name="Compute tonic/basal analysis? (bool)", value=False, options=[True, False], width=250
+        )
+
         self.no_channels_np = pn.widgets.IntInput(
             name="Number of channels (Neurophotometrics only)", value=2, width=320
         )
@@ -394,6 +398,7 @@ class ParameterForm:
             pn.Row(self.highAmpFilt, self.transientsThresh),
             self.no_channels_np,
             pn.Row(self.removeArtifacts, self.artifactsRemovalMethod),
+            self.computeTonic,
         )
 
         self.psth_baseline_param = pn.Column(
@@ -730,6 +735,7 @@ class ParameterForm:
             "filter_window": self.moving_avg_filter.value,
             "removeArtifacts": self.removeArtifacts.value,
             "artifactsRemovalMethod": self.artifactsRemovalMethod.value,
+            "computeTonic": self.computeTonic.value,
             "noChannels": self.no_channels_np.value,
             "zscore_method": self.z_score_computation.value,
             "baselineWindowStart": self.baseline_wd_strt.value,
@@ -784,6 +790,7 @@ class ParameterForm:
             "filter_window": self.moving_avg_filter,
             "removeArtifacts": self.removeArtifacts,
             "artifactsRemovalMethod": self.artifactsRemovalMethod,
+            "computeTonic": self.computeTonic,
             "noChannels": self.no_channels_np,
             "zscore_method": self.z_score_computation,
             "baselineWindowStart": self.baseline_wd_strt,
