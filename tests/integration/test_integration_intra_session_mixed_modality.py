@@ -5,9 +5,9 @@ import shutil
 import h5py
 import numpy as np
 import pytest
-from conftest import STUBBED_TESTING_DATA
 
-from guppy.testing.api import step2, step3, step4, step5
+from guppy.testing.api import step1, step2, step3, step4
+from guppy_test_data import STUBBED_TESTING_DATA
 
 
 def _stage_session(src_base_dir, session_subdir, tmp_base):
@@ -26,23 +26,23 @@ def _stage_session(src_base_dir, session_subdir, tmp_base):
     return session_copy
 
 
-def _assert_intra_session_outputs(session_copy, expected_region, expected_ttl):
+def _assert_intra_session_outputs(session_copy, expected_recording_site, expected_ttl):
     dest_name = os.path.basename(session_copy)
-    output_dirs = sorted(glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")))
-    assert output_dirs, f"No output directories found in {session_copy}"
+    run_folders = sorted(glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")))
+    assert run_folders, f"No output directories found in {session_copy}"
     out_dir = None
-    for d in output_dirs:
+    for d in run_folders:
         if os.path.exists(os.path.join(d, "storesList.csv")):
             out_dir = d
             break
     assert out_dir is not None, f"No storesList.csv found under {session_copy}"
 
-    timecorr = os.path.join(out_dir, f"timeCorrection_{expected_region}.hdf5")
+    timecorr = os.path.join(out_dir, f"timeCorrection_{expected_recording_site}.hdf5")
     assert os.path.exists(timecorr), f"Missing {timecorr}"
     with h5py.File(timecorr, "r") as f:
         assert "timestampNew" in f
 
-    ttl_fp = os.path.join(out_dir, f"{expected_ttl}_{expected_region}.hdf5")
+    ttl_fp = os.path.join(out_dir, f"{expected_ttl}_{expected_recording_site}.hdf5")
     assert os.path.exists(ttl_fp), f"Missing TTL-aligned file {ttl_fp}"
     with h5py.File(ttl_fp, "r") as f:
         assert "ts" in f
@@ -72,17 +72,17 @@ def test_mixed_modality_tdt_csv_ttl(tmp_path):
     base_dir = str(tmp_base)
     selected_folders = [str(session_copy)]
 
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        storenames_map={"Dv1A": "control_dms", "Dv2A": "signal_dms", "csv_port_entries": "port_entries_dms"},
+        store_id_to_store_label={"Dv1A": "control_dms", "Dv2A": "signal_dms", "csv_port_entries": "port_entries_dms"},
     )
     selected_runs = {str(session_copy): ["1"]}
+    step2(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step3(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
-    step5(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
 
-    _assert_intra_session_outputs(session_copy, expected_region="dms", expected_ttl="port_entries_dms")
+    _assert_intra_session_outputs(session_copy, expected_recording_site="dms", expected_ttl="port_entries_dms")
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
@@ -111,21 +111,21 @@ def test_mixed_modality_doric_csv_ttl(tmp_path):
     base_dir = str(tmp_base)
     selected_folders = [str(session_copy)]
 
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        storenames_map={
+        store_id_to_store_label={
             "CAM1_EXC1/ROI01": "control_region",
             "CAM1_EXC2/ROI01": "signal_region",
             "csv_doric_event": "ttl_region",
         },
     )
     selected_runs = {str(session_copy): ["1"]}
+    step2(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step3(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
-    step5(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
 
-    _assert_intra_session_outputs(session_copy, expected_region="region", expected_ttl="ttl_region")
+    _assert_intra_session_outputs(session_copy, expected_recording_site="region", expected_ttl="ttl_region")
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
@@ -157,10 +157,10 @@ def test_mixed_modality_npm_csv_ttl(tmp_path):
     base_dir = str(tmp_base)
     selected_folders = [str(session_copy)]
 
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        storenames_map={
+        store_id_to_store_label={
             "file0_chev1": "signal_region",
             "file0_chod1": "control_region",
             "csv_event": "ttl_region",
@@ -168,6 +168,12 @@ def test_mixed_modality_npm_csv_ttl(tmp_path):
         npm_split_events=[False, True],
     )
     selected_runs = {str(session_copy): ["1"]}
+    step2(
+        base_dir=base_dir,
+        selected_folders=selected_folders,
+        npm_split_events=[False, True],
+        selected_runs=selected_runs,
+    )
     step3(
         base_dir=base_dir,
         selected_folders=selected_folders,
@@ -180,14 +186,8 @@ def test_mixed_modality_npm_csv_ttl(tmp_path):
         npm_split_events=[False, True],
         selected_runs=selected_runs,
     )
-    step5(
-        base_dir=base_dir,
-        selected_folders=selected_folders,
-        npm_split_events=[False, True],
-        selected_runs=selected_runs,
-    )
 
-    _assert_intra_session_outputs(session_copy, expected_region="region", expected_ttl="ttl_region")
+    _assert_intra_session_outputs(session_copy, expected_recording_site="region", expected_ttl="ttl_region")
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
@@ -215,18 +215,18 @@ def test_mixed_modality_nwb_csv_ttl(tmp_path):
     base_dir = str(tmp_base)
     selected_folders = [str(session_copy)]
 
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        storenames_map={
+        store_id_to_store_label={
             "fiber_photometry_response_series_0": "control_region",
             "fiber_photometry_response_series_1": "signal_region",
             "csv_nwb_event": "ttl_region",
         },
     )
     selected_runs = {str(session_copy): ["1"]}
+    step2(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step3(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
-    step5(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
 
-    _assert_intra_session_outputs(session_copy, expected_region="region", expected_ttl="ttl_region")
+    _assert_intra_session_outputs(session_copy, expected_recording_site="region", expected_ttl="ttl_region")

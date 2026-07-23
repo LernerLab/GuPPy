@@ -40,7 +40,7 @@ def test_readpbincrementvalues_returns_error_message_on_failure(tmp_path):
     steps_file = tmp_path / "pbSteps.txt"
     error_file = tmp_path / "pbError.txt"
 
-    expected_message = "Cross-correlation requires at least two distinct signal regions"
+    expected_message = "Cross-correlation requires at least two distinct signal recording sites"
     error_file.write_text(expected_message)
 
     def _write_failure():

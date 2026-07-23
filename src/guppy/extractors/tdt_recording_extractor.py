@@ -52,15 +52,15 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         if isinstance(header_df, pd.DataFrame):
             header_df["name"] = np.asarray(header_df["name"], dtype=str)
             allnames = np.unique(header_df["name"])
-            index = []
+            short_name_indices = []
             for i in range(len(allnames)):
                 length = len(str(allnames[i]))
                 if length < 4:
-                    index.append(i)
-            allnames = np.delete(allnames, index, 0)
+                    short_name_indices.append(i)
+            allnames = np.delete(allnames, short_name_indices, 0)
             # Epoc stores that encode multiple behaviours are split into one sub-event per
-            # unique marker value here (at discover time) so storesList is fully settled
-            # before step 3; read() then needs no storesList mutation.
+            # unique marker value here (at discover time) so store_array is fully settled
+            # before step 2; read() then needs no store_array mutation.
             split_map = cls._compute_split_map(header_df)
             events = []
             for name in allnames:
@@ -110,50 +110,48 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         return df, flag
 
     def _readtev(self, event: str) -> dict[str, object]:
-        data = self._header_df.copy()
-        filepath = self.folder_path
+        header_df = self._header_df.copy()
+        folder_path = self.folder_path
 
         logger.debug("Reading data for event {} ...".format(event))
-        tevfilepath = glob.glob(os.path.join(filepath, "*.tev"))
+        tevfilepath = glob.glob(os.path.join(folder_path, "*.tev"))
         if len(tevfilepath) > 1:
             raise ValueError(
-                f"Multiple .tev files found in '{filepath}': {sorted(tevfilepath)}. "
+                f"Multiple .tev files found in '{folder_path}': {sorted(tevfilepath)}. "
                 "Each TDT tank folder must contain exactly one .tev file."
             )
         else:
             tevfilepath = tevfilepath[0]
 
-        data["name"] = np.asarray(data["name"], dtype=str)
+        header_df["name"] = np.asarray(header_df["name"], dtype=str)
 
-        allnames = np.unique(data["name"])
+        allnames = np.unique(header_df["name"])
 
-        index = []
+        short_name_indices = []
         for i in range(len(allnames)):
             length = len(str(allnames[i]))
             if length < 4:
-                index.append(i)
+                short_name_indices.append(i)
 
-        allnames = np.delete(allnames, index, 0)
+        allnames = np.delete(allnames, short_name_indices, 0)
 
         eventNew = np.array(list(event))
 
-        # logger.info(allnames)
-        # logger.info(eventNew)
-        row = self._ismember(data["name"], event)
+        name_matches = self._ismember(header_df["name"], event)
 
-        if sum(row) == 0:
+        if sum(name_matches) == 0:
             available = sorted(str(name) for name in allnames)
             message = (
-                f"Requested TDT store name '{event}' not found in tank "
+                f"Requested TDT store id '{event}' not found in tank "
                 f"'{self.folder_path}' (case-sensitive). Available stores: {available}."
             )
             logger.error(message)
             raise ValueError(message)
 
-        allIndexesWhereEventIsPresent = np.where(row == 1)
+        allIndexesWhereEventIsPresent = np.where(name_matches == 1)
         first_row = allIndexesWhereEventIsPresent[0][0]
 
-        formatNew = data["format"][first_row] + 1
+        formatNew = header_df["format"][first_row] + 1
 
         table = np.array(
             [
@@ -167,27 +165,27 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
 
         event_dict = dict()
 
-        event_dict["storename"] = str(event)
-        event_dict["sampling_rate"] = data["frequency"][first_row]
-        event_dict["timestamps"] = np.asarray(data["timestamp"][allIndexesWhereEventIsPresent[0]])
-        event_dict["channels"] = np.asarray(data["chan"][allIndexesWhereEventIsPresent[0]])
+        event_dict["store_id"] = str(event)
+        event_dict["sampling_rate"] = header_df["frequency"][first_row]
+        event_dict["timestamps"] = np.asarray(header_df["timestamp"][allIndexesWhereEventIsPresent[0]])
+        event_dict["channels"] = np.asarray(header_df["chan"][allIndexesWhereEventIsPresent[0]])
 
-        fp_loc = np.asarray(data["fp_loc"][allIndexesWhereEventIsPresent[0]])
-        data_size = np.asarray(data["size"])
+        fp_loc = np.asarray(header_df["fp_loc"][allIndexesWhereEventIsPresent[0]])
+        data_size = np.asarray(header_df["size"])
 
         if formatNew != 5:
             nsample = (data_size[first_row,] - 10) * int(table[formatNew, 2])
             event_dict["data"] = np.zeros((len(fp_loc), nsample))
             for i in range(0, len(fp_loc)):
-                with open(tevfilepath, "rb") as fp:
-                    fp.seek(fp_loc[i], os.SEEK_SET)
-                    event_dict["data"][i, :] = np.fromfile(fp, dtype=table[formatNew, 3], count=nsample).reshape(
+                with open(tevfilepath, "rb") as tev_file:
+                    tev_file.seek(fp_loc[i], os.SEEK_SET)
+                    event_dict["data"][i, :] = np.fromfile(tev_file, dtype=table[formatNew, 3], count=nsample).reshape(
                         1, nsample, order="F"
                     )
                     # event_dict['data'] = event_dict['data'].swapaxes()
             event_dict["npoints"] = nsample
         else:
-            event_dict["data"] = np.asarray(data["strobe"][allIndexesWhereEventIsPresent[0]])
+            event_dict["data"] = np.asarray(header_df["strobe"][allIndexesWhereEventIsPresent[0]])
             event_dict["npoints"] = 1
             event_dict["channels"] = np.tile(1, (event_dict["data"].shape[0],))
 
@@ -201,29 +199,29 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         Split sub-events are counted from the parent epoc store's header rows whose
         strobe value matches.
         """
-        data = self._header_df
-        names = np.asarray(data["name"], dtype=str)
+        header_df = self._header_df
+        names = np.asarray(header_df["name"], dtype=str)
 
         split_lookup = {
             split_name: (parent, value)
-            for parent, entries in self._compute_split_map(data).items()
+            for parent, entries in self._compute_split_map(header_df).items()
             for split_name, value in entries
         }
         if event in split_lookup:
             parent, value = split_lookup[event]
-            parent_strobes = np.asarray(data["strobe"])[np.where(names == parent)[0]]
+            parent_strobes = np.asarray(header_df["strobe"])[np.where(names == parent)[0]]
             return int(np.count_nonzero(parent_strobes == value))
 
-        row = self._ismember(names, event)
-        if sum(row) == 0:
+        name_matches = self._ismember(names, event)
+        if sum(name_matches) == 0:
             return 0
-        indexes = np.where(row == 1)[0]
+        indexes = np.where(name_matches == 1)[0]
         first_row = indexes[0]
-        format_new = data["format"][first_row] + 1
+        format_new = header_df["format"][first_row] + 1
         if format_new == 5:
             return int(len(indexes))
         bytes_per_sample_table = {1: 1, 2: 1, 3: 2, 4: 4}
-        nsample = int((data["size"][first_row] - 10) * bytes_per_sample_table[int(format_new)])
+        nsample = int((header_df["size"][first_row] - 10) * bytes_per_sample_table[int(format_new)])
         return int(nsample * len(indexes))
 
     def read(self, *, events: list[str], outputPath: str) -> list[dict[str, Any]]:
@@ -240,7 +238,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         Parameters
         ----------
         events : list of str
-            TDT store names to read (case-sensitive). May include split
+            TDT store ids to read (case-sensitive). May include split
             sub-event names (e.g. ``"PrtN5"``).
         outputPath : str
             Path to the output directory (unused; required by the base-class
@@ -250,7 +248,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         -------
         list of dict
             One dictionary per requested event. Each dict contains
-            ``storename``, ``sampling_rate``, ``timestamps``, ``data``,
+            ``store_id``, ``sampling_rate``, ``timestamps``, ``data``,
             ``npoints``, and ``channels``.
         """
         split_lookup = {
@@ -267,11 +265,11 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
                 if parent not in parent_cache:
                     parent_cache[parent] = self._readtev(event=parent)
                 parent_dict = parent_cache[parent]
-                idx = np.where(parent_dict["data"] == value)[0]
+                matching_indices = np.where(parent_dict["data"] == value)[0]
                 output_dicts.append(
                     {
-                        "storename": event,
-                        "timestamps": parent_dict["timestamps"][idx],
+                        "store_id": event,
+                        "timestamps": parent_dict["timestamps"][matching_indices],
                         "sampling_rate": parent_dict["sampling_rate"],
                         "data": parent_dict["data"],
                         "npoints": parent_dict["npoints"],
@@ -283,9 +281,9 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         return output_dicts
 
     @staticmethod
-    def _ismember(arr: np.ndarray, element: str) -> np.ndarray:
-        res = [1 if i == element else 0 for i in arr]
-        return np.asarray(res)
+    def _ismember(values: np.ndarray, element: str) -> np.ndarray:
+        membership_flags = [1 if value == element else 0 for value in values]
+        return np.asarray(membership_flags)
 
     @staticmethod
     def _format_split_suffix(value: float) -> str:
@@ -297,7 +295,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
 
     @staticmethod
     def _event_needs_splitting(data: np.ndarray, sampling_rate: float) -> bool:
-        logger.info("Checking event storename data for creating multiple event names from single event storename...")
+        logger.info("Checking event store_id data for creating multiple event names from single event store_id...")
         diff = np.diff(data)
         if diff.shape[0] == 0:
             return False
@@ -323,7 +321,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         Returns
         -------
         dict
-            Maps each splitting parent store name to a list of
+            Maps each splitting parent store id to a list of
             ``(split_sub_event_name, marker_value)`` pairs, ordered by marker value.
         """
         if not isinstance(header_df, pd.DataFrame):
@@ -344,18 +342,20 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
             # meaningful strobe values (other stores reuse those bytes as a file pointer).
             if formats[first_row] + 1 != 5:
                 continue
-            data = strobes[indexes]
-            if not cls._event_needs_splitting(data=data, sampling_rate=frequencies[first_row]):
+            strobe_values = strobes[indexes]
+            if not cls._event_needs_splitting(data=strobe_values, sampling_rate=frequencies[first_row]):
                 continue
-            # Mirror the historical sub-event naming: strip "/" from the store name
+            # Mirror the historical sub-event naming: strip "/" from the store id
             # and append the formatted marker value (e.g. "PAB/" + 16 -> "PAB16").
             new_store = store.replace("/", "")
-            split_map[store] = [(new_store + cls._format_split_suffix(value), value) for value in np.unique(data)]
+            split_map[store] = [
+                (new_store + cls._format_split_suffix(value), value) for value in np.unique(strobe_values)
+            ]
         return split_map
 
     def _save_dict_to_hdf5(self, event_dict: dict[str, object], outputPath: str) -> None:
-        event = event_dict["storename"]
-        write_hdf5(event_dict["storename"], event, outputPath, "storename")
+        event = event_dict["store_id"]
+        write_hdf5(event_dict["store_id"], event, outputPath, "store_id")
         write_hdf5(event_dict["sampling_rate"], event, outputPath, "sampling_rate")
         write_hdf5(event_dict["timestamps"], event, outputPath, "timestamps")
         write_hdf5(event_dict["data"], event, outputPath, "data")

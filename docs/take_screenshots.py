@@ -22,12 +22,13 @@ import numpy as np
 import pandas as pd
 import panel as pn
 
+from guppy.frontend.custom_events_config import CustomEventsConfig
 from guppy.frontend.frontend_utils import scanPortsAndFind
 from guppy.frontend.parameterized_plotter import ParameterizedPlotter
-from guppy.frontend.storenames_selector import StorenamesSelector
+from guppy.frontend.store_labeling_selector import StoreLabelingSelector
 from guppy.frontend.visualization_dashboard import VisualizationDashboard
 from guppy.orchestration.home import build_homepage
-from guppy.orchestration.storenames import build_storenames_template
+from guppy.orchestration.store_labeling import build_store_labeling_template
 
 if TYPE_CHECKING:
     from panel.template.base import BasicTemplate
@@ -73,11 +74,54 @@ def screenshot_homepage(page: Page) -> None:
     pn.state.kill_all_servers()
 
 
-def screenshot_storenames(page: Page, tmp_path: Path) -> None:
-    """Screenshot 2: the Storenames GUI with CSV channel names."""
+def screenshot_import_custom_events_button(page: Page) -> None:
+    """How-to: the sidebar top showing the Import Custom Events button above Step 1."""
+    os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
+    template = build_homepage()
+    url = _serve(template)
+    page.goto(url)
+    page.get_by_text("Individual Analysis").first.wait_for()
+    page.wait_for_timeout(1000)
+    page.screenshot(
+        path=OUTPUT_DIR / "import_custom_events_button.png",
+        clip={"x": 0, "y": 0, "width": 340, "height": 320},
+    )
+    print("Saved import_custom_events_button.png")
+
+    pn.state.kill_all_servers()
+
+
+def screenshot_import_custom_events(page: Page) -> None:
+    """How-to: the Import Custom Events pop-out with two example events filled in.
+
+    We build the config component directly and set the widget values before serving so the
+    paste boxes render pre-filled (mirroring screenshot_label_stores_configured).
+    """
+    config = CustomEventsConfig()
+    config.rows[0][0].value = "movement_onset"
+    config.rows[0][1].value = "5.0\n9.5\n14.2\n21.0"
+    config.add_event_row()
+    config.rows[1][0].value = "reward_delivery"
+    config.rows[1][1].value = "7.3\n12.1\n18.8"
+
+    template = pn.template.BootstrapTemplate(title="Import Custom Events - sample_data_csv_1")
+    template.main.append(config.widget)
+    url = _serve(template)
+
+    page.goto(url)
+    page.get_by_text("Import Custom Events").first.wait_for()
+    page.wait_for_timeout(1000)
+    page.screenshot(path=OUTPUT_DIR / "import_custom_events.png", full_page=False)
+    print("Saved import_custom_events.png")
+
+    pn.state.kill_all_servers()
+
+
+def screenshot_label_stores(page: Page, tmp_path: Path) -> None:
+    """Screenshot 2: the Label Stores GUI with CSV channel names."""
     # Pass the real sample-data directory so the page title reads
-    # "Storenames GUI - sample_data_csv_1" instead of leaking a tmp dir basename.
-    template = build_storenames_template(
+    # "Label Stores GUI - sample_data_csv_1" instead of leaking a tmp dir basename.
+    template = build_store_labeling_template(
         events=["Sample_Control_Channel", "Sample_Signal_Channel", "Sample_TTL"],
         flags=[],
         folder_path=str(SAMPLE_DATA_DIR),
@@ -85,10 +129,10 @@ def screenshot_storenames(page: Page, tmp_path: Path) -> None:
     url = _serve(template)
 
     page.goto(url)
-    page.get_by_text("Select Storenames").first.wait_for()
+    page.get_by_text("Select Stores").first.wait_for()
     page.wait_for_timeout(1000)
-    page.screenshot(path=OUTPUT_DIR / "02_storenames.png", full_page=False)
-    print("Saved 02_storenames.png")
+    page.screenshot(path=OUTPUT_DIR / "02_label_stores.png", full_page=False)
+    print("Saved 02_label_stores.png")
 
     pn.state.kill_all_servers()
 
@@ -173,10 +217,10 @@ def screenshot_sidebar_progress(page: Page, progress_index: int, output_name: st
     pn.state.kill_all_servers()
 
 
-def screenshot_storenames_configured(page: Page, tmp_path: Path) -> None:
-    """Screenshot 2b: the Storenames GUI after clicking Select Storenames.
+def screenshot_label_stores_configured(page: Page, tmp_path: Path) -> None:
+    """Screenshot 2b: the Label Stores GUI after clicking Select Stores.
 
-    Shows the Configure Storenames panel with one row per channel
+    Shows the Label Stores panel with one row per channel
     (Type dropdown + Name text field), which is the state the user
     needs to fill out.
 
@@ -184,30 +228,26 @@ def screenshot_storenames_configured(page: Page, tmp_path: Path) -> None:
     pre-setting ``cross_selector.value`` does not propagate to served
     Panel sessions, and clicking the button via Playwright fires the
     callback while the cross-selector is empty, which leaves the
-    Configure Storenames pane invisible. Constructing the selector
-    here and calling ``configure_storenames`` ourselves bypasses both.
+    Label Stores pane invisible. Constructing the selector
+    here and calling ``configure_store_ids`` ourselves bypasses both.
     """
     events = ["Sample_Control_Channel", "Sample_Signal_Channel", "Sample_TTL"]
 
-    selector = StorenamesSelector(allnames=events)
+    selector = StoreLabelingSelector(allnames=events)
     selector.cross_selector.value = events
     selector.set_change_widgets(events)
-    selector.configure_storenames(
-        storename_dropdowns={},
-        storename_textboxes={},
-        storenames=events,
-        storenames_cache={},
-    )
+    selector.store_ids = events
+    selector.configure_store_ids(store_id_to_store_labels={})
 
-    template = pn.template.BootstrapTemplate(title="Storenames GUI - sample_data_csv_1")
+    template = pn.template.BootstrapTemplate(title="Label Stores GUI - sample_data_csv_1")
     template.main.append(selector.widget)
     url = _serve(template)
 
     page.goto(url)
-    page.get_by_text("Configure Storenames").first.wait_for()
+    page.get_by_text("Label Stores").first.wait_for()
     page.wait_for_timeout(1500)
-    page.screenshot(path=OUTPUT_DIR / "02b_storenames_configured.png", full_page=False)
-    print("Saved 02b_storenames_configured.png")
+    page.screenshot(path=OUTPUT_DIR / "02b_label_stores_configured.png", full_page=False)
+    print("Saved 02b_label_stores_configured.png")
 
     pn.state.kill_all_servers()
 
@@ -267,10 +307,12 @@ def main() -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             screenshot_homepage(page)
+            screenshot_import_custom_events_button(page)
+            screenshot_import_custom_events(page)
             screenshot_data_selection(page)
             screenshot_parameters(page)
-            screenshot_storenames(page, tmp_path)
-            screenshot_storenames_configured(page, tmp_path)
+            screenshot_label_stores(page, tmp_path)
+            screenshot_label_stores_configured(page, tmp_path)
             screenshot_sidebar_progress(page, 0, "04_read_progress.png")
             screenshot_sidebar_progress(page, 1, "05_preprocess_progress.png")
             screenshot_sidebar_progress(page, 2, "06_psth_progress.png")

@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import pytest
 
@@ -12,6 +14,9 @@ from guppy.analysis.io_utils import (
     make_dir_for_cross_correlation,
     makeAverageDir,
     read_hdf5,
+    recording_site_from_channel_label,
+    recording_site_from_channel_path,
+    recording_site_from_preprocessed_label,
     write_combined_stores_list,
     write_hdf5,
 )
@@ -64,9 +69,18 @@ def test_decide_naming_convention_unequal_counts_raises(tmp_path):
     with pytest.raises(ValueError) as exception_info:
         decide_naming_convention(str(tmp_path))
     message = str(exception_info.value)
-    assert "Unequal number of control and signal files" in message
-    assert "2 control" in message
-    assert "1 signal" in message
+    assert "Mismatched control/signal files" in message
+    assert "control file(s) without a matching signal: NAc" in message
+
+
+def test_decide_naming_convention_pairs_recording_sites_with_underscores(tmp_path):
+    # Recording-site names contain underscores; pairing must still be correct.
+    (tmp_path / "control_left_hemisphere.hdf5").touch()
+    (tmp_path / "signal_left_hemisphere.hdf5").touch()
+    result = decide_naming_convention(str(tmp_path))
+    assert result.shape == (2, 1)
+    assert os.path.basename(result[0, 0]) == "control_left_hemisphere.hdf5"
+    assert os.path.basename(result[1, 0]) == "signal_left_hemisphere.hdf5"
 
 
 # ── read_hdf5 / write_hdf5 ────────────────────────────────────────────────────
@@ -199,10 +213,10 @@ def test_get_coords_with_artifact_removal_delegates_to_fetch_coords(tmp_path):
 def test_check_storeslistfile_reads_stores_list_from_output_subdirectory(tmp_path):
     session_dir = tmp_path / "session"
     session_dir.mkdir()
-    output_dir = session_dir / "session_output_1"
-    output_dir.mkdir()
+    run_folder = session_dir / "session_output_1"
+    run_folder.mkdir()
     stores_list = np.array([["sig0", "ctrl0"], ["signal_dms", "control_dms"]])
-    np.savetxt(output_dir / "storesList.csv", stores_list, fmt="%s", delimiter=",")
+    np.savetxt(run_folder / "storesList.csv", stores_list, fmt="%s", delimiter=",")
     result = check_storeslistfile([str(session_dir)])
     # np.unique sorts columns; "ctrl0"/"control_dms" < "sig0"/"signal_dms"
     np.testing.assert_array_equal(result, np.array([["ctrl0", "sig0"], ["control_dms", "signal_dms"]]))
@@ -212,11 +226,11 @@ def test_check_storeslistfile_reads_stores_list_from_output_subdirectory(tmp_pat
 
 
 def test_write_combined_stores_list_creates_csv_in_each_output_path(tmp_path):
-    output_dir = tmp_path / "output"
-    output_dir.mkdir()
+    run_folder = tmp_path / "output"
+    run_folder.mkdir()
     stores_list = np.array([["sig0"], ["signal_dms"]])
-    write_combined_stores_list([[str(output_dir)]], stores_list)
-    result = np.genfromtxt(output_dir / "combine_storesList.csv", dtype="str", delimiter=",").reshape(2, -1)
+    write_combined_stores_list([[str(run_folder)]], stores_list)
+    result = np.genfromtxt(run_folder / "combine_storesList.csv", dtype="str", delimiter=",").reshape(2, -1)
     np.testing.assert_array_equal(result, stores_list)
 
 
@@ -234,21 +248,50 @@ def test_get_control_and_signal_channel_names_filters_and_sorts_channels():
 def test_get_control_and_signal_channel_names_raises_for_odd_count():
     # Three control/signal entries cannot reshape to (2, -1)
     stores_list = np.array([["s0", "c0", "c1"], ["signal_dms", "control_dms", "control_nac"]])
-    with pytest.raises(ValueError, match="control region.*without a matching signal.*nac"):
+    with pytest.raises(ValueError, match="control recording site.*without a matching signal.*nac"):
         get_control_and_signal_channel_names(stores_list)
 
 
-def test_get_control_and_signal_channel_names_error_names_unmatched_signal_region():
+def test_get_control_and_signal_channel_names_error_names_unmatched_signal_recording_site():
     stores_list = np.array([["s0", "s1", "c0"], ["signal_dms", "signal_nac", "control_dms"]])
-    with pytest.raises(ValueError, match="signal region.*without a matching control.*nac"):
+    with pytest.raises(ValueError, match="signal recording site.*without a matching control.*nac"):
         get_control_and_signal_channel_names(stores_list)
 
 
-def test_get_control_and_signal_channel_names_signal_only_odd_count_raises_count_error():
-    # Signal-only with an odd count cannot reshape; falls back to the count-based message.
+def test_get_control_and_signal_channel_names_signal_only_raises_mismatch_error():
+    # Signals with no matching controls are unpaired and must be reported by recording site.
     stores_list = np.array([["s0", "s1", "s2"], ["signal_dms", "signal_nac", "signal_vta"]])
-    with pytest.raises(ValueError, match="0 control and 3 signal"):
+    with pytest.raises(ValueError, match="signal recording site.*without a matching control.*dms, nac, vta"):
         get_control_and_signal_channel_names(stores_list)
+
+
+def test_get_control_and_signal_channel_names_pairs_recording_sites_with_underscores():
+    # Recording-site names containing underscores must pair correctly (no last-underscore split).
+    stores_list = np.array([["c0", "s0", "e0"], ["control_left_hemisphere", "signal_left_hemisphere", "port_entry"]])
+    result = get_control_and_signal_channel_names(stores_list)
+    np.testing.assert_array_equal(result, np.array([["control_left_hemisphere"], ["signal_left_hemisphere"]]))
+
+
+# ── recording_site_from_* helpers ─────────────────────────────────────────────────────
+
+
+def test_recording_site_from_channel_label_strips_role_prefix_preserving_underscores():
+    assert recording_site_from_channel_label("signal_left_hemisphere") == "left_hemisphere"
+    assert recording_site_from_channel_label("control_DMS") == "DMS"
+    # Case-insensitive prefix detection, recording-site case preserved.
+    assert recording_site_from_channel_label("Signal_D_MS") == "D_MS"
+    # Non-channel labels pass through unchanged.
+    assert recording_site_from_channel_label("port_entry") == "port_entry"
+
+
+def test_recording_site_from_channel_path_strips_prefix_and_extension():
+    assert recording_site_from_channel_path("/a/b/signal_left_hemisphere.hdf5") == "left_hemisphere"
+    assert recording_site_from_channel_path("control_d_ms.hdf5") == "d_ms"
+
+
+def test_recording_site_from_preprocessed_label_strips_zscore_or_dff_prefix():
+    assert recording_site_from_preprocessed_label("z_score_left_hemisphere") == "left_hemisphere"
+    assert recording_site_from_preprocessed_label("dff_d_ms") == "d_ms"
 
 
 # ── make_dir_for_cross_correlation ────────────────────────────────────────────

@@ -1,244 +1,100 @@
 import csv
-import glob
 import os
 import shutil
 
+import h5py
+import numpy as np
 import pytest
-from conftest import STUBBED_TESTING_DATA
 
-from guppy.testing.api import step2
+from guppy.testing.api import step1, step2
+from guppy_test_data import STUBBED_TESTING_DATA
+
+from .integration_helpers import REPRESENTATIVE_SESSIONS, _locate_output_directory
 
 
 @pytest.mark.parametrize(
-    "session_subdir, storenames_map",
+    "step2_fixture_name",
     [
-        (
-            "csv/sample_data_csv_1",
-            {
-                "Sample_Control_Channel": "control_region",
-                "Sample_Signal_Channel": "signal_region",
-                "Sample_TTL": "ttl",
-            },
-        ),
-        (
-            "doric/sample_doric_1",
-            {
-                "AIn-1 - Raw": "control_region",
-                "AIn-2 - Raw": "signal_region",
-                "DI--O-1": "ttl",
-            },
-        ),
-        (
-            "doric/sample_doric_2",
-            {
-                "AIn-1 - Dem (ref)": "control_region",
-                "AIn-1 - Dem (da)": "signal_region",
-                "DI/O-1": "ttl",
-            },
-        ),
-        (
-            "doric/sample_doric_3",
-            {
-                "CAM1_EXC1/ROI01": "control_region",
-                "CAM1_EXC2/ROI01": "signal_region",
-                "DigitalIO/CAM1": "ttl",
-            },
-        ),
-        (
-            "doric/sample_doric_4",
-            {
-                "Series0001/AIN01xAOUT01-LockIn": "control_region",
-                "Series0001/AIN01xAOUT02-LockIn": "signal_region",
-            },
-        ),
-        (
-            "doric/sample_doric_5",
-            {
-                "Series0001/AIN01xAOUT01-LockIn": "control_region",
-                "Series0001/AIN01xAOUT02-LockIn": "signal_region",
-            },
-        ),
-        (
-            "tdt/Photo_63_207-181030-103332",
-            {
-                "Dv1A": "control_dms",
-                "Dv2A": "signal_dms",
-                "PrtN": "port_entries_dms",
-            },
-        ),
-        (
-            "tdt/Photo_048_392-200728-121222",
-            {
-                "Dv1A": "control_dms",
-                "Dv2A": "signal_dms",
-                "PrtN": "port_entries_dms",
-            },
-        ),
-        (
-            # PAB/ is an epoc store that splits into one sub-event per marker value; those
-            # sub-events are enumerated at step 2, so the map references them directly.
-            "tdt/Photometry-161823",
-            {
-                "405R": "control_region",
-                "490R": "signal_region",
-                "PAB0": "ttl_0",
-                "PAB16": "ttl_16",
-                "PAB2064": "ttl_2064",
-            },
-        ),
-        (
-            "npm/sampleData_NPM_1",
-            {
-                "file0_chev1": "signal_region",
-                "file0_chod1": "control_region",
-            },
-        ),
-        (
-            "npm/sampleData_NPM_2",
-            {
-                "file0_chev6": "control_region",
-                "file1_chev6": "signal_region",
-            },
-        ),
-        (
-            "npm/sampleData_NPM_3",
-            {
-                "file0_chev3": "control_region3",
-                "file0_chod3": "signal_region3",
-                "event3": "ttl_region3",
-            },
-        ),
-        (
-            "npm/sampleData_NPM_4",
-            {
-                "file0_chev1": "control_region1",
-                "file0_chod1": "signal_region1",
-                "eventTrue": "ttl_true_region1",
-            },
-        ),
-        (
-            "npm/sampleData_NPM_5",
-            {
-                "file0_chev1": "control_region1",
-                "file0_chod1": "signal_region1",
-                "event0": "ttl_region1",
-            },
-        ),
-        (
-            "nwb/mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_2",
-            {
-                "fiber_photometry_response_series_0": "control_region",
-                "fiber_photometry_response_series_1": "signal_region",
-                "events": "ttl",
-            },
-        ),
+        "step2_output_csv",
+        "step2_output_tdt",
+        "step2_output_npm",
+        "step2_output_doric",
+        "step2_output_nwb",
     ],
-    ids=[
-        "csv_generic",
-        "sample_doric_1",
-        "sample_doric_2",
-        "sample_doric_3",
-        "sample_doric_4",
-        "sample_doric_5",
-        "tdt_clean",
-        "tdt_split_event",
-        "tdt_with_artifacts",
-        "sample_npm_1",
-        "sample_npm_2",
-        "sample_npm_3",
-        "sample_npm_4",
-        "sample_npm_5",
-        "nwb_mock",
-    ],
+    ids=["csv_generic", "tdt_clean", "sample_npm_1", "sample_doric_1", "nwb_mock"],
 )
-def test_step2(tmp_path, session_subdir, storenames_map):
+def test_step2(step2_fixture_name, request):
+    """Validate Step 2 outputs for the representative integration sessions."""
+    pipeline_state = request.getfixturevalue(step2_fixture_name)
+    output_directory = str(pipeline_state["output_directory"])
+    stores_file_path = os.path.join(output_directory, "storesList.csv")
+
+    with open(stores_file_path, newline="") as stores_file:
+        stores_rows = list(csv.reader(stores_file))
+
+    assert len(stores_rows) == 2, "storesList.csv should be 2 rows (store_ids, store_labels)"
+    store_ids = stores_rows[0]
+    assert store_ids, "Expected at least one store_id in storesList.csv"
+
+    # Step 2 auto-writes the parameter snapshot into the selected output directory.
+    assert os.path.exists(
+        os.path.join(output_directory, "GuPPyParamtersUsed.json")
+    ), "step 2 should write GuPPyParamtersUsed.json into the output directory"
+
+    for store_id in store_ids:
+        safe_store_id = store_id.replace("\\", "_").replace("/", "_")
+        store_id_file_path = os.path.join(output_directory, f"{safe_store_id}.hdf5")
+        assert os.path.exists(store_id_file_path), f"Missing HDF5 for store_id {store_id!r} at {store_id_file_path}"
+
+        with h5py.File(store_id_file_path, "r") as store_id_file:
+            assert "timestamps" in store_id_file, "Expected 'timestamps' dataset in HDF5"
+
+
+class TestStep2ProgressFileAccounting:
+    """End-to-end verification that step 2 reconciles its progress file to the
+    total sample count across real extractors. TDT is sufficient — the
+    accounting machinery itself is modality-agnostic and is covered per-extractor
+    by ``count_samples`` unit tests; this test pins the wiring through
+    ``orchestrate_read_raw_data`` against a real on-disk dataset.
     """
-    Step 2 integration test (Save Storenames) using real sample data, isolated to a temporary workspace.
-    For each dataset:
-      - Copies the session into a temp workspace
-      - Cleans any copied *_output_* artifacts (using a specific glob to avoid non-dirs)
-      - Calls step2 headlessly with an explicit, deterministic storenames_map
-      - Asserts storesList.csv exists and exactly matches the provided mapping (2xN)
-    """
-    if session_subdir == "npm/sampleData_NPM_1":
-        npm_timestamp_column_names = None
-        npm_time_units = None
-        npm_split_events = [False, True]
-    elif session_subdir == "npm/sampleData_NPM_3":
-        npm_timestamp_column_names = ["ComputerTimestamp", None]
-        npm_time_units = ["milliseconds", "seconds"]
-        npm_split_events = [False, True]
-    else:
-        npm_timestamp_column_names = None
-        npm_time_units = None
-        npm_split_events = [True, True]
-    if session_subdir == "npm/sampleData_NPM_5":
-        npm_split_events = None
-    # Source sample data
-    src_base_dir = str(STUBBED_TESTING_DATA)
-    src_session = os.path.join(src_base_dir, session_subdir)
-    assert os.path.isdir(src_session), f"Sample data not available at expected path: {src_session}"
 
-    # Stage a clean copy of the session into a temporary workspace
-    tmp_base = tmp_path / "data_root"
-    tmp_base.mkdir(parents=True, exist_ok=True)
-    dest_name = os.path.basename(src_session)
-    session_copy = tmp_base / dest_name
-    shutil.copytree(src_session, session_copy)
+    def test_final_progress_value_matches_total_samples(self, tmp_path, monkeypatch):
+        from guppy.frontend import progress as progress_module
+        from guppy.orchestration import read_raw_data as read_raw_data_module
 
-    # Remove any copied artifacts in the temp session; match only this session's output directory(ies)
-    for d in glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")):
-        assert os.path.isdir(d), f"Expected output directory for cleanup, got non-directory: {d}"
-        shutil.rmtree(d)
+        progress_file = tmp_path / "pb_steps.txt"
+        monkeypatch.setattr(read_raw_data_module, "PB_STEPS_FILE", str(progress_file))
+        monkeypatch.setattr(progress_module, "PB_STEPS_FILE", str(progress_file))
 
-    # Remove any copied GuPPyParamtersUsed.json to ensure a fresh run
-    params_fp = session_copy / "GuPPyParamtersUsed.json"
-    if params_fp.exists():
-        params_fp.unlink()
+        config = REPRESENTATIVE_SESSIONS["tdt"]
+        source = os.path.join(str(STUBBED_TESTING_DATA), config["session_subdir"])
+        base_directory = tmp_path / "base"
+        base_directory.mkdir()
+        session_copy = base_directory / os.path.basename(source)
+        shutil.copytree(source, session_copy)
 
-    # Run Step 2 headlessly using the explicit mapping
-    step2(
-        base_dir=str(tmp_base),
-        selected_folders=[str(session_copy)],
-        storenames_map=storenames_map,
-        npm_timestamp_column_names=npm_timestamp_column_names,
-        npm_time_units=npm_time_units,
-        npm_split_events=npm_split_events,
-    )
-
-    # Validate storesList.csv exists and matches the mapping exactly (order-preserved)
-    basename = os.path.basename(session_copy)
-    output_dirs = sorted(glob.glob(os.path.join(session_copy, f"{basename}_output_*")))
-    assert output_dirs, f"No output directories found in {session_copy}"
-
-    out_dir = None
-    for d in output_dirs:
-        if os.path.exists(os.path.join(d, "storesList.csv")):
-            out_dir = d
-            break
-    assert out_dir is not None, f"No storesList.csv found in any output directory under {session_copy}"
-
-    out_fp = os.path.join(out_dir, "storesList.csv")
-    assert os.path.exists(out_fp), f"Missing storesList.csv: {out_fp}"
-
-    with open(out_fp, newline="") as f:
-        reader = csv.reader(f)
-        rows = list(reader)
-
-    assert len(rows) == 2, f"Expected 2 rows (storenames, names_for_storenames), got {len(rows)}"
-    assert rows[0] == list(storenames_map.keys()), "Row 0 (storenames) mismatch"
-    assert rows[1] == list(storenames_map.values()), "Row 1 (names_for_storenames) mismatch"
-
-    # NPM now demultiplexes in memory: Step 2 must NOT write any intermediate CSVs into the
-    # source session folder, and must persist the decomposition params next to storesList.csv.
-    if session_subdir.startswith("npm/"):
-        intermediates = (
-            glob.glob(os.path.join(session_copy, "file*_chev*.csv"))
-            + glob.glob(os.path.join(session_copy, "file*_chod*.csv"))
-            + glob.glob(os.path.join(session_copy, "file*_chpr*.csv"))
-            + glob.glob(os.path.join(session_copy, "event*.csv"))
+        step1(
+            base_dir=str(base_directory),
+            selected_folders=[str(session_copy)],
+            store_id_to_store_label=config["store_id_to_store_label"],
         )
-        assert intermediates == [], f"NPM Step 2 wrote intermediate CSVs into the source folder: {intermediates}"
+        output_directory = _locate_output_directory(session_copy=str(session_copy))
 
-        npm_params_fp = os.path.join(out_dir, ".npm_params.json")
-        assert os.path.exists(npm_params_fp), f"Missing persisted NPM params at Step 2: {npm_params_fp}"
+        from guppy.extractors.tdt_recording_extractor import TdtRecordingExtractor
+
+        stores_list = np.genfromtxt(
+            os.path.join(output_directory, "storesList.csv"), dtype="str", delimiter=","
+        ).reshape(2, -1)
+        extractor = TdtRecordingExtractor(str(session_copy))
+        expected_total_samples = sum(extractor.count_samples(event=event) for event in np.unique(stores_list[0, :]))
+
+        step2(
+            base_dir=str(base_directory),
+            selected_folders=[str(session_copy)],
+            selected_runs={str(session_copy): [os.path.basename(output_directory).rsplit("_", 1)[-1]]},
+        )
+
+        written_lines = [line.strip() for line in progress_file.read_text().splitlines() if line.strip()]
+        written_values = [int(value) for value in written_lines]
+        assert written_values[0] == expected_total_samples * 10
+        assert written_values[-1] == expected_total_samples * 10

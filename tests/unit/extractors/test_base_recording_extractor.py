@@ -54,16 +54,14 @@ def test_batched_events_all_hdf5_have_timestamps_dataset(tmp_path):
             assert "timestamps" in file
 
 
-def test_batched_events_with_u34_storename_normalizes_dtype(tmp_path):
+def test_batched_events_with_u34_store_id_normalizes_dtype(tmp_path):
     """np.str_ scalars (dtype <U34, produced by NWB reads) must be coerced to plain str."""
-    storename1 = np.str_("fiber_photometry_response_series_0")
-    storename2 = np.str_("fiber_photometry_response_series_1")
-    assert storename1.dtype == "<U34"
-    assert storename2.dtype == "<U34"
+    store_id1 = np.str_("fiber_photometry_response_series_0")
+    store_id2 = np.str_("fiber_photometry_response_series_1")
+    assert store_id1.dtype == "<U34"
+    assert store_id2.dtype == "<U34"
     extractor = MockRecordingExtractor("mock_folder")
-    read_and_save_events_for_extractor(
-        extractor, [storename1, storename2], str(tmp_path), {storename1: 0, storename2: 0}
-    )
+    read_and_save_events_for_extractor(extractor, [store_id1, store_id2], str(tmp_path), {store_id1: 0, store_id2: 0})
 
     assert (tmp_path / "fiber_photometry_response_series_0.hdf5").exists()
     with h5py.File(tmp_path / "fiber_photometry_response_series_0.hdf5", "r") as file:

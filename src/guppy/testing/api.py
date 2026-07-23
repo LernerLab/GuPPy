@@ -1,9 +1,10 @@
 """
 Python API for GuPPy pipeline steps.
 
-Step 1: Save Input Parameters
+Save Input Parameters (automatic provenance)
 - Writes GuPPyParamtersUsed.json into each selected data folder.
-- Mirrors the Panel UI's Step 1 behavior without invoking any UI by default.
+- In the GUI this snapshot is now written automatically by each numbered step;
+  ``save_parameters_snapshot`` exposes the same write directly for tests/scripts.
 
 This module is intentionally minimal and non-invasive.
 """
@@ -16,14 +17,15 @@ from typing import Iterable, Literal
 import numpy as np
 
 from guppy.orchestration.home import build_homepage
+from guppy.orchestration.import_custom_events import orchestrate_custom_events_page
 from guppy.orchestration.preprocess import extractTsAndSignal
-from guppy.orchestration.psth import psthForEachStorename
+from guppy.orchestration.psth import psthForEachStore
 from guppy.orchestration.read_raw_data import orchestrate_read_raw_data
 from guppy.orchestration.save_parameters import save_parameters
-from guppy.orchestration.storenames import orchestrate_storenames_page
+from guppy.orchestration.store_labeling import orchestrate_store_labeling_page
 from guppy.orchestration.transients import executeFindFreqAndAmp
 from guppy.orchestration.visualize import visualizeResults
-from guppy.utils.utils import select_output_dirs
+from guppy.utils.utils import select_run_folders
 
 
 def _normalize_selected_runs(
@@ -50,7 +52,11 @@ def _normalize_selected_runs(
                 f"{parameter_name} key {session_key!r} is not in selected_folders; "
                 f"expected one of {sorted(abs_sessions_set)!r}."
             )
-        if not isinstance(run_names, list) or not run_names or not all(isinstance(r, str) and r for r in run_names):
+        if (
+            not isinstance(run_names, list)
+            or not run_names
+            or not all(isinstance(run_name, str) and run_name for run_name in run_names)
+        ):
             raise ValueError(
                 f"{parameter_name}[{session_key!r}] must be a non-empty list of non-empty strings; "
                 f"got {run_names!r}."
@@ -84,12 +90,12 @@ def _normalize_group_selected_runs(
     return _normalize_selected_runs(group_selected_runs, abs_group_folders, parameter_name="group_selected_runs")
 
 
-def step1(*, base_dir: str, selected_folders: Iterable[str]) -> None:
+def save_parameters_snapshot(*, base_dir: str, selected_folders: Iterable[str]) -> None:
     """
     Write ``GuPPyParamtersUsed.json`` into each selected folder (provenance snapshot).
 
     In the GUI this snapshot is now written automatically by each consuming step
-    (steps 2–5); this helper exposes the same ``save_parameters`` write directly
+    (steps 1–4); this helper exposes the same ``save_parameters`` write directly
     for tests and scripted provenance. It builds the form headlessly (using
     ``GUPPY_BASE_DIR`` to bypass the Tk folder dialog), sets the FileSelector to
     ``selected_folders``, and calls ``save_parameters`` with the current
@@ -126,11 +132,54 @@ def step1(*, base_dir: str, selected_folders: Iterable[str]) -> None:
     save_parameters(inputParameters=template._hooks["getInputParameters"]())
 
 
-def step2(
+def import_custom_events(
+    *, base_dir: str, selected_folders: Iterable[str], custom_events_map: dict[str, dict[str, list[float]]]
+) -> None:
+    """Write custom event CSVs into sessions via the actual Panel-backed logic, headlessly.
+
+    Mirrors the optional "Import Custom Events" GUI step: builds the form
+    headlessly (using ``GUPPY_BASE_DIR`` to bypass the Tk folder dialog), sets the
+    FileSelector to ``selected_folders``, injects ``custom_events_map``, and calls
+    ``orchestrate_custom_events_page``. Each event is written as a
+    GuPPy-compatible ``<name>.csv`` into its session folder. This is an unnumbered,
+    optional step, so it is not part of the numbered ``step1``–``step5`` sequence.
+
+    Parameters
+    ----------
+    base_dir : str
+        Root directory used to initialize the FileSelector. All ``selected_folders``
+        must reside under this path.
+    selected_folders : Iterable[str]
+        Absolute paths to the session directories to write events into.
+    custom_events_map : dict[str, dict[str, list[float]]]
+        Mapping from session-folder name to ``{event_name: [timestamps]}``. Events
+        are written only into sessions present as keys.
+
+    Raises
+    ------
+    RuntimeError
+        If the template does not expose the required testing hooks/widgets.
+    """
+    os.environ["GUPPY_BASE_DIR"] = base_dir
+
+    template = build_homepage()
+
+    if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
+        raise RuntimeError("build_homepage did not expose 'getInputParameters' hook")
+    if not hasattr(template, "_widgets") or "files_1" not in template._widgets:
+        raise RuntimeError("build_homepage did not expose 'files_1' widget")
+
+    template._widgets["files_1"].value = list(selected_folders)
+    input_params = template._hooks["getInputParameters"]()
+    input_params["custom_events_map"] = custom_events_map
+    orchestrate_custom_events_page(input_params)
+
+
+def step1(
     *,
     base_dir: str,
     selected_folders: Iterable[str],
-    storenames_map: dict[str, str],
+    store_id_to_store_label: dict[str, str],
     npm_timestamp_column_names: list[str | None] | None = None,
     npm_time_units: list[str] | None = None,
     npm_split_events: list[bool] | None = None,
@@ -139,14 +188,14 @@ def step2(
     run_name_policy: Literal["create", "overwrite"] = "create",
 ) -> None:
     """
-    Run pipeline Step 2 (Save Storenames) via the actual Panel-backed logic.
+    Run pipeline Step 1 (Label Stores) via the actual Panel-backed logic.
 
-    This builds the Step 2 template headlessly (using ``GUPPY_BASE_DIR`` to bypass
+    This builds the Step 1 template headlessly (using ``GUPPY_BASE_DIR`` to bypass
     the folder dialog), sets the FileSelector to ``selected_folders``, retrieves
     the full input parameters via ``getInputParameters()``, injects the provided
-    ``storenames_map``, and calls ``execute(inputParameters)`` from
+    ``store_id_to_store_label``, and calls ``execute(inputParameters)`` from
     ``guppy.saveStoresList``. The execute() function is minimally augmented to
-    support a headless branch when ``storenames_map`` is present, while leaving
+    support a headless branch when ``store_id_to_store_label`` is present, while leaving
     Panel behavior unchanged.
 
     Parameters
@@ -156,8 +205,8 @@ def step2(
         must reside directly under this path.
     selected_folders : Iterable[str]
         Absolute paths to the session directories to process.
-    storenames_map : dict[str, str]
-        Mapping from raw storenames (e.g., "Dv1A") to semantic names
+    store_id_to_store_label : dict[str, str]
+        Mapping from raw store_ids (e.g., "Dv1A") to store labels
         (e.g., "control_DMS"). Insertion order is preserved.
     npm_timestamp_column_names : list[str | None] | None
         List of timestamp column names for NPM files, one per CSV file. None if not applicable.
@@ -185,30 +234,30 @@ def step2(
     sessions = list(selected_folders or [])
     if not sessions:
         raise ValueError("selected_folders must be a non-empty iterable of session directories")
-    abs_sessions = [os.path.abspath(s) for s in sessions]
-    for s in abs_sessions:
-        if not os.path.isdir(s):
-            raise ValueError(f"Session path does not exist or is not a directory: {s}")
-        parent = os.path.dirname(s)
+    abs_sessions = [os.path.abspath(session) for session in sessions]
+    for session in abs_sessions:
+        if not os.path.isdir(session):
+            raise ValueError(f"Session path does not exist or is not a directory: {session}")
+        parent = os.path.dirname(session)
         if parent != base_dir:
             raise ValueError(
                 f"All selected_folders must share the same parent equal to base_dir. "
-                f"Got parent {parent!r} for session {s!r}, expected {base_dir!r}"
+                f"Got parent {parent!r} for session {session!r}, expected {base_dir!r}"
             )
 
-    # Validate storenames_map
-    if not isinstance(storenames_map, dict) or not storenames_map:
-        raise ValueError("storenames_map must be a non-empty dict[str, str]")
-    for k, v in storenames_map.items():
-        if not isinstance(k, str) or not k.strip():
+    # Validate store_id_to_store_label
+    if not isinstance(store_id_to_store_label, dict) or not store_id_to_store_label:
+        raise ValueError("store_id_to_store_label must be a non-empty dict[str, str]")
+    for store_id, store_label in store_id_to_store_label.items():
+        if not isinstance(store_id, str) or not store_id.strip():
             raise ValueError(
-                f"Invalid storename key: {k!r}. Keys must be non-empty strings (the raw store name "
+                f"Invalid store_id key: {store_id!r}. Keys must be non-empty strings (the store id "
                 "from the acquisition file)."
             )
-        if not isinstance(v, str) or not v.strip():
+        if not isinstance(store_label, str) or not store_label.strip():
             raise ValueError(
-                f"Invalid semantic name for key {k!r}: {v!r}. Values must be non-empty strings "
-                "(the semantic label such as 'control_DMS' or 'signal_NAc')."
+                f"Invalid store_label for store_id {store_id!r}: {store_label!r}. Values must be non-empty "
+                "strings (the store label such as 'control_DMS' or 'signal_NAc')."
             )
 
     # Headless build: set base_dir and construct the template
@@ -225,12 +274,12 @@ def step2(
     template._widgets["files_1"].value = abs_sessions
     input_params = template._hooks["getInputParameters"]()
 
-    # Inject storenames mapping for headless execution
-    input_params["storenames_map"] = dict(storenames_map)
+    # Inject store_ids mapping for headless execution
+    input_params["store_id_to_store_label"] = dict(store_id_to_store_label)
 
     # Inject run-name configuration (None falls back to legacy auto-incremented integer suffix)
-    input_params["runName"] = run_name
-    input_params["runNamePolicy"] = run_name_policy
+    input_params["run_name"] = run_name
+    input_params["run_name_policy"] = run_name_policy
 
     # Add npm parameters
     input_params["npm_timestamp_column_names"] = npm_timestamp_column_names
@@ -244,11 +293,11 @@ def step2(
     else:
         input_params["mode"] = "local"
 
-    # Call the underlying Step 2 executor (now headless-aware)
-    orchestrate_storenames_page(input_params)
+    # Call the underlying Step 1 executor (now headless-aware)
+    orchestrate_store_labeling_page(input_params)
 
 
-def step3(
+def step2(
     *,
     base_dir: str,
     selected_folders: Iterable[str],
@@ -260,7 +309,7 @@ def step3(
     selected_runs: dict[str, list[str]],
 ) -> None:
     """
-    Run pipeline Step 3 (Read Raw Data) via the actual Panel-backed logic, headlessly.
+    Run pipeline Step 2 (Read Raw Data) via the actual Panel-backed logic, headlessly.
 
     This builds the template headlessly (using ``GUPPY_BASE_DIR`` to bypass
     the folder dialog), sets the FileSelector to ``selected_folders``, retrieves
@@ -303,15 +352,15 @@ def step3(
     sessions = list(selected_folders or [])
     if not sessions:
         raise ValueError("selected_folders must be a non-empty iterable of session directories")
-    abs_sessions = [os.path.abspath(s) for s in sessions]
-    for s in abs_sessions:
-        if not os.path.isdir(s):
-            raise ValueError(f"Session path does not exist or is not a directory: {s}")
-        parent = os.path.dirname(s)
+    abs_sessions = [os.path.abspath(session) for session in sessions]
+    for session in abs_sessions:
+        if not os.path.isdir(session):
+            raise ValueError(f"Session path does not exist or is not a directory: {session}")
+        parent = os.path.dirname(session)
         if parent != base_dir:
             raise ValueError(
                 f"All selected_folders must share the same parent equal to base_dir. "
-                f"Got parent {parent!r} for session {s!r}, expected {base_dir!r}"
+                f"Got parent {parent!r} for session {session!r}, expected {base_dir!r}"
             )
 
     # Headless build: set base_dir and construct the template
@@ -337,7 +386,7 @@ def step3(
     input_params["numberOfCores"] = number_of_cores
 
     # Per-session output-directory subset filter — every session must have at least one run name.
-    input_params["selectedOutputs"] = _normalize_selected_runs(selected_runs, abs_sessions)
+    input_params["selected_runs"] = _normalize_selected_runs(selected_runs, abs_sessions)
 
     # Inject DANDI mode and URI map for streaming
     if dandi_uri_map is not None:
@@ -346,11 +395,11 @@ def step3(
     else:
         input_params["mode"] = "local"
 
-    # Call the underlying Step 3 worker directly (no subprocess)
+    # Call the underlying Step 2 worker directly (no subprocess)
     orchestrate_read_raw_data(input_params)
 
 
-def step4(
+def step3(
     *,
     base_dir: str,
     selected_folders: Iterable[str],
@@ -365,10 +414,14 @@ def step4(
     baseline_window_start: int = 0,
     baseline_window_end: int = 0,
     isosbestic_control: bool = True,
+    control_fit_method: Literal["IRWLS", "OLS"] = "IRWLS",
+    control_fit_window_mode: Literal["full trace", "baseline epoch"] = "full trace",
+    control_fit_window_start: int = 0,
+    control_fit_window_end: int = 0,
     selected_runs: dict[str, list[str]],
 ) -> None:
     """
-    Run pipeline Step 4 (Extract timestamps and signal) via the Panel-backed logic, headlessly.
+    Run pipeline Step 3 (Extract timestamps and signal) via the Panel-backed logic, headlessly.
 
     This builds the template headlessly (using ``GUPPY_BASE_DIR`` to bypass
     the folder dialog), sets the FileSelector to ``selected_folders``, retrieves
@@ -390,7 +443,7 @@ def step4(
     npm_split_events : list[bool] | None
         List of booleans indicating whether to split events for NPM files, one per CSV file. None if not applicable.
     combine_data : bool
-        Whether to enable data combining logic in Step 4.
+        Whether to enable data combining logic in Step 3.
     remove_artifacts : bool
         Whether to run artifact removal.
     artifact_removal_method : str | None
@@ -413,6 +466,20 @@ def step4(
     isosbestic_control : bool
         Whether a separate isosbestic control channel is present. When ``False``, GuPPy
         synthesizes a control channel from the signal. Defaults to ``True``.
+    control_fit_method : str
+        Regression method for fitting the control channel to the signal. One of
+        ``'IRWLS'`` (robust, down-weights outliers) or ``'OLS'`` (ordinary least
+        squares). Defaults to ``'IRWLS'``.
+    control_fit_window_mode : str
+        Control-fit mode. ``'full trace'`` (default) re-fits within each artifact-removal
+        chunk. ``'baseline epoch'`` estimates fit coefficients once from the fit window
+        (isosbestic control only) and applies them across the whole trace.
+    control_fit_window_start : int
+        Fit-window start in seconds. Only used when ``control_fit_window_mode`` is
+        ``'baseline epoch'``. Defaults to 0.
+    control_fit_window_end : int
+        Fit-window end in seconds. Only used when ``control_fit_window_mode`` is
+        ``'baseline epoch'``. Defaults to 0.
 
     Raises
     ------
@@ -432,15 +499,15 @@ def step4(
     sessions = list(selected_folders or [])
     if not sessions:
         raise ValueError("selected_folders must be a non-empty iterable of session directories")
-    abs_sessions = [os.path.abspath(s) for s in sessions]
-    for s in abs_sessions:
-        if not os.path.isdir(s):
-            raise ValueError(f"Session path does not exist or is not a directory: {s}")
-        parent = os.path.dirname(s)
+    abs_sessions = [os.path.abspath(session) for session in sessions]
+    for session in abs_sessions:
+        if not os.path.isdir(session):
+            raise ValueError(f"Session path does not exist or is not a directory: {session}")
+        parent = os.path.dirname(session)
         if parent != base_dir:
             raise ValueError(
                 f"All selected_folders must share the same parent equal to base_dir. "
-                f"Got parent {parent!r} for session {s!r}, expected {base_dir!r}"
+                f"Got parent {parent!r} for session {session!r}, expected {base_dir!r}"
             )
 
     # Headless build: set base_dir and construct the template
@@ -478,23 +545,31 @@ def step4(
     # Inject isosbestic_control
     input_params["isosbestic_control"] = isosbestic_control
 
+    # Inject control fitting method
+    input_params["control_fit_method"] = control_fit_method
+
+    # Inject control fit window parameters
+    input_params["controlFitWindowMode"] = control_fit_window_mode
+    input_params["controlFitWindowStart"] = control_fit_window_start
+    input_params["controlFitWindowEnd"] = control_fit_window_end
+
     # Per-session output-directory subset filter — every session must have at least one run name.
     normalized_selected_runs = _normalize_selected_runs(selected_runs, abs_sessions)
-    input_params["selectedOutputs"] = normalized_selected_runs
+    input_params["selected_runs"] = normalized_selected_runs
 
     # Write artifact coordinates into each output directory so that the artifact
     # removal worker can find them without the interactive selection UI.
     if remove_artifacts and artifact_coords:
         for session in abs_sessions:
-            for output_dir in select_output_dirs(session, normalized_selected_runs[session]):
+            for run_folder in select_run_folders(session, normalized_selected_runs[session]):
                 for pair_name, coords in artifact_coords.items():
-                    np.save(os.path.join(output_dir, f"coordsForPreProcessing_{pair_name}.npy"), coords)
+                    np.save(os.path.join(run_folder, f"coordsForPreProcessing_{pair_name}.npy"), coords)
 
-    # Call the underlying Step 4 worker directly (no subprocess)
+    # Call the underlying Step 3 worker directly (no subprocess)
     extractTsAndSignal(input_params)
 
 
-def step5(
+def step4(
     *,
     base_dir: str,
     selected_folders: Iterable[str],
@@ -514,12 +589,12 @@ def step5(
     group_selected_runs: dict[str, list[str]] | None = None,
 ) -> None:
     """
-    Run pipeline Step 5 (PSTH Computation) via the Panel-backed logic, headlessly.
+    Run pipeline Step 4 (PSTH Computation) via the Panel-backed logic, headlessly.
 
     This builds the template headlessly (using ``GUPPY_BASE_DIR`` to bypass
     the folder dialog), sets the FileSelector to ``selected_folders``, retrieves
     the full input parameters via ``getInputParameters()``, and calls the
-    underlying worker ``guppy.computePsth.psthForEachStorename(input_params)`` that the
+    underlying worker ``guppy.computePsth.psthForEachStore(input_params)`` that the
     UI normally launches via subprocess. No GUI is spawned.
 
     Parameters
@@ -536,7 +611,7 @@ def step5(
     npm_split_events : list[bool] | None
         List of booleans indicating whether to split events for NPM files, one per CSV file. None if not applicable.
     combine_data : bool
-        Whether to enable combined-session processing mode in Step 5. Defaults to False.
+        Whether to enable combined-session processing mode in Step 4. Defaults to False.
     compute_corr : bool
         Whether to compute cross-correlation between signals. Defaults to False.
     average_for_group : bool
@@ -545,7 +620,7 @@ def step5(
         output directory, and results are written to ``<base_dir>/average/``. Defaults to False.
     group_folders : list[str] | None
         Absolute paths to the session directories to include in group averaging. Only used
-        when ``average_for_group`` is ``True``. Injected as ``folderNamesForAvg`` in
+        when ``average_for_group`` is ``True``. Injected as ``group_session_folders`` in
         ``input_params``. Defaults to ``None`` (treated as empty list).
     select_for_compute_psth : str
         Signal type to use for PSTH computation. One of ``'z_score'``, ``'dff'``, or
@@ -582,15 +657,15 @@ def step5(
     sessions = list(selected_folders or [])
     if not sessions:
         raise ValueError("selected_folders must be a non-empty iterable of session directories")
-    abs_sessions = [os.path.abspath(s) for s in sessions]
-    for s in abs_sessions:
-        if not os.path.isdir(s):
-            raise ValueError(f"Session path does not exist or is not a directory: {s}")
-        parent = os.path.dirname(s)
+    abs_sessions = [os.path.abspath(session) for session in sessions]
+    for session in abs_sessions:
+        if not os.path.isdir(session):
+            raise ValueError(f"Session path does not exist or is not a directory: {session}")
+        parent = os.path.dirname(session)
         if parent != base_dir:
             raise ValueError(
                 f"All selected_folders must share the same parent equal to base_dir. "
-                f"Got parent {parent!r} for session {s!r}, expected {base_dir!r}"
+                f"Got parent {parent!r} for session {session!r}, expected {base_dir!r}"
             )
 
     # Headless build: set base_dir and construct the template
@@ -620,12 +695,12 @@ def step5(
 
     # Inject group analysis parameters
     input_params["averageForGroup"] = average_for_group
-    abs_group_folders = [os.path.abspath(f) for f in group_folders] if group_folders else []
-    input_params["folderNamesForAvg"] = abs_group_folders
+    abs_group_folders = [os.path.abspath(folder) for folder in group_folders] if group_folders else []
+    input_params["group_session_folders"] = abs_group_folders
 
     # Per-session output-directory subset filter for individual + group analysis
-    input_params["selectedOutputs"] = _normalize_selected_runs(selected_runs, abs_sessions)
-    input_params["groupSelectedOutputs"] = _normalize_group_selected_runs(group_selected_runs, abs_group_folders)
+    input_params["selected_runs"] = _normalize_selected_runs(selected_runs, abs_sessions)
+    input_params["group_selected_runs"] = _normalize_group_selected_runs(group_selected_runs, abs_group_folders)
 
     # Inject signal-type selection parameters
     input_params["selectForComputePsth"] = select_for_compute_psth
@@ -638,14 +713,14 @@ def step5(
     input_params["bin_psth_trials"] = bin_psth_trials
     input_params["use_time_or_trials"] = use_time_or_trials
 
-    # Call the underlying Step 5 worker directly (no subprocess)
-    psthForEachStorename(input_params)
+    # Call the underlying Step 4 worker directly (no subprocess)
+    psthForEachStore(input_params)
 
     # Also compute frequency/amplitude and transients occurrences (normally triggered by CLI main)
     executeFindFreqAndAmp(input_params)
 
 
-def step6(
+def step5(
     *,
     base_dir: str,
     selected_folders: Iterable[str],
@@ -653,11 +728,13 @@ def step6(
     npm_time_units: list[str] | None = None,
     npm_split_events: list[bool] | None = None,
     visualize_zscore_or_dff: str = "z_score",
+    visualize_average_results: bool = False,
+    group_folders: list[str] | None = None,
     selected_runs: dict[str, list[str]],
     group_selected_runs: dict[str, list[str]] | None = None,
 ) -> None:
     """
-    Run pipeline Step 6 (Visualize Results) via the Panel-backed logic, headlessly.
+    Run pipeline Step 5 (Visualize Results) via the Panel-backed logic, headlessly.
 
     This builds the template headlessly (using ``GUPPY_BASE_DIR`` to bypass
     the folder dialog), sets the FileSelector to ``selected_folders``, retrieves
@@ -682,6 +759,13 @@ def step6(
         List of booleans indicating whether to split events for NPM files. None if not applicable.
     visualize_zscore_or_dff : str
         Signal type to visualize. One of ``'z_score'`` or ``'dff'``. Defaults to ``'z_score'``.
+    visualize_average_results : bool
+        When ``True``, visualize the group-averaged results from the ``average/``
+        directory instead of the individual sessions. Injected as
+        ``visualizeAverageResults``. Defaults to ``False``.
+    group_folders : list[str] | None
+        Session directories whose group average is being visualized; required when
+        ``visualize_average_results`` is ``True``. Injected as ``group_session_folders``.
 
     Raises
     ------
@@ -701,15 +785,15 @@ def step6(
     sessions = list(selected_folders or [])
     if not sessions:
         raise ValueError("selected_folders must be a non-empty iterable of session directories")
-    abs_sessions = [os.path.abspath(s) for s in sessions]
-    for s in abs_sessions:
-        if not os.path.isdir(s):
-            raise ValueError(f"Session path does not exist or is not a directory: {s}")
-        parent = os.path.dirname(s)
+    abs_sessions = [os.path.abspath(session) for session in sessions]
+    for session in abs_sessions:
+        if not os.path.isdir(session):
+            raise ValueError(f"Session path does not exist or is not a directory: {session}")
+        parent = os.path.dirname(session)
         if parent != base_dir:
             raise ValueError(
                 f"All selected_folders must share the same parent equal to base_dir. "
-                f"Got parent {parent!r} for session {s!r}, expected {base_dir!r}"
+                f"Got parent {parent!r} for session {session!r}, expected {base_dir!r}"
             )
 
     # Headless build: set base_dir and construct the template
@@ -734,12 +818,14 @@ def step6(
     # Inject visualization signal-type selection
     input_params["visualize_zscore_or_dff"] = visualize_zscore_or_dff
 
-    # Per-session output-directory subset filter for individual + group visualization
-    input_params["selectedOutputs"] = _normalize_selected_runs(selected_runs, abs_sessions)
-    input_params["groupSelectedOutputs"] = _normalize_group_selected_runs(
-        group_selected_runs,
-        [os.path.abspath(f) for f in (input_params.get("folderNamesForAvg") or [])],
-    )
+    # Inject group-average visualization selection
+    input_params["visualizeAverageResults"] = visualize_average_results
+    abs_group_folders = [os.path.abspath(folder) for folder in group_folders] if group_folders else []
+    input_params["group_session_folders"] = abs_group_folders
 
-    # Call the underlying Step 6 worker directly (no subprocess)
+    # Per-session output-directory subset filter for individual + group visualization
+    input_params["selected_runs"] = _normalize_selected_runs(selected_runs, abs_sessions)
+    input_params["group_selected_runs"] = _normalize_group_selected_runs(group_selected_runs, abs_group_folders)
+
+    # Call the underlying Step 5 worker directly (no subprocess)
     visualizeResults(input_params)

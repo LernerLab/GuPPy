@@ -4,17 +4,17 @@ import shutil
 
 import pandas as pd
 import pytest
-from conftest import STUBBED_TESTING_DATA
 
-from guppy.testing.api import step2, step3, step4, step5
+from guppy.testing.api import step1, step2, step3, step4
+from guppy_test_data import STUBBED_TESTING_DATA
 
 SESSION_SUBDIR = "csv/sample_data_csv_1"
-# No control channel in the storenames map — mirrors the consistency test for no-isosbestic
-STORENAMES_MAP = {
+# No control channel in the store_ids map — mirrors the consistency test for no-isosbestic
+STORE_ID_TO_STORE_LABEL = {
     "Sample_Signal_Channel": "signal_region",
     "Sample_TTL": "ttl",
 }
-EXPECTED_REGION = "region"
+EXPECTED_RECORDING_SITE = "region"
 EXPECTED_TTL = "ttl"
 
 
@@ -22,7 +22,7 @@ EXPECTED_TTL = "ttl"
 def test_no_isosbestic(tmp_path):
     """
     Integration test: run the full pipeline (Steps 2-5) without an isosbestic control
-    channel (isosbestic_control=False in Step 4) and assert that the expected output
+    channel (isosbestic_control=False in Step 3) and assert that the expected output
     files are created with the correct structure.
 
     When isosbestic_control=False, GuPPy synthesizes a control channel from the signal
@@ -50,10 +50,10 @@ def test_no_isosbestic(tmp_path):
     )
     selected_runs = {str(session_copy): ["1"]}
 
-    step2(**common_kwargs, storenames_map=STORENAMES_MAP)
-    step3(**common_kwargs, selected_runs=selected_runs)
-    step4(**common_kwargs, isosbestic_control=False, selected_runs=selected_runs)
-    step5(**common_kwargs, selected_runs=selected_runs)
+    step1(**common_kwargs, store_id_to_store_label=STORE_ID_TO_STORE_LABEL)
+    step2(**common_kwargs, selected_runs=selected_runs)
+    step3(**common_kwargs, isosbestic_control=False, selected_runs=selected_runs)
+    step4(**common_kwargs, selected_runs=selected_runs)
 
     output_directories = sorted(glob.glob(os.path.join(session_copy, f"{session_name}_output_*")))
     assert output_directories, f"No output directories found in {session_copy}"
@@ -67,19 +67,19 @@ def test_no_isosbestic(tmp_path):
     # PSTH outputs use z_score naming (no-isosbestic only changes how the control is synthesized)
     psth_file_path = os.path.join(
         output_directory,
-        f"{EXPECTED_TTL}_{EXPECTED_REGION}_z_score_{EXPECTED_REGION}.h5",
+        f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.h5",
     )
     baseline_uncorrected_file_path = os.path.join(
         output_directory,
-        f"{EXPECTED_TTL}_{EXPECTED_REGION}_baselineUncorrected_z_score_{EXPECTED_REGION}.h5",
+        f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_baselineUncorrected_z_score_{EXPECTED_RECORDING_SITE}.h5",
     )
     peak_auc_h5_file_path = os.path.join(
         output_directory,
-        f"peak_AUC_{EXPECTED_TTL}_{EXPECTED_REGION}_z_score_{EXPECTED_REGION}.h5",
+        f"peak_AUC_{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.h5",
     )
     peak_auc_csv_file_path = os.path.join(
         output_directory,
-        f"peak_AUC_{EXPECTED_TTL}_{EXPECTED_REGION}_z_score_{EXPECTED_REGION}.csv",
+        f"peak_AUC_{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.csv",
     )
 
     assert os.path.exists(psth_file_path), f"Missing PSTH HDF5: {psth_file_path}"
@@ -93,10 +93,14 @@ def test_no_isosbestic(tmp_path):
     assert "timestamps" in psth_dataframe.columns, f"'timestamps' column missing in {psth_file_path}"
     assert "mean" in psth_dataframe.columns, f"'mean' column missing in {psth_file_path}"
 
-    frequency_and_amplitude_h5_file_path = os.path.join(output_directory, f"freqAndAmp_z_score_{EXPECTED_REGION}.h5")
-    frequency_and_amplitude_csv_file_path = os.path.join(output_directory, f"freqAndAmp_z_score_{EXPECTED_REGION}.csv")
+    frequency_and_amplitude_h5_file_path = os.path.join(
+        output_directory, f"freqAndAmp_z_score_{EXPECTED_RECORDING_SITE}.h5"
+    )
+    frequency_and_amplitude_csv_file_path = os.path.join(
+        output_directory, f"freqAndAmp_z_score_{EXPECTED_RECORDING_SITE}.csv"
+    )
     transients_occurrences_csv_file_path = os.path.join(
-        output_directory, f"transientsOccurrences_z_score_{EXPECTED_REGION}.csv"
+        output_directory, f"transientsOccurrences_z_score_{EXPECTED_RECORDING_SITE}.csv"
     )
 
     assert os.path.exists(

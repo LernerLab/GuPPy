@@ -4,27 +4,27 @@ import shutil
 
 import pandas as pd
 import pytest
-from conftest import STUBBED_TESTING_DATA
 
-from guppy.testing.api import step2, step3, step4, step5
+from guppy.testing.api import step1, step2, step3, step4
+from guppy_test_data import STUBBED_TESTING_DATA
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_bin_psth_trials_by_number_of_trials(tmp_path):
     """
-    Verify that step5 with bin_psth_trials=2 and use_time_or_trials='# of trials'
+    Verify that step4 with bin_psth_trials=2 and use_time_or_trials='# of trials'
     produces bin columns in the per-session PSTH output HDF5, and that running
     group averaging (average_for_group=True) on that binned output also produces
     bin columns in the averaged PSTH — exercising the bin-averaging branch in
     psth_average.averageForGroup.
     """
     session_subdir = "csv/sample_data_csv_1"
-    storenames_map = {
+    store_id_to_store_label = {
         "Sample_Control_Channel": "control_region",
         "Sample_Signal_Channel": "signal_region",
         "Sample_TTL": "ttl",
     }
-    expected_region = "region"
+    expected_recording_site = "region"
     expected_ttl = "ttl"
 
     source_session = os.path.join(str(STUBBED_TESTING_DATA), session_subdir)
@@ -47,13 +47,22 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
     selected_folders = [str(session_copy)]
     selected_runs = {folder: ["1"] for folder in selected_folders}
 
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        storenames_map=storenames_map,
+        store_id_to_store_label=store_id_to_store_label,
         npm_timestamp_column_names=None,
         npm_time_units=None,
         npm_split_events=[True, True],
+    )
+
+    step2(
+        base_dir=base_dir,
+        selected_folders=selected_folders,
+        npm_timestamp_column_names=None,
+        npm_time_units=None,
+        npm_split_events=[True, True],
+        selected_runs=selected_runs,
     )
 
     step3(
@@ -71,15 +80,6 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
         npm_timestamp_column_names=None,
         npm_time_units=None,
         npm_split_events=[True, True],
-        selected_runs=selected_runs,
-    )
-
-    step5(
-        base_dir=base_dir,
-        selected_folders=selected_folders,
-        npm_timestamp_column_names=None,
-        npm_time_units=None,
-        npm_split_events=[True, True],
         bin_psth_trials=2,
         use_time_or_trials="# of trials",
         selected_runs=selected_runs,
@@ -91,7 +91,7 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
 
     psth_file_path = os.path.join(
         output_directory,
-        f"{expected_ttl}_{expected_region}_z_score_{expected_region}.h5",
+        f"{expected_ttl}_{expected_recording_site}_z_score_{expected_recording_site}.h5",
     )
     assert os.path.exists(psth_file_path), f"Missing PSTH HDF5: {psth_file_path}"
 
@@ -105,7 +105,7 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
     # Run group averaging on the binned per-session output.  This exercises the
     # `if len(bins_cols) > 0:` branch inside psth_average.averageForGroup, which
     # concatenates and aggregates bin columns across sessions.
-    step5(
+    step4(
         base_dir=base_dir,
         selected_folders=selected_folders,
         npm_timestamp_column_names=None,
@@ -124,7 +124,7 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
 
     average_psth_file_path = os.path.join(
         average_directory,
-        f"{expected_ttl}_{expected_region}_z_score_{expected_region}.h5",
+        f"{expected_ttl}_{expected_recording_site}_z_score_{expected_recording_site}.h5",
     )
     assert os.path.exists(average_psth_file_path), f"Missing averaged PSTH HDF5: {average_psth_file_path}"
 

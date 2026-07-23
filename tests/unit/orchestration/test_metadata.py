@@ -58,7 +58,7 @@ def _complete_metadata() -> dict:
 
 class TestSelectedSessionRuns:
     def test_flattens_sessions_and_runs_in_order(self):
-        input_parameters = {"selectedOutputs": {"/data/A": ["run1", "run2"], "/data/B": ["run1"]}}
+        input_parameters = {"selected_runs": {"/data/A": ["run1", "run2"], "/data/B": ["run1"]}}
         assert _selected_session_runs(input_parameters) == [
             ("/data/A", "run1"),
             ("/data/A", "run2"),
@@ -165,7 +165,7 @@ class TestOrchestrateMetadataPage:
             delimiter=",",
             fmt="%s",
         )
-        input_parameters = {"selectedOutputs": {str(session): ["run1"]}}
+        input_parameters = {"selected_runs": {str(session): ["run1"]}}
 
         # Must return without raising and without opening a server.
         orchestrate_metadata_page(input_parameters)

@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from guppy.analysis.cross_correlation import compute_cross_correlation
 
@@ -54,3 +55,20 @@ def test_nan_containing_arrays_lag_center_is_zero():
     result = compute_cross_correlation([a], [b], sample_rate=100.0)
     # Zero-lag position is at index len(a)-1 = 4; lag value should be 0.0
     np.testing.assert_allclose(result[-1, 4], 0.0, atol=1e-6)
+
+
+# ---------------------------------------------------------------------------
+# Matched-pair contract (issue #196)
+# ---------------------------------------------------------------------------
+
+
+def test_single_pair_values_are_hand_computed():
+    # correlate([1,2,3],[1,2,3], 'full') = [3, 8, 14, 8, 3]; normalized by max abs 14.
+    result = compute_cross_correlation([np.array([1.0, 2.0, 3.0])], [np.array([1.0, 2.0, 3.0])], sample_rate=1.0)
+    np.testing.assert_allclose(result[0], np.array([3 / 14, 8 / 14, 1.0, 8 / 14, 3 / 14], dtype="float32"), atol=1e-6)
+    np.testing.assert_allclose(result[1], np.array([-2.0, -1.0, 0.0, 1.0, 2.0], dtype="float32"), atol=1e-6)
+
+
+def test_empty_recording_site_raises():
+    with pytest.raises(ValueError, match="requires at least one trial in each recording site"):
+        compute_cross_correlation([], [np.array([1.0, 2.0, 3.0])], sample_rate=1.0)

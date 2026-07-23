@@ -6,33 +6,33 @@ from unittest.mock import patch
 import holoviews as hv
 import pandas as pd
 import pytest
-from conftest import STUBBED_TESTING_DATA
 
 from guppy.frontend.visualization_dashboard import VisualizationDashboard
-from guppy.testing.api import step2, step3, step4, step5, step6
+from guppy.testing.api import step1, step2, step3, step4, step5
+from guppy_test_data import STUBBED_TESTING_DATA
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_cross_correlation(tmp_path):
     """
-    Integration test for Step 5 cross-correlation computation.
+    Integration test for Step 4 cross-correlation computation.
 
-    Uses a two-region TDT session (DMS + DLS) with a generic TTL event to verify
+    Uses a two-recording-site TDT session (DMS + DLS) with a generic TTL event to verify
     that cross-correlation output files are created when compute_corr=True.
 
     Pipeline executed on a temp copy:
-      - Step 2: save storenames (storesList.csv)
-      - Step 3: read raw data (per-storename HDF5 outputs)
-      - Step 4: extract timestamps/signal, z-score/dFF, time corrections
-      - Step 5: compute PSTH and cross-correlation with compute_corr=True
+      - Step 1: save store_ids (storesList.csv)
+      - Step 2: read raw data (per-store_id HDF5 outputs)
+      - Step 3: extract timestamps/signal, z-score/dFF, time corrections
+      - Step 4: compute PSTH and cross-correlation with compute_corr=True
 
     Notes:
-      - Cross-correlation requires at least two distinct signal regions.
+      - Cross-correlation requires at least two distinct signal recording sites.
       - getCorrCombinations returns np.unique(["dls", "dms"]) → ["dls", "dms"],
         so the output file is corr_port_entries_z_score_dls_dms.h5.
     """
     session_subdir = "tdt/Photo_63_207-181030-103332"
-    storenames_map = {
+    store_id_to_store_label = {
         "Dv1A": "control_dms",
         "Dv2A": "signal_dms",
         "Dv3B": "control_dls",
@@ -58,12 +58,17 @@ def test_cross_correlation(tmp_path):
     if params_fp.exists():
         params_fp.unlink()
 
+    step1(
+        base_dir=str(tmp_base),
+        selected_folders=[str(session_copy)],
+        store_id_to_store_label=store_id_to_store_label,
+    )
+    selected_runs = {str(session_copy): ["1"]}
     step2(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
-        storenames_map=storenames_map,
+        selected_runs=selected_runs,
     )
-    selected_runs = {str(session_copy): ["1"]}
     step3(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
@@ -72,31 +77,26 @@ def test_cross_correlation(tmp_path):
     step4(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
-        selected_runs=selected_runs,
-    )
-    step5(
-        base_dir=str(tmp_base),
-        selected_folders=[str(session_copy)],
         compute_corr=True,
         selected_runs=selected_runs,
     )
 
     # Locate output directory
     basename = os.path.basename(session_copy)
-    output_dirs = sorted(glob.glob(os.path.join(session_copy, f"{basename}_output_*")))
-    assert output_dirs, f"No output directories found in {session_copy}"
+    run_folders = sorted(glob.glob(os.path.join(session_copy, f"{basename}_output_*")))
+    assert run_folders, f"No output directories found in {session_copy}"
     out_dir = None
-    for d in output_dirs:
+    for d in run_folders:
         if os.path.exists(os.path.join(d, "storesList.csv")):
             out_dir = d
             break
     assert out_dir is not None, f"No storesList.csv found in any output directory under {session_copy}"
 
-    # Standard PSTH outputs for both regions
-    for region in ("dms", "dls"):
-        freq_amp_h5 = os.path.join(out_dir, f"freqAndAmp_z_score_{region}.h5")
-        freq_amp_csv = os.path.join(out_dir, f"freqAndAmp_z_score_{region}.csv")
-        trans_occ_csv = os.path.join(out_dir, f"transientsOccurrences_z_score_{region}.csv")
+    # Standard PSTH outputs for both recording sites
+    for recording_site in ("dms", "dls"):
+        freq_amp_h5 = os.path.join(out_dir, f"freqAndAmp_z_score_{recording_site}.h5")
+        freq_amp_csv = os.path.join(out_dir, f"freqAndAmp_z_score_{recording_site}.csv")
+        trans_occ_csv = os.path.join(out_dir, f"transientsOccurrences_z_score_{recording_site}.csv")
         assert os.path.exists(freq_amp_h5), f"Missing freq/amp HDF5: {freq_amp_h5}"
         assert os.path.exists(freq_amp_csv), f"Missing freq/amp CSV: {freq_amp_csv}"
         assert os.path.exists(trans_occ_csv), f"Missing transients occurrences CSV: {trans_occ_csv}"
@@ -120,10 +120,10 @@ def test_cross_correlation(tmp_path):
 
     with patch.object(VisualizationDashboard, "__init__", capturing_init):
         with patch.object(VisualizationDashboard, "show", lambda self: None):
-            step6(
+            step5(
                 base_dir=str(tmp_base),
                 selected_folders=[str(session_copy)],
                 selected_runs=selected_runs,
             )
 
-    assert len(captured_dashboards) >= 1, "step6 created no VisualizationDashboard instances"
+    assert len(captured_dashboards) >= 1, "step5 created no VisualizationDashboard instances"

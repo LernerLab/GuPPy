@@ -1,6 +1,6 @@
 """Integration tests for parameterized output directories (issue #323).
 
-Verifies that step 2 honours an explicit ``run_name`` and that downstream
+Verifies that step 1 honours an explicit ``run_name`` and that downstream
 steps respect ``selected_runs`` so multiple parameter sets can coexist for the
 same session without overwriting each other.
 """
@@ -10,12 +10,12 @@ import os
 import shutil
 
 import pytest
-from conftest import STUBBED_TESTING_DATA
 
-from guppy.testing.api import step2, step3, step4
+from guppy.testing.api import step1, step2, step3
+from guppy_test_data import STUBBED_TESTING_DATA
 
 CSV_SESSION = "csv/sample_data_csv_1"
-CSV_STORENAMES = {
+CSV_STORE_ID_TO_STORE_LABEL = {
     "Sample_Control_Channel": "control_region",
     "Sample_Signal_Channel": "signal_region",
     "Sample_TTL": "ttl",
@@ -41,13 +41,13 @@ def csv_session_copy(tmp_path):
     return str(base), str(destination)
 
 
-class TestStep2RunName:
+class TestStep1RunName:
     def test_explicit_run_name_creates_named_directory(self, csv_session_copy):
         base, session = csv_session_copy
-        step2(
+        step1(
             base_dir=base,
             selected_folders=[session],
-            storenames_map=CSV_STORENAMES,
+            store_id_to_store_label=CSV_STORE_ID_TO_STORE_LABEL,
             run_name="baseline",
         )
         expected = os.path.join(session, f"{os.path.basename(session)}_output_baseline")
@@ -56,16 +56,16 @@ class TestStep2RunName:
 
     def test_two_run_names_coexist(self, csv_session_copy):
         base, session = csv_session_copy
-        step2(
+        step1(
             base_dir=base,
             selected_folders=[session],
-            storenames_map=CSV_STORENAMES,
+            store_id_to_store_label=CSV_STORE_ID_TO_STORE_LABEL,
             run_name="baseline",
         )
-        step2(
+        step1(
             base_dir=base,
             selected_folders=[session],
-            storenames_map=CSV_STORENAMES,
+            store_id_to_store_label=CSV_STORE_ID_TO_STORE_LABEL,
             run_name="strict",
         )
         session_basename = os.path.basename(session)
@@ -74,27 +74,27 @@ class TestStep2RunName:
 
     def test_create_policy_raises_on_existing_run_name(self, csv_session_copy):
         base, session = csv_session_copy
-        step2(
+        step1(
             base_dir=base,
             selected_folders=[session],
-            storenames_map=CSV_STORENAMES,
+            store_id_to_store_label=CSV_STORE_ID_TO_STORE_LABEL,
             run_name="baseline",
         )
         with pytest.raises(ValueError, match="already exists"):
-            step2(
+            step1(
                 base_dir=base,
                 selected_folders=[session],
-                storenames_map=CSV_STORENAMES,
+                store_id_to_store_label=CSV_STORE_ID_TO_STORE_LABEL,
                 run_name="baseline",
                 run_name_policy="create",
             )
 
     def test_overwrite_policy_replaces_existing_run_name(self, csv_session_copy):
         base, session = csv_session_copy
-        step2(
+        step1(
             base_dir=base,
             selected_folders=[session],
-            storenames_map=CSV_STORENAMES,
+            store_id_to_store_label=CSV_STORE_ID_TO_STORE_LABEL,
             run_name="baseline",
         )
         existing = os.path.join(session, f"{os.path.basename(session)}_output_baseline")
@@ -102,10 +102,10 @@ class TestStep2RunName:
         with open(marker, "w") as marker_file:
             marker_file.write("stale")
 
-        step2(
+        step1(
             base_dir=base,
             selected_folders=[session],
-            storenames_map=CSV_STORENAMES,
+            store_id_to_store_label=CSV_STORE_ID_TO_STORE_LABEL,
             run_name="baseline",
             run_name_policy="overwrite",
         )
@@ -115,23 +115,23 @@ class TestStep2RunName:
 
     def test_legacy_unspecified_run_name_uses_integer_suffix(self, csv_session_copy):
         base, session = csv_session_copy
-        step2(base_dir=base, selected_folders=[session], storenames_map=CSV_STORENAMES)
+        step1(base_dir=base, selected_folders=[session], store_id_to_store_label=CSV_STORE_ID_TO_STORE_LABEL)
         expected = os.path.join(session, f"{os.path.basename(session)}_output_1")
         assert os.path.isdir(expected)
 
 
-class TestStep3SelectedRuns:
+class TestStep2SelectedRuns:
     def test_selected_runs_processes_only_chosen_dir(self, csv_session_copy):
         base, session = csv_session_copy
         for run_name in ("baseline", "strict"):
-            step2(
+            step1(
                 base_dir=base,
                 selected_folders=[session],
-                storenames_map=CSV_STORENAMES,
+                store_id_to_store_label=CSV_STORE_ID_TO_STORE_LABEL,
                 run_name=run_name,
             )
 
-        step3(
+        step2(
             base_dir=base,
             selected_folders=[session],
             selected_runs={session: ["baseline"]},
@@ -139,47 +139,47 @@ class TestStep3SelectedRuns:
 
         baseline_dir = os.path.join(session, f"{os.path.basename(session)}_output_baseline")
         strict_dir = os.path.join(session, f"{os.path.basename(session)}_output_strict")
-        # Step 3 writes raw store HDF5 files alongside storesList.csv. The selected
+        # Step 2 writes raw store HDF5 files alongside storesList.csv. The selected
         # baseline dir should have those files; the unselected strict dir should not.
         baseline_hdf5_files = glob.glob(os.path.join(baseline_dir, "*.hdf5"))
         strict_hdf5_files = glob.glob(os.path.join(strict_dir, "*.hdf5"))
-        assert baseline_hdf5_files, "Step 3 produced no HDF5 outputs in the selected run"
-        assert not strict_hdf5_files, "Step 3 wrote into the unselected run directory"
+        assert baseline_hdf5_files, "Step 2 produced no HDF5 outputs in the selected run"
+        assert not strict_hdf5_files, "Step 2 wrote into the unselected run directory"
 
     def test_selected_runs_unknown_name_raises(self, csv_session_copy):
         base, session = csv_session_copy
-        step2(
+        step1(
             base_dir=base,
             selected_folders=[session],
-            storenames_map=CSV_STORENAMES,
+            store_id_to_store_label=CSV_STORE_ID_TO_STORE_LABEL,
             run_name="baseline",
         )
         with pytest.raises(ValueError, match="Output directory not found"):
-            step3(
+            step2(
                 base_dir=base,
                 selected_folders=[session],
                 selected_runs={session: ["nonexistent"]},
             )
 
 
-class TestStep4SelectedRuns:
+class TestStep3SelectedRuns:
     def test_selected_runs_processes_only_chosen_dir(self, csv_session_copy):
         base, session = csv_session_copy
         for run_name in ("baseline", "strict"):
-            step2(
+            step1(
                 base_dir=base,
                 selected_folders=[session],
-                storenames_map=CSV_STORENAMES,
+                store_id_to_store_label=CSV_STORE_ID_TO_STORE_LABEL,
                 run_name=run_name,
             )
-        # Run step 3 only for the dir that step 4 will operate on; the unselected
-        # strict dir is left without raw HDF5 files so we can verify step 4 ignores it.
-        step3(
+        # Run step 2 only for the dir that step 3 will operate on; the unselected
+        # strict dir is left without raw HDF5 files so we can verify step 3 ignores it.
+        step2(
             base_dir=base,
             selected_folders=[session],
             selected_runs={session: ["baseline"]},
         )
-        step4(
+        step3(
             base_dir=base,
             selected_folders=[session],
             selected_runs={session: ["baseline"]},
@@ -189,5 +189,5 @@ class TestStep4SelectedRuns:
         strict_dir = os.path.join(session, f"{os.path.basename(session)}_output_strict")
         baseline_zscore = glob.glob(os.path.join(baseline_dir, "z_score_*.hdf5"))
         strict_zscore = glob.glob(os.path.join(strict_dir, "z_score_*.hdf5"))
-        assert baseline_zscore, "Step 4 produced no z-score outputs in the selected run"
-        assert not strict_zscore, "Step 4 wrote z-score outputs to the unselected run directory"
+        assert baseline_zscore, "Step 3 produced no z-score outputs in the selected run"
+        assert not strict_zscore, "Step 3 wrote z-score outputs to the unselected run directory"

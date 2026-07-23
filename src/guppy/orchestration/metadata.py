@@ -24,7 +24,7 @@ from ..utils.nwb_metadata import (
     load_yaml,
     validate_metadata_dict,
 )
-from ..utils.utils import output_dir_for_run
+from ..utils.utils import run_folder_for_run
 
 logger = logging.getLogger(__name__)
 
@@ -33,10 +33,10 @@ METADATA_FILENAME = "nwb_metadata.yaml"
 
 
 def _selected_session_runs(inputParameters: dict[str, object]) -> list[tuple[str, str]]:
-    """Flatten ``selectedOutputs`` into ``(session_path, run_name)`` pairs."""
-    selected_outputs: dict[str, list[str]] = inputParameters["selectedOutputs"]
+    """Flatten ``selected_runs`` into ``(session_path, run_name)`` pairs."""
+    selected_runs: dict[str, list[str]] = inputParameters["selected_runs"]
     pairs: list[tuple[str, str]] = []
-    for session_path, run_names in selected_outputs.items():
+    for session_path, run_names in selected_runs.items():
         for run_name in run_names:
             pairs.append((session_path, run_name))
     return pairs
@@ -104,7 +104,7 @@ def orchestrate_metadata_page(inputParameters: dict[str, object]) -> None:
     headless = bool(os.environ.get("GUPPY_BASE_DIR"))
 
     for session_path, run_name in _selected_session_runs(inputParameters):
-        guppy_folder_path = output_dir_for_run(session_path, run_name)
+        guppy_folder_path = run_folder_for_run(session_path, run_name)
         metadata_yaml_path = os.path.join(guppy_folder_path, METADATA_FILENAME)
         initial_metadata = load_yaml(metadata_yaml_path) if os.path.exists(metadata_yaml_path) else {}
         channels = derive_channels(guppy_folder_path)

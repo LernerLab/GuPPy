@@ -220,7 +220,7 @@ class DandiNwbRecordingExtractor(NwbRecordingExtractor):
         sample_counts: dict[str, int] = {}
         byte_counts: dict[str, int] = {}
         for neurodata_object in nwbfile.objects.values():
-            if neurodata_object.neurodata_type != "FiberPhotometryResponseSeries":
+            if getattr(neurodata_object, "neurodata_type", None) != "FiberPhotometryResponseSeries":
                 continue
             data = neurodata_object.data
             total_samples = int(data.shape[0])
@@ -265,7 +265,7 @@ class DandiNwbRecordingExtractor(NwbRecordingExtractor):
         Returns
         -------
         list of dict
-            One dictionary per event with keys: ``storename``, ``sampling_rate``,
+            One dictionary per event with keys: ``store_id``, ``sampling_rate``,
             ``timestamps``, ``data``, ``npoints``.
         """
         dandiset_id, asset_path = parse_dandi_uri(self.folder_path)

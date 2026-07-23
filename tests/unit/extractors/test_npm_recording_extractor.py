@@ -68,6 +68,27 @@ def test_decide_indices_v2_flag_raises_when_flags_and_ledstate_columns_missing()
         NpmRecordingExtractor.decide_indices("file0_", dataframe, "data_np_v2", num_ch=2)
 
 
+@pytest.mark.parametrize("state_column", ["Flags", "flags", "FLAGS", "LedState", "ledstate", "LEDSTATE"])
+def test_decide_indices_v2_resolves_flag_columns_case_insensitively(state_column):
+    # Detection matches Flags/LedState case-insensitively, so decide_indices must
+    # resolve the actual (possibly mixed-case) column name before indexing (issue #381).
+    dataframe = pd.DataFrame(
+        {
+            "FrameCounter": range(12),
+            state_column: [0, 0, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2],
+            "Timestamp": np.arange(12) * 0.01,
+            "Signal": np.arange(12, dtype=float),
+        }
+    )
+    result_df, indices_dict, num_channels = NpmRecordingExtractor.decide_indices(
+        "file0_", dataframe, "data_np_v2", num_ch=2
+    )
+    np.testing.assert_array_equal(indices_dict["file0_chev"], [2, 4, 6, 8, 10])
+    np.testing.assert_array_equal(indices_dict["file0_chod"], [3, 5, 7, 9, 11])
+    assert num_channels == 2
+    assert list(result_df.columns) == ["Timestamp", "Signal"]
+
+
 # ---------------------------------------------------------------------------
 # _update_df_with_timestamp_columns
 # ---------------------------------------------------------------------------
@@ -270,9 +291,9 @@ def test_discover_raises_for_data_csv_three_columns(tmp_path):
         NpmRecordingExtractor.discover_events_and_flags(folder_path=str(tmp_path), num_ch=2, inputParameters={})
 
 
-def test_discover_raises_when_region_channel_counts_do_not_match(tmp_path):
+def test_discover_raises_when_channel_group_counts_do_not_match(tmp_path):
     # Two data_np_v2 files with different channel counts (2 vs 3, by LedState) decompose
-    # into unequal per-region counts (chev=2, chod=2, chpr=1), which is rejected.
+    # into unequal per-channel-group counts (chev=2, chod=2, chpr=1), which is rejected.
     two_channel_csv = (
         "FrameCounter,LedState,Timestamp,Signal\n"
         "0,0,0.00,0.0\n1,0,0.01,0.0\n2,1,0.02,1.0\n3,2,0.03,2.0\n4,1,0.04,3.0\n5,2,0.05,4.0\n"
@@ -286,11 +307,11 @@ def test_discover_raises_when_region_channel_counts_do_not_match(tmp_path):
     (tmp_path / "a_data.csv").write_text(two_channel_csv)
     (tmp_path / "b_data.csv").write_text(three_channel_csv)
 
-    with pytest.raises(ValueError, match=r"Number of channel files must be the same for all regions"):
+    with pytest.raises(ValueError, match=r"Number of channel files must match across channel groups"):
         NpmRecordingExtractor.discover_events_and_flags(folder_path=str(tmp_path), num_ch=2, inputParameters={})
 
 
-from conftest import STUBBED_TESTING_DATA
+from guppy_test_data import STUBBED_TESTING_DATA
 
 # ---------------------------------------------------------------------------
 # Shared fixtures and stub tests for all NPM test classes

@@ -3,10 +3,10 @@ import os
 import shutil
 
 import pytest
-from conftest import TESTING_DATA, event_ts_offset_for
 
 from guppy.testing import compare_output_folders
-from guppy.testing.api import step2, step3, step4, step5
+from guppy.testing.api import step1, step2, step3, step4
+from guppy_test_data import TESTING_DATA, event_ts_offset_for
 
 SESSION_SUBDIRS = [
     "SampleData_Clean/Photo_63_207-181030-103332",
@@ -18,7 +18,7 @@ STANDARD_OUTPUT_SUBDIRS = [
     "StandardOutputs_combined/Photo_048_392-200728-121222/Photo_048_392-200728-121222_output_1",
 ]
 
-STORENAMES_MAP = {
+STORE_ID_TO_STORE_LABEL = {
     "Dv1A": "control_dms",
     "Dv2A": "signal_dms",
     "PrtN": "port_entries_dms",
@@ -61,16 +61,17 @@ def test_consistency(tmp_path):
     selected_folders = [str(s) for s in session_copies]
 
     selected_runs = {folder: ["1"] for folder in selected_folders}
-    step2(base_dir=str(tmp_base), selected_folders=selected_folders, storenames_map=STORENAMES_MAP)
-    step3(base_dir=str(tmp_base), selected_folders=selected_folders, selected_runs=selected_runs)
-    step4(
+    step1(base_dir=str(tmp_base), selected_folders=selected_folders, store_id_to_store_label=STORE_ID_TO_STORE_LABEL)
+    step2(base_dir=str(tmp_base), selected_folders=selected_folders, selected_runs=selected_runs)
+    step3(
         base_dir=str(tmp_base),
         selected_folders=selected_folders,
         combine_data=True,
+        control_fit_method="OLS",
         selected_runs=selected_runs,
     )
-    # Step 5 is called on the second session only; it receives the full combined PSTH outputs.
-    step5(
+    # Step 4 is called on the second session only; it receives the full combined PSTH outputs.
+    step4(
         base_dir=str(tmp_base),
         selected_folders=[selected_folders[1]],
         selected_runs={selected_folders[1]: ["1"]},
@@ -78,9 +79,9 @@ def test_consistency(tmp_path):
 
     for session_copy, standard_output_dir in zip(session_copies, standard_output_dirs):
         dest_name = session_copy.name
-        output_dirs = sorted(glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")))
-        assert output_dirs, f"No output directory found under {session_copy}"
-        actual_output_dir = output_dirs[0]
+        run_folders = sorted(glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")))
+        assert run_folders, f"No output directory found under {session_copy}"
+        actual_output_dir = run_folders[0]
 
         compare_output_folders(
             actual_dir=actual_output_dir,

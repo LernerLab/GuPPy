@@ -2,9 +2,11 @@ import numpy as np
 import pytest
 
 from guppy.orchestration.preprocess import (
+    execute_artifact_removal,
     execute_combine_data,
     execute_preprocessing_visualization,
     execute_zscore,
+    extractTsAndSignal,
     visualize_artifact_removal,
     visualize_z_score,
     visualizeControlAndSignal,
@@ -62,8 +64,8 @@ def test_visualize_control_and_signal_returns_widgets_without_real_panel(monkeyp
     signal_path = f"{filepath}/signal_DMS.hdf5"
 
     monkeypatch.setattr(
-        "guppy.orchestration.preprocess.find_files",
-        lambda path, pattern, ignore_case=True: [control_path] if "control" in pattern else [signal_path],
+        "guppy.orchestration.preprocess.decide_naming_convention",
+        lambda filepath: np.array([[control_path], [signal_path]]),
     )
 
     def fake_read_hdf5(name, path, dataset_name):
@@ -143,38 +145,30 @@ def test_visualize_artifact_removal_invokes_widget_visualization_and_show(monkey
 # ── error paths ───────────────────────────────────────────────────────────────
 
 
-def test_visualize_control_and_signal_raises_for_unequal_file_counts(monkeypatch):
-    """Three control files but only two signal files → odd total → raises with counts."""
-    monkeypatch.setattr(
-        "guppy.orchestration.preprocess.find_files",
-        lambda path, pattern, ignore_case=True: (
-            ["/tmp/ctrl_a.hdf5", "/tmp/ctrl_b.hdf5", "/tmp/ctrl_c.hdf5"]
-            if "control" in pattern
-            else ["/tmp/sig_a.hdf5", "/tmp/sig_b.hdf5"]
-        ),
-    )
-    with pytest.raises(ValueError, match="Unequal number of control and signal files"):
-        visualizeControlAndSignal("/tmp/session_output_1", removeArtifacts=False)
+def test_visualize_control_and_signal_raises_for_mismatched_recording_sites(tmp_path):
+    """A control recording site with no matching signal recording site raises a pairing error."""
+    (tmp_path / "control_dms.hdf5").touch()
+    (tmp_path / "signal_vms.hdf5").touch()
+    with pytest.raises(ValueError) as exception_info:
+        visualizeControlAndSignal(str(tmp_path), removeArtifacts=False)
+    message = str(exception_info.value)
+    assert "Mismatched control/signal files" in message
+    assert "dms" in message
+    assert "vms" in message
 
 
-def test_execute_zscore_raises_for_pair_name_mismatch(monkeypatch, base_input_parameters):
-    """control_dms paired with signal_vms (different suffixes) — raises with both suffixes."""
-    folder_names = [["/tmp/session_output_1"]]
+def test_execute_zscore_raises_for_mismatched_recording_sites(tmp_path, base_input_parameters):
+    """control_dms paired with signal_vms (different recording sites) — raises naming both recording sites."""
+    run_folder = tmp_path / "session_output_1"
+    run_folder.mkdir()
+    (run_folder / "control_dms.hdf5").touch()
+    (run_folder / "signal_vms.hdf5").touch()
     base_input_parameters["combine_data"] = True
 
-    monkeypatch.setattr(
-        "guppy.orchestration.preprocess.find_files",
-        lambda path, pattern, ignore_case=True: (
-            ["/tmp/session_output_1/control_dms.hdf5"]
-            if "control" in pattern
-            else ["/tmp/session_output_1/signal_vms.hdf5"]
-        ),
-    )
-
     with pytest.raises(ValueError) as exception_info:
-        execute_zscore(folder_names, base_input_parameters)
+        execute_zscore([[str(run_folder)]], base_input_parameters)
     message = str(exception_info.value)
-    assert "Pair name mismatch" in message
+    assert "Mismatched control/signal files" in message
     assert "dms" in message
     assert "vms" in message
 
@@ -183,29 +177,29 @@ def test_execute_combine_data_raises_for_mismatched_sampling_rates(monkeypatch, 
     """When timeCorrection_*.hdf5 files report different sampling rates, the message
     lists both rates and the offending paths."""
     folder_names = ["/tmp/session_a", "/tmp/session_b"]
-    storesList = np.array([["ctrl0", "sig0"], ["control_dms", "signal_dms"]])
+    store_array = np.array([["ctrl0", "sig0"], ["control_dms", "signal_dms"]])
 
     monkeypatch.setattr(
-        "guppy.orchestration.preprocess.select_output_dirs",
+        "guppy.orchestration.preprocess.select_run_folders",
         lambda session, selected: (
-            [folder_names[0] + "/output_dir"] if "session_a" in session else [folder_names[1] + "/output_dir"]
+            [folder_names[0] + "/run_folder"] if "session_a" in session else [folder_names[1] + "/run_folder"]
         ),
     )
     monkeypatch.setattr(
         "guppy.orchestration.preprocess.glob.glob",
         lambda pattern: (
-            [f"{folder_names[0]}/output_dir/timeCorrection_dms.hdf5"]
+            [f"{folder_names[0]}/run_folder/timeCorrection_dms.hdf5"]
             if "session_a" in pattern
-            else [f"{folder_names[1]}/output_dir/timeCorrection_dms.hdf5"] if "session_b" in pattern else []
+            else [f"{folder_names[1]}/run_folder/timeCorrection_dms.hdf5"] if "session_b" in pattern else []
         ),
     )
 
     rates = iter([np.array([100.0]), np.array([250.0])])
     monkeypatch.setattr("guppy.orchestration.preprocess.read_hdf5", lambda *a, **k: next(rates))
-    monkeypatch.setattr("guppy.orchestration.preprocess.np.genfromtxt", lambda *a, **k: storesList)
+    monkeypatch.setattr("guppy.orchestration.preprocess.np.genfromtxt", lambda *a, **k: store_array)
 
     with pytest.raises(ValueError, match="sampling rates differ"):
-        execute_combine_data(folder_names, base_input_parameters, storesList)
+        execute_combine_data(folder_names, base_input_parameters, store_array)
 
 
 def test_execute_zscore_shows_plot_when_not_headless(monkeypatch, base_input_parameters):
@@ -216,8 +210,8 @@ def test_execute_zscore_shows_plot_when_not_headless(monkeypatch, base_input_par
     monkeypatch.delenv("GUPPY_BASE_DIR", raising=False)
 
     monkeypatch.setattr(
-        "guppy.orchestration.preprocess.find_files",
-        lambda filepath, pattern, ignore_case=True: [f"{filepath}/{pattern.replace('*', 'DMS')}.hdf5"],
+        "guppy.orchestration.preprocess.decide_naming_convention",
+        lambda filepath: np.array([[f"{filepath}/control_DMS.hdf5"], [f"{filepath}/signal_DMS.hdf5"]]),
     )
     monkeypatch.setattr(
         "guppy.orchestration.preprocess.read_corrected_data",
@@ -254,3 +248,156 @@ def test_execute_zscore_shows_plot_when_not_headless(monkeypatch, base_input_par
 
     assert write_calls == [("/tmp/session_output_1", "DMS")]
     assert len(show_calls) == 1
+
+
+@pytest.fixture
+def stub_artifact_removal_io(monkeypatch):
+    """Patch execute_artifact_removal's disk I/O so only its visualization branch is exercised."""
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.select_run_folders", lambda session, selected: ["/tmp/session_1/run_1"]
+    )
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.np.genfromtxt", lambda *a, **k: np.array([["ctrl0"], ["control_dms"]])
+    )
+    monkeypatch.setattr("guppy.orchestration.preprocess.read_corrected_data_dict", lambda filepath, store_array: {})
+    monkeypatch.setattr("guppy.orchestration.preprocess.read_corrected_timestamps_pairwise", lambda filepath: ({}, {}))
+    monkeypatch.setattr("guppy.orchestration.preprocess.read_coords_pairwise", lambda filepath, tsNew: {})
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.read_corrected_ttl_timestamps", lambda filepath, store_array: {}
+    )
+    monkeypatch.setattr("guppy.orchestration.preprocess.remove_artifacts", lambda *a, **k: ({}, {}, {}))
+    monkeypatch.setattr("guppy.orchestration.preprocess.write_artifact_removal", lambda *a, **k: None)
+    monkeypatch.setattr("guppy.orchestration.preprocess.writeToFile", lambda text, file_path: None)
+
+
+def test_execute_artifact_removal_visualizes_when_not_headless(
+    monkeypatch, base_input_parameters, stub_artifact_removal_io
+):
+    """When not headless, execute_artifact_removal calls visualize_artifact_removal after processing."""
+    base_input_parameters["combine_data"] = False
+    monkeypatch.delenv("GUPPY_BASE_DIR", raising=False)
+
+    visualize_calls = []
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.visualize_artifact_removal",
+        lambda folders, params: visualize_calls.append((folders, params)),
+    )
+
+    execute_artifact_removal(["/tmp/session_1"], base_input_parameters)
+
+    assert visualize_calls == [(["/tmp/session_1"], base_input_parameters)]
+
+
+def test_execute_artifact_removal_skips_visualization_when_headless(
+    monkeypatch, base_input_parameters, stub_artifact_removal_io
+):
+    """When headless, execute_artifact_removal does not open the artifact-removal visualization."""
+    base_input_parameters["combine_data"] = False
+    monkeypatch.setenv("GUPPY_BASE_DIR", "/tmp/base")
+
+    visualize_calls = []
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.visualize_artifact_removal",
+        lambda folders, params: visualize_calls.append((folders, params)),
+    )
+
+    execute_artifact_removal(["/tmp/session_1"], base_input_parameters)
+
+    assert visualize_calls == []
+
+
+@pytest.fixture
+def stub_extract_ts_and_signal_io(monkeypatch):
+    """Patch extractTsAndSignal's sub-steps so only its dispatch/visualization branches run."""
+    monkeypatch.setattr("guppy.orchestration.preprocess.save_parameters", lambda *, inputParameters: None)
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.select_run_folders", lambda session, selected: ["/tmp/session_1/run_1"]
+    )
+    monkeypatch.setattr("guppy.orchestration.preprocess.writeToFile", lambda text, file_path: None)
+    monkeypatch.setattr("guppy.orchestration.preprocess.execute_timestamp_correction", lambda folders, params: None)
+    monkeypatch.setattr("guppy.orchestration.preprocess.execute_zscore", lambda folders, params: None)
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.check_storeslistfile", lambda folders: np.array([["ctrl0"], ["control_dms"]])
+    )
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.execute_combine_data", lambda folders, params, store_array: ["/tmp/combined_1"]
+    )
+    monkeypatch.setattr("guppy.orchestration.preprocess.write_combined_stores_list", lambda folders, store_array: None)
+
+
+def test_extract_ts_and_signal_visualizes_and_removes_artifacts_when_not_headless(
+    monkeypatch, base_input_parameters, stub_extract_ts_and_signal_io
+):
+    """Non-combine path: extractTsAndSignal visualizes z-score and runs artifact removal when not headless."""
+    base_input_parameters["session_folders"] = ["/tmp/session_1"]
+    base_input_parameters["combine_data"] = False
+    base_input_parameters["removeArtifacts"] = True
+    monkeypatch.delenv("GUPPY_BASE_DIR", raising=False)
+
+    visualize_calls = []
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.visualize_z_score",
+        lambda params, folders: visualize_calls.append((params, folders)),
+    )
+    artifact_calls = []
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.execute_artifact_removal",
+        lambda folders, params: artifact_calls.append((folders, params)),
+    )
+
+    extractTsAndSignal(base_input_parameters)
+
+    assert visualize_calls == [(base_input_parameters, ["/tmp/session_1"])]
+    assert artifact_calls == [(["/tmp/session_1"], base_input_parameters)]
+
+
+def test_extract_ts_and_signal_combine_visualizes_when_not_headless(
+    monkeypatch, base_input_parameters, stub_extract_ts_and_signal_io
+):
+    """Combine path: extractTsAndSignal visualizes z-score and runs artifact removal on the combined folders."""
+    base_input_parameters["session_folders"] = ["/tmp/session_1"]
+    base_input_parameters["combine_data"] = True
+    base_input_parameters["removeArtifacts"] = True
+    monkeypatch.delenv("GUPPY_BASE_DIR", raising=False)
+
+    visualize_calls = []
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.visualize_z_score",
+        lambda params, folders: visualize_calls.append((params, folders)),
+    )
+    artifact_calls = []
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.execute_artifact_removal",
+        lambda folders, params: artifact_calls.append((folders, params)),
+    )
+
+    extractTsAndSignal(base_input_parameters)
+
+    assert visualize_calls == [(base_input_parameters, ["/tmp/combined_1"])]
+    assert artifact_calls == [(["/tmp/combined_1"], base_input_parameters)]
+
+
+def test_extract_ts_and_signal_combine_skips_visualization_when_headless(
+    monkeypatch, base_input_parameters, stub_extract_ts_and_signal_io
+):
+    """Combine path when headless: z-score visualization is skipped but artifact removal still runs."""
+    base_input_parameters["session_folders"] = ["/tmp/session_1"]
+    base_input_parameters["combine_data"] = True
+    base_input_parameters["removeArtifacts"] = True
+    monkeypatch.setenv("GUPPY_BASE_DIR", "/tmp/base")
+
+    visualize_calls = []
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.visualize_z_score",
+        lambda params, folders: visualize_calls.append((params, folders)),
+    )
+    artifact_calls = []
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.execute_artifact_removal",
+        lambda folders, params: artifact_calls.append((folders, params)),
+    )
+
+    extractTsAndSignal(base_input_parameters)
+
+    assert visualize_calls == []
+    assert artifact_calls == [(["/tmp/combined_1"], base_input_parameters)]

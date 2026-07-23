@@ -86,7 +86,7 @@ def test_access_keys_doricV6_excludes_time_datasets(tmp_path):
     assert set(keys) == {"Signals/Region0G", "Signals/Region1G"}
 
 
-from conftest import STUBBED_TESTING_DATA
+from guppy_test_data import STUBBED_TESTING_DATA
 
 # ---------------------------------------------------------------------------
 # Shared fixtures for all Doric test classes
@@ -244,20 +244,30 @@ class TestValidateSignalControlData:
         with pytest.raises(ValueError, match="is empty"):
             DoricRecordingExtractor._validate_signal_control_data("ch", np.array([]), "signal")
 
-    def test_rejects_data_with_any_nan(self):
+    def test_accepts_sparse_nan(self):
+        # Sparse NaN is tolerated here; the reader drops it jointly later.
         data = np.array([0.1, np.nan, 0.3, 0.4, 0.5])
-        with pytest.raises(ValueError, match="1 non-finite value"):
-            DoricRecordingExtractor._validate_signal_control_data("AIn-1 - Dem (AOut-2)", data, "signal")
+        DoricRecordingExtractor._validate_signal_control_data("AIn-1 - Dem (AOut-2)", data, "signal")
+
+    def test_accepts_sparse_inf(self):
+        data = np.array([0.1, np.inf, 0.3, 0.4, 0.5])
+        DoricRecordingExtractor._validate_signal_control_data("ch", data, "signal")
 
     def test_rejects_all_nan_data(self):
         data = np.full(10, np.nan)
-        with pytest.raises(ValueError, match="10 non-finite value"):
+        with pytest.raises(ValueError, match="entirely non-finite"):
             DoricRecordingExtractor._validate_signal_control_data("ch", data, "control")
 
-    def test_rejects_inf_values(self):
-        data = np.array([0.1, np.inf, 0.3])
-        with pytest.raises(ValueError, match="non-finite"):
-            DoricRecordingExtractor._validate_signal_control_data("ch", data, "signal")
+    def test_rejects_all_inf_data(self):
+        data = np.full(10, np.inf)
+        with pytest.raises(ValueError, match="entirely non-finite"):
+            DoricRecordingExtractor._validate_signal_control_data("ch", data, "control")
+
+    def test_rejects_zero_variance_with_sparse_nan(self):
+        # Constant on its finite samples is still constant after the drop.
+        data = np.array([7.0, 7.0, np.nan, 7.0, 7.0])
+        with pytest.raises(ValueError, match="constant.*std=0"):
+            DoricRecordingExtractor._validate_signal_control_data("AOut-1", data, "signal")
 
     def test_rejects_constant_data(self):
         data = np.ones(100, dtype=float)
@@ -268,6 +278,65 @@ class TestValidateSignalControlData:
         data = np.ones(5)
         with pytest.raises(ValueError, match="control_DMS"):
             DoricRecordingExtractor._validate_signal_control_data("AOut-1", data, "control_DMS")
+
+
+# ---------------------------------------------------------------------------
+# Joint non-finite drop (issue #292)
+# ---------------------------------------------------------------------------
+
+
+class TestDropNonfiniteSamples:
+    """Unit tests for ``_drop_nonfinite_samples`` — the joint (union) NaN/inf drop."""
+
+    def _signal_control_dict(self, store_id, data):
+        return {
+            "store_id": store_id,
+            "sampling_rate": np.array([250.0]),
+            "data": np.asarray(data, dtype=float),
+            "timestamps": np.arange(len(data), dtype=float),
+        }
+
+    def test_drops_rows_nonfinite_in_any_channel(self):
+        # signal is NaN at row 2, control is NaN at row 1 -> union drops rows 1 and 2.
+        output_dicts = [
+            self._signal_control_dict("signal", [0.0, 1.0, np.nan, 3.0, 4.0]),
+            self._signal_control_dict("control", [9.0, np.nan, 7.0, 6.0, 5.0]),
+        ]
+        cleaned = DoricRecordingExtractor._drop_nonfinite_samples(output_dicts)
+        by_name = {channel["store_id"]: channel for channel in cleaned}
+        np.testing.assert_array_equal(by_name["signal"]["data"], np.array([0.0, 3.0, 4.0]))
+        np.testing.assert_array_equal(by_name["control"]["data"], np.array([9.0, 6.0, 5.0]))
+        np.testing.assert_array_equal(by_name["signal"]["timestamps"], np.array([0.0, 3.0, 4.0]))
+        np.testing.assert_array_equal(by_name["control"]["timestamps"], np.array([0.0, 3.0, 4.0]))
+        # Sampling rate is carried through unchanged.
+        np.testing.assert_array_equal(by_name["signal"]["sampling_rate"], np.array([250.0]))
+
+    def test_ttl_dicts_pass_through_untouched(self):
+        ttl_dict = {"store_id": "ttl", "timestamps": np.array([0.5, 1.5])}
+        output_dicts = [self._signal_control_dict("signal", [0.0, np.nan, 2.0, 3.0]), ttl_dict]
+        cleaned = DoricRecordingExtractor._drop_nonfinite_samples(output_dicts)
+        by_name = {channel["store_id"]: channel for channel in cleaned}
+        np.testing.assert_array_equal(by_name["signal"]["data"], np.array([0.0, 2.0, 3.0]))
+        # The TTL dict is the same object, unchanged.
+        assert by_name["ttl"] is ttl_dict
+        np.testing.assert_array_equal(by_name["ttl"]["timestamps"], np.array([0.5, 1.5]))
+
+    def test_inf_treated_as_nonfinite(self):
+        output_dicts = [self._signal_control_dict("signal", [0.0, np.inf, 2.0, 3.0])]
+        (cleaned,) = DoricRecordingExtractor._drop_nonfinite_samples(output_dicts)
+        np.testing.assert_array_equal(cleaned["data"], np.array([0.0, 2.0, 3.0]))
+        np.testing.assert_array_equal(cleaned["timestamps"], np.array([0.0, 2.0, 3.0]))
+
+    def test_all_finite_returns_input_unchanged(self):
+        output_dicts = [self._signal_control_dict("signal", [0.0, 1.0, 2.0])]
+        result = DoricRecordingExtractor._drop_nonfinite_samples(output_dicts)
+        # Nothing to drop -> the same list is returned as-is.
+        assert result is output_dicts
+
+    def test_no_signal_control_returns_input_unchanged(self):
+        output_dicts = [{"store_id": "ttl", "timestamps": np.array([0.5, 1.5])}]
+        result = DoricRecordingExtractor._drop_nonfinite_samples(output_dicts)
+        assert result is output_dicts
 
 
 # ---------------------------------------------------------------------------
@@ -295,7 +364,8 @@ class TestDoricV1Validation:
         with pytest.raises(ValueError, match="'Raw' not found.*Available channels"):
             extractor.read(events=["Raw"], outputPath="")
 
-    def test_nan_signal_raises_before_polyfit(self, tmp_path):
+    def test_sparse_nan_signal_is_dropped(self, tmp_path):
+        # A single leading NaN is dropped (with its timestamp), not rejected.
         hdf5_path = tmp_path / "session.doric"
         data_with_nan = np.arange(10.0)
         data_with_nan[0] = np.nan
@@ -304,7 +374,37 @@ class TestDoricV1Validation:
             {"AIn-1 - Dem (AOut-2)": data_with_nan, "DI--O-1": np.ones(10)},
         )
         extractor = DoricRecordingExtractor(str(tmp_path), {"AIn-1 - Dem (AOut-2)": "signal", "DI--O-1": "ttl"})
-        with pytest.raises(ValueError, match="non-finite value"):
+        result = extractor.read(events=["AIn-1 - Dem (AOut-2)"], outputPath="")
+        np.testing.assert_array_equal(result[0]["data"], np.arange(1.0, 10.0))
+        assert np.isfinite(result[0]["data"]).all()
+        assert len(result[0]["data"]) == len(result[0]["timestamps"])
+
+    def test_sparse_nan_dropped_jointly_keeps_pair_aligned(self, tmp_path):
+        # signal NaN at row 2, control NaN at row 1 -> both lose rows 1 and 2.
+        hdf5_path = tmp_path / "session.doric"
+        signal = np.array([0.0, 1.0, np.nan, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0])
+        control = np.array([9.0, np.nan, 7.0, 6.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.0])
+        _make_doric_v1(hdf5_path, {"AIn-1 - Raw": control, "AIn-2 - Raw": signal})
+        extractor = DoricRecordingExtractor(str(tmp_path), {"AIn-1 - Raw": "control", "AIn-2 - Raw": "signal"})
+        result = extractor.read(events=["AIn-1 - Raw", "AIn-2 - Raw"], outputPath="")
+        by_name = {event_dict["store_id"]: event_dict for event_dict in result}
+        np.testing.assert_array_equal(
+            by_name["AIn-2 - Raw"]["data"], np.array([0.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0])
+        )
+        np.testing.assert_array_equal(
+            by_name["AIn-1 - Raw"]["data"], np.array([9.0, 6.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.0])
+        )
+        assert len(by_name["AIn-1 - Raw"]["data"]) == len(by_name["AIn-2 - Raw"]["data"])
+        np.testing.assert_array_equal(by_name["AIn-1 - Raw"]["timestamps"], by_name["AIn-2 - Raw"]["timestamps"])
+
+    def test_all_nan_signal_raises(self, tmp_path):
+        hdf5_path = tmp_path / "session.doric"
+        _make_doric_v1(
+            hdf5_path,
+            {"AIn-1 - Dem (AOut-2)": np.full(10, np.nan), "DI--O-1": np.ones(10)},
+        )
+        extractor = DoricRecordingExtractor(str(tmp_path), {"AIn-1 - Dem (AOut-2)": "signal", "DI--O-1": "ttl"})
+        with pytest.raises(ValueError, match="entirely non-finite"):
             extractor.read(events=["AIn-1 - Dem (AOut-2)"], outputPath="")
 
     def test_constant_aout_channel_raises(self, tmp_path):
@@ -366,6 +466,35 @@ class TestDoricV6Validation:
         extractor = DoricRecordingExtractor(str(tmp_path), {"AnalogIn/NotAChannel": "signal"})
         with pytest.raises(ValueError, match="not found.*Available channels"):
             extractor.read(events=["AnalogIn/NotAChannel"], outputPath="")
+
+    def test_sparse_nan_dropped_jointly_keeps_pair_aligned(self, tmp_path):
+        hdf5_path = tmp_path / "session.doric"
+        control = np.array([9.0, np.nan, 7.0, 6.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.0])
+        signal = np.array([0.0, 1.0, np.nan, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0])
+        self._make_v6(
+            hdf5_path,
+            {"Signals/CAM1_EXC1/ROI01": control, "Signals/CAM1_EXC2/ROI01": signal},
+        )
+        extractor = DoricRecordingExtractor(str(tmp_path), {"CAM1_EXC1/ROI01": "control", "CAM1_EXC2/ROI01": "signal"})
+        result = extractor.read(events=["CAM1_EXC1/ROI01", "CAM1_EXC2/ROI01"], outputPath="")
+        by_name = {event_dict["store_id"]: event_dict for event_dict in result}
+        np.testing.assert_array_equal(
+            by_name["CAM1_EXC2/ROI01"]["data"], np.array([0.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0])
+        )
+        np.testing.assert_array_equal(
+            by_name["CAM1_EXC1/ROI01"]["data"], np.array([9.0, 6.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.0])
+        )
+        assert len(by_name["CAM1_EXC1/ROI01"]["data"]) == len(by_name["CAM1_EXC2/ROI01"]["data"])
+
+    def test_all_nan_signal_raises(self, tmp_path):
+        hdf5_path = tmp_path / "session.doric"
+        self._make_v6(
+            hdf5_path,
+            {"Signals/Series0001/AnalogIn/AIN01": np.full(10, np.nan)},
+        )
+        extractor = DoricRecordingExtractor(str(tmp_path), {"AnalogIn/AIN01": "signal"})
+        with pytest.raises(ValueError, match="entirely non-finite"):
+            extractor.read(events=["AnalogIn/AIN01"], outputPath="")
 
 
 class TestDoricCsvDiscovery:
@@ -489,3 +618,69 @@ def test_discover_raises_for_standard_csv_in_doric_extractor(tmp_path):
     csv_path.write_text("timestamps,data,sampling_rate\n0.1,1.0,250\n0.2,1.1,250\n")
     with pytest.raises(ValueError, match=r"appears to be a standard .csv"):
         DoricRecordingExtractor.discover_events_and_flags(str(tmp_path))
+
+
+# ---------------------------------------------------------------------------
+# _detect_ttl_onsets — rising-edge detection (issue #394)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "ttl, expected",
+    [
+        # A pulse still high at the final sample: its rising edge (index 6) must be
+        # reported. This is the regression for issue #394 — the old gap-between-lows
+        # scan dropped it for want of a trailing low sample.
+        ([0, 0, 1, 1, 0, 0, 1, 1], [2.0, 6.0]),
+        # An interior pulse bracketed by lows on both sides.
+        ([0, 0, 1, 1, 0, 0], [2.0]),
+        # A pulse already high at sample 0 has no observed transition and is skipped;
+        # only the later low->high edge (index 4) is reported.
+        ([1, 1, 0, 0, 1, 1], [4.0]),
+        # Constant lines carry no rising edge.
+        ([0, 0, 0], []),
+        ([1, 1, 1], []),
+    ],
+)
+def test_detect_ttl_onsets(ttl, expected):
+    ttl = np.array(ttl)
+    # Timestamps equal to sample indices, so each onset time is its sample index.
+    timestamps = np.arange(len(ttl), dtype=float)
+    onsets = DoricRecordingExtractor._detect_ttl_onsets(ttl, timestamps)
+    np.testing.assert_array_equal(onsets, np.array(expected, dtype=float))
+
+
+# A TTL whose final pulse (rising at index 9) is still high at the last sample. On the
+# builders' np.linspace(0.0, 1.0, 11) time base, indices 2 and 9 land on 0.2 and 0.9.
+_TRAILING_PULSE_TTL = np.array([0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1], dtype=float)
+_TRAILING_PULSE_ONSETS = np.array([0.2, 0.9])
+
+
+class TestTrailingPulseReadPaths:
+    """Each read path (V1, V6, CSV) surfaces a final-sample rising edge end to end."""
+
+    def test_v1_read_reports_trailing_onset(self, tmp_path):
+        hdf5_path = tmp_path / "session.doric"
+        _make_doric_v1(hdf5_path, {"DI--O-1": _TRAILING_PULSE_TTL})
+        extractor = DoricRecordingExtractor(str(tmp_path), {"DI--O-1": "ttl"})
+        result = extractor.read(events=["DI--O-1"], outputPath="")
+        np.testing.assert_array_equal(result[0]["timestamps"], _TRAILING_PULSE_ONSETS)
+
+    def test_v6_read_reports_trailing_onset(self, tmp_path):
+        hdf5_path = tmp_path / "session.doric"
+        TestDoricV6Validation()._make_v6(
+            hdf5_path,
+            {"Signals/Series0001/DigitalIO/CAM1": _TRAILING_PULSE_TTL},
+        )
+        extractor = DoricRecordingExtractor(str(tmp_path), {"DigitalIO/CAM1": "ttl"})
+        result = extractor.read(events=["DigitalIO/CAM1"], outputPath="")
+        np.testing.assert_array_equal(result[0]["timestamps"], _TRAILING_PULSE_ONSETS)
+
+    def test_csv_read_reports_trailing_onset(self, tmp_path):
+        csv_path = tmp_path / "session.csv"
+        times = np.linspace(0.0, 1.0, 11)
+        rows = "".join(f"{time},{int(level)},\n" for time, level in zip(times, _TRAILING_PULSE_TTL))
+        csv_path.write_text("---,Digital I/O | Ch.1,\n" "Time(s),DI/O-1,\n" + rows)
+        extractor = DoricRecordingExtractor(str(tmp_path), {"DI/O-1": "ttl"})
+        result = extractor.read(events=["DI/O-1"], outputPath="")
+        np.testing.assert_array_equal(result[0]["timestamps"], _TRAILING_PULSE_ONSETS)

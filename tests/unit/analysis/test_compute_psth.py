@@ -118,7 +118,7 @@ def test_compute_psth_single_timestamp_no_corrections_returns_expected_row():
         naming="",
         just_use_signal=False,
         sampling_rate=10.0,
-        ts=ts,
+        event_timestamps=ts,
         corrected_timestamps=corrected_timestamps,
         timeForLightsTurnOn=0.0,
     )
@@ -149,7 +149,7 @@ def test_compute_psth_early_timestamps_filtered_by_baseline_window():
         naming="",
         just_use_signal=False,
         sampling_rate=10.0,
-        ts=ts,
+        event_timestamps=ts,
         corrected_timestamps=corrected_timestamps,
         timeForLightsTurnOn=0.0,
     )
@@ -176,7 +176,7 @@ def test_compute_psth_burst_timestamps_within_time_interval_are_dropped():
         naming="",
         just_use_signal=False,
         sampling_rate=10.0,
-        ts=ts,
+        event_timestamps=ts,
         corrected_timestamps=corrected_timestamps,
         timeForLightsTurnOn=0.0,
     )
@@ -204,7 +204,7 @@ def test_compute_psth_binning_by_trials_produces_correct_bin_mean_and_sem():
         naming="",
         just_use_signal=False,
         sampling_rate=10.0,
-        ts=ts,
+        event_timestamps=ts,
         corrected_timestamps=corrected_timestamps,
         timeForLightsTurnOn=0.0,
     )
@@ -214,6 +214,38 @@ def test_compute_psth_binning_by_trials_produces_correct_bin_mean_and_sem():
     np.testing.assert_allclose(psth[5, :], np.zeros(21), atol=1e-10)
     assert "bin_(0-2)" in columns
     assert "bin_err_(0-2)" in columns
+
+
+def test_compute_psth_time_binning_places_events_on_recording_start_basis():
+    # Events are binned on the recording-start basis (event_timestamps/60), independent of
+    # timeForLightsTurnOn. bins [1-6] and [6-11] min; the two events (3.0 and 6.5 min) split
+    # one per bin, so each bin's mean is that event's trial value.
+    z_score = np.concatenate((np.full(2500, 3.0), np.full(1500, 5.0)))
+    ts = np.array([180.0, 390.0])
+    corrected_timestamps = np.arange(60.0, 660.0, 0.1)
+    psth, _, columns, _ = compute_psth(
+        z_score=z_score,
+        event="test",
+        filepath="",
+        nSecPrev=-1.0,
+        nSecPost=1.0,
+        timeInterval=0.0,
+        bin_psth_trials=5,
+        use_time_or_trials="Time (min)",
+        baselineStart=0,
+        baselineEnd=0,
+        naming="",
+        just_use_signal=False,
+        sampling_rate=10.0,
+        event_timestamps=ts,
+        corrected_timestamps=corrected_timestamps,
+        timeForLightsTurnOn=60.0,
+    )
+    # Rows 0,1 = trials; row 2 = "1.0-6.0" mean; row 4 = "6.0-11.0" mean.
+    assert "bin_(1.0-6.0)" in columns
+    assert "bin_(6.0-11.0)" in columns
+    np.testing.assert_allclose(psth[2, :], np.full(21, 3.0))
+    np.testing.assert_allclose(psth[4, :], np.full(21, 5.0))
 
 
 def test_compute_psth_just_use_signal_true_z_scores_each_trial():
@@ -237,7 +269,7 @@ def test_compute_psth_just_use_signal_true_z_scores_each_trial():
         naming="",
         just_use_signal=True,
         sampling_rate=10.0,
-        ts=ts,
+        event_timestamps=ts,
         corrected_timestamps=corrected_timestamps,
         timeForLightsTurnOn=0.0,
     )
@@ -268,7 +300,7 @@ def test_compute_psth_index_is_relative_to_lights_on_origin():
         naming="",
         just_use_signal=False,
         sampling_rate=sampling_rate,
-        ts=ts,
+        event_timestamps=ts,
         corrected_timestamps=corrected_timestamps,
         timeForLightsTurnOn=5.0,
     )
@@ -297,7 +329,7 @@ def test_compute_psth_index_shifts_with_lights_on_origin():
         naming="",
         just_use_signal=False,
         sampling_rate=10.0,
-        ts=ts,
+        event_timestamps=ts,
         corrected_timestamps=corrected_timestamps,
         timeForLightsTurnOn=0.0,
     )

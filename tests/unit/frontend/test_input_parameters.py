@@ -8,7 +8,7 @@ import pytest
 
 from guppy.frontend.frontend_utils import default_root_path
 from guppy.frontend.input_parameters import ParameterForm, checkSameLocation, getAbsPath
-from guppy.utils.utils import output_dir_for_run
+from guppy.utils.utils import run_folder_for_run
 
 
 @pytest.fixture(scope="session")
@@ -236,7 +236,7 @@ class TestParameterForm:
         result = parameter_form.getInputParameters()
         for key in (
             "abspath",
-            "folderNames",
+            "session_folders",
             "numberOfCores",
             "timeForLightsTurnOn",
             "nSecPrev",
@@ -273,6 +273,67 @@ class TestParameterForm:
         result = parameter_form.getInputParameters()
         assert result["mode"] == "local"
         assert result["dandi_uri_map"] is None
+
+
+class TestNumericParameterValidation:
+    def test_defaults_pass(self, parameter_form):
+        # The default form values are all valid, so config-time validation must not raise.
+        parameter_form.getInputParameters()
+
+    def test_zero_cores_raises(self, parameter_form):
+        parameter_form.numberOfCores.value = 0
+        with pytest.raises(ValueError, match="numberOfCores=0 must be greater than 0"):
+            parameter_form.getInputParameters()
+
+    def test_cores_exceeding_host_raises(self, parameter_form):
+        parameter_form.numberOfCores.value = 10_000_000
+        with pytest.raises(ValueError, match=r"exceeds the \d+ core\(s\) available"):
+            parameter_form.getInputParameters()
+
+    def test_negative_filter_window_raises(self, parameter_form):
+        parameter_form.moving_avg_filter.value = -1
+        with pytest.raises(ValueError, match="filter_window=-1 must be 0 or greater"):
+            parameter_form.getInputParameters()
+
+    def test_zero_filter_window_allowed(self, parameter_form):
+        parameter_form.moving_avg_filter.value = 0
+        parameter_form.getInputParameters()
+
+    def test_negative_time_for_lights_turn_on_raises(self, parameter_form):
+        parameter_form.timeForLightsTurnOn.value = -1
+        with pytest.raises(ValueError, match="timeForLightsTurnOn=-1 must be 0 or greater"):
+            parameter_form.getInputParameters()
+
+    def test_zero_time_for_lights_turn_on_allowed(self, parameter_form):
+        parameter_form.timeForLightsTurnOn.value = 0
+        parameter_form.getInputParameters()
+
+    def test_zero_moving_window_raises(self, parameter_form):
+        parameter_form.moving_wd.value = 0
+        with pytest.raises(ValueError, match="moving_window=0 must be greater than 0"):
+            parameter_form.getInputParameters()
+
+    def test_zero_high_amp_filt_raises(self, parameter_form):
+        parameter_form.highAmpFilt.value = 0
+        with pytest.raises(ValueError, match="highAmpFilt=0 must be greater than 0"):
+            parameter_form.getInputParameters()
+
+    def test_negative_transients_thresh_raises(self, parameter_form):
+        parameter_form.transientsThresh.value = -3
+        with pytest.raises(ValueError, match="transientsThresh=-3 must be greater than 0"):
+            parameter_form.getInputParameters()
+
+    def test_nsecprev_equal_to_nsecpost_raises(self, parameter_form):
+        parameter_form.nSecPrev.value = 5
+        parameter_form.nSecPost.value = 5
+        with pytest.raises(ValueError, match="nSecPrev=5 must be strictly less than nSecPost=5"):
+            parameter_form.getInputParameters()
+
+    def test_nsecprev_greater_than_nsecpost_raises(self, parameter_form):
+        parameter_form.nSecPrev.value = 30
+        parameter_form.nSecPost.value = 20
+        with pytest.raises(ValueError, match="nSecPrev=30 must be strictly less than nSecPost=20"):
+            parameter_form.getInputParameters()
 
 
 class _FakeAsset:
@@ -334,7 +395,7 @@ class TestParameterFormDandiMode:
         assert result["abspath"] == str(output_root)
         session_a = str(output_root / "session_a")
         session_b = str(output_root / "session_b")
-        assert sorted(result["folderNames"]) == sorted([session_a, session_b])
+        assert sorted(result["session_folders"]) == sorted([session_a, session_b])
         assert result["dandi_uri_map"] == {
             session_a: "dandi://000971/sub-01/session_a.nwb",
             session_b: "dandi://000971/sub-02/session_b.nwb",
@@ -411,14 +472,14 @@ class TestOutputsSelector:
         session_a.mkdir()
         session_b = tmp_path / "sessionB"
         session_b.mkdir()
-        run_a1 = output_dir_for_run(str(session_a), "run1")
-        run_a2 = output_dir_for_run(str(session_a), "run2")
-        run_b1 = output_dir_for_run(str(session_b), "run1")
+        run_a1 = run_folder_for_run(str(session_a), "run1")
+        run_a2 = run_folder_for_run(str(session_a), "run2")
+        run_b1 = run_folder_for_run(str(session_b), "run1")
         for path in (run_a1, run_a2, run_b1):
             os.mkdir(path)
 
         bare_parameter_form.outputs_selector.value = [run_a1, run_a2, run_b1]
-        result = bare_parameter_form._collect_selected_outputs()
+        result = bare_parameter_form._collect_selected_runs()
         assert result == {
             str(session_a): ["run1", "run2"],
             str(session_b): ["run1"],
@@ -426,20 +487,20 @@ class TestOutputsSelector:
 
     def test_collect_selected_outputs_empty_returns_empty_dict(self, bare_parameter_form):
         bare_parameter_form.outputs_selector.value = []
-        assert bare_parameter_form._collect_selected_outputs() == {}
+        assert bare_parameter_form._collect_selected_runs() == {}
 
     def test_validate_selected_outputs_raises_when_session_has_dirs_but_none_selected(
         self, bare_parameter_form, tmp_path
     ):
         session = tmp_path / "sessionA"
         session.mkdir()
-        os.mkdir(output_dir_for_run(str(session), "baseline"))
+        os.mkdir(run_folder_for_run(str(session), "baseline"))
 
         bare_parameter_form.files_1.value = [str(session)]
         bare_parameter_form.outputs_selector.value = []
 
         with pytest.raises(ValueError, match="No output directory selected"):
-            bare_parameter_form.validate_selected_outputs_for_consumers()
+            bare_parameter_form.validate_selected_runs_for_consumers()
 
     def test_validate_selected_outputs_skips_sessions_without_output_dirs(self, bare_parameter_form, tmp_path):
         session = tmp_path / "sessionA"
@@ -447,24 +508,24 @@ class TestOutputsSelector:
         bare_parameter_form.files_1.value = [str(session)]
         bare_parameter_form.outputs_selector.value = []
 
-        bare_parameter_form.validate_selected_outputs_for_consumers()
+        bare_parameter_form.validate_selected_runs_for_consumers()
 
     def test_get_input_parameters_omits_run_name_keys(self, parameter_form):
         result = parameter_form.getInputParameters()
-        assert "runName" not in result
-        assert "runNamePolicy" not in result
+        assert "run_name" not in result
+        assert "run_name_policy" not in result
 
     def test_get_input_parameters_selected_outputs_reflects_selector(self, bare_parameter_form, tmp_path):
         session = tmp_path / "sessionA"
         session.mkdir()
-        run_dir = output_dir_for_run(str(session), "baseline")
+        run_dir = run_folder_for_run(str(session), "baseline")
         os.mkdir(run_dir)
 
         bare_parameter_form.files_1.value = [str(session)]
         bare_parameter_form.outputs_selector.value = [run_dir]
 
         result = bare_parameter_form.getInputParameters()
-        assert result["selectedOutputs"] == {str(session): ["baseline"]}
+        assert result["selected_runs"] == {str(session): ["baseline"]}
 
 
 class TestRebuildPerSessionWidgets:
@@ -472,8 +533,8 @@ class TestRebuildPerSessionWidgets:
         """When files_2 fires twice and the prior selection still exists, preserve it."""
         session = tmp_path / "sessionA"
         session.mkdir()
-        os.mkdir(output_dir_for_run(str(session), "run1"))
-        os.mkdir(output_dir_for_run(str(session), "run2"))
+        os.mkdir(run_folder_for_run(str(session), "run1"))
+        os.mkdir(run_folder_for_run(str(session), "run2"))
 
         bare_parameter_form.files_2.value = [str(session)]
         widget = bare_parameter_form.group_selected_outputs_widgets[str(session)]
@@ -489,8 +550,8 @@ class TestRebuildPerSessionWidgets:
         """When the prior selection no longer exists in run_names, fall back to the first option."""
         session = tmp_path / "sessionA"
         session.mkdir()
-        run1 = output_dir_for_run(str(session), "run1")
-        run2 = output_dir_for_run(str(session), "run2")
+        run1 = run_folder_for_run(str(session), "run1")
+        run2 = run_folder_for_run(str(session), "run2")
         os.mkdir(run1)
         os.mkdir(run2)
 
@@ -537,6 +598,10 @@ SAVED_PARAMETERS = {
     "guppy_version": "test-version",
     "combine_data": True,
     "isosbestic_control": False,
+    "control_fit_method": "OLS",
+    "controlFitWindowMode": "baseline epoch",
+    "controlFitWindowStart": 3,
+    "controlFitWindowEnd": 8,
     "timeForLightsTurnOn": 7,
     "filter_window": 42,
     "removeArtifacts": True,
@@ -568,7 +633,7 @@ SAVED_PARAMETERS = {
 
 def _write_run_with_parameters(session_dir, run_name, parameters):
     """Create an ``_output_<run>`` dir under session_dir holding a GuPPyParamtersUsed.json."""
-    run_dir = output_dir_for_run(str(session_dir), run_name)
+    run_dir = run_folder_for_run(str(session_dir), run_name)
     os.mkdir(run_dir)
     with open(os.path.join(run_dir, "GuPPyParamtersUsed.json"), "w") as parameters_file:
         json.dump(parameters, parameters_file)
@@ -632,7 +697,7 @@ class TestParameterAutoPopulate:
     def test_selecting_run_without_json_is_noop(self, bare_parameter_form, tmp_path):
         session = tmp_path / "sessionA"
         session.mkdir()
-        run_dir = output_dir_for_run(str(session), "fresh")
+        run_dir = run_folder_for_run(str(session), "fresh")
         os.mkdir(run_dir)
 
         default_time = bare_parameter_form.timeForLightsTurnOn.value

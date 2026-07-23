@@ -22,7 +22,7 @@ from guppy.extractors import base_recording_extractor as base_module
 from guppy.extractors.base_recording_extractor import _pool_initializer
 from guppy.frontend.progress import PB_STEPS_FILE, subprocess_main_handler, writeToFile
 from guppy.orchestration.save_parameters import save_parameters
-from guppy.utils.utils import load_npm_params, select_output_dirs
+from guppy.utils.utils import load_npm_params, select_run_folders
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,7 @@ def _group_events_by_extractor(event_to_extractor: dict, events: np.ndarray) -> 
     return {extractor: event_list for extractor, event_list in grouped.values()}
 
 
-def _build_event_to_extractor(*, folder_path: str, storesList: np.ndarray, inputParameters: dict[str, object]) -> dict:
+def _build_event_to_extractor(*, folder_path: str, store_array: np.ndarray, inputParameters: dict[str, object]) -> dict:
     """
     Build a mapping from event name to the extractor instance that owns it.
 
@@ -74,8 +74,8 @@ def _build_event_to_extractor(*, folder_path: str, storesList: np.ndarray, input
     ----------
     folder_path : str
         Path to the session folder.
-    storesList : np.ndarray, shape (2, n)
-        Row 0: original store names. Row 1: semantic labels.
+    store_array : np.ndarray, shape (2, n)
+        Row 0: store IDs. Row 1: store labels.
     inputParameters : dict
         Full pipeline input parameters (needed for NPM extractor configuration).
 
@@ -90,32 +90,34 @@ def _build_event_to_extractor(*, folder_path: str, storesList: np.ndarray, input
     if inputParameters is not None and inputParameters.get("mode") == "dandi":
         dandi_uri = inputParameters["dandi_uri_map"][folder_path]
         extractor = DandiNwbRecordingExtractor(folder_path=dandi_uri)
-        fmt_events, _ = DandiNwbRecordingExtractor.discover_events_and_flags(folder_path=dandi_uri)
-        for event in fmt_events:
+        format_events, _ = DandiNwbRecordingExtractor.discover_events_and_flags(folder_path=dandi_uri)
+        for event in format_events:
             event_to_extractor[event] = extractor
         return event_to_extractor
 
     num_ch = inputParameters["noChannels"]
     all_formats = detect_acquisition_formats(folder_path)
-    # Doric extractor requires a store-name→event-type mapping built from storesList
-    event_name_to_event_type = {storesList[0, col]: storesList[1, col] for col in range(storesList.shape[1])}
+    # Doric extractor requires a store-name→event-type mapping built from store_array
+    event_name_to_event_type = {
+        store_array[0, column_index]: store_array[1, column_index] for column_index in range(store_array.shape[1])
+    }
 
-    for fmt in sorted(all_formats):
-        if fmt == "nwb":
+    for acquisition_format in sorted(all_formats):
+        if acquisition_format == "nwb":
             extractor = NwbRecordingExtractor(folder_path=folder_path)
-            fmt_events, _ = NwbRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
-        elif fmt == "tdt":
+            format_events, _ = NwbRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+        elif acquisition_format == "tdt":
             extractor = TdtRecordingExtractor(folder_path=folder_path)
-            fmt_events, _ = TdtRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
-        elif fmt == "doric":
+            format_events, _ = TdtRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+        elif acquisition_format == "doric":
             extractor = DoricRecordingExtractor(
                 folder_path=folder_path, event_name_to_event_type=event_name_to_event_type
             )
-            fmt_events, _ = DoricRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
-        elif fmt == "csv":
+            format_events, _ = DoricRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+        elif acquisition_format == "csv":
             extractor = CsvRecordingExtractor(folder_path=folder_path)
-            fmt_events, _ = CsvRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
-        elif fmt == "npm":
+            format_events, _ = CsvRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+        elif acquisition_format == "npm":
             extractor = NpmRecordingExtractor(
                 folder_path=folder_path,
                 num_ch=num_ch,
@@ -123,13 +125,15 @@ def _build_event_to_extractor(*, folder_path: str, storesList: np.ndarray, input
                 npm_time_units=inputParameters.get("npm_time_units"),
                 npm_split_events=inputParameters.get("npm_split_events"),
             )
-            fmt_events, _ = NpmRecordingExtractor.discover_events_and_flags(
+            format_events, _ = NpmRecordingExtractor.discover_events_and_flags(
                 folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
             )
         else:
-            raise ValueError(f"Format not recognized: '{fmt}'. Expected one of 'nwb', 'tdt', 'csv', 'doric', 'npm'.")
+            raise ValueError(
+                f"Format not recognized: '{acquisition_format}'. Expected one of 'nwb', 'tdt', 'csv', 'doric', 'npm'."
+            )
 
-        for event in fmt_events:
+        for event in format_events:
             if event not in event_to_extractor:
                 event_to_extractor[event] = extractor
 
@@ -142,7 +146,7 @@ def orchestrate_read_raw_data(inputParameters: dict[str, object]) -> None:
     Parameters
     ----------
     inputParameters : dict
-        Full pipeline input parameters; uses ``folderNames``, ``numberOfCores``,
+        Full pipeline input parameters; uses ``session_folders``, ``numberOfCores``,
         and ``noChannels`` among other keys.
     """
     logger.debug("### Reading raw data... ###")
@@ -151,9 +155,9 @@ def orchestrate_read_raw_data(inputParameters: dict[str, object]) -> None:
     save_parameters(inputParameters=inputParameters)
     # get input parameters
     inputParameters = inputParameters
-    folderNames = inputParameters["folderNames"]
+    session_folders = inputParameters["session_folders"]
     numProcesses = inputParameters["numberOfCores"]
-    selected_outputs = inputParameters.get("selectedOutputs", {}) or {}
+    selected_runs = inputParameters.get("selected_runs", {}) or {}
     if numProcesses == 0:
         numProcesses = mp.cpu_count()
     elif numProcesses > mp.cpu_count():
@@ -169,16 +173,16 @@ def orchestrate_read_raw_data(inputParameters: dict[str, object]) -> None:
     # denominator and the worker pool.
     tasks = []
     total_samples = 0
-    for filepath in folderNames:
-        for op in select_output_dirs(filepath, selected_outputs.get(filepath)):
-            storesList = _load_stores_list(op)
-            events = np.unique(storesList[0, :])
-            # NPM decomposition params chosen in Step 2 are persisted in the output dir;
+    for filepath in session_folders:
+        for run_folder in select_run_folders(filepath, selected_runs.get(filepath)):
+            store_array = _load_stores_list(run_folder)
+            events = np.unique(store_array[0, :])
+            # NPM decomposition params chosen in Step 1 are persisted in the output dir;
             # merge them so the NPM extractor reproduces the same streams (e.g. split events).
-            effective_parameters = {**inputParameters, **load_npm_params(op)}
+            effective_parameters = {**inputParameters, **load_npm_params(run_folder)}
             event_to_extractor = _build_event_to_extractor(
                 folder_path=filepath,
-                storesList=storesList,
+                store_array=store_array,
                 inputParameters=effective_parameters,
             )
             event_total_samples = {}
@@ -203,7 +207,7 @@ def orchestrate_read_raw_data(inputParameters: dict[str, object]) -> None:
                     (
                         extractor,
                         grouped_events,
-                        op,
+                        run_folder,
                         {event: event_total_samples[event] for event in grouped_events},
                     )
                 )
@@ -228,9 +232,9 @@ def orchestrate_read_raw_data(inputParameters: dict[str, object]) -> None:
             # plumbing (and any test monkeypatches on the extractors) stays in scope.
             base_module._SAMPLES_DONE = samples_done
             try:
-                for extractor, grouped_events, output_dir, event_totals in tasks:
-                    logger.debug(f"### Reading raw data for {len(grouped_events)} event(s) into {output_dir}")
-                    read_and_save_events_for_extractor(extractor, grouped_events, output_dir, event_totals)
+                for extractor, grouped_events, run_folder, event_totals in tasks:
+                    logger.debug(f"### Reading raw data for {len(grouped_events)} event(s) into {run_folder}")
+                    read_and_save_events_for_extractor(extractor, grouped_events, run_folder, event_totals)
             finally:
                 base_module._SAMPLES_DONE = None
         else:
@@ -252,18 +256,18 @@ def orchestrate_read_raw_data(inputParameters: dict[str, object]) -> None:
     logger.info("#" * 400)
 
 
-def _load_stores_list(output_dir: str) -> np.ndarray:
+def _load_stores_list(run_folder: str) -> np.ndarray:
     """Load the storesList CSV from the output directory.
 
-    storesList is finalized in step 2 (including TDT split sub-events) and is no
+    store_array is finalized in step 1 (including TDT split sub-events) and is no
     longer mutated during extraction, so it is read directly.
     """
-    return np.genfromtxt(os.path.join(output_dir, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
+    return np.genfromtxt(os.path.join(run_folder, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
 
 
 @subprocess_main_handler
 def main(input_parameters: dict[str, object]) -> None:
-    """Subprocess entry point for step-3 raw-data extraction.
+    """Subprocess entry point for step-2 raw-data extraction.
 
     Parameters
     ----------

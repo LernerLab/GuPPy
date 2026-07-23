@@ -24,50 +24,50 @@ def _classify_csv_file(path: str) -> str:
     """
     df = pd.read_csv(path, header=None, nrows=2, index_col=False, dtype=str)
     df = df.dropna(axis=1, how="all")
-    df_arr = np.array(df).flatten()
-    non_numeric = [el for el in df_arr if not _is_float(el)]
+    header_values = np.array(df).flatten()
+    non_numeric = [value for value in header_values if not _is_float(value)]
 
     # Doric CSV files have a 2-line all-string header (metadata + units rows) with no
     # numeric values in the first two rows at all.
-    if len(non_numeric) == len(df_arr):
+    if len(non_numeric) == len(header_values):
         return "doric"
 
     # File has string headers (or numeric-only headers) — inspect column names to distinguish npm from csv.
     df = pd.read_csv(path, index_col=False)
-    colnames = list(df.columns)
+    column_names = list(df.columns)
 
     # Doric v2 files store numeric values as column headers; treat them as headerless.
-    if all(_is_float(c) for c in colnames):
+    if all(_is_float(name) for name in column_names):
         df = pd.read_csv(path, header=None)
-        cols = np.array(list(df.columns), dtype=str)
+        columns = np.array(list(df.columns), dtype=str)
     else:
-        cols = np.array(colnames, dtype=str)
+        columns = np.array(column_names, dtype=str)
 
-    if len(cols) == 1:
-        if cols[0].lower() != "timestamps":
+    if len(columns) == 1:
+        if columns[0].lower() != "timestamps":
             message = (
-                f"CSV file '{path}' has 1 column named '{cols[0]}', but the only-supported "
-                "single-column CSV format requires the column to be named 'timestamps' (lower case)."
+                f"CSV file '{path}' has 1 column named '{columns[0]}', but the only-supported "
+                "single-column CSV format requires the column to be named 'timestamps' (case-insensitive)."
             )
             logger.error(message)
             raise ValueError(message)
         return "csv"
-    elif len(cols) == 3:
-        arr1 = np.array(["timestamps", "data", "sampling_rate"])
-        arr2 = np.char.lower(cols)
-        if (np.sort(arr1) == np.sort(arr2)).all():
+    elif len(columns) == 3:
+        required_columns = np.array(["timestamps", "data", "sampling_rate"])
+        lowercase_columns = np.char.lower(columns)
+        if (np.sort(required_columns) == np.sort(lowercase_columns)).all():
             return "csv"
         message = (
-            f"CSV file '{path}' has columns {list(cols)}, but the 3-column CSV format "
-            "requires column names 'timestamps', 'data', 'sampling_rate' (all lower case)."
+            f"CSV file '{path}' has columns {list(columns)}, but the 3-column CSV format "
+            "requires column names 'timestamps', 'data', 'sampling_rate' (case-insensitive)."
         )
         logger.error(message)
         raise ValueError(message)
-    elif len(cols) >= 2:
+    elif len(columns) >= 2:
         return "npm"
     else:
         message = (
-            f"CSV file '{path}' has {len(cols)} columns, which is not a recognized layout. "
+            f"CSV file '{path}' has {len(columns)} columns, which is not a recognized layout. "
             "Expected 1 column ('timestamps'), 2 columns (NPM event/data), or 3 columns "
             "('timestamps', 'data', 'sampling_rate')."
         )
@@ -98,8 +98,8 @@ def _is_event_csv(path: str) -> bool:
     bool
     """
     df = pd.read_csv(path, nrows=0, index_col=False)
-    cols = list(df.columns)
-    return len(cols) == 1 and cols[0].lower() == "timestamps"
+    columns = list(df.columns)
+    return len(columns) == 1 and columns[0].lower() == "timestamps"
 
 
 def detect_acquisition_formats(folder_path: str) -> set[str]:
@@ -139,9 +139,9 @@ def detect_acquisition_formats(folder_path: str) -> set[str]:
     # Multi-column CSV files can be NPM, Doric CSV exports, or 3-column data_csv files.
     # NPM demultiplexes its raw files in memory and never writes intermediates to the
     # folder, so each modality is detected independently of the others here.
-    non_event_csv_paths = [p for p in csv_paths if not _is_event_csv(p)]
+    non_event_csv_paths = [csv_path for csv_path in csv_paths if not _is_event_csv(csv_path)]
     if non_event_csv_paths:
-        labels = {_classify_csv_file(p) for p in non_event_csv_paths}
+        labels = {_classify_csv_file(csv_path) for csv_path in non_event_csv_paths}
         if "npm" in labels:
             formats.add("npm")
         if "doric" in labels:
@@ -152,7 +152,7 @@ def detect_acquisition_formats(folder_path: str) -> set[str]:
     # Single-column timestamp CSVs are genuine external TTL files read by
     # CsvRecordingExtractor. NpmRecordingExtractor owns its own event streams in
     # memory, so single-column files no longer originate from NPM processing.
-    if any(_is_event_csv(p) for p in csv_paths):
+    if any(_is_event_csv(csv_path) for csv_path in csv_paths):
         formats.add("csv")
 
     return formats

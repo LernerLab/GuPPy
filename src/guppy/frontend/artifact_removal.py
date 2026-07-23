@@ -4,6 +4,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
+from ..analysis.io_utils import recording_site_from_channel_label
 from ..visualization.preprocessing import visualize_control_signal_fit
 
 logger = logging.getLogger(__name__)
@@ -38,7 +39,9 @@ class ArtifactRemovalWidget:
         if (y1 == 0).all() == True:
             y1 = np.zeros(x.shape[0])
 
-        coords_path = os.path.join(filepath, "coordsForPreProcessing_" + plot_name[0].split("_")[-1] + ".npy")
+        coords_path = os.path.join(
+            filepath, "coordsForPreProcessing_" + recording_site_from_channel_label(plot_name[0]) + ".npy"
+        )
         artifacts_have_been_removed = removeArtifacts and os.path.exists(coords_path)
         name = os.path.basename(filepath)
         self.fig, self.ax1, self.ax2, self.ax3 = visualize_control_signal_fit(
@@ -81,7 +84,7 @@ class ArtifactRemovalWidget:
     def _on_close(self, _event: object) -> None:
         """Handle figure close event by saving coordinates and cleaning up."""
         if self.coords and len(self.coords) > 0:
-            name_1 = self.plot_name[0].split("_")[-1]
+            name_1 = recording_site_from_channel_label(self.plot_name[0])
             np.save(os.path.join(self.filepath, "coordsForPreProcessing_" + name_1 + ".npy"), self.coords)
             logger.info(
                 f"Coordinates file saved at {os.path.join(self.filepath, 'coordsForPreProcessing_'+name_1+'.npy')}"

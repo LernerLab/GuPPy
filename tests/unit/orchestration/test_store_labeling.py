@@ -5,18 +5,17 @@ import types
 import numpy as np
 import panel as pn
 import pytest
-from conftest import STUBBED_TESTING_DATA
 
-import guppy.orchestration.storenames as storenames_module
 from guppy.extractors import NpmRecordingExtractor
-from guppy.orchestration.storenames import (
+from guppy.orchestration.store_labeling import (
     _compute_npm_channel_previews,
     _fetchValues,
     _save,
-    build_storenames_template,
+    build_store_labeling_template,
     make_dir,
     show_dir,
 )
+from guppy_test_data import STUBBED_TESTING_DATA
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -29,7 +28,7 @@ def make_widget(value):
 
 
 class FakePath:
-    """Replaces pathlib.Path in storenames so cache writes go to tmp_path."""
+    """Replaces pathlib.Path in store_ids so cache writes go to tmp_path."""
 
     _home = None
 
@@ -42,7 +41,7 @@ class FakePath:
 def isolated_cache(tmp_path, monkeypatch):
     """Redirect Path.home() to tmp_path so _save never touches ~/.storesList.json."""
     FakePath._home = tmp_path
-    monkeypatch.setattr("guppy.orchestration.storenames.Path", FakePath)
+    monkeypatch.setattr("guppy.orchestration.store_labeling.Path", FakePath)
     return tmp_path
 
 
@@ -179,12 +178,12 @@ def test_show_dir_invalid_run_name_raises(tmp_path):
 
 def test_save_writes_storeslist_csv(isolated_cache):
     select_location = str(isolated_cache / "session1_output_1")
-    storenames_data = {
-        "storenames": ["Dv1A", "Dv2A", "PulA"],
-        "names_for_storenames": ["control_DMS", "signal_DMS", "event1"],
+    store_labeling_config = {
+        "store_ids": ["Dv1A", "Dv2A", "PulA"],
+        "store_labels": ["control_DMS", "signal_DMS", "event1"],
     }
 
-    result = _save(storenames_data, select_location)
+    result = _save(store_labeling_config, select_location)
 
     assert result == "#### No alerts !!"
     assert os.path.exists(os.path.join(select_location, "storesList.csv"))
@@ -192,12 +191,12 @@ def test_save_writes_storeslist_csv(isolated_cache):
 
 def test_save_csv_content_matches_input(isolated_cache):
     select_location = str(isolated_cache / "session1_output_1")
-    storenames_data = {
-        "storenames": ["Dv1A", "Dv2A", "PulA"],
-        "names_for_storenames": ["control_DMS", "signal_DMS", "event1"],
+    store_labeling_config = {
+        "store_ids": ["Dv1A", "Dv2A", "PulA"],
+        "store_labels": ["control_DMS", "signal_DMS", "event1"],
     }
 
-    _save(storenames_data, select_location)
+    _save(store_labeling_config, select_location)
 
     loaded = np.loadtxt(os.path.join(select_location, "storesList.csv"), delimiter=",", dtype=str)
     np.testing.assert_array_equal(loaded[0], ["Dv1A", "Dv2A", "PulA"])
@@ -206,12 +205,12 @@ def test_save_csv_content_matches_input(isolated_cache):
 
 def test_save_returns_alert_when_shapes_mismatch(isolated_cache):
     select_location = str(isolated_cache / "session1_output_1")
-    storenames_data = {
-        "storenames": ["Dv1A", "Dv2A"],
-        "names_for_storenames": ["control_DMS"],  # length mismatch
+    store_labeling_config = {
+        "store_ids": ["Dv1A", "Dv2A"],
+        "store_labels": ["control_DMS"],  # length mismatch
     }
 
-    result = _save(storenames_data, select_location)
+    result = _save(store_labeling_config, select_location)
 
     assert "Alert" in result
     # Both lengths should be reported in the alert
@@ -221,27 +220,27 @@ def test_save_returns_alert_when_shapes_mismatch(isolated_cache):
 
 def test_save_returns_alert_when_empty_string_in_names(isolated_cache):
     select_location = str(isolated_cache / "session1_output_1")
-    storenames_data = {
-        "storenames": ["Dv1A", "Dv2A"],
-        "names_for_storenames": ["control_DMS", ""],  # empty string at index 1
+    store_labeling_config = {
+        "store_ids": ["Dv1A", "Dv2A"],
+        "store_labels": ["control_DMS", ""],  # empty string at index 1
     }
 
-    result = _save(storenames_data, select_location)
+    result = _save(store_labeling_config, select_location)
 
     assert "Alert" in result
-    # Alert should name the offending index and storename
+    # Alert should name the offending index and store_id
     assert "index 1" in result
     assert "Dv2A" in result
 
 
 def test_save_returns_alert_listing_multiple_empty_indices(isolated_cache):
     select_location = str(isolated_cache / "session1_output_1")
-    storenames_data = {
-        "storenames": ["Dv1A", "Dv2A", "Dv3A"],
-        "names_for_storenames": ["", "control_DMS", ""],
+    store_labeling_config = {
+        "store_ids": ["Dv1A", "Dv2A", "Dv3A"],
+        "store_labels": ["", "control_DMS", ""],
     }
 
-    result = _save(storenames_data, select_location)
+    result = _save(store_labeling_config, select_location)
 
     assert "Alert" in result
     # Multiple indices listed
@@ -252,12 +251,12 @@ def test_save_returns_alert_listing_multiple_empty_indices(isolated_cache):
 
 def test_save_updates_cache_file(isolated_cache):
     select_location = str(isolated_cache / "session1_output_1")
-    storenames_data = {
-        "storenames": ["Dv1A", "Dv2A"],
-        "names_for_storenames": ["control_DMS", "signal_DMS"],
+    store_labeling_config = {
+        "store_ids": ["Dv1A", "Dv2A"],
+        "store_labels": ["control_DMS", "signal_DMS"],
     }
 
-    _save(storenames_data, select_location)
+    _save(store_labeling_config, select_location)
 
     cache_path = isolated_cache / ".storesList.json"
     assert cache_path.exists()
@@ -284,12 +283,12 @@ def test_save_overwrites_clears_all_files_in_existing_dir(isolated_cache):
     for filename in stale_files:
         (select_location / filename).write_bytes(b"stale")
 
-    storenames_data = {
-        "storenames": ["Dv3A", "Dv4A"],
-        "names_for_storenames": ["signal_NAc", "control_NAc"],
+    store_labeling_config = {
+        "store_ids": ["Dv3A", "Dv4A"],
+        "store_labels": ["signal_NAc", "control_NAc"],
     }
 
-    result = _save(storenames_data, str(select_location))
+    result = _save(store_labeling_config, str(select_location))
 
     assert result == "#### No alerts !!"
     # Only the freshly written storesList.csv should remain.
@@ -306,12 +305,12 @@ def test_save_overwrites_removes_subdirectories(isolated_cache):
     subdir.mkdir()
     (subdir / "corr_event1.hdf5").write_bytes(b"stale")
 
-    storenames_data = {
-        "storenames": ["Dv3A", "Dv4A"],
-        "names_for_storenames": ["signal_NAc", "control_NAc"],
+    store_labeling_config = {
+        "store_ids": ["Dv3A", "Dv4A"],
+        "store_labels": ["signal_NAc", "control_NAc"],
     }
 
-    _save(storenames_data, str(select_location))
+    _save(store_labeling_config, str(select_location))
 
     assert not subdir.exists(), "Subdirectory should have been removed on overwrite"
 
@@ -321,12 +320,12 @@ def test_save_new_dir_creates_directory(isolated_cache):
     select_location = isolated_cache / "session1_output_1"
     assert not select_location.exists()
 
-    storenames_data = {
-        "storenames": ["Dv1A"],
-        "names_for_storenames": ["signal_DMS"],
+    store_labeling_config = {
+        "store_ids": ["Dv1A"],
+        "store_labels": ["signal_DMS"],
     }
 
-    result = _save(storenames_data, str(select_location))
+    result = _save(store_labeling_config, str(select_location))
 
     assert result == "#### No alerts !!"
     assert select_location.is_dir()
@@ -337,13 +336,19 @@ def test_save_new_dir_creates_directory(isolated_cache):
 # ---------------------------------------------------------------------------
 
 
-def _build_fetchValues_args(dropdown_values, textbox_values, text_value=None):
-    """Build the storename_dropdowns, storename_textboxes, and text widget."""
-    storenames = list(dropdown_values.keys())
-    storename_dropdowns = {key: make_widget(dropdown_values[key]) for key in storenames}
-    storename_textboxes = {key: make_widget(textbox_values[key]) for key in storenames}
-    text = make_widget(text_value if text_value is not None else storenames)
-    return text, storenames, storename_dropdowns, storename_textboxes
+def _build_fetchValues_args(dropdown_values, textbox_values=None, control_refs=None, text_value=None):
+    """Build the store_id_dropdowns, store_id_textboxes, store_id_control_refs, and text widget.
+
+    ``control_refs`` maps a control store's key → the signal store's key it pairs with.
+    """
+    store_ids = list(dropdown_values.keys())
+    textbox_values = textbox_values or {}
+    control_refs = control_refs or {}
+    store_id_dropdowns = {key: make_widget(dropdown_values[key]) for key in store_ids}
+    store_id_textboxes = {key: make_widget(textbox_values.get(key, "")) for key in store_ids}
+    store_id_control_refs = {key: make_widget(control_refs.get(key, "")) for key in store_ids}
+    text = make_widget(text_value if text_value is not None else store_ids)
+    return text, store_ids, store_id_dropdowns, store_id_textboxes, store_id_control_refs
 
 
 def _fetch_isosbestic(*args, **kwargs):
@@ -352,183 +357,212 @@ def _fetch_isosbestic(*args, **kwargs):
     return _fetchValues(*args, **kwargs)
 
 
-def test_fetchValues_returns_alert_when_storenames_empty():
+def test_fetchValues_returns_alert_when_store_ids_empty():
     text = make_widget([])
-    storenames = []
-    storename_dropdowns = {}
-    storename_textboxes = {}
-    result = _fetchValues(text, storenames, storename_dropdowns, storename_textboxes, {})
+    result = _fetchValues(text, [], {}, {}, {}, {})
     assert "Alert" in result
 
 
-def test_fetchValues_returns_alert_when_whitespace_in_textbox():
-    text, storenames, dropdowns, textboxes = _build_fetchValues_args(
-        dropdown_values={"Dv1A": "control"},
-        textbox_values={"Dv1A": "DMS region"},  # space in name
+def test_fetchValues_returns_alert_when_whitespace_in_signal_name():
+    text, store_ids, dropdowns, textboxes, control_refs = _build_fetchValues_args(
+        dropdown_values={"Dv2A": "signal"},
+        textbox_values={"Dv2A": "DMS region"},  # space in name
     )
-    result = _fetchValues(text, storenames, dropdowns, textboxes, {})
+    result = _fetchValues(text, store_ids, dropdowns, textboxes, control_refs, {})
     assert "Alert" in result
 
 
 def test_fetchValues_returns_alert_when_required_textbox_empty():
-    text, storenames, dropdowns, textboxes = _build_fetchValues_args(
-        dropdown_values={"Dv1A": "control"},
-        textbox_values={"Dv1A": ""},  # empty textbox for required role
+    text, store_ids, dropdowns, textboxes, control_refs = _build_fetchValues_args(
+        dropdown_values={"Dv2A": "signal"},
+        textbox_values={"Dv2A": ""},  # empty name for required role
     )
-    result = _fetchValues(text, storenames, dropdowns, textboxes, {})
+    result = _fetchValues(text, store_ids, dropdowns, textboxes, control_refs, {})
     assert "Alert" in result
 
 
-def test_fetchValues_returns_alert_when_underscore_in_region_name():
-    text, storenames, dropdowns, textboxes = _build_fetchValues_args(
-        dropdown_values={"Dv1A": "control"},
-        textbox_values={"Dv1A": "DMS_region"},  # underscore in region name
-    )
-    result = _fetchValues(text, storenames, dropdowns, textboxes, {})
-    assert "Alert" in result
-
-
-def test_fetchValues_valid_control_entry_sets_correct_name():
-    text, storenames, dropdowns, textboxes = _build_fetchValues_args(
-        dropdown_values={"Dv1A": "control"},
-        textbox_values={"Dv1A": "DMS"},
-        text_value=["Dv1A"],
+def test_fetchValues_allows_underscore_in_recording_site_name():
+    """Underscores in a recording-site name are now allowed (issue #383)."""
+    text, store_ids, dropdowns, textboxes, control_refs = _build_fetchValues_args(
+        dropdown_values={"Dv2A": "signal"},
+        textbox_values={"Dv2A": "left_hemisphere"},
+        text_value=["Dv2A"],
     )
     result_dict = {}
-    result = _fetchValues(text, storenames, dropdowns, textboxes, result_dict)
+    result = _fetchValues(text, store_ids, dropdowns, textboxes, control_refs, result_dict)
     assert result == "#### No alerts !!"
-    assert result_dict["names_for_storenames"] == ["control_DMS"]
+    assert result_dict["store_labels"] == ["signal_left_hemisphere"]
+
+
+def test_fetchValues_returns_alert_when_control_has_no_signal_assigned():
+    text, store_ids, dropdowns, textboxes, control_refs = _build_fetchValues_args(
+        dropdown_values={"Dv1A": "control"},
+        control_refs={"Dv1A": ""},  # no signal selected
+    )
+    result = _fetchValues(text, store_ids, dropdowns, textboxes, control_refs, {})
+    assert "Alert" in result
+    assert "control" in result.lower()
+
+
+def test_fetchValues_control_inherits_referenced_signal_name():
+    text, store_ids, dropdowns, textboxes, control_refs = _build_fetchValues_args(
+        dropdown_values={"Dv2A": "signal", "Dv1A": "control"},
+        textbox_values={"Dv2A": "DMS"},
+        control_refs={"Dv1A": "Dv2A"},
+        text_value=["Dv2A", "Dv1A"],
+    )
+    result_dict = {}
+    result = _fetchValues(text, store_ids, dropdowns, textboxes, control_refs, result_dict)
+    assert result == "#### No alerts !!"
+    assert result_dict["store_labels"] == ["signal_DMS", "control_DMS"]
+
+
+def test_fetchValues_control_inherits_underscore_signal_name():
+    """A control pairs with a signal whose name contains underscores, with no double entry."""
+    text, store_ids, dropdowns, textboxes, control_refs = _build_fetchValues_args(
+        dropdown_values={"Dv2A": "signal", "Dv1A": "control"},
+        textbox_values={"Dv2A": "d_ms"},
+        control_refs={"Dv1A": "Dv2A"},
+        text_value=["Dv2A", "Dv1A"],
+    )
+    result_dict = {}
+    result = _fetchValues(text, store_ids, dropdowns, textboxes, control_refs, result_dict)
+    assert result == "#### No alerts !!"
+    assert result_dict["store_labels"] == ["signal_d_ms", "control_d_ms"]
 
 
 def test_fetchValues_valid_signal_entry_sets_correct_name():
-    text, storenames, dropdowns, textboxes = _build_fetchValues_args(
+    text, store_ids, dropdowns, textboxes, control_refs = _build_fetchValues_args(
         dropdown_values={"Dv2A": "signal"},
         textbox_values={"Dv2A": "DMS"},
         text_value=["Dv2A"],
     )
     result_dict = {}
-    result = _fetchValues(text, storenames, dropdowns, textboxes, result_dict)
+    result = _fetchValues(text, store_ids, dropdowns, textboxes, control_refs, result_dict)
     assert result == "#### No alerts !!"
-    assert result_dict["names_for_storenames"] == ["signal_DMS"]
+    assert result_dict["store_labels"] == ["signal_DMS"]
 
 
 def test_fetchValues_valid_event_ttls_uses_textbox_value():
-    text, storenames, dropdowns, textboxes = _build_fetchValues_args(
+    text, store_ids, dropdowns, textboxes, control_refs = _build_fetchValues_args(
         dropdown_values={"PulA": "event TTLs"},
         textbox_values={"PulA": "lever_press"},
         text_value=["PulA"],
     )
     result_dict = {}
-    result = _fetchValues(text, storenames, dropdowns, textboxes, result_dict)
+    result = _fetchValues(text, store_ids, dropdowns, textboxes, control_refs, result_dict)
     assert result == "#### No alerts !!"
-    assert result_dict["names_for_storenames"] == ["lever_press"]
+    assert result_dict["store_labels"] == ["lever_press"]
 
 
 def test_fetchValues_non_standard_dropdown_uses_dropdown_value():
     """Dropdown values other than control/signal/event TTLs use the dropdown value directly."""
-    text, storenames, dropdowns, textboxes = _build_fetchValues_args(
+    text, store_ids, dropdowns, textboxes, control_refs = _build_fetchValues_args(
         dropdown_values={"PulA": "exclude"},
-        textbox_values={"PulA": ""},  # empty textbox — not required for non-standard roles
         text_value=["PulA"],
     )
     result_dict = {}
-    result = _fetchValues(text, storenames, dropdowns, textboxes, result_dict)
+    result = _fetchValues(text, store_ids, dropdowns, textboxes, control_refs, result_dict)
     assert result == "#### No alerts !!"
-    assert result_dict["names_for_storenames"] == ["exclude"]
+    assert result_dict["store_labels"] == ["exclude"]
 
 
-def test_fetchValues_returns_alert_when_duplicate_names_for_storenames():
-    text, storenames, dropdowns, textboxes = _build_fetchValues_args(
-        dropdown_values={"Dv1A": "control", "Dv2A": "control", "Dv3A": "signal", "Dv4A": "signal"},
-        textbox_values={"Dv1A": "DMS", "Dv2A": "DMS", "Dv3A": "DMS", "Dv4A": "DMS"},
-        text_value=["Dv1A", "Dv2A", "Dv3A", "Dv4A"],
+def test_fetchValues_returns_alert_when_duplicate_signal_names():
+    text, store_ids, dropdowns, textboxes, control_refs = _build_fetchValues_args(
+        dropdown_values={"Dv3A": "signal", "Dv4A": "signal"},
+        textbox_values={"Dv3A": "DMS", "Dv4A": "DMS"},
+        text_value=["Dv3A", "Dv4A"],
     )
-    result = _fetchValues(text, storenames, dropdowns, textboxes, {})
+    result = _fetchValues(text, store_ids, dropdowns, textboxes, control_refs, {})
+    assert "Alert" in result
+    assert "Duplicate signal" in result
+    assert "DMS" in result
+
+
+def test_fetchValues_returns_alert_when_two_controls_share_a_signal():
+    text, store_ids, dropdowns, textboxes, control_refs = _build_fetchValues_args(
+        dropdown_values={"Dv2A": "signal", "Dv1A": "control", "Dv0A": "control"},
+        textbox_values={"Dv2A": "DMS"},
+        control_refs={"Dv1A": "Dv2A", "Dv0A": "Dv2A"},
+        text_value=["Dv2A", "Dv1A", "Dv0A"],
+    )
+    result = _fetchValues(text, store_ids, dropdowns, textboxes, control_refs, {})
     assert "Alert" in result
     assert "Duplicate" in result
     assert "control_DMS" in result
 
 
 def test_fetchValues_returns_alert_when_duplicate_event_ttls():
-    text, storenames, dropdowns, textboxes = _build_fetchValues_args(
+    text, store_ids, dropdowns, textboxes, control_refs = _build_fetchValues_args(
         dropdown_values={"PulA": "event TTLs", "PulB": "event TTLs"},
         textbox_values={"PulA": "lever_press", "PulB": "lever_press"},
         text_value=["PulA", "PulB"],
     )
-    result = _fetchValues(text, storenames, dropdowns, textboxes, {})
+    result = _fetchValues(text, store_ids, dropdowns, textboxes, control_refs, {})
     assert "Alert" in result
     assert "Duplicate" in result
     assert "lever_press" in result
 
 
-def test_fetchValues_isosbestic_alert_when_signal_region_has_no_matching_control():
-    text, storenames, dropdowns, textboxes = _build_fetchValues_args(
+def test_fetchValues_isosbestic_alert_when_signal_has_no_control():
+    text, store_ids, dropdowns, textboxes, control_refs = _build_fetchValues_args(
         dropdown_values={"Dv1A": "control", "Dv2A": "signal", "Dv3A": "signal"},
-        textbox_values={"Dv1A": "DMS", "Dv2A": "DMS", "Dv3A": "NAc"},
+        textbox_values={"Dv2A": "DMS", "Dv3A": "NAc"},
+        control_refs={"Dv1A": "Dv2A"},  # only DMS has a control
         text_value=["Dv1A", "Dv2A", "Dv3A"],
     )
-    result = _fetch_isosbestic(text, storenames, dropdowns, textboxes, {})
+    result = _fetch_isosbestic(text, store_ids, dropdowns, textboxes, control_refs, {})
     assert "Alert" in result
-    assert "Mismatched" in result
-    assert "NAc" in result
-
-
-def test_fetchValues_isosbestic_alert_when_control_region_has_no_matching_signal():
-    text, storenames, dropdowns, textboxes = _build_fetchValues_args(
-        dropdown_values={"Dv1A": "control", "Dv2A": "control", "Dv3A": "signal"},
-        textbox_values={"Dv1A": "DMS", "Dv2A": "NAc", "Dv3A": "DMS"},
-        text_value=["Dv1A", "Dv2A", "Dv3A"],
-    )
-    result = _fetch_isosbestic(text, storenames, dropdowns, textboxes, {})
-    assert "Alert" in result
-    assert "Mismatched" in result
+    assert "no control" in result
     assert "NAc" in result
 
 
 def test_fetchValues_isosbestic_matched_pairs_pass():
-    text, storenames, dropdowns, textboxes = _build_fetchValues_args(
+    text, store_ids, dropdowns, textboxes, control_refs = _build_fetchValues_args(
         dropdown_values={"Dv1A": "control", "Dv2A": "signal", "Dv3A": "control", "Dv4A": "signal"},
-        textbox_values={"Dv1A": "DMS", "Dv2A": "DMS", "Dv3A": "NAc", "Dv4A": "NAc"},
+        textbox_values={"Dv2A": "DMS", "Dv4A": "NAc"},
+        control_refs={"Dv1A": "Dv2A", "Dv3A": "Dv4A"},
         text_value=["Dv1A", "Dv2A", "Dv3A", "Dv4A"],
     )
     result_dict = {}
-    result = _fetch_isosbestic(text, storenames, dropdowns, textboxes, result_dict)
+    result = _fetch_isosbestic(text, store_ids, dropdowns, textboxes, control_refs, result_dict)
     assert result == "#### No alerts !!"
-    assert result_dict["names_for_storenames"] == ["control_DMS", "signal_DMS", "control_NAc", "signal_NAc"]
+    assert result_dict["store_labels"] == ["control_DMS", "signal_DMS", "control_NAc", "signal_NAc"]
 
 
 def test_fetchValues_non_isosbestic_allows_signal_only():
     """When isosbestic_control is False, a signal without a matching control is valid."""
-    text, storenames, dropdowns, textboxes = _build_fetchValues_args(
+    text, store_ids, dropdowns, textboxes, control_refs = _build_fetchValues_args(
         dropdown_values={"Dv2A": "signal", "Dv3A": "signal"},
         textbox_values={"Dv2A": "DMS", "Dv3A": "NAc"},
         text_value=["Dv2A", "Dv3A"],
     )
     result_dict = {}
-    result = _fetchValues(text, storenames, dropdowns, textboxes, result_dict, isosbestic_control=False)
+    result = _fetchValues(text, store_ids, dropdowns, textboxes, control_refs, result_dict, isosbestic_control=False)
     assert result == "#### No alerts !!"
-    assert result_dict["names_for_storenames"] == ["signal_DMS", "signal_NAc"]
+    assert result_dict["store_labels"] == ["signal_DMS", "signal_NAc"]
 
 
-def test_fetchValues_populates_storenames_from_text_value():
-    text_value = ["Dv1A", "Dv2A"]
-    text, storenames, dropdowns, textboxes = _build_fetchValues_args(
-        dropdown_values={"Dv1A": "control", "Dv2A": "signal"},
-        textbox_values={"Dv1A": "DMS", "Dv2A": "DMS"},
+def test_fetchValues_populates_store_ids_from_text_value():
+    text_value = ["Dv2A", "Dv1A"]
+    text, store_ids, dropdowns, textboxes, control_refs = _build_fetchValues_args(
+        dropdown_values={"Dv2A": "signal", "Dv1A": "control"},
+        textbox_values={"Dv2A": "DMS"},
+        control_refs={"Dv1A": "Dv2A"},
         text_value=text_value,
     )
     result_dict = {}
-    _fetchValues(text, storenames, dropdowns, textboxes, result_dict)
-    assert result_dict["storenames"] == text_value
+    _fetchValues(text, store_ids, dropdowns, textboxes, control_refs, result_dict)
+    assert result_dict["store_ids"] == text_value
 
 
 # ---------------------------------------------------------------------------
-# build_storenames_template on-click closures
+# build_store_labeling_template on-click closures
 # ---------------------------------------------------------------------------
 
 
-class CapturingStorenamesSelector:
-    """Minimal fake StorenamesSelector that captures on-click closures without rendering Panel."""
+class CapturingStoreLabelingSelector:
+    """Minimal fake StoreLabelingSelector that captures on-click closures without rendering Panel."""
 
     def __init__(self, allnames):
         self.text = types.SimpleNamespace(value=[])
@@ -542,7 +576,11 @@ class CapturingStorenamesSelector:
         self._take_widgets = [[], []]
         self._select_location_value = ""
         self.widget = types.SimpleNamespace()
-        self.configure_storenames_calls = []
+        self.store_ids = []
+        self.store_id_dropdowns = {}
+        self.store_id_textboxes = {}
+        self.store_id_control_refs = {}
+        self.configure_store_ids_calls = []
 
     def set_select_location_options(self, options):
         self.select_location_options = options
@@ -553,8 +591,8 @@ class CapturingStorenamesSelector:
     def get_literal_input_2(self):
         return self._literal_input_2
 
-    def set_literal_input_2(self, storenames_config):
-        self._literal_input_2 = storenames_config
+    def set_literal_input_2(self, store_labeling_config):
+        self._literal_input_2 = store_labeling_config
 
     def get_take_widgets(self):
         return self._take_widgets
@@ -583,13 +621,13 @@ class CapturingStorenamesSelector:
     def get_overwrite_mode(self):
         return getattr(self, "_overwrite_mode_value", "create_new_file")
 
-    def configure_storenames(self, storename_dropdowns, storename_textboxes, storenames, storenames_cache):
-        self.configure_storenames_calls.append(
-            {"storenames": list(storenames), "storenames_cache": dict(storenames_cache)}
+    def configure_store_ids(self, store_id_to_store_labels):
+        self.configure_store_ids_calls.append(
+            {"store_ids": list(self.store_ids), "store_id_to_store_labels": dict(store_id_to_store_labels)}
         )
 
 
-class FakeStorenamesInstructions:
+class FakeStoreLabelingInstructions:
     def __init__(self, folder_path=None):
         self.widget = types.SimpleNamespace()
 
@@ -600,31 +638,31 @@ class FakeBootstrapTemplate:
 
 
 @pytest.fixture
-def storenames_closures(tmp_path, monkeypatch, panel_extension):
-    """Build build_storenames_template with faked UI; return (selector, folder_path).
+def store_labeling_closures(tmp_path, monkeypatch, panel_extension):
+    """Build build_store_labeling_template with faked UI; return (selector, folder_path).
 
     selector.callbacks maps button names to their on-click closure functions.
     """
     FakePath._home = tmp_path
-    monkeypatch.setattr("guppy.orchestration.storenames.Path", FakePath)
+    monkeypatch.setattr("guppy.orchestration.store_labeling.Path", FakePath)
 
     folder = tmp_path / "my_session"
     folder.mkdir()
 
     captured_selector = None
 
-    class TrackingSelector(CapturingStorenamesSelector):
+    class TrackingSelector(CapturingStoreLabelingSelector):
         def __init__(self, allnames):
             super().__init__(allnames)
             nonlocal captured_selector
             captured_selector = self
 
-    monkeypatch.setattr("guppy.orchestration.storenames.StorenamesSelector", TrackingSelector)
-    monkeypatch.setattr("guppy.orchestration.storenames.StorenamesInstructions", FakeStorenamesInstructions)
+    monkeypatch.setattr("guppy.orchestration.store_labeling.StoreLabelingSelector", TrackingSelector)
+    monkeypatch.setattr("guppy.orchestration.store_labeling.StoreLabelingInstructions", FakeStoreLabelingInstructions)
     monkeypatch.setattr(pn.template, "BootstrapTemplate", FakeBootstrapTemplate)
     monkeypatch.setattr(pn, "Row", lambda *args, **kwargs: None)
 
-    build_storenames_template(["Dv1A", "Dv2A", "PulA"], [], str(folder))
+    build_store_labeling_template(["Dv1A", "Dv2A", "PulA"], [], str(folder))
 
     return captured_selector, str(folder)
 
@@ -634,8 +672,8 @@ def storenames_closures(tmp_path, monkeypatch, panel_extension):
 # ---------------------------------------------------------------------------
 
 
-def test_overwrite_button_actions_create_new_file_sets_next_output_dir(storenames_closures):
-    selector, folder_path = storenames_closures
+def test_overwrite_button_actions_create_new_file_sets_next_output_dir(store_labeling_closures):
+    selector, folder_path = store_labeling_closures
     overwrite_button_actions = selector.callbacks["overwrite_button"]
 
     overwrite_button_actions(types.SimpleNamespace(new="create_new_file"))
@@ -644,16 +682,16 @@ def test_overwrite_button_actions_create_new_file_sets_next_output_dir(storename
     assert selector.select_location_options == [expected]
 
 
-def test_overwrite_button_actions_over_write_file_returns_existing_output_dirs(storenames_closures):
-    selector, folder_path = storenames_closures
+def test_overwrite_button_actions_over_write_file_returns_existing_output_dirs(store_labeling_closures):
+    selector, folder_path = store_labeling_closures
     overwrite_button_actions = selector.callbacks["overwrite_button"]
 
-    output_dir = os.path.join(folder_path, "my_session_output_1")
-    os.mkdir(output_dir)
+    run_folder = os.path.join(folder_path, "my_session_output_1")
+    os.mkdir(run_folder)
 
     overwrite_button_actions(types.SimpleNamespace(new="over_write_file"))
 
-    assert selector.select_location_options == [output_dir]
+    assert selector.select_location_options == [run_folder]
 
 
 # ---------------------------------------------------------------------------
@@ -661,8 +699,8 @@ def test_overwrite_button_actions_over_write_file_returns_existing_output_dirs(s
 # ---------------------------------------------------------------------------
 
 
-def test_run_name_input_changed_no_op_when_not_create_new_file(storenames_closures):
-    selector, _ = storenames_closures
+def test_run_name_input_changed_no_op_when_not_create_new_file(store_labeling_closures):
+    selector, _ = store_labeling_closures
     selector._overwrite_mode_value = "over_write_file"
     selector.select_location_options = "untouched"
 
@@ -672,8 +710,8 @@ def test_run_name_input_changed_no_op_when_not_create_new_file(storenames_closur
     assert selector.alert_message is None
 
 
-def test_run_name_input_changed_updates_select_location_options(storenames_closures):
-    selector, folder_path = storenames_closures
+def test_run_name_input_changed_updates_select_location_options(store_labeling_closures):
+    selector, folder_path = store_labeling_closures
     selector._overwrite_mode_value = "create_new_file"
 
     selector.run_name_callback(types.SimpleNamespace(new="myrun"))
@@ -683,8 +721,8 @@ def test_run_name_input_changed_updates_select_location_options(storenames_closu
     assert selector.alert_message == "#### No alerts !!"
 
 
-def test_run_name_input_changed_empty_string_falls_back_to_numeric(storenames_closures):
-    selector, folder_path = storenames_closures
+def test_run_name_input_changed_empty_string_falls_back_to_numeric(store_labeling_closures):
+    selector, folder_path = store_labeling_closures
     selector._overwrite_mode_value = "create_new_file"
 
     selector.run_name_callback(types.SimpleNamespace(new=""))
@@ -693,8 +731,8 @@ def test_run_name_input_changed_empty_string_falls_back_to_numeric(storenames_cl
     assert selector.select_location_options == [expected]
 
 
-def test_run_name_input_changed_invalid_run_name_sets_alert(storenames_closures):
-    selector, _ = storenames_closures
+def test_run_name_input_changed_invalid_run_name_sets_alert(store_labeling_closures):
+    selector, _ = store_labeling_closures
     selector._overwrite_mode_value = "create_new_file"
 
     selector.run_name_callback(types.SimpleNamespace(new="bad/name"))
@@ -709,18 +747,18 @@ def test_run_name_input_changed_invalid_run_name_sets_alert(storenames_closures)
 # ---------------------------------------------------------------------------
 
 
-def test_fetch_values_sets_alert_message_when_no_storenames_configured(storenames_closures, monkeypatch):
-    selector, _ = storenames_closures
-    monkeypatch.setattr(storenames_module, "storenames", [], raising=False)
+def test_fetch_values_sets_alert_message_when_no_store_ids_configured(store_labeling_closures):
+    selector, _ = store_labeling_closures
+    selector.store_ids = []
 
     selector.callbacks["show_config_button"](types.SimpleNamespace())
 
     assert "Alert" in selector.alert_message
 
 
-def test_fetch_values_always_calls_set_literal_input_2(storenames_closures, monkeypatch):
-    selector, _ = storenames_closures
-    monkeypatch.setattr(storenames_module, "storenames", [], raising=False)
+def test_fetch_values_always_calls_set_literal_input_2(store_labeling_closures):
+    selector, _ = store_labeling_closures
+    selector.store_ids = []
 
     selector.callbacks["show_config_button"](types.SimpleNamespace())
 
@@ -728,26 +766,26 @@ def test_fetch_values_always_calls_set_literal_input_2(storenames_closures, monk
     assert selector._literal_input_2 == {}
 
 
-def test_fetch_values_delegates_to_fetch_values_function(storenames_closures, monkeypatch):
-    """fetchValues passes the module-level storenames to _fetchValues and relays results to the selector."""
-    selector, _ = storenames_closures
-    monkeypatch.setattr(storenames_module, "storenames", ["Dv1A"], raising=False)
+def test_fetch_values_delegates_to_fetch_values_function(store_labeling_closures, monkeypatch):
+    """fetchValues passes the selector's store_ids to _fetchValues and relays results to the selector."""
+    selector, _ = store_labeling_closures
+    selector.store_ids = ["Dv1A"]
 
     captured_args = {}
 
-    def fake_fetch_values(text, storenames, storename_dropdowns, storename_textboxes, storenames_config, **kwargs):
-        captured_args["storenames"] = list(storenames)
-        storenames_config["storenames"] = storenames
-        storenames_config["names_for_storenames"] = ["control_DMS"]
+    def fake_fetch_values(text, store_ids, store_id_dropdowns, store_id_textboxes, store_labeling_config, **kwargs):
+        captured_args["store_ids"] = list(store_ids)
+        store_labeling_config["store_ids"] = store_ids
+        store_labeling_config["store_labels"] = ["control_DMS"]
         return "#### No alerts !!"
 
-    monkeypatch.setattr("guppy.orchestration.storenames._fetchValues", fake_fetch_values)
+    monkeypatch.setattr("guppy.orchestration.store_labeling._fetchValues", fake_fetch_values)
 
     selector.callbacks["show_config_button"](types.SimpleNamespace())
 
-    assert captured_args["storenames"] == ["Dv1A"]
+    assert captured_args["store_ids"] == ["Dv1A"]
     assert selector.alert_message == "#### No alerts !!"
-    assert selector._literal_input_2["names_for_storenames"] == ["control_DMS"]
+    assert selector._literal_input_2["store_labels"] == ["control_DMS"]
 
 
 # ---------------------------------------------------------------------------
@@ -755,18 +793,18 @@ def test_fetch_values_delegates_to_fetch_values_function(storenames_closures, mo
 # ---------------------------------------------------------------------------
 
 
-def test_update_values_sets_storenames_from_cross_selector(storenames_closures):
-    selector, _ = storenames_closures
+def test_update_values_sets_store_ids_from_cross_selector(store_labeling_closures):
+    selector, _ = store_labeling_closures
     selector._cross_selector_value = ["Dv1A", "Dv2A"]
-    selector._take_widgets = [[], []]  # no repeated storenames
+    selector._take_widgets = [[], []]  # no repeated store_ids
 
     selector.callbacks["update_options"](types.SimpleNamespace())
 
     assert selector.change_widgets_value == ["Dv1A", "Dv2A"]
 
 
-def test_update_values_includes_repeated_storenames(storenames_closures):
-    selector, _ = storenames_closures
+def test_update_values_includes_repeated_store_ids(store_labeling_closures):
+    selector, _ = store_labeling_closures
     selector._cross_selector_value = ["Dv2A"]
     selector._take_widgets = [["Dv1A"], [2]]  # Dv1A repeated twice
 
@@ -775,19 +813,19 @@ def test_update_values_includes_repeated_storenames(storenames_closures):
     assert selector.change_widgets_value == ["Dv2A", "Dv1A", "Dv1A"]
 
 
-def test_update_values_calls_configure_storenames_with_selected_storenames(storenames_closures):
-    selector, _ = storenames_closures
+def test_update_values_calls_configure_store_ids_with_selected_store_ids(store_labeling_closures):
+    selector, _ = store_labeling_closures
     selector._cross_selector_value = ["Dv1A", "PulA"]
     selector._take_widgets = [[], []]
 
     selector.callbacks["update_options"](types.SimpleNamespace())
 
-    assert len(selector.configure_storenames_calls) == 1
-    assert selector.configure_storenames_calls[0]["storenames"] == ["Dv1A", "PulA"]
+    assert len(selector.configure_store_ids_calls) == 1
+    assert selector.configure_store_ids_calls[0]["store_ids"] == ["Dv1A", "PulA"]
 
 
-def test_update_values_loads_storenames_cache_when_json_file_exists(storenames_closures, tmp_path):
-    selector, _ = storenames_closures
+def test_update_values_loads_store_ids_cache_when_json_file_exists(store_labeling_closures, tmp_path):
+    selector, _ = store_labeling_closures
     selector._cross_selector_value = ["Dv1A"]
     selector._take_widgets = [[], []]
 
@@ -798,11 +836,11 @@ def test_update_values_loads_storenames_cache_when_json_file_exists(storenames_c
 
     selector.callbacks["update_options"](types.SimpleNamespace())
 
-    assert selector.configure_storenames_calls[0]["storenames_cache"] == cache
+    assert selector.configure_store_ids_calls[0]["store_id_to_store_labels"] == cache
 
 
-def test_update_values_passes_empty_cache_when_no_json_file_exists(storenames_closures, tmp_path):
-    selector, _ = storenames_closures
+def test_update_values_passes_empty_cache_when_no_json_file_exists(store_labeling_closures, tmp_path):
+    selector, _ = store_labeling_closures
     selector._cross_selector_value = ["Dv1A"]
     selector._take_widgets = [[], []]
     # Ensure no cache file exists
@@ -811,7 +849,7 @@ def test_update_values_passes_empty_cache_when_no_json_file_exists(storenames_cl
 
     selector.callbacks["update_options"](types.SimpleNamespace())
 
-    assert selector.configure_storenames_calls[0]["storenames_cache"] == {}
+    assert selector.configure_store_ids_calls[0]["store_id_to_store_labels"] == {}
 
 
 # ---------------------------------------------------------------------------
@@ -819,34 +857,34 @@ def test_update_values_passes_empty_cache_when_no_json_file_exists(storenames_cl
 # ---------------------------------------------------------------------------
 
 
-def test_save_button_writes_storeslist_and_updates_path(storenames_closures, tmp_path):
-    selector, _ = storenames_closures
-    output_dir = str(tmp_path / "my_session_output_1")
-    os.mkdir(output_dir)
+def test_save_button_writes_storeslist_and_updates_path(store_labeling_closures, tmp_path):
+    selector, _ = store_labeling_closures
+    run_folder = str(tmp_path / "my_session_output_1")
+    os.mkdir(run_folder)
 
     selector._literal_input_2 = {
-        "storenames": ["Dv1A", "Dv2A"],
-        "names_for_storenames": ["control_DMS", "signal_DMS"],
+        "store_ids": ["Dv1A", "Dv2A"],
+        "store_labels": ["control_DMS", "signal_DMS"],
     }
-    selector._select_location_value = output_dir
+    selector._select_location_value = run_folder
 
     selector.callbacks["save"](None)
 
     assert selector.alert_message == "#### No alerts !!"
-    assert selector.path_value == os.path.join(output_dir, "storesList.csv")
-    assert os.path.exists(os.path.join(output_dir, "storesList.csv"))
+    assert selector.path_value == os.path.join(run_folder, "storesList.csv")
+    assert os.path.exists(os.path.join(run_folder, "storesList.csv"))
 
 
-def test_save_button_sets_alert_on_mismatched_lengths(storenames_closures, tmp_path):
-    selector, _ = storenames_closures
-    output_dir = str(tmp_path / "my_session_output_1")
-    os.mkdir(output_dir)
+def test_save_button_sets_alert_on_mismatched_lengths(store_labeling_closures, tmp_path):
+    selector, _ = store_labeling_closures
+    run_folder = str(tmp_path / "my_session_output_1")
+    os.mkdir(run_folder)
 
     selector._literal_input_2 = {
-        "storenames": ["Dv1A"],
-        "names_for_storenames": ["control_DMS", "signal_DMS"],  # length mismatch
+        "store_ids": ["Dv1A"],
+        "store_labels": ["control_DMS", "signal_DMS"],  # length mismatch
     }
-    selector._select_location_value = output_dir
+    selector._select_location_value = run_folder
 
     selector.callbacks["save"](None)
 
@@ -861,7 +899,7 @@ def test_save_button_sets_alert_on_mismatched_lengths(storenames_closures, tmp_p
 def test_compute_npm_channel_previews_aligns_ragged_channel_lengths():
     # sampleData_NPM_4 interleaves unevenly: chod has one more sample than chev, so chod
     # borrows chev's (shorter) timestamps. The preview must align x/y to equal length,
-    # otherwise hv.Curve raises a DataError in the Step-2 GUI.
+    # otherwise hv.Curve raises a DataError in the Step-1 GUI.
     folder_path = os.path.join(STUBBED_TESTING_DATA, "npm", "sampleData_NPM_4")
     input_parameters = {"noChannels": 2}
 

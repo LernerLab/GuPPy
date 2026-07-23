@@ -62,29 +62,29 @@ def test_combine_data_single_filepath_produces_correct_output_keys(tmp_path):
     (session_dir / "control_dms.hdf5").touch()
     (session_dir / "signal_dms.hdf5").touch()
 
-    storesList = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
+    store_array = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
     filepath = str(session_dir)
     timestamps = np.array([0.0, 1.0, 2.0, 3.0])
 
     pair_name_to_filepath_to_timestamps = {"dms": {filepath: timestamps.copy()}}
-    display_name_to_filepath_to_data = {
+    store_label_to_filepath_to_data = {
         "control_dms": {filepath: np.ones(4)},
         "signal_dms": {filepath: np.ones(4) * 2.0},
     }
     compound_name_to_filepath_to_ttl_timestamps = {"TTL1_dms": {filepath: np.array([1.5, 2.5])}}
 
-    pair_name_to_tsNew, display_name_to_data, compound_name_to_ttl = combine_data(
+    pair_name_to_tsNew, store_label_to_data, compound_name_to_ttl = combine_data(
         filepaths_to_combine=[filepath],
         pair_name_to_filepath_to_timestamps=pair_name_to_filepath_to_timestamps,
-        display_name_to_filepath_to_data=display_name_to_filepath_to_data,
+        store_label_to_filepath_to_data=store_label_to_filepath_to_data,
         compound_name_to_filepath_to_ttl_timestamps=compound_name_to_filepath_to_ttl_timestamps,
         timeForLightsTurnOn=0.0,
-        storesList=storesList,
+        store_array=store_array,
         sampling_rate=100.0,
     )
 
     assert "dms" in pair_name_to_tsNew
-    assert "control_dms" in display_name_to_data
-    assert "signal_dms" in display_name_to_data
+    assert "control_dms" in store_label_to_data
+    assert "signal_dms" in store_label_to_data
     assert "TTL1_dms" in compound_name_to_ttl
-    assert display_name_to_data["control_dms"].shape[0] == 4
+    assert store_label_to_data["control_dms"].shape[0] == 4

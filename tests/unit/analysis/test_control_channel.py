@@ -83,7 +83,7 @@ def test_add_control_channel_raises_when_two_signals_match_one_control(tmp_path)
 
 def test_add_control_channel_raises_when_isosbestic_disabled_but_unmatched_control_present(tmp_path):
     # control_dms with no matching signal_dms — when isosbestic_control is False,
-    # this means the storesList is malformed.
+    # this means the store_array is malformed.
     arr = np.array([["ctrl0"], ["control_dms"]])
     with pytest.raises(ValueError, match=r"Isosbestic control channel parameter is set to False"):
         add_control_channel(str(tmp_path), arr)

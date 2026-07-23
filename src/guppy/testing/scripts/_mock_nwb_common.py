@@ -1,43 +1,15 @@
-"""Generate a mock NWB file for testing the NWB recording extractor with ndx-events v0.4.
+"""Shared ndx-fiber-photometry v0.2 hardware-metadata boilerplate for the mock-NWB generators.
 
-IMPORTANT: This script must be run with ndx-fiber-photometry==0.2.3 and ndx-events==0.4.0 installed.
-
-To run, create the isolated conda environment defined alongside this script:
-    conda env create -f src/guppy/testing/scripts/environment_ndx_fiber_photometry_v0_2_ndx_events_v0_4.yaml
-    conda activate guppy_ndx_fiber_photometry_v0_2_ndx_events_v0_4
-
-Then run from the project root:
-    python src/guppy/testing/scripts/create_mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_4.py
-
-The output is written to
-stubbed_testing_data/nwb/mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_4/mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_4.nwb,
-relative to the repository root. The directory is created if it does not exist.
-
-The file contains:
-- FiberPhotometryResponseSeries with 3000 samples at 30 Hz across 2 channels (control, signal)
-- EventsTable named "simple_events" (timestamps 45–54 s, no categorical columns)
-  → discovers as one event "simple_events"
-- EventsTable named "categorized_events" with a CategoricalVectorData column "event_type"
-  containing meanings "Reward" (timestamps 41–45 s) and "Punishment" (timestamps 55–59 s)
-  → discovers as two events "categorized_events_event_type_Reward"
-  and "categorized_events_event_type_Punishment"
+Imported as a sibling module by the ``create_mock_nwbfile_ndx_fiber_photometry_v0_2_*`` scripts
+(the script's own directory is on ``sys.path`` when run as ``python .../create_mock_...py``), so it
+must only depend on the same isolated-environment packages those scripts use — ndx-fiber-photometry
+0.2.x, ndx-ophys-devices, and pynwb — never on Guppy itself.
 """
 
-import datetime
-from pathlib import Path
-
-import numpy as np
 from hdmf.common import DynamicTableRegion
-from ndx_events import (
-    CategoricalVectorData,
-    EventsTable,
-    MeaningsTable,
-    NdxEventsNWBFile,
-)
 from ndx_fiber_photometry import (
     FiberPhotometry,
     FiberPhotometryIndicators,
-    FiberPhotometryResponseSeries,
     FiberPhotometryTable,
     FiberPhotometryViruses,
     FiberPhotometryVirusInjections,
@@ -58,20 +30,10 @@ from ndx_ophys_devices import (
     ViralVector,
     ViralVectorInjection,
 )
-from pynwb import NWBHDF5IO
-
-# Output path relative to this script's location (repo_root/stubbed_testing_data/nwb/...)
-_REPO_ROOT = Path(__file__).resolve().parents[4]
-_OUTPUT_PATH = (
-    _REPO_ROOT
-    / "stubbed_testing_data"
-    / "nwb"
-    / "mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_4"
-    / "mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_4.nwb"
-)
+from pynwb import NWBFile
 
 
-def _add_ndx_fiber_photometry_metadata(nwbfile: NdxEventsNWBFile) -> DynamicTableRegion:
+def add_ndx_fiber_photometry_metadata(nwbfile: NWBFile) -> DynamicTableRegion:
     """Add all ndx-fiber-photometry hardware metadata to *nwbfile*.
 
     This boilerplate is required to produce a valid NWBFile, but Guppy only
@@ -80,7 +42,7 @@ def _add_ndx_fiber_photometry_metadata(nwbfile: NdxEventsNWBFile) -> DynamicTabl
 
     Parameters
     ----------
-    nwbfile : NdxEventsNWBFile
+    nwbfile : NWBFile
         The file to populate in-place.
 
     Returns
@@ -282,72 +244,3 @@ def _add_ndx_fiber_photometry_metadata(nwbfile: NdxEventsNWBFile) -> DynamicTabl
     )
 
     return fiber_photometry_table_region
-
-
-def main() -> None:
-    """Create and write a mock NWB file using ndx-fiber-photometry v0.2 and ndx-events v0.4."""
-    nwbfile = NdxEventsNWBFile(
-        session_description="Mock session for NWB extractor testing (ndx-events v0.4).",
-        identifier="mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_4",
-        session_start_time=datetime.datetime.now(datetime.timezone.utc),
-    )
-
-    # Build ndx-fiber-photometry boilerplate (required for a valid NWB file,
-    # but Guppy only reads the FiberPhotometryResponseSeries and events below).
-    fiber_photometry_table_region = _add_ndx_fiber_photometry_metadata(nwbfile)
-
-    # --- FiberPhotometryResponseSeries: 3000 samples at 30 Hz, 2 channels (control, signal) ---
-    nwbfile.add_acquisition(
-        FiberPhotometryResponseSeries(
-            name="fiber_photometry_response_series",
-            description="Mock fluorescence traces: 3000 samples at 30 Hz, 2 channels (control, signal).",
-            data=np.random.randn(3000, 2),
-            unit="n.a.",
-            rate=30.0,
-            fiber_photometry_table_region=fiber_photometry_table_region,
-        )
-    )
-
-    # --- Simple EventsTable: timestamps 45–54 s, no categorical columns ---
-    # Discovers as a single event named "simple_events".
-    simple_events = EventsTable(name="simple_events", description="Mock events with no categorical columns.")
-    for timestamp in np.arange(45, 55, dtype=np.float64):
-        simple_events.add_row(timestamp=timestamp)
-    nwbfile.add_events_table(simple_events)
-
-    # --- Categorical EventsTable: timestamps 41–59 s, two meanings ---
-    # A CategoricalVectorData column "event_type" with values "Reward" and "Punishment".
-    # Discovers as "categorized_events_event_type_Reward" and
-    # "categorized_events_event_type_Punishment".
-    event_type_meanings = MeaningsTable(
-        name="event_type_meanings",
-        description="Meanings for the event_type column.",
-    )
-    event_type_meanings.add_row(value="Reward", meaning="Times when the subject received juice reward.")
-    event_type_meanings.add_row(value="Punishment", meaning="Times when the subject received a mild shock.")
-
-    categorized_events = EventsTable(
-        name="categorized_events",
-        description="Mock events with a categorical event_type column.",
-        meanings_tables=[event_type_meanings],
-    )
-    categorized_events.add_column(
-        name="event_type",
-        description="Categorical label for each event.",
-        col_cls=CategoricalVectorData,
-        meanings=event_type_meanings,
-    )
-    for timestamp in np.arange(41, 46, dtype=np.float64):
-        categorized_events.add_row(timestamp=timestamp, event_type="Reward")
-    for timestamp in np.arange(55, 60, dtype=np.float64):
-        categorized_events.add_row(timestamp=timestamp, event_type="Punishment")
-    nwbfile.add_events_table(categorized_events)
-
-    _OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with NWBHDF5IO(_OUTPUT_PATH, "w") as io:
-        io.write(nwbfile)
-    print(f"Mock NWB file written to {_OUTPUT_PATH}")
-
-
-if __name__ == "__main__":
-    main()

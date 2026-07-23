@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "guppy-neuro"
-version = "2.0.0-alpha7"
+version = "2.0.0-alpha9"
 description = "Guided Photometry Analysis in Python, a free and open-source fiber photometry data analysis tool."
 readme = "README.md"
 authors = [
@@ -53,8 +53,9 @@ dependencies = [
     "panel",
     "param",
     "platformdirs",
-    "pynwb",
+    "pynwb>=4",
     "scipy",
+    "statsmodels",
     "tables",
     "selenium",
     "dandi",
@@ -134,10 +135,12 @@ fixable = ["ALL"]
 [tool.ruff.lint.per-file-ignores]
 "**__init__.py" = ["F401", "I", "D1"]  # We are not enforcing import or docstring rules in __init__'s
 "test_**.py" = ["D1", "ANN"] # We are not enforcing docstring or type hint rules in test files.
+"**conftest.py" = ["D1", "ANN"] # conftest.py is test infrastructure; same exemption as test files.
+"**recording_extractor_test_mixin.py" = ["D1", "ANN"] # shared test mixin; test infrastructure, same exemption as test files.
 
 [tool.ruff.lint.isort]
 relative-imports-order = "closest-to-furthest"
-known-first-party = ["guppy"]
+known-first-party = ["guppy", "guppy_test_data"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"
@@ -154,6 +157,10 @@ sigterm = true
 branch = true
 
 [tool.pytest.ini_options]
+# Put the tests/ dir on sys.path (relative to rootdir, before collection) so shared test
+# modules like guppy_test_data are importable no matter which directory pytest is invoked from.
+# src is intentionally omitted: guppy is editable-installed, so adding src would shadow it.
+pythonpath = ["tests"]
 markers = [
     "full_data: marks tests that require the full testing_data download (deselect with '-m not full_data')",
     "parallel: marks tests that verify GuPPy multiprocessing behavior (run separately from the main suite)",

@@ -50,7 +50,7 @@ class TestDandiLiveContract(NwbRecordingExtractorTestMixin):
     control_event = "fiber_photometry_response_series_0"
     signal_event = "fiber_photometry_response_series_1"
     # TTL event matches one of the behavior events mapped in
-    # scripts/dandi_streaming_prototype.py's STORENAMES_MAP for this asset.
+    # scripts/dandi_streaming_prototype.py's STORE_ID_TO_STORE_LABEL for this asset.
     ttl_event = "right_nose_poke_times"
 
     @pytest.fixture

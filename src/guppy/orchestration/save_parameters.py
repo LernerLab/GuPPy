@@ -3,7 +3,7 @@ import logging
 import os
 from importlib.metadata import version
 
-from guppy.utils.utils import discover_output_dirs, select_output_dirs
+from guppy.utils.utils import discover_run_folders, select_run_folders
 
 logger = logging.getLogger(__name__)
 
@@ -12,11 +12,12 @@ def save_parameters(inputParameters: dict[str, object]) -> None:
     """
     Write the analysis configuration JSON to each selected output directory.
 
-    For every session listed under ``inputParameters['folderNames']`` the
+    For every session listed under ``inputParameters['session_folders']`` the
     configuration is written into each output directory selected by the
-    ``selectedOutputs`` filter. When a session has no output directories yet
-    (e.g. the user clicked step 1 before step 2), the file is written at the
-    session root as a fallback so the legacy ordering still works.
+    ``selected_runs`` filter. When a session has no output directories yet
+    (e.g. parameters are saved before Label Stores (Step 1) creates any output
+    directories), the file is written at the session root as a fallback so the
+    legacy ordering still works.
 
     Parameters
     ----------
@@ -29,6 +30,10 @@ def save_parameters(inputParameters: dict[str, object]) -> None:
         "guppy_version": version("guppy-neuro"),
         "combine_data": inputParameters["combine_data"],
         "isosbestic_control": inputParameters["isosbestic_control"],
+        "control_fit_method": inputParameters["control_fit_method"],
+        "controlFitWindowMode": inputParameters["controlFitWindowMode"],
+        "controlFitWindowStart": inputParameters["controlFitWindowStart"],
+        "controlFitWindowEnd": inputParameters["controlFitWindowEnd"],
         "timeForLightsTurnOn": inputParameters["timeForLightsTurnOn"],
         "filter_window": inputParameters["filter_window"],
         "removeArtifacts": inputParameters["removeArtifacts"],
@@ -56,17 +61,17 @@ def save_parameters(inputParameters: dict[str, object]) -> None:
         "visualize_zscore_or_dff": inputParameters["visualize_zscore_or_dff"],
         "averageForGroup": inputParameters["averageForGroup"],
     }
-    selected_outputs = inputParameters.get("selectedOutputs") or {}
-    for session in inputParameters["folderNames"]:
-        # Fall back to the session root when no output dirs exist yet so step 1
-        # can still run before step 2 (legacy ordering).
-        if not discover_output_dirs(session):
+    selected_runs = inputParameters.get("selected_runs") or {}
+    for session in inputParameters["session_folders"]:
+        # Fall back to the session root when no output dirs exist yet so parameter
+        # saving can still run before Label Stores (Step 1) creates output dirs.
+        if not discover_run_folders(session):
             destinations = [session]
         else:
-            destinations = select_output_dirs(session, selected_outputs.get(session))
+            destinations = select_run_folders(session, selected_runs.get(session))
         for destination in destinations:
-            with open(os.path.join(destination, "GuPPyParamtersUsed.json"), "w") as f:
-                json.dump(analysisParameters, f, indent=4)
+            with open(os.path.join(destination, "GuPPyParamtersUsed.json"), "w") as parameters_file:
+                json.dump(analysisParameters, parameters_file, indent=4)
             logger.info(f"Input Parameters file saved at {destination}")
 
     logger.info("#" * 400)

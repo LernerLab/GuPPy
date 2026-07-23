@@ -99,14 +99,14 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             # TODO: come up with a better name for npm_split_events that can be appropriately pluralized for a list
             npm_split_events = inputParameters.get("npm_split_events")
 
-        streams, flag_arr = cls._decompose_streams(
+        streams, flags = cls._decompose_streams(
             folder_path=folder_path,
             num_ch=num_ch,
             npm_timestamp_column_names=npm_timestamp_column_names,
             npm_time_units=npm_time_units,
             npm_split_events=npm_split_events,
         )
-        return list(streams.keys()), flag_arr
+        return list(streams.keys()), flags
 
     @classmethod
     def _decompose_streams(
@@ -159,7 +159,7 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
 
         path = sorted(list(set(path) - set(path_chev_chod_event)))
         # Exclude single-column timestamp CSVs — those are handled by CsvRecordingExtractor.
-        path = [p for p in path if not (p.endswith(".csv") and _is_event_csv(p))]
+        path = [csv_path for csv_path in path if not (csv_path.endswith(".csv") and _is_event_csv(csv_path))]
 
         streams: dict[str, dict[str, np.ndarray]] = {}
         # Track derived stream names in creation order so the cross-file channel
@@ -168,7 +168,7 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         chod_names: list[str] = []
         chpr_names: list[str] = []
         event_names: list[str] = []
-        flag_arr: list[str] = []
+        flags: list[str] = []
         ts_unit = "seconds"
         for i in range(len(path)):
             # TODO: validate npm_timestamp_column_names, npm_time_units, npm_split_events lengths
@@ -185,53 +185,53 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             else:
                 split_events = npm_split_events[i]
 
-            ext = os.path.basename(path[i]).split(".")[-1]
-            if ext == "doric":
+            extension = os.path.basename(path[i]).split(".")[-1]
+            if extension == "doric":
                 raise ValueError(f"Doric files are not supported by NpmRecordingExtractor; got '{path[i]}'.")
             df = pd.read_csv(path[i], header=None, nrows=2, index_col=False, dtype=str)
             df = df.dropna(axis=1, how="all")
-            df_arr = np.array(df).flatten()
+            header_values = np.array(df).flatten()
             check_all_str = []
-            for element in df_arr:
+            for element in header_values:
                 try:
                     float(element)
                 except:
                     check_all_str.append(i)
-            if len(check_all_str) == len(df_arr):
+            if len(check_all_str) == len(header_values):
                 raise ValueError(
                     f"CSV file '{path[i]}' appears to be a Doric .csv (all-string header rows). "
                     "NpmRecordingExtractor only supports NPM .csv files; use the Doric extractor instead."
                 )
             df = pd.read_csv(path[i], index_col=False)
-            _, value = cls._check_header(df)
+            _, numeric_headers = cls._check_header(df)
 
             # check dataframe structure and read data accordingly
-            if len(value) > 0:
+            if len(numeric_headers) > 0:
                 columns_isstr = False
                 df = pd.read_csv(path[i], header=None)
-                cols = np.array(list(df.columns), dtype=str)
+                columns = np.array(list(df.columns), dtype=str)
             else:
                 df = df
                 columns_isstr = True
-                cols = np.array(list(df.columns), dtype=str)
+                columns = np.array(list(df.columns), dtype=str)
             # check the structure of dataframe and assign flag to the type of file
-            if len(cols) == 1:
+            if len(columns) == 1:
                 raise ValueError(
                     f"CSV file '{path[i]}' has 1 column (event .csv layout). "
                     "NpmRecordingExtractor only supports NPM .csv files; use the standard CSV extractor for event timestamp files."
                 )
-            if len(cols) == 3:
+            if len(columns) == 3:
                 raise ValueError(
-                    f"CSV file '{path[i]}' has 3 columns {list(cols)} (data .csv layout). "
+                    f"CSV file '{path[i]}' has 3 columns {list(columns)} (data .csv layout). "
                     "NpmRecordingExtractor only supports NPM .csv files; use the standard CSV extractor for 3-column data files."
                 )
-            if len(cols) == 2:
+            if len(columns) == 2:
                 flag = "event_or_data_np"
-            elif len(cols) > 2:
+            elif len(columns) > 2:
                 flag = "data_np"
 
             if columns_isstr == True and (
-                "flags" in np.char.lower(np.array(cols)) or "ledstate" in np.char.lower(np.array(cols))
+                "flags" in np.char.lower(np.array(columns)) or "ledstate" in np.char.lower(np.array(columns))
             ):
                 flag = flag + "_v2"
             else:
@@ -239,20 +239,20 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
 
             # used assigned flags to process the files and read the data
             if flag == "event_or_data_np":
-                arr = list(df.iloc[:, 1])
-                check_float = [True for i in arr if isinstance(i, float)]
-                if len(arr) == len(check_float) and columns_isstr == False:
+                second_column_values = list(df.iloc[:, 1])
+                check_float = [True for value in second_column_values if isinstance(value, float)]
+                if len(second_column_values) == len(check_float) and columns_isstr == False:
                     flag = "data_np"
-                elif columns_isstr == True and ("value" in np.char.lower(np.array(cols))):
+                elif columns_isstr == True and ("value" in np.char.lower(np.array(columns))):
                     flag = "event_np"
                 else:
                     flag = "event_np"
 
-            flag_arr.append(flag)
+            flags.append(flag)
             logger.info(flag)
             if flag == "data_np":
-                file = f"file{str(i)}_"
-                df, indices_dict, _ = cls.decide_indices(file, df, flag, num_ch)
+                file_prefix = f"file{str(i)}_"
+                df, indices_dict, _ = cls.decide_indices(file_prefix, df, flag, num_ch)
                 keys = list(indices_dict.keys())
                 for k in range(len(keys)):
                     for j in range(df.shape[1]):
@@ -272,9 +272,9 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
                 if split_events:
                     timestamps = np.array(df.iloc[:, 0])
                     for j in range(len(type_val_unique)):
-                        idx = np.where(type_val == type_val_unique[j])
+                        matching_indices = np.where(type_val == type_val_unique[j])
                         name = "event" + str(type_val_unique[j])
-                        streams[name] = {"timestamps": np.asarray(timestamps[idx], dtype=float)}
+                        streams[name] = {"timestamps": np.asarray(timestamps[matching_indices], dtype=float)}
                         event_names.append(name)
                 else:
                     timestamps = np.array(df.iloc[:, 0])
@@ -282,10 +282,10 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
                     streams[name] = {"timestamps": np.asarray(timestamps, dtype=float)}
                     event_names.append(name)
             else:
-                file = f"file{str(i)}_"
+                file_prefix = f"file{str(i)}_"
                 ts_unit = npm_time_unit
                 df = cls._update_df_with_timestamp_columns(df, timestamp_column_name=npm_timestamp_column_name)
-                df, indices_dict, _ = cls.decide_indices(file, df, flag)
+                df, indices_dict, _ = cls.decide_indices(file_prefix, df, flag)
                 keys = list(indices_dict.keys())
                 for k in range(len(keys)):
                     for j in range(df.shape[1]):
@@ -301,8 +301,8 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
 
         # Normalize timestamps relative to the chev reference and compute sampling
         # rates. Only runs when at least one data channel is present.
-        if "data_np_v2" in flag_arr or "data_np" in flag_arr:
-            if "data_np_v2" in flag_arr:
+        if "data_np_v2" in flags or "data_np" in flags:
+            if "data_np_v2" in flags:
                 if ts_unit == "seconds":
                     divisor = 1
                 elif ts_unit == "milliseconds":
@@ -319,16 +319,16 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
                 for name in event_names:
                     streams[name]["timestamps"] = (streams[name]["timestamps"] - chev_reference_timestamp) / divisor
 
-            region_lengths = [len(names) for names in (chev_names, chod_names, chpr_names) if len(names) > 0]
-            if len(set(region_lengths)) > 1:
-                region_counts = {
+            channel_group_lengths = [len(names) for names in (chev_names, chod_names, chpr_names) if len(names) > 0]
+            if len(set(channel_group_lengths)) > 1:
+                channel_group_counts = {
                     "chev": len(chev_names),
                     "chod": len(chod_names),
                     "chpr": len(chpr_names),
                 }
                 message = (
-                    "Number of channel files must be the same for all regions. "
-                    f"Found per-region counts: {region_counts}."
+                    "Number of channel files must match across channel groups (chev/chod/chpr). "
+                    f"Found per-channel-group counts: {channel_group_counts}."
                 )
                 logger.error(message)
                 raise ValueError(message)
@@ -352,13 +352,13 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
                     chpr_stream["sampling_rate"] = np.array([sampling_rate])
 
         logger.info("Importing of NPM file is done.")
-        return streams, flag_arr
+        return streams, flags
 
     @staticmethod
     def _register_channel_name(
         name: str, channel_key: str, chev_names: list[str], chod_names: list[str], chpr_names: list[str]
     ) -> None:
-        """Append ``name`` to the creation-order list for its channel region."""
+        """Append ``name`` to the creation-order list for its channel group."""
         if "chev" in channel_key:
             chev_names.append(name)
         elif "chod" in channel_key:
@@ -405,14 +405,14 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         -------
         list of dict
             One dictionary per event. Data channels produce dicts with keys
-            ``storename``, ``timestamps``, ``data``, and ``sampling_rate``;
-            event streams produce dicts with keys ``storename`` and
+            ``store_id``, ``timestamps``, ``data``, and ``sampling_rate``;
+            event streams produce dicts with keys ``store_id`` and
             ``timestamps``.
         """
         streams = self.decompose()
         output_dicts = []
         for event in events:
-            output_dicts.append({"storename": event, **streams[event]})
+            output_dicts.append({"store_id": event, **streams[event]})
         return output_dicts
 
     def count_samples(self, *, event: str) -> int:
@@ -460,7 +460,7 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             else:
                 dataframe = df_probe
                 timestamp_column = next(
-                    (col for col in dataframe.columns if "timestamp" in col.lower()),
+                    (column for column in dataframe.columns if "timestamp" in column.lower()),
                     dataframe.columns[0],
                 )
                 has_text_header = True
@@ -495,27 +495,29 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         path_chev_chod_event = path_chev + path_chod + path_event + path_chpr
 
         path = sorted(list(set(path) - set(path_chev_chod_event)))
-        path = [p for p in path if not _is_event_csv(p)]  # Skip event CSVs, which are handled by CsvRecordingExtractor
+        path = [
+            csv_path for csv_path in path if not _is_event_csv(csv_path)
+        ]  # Skip event CSVs, which are handled by CsvRecordingExtractor
         multiple_event_ttls = []
         for i in range(len(path)):
             df = pd.read_csv(path[i], index_col=False)
-            _, value = cls._check_header(df)
+            _, numeric_headers = cls._check_header(df)
 
             # check dataframe structure and read data accordingly
-            if len(value) > 0:
+            if len(numeric_headers) > 0:
                 columns_isstr = False
                 df = pd.read_csv(path[i], header=None)
-                cols = np.array(list(df.columns), dtype=str)
+                columns = np.array(list(df.columns), dtype=str)
             else:
                 columns_isstr = True
-                cols = np.array(list(df.columns), dtype=str)
-            if len(cols) == 2:
+                columns = np.array(list(df.columns), dtype=str)
+            if len(columns) == 2:
                 flag = "event_or_data_np"
-            elif len(cols) > 2:
+            elif len(columns) > 2:
                 flag = "data_np"
             else:
                 message = (
-                    f"CSV file '{path[i]}' has {len(cols)} columns, which is not a recognized NPM layout. "
+                    f"CSV file '{path[i]}' has {len(columns)} columns, which is not a recognized NPM layout. "
                     "Expected 2+ columns."
                 )
                 logger.error(message)
@@ -523,11 +525,11 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
 
             # used assigned flags to process the files and read the data
             if flag == "event_or_data_np":
-                arr = list(df.iloc[:, 1])
-                check_float = [True for i in arr if isinstance(i, float)]
-                if len(arr) == len(check_float) and columns_isstr == False:
+                second_column_values = list(df.iloc[:, 1])
+                check_float = [True for value in second_column_values if isinstance(value, float)]
+                if len(second_column_values) == len(check_float) and columns_isstr == False:
                     flag = "data_np"
-                elif columns_isstr == True and ("value" in np.char.lower(np.array(cols))):
+                elif columns_isstr == True and ("value" in np.char.lower(np.array(columns))):
                     flag = "event_np"
                 else:
                     flag = "event_np"
@@ -548,7 +550,7 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
     # in neurophotometrics data
     @classmethod
     def decide_indices(
-        cls, file: str, df: pd.DataFrame, flag: str, num_ch: int = 2
+        cls, file_prefix: str, df: pd.DataFrame, flag: str, num_ch: int = 2
     ) -> tuple[pd.DataFrame, dict[str, np.ndarray], int]:
         """
         Determine the row indices belonging to each interleaved channel in NPM data.
@@ -559,7 +561,7 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
 
         Parameters
         ----------
-        file : str
+        file_prefix : str
             Filename prefix used to build per-channel keys (e.g. ``"file0_"``).
         df : pd.DataFrame
             NPM data DataFrame, with or without a text header.
@@ -579,8 +581,8 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         num_ch : int
             Actual number of channels detected.
         """
-        ch_name = [file + "chev", file + "chod", file + "chpr"]
-        if len(ch_name) < num_ch:
+        channel_keys = [file_prefix + "chev", file_prefix + "chod", file_prefix + "chpr"]
+        if len(channel_keys) < num_ch:
             message = (
                 f"Number of channels in the Input Parameters GUI is set to {num_ch}, which exceeds the "
                 "maximum of 3 channels supported for NPM files. Set 'Number of channels' to 3 or fewer "
@@ -591,31 +593,34 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         if flag == "data_np":
             indices_dict = dict()
             for i in range(num_ch):
-                indices_dict[ch_name[i]] = np.arange(i, df.shape[0], num_ch)
+                indices_dict[channel_keys[i]] = np.arange(i, df.shape[0], num_ch)
 
         else:
-            cols = np.array(list(df.columns))
-            if "flags" in np.char.lower(np.array(cols)):
-                arr = ["FrameCounter", "Flags"]
-                state = np.array(df["Flags"])
-            elif "ledstate" in np.char.lower(np.array(cols)):
-                arr = ["FrameCounter", "LedState"]
-                state = np.array(df["LedState"])
+            columns = np.array(list(df.columns))
+            # Detection matches these columns case-insensitively, so resolve the
+            # actual (possibly mixed-case) column names before indexing.
+            column_by_name = cls._column_by_lowercase_name(df)
+            if "flags" in column_by_name:
+                columns_to_drop = [column_by_name["framecounter"], column_by_name["flags"]]
+                state = np.array(df[column_by_name["flags"]])
+            elif "ledstate" in column_by_name:
+                columns_to_drop = [column_by_name["framecounter"], column_by_name["ledstate"]]
+                state = np.array(df[column_by_name["ledstate"]])
             else:
                 message = (
                     "File type indicates Neurophotometrics newer version data but the columns do not "
-                    f"contain a 'Flags' or 'LedState' column. Found columns: {list(cols)}."
+                    f"contain a 'Flags' or 'LedState' column. Found columns: {list(columns)}."
                 )
                 logger.error(message)
                 raise ValueError(message)
 
-            num_ch, ch = cls.check_channels(state)
+            num_ch, unique_states = cls.check_channels(state)
             indices_dict = dict()
             for i in range(num_ch):
-                first_occurrence = np.where(state == ch[i])[0]
-                indices_dict[ch_name[i]] = np.arange(first_occurrence[0], df.shape[0], num_ch)
+                first_occurrence = np.where(state == unique_states[i])[0]
+                indices_dict[channel_keys[i]] = np.arange(first_occurrence[0], df.shape[0], num_ch)
 
-            df = df.drop(arr, axis=1)
+            df = df.drop(columns_to_drop, axis=1)
 
         return df, indices_dict, num_ch
 
@@ -673,7 +678,7 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         ts_unit_needs : list of bool
             One entry per NPM data file. ``True`` if the file has multiple
             timestamp columns and requires unit disambiguation.
-        col_names_ts : list of str
+        timestamp_column_names : list of str
             Names of all timestamp-like columns found across the files.
         """
         path = sorted(glob.glob(os.path.join(folder_path, "*.csv"))) + sorted(
@@ -687,85 +692,89 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         path_chev_chod_event = path_chev + path_chod + path_event + path_chpr
 
         path = sorted(list(set(path) - set(path_chev_chod_event)))
-        path = [p for p in path if not _is_event_csv(p)]  # Skip event CSVs, which are handled by CsvRecordingExtractor
+        path = [
+            csv_path for csv_path in path if not _is_event_csv(csv_path)
+        ]  # Skip event CSVs, which are handled by CsvRecordingExtractor
         ts_unit_needs = []
-        col_names_ts = [""]
+        timestamp_column_names = [""]
         for i in range(len(path)):
             df = pd.read_csv(path[i], index_col=False)
-            _, value = cls._check_header(df)
+            _, numeric_headers = cls._check_header(df)
 
             # check dataframe structure and read data accordingly
-            if len(value) > 0:
+            if len(numeric_headers) > 0:
                 df = pd.read_csv(path[i], header=None)
-                cols = np.array(list(df.columns), dtype=str)
+                columns = np.array(list(df.columns), dtype=str)
                 columns_isstr = False
             else:
                 columns_isstr = True
-                cols = np.array(list(df.columns), dtype=str)
+                columns = np.array(list(df.columns), dtype=str)
             # check the structure of dataframe and assign flag to the type of file
-            if len(cols) == 2:
+            if len(columns) == 2:
                 flag = "event_or_data_np"
-            elif len(cols) > 2:
+            elif len(columns) > 2:
                 flag = "data_np"
             else:
                 message = (
-                    f"CSV file '{path[i]}' has {len(cols)} columns, which is not a recognized NPM layout. "
+                    f"CSV file '{path[i]}' has {len(columns)} columns, which is not a recognized NPM layout. "
                     "Expected 2+ columns."
                 )
                 logger.error(message)
                 raise ValueError(message)
 
             if columns_isstr == True and (
-                "flags" in np.char.lower(np.array(cols)) or "ledstate" in np.char.lower(np.array(cols))
+                "flags" in np.char.lower(np.array(columns)) or "ledstate" in np.char.lower(np.array(columns))
             ):
                 flag = flag + "_v2"
 
             # used assigned flags to process the files and read the data
             if flag == "event_or_data_np":
-                arr = list(df.iloc[:, 1])
-                check_float = [True for i in arr if isinstance(i, float)]
-                if len(arr) == len(check_float) and columns_isstr == False:
+                second_column_values = list(df.iloc[:, 1])
+                check_float = [True for value in second_column_values if isinstance(value, float)]
+                if len(second_column_values) == len(check_float) and columns_isstr == False:
                     flag = "data_np"
-                elif columns_isstr == True and ("value" in np.char.lower(np.array(cols))):
+                elif columns_isstr == True and ("value" in np.char.lower(np.array(columns))):
                     flag = "event_np"
                 else:
                     flag = "event_np"
 
             if flag == "data_np":
-                file = f"file{str(i)}_"
-                df, _, _ = cls.decide_indices(file, df, flag, num_ch)
+                file_prefix = f"file{str(i)}_"
+                df, _, _ = cls.decide_indices(file_prefix, df, flag, num_ch)
 
             if flag == "event_np" or flag == "data_np":
                 ts_unit_needs.append(False)
                 continue
 
-            col_names = np.array(list(df.columns))
-            for name in col_names:
+            column_names = np.array(list(df.columns))
+            for name in column_names:
                 if "timestamp" in name.lower():
-                    col_names_ts.append(name)
+                    timestamp_column_names.append(name)
 
-            if len(col_names_ts) > 2:
+            if len(timestamp_column_names) > 2:
                 ts_unit_needs.append(True)
             else:
                 ts_unit_needs.append(False)
 
-        return ts_unit_needs, col_names_ts
+        return ts_unit_needs, timestamp_column_names
 
     @staticmethod
     def _update_df_with_timestamp_columns(df: pd.DataFrame, timestamp_column_name: str | None) -> pd.DataFrame:
-        col_names = np.array(list(df.columns))
-        col_names_ts = [""]
-        for name in col_names:
+        column_names = np.array(list(df.columns))
+        timestamp_column_names = [""]
+        for name in column_names:
             if "timestamp" in name.lower():
-                col_names_ts.append(name)
-        if len(col_names_ts) <= 2:
+                timestamp_column_names.append(name)
+        if len(timestamp_column_names) <= 2:
             return df
 
-        timestamp_column_name = timestamp_column_name if timestamp_column_name is not None else col_names_ts[1]
-        if timestamp_column_name not in col_names_ts:
+        timestamp_column_name = (
+            timestamp_column_name if timestamp_column_name is not None else timestamp_column_names[1]
+        )
+        if timestamp_column_name not in timestamp_column_names:
             raise ValueError(
-                f"Provided timestamp_column_name '{timestamp_column_name}' not found in columns {col_names_ts[1:]}."
+                f"Provided timestamp_column_name '{timestamp_column_name}' not found in columns {timestamp_column_names[1:]}."
             )
         df.insert(1, "Timestamp", df[timestamp_column_name])
-        df = df.drop(col_names_ts[1:], axis=1)
+        df = df.drop(timestamp_column_names[1:], axis=1)
         return df

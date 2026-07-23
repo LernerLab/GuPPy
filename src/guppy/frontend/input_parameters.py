@@ -8,8 +8,10 @@ import panel as pn
 
 from .dandi_selector import DandiSelector
 from .frontend_utils import default_root_path
-from ..utils.utils import discover_output_dirs, parse_run_name
+from ..utils.utils import discover_run_folders, parse_run_name
 from ..utils.validation import (
+    validate_non_negative,
+    validate_positive,
     validate_required_folder_selection,
     validate_same_parent_directory,
 )
@@ -17,12 +19,12 @@ from ..utils.validation import (
 logger = logging.getLogger(__name__)
 
 
-def checkSameLocation(arr: list[str], abspath: object) -> str:
-    """Check that all paths in ``arr`` share the same parent directory.
+def checkSameLocation(paths: list[str], abspath: object) -> str:
+    """Check that all ``paths`` share the same parent directory.
 
     Parameters
     ----------
-    arr : sequence of str
+    paths : sequence of str
         Paths to validate.
     abspath : object
         Ignored; retained for backwards-compatibility with existing callers.
@@ -30,12 +32,12 @@ def checkSameLocation(arr: list[str], abspath: object) -> str:
     Returns
     -------
     str
-        The common parent directory of all paths in ``arr``.
+        The common parent directory of all ``paths``.
     """
     # abspath retained as a positional arg for backwards compatibility with existing
-    # callers; only the contents of arr are inspected.
+    # callers; only the contents of paths are inspected.
     del abspath
-    return validate_same_parent_directory(paths=list(arr))
+    return validate_same_parent_directory(paths=list(paths))
 
 
 def getAbsPath(files_1: pn.widgets.FileSelector, files_2: pn.widgets.FileSelector) -> str:
@@ -87,7 +89,7 @@ class ParameterForm:
         self.add_to_template()
         self.files_1.param.watch(self._retarget_outputs_selector, "value")
         self.files_2.param.watch(self._rebuild_group_selected_outputs_widgets, "value")
-        self.outputs_selector.param.watch(self._load_parameters_from_selected_outputs, "value")
+        self.outputs_selector.param.watch(self._load_parameters_from_selected_runs, "value")
 
     def setup_individual_parameters(self) -> None:
         """Build all widgets for the individual-analysis card and store them as instance attributes."""
@@ -120,7 +122,7 @@ class ParameterForm:
         )
         self.source_mode.param.watch(self._on_source_mode_change, "value")
 
-        self.files_1 = pn.widgets.FileSelector(self.folder_path, root_directory="/", name="folderNames", width=950)
+        self.files_1 = pn.widgets.FileSelector(self.folder_path, root_directory="/", name="session_folders", width=950)
 
         self.dandi_selector = DandiSelector(styles=self.styles)
         # Hidden by default; shown when source_mode == "dandi"
@@ -171,6 +173,26 @@ class ParameterForm:
             name="Isosbestic Control Channel? (bool)", value=True, options=[True, False], width=320
         )
 
+        self.control_fit_method = pn.widgets.Select(
+            name="Control Channel Fitting Method",
+            options=["IRWLS", "OLS"],
+            value="IRWLS",
+            width=320,
+        )
+
+        self.control_fit_window_mode = pn.widgets.Select(
+            name="Control Fit Window",
+            options=["full trace", "baseline epoch"],
+            value="full trace",
+            width=320,
+        )
+        self.control_fit_window_strt = pn.widgets.IntInput(
+            name="Control Fit Window Start Time (s) (int)", value=0, width=320
+        )
+        self.control_fit_window_end = pn.widgets.IntInput(
+            name="Control Fit Window End Time (s) (int)", value=0, width=320
+        )
+
         self.numberOfCores = pn.widgets.IntInput(name="# of cores (int)", value=2, width=150)
 
         self.combine_data = pn.widgets.Select(
@@ -178,15 +200,15 @@ class ParameterForm:
         )
 
         self.outputs_selector_header = pn.pane.Markdown(
-            "**Existing runs (steps 3–6):** Pick at least one existing output directory per "
-            "selected session. To create a new run, use the Storenames GUI in step 2.",
+            "**Existing runs (steps 2–5):** Pick at least one existing output directory per "
+            "selected session. To create a new run, use the Label Stores GUI in step 1.",
             width=950,
         )
         self.outputs_selector = pn.widgets.FileSelector(
             self.folder_path,
             root_directory="/",
             file_pattern="*_output_*",
-            name="Existing runs (steps 3–6)",
+            name="Existing runs (steps 2–5)",
             width=950,
         )
 
@@ -269,7 +291,7 @@ class ParameterForm:
                         interval, it will be deleted for the calculation of PSTH.
                         - ***Compute Cross-correlation :*** Make this parameter ```True```, when user wants
                         to compute cross-correlation between PSTHs of two different signals or signals
-                        recorded from different brain regions.
+                        recorded from different recording sites.
                         """,
             width=580,
         )
@@ -359,6 +381,10 @@ class ParameterForm:
             self.explain_time_artifacts,
             pn.Row(self.numberOfCores, self.combine_data),
             self.isosbestic_control,
+            self.control_fit_method,
+            self.control_fit_window_mode,
+            self.control_fit_window_strt,
+            self.control_fit_window_end,
             self.timeForLightsTurnOn,
             self.moving_avg_filter,
             self.computePsth,
@@ -411,7 +437,7 @@ class ParameterForm:
         self.files_1.visible = not is_dandi
         self.dandi_selector.panel.visible = is_dandi
 
-    def _collect_selected_outputs(self) -> dict[str, list[str]]:
+    def _collect_selected_runs(self) -> dict[str, list[str]]:
         """Group the FileSelector's selected output dirs by parent session."""
         grouped: dict[str, list[str]] = {}
         for path in self.outputs_selector.value or []:
@@ -419,18 +445,18 @@ class ParameterForm:
             grouped.setdefault(session, []).append(parse_run_name(path))
         return grouped
 
-    def validate_selected_outputs_for_consumers(self) -> None:
+    def validate_selected_runs_for_consumers(self) -> None:
         """Ensure every selected session that has output dirs on disk also has at least one selected.
 
-        Run this from the click handlers for steps 3–6 (which consume existing
+        Run this from the click handlers for steps 2–5 (which consume existing
         output directories). Skips sessions with no ``_output_<run>`` subdirs
-        yet — those are typically pre-step-2 states.
+        yet — those are typically pre-step-1 states.
         """
-        grouped = self._collect_selected_outputs()
+        grouped = self._collect_selected_runs()
         missing = [
             session
             for session in (self.files_1.value or [])
-            if discover_output_dirs(session) and not grouped.get(session)
+            if discover_run_folders(session) and not grouped.get(session)
         ]
         if missing:
             raise ValueError(
@@ -449,7 +475,7 @@ class ParameterForm:
           starting directory set to the first session so the user lands on one session's
           outputs and can navigate up to switch between sessions.
         """
-        sessions = [s for s in (event.new or []) if os.path.isdir(s)]
+        sessions = [session for session in (event.new or []) if os.path.isdir(session)]
         if not sessions:
             root_target = default_root_path()
             directory_target = default_root_path()
@@ -483,7 +509,7 @@ class ParameterForm:
         )
 
     def refresh_individual_outputs(self) -> None:
-        """Re-list the outputs FileSelector so newly-created run dirs (e.g. from step 2) appear."""
+        """Re-list the outputs FileSelector so newly-created run dirs (e.g. from step 1) appear."""
         self.outputs_selector._refresh()
 
     def refresh_group_outputs(self) -> None:
@@ -498,9 +524,9 @@ class ParameterForm:
     @staticmethod
     def _make_outputs_placeholder(scope: str) -> pn.pane.Markdown:
         text = (
-            "**Run-name filter:** No output directories yet — run step 2 first."
+            "**Run-name filter:** No output directories yet — run step 1 first."
             if scope == "individual"
-            else "**Run-name filter (group):** No output directories yet — run step 2 first."
+            else "**Run-name filter (group):** No output directories yet — run step 1 first."
         )
         return pn.pane.Markdown(text, width=520)
 
@@ -511,7 +537,7 @@ class ParameterForm:
         new_objects = []
         new_store = {}
         for session in sessions or []:
-            run_names = [parse_run_name(directory) for directory in discover_output_dirs(session)]
+            run_names = [parse_run_name(directory) for directory in discover_run_folders(session)]
             # Skip sessions with no output dirs — nothing to filter, no widget needed.
             if not run_names:
                 continue
@@ -582,7 +608,7 @@ class ParameterForm:
         )
 
         self.files_2 = pn.widgets.FileSelector(
-            self.folder_path, root_directory="/", name="folderNamesForAvg", width=950
+            self.folder_path, root_directory="/", name="group_session_folders", width=950
         )
 
         self.averageForGroup = pn.widgets.Select(
@@ -621,6 +647,47 @@ class ParameterForm:
         self.template.main.append(self.group)
         self.template.main.append(self.visualize)
 
+    def _validate_numeric_parameters(self) -> None:
+        """Validate the scalar numeric parameters at config time.
+
+        Enforces the documented positivity, non-negativity, ordering, and
+        host-core constraints on the numeric widgets so bad values are rejected
+        with an informative message before any pipeline step starts, instead of
+        failing late (or silently producing wrong results) mid-analysis. The
+        step handlers surface the raised ``ValueError`` as a Panel notification.
+
+        Raises
+        ------
+        ValueError
+            If any numeric parameter is out of its documented range.
+        """
+        number_of_cores = self.numberOfCores.value
+        validate_positive(value=number_of_cores, name="numberOfCores")
+        available_cores = os.cpu_count() or 1
+        if number_of_cores > available_cores:
+            message = (
+                f"numberOfCores={number_of_cores} exceeds the {available_cores} core(s) available on "
+                f"this machine; choose a value between 1 and {available_cores}."
+            )
+            logger.error(message)
+            raise ValueError(message)
+
+        # filter_window and timeForLightsTurnOn accept 0 (0 disables filtering /
+        # eliminates no data); the rest are strictly positive.
+        validate_non_negative(value=self.moving_avg_filter.value, name="filter_window")
+        validate_non_negative(value=self.timeForLightsTurnOn.value, name="timeForLightsTurnOn")
+        validate_positive(value=self.moving_wd.value, name="moving_window")
+        validate_positive(value=self.highAmpFilt.value, name="highAmpFilt")
+        validate_positive(value=self.transientsThresh.value, name="transientsThresh")
+
+        if self.nSecPrev.value >= self.nSecPost.value:
+            message = (
+                f"nSecPrev={self.nSecPrev.value} must be strictly less than nSecPost={self.nSecPost.value}; "
+                "the PSTH window runs from nSecPrev (seconds before the event) to nSecPost (seconds after)."
+            )
+            logger.error(message)
+            raise ValueError(message)
+
     def getInputParameters(self) -> dict[str, object]:
         """Collect and return all current widget values as an input-parameters dictionary.
 
@@ -629,11 +696,13 @@ class ParameterForm:
         dict
             Flat dictionary containing every parameter needed to run the GuPPy
             pipeline, keyed by the parameter names expected by the orchestration
-            layer (e.g. ``"folderNames"``, ``"zscore_method"``, ``"nSecPrev"``).
+            layer (e.g. ``"session_folders"``, ``"zscore_method"``, ``"nSecPrev"``).
         """
         # Re-discover group output dirs so the per-session filters reflect any new dirs
-        # produced by step 2 since the user last deselected/reselected their session folder.
+        # produced by step 1 since the user last deselected/reselected their session folder.
         self.refresh_group_outputs()
+
+        self._validate_numeric_parameters()
 
         if self.source_mode.value == "dandi":
             folder_names, abspath_value, dandi_uri_map = self._resolve_dandi_sessions()
@@ -649,10 +718,14 @@ class ParameterForm:
             "mode": mode,
             "dandi_uri_map": dandi_uri_map,
             "abspath": abspath_value,
-            "folderNames": folder_names,
+            "session_folders": folder_names,
             "numberOfCores": self.numberOfCores.value,
             "combine_data": self.combine_data.value,
             "isosbestic_control": self.isosbestic_control.value,
+            "control_fit_method": self.control_fit_method.value,
+            "controlFitWindowMode": self.control_fit_window_mode.value,
+            "controlFitWindowStart": self.control_fit_window_strt.value,
+            "controlFitWindowEnd": self.control_fit_window_end.value,
             "timeForLightsTurnOn": self.timeForLightsTurnOn.value,
             "filter_window": self.moving_avg_filter.value,
             "removeArtifacts": self.removeArtifacts.value,
@@ -678,11 +751,11 @@ class ParameterForm:
             "transientsThresh": self.transientsThresh.value,
             "plot_zScore_dff": self.plot_zScore_dff.value,
             "visualize_zscore_or_dff": self.visualize_zscore_or_dff.value,
-            "folderNamesForAvg": self.files_2.value,
+            "group_session_folders": self.files_2.value,
             "averageForGroup": self.averageForGroup.value,
             "visualizeAverageResults": self.visualizeAverageResults.value,
-            "selectedOutputs": self._collect_selected_outputs(),
-            "groupSelectedOutputs": {
+            "selected_runs": self._collect_selected_runs(),
+            "group_selected_runs": {
                 session: [widget.value] for session, widget in self.group_selected_outputs_widgets.items()
             },
         }
@@ -703,6 +776,10 @@ class ParameterForm:
         return {
             "combine_data": self.combine_data,
             "isosbestic_control": self.isosbestic_control,
+            "control_fit_method": self.control_fit_method,
+            "controlFitWindowMode": self.control_fit_window_mode,
+            "controlFitWindowStart": self.control_fit_window_strt,
+            "controlFitWindowEnd": self.control_fit_window_end,
             "timeForLightsTurnOn": self.timeForLightsTurnOn,
             "filter_window": self.moving_avg_filter,
             "removeArtifacts": self.removeArtifacts,
@@ -749,22 +826,22 @@ class ParameterForm:
             df["Peak End time"] = parameters["peak_endPoint"]
             self.df_widget.value = df
 
-    def _load_parameters_from_selected_outputs(self, event: object) -> None:
+    def _load_parameters_from_selected_runs(self, event: object) -> None:
         """Reload analysis parameters from the saved JSON of the selected output run(s).
 
         Fired when the individual-analysis output selector changes. Lets a user
-        resume a run (e.g. relaunch and run steps 4–5) without the form's
+        resume a run (e.g. relaunch and run steps 3–4) without the form's
         defaults silently overwriting the parameters the earlier steps used.
         When several runs are selected the parameters are applied only if every
         run with a saved snapshot agrees; conflicting snapshots are left for the
         user to reconcile.
         """
         saved = []
-        for output_dir in event.new or []:
-            json_path = os.path.join(output_dir, "GuPPyParamtersUsed.json")
+        for run_folder in event.new or []:
+            json_path = os.path.join(run_folder, "GuPPyParamtersUsed.json")
             if os.path.exists(json_path):
-                with open(json_path) as f:
-                    saved.append(json.load(f))
+                with open(json_path) as parameters_file:
+                    saved.append(json.load(parameters_file))
         if not saved:
             return
 

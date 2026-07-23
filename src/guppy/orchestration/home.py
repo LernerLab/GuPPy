@@ -4,12 +4,14 @@ import os
 import subprocess
 import sys
 from threading import Thread
+from typing import Callable
 
 import panel as pn
 
 from .export_nwb import orchestrate_export_nwb_page
+from .import_custom_events import orchestrate_custom_events_page
 from .metadata import orchestrate_metadata_page
-from .storenames import orchestrate_storenames_page
+from .store_labeling import orchestrate_store_labeling_page
 from .visualize import visualizeResults
 from ..frontend.input_parameters import ParameterForm
 from ..frontend.progress import PB_STEPS_FILE, readPBIncrementValues
@@ -82,17 +84,43 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
         try:
             input_parameters = parameter_form.getInputParameters()
             if require_selected_outputs:
-                parameter_form.validate_selected_outputs_for_consumers()
+                parameter_form.validate_selected_runs_for_consumers()
             return input_parameters
         except Exception as e:
             pn.state.notifications.error(str(e), duration=0)
             return None
 
-    def onclickStorenames(event: object = None) -> None:
+    def _run_worker_with_progress(
+        worker: Callable[[dict[str, object]], None],
+        progress_widget: pn.indicators.Progress,
+        *,
+        add_curr_dir: bool = False,
+    ) -> None:
+        # Shared launch pattern for the pipeline steps that run a worker in a background
+        # thread while a progress bar polls PB_STEPS_FILE.
+        inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
+        if inputParameters is None:
+            return
+        if add_curr_dir:
+            inputParameters["curr_dir"] = current_dir
+        thread = Thread(target=worker, args=(inputParameters,))
+        thread.start()
+        error_message = readPBIncrementValues(progress_widget, file_path=PB_STEPS_FILE)
+        thread.join()
+        if error_message:
+            pn.state.notifications.error(error_message, duration=0)
+
+    def onclickImportCustomEvents(event: object = None) -> None:
         inputParameters = _getInputParametersOrNotify()
         if inputParameters is None:
             return
-        orchestrate_storenames_page(inputParameters)
+        orchestrate_custom_events_page(inputParameters)
+
+    def onclickLabelStores(event: object = None) -> None:
+        inputParameters = _getInputParametersOrNotify()
+        if inputParameters is None:
+            return
+        orchestrate_store_labeling_page(inputParameters)
         # Newly-created output dirs become available for filtering on the next
         # step without requiring the user to deselect/reselect their session.
         parameter_form.refresh_individual_outputs()
@@ -108,38 +136,13 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
             pn.state.notifications.error(str(e), duration=0)
 
     def onclickreaddata(event: object = None) -> None:
-        inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
-        if inputParameters is None:
-            return
-        thread = Thread(target=readRawData, args=(inputParameters,))
-        thread.start()
-        error_msg = readPBIncrementValues(sidebar.read_progress, file_path=PB_STEPS_FILE)
-        thread.join()
-        if error_msg:
-            pn.state.notifications.error(error_msg, duration=0)
+        _run_worker_with_progress(readRawData, sidebar.read_progress)
 
     def onclickpreprocess(event: object = None) -> None:
-        inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
-        if inputParameters is None:
-            return
-        thread = Thread(target=preprocess, args=(inputParameters,))
-        thread.start()
-        error_msg = readPBIncrementValues(sidebar.extract_progress, file_path=PB_STEPS_FILE)
-        thread.join()
-        if error_msg:
-            pn.state.notifications.error(error_msg, duration=0)
+        _run_worker_with_progress(preprocess, sidebar.extract_progress)
 
     def onclickpsth(event: object = None) -> None:
-        inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
-        if inputParameters is None:
-            return
-        inputParameters["curr_dir"] = current_dir
-        thread = Thread(target=psthComputation, args=(inputParameters,))
-        thread.start()
-        error_msg = readPBIncrementValues(sidebar.psth_progress, file_path=PB_STEPS_FILE)
-        thread.join()
-        if error_msg:
-            pn.state.notifications.error(error_msg, duration=0)
+        _run_worker_with_progress(psthComputation, sidebar.psth_progress, add_curr_dir=True)
 
     def onclickMetadata(event: object = None) -> None:
         inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
@@ -161,7 +164,8 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
     # ------------------------------------------------------------------------------------------------------------------
 
     button_name_to_onclick_fn = {
-        "open_storenames": onclickStorenames,
+        "import_custom_events": onclickImportCustomEvents,
+        "open_label_stores": onclickLabelStores,
         "read_rawData": onclickreaddata,
         "preprocess": onclickpreprocess,
         "psth_computation": onclickpsth,
@@ -177,6 +181,10 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
         "onclickVisualization": onclickVisualization,
         "onclickMetadata": onclickMetadata,
         "onclickExportNwb": onclickExportNwb,
+        "onclickImportCustomEvents": onclickImportCustomEvents,
+        "onclickreaddata": onclickreaddata,
+        "onclickpreprocess": onclickpreprocess,
+        "onclickpsth": onclickpsth,
         "getInputParameters": parameter_form.getInputParameters,
     }
     template._widgets = {

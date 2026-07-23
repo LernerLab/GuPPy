@@ -30,7 +30,7 @@ The output of this procedure is a set of normalised per-event cross-correlograms
 
 ## Reading the correlogram
 
-For each combination of event, signal type, and region pair, the analysis produces a correlogram with lag in seconds on the x-axis and normalised correlation on the y-axis. The curve drawn on it is either the across-event average or a single selected event. Everything below describes how to read **that plot**.
+For each combination of event, signal type, and recording-site pair, the analysis produces a correlogram with lag in seconds on the x-axis and normalised correlation on the y-axis. The curve drawn on it is either the across-event average or a single selected event. Everything below describes how to read **that plot**.
 
 ### Lag axis
 

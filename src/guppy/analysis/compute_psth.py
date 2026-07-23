@@ -20,7 +20,7 @@ def compute_psth(
     naming: str,
     just_use_signal: bool,
     sampling_rate: float,
-    ts: np.ndarray,
+    event_timestamps: np.ndarray,
     corrected_timestamps: np.ndarray,
     timeForLightsTurnOn: float,
 ) -> tuple[np.ndarray, np.ndarray, list[object], np.ndarray]:
@@ -55,7 +55,7 @@ def compute_psth(
         When True, z-score each trial independently rather than using the pre-computed z-score.
     sampling_rate : float
         Sampling rate in Hz.
-    ts : np.ndarray
+    event_timestamps : np.ndarray
         Event timestamp array (s).
     corrected_timestamps : np.ndarray
         Full corrected photometry timestamp array (recording-start basis), used for
@@ -73,7 +73,7 @@ def compute_psth(
         Same shape as ``psth`` but without baseline correction.
     columns : list
         Column labels corresponding to ``psth``; last entry is ``'timestamps'``.
-    ts : np.ndarray
+    event_timestamps : np.ndarray
         Filtered event timestamps actually used to build the PSTH.
     """
 
@@ -92,75 +92,73 @@ def compute_psth(
     # reject timestamps for which baseline cannot be calculated because of nan values.
     # Events are on the recording-start basis; z_score[0] is the lights-on instant, so the
     # time available before an event is measured relative to timeForLightsTurnOn.
-    new_ts = []
-    for i in range(ts.shape[0]):
-        thisTime = ts[i]
+    kept_timestamps = []
+    for i in range(event_timestamps.shape[0]):
+        thisTime = event_timestamps[i]
         if (thisTime - timeForLightsTurnOn) < abs(baselineStart):
             continue
         else:
-            new_ts.append(ts[i])
+            kept_timestamps.append(event_timestamps[i])
 
     # reject burst of timestamps
-    ts = np.asarray(new_ts)
+    event_timestamps = np.asarray(kept_timestamps)
     # skip the event if there are no TTLs
-    if len(ts) == 0:
-        new_ts = np.array([])
+    if len(event_timestamps) == 0:
+        kept_timestamps = np.array([])
         logger.info(f"Warning : No TTLs present for {event}. This will cause an error in Visualization step")
     else:
-        new_ts = [ts[0]]
-        for i in range(1, ts.shape[0]):
-            thisTime = ts[i]
-            prevTime = new_ts[-1]
+        kept_timestamps = [event_timestamps[0]]
+        for i in range(1, event_timestamps.shape[0]):
+            thisTime = event_timestamps[i]
+            prevTime = kept_timestamps[-1]
             diff = thisTime - prevTime
             if diff < timeInterval:
                 continue
             else:
-                new_ts.append(ts[i])
+                kept_timestamps.append(event_timestamps[i])
 
     # final timestamps
-    ts = np.asarray(new_ts)
-    nTs = ts.shape[0]
+    event_timestamps = np.asarray(kept_timestamps)
+    nTs = event_timestamps.shape[0]
 
     # initialize PSTH vector
     psth = np.full((nTs, totalTs + 1), np.nan)
-    psth_baselineUncorrected = np.full((nTs, totalTs + 1), np.nan)  # extra
+    psth_baselineUncorrected = np.full((nTs, totalTs + 1), np.nan)
 
     # for each timestamp, create trial which will be saved in a PSTH vector
     for i in range(nTs):
-        thisTime = ts[i]
+        thisTime = event_timestamps[i]
         # Events are on the recording-start basis; z_score[0] corresponds to the lights-on
         # instant, so subtract timeForLightsTurnOn to get the positional index into z_score.
         thisIndex = int(round((thisTime - timeForLightsTurnOn) * sampling_rate))
         # nSecPrev (and therefore nTsPrev) is negative by convention; flip to a positive
         # sample count for rowFormation, which expects nTsPrev as a positive lookback length.
-        arr = rowFormation(z_score, thisIndex, -1 * nTsPrev, nTsPost)
+        trial = rowFormation(z_score, thisIndex, -1 * nTsPrev, nTsPost)
         if just_use_signal == True:
-            res = np.subtract(arr, np.nanmean(arr))
-            z_score_arr = np.divide(res, np.nanstd(arr))
-            arr = z_score_arr
+            centered_trial = np.subtract(trial, np.nanmean(trial))
+            trial_z_score = np.divide(centered_trial, np.nanstd(trial))
+            trial = trial_z_score
         else:
-            arr = arr
+            trial = trial
 
-        psth_baselineUncorrected[i, :] = arr  # extra
-        psth[i, :] = baselineCorrection(arr, timeAxis, baselineStart, baselineEnd)
+        psth_baselineUncorrected[i, :] = trial
+        psth[i, :] = baselineCorrection(trial, timeAxis, baselineStart, baselineEnd)
 
-    columns = list(ts)
+    columns = list(event_timestamps)
 
     if use_time_or_trials == "Time (min)" and bin_psth_trials > 0:
         corrected_timestamps = np.divide(corrected_timestamps, 60)
-        # Bins are built from the continuous timestamps (recording-start basis); shift events
-        # by timeForLightsTurnOn so both sit on the lights-on origin the bin edges assume.
-        ts_min = np.divide(ts - timeForLightsTurnOn, 60)
+        event_timestamps_in_mins = np.divide(event_timestamps, 60)
         bin_steps = np.arange(corrected_timestamps[0], corrected_timestamps[-1] + bin_psth_trials, bin_psth_trials)
         indices_each_step = dict()
         for i in range(1, bin_steps.shape[0]):
             indices_each_step[f"{np.around(bin_steps[i-1],0)}-{np.around(bin_steps[i],0)}"] = np.where(
-                (ts_min >= bin_steps[i - 1]) & (ts_min <= bin_steps[i])
+                (event_timestamps_in_mins >= bin_steps[i - 1]) & (event_timestamps_in_mins <= bin_steps[i])
             )[0]
     elif use_time_or_trials == "# of trials" and bin_psth_trials > 0:
-        bin_steps = np.arange(0, ts.shape[0], bin_psth_trials)
-        if bin_steps[-1] < ts.shape[0]:
-            bin_steps = np.concatenate((bin_steps, [ts.shape[0]]), axis=0)
+        bin_steps = np.arange(0, event_timestamps.shape[0], bin_psth_trials)
+        if bin_steps[-1] < event_timestamps.shape[0]:
+            bin_steps = np.concatenate((bin_steps, [event_timestamps.shape[0]]), axis=0)
         indices_each_step = dict()
         for i in range(1, bin_steps.shape[0]):
             indices_each_step[f"{bin_steps[i-1]}-{bin_steps[i]}"] = np.arange(bin_steps[i - 1], bin_steps[i])
@@ -169,30 +167,30 @@ def compute_psth(
 
     psth_bin, psth_bin_baselineUncorrected = [], []
     if indices_each_step:
-        keys = list(indices_each_step.keys())
-        for k in keys:
+        bin_labels = list(indices_each_step.keys())
+        for bin_label in bin_labels:
             # no trials in a given bin window, just put all the nan values
-            if indices_each_step[k].shape[0] == 0:
+            if indices_each_step[bin_label].shape[0] == 0:
                 psth_bin.append(np.full(psth.shape[1], np.nan))
                 psth_bin_baselineUncorrected.append(np.full(psth_baselineUncorrected.shape[1], np.nan))
                 psth_bin.append(np.full(psth.shape[1], np.nan))
                 psth_bin_baselineUncorrected.append(np.full(psth_baselineUncorrected.shape[1], np.nan))
             else:
-                index = indices_each_step[k]
-                arr = psth[index, :]
+                trial_indices = indices_each_step[bin_label]
+                binned_trials = psth[trial_indices, :]
                 #  mean of bins
-                psth_bin.append(np.nanmean(psth[index, :], axis=0))
-                psth_bin_baselineUncorrected.append(np.nanmean(psth_baselineUncorrected[index, :], axis=0))
-                psth_bin.append(np.nanstd(psth[index, :], axis=0) / math.sqrt(psth[index, :].shape[0]))
+                psth_bin.append(np.nanmean(psth[trial_indices, :], axis=0))
+                psth_bin_baselineUncorrected.append(np.nanmean(psth_baselineUncorrected[trial_indices, :], axis=0))
+                psth_bin.append(np.nanstd(psth[trial_indices, :], axis=0) / math.sqrt(psth[trial_indices, :].shape[0]))
                 # error of bins
                 psth_bin_baselineUncorrected.append(
-                    np.nanstd(psth_baselineUncorrected[index, :], axis=0)
-                    / math.sqrt(psth_baselineUncorrected[index, :].shape[0])
+                    np.nanstd(psth_baselineUncorrected[trial_indices, :], axis=0)
+                    / math.sqrt(psth_baselineUncorrected[trial_indices, :].shape[0])
                 )
 
             # adding column names
-            columns.append(f"bin_({k})")
-            columns.append(f"bin_err_({k})")
+            columns.append(f"bin_({bin_label})")
+            columns.append(f"bin_err_({bin_label})")
 
         psth = np.concatenate((psth, psth_bin), axis=0)
         psth_baselineUncorrected = np.concatenate((psth_baselineUncorrected, psth_bin_baselineUncorrected), axis=0)
@@ -202,7 +200,7 @@ def compute_psth(
     psth_baselineUncorrected = np.concatenate((psth_baselineUncorrected, timeAxis), axis=0)
     columns.append("timestamps")
 
-    return psth, psth_baselineUncorrected, columns, ts
+    return psth, psth_baselineUncorrected, columns, event_timestamps
 
 
 def rowFormation(z_score: np.ndarray, thisIndex: int, nTsPrev: int, nTsPost: int) -> np.ndarray:
@@ -222,42 +220,42 @@ def rowFormation(z_score: np.ndarray, thisIndex: int, nTsPrev: int, nTsPost: int
 
     Returns
     -------
-    res : np.ndarray
+    trial : np.ndarray
         1-D trial array of length ``nTsPrev + nTsPost + 1``, NaN-padded where the
         signal does not exist.
     """
 
     if nTsPrev < thisIndex and z_score.shape[0] > (thisIndex + nTsPost):
-        res = z_score[thisIndex - nTsPrev - 1 : thisIndex + nTsPost]
+        trial = z_score[thisIndex - nTsPrev - 1 : thisIndex + nTsPost]
     elif nTsPrev >= thisIndex and z_score.shape[0] > (thisIndex + nTsPost):
         mismatch = nTsPrev - thisIndex + 1
-        res = np.zeros(nTsPrev + nTsPost + 1)
-        res[:mismatch] = np.nan
-        res[mismatch:] = z_score[: thisIndex + nTsPost]
+        trial = np.zeros(nTsPrev + nTsPost + 1)
+        trial[:mismatch] = np.nan
+        trial[mismatch:] = z_score[: thisIndex + nTsPost]
     elif nTsPrev >= thisIndex and z_score.shape[0] < (thisIndex + nTsPost):
         mismatch1 = nTsPrev - thisIndex + 1
         mismatch2 = (thisIndex + nTsPost) - z_score.shape[0]
-        res1 = np.full(mismatch1, np.nan)
-        res2 = z_score
-        res3 = np.full(mismatch2, np.nan)
-        res = np.concatenate((res1, np.concatenate((res2, res3))))
+        nan_prefix = np.full(mismatch1, np.nan)
+        existing_signal = z_score
+        nan_suffix = np.full(mismatch2, np.nan)
+        trial = np.concatenate((nan_prefix, np.concatenate((existing_signal, nan_suffix))))
     else:
         mismatch = (thisIndex + nTsPost) - z_score.shape[0]
-        res1 = np.zeros(mismatch)
-        res1[:] = np.nan
-        res2 = z_score[thisIndex - nTsPrev - 1 : z_score.shape[0]]
-        res = np.concatenate((res2, res1))
+        nan_suffix = np.zeros(mismatch)
+        nan_suffix[:] = np.nan
+        existing_signal = z_score[thisIndex - nTsPrev - 1 : z_score.shape[0]]
+        trial = np.concatenate((existing_signal, nan_suffix))
 
-    return res
+    return trial
 
 
-def baselineCorrection(arr: np.ndarray, timeAxis: np.ndarray, baselineStart: float, baselineEnd: float) -> np.ndarray:
+def baselineCorrection(trial: np.ndarray, timeAxis: np.ndarray, baselineStart: float, baselineEnd: float) -> np.ndarray:
     """
     Subtract the mean baseline from a single PSTH trial.
 
     Parameters
     ----------
-    arr : np.ndarray
+    trial : np.ndarray
         1-D trial array aligned with ``timeAxis``.
     timeAxis : np.ndarray
         1-D time axis (s) for the trial window.
@@ -269,16 +267,16 @@ def baselineCorrection(arr: np.ndarray, timeAxis: np.ndarray, baselineStart: flo
     Returns
     -------
     baselineSub : np.ndarray
-        Trial array with the mean baseline subtracted; ``arr`` unchanged when
+        Trial array with the mean baseline subtracted; ``trial`` unchanged when
         both ``baselineStart`` and ``baselineEnd`` are zero.
     """
     baselineStrtPt = np.where(timeAxis >= baselineStart)[0]
     baselineEndPt = np.where(timeAxis >= baselineEnd)[0]
 
     if baselineStart == 0 and baselineEnd == 0:
-        return arr
+        return trial
 
-    baseline = np.nanmean(arr[baselineStrtPt[0] : baselineEndPt[0]])
-    baselineSub = np.subtract(arr, baseline)
+    baseline = np.nanmean(trial[baselineStrtPt[0] : baselineEndPt[0]])
+    baselineSub = np.subtract(trial, baseline)
 
     return baselineSub

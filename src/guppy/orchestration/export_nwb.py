@@ -13,7 +13,7 @@ import os
 import panel as pn
 
 from .metadata import METADATA_FILENAME, _selected_session_runs
-from ..utils.utils import output_dir_for_run
+from ..utils.utils import run_folder_for_run
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ def _validate_artifact_removal_methods(pairs: list[tuple[str, str]]) -> None:
     """
     offending = []
     for session_path, run_name in pairs:
-        guppy_folder_path = output_dir_for_run(session_path, run_name)
+        guppy_folder_path = run_folder_for_run(session_path, run_name)
         with open(os.path.join(guppy_folder_path, "GuPPyParamtersUsed.json")) as parameters_file:
             parameters = json.load(parameters_file)
         if parameters.get("removeArtifacts") and (
@@ -158,7 +158,7 @@ def orchestrate_export_nwb_page(inputParameters: dict[str, object], progress_bar
         progress_bar.value = 0
 
     for index, (session_path, run_name) in enumerate(pairs, start=1):
-        guppy_folder_path = output_dir_for_run(session_path, run_name)
+        guppy_folder_path = run_folder_for_run(session_path, run_name)
         session_basename = os.path.basename(session_path.rstrip(os.sep))
         output_dir_name = os.path.basename(guppy_folder_path.rstrip(os.sep))
         metadata_yaml_path = os.path.join(guppy_folder_path, METADATA_FILENAME)

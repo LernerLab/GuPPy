@@ -35,95 +35,97 @@ def api_workspace(tmp_path):
 
 
 @pytest.fixture
-def valid_storenames_map():
+def valid_store_id_to_store_label():
     return {"RawSignal": "signal_region"}
 
 
 class TestSharedApiValidation:
-    @pytest.mark.parametrize("step_name", ["step2", "step3", "step4", "step5", "step6"])
-    def test_steps_require_existing_base_directory(self, api_workspace, valid_storenames_map, step_name):
+    @pytest.mark.parametrize("step_name", ["step1", "step2", "step3", "step4", "step5"])
+    def test_steps_require_existing_base_directory(self, api_workspace, valid_store_id_to_store_label, step_name):
         step = getattr(testing_api, step_name)
         kwargs = {
             "base_dir": api_workspace["missing_base_directory"],
             "selected_folders": [api_workspace["session_directory"]],
         }
-        if step_name == "step2":
-            kwargs["storenames_map"] = valid_storenames_map
-        if step_name in ("step3", "step4", "step5", "step6"):
+        if step_name == "step1":
+            kwargs["store_id_to_store_label"] = valid_store_id_to_store_label
+        if step_name in ("step2", "step3", "step4", "step5"):
             kwargs["selected_runs"] = {api_workspace["session_directory"]: ["1"]}
 
         with pytest.raises(ValueError, match="base_dir does not exist or is not a directory"):
             step(**kwargs)
 
-    @pytest.mark.parametrize("step_name", ["step2", "step3", "step4", "step5", "step6"])
-    def test_steps_require_selected_folders(self, api_workspace, valid_storenames_map, step_name):
+    @pytest.mark.parametrize("step_name", ["step1", "step2", "step3", "step4", "step5"])
+    def test_steps_require_selected_folders(self, api_workspace, valid_store_id_to_store_label, step_name):
         step = getattr(testing_api, step_name)
         kwargs = {
             "base_dir": api_workspace["base_directory"],
             "selected_folders": [],
         }
-        if step_name == "step2":
-            kwargs["storenames_map"] = valid_storenames_map
-        if step_name in ("step3", "step4", "step5", "step6"):
+        if step_name == "step1":
+            kwargs["store_id_to_store_label"] = valid_store_id_to_store_label
+        if step_name in ("step2", "step3", "step4", "step5"):
             kwargs["selected_runs"] = {}
 
         with pytest.raises(ValueError, match="selected_folders must be a non-empty iterable"):
             step(**kwargs)
 
-    @pytest.mark.parametrize("step_name", ["step2", "step3", "step4", "step5", "step6"])
-    def test_steps_reject_missing_session_directory(self, api_workspace, valid_storenames_map, step_name):
+    @pytest.mark.parametrize("step_name", ["step1", "step2", "step3", "step4", "step5"])
+    def test_steps_reject_missing_session_directory(self, api_workspace, valid_store_id_to_store_label, step_name):
         step = getattr(testing_api, step_name)
         kwargs = {
             "base_dir": api_workspace["base_directory"],
             "selected_folders": [api_workspace["missing_session_directory"]],
         }
-        if step_name == "step2":
-            kwargs["storenames_map"] = valid_storenames_map
-        if step_name in ("step3", "step4", "step5", "step6"):
+        if step_name == "step1":
+            kwargs["store_id_to_store_label"] = valid_store_id_to_store_label
+        if step_name in ("step2", "step3", "step4", "step5"):
             kwargs["selected_runs"] = {api_workspace["missing_session_directory"]: ["1"]}
 
         with pytest.raises(ValueError, match="Session path does not exist or is not a directory"):
             step(**kwargs)
 
-    @pytest.mark.parametrize("step_name", ["step2", "step3", "step4", "step5", "step6"])
-    def test_steps_require_sessions_under_base_directory(self, api_workspace, valid_storenames_map, step_name):
+    @pytest.mark.parametrize("step_name", ["step1", "step2", "step3", "step4", "step5"])
+    def test_steps_require_sessions_under_base_directory(self, api_workspace, valid_store_id_to_store_label, step_name):
         step = getattr(testing_api, step_name)
         kwargs = {
             "base_dir": api_workspace["base_directory"],
             "selected_folders": [api_workspace["foreign_session_directory"]],
         }
-        if step_name == "step2":
-            kwargs["storenames_map"] = valid_storenames_map
-        if step_name in ("step3", "step4", "step5", "step6"):
+        if step_name == "step1":
+            kwargs["store_id_to_store_label"] = valid_store_id_to_store_label
+        if step_name in ("step2", "step3", "step4", "step5"):
             kwargs["selected_runs"] = {api_workspace["foreign_session_directory"]: ["1"]}
 
         with pytest.raises(ValueError, match="must share the same parent equal to base_dir"):
             step(**kwargs)
 
 
-class TestStep2Validation:
+class TestStep1Validation:
     @pytest.mark.parametrize(
-        ("storenames_map", "message"),
+        ("store_id_to_store_label", "message"),
         [
-            ({}, "storenames_map must be a non-empty dict"),
-            ({"": "signal_region"}, "Invalid storename key"),
-            ({"RawSignal": ""}, "Invalid semantic name"),
-            ({1: "signal_region"}, "Invalid storename key"),
-            ({"RawSignal": None}, "Invalid semantic name"),
+            ({}, "store_id_to_store_label must be a non-empty dict"),
+            ({"": "signal_region"}, "Invalid store_id key"),
+            ({"RawSignal": ""}, "Invalid store_label"),
+            ({1: "signal_region"}, "Invalid store_id key"),
+            ({"RawSignal": None}, "Invalid store_label"),
         ],
     )
-    def test_step2_validates_storenames_map(self, api_workspace, storenames_map, message):
+    def test_step1_validates_store_id_to_store_label(self, api_workspace, store_id_to_store_label, message):
         with pytest.raises(ValueError, match=message):
-            testing_api.step2(
+            testing_api.step1(
                 base_dir=api_workspace["base_directory"],
                 selected_folders=[api_workspace["session_directory"]],
-                storenames_map=storenames_map,
+                store_id_to_store_label=store_id_to_store_label,
             )
 
 
 class TestApiRuntimeErrors:
-    @pytest.mark.parametrize("step_name", ["step2", "step3", "step4", "step5", "step6"])
-    def test_steps_require_get_input_parameters_hook(self, api_workspace, valid_storenames_map, monkeypatch, step_name):
+    @pytest.mark.parametrize("step_name", ["step1", "step2", "step3", "step4", "step5"])
+    def test_steps_require_get_input_parameters_hook(
+        self, api_workspace, valid_store_id_to_store_label, monkeypatch, step_name
+    ):
         monkeypatch.setattr(
             testing_api,
             "build_homepage",
@@ -135,16 +137,16 @@ class TestApiRuntimeErrors:
             "base_dir": api_workspace["base_directory"],
             "selected_folders": [api_workspace["session_directory"]],
         }
-        if step_name == "step2":
-            kwargs["storenames_map"] = valid_storenames_map
-        if step_name in ("step3", "step4", "step5", "step6"):
+        if step_name == "step1":
+            kwargs["store_id_to_store_label"] = valid_store_id_to_store_label
+        if step_name in ("step2", "step3", "step4", "step5"):
             kwargs["selected_runs"] = {api_workspace["session_directory"]: ["1"]}
 
         with pytest.raises(RuntimeError, match="getInputParameters"):
             step(**kwargs)
 
-    @pytest.mark.parametrize("step_name", ["step2", "step3", "step4", "step5", "step6"])
-    def test_steps_require_files_widget(self, api_workspace, valid_storenames_map, monkeypatch, step_name):
+    @pytest.mark.parametrize("step_name", ["step1", "step2", "step3", "step4", "step5"])
+    def test_steps_require_files_widget(self, api_workspace, valid_store_id_to_store_label, monkeypatch, step_name):
         monkeypatch.setattr(
             testing_api,
             "build_homepage",
@@ -156,15 +158,15 @@ class TestApiRuntimeErrors:
             "base_dir": api_workspace["base_directory"],
             "selected_folders": [api_workspace["session_directory"]],
         }
-        if step_name == "step2":
-            kwargs["storenames_map"] = valid_storenames_map
-        if step_name in ("step3", "step4", "step5", "step6"):
+        if step_name == "step1":
+            kwargs["store_id_to_store_label"] = valid_store_id_to_store_label
+        if step_name in ("step2", "step3", "step4", "step5"):
             kwargs["selected_runs"] = {api_workspace["session_directory"]: ["1"]}
 
         with pytest.raises(RuntimeError, match="files_1"):
             step(**kwargs)
 
-    def test_step1_requires_get_input_parameters_hook(self, api_workspace, monkeypatch):
+    def test_save_parameters_requires_get_input_parameters_hook(self, api_workspace, monkeypatch):
         monkeypatch.setattr(
             testing_api,
             "build_homepage",
@@ -172,12 +174,12 @@ class TestApiRuntimeErrors:
         )
 
         with pytest.raises(RuntimeError, match="getInputParameters"):
-            testing_api.step1(
+            testing_api.save_parameters_snapshot(
                 base_dir=api_workspace["base_directory"],
                 selected_folders=[api_workspace["session_directory"]],
             )
 
-    def test_step1_requires_files_widget(self, api_workspace, monkeypatch):
+    def test_save_parameters_requires_files_widget(self, api_workspace, monkeypatch):
         monkeypatch.setattr(
             testing_api,
             "build_homepage",
@@ -185,7 +187,7 @@ class TestApiRuntimeErrors:
         )
 
         with pytest.raises(RuntimeError, match="files_1"):
-            testing_api.step1(
+            testing_api.save_parameters_snapshot(
                 base_dir=api_workspace["base_directory"],
                 selected_folders=[api_workspace["session_directory"]],
             )

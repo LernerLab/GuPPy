@@ -3,10 +3,10 @@ import os
 import shutil
 
 import pytest
-from conftest import TESTING_DATA, event_ts_offset_for
 
 from guppy.testing import compare_output_folders
-from guppy.testing.api import step2, step3, step4, step5
+from guppy.testing.api import step1, step2, step3, step4
+from guppy_test_data import TESTING_DATA, event_ts_offset_for
 
 SESSION_SUBDIRS = [
     "SampleData_with_artifacts/Photo_048_392-200728-121222",
@@ -15,7 +15,7 @@ SESSION_SUBDIRS = [
 
 STANDARD_OUTPUT_SUBDIR = "StandardOutputs_group_analysis/average"
 
-STORENAMES_MAP = {
+STORE_ID_TO_STORE_LABEL = {
     "Dv1A": "control_region",
     "Dv2A": "signal_region",
     "LNRW": "rewarded_nose_pokes",
@@ -65,12 +65,12 @@ def test_consistency_group_analysis(tmp_path):
     )
 
     selected_runs = {folder: ["1"] for folder in selected_folders}
-    step2(**common_kwargs, storenames_map=STORENAMES_MAP)
-    step3(**common_kwargs, selected_runs=selected_runs)
+    step1(**common_kwargs, store_id_to_store_label=STORE_ID_TO_STORE_LABEL)
+    step2(**common_kwargs, selected_runs=selected_runs)
+    step3(**common_kwargs, control_fit_method="OLS", selected_runs=selected_runs)
     step4(**common_kwargs, selected_runs=selected_runs)
-    step5(**common_kwargs, selected_runs=selected_runs)
 
-    step5(
+    step4(
         **common_kwargs,
         average_for_group=True,
         group_folders=selected_folders,

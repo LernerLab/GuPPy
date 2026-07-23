@@ -2,6 +2,7 @@
 
 import os
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -29,7 +30,7 @@ def test_check_header_returns_all_columns_and_numeric_conversions(columns, expec
     assert float_conversions == expected_floats
 
 
-from conftest import STUBBED_TESTING_DATA
+from guppy_test_data import STUBBED_TESTING_DATA
 
 
 class TestCsvRecordingExtractor(RecordingExtractorTestMixin):
@@ -132,3 +133,41 @@ def test_discover_raises_for_two_column_npm_shaped_csv(monkeypatch, tmp_path):
     _force_classify_to_csv(monkeypatch)
     with pytest.raises(ValueError, match="matches the Neurophotometrics"):
         CsvRecordingExtractor.discover_events_and_flags(str(tmp_path))
+
+
+# ---------------------------------------------------------------------------
+# Case-insensitive column matching on read (issue #381)
+# ---------------------------------------------------------------------------
+
+
+def test_mixed_case_data_csv_reads_after_detection(tmp_path):
+    # Detection lowercases before comparing, so a mixed-case 3-column CSV passes
+    # detection; read() must resolve the actual column names case-insensitively.
+    pd.DataFrame(
+        {"Timestamps": [0.0, 0.1, 0.2], "Data": [1.0, 2.0, 3.0], "Sampling_Rate": [250.0, 250.0, 250.0]}
+    ).to_csv(tmp_path / "signal.csv", index=False)
+
+    events, flags = CsvRecordingExtractor.discover_events_and_flags(str(tmp_path))
+    assert events == ["signal"]
+    assert flags == ["data_csv"]
+
+    extractor = CsvRecordingExtractor(folder_path=str(tmp_path))
+    result = extractor.read(events=["signal"], outputPath="")
+    assert result[0]["store_id"] == "signal"
+    np.testing.assert_array_equal(result[0]["timestamps"], np.array([0.0, 0.1, 0.2]))
+    np.testing.assert_array_equal(result[0]["data"], np.array([1.0, 2.0, 3.0]))
+    np.testing.assert_array_equal(result[0]["sampling_rate"], np.array([250.0]))
+
+
+def test_mixed_case_event_csv_reads_after_detection(tmp_path):
+    pd.DataFrame({"TIMESTAMPS": [5.0, 10.0, 15.0]}).to_csv(tmp_path / "ttl.csv", index=False)
+
+    events, flags = CsvRecordingExtractor.discover_events_and_flags(str(tmp_path))
+    assert events == ["ttl"]
+    assert flags == ["event_csv"]
+
+    extractor = CsvRecordingExtractor(folder_path=str(tmp_path))
+    result = extractor.read(events=["ttl"], outputPath="")
+    assert result[0]["store_id"] == "ttl"
+    assert "data" not in result[0]
+    np.testing.assert_array_equal(result[0]["timestamps"], np.array([5.0, 10.0, 15.0]))

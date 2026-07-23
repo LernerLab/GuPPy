@@ -35,8 +35,8 @@ from guppy.analysis.standard_io import (
 
 
 def test_write_corrected_data_writes_each_channel_to_hdf5(tmp_path):
-    name_to_data = {"control_dms": np.array([1.0, 2.0, 3.0]), "signal_dms": np.array([4.0, 5.0, 6.0])}
-    write_corrected_data(str(tmp_path), name_to_data)
+    store_label_to_data = {"control_dms": np.array([1.0, 2.0, 3.0]), "signal_dms": np.array([4.0, 5.0, 6.0])}
+    write_corrected_data(str(tmp_path), store_label_to_data)
 
     result = write_hdf5.__module__  # just ensure import worked
     control = h5py.File(tmp_path / "control_dms.hdf5", "r")["data"][:]
@@ -64,7 +64,7 @@ def test_write_zscore_creates_four_hdf5_files(tmp_path):
     dff = np.array([0.1, 0.2, 0.3])
     control_fit = np.array([2.0, 2.1, 2.2])
 
-    write_zscore(str(tmp_path), "dms", z_score, dff, control_fit, temp_control_arr=None)
+    write_zscore(str(tmp_path), "dms", z_score, dff, control_fit, synthetic_control=None)
 
     assert (tmp_path / "z_score_dms.hdf5").exists()
     assert (tmp_path / "dff_dms.hdf5").exists()
@@ -76,7 +76,7 @@ def test_write_zscore_creates_four_hdf5_files(tmp_path):
 def test_write_zscore_with_temp_control_writes_control_file(tmp_path):
     z_score = np.array([0.5])
     temp_control = np.array([1.0, np.nan, 2.0])
-    write_zscore(str(tmp_path), "dms", z_score, z_score, z_score, temp_control_arr=temp_control)
+    write_zscore(str(tmp_path), "dms", z_score, z_score, z_score, synthetic_control=temp_control)
 
     result = h5py.File(tmp_path / "control_dms.hdf5", "r")["data"][:]
     np.testing.assert_array_equal(result[0], 1.0)
@@ -99,10 +99,10 @@ def test_write_artifact_corrected_timestamps_writes_timestampnew(tmp_path):
 
 def test_write_combined_data_writes_all_three_dicts(tmp_path):
     pair_name_to_tsNew = {"dms": np.array([0.0, 1.0, 2.0])}
-    display_name_to_data = {"control_dms": np.ones(3), "signal_dms": np.ones(3) * 2}
+    store_label_to_data = {"control_dms": np.ones(3), "signal_dms": np.ones(3) * 2}
     compound_name_to_ttl = {"TTL1_dms": np.array([0.5, 1.5])}
 
-    write_combined_data(str(tmp_path), pair_name_to_tsNew, display_name_to_data, compound_name_to_ttl)
+    write_combined_data(str(tmp_path), pair_name_to_tsNew, store_label_to_data, compound_name_to_ttl)
 
     ts = h5py.File(tmp_path / "timeCorrection_dms.hdf5", "r")["timestampNew"][:]
     np.testing.assert_array_equal(ts, np.array([0.0, 1.0, 2.0]))
@@ -172,11 +172,11 @@ def test_write_and_read_transients_roundtrip(tmp_path):
 
 
 def test_write_artifact_removal_creates_data_ttl_and_timestamp_files(tmp_path):
-    name_to_data = {"control_dms": np.ones(3)}
+    store_label_to_data = {"control_dms": np.ones(3)}
     compound_name_to_ttl = {"TTL1_dms": np.array([1.0])}
     pair_name_to_ts = {"dms": np.array([0.5, 1.5, 2.5])}
 
-    write_artifact_removal(str(tmp_path), name_to_data, pair_name_to_ts, compound_name_to_ttl)
+    write_artifact_removal(str(tmp_path), store_label_to_data, pair_name_to_ts, compound_name_to_ttl)
 
     assert (tmp_path / "control_dms.hdf5").exists()
     assert (tmp_path / "TTL1_dms.hdf5").exists()
@@ -207,29 +207,29 @@ def test_write_corrected_timestamps_writes_all_keys(tmp_path):
 
 def test_read_control_and_signal_returns_data_and_timestamp_dicts(tmp_path):
     # Write ctrl0.hdf5 and sig0.hdf5 with data, timestamps, sampling_rate
-    storesList = np.array([["ctrl0", "sig0"], ["control_dms", "signal_dms"]])
-    for storename in ["ctrl0", "sig0"]:
-        write_hdf5(np.array([1.0, 2.0, 3.0]), storename, str(tmp_path), "data")
-        write_hdf5(np.array([0.0, 1.0, 2.0]), storename, str(tmp_path), "timestamps")
-        write_hdf5(np.array([100.0]), storename, str(tmp_path), "sampling_rate")
+    store_array = np.array([["ctrl0", "sig0"], ["control_dms", "signal_dms"]])
+    for store_id in ["ctrl0", "sig0"]:
+        write_hdf5(np.array([1.0, 2.0, 3.0]), store_id, str(tmp_path), "data")
+        write_hdf5(np.array([0.0, 1.0, 2.0]), store_id, str(tmp_path), "timestamps")
+        write_hdf5(np.array([100.0]), store_id, str(tmp_path), "sampling_rate")
 
-    name_to_data, name_to_timestamps, name_to_sampling_rate, name_to_npoints = read_control_and_signal(
-        str(tmp_path), storesList
+    store_label_to_data, store_label_to_timestamps, store_label_to_sampling_rate, store_label_to_npoints = (
+        read_control_and_signal(str(tmp_path), store_array)
     )
 
-    assert "control_dms" in name_to_data
-    assert "signal_dms" in name_to_data
-    np.testing.assert_array_equal(name_to_data["control_dms"], np.array([1.0, 2.0, 3.0]))
+    assert "control_dms" in store_label_to_data
+    assert "signal_dms" in store_label_to_data
+    np.testing.assert_array_equal(store_label_to_data["control_dms"], np.array([1.0, 2.0, 3.0]))
 
 
 # ── read_ttl ──────────────────────────────────────────────────────────────────
 
 
 def test_read_ttl_returns_timestamps_for_non_channel_events(tmp_path):
-    storesList = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
+    store_array = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
     write_hdf5(np.array([1.5, 2.5]), "ttl0", str(tmp_path), "timestamps")
 
-    result = read_ttl(str(tmp_path), storesList)
+    result = read_ttl(str(tmp_path), store_array)
 
     assert "TTL1" in result
     np.testing.assert_array_equal(result["TTL1"], np.array([1.5, 2.5]))
@@ -283,7 +283,7 @@ def test_read_corrected_timestamps_pairwise_mismatched_pair_names_raises_actiona
     assert "dms" in msg
     assert "vms" in msg
     assert str(tmp_path) in msg
-    assert "re-run step 2" in msg
+    assert "re-run step 1" in msg
 
 
 # ── read_coords_pairwise ──────────────────────────────────────────────────────
@@ -315,18 +315,18 @@ def test_read_coords_pairwise_mismatched_pair_names_raises_actionable_error(tmp_
     assert "dms" in msg
     assert "vms" in msg
     assert str(tmp_path) in msg
-    assert "re-run step 2" in msg
+    assert "re-run step 1" in msg
 
 
 # ── read_corrected_data_dict ──────────────────────────────────────────────────
 
 
 def test_read_corrected_data_dict_returns_control_and_signal(tmp_path):
-    storesList = np.array([["ctrl0", "sig0"], ["control_dms", "signal_dms"]])
+    store_array = np.array([["ctrl0", "sig0"], ["control_dms", "signal_dms"]])
     write_hdf5(np.array([1.0, 2.0]), "control_dms", str(tmp_path), "data")
     write_hdf5(np.array([3.0, 4.0]), "signal_dms", str(tmp_path), "data")
 
-    result = read_corrected_data_dict(str(tmp_path), storesList)
+    result = read_corrected_data_dict(str(tmp_path), store_array)
 
     assert "control_dms" in result
     assert "signal_dms" in result
@@ -337,10 +337,10 @@ def test_read_corrected_data_dict_returns_control_and_signal(tmp_path):
 
 
 def test_read_corrected_ttl_timestamps_returns_compound_name_dict(tmp_path):
-    storesList = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
+    store_array = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
     write_hdf5(np.array([1.5, 2.5]), "TTL1_dms", str(tmp_path), "ts")
 
-    result = read_corrected_ttl_timestamps(str(tmp_path), storesList)
+    result = read_corrected_ttl_timestamps(str(tmp_path), store_array)
 
     assert "TTL1_dms" in result
     np.testing.assert_array_equal(result["TTL1_dms"], np.array([1.5, 2.5]))
@@ -371,11 +371,11 @@ def test_read_data_for_combining_data_returns_nested_dict(tmp_path):
     session.mkdir()
     (session / "control_dms.hdf5").touch()
     (session / "signal_dms.hdf5").touch()
-    storesList = np.array([["ctrl0", "sig0"], ["control_dms", "signal_dms"]])
+    store_array = np.array([["ctrl0", "sig0"], ["control_dms", "signal_dms"]])
     write_hdf5(np.array([1.0, 2.0, 3.0]), "control_dms", str(session), "data")
     write_hdf5(np.array([4.0, 5.0, 6.0]), "signal_dms", str(session), "data")
 
-    result = read_data_for_combining_data([str(session)], storesList)
+    result = read_data_for_combining_data([str(session)], store_array)
 
     assert "control_dms" in result
     assert str(session) in result["control_dms"]
@@ -390,10 +390,10 @@ def test_read_ttl_timestamps_for_combining_data_returns_nested_dict(tmp_path):
     session.mkdir()
     (session / "control_dms.hdf5").touch()
     (session / "signal_dms.hdf5").touch()
-    storesList = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
+    store_array = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_dms", "TTL1"]])
     write_hdf5(np.array([1.5, 2.5]), "TTL1_dms", str(session), "ts")
 
-    result = read_ttl_timestamps_for_combining_data([str(session)], storesList)
+    result = read_ttl_timestamps_for_combining_data([str(session)], store_array)
 
     assert "TTL1_dms" in result
     assert str(session) in result["TTL1_dms"]
@@ -403,7 +403,7 @@ def test_read_ttl_timestamps_for_combining_data_returns_nested_dict(tmp_path):
 # ── Combining-data suffix mismatch error paths ────────────────────────────────
 
 
-def test_read_timestamps_for_combining_data_mismatched_suffix_raises(tmp_path):
+def test_read_timestamps_for_combining_data_mismatched_recording_sites_raises(tmp_path):
     session = tmp_path / "session"
     session.mkdir()
     (session / "control_dms.hdf5").touch()
@@ -411,26 +411,26 @@ def test_read_timestamps_for_combining_data_mismatched_suffix_raises(tmp_path):
     with pytest.raises(ValueError) as exception_info:
         read_timestamps_for_combining_data([str(session)])
     message = str(exception_info.value)
-    assert "Pair name mismatch" in message
+    assert "Mismatched control/signal files" in message
     assert "dms" in message
     assert "vms" in message
 
 
-def test_read_data_for_combining_data_mismatched_suffix_raises(tmp_path):
+def test_read_data_for_combining_data_mismatched_recording_sites_raises(tmp_path):
     session = tmp_path / "session"
     session.mkdir()
     (session / "control_dms.hdf5").touch()
     (session / "signal_vms.hdf5").touch()
-    storesList = np.array([["ctrl0", "sig0"], ["control_dms", "signal_vms"]])
-    with pytest.raises(ValueError, match="Pair name mismatch"):
-        read_data_for_combining_data([str(session)], storesList)
+    store_array = np.array([["ctrl0", "sig0"], ["control_dms", "signal_vms"]])
+    with pytest.raises(ValueError, match="Mismatched control/signal files"):
+        read_data_for_combining_data([str(session)], store_array)
 
 
-def test_read_ttl_timestamps_for_combining_data_mismatched_suffix_raises(tmp_path):
+def test_read_ttl_timestamps_for_combining_data_mismatched_recording_sites_raises(tmp_path):
     session = tmp_path / "session"
     session.mkdir()
     (session / "control_dms.hdf5").touch()
     (session / "signal_vms.hdf5").touch()
-    storesList = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_vms", "TTL1"]])
-    with pytest.raises(ValueError, match="Pair name mismatch"):
-        read_ttl_timestamps_for_combining_data([str(session)], storesList)
+    store_array = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_vms", "TTL1"]])
+    with pytest.raises(ValueError, match="Mismatched control/signal files"):
+        read_ttl_timestamps_for_combining_data([str(session)], store_array)

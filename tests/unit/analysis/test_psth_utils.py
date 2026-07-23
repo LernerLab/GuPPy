@@ -5,6 +5,7 @@ from guppy.analysis.psth_utils import (
     create_Df_for_cross_correlation,
     create_Df_for_psth,
     getCorrCombinations,
+    match_trials_by_timestamp,
 )
 
 # ── create_Df_for_psth ────────────────────────────────────────────────────────
@@ -92,3 +93,58 @@ def test_get_corr_combinations_one_signal_returns_single_name(tmp_path):
     corr_info, _ = getCorrCombinations(str(tmp_path), input_parameters)
 
     assert corr_info == ["dms"]
+
+
+# ── match_trials_by_timestamp ─────────────────────────────────────────────────
+
+
+def test_match_identical_labels_pairs_all_trials():
+    labels = [10.0, 20.0, 30.0]
+    indices_a, indices_b, matched = match_trials_by_timestamp(labels, list(labels))
+    np.testing.assert_array_equal(indices_a, [0, 1, 2])
+    np.testing.assert_array_equal(indices_b, [0, 1, 2])
+    assert matched == [10.0, 20.0, 30.0]
+
+
+def test_match_subsample_jitter_still_pairs():
+    # Same events, corrected slightly differently per recording site (sub-sample jitter).
+    labels_a = [10.0, 20.0, 30.0]
+    labels_b = [10.002, 20.001, 29.998]
+    indices_a, indices_b, matched = match_trials_by_timestamp(labels_a, labels_b)
+    np.testing.assert_array_equal(indices_a, [0, 1, 2])
+    np.testing.assert_array_equal(indices_b, [0, 1, 2])
+
+
+def test_match_drops_trial_present_in_only_one_recording_site():
+    # Recording site B is missing the 20.0 event; only 10.0 and 30.0 are shared.
+    labels_a = [10.0, 20.0, 30.0]
+    labels_b = [10.0, 30.0]
+    indices_a, indices_b, matched = match_trials_by_timestamp(labels_a, labels_b)
+    np.testing.assert_array_equal(indices_a, [0, 2])
+    np.testing.assert_array_equal(indices_b, [0, 1])
+    assert matched == [10.0, 30.0]
+
+
+def test_match_parses_string_labels_from_hdf5():
+    # Columns read back from HDF5 arrive as strings.
+    indices_a, indices_b, matched = match_trials_by_timestamp(["10.0", "20.0"], ["10.0", "20.0"])
+    np.testing.assert_array_equal(indices_a, [0, 1])
+    np.testing.assert_array_equal(indices_b, [0, 1])
+
+
+def test_match_no_shared_trials_returns_empty():
+    # Distinct events farther apart than the tolerance are not paired.
+    indices_a, indices_b, matched = match_trials_by_timestamp([10.0, 20.0], [100.0, 200.0])
+    assert matched == []
+    assert indices_a.size == 0
+    assert indices_b.size == 0
+
+
+def test_match_bin_columns_matched_by_exact_label():
+    # Numeric trials pair by timestamp; bin-aggregate columns pair by exact label.
+    labels_a = [10.0, 20.0, "bin_(0-5)", "bin_(5-10)"]
+    labels_b = [10.0, 20.0, "bin_(0-5)"]
+    indices_a, indices_b, matched = match_trials_by_timestamp(labels_a, labels_b)
+    np.testing.assert_array_equal(indices_a, [0, 1, 2])
+    np.testing.assert_array_equal(indices_b, [0, 1, 2])
+    assert matched == [10.0, 20.0, "bin_(0-5)"]

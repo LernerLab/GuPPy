@@ -1,11 +1,12 @@
 import logging
-import os
 
 import numpy as np
 
 from .io_utils import (
     decide_naming_convention,
+    recording_site_from_channel_path,
 )
+from .realignment import concatenate_and_realign_data, realign_ttl_timestamps
 
 logger = logging.getLogger(__name__)
 
@@ -32,32 +33,14 @@ def eliminateData(
 
     Returns
     -------
-    arr : np.ndarray
+    concatenated_data : np.ndarray
         Concatenated data across all sessions.
-    ts_arr : np.ndarray
-        Realigned timestamps corresponding to ``arr``.
+    realigned_timestamps : np.ndarray
+        Realigned timestamps corresponding to ``concatenated_data``.
     """
 
-    arr = np.array([])
-    ts_arr = np.array([])
-    filepaths = list(filepath_to_timestamps.keys())
-    for filepath in filepaths:
-        ts = filepath_to_timestamps[filepath]
-        data = filepath_to_data[filepath]
-
-        if len(arr) == 0:
-            arr = np.concatenate((arr, data))
-            sub = ts[0] - timeForLightsTurnOn
-            new_ts = ts - sub
-            ts_arr = np.concatenate((ts_arr, new_ts))
-        else:
-            temp = data
-            temp_ts = ts
-            new_ts = temp_ts - (temp_ts[0] - ts_arr[-1])
-            arr = np.concatenate((arr, temp))
-            ts_arr = np.concatenate((ts_arr, new_ts + (1 / sampling_rate)))
-
-    return arr, ts_arr
+    segments = [(filepath_to_data[filepath], filepath_to_timestamps[filepath]) for filepath in filepath_to_timestamps]
+    return concatenate_and_realign_data(segments, timeForLightsTurnOn=timeForLightsTurnOn, sampling_rate=sampling_rate)
 
 
 def eliminateTs(
@@ -82,41 +65,26 @@ def eliminateTs(
 
     Returns
     -------
-    ts_arr : np.ndarray
+    realigned_ttl_timestamps : np.ndarray
         Realigned TTL timestamps concatenated across all sessions.
     """
 
-    ts_arr = np.array([])
-    tsNew_arr = np.array([])
-    filepaths = list(filepath_to_timestamps.keys())
-    for filepath in filepaths:
-        tsNew = filepath_to_timestamps[filepath]
-        ts = filepath_to_ttl_timestamps[filepath]
-        # Both tsNew (continuous) and ts (events) are on the recording-start basis, so the
-        # same per-session shift keeps them mutually aligned. Inter-session bridging below
-        # uses differences only, which are basis-invariant.
-        if len(tsNew_arr) == 0:
-            sub = tsNew[0] - timeForLightsTurnOn
-            tsNew_arr = np.concatenate((tsNew_arr, tsNew - sub))
-            ts_arr = np.concatenate((ts_arr, ts - sub))
-        else:
-            temp_tsNew = tsNew
-            temp_ts = ts
-            new_ts = temp_ts - (temp_tsNew[0] - tsNew_arr[-1])
-            new_tsNew = temp_tsNew - (temp_tsNew[0] - tsNew_arr[-1])
-            tsNew_arr = np.concatenate((tsNew_arr, new_tsNew + (1 / sampling_rate)))
-            ts_arr = np.concatenate((ts_arr, new_ts + (1 / sampling_rate)))
-
-    return ts_arr
+    # Both tsNew (continuous) and ts (events) are on the recording-start basis, so the same
+    # per-session shift keeps them mutually aligned; the inter-session bridging uses differences
+    # only, which are basis-invariant.
+    pairs = [
+        (filepath_to_timestamps[filepath], filepath_to_ttl_timestamps[filepath]) for filepath in filepath_to_timestamps
+    ]
+    return realign_ttl_timestamps(pairs, timeForLightsTurnOn=timeForLightsTurnOn, sampling_rate=sampling_rate)
 
 
 def combine_data(
     filepaths_to_combine: list[str],
     pair_name_to_filepath_to_timestamps: dict[str, dict[str, np.ndarray]],
-    display_name_to_filepath_to_data: dict[str, dict[str, np.ndarray]],
+    store_label_to_filepath_to_data: dict[str, dict[str, np.ndarray]],
     compound_name_to_filepath_to_ttl_timestamps: dict[str, dict[str, np.ndarray]],
     timeForLightsTurnOn: float,
-    storesList: np.ndarray,
+    store_array: np.ndarray,
     sampling_rate: float,
 ) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray]]:
     """
@@ -128,14 +96,14 @@ def combine_data(
         Ordered list of session output directories to concatenate.
     pair_name_to_filepath_to_timestamps : dict
         ``{pair_name: {filepath: timestamps_array}}``.
-    display_name_to_filepath_to_data : dict
-        ``{display_name: {filepath: data_array}}``.
+    store_label_to_filepath_to_data : dict
+        ``{store_label: {filepath: data_array}}``.
     compound_name_to_filepath_to_ttl_timestamps : dict
         ``{compound_name: {filepath: ttl_timestamps_array}}``.
     timeForLightsTurnOn : float
         Seconds offset used to set the new time zero.
-    storesList : np.ndarray
-        2-D array with rows [storenames, display_names].
+    store_array : np.ndarray
+        2-D array with rows [store_id, store_label].
     sampling_rate : float
         Sampling rate in Hz.
 
@@ -143,41 +111,40 @@ def combine_data(
     -------
     pair_name_to_tsNew : dict
         Pair name → combined and realigned timestamp array.
-    display_name_to_data : dict
-        Display name → combined data array.
+    store_label_to_data : dict
+        Store label → combined data array.
     compound_name_to_ttl_timestamps : dict
         Compound TTL name → combined TTL timestamp array.
     """
-    # filepaths_to_combine = [folder1_output_i, folder2_output_i, ...]
     logger.debug("Processing timestamps for combining data...")
 
-    names_for_storenames = storesList[1, :]
+    store_labels = store_array[1, :]
     path = decide_naming_convention(filepaths_to_combine[0])
 
     pair_name_to_tsNew = {}
-    display_name_to_data = {}
+    store_label_to_data = {}
     compound_name_to_ttl_timestamps = {}
     for j in range(path.shape[1]):
-        name_1 = ((os.path.basename(path[0, j])).split(".")[0]).split("_")[-1]
-        name_2 = ((os.path.basename(path[1, j])).split(".")[0]).split("_")[-1]
+        name_1 = recording_site_from_channel_path(path[0, j])
+        name_2 = recording_site_from_channel_path(path[1, j])
         if name_1 != name_2:
-            msg = (
-                f"Pair name mismatch in '{filepaths_to_combine[0]}': control file suffix '{name_1}' does not match "
-                f"signal file suffix '{name_2}'. Check the naming convention of your files and the "
-                f"storesList file, then re-run step 2."
+            message = (
+                f"Pair name mismatch in '{filepaths_to_combine[0]}': control file recording site '{name_1}' does not "
+                f"match signal file recording site '{name_2}'. Check the naming convention of your files and the "
+                f"storesList file, then re-run step 1."
             )
-            logger.error(msg)
-            raise ValueError(msg)
+            logger.error(message)
+            raise ValueError(message)
         pair_name = name_1
 
-        for i in range(len(names_for_storenames)):
+        for i in range(len(store_labels)):
             if (
-                "control_" + pair_name.lower() in names_for_storenames[i].lower()
-                or "signal_" + pair_name.lower() in names_for_storenames[i].lower()
+                "control_" + pair_name.lower() in store_labels[i].lower()
+                or "signal_" + pair_name.lower() in store_labels[i].lower()
             ):
-                display_name = names_for_storenames[i]
+                store_label = store_labels[i]
                 filepath_to_timestamps = pair_name_to_filepath_to_timestamps[pair_name]
-                filepath_to_data = display_name_to_filepath_to_data[display_name]
+                filepath_to_data = store_label_to_filepath_to_data[store_label]
                 data, timestampNew = eliminateData(
                     filepath_to_timestamps,
                     filepath_to_data,
@@ -185,20 +152,20 @@ def combine_data(
                     sampling_rate,
                 )
                 pair_name_to_tsNew[pair_name] = timestampNew
-                display_name_to_data[display_name] = data
+                store_label_to_data[store_label] = data
             else:
-                if "control" in names_for_storenames[i].lower() or "signal" in names_for_storenames[i].lower():
+                if "control" in store_labels[i].lower() or "signal" in store_labels[i].lower():
                     continue
-                compound_name = names_for_storenames[i] + "_" + pair_name
+                compound_name = store_labels[i] + "_" + pair_name
                 filepath_to_timestamps = pair_name_to_filepath_to_timestamps[pair_name]
                 filepath_to_ttl_timestamps = compound_name_to_filepath_to_ttl_timestamps[compound_name]
 
-                ts = eliminateTs(
+                ttl_timestamps = eliminateTs(
                     filepath_to_timestamps,
                     filepath_to_ttl_timestamps,
                     timeForLightsTurnOn,
                     sampling_rate,
                 )
-                compound_name_to_ttl_timestamps[compound_name] = ts
+                compound_name_to_ttl_timestamps[compound_name] = ttl_timestamps
 
-    return pair_name_to_tsNew, display_name_to_data, compound_name_to_ttl_timestamps
+    return pair_name_to_tsNew, store_label_to_data, compound_name_to_ttl_timestamps

@@ -55,90 +55,100 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
         path = sorted(list(set(path)))
         flag = "None"
         event_from_filename = []
-        flag_arr = []
+        flags = []
         for i in range(len(path)):
-            ext = os.path.basename(path[i]).split(".")[-1]
-            if ext != "csv":
+            extension = os.path.basename(path[i]).split(".")[-1]
+            if extension != "csv":
                 raise ValueError(f"Only .csv files are supported by CsvRecordingExtractor; got '{path[i]}'.")
             df = pd.read_csv(path[i], header=None, nrows=2, index_col=False, dtype=str)
             df = df.dropna(axis=1, how="all")
-            df_arr = np.array(df).flatten()
+            header_values = np.array(df).flatten()
             check_all_str = []
-            for element in df_arr:
+            for element in header_values:
                 try:
                     float(element)
                 except:
                     check_all_str.append(i)
-            if len(check_all_str) == len(df_arr):
+            if len(check_all_str) == len(header_values):
                 raise ValueError(
                     f"CSV file '{path[i]}' appears to be a Doric .csv (all-string header rows). "
                     "CsvRecordingExtractor only supports standard .csv files; use the Doric extractor instead."
                 )
             df = pd.read_csv(path[i], index_col=False)
 
-            _, value = cls._check_header(df)
+            _, numeric_headers = cls._check_header(df)
 
             # check dataframe structure and read data accordingly
-            if len(value) > 0:
+            if len(numeric_headers) > 0:
                 columns_isstr = False
                 df = pd.read_csv(path[i], header=None)
-                cols = np.array(list(df.columns), dtype=str)
+                columns = np.array(list(df.columns), dtype=str)
             else:
                 df = df
                 columns_isstr = True
-                cols = np.array(list(df.columns), dtype=str)
+                columns = np.array(list(df.columns), dtype=str)
             # check the structure of dataframe and assign flag to the type of file
-            if len(cols) == 1:
-                if cols[0].lower() != "timestamps":
+            if len(columns) == 1:
+                if columns[0].lower() != "timestamps":
                     message = (
-                        f"CSV file '{path[i]}' has 1 column named '{cols[0]}', but the only-supported "
-                        "single-column CSV format requires the column to be named 'timestamps' (lower case)."
+                        f"CSV file '{path[i]}' has 1 column named '{columns[0]}', but the only-supported "
+                        "single-column CSV format requires the column to be named 'timestamps' (case-insensitive)."
                     )
                     logger.error(message)
                     raise ValueError(message)
                 else:
                     flag = "event_csv"
-            elif len(cols) == 3:
-                arr1 = np.array(["timestamps", "data", "sampling_rate"])
-                arr2 = np.char.lower(np.array(cols))
-                if (np.sort(arr1) == np.sort(arr2)).all() == False:
+            elif len(columns) == 3:
+                required_columns = np.array(["timestamps", "data", "sampling_rate"])
+                lowercase_columns = np.char.lower(np.array(columns))
+                if (np.sort(required_columns) == np.sort(lowercase_columns)).all() == False:
                     message = (
-                        f"CSV file '{path[i]}' has columns {list(cols)}, but the 3-column CSV format "
-                        "requires column names 'timestamps', 'data', 'sampling_rate' (all lower case)."
+                        f"CSV file '{path[i]}' has columns {list(columns)}, but the 3-column CSV format "
+                        "requires column names 'timestamps', 'data', 'sampling_rate' (case-insensitive)."
                     )
                     logger.error(message)
                     raise ValueError(message)
                 else:
                     flag = "data_csv"
-            elif len(cols) >= 2:
+            elif len(columns) >= 2:
                 raise ValueError(
-                    f"CSV file '{path[i]}' has {len(cols)} columns {list(cols)}, which matches the "
+                    f"CSV file '{path[i]}' has {len(columns)} columns {list(columns)}, which matches the "
                     "Neurophotometrics (NPM) layout. Set 'Acquisition System' to 'NPM' in the "
                     "Input Parameters GUI before re-running the pipeline."
                 )
 
-            flag_arr.append(flag)
+            flags.append(flag)
             logger.info(flag)
             name = os.path.basename(path[i]).split(".")[0]
             event_from_filename.append(name)
 
         logger.info("Importing of csv file is done.")
-        return event_from_filename, flag_arr
+        return event_from_filename, flags
 
     def __init__(self, folder_path: str) -> None:
         self.folder_path = folder_path
 
     @staticmethod
+    def _column_by_lowercase_name(dataframe: pd.DataFrame) -> dict[str, str]:
+        """Map each lower-cased column name to its actual column name.
+
+        Detection accepts column names case-insensitively, so reads must resolve
+        the actual (possibly mixed-case) column name rather than assuming lower
+        case. See :func:`guppy.extractors.detect_acquisition_formats._classify_csv_file`.
+        """
+        return {str(column).lower(): column for column in dataframe.columns}
+
+    @staticmethod
     def _check_header(df: pd.DataFrame) -> tuple[list[str], list[float]]:
-        arr = list(df.columns)
+        columns = list(df.columns)
         check_float = []
-        for i in arr:
+        for column in columns:
             try:
-                check_float.append(float(i))
+                check_float.append(float(column))
             except:
                 pass
 
-        return arr, check_float
+        return columns, check_float
 
     def count_samples(self, *, event: str) -> int:
         """Return the number of data rows in ``<event>.csv`` (excludes header)."""
@@ -177,27 +187,27 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
         -------
         list of dict
             One dictionary per event. Data CSVs produce dicts with keys
-            ``storename``, ``timestamps``, ``data``, and ``sampling_rate``;
-            event CSVs produce dicts with keys ``storename`` and ``timestamps``.
+            ``store_id``, ``timestamps``, ``data``, and ``sampling_rate``;
+            event CSVs produce dicts with keys ``store_id`` and ``timestamps``.
         """
         output_dicts = []
         for event in events:
             dataframe = self._read_csv(event=event)
-            columns_lowercase = [col.lower() for col in dataframe.columns]
-            if "data" in columns_lowercase:
+            column_by_name = self._column_by_lowercase_name(dataframe)
+            if "data" in column_by_name:
                 output_dicts.append(
                     {
-                        "storename": event,
-                        "timestamps": dataframe["timestamps"].dropna().to_numpy(),
-                        "data": dataframe["data"].dropna().to_numpy(),
-                        "sampling_rate": dataframe["sampling_rate"].dropna().to_numpy()[:1],
+                        "store_id": event,
+                        "timestamps": dataframe[column_by_name["timestamps"]].dropna().to_numpy(),
+                        "data": dataframe[column_by_name["data"]].dropna().to_numpy(),
+                        "sampling_rate": dataframe[column_by_name["sampling_rate"]].dropna().to_numpy()[:1],
                     }
                 )
             else:
                 output_dicts.append(
                     {
-                        "storename": event,
-                        "timestamps": dataframe["timestamps"].dropna().to_numpy(),
+                        "store_id": event,
+                        "timestamps": dataframe[column_by_name["timestamps"]].dropna().to_numpy(),
                     }
                 )
         return output_dicts
@@ -231,7 +241,8 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
         for event_name, flag in zip(event_names, flags):
             if flag == "data_csv":
                 dataframe = pd.read_csv(Path(self.folder_path) / f"{event_name}.csv", index_col=False)
-                first_data_timestamp = dataframe["timestamps"].iloc[0]
+                column_by_name = self._column_by_lowercase_name(dataframe)
+                first_data_timestamp = dataframe[column_by_name["timestamps"]].iloc[0]
                 break
 
         cutoff_timestamp = first_data_timestamp + duration_in_seconds
@@ -239,7 +250,8 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
         for event_name, flag in zip(event_names, flags):
             csv_path = folder_path / f"{event_name}.csv"
             dataframe = pd.read_csv(csv_path, index_col=False)
-            dataframe = dataframe[dataframe["timestamps"] <= cutoff_timestamp]
+            column_by_name = self._column_by_lowercase_name(dataframe)
+            dataframe = dataframe[dataframe[column_by_name["timestamps"]] <= cutoff_timestamp]
             dataframe.to_csv(csv_path, index=False)
 
     def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str) -> None:
@@ -254,8 +266,8 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
             Path to the output directory where HDF5 files are written.
         """
         for output_dict in output_dicts:
-            storename = output_dict["storename"]
+            store_id = output_dict["store_id"]
             for key, value in output_dict.items():
-                if key == "storename":
+                if key == "store_id":
                     continue
-                write_hdf5(value, storename, outputPath, key)
+                write_hdf5(value, store_id, outputPath, key)

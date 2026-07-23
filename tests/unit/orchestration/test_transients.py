@@ -14,18 +14,18 @@ STUB_TS = np.array([0.0, 0.5, 1.0])
 STUB_PEAKS_IND = np.array([1])
 
 
-def _write_stub_files(output_dir, basename):
+def _write_stub_files(run_folder, basename):
     """Create the glob-target HDF5 and the transient data HDF5 for a given basename."""
     # Empty file so the glob pattern finds it
-    with h5py.File(str(output_dir / f"{basename}.hdf5"), "w"):
+    with h5py.File(str(run_folder / f"{basename}.hdf5"), "w"):
         pass
-    write_transients_to_hdf5(str(output_dir), basename, STUB_Z_SCORE, STUB_TS, STUB_PEAKS_IND)
-    # select_output_dirs validates that picked outputs have a storesList.csv (re-run step 2 if missing).
-    (output_dir / "storesList.csv").write_text("")
+    write_transients_to_hdf5(str(run_folder), basename, STUB_Z_SCORE, STUB_TS, STUB_PEAKS_IND)
+    # select_run_folders validates that picked outputs have a storesList.csv (re-run step 1 if missing).
+    (run_folder / "storesList.csv").write_text("")
 
 
 @pytest.fixture
-def output_dir(tmp_path):
+def run_folder(tmp_path):
     """One session folder with one output directory containing a z_score_DMS stub."""
     session_dir = tmp_path / "session1"
     session_dir.mkdir()
@@ -49,7 +49,7 @@ def combined_output_dir(tmp_path):
 
 
 class TestExecuteVisualizePeaks:
-    def test_calls_visualize_peaks_with_correct_arguments(self, output_dir, base_input_parameters, monkeypatch):
+    def test_calls_visualize_peaks_with_correct_arguments(self, run_folder, base_input_parameters, monkeypatch):
         calls = []
         monkeypatch.setattr(
             "guppy.orchestration.transients.visualize_peaks",
@@ -60,8 +60,8 @@ class TestExecuteVisualizePeaks:
         monkeypatch.setattr("guppy.orchestration.transients.plt.show", lambda: None)
 
         base_input_parameters["selectForTransientsComputation"] = "z_score"
-        base_input_parameters["selectedOutputs"] = {str(output_dir): ["0"]}
-        execute_visualize_peaks([str(output_dir)], base_input_parameters)
+        base_input_parameters["selected_runs"] = {str(run_folder): ["0"]}
+        execute_visualize_peaks([str(run_folder)], base_input_parameters)
 
         assert len(calls) == 1
         assert calls[0]["title"] == "z_score_DMS"
@@ -85,7 +85,7 @@ class TestExecuteVisualizePeaks:
         monkeypatch.setattr("guppy.orchestration.transients.plt.show", lambda: None)
 
         base_input_parameters["selectForTransientsComputation"] = "dff"
-        base_input_parameters["selectedOutputs"] = {str(session_dir): ["0"]}
+        base_input_parameters["selected_runs"] = {str(session_dir): ["0"]}
         execute_visualize_peaks([str(session_dir)], base_input_parameters)
 
         assert len(calls) == 1
@@ -107,7 +107,7 @@ class TestExecuteVisualizePeaks:
         monkeypatch.setattr("guppy.orchestration.transients.plt.show", lambda: None)
 
         base_input_parameters["selectForTransientsComputation"] = "both"
-        base_input_parameters["selectedOutputs"] = {str(session_dir): ["0"]}
+        base_input_parameters["selected_runs"] = {str(session_dir): ["0"]}
         execute_visualize_peaks([str(session_dir)], base_input_parameters)
 
         assert len(calls) == 2
@@ -128,7 +128,7 @@ class TestExecuteVisualizePeaksCombined:
         monkeypatch.setattr("guppy.orchestration.transients.plt.show", lambda: None)
 
         base_input_parameters["selectForTransientsComputation"] = "z_score"
-        base_input_parameters["selectedOutputs"] = {session: ["0"] for session in combined_output_dir}
+        base_input_parameters["selected_runs"] = {session: ["0"] for session in combined_output_dir}
         execute_visualize_peaks_combined(combined_output_dir, base_input_parameters)
 
         # get_all_stores_for_combining_data groups both output_0 dirs into op[0];
@@ -159,7 +159,7 @@ class TestExecuteVisualizePeaksCombined:
         monkeypatch.setattr("guppy.orchestration.transients.plt.show", lambda: None)
 
         base_input_parameters["selectForTransientsComputation"] = "dff"
-        base_input_parameters["selectedOutputs"] = {str(session_dir): ["0"]}
+        base_input_parameters["selected_runs"] = {str(session_dir): ["0"]}
         execute_visualize_peaks_combined([str(session_dir)], base_input_parameters)
 
         assert len(calls) == 1

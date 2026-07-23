@@ -9,6 +9,7 @@ from scipy.optimize import curve_fit
 
 from .io_utils import (
     read_hdf5,
+    recording_site_from_channel_label,
     write_hdf5,
 )
 
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 # This function just creates placeholder Control-HDF5 files that are then immediately overwritten later on in the pipeline.
 # TODO: Refactor this function to avoid unnecessary file creation.
-def add_control_channel(filepath: str, arr: np.ndarray) -> np.ndarray:
+def add_control_channel(filepath: str, store_array: np.ndarray) -> np.ndarray:
     """
     Add synthetic control-channel entries to the storesList when no isosbestic control exists.
 
@@ -25,38 +26,38 @@ def add_control_channel(filepath: str, arr: np.ndarray) -> np.ndarray:
     ----------
     filepath : str
         Path to the session output directory containing the storesList CSV.
-    arr : np.ndarray
-        2-D storesList array with rows [storenames, display_names].
+    store_array : np.ndarray
+        2-D store array with rows [store_id, store_label].
 
     Returns
     -------
-    arr : np.ndarray
-        Updated storesList array with synthetic control entries appended.
+    store_array : np.ndarray
+        Updated store array with synthetic control entries appended.
     """
 
-    storenames = arr[0, :]
-    storesList = np.char.lower(arr[1, :])
+    store_ids = store_array[0, :]
+    store_labels_lower = np.char.lower(store_array[1, :])
 
     keep_control = np.array([])
     # check a case if there is isosbestic control channel present
-    for i in range(storesList.shape[0]):
-        if "control" in storesList[i].lower():
-            name = storesList[i].split("_")[-1]
-            new_str = "signal_" + str(name).lower()
-            find_signal = [True for i in storesList if i == new_str]
+    for i in range(store_labels_lower.shape[0]):
+        if "control" in store_labels_lower[i].lower():
+            name = recording_site_from_channel_label(store_labels_lower[i])
+            expected_signal_name = "signal_" + str(name).lower()
+            find_signal = [True for i in store_labels_lower if i == expected_signal_name]
             if len(find_signal) > 1:
                 message = (
-                    f"Multiple signal channels named '{new_str}' found in storesList for control "
-                    f"channel '{storesList[i]}' in '{filepath}'. Each signal name must be unique; "
-                    "check the storesList file and re-run step 2."
+                    f"Multiple signal channels named '{expected_signal_name}' found in storesList for control "
+                    f"channel '{store_labels_lower[i]}' in '{filepath}'. Each signal name must be unique; "
+                    "check the storesList file and re-run step 1."
                 )
                 logger.error(message)
                 raise ValueError(message)
             if len(find_signal) == 0:
                 message = (
                     "Isosbestic control channel parameter is set to False, but the storesList file "
-                    f"in '{filepath}' contains a control channel '{storesList[i]}' with no matching "
-                    f"signal channel '{new_str}'. Either enable isosbestic control or re-run step 2 "
+                    f"in '{filepath}' contains a control channel '{store_labels_lower[i]}' with no matching "
+                    f"signal channel '{expected_signal_name}'. Either enable isosbestic control or re-run step 1 "
                     "to remove the unmatched control entry."
                 )
                 logger.error(message)
@@ -64,24 +65,30 @@ def add_control_channel(filepath: str, arr: np.ndarray) -> np.ndarray:
         else:
             continue
 
-    for i in range(storesList.shape[0]):
-        if "signal" in storesList[i].lower():
-            name = storesList[i].split("_")[-1]
-            new_str = "control_" + str(name).lower()
-            find_signal = [True for i in storesList if i == new_str]
+    for i in range(store_labels_lower.shape[0]):
+        if "signal" in store_labels_lower[i].lower():
+            name = recording_site_from_channel_label(store_labels_lower[i])
+            expected_control_name = "control_" + str(name).lower()
+            find_signal = [True for i in store_labels_lower if i == expected_control_name]
             if len(find_signal) == 0:
-                src, dst = os.path.join(filepath, arr[0, i] + ".hdf5"), os.path.join(
+                source_path, destination_path = os.path.join(filepath, store_array[0, i] + ".hdf5"), os.path.join(
                     filepath, "cntrl" + str(i) + ".hdf5"
                 )
-                shutil.copyfile(src, dst)
-                arr = np.concatenate((arr, [["cntrl" + str(i)], ["control_" + str(arr[1, i].split("_")[-1])]]), axis=1)
+                shutil.copyfile(source_path, destination_path)
+                store_array = np.concatenate(
+                    (
+                        store_array,
+                        [["cntrl" + str(i)], ["control_" + recording_site_from_channel_label(store_array[1, i])]],
+                    ),
+                    axis=1,
+                )
 
-    np.savetxt(os.path.join(filepath, "storesList.csv"), arr, delimiter=",", fmt="%s")
+    np.savetxt(os.path.join(filepath, "storesList.csv"), store_array, delimiter=",", fmt="%s")
 
-    return arr
+    return store_array
 
 
-def create_control_channel(filepath: str, arr: np.ndarray, window: int = 5001) -> None:
+def create_control_channel(filepath: str, store_array: np.ndarray, window: int = 5001) -> None:
     """
     Fit a synthetic control channel from the signal channel and save it.
 
@@ -89,20 +96,20 @@ def create_control_channel(filepath: str, arr: np.ndarray, window: int = 5001) -
     ----------
     filepath : str
         Path to the session output directory where HDF5 and CSV files are written.
-    arr : np.ndarray
-        2-D storesList array with rows [storenames, display_names].
+    store_array : np.ndarray
+        2-D store array with rows [store_id, store_label].
     window : int, optional
         Savitzky-Golay filter window length used for initial smoothing. Default is 5001.
     """
 
-    storenames = arr[0, :]
-    storesList = arr[1, :]
+    store_ids = store_array[0, :]
+    store_labels = store_array[1, :]
 
-    for i in range(storesList.shape[0]):
-        event_name, event = storesList[i], storenames[i]
+    for i in range(store_labels.shape[0]):
+        event_name, event = store_labels[i], store_ids[i]
         if "control" in event_name.lower() and "cntrl" in event.lower():
             logger.debug("Creating control channel from signal channel using curve-fitting")
-            name = event_name.split("_")[-1]
+            name = recording_site_from_channel_label(event_name)
             signal = read_hdf5("signal_" + name, filepath, "data")
             timestampNew = read_hdf5("timeCorrection_" + name, filepath, "timestampNew")
             sampling_rate = np.full(timestampNew.shape, np.nan)
@@ -111,8 +118,8 @@ def create_control_channel(filepath: str, arr: np.ndarray, window: int = 5001) -
             control = helper_create_control_channel(signal, timestampNew, window)
 
             write_hdf5(control, event_name, filepath, "data")
-            d = {"timestamps": timestampNew, "data": control, "sampling_rate": sampling_rate}
-            df = pd.DataFrame(d)
+            data_dict = {"timestamps": timestampNew, "data": control, "sampling_rate": sampling_rate}
+            df = pd.DataFrame(data_dict)
             df.to_csv(os.path.join(os.path.dirname(filepath), event.lower() + ".csv"), index=False)
             logger.info("Control channel from signal channel created using curve-fitting")
 
@@ -150,10 +157,9 @@ def helper_create_control_channel(signal: np.ndarray, timestamps: np.ndarray, wi
 
     try:
         popt, pcov = curve_fit(curveFitFn, timestamps, filtered_signal, p0)
-    except Exception as e:
-        logger.error(str(e))
+    except Exception as error:
+        logger.error(str(error))
 
-    # logger.info('Curve Fit Parameters : ', popt)
     control = curveFitFn(timestamps, *popt)
 
     return control

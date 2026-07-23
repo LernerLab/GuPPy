@@ -3,10 +3,10 @@ import os
 import shutil
 
 import pytest
-from conftest import TESTING_DATA, event_ts_offset_for
 
 from guppy.testing import compare_output_folders
-from guppy.testing.api import step2, step3, step4, step5
+from guppy.testing.api import step1, step2, step3, step4
+from guppy_test_data import TESTING_DATA, event_ts_offset_for
 
 CONSISTENCY_CASES = [
     (
@@ -63,7 +63,7 @@ CONSISTENCY_CASES = [
 
 
 @pytest.mark.parametrize(
-    "session_subdir, standard_output_subdir, storenames_map, compare_kwargs",
+    "session_subdir, standard_output_subdir, store_id_to_store_label, compare_kwargs",
     CONSISTENCY_CASES,
     ids=[
         "sample_doric_1",
@@ -79,7 +79,7 @@ def test_consistency(
     tmp_path,
     session_subdir,
     standard_output_subdir,
-    storenames_map,
+    store_id_to_store_label,
     compare_kwargs,
 ):
     """
@@ -110,14 +110,14 @@ def test_consistency(
     )
 
     selected_runs = {folder: ["1"] for folder in common_kwargs["selected_folders"]}
-    step2(**common_kwargs, storenames_map=storenames_map)
-    step3(**common_kwargs, selected_runs=selected_runs)
+    step1(**common_kwargs, store_id_to_store_label=store_id_to_store_label)
+    step2(**common_kwargs, selected_runs=selected_runs)
+    step3(**common_kwargs, control_fit_method="OLS", selected_runs=selected_runs)
     step4(**common_kwargs, selected_runs=selected_runs)
-    step5(**common_kwargs, selected_runs=selected_runs)
 
-    output_dirs = sorted(glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")))
-    assert output_dirs, f"No output directory found under {session_copy}"
-    actual_output_dir = output_dirs[0]
+    run_folders = sorted(glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")))
+    assert run_folders, f"No output directory found under {session_copy}"
+    actual_output_dir = run_folders[0]
 
     compare_output_folders(
         actual_dir=actual_output_dir,

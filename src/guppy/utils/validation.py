@@ -21,8 +21,8 @@ Conventions
     can be evaluated from the form alone (folder selected, DANDI URI present).
   * Orchestration (``src/guppy/orchestration/``): pre-execution prerequisite
     checks that depend on the cross-product of multiple parameters or on
-    on-disk state (storenames consistency, peak-window ordering, metric
-    availability against step-5 outputs).
+    on-disk state (store_ids consistency, peak-window ordering, metric
+    availability against step-4 outputs).
   * Analysis (``src/guppy/analysis/``): parameter-vs-data checks that need a
     loaded signal (baseline window inside signal timespan).
 
@@ -97,6 +97,56 @@ def validate_window_bounds(
             f"{range_label} is [{ts_min:.4g}, {ts_max:.4g}]s — "
             f"choose values within this range."
         )
+        logger.error(message)
+        raise ValueError(message)
+
+
+def validate_positive(*, value: float, name: str) -> None:
+    """Validate that ``value`` is a positive number (strictly greater than 0).
+
+    Parameters
+    ----------
+    value : numeric
+        The candidate value.
+    name : str
+        Parameter name used in error messages (e.g. ``"moving_window"``).
+
+    Raises
+    ------
+    ValueError
+        If ``value`` is non-numeric / NaN, or is less than or equal to 0.
+    """
+    if not _is_finite_number(value):
+        message = f"{name}={value!r} is not a valid number; provide a positive numeric value."
+        logger.error(message)
+        raise ValueError(message)
+    if value <= 0:
+        message = f"{name}={value} must be greater than 0; choose a positive value."
+        logger.error(message)
+        raise ValueError(message)
+
+
+def validate_non_negative(*, value: float, name: str) -> None:
+    """Validate that ``value`` is a non-negative number (0 or greater).
+
+    Parameters
+    ----------
+    value : numeric
+        The candidate value.
+    name : str
+        Parameter name used in error messages (e.g. ``"filter_window"``).
+
+    Raises
+    ------
+    ValueError
+        If ``value`` is non-numeric / NaN, or is less than 0.
+    """
+    if not _is_finite_number(value):
+        message = f"{name}={value!r} is not a valid number; provide a non-negative numeric value."
+        logger.error(message)
+        raise ValueError(message)
+    if value < 0:
+        message = f"{name}={value} must be 0 or greater; choose a non-negative value."
         logger.error(message)
         raise ValueError(message)
 
@@ -191,9 +241,9 @@ def validate_same_parent_directory(*, paths: Sequence[str]) -> np.ndarray:
     ValueError
         If the paths span more than one parent directory.
     """
-    parents = np.unique(np.asarray([os.path.dirname(p) for p in paths]))
+    parents = np.unique(np.asarray([os.path.dirname(path) for path in paths]))
     if len(parents) > 1:
-        path_to_parent = "\n".join(f"  - {p} (parent: {os.path.dirname(p)})" for p in paths)
+        path_to_parent = "\n".join(f"  - {path} (parent: {os.path.dirname(path)})" for path in paths)
         message = (
             "All the folders selected should be at the same location, but the selected folders "
             f"span {len(parents)} parent directories:\n{path_to_parent}"

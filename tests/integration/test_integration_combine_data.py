@@ -6,10 +6,10 @@ from unittest.mock import patch
 import h5py
 import holoviews as hv
 import pytest
-from conftest import STUBBED_TESTING_DATA
 
 from guppy.frontend.visualization_dashboard import VisualizationDashboard
-from guppy.testing.api import step2, step3, step4, step5, step6
+from guppy.testing.api import step1, step2, step3, step4, step5
+from guppy_test_data import STUBBED_TESTING_DATA
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
@@ -18,12 +18,12 @@ def test_combine_data(tmp_path):
         "tdt/Photo_048_392-200728-121222",
         "tdt/Photo_63_207-181030-103332",
     ]
-    storenames_map = {
+    store_id_to_store_label = {
         "Dv1A": "control_dms",
         "Dv2A": "signal_dms",
         "PrtN": "port_entries_dms",
     }
-    expected_region = "dms"
+    expected_recording_site = "dms"
     expected_ttl = "port_entries_dms"
 
     npm_timestamp_column_names = None
@@ -58,11 +58,11 @@ def test_combine_data(tmp_path):
     selected_folders = [str(session_copy) for session_copy in session_copies]
     base_dir = str(tmp_base)
 
-    # Step 2: create storesList.csv in the temp copy
-    step2(
+    # Step 1: create storesList.csv in the temp copy
+    step1(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        storenames_map=storenames_map,
+        store_id_to_store_label=store_id_to_store_label,
         npm_timestamp_column_names=npm_timestamp_column_names,
         npm_time_units=npm_time_units,
         npm_split_events=npm_split_events,
@@ -70,8 +70,8 @@ def test_combine_data(tmp_path):
 
     selected_runs = {selected_folder: ["1"] for selected_folder in selected_folders}
 
-    # Step 3: read raw data in the temp copy
-    step3(
+    # Step 2: read raw data in the temp copy
+    step2(
         base_dir=base_dir,
         selected_folders=selected_folders,
         npm_timestamp_column_names=npm_timestamp_column_names,
@@ -80,8 +80,8 @@ def test_combine_data(tmp_path):
         selected_runs=selected_runs,
     )
 
-    # Step 4: extract timestamps and signal in the temp copy
-    step4(
+    # Step 3: extract timestamps and signal in the temp copy
+    step3(
         base_dir=base_dir,
         selected_folders=selected_folders,
         npm_timestamp_column_names=npm_timestamp_column_names,
@@ -91,8 +91,8 @@ def test_combine_data(tmp_path):
         selected_runs=selected_runs,
     )
 
-    # Step 5: compute PSTH in the temp copy (headless)
-    step5(
+    # Step 4: compute PSTH in the temp copy (headless)
+    step4(
         base_dir=str(tmp_base),
         selected_folders=selected_folders,
         npm_timestamp_column_names=npm_timestamp_column_names,
@@ -105,24 +105,24 @@ def test_combine_data(tmp_path):
     # Validate outputs exist in the temp copy
     session_copy = selected_folders[0]  # Outputs are written to the first session folder
     basename = os.path.basename(session_copy)
-    output_dirs = sorted(glob.glob(os.path.join(session_copy, f"{basename}_output_*")))
-    assert output_dirs, f"No output directories found in {session_copy}"
+    run_folders = sorted(glob.glob(os.path.join(session_copy, f"{basename}_output_*")))
+    assert run_folders, f"No output directories found in {session_copy}"
     out_dir = None
-    for d in output_dirs:
+    for d in run_folders:
         if os.path.exists(os.path.join(d, "storesList.csv")):
             out_dir = d
             break
     assert out_dir is not None, f"No storesList.csv found in any output directory under {session_copy}"
     stores_fp = os.path.join(out_dir, "storesList.csv")
-    assert os.path.exists(stores_fp), "Missing storesList.csv after Step 2/3/4"
+    assert os.path.exists(stores_fp), "Missing storesList.csv after Step 1/2/3"
 
-    # Ensure timeCorrection_<region>.hdf5 exists with 'timestampNew'
-    timecorr = os.path.join(out_dir, f"timeCorrection_{expected_region}.hdf5")
+    # Ensure timeCorrection_<recording_site>.hdf5 exists with 'timestampNew'
+    timecorr = os.path.join(out_dir, f"timeCorrection_{expected_recording_site}.hdf5")
     assert os.path.exists(timecorr), f"Missing {timecorr}"
     with h5py.File(timecorr, "r") as f:
         assert "timestampNew" in f, f"Expected 'timestampNew' dataset in {timecorr}"
 
-    # If TTLs exist, check their per-region 'ts' outputs
+    # If TTLs exist, check their per-recording-site 'ts' outputs
     if expected_ttl is None:
         expected_ttls = []
     elif isinstance(expected_ttl, str):
@@ -130,7 +130,7 @@ def test_combine_data(tmp_path):
     else:
         expected_ttls = expected_ttl
     for expected_ttl in expected_ttls:
-        ttl_fp = os.path.join(out_dir, f"{expected_ttl}_{expected_region}.hdf5")
+        ttl_fp = os.path.join(out_dir, f"{expected_ttl}_{expected_recording_site}.hdf5")
         assert os.path.exists(ttl_fp), f"Missing TTL-aligned file {ttl_fp}"
         with h5py.File(ttl_fp, "r") as f:
             assert "ts" in f, f"Expected 'ts' dataset in {ttl_fp}"
@@ -145,10 +145,10 @@ def test_combine_data(tmp_path):
 
     with patch.object(VisualizationDashboard, "__init__", capturing_init):
         with patch.object(VisualizationDashboard, "show", lambda self: None):
-            step6(
+            step5(
                 base_dir=base_dir,
                 selected_folders=[str(session_copies[0])],
                 selected_runs={str(session_copies[0]): ["1"]},
             )
 
-    assert len(captured_dashboards) >= 1, "step6 created no VisualizationDashboard instances"
+    assert len(captured_dashboards) >= 1, "step5 created no VisualizationDashboard instances"

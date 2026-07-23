@@ -4,9 +4,9 @@ import shutil
 
 import h5py
 import pytest
-from conftest import STUBBED_TESTING_DATA
 
-from guppy.testing.api import step2, step3, step4, step5
+from guppy.testing.api import step1, step2, step3, step4
+from guppy_test_data import STUBBED_TESTING_DATA
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
@@ -25,12 +25,12 @@ def test_mixed_modality(tmp_path):
     npm_session_subdir = "npm/sampleData_NPM_4"
     doric_session_subdir = "doric/sample_doric_3"
 
-    npm_storenames_map = {
+    npm_store_id_to_store_label = {
         "file0_chev1": "control_region1",
         "file0_chod1": "signal_region1",
         "eventTrue": "ttl_true_region1",
     }
-    doric_storenames_map = {
+    doric_store_id_to_store_label = {
         "CAM1_EXC1/ROI01": "control_region",
         "CAM1_EXC2/ROI01": "signal_region",
         "DigitalIO/CAM1": "ttl",
@@ -63,22 +63,28 @@ def test_mixed_modality(tmp_path):
     doric_folder = str(doric_dest)
     selected_folders = [npm_folder, doric_folder]
 
-    # step2 must run per-session: each session's storesList.csv must contain only its own channels.
+    # step1 must run per-session: each session's storesList.csv must contain only its own channels.
     # The pipeline would otherwise try to read Doric channels from the NPM folder (and vice versa).
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[npm_folder],
-        storenames_map=npm_storenames_map,
+        store_id_to_store_label=npm_store_id_to_store_label,
         npm_split_events=[True, True],
     )
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[doric_folder],
-        storenames_map=doric_storenames_map,
+        store_id_to_store_label=doric_store_id_to_store_label,
     )
 
     # Steps 3–5 run once with both sessions; each session's storesList.csv is read independently.
     selected_runs = {folder: ["1"] for folder in selected_folders}
+    step2(
+        base_dir=base_dir,
+        selected_folders=selected_folders,
+        npm_split_events=[True, True],
+        selected_runs=selected_runs,
+    )
     step3(
         base_dir=base_dir,
         selected_folders=selected_folders,
@@ -91,18 +97,12 @@ def test_mixed_modality(tmp_path):
         npm_split_events=[True, True],
         selected_runs=selected_runs,
     )
-    step5(
-        base_dir=base_dir,
-        selected_folders=selected_folders,
-        npm_split_events=[True, True],
-        selected_runs=selected_runs,
-    )
 
     # Validate NPM session outputs
-    _assert_pipeline_outputs(npm_dest, expected_region="region1", expected_ttl="ttl_true_region1")
+    _assert_pipeline_outputs(npm_dest, expected_recording_site="region1", expected_ttl="ttl_true_region1")
 
     # Validate Doric session outputs
-    _assert_pipeline_outputs(doric_dest, expected_region="region", expected_ttl="ttl")
+    _assert_pipeline_outputs(doric_dest, expected_recording_site="region", expected_ttl="ttl")
 
 
 def _stage_session(src_base_dir, session_subdir, tmp_base):
@@ -127,7 +127,7 @@ def test_mixed_modality_tdt_doric(tmp_path):
     Inter-session mixed modality: TDT session + Doric session processed together.
 
     Each session uses its own acquisition format; modality is auto-detected per folder.
-    Step 2 runs separately per session; steps 3–5 run together across both sessions.
+    Step 1 runs separately per session; steps 2–4 run together across both sessions.
     """
     src_base_dir = str(STUBBED_TESTING_DATA)
     tmp_base = tmp_path / "data_root"
@@ -138,15 +138,15 @@ def test_mixed_modality_tdt_doric(tmp_path):
 
     base_dir = str(tmp_base)
 
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[str(tdt_session)],
-        storenames_map={"Dv1A": "control_dms", "Dv2A": "signal_dms", "PrtN": "port_entries_dms"},
+        store_id_to_store_label={"Dv1A": "control_dms", "Dv2A": "signal_dms", "PrtN": "port_entries_dms"},
     )
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[str(doric_session)],
-        storenames_map={
+        store_id_to_store_label={
             "CAM1_EXC1/ROI01": "control_region",
             "CAM1_EXC2/ROI01": "signal_region",
             "DigitalIO/CAM1": "ttl",
@@ -155,12 +155,12 @@ def test_mixed_modality_tdt_doric(tmp_path):
 
     selected_folders = [str(tdt_session), str(doric_session)]
     selected_runs = {folder: ["1"] for folder in selected_folders}
+    step2(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step3(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
-    step5(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
 
-    _assert_pipeline_outputs(tdt_session, expected_region="dms", expected_ttl="port_entries_dms")
-    _assert_pipeline_outputs(doric_session, expected_region="region", expected_ttl="ttl")
+    _assert_pipeline_outputs(tdt_session, expected_recording_site="dms", expected_ttl="port_entries_dms")
+    _assert_pipeline_outputs(doric_session, expected_recording_site="region", expected_ttl="ttl")
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
@@ -169,7 +169,7 @@ def test_mixed_modality_tdt_npm(tmp_path):
     Inter-session mixed modality: TDT session + NPM session processed together.
 
     Each session uses its own acquisition format; modality is auto-detected per folder.
-    Step 2 runs separately per session; steps 3–5 run together across both sessions.
+    Step 1 runs separately per session; steps 2–4 run together across both sessions.
     The NPM session (sampleData_NPM_4) uses split events.
     """
     src_base_dir = str(STUBBED_TESTING_DATA)
@@ -181,15 +181,15 @@ def test_mixed_modality_tdt_npm(tmp_path):
 
     base_dir = str(tmp_base)
 
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[str(tdt_session)],
-        storenames_map={"Dv1A": "control_dms", "Dv2A": "signal_dms", "PrtN": "port_entries_dms"},
+        store_id_to_store_label={"Dv1A": "control_dms", "Dv2A": "signal_dms", "PrtN": "port_entries_dms"},
     )
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[str(npm_session)],
-        storenames_map={
+        store_id_to_store_label={
             "file0_chev1": "control_region1",
             "file0_chod1": "signal_region1",
             "eventTrue": "ttl_true_region1",
@@ -199,18 +199,18 @@ def test_mixed_modality_tdt_npm(tmp_path):
 
     selected_folders = [str(tdt_session), str(npm_session)]
     selected_runs = {folder: ["1"] for folder in selected_folders}
+    step2(
+        base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
+    )
     step3(
         base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
     )
     step4(
         base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
     )
-    step5(
-        base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
-    )
 
-    _assert_pipeline_outputs(tdt_session, expected_region="dms", expected_ttl="port_entries_dms")
-    _assert_pipeline_outputs(npm_session, expected_region="region1", expected_ttl="ttl_true_region1")
+    _assert_pipeline_outputs(tdt_session, expected_recording_site="dms", expected_ttl="port_entries_dms")
+    _assert_pipeline_outputs(npm_session, expected_recording_site="region1", expected_ttl="ttl_true_region1")
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
@@ -219,7 +219,7 @@ def test_mixed_modality_tdt_csv_data(tmp_path):
     Inter-session mixed modality: TDT session + CSV data session processed together.
 
     Each session uses its own acquisition format; modality is auto-detected per folder.
-    Step 2 runs separately per session; steps 3–5 run together across both sessions.
+    Step 1 runs separately per session; steps 2–4 run together across both sessions.
     """
     src_base_dir = str(STUBBED_TESTING_DATA)
     tmp_base = tmp_path / "data_root"
@@ -230,15 +230,15 @@ def test_mixed_modality_tdt_csv_data(tmp_path):
 
     base_dir = str(tmp_base)
 
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[str(tdt_session)],
-        storenames_map={"Dv1A": "control_dms", "Dv2A": "signal_dms", "PrtN": "port_entries_dms"},
+        store_id_to_store_label={"Dv1A": "control_dms", "Dv2A": "signal_dms", "PrtN": "port_entries_dms"},
     )
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[str(csv_session)],
-        storenames_map={
+        store_id_to_store_label={
             "Sample_Control_Channel": "control_region",
             "Sample_Signal_Channel": "signal_region",
             "Sample_TTL": "ttl",
@@ -247,12 +247,12 @@ def test_mixed_modality_tdt_csv_data(tmp_path):
 
     selected_folders = [str(tdt_session), str(csv_session)]
     selected_runs = {folder: ["1"] for folder in selected_folders}
+    step2(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step3(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
-    step5(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
 
-    _assert_pipeline_outputs(tdt_session, expected_region="dms", expected_ttl="port_entries_dms")
-    _assert_pipeline_outputs(csv_session, expected_region="region", expected_ttl="ttl")
+    _assert_pipeline_outputs(tdt_session, expected_recording_site="dms", expected_ttl="port_entries_dms")
+    _assert_pipeline_outputs(csv_session, expected_recording_site="region", expected_ttl="ttl")
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
@@ -261,7 +261,7 @@ def test_mixed_modality_nwb_csv(tmp_path):
     Inter-session mixed modality: NWB session + CSV data session processed together.
 
     Each session uses its own acquisition format; modality is auto-detected per folder.
-    Step 2 runs separately per session; steps 3–5 run together across both sessions.
+    Step 1 runs separately per session; steps 2–4 run together across both sessions.
     """
     src_base_dir = str(STUBBED_TESTING_DATA)
     tmp_base = tmp_path / "data_root"
@@ -272,19 +272,19 @@ def test_mixed_modality_nwb_csv(tmp_path):
 
     base_dir = str(tmp_base)
 
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[str(nwb_session)],
-        storenames_map={
+        store_id_to_store_label={
             "fiber_photometry_response_series_0": "control_region",
             "fiber_photometry_response_series_1": "signal_region",
             "events": "ttl",
         },
     )
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[str(csv_session)],
-        storenames_map={
+        store_id_to_store_label={
             "Sample_Control_Channel": "control_region",
             "Sample_Signal_Channel": "signal_region",
             "Sample_TTL": "ttl",
@@ -293,12 +293,12 @@ def test_mixed_modality_nwb_csv(tmp_path):
 
     selected_folders = [str(nwb_session), str(csv_session)]
     selected_runs = {folder: ["1"] for folder in selected_folders}
+    step2(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step3(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
-    step5(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
 
-    _assert_pipeline_outputs(nwb_session, expected_region="region", expected_ttl="ttl")
-    _assert_pipeline_outputs(csv_session, expected_region="region", expected_ttl="ttl")
+    _assert_pipeline_outputs(nwb_session, expected_recording_site="region", expected_ttl="ttl")
+    _assert_pipeline_outputs(csv_session, expected_recording_site="region", expected_ttl="ttl")
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
@@ -307,7 +307,7 @@ def test_mixed_modality_nwb_tdt(tmp_path):
     Inter-session mixed modality: NWB session + TDT session processed together.
 
     Each session uses its own acquisition format; modality is auto-detected per folder.
-    Step 2 runs separately per session; steps 3–5 run together across both sessions.
+    Step 1 runs separately per session; steps 2–4 run together across both sessions.
     """
     src_base_dir = str(STUBBED_TESTING_DATA)
     tmp_base = tmp_path / "data_root"
@@ -318,29 +318,29 @@ def test_mixed_modality_nwb_tdt(tmp_path):
 
     base_dir = str(tmp_base)
 
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[str(nwb_session)],
-        storenames_map={
+        store_id_to_store_label={
             "fiber_photometry_response_series_0": "control_region",
             "fiber_photometry_response_series_1": "signal_region",
             "events": "ttl",
         },
     )
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[str(tdt_session)],
-        storenames_map={"Dv1A": "control_dms", "Dv2A": "signal_dms", "PrtN": "port_entries_dms"},
+        store_id_to_store_label={"Dv1A": "control_dms", "Dv2A": "signal_dms", "PrtN": "port_entries_dms"},
     )
 
     selected_folders = [str(nwb_session), str(tdt_session)]
     selected_runs = {folder: ["1"] for folder in selected_folders}
+    step2(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step3(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
-    step5(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
 
-    _assert_pipeline_outputs(nwb_session, expected_region="region", expected_ttl="ttl")
-    _assert_pipeline_outputs(tdt_session, expected_region="dms", expected_ttl="port_entries_dms")
+    _assert_pipeline_outputs(nwb_session, expected_recording_site="region", expected_ttl="ttl")
+    _assert_pipeline_outputs(tdt_session, expected_recording_site="dms", expected_ttl="port_entries_dms")
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
@@ -349,7 +349,7 @@ def test_mixed_modality_nwb_doric(tmp_path):
     Inter-session mixed modality: NWB session + Doric session processed together.
 
     Each session uses its own acquisition format; modality is auto-detected per folder.
-    Step 2 runs separately per session; steps 3–5 run together across both sessions.
+    Step 1 runs separately per session; steps 2–4 run together across both sessions.
     """
     src_base_dir = str(STUBBED_TESTING_DATA)
     tmp_base = tmp_path / "data_root"
@@ -360,19 +360,19 @@ def test_mixed_modality_nwb_doric(tmp_path):
 
     base_dir = str(tmp_base)
 
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[str(nwb_session)],
-        storenames_map={
+        store_id_to_store_label={
             "fiber_photometry_response_series_0": "control_region",
             "fiber_photometry_response_series_1": "signal_region",
             "events": "ttl",
         },
     )
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[str(doric_session)],
-        storenames_map={
+        store_id_to_store_label={
             "CAM1_EXC1/ROI01": "control_region",
             "CAM1_EXC2/ROI01": "signal_region",
             "DigitalIO/CAM1": "ttl",
@@ -381,12 +381,12 @@ def test_mixed_modality_nwb_doric(tmp_path):
 
     selected_folders = [str(nwb_session), str(doric_session)]
     selected_runs = {folder: ["1"] for folder in selected_folders}
+    step2(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step3(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
-    step5(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
 
-    _assert_pipeline_outputs(nwb_session, expected_region="region", expected_ttl="ttl")
-    _assert_pipeline_outputs(doric_session, expected_region="region", expected_ttl="ttl")
+    _assert_pipeline_outputs(nwb_session, expected_recording_site="region", expected_ttl="ttl")
+    _assert_pipeline_outputs(doric_session, expected_recording_site="region", expected_ttl="ttl")
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
@@ -395,7 +395,7 @@ def test_mixed_modality_nwb_npm(tmp_path):
     Inter-session mixed modality: NWB session + NPM session processed together.
 
     Each session uses its own acquisition format; modality is auto-detected per folder.
-    Step 2 runs separately per session; steps 3–5 run together across both sessions.
+    Step 1 runs separately per session; steps 2–4 run together across both sessions.
     The NPM session (sampleData_NPM_4) uses split events.
     """
     src_base_dir = str(STUBBED_TESTING_DATA)
@@ -407,19 +407,19 @@ def test_mixed_modality_nwb_npm(tmp_path):
 
     base_dir = str(tmp_base)
 
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[str(nwb_session)],
-        storenames_map={
+        store_id_to_store_label={
             "fiber_photometry_response_series_0": "control_region",
             "fiber_photometry_response_series_1": "signal_region",
             "events": "ttl",
         },
     )
-    step2(
+    step1(
         base_dir=base_dir,
         selected_folders=[str(npm_session)],
-        storenames_map={
+        store_id_to_store_label={
             "file0_chev1": "control_region1",
             "file0_chod1": "signal_region1",
             "eventTrue": "ttl_true_region1",
@@ -429,38 +429,38 @@ def test_mixed_modality_nwb_npm(tmp_path):
 
     selected_folders = [str(nwb_session), str(npm_session)]
     selected_runs = {folder: ["1"] for folder in selected_folders}
+    step2(
+        base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
+    )
     step3(
         base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
     )
     step4(
         base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
     )
-    step5(
-        base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
-    )
 
-    _assert_pipeline_outputs(nwb_session, expected_region="region", expected_ttl="ttl")
-    _assert_pipeline_outputs(npm_session, expected_region="region1", expected_ttl="ttl_true_region1")
+    _assert_pipeline_outputs(nwb_session, expected_recording_site="region", expected_ttl="ttl")
+    _assert_pipeline_outputs(npm_session, expected_recording_site="region1", expected_ttl="ttl_true_region1")
 
 
-def _assert_pipeline_outputs(session_copy, expected_region, expected_ttl):
+def _assert_pipeline_outputs(session_copy, expected_recording_site, expected_ttl):
     basename = os.path.basename(session_copy)
-    output_dirs = sorted(glob.glob(os.path.join(session_copy, f"{basename}_output_*")))
-    assert output_dirs, f"No output directories found in {session_copy}"
+    run_folders = sorted(glob.glob(os.path.join(session_copy, f"{basename}_output_*")))
+    assert run_folders, f"No output directories found in {session_copy}"
     out_dir = None
-    for d in output_dirs:
+    for d in run_folders:
         if os.path.exists(os.path.join(d, "storesList.csv")):
             out_dir = d
             break
     assert out_dir is not None, f"No storesList.csv found in any output directory under {session_copy}"
     assert os.path.exists(os.path.join(out_dir, "storesList.csv")), "Missing storesList.csv"
 
-    timecorr = os.path.join(out_dir, f"timeCorrection_{expected_region}.hdf5")
+    timecorr = os.path.join(out_dir, f"timeCorrection_{expected_recording_site}.hdf5")
     assert os.path.exists(timecorr), f"Missing {timecorr}"
     with h5py.File(timecorr, "r") as f:
         assert "timestampNew" in f, f"Expected 'timestampNew' dataset in {timecorr}"
 
-    ttl_fp = os.path.join(out_dir, f"{expected_ttl}_{expected_region}.hdf5")
+    ttl_fp = os.path.join(out_dir, f"{expected_ttl}_{expected_recording_site}.hdf5")
     assert os.path.exists(ttl_fp), f"Missing TTL-aligned file {ttl_fp}"
     with h5py.File(ttl_fp, "r") as f:
         assert "ts" in f, f"Expected 'ts' dataset in {ttl_fp}"

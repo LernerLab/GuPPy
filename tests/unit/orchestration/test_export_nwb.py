@@ -57,7 +57,7 @@ class TestValidateArtifactRemovalMethods:
         # End-to-end through the public entry point: the offending config must raise the
         # ValueError before the export loop touches neuroconv.
         self._write_parameters(session_path, {"removeArtifacts": True, "artifactsRemovalMethod": "concatenate"})
-        input_parameters = {"selectedOutputs": {str(session_path): ["run1"]}}
+        input_parameters = {"selected_runs": {str(session_path): ["run1"]}}
         with pytest.raises(ValueError, match="does not support the 'concatenate'"):
             orchestrate_export_nwb_page(input_parameters)
 
@@ -129,7 +129,7 @@ class _FakeNotifications:
 class TestOrchestrateExportNwbPage:
     @pytest.fixture
     def two_sessions(self):
-        return {"selectedOutputs": {"/data/Photo_A": ["run1"], "/data/Photo_B": ["run1"]}}
+        return {"selected_runs": {"/data/Photo_A": ["run1"], "/data/Photo_B": ["run1"]}}
 
     @pytest.fixture
     def notifications(self, monkeypatch):
