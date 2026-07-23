@@ -1,7 +1,15 @@
+import sys
+
 import panel as pn
 import pytest
 
-from guppy.orchestration.home import build_homepage
+from guppy.orchestration import home as home_module
+from guppy.orchestration.home import (
+    build_homepage,
+    preprocess,
+    psthComputation,
+    readRawData,
+)
 
 
 @pytest.fixture
@@ -103,6 +111,119 @@ def test_onclick_visualization_surfaces_value_error_as_panel_notification(homepa
     assert len(captured_notifications) == 1
     assert error_text in captured_notifications[0]["message"]
     assert captured_notifications[0]["duration"] == 0
+
+
+class TestSubprocessSteps:
+    """The read/preprocess/psth steps shell out to a module entry point with the params as JSON."""
+
+    @pytest.mark.parametrize(
+        "function, module_suffix",
+        [
+            (readRawData, "guppy.orchestration.read_raw_data"),
+            (preprocess, "guppy.orchestration.preprocess"),
+            (psthComputation, "guppy.orchestration.psth"),
+        ],
+    )
+    def test_invokes_subprocess_with_module_and_json_params(self, function, module_suffix, monkeypatch):
+        calls = []
+        monkeypatch.setattr(home_module.subprocess, "call", lambda command: calls.append(command))
+
+        function({"a": 1})
+
+        assert calls == [[sys.executable, "-m", module_suffix, '{"a": 1}']]
+
+
+class TestMetadataAndExportHooks:
+    def test_hooks_contain_metadata_and_export(self, homepage):
+        assert callable(homepage._hooks["onclickMetadata"])
+        assert callable(homepage._hooks["onclickExportNwb"])
+
+    def test_onclick_metadata_invokes_worker_with_input_parameters(self, homepage, tmp_path, monkeypatch):
+        folder = tmp_path / "session1"
+        folder.mkdir()
+        homepage._widgets["files_1"].value = [str(folder)]
+
+        worker_calls = []
+        monkeypatch.setattr(home_module, "orchestrate_metadata_page", lambda params: worker_calls.append(params))
+
+        homepage._hooks["onclickMetadata"]()
+
+        assert len(worker_calls) == 1
+        assert isinstance(worker_calls[0], dict)
+
+    def test_onclick_metadata_no_folder_notifies_and_skips_worker(self, homepage, monkeypatch):
+        homepage._widgets["files_1"].value = []
+
+        worker_calls = []
+        monkeypatch.setattr(home_module, "orchestrate_metadata_page", lambda params: worker_calls.append(params))
+
+        captured = []
+        monkeypatch.setattr(pn.state.notifications, "error", lambda message, *, duration: captured.append(message))
+
+        homepage._hooks["onclickMetadata"]()
+
+        assert worker_calls == []
+        assert any("No folder is selected for analysis" in message for message in captured)
+
+    def test_onclick_export_invokes_worker_with_progress_bar(self, homepage, tmp_path, monkeypatch):
+        folder = tmp_path / "session1"
+        folder.mkdir()
+        homepage._widgets["files_1"].value = [str(folder)]
+
+        worker_calls = []
+        monkeypatch.setattr(
+            home_module,
+            "orchestrate_export_nwb_page",
+            lambda params, progress_bar: worker_calls.append((params, progress_bar)),
+        )
+
+        homepage._hooks["onclickExportNwb"]()
+
+        assert len(worker_calls) == 1
+        params, progress_bar = worker_calls[0]
+        assert isinstance(params, dict)
+        assert progress_bar is not None
+
+    def test_onclick_export_no_folder_notifies_and_skips_worker(self, homepage, monkeypatch):
+        homepage._widgets["files_1"].value = []
+
+        worker_calls = []
+        monkeypatch.setattr(
+            home_module,
+            "orchestrate_export_nwb_page",
+            lambda params, progress_bar: worker_calls.append(params),
+        )
+
+        captured = []
+        monkeypatch.setattr(pn.state.notifications, "error", lambda message, *, duration: captured.append(message))
+
+        homepage._hooks["onclickExportNwb"]()
+
+        assert worker_calls == []
+        assert any("No folder is selected for analysis" in message for message in captured)
+
+    def test_onclick_export_surfaces_value_error_as_notification(self, homepage, tmp_path, monkeypatch):
+        folder = tmp_path / "session1"
+        folder.mkdir()
+        homepage._widgets["files_1"].value = [str(folder)]
+
+        def _raise(params, progress_bar):
+            raise ValueError("export prerequisite failed")
+
+        monkeypatch.setattr(home_module, "orchestrate_export_nwb_page", _raise)
+
+        captured = []
+        monkeypatch.setattr(
+            pn.state.notifications,
+            "error",
+            lambda message, *, duration: captured.append({"message": message, "duration": duration}),
+        )
+
+        homepage._hooks["onclickExportNwb"]()
+
+        assert len(captured) == 1
+        assert "export prerequisite failed" in captured[0]["message"]
+        assert captured[0]["duration"] == 0
 
 
 # The three pipeline steps that run a worker in a background thread behind a progress

@@ -1,6 +1,7 @@
 # v2.0.0-alpha9 (Upcoming)
 
 ## Features
+- Added export to NWB, with a metadata input form for supplying subject/session details (TDT modality only). NWB export aborts upfront with a clear message when a selected session was processed with the `concatenate` artifact-removal method, which re-times samples and breaks alignment to the acquisition clock. [PR #357](https://github.com/LernerLab/GuPPy/pull/357)
 - Added a baseline-epoch mode for isosbestic control fitting: fit coefficients can now be estimated from a user-specified pre-injection window and applied across the whole recording, so a step-change (e.g. a drug injection) no longer corrupts the control fit. [PR #392](https://github.com/LernerLab/GuPPy/pull/392)
 - Added support for pynwb 4.0, including the new core `EventsTable` event type (NWB Schema 2.10.0); each `EventsTable` becomes a store, split into one store per unique value of its optional text `annotation` column. Dropped support for the `ndx-events` 0.4 extension, which is unreadable under pynwb 4.0. [PR #367](https://github.com/LernerLab/GuPPy/pull/367)
 - Soft-deprecated the `concatenate` artifact-removal method: `replace with NaN` is now the default because `concatenate` re-times the kept samples onto a fresh timeline, breaking alignment to the acquisition clock. [PR #396](https://github.com/LernerLab/GuPPy/pull/396)

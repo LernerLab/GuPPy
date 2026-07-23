@@ -8,7 +8,9 @@ from typing import Callable
 
 import panel as pn
 
+from .export_nwb import orchestrate_export_nwb_page
 from .import_custom_events import orchestrate_custom_events_page
+from .metadata import orchestrate_metadata_page
 from .store_labeling import orchestrate_store_labeling_page
 from .visualize import visualizeResults
 from ..frontend.input_parameters import ParameterForm
@@ -142,6 +144,23 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
     def onclickpsth(event: object = None) -> None:
         _run_worker_with_progress(psthComputation, sidebar.psth_progress, add_curr_dir=True)
 
+    def onclickMetadata(event: object = None) -> None:
+        inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
+        if inputParameters is None:
+            return
+        orchestrate_metadata_page(inputParameters)
+
+    def onclickExportNwb(event: object = None) -> None:
+        inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
+        if inputParameters is None:
+            return
+        # Runs synchronously (like visualization) so the progress bar and
+        # notifications update directly; per-session failures are reported and skipped.
+        try:
+            orchestrate_export_nwb_page(inputParameters, progress_bar=sidebar.export_progress)
+        except ValueError as e:
+            pn.state.notifications.error(str(e), duration=0)
+
     # ------------------------------------------------------------------------------------------------------------------
 
     button_name_to_onclick_fn = {
@@ -151,6 +170,8 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
         "preprocess": onclickpreprocess,
         "psth_computation": onclickpsth,
         "open_visualization": onclickVisualization,
+        "open_metadata": onclickMetadata,
+        "export_nwb": onclickExportNwb,
     }
     sidebar.attach_callbacks(button_name_to_onclick_fn=button_name_to_onclick_fn)
     sidebar.add_to_template()
@@ -158,6 +179,8 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
     # Expose minimal hooks and widgets to enable programmatic testing
     template._hooks = {
         "onclickVisualization": onclickVisualization,
+        "onclickMetadata": onclickMetadata,
+        "onclickExportNwb": onclickExportNwb,
         "onclickImportCustomEvents": onclickImportCustomEvents,
         "onclickreaddata": onclickreaddata,
         "onclickpreprocess": onclickpreprocess,

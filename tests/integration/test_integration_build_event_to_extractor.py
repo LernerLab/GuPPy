@@ -155,3 +155,24 @@ def test_nwb_session_routes_all_events_to_nwb_extractor(tmp_path):
     assert result
     for extractor in result.values():
         assert isinstance(extractor, NwbRecordingExtractor)
+
+
+def test_nwb_session_routes_all_events_with_ndx_events_imported(tmp_path):
+    # Importing ndx_events registers the hand-written LabeledEvents class into the
+    # process-wide pynwb type map, so reads return ``.labels`` instead of the
+    # auto-generated ``.data__labels``. Event discovery must work either way; in CI
+    # some other test in the same xdist worker triggers this import before us.
+    import ndx_events  # noqa: F401
+
+    session_copy = tmp_path / NWB_SESSION.name
+    shutil.copytree(NWB_SESSION, session_copy)
+    stores_list = _make_stores_list(NWB_STORENAMES_MAP)
+    input_parameters = {"noChannels": 2}
+    result = _build_event_to_extractor(
+        folder_path=str(session_copy),
+        storesList=stores_list,
+        inputParameters=input_parameters,
+    )
+    assert result
+    for extractor in result.values():
+        assert isinstance(extractor, NwbRecordingExtractor)
