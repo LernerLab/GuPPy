@@ -13,7 +13,7 @@ from guppy.orchestration.home import build_homepage
 def ui_base_dir(tmp_path_factory):
     """Provide a real temp directory as GUPPY_BASE_DIR.
 
-    Prevents Tk dialogs from opening when FileSelector widgets initialize.
+    Points the FileSelector widgets at a real path when they initialize.
     """
     base_dir = tmp_path_factory.mktemp("ui_base")
     original = os.environ.get("GUPPY_BASE_DIR")

@@ -89,7 +89,6 @@ class StoreLabelingSelector:
 
         self.change_widgets = pn.WidgetBox(self.text)
 
-        # Panel-based store_id configuration (replaces Tkinter dialog)
         self.store_id_config_widgets = pn.Column(visible=False)
         self.show_config_button = pn.widgets.Button(name="Show Selected Configuration", width=600)
 
@@ -213,6 +212,21 @@ class StoreLabelingSelector:
         """
         for widget in self.change_widgets:
             widget.value = value
+
+    def set_events(self, *, events: list[str]) -> None:
+        """Replace the selectable store_id options in the store-selection widgets.
+
+        Used after deferred discovery (e.g. once the NPM configuration is
+        confirmed) to populate the cross-selector and multi-choice with the
+        newly discovered store_ids.
+
+        Parameters
+        ----------
+        events : list of str
+            store_id strings to offer as options.
+        """
+        self.cross_selector.options = events
+        self.multi_choice.options = events
 
     def get_cross_selector(self) -> list[str]:
         """Return the store_ids currently selected in the cross-selector.

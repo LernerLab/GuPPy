@@ -97,7 +97,7 @@ def save_parameters_snapshot(*, base_dir: str, selected_folders: Iterable[str]) 
     In the GUI this snapshot is now written automatically by each consuming step
     (steps 1–4); this helper exposes the same ``save_parameters`` write directly
     for tests and scripted provenance. It builds the form headlessly (using
-    ``GUPPY_BASE_DIR`` to bypass the Tk folder dialog), sets the FileSelector to
+    ``GUPPY_BASE_DIR`` to bypass the folder dialog), sets the FileSelector to
     ``selected_folders``, and calls ``save_parameters`` with the current
     parameters.
 
@@ -138,7 +138,7 @@ def import_custom_events(
     """Write custom event CSVs into sessions via the actual Panel-backed logic, headlessly.
 
     Mirrors the optional "Import Custom Events" GUI step: builds the form
-    headlessly (using ``GUPPY_BASE_DIR`` to bypass the Tk folder dialog), sets the
+    headlessly (using ``GUPPY_BASE_DIR`` to bypass the folder dialog), sets the
     FileSelector to ``selected_folders``, injects ``custom_events_map``, and calls
     ``orchestrate_custom_events_page``. Each event is written as a
     GuPPy-compatible ``<name>.csv`` into its session folder. This is an unnumbered,
