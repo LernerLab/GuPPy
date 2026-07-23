@@ -13,6 +13,8 @@ into the run folder, which the preprocessing step then consumes.
 import glob
 import logging
 import os
+import threading
+from collections.abc import Callable
 
 import holoviews as hv
 import numpy as np
@@ -82,10 +84,18 @@ class TonicEpochConfig:
     save writes one ``tonic_epochs_<site>.csv`` per site into the run folder.
     """
 
-    def __init__(self, filepath: str, site_traces: dict[str, dict[str, np.ndarray]]) -> None:
+    def __init__(
+        self,
+        filepath: str,
+        site_traces: dict[str, dict[str, np.ndarray]],
+        on_done: Callable[[], None] | None = None,
+    ) -> None:
         self.filepath = filepath
         self.site_traces = site_traces
         self.sites = list(site_traces.keys())
+        # Called after a successful save so the serving loop can stop and the
+        # preprocessing subprocess can advance to the next step.
+        self.on_done = on_done
 
         self.site_to_widget = {
             site: pn.widgets.Tabulator(_empty_epoch_df(), show_index=False, widths=180) for site in self.sites
@@ -94,7 +104,7 @@ class TonicEpochConfig:
         self.signal_toggle = pn.widgets.RadioButtonGroup(name="Signal", options=["z_score", "dff"], value="z_score")
         self.site_select = pn.widgets.Select(name="Recording site", options=self.sites, value=self.sites[0])
         self.copy_to_all_button = pn.widgets.Button(name="Copy windows to all sites", button_type="default")
-        self.save_button = pn.widgets.Button(name="Save epoch windows", button_type="primary")
+        self.save_button = pn.widgets.Button(name="Save and continue", button_type="primary")
 
         self.plot_pane = pn.pane.HoloViews(self._make_plot(), width=750)
 
@@ -110,7 +120,8 @@ class TonicEpochConfig:
             pn.pane.Markdown(
                 "Define named epoch windows on each recording site's preprocessed trace. "
                 "Type exact start/end times (seconds); the shaded spans update to match. "
-                "Use **Copy windows to all sites** when the injection is systemic."
+                "Use **Copy windows to all sites** when the injection is systemic. "
+                "Click **Save and continue** to proceed (leave the tables empty to skip tonic analysis)."
             ),
             pn.Row(self.site_select, self.signal_toggle),
             self.plot_pane,
@@ -180,23 +191,53 @@ class TonicEpochConfig:
             return
         if pn.state.notifications is not None:
             pn.state.notifications.success("Tonic epoch windows saved.", duration=4000)
+        # Signal the serving loop to stop only after a clean save, so an invalid
+        # window keeps the page open instead of advancing the pipeline.
+        if self.on_done is not None:
+            self.on_done()
 
 
-def build_tonic_epoch_template(filepath: str) -> pn.template.BootstrapTemplate:
+def build_tonic_epoch_template(
+    filepath: str, on_done: Callable[[], None] | None = None
+) -> pn.template.BootstrapTemplate:
     """Build (without serving) the tonic epoch-definition page for a single run folder."""
     template = pn.template.BootstrapTemplate(title="Tonic Epochs - {}".format(os.path.basename(filepath)))
-    config = TonicEpochConfig(filepath, load_site_traces(filepath))
+    config = TonicEpochConfig(filepath, load_site_traces(filepath), on_done=on_done)
     template.main.append(config.widget)
     template._config = config  # test hook
     return template
+
+
+def _serve_tonic_epoch_page(filepath: str) -> None:
+    """Serve one tonic epoch page and block until the user saves or closes the tab.
+
+    Preprocessing runs as a subprocess with no running event loop, so a bare
+    ``template.show()`` would block forever (a Bokeh server does not stop when the
+    tab closes). Instead the server runs on a background thread and this call waits
+    on an :class:`threading.Event` that is set either by "Save and continue" or by
+    the browser session closing, then stops the server so the pipeline advances.
+    """
+    done = threading.Event()
+
+    def build_page() -> pn.template.BootstrapTemplate:
+        pn.state.on_session_destroyed(lambda session_context: done.set())
+        return build_tonic_epoch_template(filepath, on_done=done.set)
+
+    port = scanPortsAndFind(start_port=5000, end_port=5200)
+    server = pn.serve(build_page, port=port, threaded=True, show=True)
+    try:
+        done.wait()
+    finally:
+        server.stop()
 
 
 def define_tonic_epochs(inputParameters: dict[str, object], session_folders: list) -> None:
     """Open the tonic epoch-definition page for each selected run folder.
 
     Iterates the run folders exactly like ``visualize_z_score`` and serves one
-    blocking Panel page per folder so the user can define epoch windows on the
-    preprocessed traces. Each page writes ``tonic_epochs_<site>.csv`` on save.
+    page per folder (blocking until the user saves or closes it) so the user can
+    define epoch windows on the preprocessed traces. Each page writes
+    ``tonic_epochs_<site>.csv`` on save.
     """
     combine_data = inputParameters["combine_data"]
     run_folders = []
@@ -209,9 +250,7 @@ def define_tonic_epochs(inputParameters: dict[str, object], session_folders: lis
     run_folders = np.concatenate(run_folders)
 
     for j in range(len(run_folders)):
-        template = build_tonic_epoch_template(run_folders[j])
-        number = scanPortsAndFind(start_port=5000, end_port=5200)
-        template.show(port=number)
+        _serve_tonic_epoch_page(run_folders[j])
 
 
 def _tonic_result_sites(filepath: str) -> list[str]:
