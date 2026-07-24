@@ -404,12 +404,8 @@ def build_store_labeling_template(
 
     # on clicking the NPM "Confirm NPM configuration" button, following function is executed
     def confirm_npm_configuration(event: object = None) -> None:
-        try:
-            npm_split_events = store_labeling_instructions.get_npm_split_events()
-            ts_units, npm_timestamp_column_names = store_labeling_instructions.get_timestamp_configuration()
-        except ValueError as exc:
-            store_labeling_selector.set_alert_message(f"####Alert !! \n {exc}")
-            return
+        npm_split_events = store_labeling_instructions.get_npm_split_events()
+        ts_units, npm_timestamp_column_names = store_labeling_instructions.get_timestamp_configuration()
 
         inputParameters["npm_split_events"] = npm_split_events
         inputParameters["npm_time_units"] = ts_units if ts_units else None

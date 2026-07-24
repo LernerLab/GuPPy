@@ -9,25 +9,7 @@ pn.extension()
 
 logger = logging.getLogger(__name__)
 
-
-def _validate_timestamp_configuration(*, timestamp_column_name: str, time_unit: str) -> None:
-    """Raise ValueError if either NPM timestamp selection is empty.
-
-    Kept as a standalone helper so the validation logic can be unit-tested
-    without constructing the Panel widgets that feed it.
-    """
-    missing_fields = []
-    if not timestamp_column_name:
-        missing_fields.append("'Select which timestamps to use'")
-    if not time_unit:
-        missing_fields.append("'Select timestamps unit'")
-    if missing_fields:
-        message = (
-            f"NPM timestamp configuration incomplete: {', '.join(missing_fields)} "
-            "must be selected before continuing."
-        )
-        logger.error(message)
-        raise ValueError(message)
+TIME_UNIT_OPTIONS = ["seconds", "milliseconds", "microseconds"]
 
 
 class StoreLabelingInstructions:
@@ -132,7 +114,8 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
                                         as **control** and set its **Control for** to “chev1” (or vice
                                         versa).
 
-                                            """
+                                            """,
+            width=550,
         )
 
         # Per-file configuration widgets, keyed by file index. Only files that
@@ -154,18 +137,19 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
                     self.split_event_checkboxes[file_index] = checkbox
                     config_form.append(checkbox)
 
+            # col_names_ts accumulates timestamp column names across all files and
+            # may repeat names; offer each distinct, non-empty column once.
+            column_options = list(dict.fromkeys(name for name in col_names_ts if name))
             for file_index, needs_unit in enumerate(ts_unit_needs):
                 if needs_unit:
                     column_select = pn.widgets.Select(
                         name=f"File {file_index}: select which timestamps to use",
-                        options=list(col_names_ts),
-                        value=col_names_ts[0],
+                        options=column_options,
                         width=550,
                     )
                     unit_select = pn.widgets.Select(
                         name=f"File {file_index}: select timestamps unit",
-                        options=["", "seconds", "milliseconds", "microseconds"],
-                        value="",
+                        options=TIME_UNIT_OPTIONS,
                         width=550,
                     )
                     self.timestamp_column_selects[file_index] = column_select
@@ -213,8 +197,7 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
         """Return the per-file timestamp units and column names.
 
         Files that do not need disambiguation default to ``"seconds"`` and a
-        ``None`` column name. Files that do need it are validated and raise
-        ``ValueError`` if the column or unit is unset.
+        ``None`` column name; the rest reflect their column and unit selectors.
 
         Returns
         -------
@@ -230,11 +213,8 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
                 ts_units.append("seconds")
                 npm_timestamp_column_names.append(None)
                 continue
-            column_name = self.timestamp_column_selects[file_index].value
-            time_unit = self.time_unit_selects[file_index].value
-            _validate_timestamp_configuration(timestamp_column_name=column_name, time_unit=time_unit)
-            ts_units.append(time_unit)
-            npm_timestamp_column_names.append(column_name)
+            ts_units.append(self.time_unit_selects[file_index].value)
+            npm_timestamp_column_names.append(self.timestamp_column_selects[file_index].value)
         return ts_units, npm_timestamp_column_names
 
     def set_channel_previews(self, *, channel_previews: dict[str, dict[str, np.ndarray]]) -> None:

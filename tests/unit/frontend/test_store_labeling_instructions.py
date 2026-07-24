@@ -5,29 +5,7 @@ import pytest
 from guppy.frontend.store_labeling_instructions import (
     StoreLabelingInstructions,
     StoreLabelingInstructionsNPM,
-    _validate_timestamp_configuration,
 )
-
-
-class TestValidateTimestampConfiguration:
-    def test_returns_none_when_both_fields_populated(self):
-        result = _validate_timestamp_configuration(timestamp_column_name="Timestamp", time_unit="seconds")
-        assert result is None
-
-    def test_raises_when_timestamp_column_blank(self):
-        with pytest.raises(ValueError, match="'Select which timestamps to use'"):
-            _validate_timestamp_configuration(timestamp_column_name="", time_unit="seconds")
-
-    def test_raises_when_time_unit_blank(self):
-        with pytest.raises(ValueError, match="'Select timestamps unit'"):
-            _validate_timestamp_configuration(timestamp_column_name="Timestamp", time_unit="")
-
-    def test_raises_when_both_blank_and_lists_both_fields(self):
-        with pytest.raises(ValueError) as exception_info:
-            _validate_timestamp_configuration(timestamp_column_name="", time_unit="")
-        message = str(exception_info.value)
-        assert "'Select which timestamps to use'" in message
-        assert "'Select timestamps unit'" in message
 
 
 class TestStoreLabelingInstructions:
@@ -92,12 +70,14 @@ class TestStoreLabelingInstructionsNPMConfigForm:
     @pytest.fixture
     def config_form(self, tmp_path, panel_extension):
         # File 0 needs both split-events and timestamp-unit input; file 1 needs neither.
+        # col_names_ts repeats names (one entry per file) and leads with an empty string,
+        # mirroring what NpmRecordingExtractor.needs_ts_unit returns.
         return StoreLabelingInstructionsNPM(
             folder_path=str(tmp_path / "npm_session"),
             channel_previews={},
             multiple_event_ttls=[True, False],
             ts_unit_needs=[True, False],
-            col_names_ts=["", "Timestamp", "ComputerTimestamp"],
+            col_names_ts=["", "Timestamp", "ComputerTimestamp", "Timestamp", "ComputerTimestamp"],
         )
 
     def test_confirm_button_created_in_interactive_mode(self, config_form):
@@ -108,6 +88,12 @@ class TestStoreLabelingInstructionsNPMConfigForm:
         assert set(config_form.timestamp_column_selects.keys()) == {0}
         assert set(config_form.time_unit_selects.keys()) == {0}
 
+    def test_column_options_are_deduped_with_no_empty_option(self, config_form):
+        assert config_form.timestamp_column_selects[0].options == ["Timestamp", "ComputerTimestamp"]
+
+    def test_unit_options_have_no_empty_option(self, config_form):
+        assert config_form.time_unit_selects[0].options == ["seconds", "milliseconds", "microseconds"]
+
     def test_get_npm_split_events_defaults_false_for_non_multiple(self, config_form):
         # File 0 checkbox unchecked -> False; file 1 has no checkbox -> False.
         assert config_form.get_npm_split_events() == [False, False]
@@ -116,18 +102,19 @@ class TestStoreLabelingInstructionsNPMConfigForm:
         config_form.split_event_checkboxes[0].value = True
         assert config_form.get_npm_split_events() == [True, False]
 
-    def test_get_timestamp_configuration_reflects_selections_and_defaults(self, config_form):
-        config_form.timestamp_column_selects[0].value = "Timestamp"
+    def test_get_timestamp_configuration_uses_defaults(self, config_form):
+        # File 0 selectors default to the first option; file 1 (not needed) defaults to seconds/None.
+        ts_units, column_names = config_form.get_timestamp_configuration()
+        assert ts_units == ["seconds", "seconds"]
+        assert column_names == ["Timestamp", None]
+
+    def test_get_timestamp_configuration_reflects_selections(self, config_form):
+        config_form.timestamp_column_selects[0].value = "ComputerTimestamp"
         config_form.time_unit_selects[0].value = "milliseconds"
         ts_units, column_names = config_form.get_timestamp_configuration()
         # File 0 uses the selected values; file 1 (not needed) defaults to seconds/None.
         assert ts_units == ["milliseconds", "seconds"]
-        assert column_names == ["Timestamp", None]
-
-    def test_get_timestamp_configuration_raises_when_unset(self, config_form):
-        # File 0 needs input but the selectors start empty.
-        with pytest.raises(ValueError, match="Select"):
-            config_form.get_timestamp_configuration()
+        assert column_names == ["ComputerTimestamp", None]
 
     def test_set_channel_previews_populates_plot_after_confirm(self, config_form):
         assert config_form.plot_select is None
