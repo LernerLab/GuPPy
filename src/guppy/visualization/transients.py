@@ -1,42 +1,34 @@
 import logging
 
-import matplotlib.pyplot as plt
+import holoviews as hv
 import numpy as np
-from matplotlib.axes import Axes
-from matplotlib.figure import Figure
 
 logger = logging.getLogger(__name__)
 
 
-def visualize_peaks(
-    title: str, suptitle: str, z_score: np.ndarray, timestamps: np.ndarray, peaksIndex: np.ndarray
-) -> tuple[Figure, Axes]:
-    """Plot a z-score trace with detected transient peaks overlaid.
+def build_peaks_overlay(
+    *, title: str, suptitle: str, z_score: np.ndarray, timestamps: np.ndarray, peaksIndex: np.ndarray
+) -> hv.Overlay:
+    """Build a z-score trace overlaid with markers at detected transient peaks.
 
     Parameters
     ----------
     title : str
-        Axes title.
+        Trace title.
     suptitle : str
-        Figure-level super-title.
+        Session-level title prefix.
     z_score : np.ndarray
         Z-score signal values.
     timestamps : np.ndarray
-        Time axis values aligned to z_score.
+        Time axis values aligned to ``z_score``.
     peaksIndex : np.ndarray
-        Integer indices into z_score and timestamps marking detected peaks.
+        Integer indices into ``z_score`` / ``timestamps`` marking detected peaks.
 
     Returns
     -------
-    fig : Figure
-        The created figure.
-    ax : Axes
-        The created axes.
+    hv.Overlay
+        Curve of the z-score trace overlaid with a scatter of peak markers.
     """
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    ax.plot(timestamps, z_score, "-", timestamps[peaksIndex], z_score[peaksIndex], "o")
-    ax.set_title(title)
-    fig.suptitle(suptitle)
-
-    return fig, ax
+    curve = hv.Curve((timestamps, z_score), "time (s)", title)
+    peaks = hv.Scatter((timestamps[peaksIndex], z_score[peaksIndex])).opts(color="red", size=6)
+    return (curve * peaks).opts(title=f"{suptitle} — {title}", width=750, height=300)

@@ -25,6 +25,19 @@ def _write_stub_files(run_folder, basename):
 
 
 @pytest.fixture
+def capture_served(monkeypatch):
+    """Capture the served build callable and the folders/select forwarded to the peaks page."""
+    served = []
+    build_calls = []
+    monkeypatch.setattr("guppy.orchestration.transients.serve_blocking_page", lambda build: served.append(build))
+    monkeypatch.setattr(
+        "guppy.orchestration.transients.build_peaks_review_template",
+        lambda folders, select, on_done: build_calls.append(([str(f) for f in folders], select)),
+    )
+    return served, build_calls
+
+
+@pytest.fixture
 def run_folder(tmp_path):
     """One session folder with one output directory containing a z_score_DMS stub."""
     session_dir = tmp_path / "session1"
@@ -49,118 +62,48 @@ def combined_output_dir(tmp_path):
 
 
 class TestExecuteVisualizePeaks:
-    def test_calls_visualize_peaks_with_correct_arguments(self, run_folder, base_input_parameters, monkeypatch):
-        calls = []
-        monkeypatch.setattr(
-            "guppy.orchestration.transients.visualize_peaks",
-            lambda title, suptitle, z_score, ts, peaksInd: calls.append(
-                {"title": title, "suptitle": suptitle, "z_score": z_score, "ts": ts, "peaksInd": peaksInd}
-            ),
-        )
-        monkeypatch.setattr("guppy.orchestration.transients.plt.show", lambda: None)
-
+    def test_serves_peaks_page_with_resolved_run_folders(self, run_folder, base_input_parameters, capture_served):
+        served, build_calls = capture_served
         base_input_parameters["selectForTransientsComputation"] = "z_score"
         base_input_parameters["selected_runs"] = {str(run_folder): ["0"]}
+
         execute_visualize_peaks([str(run_folder)], base_input_parameters)
 
-        assert len(calls) == 1
-        assert calls[0]["title"] == "z_score_DMS"
-        assert calls[0]["suptitle"] == "session1_output_0"
-        np.testing.assert_array_equal(calls[0]["z_score"], STUB_Z_SCORE)
-        np.testing.assert_array_equal(calls[0]["ts"], STUB_TS)
-        np.testing.assert_array_equal(calls[0]["peaksInd"], STUB_PEAKS_IND)
+        assert len(served) == 1
+        # Invoking the captured build callable confirms which folders/select the page gets.
+        served[0](lambda: None)
+        assert build_calls == [([str(run_folder / "session1_output_0")], "z_score")]
 
-    def test_selects_dff_files_when_requested(self, tmp_path, base_input_parameters, monkeypatch):
-        session_dir = tmp_path / "session1"
-        session_dir.mkdir()
-        output = session_dir / "session1_output_0"
-        output.mkdir()
-        _write_stub_files(output, "dff_DMS")
-
-        calls = []
-        monkeypatch.setattr(
-            "guppy.orchestration.transients.visualize_peaks",
-            lambda title, suptitle, z_score, ts, peaksInd: calls.append(title),
-        )
-        monkeypatch.setattr("guppy.orchestration.transients.plt.show", lambda: None)
-
+    def test_forwards_dff_selection(self, run_folder, base_input_parameters, capture_served):
+        served, build_calls = capture_served
         base_input_parameters["selectForTransientsComputation"] = "dff"
-        base_input_parameters["selected_runs"] = {str(session_dir): ["0"]}
-        execute_visualize_peaks([str(session_dir)], base_input_parameters)
+        base_input_parameters["selected_runs"] = {str(run_folder): ["0"]}
 
-        assert len(calls) == 1
-        assert calls[0] == "dff_DMS"
+        execute_visualize_peaks([str(run_folder)], base_input_parameters)
 
-    def test_selects_both_files_when_requested(self, tmp_path, base_input_parameters, monkeypatch):
-        session_dir = tmp_path / "session1"
-        session_dir.mkdir()
-        output = session_dir / "session1_output_0"
-        output.mkdir()
-        _write_stub_files(output, "z_score_DMS")
-        _write_stub_files(output, "dff_DMS")
-
-        calls = []
-        monkeypatch.setattr(
-            "guppy.orchestration.transients.visualize_peaks",
-            lambda title, suptitle, z_score, ts, peaksInd: calls.append(title),
-        )
-        monkeypatch.setattr("guppy.orchestration.transients.plt.show", lambda: None)
-
-        base_input_parameters["selectForTransientsComputation"] = "both"
-        base_input_parameters["selected_runs"] = {str(session_dir): ["0"]}
-        execute_visualize_peaks([str(session_dir)], base_input_parameters)
-
-        assert len(calls) == 2
-        assert set(calls) == {"z_score_DMS", "dff_DMS"}
+        served[0](lambda: None)
+        assert build_calls[0][1] == "dff"
 
 
 class TestExecuteVisualizePeaksCombined:
-    def test_calls_visualize_peaks_with_correct_arguments(
-        self, combined_output_dir, base_input_parameters, monkeypatch
+    def test_serves_peaks_page_with_group_first_folders(
+        self, combined_output_dir, base_input_parameters, capture_served
     ):
-        calls = []
-        monkeypatch.setattr(
-            "guppy.orchestration.transients.visualize_peaks",
-            lambda title, suptitle, z_score, ts, peaksInd: calls.append(
-                {"title": title, "suptitle": suptitle, "z_score": z_score, "ts": ts, "peaksInd": peaksInd}
-            ),
-        )
-        monkeypatch.setattr("guppy.orchestration.transients.plt.show", lambda: None)
-
+        served, build_calls = capture_served
         base_input_parameters["selectForTransientsComputation"] = "z_score"
         base_input_parameters["selected_runs"] = {session: ["0"] for session in combined_output_dir}
+
         execute_visualize_peaks_combined(combined_output_dir, base_input_parameters)
 
-        # get_all_stores_for_combining_data groups both output_0 dirs into op[0];
-        # execute_visualize_peaks_combined uses op[i][0] (the first of the group), so 1 call.
-        assert len(calls) == 1
-        assert calls[0]["title"] == "z_score_DMS"
-        assert "output_0" in calls[0]["suptitle"]
-        np.testing.assert_array_equal(calls[0]["z_score"], STUB_Z_SCORE)
-        np.testing.assert_array_equal(calls[0]["ts"], STUB_TS)
-        np.testing.assert_array_equal(calls[0]["peaksInd"], STUB_PEAKS_IND)
+        assert len(served) == 1
+        served[0](lambda: None)
+        # get_all_stores_for_combining_data groups both output_0 dirs into one group;
+        # the page is fed the first folder of each group, so a single folder here.
+        folders, select = build_calls[0]
+        assert len(folders) == 1
+        assert "output_0" in folders[0]
+        assert select == "z_score"
 
     def test_execute_average_for_group_raises_for_empty_folders(self, base_input_parameters):
         with pytest.raises(ValueError, match="No folders selected for group averaging"):
             execute_average_for_group(base_input_parameters, [])
-
-    def test_combined_selects_dff_files_when_requested(self, tmp_path, base_input_parameters, monkeypatch):
-        session_dir = tmp_path / "session1"
-        session_dir.mkdir()
-        output = session_dir / "session1_output_0"
-        output.mkdir()
-        _write_stub_files(output, "dff_DMS")
-
-        calls = []
-        monkeypatch.setattr(
-            "guppy.orchestration.transients.visualize_peaks",
-            lambda title, suptitle, z_score, ts, peaksInd: calls.append(title),
-        )
-        monkeypatch.setattr("guppy.orchestration.transients.plt.show", lambda: None)
-
-        base_input_parameters["selectForTransientsComputation"] = "dff"
-        base_input_parameters["selected_runs"] = {str(session_dir): ["0"]}
-        execute_visualize_peaks_combined([str(session_dir)], base_input_parameters)
-
-        assert len(calls) == 1
-        assert calls[0] == "dff_DMS"

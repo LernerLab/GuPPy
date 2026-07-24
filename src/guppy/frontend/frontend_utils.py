@@ -1,7 +1,11 @@
 import logging
 import os
 import socket
+import threading
+from collections.abc import Callable
 from random import randint
+
+import panel as pn
 
 logger = logging.getLogger(__name__)
 
@@ -58,3 +62,35 @@ def scanPortsAndFind(start_port: int = 5000, end_port: int = 5200, host: str = "
             break
 
     return port
+
+
+def serve_blocking_page(build_template: Callable[[Callable[[], None]], "pn.template.BaseTemplate"]) -> None:
+    """Serve a single Panel page and block until the user finishes with it.
+
+    The preprocessing and transient-analysis steps run as subprocesses with no
+    running event loop, so a bare ``template.show()`` would block forever (a Bokeh
+    server does not stop when the tab closes). Instead the server runs on a
+    background thread and this call waits on a :class:`threading.Event` that is set
+    either when the page signals completion (its "continue"/"save" button) or when
+    the browser session closes, then stops the server so the pipeline advances.
+
+    Parameters
+    ----------
+    build_template : callable
+        Given an ``on_done`` callback, returns the Panel template to serve. The
+        template is expected to invoke ``on_done`` when the user is finished.
+    """
+    # When PR #397 (tonic epochs) merges, its ``_serve_tonic_epoch_page`` should be
+    # refactored to call this shared helper.
+    done = threading.Event()
+
+    def build_page() -> "pn.template.BaseTemplate":
+        pn.state.on_session_destroyed(lambda session_context: done.set())
+        return build_template(done.set)
+
+    port = scanPortsAndFind(start_port=5000, end_port=5200)
+    server = pn.serve(build_page, port=port, threaded=True, show=True)
+    try:
+        done.wait()
+    finally:
+        server.stop()

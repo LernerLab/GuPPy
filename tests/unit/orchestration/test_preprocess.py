@@ -4,157 +4,95 @@ import pytest
 from guppy.orchestration.preprocess import (
     execute_artifact_removal,
     execute_combine_data,
-    execute_preprocessing_visualization,
     execute_zscore,
     extractTsAndSignal,
     visualize_artifact_removal,
     visualize_z_score,
-    visualizeControlAndSignal,
 )
 
 
-class FakeArtifactRemovalWidget:
-    def __init__(self, filepath, timestamps, control, signal, control_fit, plot_name, remove_artifacts):
-        self.filepath = filepath
-        self.timestamps = timestamps
-        self.control = control
-        self.signal = signal
-        self.control_fit = control_fit
-        self.plot_name = plot_name
-        self.remove_artifacts = remove_artifacts
-
-
-def test_execute_preprocessing_visualization_calls_visualizer_for_each_file(monkeypatch):
-    filepath = "/tmp/session_output_1"
-    discovered_paths = [
-        f"{filepath}/z_score_DMS.hdf5",
-        f"{filepath}/z_score_DLS.hdf5",
-    ]
-
-    monkeypatch.setattr("guppy.orchestration.preprocess.glob.glob", lambda pattern: discovered_paths)
-
-    read_calls = []
-
-    def fake_read_hdf5(name, path, dataset_name):
-        read_calls.append((name, path, dataset_name))
-        return np.array([0.0, 1.0, 2.0])
-
-    visualizer_calls = []
-
-    def fake_visualize_preprocessing(*, suptitle, title, x, y):
-        visualizer_calls.append((suptitle, title, x.copy(), y.copy()))
-        return "figure", "axes"
-
-    monkeypatch.setattr("guppy.orchestration.preprocess.read_hdf5", fake_read_hdf5)
-    monkeypatch.setattr("guppy.orchestration.preprocess.visualize_preprocessing", fake_visualize_preprocessing)
-
-    execute_preprocessing_visualization(filepath, visualization_type="z_score")
-
-    assert len(visualizer_calls) == 2
-    assert visualizer_calls[0][0] == "session_output_1"
-    assert visualizer_calls[0][1] == "z_score_DLS"
-    assert visualizer_calls[1][1] == "z_score_DMS"
-    assert read_calls[0] == ("timeCorrection_DLS", filepath, "timestampNew")
-    assert read_calls[1] == ("", f"{filepath}/z_score_DLS.hdf5", "data")
-
-
-def test_visualize_control_and_signal_returns_widgets_without_real_panel(monkeypatch):
-    filepath = "/tmp/session_output_1"
-    control_path = f"{filepath}/control_DMS.hdf5"
-    signal_path = f"{filepath}/signal_DMS.hdf5"
-
-    monkeypatch.setattr(
-        "guppy.orchestration.preprocess.decide_naming_convention",
-        lambda filepath: np.array([[control_path], [signal_path]]),
-    )
-
-    def fake_read_hdf5(name, path, dataset_name):
-        if dataset_name == "timestampNew":
-            return np.array([0.0, 1.0, 2.0])
-        if "cntrl_sig_fit" in path:
-            return np.array([0.5, 0.5, 0.5])
-        if "control" in path:
-            return np.array([1.0, 1.0, 1.0])
-        return np.array([2.0, 2.0, 2.0])
-
-    monkeypatch.setattr("guppy.orchestration.preprocess.read_hdf5", fake_read_hdf5)
-    monkeypatch.setattr("guppy.orchestration.preprocess.ArtifactRemovalWidget", FakeArtifactRemovalWidget)
-
-    widgets = visualizeControlAndSignal(filepath, removeArtifacts=False)
-
-    assert len(widgets) == 1
-    assert widgets[0].filepath == filepath
-    assert widgets[0].remove_artifacts is False
-    assert widgets[0].plot_name == ["control_DMS", "signal_DMS", "cntrl_sig_fit_DMS"]
-
-
-def test_visualize_z_score_executes_both_plots_and_show(monkeypatch, base_input_parameters):
+def test_visualize_z_score_serves_marking_page_when_not_removing(monkeypatch, base_input_parameters):
     folder_names = [["/tmp/session_output_1"]]
 
     base_input_parameters["combine_data"] = True
     base_input_parameters["removeArtifacts"] = False
     base_input_parameters["plot_zScore_dff"] = "Both"
 
-    control_signal_calls = []
-    visualize_calls = []
-    show_calls = []
-
+    served = []
+    marking_calls = []
+    monkeypatch.setattr("guppy.orchestration.preprocess.serve_blocking_page", lambda build: served.append(build))
     monkeypatch.setattr(
-        "guppy.orchestration.preprocess.visualizeControlAndSignal",
-        lambda filepath, removeArtifacts: control_signal_calls.append((filepath, removeArtifacts)) or [object()],
+        "guppy.orchestration.preprocess.build_artifact_removal_template",
+        lambda fp, plot, on_done: marking_calls.append((fp, plot)),
     )
-    monkeypatch.setattr(
-        "guppy.orchestration.preprocess.execute_preprocessing_visualization",
-        lambda filepath, visualization_type: visualize_calls.append((filepath, visualization_type)),
-    )
-    monkeypatch.setattr("guppy.orchestration.preprocess.plt.show", lambda: show_calls.append(True))
 
     visualize_z_score(base_input_parameters, folder_names)
 
-    assert control_signal_calls == [("/tmp/session_output_1", False)]
-    assert visualize_calls == [
-        ("/tmp/session_output_1", "z_score"),
-        ("/tmp/session_output_1", "dff"),
-    ]
-    assert len(show_calls) == 1
+    assert len(served) == 1
+    # Invoking the captured build callable confirms it targets the interactive marking page.
+    served[0](lambda: None)
+    assert marking_calls == [("/tmp/session_output_1", "Both")]
 
 
-def test_visualize_artifact_removal_invokes_widget_visualization_and_show(monkeypatch, base_input_parameters):
+def test_visualize_z_score_serves_review_page_when_removing(monkeypatch, base_input_parameters):
+    folder_names = [["/tmp/session_output_1"]]
+
+    base_input_parameters["combine_data"] = True
+    base_input_parameters["removeArtifacts"] = True
+    base_input_parameters["plot_zScore_dff"] = "z_score"
+
+    served = []
+    review_calls = []
+    monkeypatch.setattr("guppy.orchestration.preprocess.serve_blocking_page", lambda build: served.append(build))
+    monkeypatch.setattr(
+        "guppy.orchestration.preprocess.build_preprocessing_review_template",
+        lambda fp, plot, on_done: review_calls.append((fp, plot)),
+    )
+
+    visualize_z_score(base_input_parameters, folder_names)
+
+    assert len(served) == 1
+    served[0](lambda: None)
+    assert review_calls == [("/tmp/session_output_1", "z_score")]
+
+
+def test_visualize_z_score_skips_when_removing_and_no_plot_requested(monkeypatch, base_input_parameters):
+    folder_names = [["/tmp/session_output_1"]]
+
+    base_input_parameters["combine_data"] = True
+    base_input_parameters["removeArtifacts"] = True
+    base_input_parameters["plot_zScore_dff"] = "None"
+
+    served = []
+    monkeypatch.setattr("guppy.orchestration.preprocess.serve_blocking_page", lambda build: served.append(build))
+
+    visualize_z_score(base_input_parameters, folder_names)
+
+    assert served == []
+
+
+def test_visualize_artifact_removal_serves_review_per_folder(monkeypatch, base_input_parameters):
     folder_names = [["/tmp/session_output_1"], ["/tmp/session_output_2"]]
 
     base_input_parameters["combine_data"] = True
 
-    widget_calls = []
-    show_calls = []
-
+    served = []
+    review_calls = []
+    monkeypatch.setattr("guppy.orchestration.preprocess.serve_blocking_page", lambda build: served.append(build))
     monkeypatch.setattr(
-        "guppy.orchestration.preprocess.visualizeControlAndSignal",
-        lambda filepath, removeArtifacts: widget_calls.append((filepath, removeArtifacts)),
+        "guppy.orchestration.preprocess.build_artifact_review_template",
+        lambda fp, on_done: review_calls.append(fp),
     )
-    monkeypatch.setattr("guppy.orchestration.preprocess.plt.show", lambda: show_calls.append(True))
 
     visualize_artifact_removal(folder_names, base_input_parameters)
 
-    assert widget_calls == [
-        ("/tmp/session_output_1", True),
-        ("/tmp/session_output_2", True),
-    ]
-    assert len(show_calls) == 1
+    assert len(served) == 2
+    for build in served:
+        build(lambda: None)
+    assert review_calls == ["/tmp/session_output_1", "/tmp/session_output_2"]
 
 
 # ── error paths ───────────────────────────────────────────────────────────────
-
-
-def test_visualize_control_and_signal_raises_for_mismatched_recording_sites(tmp_path):
-    """A control recording site with no matching signal recording site raises a pairing error."""
-    (tmp_path / "control_dms.hdf5").touch()
-    (tmp_path / "signal_vms.hdf5").touch()
-    with pytest.raises(ValueError) as exception_info:
-        visualizeControlAndSignal(str(tmp_path), removeArtifacts=False)
-    message = str(exception_info.value)
-    assert "Mismatched control/signal files" in message
-    assert "dms" in message
-    assert "vms" in message
 
 
 def test_execute_zscore_raises_for_mismatched_recording_sites(tmp_path, base_input_parameters):
@@ -202,12 +140,10 @@ def test_execute_combine_data_raises_for_mismatched_sampling_rates(monkeypatch, 
         execute_combine_data(folder_names, base_input_parameters, store_array)
 
 
-def test_execute_zscore_shows_plot_when_not_headless(monkeypatch, base_input_parameters):
+def test_execute_zscore_computes_and_writes(monkeypatch, base_input_parameters):
     folder_names = [["/tmp/session_output_1"]]
 
     base_input_parameters["combine_data"] = True
-
-    monkeypatch.delenv("GUPPY_BASE_DIR", raising=False)
 
     monkeypatch.setattr(
         "guppy.orchestration.preprocess.decide_naming_convention",
@@ -241,13 +177,9 @@ def test_execute_zscore_shows_plot_when_not_headless(monkeypatch, base_input_par
     )
     monkeypatch.setattr("guppy.orchestration.preprocess.writeToFile", lambda text, file_path: None)
 
-    show_calls = []
-    monkeypatch.setattr("guppy.orchestration.preprocess.plt.show", lambda: show_calls.append(True))
-
     execute_zscore(folder_names, base_input_parameters)
 
     assert write_calls == [("/tmp/session_output_1", "DMS")]
-    assert len(show_calls) == 1
 
 
 @pytest.fixture

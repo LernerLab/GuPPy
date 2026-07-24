@@ -1,0 +1,109 @@
+"""Panel page for Step-4 transient-peak visualization.
+
+Replaces the legacy matplotlib/TkAgg pop-ups. The transient-analysis subprocess
+serves this read-only page (blocking until the user continues) via
+``serve_blocking_page``. A single selector switches between every ``z_score`` /
+``dff`` trace across the selected run folders, each shown with its detected
+transient peaks marked.
+"""
+
+import glob
+import logging
+import os
+from collections.abc import Callable
+
+import holoviews as hv
+import numpy as np
+import panel as pn
+
+from ..analysis.standard_io import read_transients_from_hdf5
+from ..visualization.transients import build_peaks_overlay
+
+# The transient-analysis subprocess that serves this page never runs home.py, so
+# load the Panel and HoloViews (bokeh) extensions here — matching tonic_epochs.py.
+pn.extension(notifications=True)
+hv.extension("bokeh")
+
+logger = logging.getLogger(__name__)
+
+
+def _trace_paths(filepath: str, select_for_transients: str) -> list[str]:
+    if select_for_transients == "z_score":
+        return glob.glob(os.path.join(filepath, "z_score_*"))
+    if select_for_transients == "dff":
+        return glob.glob(os.path.join(filepath, "dff_*"))
+    return glob.glob(os.path.join(filepath, "z_score_*")) + glob.glob(os.path.join(filepath, "dff_*"))
+
+
+def load_peaks(run_folders: list[str], select_for_transients: str) -> dict[str, dict[str, np.ndarray]]:
+    """Load z-score / dF-F traces and their detected peaks for the given run folders.
+
+    Parameters
+    ----------
+    run_folders : list of str
+        Session output (run) directories to load transient outputs from.
+    select_for_transients : {'z_score', 'dff', ...}
+        Which preprocessed signal(s) to load; any value other than ``'z_score'`` or
+        ``'dff'`` loads both.
+
+    Returns
+    -------
+    dict
+        Mapping ``"<run folder> / <trace>"`` label → ``{"z_score", "timestamps", "peaksInd"}``.
+    """
+    entries: dict[str, dict[str, np.ndarray]] = {}
+    for filepath in run_folders:
+        for path in _trace_paths(filepath, select_for_transients):
+            title = os.path.basename(path).split(".")[0]
+            suptitle = os.path.basename(os.path.dirname(path))
+            z_score, timestamps, peaksInd = read_transients_from_hdf5(filepath, title)
+            entries[f"{suptitle} / {title}"] = {
+                "z_score": np.asarray(z_score).ravel(),
+                "timestamps": np.asarray(timestamps).ravel(),
+                "peaksInd": np.asarray(peaksInd).ravel().astype(int),
+                "title": title,
+                "suptitle": suptitle,
+            }
+    return entries
+
+
+class PeaksReviewView:
+    """Read-only transient-peak review with a selector over every loaded trace."""
+
+    def __init__(self, entries: dict[str, dict[str, np.ndarray]]) -> None:
+        self.entries = entries
+        self.labels = list(entries.keys())
+
+        self.trace_select = pn.widgets.Select(name="Trace", options=self.labels, value=self.labels[0])
+        self.plot_pane = pn.pane.HoloViews(self._make_plot(), width=800)
+        self.trace_select.param.watch(self._refresh, "value")
+
+        self.widget = pn.Column("## Transient peaks", self.trace_select, self.plot_pane)
+
+    def _make_plot(self) -> hv.Overlay:
+        entry = self.entries[self.trace_select.value]
+        return build_peaks_overlay(
+            title=entry["title"],
+            suptitle=entry["suptitle"],
+            z_score=entry["z_score"],
+            timestamps=entry["timestamps"],
+            peaksIndex=entry["peaksInd"],
+        )
+
+    def _refresh(self, event: object) -> None:
+        self.plot_pane.object = self._make_plot()
+
+
+def build_peaks_review_template(
+    run_folders: list[str], select_for_transients: str, on_done: Callable[[], None] | None = None
+) -> pn.template.BootstrapTemplate:
+    """Build (without serving) the read-only transient-peak review page."""
+    template = pn.template.BootstrapTemplate(title="Transient peaks")
+    view = PeaksReviewView(load_peaks(run_folders, select_for_transients))
+    button = pn.widgets.Button(name="Continue", button_type="primary")
+    if on_done is not None:
+        button.on_click(lambda event: on_done())
+    template.main.append(pn.Column(view.widget, button))
+    template._view = view  # test hook
+    template._continue_button = button
+    return template
