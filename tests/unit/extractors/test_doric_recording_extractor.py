@@ -684,3 +684,33 @@ class TestTrailingPulseReadPaths:
         extractor = DoricRecordingExtractor(str(tmp_path), {"DI/O-1": "ttl"})
         result = extractor.read(events=["DI/O-1"], outputPath="")
         np.testing.assert_array_equal(result[0]["timestamps"], _TRAILING_PULSE_ONSETS)
+
+
+class TestDoricCsvAbsoluteTime:
+    """The CSV reader keeps the absolute Time(s) clock (issue #398), for the whole stream — the
+    continuous signal/control channels and the TTL events alike are not re-zeroed to start at 0."""
+
+    def _write_csv(self, csv_path):
+        # A Time(s) clock that starts at 10.0 (not 0.0), so re-zeroing would be observable.
+        times = np.linspace(10.0, 11.0, 11)
+        signal = np.linspace(0.5, 1.5, 11)  # non-constant, finite -> passes signal validation
+        rows = "".join(f"{time},{sig},{int(level)},\n" for time, sig, level in zip(times, signal, _TRAILING_PULSE_TTL))
+        csv_path.write_text("---,Analog In. | Ch.1,Digital I/O | Ch.1,\n" "Time(s),AIn-1,DI/O-1,\n" + rows)
+
+    def test_ttl_onsets_are_absolute(self, tmp_path):
+        csv_path = tmp_path / "session.csv"
+        self._write_csv(csv_path)
+        extractor = DoricRecordingExtractor(str(tmp_path), {"AIn-1": "signal", "DI/O-1": "ttl"})
+        result = extractor.read(events=["DI/O-1"], outputPath="")
+        # Rising edges at indices 2 and 9 land on the absolute 10.0-11.0 clock, not the re-zeroed [0.2, 0.9].
+        np.testing.assert_allclose(result[0]["timestamps"], np.array([10.2, 10.9]), atol=1e-9)
+
+    def test_signal_timestamps_are_absolute(self, tmp_path):
+        csv_path = tmp_path / "session.csv"
+        self._write_csv(csv_path)
+        extractor = DoricRecordingExtractor(str(tmp_path), {"AIn-1": "signal", "DI/O-1": "ttl"})
+        result = extractor.read(events=["AIn-1"], outputPath="")
+        # The continuous stream spans the absolute 10.0-11.0 clock; re-zeroing would start it at 0.0.
+        assert result[0]["timestamps"][0] == 10.0
+        assert result[0]["timestamps"][-1] == 11.0
+        np.testing.assert_allclose(result[0]["timestamps"], np.linspace(10.0, 11.0, 11), atol=1e-9)
