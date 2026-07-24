@@ -7,12 +7,14 @@ import panel as pn
 import pytest
 
 from guppy.extractors import NpmRecordingExtractor
+from guppy.frontend.store_labeling_instructions import StoreLabelingInstructionsNPM
 from guppy.orchestration.store_labeling import (
     _compute_npm_channel_previews,
     _fetchValues,
     _save,
     build_store_labeling_template,
     make_dir,
+    read_header,
     show_dir,
 )
 from guppy_test_data import STUBBED_TESTING_DATA
@@ -918,3 +920,81 @@ def test_compute_npm_channel_previews_aligns_ragged_channel_lengths():
     assert previews, "Expected chev/chod/chpr previews for an NPM session"
     for name, preview in previews.items():
         assert len(preview["x"]) == len(preview["y"]), f"Unequal x/y lengths for preview {name!r}"
+
+
+# ---------------------------------------------------------------------------
+# read_header: interactive NPM defers discovery
+# ---------------------------------------------------------------------------
+
+NPM_3_FOLDER = os.path.join(STUBBED_TESTING_DATA, "npm", "sampleData_NPM_3")
+
+
+def test_read_header_non_headless_npm_defers_discovery():
+    # sampleData_NPM_3: file0 has multiple timestamp columns; file1 has multiple event TTLs.
+    events, flags, npm_interactive = read_header({}, num_ch=2, folder_path=NPM_3_FOLDER, headless=False)
+
+    # NPM discovery is deferred to the confirm callback, so no NPM events are returned yet.
+    assert events == []
+    assert flags == []
+    assert npm_interactive == {
+        "multiple_event_ttls": [False, True],
+        "ts_unit_needs": [True, False],
+        "col_names_ts": ["", "SystemTimestamp", "ComputerTimestamp"],
+    }
+
+
+def test_read_header_headless_npm_discovers_immediately():
+    events, flags, npm_interactive = read_header({}, num_ch=2, folder_path=NPM_3_FOLDER, headless=True)
+
+    # Headless mode uses the injected params (absent here -> defaults) and discovers immediately.
+    assert npm_interactive is None
+    assert "file0_chev3" in events
+
+
+# ---------------------------------------------------------------------------
+# build_store_labeling_template: interactive NPM confirm callback
+# ---------------------------------------------------------------------------
+
+
+def test_build_template_npm_interactive_uses_npm_instructions(panel_extension):
+    input_parameters = {"noChannels": 2}
+    _, _, npm_interactive = read_header(input_parameters, num_ch=2, folder_path=NPM_3_FOLDER, headless=False)
+
+    template = build_store_labeling_template(
+        [], [], NPM_3_FOLDER, inputParameters=input_parameters, npm_interactive=npm_interactive
+    )
+
+    instructions = template._widgets["instructions"]
+    assert isinstance(instructions, StoreLabelingInstructionsNPM)
+    assert instructions.confirm_button is not None
+
+
+def test_confirm_npm_configuration_writes_params_and_populates_page(panel_extension):
+    input_parameters = {"noChannels": 2}
+    _, _, npm_interactive = read_header(input_parameters, num_ch=2, folder_path=NPM_3_FOLDER, headless=False)
+
+    template = build_store_labeling_template(
+        [], [], NPM_3_FOLDER, inputParameters=input_parameters, npm_interactive=npm_interactive
+    )
+    instructions = template._widgets["instructions"]
+    selector = template._widgets["selector"]
+
+    # file0 needs a timestamp column/unit; file1 gets a split-events checkbox.
+    instructions.timestamp_column_selects[0].value = "ComputerTimestamp"
+    instructions.time_unit_selects[0].value = "milliseconds"
+    instructions.split_event_checkboxes[1].value = True
+
+    template._hooks["confirm_npm_configuration"]()
+
+    assert input_parameters["npm_split_events"] == [False, True]
+    assert input_parameters["npm_time_units"] == ["milliseconds", "seconds"]
+    assert input_parameters["npm_timestamp_column_names"] == ["ComputerTimestamp", None]
+
+    # Discovery ran and populated the store selector with the derived NPM store_ids.
+    assert "file0_chod3" in selector.cross_selector.options
+    assert "event3" in selector.cross_selector.options
+    assert selector.cross_selector.options == selector.multi_choice.options
+
+    # Preview plot is rendered after confirmation.
+    assert instructions.plot_select is not None
+    assert instructions.plot_select.options

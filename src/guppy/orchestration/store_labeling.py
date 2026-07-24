@@ -439,6 +439,10 @@ def build_store_labeling_template(
 
     template.main.append(pn.Row(store_labeling_instructions.widget, store_labeling_selector.widget))
 
+    # Expose hooks/widgets so tests can drive the page headlessly without a browser.
+    template._hooks = {"save_button": save_button, "confirm_npm_configuration": confirm_npm_configuration}
+    template._widgets = {"instructions": store_labeling_instructions, "selector": store_labeling_selector}
+
     return template
 
 
