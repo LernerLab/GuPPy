@@ -15,8 +15,8 @@ from guppy.utils.utils import run_folder_for_run
 def frontend_base_dir(tmp_path_factory):
     """Create a real temp directory and point GUPPY_BASE_DIR at it.
 
-    Ensures FileSelector resolves to a real path and prevents Tk dialogs.
-    Restores the original value on teardown.
+    Ensures FileSelector resolves to a real path. Restores the original value
+    on teardown.
     """
     base_dir = tmp_path_factory.mktemp("frontend_base")
     original = os.environ.get("GUPPY_BASE_DIR")
