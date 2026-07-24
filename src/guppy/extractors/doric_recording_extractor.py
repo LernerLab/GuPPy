@@ -338,7 +338,6 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
         df = df.replace([np.inf, -np.inf], np.nan)
         df = df.dropna(axis=1, how="all")
         df = df.dropna(axis=0, how="any")
-        df["Time(s)"] = df["Time(s)"] - df["Time(s)"].to_numpy()[0]
 
         output_dicts = []
         for event in events:
