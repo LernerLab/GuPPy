@@ -34,7 +34,8 @@ from ..analysis.standard_io import (
     write_peak_and_area_to_csv,
     write_peak_and_area_to_hdf5,
 )
-from ..frontend.progress import PB_STEPS_FILE, step_error_handler, writeToFile
+from ..utils import progress
+from ..utils.progress import step_error_handler
 from ..utils.utils import get_all_stores_for_combining_data, read_Df, select_run_folders
 from ..utils.validation import validate_peak_windows, validate_window_bounds
 
@@ -277,10 +278,9 @@ def orchestrate_psth(inputParameters: dict[str, object]) -> None:
     for i in range(len(session_folders)):
         run_folders.append(select_run_folders(session_folders[i], selected_runs.get(session_folders[i])))
     run_folders = np.concatenate(run_folders)
-    writeToFile(
-        str((run_folders.shape[0] + run_folders.shape[0] + 1) * 10) + "\n" + str(10) + "\n",
-        file_path=PB_STEPS_FILE,
-    )
+    # Two units per folder: PSTH here, then transient analysis, which shares this bar
+    # because both run under the single step-4 button.
+    progress.start(run_folders.shape[0] * 2)
     for i in range(len(session_folders)):
         logger.debug(f"Computing PSTH, Peak and Area for each event in {session_folders[i]}")
         run_folders = select_run_folders(session_folders[i], selected_runs.get(session_folders[i]))
@@ -306,8 +306,7 @@ def orchestrate_psth(inputParameters: dict[str, object]) -> None:
                     execute_compute_cross_correlation, zip(repeat(filepath), store_array[1, :], repeat(inputParameters))
                 )
 
-            writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
-            inputParameters["step"] += 1
+            progress.advance()
         logger.info(f"PSTH, Area and Peak are computed for all events in {session_folders[i]}.")
 
 
@@ -326,10 +325,8 @@ def execute_psth_combined(inputParameters: dict[str, object]) -> None:
         run_folders.append(select_run_folders(session_folders[i], selected_runs.get(session_folders[i])))
     run_folders = list(np.concatenate(run_folders).flatten())
     combined_output_groups = get_all_stores_for_combining_data(run_folders)
-    writeToFile(
-        str((len(combined_output_groups) + len(combined_output_groups) + 1) * 10) + "\n" + str(10) + "\n",
-        file_path=PB_STEPS_FILE,
-    )
+    # Two units per combined group: PSTH here, then transient analysis on the same bar.
+    progress.start(len(combined_output_groups) * 2)
     for i in range(len(combined_output_groups)):
         store_array = np.asarray([[], []])
         for j in range(len(combined_output_groups[i])):
@@ -347,8 +344,7 @@ def execute_psth_combined(inputParameters: dict[str, object]) -> None:
             execute_compute_psth(combined_output_groups[i][0], store_array[1, k], inputParameters)
             execute_compute_psth_peak_and_area(combined_output_groups[i][0], store_array[1, k], inputParameters)
             execute_compute_cross_correlation(combined_output_groups[i][0], store_array[1, k], inputParameters)
-        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
-        inputParameters["step"] += 1
+        progress.advance()
 
 
 def _validate_fiber_recording_sites_consistent_for_group(run_folders: np.ndarray) -> None:
@@ -469,35 +465,30 @@ def execute_average_for_group(inputParameters: dict[str, object]) -> None:
     store_array = np.unique(store_array, axis=1)
     average_dir = makeAverageDir(inputParameters["abspath"])
     np.savetxt(os.path.join(average_dir, "storesList.csv"), store_array, delimiter=",", fmt="%s")
-    pbMaxValue = 0
+    event_store_count = 0
     for j in range(store_array.shape[1]):
         if "control" in store_array[1, j].lower() or "signal" in store_array[1, j].lower():
             continue
         else:
-            pbMaxValue += 1
-    writeToFile(str((1 + pbMaxValue + 1) * 10) + "\n" + str(10) + "\n", file_path=PB_STEPS_FILE)
+            event_store_count += 1
+    # One unit per event store here, plus the single unit that group transient analysis
+    # reports onto this same bar.
+    progress.start(event_store_count + 1)
     for k in range(store_array.shape[1]):
         if "control" in store_array[1, k].lower() or "signal" in store_array[1, k].lower():
             continue
         else:
             averageForGroup(run_folders, store_array[1, k], inputParameters)
-        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
-        inputParameters["step"] += 1
+        progress.advance()
 
 
-def psthForEachStore(inputParameters: dict[str, object]) -> dict[str, object]:
+def psthForEachStore(inputParameters: dict[str, object]) -> None:
     """Entry point for step-4 PSTH computation: validates parameters and dispatches to the appropriate sub-routine.
 
     Parameters
     ----------
     inputParameters : dict
         Full pipeline input parameters.
-
-    Returns
-    -------
-    dict
-        The same ``inputParameters`` dict, potentially updated with the step
-        counter used for progress tracking.
     """
     logger.info("Computing PSTH, Peak and Area for each event...")
     inputParameters = inputParameters
@@ -507,7 +498,6 @@ def psthForEachStore(inputParameters: dict[str, object]) -> dict[str, object]:
     average = inputParameters["averageForGroup"]
     combine_data = inputParameters["combine_data"]
     numProcesses = inputParameters["numberOfCores"]
-    inputParameters["step"] = 0
 
     # Snapshot the parameters being executed into each selected output dir so the
     # on-disk GuPPyParamtersUsed.json always reflects the last-run configuration.
@@ -537,7 +527,6 @@ def psthForEachStore(inputParameters: dict[str, object]) -> dict[str, object]:
         else:
             orchestrate_psth(inputParameters)
     logger.info("PSTH, Area and Peak are computed for all events.")
-    return inputParameters
 
 
 @step_error_handler
@@ -549,5 +538,5 @@ def run_psth_step(input_parameters: dict[str, object]) -> None:
     input_parameters : dict
         Full pipeline input parameters.
     """
-    inputParameters = psthForEachStore(input_parameters)
-    executeFindFreqAndAmp(inputParameters)
+    psthForEachStore(input_parameters)
+    executeFindFreqAndAmp(input_parameters)

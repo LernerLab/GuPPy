@@ -1,9 +1,26 @@
 import threading
+import time
 
 import panel as pn
 import pytest
 
 from guppy.orchestration.home import build_homepage
+from guppy.utils import progress
+
+
+def poll_until_stopped(capture_periodic, timeout=3.0):
+    """Drive the poll callback the way the IOLoop would, until it reports the step finished.
+
+    Completion is the worker thread exiting, which happens shortly after the worker body
+    returns, so a single poll can land while the thread is still winding down.
+    """
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        capture_periodic["poll"]()
+        if capture_periodic["callback"].stopped:
+            return
+        time.sleep(0.01)
+    raise AssertionError("poll callback never reported the step finished")
 
 
 @pytest.fixture
@@ -151,18 +168,9 @@ def capture_periodic(monkeypatch):
     return captured
 
 
-@pytest.fixture
-def redirect_pb_files(tmp_path, monkeypatch):
-    steps_file = tmp_path / "pbSteps.txt"
-    error_file = tmp_path / "pbError.txt"
-    monkeypatch.setattr("guppy.orchestration.home.PB_STEPS_FILE", str(steps_file))
-    monkeypatch.setattr("guppy.orchestration.home.PB_ERROR_FILE", str(error_file))
-    return steps_file, error_file
-
-
 @pytest.mark.parametrize("hook_name, worker_attr, adds_curr_dir", STEP_HANDLERS)
 def test_step_handler_launches_worker_with_input_parameters(
-    homepage, selected_session, monkeypatch, capture_periodic, redirect_pb_files, hook_name, worker_attr, adds_curr_dir
+    homepage, selected_session, monkeypatch, capture_periodic, hook_name, worker_attr, adds_curr_dir
 ):
     """Each step handler launches its worker in a background thread (without blocking the
     IOLoop) with the collected input parameters, and registers a progress poller. Only
@@ -188,16 +196,16 @@ def test_step_handler_launches_worker_with_input_parameters(
 
 @pytest.mark.parametrize("hook_name, worker_attr, adds_curr_dir", STEP_HANDLERS)
 def test_step_handler_surfaces_progress_error_as_panel_notification(
-    homepage, selected_session, monkeypatch, capture_periodic, redirect_pb_files, hook_name, worker_attr, adds_curr_dir
+    homepage, selected_session, monkeypatch, capture_periodic, hook_name, worker_attr, adds_curr_dir
 ):
-    """When the worker reports failure through the progress file, the poll callback surfaces
-    it as a persistent Panel error notification (duration=0) and stops polling."""
-    steps_file, error_file = redirect_pb_files
+    """When the worker reports failure through the progress channel, the poll callback
+    surfaces it as a persistent Panel error notification (duration=0) and stops polling."""
     finished = threading.Event()
 
     def worker(params):
-        error_file.write_text("Step failed")
-        steps_file.write_text("30\n-1\n")
+        # The worker runs inside the context the handler bound, so the module-level
+        # channel reaches the StepProgress the poller reads.
+        progress.fail("Step failed")
         finished.set()
 
     monkeypatch.setattr(f"guppy.orchestration.home.{worker_attr}", worker)
@@ -211,11 +219,9 @@ def test_step_handler_surfaces_progress_error_as_panel_notification(
 
     homepage._hooks[hook_name]()
     assert finished.wait(timeout=3), "worker thread did not run"
-    # Drive one poll the way the IOLoop periodic callback would.
-    capture_periodic["poll"]()
+    poll_until_stopped(capture_periodic)
 
     assert captured_notifications == [{"message": "Step failed", "duration": 0}]
-    assert capture_periodic["callback"].stopped is True
 
 
 @pytest.mark.parametrize("hook_name, worker_attr, adds_curr_dir", STEP_HANDLERS)
@@ -246,9 +252,44 @@ def test_step_handler_no_folder_selected_skips_worker(
     assert "poll" not in capture_periodic
 
 
-def test_second_step_launch_is_refused_while_one_is_running(
-    homepage, selected_session, monkeypatch, capture_periodic, redirect_pb_files
+def test_poll_reports_progress_without_completing_while_worker_runs(
+    homepage, selected_session, monkeypatch, capture_periodic
 ):
+    """A worker that reports every unit of its declared total must still not be treated as
+    finished while its thread is alive.
+
+    Step 3 undercounted its own total (artifact removal was not budgeted), so a poll that
+    equated "counter reached total" with "step done" fired ``on_success`` partway through
+    and opened the result view against half-written output. Completion is the thread
+    exiting, so reaching the total early is now only a full-looking bar.
+    """
+    release = threading.Event()
+    reported = threading.Event()
+
+    def worker(params):
+        progress.start(2)
+        progress.advance(2)
+        reported.set()
+        release.wait(timeout=3)
+
+    monkeypatch.setattr("guppy.orchestration.home.run_read_raw_data_step", worker)
+    notifications = []
+    monkeypatch.setattr(pn.state.notifications, "error", lambda message, *, duration: notifications.append(message))
+
+    homepage._hooks["onclickreaddata"]()
+    assert reported.wait(timeout=3), "worker thread did not run"
+    capture_periodic["poll"]()
+
+    # The bar shows the work as complete, but the step is not.
+    read_progress = homepage._widgets["read_progress"]
+    assert (read_progress.value, read_progress.max) == (2, 2)
+    assert capture_periodic["callback"].stopped is False
+    assert notifications == []
+
+    release.set()
+
+
+def test_second_step_launch_is_refused_while_one_is_running(homepage, selected_session, monkeypatch, capture_periodic):
     """The handlers no longer block the IOLoop, so a run-guard must reject a second launch
     until the first finishes (the poll, which clears the guard, is not driven here)."""
     launches = []
@@ -270,16 +311,12 @@ def test_second_step_launch_is_refused_while_one_is_running(
     assert any("already running" in message for message in notifications)
 
 
-def test_preprocess_success_opens_the_result_view(
-    homepage, selected_session, monkeypatch, capture_periodic, redirect_pb_files
-):
+def test_preprocess_success_opens_the_result_view(homepage, selected_session, monkeypatch, capture_periodic):
     """On a successful preprocess run the completion path opens the preprocessing view."""
-    steps_file, _ = redirect_pb_files
-    finished = threading.Event()
 
     def worker(params):
-        steps_file.write_text("30\n30\n")  # increment == max -> success
-        finished.set()
+        progress.start(3)
+        progress.advance(3)
 
     monkeypatch.setattr("guppy.orchestration.home.run_preprocess_step", worker)
     opened = []
@@ -289,24 +326,21 @@ def test_preprocess_success_opens_the_result_view(
     )
 
     homepage._hooks["onclickpreprocess"]()
-    assert finished.wait(timeout=3), "worker did not run"
-    capture_periodic["poll"]()
+    poll_until_stopped(capture_periodic)
 
     assert len(opened) == 1
     session_folders, params = opened[0]
     assert session_folders == params["session_folders"]
+    extract_progress = homepage._widgets["extract_progress"]
+    assert (extract_progress.value, extract_progress.max) == (3, 3)
 
 
-def test_psth_success_opens_the_transients_view(
-    homepage, selected_session, monkeypatch, capture_periodic, redirect_pb_files
-):
+def test_psth_success_opens_the_transients_view(homepage, selected_session, monkeypatch, capture_periodic):
     """On a successful PSTH/transients run the completion path opens the transient-peaks view."""
-    steps_file, _ = redirect_pb_files
-    finished = threading.Event()
 
     def worker(params):
-        steps_file.write_text("30\n30\n")  # increment == max -> success
-        finished.set()
+        progress.start(3)
+        progress.advance(3)
 
     monkeypatch.setattr("guppy.orchestration.home.run_psth_step", worker)
     opened = []
@@ -316,9 +350,27 @@ def test_psth_success_opens_the_transients_view(
     )
 
     homepage._hooks["onclickpsth"]()
-    assert finished.wait(timeout=3), "worker did not run"
-    capture_periodic["poll"]()
+    poll_until_stopped(capture_periodic)
 
     assert len(opened) == 1
     session_folders, params = opened[0]
     assert session_folders == params["session_folders"]
+
+
+def test_success_snaps_the_bar_to_full_when_the_step_undercounted(
+    homepage, selected_session, monkeypatch, capture_periodic
+):
+    """A step that finishes having reported fewer units than it declared must still leave the
+    bar full, rather than stranded partway."""
+
+    def worker(params):
+        progress.start(10)
+        progress.advance(4)
+
+    monkeypatch.setattr("guppy.orchestration.home.run_read_raw_data_step", worker)
+
+    homepage._hooks["onclickreaddata"]()
+    poll_until_stopped(capture_periodic)
+
+    read_progress = homepage._widgets["read_progress"]
+    assert (read_progress.value, read_progress.max) == (10, 10)

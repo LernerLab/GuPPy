@@ -37,7 +37,8 @@ from ..analysis.standard_io import (
 )
 from ..analysis.timestamp_correction import correct_timestamps
 from ..analysis.z_score import compute_z_score
-from ..frontend.progress import PB_STEPS_FILE, step_error_handler, writeToFile
+from ..utils import progress
+from ..utils.progress import step_error_handler
 from ..utils.utils import (
     get_all_stores_for_combining_data,
     select_run_folders,
@@ -114,8 +115,7 @@ def execute_timestamp_correction(session_folders: list[str], inputParameters: di
             if isosbestic_control == False:
                 create_control_channel(filepath, store_array, window=101)
 
-            writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
-            inputParameters["step"] += 1
+            progress.advance()
         logger.info(f"Timestamps corrections finished for {filepath}")
 
 
@@ -192,8 +192,7 @@ def execute_zscore(session_folders: list[str], inputParameters: dict[str, object
             write_zscore(filepath, name, z_score, dff, control_fit, control_array)
 
         logger.info(f"z-score for the data in {filepath} computed.")
-        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
-        inputParameters["step"] += 1
+        progress.advance()
 
     logger.info("Z-score computation completed.")
 
@@ -248,8 +247,7 @@ def execute_artifact_removal(session_folders: list[str], inputParameters: dict[s
 
         write_artifact_removal(filepath, store_label_to_data, pair_name_to_timestamps, compound_name_to_ttl_timestamps)
 
-        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
-        inputParameters["step"] += 1
+        progress.advance()
 
     logger.info("Artifact removal completed.")
 
@@ -360,7 +358,6 @@ def extractTsAndSignal(inputParameters: dict[str, object]) -> None:
     remove_artifacts = inputParameters["removeArtifacts"]
     combine_data = inputParameters["combine_data"]
 
-    inputParameters["step"] = 0
     logger.info(f"Remove Artifacts : {remove_artifacts}")
     logger.info(f"Combine Data : {combine_data}")
     logger.info(f"Isosbestic Control Channel : {isosbestic_control}")
@@ -369,16 +366,20 @@ def extractTsAndSignal(inputParameters: dict[str, object]) -> None:
     for i in range(len(session_folders)):
         run_folders.append(select_run_folders(session_folders[i], selected_runs.get(session_folders[i])))
     run_folders = np.concatenate(run_folders)
+    # Each pass below reports one unit per folder it visits, so the denominator is the
+    # folder count times the number of passes that will actually run.
+    passes_per_folder = 2 + (1 if remove_artifacts == True else 0)
     if combine_data == False:
-        pbMaxValue = run_folders.shape[0] + len(session_folders)
-        writeToFile(str((pbMaxValue + 1) * 10) + "\n" + str(10) + "\n", file_path=PB_STEPS_FILE)
+        progress.start(run_folders.shape[0] * passes_per_folder)
         execute_timestamp_correction(session_folders, inputParameters)
         execute_zscore(session_folders, inputParameters)
         if remove_artifacts == True:
             execute_artifact_removal(session_folders, inputParameters)
     else:
-        pbMaxValue = 1 + len(session_folders)
-        writeToFile(str((pbMaxValue) * 10) + "\n" + str(10) + "\n", file_path=PB_STEPS_FILE)
+        # Combining collapses the run folders into one output folder per run name, so only
+        # timestamp correction visits every folder; the later passes visit the collapsed set.
+        combined_group_count = len(get_all_stores_for_combining_data(list(run_folders.flatten())))
+        progress.start(run_folders.shape[0] + combined_group_count * (passes_per_folder - 1))
         execute_timestamp_correction(session_folders, inputParameters)
         store_array = check_storeslistfile(session_folders)
         combined_output_folders = execute_combine_data(session_folders, inputParameters, store_array)

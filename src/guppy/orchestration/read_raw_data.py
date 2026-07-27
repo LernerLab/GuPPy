@@ -1,8 +1,6 @@
 import logging
 import multiprocessing as mp
-import multiprocessing.sharedctypes
 import os
-import threading
 
 import numpy as np
 
@@ -18,28 +16,12 @@ from guppy.extractors import (
 )
 from guppy.extractors import base_recording_extractor as base_module
 from guppy.extractors.base_recording_extractor import _pool_initializer
-from guppy.frontend.progress import PB_STEPS_FILE, step_error_handler, writeToFile
 from guppy.orchestration.save_parameters import save_parameters
+from guppy.utils import progress
+from guppy.utils.progress import step_error_handler
 from guppy.utils.utils import load_npm_params, select_run_folders
 
 logger = logging.getLogger(__name__)
-
-
-def _progress_poller(
-    samples_done: mp.sharedctypes.Synchronized, stop_event: threading.Event, *, file_path: str
-) -> None:
-    """Periodically flush the shared samples counter into ``PB_STEPS_FILE``.
-
-    Runs in the parent process while the multiprocessing pool drains. Each
-    tick reads ``samples_done.value`` and appends ``value * 10`` to the
-    progress file in the existing line-per-update format.
-    """
-    last_written = -1
-    while not stop_event.wait(0.2):
-        current = int(samples_done.value)
-        if current != last_written:
-            writeToFile(str(current * 10) + "\n", file_path=file_path)
-            last_written = current
 
 
 def _group_events_by_extractor(event_to_extractor: dict, events: np.ndarray) -> dict:
@@ -210,10 +192,9 @@ def orchestrate_read_raw_data(inputParameters: dict[str, object]) -> None:
                     )
                 )
 
-    # Bar denominator. Falls back to 10 so the file stays valid for the
-    # rare degenerate case where no extractor reports samples (all-ndx-events runs).
-    progress_max = max(total_samples, 1) * 10
-    writeToFile(f"{progress_max}\n0\n", file_path=PB_STEPS_FILE)
+    # Bar denominator. Falls back to 1 for the rare degenerate case where no extractor
+    # reports samples (all-ndx-events runs).
+    progress.start(max(total_samples, 1))
 
     # This runs on a background thread of the Panel server process, which also carries the
     # Tornado IOLoop threads and a bound Bokeh socket. Forking that would copy only the
@@ -222,39 +203,24 @@ def orchestrate_read_raw_data(inputParameters: dict[str, object]) -> None:
     # ``samples_done`` must come from this same context to survive pickling into initargs.
     spawn_context = mp.get_context("spawn")
     samples_done = spawn_context.Value("q", 0)
-    stop_event = threading.Event()
-    poller = threading.Thread(
-        target=_progress_poller,
-        args=(samples_done, stop_event),
-        kwargs={"file_path": PB_STEPS_FILE},
-        daemon=True,
-    )
-    poller.start()
-    try:
-        if numProcesses <= 1:
-            # Serial path: run tasks in the parent process so the shared counter
-            # plumbing (and any test monkeypatches on the extractors) stays in scope.
-            base_module._SAMPLES_DONE = samples_done
-            try:
-                for extractor, grouped_events, run_folder, event_totals in tasks:
-                    logger.debug(f"### Reading raw data for {len(grouped_events)} event(s) into {run_folder}")
-                    read_and_save_events_for_extractor(extractor, grouped_events, run_folder, event_totals)
-            finally:
-                base_module._SAMPLES_DONE = None
-        else:
-            with spawn_context.Pool(numProcesses, initializer=_pool_initializer, initargs=(samples_done,)) as pool:
-                pool.starmap(read_and_save_events_for_extractor, tasks)
-        logger.info("### Raw data fetched for all sessions")
-    finally:
-        # Reconcile to exact total so the bar always finishes at 100%, then drain
-        # the poller thread before returning.
-        with samples_done.get_lock():
-            samples_done.value = max(int(samples_done.value), int(total_samples))
-        stop_event.set()
-        poller.join(timeout=2.0)
-        # Final write guarantees the last value is on disk even if the poller
-        # was mid-sleep when we set the stop event.
-        writeToFile(f"{progress_max}\n", file_path=PB_STEPS_FILE)
+    # The pool workers can only report into this shared counter, so progress is pulled from
+    # it rather than pushed -- no thread is needed to copy the value across.
+    progress.track(lambda: samples_done.value)
+
+    if numProcesses <= 1:
+        # Serial path: run tasks in the parent process so the shared counter
+        # plumbing (and any test monkeypatches on the extractors) stays in scope.
+        base_module._SAMPLES_DONE = samples_done
+        try:
+            for extractor, grouped_events, run_folder, event_totals in tasks:
+                logger.debug(f"### Reading raw data for {len(grouped_events)} event(s) into {run_folder}")
+                read_and_save_events_for_extractor(extractor, grouped_events, run_folder, event_totals)
+        finally:
+            base_module._SAMPLES_DONE = None
+    else:
+        with spawn_context.Pool(numProcesses, initializer=_pool_initializer, initargs=(samples_done,)) as pool:
+            pool.starmap(read_and_save_events_for_extractor, tasks)
+    logger.info("### Raw data fetched for all sessions")
 
     logger.info("Raw data fetched and saved.")
     logger.info("#" * 400)
