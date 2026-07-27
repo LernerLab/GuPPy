@@ -1,8 +1,13 @@
 import holoviews as hv
 import numpy as np
+import panel as pn
 import pytest
 
-from guppy.frontend.transient_peaks import build_peaks_review_template, load_peaks
+from guppy.frontend.transient_peaks import (
+    PeaksReviewView,
+    build_peaks_view_page,
+    load_peaks,
+)
 from guppy.utils._hdf5_io import write_hdf5
 
 TIMESTAMPS = np.arange(0.0, 11.0, 1.0)
@@ -37,14 +42,16 @@ class TestLoadPeaks:
 
 class TestPeaksReviewView:
     def test_plot_marks_peaks(self, panel_extension, run_folder):
-        template = build_peaks_review_template([str(run_folder)], "z_score")
-        overlay = template._view.plot_pane.object
+        view = PeaksReviewView(load_peaks([str(run_folder)], "z_score"))
+        overlay = view.plot_pane.object
         assert isinstance(overlay, hv.Overlay)
         # Peaks at index 2 and 7 -> t = 2.0, 7.0.
         np.testing.assert_array_equal(overlay.Scatter.I.dimension_values(0), np.array([2.0, 7.0]))
 
-    def test_continue_button_signals_done(self, panel_extension, run_folder):
-        calls = []
-        template = build_peaks_review_template([str(run_folder)], "z_score", on_done=lambda: calls.append(1))
-        template._continue_button.clicks += 1
-        assert calls == [1]
+
+class TestBuildPeaksViewPage:
+    def test_returns_page_with_a_peak_plot(self, panel_extension, run_folder):
+        page = build_peaks_view_page([str(run_folder)], "z_score")
+        holoviews_panes = page.select(pn.pane.HoloViews)
+        assert holoviews_panes, "peaks view page must contain a plot"
+        assert isinstance(holoviews_panes[0].object, hv.Overlay)

@@ -1,16 +1,14 @@
-"""Panel page for Step-4 transient-peak visualization.
+"""Reusable Panel component for Step-4 transient-peak visualization.
 
-Replaces the legacy matplotlib/TkAgg pop-ups. The transient-analysis subprocess
-serves this read-only page (blocking until the user continues) via
-``serve_blocking_page``. A single selector switches between every ``z_score`` /
-``dff`` trace across the selected run folders, each shown with its detected
-transient peaks marked.
+A terminal read-only display composed by ``orchestration/transients_view.py`` and served
+on the persistent main app after the transient-analysis compute job finishes. A single
+selector switches between every ``z_score`` / ``dff`` trace across the run folders, each
+shown with its detected transient peaks marked.
 """
 
 import glob
 import logging
 import os
-from collections.abc import Callable
 
 import holoviews as hv
 import numpy as np
@@ -19,8 +17,7 @@ import panel as pn
 from ..analysis.standard_io import read_transients_from_hdf5
 from ..visualization.transients import build_peaks_overlay
 
-# The transient-analysis subprocess that serves this page never runs home.py, so
-# load the Panel and HoloViews (bokeh) extensions here — matching tonic_epochs.py.
+# Load the HoloViews bokeh backend for the peak-overlay plots.
 pn.extension(notifications=True)
 hv.extension("bokeh")
 
@@ -94,16 +91,19 @@ class PeaksReviewView:
         self.plot_pane.object = self._make_plot()
 
 
-def build_peaks_review_template(
-    run_folders: list[str], select_for_transients: str, on_done: Callable[[], None] | None = None
-) -> pn.template.BootstrapTemplate:
-    """Build (without serving) the read-only transient-peak review page."""
-    template = pn.template.BootstrapTemplate(title="Transient peaks")
-    view = PeaksReviewView(load_peaks(run_folders, select_for_transients))
-    button = pn.widgets.Button(name="Continue", button_type="primary")
-    if on_done is not None:
-        button.on_click(lambda event: on_done())
-    template.main.append(pn.Column(view.widget, button))
-    template._view = view  # test hook
-    template._continue_button = button
-    return template
+def build_peaks_view_page(run_folders: list[str], select_for_transients: str) -> pn.viewable.Viewable:
+    """Compose the read-only transient-peak review page over the given run folders.
+
+    Parameters
+    ----------
+    run_folders : list of str
+        Session output (run) directories produced by the transient-analysis job.
+    select_for_transients : str
+        Which preprocessed signal(s) to show (``'z_score'``, ``'dff'``, or both).
+
+    Returns
+    -------
+    pn.viewable.Viewable
+        The page content (a trace selector over the detected-peak plots).
+    """
+    return PeaksReviewView(load_peaks(run_folders, select_for_transients)).widget

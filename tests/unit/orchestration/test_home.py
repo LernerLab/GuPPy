@@ -295,3 +295,30 @@ def test_preprocess_success_opens_the_result_view(
     assert len(opened) == 1
     session_folders, params = opened[0]
     assert session_folders == params["session_folders"]
+
+
+def test_psth_success_opens_the_transients_view(
+    homepage, selected_session, monkeypatch, capture_periodic, redirect_pb_files
+):
+    """On a successful PSTH/transients run the completion path opens the transient-peaks view."""
+    steps_file, _ = redirect_pb_files
+    finished = threading.Event()
+
+    def worker(params):
+        steps_file.write_text("30\n30\n")  # increment == max -> success
+        finished.set()
+
+    monkeypatch.setattr("guppy.orchestration.home.psthComputation", worker)
+    opened = []
+    monkeypatch.setattr(
+        "guppy.orchestration.home.open_transients_view",
+        lambda session_folders, params: opened.append((session_folders, params)),
+    )
+
+    homepage._hooks["onclickpsth"]()
+    assert finished.wait(timeout=3), "worker did not run"
+    capture_periodic["poll"]()
+
+    assert len(opened) == 1
+    session_folders, params = opened[0]
+    assert session_folders == params["session_folders"]

@@ -19,12 +19,9 @@ from ..analysis.standard_io import (
 )
 from ..analysis.transients import analyze_transients
 from ..analysis.transients_average import averageForGroup
-from ..frontend.frontend_utils import serve_blocking_page
 from ..frontend.progress import PB_STEPS_FILE, subprocess_main_handler, writeToFile
-from ..frontend.transient_peaks import build_peaks_review_template
 from ..utils.utils import (
     get_all_stores_for_combining_data,
-    is_headless,
     select_run_folders,
 )
 
@@ -90,56 +87,6 @@ def findFreqAndAmp(
     logger.info("Frequency and amplitude of transients in z_score data are calculated.")
 
 
-def execute_visualize_peaks(session_folders: list[str], inputParameters: dict[str, object]) -> None:
-    """Serve the transient-peak review page for each individual session's run folders.
-
-    Parameters
-    ----------
-    session_folders : list of str
-        Session folder paths.
-    inputParameters : dict
-        Full pipeline input parameters.
-    """
-    selectForTransientsComputation = inputParameters["selectForTransientsComputation"]
-    selected_runs = inputParameters.get("selected_runs") or {}
-
-    run_folders = []
-    for i in range(len(session_folders)):
-        filepath = session_folders[i]
-        run_folders.append(select_run_folders(filepath, selected_runs.get(filepath)))
-    run_folders = list(np.concatenate(run_folders).flatten())
-
-    serve_blocking_page(
-        lambda on_done: build_peaks_review_template(run_folders, selectForTransientsComputation, on_done)
-    )
-    logger.info("Frequency and amplitude of transients in z_score data are visualized.")
-
-
-def execute_visualize_peaks_combined(session_folders: list[str], inputParameters: dict[str, object]) -> None:
-    """Serve the transient-peak review page for combined (multi-session) data.
-
-    Parameters
-    ----------
-    session_folders : list of str
-        Session folder paths.
-    inputParameters : dict
-        Full pipeline input parameters.
-    """
-    selectForTransientsComputation = inputParameters["selectForTransientsComputation"]
-    selected_runs = inputParameters.get("selected_runs") or {}
-
-    run_folders = []
-    for i in range(len(session_folders)):
-        filepath = session_folders[i]
-        run_folders.append(select_run_folders(filepath, selected_runs.get(filepath)))
-    run_folders = list(np.concatenate(run_folders).flatten())
-    combined_output_groups = get_all_stores_for_combining_data(run_folders)
-    folders = [combined_output_groups[i][0] for i in range(len(combined_output_groups))]
-
-    serve_blocking_page(lambda on_done: build_peaks_review_template(folders, selectForTransientsComputation, on_done))
-    logger.info("Frequency and amplitude of transients in z_score data are calculated.")
-
-
 def executeFindFreqAndAmp(inputParameters: dict[str, object]) -> None:
     """Entry point for step-4 transient analysis: dispatches to the appropriate sub-routine.
 
@@ -169,16 +116,10 @@ def executeFindFreqAndAmp(inputParameters: dict[str, object]) -> None:
 
     if average == True:
         execute_average_for_group(inputParameters, group_session_folders)
+    elif combine_data == True:
+        execute_find_freq_and_amp_combined(inputParameters, session_folders, moving_window, numProcesses)
     else:
-        headless = is_headless()
-        if combine_data == True:
-            execute_find_freq_and_amp_combined(inputParameters, session_folders, moving_window, numProcesses)
-            if not headless:
-                execute_visualize_peaks_combined(session_folders, inputParameters)
-        else:
-            execute_find_freq_and_amp(inputParameters, session_folders, moving_window, numProcesses)
-            if not headless:
-                execute_visualize_peaks(session_folders, inputParameters)
+        execute_find_freq_and_amp(inputParameters, session_folders, moving_window, numProcesses)
 
     logger.info("Transients in z-score data found and frequency and amplitude are calculated.")
 

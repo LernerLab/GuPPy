@@ -11,6 +11,7 @@ import panel as pn
 from .import_custom_events import orchestrate_custom_events_page
 from .preprocess_view import open_preprocess_view
 from .store_labeling import orchestrate_store_labeling_page
+from .transients_view import open_transients_view
 from .visualize import visualizeResults
 from ..frontend.input_parameters import ParameterForm
 from ..frontend.progress import PB_ERROR_FILE, PB_STEPS_FILE, poll_progress_step
@@ -177,7 +178,12 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
         _run_worker_with_progress(preprocess, sidebar.extract_progress, on_success=_open_view)
 
     def onclickpsth(event: object = None) -> None:
-        _run_worker_with_progress(psthComputation, sidebar.psth_progress, add_curr_dir=True)
+        def _open_view(inputParameters: dict[str, object]) -> None:
+            # Group averaging produces no per-session transient-peak plots, so no view.
+            if not inputParameters.get("averageForGroup"):
+                open_transients_view(inputParameters["session_folders"], inputParameters)
+
+        _run_worker_with_progress(psthComputation, sidebar.psth_progress, add_curr_dir=True, on_success=_open_view)
 
     # ------------------------------------------------------------------------------------------------------------------
 

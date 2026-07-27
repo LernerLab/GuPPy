@@ -13,6 +13,7 @@ import panel as pn
 
 from .orchestration.home import build_homepage
 from .orchestration.preprocess_view import build_preprocess_view
+from .orchestration.transients_view import build_transients_view
 
 
 def serve_app(*, start_path: str | None = None) -> None:
@@ -25,6 +26,7 @@ def serve_app(*, start_path: str | None = None) -> None:
     routes = {
         "/": lambda: build_homepage(start_path=start_path),
         "/preprocess-view": build_preprocess_view,
+        "/transients-view": build_transients_view,
     }
     pn.serve(routes, show=True)
 
