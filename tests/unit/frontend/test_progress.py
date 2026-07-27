@@ -4,7 +4,7 @@ from guppy.frontend import progress as progress_module
 from guppy.frontend.progress import (
     poll_progress_step,
     read_progress_snapshot,
-    subprocess_main_handler,
+    step_error_handler,
     writeToFile,
 )
 
@@ -89,14 +89,14 @@ class TestPollProgressStep:
         steps_file = tmp_path / "pbSteps.txt"
         error_file = tmp_path / "pbError.txt"
         steps_file.write_text("50\n-1\n")
-        error_file.write_text("Step failed in subprocess")
+        error_file.write_text("Step failed")
         bar = _MockProgressBar()
         done, error_message = poll_progress_step(bar, file_path=str(steps_file), error_file_path=str(error_file))
         assert bar.bar_color == "danger"
-        assert done is True and error_message == "Step failed in subprocess"
+        assert done is True and error_message == "Step failed"
 
 
-class TestSubprocessMainHandler:
+class TestStepErrorHandler:
     @pytest.fixture
     def redirect_progress_files(self, tmp_path, monkeypatch):
         steps_file = tmp_path / "pbSteps.txt"
@@ -108,7 +108,7 @@ class TestSubprocessMainHandler:
     def test_returns_value_and_writes_no_files_on_success(self, redirect_progress_files):
         steps_file, error_file = redirect_progress_files
 
-        @subprocess_main_handler
+        @step_error_handler
         def worker(input_parameters):
             return input_parameters["x"] + 1
 
@@ -121,7 +121,7 @@ class TestSubprocessMainHandler:
     def test_writes_error_files_and_reraises_on_exception(self, redirect_progress_files):
         steps_file, error_file = redirect_progress_files
 
-        @subprocess_main_handler
+        @step_error_handler
         def worker(input_parameters):
             raise ValueError("bad parameter foo=3; valid range is [0, 1]")
 

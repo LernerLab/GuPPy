@@ -2,18 +2,14 @@
 Main entry point for GuPPy (Guided Photometry Analysis in Python)
 """
 
-from . import logging_config
-
-# Logging must be configured before importing application modules so that module-level loggers inherit the proper handlers and formatters
-logging_config.setup_logging()
-
 import argparse
 
-import panel as pn
+from . import logging_config
 
-from .orchestration.home import build_homepage
-from .orchestration.preprocess_view import build_preprocess_view
-from .orchestration.transients_view import build_transients_view
+# Configured at import scope, not inside main(), so that every process which imports this
+# module gets handlers -- including the multiprocessing pool workers, which re-execute the
+# ``guppy`` console script under the "spawn" start method.
+logging_config.setup_logging()
 
 
 def serve_app(*, start_path: str | None = None) -> None:
@@ -23,6 +19,17 @@ def serve_app(*, start_path: str | None = None) -> None:
     per-session factory). The views live on this never-torn-down server so the browser tab
     is never abruptly disconnected. ``show=True`` opens the homepage at ``/``.
     """
+    # Deliberately deferred rather than imported at module scope. The pipeline steps run
+    # multiprocessing pools under the "spawn" start method, and every spawned worker
+    # re-executes the ``guppy`` console script, which imports this module. Keeping Panel
+    # and the page builders out of import scope keeps that re-import at ~0.01s instead of
+    # ~1.5s per worker. Only ``logging_config`` stays above, so workers still get logging.
+    import panel as pn
+
+    from .orchestration.home import build_homepage
+    from .orchestration.preprocess_view import build_preprocess_view
+    from .orchestration.transients_view import build_transients_view
+
     routes = {
         "/": lambda: build_homepage(start_path=start_path),
         "/preprocess-view": build_preprocess_view,

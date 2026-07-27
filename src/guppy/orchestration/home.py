@@ -1,15 +1,15 @@
-import json
 import logging
 import os
-import subprocess
-import sys
 from threading import Thread
 from typing import Callable
 
 import panel as pn
 
 from .import_custom_events import orchestrate_custom_events_page
+from .preprocess import run_preprocess_step
 from .preprocess_view import open_preprocess_view
+from .psth import run_psth_step
+from .read_raw_data import run_read_raw_data_step
 from .store_labeling import orchestrate_store_labeling_page
 from .transients_view import open_transients_view
 from .visualize import visualizeResults
@@ -18,42 +18,6 @@ from ..frontend.progress import PB_ERROR_FILE, PB_STEPS_FILE, poll_progress_step
 from ..frontend.sidebar import Sidebar
 
 logger = logging.getLogger(__name__)
-
-
-def readRawData(inputParameters: dict[str, object]) -> None:
-    """
-    Launch the raw-data extraction step in a subprocess.
-
-    Parameters
-    ----------
-    inputParameters : dict
-        Pipeline input parameters serialized to JSON for the subprocess.
-    """
-    subprocess.call([sys.executable, "-m", "guppy.orchestration.read_raw_data", json.dumps(inputParameters)])
-
-
-def preprocess(inputParameters: dict[str, object]) -> None:
-    """
-    Launch the preprocessing step (timestamp correction, z-score) in a subprocess.
-
-    Parameters
-    ----------
-    inputParameters : dict
-        Pipeline input parameters serialized to JSON for the subprocess.
-    """
-    subprocess.call([sys.executable, "-m", "guppy.orchestration.preprocess", json.dumps(inputParameters)])
-
-
-def psthComputation(inputParameters: dict[str, object]) -> None:
-    """
-    Launch the PSTH computation step in a subprocess.
-
-    Parameters
-    ----------
-    inputParameters : dict
-        Pipeline input parameters serialized to JSON for the subprocess.
-    """
-    subprocess.call([sys.executable, "-m", "guppy.orchestration.psth", json.dumps(inputParameters)])
 
 
 def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTemplate:
@@ -123,9 +87,8 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
 
         # Poll progress from a periodic callback on the server IOLoop rather than
         # busy-looping and joining the worker here. A synchronous wait would block the
-        # IOLoop for the whole step — including any interactive Panel page the worker
-        # serves — so the main app would stop answering websocket heartbeats and the
-        # browser tab would drop its connection and never recover.
+        # IOLoop for the whole step, so the main app would stop answering websocket
+        # heartbeats and the browser tab would drop its connection and never recover.
         poller: dict[str, object] = {}
 
         def poll() -> None:
@@ -169,13 +132,13 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
             pn.state.notifications.error(str(e), duration=0)
 
     def onclickreaddata(event: object = None) -> None:
-        _run_worker_with_progress(readRawData, sidebar.read_progress)
+        _run_worker_with_progress(run_read_raw_data_step, sidebar.read_progress)
 
     def onclickpreprocess(event: object = None) -> None:
         def _open_view(inputParameters: dict[str, object]) -> None:
             open_preprocess_view(inputParameters["session_folders"], inputParameters)
 
-        _run_worker_with_progress(preprocess, sidebar.extract_progress, on_success=_open_view)
+        _run_worker_with_progress(run_preprocess_step, sidebar.extract_progress, on_success=_open_view)
 
     def onclickpsth(event: object = None) -> None:
         def _open_view(inputParameters: dict[str, object]) -> None:
@@ -183,7 +146,7 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
             if not inputParameters.get("averageForGroup"):
                 open_transients_view(inputParameters["session_folders"], inputParameters)
 
-        _run_worker_with_progress(psthComputation, sidebar.psth_progress, add_curr_dir=True, on_success=_open_view)
+        _run_worker_with_progress(run_psth_step, sidebar.psth_progress, add_curr_dir=True, on_success=_open_view)
 
     # ------------------------------------------------------------------------------------------------------------------
 

@@ -1,6 +1,7 @@
 """Step-4 (transient-analysis) result view, served by the persistent main app.
 
-The transient-analysis compute job runs as a subprocess and writes its outputs to disk.
+The transient-analysis compute job runs on a background thread of the main app process and
+writes its outputs to disk.
 When the PSTH/transients run finishes, ``home.py`` calls :func:`open_transients_view`,
 which opens a browser tab on the main app's ``/transients-view`` route (served by
 :data:`build_transients_view`) showing the detected transient peaks. See

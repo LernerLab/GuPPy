@@ -1,7 +1,7 @@
 """Step-3 (preprocessing) result view, served by the persistent main app.
 
-The preprocessing compute job runs as a subprocess and writes its outputs to disk. When it
-finishes, ``home.py`` calls :func:`open_preprocess_view`, which opens a browser tab on the
+The preprocessing compute job runs on a background thread of the main app process and writes
+its outputs to disk. When it finishes, ``home.py`` calls :func:`open_preprocess_view`, which opens a browser tab on the
 main app's ``/preprocess-view`` route (served by :data:`build_preprocess_view`). The page
 is composed from the on-disk outputs. See ``orchestration/step_view.py`` for the shared
 token/registry/serving plumbing.

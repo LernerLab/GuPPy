@@ -56,7 +56,11 @@ def analyze_transients(
     z_score = z_score[not_nan_indices]
     z_score_chunks, z_score_chunks_index = createChunks(z_score, sampling_rate, window)
 
-    with mp.Pool(numProcesses) as pool:
+    # Pinned rather than inherited: this runs on a background thread of the Panel server
+    # process, and forking a process that has other live threads can leave a lock they
+    # held (logging, HDF5) permanently locked in the child.
+    spawn_context = mp.get_context("spawn")
+    with spawn_context.Pool(numProcesses) as pool:
         result = pool.starmap(
             processChunks, zip(z_score_chunks, z_score_chunks_index, repeat(highAmpFilt), repeat(transientsThresh))
         )

@@ -8,13 +8,15 @@ PB_STEPS_FILE = os.path.join(os.path.expanduser("~"), "pbSteps.txt")
 PB_ERROR_FILE = os.path.join(os.path.expanduser("~"), "pbError.txt")
 
 
-def subprocess_main_handler(func: object) -> object:
-    """Decorate an orchestration subprocess entry point with shared error reporting.
+def step_error_handler(func: object) -> object:
+    """Decorate a pipeline step's top-level function with shared error reporting.
 
-    On success, logs the banner separator. On exception, writes the error message
-    to ``PB_ERROR_FILE`` and a ``-1`` sentinel to ``PB_STEPS_FILE`` so that
-    ``readPBIncrementValues`` (running in the parent Panel process) can stop
-    polling and surface the message to the user, then re-raises.
+    The step runs on a background thread, where an uncaught exception would
+    otherwise be swallowed by the threading excepthook. On success, logs the banner
+    separator. On exception, writes the error message to ``PB_ERROR_FILE`` and a
+    ``-1`` sentinel to ``PB_STEPS_FILE`` so that the progress poller (running on the
+    Panel server's IOLoop) can stop polling and surface the message to the user,
+    then re-raises.
     """
 
     @functools.wraps(func)
@@ -41,9 +43,9 @@ def read_progress_snapshot(
     Parameters
     ----------
     file_path : str
-        Path to the progress-steps file written by the worker subprocess.
+        Path to the progress-steps file written by the running step.
     error_file_path : str
-        Path to the file holding the subprocess failure message.
+        Path to the file holding the step's failure message.
 
     Returns
     -------
@@ -52,15 +54,15 @@ def read_progress_snapshot(
     increment : int or None
         The latest progress value (last line), or None when nothing is readable yet.
     error_message : str or None
-        The subprocess failure message when ``increment`` is ``-1``, else None. The
+        The step's failure message when ``increment`` is ``-1``, else None. The
         error file is consumed (deleted) once read.
     done : bool
-        True when the subprocess reported completion (``increment == maximum``) or
+        True when the step reported completion (``increment == maximum``) or
         failure (``increment == -1``).
     """
     if not os.path.exists(file_path):
         return None, None, None, False
-    # The worker subprocess writes this file concurrently, so a partial read can
+    # The worker thread writes this file concurrently, so a partial read can
     # yield an empty or half-written line; treat those as "nothing new this poll".
     try:
         with open(file_path, "r") as file:
@@ -100,16 +102,16 @@ def poll_progress_step(
     progressBar : object
         Progress indicator with ``value``, ``max``, and ``bar_color`` attributes.
     file_path : str
-        Path to the progress-steps file written by the worker subprocess.
+        Path to the progress-steps file written by the running step.
     error_file_path : str
-        Path to the file holding the subprocess failure message.
+        Path to the file holding the step's failure message.
 
     Returns
     -------
     done : bool
-        True when the subprocess reported completion or failure.
+        True when the step reported completion or failure.
     error_message : str or None
-        The subprocess failure message, or None on success / still-running.
+        The step's failure message, or None on success / still-running.
     """
     maximum, increment, error_message, done = read_progress_snapshot(
         file_path=file_path, error_file_path=error_file_path

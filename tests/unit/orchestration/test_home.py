@@ -110,9 +110,9 @@ def test_onclick_visualization_surfaces_value_error_as_panel_notification(homepa
 # The three pipeline steps that run a worker in a background thread behind a progress
 # bar all share the `_run_worker_with_progress` closure. Only PSTH injects `curr_dir`.
 STEP_HANDLERS = [
-    ("onclickreaddata", "readRawData", False),
-    ("onclickpreprocess", "preprocess", False),
-    ("onclickpsth", "psthComputation", True),
+    ("onclickreaddata", "run_read_raw_data_step", False),
+    ("onclickpreprocess", "run_preprocess_step", False),
+    ("onclickpsth", "run_psth_step", True),
 ]
 
 
@@ -196,7 +196,7 @@ def test_step_handler_surfaces_progress_error_as_panel_notification(
     finished = threading.Event()
 
     def worker(params):
-        error_file.write_text("Step failed in subprocess")
+        error_file.write_text("Step failed")
         steps_file.write_text("30\n-1\n")
         finished.set()
 
@@ -214,7 +214,7 @@ def test_step_handler_surfaces_progress_error_as_panel_notification(
     # Drive one poll the way the IOLoop periodic callback would.
     capture_periodic["poll"]()
 
-    assert captured_notifications == [{"message": "Step failed in subprocess", "duration": 0}]
+    assert captured_notifications == [{"message": "Step failed", "duration": 0}]
     assert capture_periodic["callback"].stopped is True
 
 
@@ -258,7 +258,7 @@ def test_second_step_launch_is_refused_while_one_is_running(
         launches.append(params)
         finished.set()
 
-    monkeypatch.setattr("guppy.orchestration.home.readRawData", fake_worker)
+    monkeypatch.setattr("guppy.orchestration.home.run_read_raw_data_step", fake_worker)
     notifications = []
     monkeypatch.setattr(pn.state.notifications, "error", lambda message, *, duration: notifications.append(message))
 
@@ -281,7 +281,7 @@ def test_preprocess_success_opens_the_result_view(
         steps_file.write_text("30\n30\n")  # increment == max -> success
         finished.set()
 
-    monkeypatch.setattr("guppy.orchestration.home.preprocess", worker)
+    monkeypatch.setattr("guppy.orchestration.home.run_preprocess_step", worker)
     opened = []
     monkeypatch.setattr(
         "guppy.orchestration.home.open_preprocess_view",
@@ -308,7 +308,7 @@ def test_psth_success_opens_the_transients_view(
         steps_file.write_text("30\n30\n")  # increment == max -> success
         finished.set()
 
-    monkeypatch.setattr("guppy.orchestration.home.psthComputation", worker)
+    monkeypatch.setattr("guppy.orchestration.home.run_psth_step", worker)
     opened = []
     monkeypatch.setattr(
         "guppy.orchestration.home.open_transients_view",

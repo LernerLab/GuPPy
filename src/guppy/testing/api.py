@@ -315,7 +315,7 @@ def step2(
     the folder dialog), sets the FileSelector to ``selected_folders``, retrieves
     the full input parameters via ``getInputParameters()``, and calls the
     underlying worker ``guppy.readTevTsq.readRawData(input_params)`` that the
-    UI normally launches via subprocess. No GUI is spawned.
+    UI invokes on its background worker thread. No GUI is spawned.
 
     Parameters
     ----------
@@ -395,7 +395,7 @@ def step2(
     else:
         input_params["mode"] = "local"
 
-    # Call the underlying Step 2 worker directly (no subprocess)
+    # Call the underlying Step 2 worker directly, as the GUI does
     orchestrate_read_raw_data(input_params)
 
 
@@ -427,7 +427,7 @@ def step3(
     the folder dialog), sets the FileSelector to ``selected_folders``, retrieves
     the full input parameters via ``getInputParameters()``, and calls the
     underlying worker ``guppy.preprocess.extractTsAndSignal(input_params)`` that the
-    UI normally launches via subprocess. No GUI is spawned.
+    UI invokes on its background worker thread. No GUI is spawned.
 
     Parameters
     ----------
@@ -565,7 +565,7 @@ def step3(
                 for pair_name, coords in artifact_coords.items():
                     np.save(os.path.join(run_folder, f"coordsForPreProcessing_{pair_name}.npy"), coords)
 
-    # Call the underlying Step 3 worker directly (no subprocess)
+    # Call the underlying Step 3 worker directly, as the GUI does
     extractTsAndSignal(input_params)
 
 
@@ -595,7 +595,7 @@ def step4(
     the folder dialog), sets the FileSelector to ``selected_folders``, retrieves
     the full input parameters via ``getInputParameters()``, and calls the
     underlying worker ``guppy.computePsth.psthForEachStore(input_params)`` that the
-    UI normally launches via subprocess. No GUI is spawned.
+    UI invokes on its background worker thread. No GUI is spawned.
 
     Parameters
     ----------
@@ -713,7 +713,7 @@ def step4(
     input_params["bin_psth_trials"] = bin_psth_trials
     input_params["use_time_or_trials"] = use_time_or_trials
 
-    # Call the underlying Step 4 worker directly (no subprocess)
+    # Call the underlying Step 4 worker directly, as the GUI does
     psthForEachStore(input_params)
 
     # Also compute frequency/amplitude and transients occurrences (normally triggered by CLI main)
@@ -827,5 +827,5 @@ def step5(
     input_params["selected_runs"] = _normalize_selected_runs(selected_runs, abs_sessions)
     input_params["group_selected_runs"] = _normalize_group_selected_runs(group_selected_runs, abs_group_folders)
 
-    # Call the underlying Step 5 worker directly (no subprocess)
+    # Call the underlying Step 5 worker directly, as the GUI does
     visualizeResults(input_params)

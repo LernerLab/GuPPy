@@ -1,13 +1,10 @@
 # coding: utf-8
 
 import glob
-import json
 import logging
 import multiprocessing as mp
 import os
 import re
-import subprocess
-import sys
 from itertools import repeat
 
 import numpy as np
@@ -15,6 +12,7 @@ from scipy import signal as ss
 
 from .group_utils import gather_group_run_folders
 from .save_parameters import save_parameters
+from .transients import executeFindFreqAndAmp
 from ..analysis.compute_psth import compute_psth
 from ..analysis.cross_correlation import compute_cross_correlation
 from ..analysis.io_utils import (
@@ -36,7 +34,7 @@ from ..analysis.standard_io import (
     write_peak_and_area_to_csv,
     write_peak_and_area_to_hdf5,
 )
-from ..frontend.progress import PB_STEPS_FILE, subprocess_main_handler, writeToFile
+from ..frontend.progress import PB_STEPS_FILE, step_error_handler, writeToFile
 from ..utils.utils import get_all_stores_for_combining_data, read_Df, select_run_folders
 from ..utils.validation import validate_peak_windows, validate_window_bounds
 
@@ -270,6 +268,10 @@ def orchestrate_psth(inputParameters: dict[str, object]) -> None:
     """
     session_folders = inputParameters["session_folders"]
     numProcesses = inputParameters["numberOfCores"]
+    # Pinned rather than inherited: this runs on a background thread of the Panel server
+    # process, and forking a process that has other live threads can leave a lock they
+    # held (logging, HDF5) permanently locked in the child.
+    spawn_context = mp.get_context("spawn")
     selected_runs = inputParameters.get("selected_runs") or {}
     run_folders = []
     for i in range(len(session_folders)):
@@ -288,18 +290,18 @@ def orchestrate_psth(inputParameters: dict[str, object]) -> None:
                 2, -1
             )
 
-            with mp.Pool(numProcesses) as psth_pool:
+            with spawn_context.Pool(numProcesses) as psth_pool:
                 psth_pool.starmap(
                     execute_compute_psth, zip(repeat(filepath), store_array[1, :], repeat(inputParameters))
                 )
 
-            with mp.Pool(numProcesses) as peak_area_pool:
+            with spawn_context.Pool(numProcesses) as peak_area_pool:
                 peak_area_pool.starmap(
                     execute_compute_psth_peak_and_area,
                     zip(repeat(filepath), store_array[1, :], repeat(inputParameters)),
                 )
 
-            with mp.Pool(numProcesses) as cross_correlation_pool:
+            with spawn_context.Pool(numProcesses) as cross_correlation_pool:
                 cross_correlation_pool.starmap(
                     execute_compute_cross_correlation, zip(repeat(filepath), store_array[1, :], repeat(inputParameters))
                 )
@@ -538,19 +540,14 @@ def psthForEachStore(inputParameters: dict[str, object]) -> dict[str, object]:
     return inputParameters
 
 
-@subprocess_main_handler
-def main(input_parameters: dict[str, object]) -> None:
-    """Run step-4 PSTH computation and chain to the transients step.
+@step_error_handler
+def run_psth_step(input_parameters: dict[str, object]) -> None:
+    """Run step-4 PSTH computation, then transient analysis, with failure reporting attached.
 
     Parameters
     ----------
     input_parameters : dict
-        Full pipeline input parameters deserialized from the subprocess argument.
+        Full pipeline input parameters.
     """
     inputParameters = psthForEachStore(input_parameters)
-    subprocess.call([sys.executable, "-m", "guppy.orchestration.transients", json.dumps(inputParameters)])
-
-
-if __name__ == "__main__":
-    input_parameters = json.loads(sys.argv[1])
-    main(input_parameters=input_parameters)
+    executeFindFreqAndAmp(inputParameters)
