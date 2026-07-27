@@ -67,7 +67,7 @@ src/guppy/
 │   ├── sidebar.py
 │   └── progress.py
 │
-├── visualization/             ← matplotlib plotting functions for signals and transients
+├── visualization/             ← HoloViews plotting functions for signals and transients
 │   ├── preprocessing.py
 │   └── transients.py
 │
