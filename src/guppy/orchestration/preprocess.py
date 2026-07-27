@@ -3,9 +3,7 @@ import json
 import logging
 import os
 import sys
-from typing import Literal
 
-import matplotlib.pyplot as plt
 import numpy as np
 
 from .save_parameters import save_parameters
@@ -41,88 +39,13 @@ from ..analysis.standard_io import (
 )
 from ..analysis.timestamp_correction import correct_timestamps
 from ..analysis.z_score import compute_z_score
-from ..frontend.artifact_removal import ArtifactRemovalWidget
 from ..frontend.progress import PB_STEPS_FILE, subprocess_main_handler, writeToFile
 from ..utils.utils import (
     get_all_stores_for_combining_data,
-    is_headless,
     select_run_folders,
 )
-from ..visualization.preprocessing import visualize_preprocessing
 
 logger = logging.getLogger(__name__)
-
-# Only set matplotlib backend if not in CI or headless (GUPPY_BASE_DIR) environment
-if not os.getenv("CI") and not is_headless():
-    plt.switch_backend("TKAgg")
-
-
-def execute_preprocessing_visualization(filepath: str, visualization_type: Literal["z_score", "dff"]) -> None:
-    """
-    Plot z-score or dF/F signals for all channel pairs in a session output directory.
-
-    Parameters
-    ----------
-    filepath : str
-        Session output directory containing ``timeCorrection_*`` and signal HDF5 files.
-    visualization_type : {'z_score', 'dff'}
-        Which preprocessed signal to visualize.
-    """
-    name = os.path.basename(filepath)
-
-    path = glob.glob(os.path.join(filepath, f"{visualization_type}_*"))
-
-    path = sorted(path)
-
-    for i in range(len(path)):
-        basename = (os.path.basename(path[i])).split(".")[0]
-        # Strip the fixed "z_score_"/"dff_" prefix so recording-site names may contain underscores.
-        name_1 = basename[len(visualization_type) + 1 :]
-        x = read_hdf5("timeCorrection_" + name_1, filepath, "timestampNew")
-        y = read_hdf5("", path[i], "data")
-        fig, ax = visualize_preprocessing(suptitle=name, title=basename, x=x, y=y)
-
-
-def visualizeControlAndSignal(filepath: str, removeArtifacts: bool) -> list:
-    """
-    Build artifact-removal widgets for each control/signal pair in a session directory.
-
-    Parameters
-    ----------
-    filepath : str
-        Session output directory containing ``control_*`` and ``signal_*`` HDF5 files.
-    removeArtifacts : bool
-        When True, the widget is shown in artifact-review mode; when False it allows
-        the user to draw new artifact boundaries.
-
-    Returns
-    -------
-    widgets : list of ArtifactRemovalWidget
-        One widget per channel pair.
-    """
-    path = decide_naming_convention(filepath)
-
-    widgets = []
-    for i in range(path.shape[1]):
-
-        name_1 = recording_site_from_channel_path(path[0, i])
-
-        ts_path = os.path.join(filepath, "timeCorrection_" + name_1 + ".hdf5")
-        cntrl_sig_fit_path = os.path.join(filepath, "cntrl_sig_fit_" + name_1 + ".hdf5")
-        timestamps = read_hdf5("", ts_path, "timestampNew")
-
-        control = read_hdf5("", path[0, i], "data").reshape(-1)
-        signal = read_hdf5("", path[1, i], "data").reshape(-1)
-        cntrl_sig_fit = read_hdf5("", cntrl_sig_fit_path, "data").reshape(-1)
-
-        plot_name = [
-            (os.path.basename(path[0, i])).split(".")[0],
-            (os.path.basename(path[1, i])).split(".")[0],
-            (os.path.basename(cntrl_sig_fit_path)).split(".")[0],
-        ]
-        widget = ArtifactRemovalWidget(filepath, timestamps, control, signal, cntrl_sig_fit, plot_name, removeArtifacts)
-        widgets.append(widget)
-    return widgets
 
 
 def execute_timestamp_correction(session_folders: list[str], inputParameters: dict[str, object]) -> None:
@@ -274,54 +197,7 @@ def execute_zscore(session_folders: list[str], inputParameters: dict[str, object
         writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
         inputParameters["step"] += 1
 
-    if not is_headless():
-        plt.show()
     logger.info("Z-score computation completed.")
-
-
-def visualize_z_score(inputParameters: dict[str, object], session_folders: list[str]) -> None:
-    """
-    Display control/signal plots and z-score/dF/F visualizations for all sessions.
-
-    Parameters
-    ----------
-    inputParameters : dict
-        Pipeline configuration; must include ``'plot_zScore_dff'``, ``'combine_data'``,
-        and ``'removeArtifacts'``.
-    session_folders : list of str
-        Session directories to visualize.
-    """
-    plot_zScore_dff = inputParameters["plot_zScore_dff"]
-    combine_data = inputParameters["combine_data"]
-    remove_artifacts = inputParameters["removeArtifacts"]
-
-    run_folders = []
-    for i in range(len(session_folders)):
-        if combine_data == True:
-            run_folders.append([session_folders[i][0]])
-        else:
-            filepath = session_folders[i]
-            run_folders.append(select_run_folders(filepath, (inputParameters.get("selected_runs") or {}).get(filepath)))
-    run_folders = np.concatenate(run_folders)
-
-    widgets = []
-    for j in range(len(run_folders)):
-        filepath = run_folders[j]
-
-        if not remove_artifacts:
-            # a reference to widgets has to persist in the same scope as plt.show() is called
-            widgets.extend(visualizeControlAndSignal(filepath, removeArtifacts=remove_artifacts))
-
-        if plot_zScore_dff == "z_score":
-            execute_preprocessing_visualization(filepath, visualization_type="z_score")
-        if plot_zScore_dff == "dff":
-            execute_preprocessing_visualization(filepath, visualization_type="dff")
-        if plot_zScore_dff == "Both":
-            execute_preprocessing_visualization(filepath, visualization_type="z_score")
-            execute_preprocessing_visualization(filepath, visualization_type="dff")
-
-    plt.show()
-    logger.info("Visualization of z-score and dF/F completed.")
 
 
 def execute_artifact_removal(session_folders: list[str], inputParameters: dict[str, object]) -> None:
@@ -377,39 +253,7 @@ def execute_artifact_removal(session_folders: list[str], inputParameters: dict[s
         writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
         inputParameters["step"] += 1
 
-    if not is_headless():
-        visualize_artifact_removal(session_folders, inputParameters)
     logger.info("Artifact removal completed.")
-
-
-def visualize_artifact_removal(session_folders: list[str], inputParameters: dict[str, object]) -> None:
-    """
-    Display control/signal plots after artifact removal for all sessions.
-
-    Parameters
-    ----------
-    session_folders : list of str
-        Session directories to visualize.
-    inputParameters : dict
-        Pipeline configuration; must include ``'combine_data'``.
-    """
-    combine_data = inputParameters["combine_data"]
-
-    run_folders = []
-    for i in range(len(session_folders)):
-        if combine_data == True:
-            run_folders.append([session_folders[i][0]])
-        else:
-            filepath = session_folders[i]
-            run_folders.append(select_run_folders(filepath, (inputParameters.get("selected_runs") or {}).get(filepath)))
-
-    run_folders = np.concatenate(run_folders)
-
-    for j in range(len(run_folders)):
-        filepath = run_folders[j]
-        visualizeControlAndSignal(filepath, removeArtifacts=True)
-    plt.show()
-    logger.info("Visualization of artifact removal completed.")
 
 
 def execute_combine_data(
@@ -532,8 +376,6 @@ def extractTsAndSignal(inputParameters: dict[str, object]) -> None:
         writeToFile(str((pbMaxValue + 1) * 10) + "\n" + str(10) + "\n", file_path=PB_STEPS_FILE)
         execute_timestamp_correction(session_folders, inputParameters)
         execute_zscore(session_folders, inputParameters)
-        if not is_headless():
-            visualize_z_score(inputParameters, session_folders)
         if remove_artifacts == True:
             execute_artifact_removal(session_folders, inputParameters)
     else:
@@ -544,8 +386,6 @@ def extractTsAndSignal(inputParameters: dict[str, object]) -> None:
         combined_output_folders = execute_combine_data(session_folders, inputParameters, store_array)
         write_combined_stores_list(combined_output_folders, store_array)
         execute_zscore(combined_output_folders, inputParameters)
-        if not is_headless():
-            visualize_z_score(inputParameters, combined_output_folders)
         if remove_artifacts == True:
             execute_artifact_removal(combined_output_folders, inputParameters)
 

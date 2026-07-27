@@ -1,27 +1,22 @@
 import logging
-import os
 
-import matplotlib.pyplot as plt
+import holoviews as hv
 import numpy as np
-from matplotlib.axes import Axes
-from matplotlib.figure import Figure
 
 logger = logging.getLogger(__name__)
 
-# Only set matplotlib backend if not in CI environment
-if not os.getenv("CI"):
-    plt.switch_backend("TKAgg")
+_ARTIFACTS_REMOVED_NOTE = "Note: Artifacts have been removed, but are not reflected in this plot."
 
 
-def visualize_preprocessing(*, suptitle: str, title: str, x: np.ndarray, y: np.ndarray) -> tuple[Figure, Axes]:
-    """Plot a preprocessing time series.
+def build_preprocessing_curve(*, suptitle: str, title: str, x: np.ndarray, y: np.ndarray) -> hv.Curve:
+    """Build a HoloViews curve of a preprocessing time series.
 
     Parameters
     ----------
     suptitle : str
-        Figure-level super-title.
+        Session-level title prefix.
     title : str
-        Axes title.
+        Trace title (e.g. the ``z_score_<site>`` basename).
     x : np.ndarray
         Time axis values.
     y : np.ndarray
@@ -29,72 +24,74 @@ def visualize_preprocessing(*, suptitle: str, title: str, x: np.ndarray, y: np.n
 
     Returns
     -------
-    fig : Figure
-        The created figure.
-    ax : Axes
-        The created axes.
+    hv.Curve
+        Curve of ``y`` versus ``x``.
     """
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    ax.plot(x, y)
-    ax.set_title(title)
-    fig.suptitle(suptitle)
-
-    return fig, ax
+    return hv.Curve((x, y), "time (s)", title).opts(title=f"{suptitle} — {title}", width=750, height=250)
 
 
-def visualize_control_signal_fit(
+def _shade_windows(curve: hv.Curve, windows: list[tuple[float, float]] | None) -> "hv.Curve | hv.Overlay":
+    """Overlay shaded vertical spans for each ``(start, end)`` window on a curve."""
+    if not windows:
+        return curve
+    overlay = curve
+    for start, end in windows:
+        overlay = overlay * hv.VSpan(float(start), float(end)).opts(color="orange", alpha=0.2)
+    return overlay
+
+
+def build_control_signal_fit(
+    *,
     x: np.ndarray,
-    y1: np.ndarray,
-    y2: np.ndarray,
-    y3: np.ndarray,
-    plot_name: list[str],
-    name: str,
+    control: np.ndarray,
+    signal: np.ndarray,
+    fit: np.ndarray,
+    titles: list[str],
+    suptitle: str,
     artifacts_have_been_removed: bool,
-) -> tuple[Figure, Axes, Axes, Axes]:
-    """Plot control channel, signal channel, and fitted signal in three stacked axes.
+    windows: list[tuple[float, float]] | None = None,
+) -> hv.Layout:
+    """Build three stacked curves (control, signal, signal+fit) with optional shaded windows.
 
     Parameters
     ----------
     x : np.ndarray
-        Time axis values shared by all three axes.
-    y1 : np.ndarray
-        Control channel trace (top axes).
-    y2 : np.ndarray
-        Signal channel trace (middle axes).
-    y3 : np.ndarray
-        Fitted control channel trace overlaid on signal (bottom axes).
-    plot_name : list[str]
-        Titles for the three axes (control, signal, fitted).
-    name : str
-        Figure super-title.
+        Time axis values shared by all three curves.
+    control : np.ndarray
+        Control channel trace (top).
+    signal : np.ndarray
+        Signal channel trace (middle).
+    fit : np.ndarray
+        Fitted control trace overlaid on the signal (bottom).
+    titles : list[str]
+        Titles for the three curves (control, signal, fit).
+    suptitle : str
+        Session-level title prefix applied to the control curve.
     artifacts_have_been_removed : bool
-        When True, adds a note on the x-axis label that artifacts were removed.
+        When True, annotates the bottom curve that artifacts were removed.
+    windows : list of (float, float), optional
+        Good-chunk ``(start, end)`` windows shaded as vertical spans on all three curves.
 
     Returns
     -------
-    fig : Figure
-        The created figure.
-    ax1, ax2, ax3 : Axes
-        The three stacked axes.
+    hv.Layout
+        Three vertically stacked curves.
     """
-    fig = plt.figure()
-    ax1 = fig.add_subplot(311)
-    (line1,) = ax1.plot(x, y1)
-    ax1.set_title(plot_name[0])
-    ax2 = fig.add_subplot(312)
-    (line2,) = ax2.plot(x, y2)
-    ax2.set_title(plot_name[1])
-    ax3 = fig.add_subplot(313)
-    (line3,) = ax3.plot(x, y2)
-    (line3,) = ax3.plot(x, y3)
-    ax3.set_title(plot_name[2])
-    fig.suptitle(name)
+    control_curve = hv.Curve((x, control), "time (s)", titles[0]).opts(
+        title=f"{suptitle} — {titles[0]}", width=750, height=220
+    )
+    signal_curve = hv.Curve((x, signal), "time (s)", titles[1]).opts(title=titles[1], width=750, height=220)
+    fit_title = titles[2] + (f" ({_ARTIFACTS_REMOVED_NOTE})" if artifacts_have_been_removed else "")
+    fit_curve = (
+        (hv.Curve((x, signal), "time (s)", titles[2]) * hv.Curve((x, fit), "time (s)", titles[2]))
+        .opts(hv.opts.Curve(width=750, height=220))
+        .opts(title=fit_title)
+    )
 
-    hfont = {"fontname": "DejaVu Sans"}
-
-    if artifacts_have_been_removed:
-        ax3.set_xlabel("Time(s) \n Note : Artifacts have been removed, but are not reflected in this plot.", **hfont)
-    else:
-        ax3.set_xlabel("Time(s)", **hfont)
-    return fig, ax1, ax2, ax3
+    return hv.Layout(
+        [
+            _shade_windows(control_curve, windows),
+            _shade_windows(signal_curve, windows),
+            _shade_windows(fit_curve, windows),
+        ]
+    ).cols(1)

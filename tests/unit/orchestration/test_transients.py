@@ -1,166 +1,62 @@
-import h5py
-import numpy as np
 import pytest
 
-from guppy.analysis.standard_io import write_transients_to_hdf5
 from guppy.orchestration.transients import (
     execute_average_for_group,
-    execute_visualize_peaks,
-    execute_visualize_peaks_combined,
+    executeFindFreqAndAmp,
 )
 
-STUB_Z_SCORE = np.array([1.0, 2.0, 3.0])
-STUB_TS = np.array([0.0, 0.5, 1.0])
-STUB_PEAKS_IND = np.array([1])
 
-
-def _write_stub_files(run_folder, basename):
-    """Create the glob-target HDF5 and the transient data HDF5 for a given basename."""
-    # Empty file so the glob pattern finds it
-    with h5py.File(str(run_folder / f"{basename}.hdf5"), "w"):
-        pass
-    write_transients_to_hdf5(str(run_folder), basename, STUB_Z_SCORE, STUB_TS, STUB_PEAKS_IND)
-    # select_run_folders validates that picked outputs have a storesList.csv (re-run step 1 if missing).
-    (run_folder / "storesList.csv").write_text("")
+@pytest.fixture
+def transient_params(base_input_parameters):
+    base_input_parameters["numberOfCores"] = 1
+    base_input_parameters["moving_window"] = 15
+    base_input_parameters["group_session_folders"] = ["/group_1"]
+    base_input_parameters["session_folders"] = ["/session_1"]
+    return base_input_parameters
 
 
 @pytest.fixture
-def run_folder(tmp_path):
-    """One session folder with one output directory containing a z_score_DMS stub."""
-    session_dir = tmp_path / "session1"
-    session_dir.mkdir()
-    output = session_dir / "session1_output_0"
-    output.mkdir()
-    _write_stub_files(output, "z_score_DMS")
-    return session_dir
+def capture_dispatch(monkeypatch):
+    """Capture which compute routine executeFindFreqAndAmp dispatches to (none of them serve)."""
+    calls = {}
+    monkeypatch.setattr(
+        "guppy.orchestration.transients.execute_find_freq_and_amp",
+        lambda ip, sf, mw, procs: calls.setdefault("individual", sf),
+    )
+    monkeypatch.setattr(
+        "guppy.orchestration.transients.execute_find_freq_and_amp_combined",
+        lambda ip, sf, mw, procs: calls.setdefault("combined", sf),
+    )
+    monkeypatch.setattr(
+        "guppy.orchestration.transients.execute_average_for_group",
+        lambda ip, folders: calls.setdefault("average", folders),
+    )
+    return calls
 
 
-@pytest.fixture
-def combined_output_dir(tmp_path):
-    """Two session folders each with one output_0 directory containing a z_score_DMS stub."""
-    session_a = tmp_path / "sessionA"
-    session_b = tmp_path / "sessionB"
-    for session in (session_a, session_b):
-        session.mkdir()
-        output = session / f"{session.name}_output_0"
-        output.mkdir()
-        _write_stub_files(output, "z_score_DMS")
-    return [str(session_a), str(session_b)]
+class TestExecuteFindFreqAndAmpDispatch:
+    def test_individual_path(self, transient_params, capture_dispatch):
+        transient_params["averageForGroup"] = False
+        transient_params["combine_data"] = False
+        executeFindFreqAndAmp(transient_params)
+        assert set(capture_dispatch) == {"individual"}
+        assert capture_dispatch["individual"] == ["/session_1"]
+
+    def test_combined_path(self, transient_params, capture_dispatch):
+        transient_params["averageForGroup"] = False
+        transient_params["combine_data"] = True
+        executeFindFreqAndAmp(transient_params)
+        assert set(capture_dispatch) == {"combined"}
+        assert capture_dispatch["combined"] == ["/session_1"]
+
+    def test_average_path(self, transient_params, capture_dispatch):
+        transient_params["averageForGroup"] = True
+        transient_params["combine_data"] = False
+        executeFindFreqAndAmp(transient_params)
+        assert set(capture_dispatch) == {"average"}
+        assert capture_dispatch["average"] == ["/group_1"]
 
 
-class TestExecuteVisualizePeaks:
-    def test_calls_visualize_peaks_with_correct_arguments(self, run_folder, base_input_parameters, monkeypatch):
-        calls = []
-        monkeypatch.setattr(
-            "guppy.orchestration.transients.visualize_peaks",
-            lambda title, suptitle, z_score, ts, peaksInd: calls.append(
-                {"title": title, "suptitle": suptitle, "z_score": z_score, "ts": ts, "peaksInd": peaksInd}
-            ),
-        )
-        monkeypatch.setattr("guppy.orchestration.transients.plt.show", lambda: None)
-
-        base_input_parameters["selectForTransientsComputation"] = "z_score"
-        base_input_parameters["selected_runs"] = {str(run_folder): ["0"]}
-        execute_visualize_peaks([str(run_folder)], base_input_parameters)
-
-        assert len(calls) == 1
-        assert calls[0]["title"] == "z_score_DMS"
-        assert calls[0]["suptitle"] == "session1_output_0"
-        np.testing.assert_array_equal(calls[0]["z_score"], STUB_Z_SCORE)
-        np.testing.assert_array_equal(calls[0]["ts"], STUB_TS)
-        np.testing.assert_array_equal(calls[0]["peaksInd"], STUB_PEAKS_IND)
-
-    def test_selects_dff_files_when_requested(self, tmp_path, base_input_parameters, monkeypatch):
-        session_dir = tmp_path / "session1"
-        session_dir.mkdir()
-        output = session_dir / "session1_output_0"
-        output.mkdir()
-        _write_stub_files(output, "dff_DMS")
-
-        calls = []
-        monkeypatch.setattr(
-            "guppy.orchestration.transients.visualize_peaks",
-            lambda title, suptitle, z_score, ts, peaksInd: calls.append(title),
-        )
-        monkeypatch.setattr("guppy.orchestration.transients.plt.show", lambda: None)
-
-        base_input_parameters["selectForTransientsComputation"] = "dff"
-        base_input_parameters["selected_runs"] = {str(session_dir): ["0"]}
-        execute_visualize_peaks([str(session_dir)], base_input_parameters)
-
-        assert len(calls) == 1
-        assert calls[0] == "dff_DMS"
-
-    def test_selects_both_files_when_requested(self, tmp_path, base_input_parameters, monkeypatch):
-        session_dir = tmp_path / "session1"
-        session_dir.mkdir()
-        output = session_dir / "session1_output_0"
-        output.mkdir()
-        _write_stub_files(output, "z_score_DMS")
-        _write_stub_files(output, "dff_DMS")
-
-        calls = []
-        monkeypatch.setattr(
-            "guppy.orchestration.transients.visualize_peaks",
-            lambda title, suptitle, z_score, ts, peaksInd: calls.append(title),
-        )
-        monkeypatch.setattr("guppy.orchestration.transients.plt.show", lambda: None)
-
-        base_input_parameters["selectForTransientsComputation"] = "both"
-        base_input_parameters["selected_runs"] = {str(session_dir): ["0"]}
-        execute_visualize_peaks([str(session_dir)], base_input_parameters)
-
-        assert len(calls) == 2
-        assert set(calls) == {"z_score_DMS", "dff_DMS"}
-
-
-class TestExecuteVisualizePeaksCombined:
-    def test_calls_visualize_peaks_with_correct_arguments(
-        self, combined_output_dir, base_input_parameters, monkeypatch
-    ):
-        calls = []
-        monkeypatch.setattr(
-            "guppy.orchestration.transients.visualize_peaks",
-            lambda title, suptitle, z_score, ts, peaksInd: calls.append(
-                {"title": title, "suptitle": suptitle, "z_score": z_score, "ts": ts, "peaksInd": peaksInd}
-            ),
-        )
-        monkeypatch.setattr("guppy.orchestration.transients.plt.show", lambda: None)
-
-        base_input_parameters["selectForTransientsComputation"] = "z_score"
-        base_input_parameters["selected_runs"] = {session: ["0"] for session in combined_output_dir}
-        execute_visualize_peaks_combined(combined_output_dir, base_input_parameters)
-
-        # get_all_stores_for_combining_data groups both output_0 dirs into op[0];
-        # execute_visualize_peaks_combined uses op[i][0] (the first of the group), so 1 call.
-        assert len(calls) == 1
-        assert calls[0]["title"] == "z_score_DMS"
-        assert "output_0" in calls[0]["suptitle"]
-        np.testing.assert_array_equal(calls[0]["z_score"], STUB_Z_SCORE)
-        np.testing.assert_array_equal(calls[0]["ts"], STUB_TS)
-        np.testing.assert_array_equal(calls[0]["peaksInd"], STUB_PEAKS_IND)
-
-    def test_execute_average_for_group_raises_for_empty_folders(self, base_input_parameters):
-        with pytest.raises(ValueError, match="No folders selected for group averaging"):
-            execute_average_for_group(base_input_parameters, [])
-
-    def test_combined_selects_dff_files_when_requested(self, tmp_path, base_input_parameters, monkeypatch):
-        session_dir = tmp_path / "session1"
-        session_dir.mkdir()
-        output = session_dir / "session1_output_0"
-        output.mkdir()
-        _write_stub_files(output, "dff_DMS")
-
-        calls = []
-        monkeypatch.setattr(
-            "guppy.orchestration.transients.visualize_peaks",
-            lambda title, suptitle, z_score, ts, peaksInd: calls.append(title),
-        )
-        monkeypatch.setattr("guppy.orchestration.transients.plt.show", lambda: None)
-
-        base_input_parameters["selectForTransientsComputation"] = "dff"
-        base_input_parameters["selected_runs"] = {str(session_dir): ["0"]}
-        execute_visualize_peaks_combined([str(session_dir)], base_input_parameters)
-
-        assert len(calls) == 1
-        assert calls[0] == "dff_DMS"
+def test_execute_average_for_group_raises_for_empty_folders(base_input_parameters):
+    with pytest.raises(ValueError, match="No folders selected for group averaging"):
+        execute_average_for_group(base_input_parameters, [])

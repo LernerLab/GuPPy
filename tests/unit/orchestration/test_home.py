@@ -1,3 +1,5 @@
+import threading
+
 import panel as pn
 import pytest
 
@@ -123,60 +125,111 @@ def selected_session(homepage, tmp_path):
     return folder
 
 
+class _FakePeriodicCallback:
+    def __init__(self):
+        self.stopped = False
+
+    def stop(self):
+        self.stopped = True
+
+
+@pytest.fixture
+def capture_periodic(monkeypatch):
+    """Capture the poll callback registered via ``pn.state.add_periodic_callback`` without running it.
+
+    The real callback fires on the server IOLoop, which is not running in unit tests;
+    capturing it lets a test drive one poll deterministically.
+    """
+    captured = {}
+
+    def fake_add_periodic_callback(callback, **kwargs):
+        captured["poll"] = callback
+        captured["callback"] = _FakePeriodicCallback()
+        return captured["callback"]
+
+    monkeypatch.setattr(pn.state, "add_periodic_callback", fake_add_periodic_callback)
+    return captured
+
+
+@pytest.fixture
+def redirect_pb_files(tmp_path, monkeypatch):
+    steps_file = tmp_path / "pbSteps.txt"
+    error_file = tmp_path / "pbError.txt"
+    monkeypatch.setattr("guppy.orchestration.home.PB_STEPS_FILE", str(steps_file))
+    monkeypatch.setattr("guppy.orchestration.home.PB_ERROR_FILE", str(error_file))
+    return steps_file, error_file
+
+
 @pytest.mark.parametrize("hook_name, worker_attr, adds_curr_dir", STEP_HANDLERS)
-def test_step_handler_runs_worker_with_input_parameters(
-    homepage, selected_session, monkeypatch, hook_name, worker_attr, adds_curr_dir
+def test_step_handler_launches_worker_with_input_parameters(
+    homepage, selected_session, monkeypatch, capture_periodic, redirect_pb_files, hook_name, worker_attr, adds_curr_dir
 ):
-    """Each step handler launches its worker (in a background thread that is joined
-    before returning) with the collected input parameters. Only PSTH injects
-    ``curr_dir``."""
+    """Each step handler launches its worker in a background thread (without blocking the
+    IOLoop) with the collected input parameters, and registers a progress poller. Only
+    PSTH injects ``curr_dir``."""
     captured = []
-    monkeypatch.setattr(f"guppy.orchestration.home.{worker_attr}", lambda params: captured.append(params))
-    # Stub the progress poll to report success (no error) without touching PB_STEPS_FILE.
-    monkeypatch.setattr("guppy.orchestration.home.readPBIncrementValues", lambda progress, *, file_path: "")
+    finished = threading.Event()
+
+    def fake_worker(params):
+        captured.append(params)
+        finished.set()
+
+    monkeypatch.setattr(f"guppy.orchestration.home.{worker_attr}", fake_worker)
 
     homepage._hooks[hook_name]()
 
+    assert finished.wait(timeout=3), "worker thread did not run"
     assert len(captured) == 1
     assert isinstance(captured[0], dict)
     assert ("curr_dir" in captured[0]) == adds_curr_dir
+    # A poller was registered on the IOLoop instead of the handler blocking on it.
+    assert "poll" in capture_periodic
 
 
 @pytest.mark.parametrize("hook_name, worker_attr, adds_curr_dir", STEP_HANDLERS)
 def test_step_handler_surfaces_progress_error_as_panel_notification(
-    homepage, selected_session, monkeypatch, hook_name, worker_attr, adds_curr_dir
+    homepage, selected_session, monkeypatch, capture_periodic, redirect_pb_files, hook_name, worker_attr, adds_curr_dir
 ):
-    """When the progress poll returns a non-empty error message, the handler surfaces
-    it as a persistent Panel error notification (duration=0)."""
-    monkeypatch.setattr(f"guppy.orchestration.home.{worker_attr}", lambda params: None)
-    error_text = "Step failed in subprocess"
-    monkeypatch.setattr("guppy.orchestration.home.readPBIncrementValues", lambda progress, *, file_path: error_text)
+    """When the worker reports failure through the progress file, the poll callback surfaces
+    it as a persistent Panel error notification (duration=0) and stops polling."""
+    steps_file, error_file = redirect_pb_files
+    finished = threading.Event()
+
+    def worker(params):
+        error_file.write_text("Step failed in subprocess")
+        steps_file.write_text("30\n-1\n")
+        finished.set()
+
+    monkeypatch.setattr(f"guppy.orchestration.home.{worker_attr}", worker)
 
     captured_notifications = []
-
-    def fake_error(message, *, duration):
-        captured_notifications.append({"message": message, "duration": duration})
-
-    monkeypatch.setattr(pn.state.notifications, "error", fake_error)
+    monkeypatch.setattr(
+        pn.state.notifications,
+        "error",
+        lambda message, *, duration: captured_notifications.append({"message": message, "duration": duration}),
+    )
 
     homepage._hooks[hook_name]()
+    assert finished.wait(timeout=3), "worker thread did not run"
+    # Drive one poll the way the IOLoop periodic callback would.
+    capture_periodic["poll"]()
 
-    assert captured_notifications == [{"message": error_text, "duration": 0}]
+    assert captured_notifications == [{"message": "Step failed in subprocess", "duration": 0}]
+    assert capture_periodic["callback"].stopped is True
 
 
 @pytest.mark.parametrize("hook_name, worker_attr, adds_curr_dir", STEP_HANDLERS)
-def test_step_handler_no_folder_selected_skips_worker(homepage, monkeypatch, hook_name, worker_attr, adds_curr_dir):
+def test_step_handler_no_folder_selected_skips_worker(
+    homepage, monkeypatch, capture_periodic, hook_name, worker_attr, adds_curr_dir
+):
     """With no folder selected, getInputParameters raises; the handler must surface the
-    error and never launch the worker or poll for progress."""
+    error and never launch the worker or register a poller."""
     homepage._widgets["files_1"].value = []
 
-    captured = []
-    monkeypatch.setattr(f"guppy.orchestration.home.{worker_attr}", lambda params: captured.append(params))
-
     def _should_not_run(*args, **kwargs):
-        raise AssertionError("progress polling must not run when no folder is selected")
+        raise AssertionError("worker must not run when no folder is selected")
 
-    monkeypatch.setattr("guppy.orchestration.home.readPBIncrementValues", _should_not_run)
+    monkeypatch.setattr(f"guppy.orchestration.home.{worker_attr}", _should_not_run)
 
     captured_notifications = []
     monkeypatch.setattr(
@@ -187,6 +240,85 @@ def test_step_handler_no_folder_selected_skips_worker(homepage, monkeypatch, hoo
 
     homepage._hooks[hook_name]()
 
-    assert captured == []
     assert len(captured_notifications) == 1
     assert "No folder is selected for analysis" in captured_notifications[0]
+    # No worker launched and no poller registered.
+    assert "poll" not in capture_periodic
+
+
+def test_second_step_launch_is_refused_while_one_is_running(
+    homepage, selected_session, monkeypatch, capture_periodic, redirect_pb_files
+):
+    """The handlers no longer block the IOLoop, so a run-guard must reject a second launch
+    until the first finishes (the poll, which clears the guard, is not driven here)."""
+    launches = []
+    finished = threading.Event()
+
+    def fake_worker(params):
+        launches.append(params)
+        finished.set()
+
+    monkeypatch.setattr("guppy.orchestration.home.readRawData", fake_worker)
+    notifications = []
+    monkeypatch.setattr(pn.state.notifications, "error", lambda message, *, duration: notifications.append(message))
+
+    homepage._hooks["onclickreaddata"]()
+    assert finished.wait(timeout=3), "first worker did not run"
+    homepage._hooks["onclickreaddata"]()  # second launch while the first is still "running"
+
+    assert len(launches) == 1
+    assert any("already running" in message for message in notifications)
+
+
+def test_preprocess_success_opens_the_result_view(
+    homepage, selected_session, monkeypatch, capture_periodic, redirect_pb_files
+):
+    """On a successful preprocess run the completion path opens the preprocessing view."""
+    steps_file, _ = redirect_pb_files
+    finished = threading.Event()
+
+    def worker(params):
+        steps_file.write_text("30\n30\n")  # increment == max -> success
+        finished.set()
+
+    monkeypatch.setattr("guppy.orchestration.home.preprocess", worker)
+    opened = []
+    monkeypatch.setattr(
+        "guppy.orchestration.home.open_preprocess_view",
+        lambda session_folders, params: opened.append((session_folders, params)),
+    )
+
+    homepage._hooks["onclickpreprocess"]()
+    assert finished.wait(timeout=3), "worker did not run"
+    capture_periodic["poll"]()
+
+    assert len(opened) == 1
+    session_folders, params = opened[0]
+    assert session_folders == params["session_folders"]
+
+
+def test_psth_success_opens_the_transients_view(
+    homepage, selected_session, monkeypatch, capture_periodic, redirect_pb_files
+):
+    """On a successful PSTH/transients run the completion path opens the transient-peaks view."""
+    steps_file, _ = redirect_pb_files
+    finished = threading.Event()
+
+    def worker(params):
+        steps_file.write_text("30\n30\n")  # increment == max -> success
+        finished.set()
+
+    monkeypatch.setattr("guppy.orchestration.home.psthComputation", worker)
+    opened = []
+    monkeypatch.setattr(
+        "guppy.orchestration.home.open_transients_view",
+        lambda session_folders, params: opened.append((session_folders, params)),
+    )
+
+    homepage._hooks["onclickpsth"]()
+    assert finished.wait(timeout=3), "worker did not run"
+    capture_periodic["poll"]()
+
+    assert len(opened) == 1
+    session_folders, params = opened[0]
+    assert session_folders == params["session_folders"]
