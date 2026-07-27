@@ -39,16 +39,9 @@ from ..analysis.standard_io import (
 )
 from ..analysis.timestamp_correction import correct_timestamps
 from ..analysis.z_score import compute_z_score
-from ..frontend.artifact_removal import (
-    build_artifact_removal_template,
-    build_artifact_review_template,
-    build_preprocessing_review_template,
-)
-from ..frontend.frontend_utils import serve_blocking_page
 from ..frontend.progress import PB_STEPS_FILE, subprocess_main_handler, writeToFile
 from ..utils.utils import (
     get_all_stores_for_combining_data,
-    is_headless,
     select_run_folders,
 )
 
@@ -207,51 +200,6 @@ def execute_zscore(session_folders: list[str], inputParameters: dict[str, object
     logger.info("Z-score computation completed.")
 
 
-def visualize_z_score(inputParameters: dict[str, object], session_folders: list[str]) -> None:
-    """
-    Serve the z-score/dF-F review — and, before artifacts are removed, the interactive
-    artifact-marking page — for each run folder.
-
-    When ``removeArtifacts`` is False, each run folder gets the interactive marking page
-    (control/signal/fit traces with an editable good-chunk-windows table, plus the z-score/dF-F
-    review). When True, only the read-only z-score/dF-F review is shown, and only if the user
-    requested it via ``plot_zScore_dff``. Each page blocks until the user continues.
-
-    Parameters
-    ----------
-    inputParameters : dict
-        Pipeline configuration; must include ``'plot_zScore_dff'``, ``'combine_data'``,
-        and ``'removeArtifacts'``.
-    session_folders : list of str
-        Session directories to visualize.
-    """
-    plot_zScore_dff = inputParameters["plot_zScore_dff"]
-    combine_data = inputParameters["combine_data"]
-    remove_artifacts = inputParameters["removeArtifacts"]
-
-    run_folders = []
-    for i in range(len(session_folders)):
-        if combine_data == True:
-            run_folders.append([session_folders[i][0]])
-        else:
-            filepath = session_folders[i]
-            run_folders.append(select_run_folders(filepath, (inputParameters.get("selected_runs") or {}).get(filepath)))
-    run_folders = np.concatenate(run_folders)
-
-    for j in range(len(run_folders)):
-        filepath = run_folders[j]
-        if not remove_artifacts:
-            serve_blocking_page(
-                lambda on_done, fp=filepath: build_artifact_removal_template(fp, plot_zScore_dff, on_done)
-            )
-        elif plot_zScore_dff != "None":
-            serve_blocking_page(
-                lambda on_done, fp=filepath: build_preprocessing_review_template(fp, plot_zScore_dff, on_done)
-            )
-
-    logger.info("Visualization of z-score and dF/F completed.")
-
-
 def execute_artifact_removal(session_folders: list[str], inputParameters: dict[str, object]) -> None:
     """
     Apply artifact removal to all session output directories.
@@ -305,38 +253,7 @@ def execute_artifact_removal(session_folders: list[str], inputParameters: dict[s
         writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
         inputParameters["step"] += 1
 
-    if not is_headless():
-        visualize_artifact_removal(session_folders, inputParameters)
     logger.info("Artifact removal completed.")
-
-
-def visualize_artifact_removal(session_folders: list[str], inputParameters: dict[str, object]) -> None:
-    """
-    Display control/signal plots after artifact removal for all sessions.
-
-    Parameters
-    ----------
-    session_folders : list of str
-        Session directories to visualize.
-    inputParameters : dict
-        Pipeline configuration; must include ``'combine_data'``.
-    """
-    combine_data = inputParameters["combine_data"]
-
-    run_folders = []
-    for i in range(len(session_folders)):
-        if combine_data == True:
-            run_folders.append([session_folders[i][0]])
-        else:
-            filepath = session_folders[i]
-            run_folders.append(select_run_folders(filepath, (inputParameters.get("selected_runs") or {}).get(filepath)))
-
-    run_folders = np.concatenate(run_folders)
-
-    for j in range(len(run_folders)):
-        filepath = run_folders[j]
-        serve_blocking_page(lambda on_done, fp=filepath: build_artifact_review_template(fp, on_done))
-    logger.info("Visualization of artifact removal completed.")
 
 
 def execute_combine_data(
@@ -459,8 +376,6 @@ def extractTsAndSignal(inputParameters: dict[str, object]) -> None:
         writeToFile(str((pbMaxValue + 1) * 10) + "\n" + str(10) + "\n", file_path=PB_STEPS_FILE)
         execute_timestamp_correction(session_folders, inputParameters)
         execute_zscore(session_folders, inputParameters)
-        if not is_headless():
-            visualize_z_score(inputParameters, session_folders)
         if remove_artifacts == True:
             execute_artifact_removal(session_folders, inputParameters)
     else:
@@ -471,8 +386,6 @@ def extractTsAndSignal(inputParameters: dict[str, object]) -> None:
         combined_output_folders = execute_combine_data(session_folders, inputParameters, store_array)
         write_combined_stores_list(combined_output_folders, store_array)
         execute_zscore(combined_output_folders, inputParameters)
-        if not is_headless():
-            visualize_z_score(inputParameters, combined_output_folders)
         if remove_artifacts == True:
             execute_artifact_removal(combined_output_folders, inputParameters)
 

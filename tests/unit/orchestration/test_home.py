@@ -244,3 +244,54 @@ def test_step_handler_no_folder_selected_skips_worker(
     assert "No folder is selected for analysis" in captured_notifications[0]
     # No worker launched and no poller registered.
     assert "poll" not in capture_periodic
+
+
+def test_second_step_launch_is_refused_while_one_is_running(
+    homepage, selected_session, monkeypatch, capture_periodic, redirect_pb_files
+):
+    """The handlers no longer block the IOLoop, so a run-guard must reject a second launch
+    until the first finishes (the poll, which clears the guard, is not driven here)."""
+    launches = []
+    finished = threading.Event()
+
+    def fake_worker(params):
+        launches.append(params)
+        finished.set()
+
+    monkeypatch.setattr("guppy.orchestration.home.readRawData", fake_worker)
+    notifications = []
+    monkeypatch.setattr(pn.state.notifications, "error", lambda message, *, duration: notifications.append(message))
+
+    homepage._hooks["onclickreaddata"]()
+    assert finished.wait(timeout=3), "first worker did not run"
+    homepage._hooks["onclickreaddata"]()  # second launch while the first is still "running"
+
+    assert len(launches) == 1
+    assert any("already running" in message for message in notifications)
+
+
+def test_preprocess_success_opens_the_result_view(
+    homepage, selected_session, monkeypatch, capture_periodic, redirect_pb_files
+):
+    """On a successful preprocess run the completion path opens the preprocessing view."""
+    steps_file, _ = redirect_pb_files
+    finished = threading.Event()
+
+    def worker(params):
+        steps_file.write_text("30\n30\n")  # increment == max -> success
+        finished.set()
+
+    monkeypatch.setattr("guppy.orchestration.home.preprocess", worker)
+    opened = []
+    monkeypatch.setattr(
+        "guppy.orchestration.home.open_preprocess_view",
+        lambda session_folders, params: opened.append((session_folders, params)),
+    )
+
+    homepage._hooks["onclickpreprocess"]()
+    assert finished.wait(timeout=3), "worker did not run"
+    capture_periodic["poll"]()
+
+    assert len(opened) == 1
+    session_folders, params = opened[0]
+    assert session_folders == params["session_folders"]

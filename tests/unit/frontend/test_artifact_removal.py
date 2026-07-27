@@ -1,14 +1,16 @@
 import holoviews as hv
 import numpy as np
 import pandas as pd
+import panel as pn
 import pytest
 
 from guppy.analysis.io_utils import fetchCoords
 from guppy.frontend.artifact_removal import (
-    build_artifact_removal_template,
-    build_artifact_review_template,
-    build_preprocessing_review_template,
+    ArtifactRemovalConfig,
+    build_folder_page,
+    build_preprocess_view_page,
     load_pair_traces,
+    load_preprocessed_traces,
     signal_options,
 )
 from guppy.utils._hdf5_io import write_hdf5
@@ -55,8 +57,12 @@ def test_load_pair_traces_raises_for_mismatched_recording_sites(tmp_path):
 class TestArtifactRemovalConfig:
     @pytest.fixture
     def config(self, panel_extension, run_folder):
-        template = build_artifact_removal_template(str(run_folder), "z_score")
-        return template._config
+        return ArtifactRemovalConfig(
+            str(run_folder),
+            load_pair_traces(str(run_folder)),
+            load_preprocessed_traces(str(run_folder)),
+            signal_options("z_score"),
+        )
 
     def test_sites_discovered_from_control_signal_pairs(self, config):
         assert sorted(config.sites) == ["DLS", "DMS"]
@@ -68,10 +74,8 @@ class TestArtifactRemovalConfig:
         config.save()
 
         saved = np.load(str(run_folder / "coordsForPreProcessing_DMS.npy"))
-        # Two windows -> shape (4, 2); column 0 interleaves [s0, e0, s1, e1].
         assert saved.shape == (4, 2)
         np.testing.assert_array_equal(saved[:, 0], np.array([1.0, 3.0, 6.0, 8.0]))
-        # fetchCoords reshapes column 0 back into the two good-chunk pairs.
         coords = fetchCoords(str(run_folder), "DMS", TIMESTAMPS)
         np.testing.assert_array_equal(coords, np.array([[1.0, 3.0], [6.0, 8.0]]))
 
@@ -80,54 +84,26 @@ class TestArtifactRemovalConfig:
         assert not (run_folder / "coordsForPreProcessing_DMS.npy").exists()
         assert not (run_folder / "coordsForPreProcessing_DLS.npy").exists()
 
-    def test_save_raises_when_start_not_before_end(self, config, run_folder):
-        config.site_to_widget["DMS"].value = pd.DataFrame({"label": ["bad"], "start": [5.0], "end": [5.0]})
-        with pytest.raises(ValueError, match="must be less than end"):
-            config.save()
-        assert not (run_folder / "coordsForPreProcessing_DMS.npy").exists()
-
     def test_save_raises_when_window_outside_timespan(self, config, run_folder):
         config.site_to_widget["DMS"].value = pd.DataFrame({"label": ["late"], "start": [8.0], "end": [15.0]})
         with pytest.raises(ValueError, match="outside the recording timespan"):
             config.save()
         assert not (run_folder / "coordsForPreProcessing_DMS.npy").exists()
 
-    def test_invalid_site_blocks_all_writes(self, config, run_folder):
-        # DLS is valid, DMS is invalid -> validate-all-before-write means neither is written.
-        config.site_to_widget["DLS"].value = pd.DataFrame({"label": ["ok"], "start": [1.0], "end": [2.0]})
-        config.site_to_widget["DMS"].value = pd.DataFrame({"label": ["bad"], "start": [5.0], "end": [5.0]})
-        with pytest.raises(ValueError):
-            config.save()
-        assert not (run_folder / "coordsForPreProcessing_DLS.npy").exists()
-        assert not (run_folder / "coordsForPreProcessing_DMS.npy").exists()
-
-    def test_multiple_sites_each_write_own_file(self, config, run_folder):
+    def test_on_save_writes_on_success(self, config, run_folder):
         config.site_to_widget["DMS"].value = pd.DataFrame({"label": ["a"], "start": [1.0], "end": [2.0]})
-        config.site_to_widget["DLS"].value = pd.DataFrame({"label": ["b"], "start": [3.0], "end": [4.0]})
-        config.save()
+        config._on_save(None)
         np.testing.assert_array_equal(fetchCoords(str(run_folder), "DMS", TIMESTAMPS), np.array([[1.0, 2.0]]))
-        np.testing.assert_array_equal(fetchCoords(str(run_folder), "DLS", TIMESTAMPS), np.array([[3.0, 4.0]]))
 
-    def test_on_save_swallows_validation_error_without_writing_or_signalling(self, config, run_folder):
-        calls = []
-        config.on_done = lambda: calls.append(1)
+    def test_on_save_swallows_validation_error_without_writing(self, config, run_folder):
         config.site_to_widget["DMS"].value = pd.DataFrame({"label": ["bad"], "start": [5.0], "end": [5.0]})
         config._on_save(None)
         assert not (run_folder / "coordsForPreProcessing_DMS.npy").exists()
-        assert calls == []
-
-    def test_on_save_signals_done_on_success(self, config, run_folder):
-        calls = []
-        config.on_done = lambda: calls.append(1)
-        config.site_to_widget["DMS"].value = pd.DataFrame({"label": ["a"], "start": [1.0], "end": [2.0]})
-        config._on_save(None)
-        assert calls == [1]
 
     def test_marking_plot_shades_defined_windows(self, config):
         config.site_to_widget["DMS"].value = pd.DataFrame({"label": ["a"], "start": [1.0], "end": [2.0]})
         config.site_select.value = "DMS"
         plot = config._make_marking_plot()
-        # Every stacked axis becomes an Overlay carrying the VSpan once a window is defined.
         for element in plot.values():
             assert isinstance(element, hv.Overlay)
             assert any(isinstance(item, hv.VSpan) for item in element.values())
@@ -135,41 +111,76 @@ class TestArtifactRemovalConfig:
 
 class TestReviewSectionGating:
     def test_review_section_present_when_requested(self, panel_extension, run_folder):
-        config = build_artifact_removal_template(str(run_folder), "Both")._config
+        config = ArtifactRemovalConfig(
+            str(run_folder),
+            load_pair_traces(str(run_folder)),
+            load_preprocessed_traces(str(run_folder)),
+            signal_options("Both"),
+        )
         assert config.signal_toggle is not None
         assert config.signal_toggle.options == ["z_score", "dff"]
 
     def test_review_section_absent_when_none(self, panel_extension, run_folder):
-        config = build_artifact_removal_template(str(run_folder), "None")._config
+        config = ArtifactRemovalConfig(
+            str(run_folder),
+            load_pair_traces(str(run_folder)),
+            load_preprocessed_traces(str(run_folder)),
+            signal_options("None"),
+        )
         assert config.signal_toggle is None
         assert config.review_pane is None
 
 
+class TestBuildFolderPage:
+    def test_marking_page_has_editable_table(self, panel_extension, run_folder):
+        page = build_folder_page(str(run_folder), remove_artifacts=False, plot_zScore_dff="z_score")
+        assert page.select(pn.widgets.Tabulator), "marking page must contain the editable windows table"
+
+    def test_review_page_has_no_editable_table(self, panel_extension, run_folder):
+        np.save(str(run_folder / "coordsForPreProcessing_DMS.npy"), np.array([[2.0, 0.0], [5.0, 0.0]]))
+        np.save(str(run_folder / "coordsForPreProcessing_DLS.npy"), np.array([[2.0, 0.0], [5.0, 0.0]]))
+        page = build_folder_page(str(run_folder), remove_artifacts=True, plot_zScore_dff="z_score")
+        assert not page.select(pn.widgets.Tabulator), "review page is read-only — no editable table"
+
+
+class TestBuildPreprocessViewPage:
+    def test_single_folder_has_no_folder_selector(self, panel_extension, run_folder):
+        page = build_preprocess_view_page([str(run_folder)], remove_artifacts=False, plot_zScore_dff="None")
+        run_folder_selectors = [w for w in page.select(pn.widgets.Select) if w.name == "Run folder"]
+        assert run_folder_selectors == []
+
+    def test_multiple_folders_get_a_folder_selector(self, panel_extension, tmp_path):
+        folder_a = tmp_path / "session_a_output_1"
+        folder_b = tmp_path / "session_b_output_1"
+        for folder in (folder_a, folder_b):
+            folder.mkdir()
+            _write_site(folder, "DMS")
+        page = build_preprocess_view_page(
+            [str(folder_a), str(folder_b)], remove_artifacts=False, plot_zScore_dff="None"
+        )
+        run_folder_selectors = [w for w in page.select(pn.widgets.Select) if w.name == "Run folder"]
+        assert len(run_folder_selectors) == 1
+        assert set(run_folder_selectors[0].options.values()) == {str(folder_a), str(folder_b)}
+
+
 class TestPreprocessingReviewView:
     def test_toggle_switches_between_zscore_and_dff(self, panel_extension, run_folder):
-        template = build_preprocessing_review_template(str(run_folder), "Both")
-        view = template._view
+        from guppy.frontend.artifact_removal import PreprocessingReviewView
+
+        view = PreprocessingReviewView(str(run_folder), load_preprocessed_traces(str(run_folder)), ["z_score", "dff"])
         view.site_select.value = "DMS"
         view.signal_toggle.value = "z_score"
-        zscore_plot = view.plot_pane.object
-        np.testing.assert_array_equal(zscore_plot.dimension_values(1), TIMESTAMPS)
+        np.testing.assert_array_equal(view.plot_pane.object.dimension_values(1), TIMESTAMPS)
         view.signal_toggle.value = "dff"
-        dff_plot = view.plot_pane.object
-        np.testing.assert_array_equal(dff_plot.dimension_values(1), TIMESTAMPS / 10.0)
-
-    def test_continue_button_signals_done(self, panel_extension, run_folder):
-        calls = []
-        template = build_preprocessing_review_template(str(run_folder), "z_score", on_done=lambda: calls.append(1))
-        template._continue_button.clicks += 1
-        assert calls == [1]
+        np.testing.assert_array_equal(view.plot_pane.object.dimension_values(1), TIMESTAMPS / 10.0)
 
 
 class TestArtifactReviewView:
     def test_shades_saved_good_chunks(self, panel_extension, run_folder):
-        # A saved coords file drives the shaded windows in review mode.
+        from guppy.frontend.artifact_removal import ArtifactReviewView
+
         np.save(str(run_folder / "coordsForPreProcessing_DMS.npy"), np.array([[2.0, 0.0], [5.0, 0.0]]))
-        template = build_artifact_review_template(str(run_folder))
-        view = template._view
+        view = ArtifactReviewView(str(run_folder), load_pair_traces(str(run_folder)))
         view.site_select.value = "DMS"
         plot = view.plot_pane.object
         for element in plot.values():

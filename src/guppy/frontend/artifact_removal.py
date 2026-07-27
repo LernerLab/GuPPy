@@ -1,7 +1,8 @@
-"""Panel pages for Step-3 preprocessing visualization.
+"""Reusable Panel components for Step-3 preprocessing visualization.
 
-Replaces the legacy matplotlib/TkAgg pop-ups. The preprocessing subprocess serves
-these pages (blocking until the user continues) via ``serve_blocking_page``:
+These are terminal displays composed by ``orchestration/preprocess_view.py`` and served
+as a page on the persistent main app after the preprocessing compute job finishes — the
+components never signal a waiting backend (no blocking, no server teardown):
 
 * :class:`ArtifactRemovalConfig` — interactive artifact marking. The user types
   good-chunk ``(start, end)`` windows per recording site in an editable table; the
@@ -10,12 +11,12 @@ these pages (blocking until the user continues) via ``serve_blocking_page``:
 * :class:`PreprocessingReviewView` — read-only z-score / dF-F review.
 * :class:`ArtifactReviewView` — read-only control/signal/fit review after artifacts
   have been removed, with the saved good-chunk windows shaded.
+* :func:`build_preprocess_view_page` — composes the above over all run folders.
 """
 
 import glob
 import logging
 import os
-from collections.abc import Callable
 
 import holoviews as hv
 import numpy as np
@@ -34,9 +35,9 @@ from ..visualization.preprocessing import (
     build_preprocessing_curve,
 )
 
-# The preprocessing subprocess that serves these pages never runs home.py, so load
-# the Panel and HoloViews (bokeh) extensions here — matching tonic_epochs.py.
-pn.extension(notifications=True)
+# Load the Panel/HoloViews extensions these components rely on: the "tabulator" model for
+# the editable windows table and the bokeh HoloViews backend for the trace plots.
+pn.extension("tabulator", notifications=True)
 hv.extension("bokeh")
 
 logger = logging.getLogger(__name__)
@@ -178,22 +179,18 @@ class ArtifactRemovalConfig:
         pair_traces: dict[str, dict[str, object]],
         preprocessed_traces: dict[str, dict[str, np.ndarray]],
         signals: list[str],
-        on_done: Callable[[], None] | None = None,
     ) -> None:
         self.filepath = filepath
         self.pair_traces = pair_traces
         self.preprocessed_traces = preprocessed_traces
         self.sites = list(pair_traces.keys())
-        # Called after a successful save so the serving loop can stop and the
-        # preprocessing subprocess can advance to the next step.
-        self.on_done = on_done
 
         self.signals = signals
         self.site_to_widget = {
             site: pn.widgets.Tabulator(_empty_windows_df(), show_index=False, widths=180) for site in self.sites
         }
         self.site_select = pn.widgets.Select(name="Recording site", options=self.sites, value=self.sites[0])
-        self.save_button = pn.widgets.Button(name="Save and continue", button_type="primary")
+        self.save_button = pn.widgets.Button(name="Save", button_type="primary")
 
         self.marking_pane = pn.pane.HoloViews(self._make_marking_plot(), width=800)
         self.table_container = pn.Row(self.site_to_widget[self.sites[0]])
@@ -209,7 +206,8 @@ class ArtifactRemovalConfig:
                 "Define good-chunk windows to KEEP for each recording site: type exact "
                 "start/end times (seconds) in the table and the shaded spans update to match. "
                 "Data outside the windows is treated as artifact. Leave the table empty to keep "
-                "the entire recording. Click **Save and continue** to proceed."
+                "the entire recording. Click **Save** to write the windows, then re-run "
+                "Preprocess with **Remove Artifacts** checked to apply them."
             ),
             self.site_select,
             self.marking_pane,
@@ -302,10 +300,6 @@ class ArtifactRemovalConfig:
             return
         if pn.state.notifications is not None:
             pn.state.notifications.success("Artifact-removal windows saved.", duration=4000)
-        # Release the serving loop only after a clean save, so an invalid window
-        # keeps the page open instead of advancing the pipeline.
-        if self.on_done is not None:
-            self.on_done()
 
 
 class PreprocessingReviewView:
@@ -381,51 +375,70 @@ class ArtifactReviewView:
         self.plot_pane.object = self._make_plot()
 
 
-def _continue_button(on_done: Callable[[], None] | None) -> pn.widgets.Button:
-    button = pn.widgets.Button(name="Continue", button_type="primary")
-    if on_done is not None:
-        button.on_click(lambda event: on_done())
-    return button
+def build_folder_page(filepath: str, remove_artifacts: bool, plot_zScore_dff: str) -> pn.viewable.Viewable:
+    """Build the preprocessing view for a single run folder.
+
+    Before artifacts are removed (``remove_artifacts`` False) this is the interactive
+    marking page (with the z-score/dF-F review when requested); afterwards it is the
+    read-only artifact-removal review plus the z-score/dF-F review.
+
+    Parameters
+    ----------
+    filepath : str
+        Session output (run) directory to visualize.
+    remove_artifacts : bool
+        Whether artifacts have already been removed for this run.
+    plot_zScore_dff : str
+        The ``plot_zScore_dff`` parameter selecting which review traces to offer.
+
+    Returns
+    -------
+    pn.viewable.Viewable
+        The composed page content for this folder.
+    """
+    signals = signal_options(plot_zScore_dff)
+    if not remove_artifacts:
+        config = ArtifactRemovalConfig(
+            filepath, load_pair_traces(filepath), load_preprocessed_traces(filepath), signals
+        )
+        return config.widget
+
+    sections = [ArtifactReviewView(filepath, load_pair_traces(filepath)).widget]
+    if signals:
+        sections.append(PreprocessingReviewView(filepath, load_preprocessed_traces(filepath), signals).widget)
+    return pn.Column(*sections)
 
 
-def build_artifact_removal_template(
-    filepath: str, plot_zScore_dff: str, on_done: Callable[[], None] | None = None
-) -> pn.template.BootstrapTemplate:
-    """Build (without serving) the interactive artifact-marking page for one run folder."""
-    template = pn.template.BootstrapTemplate(title="Artifact Removal - {}".format(os.path.basename(filepath)))
-    config = ArtifactRemovalConfig(
-        filepath,
-        load_pair_traces(filepath),
-        load_preprocessed_traces(filepath),
-        signal_options(plot_zScore_dff),
-        on_done=on_done,
-    )
-    template.main.append(config.widget)
-    template._config = config  # test hook
-    return template
+def build_preprocess_view_page(
+    run_folders: list[str], remove_artifacts: bool, plot_zScore_dff: str
+) -> pn.viewable.Viewable:
+    """Compose the preprocessing view across all run folders, with a folder selector.
 
+    Parameters
+    ----------
+    run_folders : list of str
+        Session output (run) directories produced by the preprocessing job.
+    remove_artifacts : bool
+        Whether artifacts have already been removed (chooses marking vs review).
+    plot_zScore_dff : str
+        The ``plot_zScore_dff`` parameter selecting which review traces to offer.
 
-def build_preprocessing_review_template(
-    filepath: str, plot_zScore_dff: str, on_done: Callable[[], None] | None = None
-) -> pn.template.BootstrapTemplate:
-    """Build (without serving) the read-only z-score / dF-F review page for one run folder."""
-    template = pn.template.BootstrapTemplate(title="z-score / dF-F - {}".format(os.path.basename(filepath)))
-    view = PreprocessingReviewView(filepath, load_preprocessed_traces(filepath), signal_options(plot_zScore_dff))
-    button = _continue_button(on_done)
-    template.main.append(pn.Column(view.widget, button))
-    template._view = view  # test hook
-    template._continue_button = button
-    return template
+    Returns
+    -------
+    pn.viewable.Viewable
+        A single page; when there is more than one run folder a selector switches
+        between them so only the selected folder's traces are rendered at a time.
+    """
+    run_folders = list(run_folders)
+    content = pn.Column(build_folder_page(run_folders[0], remove_artifacts, plot_zScore_dff))
+    if len(run_folders) == 1:
+        return content
 
+    options = {f"{os.path.basename(os.path.dirname(f))}/{os.path.basename(f)}": f for f in run_folders}
+    folder_select = pn.widgets.Select(name="Run folder", options=options, value=run_folders[0])
 
-def build_artifact_review_template(
-    filepath: str, on_done: Callable[[], None] | None = None
-) -> pn.template.BootstrapTemplate:
-    """Build (without serving) the read-only post-artifact-removal review page for one run folder."""
-    template = pn.template.BootstrapTemplate(title="Artifact removal review - {}".format(os.path.basename(filepath)))
-    view = ArtifactReviewView(filepath, load_pair_traces(filepath))
-    button = _continue_button(on_done)
-    template.main.append(pn.Column(view.widget, button))
-    template._view = view  # test hook
-    template._continue_button = button
-    return template
+    def _on_folder_change(event: object) -> None:
+        content[:] = [build_folder_page(folder_select.value, remove_artifacts, plot_zScore_dff)]
+
+    folder_select.param.watch(_on_folder_change, "value")
+    return pn.Column(folder_select, content)
