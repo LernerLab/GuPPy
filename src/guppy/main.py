@@ -1,43 +1,37 @@
 """
-Main entry point for GuPPy (Guided Photometry Analysis in Python)
+Command-line entry point for GuPPy (Guided Photometry Analysis in Python).
+
+Keep this module cheap to import. The pipeline steps run their multiprocessing pools under
+the "spawn" start method, and a spawned worker is a fresh interpreter that must materialize
+``__main__`` before it can unpickle its task. Here ``__main__`` is the ``guppy`` console
+script, whose ``from guppy.main import main`` sits *above* its ``if __name__`` guard — so
+every worker executes that import, on every pool creation. Importing Panel and the page
+builders here therefore cost ~1.9s per pool instead of ~0.04s. The application itself lives
+in ``guppy.app``, imported below only once the CLI has decided to serve it.
 """
-
-from . import logging_config
-
-# Logging must be configured before importing application modules so that module-level loggers inherit the proper handlers and formatters
-logging_config.setup_logging()
 
 import argparse
 
-import panel as pn
+from . import logging_config
 
-from .orchestration.home import build_homepage
-from .orchestration.preprocess_view import build_preprocess_view
-from .orchestration.transients_view import build_transients_view
-
-
-def serve_app(*, start_path: str | None = None) -> None:
-    """Serve the GuPPy application using Panel.
-
-    Serves the homepage plus the step result-view routes on one persistent server (each a
-    per-session factory). The views live on this never-torn-down server so the browser tab
-    is never abruptly disconnected. ``show=True`` opens the homepage at ``/``.
-    """
-    routes = {
-        "/": lambda: build_homepage(start_path=start_path),
-        "/preprocess-view": build_preprocess_view,
-        "/transients-view": build_transients_view,
-    }
-    pn.serve(routes, show=True)
+# At import scope, not inside main(), so that every process importing this module gets
+# handlers -- including the spawned pool workers, whose logs would otherwise be discarded.
+logging_config.setup_logging()
 
 
-def main() -> None:
+def main(*, argv: list[str] | None = None) -> None:
     """Main entry point for GuPPy.
 
     Supports command-line flags:
     - --export-logs: Export the log file to Desktop for sharing with support
     - --start-path: Set the initial directory for the folder selector
     - (no flags): Launch the GUI application
+
+    Parameters
+    ----------
+    argv : list of str or None, optional
+        Argument vector to parse. When None (the console-script case) argparse reads
+        ``sys.argv``.
     """
     parser = argparse.ArgumentParser(description="GuPPy - Guided Photometry Analysis in Python")
     parser.add_argument(
@@ -52,11 +46,14 @@ def main() -> None:
         help="Initial directory for the folder selector (defaults to home directory)",
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.export_logs:
         logging_config.export_log_file()
         return
+
+    # Deferred so that merely importing this module stays cheap -- see the module docstring.
+    from .app import serve_app
 
     serve_app(start_path=args.start_path)
 

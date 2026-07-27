@@ -1,9 +1,7 @@
 import glob
-import json
 import logging
 import multiprocessing as mp
 import os
-import sys
 
 import numpy as np
 
@@ -19,7 +17,7 @@ from ..analysis.standard_io import (
 )
 from ..analysis.transients import analyze_transients
 from ..analysis.transients_average import averageForGroup
-from ..frontend.progress import PB_STEPS_FILE, subprocess_main_handler, writeToFile
+from ..frontend.progress import PB_STEPS_FILE, writeToFile
 from ..utils.utils import (
     get_all_stores_for_combining_data,
     select_run_folders,
@@ -208,20 +206,3 @@ def execute_average_for_group(inputParameters: dict[str, object], group_session_
     averageForGroup(run_folders, inputParameters)
     writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
     inputParameters["step"] += 1
-
-
-@subprocess_main_handler
-def main(input_parameters: dict[str, object]) -> None:
-    """Subprocess entry point for the transient-analysis step.
-
-    Parameters
-    ----------
-    input_parameters : dict
-        Full pipeline input parameters deserialized from the subprocess argument.
-    """
-    executeFindFreqAndAmp(input_parameters)
-
-
-if __name__ == "__main__":
-    input_parameters = json.loads(sys.argv[1])
-    main(input_parameters=input_parameters)

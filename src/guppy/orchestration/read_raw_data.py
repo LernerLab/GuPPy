@@ -1,9 +1,7 @@
-import json
 import logging
 import multiprocessing as mp
 import multiprocessing.sharedctypes
 import os
-import sys
 import threading
 
 import numpy as np
@@ -20,7 +18,7 @@ from guppy.extractors import (
 )
 from guppy.extractors import base_recording_extractor as base_module
 from guppy.extractors.base_recording_extractor import _pool_initializer
-from guppy.frontend.progress import PB_STEPS_FILE, subprocess_main_handler, writeToFile
+from guppy.frontend.progress import PB_STEPS_FILE, step_error_handler, writeToFile
 from guppy.orchestration.save_parameters import save_parameters
 from guppy.utils.utils import load_npm_params, select_run_folders
 
@@ -217,7 +215,13 @@ def orchestrate_read_raw_data(inputParameters: dict[str, object]) -> None:
     progress_max = max(total_samples, 1) * 10
     writeToFile(f"{progress_max}\n0\n", file_path=PB_STEPS_FILE)
 
-    samples_done = mp.Value("q", 0)
+    # This runs on a background thread of the Panel server process, which also carries the
+    # Tornado IOLoop threads and a bound Bokeh socket. Forking that would copy only the
+    # calling thread, leaving any lock another thread happened to hold (logging, HDF5)
+    # locked forever in the child, so the start method is pinned instead of inherited.
+    # ``samples_done`` must come from this same context to survive pickling into initargs.
+    spawn_context = mp.get_context("spawn")
+    samples_done = spawn_context.Value("q", 0)
     stop_event = threading.Event()
     poller = threading.Thread(
         target=_progress_poller,
@@ -238,7 +242,7 @@ def orchestrate_read_raw_data(inputParameters: dict[str, object]) -> None:
             finally:
                 base_module._SAMPLES_DONE = None
         else:
-            with mp.Pool(numProcesses, initializer=_pool_initializer, initargs=(samples_done,)) as pool:
+            with spawn_context.Pool(numProcesses, initializer=_pool_initializer, initargs=(samples_done,)) as pool:
                 pool.starmap(read_and_save_events_for_extractor, tasks)
         logger.info("### Raw data fetched for all sessions")
     finally:
@@ -265,19 +269,14 @@ def _load_stores_list(run_folder: str) -> np.ndarray:
     return np.genfromtxt(os.path.join(run_folder, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
 
 
-@subprocess_main_handler
-def main(input_parameters: dict[str, object]) -> None:
-    """Subprocess entry point for step-2 raw-data extraction.
+@step_error_handler
+def run_read_raw_data_step(input_parameters: dict[str, object]) -> None:
+    """Run step-2 raw-data extraction with failure reporting attached.
 
     Parameters
     ----------
     input_parameters : dict
-        Full pipeline input parameters deserialized from the subprocess argument.
+        Full pipeline input parameters.
     """
     logger.info("run")
     orchestrate_read_raw_data(input_parameters)
-
-
-if __name__ == "__main__":
-    input_parameters = json.loads(sys.argv[1])
-    main(input_parameters=input_parameters)

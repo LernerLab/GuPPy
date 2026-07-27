@@ -1,8 +1,6 @@
 import glob
-import json
 import logging
 import os
-import sys
 
 import numpy as np
 
@@ -39,7 +37,7 @@ from ..analysis.standard_io import (
 )
 from ..analysis.timestamp_correction import correct_timestamps
 from ..analysis.z_score import compute_z_score
-from ..frontend.progress import PB_STEPS_FILE, subprocess_main_handler, writeToFile
+from ..frontend.progress import PB_STEPS_FILE, step_error_handler, writeToFile
 from ..utils.utils import (
     get_all_stores_for_combining_data,
     select_run_folders,
@@ -390,18 +388,13 @@ def extractTsAndSignal(inputParameters: dict[str, object]) -> None:
             execute_artifact_removal(combined_output_folders, inputParameters)
 
 
-@subprocess_main_handler
-def main(input_parameters: dict[str, object]) -> None:
-    """Subprocess entry point for the preprocessing step.
+@step_error_handler
+def run_preprocess_step(input_parameters: dict[str, object]) -> None:
+    """Run the step-3 preprocessing step with failure reporting attached.
 
     Parameters
     ----------
     input_parameters : dict
-        Full pipeline input parameters deserialized from the subprocess argument.
+        Full pipeline input parameters.
     """
     extractTsAndSignal(input_parameters)
-
-
-if __name__ == "__main__":
-    input_parameters = json.loads(sys.argv[1])
-    main(input_parameters=input_parameters)
