@@ -19,13 +19,19 @@ from . import logging_config
 logging_config.setup_logging()
 
 
-def main() -> None:
+def main(*, argv: list[str] | None = None) -> None:
     """Main entry point for GuPPy.
 
     Supports command-line flags:
     - --export-logs: Export the log file to Desktop for sharing with support
     - --start-path: Set the initial directory for the folder selector
     - (no flags): Launch the GUI application
+
+    Parameters
+    ----------
+    argv : list of str or None, optional
+        Argument vector to parse. When None (the console-script case) argparse reads
+        ``sys.argv``.
     """
     parser = argparse.ArgumentParser(description="GuPPy - Guided Photometry Analysis in Python")
     parser.add_argument(
@@ -40,7 +46,7 @@ def main() -> None:
         help="Initial directory for the folder selector (defaults to home directory)",
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.export_logs:
         logging_config.export_log_file()
