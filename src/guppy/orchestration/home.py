@@ -12,7 +12,7 @@ from .import_custom_events import orchestrate_custom_events_page
 from .store_labeling import orchestrate_store_labeling_page
 from .visualize import visualizeResults
 from ..frontend.input_parameters import ParameterForm
-from ..frontend.progress import PB_STEPS_FILE, readPBIncrementValues
+from ..frontend.progress import PB_ERROR_FILE, PB_STEPS_FILE, poll_progress_step
 from ..frontend.sidebar import Sidebar
 
 logger = logging.getLogger(__name__)
@@ -101,12 +101,32 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
             return
         if add_curr_dir:
             inputParameters["curr_dir"] = current_dir
+
+        if os.path.exists(PB_STEPS_FILE):
+            os.remove(PB_STEPS_FILE)
+        progress_widget.value = 0
+        progress_widget.bar_color = "success"
+
         thread = Thread(target=worker, args=(inputParameters,))
         thread.start()
-        error_message = readPBIncrementValues(progress_widget, file_path=PB_STEPS_FILE)
-        thread.join()
-        if error_message:
-            pn.state.notifications.error(error_message, duration=0)
+
+        # Poll progress from a periodic callback on the server IOLoop rather than
+        # busy-looping and joining the worker here. A synchronous wait would block the
+        # IOLoop for the whole step — including any interactive Panel page the worker
+        # serves — so the main app would stop answering websocket heartbeats and the
+        # browser tab would drop its connection and never recover.
+        poller: dict[str, object] = {}
+
+        def poll() -> None:
+            done, error_message = poll_progress_step(
+                progress_widget, file_path=PB_STEPS_FILE, error_file_path=PB_ERROR_FILE
+            )
+            if done or not thread.is_alive():
+                poller["callback"].stop()
+                if error_message:
+                    pn.state.notifications.error(error_message, duration=0)
+
+        poller["callback"] = pn.state.add_periodic_callback(poll, period=100)
 
     def onclickImportCustomEvents(event: object = None) -> None:
         inputParameters = _getInputParametersOrNotify()
