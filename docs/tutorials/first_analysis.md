@@ -181,9 +181,9 @@ The results are written into the same output folder as Step 2, in four new HDF5 
 | `cntrl_sig_fit_A.hdf5` | The fitted control trace (used internally and for artifact-removal plots) |
 | `timeCorrection_A.hdf5` | Corrected timestamps, sampling rate, and a few related metadata fields |
 
-When preprocessing finishes, GuPPy opens a matplotlib window showing the preprocessed trace plotted against time. The default is the z-score; the `plot_zScore_dff` input parameter controls this and can be set to `dff` or `Both` instead. Close the matplotlib window to return control to the GUI.
+When preprocessing finishes, GuPPy opens the preprocessing results in a new browser tab. The `plot_zScore_dff` input parameter controls the z-score / ΔF/F review shown there — `z_score`, `dff`, `Both`, or `None` (the default). The main GuPPy tab stays responsive, so you can leave the results tab open and keep working.
 
-<!-- TODO: add screenshot of the matplotlib plot that pops up after preprocess completes (e.g. 05_preprocess_plot.png). This is a separate window, not part of the panel page, so the screenshot script will need a different capture path. -->
+<!-- TODO: add a screenshot of the preprocessing results tab that opens after preprocess completes (e.g. 05_preprocess_plot.png). It is a separate browser tab served by GuPPy, so the screenshot script will need to capture that route. -->
 
 
 ## Step 4: Compute the PSTH

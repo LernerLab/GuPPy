@@ -89,13 +89,13 @@ The largest card on the homepage, collapsed by default (only Input Folder Select
 |-----------|-------------|------|---------|-----------------|
 | z_score and/or ΔF/F? (psth) | Metric Step 4 aligns events on. | str | `z_score` | `z_score`, `dff`, `Both` |
 | z_score and/or ΔF/F? (transients) | Metric the transient detector operates on. | str | `z_score` | `z_score`, `dff`, `Both` |
-| z-score plot and/or ΔF/F plot? | Plot pop-up at the end of Step 3. | str | `None` | `z_score`, `dff`, `Both`, `None` |
+| z-score plot and/or ΔF/F plot? | Review plots shown in a browser tab after Step 3. | str | `None` | `z_score`, `dff`, `Both`, `None` |
 
 **z_score and/or ΔF/F? (psth)** chooses which metric Step 4 uses to align events. Selecting `Both` writes two complete sets of PSTH outputs, one per metric. See the [z-score normalization explainer](../explanation/zscore.md) for what `z_score` is and how it differs from `dff`.
 
 **z_score and/or ΔF/F? (transients)** chooses which metric the transient detector operates on. Same `Both` semantics.
 
-**z-score plot and/or ΔF/F plot?** controls the matplotlib plot that pops up at the end of Step 3. `None` skips the plot; the other options open one window for the chosen metric (or two windows for `Both`).
+**z-score plot and/or ΔF/F plot?** controls the review plots shown after Step 3 finishes. `None` skips the review; otherwise GuPPy opens a browser tab with the preprocessed trace for each recording site — the chosen metric, or a z-score/ΔF/F toggle when `Both`.
 
 ### Transient detection
 

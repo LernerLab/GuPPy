@@ -9,6 +9,7 @@ from guppy.orchestration.psth import (
     execute_compute_cross_correlation,
     execute_compute_psth,
     execute_compute_psth_peak_and_area,
+    run_psth_step,
 )
 
 
@@ -301,3 +302,54 @@ def test_validate_psth_window_parameters_raises_for_unequal_peak_array_lengths(p
     psth_window_inputs["peak_endPoint"] = [2.0]
     with pytest.raises(ValueError, match=r"unequal \(start: 2, end: 1\)"):
         _validate_psth_window_parameters(psth_window_inputs)
+
+
+# ---------------------------------------------------------------------------
+# run_psth_step — chains PSTH into transient analysis in-process
+# ---------------------------------------------------------------------------
+
+
+class TestRunPsthStep:
+    @pytest.fixture
+    def recorded_calls(self, monkeypatch):
+        """Record the order in which main() invokes the two step-4 workers."""
+        calls = []
+
+        def fake_psth_for_each_store(inputParameters):
+            calls.append(("psthForEachStore", inputParameters))
+            return inputParameters
+
+        def fake_execute_find_freq_and_amp(inputParameters):
+            calls.append(("executeFindFreqAndAmp", inputParameters))
+
+        monkeypatch.setattr("guppy.orchestration.psth.psthForEachStore", fake_psth_for_each_store)
+        monkeypatch.setattr("guppy.orchestration.psth.executeFindFreqAndAmp", fake_execute_find_freq_and_amp)
+        return calls
+
+    def test_runs_psth_then_transients_on_the_same_parameters(self, recorded_calls):
+        input_parameters = {"session_folders": ["/tmp/session1"]}
+
+        run_psth_step(input_parameters)
+
+        assert [name for name, _ in recorded_calls] == ["psthForEachStore", "executeFindFreqAndAmp"]
+        assert recorded_calls[0][1] is input_parameters
+        assert recorded_calls[1][1] is input_parameters
+
+    def test_transients_failure_is_reported_through_the_error_file(self, recorded_calls, tmp_path, monkeypatch):
+        """A failure in the chained transients step must reach the progress error channel,
+        which is how the GUI surfaces it — previously it was lost in a grandchild process."""
+        steps_file = tmp_path / "pbSteps.txt"
+        error_file = tmp_path / "pbError.txt"
+        monkeypatch.setattr("guppy.frontend.progress.PB_STEPS_FILE", str(steps_file))
+        monkeypatch.setattr("guppy.frontend.progress.PB_ERROR_FILE", str(error_file))
+
+        def failing_transients(inputParameters):
+            raise ValueError("transientsThresh=0 must be positive")
+
+        monkeypatch.setattr("guppy.orchestration.psth.executeFindFreqAndAmp", failing_transients)
+
+        with pytest.raises(ValueError, match="transientsThresh=0 must be positive"):
+            run_psth_step({})
+
+        assert error_file.read_text() == "transientsThresh=0 must be positive"
+        assert steps_file.read_text() == "-1\n"

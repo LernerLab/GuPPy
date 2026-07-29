@@ -20,7 +20,7 @@ def is_headless() -> bool:
     """Report whether GuPPy is running in headless/test mode.
 
     Headless mode is signalled by the ``GUPPY_BASE_DIR`` environment variable,
-    which the testing API sets to bypass the Tk folder dialog. Code paths that
+    which the testing API sets to bypass the folder dialog. Code paths that
     open GUI dialogs or interactive matplotlib backends should be skipped when
     this returns ``True``.
 
