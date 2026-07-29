@@ -154,6 +154,12 @@ check-hidden = true
 ignore-words-list = 'assertin,sortings'
 
 [tool.coverage.run]
+# Needed by subprocesses that tests spawn, which read their config from this file rather than
+# from the parent's --cov flag. Without it, coverage measures nothing when guppy is installed
+# into site-packages (as in CI); an editable checkout happens to work either way, which is why
+# omitting it only broke CI. Must be source_pkgs, not source: "guppy" as a source entry is
+# resolved as a relative directory (./guppy, which does not exist), not as a package name.
+source_pkgs = ["guppy"]
 concurrency = ["multiprocessing"]
 sigterm = true
 branch = true
