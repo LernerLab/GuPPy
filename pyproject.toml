@@ -76,6 +76,10 @@ test = [
     "pytest-xdist",  # Runs tests on parallel
     "pytest-playwright",
     "playwright",
+    # Pinned to the version the mock NWB files were written with: 0.2.x is the last release with
+    # LabeledEvents, and importing it registers the hand-written class, so the extractor's
+    # non-cached-spec read path gets exercised. 0.4 redefines the core EventsTable type.
+    "ndx-events==0.2.2",
 ]
 
 dev = [

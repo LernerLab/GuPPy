@@ -166,11 +166,11 @@ def test_nwb_session_routes_all_events_with_ndx_events_imported(tmp_path):
 
     session_copy = tmp_path / NWB_SESSION.name
     shutil.copytree(NWB_SESSION, session_copy)
-    stores_list = _make_stores_list(NWB_STORENAMES_MAP)
+    stores_list = _make_stores_list(NWB_STORE_ID_TO_STORE_LABEL)
     input_parameters = {"noChannels": 2}
     result = _build_event_to_extractor(
         folder_path=str(session_copy),
-        storesList=stores_list,
+        store_array=stores_list,
         inputParameters=input_parameters,
     )
     assert result
