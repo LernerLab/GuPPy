@@ -1,5 +1,6 @@
 import logging
 import os
+from contextvars import copy_context
 from threading import Thread
 from typing import Callable
 
@@ -16,8 +17,8 @@ from .store_labeling import orchestrate_store_labeling_page
 from .transients_view import open_transients_view
 from .visualize import visualizeResults
 from ..frontend.input_parameters import ParameterForm
-from ..frontend.progress import PB_ERROR_FILE, PB_STEPS_FILE, poll_progress_step
 from ..frontend.sidebar import Sidebar
+from ..utils.progress import StepProgress, _current_step
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,7 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
         on_success: Callable[[dict[str, object]], None] | None = None,
     ) -> None:
         # Shared launch pattern for the pipeline steps that run a worker in a background
-        # thread while a progress bar polls PB_STEPS_FILE.
+        # thread while a progress bar reports what the worker has emitted.
         if step_running["active"]:
             pn.state.notifications.error("A pipeline step is already running; wait for it to finish.", duration=0)
             return
@@ -78,13 +79,18 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
         if add_curr_dir:
             inputParameters["curr_dir"] = current_dir
 
-        if os.path.exists(PB_STEPS_FILE):
-            os.remove(PB_STEPS_FILE)
         progress_widget.value = 0
         progress_widget.bar_color = "success"
 
+        # Bind the step's progress sink for the worker only. Running the setter inside the
+        # copied context confines the binding to the thread that context carries, leaving
+        # this handler's own context untouched.
+        step = StepProgress()
+        context = copy_context()
+        context.run(_current_step.set, step)
+
         step_running["active"] = True
-        thread = Thread(target=worker, args=(inputParameters,))
+        thread = Thread(target=context.run, args=(worker, inputParameters))
         thread.start()
 
         # Poll progress from a periodic callback on the server IOLoop rather than
@@ -94,17 +100,24 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
         poller: dict[str, object] = {}
 
         def poll() -> None:
-            done, error_message = poll_progress_step(
-                progress_widget, file_path=PB_STEPS_FILE, error_file_path=PB_ERROR_FILE
-            )
-            if done or not thread.is_alive():
+            progress_widget.max = max(step.total, 1)
+            progress_widget.value = min(step.value, progress_widget.max)
+            if step.error_message:
+                progress_widget.bar_color = "danger"
+            # Completion is the worker thread finishing, never the counter reaching its
+            # total: a step whose declared total undercounts its real work would otherwise
+            # report success partway through and open its result view against half-written
+            # output.
+            if not thread.is_alive():
                 poller["callback"].stop()
                 step_running["active"] = False
-                if error_message:
-                    pn.state.notifications.error(error_message, duration=0)
-                elif on_success is not None:
-                    # e.g. open the step's result view once compute succeeded.
-                    on_success(inputParameters)
+                if step.error_message:
+                    pn.state.notifications.error(step.error_message, duration=0)
+                else:
+                    progress_widget.value = progress_widget.max
+                    if on_success is not None:
+                        # e.g. open the step's result view once compute succeeded.
+                        on_success(inputParameters)
 
         poller["callback"] = pn.state.add_periodic_callback(poll, period=100)
 
@@ -197,6 +210,9 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
         "files_1": parameter_form.files_1,
         "source_mode": parameter_form.source_mode,
         "dandi_selector": parameter_form.dandi_selector,
+        "read_progress": sidebar.read_progress,
+        "extract_progress": sidebar.extract_progress,
+        "psth_progress": sidebar.psth_progress,
     }
 
     return template

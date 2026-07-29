@@ -11,6 +11,7 @@ from guppy.orchestration.psth import (
     execute_compute_psth_peak_and_area,
     run_psth_step,
 )
+from guppy.utils.progress import StepProgress, _current_step
 
 
 @pytest.fixture
@@ -335,21 +336,21 @@ class TestRunPsthStep:
         assert recorded_calls[0][1] is input_parameters
         assert recorded_calls[1][1] is input_parameters
 
-    def test_transients_failure_is_reported_through_the_error_file(self, recorded_calls, tmp_path, monkeypatch):
+    def test_transients_failure_is_reported_through_the_progress_channel(self, recorded_calls, monkeypatch):
         """A failure in the chained transients step must reach the progress error channel,
         which is how the GUI surfaces it — previously it was lost in a grandchild process."""
-        steps_file = tmp_path / "pbSteps.txt"
-        error_file = tmp_path / "pbError.txt"
-        monkeypatch.setattr("guppy.frontend.progress.PB_STEPS_FILE", str(steps_file))
-        monkeypatch.setattr("guppy.frontend.progress.PB_ERROR_FILE", str(error_file))
+        step = StepProgress()
+        token = _current_step.set(step)
 
         def failing_transients(inputParameters):
             raise ValueError("transientsThresh=0 must be positive")
 
         monkeypatch.setattr("guppy.orchestration.psth.executeFindFreqAndAmp", failing_transients)
 
-        with pytest.raises(ValueError, match="transientsThresh=0 must be positive"):
-            run_psth_step({})
+        try:
+            with pytest.raises(ValueError, match="transientsThresh=0 must be positive"):
+                run_psth_step({})
+        finally:
+            _current_step.reset(token)
 
-        assert error_file.read_text() == "transientsThresh=0 must be positive"
-        assert steps_file.read_text() == "-1\n"
+        assert step.error_message == "transientsThresh=0 must be positive"
