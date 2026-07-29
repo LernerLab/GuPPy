@@ -1,5 +1,6 @@
 import multiprocessing
 import os
+from pathlib import Path
 
 import holoviews as hv
 import panel as pn
@@ -16,6 +17,24 @@ os.environ.setdefault("GUPPY_BASE_DIR", "1")
 # interpreter for each worker, which is safe in all environments. Windows always
 # uses "spawn" so force=True is a no-op there; macOS/Linux benefit from it.
 multiprocessing.set_start_method("spawn", force=True)
+
+PYPROJECT_PATH = Path(__file__).parent.parent / "pyproject.toml"
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Enable coverage measurement inside subprocesses that tests spawn.
+
+    coverage's startup hook is installed as a ``.pth`` file, but it is inert unless
+    ``COVERAGE_PROCESS_START`` names a config file. pytest-cov does not set it, so a plain
+    ``python -c`` child (see ``tests/integration/test_integration_ndx_events_import_state.py``)
+    is measured as if it never ran. Children inherit this environment, so setting it here is
+    enough — no test needs to pass ``env=`` explicitly.
+
+    Only set when ``--cov`` was requested: otherwise every subprocess in the suite would start
+    coverage and leave a stray ``.coverage.*`` data file behind on an ordinary test run.
+    """
+    if getattr(config.option, "cov_source", None):
+        os.environ.setdefault("COVERAGE_PROCESS_START", str(PYPROJECT_PATH))
 
 
 @pytest.fixture(scope="session")
