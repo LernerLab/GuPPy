@@ -17,7 +17,7 @@ from ..analysis.standard_io import (
 )
 from ..analysis.transients import analyze_transients
 from ..analysis.transients_average import averageForGroup
-from ..frontend.progress import PB_STEPS_FILE, writeToFile
+from ..utils import progress
 from ..utils.utils import (
     get_all_stores_for_combining_data,
     select_run_folders,
@@ -151,8 +151,7 @@ def execute_find_freq_and_amp(
                 2, -1
             )
             findFreqAndAmp(filepath, inputParameters, window=moving_window, numProcesses=numProcesses)
-            writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
-            inputParameters["step"] += 1
+            progress.advance()
         logger.info("Transients in z-score data found and frequency and amplitude are calculated.")
 
 
@@ -183,8 +182,7 @@ def execute_find_freq_and_amp_combined(
         filepath = combined_output_groups[i][0]
         store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
         findFreqAndAmp(filepath, inputParameters, window=moving_window, numProcesses=numProcesses)
-        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
-        inputParameters["step"] += 1
+        progress.advance()
 
 
 def execute_average_for_group(inputParameters: dict[str, object], group_session_folders: list[str]) -> None:
@@ -204,5 +202,4 @@ def execute_average_for_group(inputParameters: dict[str, object], group_session_
     """
     run_folders = gather_group_run_folders(inputParameters, group_session_folders)
     averageForGroup(run_folders, inputParameters)
-    writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
-    inputParameters["step"] += 1
+    progress.advance()

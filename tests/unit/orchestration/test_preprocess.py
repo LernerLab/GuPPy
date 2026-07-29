@@ -94,7 +94,6 @@ def test_execute_zscore_computes_and_writes(monkeypatch, base_input_parameters):
         "guppy.orchestration.preprocess.write_zscore",
         lambda filepath, name, z_score, dff, control_fit, temporary_control_array: write_calls.append((filepath, name)),
     )
-    monkeypatch.setattr("guppy.orchestration.preprocess.writeToFile", lambda text, file_path: None)
 
     execute_zscore(folder_names, base_input_parameters)
 
@@ -117,7 +116,6 @@ def stub_artifact_removal_io(monkeypatch):
         "guppy.orchestration.preprocess.read_corrected_ttl_timestamps", lambda filepath, store_array: {}
     )
     monkeypatch.setattr("guppy.orchestration.preprocess.remove_artifacts", lambda *a, **k: ({}, {}, {}))
-    monkeypatch.setattr("guppy.orchestration.preprocess.writeToFile", lambda text, file_path: None)
 
 
 def test_execute_artifact_removal_removes_and_writes_per_folder(
@@ -147,7 +145,6 @@ def stub_extract_ts_and_signal_io(monkeypatch):
     monkeypatch.setattr(
         "guppy.orchestration.preprocess.select_run_folders", lambda session, selected: ["/tmp/session_1/run_1"]
     )
-    monkeypatch.setattr("guppy.orchestration.preprocess.writeToFile", lambda text, file_path: None)
     monkeypatch.setattr("guppy.orchestration.preprocess.execute_timestamp_correction", lambda folders, params: None)
     monkeypatch.setattr("guppy.orchestration.preprocess.execute_zscore", lambda folders, params: None)
     monkeypatch.setattr(
