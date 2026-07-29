@@ -10,9 +10,9 @@ import json
 import logging
 import os
 
-import panel as pn
-
 from .metadata import METADATA_FILENAME, _selected_session_runs
+from ..utils import progress
+from ..utils.progress import step_error_handler
 from ..utils.utils import run_folder_for_run
 
 logger = logging.getLogger(__name__)
@@ -58,8 +58,9 @@ def _validate_artifact_removal_methods(pairs: list[tuple[str, str]]) -> None:
             f"NWB export does not support the '{_UNSUPPORTED_ARTIFACT_REMOVAL_METHOD}' artifact-removal "
             f"method because it re-times the kept samples onto a fresh timeline, breaking alignment to the "
             f"acquisition clock. The following session(s) were processed this way: {', '.join(offending)}. "
-            f"Re-run Step 4 (Preprocess) with artifactsRemovalMethod='replace with NaN', which preserves the "
-            f"original timeline, then export again. If you need '{_UNSUPPORTED_ARTIFACT_REMOVAL_METHOD}' support "
+            f"Re-run Step 3 (Preprocess and Remove Artifacts) with artifactsRemovalMethod='replace with NaN', "
+            f"which preserves the original timeline, then export again. "
+            f"If you need '{_UNSUPPORTED_ARTIFACT_REMOVAL_METHOD}' support "
             f"for NWB export, please raise an issue at {_RAISE_ISSUE_URL}."
         )
 
@@ -144,20 +145,19 @@ def export_session_to_nwb(
     return nwbfile_path
 
 
-def orchestrate_export_nwb_page(inputParameters: dict[str, object], progress_bar: object = None) -> None:
-    """Export every selected ``(session, run)`` to NWB, updating the progress bar.
+def orchestrate_export_nwb(inputParameters: dict[str, object]) -> None:
+    """Export every selected ``(session, run)`` to NWB, reporting progress per session.
 
-    Runs synchronously in the caller's thread (like the visualization step), so
-    the progress bar and notifications can be updated directly. One failed session
-    is reported and skipped without aborting the rest of the batch.
+    One failed session is skipped without aborting the rest of the batch; if any session
+    failed, the collected failures are reported through the progress channel once the batch
+    ends.
     """
     pairs = _selected_session_runs(inputParameters)
     _validate_artifact_removal_methods(pairs)
-    if progress_bar is not None:
-        progress_bar.max = len(pairs)
-        progress_bar.value = 0
+    progress.start(len(pairs))
 
-    for index, (session_path, run_name) in enumerate(pairs, start=1):
+    failures = []
+    for session_path, run_name in pairs:
         guppy_folder_path = run_folder_for_run(session_path, run_name)
         session_basename = os.path.basename(session_path.rstrip(os.sep))
         output_dir_name = os.path.basename(guppy_folder_path.rstrip(os.sep))
@@ -173,14 +173,27 @@ def orchestrate_export_nwb_page(inputParameters: dict[str, object], progress_bar
                 metadata_yaml_path=metadata_yaml_path,
                 nwbfile_path=nwbfile_path,
             )
-            if pn.state.notifications:
-                pn.state.notifications.success(f"Exported {session_basename} ({run_name}) to NWB.")
+            logger.info(f"Exported {session_basename} ({run_name}) to NWB.")
         except Exception as exception:
             logger.error(f"NWB export failed for {session_basename} ({run_name}): {exception}")
-            if pn.state.notifications:
-                pn.state.notifications.error(
-                    f"NWB export failed for {session_basename} ({run_name}): {exception}", duration=0
-                )
+            failures.append(f"{session_basename} ({run_name}): {exception}")
         finally:
-            if progress_bar is not None:
-                progress_bar.value = index
+            progress.advance()
+
+    # Reported rather than raised: the surviving sessions were exported successfully, so the
+    # step is a partial success. The progress channel surfaces this on the server IOLoop,
+    # which a notification from this background thread could not do.
+    if failures:
+        progress.fail(f"NWB export failed for {len(failures)} of {len(pairs)} session(s): " + "; ".join(failures))
+
+
+@step_error_handler
+def run_export_nwb_step(input_parameters: dict[str, object]) -> None:
+    """Run step-7 NWB export with failure reporting attached.
+
+    Parameters
+    ----------
+    input_parameters : dict
+        Full pipeline input parameters.
+    """
+    orchestrate_export_nwb(input_parameters)

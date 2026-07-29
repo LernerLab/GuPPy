@@ -27,7 +27,7 @@ class TestSidebar:
             assert button.width == 300, f"{name} does not have width 300"
 
     def test_progress_bars_initial_values(self, sidebar):
-        for bar_name in ("read_progress", "extract_progress", "psth_progress"):
+        for bar_name in ("read_progress", "extract_progress", "psth_progress", "export_progress"):
             bar = getattr(sidebar, bar_name)
             assert bar.value == 100, f"{bar_name} does not start at 100"
             assert bar.max == 100, f"{bar_name} max is not 100"

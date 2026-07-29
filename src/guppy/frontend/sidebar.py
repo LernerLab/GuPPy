@@ -68,7 +68,7 @@ class Sidebar:
         self.read_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
         self.extract_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
         self.psth_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
-        self.export_progress = pn.indicators.Progress(name="Progress", value=0, max=100, width=300)
+        self.export_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
 
     def add_to_template(self) -> None:
         """Append all sidebar widgets to the template's sidebar area in pipeline order."""

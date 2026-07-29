@@ -6,7 +6,7 @@ from typing import Callable
 
 import panel as pn
 
-from .export_nwb import orchestrate_export_nwb_page
+from .export_nwb import run_export_nwb_step
 from .import_custom_events import orchestrate_custom_events_page
 from .metadata import orchestrate_metadata_page
 from .preprocess import run_preprocess_step
@@ -170,15 +170,7 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
         orchestrate_metadata_page(inputParameters)
 
     def onclickExportNwb(event: object = None) -> None:
-        inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
-        if inputParameters is None:
-            return
-        # Runs synchronously (like visualization) so the progress bar and
-        # notifications update directly; per-session failures are reported and skipped.
-        try:
-            orchestrate_export_nwb_page(inputParameters, progress_bar=sidebar.export_progress)
-        except ValueError as e:
-            pn.state.notifications.error(str(e), duration=0)
+        _run_worker_with_progress(run_export_nwb_step, sidebar.export_progress)
 
     # ------------------------------------------------------------------------------------------------------------------
 

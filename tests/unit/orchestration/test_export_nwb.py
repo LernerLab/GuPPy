@@ -1,6 +1,6 @@
 """Unit tests for the upfront NWB-export prerequisite check.
 
-`orchestrate_export_nwb_page` reads each selected session's ``GuPPyParamtersUsed.json`` and
+`orchestrate_export_nwb` reads each selected session's ``GuPPyParamtersUsed.json`` and
 aborts the whole batch before writing anything if any session was processed with the
 ``concatenate`` artifact-removal method, which re-times kept samples and breaks alignment to
 the acquisition clock.
@@ -9,15 +9,16 @@ the acquisition clock.
 import json
 import os
 
-import panel as pn
 import pytest
 
 from guppy.orchestration import export_nwb as export_nwb_module
 from guppy.orchestration.export_nwb import (
     _prune_absent_commanded_voltage,
     _validate_artifact_removal_methods,
-    orchestrate_export_nwb_page,
+    orchestrate_export_nwb,
+    run_export_nwb_step,
 )
+from guppy.utils.progress import StepProgress, _current_step
 
 
 class TestValidateArtifactRemovalMethods:
@@ -59,7 +60,7 @@ class TestValidateArtifactRemovalMethods:
         self._write_parameters(session_path, {"removeArtifacts": True, "artifactsRemovalMethod": "concatenate"})
         input_parameters = {"selected_runs": {str(session_path): ["run1"]}}
         with pytest.raises(ValueError, match="does not support the 'concatenate'"):
-            orchestrate_export_nwb_page(input_parameters)
+            orchestrate_export_nwb(input_parameters)
 
 
 def _metadata_with_commanded_voltage(stream_names):
@@ -108,97 +109,84 @@ class TestPruneAbsentCommandedVoltage:
         assert metadata == {"Ophys": {"FiberPhotometry": {"CommandedVoltageSeries": []}}}
 
 
-class _FakeProgressBar:
-    def __init__(self):
-        self.max = None
-        self.value = None
+@pytest.fixture
+def bound_step():
+    """Bind a StepProgress for the duration of one test, as ``home.py`` does per step run."""
+    step = StepProgress()
+    token = _current_step.set(step)
+    yield step
+    _current_step.reset(token)
 
 
-class _FakeNotifications:
-    def __init__(self):
-        self.successes = []
-        self.errors = []
-
-    def success(self, message):
-        self.successes.append(message)
-
-    def error(self, message, duration=None):
-        self.errors.append({"message": message, "duration": duration})
-
-
-class TestOrchestrateExportNwbPage:
+class TestOrchestrateExportNwb:
     @pytest.fixture
     def two_sessions(self):
         return {"selected_runs": {"/data/Photo_A": ["run1"], "/data/Photo_B": ["run1"]}}
 
     @pytest.fixture
-    def notifications(self, monkeypatch):
-        # pn.state.notifications is a read-only property; replace it at the class level so the
-        # success/error branches in the export loop have a recording sink to write to.
-        fake = _FakeNotifications()
-        monkeypatch.setattr(type(pn.state), "notifications", property(lambda self: fake))
-        return fake
-
-    def test_exports_each_session_and_advances_progress(self, two_sessions, notifications, monkeypatch):
+    def exported(self, monkeypatch):
+        """Record the NWB paths the export loop would write, without invoking neuroconv."""
         monkeypatch.setattr(export_nwb_module, "_validate_artifact_removal_methods", lambda pairs: None)
-        exported = []
+        paths = []
         monkeypatch.setattr(
             export_nwb_module,
             "export_session_to_nwb",
-            lambda **kwargs: exported.append(kwargs["nwbfile_path"]),
+            lambda **kwargs: paths.append(kwargs["nwbfile_path"]),
         )
-        progress_bar = _FakeProgressBar()
+        return paths
 
-        orchestrate_export_nwb_page(two_sessions, progress_bar=progress_bar)
+    def test_exports_each_session_and_advances_progress(self, two_sessions, exported, bound_step):
+        orchestrate_export_nwb(two_sessions)
 
-        assert len(exported) == 2
-        assert progress_bar.max == 2
-        assert progress_bar.value == 2
-        assert len(notifications.successes) == 2
-        assert notifications.errors == []
+        assert exported == [
+            "/data/Photo_A/Photo_A_output_run1/Photo_A_output_run1.nwb",
+            "/data/Photo_B/Photo_B_output_run1/Photo_B_output_run1.nwb",
+        ]
+        assert bound_step.total == 2
+        assert bound_step.value == 2
+        assert bound_step.error_message is None
 
-    def test_one_failed_session_is_reported_and_skipped(self, two_sessions, notifications, monkeypatch):
+    def test_one_failed_session_is_reported_and_skipped(self, two_sessions, bound_step, monkeypatch):
         monkeypatch.setattr(export_nwb_module, "_validate_artifact_removal_methods", lambda pairs: None)
+        exported = []
 
         def export(**kwargs):
             if "Photo_B" in kwargs["nwbfile_path"]:
                 raise RuntimeError("converter blew up")
+            exported.append(kwargs["nwbfile_path"])
 
         monkeypatch.setattr(export_nwb_module, "export_session_to_nwb", export)
-        progress_bar = _FakeProgressBar()
 
         # One failure must not abort the batch.
-        orchestrate_export_nwb_page(two_sessions, progress_bar=progress_bar)
+        orchestrate_export_nwb(two_sessions)
 
-        assert len(notifications.successes) == 1
-        assert len(notifications.errors) == 1
-        assert "converter blew up" in notifications.errors[0]["message"]
-        assert notifications.errors[0]["duration"] == 0
-        assert progress_bar.value == 2  # progress still advances past the failed session
+        assert exported == ["/data/Photo_A/Photo_A_output_run1/Photo_A_output_run1.nwb"]
+        # Progress still advances past the failed session, so the bar reaches its total.
+        assert bound_step.value == 2
+        assert bound_step.error_message == "NWB export failed for 1 of 2 session(s): Photo_B (run1): converter blew up"
 
-    def test_runs_without_progress_bar_or_notifications(self, two_sessions, monkeypatch):
-        # No progress bar and no notification area configured: the loop must skip both cleanly.
-        monkeypatch.setattr(type(pn.state), "notifications", property(lambda self: None))
-        monkeypatch.setattr(export_nwb_module, "_validate_artifact_removal_methods", lambda pairs: None)
-        exported = []
-        monkeypatch.setattr(
-            export_nwb_module,
-            "export_session_to_nwb",
-            lambda **kwargs: exported.append(kwargs["nwbfile_path"]),
-        )
+    def test_runs_unbound_with_no_progress_channel(self, two_sessions, exported):
+        # The headless path (guppy.testing.api) binds no StepProgress; emitting must be a no-op
+        # rather than requiring the caller to pass a sink.
+        orchestrate_export_nwb(two_sessions)
 
-        orchestrate_export_nwb_page(two_sessions, progress_bar=None)
+        assert exported == [
+            "/data/Photo_A/Photo_A_output_run1/Photo_A_output_run1.nwb",
+            "/data/Photo_B/Photo_B_output_run1/Photo_B_output_run1.nwb",
+        ]
 
-        assert len(exported) == 2
 
-    def test_failure_without_notifications_still_continues(self, two_sessions, monkeypatch):
-        monkeypatch.setattr(type(pn.state), "notifications", property(lambda self: None))
-        monkeypatch.setattr(export_nwb_module, "_validate_artifact_removal_methods", lambda pairs: None)
+class TestRunExportNwbStep:
+    def test_validation_failure_is_reported_through_the_progress_channel(self, tmp_path, bound_step):
+        """The upfront concatenate check runs inside the worker thread, so its ValueError must
+        reach the progress error channel — that is how the GUI poller surfaces it."""
+        session = tmp_path / "Photo_session"
+        output_dir = session / "Photo_session_output_run1"
+        output_dir.mkdir(parents=True)
+        with open(output_dir / "GuPPyParamtersUsed.json", "w") as parameters_file:
+            json.dump({"removeArtifacts": True, "artifactsRemovalMethod": "concatenate"}, parameters_file)
 
-        def export(**kwargs):
-            raise RuntimeError("boom")
+        with pytest.raises(ValueError, match="does not support the 'concatenate'"):
+            run_export_nwb_step({"selected_runs": {str(session): ["run1"]}})
 
-        monkeypatch.setattr(export_nwb_module, "export_session_to_nwb", export)
-
-        # No notification sink, but the batch must not raise.
-        orchestrate_export_nwb_page(two_sessions, progress_bar=None)
+        assert "does not support the 'concatenate'" in bound_step.error_message
