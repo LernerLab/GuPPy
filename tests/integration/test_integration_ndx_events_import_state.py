@@ -62,4 +62,4 @@ def test_labeled_events_extracted_identically_in_both_import_states(import_mode)
 
     assert result["events"] == EXPECTED_EVENTS
     assert result["flags"] == []
-    np.testing.assert_allclose(result["label_2_timestamps"], EXPECTED_LABEL_2_TIMESTAMPS)
+    np.testing.assert_array_equal(result["label_2_timestamps"], EXPECTED_LABEL_2_TIMESTAMPS)
