@@ -35,9 +35,17 @@ def event_ts_offset_for(base_dir: str | Path) -> float:
     with open(matches[0]) as params_file:
         time_for_lights_turn_on = json.load(params_file)["timeForLightsTurnOn"]
 
+    return recording_start_for(base_dir) + time_for_lights_turn_on
+
+
+def recording_start_for(base_dir: str | Path) -> float:
+    """Return the recording start of a pipeline run under ``base_dir``.
+
+    This is the constant by which current continuous timestamps shifted relative to
+    reference outputs generated when the extractor re-zeroed its clock (issue #407).
+    Pass it as ``continuous_ts_offset`` to :func:`compare_output_folders`.
+    """
     time_correction_files = sorted(Path(base_dir).rglob("timeCorrection_*.hdf5"))
     assert time_correction_files, f"No timeCorrection_*.hdf5 found under {base_dir}"
     with h5py.File(time_correction_files[0], "r") as time_correction_file:
-        recording_start = float(time_correction_file["recordingStart"][0])
-
-    return recording_start + time_for_lights_turn_on
+        return float(time_correction_file["recordingStart"][0])

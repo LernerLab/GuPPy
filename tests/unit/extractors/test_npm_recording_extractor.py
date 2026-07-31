@@ -356,9 +356,10 @@ class NpmRecordingExtractorTestMixin(RecordingExtractorTestMixin):
         return result[0]["timestamps"]
 
     def test_stub_ttl_timestamps_within_duration(self, tmp_path, isolated_extractor_instance):
-        # NPM stub() truncates the raw files in their native timestamp units, so a
-        # seconds-based cutoff (base mixin) does not apply. Assert instead that stubbing
-        # retains exactly a non-empty prefix of the original TTL events.
+        # NPM stub() truncates each raw file at its own first timestamp plus the duration,
+        # so the event file's window is not the data file's window and the base mixin's
+        # cutoff (anchored on the continuous stream) does not apply. Assert instead that
+        # stubbing retains exactly a non-empty prefix of the original TTL events.
         if self.ttl_event is None:
             return
         original_ttl = isolated_extractor_instance.read(events=[self.ttl_event], outputPath="")[0]["timestamps"]
@@ -443,3 +444,77 @@ class TestNpmRecordingExtractorSession5(NpmRecordingExtractorTestMixin):
     signal_event = "file0_chod1"
     ttl_event = "event0"
     stub_ttl_test_duration_in_seconds = 100.0
+
+
+# ---------------------------------------------------------------------------
+# Absolute-clock contract
+# ---------------------------------------------------------------------------
+
+
+class TestNpmAbsoluteTime:
+    """NPM keeps the acquisition's own clock (issue #407): neither the continuous channels
+    nor the event streams are re-zeroed to start at 0. The conversion to seconds still applies.
+
+    The per-session contract classes above cannot catch a regression here — their
+    ``expected_*`` fixtures compare ``read()`` against ``read()``, so they hold for any time
+    basis. These tests pin the basis with hand-computed literals.
+    """
+
+    @pytest.fixture
+    def headered_session(self, tmp_path):
+        """A data_np_v2 session (LedState interleaving) whose clock starts at 500 s."""
+        session_folder = tmp_path / "headered"
+        session_folder.mkdir()
+        rows = "".join(f"{i},{500.0 + 0.5 * i},{1 if i % 2 == 0 else 2},{i}\n" for i in range(12))
+        (session_folder / "a_signals.csv").write_text("FrameCounter,Timestamp,LedState,Region0G\n" + rows)
+        # Two events on the same clock as the signal file.
+        (session_folder / "b_events.csv").write_text("502.0,1\n504.0,1\n")
+        return session_folder
+
+    @pytest.fixture
+    def headerless_session(self, tmp_path):
+        """A data_np session (headerless, milliseconds) whose clock starts at 700000 ms."""
+        session_folder = tmp_path / "headerless"
+        session_folder.mkdir()
+        rows = "".join(f"{700000.0 + 500.0 * i},{i},{10 + i},{20 + i}\n" for i in range(6))
+        (session_folder / "a_data.csv").write_text(rows)
+        (session_folder / "z_events.csv").write_text("701500.0,1\n")
+        return session_folder
+
+    def test_headered_channel_timestamps_are_absolute(self, headered_session):
+        streams = NpmRecordingExtractor(
+            str(headered_session),
+            num_ch=2,
+            npm_time_units=["seconds", "seconds"],
+            npm_split_events=[False, False],
+        ).decompose()
+
+        # LedState==1 selects rows 0,2,4,6,8,10 → Timestamp 500.0 + 0.5*row. Re-zeroing
+        # would have produced [0, 1, 2, 3, 4, 5].
+        expected = np.array([500.0, 501.0, 502.0, 503.0, 504.0, 505.0])
+        np.testing.assert_allclose(streams["file0_chev1"]["timestamps"], expected)
+        # chod borrows chev's axis, so it is absolute too.
+        np.testing.assert_allclose(streams["file0_chod1"]["timestamps"], expected)
+        # 6 samples spanning 505.0 - 500.0 = 5.0 s.
+        np.testing.assert_allclose(streams["file0_chev1"]["sampling_rate"], np.array([1.2]))
+
+    def test_headered_event_timestamps_are_absolute(self, headered_session):
+        streams = NpmRecordingExtractor(
+            str(headered_session),
+            num_ch=2,
+            npm_time_units=["seconds", "seconds"],
+            npm_split_events=[False, False],
+        ).decompose()
+
+        # Raw event values, not shifted by the 500.0 chev reference (which gave [2.0, 4.0]).
+        np.testing.assert_allclose(streams["event0"]["timestamps"], np.array([502.0, 504.0]))
+
+    def test_headerless_timestamps_are_absolute_and_converted_to_seconds(self, headerless_session):
+        streams = NpmRecordingExtractor(str(headerless_session), num_ch=2).decompose()
+
+        # Headerless files are milliseconds: rows 0,2,4 → 700000/701000/702000 ms.
+        # The divisor still applies; only the re-zeroing is gone ([0, 1, 2] before).
+        np.testing.assert_allclose(streams["file0_chev1"]["timestamps"], np.array([700.0, 701.0, 702.0]))
+        np.testing.assert_allclose(streams["file0_chev1"]["sampling_rate"], np.array([1.5]))
+        # The event file shares the millisecond clock: 701500 ms → 701.5 s, not 1.5 s.
+        np.testing.assert_allclose(streams["event0"]["timestamps"], np.array([701.5]))
