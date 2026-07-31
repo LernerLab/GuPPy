@@ -119,6 +119,7 @@ def write_corrected_timestamps(
     store_label_to_timestamps: dict[str, np.ndarray],
     store_label_to_sampling_rate: dict[str, np.ndarray],
     store_label_to_correction_index: dict[str, np.ndarray],
+    mode: str,
 ) -> None:
     """
     Write timestamp-correction HDF5 datasets for all channel pairs.
@@ -135,6 +136,8 @@ def write_corrected_timestamps(
         Store label → sampling-rate array.
     store_label_to_correction_index : dict
         Store label → index array used to slice the original timestamps.
+    mode : str
+        Acquisition format; one of ``'tdt'`` or ``'csv'``.
     """
     for name, correctionIndex in store_label_to_correction_index.items():
         timestamps = store_label_to_timestamps[name]
@@ -143,7 +146,11 @@ def write_corrected_timestamps(
         if sampling_rate.shape == ():  # numpy scalar
             sampling_rate = np.asarray([sampling_rate])
         name_1 = recording_site_from_channel_label(name)
+        # TDT timestamps are rebased to the recording start during correction, so on the
+        # corrected basis the recording begins at 0; every other format keeps its own clock.
+        recording_start = 0.0 if mode == "tdt" else float(timestamps[0])
         write_hdf5(np.asarray([timestamps[0]]), "timeCorrection_" + name_1, filepath, "timeRecStart")
+        write_hdf5(np.asarray([recording_start]), "timeCorrection_" + name_1, filepath, "recordingStart")
         write_hdf5(corrected_timestamps, "timeCorrection_" + name_1, filepath, "timestampNew")
         write_hdf5(correctionIndex, "timeCorrection_" + name_1, filepath, "correctionIndex")
         write_hdf5(sampling_rate, "timeCorrection_" + name_1, filepath, "sampling_rate")
@@ -410,6 +417,10 @@ def write_artifact_corrected_timestamps(
     """
     Write artifact-corrected timestamp arrays to the ``timeCorrection_*`` HDF5 keys.
 
+    Only the ``concatenate`` method reaches here; it re-times the kept samples onto a fresh
+    timeline whose first segment starts at ``timeForLightsTurnOn``, so the recording start on
+    that new basis is 0.
+
     Parameters
     ----------
     filepath : str
@@ -419,6 +430,7 @@ def write_artifact_corrected_timestamps(
     """
     for pair_name, timestamps in pair_name_to_corrected_timestamps.items():
         write_hdf5(timestamps, "timeCorrection_" + pair_name, filepath, "timestampNew")
+        write_hdf5(np.asarray([0.0]), "timeCorrection_" + pair_name, filepath, "recordingStart")
 
 
 def write_artifact_removal(
@@ -593,6 +605,9 @@ def write_combined_data(
     """
     Write combined multi-session data (timestamps, channel data, TTLs) to HDF5.
 
+    Combining re-times the sessions onto a fresh timeline whose first segment starts at
+    ``timeForLightsTurnOn``, so the recording start on that new basis is 0.
+
     Parameters
     ----------
     output_filepath : str
@@ -606,6 +621,7 @@ def write_combined_data(
     """
     for pair_name, tsNew in pair_name_to_tsNew.items():
         write_hdf5(tsNew, "timeCorrection_" + pair_name, output_filepath, "timestampNew")
+        write_hdf5(np.asarray([0.0]), "timeCorrection_" + pair_name, output_filepath, "recordingStart")
     for display_name, data in store_label_to_data.items():
         write_hdf5(data, display_name, output_filepath, "data")
     for compound_name, ttl_timestamps in compound_name_to_ttl_timestamps.items():
