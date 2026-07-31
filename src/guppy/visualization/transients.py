@@ -3,12 +3,14 @@ import logging
 import holoviews as hv
 import numpy as np
 
+from .downsampling import PLOT_WIDTH, downsample_for_display
+
 logger = logging.getLogger(__name__)
 
 
 def build_peaks_overlay(
     *, title: str, suptitle: str, z_score: np.ndarray, timestamps: np.ndarray, peaksIndex: np.ndarray
-) -> hv.Overlay:
+) -> hv.DynamicMap:
     """Build a z-score trace overlaid with markers at detected transient peaks.
 
     Parameters
@@ -26,9 +28,10 @@ def build_peaks_overlay(
 
     Returns
     -------
-    hv.Overlay
-        Curve of the z-score trace overlaid with a scatter of peak markers.
+    hv.DynamicMap
+        Downsampled curve of the z-score trace overlaid with a scatter of peak markers.
+        Only the trace is downsampled; every detected peak keeps its marker.
     """
-    curve = hv.Curve((timestamps, z_score), "time (s)", title)
+    curve = downsample_for_display(hv.Curve((timestamps, z_score), "time (s)", title))
     peaks = hv.Scatter((timestamps[peaksIndex], z_score[peaksIndex])).opts(color="red", size=6)
-    return (curve * peaks).opts(title=f"{suptitle} — {title}", width=750, height=300)
+    return (curve * peaks).opts(title=f"{suptitle} — {title}", width=PLOT_WIDTH, height=300)

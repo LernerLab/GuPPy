@@ -9,6 +9,7 @@ from guppy.frontend.transient_peaks import (
     load_peaks,
 )
 from guppy.utils._hdf5_io import write_hdf5
+from guppy_test_data import resolve_plot
 
 TIMESTAMPS = np.arange(0.0, 11.0, 1.0)
 Z_SCORE = TIMESTAMPS.copy()
@@ -43,7 +44,7 @@ class TestLoadPeaks:
 class TestPeaksReviewView:
     def test_plot_marks_peaks(self, panel_extension, run_folder):
         view = PeaksReviewView(load_peaks([str(run_folder)], "z_score"))
-        overlay = view.plot_pane.object
+        overlay = resolve_plot(view.plot_pane.object)
         assert isinstance(overlay, hv.Overlay)
         # Peaks at index 2 and 7 -> t = 2.0, 7.0.
         np.testing.assert_array_equal(overlay.Scatter.I.dimension_values(0), np.array([2.0, 7.0]))
@@ -54,4 +55,4 @@ class TestBuildPeaksViewPage:
         page = build_peaks_view_page([str(run_folder)], "z_score")
         holoviews_panes = page.select(pn.pane.HoloViews)
         assert holoviews_panes, "peaks view page must contain a plot"
-        assert isinstance(holoviews_panes[0].object, hv.Overlay)
+        assert isinstance(resolve_plot(holoviews_panes[0].object), hv.Overlay)

@@ -9,8 +9,12 @@ every invocation directory, instead of colliding with the several ``conftest.py`
 
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import h5py
+
+if TYPE_CHECKING:
+    import holoviews as hv
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -49,3 +53,13 @@ def recording_start_for(base_dir: str | Path) -> float:
     assert time_correction_files, f"No timeCorrection_*.hdf5 found under {base_dir}"
     with h5py.File(time_correction_files[0], "r") as time_correction_file:
         return float(time_correction_file["recordingStart"][0])
+
+
+def resolve_plot(plot: "hv.DynamicMap") -> "hv.Element":
+    """Materialize the element a trace-plot builder's ``DynamicMap`` currently displays.
+
+    The visualization builders wrap their curves in :func:`~guppy.visualization.downsampling.downsample_for_display`,
+    so they return a range-linked ``DynamicMap`` rather than a bare element. Indexing it with
+    the empty key resolves it against the full data, which is what assertions inspect.
+    """
+    return plot[()]

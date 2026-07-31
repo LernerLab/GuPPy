@@ -57,6 +57,7 @@ dependencies = [
     "scipy",
     "statsmodels",
     "tables",
+    "tsdownsample",
     "selenium",
     "dandi",
     "remfile",

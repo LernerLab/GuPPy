@@ -6,6 +6,7 @@ from guppy.visualization.preprocessing import (
     build_control_signal_fit,
     build_preprocessing_curve,
 )
+from guppy_test_data import resolve_plot
 
 
 @pytest.fixture
@@ -21,10 +22,10 @@ def signal():
 class TestBuildPreprocessingCurve:
     def test_returns_curve(self, panel_extension, timestamps, signal):
         curve = build_preprocessing_curve(suptitle="s", title="z_score_DMS", x=timestamps, y=signal)
-        assert isinstance(curve, hv.Curve)
+        assert isinstance(resolve_plot(curve), hv.Curve)
 
     def test_plots_correct_data(self, panel_extension, timestamps, signal):
-        curve = build_preprocessing_curve(suptitle="s", title="z_score_DMS", x=timestamps, y=signal)
+        curve = resolve_plot(build_preprocessing_curve(suptitle="s", title="z_score_DMS", x=timestamps, y=signal))
         np.testing.assert_array_equal(curve.dimension_values(0), timestamps)
         np.testing.assert_array_equal(curve.dimension_values(1), signal)
 
@@ -67,7 +68,7 @@ class TestBuildControlSignalFit:
             artifacts_have_been_removed=False,
         )
         # Top two are bare curves; the bottom overlays the signal and the fit.
-        control_curve, signal_curve, fit_overlay = layout.values()
+        control_curve, signal_curve, fit_overlay = (resolve_plot(plot) for plot in layout.values())
         np.testing.assert_array_equal(control_curve.dimension_values(1), control)
         np.testing.assert_array_equal(signal_curve.dimension_values(1), signal_trace)
         assert isinstance(fit_overlay, hv.Overlay)
@@ -86,7 +87,8 @@ class TestBuildControlSignalFit:
             artifacts_have_been_removed=False,
             windows=[(1.0, 2.0), (3.0, 4.0)],
         )
-        for element in layout.values():
+        for plot in layout.values():
+            element = resolve_plot(plot)
             assert isinstance(element, hv.Overlay)
             # Two windows -> two VSpans shaded on this axis.
             vspans = [item for item in element.values() if isinstance(item, hv.VSpan)]

@@ -3,12 +3,14 @@ import logging
 import holoviews as hv
 import numpy as np
 
+from .downsampling import PLOT_WIDTH, downsample_for_display
+
 logger = logging.getLogger(__name__)
 
 _ARTIFACTS_REMOVED_NOTE = "Note: Artifacts have been removed, but are not reflected in this plot."
 
 
-def build_preprocessing_curve(*, suptitle: str, title: str, x: np.ndarray, y: np.ndarray) -> hv.Curve:
+def build_preprocessing_curve(*, suptitle: str, title: str, x: np.ndarray, y: np.ndarray) -> hv.DynamicMap:
     """Build a HoloViews curve of a preprocessing time series.
 
     Parameters
@@ -24,13 +26,14 @@ def build_preprocessing_curve(*, suptitle: str, title: str, x: np.ndarray, y: np
 
     Returns
     -------
-    hv.Curve
-        Curve of ``y`` versus ``x``.
+    hv.DynamicMap
+        Downsampled curve of ``y`` versus ``x``.
     """
-    return hv.Curve((x, y), "time (s)", title).opts(title=f"{suptitle} — {title}", width=750, height=250)
+    curve = hv.Curve((x, y), "time (s)", title).opts(title=f"{suptitle} — {title}", width=PLOT_WIDTH, height=250)
+    return downsample_for_display(curve)
 
 
-def _shade_windows(curve: hv.Curve, windows: list[tuple[float, float]] | None) -> "hv.Curve | hv.Overlay":
+def _shade_windows(curve: hv.DynamicMap, windows: list[tuple[float, float]] | None) -> hv.DynamicMap:
     """Overlay shaded vertical spans for each ``(start, end)`` window on a curve."""
     if not windows:
         return curve
@@ -77,14 +80,21 @@ def build_control_signal_fit(
     hv.Layout
         Three vertically stacked curves.
     """
-    control_curve = hv.Curve((x, control), "time (s)", titles[0]).opts(
-        title=f"{suptitle} — {titles[0]}", width=750, height=220
+    control_curve = downsample_for_display(
+        hv.Curve((x, control), "time (s)", titles[0]).opts(
+            title=f"{suptitle} — {titles[0]}", width=PLOT_WIDTH, height=220
+        )
     )
-    signal_curve = hv.Curve((x, signal), "time (s)", titles[1]).opts(title=titles[1], width=750, height=220)
+    signal_curve = downsample_for_display(
+        hv.Curve((x, signal), "time (s)", titles[1]).opts(title=titles[1], width=PLOT_WIDTH, height=220)
+    )
     fit_title = titles[2] + (f" ({_ARTIFACTS_REMOVED_NOTE})" if artifacts_have_been_removed else "")
     fit_curve = (
-        (hv.Curve((x, signal), "time (s)", titles[2]) * hv.Curve((x, fit), "time (s)", titles[2]))
-        .opts(hv.opts.Curve(width=750, height=220))
+        (
+            downsample_for_display(hv.Curve((x, signal), "time (s)", titles[2]))
+            * downsample_for_display(hv.Curve((x, fit), "time (s)", titles[2]))
+        )
+        .opts(hv.opts.Curve(width=PLOT_WIDTH, height=220))
         .opts(title=fit_title)
     )
 

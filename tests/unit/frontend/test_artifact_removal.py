@@ -14,6 +14,7 @@ from guppy.frontend.artifact_removal import (
     signal_options,
 )
 from guppy.utils._hdf5_io import write_hdf5
+from guppy_test_data import resolve_plot
 
 TIMESTAMPS = np.arange(0.0, 11.0, 1.0)
 
@@ -104,7 +105,7 @@ class TestArtifactRemovalConfig:
         config.site_to_widget["DMS"].value = pd.DataFrame({"label": ["a"], "start": [1.0], "end": [2.0]})
         config.site_select.value = "DMS"
         plot = config._make_marking_plot()
-        for element in plot.values():
+        for element in (resolve_plot(axis) for axis in plot.values()):
             assert isinstance(element, hv.Overlay)
             assert any(isinstance(item, hv.VSpan) for item in element.values())
 
@@ -170,9 +171,9 @@ class TestPreprocessingReviewView:
         view = PreprocessingReviewView(str(run_folder), load_preprocessed_traces(str(run_folder)), ["z_score", "dff"])
         view.site_select.value = "DMS"
         view.signal_toggle.value = "z_score"
-        np.testing.assert_array_equal(view.plot_pane.object.dimension_values(1), TIMESTAMPS)
+        np.testing.assert_array_equal(resolve_plot(view.plot_pane.object).dimension_values(1), TIMESTAMPS)
         view.signal_toggle.value = "dff"
-        np.testing.assert_array_equal(view.plot_pane.object.dimension_values(1), TIMESTAMPS / 10.0)
+        np.testing.assert_array_equal(resolve_plot(view.plot_pane.object).dimension_values(1), TIMESTAMPS / 10.0)
 
 
 class TestArtifactReviewView:
@@ -183,6 +184,6 @@ class TestArtifactReviewView:
         view = ArtifactReviewView(str(run_folder), load_pair_traces(str(run_folder)))
         view.site_select.value = "DMS"
         plot = view.plot_pane.object
-        for element in plot.values():
+        for element in (resolve_plot(axis) for axis in plot.values()):
             vspans = [item for item in element.values() if isinstance(item, hv.VSpan)]
             assert len(vspans) == 1
