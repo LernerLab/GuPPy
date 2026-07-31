@@ -107,6 +107,7 @@ def execute_timestamp_correction(session_folders: list[str], inputParameters: di
                 store_label_to_timestamps,
                 store_label_to_sampling_rate,
                 store_label_to_correction_index,
+                mode,
             )
             write_corrected_data(filepath, store_label_to_corrected_data)
             write_corrected_ttl_timestamps(filepath, compound_name_to_corrected_ttl_timestamps)
