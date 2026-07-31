@@ -3,7 +3,7 @@ import logging
 import holoviews as hv
 import numpy as np
 
-from .downsampling import PLOT_WIDTH, downsample_for_display
+from .shading import FIT_COLOR, PLOT_WIDTH, shade_trace
 
 logger = logging.getLogger(__name__)
 
@@ -27,10 +27,10 @@ def build_preprocessing_curve(*, suptitle: str, title: str, x: np.ndarray, y: np
     Returns
     -------
     hv.DynamicMap
-        Downsampled curve of ``y`` versus ``x``.
+        Density-shaded view of ``y`` versus ``x``.
     """
-    curve = hv.Curve((x, y), "time (s)", title).opts(title=f"{suptitle} — {title}", width=PLOT_WIDTH, height=250)
-    return downsample_for_display(curve)
+    curve = hv.Curve((x, y), "time (s)", title)
+    return shade_trace(curve).opts(title=f"{suptitle} — {title}", width=PLOT_WIDTH, height=250)
 
 
 def _shade_windows(curve: hv.DynamicMap, windows: list[tuple[float, float]] | None) -> hv.DynamicMap:
@@ -80,23 +80,17 @@ def build_control_signal_fit(
     hv.Layout
         Three vertically stacked curves.
     """
-    control_curve = downsample_for_display(
-        hv.Curve((x, control), "time (s)", titles[0]).opts(
-            title=f"{suptitle} — {titles[0]}", width=PLOT_WIDTH, height=220
-        )
+    control_curve = shade_trace(hv.Curve((x, control), "time (s)", titles[0])).opts(
+        title=f"{suptitle} — {titles[0]}", width=PLOT_WIDTH, height=220
     )
-    signal_curve = downsample_for_display(
-        hv.Curve((x, signal), "time (s)", titles[1]).opts(title=titles[1], width=PLOT_WIDTH, height=220)
+    signal_curve = shade_trace(hv.Curve((x, signal), "time (s)", titles[1])).opts(
+        title=titles[1], width=PLOT_WIDTH, height=220
     )
     fit_title = titles[2] + (f" ({_ARTIFACTS_REMOVED_NOTE})" if artifacts_have_been_removed else "")
     fit_curve = (
-        (
-            downsample_for_display(hv.Curve((x, signal), "time (s)", titles[2]))
-            * downsample_for_display(hv.Curve((x, fit), "time (s)", titles[2]))
-        )
-        .opts(hv.opts.Curve(width=PLOT_WIDTH, height=220))
-        .opts(title=fit_title)
-    )
+        shade_trace(hv.Curve((x, signal), "time (s)", titles[2]))
+        * shade_trace(hv.Curve((x, fit), "time (s)", titles[2]), color=FIT_COLOR)
+    ).opts(title=fit_title, width=PLOT_WIDTH, height=220)
 
     return hv.Layout(
         [

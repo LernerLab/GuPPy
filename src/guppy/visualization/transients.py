@@ -3,7 +3,7 @@ import logging
 import holoviews as hv
 import numpy as np
 
-from .downsampling import PLOT_WIDTH, downsample_for_display
+from .shading import PLOT_WIDTH, shade_trace
 
 logger = logging.getLogger(__name__)
 
@@ -29,9 +29,9 @@ def build_peaks_overlay(
     Returns
     -------
     hv.DynamicMap
-        Downsampled curve of the z-score trace overlaid with a scatter of peak markers.
-        Only the trace is downsampled; every detected peak keeps its marker.
+        Density-shaded z-score trace overlaid with a scatter of peak markers.
+        Only the trace is shaded; every detected peak keeps its marker.
     """
-    curve = downsample_for_display(hv.Curve((timestamps, z_score), "time (s)", title))
+    curve = shade_trace(hv.Curve((timestamps, z_score), "time (s)", title))
     peaks = hv.Scatter((timestamps[peaksIndex], z_score[peaksIndex])).opts(color="red", size=6)
     return (curve * peaks).opts(title=f"{suptitle} — {title}", width=PLOT_WIDTH, height=300)
