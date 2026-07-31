@@ -44,6 +44,7 @@ def compare_output_folders(
     rtol: float = 1e-5,
     atol: float = 1e-8,
     event_ts_offset: float = 0.0,
+    continuous_ts_offset: float = 0.0,
 ) -> None:
     """
     Assert that every file in ``expected_dir`` exists in ``actual_dir`` and is
@@ -79,7 +80,14 @@ def compare_output_folders(
         ``current == reference + timeForLightsTurnOn``. Pass the run's
         ``timeForLightsTurnOn`` to compare event-timestamp HDF5 datasets (key ``ts``)
         and PSTH/peak_AUC event-time labels up to this known constant shift. All other
-        data (signals, continuous timestamps, peak/area) still compares exactly.
+        data (signals, peak/area) still compares exactly.
+    continuous_ts_offset : float
+        Seconds added to reference continuous timestamps before comparison (default 0.0).
+        Reconciles an extractor that has moved onto the acquisition's own clock while the
+        reference holds a recording-relative one, so ``current == reference + recordingStart``.
+        Applies to the HDF5 keys ``timestamps`` and ``timestampNew`` and to the
+        ``timestamps`` column of ``transientsOccurrences`` CSVs. Signal values are
+        unaffected by a clock shift and still compare exactly.
 
     Raises
     ------
@@ -118,9 +126,13 @@ def compare_output_folders(
 
         extension = Path(rel_path).suffix.lower()
         if extension in {".hdf5", ".h5"}:
-            _compare_hdf5(actual_path, expected_path, rel_path, mismatches, rtol, atol, event_ts_offset)
+            _compare_hdf5(
+                actual_path, expected_path, rel_path, mismatches, rtol, atol, event_ts_offset, continuous_ts_offset
+            )
         elif extension == ".csv":
-            _compare_csv(actual_path, expected_path, rel_path, mismatches, rtol, atol, event_ts_offset)
+            _compare_csv(
+                actual_path, expected_path, rel_path, mismatches, rtol, atol, event_ts_offset, continuous_ts_offset
+            )
         elif extension == ".json":
             _compare_json(actual_path, expected_path, rel_path, mismatches)
         # Unknown extensions are skipped silently.
@@ -137,6 +149,12 @@ def compare_output_folders(
 # HDF5 dataset names that store pandas axis/column metadata and may contain
 # PSTH timestamp labels.
 _PANDAS_AXIS_KEYS = {"axis0", "axis1", "block0_items"}
+
+# HDF5 dataset names carrying the continuous acquisition clock: "timestamps" in the
+# per-store step-2 files and "timestampNew" in timeCorrection_*. Per-store event files
+# also use "timestamps", which is correct wherever an extractor emits its event and
+# channel streams on one clock.
+_CONTINUOUS_TS_KEYS = {"timestamps", "timestampNew"}
 
 
 def _normalize_psth_label(label: str, *, bare_offset: float = 0.0, prefixed_offset: float = 0.0) -> str:
@@ -207,10 +225,13 @@ def _compare_hdf5(
     rtol: float,
     atol: float,
     event_ts_offset: float = 0.0,
+    continuous_ts_offset: float = 0.0,
 ) -> None:
     """Compare all datasets in two HDF5 files, accumulating mismatches."""
     with h5py.File(actual_path, "r") as actual_f, h5py.File(expected_path, "r") as expected_f:
-        _walk_hdf5_group(actual_f, expected_f, rel_path, "", mismatches, rtol, atol, event_ts_offset)
+        _walk_hdf5_group(
+            actual_f, expected_f, rel_path, "", mismatches, rtol, atol, event_ts_offset, continuous_ts_offset
+        )
 
 
 def _walk_hdf5_group(
@@ -222,6 +243,7 @@ def _walk_hdf5_group(
     rtol: float,
     atol: float,
     event_ts_offset: float = 0.0,
+    continuous_ts_offset: float = 0.0,
 ) -> None:
     """Recursively walk HDF5 groups, comparing all datasets."""
     for key in expected_group.keys():
@@ -241,14 +263,30 @@ def _walk_hdf5_group(
                 mismatches.append(f"{rel_path}: '{item_path}' is a group in expected but a dataset in actual")
             else:
                 _walk_hdf5_group(
-                    actual_item, expected_item, rel_path, item_path, mismatches, rtol, atol, event_ts_offset
+                    actual_item,
+                    expected_item,
+                    rel_path,
+                    item_path,
+                    mismatches,
+                    rtol,
+                    atol,
+                    event_ts_offset,
+                    continuous_ts_offset,
                 )
         elif isinstance(expected_item, h5py.Dataset):
             if not isinstance(actual_item, h5py.Dataset):
                 mismatches.append(f"{rel_path}: '{item_path}' is a dataset in expected but a group in actual")
             else:
                 _compare_hdf5_dataset(
-                    actual_item, expected_item, rel_path, item_path, mismatches, rtol, atol, event_ts_offset
+                    actual_item,
+                    expected_item,
+                    rel_path,
+                    item_path,
+                    mismatches,
+                    rtol,
+                    atol,
+                    event_ts_offset,
+                    continuous_ts_offset,
                 )
 
 
@@ -261,6 +299,7 @@ def _compare_hdf5_dataset(
     rtol: float,
     atol: float,
     event_ts_offset: float = 0.0,
+    continuous_ts_offset: float = 0.0,
 ) -> None:
     """Compare two HDF5 datasets, handling numeric and string dtypes."""
     actual_data = actual_ds[()]
@@ -311,8 +350,11 @@ def _compare_hdf5_dataset(
     # Numeric datasets: tolerance-based comparison with NaN == NaN. Event-timestamp
     # datasets (key "ts") moved from the lights-on to the recording-start basis, so the
     # reference is shifted up by event_ts_offset (the run's timeForLightsTurnOn).
-    if item_path.split("/")[-1] == "ts":
+    item_name = item_path.split("/")[-1]
+    if item_name == "ts":
         expected_data = expected_data + event_ts_offset
+    elif item_name in _CONTINUOUS_TS_KEYS:
+        expected_data = expected_data + continuous_ts_offset
     if not np.allclose(actual_data, expected_data, rtol=rtol, atol=atol, equal_nan=True):
         mismatches.append(f"{rel_path}: '{item_path}' numeric data differs")
 
@@ -325,6 +367,7 @@ def _compare_csv(
     rtol: float,
     atol: float,
     event_ts_offset: float = 0.0,
+    continuous_ts_offset: float = 0.0,
 ) -> None:
     """Compare two CSV files as DataFrames."""
     actual_df = pd.read_csv(actual_path, index_col=0)
@@ -338,6 +381,12 @@ def _compare_csv(
         expected_df.index = _normalize_psth_index(
             expected_df.index, bare_offset=event_ts_offset, prefixed_offset=event_ts_offset
         )
+
+    # transientsOccurrences CSVs carry a "timestamps" column drawn from the continuous
+    # clock, so the reference is shifted into the current basis like its HDF5 counterparts.
+    if continuous_ts_offset and "timestamps" in expected_df.columns:
+        expected_df = expected_df.copy()
+        expected_df["timestamps"] = expected_df["timestamps"] + continuous_ts_offset
 
     try:
         pd.testing.assert_frame_equal(actual_df, expected_df, check_exact=False, rtol=rtol, atol=atol, check_names=True)

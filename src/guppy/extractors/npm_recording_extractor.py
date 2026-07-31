@@ -299,8 +299,8 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
                             }
                             cls._register_channel_name(name, keys[k], chev_names, chod_names, chpr_names)
 
-        # Normalize timestamps relative to the chev reference and compute sampling
-        # rates. Only runs when at least one data channel is present.
+        # Convert timestamps to seconds and compute sampling rates. Timestamps keep the
+        # acquisition's own clock. Only runs when at least one data channel is present.
         if "data_np_v2" in flags or "data_np" in flags:
             if "data_np_v2" in flags:
                 if ts_unit == "seconds":
@@ -312,12 +312,8 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             else:
                 divisor = 1000
 
-            # Events are normalized against the first chev channel's first raw
-            # timestamp (captured before chev itself is normalized below).
-            if chev_names:
-                chev_reference_timestamp = streams[chev_names[0]]["timestamps"][0]
-                for name in event_names:
-                    streams[name]["timestamps"] = (streams[name]["timestamps"] - chev_reference_timestamp) / divisor
+            for name in event_names:
+                streams[name]["timestamps"] = streams[name]["timestamps"] / divisor
 
             channel_group_lengths = [len(names) for names in (chev_names, chod_names, chpr_names) if len(names) > 0]
             if len(set(channel_group_lengths)) > 1:
@@ -333,11 +329,10 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
                 logger.error(message)
                 raise ValueError(message)
 
-            # Each chev channel is normalized to its own first raw timestamp; the
-            # paired chod/chpr channels borrow chev's normalized timestamps and rate.
+            # The paired chod/chpr channels borrow chev's timestamps and rate.
             for j in range(len(chev_names)):
                 chev_stream = streams[chev_names[j]]
-                chev_timestamps = (chev_stream["timestamps"] - chev_stream["timestamps"][0]) / divisor
+                chev_timestamps = chev_stream["timestamps"] / divisor
                 sampling_rate = chev_timestamps.shape[0] / (chev_timestamps[-1] - chev_timestamps[0])
                 chev_stream["timestamps"] = chev_timestamps
                 chev_stream["sampling_rate"] = np.array([sampling_rate])

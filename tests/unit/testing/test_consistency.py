@@ -249,6 +249,68 @@ class TestCompareOutputFolders:
             actual_dir=str(actual_directory), expected_dir=str(expected_directory), event_ts_offset=1.0
         )
 
+    def test_compare_output_folders_continuous_ts_offset_reconciles_timestamp_datasets(self, tmp_path):
+        # An extractor that moved onto the acquisition clock shifts the continuous
+        # timestamps ("timestamps" in per-store files, "timestampNew" in timeCorrection)
+        # by the recording start: actual == reference + recordingStart.
+        expected_directory = tmp_path / "expected"
+        actual_directory = tmp_path / "actual"
+        expected_directory.mkdir()
+        actual_directory.mkdir()
+
+        with h5py.File(expected_directory / "file0_chev1.hdf5", "w") as f:
+            f.create_dataset("timestamps", data=np.array([0.0, 0.05, 0.1]))
+        with h5py.File(actual_directory / "file0_chev1.hdf5", "w") as f:
+            f.create_dataset("timestamps", data=np.array([100.0, 100.05, 100.1]))
+
+        with h5py.File(expected_directory / "timeCorrection_region.hdf5", "w") as f:
+            f.create_dataset("timestampNew", data=np.array([1.0, 1.05]))
+        with h5py.File(actual_directory / "timeCorrection_region.hdf5", "w") as f:
+            f.create_dataset("timestampNew", data=np.array([101.0, 101.05]))
+
+        compare_output_folders(
+            actual_dir=str(actual_directory), expected_dir=str(expected_directory), continuous_ts_offset=100.0
+        )
+        with pytest.raises(AssertionError, match="numeric data differs"):
+            compare_output_folders(actual_dir=str(actual_directory), expected_dir=str(expected_directory))
+
+    def test_compare_output_folders_continuous_ts_offset_does_not_shift_signal_data(self, tmp_path):
+        # A clock shift leaves signal values untouched, so "data" must still compare exactly
+        # even when continuous_ts_offset is set.
+        expected_directory = tmp_path / "expected"
+        actual_directory = tmp_path / "actual"
+        expected_directory.mkdir()
+        actual_directory.mkdir()
+
+        with h5py.File(expected_directory / "z_score_region.hdf5", "w") as f:
+            f.create_dataset("data", data=np.array([0.5, 1.5]))
+        with h5py.File(actual_directory / "z_score_region.hdf5", "w") as f:
+            f.create_dataset("data", data=np.array([0.5, 1.5]))
+
+        compare_output_folders(
+            actual_dir=str(actual_directory), expected_dir=str(expected_directory), continuous_ts_offset=100.0
+        )
+
+    def test_compare_output_folders_continuous_ts_offset_shifts_transients_csv_column(self, tmp_path):
+        # transientsOccurrences CSVs carry a "timestamps" column on the continuous clock.
+        expected_directory = tmp_path / "expected"
+        actual_directory = tmp_path / "actual"
+        expected_directory.mkdir()
+        actual_directory.mkdir()
+
+        pd.DataFrame({"timestamps": [23.48, 41.02], "amplitude": [1.5, 2.5]}).to_csv(
+            expected_directory / "transientsOccurrences_z_score_region.csv"
+        )
+        pd.DataFrame({"timestamps": [123.48, 141.02], "amplitude": [1.5, 2.5]}).to_csv(
+            actual_directory / "transientsOccurrences_z_score_region.csv"
+        )
+
+        compare_output_folders(
+            actual_dir=str(actual_directory), expected_dir=str(expected_directory), continuous_ts_offset=100.0
+        )
+        with pytest.raises(AssertionError, match="CSV content differs"):
+            compare_output_folders(actual_dir=str(actual_directory), expected_dir=str(expected_directory))
+
     def test_compare_output_folders_reports_hdf5_string_mismatch_for_non_psth_file(self, tmp_path):
         expected_directory = tmp_path / "expected"
         actual_directory = tmp_path / "actual"
