@@ -58,7 +58,7 @@ def recording_start_for(base_dir: str | Path) -> float:
 def resolve_plot(plot: "hv.DynamicMap") -> "hv.Element":
     """Materialize the element a trace-plot builder's ``DynamicMap`` currently displays.
 
-    The visualization builders wrap their curves in :func:`~guppy.visualization.downsampling.downsample_for_display`,
+    The visualization builders wrap their curves in :func:`~guppy.visualization.shading.shade_trace`,
     so they return a range-linked ``DynamicMap`` rather than a bare element. Indexing it with
     the empty key resolves it against the full data, which is what assertions inspect.
     """

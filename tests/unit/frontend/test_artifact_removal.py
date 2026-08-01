@@ -170,10 +170,12 @@ class TestPreprocessingReviewView:
 
         view = PreprocessingReviewView(str(run_folder), load_preprocessed_traces(str(run_folder)), ["z_score", "dff"])
         view.site_select.value = "DMS"
+        # The traces are shaded into images, so the y-extent of the shaded region is what
+        # identifies which one is on display: z_score spans 0-10, dff spans 0-1.
         view.signal_toggle.value = "z_score"
-        np.testing.assert_array_equal(resolve_plot(view.plot_pane.object).dimension_values(1), TIMESTAMPS)
+        assert resolve_plot(view.plot_pane.object).bounds.lbrt() == (0.0, 0.0, 10.0, 10.0)
         view.signal_toggle.value = "dff"
-        np.testing.assert_array_equal(resolve_plot(view.plot_pane.object).dimension_values(1), TIMESTAMPS / 10.0)
+        assert resolve_plot(view.plot_pane.object).bounds.lbrt() == (0.0, 0.0, 10.0, 1.0)
 
 
 class TestArtifactReviewView:

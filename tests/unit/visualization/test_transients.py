@@ -22,15 +22,16 @@ def peaks_index():
 
 
 class TestBuildPeaksOverlay:
-    def test_returns_curve_and_scatter(self, panel_extension, timestamps, z_score, peaks_index):
+    def test_returns_shaded_trace_and_scatter(self, panel_extension, timestamps, z_score, peaks_index):
         overlay = resolve_plot(
             build_peaks_overlay(
                 title="z_score_DMS", suptitle="session", z_score=z_score, timestamps=timestamps, peaksIndex=peaks_index
             )
         )
         assert isinstance(overlay, hv.Overlay)
+        # The trace is shaded into an image; the peak markers stay a scatter of real points.
         types = [type(element).__name__ for element in overlay.values()]
-        assert types == ["Curve", "Scatter"]
+        assert types == ["RGB", "Scatter"]
 
     def test_trace_has_correct_data(self, panel_extension, timestamps, z_score, peaks_index):
         overlay = resolve_plot(
@@ -38,8 +39,9 @@ class TestBuildPeaksOverlay:
                 title="z_score_DMS", suptitle="session", z_score=z_score, timestamps=timestamps, peaksIndex=peaks_index
             )
         )
-        np.testing.assert_array_equal(overlay.Curve.I.dimension_values(0), timestamps)
-        np.testing.assert_array_equal(overlay.Curve.I.dimension_values(1), z_score)
+        # The shaded trace spans the full timestamp range and the z-score min/max.
+        extent = tuple(float(value) for value in overlay.RGB.I.bounds.lbrt())
+        assert extent == (0.0, 0.1, 4.0, 2.5)
 
     def test_markers_at_peak_positions(self, panel_extension, timestamps, z_score, peaks_index):
         overlay = resolve_plot(
