@@ -67,12 +67,12 @@ class TestExportSessionToNwb:
         return str(path)
 
     def test_exports_stubbed_tdt_session(self, step5_output_tdt, metadata_yaml_path, tmp_path):
-        tdt_folder_path = str(step5_output_tdt["session_copy"])
+        session_folder_path = str(step5_output_tdt["session_copy"])
         guppy_folder_path = str(step5_output_tdt["output_directory"])
         nwbfile_path = tmp_path / "exported.nwb"
 
         written_path = export_session_to_nwb(
-            tdt_folder_path=tdt_folder_path,
+            session_folder_path=session_folder_path,
             guppy_folder_path=guppy_folder_path,
             metadata_yaml_path=metadata_yaml_path,
             nwbfile_path=str(nwbfile_path),
@@ -83,12 +83,24 @@ class TestExportSessionToNwb:
 
         with NWBHDF5IO(str(nwbfile_path), "r") as io:
             nwbfile = io.read()
-            response_series = [
-                name
-                for name, obj in nwbfile.acquisition.items()
-                if obj.neurodata_type == "FiberPhotometryResponseSeries"
-            ]
-            assert response_series, "Expected at least one FiberPhotometryResponseSeries in acquisition"
+            # One acquisition series per role, each stacking that role's store from every site.
+            assert set(nwbfile.acquisition) == {
+                "FiberPhotometryResponseSeriesSignal",
+                "FiberPhotometryResponseSeriesControl",
+            }
             assert "guppy" in nwbfile.processing, "Expected a 'guppy' processing module"
             assert nwbfile.subject.subject_id == "63_207"
             assert nwbfile.session_description == "RI30 photometry session"
+
+            # The GuPPy 'dms' recording site must resolve to the two fiber_photometry_table rows
+            # written for it -- the control row (index 0) and the signal row (index 1), in the order
+            # build_metadata_dict emitted them.
+            recording_sites = nwbfile.processing["guppy"]["recording_sites"].to_dataframe()
+            assert list(recording_sites["recording_site"]) == ["dms"]
+            fiber_photometry_rows = recording_sites["fiber_photometry_table_region"][0]
+            assert list(fiber_photometry_rows.index) == [0, 1]
+            assert list(fiber_photometry_rows["location"]) == ["dms", "dms"]
+            assert list(fiber_photometry_rows["excitation_wavelength_in_nm"]) == [405.0, 465.0]
+
+            behavioral_events = nwbfile.events["BehavioralEvents"].to_dataframe()
+            assert set(behavioral_events["event_type"]) == {"port_entries_dms"}

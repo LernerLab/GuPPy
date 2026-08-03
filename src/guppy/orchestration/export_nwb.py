@@ -1,9 +1,8 @@
 """Step 7 orchestration: export selected GuPPy sessions to NWB.
 
-Drives the neuroconv :class:`TDTFiberPhotometryGuppyConverter` for each selected
-``(session, run)`` pair, merging the converter's auto-filled metadata with the
-session-level YAML overlay produced by Step 6, then writing one NWB file per
-output directory.
+Drives the neuroconv :class:`GuppyConverter` for each selected ``(session, run)``
+pair, merging the converter's auto-filled metadata with the session-level YAML
+overlay produced by Step 6, then writing one NWB file per output directory.
 """
 
 import json
@@ -65,35 +64,9 @@ def _validate_artifact_removal_methods(pairs: list[tuple[str, str]]) -> None:
         )
 
 
-def _prune_absent_commanded_voltage(metadata: dict, available_streams: set[str]) -> None:
-    """Drop CommandedVoltageSeries (and table refs) whose TDT stream is absent.
-
-    Some tanks expose a fiber-photometry stream the metadata template assumes
-    (e.g. ``Fi1d``) under a different name (e.g. ``Fi1r``). Rather than fail, drop
-    the CommandedVoltageSeries that reference unavailable streams, mirroring the
-    converter test's robustness guard but keyed to the streams actually present.
-    """
-    fiber_photometry = metadata.get("Ophys", {}).get("FiberPhotometry", {})
-    commanded_voltage_series = fiber_photometry.get("CommandedVoltageSeries")
-    if not commanded_voltage_series:
-        return
-
-    kept = [series for series in commanded_voltage_series if series.get("stream_name") in available_streams]
-    kept_names = {series["name"] for series in kept}
-    if kept:
-        fiber_photometry["CommandedVoltageSeries"] = kept
-    else:
-        fiber_photometry.pop("CommandedVoltageSeries", None)
-
-    table = fiber_photometry.get("FiberPhotometryTable", {})
-    for row in table.get("rows", []):
-        if row.get("commanded_voltage_series") not in kept_names:
-            row.pop("commanded_voltage_series", None)
-
-
 def export_session_to_nwb(
     *,
-    tdt_folder_path: str,
+    session_folder_path: str,
     guppy_folder_path: str,
     metadata_yaml_path: str | None,
     nwbfile_path: str,
@@ -102,8 +75,9 @@ def export_session_to_nwb(
 
     Parameters
     ----------
-    tdt_folder_path : str
-        Path to the raw TDT tank (the session folder).
+    session_folder_path : str
+        Path to the raw TDT tank (the session folder). It holds both the fiber-photometry
+        traces and the behavioral event epocs.
     guppy_folder_path : str
         Path to the GuPPy ``<session>_output_<run>`` directory.
     metadata_yaml_path : str or None
@@ -119,21 +93,19 @@ def export_session_to_nwb(
     """
     # Imported here rather than at module scope so the pure-Python prerequisite checks in this
     # module stay importable (and unit-testable) without the heavyweight neuroconv dependency.
-    from neuroconv.converters import TDTFiberPhotometryGuppyConverter
+    from neuroconv.converters import GuppyConverter
     from neuroconv.utils import dict_deep_update, load_dict_from_file
 
-    converter = TDTFiberPhotometryGuppyConverter(
-        tdt_folder_path=tdt_folder_path,
+    converter = GuppyConverter(
+        fiber_photometry_folder_path=session_folder_path,
+        events_folder_path=session_folder_path,
         guppy_folder_path=guppy_folder_path,
+        acquisition_format="tdt",
     )
 
     metadata = converter.get_metadata()
     if metadata_yaml_path and os.path.exists(metadata_yaml_path):
         metadata = dict_deep_update(metadata, load_dict_from_file(metadata_yaml_path))
-
-    tdt_interface = converter.data_interface_objects["TDTFiberPhotometry"]
-    available_streams = set(tdt_interface.load().streams.keys())
-    _prune_absent_commanded_voltage(metadata, available_streams)
 
     converter.run_conversion(
         nwbfile_path=nwbfile_path,
@@ -168,7 +140,7 @@ def orchestrate_export_nwb(inputParameters: dict[str, object]) -> None:
 
         try:
             export_session_to_nwb(
-                tdt_folder_path=session_path,
+                session_folder_path=session_path,
                 guppy_folder_path=guppy_folder_path,
                 metadata_yaml_path=metadata_yaml_path,
                 nwbfile_path=nwbfile_path,

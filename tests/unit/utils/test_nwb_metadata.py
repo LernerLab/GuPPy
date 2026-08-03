@@ -17,20 +17,34 @@ def channels() -> list[m.Channel]:
 
 
 class TestDeriveChannels:
-    def test_parses_storeslist_into_ordered_channels(self, tmp_path):
+    def _write_stores_list(self, tmp_path, store_ids, store_labels):
         np.savetxt(
             tmp_path / "storesList.csv",
-            np.array([["Dv1A", "Dv2A", "PrtN"], ["control_dms", "signal_dms", "port_entries_dms"]]),
+            np.array([store_ids, store_labels]),
             delimiter=",",
             fmt="%s",
         )
+
+    def test_parses_storeslist_into_ordered_channels(self, tmp_path):
+        self._write_stores_list(tmp_path, ["Dv1A", "Dv2A", "PrtN"], ["control_dms", "signal_dms", "port_entries_dms"])
         channels = m.derive_channels(str(tmp_path))
         assert [(c.recording_site, c.role, c.store_name) for c in channels] == [
             ("dms", "control", "Dv1A"),
             ("dms", "signal", "Dv2A"),
         ]
-        assert channels[0].response_series_name == "dms_isosbestic_control"
-        assert channels[1].response_series_name == "dms_calcium_signal"
+        assert [c.table_row_key for c in channels] == ["dms_control", "dms_signal"]
+
+    def test_recording_sites_follow_storeslist_column_order_not_alphabetical(self, tmp_path):
+        # 'dms' appears before 'dls' in the file, so it must come first even though it sorts second.
+        # The converter walks recording sites in this same column order and zips each series'
+        # fiber_photometry_table_region against it.
+        self._write_stores_list(
+            tmp_path,
+            ["Dv1A", "Dv2A", "Dv3B", "Dv4B"],
+            ["control_dms", "signal_dms", "control_dls", "signal_dls"],
+        )
+        channels = m.derive_channels(str(tmp_path))
+        assert [c.table_row_key for c in channels] == ["dms_control", "dms_signal", "dls_control", "dls_signal"]
 
 
 class TestFieldSpecs:
@@ -72,41 +86,72 @@ class TestBuildMetadata:
                 {"name": "dls_fiber", "model": "fmodel"},  # reuses the same model; no coordinates
             ],
         }
-        fiber_photometry = m.build_metadata_dict(devices, [{}, {}], {}, channels)["Ophys"]["FiberPhotometry"]
-        assert fiber_photometry["OpticalFiberModels"] == [
-            {"name": "fmodel", "numerical_aperture": 0.48, "manufacturer": "Doric"}
-        ]
+        metadata = m.build_metadata_dict(devices, [{}, {}], {}, channels)
+        # Models and instances land in the shared, cross-modality registries, each tagged with the
+        # concrete ndx class to build, and instances link their model by metadata_key.
+        assert metadata["DeviceModels"] == {
+            "fmodel": {
+                "type": "OpticalFiberModel",
+                "name": "fmodel",
+                "numerical_aperture": 0.48,
+                "manufacturer": "Doric",
+            }
+        }
         # Both instances link the one model; both carry the mandatory fiber_insertion group (2nd is empty).
-        assert fiber_photometry["OpticalFibers"] == [
-            {"name": "dms_fiber", "model": "fmodel", "serial_number": "OF1", "fiber_insertion": {"depth_in_mm": 2.8}},
-            {"name": "dls_fiber", "model": "fmodel", "fiber_insertion": {}},
-        ]
+        assert metadata["Devices"] == {
+            "dms_fiber": {
+                "type": "OpticalFiber",
+                "name": "dms_fiber",
+                "serial_number": "OF1",
+                "device_model_metadata_key": "fmodel",
+                "fiber_insertion": {"depth_in_mm": 2.8},
+            },
+            "dls_fiber": {
+                "type": "OpticalFiber",
+                "name": "dls_fiber",
+                "device_model_metadata_key": "fmodel",
+                "fiber_insertion": {},
+            },
+        }
 
     def test_empty_channels_and_no_devices_yields_empty_metadata(self):
-        # No channels -> no table/response series; no devices/scalars -> no Ophys/NWBFile/Subject keys.
+        # No channels -> no table/series; no devices/scalars -> no Devices/NWBFile/Subject keys.
         assert m.build_metadata_dict({}, [], {}, []) == {}
 
-    def test_generates_table_rows_and_response_series_from_channels(self, channels):
+    def test_generates_table_rows_and_per_role_series_from_channels(self, channels):
         channel_rows = [
             {"excitation_wavelength_in_nm": 405.0, "emission_wavelength_in_nm": 525.0, "optical_fiber": "dms_fiber"},
             {"excitation_wavelength_in_nm": 465.0, "emission_wavelength_in_nm": 525.0, "optical_fiber": "dms_fiber"},
         ]
-        metadata = m.build_metadata_dict({}, channel_rows, {}, channels)
-        fiber_photometry = metadata["Ophys"]["FiberPhotometry"]
-        rows = fiber_photometry["FiberPhotometryTable"]["rows"]
-        assert rows[0] == {
-            "name": 0,
-            "location": "dms",
-            "excitation_wavelength_in_nm": 405.0,
-            "emission_wavelength_in_nm": 525.0,
-            "optical_fiber": "dms_fiber",
+        fiber_photometry = m.build_metadata_dict({}, channel_rows, {}, channels)["FiberPhotometry"]
+        assert fiber_photometry["FiberPhotometryTable"]["rows"] == {
+            "dms_control": {
+                "location": "dms",
+                "excitation_wavelength_in_nm": 405.0,
+                "emission_wavelength_in_nm": 525.0,
+                "optical_fiber_metadata_key": "dms_fiber",
+            },
+            "dms_signal": {
+                "location": "dms",
+                "excitation_wavelength_in_nm": 465.0,
+                "emission_wavelength_in_nm": 525.0,
+                "optical_fiber_metadata_key": "dms_fiber",
+            },
         }
-        series = fiber_photometry["FiberPhotometryResponseSeries"]
-        # control channel -> Dv1A -> table row 0; signal -> Dv2A -> row 1.
-        assert [(s["name"], s["stream_name"], s["fiber_photometry_table_region"]) for s in series] == [
-            ("dms_isosbestic_control", "Dv1A", [0]),
-            ("dms_calcium_signal", "Dv2A", [1]),
+        # One series per role, each naming one row per recording site, in recording-site order.
+        assert fiber_photometry["control"]["fiber_photometry_table_region"] == ["dms_control"]
+        assert fiber_photometry["signal"]["fiber_photometry_table_region"] == ["dms_signal"]
+
+    def test_two_site_series_regions_run_in_recording_site_order(self):
+        channels = [
+            m.Channel("dms", "control", "Dv1A"),
+            m.Channel("dms", "signal", "Dv2A"),
+            m.Channel("dls", "control", "Dv3B"),
+            m.Channel("dls", "signal", "Dv4B"),
         ]
+        fiber_photometry = m.build_metadata_dict({}, [{}] * 4, {}, channels)["FiberPhotometry"]
+        assert fiber_photometry["signal"]["fiber_photometry_table_region"] == ["dms_signal", "dls_signal"]
+        assert fiber_photometry["control"]["fiber_photometry_table_region"] == ["dms_control", "dls_control"]
 
     def test_nwbfile_and_subject_assembly_drops_empty(self, channels):
         scalars = {
@@ -151,13 +196,7 @@ class TestParseMetadata:
         built = m.build_metadata_dict(devices, rows, {}, channels)
         devices2, rows2, _ = m.parse_metadata_dict(built, channels)
         rebuilt = m.build_metadata_dict(devices2, rows2, {}, channels)
-        assert (
-            rebuilt["Ophys"]["FiberPhotometry"]["OpticalFibers"] == built["Ophys"]["FiberPhotometry"]["OpticalFibers"]
-        )
-        assert (
-            rebuilt["Ophys"]["FiberPhotometry"]["OpticalFiberModels"]
-            == built["Ophys"]["FiberPhotometry"]["OpticalFiberModels"]
-        )
+        assert rebuilt == built
 
 
 class TestValidateMetadata:
@@ -200,15 +239,16 @@ class TestValidateMetadata:
     def test_unlinked_optical_fiber_model_is_reported(self, channels):
         metadata = self._complete_metadata(channels)
         # Drop the instance's link to its model -> required-link violation.
-        metadata["Ophys"]["FiberPhotometry"]["OpticalFibers"][0].pop("model")
+        metadata["Devices"]["fiber"].pop("device_model_metadata_key")
         errors = m.validate_metadata_dict(metadata, channels)
         assert any("optical fiber 'fiber'" in error and "model is required" in error for error in errors)
 
     def test_dangling_link_and_missing_scalar_and_wavelength(self, channels):
         metadata = self._complete_metadata(channels)
         metadata["Subject"].pop("species")
-        metadata["Ophys"]["FiberPhotometry"]["FiberPhotometryTable"]["rows"][0].pop("excitation_wavelength_in_nm")
-        metadata["Ophys"]["FiberPhotometry"]["FiberPhotometryTable"]["rows"][1]["optical_fiber"] = "ghost"
+        rows = metadata["FiberPhotometry"]["FiberPhotometryTable"]["rows"]
+        rows["dms_control"].pop("excitation_wavelength_in_nm")
+        rows["dms_signal"]["optical_fiber_metadata_key"] = "ghost"
         errors = m.validate_metadata_dict(metadata, channels)
         assert any("Subject.species is required" in error for error in errors)
         assert any("excitation_wavelength_in_nm is required" in error for error in errors)
@@ -223,19 +263,19 @@ class TestValidateMetadata:
     def test_missing_required_device_field_is_reported(self, channels):
         metadata = self._complete_metadata(channels)
         # numerical_aperture is a required (non-link) field on the optical fiber model.
-        metadata["Ophys"]["FiberPhotometry"]["OpticalFiberModels"][0].pop("numerical_aperture")
+        metadata["DeviceModels"]["fmodel"].pop("numerical_aperture")
         errors = m.validate_metadata_dict(metadata, channels)
         assert any("numerical_aperture is required" in error for error in errors)
 
     def test_dangling_device_link_is_reported(self, channels):
         metadata = self._complete_metadata(channels)
-        metadata["Ophys"]["FiberPhotometry"]["OpticalFibers"][0]["model"] = "ghost"
+        metadata["Devices"]["fiber"]["device_model_metadata_key"] = "ghost"
         errors = m.validate_metadata_dict(metadata, channels)
         assert any("'ghost' is not a defined optical fiber model" in error for error in errors)
 
     def test_missing_required_channel_link_is_reported(self, channels):
         metadata = self._complete_metadata(channels)
-        metadata["Ophys"]["FiberPhotometry"]["FiberPhotometryTable"]["rows"][0].pop("indicator")
+        metadata["FiberPhotometry"]["FiberPhotometryTable"]["rows"]["dms_control"].pop("indicator_metadata_key")
         errors = m.validate_metadata_dict(metadata, channels)
         assert any("indicator link is required" in error for error in errors)
 
@@ -267,7 +307,7 @@ class TestTypeIntrospection:
 
 class TestYamlIO:
     def test_dump_then_load_round_trip(self, tmp_path):
-        metadata = {"NWBFile": {"lab": "Lerner"}, "Ophys": {"FiberPhotometry": {"OpticalFibers": [{"name": "f"}]}}}
+        metadata = {"NWBFile": {"lab": "Lerner"}, "Devices": {"f": {"type": "OpticalFiber", "name": "f"}}}
         path = tmp_path / "meta.yaml"
         m.dump_yaml(metadata, path)
         assert m.load_yaml(path) == metadata

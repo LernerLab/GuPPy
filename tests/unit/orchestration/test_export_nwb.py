@@ -13,7 +13,6 @@ import pytest
 
 from guppy.orchestration import export_nwb as export_nwb_module
 from guppy.orchestration.export_nwb import (
-    _prune_absent_commanded_voltage,
     _validate_artifact_removal_methods,
     orchestrate_export_nwb,
     run_export_nwb_step,
@@ -61,52 +60,6 @@ class TestValidateArtifactRemovalMethods:
         input_parameters = {"selected_runs": {str(session_path): ["run1"]}}
         with pytest.raises(ValueError, match="does not support the 'concatenate'"):
             orchestrate_export_nwb(input_parameters)
-
-
-def _metadata_with_commanded_voltage(stream_names):
-    """Build a metadata dict with one CommandedVoltageSeries per stream and a table row referencing each."""
-    return {
-        "Ophys": {
-            "FiberPhotometry": {
-                "CommandedVoltageSeries": [{"name": f"cvs_{stream}", "stream_name": stream} for stream in stream_names],
-                "FiberPhotometryTable": {
-                    "rows": [
-                        {"name": index, "commanded_voltage_series": f"cvs_{stream}"}
-                        for index, stream in enumerate(stream_names)
-                    ]
-                },
-            }
-        }
-    }
-
-
-class TestPruneAbsentCommandedVoltage:
-    def test_drops_absent_keeps_present_and_clears_dangling_row_refs(self):
-        metadata = _metadata_with_commanded_voltage(["Fi1d", "Fi1r"])
-        _prune_absent_commanded_voltage(metadata, available_streams={"Fi1d"})
-        fiber_photometry = metadata["Ophys"]["FiberPhotometry"]
-        assert fiber_photometry["CommandedVoltageSeries"] == [{"name": "cvs_Fi1d", "stream_name": "Fi1d"}]
-        rows = fiber_photometry["FiberPhotometryTable"]["rows"]
-        assert rows[0]["commanded_voltage_series"] == "cvs_Fi1d"
-        assert "commanded_voltage_series" not in rows[1]
-
-    def test_all_absent_removes_the_series_key_entirely(self):
-        metadata = _metadata_with_commanded_voltage(["Fi1d", "Fi1r"])
-        _prune_absent_commanded_voltage(metadata, available_streams=set())
-        fiber_photometry = metadata["Ophys"]["FiberPhotometry"]
-        assert "CommandedVoltageSeries" not in fiber_photometry
-        for row in fiber_photometry["FiberPhotometryTable"]["rows"]:
-            assert "commanded_voltage_series" not in row
-
-    def test_no_fiber_photometry_section_is_a_noop(self):
-        metadata = {}
-        _prune_absent_commanded_voltage(metadata, available_streams={"Fi1d"})
-        assert metadata == {}
-
-    def test_empty_commanded_voltage_list_is_a_noop(self):
-        metadata = {"Ophys": {"FiberPhotometry": {"CommandedVoltageSeries": []}}}
-        _prune_absent_commanded_voltage(metadata, available_streams={"Fi1d"})
-        assert metadata == {"Ophys": {"FiberPhotometry": {"CommandedVoltageSeries": []}}}
 
 
 @pytest.fixture

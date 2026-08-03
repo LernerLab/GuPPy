@@ -15,7 +15,7 @@ This module knows nothing about Panel or neuroconv. It provides:
   converter validates against).
 - :func:`build_metadata_dict` / :func:`parse_metadata_dict` -- convert between the
   form state and the converter's metadata dict, generating the FiberPhotometryTable
-  rows and FiberPhotometryResponseSeries from the channels.
+  rows and the per-role response-series regions from the channels.
 """
 
 from __future__ import annotations
@@ -28,7 +28,12 @@ from pathlib import Path
 import numpy as np
 import yaml
 
-from ..analysis.io_utils import get_control_and_signal_channel_names
+from ..analysis.io_utils import (
+    CONTROL_PREFIX,
+    SIGNAL_PREFIX,
+    get_control_and_signal_channel_names,
+    recording_site_from_channel_label,
+)
 
 
 class _RobustDumper(yaml.SafeDumper):
@@ -52,37 +57,45 @@ class Channel:
     store_name: str
 
     @property
-    def response_series_name(self) -> str:
-        """Conventional FiberPhotometryResponseSeries name for this channel."""
-        suffix = "calcium_signal" if self.role == "signal" else "isosbestic_control"
-        return f"{self.recording_site}_{suffix}"
+    def table_row_key(self) -> str:
+        """Key of this channel's FiberPhotometryTable row (its metadata_key handle)."""
+        return f"{self.recording_site}_{self.role}"
 
 
 def derive_channels(output_dir: str | Path) -> list[Channel]:
     """Return the ordered fiber-photometry channels for a GuPPy output directory.
 
-    Reads ``<output_dir>/storesList.csv`` and pairs signal/control names per recording site
-    using GuPPy's own :func:`get_control_and_signal_channel_names`. Order is canonical
-    (recording-site-sorted, control then signal within a recording site) so it matches between
-    the form (table rows) and the generated response series.
+    Reads ``<output_dir>/storesList.csv`` and pairs each ``signal_<recording_site>`` label
+    with its ``control_<recording_site>``. Recording sites run in ``storesList.csv`` column
+    order and the two roles of a site are adjacent, control first.
+
+    The column order matters: the converter walks recording sites the same way and zips each
+    response series' ``fiber_photometry_table_region`` against that order to recover which
+    fiber recorded which site.
     """
     stores_list = np.genfromtxt(os.path.join(output_dir, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
-    store_names = stores_list[0, :]
-    semantic_names = stores_list[1, :]
-    semantic_to_store = {semantic: store for store, semantic in zip(store_names, semantic_names)}
+    store_labels = [str(label) for label in stores_list[1, :]]
+    label_to_store_name = {label: str(store) for store, label in zip(stores_list[0, :], store_labels)}
 
-    paired = get_control_and_signal_channel_names(stores_list)  # shape (2, N): row 0 control, row 1 signal
+    # Called for its validation: it raises when a signal has no matching control (or vice versa).
+    # Its own output is sorted by recording site, which is why the order is re-derived below.
+    get_control_and_signal_channel_names(stores_list)
+
+    control_label_by_recording_site = {
+        recording_site_from_channel_label(label): label
+        for label in store_labels
+        if label.lower().startswith(CONTROL_PREFIX)
+    }
     channels: list[Channel] = []
-    for column in range(paired.shape[1]):
-        control_name = paired[0, column]
-        signal_name = paired[1, column]
-        recording_site = str(signal_name[len("signal_") :]).lower()
+    for label in store_labels:
+        if not label.lower().startswith(SIGNAL_PREFIX):
+            continue
+        recording_site = recording_site_from_channel_label(label)
+        control_label = control_label_by_recording_site[recording_site]
         channels.append(
-            Channel(recording_site=recording_site, role="control", store_name=str(semantic_to_store[control_name]))
+            Channel(recording_site=recording_site, role="control", store_name=label_to_store_name[control_label])
         )
-        channels.append(
-            Channel(recording_site=recording_site, role="signal", store_name=str(semantic_to_store[signal_name]))
-        )
+        channels.append(Channel(recording_site=recording_site, role="signal", store_name=label_to_store_name[label]))
     return channels
 
 
@@ -103,15 +116,23 @@ class FieldSpec:
     options: tuple[str, ...] | None = None  # enumerated choices -> rendered as a dropdown
 
 
+# The shared, cross-modality device registries. They sit at the top level of the metadata dict
+# rather than under FiberPhotometry, because ndx-ophys-devices classes are reused by other
+# modalities. Their entries carry a ``type`` naming the concrete ndx class to build.
+DEVICE_MODELS_KEY = "DeviceModels"
+DEVICES_KEY = "Devices"
+FIBER_PHOTOMETRY_KEY = "FiberPhotometry"
+
+
 @dataclass(frozen=True)
 class CategorySpec:
-    """A user-facing device category and how it maps to one ndx metadata list."""
+    """A user-facing device category and where its entries live in the metadata dict."""
 
     key: str
     label: str  # plural section title
     singular: str  # used for the "Add <singular>" button
     ndx_type: str  # installed type to introspect for fields/docs/required
-    list_key: str  # metadata key under Ophys.FiberPhotometry
+    destination: tuple[str, ...]  # path of the dict holding this category's entries
     has_insertion: bool = False  # OpticalFiber: emit a (mandatory) fiber_insertion group
     skip_deprecated: bool = False  # device instances: drop the deprecated model-ish attrs
     links: dict[str, str] = field(default_factory=dict)  # link field name -> target category key
@@ -121,14 +142,18 @@ class CategorySpec:
 # injection before the indicator that references the injection. Instances are what channels link to.
 CATEGORIES: dict[str, CategorySpec] = {
     "optical_fiber_model": CategorySpec(
-        "optical_fiber_model", "Optical fiber models", "optical fiber model", "OpticalFiberModel", "OpticalFiberModels"
+        "optical_fiber_model",
+        "Optical fiber models",
+        "optical fiber model",
+        "OpticalFiberModel",
+        (DEVICE_MODELS_KEY,),
     ),
     "optical_fiber": CategorySpec(
         "optical_fiber",
         "Optical fibers",
         "optical fiber",
         "OpticalFiber",
-        "OpticalFibers",
+        (DEVICES_KEY,),
         has_insertion=True,
         skip_deprecated=True,
         links={"model": "optical_fiber_model"},
@@ -138,14 +163,14 @@ CATEGORIES: dict[str, CategorySpec] = {
         "Excitation source models",
         "excitation source model",
         "ExcitationSourceModel",
-        "ExcitationSourceModels",
+        (DEVICE_MODELS_KEY,),
     ),
     "excitation_source": CategorySpec(
         "excitation_source",
         "Excitation sources",
         "excitation source",
         "ExcitationSource",
-        "ExcitationSources",
+        (DEVICES_KEY,),
         skip_deprecated=True,
         links={"model": "excitation_source_model"},
     ),
@@ -154,14 +179,14 @@ CATEGORIES: dict[str, CategorySpec] = {
         "Photodetector models",
         "photodetector model",
         "PhotodetectorModel",
-        "PhotodetectorModels",
+        (DEVICE_MODELS_KEY,),
     ),
     "photodetector": CategorySpec(
         "photodetector",
         "Photodetectors",
         "photodetector",
         "Photodetector",
-        "Photodetectors",
+        (DEVICES_KEY,),
         skip_deprecated=True,
         links={"model": "photodetector_model"},
     ),
@@ -170,14 +195,14 @@ CATEGORIES: dict[str, CategorySpec] = {
         "Band optical filter models",
         "band optical filter model",
         "BandOpticalFilterModel",
-        "BandOpticalFilterModels",
+        (DEVICE_MODELS_KEY,),
     ),
     "band_optical_filter": CategorySpec(
         "band_optical_filter",
         "Band optical filters",
         "band optical filter",
         "BandOpticalFilter",
-        "BandOpticalFilters",
+        (DEVICES_KEY,),
         skip_deprecated=True,
         links={"model": "band_optical_filter_model"},
     ),
@@ -186,24 +211,24 @@ CATEGORIES: dict[str, CategorySpec] = {
         "Dichroic mirror models",
         "dichroic mirror model",
         "DichroicMirrorModel",
-        "DichroicMirrorModels",
+        (DEVICE_MODELS_KEY,),
     ),
     "dichroic_mirror": CategorySpec(
         "dichroic_mirror",
         "Dichroic mirrors",
         "dichroic mirror",
         "DichroicMirror",
-        "DichroicMirrors",
+        (DEVICES_KEY,),
         skip_deprecated=True,
         links={"model": "dichroic_mirror_model"},
     ),
-    "virus": CategorySpec("virus", "Viruses", "virus", "ViralVector", "FiberPhotometryViruses"),
+    "virus": CategorySpec("virus", "Viruses", "virus", "ViralVector", (FIBER_PHOTOMETRY_KEY, "FiberPhotometryViruses")),
     "virus_injection": CategorySpec(
         "virus_injection",
         "Virus injections",
         "virus injection",
         "ViralVectorInjection",
-        "FiberPhotometryVirusInjections",
+        (FIBER_PHOTOMETRY_KEY, "FiberPhotometryVirusInjections"),
         links={"viral_vector": "virus"},
     ),
     "indicator": CategorySpec(
@@ -211,7 +236,7 @@ CATEGORIES: dict[str, CategorySpec] = {
         "Indicators",
         "indicator",
         "Indicator",
-        "FiberPhotometryIndicators",
+        (FIBER_PHOTOMETRY_KEY, "FiberPhotometryIndicators"),
         links={"viral_vector_injection": "virus_injection"},
     ),
 }
@@ -228,6 +253,28 @@ CHANNEL_LINKS: dict[str, str] = {
 }
 CHANNEL_REQUIRED_LINKS = ("indicator", "optical_fiber", "excitation_source", "photodetector")
 CHANNEL_WAVELENGTHS = ("excitation_wavelength_in_nm", "emission_wavelength_in_nm")
+
+# Entries reference each other by metadata_key, under a field named for the *kind* of thing
+# referenced. Every link field is its spec link name plus a ``_metadata_key`` suffix, except an
+# ndx device's ``model`` link, which the shared device registry calls ``device_model``.
+_LINK_FIELD_OVERRIDES = {"model": "device_model_metadata_key"}
+
+
+def link_field_name(link_name: str) -> str:
+    """Return the metadata field a link is written under (the form calls it ``link_name``)."""
+    return _LINK_FIELD_OVERRIDES.get(link_name, f"{link_name}_metadata_key")
+
+
+def _registry_type(category: CategorySpec) -> str | None:
+    """Return the ``type`` a category's entries carry, or None for the type-homogeneous collections.
+
+    The shared device registries mix categories, so each entry names its concrete ndx class; the
+    fiber-photometry collections hold one type each and carry no discriminator.
+    """
+    if category.destination[0] in (DEVICES_KEY, DEVICE_MODELS_KEY):
+        return category.ndx_type
+    return None
+
 
 # Deprecated instance attributes that belong on the model (dropped from instance forms).
 _DEPRECATED_INSTANCE_ATTRS = {"manufacturer", "model_number", "model_name"}
@@ -340,6 +387,9 @@ def _drop_empty(mapping: dict) -> dict:
 def _serialize_device(category: CategorySpec, entry: dict) -> dict:
     """Serialize one form entry into its ndx object dict (nesting the fiber_insertion group)."""
     obj: dict = {}
+    registry_type = _registry_type(category)
+    if registry_type is not None:
+        obj["type"] = registry_type
     insertion: dict = {}
     for spec in field_specs(category.key):
         value = entry.get(spec.name)
@@ -347,7 +397,7 @@ def _serialize_device(category: CategorySpec, entry: dict) -> dict:
             if not _is_empty(value):
                 insertion[spec.name] = value
         elif not _is_empty(value):
-            obj[spec.name] = value
+            obj[link_field_name(spec.name) if spec.link_target else spec.name] = value
     if category.has_insertion:
         # Mandatory group (quantity 1): always present, even if the user left the coordinates blank.
         obj["fiber_insertion"] = insertion
@@ -356,91 +406,114 @@ def _serialize_device(category: CategorySpec, entry: dict) -> dict:
 
 def _deserialize_device(category: CategorySpec, object_dict: dict) -> dict:
     """Flatten one ndx object dict back into a form entry (un-nesting fiber_insertion)."""
-    entry = {key: value for key, value in object_dict.items() if key != "fiber_insertion"}
+    entry = {key: value for key, value in object_dict.items() if key not in ("fiber_insertion", "type")}
     entry.update(object_dict.get("fiber_insertion") or {})
+    for link_name in category.links:
+        field_name = link_field_name(link_name)
+        if field_name in entry:
+            entry[link_name] = entry.pop(field_name)
     return entry
+
+
+def _collection(metadata: dict, destination: tuple[str, ...], *, create: bool) -> dict:
+    """Return the dict at ``destination``, optionally creating the intermediate levels."""
+    node = metadata
+    for key in destination:
+        if create:
+            node = node.setdefault(key, {})
+        else:
+            node = node.get(key, {})
+    return node
 
 
 # ----------------------------------------------------------------------------------------------------------------------
 # build / parse
 # ----------------------------------------------------------------------------------------------------------------------
+_ROLE_SERIES_DESCRIPTIONS = {
+    "signal": "Calcium-dependent fluorescence, one column per recording site.",
+    "control": "Isosbestic control fluorescence, one column per recording site.",
+}
+
+
 def build_metadata_dict(
     devices: dict[str, list[dict]], channel_rows: list[dict], scalars: dict, channels: list[Channel]
 ) -> dict:
     """Assemble the full session metadata overlay from the form state.
 
-    Generates the FiberPhotometryTable rows (one per channel, ``location`` = recording site)
-    and the FiberPhotometryResponseSeries (one per channel) from ``channels``.
+    Every entry is keyed by its user-entered ``name``, which doubles as its metadata_key --
+    the handle other entries reference it by. Generates the FiberPhotometryTable rows (one per
+    channel, ``location`` = recording site) and one response-series entry per role, each naming
+    its rows in recording-site order.
     """
-    fiber_photometry: dict = {}
-    for category in CATEGORIES.values():
-        objects = [
-            _serialize_device(category, entry)
-            for entry in devices.get(category.key, [])
-            if not _is_empty(entry.get("name"))
-        ]
-        if objects:
-            fiber_photometry[category.list_key] = objects
+    metadata: dict = {}
+    nwbfile = _drop_empty({key: scalars.get(key) for key in NWBFILE_KEYS})
+    subject = _drop_empty({key: scalars.get(key) for key in SUBJECT_KEYS})
+    if nwbfile:
+        metadata["NWBFile"] = nwbfile
+    if subject:
+        metadata["Subject"] = subject
 
-    table_rows = []
-    response_series = []
+    for category in CATEGORIES.values():
+        entries = [entry for entry in devices.get(category.key, []) if not _is_empty(entry.get("name"))]
+        if not entries:
+            continue
+        collection = _collection(metadata, category.destination, create=True)
+        for entry in entries:
+            collection[entry["name"]] = _serialize_device(category, entry)
+
+    recording_sites = list(dict.fromkeys(channel.recording_site for channel in channels))
+    table_rows: dict[str, dict] = {}
     for index, channel in enumerate(channels):
-        row = {"name": index, "location": channel.recording_site}
+        row = {"location": channel.recording_site}
         annotations = channel_rows[index] if index < len(channel_rows) else {}
-        row.update(_drop_empty({key: annotations.get(key) for key in (*CHANNEL_WAVELENGTHS, *CHANNEL_LINKS)}))
-        table_rows.append(row)
-        response_series.append(
-            {
-                "name": channel.response_series_name,
-                "description": f"Fluorescence from the {channel.recording_site} {channel.role} channel.",
-                "stream_name": channel.store_name,
-                "stream_indices": None,
-                "unit": "a.u.",
-                "fiber_photometry_table_region": [index],
-                "fiber_photometry_table_region_description": (
-                    f"FiberPhotometryTable row for the {channel.recording_site} {channel.role} channel."
-                ),
-            }
-        )
+        row.update(_drop_empty({key: annotations.get(key) for key in CHANNEL_WAVELENGTHS}))
+        row.update(_drop_empty({link_field_name(key): annotations.get(key) for key in CHANNEL_LINKS}))
+        table_rows[channel.table_row_key] = row
+
     if table_rows:
+        fiber_photometry = _collection(metadata, (FIBER_PHOTOMETRY_KEY,), create=True)
         fiber_photometry["FiberPhotometryTable"] = {
             "name": scalars.get("fiber_photometry_table_name") or "fiber_photometry_table",
             "description": scalars.get("fiber_photometry_table_description") or "Fiber photometry table.",
             "rows": table_rows,
         }
-        fiber_photometry["FiberPhotometryResponseSeries"] = response_series
+        # One series per role, stacking that role's store from every recording site. The region
+        # names one row per stacked column, so it must run in the same recording-site order.
+        for role in dict.fromkeys(channel.role for channel in channels):
+            fiber_photometry[role] = {
+                "description": _ROLE_SERIES_DESCRIPTIONS[role],
+                "fiber_photometry_table_region": [f"{site}_{role}" for site in recording_sites],
+                "fiber_photometry_table_region_description": (
+                    f"FiberPhotometryTable rows for the {role} channels, in recording-site order: "
+                    f"{', '.join(recording_sites)}."
+                ),
+            }
 
-    nwbfile = _drop_empty({key: scalars.get(key) for key in NWBFILE_KEYS})
-    subject = _drop_empty({key: scalars.get(key) for key in SUBJECT_KEYS})
-
-    metadata: dict = {}
-    if nwbfile:
-        metadata["NWBFile"] = nwbfile
-    if subject:
-        metadata["Subject"] = subject
-    if fiber_photometry:
-        metadata["Ophys"] = {"FiberPhotometry": fiber_photometry}
     return metadata
 
 
 def parse_metadata_dict(metadata: dict, channels: list[Channel]) -> tuple[dict[str, list[dict]], list[dict], dict]:
     """Inverse of :func:`build_metadata_dict` for repopulating the form from a saved dict."""
-    fiber_photometry = metadata.get("Ophys", {}).get("FiberPhotometry", {})
-
     devices: dict[str, list[dict]] = {}
     for category in CATEGORIES.values():
-        objects = fiber_photometry.get(category.list_key, [])
-        devices[category.key] = [_deserialize_device(category, obj) for obj in objects]
+        collection = _collection(metadata, category.destination, create=False)
+        devices[category.key] = [
+            _deserialize_device(category, entry)
+            for entry in collection.values()
+            if entry.get("type") == _registry_type(category)
+        ]
 
-    saved_rows = fiber_photometry.get("FiberPhotometryTable", {}).get("rows", [])
+    table = metadata.get(FIBER_PHOTOMETRY_KEY, {}).get("FiberPhotometryTable", {})
+    saved_rows = table.get("rows", {})
     channel_rows: list[dict] = []
-    for index, _channel in enumerate(channels):
-        row = saved_rows[index] if index < len(saved_rows) else {}
-        channel_rows.append({key: row.get(key, "") for key in (*CHANNEL_WAVELENGTHS, *CHANNEL_LINKS)})
+    for channel in channels:
+        row = saved_rows.get(channel.table_row_key, {})
+        annotations = {key: row.get(key, "") for key in CHANNEL_WAVELENGTHS}
+        annotations.update({key: row.get(link_field_name(key), "") for key in CHANNEL_LINKS})
+        channel_rows.append(annotations)
 
     nwbfile = metadata.get("NWBFile", {})
     subject = metadata.get("Subject", {})
-    table = fiber_photometry.get("FiberPhotometryTable", {})
     scalars: dict = {key: nwbfile.get(key, "") for key in NWBFILE_KEYS}
     scalars.update({key: subject.get(key, "") for key in SUBJECT_KEYS})
     scalars["fiber_photometry_table_name"] = table.get("name", "")
@@ -475,42 +548,43 @@ def validate_metadata_dict(metadata: dict, channels: list[Channel]) -> list[str]
         if _is_empty(subject.get(key)):
             errors.append(f"Subject.{key} is required.")
 
-    fiber_photometry = metadata.get("Ophys", {}).get("FiberPhotometry", {})
-    defined_names: dict[str, set[str]] = {
-        category.key: {obj.get("name") for obj in fiber_photometry.get(category.list_key, [])}
-        for category in CATEGORIES.values()
-    }
+    entries_by_category: dict[str, dict[str, dict]] = {}
+    for category in CATEGORIES.values():
+        collection = _collection(metadata, category.destination, create=False)
+        entries_by_category[category.key] = {
+            key: entry for key, entry in collection.items() if entry.get("type") == _registry_type(category)
+        }
 
     for category in CATEGORIES.values():
-        for obj in fiber_photometry.get(category.list_key, []):
-            label = f"{category.singular} '{obj.get('name') or '(unnamed)'}'"
+        for key, obj in entries_by_category[category.key].items():
+            label = f"{category.singular} '{obj.get('name') or key}'"
             for spec in field_specs(category.key):
                 if spec.target == "insertion":
                     continue
-                value = obj.get(spec.name)
                 if spec.link_target:
+                    value = obj.get(link_field_name(spec.name))
                     if spec.required and _is_empty(value):
                         errors.append(f"{label}: {spec.name} is required.")
-                    elif not _is_empty(value) and value not in defined_names[spec.link_target]:
+                    elif not _is_empty(value) and value not in entries_by_category[spec.link_target]:
                         errors.append(
                             f"{label}: {spec.name} '{value}' is not a defined "
                             f"{CATEGORIES[spec.link_target].singular}."
                         )
-                elif spec.required and _is_empty(value):
+                elif spec.required and _is_empty(obj.get(spec.name)):
                     errors.append(f"{label}: {spec.name} is required.")
 
-    rows = fiber_photometry.get("FiberPhotometryTable", {}).get("rows", [])
-    for index, channel in enumerate(channels):
-        row = rows[index] if index < len(rows) else {}
+    rows = metadata.get(FIBER_PHOTOMETRY_KEY, {}).get("FiberPhotometryTable", {}).get("rows", {})
+    for channel in channels:
+        row = rows.get(channel.table_row_key, {})
         label = f"channel {channel.recording_site}/{channel.role}"
         for wavelength in CHANNEL_WAVELENGTHS:
             if _is_empty(row.get(wavelength)):
                 errors.append(f"{label}: {wavelength} is required.")
         for link_name, target in CHANNEL_LINKS.items():
-            value = row.get(link_name)
+            value = row.get(link_field_name(link_name))
             if link_name in CHANNEL_REQUIRED_LINKS and _is_empty(value):
                 errors.append(f"{label}: {link_name} link is required.")
-            elif not _is_empty(value) and value not in defined_names[target]:
+            elif not _is_empty(value) and value not in entries_by_category[target]:
                 errors.append(f"{label}: {link_name} '{value}' is not a defined {CATEGORIES[target].singular}.")
 
     return errors
