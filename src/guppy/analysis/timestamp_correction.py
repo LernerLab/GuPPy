@@ -26,7 +26,7 @@ def correct_timestamps(
     Parameters
     ----------
     timeForLightsTurnOn : float
-        Seconds offset for the start of the recording; samples before this are dropped.
+        Seconds of warm-up to discard, measured from the recording's own start.
     store_array : np.ndarray
         2-D array with rows [store_id, store_label].
     store_label_to_timestamps : dict
@@ -91,12 +91,13 @@ def timestampCorrection(
     mode: str,
 ) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray]]:
     """
-    Trim and realign control/signal timestamps, discarding samples before ``timeForLightsTurnOn``.
+    Trim and realign control/signal timestamps, discarding the first ``timeForLightsTurnOn``
+    seconds of the recording.
 
     Parameters
     ----------
     timeForLightsTurnOn : float
-        Seconds offset; samples before this value are discarded.
+        Seconds of warm-up to discard, measured from the recording's own start.
     store_array : np.ndarray
         2-D array with rows [store_id, store_label].
     store_label_to_timestamps : dict
@@ -157,7 +158,9 @@ def timestampCorrection(
             correctionIndex = np.where(timestampNew >= timeForLightsTurnOn)[0]
             timestampNew = timestampNew[correctionIndex]
         elif mode == "csv":
-            correctionIndex = np.where(timestamp >= timeForLightsTurnOn)[0]
+            # timestamp is on the acquisition clock, which need not start at 0, so the
+            # cut is measured from the recording's own start.
+            correctionIndex = np.where(timestamp >= timestamp[0] + timeForLightsTurnOn)[0]
             timestampNew = timestamp[correctionIndex]
 
         for displayName in [control_name, signal_name]:

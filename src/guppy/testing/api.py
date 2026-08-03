@@ -418,6 +418,7 @@ def step3(
     control_fit_window_mode: Literal["full trace", "baseline epoch"] = "full trace",
     control_fit_window_start: int = 0,
     control_fit_window_end: int = 0,
+    time_for_lights_turn_on: float = 1.0,
     selected_runs: dict[str, list[str]],
 ) -> None:
     """
@@ -480,6 +481,9 @@ def step3(
     control_fit_window_end : int
         Fit-window end in seconds. Only used when ``control_fit_window_mode`` is
         ``'baseline epoch'``. Defaults to 0.
+    time_for_lights_turn_on : float
+        Seconds of warm-up discarded from the start of the recording. Defaults to 1.0.
+        Accepts fractional values; the GUI widget is integer-only.
 
     Raises
     ------
@@ -531,6 +535,9 @@ def step3(
 
     # Inject combine_data
     input_params["combine_data"] = combine_data
+
+    # Inject the warm-up trim (bypasses the integer-only widget, so fractions are allowed)
+    input_params["timeForLightsTurnOn"] = time_for_lights_turn_on
 
     # Inject artifact removal parameters
     input_params["removeArtifacts"] = remove_artifacts
@@ -585,6 +592,7 @@ def step4(
     number_of_cores: int = 1,
     bin_psth_trials: int = 0,
     use_time_or_trials: str = "Time (min)",
+    time_for_lights_turn_on: float = 1.0,
     selected_runs: dict[str, list[str]],
     group_selected_runs: dict[str, list[str]] | None = None,
 ) -> None:
@@ -638,6 +646,9 @@ def step4(
         Whether ``bin_psth_trials`` is interpreted as a time window in minutes (``'Time (min)'``)
         or a number of trials (``'# of trials'``). Only meaningful when ``bin_psth_trials > 0``.
         Defaults to ``'Time (min)'``.
+    time_for_lights_turn_on : float
+        Seconds of warm-up discarded from the start of the recording. Must match the value
+        passed to :func:`step3`. Defaults to 1.0.
 
     Raises
     ------
@@ -689,6 +700,10 @@ def step4(
 
     # Inject combine_data
     input_params["combine_data"] = combine_data
+
+    # Inject the warm-up trim; must match the value used in step 3 so the PSTH anchor
+    # lines up with the trimmed signal.
+    input_params["timeForLightsTurnOn"] = time_for_lights_turn_on
 
     # Inject cross-correlation flag
     input_params["computeCorr"] = compute_corr

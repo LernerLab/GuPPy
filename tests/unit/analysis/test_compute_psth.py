@@ -120,6 +120,7 @@ def test_compute_psth_single_timestamp_no_corrections_returns_expected_row():
         sampling_rate=10.0,
         event_timestamps=ts,
         corrected_timestamps=corrected_timestamps,
+        recordingStart=0.0,
         timeForLightsTurnOn=0.0,
     )
     np.testing.assert_allclose(psth[0, :], np.full(21, 3.0))
@@ -151,6 +152,7 @@ def test_compute_psth_early_timestamps_filtered_by_baseline_window():
         sampling_rate=10.0,
         event_timestamps=ts,
         corrected_timestamps=corrected_timestamps,
+        recordingStart=0.0,
         timeForLightsTurnOn=0.0,
     )
     np.testing.assert_array_equal(returned_ts, np.array([5.0]))
@@ -178,6 +180,7 @@ def test_compute_psth_burst_timestamps_within_time_interval_are_dropped():
         sampling_rate=10.0,
         event_timestamps=ts,
         corrected_timestamps=corrected_timestamps,
+        recordingStart=0.0,
         timeForLightsTurnOn=0.0,
     )
     np.testing.assert_array_equal(returned_ts, np.array([5.0, 8.0]))
@@ -206,6 +209,7 @@ def test_compute_psth_binning_by_trials_produces_correct_bin_mean_and_sem():
         sampling_rate=10.0,
         event_timestamps=ts,
         corrected_timestamps=corrected_timestamps,
+        recordingStart=0.0,
         timeForLightsTurnOn=0.0,
     )
     # Row 4: mean of first bin (trials 0 and 1, all 3.0)
@@ -239,6 +243,7 @@ def test_compute_psth_time_binning_places_events_on_recording_start_basis():
         sampling_rate=10.0,
         event_timestamps=ts,
         corrected_timestamps=corrected_timestamps,
+        recordingStart=0.0,
         timeForLightsTurnOn=60.0,
     )
     # Rows 0,1 = trials; row 2 = "1.0-6.0" mean; row 4 = "6.0-11.0" mean.
@@ -271,6 +276,7 @@ def test_compute_psth_just_use_signal_true_z_scores_each_trial():
         sampling_rate=10.0,
         event_timestamps=ts,
         corrected_timestamps=corrected_timestamps,
+        recordingStart=0.0,
         timeForLightsTurnOn=0.0,
     )
     np.testing.assert_allclose(np.nanmean(psth[0, :]), 0.0, atol=1e-10)
@@ -302,11 +308,74 @@ def test_compute_psth_index_is_relative_to_lights_on_origin():
         sampling_rate=sampling_rate,
         event_timestamps=ts,
         corrected_timestamps=corrected_timestamps,
+        recordingStart=0.0,
         timeForLightsTurnOn=5.0,
     )
     # The event sample (slice z_score[thisIndex-11 : thisIndex+10]) lands at row position 11:
     # z_score[50] = 50.0.
     np.testing.assert_allclose(psth[0, 11], 50.0)
+
+
+def test_compute_psth_index_is_relative_to_recording_start():
+    # A recording whose clock does not start at 0 (e.g. an NWB file with starting_time=100.0).
+    # The lights-on instant is recordingStart + timeForLightsTurnOn = 101.0, so the event at
+    # 110.0s is 9.0s past it → index round(9.0*10)=90, and the window is z_score[79:100].
+    # Anchoring on timeForLightsTurnOn alone would give index round(109.0*10)=1090, far past
+    # the end of a 200-sample array.
+    z_score = np.arange(200, dtype=float)
+    ts = np.array([110.0])
+    corrected_timestamps = np.arange(101.0, 121.0, 0.1)
+    psth, _, _, _ = compute_psth(
+        z_score=z_score,
+        event="test",
+        filepath="",
+        nSecPrev=-1.0,
+        nSecPost=1.0,
+        timeInterval=0.0,
+        bin_psth_trials=0,
+        use_time_or_trials="none",
+        baselineStart=0,
+        baselineEnd=0,
+        naming="",
+        just_use_signal=False,
+        sampling_rate=10.0,
+        event_timestamps=ts,
+        corrected_timestamps=corrected_timestamps,
+        recordingStart=100.0,
+        timeForLightsTurnOn=1.0,
+    )
+    np.testing.assert_allclose(psth[0, :], np.arange(79.0, 100.0))
+    # The event sample lands at row position 11.
+    np.testing.assert_allclose(psth[0, 11], 90.0)
+
+
+def test_compute_psth_baseline_filter_is_relative_to_recording_start():
+    # Same absolute clock: lights-on is at 101.0, so time-before-event is ts - 101.0.
+    # ts[0]=102.0 → 1.0 < abs(baselineStart=-2.0) → dropped; ts[1]=105.0 → 4.0 >= 2.0 → kept.
+    # Measuring against timeForLightsTurnOn alone would keep both (102.0 - 1.0 = 101.0 >= 2.0).
+    z_score = np.ones(300) * 1.0
+    ts = np.array([102.0, 105.0])
+    corrected_timestamps = np.arange(101.0, 131.0, 0.1)
+    _, _, _, returned_ts = compute_psth(
+        z_score=z_score,
+        event="test",
+        filepath="",
+        nSecPrev=-2.0,
+        nSecPost=2.0,
+        timeInterval=0.0,
+        bin_psth_trials=0,
+        use_time_or_trials="none",
+        baselineStart=-2.0,
+        baselineEnd=0.0,
+        naming="",
+        just_use_signal=False,
+        sampling_rate=10.0,
+        event_timestamps=ts,
+        corrected_timestamps=corrected_timestamps,
+        recordingStart=100.0,
+        timeForLightsTurnOn=1.0,
+    )
+    np.testing.assert_array_equal(returned_ts, np.array([105.0]))
 
 
 def test_compute_psth_index_shifts_with_lights_on_origin():
@@ -331,6 +400,7 @@ def test_compute_psth_index_shifts_with_lights_on_origin():
         sampling_rate=10.0,
         event_timestamps=ts,
         corrected_timestamps=corrected_timestamps,
+        recordingStart=0.0,
         timeForLightsTurnOn=0.0,
     )
     np.testing.assert_allclose(psth[0, 11], 100.0)

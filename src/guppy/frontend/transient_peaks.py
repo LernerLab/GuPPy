@@ -77,7 +77,7 @@ class PeaksReviewView:
 
         self.widget = pn.Column("## Transient peaks", self.trace_select, self.plot_pane)
 
-    def _make_plot(self) -> hv.Overlay:
+    def _make_plot(self) -> hv.DynamicMap:
         entry = self.entries[self.trace_select.value]
         return build_peaks_overlay(
             title=entry["title"],

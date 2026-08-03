@@ -4,10 +4,20 @@ import shutil
 
 import h5py
 import numpy as np
+import pandas as pd
 import pytest
 
 from guppy.testing.api import step1, step2, step3, step4
 from guppy_test_data import STUBBED_TESTING_DATA
+
+
+def _is_float_label(column):
+    """True for PSTH trial columns, which are event timestamps rendered as strings."""
+    try:
+        float(column)
+    except ValueError:
+        return False
+    return True
 
 
 def _stage_session(src_base_dir, session_subdir, tmp_base):
@@ -140,8 +150,9 @@ def test_mixed_modality_npm_csv_ttl(tmp_path):
     in memory (nothing written to the folder), while the only single-column file on disk — the
     external csv_event.csv — is passed through to CsvRecordingExtractor.
 
-    NPM_1 photometry timestamps are rescaled to relative seconds (~0–120 s). The external
-    event CSV uses timestamps in that same relative domain so PSTH alignment succeeds.
+    NPM_1 photometry timestamps carry the acquisition clock, whose SystemTimestamp column
+    spans ~1891.3–2011.6 s. The external event CSV uses timestamps in that same absolute
+    domain so PSTH alignment succeeds.
     """
     src_base_dir = str(STUBBED_TESTING_DATA)
     tmp_base = tmp_path / "data_root"
@@ -149,9 +160,9 @@ def test_mixed_modality_npm_csv_ttl(tmp_path):
 
     session_copy = _stage_session(src_base_dir, "npm/sampleData_NPM_1", tmp_base)
 
-    # Five timestamps in relative seconds matching the NPM_1 output domain (0–~120 s),
-    # spaced ~20 s apart. CsvRecordingExtractor reads these as-is without rescaling.
-    csv_ttl_timestamps = np.array([20.0, 40.0, 60.0, 80.0, 100.0])
+    # Five timestamps on the NPM_1 acquisition clock (~1891.3–2011.6 s), spaced 20 s apart
+    # and clear of both ends. CsvRecordingExtractor reads these as-is without rescaling.
+    csv_ttl_timestamps = np.array([1911.0, 1931.0, 1951.0, 1971.0, 1991.0])
     np.savetxt(session_copy / "csv_event.csv", csv_ttl_timestamps, header="timestamps", comments="", fmt="%.6f")
 
     base_dir = str(tmp_base)
@@ -188,6 +199,13 @@ def test_mixed_modality_npm_csv_ttl(tmp_path):
     )
 
     _assert_intra_session_outputs(session_copy, expected_recording_site="region", expected_ttl="ttl_region")
+
+    # The TTLs must land inside the NPM recording, not merely be written out: an event
+    # outside the signal span yields an empty PSTH that the checks above still accept.
+    run_folder = sorted(glob.glob(os.path.join(session_copy, f"{os.path.basename(session_copy)}_output_*")))[0]
+    psth = pd.read_hdf(os.path.join(run_folder, "ttl_region_region_z_score_region.h5"))
+    trial_times = sorted(float(column) for column in psth.columns if _is_float_label(column))
+    np.testing.assert_allclose(trial_times, csv_ttl_timestamps)
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")

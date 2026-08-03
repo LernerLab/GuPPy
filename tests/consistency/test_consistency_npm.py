@@ -6,7 +6,7 @@ import pytest
 
 from guppy.testing import compare_output_folders
 from guppy.testing.api import step1, step2, step3, step4
-from guppy_test_data import TESTING_DATA, event_ts_offset_for
+from guppy_test_data import TESTING_DATA, event_ts_offset_for, recording_start_for
 
 CONSISTENCY_CASES = [
     (
@@ -118,4 +118,9 @@ def test_consistency(
         actual_dir=actual_output_dir,
         expected_dir=str(standard_output_dir),
         event_ts_offset=event_ts_offset_for(tmp_base),
+        # NPM now emits the acquisition clock (issue #407); the v1.3.0 reference was
+        # generated with it re-zeroed, so its continuous timestamps sit one recording
+        # start lower. The warm-up trim is measured from that same start, so the set of
+        # retained samples — and every value derived from them — is unchanged.
+        continuous_ts_offset=recording_start_for(tmp_base),
     )

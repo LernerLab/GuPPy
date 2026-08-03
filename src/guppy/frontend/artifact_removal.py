@@ -252,7 +252,7 @@ class ArtifactRemovalConfig:
             windows=windows,
         )
 
-    def _make_review_plot(self) -> hv.Curve:
+    def _make_review_plot(self) -> hv.DynamicMap:
         site = self.site_select.value
         trace = self.preprocessed_traces[site]
         y = trace["y_zscore"] if self.signal_toggle.value == "z_score" else trace["y_dff"]
@@ -325,7 +325,7 @@ class PreprocessingReviewView:
             self.plot_pane,
         )
 
-    def _make_plot(self) -> hv.Curve:
+    def _make_plot(self) -> hv.DynamicMap:
         site = self.site_select.value
         trace = self.preprocessed_traces[site]
         y = trace["y_zscore"] if self.signal_toggle.value == "z_score" else trace["y_dff"]

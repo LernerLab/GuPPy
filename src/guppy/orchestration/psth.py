@@ -92,6 +92,7 @@ def execute_compute_psth(filepath: str, event: str, inputParameters: dict[str, o
 
         sampling_rate = read_hdf5("timeCorrection_" + name_1, filepath, "sampling_rate")[0]
         timestamps = read_hdf5(event + "_" + name_1, filepath, "ts")
+        recordingStart = read_hdf5("timeCorrection_" + name_1, filepath, "recordingStart")[0]
         if use_time_or_trials == "Time (min)" and bin_psth_trials > 0:
             corrected_timestamps = read_hdf5("timeCorrection_" + name_1, filepath, "timestampNew")
         else:
@@ -112,6 +113,7 @@ def execute_compute_psth(filepath: str, event: str, inputParameters: dict[str, o
             sampling_rate,
             timestamps,
             corrected_timestamps,
+            recordingStart,
             timeForLightsTurnOn,
         )
         write_hdf5(timestamps, event + "_" + name_1, filepath, "ts")
