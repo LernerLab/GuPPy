@@ -1,5 +1,6 @@
 """Unit tests for the channel-centric, schema-driven NWB-metadata core."""
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import numpy as np
@@ -174,6 +175,34 @@ class TestBuildMetadata:
         assert metadata["Subject"] == {"subject_id": "63", "sex": "M", "age": "P90D", "species": "Mus musculus"}
 
 
+class TestSessionStartTime:
+    def test_build_normalizes_the_form_string_to_a_datetime(self, channels):
+        # NWBFile rejects a string, so the value must not survive as one through the YAML.
+        metadata = m.build_metadata_dict({}, [{}, {}], {"session_start_time": "2018-10-30T10:33:32-05:00"}, channels)
+        assert metadata["NWBFile"]["session_start_time"] == datetime(
+            2018, 10, 30, 10, 33, 32, tzinfo=timezone(timedelta(hours=-5))
+        )
+
+    def test_build_drops_a_blank_session_start_time(self, channels):
+        metadata = m.build_metadata_dict({}, [{}, {}], {"session_description": "RI30"}, channels)
+        assert "session_start_time" not in metadata["NWBFile"]
+
+    def test_build_rejects_an_unparseable_session_start_time(self, channels):
+        with pytest.raises(ValueError):
+            m.build_metadata_dict({}, [{}, {}], {"session_start_time": "last tuesday"}, channels)
+
+    def test_parse_returns_it_as_the_iso_string_the_form_edits(self, channels):
+        metadata = m.build_metadata_dict({}, [{}, {}], {"session_start_time": "2018-10-30T10:33:32-05:00"}, channels)
+        _devices, _rows, scalars = m.parse_metadata_dict(metadata, channels)
+        assert scalars["session_start_time"] == "2018-10-30T10:33:32-05:00"
+
+    def test_survives_a_yaml_round_trip_as_a_datetime(self, channels, tmp_path):
+        metadata = m.build_metadata_dict({}, [{}, {}], {"session_start_time": "2018-10-30T10:33:32-05:00"}, channels)
+        path = tmp_path / "nwb_metadata.yaml"
+        m.dump_yaml(metadata, path)
+        assert m.load_yaml(path)["NWBFile"]["session_start_time"] == metadata["NWBFile"]["session_start_time"]
+
+
 class TestParseMetadata:
     def test_splits_example_into_model_and_instance_categories(self, channels):
         example = m.load_yaml(EXAMPLE_METADATA)
@@ -272,6 +301,27 @@ class TestValidateMetadata:
         metadata["Devices"]["fiber"]["device_model_metadata_key"] = "ghost"
         errors = m.validate_metadata_dict(metadata, channels)
         assert any("'ghost' is not a defined optical fiber model" in error for error in errors)
+
+    def test_missing_session_start_time_is_reported_only_when_required(self, channels):
+        metadata = self._complete_metadata(channels)
+        assert m.validate_metadata_dict(metadata, channels) == []
+
+        errors = m.validate_metadata_dict(metadata, channels, require_session_start_time=True)
+        assert errors == [
+            "NWBFile.session_start_time is required: this session's acquisition format does not record one."
+        ]
+
+    def test_supplied_session_start_time_satisfies_the_requirement(self, channels):
+        metadata = self._complete_metadata(channels)
+        metadata["NWBFile"]["session_start_time"] = datetime(2018, 10, 30, 10, 33, 32)
+        assert m.validate_metadata_dict(metadata, channels, require_session_start_time=True) == []
+
+    def test_unparseable_session_start_time_is_reported(self, channels):
+        # A hand-edited YAML can hold anything; the form's own field is normalized on build.
+        metadata = self._complete_metadata(channels)
+        metadata["NWBFile"]["session_start_time"] = "last tuesday"
+        errors = m.validate_metadata_dict(metadata, channels)
+        assert errors == ["NWBFile.session_start_time 'last tuesday' is not a valid ISO 8601 timestamp."]
 
     def test_missing_required_channel_link_is_reported(self, channels):
         metadata = self._complete_metadata(channels)

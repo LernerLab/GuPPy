@@ -2,7 +2,9 @@
 
 Drives the neuroconv :class:`GuppyConverter` for each selected ``(session, run)``
 pair, merging the converter's auto-filled metadata with the session-level YAML
-overlay produced by Step 6, then writing one NWB file per output directory.
+overlay produced by Step 6, then writing one NWB file per output directory. Which
+interfaces read a session's raw folder follows from the acquisition format detected
+in it, so a session exports as whatever the pipeline processed it as.
 """
 
 import json
@@ -11,8 +13,9 @@ import os
 
 from .metadata import METADATA_FILENAME, _selected_session_runs
 from ..utils import progress
+from ..utils.acquisition_format import resolve_acquisition_format
 from ..utils.progress import step_error_handler
-from ..utils.utils import run_folder_for_run
+from ..utils.utils import RAISE_ISSUE_URL, run_folder_for_run
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +23,6 @@ logger = logging.getLogger(__name__)
 # timeline, destroying the anchor to the raw acquisition clock. NWB export needs that anchor
 # to align processed traces back to the source streams, so this method is unsupported here.
 _UNSUPPORTED_ARTIFACT_REMOVAL_METHOD = "concatenate"
-_RAISE_ISSUE_URL = "https://github.com/LernerLab/GuPPy/issues/new"
 
 
 def _validate_artifact_removal_methods(pairs: list[tuple[str, str]]) -> None:
@@ -60,13 +62,40 @@ def _validate_artifact_removal_methods(pairs: list[tuple[str, str]]) -> None:
             f"Re-run Step 3 (Preprocess and Remove Artifacts) with artifactsRemovalMethod='replace with NaN', "
             f"which preserves the original timeline, then export again. "
             f"If you need '{_UNSUPPORTED_ARTIFACT_REMOVAL_METHOD}' support "
-            f"for NWB export, please raise an issue at {_RAISE_ISSUE_URL}."
+            f"for NWB export, please raise an issue at {RAISE_ISSUE_URL}."
+        )
+
+
+def _validate_local_mode(inputParameters: dict[str, object]) -> None:
+    """Abort the NWB export batch if the pipeline was run against DANDI-streamed sessions.
+
+    DANDI mode reads each session from a remote NWB asset rather than from raw acquisition files, so
+    there is no raw source on disk to bundle with the GuPPy outputs. Raised before any file is
+    written.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters.
+
+    Raises
+    ------
+    ValueError
+        If ``inputParameters["mode"]`` is ``"dandi"``.
+    """
+    if inputParameters.get("mode") == "dandi":
+        raise ValueError(
+            "NWB export does not support sessions read from DANDI. The export bundles a session's raw "
+            "acquisition with its GuPPy outputs, and a DANDI session's source is an NWB file that was "
+            "already written. If you need NWB export for DANDI-streamed sessions, please raise an issue "
+            f"at {RAISE_ISSUE_URL}."
         )
 
 
 def export_session_to_nwb(
     *,
     session_folder_path: str,
+    acquisition_format: str,
     guppy_folder_path: str,
     metadata_yaml_path: str | None,
     nwbfile_path: str,
@@ -76,8 +105,12 @@ def export_session_to_nwb(
     Parameters
     ----------
     session_folder_path : str
-        Path to the raw TDT tank (the session folder). It holds both the fiber-photometry
-        traces and the behavioral event epocs.
+        Path to the raw session folder. It holds both the fiber-photometry traces and the
+        behavioral events.
+    acquisition_format : str
+        The format the session was recorded in, selecting which interfaces read the raw folder.
+        One of :data:`~guppy.utils.acquisition_format.SUPPORTED_ACQUISITION_FORMATS`, as returned by
+        :func:`~guppy.utils.acquisition_format.resolve_acquisition_format`.
     guppy_folder_path : str
         Path to the GuPPy ``<session>_output_<run>`` directory.
     metadata_yaml_path : str or None
@@ -90,6 +123,11 @@ def export_session_to_nwb(
     -------
     str
         The path of the written ``.nwb`` file.
+
+    Raises
+    ------
+    ValueError
+        If neither the raw acquisition nor the metadata overlay supplies a session start time.
     """
     # Imported here rather than at module scope so the pure-Python prerequisite checks in this
     # module stay importable (and unit-testable) without the heavyweight neuroconv dependency.
@@ -100,12 +138,22 @@ def export_session_to_nwb(
         fiber_photometry_folder_path=session_folder_path,
         events_folder_path=session_folder_path,
         guppy_folder_path=guppy_folder_path,
-        acquisition_format="tdt",
+        acquisition_format=acquisition_format,
     )
 
     metadata = converter.get_metadata()
     if metadata_yaml_path and os.path.exists(metadata_yaml_path):
         metadata = dict_deep_update(metadata, load_dict_from_file(metadata_yaml_path))
+
+    # Only a TDT tank's header always records one, so for every other format the metadata form is the
+    # only source. Checked here because pynwb's own failure names neither the session nor the step
+    # that would fix it.
+    if not metadata["NWBFile"].get("session_start_time"):
+        raise ValueError(
+            f"No session start time is available for '{session_folder_path}': the "
+            f"'{acquisition_format}' raw files do not record one, so it must be supplied in "
+            f"Step 6 (Input Metadata) before exporting."
+        )
 
     converter.run_conversion(
         nwbfile_path=nwbfile_path,
@@ -125,6 +173,7 @@ def orchestrate_export_nwb(inputParameters: dict[str, object]) -> None:
     ends.
     """
     pairs = _selected_session_runs(inputParameters)
+    _validate_local_mode(inputParameters)
     _validate_artifact_removal_methods(pairs)
     progress.start(len(pairs))
 
@@ -141,6 +190,7 @@ def orchestrate_export_nwb(inputParameters: dict[str, object]) -> None:
         try:
             export_session_to_nwb(
                 session_folder_path=session_path,
+                acquisition_format=resolve_acquisition_format(session_path),
                 guppy_folder_path=guppy_folder_path,
                 metadata_yaml_path=metadata_yaml_path,
                 nwbfile_path=nwbfile_path,

@@ -38,6 +38,10 @@ _REQUIRED_SCALARS = {"session_description", "subject_id", "sex", "species"}
 _SCALAR_DOCS = {
     "session_description": "A description of the experimental session.",
     "identifier": "A unique identifier for the session. Auto-generated if left blank.",
+    "session_start_time": (
+        "Date and time the recording started, ISO 8601, e.g. '2018-10-30T10:33:32-05:00'. "
+        "Leave blank for a TDT session, whose tank header records it."
+    ),
     "lab": "Name of the lab that produced this data.",
     "institution": "Institution where the experiment was performed.",
     "subject_id": "Unique identifier for the subject (lab convention).",
@@ -58,9 +62,18 @@ def _sheets(required: bool) -> list[str]:
 class MetadataSelector:
     """Editor for one session's complete NWB metadata overlay."""
 
-    def __init__(self, session_label: str, channels: list[Channel], initial_metadata: dict) -> None:
+    def __init__(
+        self,
+        session_label: str,
+        channels: list[Channel],
+        initial_metadata: dict,
+        require_session_start_time: bool = False,
+    ) -> None:
         self.session_label = session_label
         self.channels = channels
+        # Only the formats whose raw files carry no recording start time make the user supply one,
+        # so the required mark is per-session rather than a property of the field.
+        self.required_scalars = _REQUIRED_SCALARS | ({"session_start_time"} if require_session_start_time else set())
         self.alert = pn.pane.Alert(
             "#### No alerts !!",
             alert_type="success",
@@ -181,7 +194,7 @@ class MetadataSelector:
             value=scalars.get(name, ""),
             description=_SCALAR_DOCS.get(name),
             sizing_mode="stretch_width",
-            stylesheets=_sheets(name in _REQUIRED_SCALARS),
+            stylesheets=_sheets(name in self.required_scalars),
             **kw,
         )
         self.session_description = pn.widgets.TextAreaInput(
@@ -193,6 +206,7 @@ class MetadataSelector:
             stylesheets=_sheets(True),
         )
         self.identifier = text("identifier", placeholder="leave blank to auto-generate")
+        self.session_start_time = text("session_start_time", placeholder="e.g. 2018-10-30T10:33:32-05:00")
         self.lab = text("lab")
         self.institution = text("institution")
 
@@ -243,7 +257,8 @@ class MetadataSelector:
         return pn.Card(
             style.section_label("Session"),
             self.session_description,
-            pn.Row(self.identifier, self.lab, self.institution, sizing_mode="stretch_width"),
+            pn.Row(self.identifier, self.session_start_time, sizing_mode="stretch_width"),
+            pn.Row(self.lab, self.institution, sizing_mode="stretch_width"),
             style.section_label("Experimenter", "last name first, e.g. Doe, Jane"),
             self.experimenter_box,
             add_experimenter,
@@ -588,6 +603,7 @@ class MetadataSelector:
         scalars = {
             "session_description": self.session_description.value,
             "identifier": self.identifier.value,
+            "session_start_time": self.session_start_time.value,
             "lab": self.lab.value,
             "institution": self.institution.value,
             "experimenter": experimenter,
@@ -613,6 +629,7 @@ class MetadataSelector:
         # Scalars.
         self.session_description.value = scalars.get("session_description", "")
         self.identifier.value = scalars.get("identifier", "")
+        self.session_start_time.value = scalars.get("session_start_time", "")
         self.lab.value = scalars.get("lab", "")
         self.institution.value = scalars.get("institution", "")
         self.subject_id.value = scalars.get("subject_id", "")

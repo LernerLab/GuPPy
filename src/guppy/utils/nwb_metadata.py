@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 
@@ -361,7 +362,7 @@ def field_specs(category_key: str) -> list[FieldSpec]:
 # ----------------------------------------------------------------------------------------------------------------------
 # Scalar (NWBFile / Subject) fields
 # ----------------------------------------------------------------------------------------------------------------------
-NWBFILE_KEYS = ("session_description", "identifier", "lab", "institution", "experimenter")
+NWBFILE_KEYS = ("session_description", "identifier", "session_start_time", "lab", "institution", "experimenter")
 SUBJECT_KEYS = ("subject_id", "sex", "age", "date_of_birth", "species", "genotype", "strain")
 
 
@@ -379,6 +380,33 @@ def _is_empty(value: object) -> bool:
 
 def _drop_empty(mapping: dict) -> dict:
     return {key: value for key, value in mapping.items() if not _is_empty(value)}
+
+
+def parse_session_start_time(value: object) -> datetime | None:
+    """Return an ISO 8601 session start time as a ``datetime``, or ``None`` when empty.
+
+    The value must reach the converter as a real timestamp: a quoted string in the YAML would come
+    back from ``yaml.safe_load`` as a ``str``, which ``NWBFile`` rejects.
+
+    Raises
+    ------
+    ValueError
+        If ``value`` is neither empty nor a valid ISO 8601 timestamp.
+    """
+    if _is_empty(value):
+        return None
+    if isinstance(value, datetime):
+        return value
+    return datetime.fromisoformat(str(value).strip())
+
+
+def format_session_start_time(value: object) -> str:
+    """Return a session start time as the ISO 8601 string the form edits, or ``""`` when empty."""
+    if _is_empty(value):
+        return ""
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return str(value)
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -447,6 +475,8 @@ def build_metadata_dict(
     """
     metadata: dict = {}
     nwbfile = _drop_empty({key: scalars.get(key) for key in NWBFILE_KEYS})
+    if "session_start_time" in nwbfile:
+        nwbfile["session_start_time"] = parse_session_start_time(nwbfile["session_start_time"])
     subject = _drop_empty({key: scalars.get(key) for key in SUBJECT_KEYS})
     if nwbfile:
         metadata["NWBFile"] = nwbfile
@@ -515,6 +545,7 @@ def parse_metadata_dict(metadata: dict, channels: list[Channel]) -> tuple[dict[s
     nwbfile = metadata.get("NWBFile", {})
     subject = metadata.get("Subject", {})
     scalars: dict = {key: nwbfile.get(key, "") for key in NWBFILE_KEYS}
+    scalars["session_start_time"] = format_session_start_time(scalars["session_start_time"])
     scalars.update({key: subject.get(key, "") for key in SUBJECT_KEYS})
     scalars["fiber_photometry_table_name"] = table.get("name", "")
     scalars["fiber_photometry_table_description"] = table.get("description", "")
@@ -529,13 +560,25 @@ _REQUIRED_NWBFILE_KEYS = ("session_description",)
 _REQUIRED_SUBJECT_KEYS = ("subject_id", "sex", "species")
 
 
-def validate_metadata_dict(metadata: dict, channels: list[Channel]) -> list[str]:
+def validate_metadata_dict(
+    metadata: dict, channels: list[Channel], *, require_session_start_time: bool = False
+) -> list[str]:
     """Return a list of human-readable problems that would break NWB export.
 
     Checks the metadata the form would export: required scalars, required device
     fields and links, referential integrity of every link (it must name a device
     that is actually defined), and per-channel required wavelengths and links. An
     empty list means the metadata is complete enough to export.
+
+    Parameters
+    ----------
+    metadata : dict
+        The metadata overlay to check.
+    channels : list of Channel
+        The session's fiber-photometry channels, as derived from ``storesList.csv``.
+    require_session_start_time : bool, optional
+        Whether ``NWBFile.session_start_time`` must be supplied here. Set for the acquisition
+        formats that do not record one, where the form is its only source. Default = False.
     """
     errors: list[str] = []
 
@@ -543,6 +586,14 @@ def validate_metadata_dict(metadata: dict, channels: list[Channel]) -> list[str]
     for key in _REQUIRED_NWBFILE_KEYS:
         if _is_empty(nwbfile.get(key)):
             errors.append(f"NWBFile.{key} is required.")
+    session_start_time = nwbfile.get("session_start_time")
+    if require_session_start_time and _is_empty(session_start_time):
+        errors.append("NWBFile.session_start_time is required: this session's acquisition format does not record one.")
+    elif not _is_empty(session_start_time):
+        try:
+            parse_session_start_time(session_start_time)
+        except ValueError:
+            errors.append(f"NWBFile.session_start_time '{session_start_time}' is not a valid ISO 8601 timestamp.")
     subject = metadata.get("Subject", {})
     for key in _REQUIRED_SUBJECT_KEYS:
         if _is_empty(subject.get(key)):

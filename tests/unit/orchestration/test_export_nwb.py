@@ -1,9 +1,10 @@
-"""Unit tests for the upfront NWB-export prerequisite check.
+"""Unit tests for the upfront NWB-export prerequisite checks and the export batch loop.
 
 `orchestrate_export_nwb` reads each selected session's ``GuPPyParamtersUsed.json`` and
 aborts the whole batch before writing anything if any session was processed with the
 ``concatenate`` artifact-removal method, which re-times kept samples and breaks alignment to
-the acquisition clock.
+the acquisition clock. It aborts the same way for DANDI-streamed sessions, whose source is an
+NWB file rather than raw acquisition files.
 """
 
 import json
@@ -14,6 +15,7 @@ import pytest
 from guppy.orchestration import export_nwb as export_nwb_module
 from guppy.orchestration.export_nwb import (
     _validate_artifact_removal_methods,
+    _validate_local_mode,
     orchestrate_export_nwb,
     run_export_nwb_step,
 )
@@ -62,6 +64,24 @@ class TestValidateArtifactRemovalMethods:
             orchestrate_export_nwb(input_parameters)
 
 
+class TestValidateLocalMode:
+    def test_dandi_mode_aborts(self):
+        with pytest.raises(ValueError) as excinfo:
+            _validate_local_mode({"mode": "dandi"})
+        message = str(excinfo.value)
+        assert "does not support sessions read from DANDI" in message
+        assert "https://github.com/LernerLab/GuPPy/issues/new" in message
+
+    def test_local_mode_does_not_abort(self):
+        _validate_local_mode({"mode": "local"})
+
+    def test_orchestrate_aborts_before_any_export(self, monkeypatch):
+        monkeypatch.setattr(export_nwb_module, "_validate_artifact_removal_methods", lambda pairs: None)
+        input_parameters = {"mode": "dandi", "selected_runs": {"/data/Photo_A": ["run1"]}}
+        with pytest.raises(ValueError, match="does not support sessions read from DANDI"):
+            orchestrate_export_nwb(input_parameters)
+
+
 @pytest.fixture
 def bound_step():
     """Bind a StepProgress for the duration of one test, as ``home.py`` does per step run."""
@@ -77,21 +97,47 @@ class TestOrchestrateExportNwb:
         return {"selected_runs": {"/data/Photo_A": ["run1"], "/data/Photo_B": ["run1"]}}
 
     @pytest.fixture
-    def exported(self, monkeypatch):
-        """Record the NWB paths the export loop would write, without invoking neuroconv."""
+    def stubbed_prerequisites(self, monkeypatch):
+        """Bypass the checks that read the (nonexistent) session folders on disk."""
         monkeypatch.setattr(export_nwb_module, "_validate_artifact_removal_methods", lambda pairs: None)
-        paths = []
-        monkeypatch.setattr(
-            export_nwb_module,
-            "export_session_to_nwb",
-            lambda **kwargs: paths.append(kwargs["nwbfile_path"]),
+        monkeypatch.setattr(export_nwb_module, "resolve_acquisition_format", lambda session_path: "doric")
+
+    @pytest.fixture
+    def exported(self, monkeypatch, stubbed_prerequisites):
+        """Record the calls the export loop would make, without invoking neuroconv."""
+        calls = []
+        monkeypatch.setattr(export_nwb_module, "export_session_to_nwb", lambda **kwargs: calls.append(kwargs))
+        return calls
+
+    def test_passes_each_session_its_resolved_acquisition_format(self, two_sessions, exported):
+        # The converter reads the raw folder through the format detected in it, so a session must
+        # never be exported as whatever the previous PR hardcoded.
+        orchestrate_export_nwb(two_sessions)
+
+        assert [call["acquisition_format"] for call in exported] == ["doric", "doric"]
+
+    def test_unsupported_format_fails_only_that_session(self, two_sessions, bound_step, monkeypatch):
+        monkeypatch.setattr(export_nwb_module, "_validate_artifact_removal_methods", lambda pairs: None)
+        monkeypatch.setattr(export_nwb_module, "export_session_to_nwb", lambda **kwargs: None)
+
+        def resolve(session_path):
+            if "Photo_B" in session_path:
+                raise ValueError("does not support the 'nwb' acquisition format")
+            return "tdt"
+
+        monkeypatch.setattr(export_nwb_module, "resolve_acquisition_format", resolve)
+
+        orchestrate_export_nwb(two_sessions)
+
+        assert bound_step.value == 2
+        assert bound_step.error_message == (
+            "NWB export failed for 1 of 2 session(s): Photo_B (run1): does not support the 'nwb' acquisition format"
         )
-        return paths
 
     def test_exports_each_session_and_advances_progress(self, two_sessions, exported, bound_step):
         orchestrate_export_nwb(two_sessions)
 
-        assert exported == [
+        assert [call["nwbfile_path"] for call in exported] == [
             "/data/Photo_A/Photo_A_output_run1/Photo_A_output_run1.nwb",
             "/data/Photo_B/Photo_B_output_run1/Photo_B_output_run1.nwb",
         ]
@@ -99,8 +145,9 @@ class TestOrchestrateExportNwb:
         assert bound_step.value == 2
         assert bound_step.error_message is None
 
-    def test_one_failed_session_is_reported_and_skipped(self, two_sessions, bound_step, monkeypatch):
-        monkeypatch.setattr(export_nwb_module, "_validate_artifact_removal_methods", lambda pairs: None)
+    def test_one_failed_session_is_reported_and_skipped(
+        self, two_sessions, bound_step, monkeypatch, stubbed_prerequisites
+    ):
         exported = []
 
         def export(**kwargs):
@@ -123,7 +170,7 @@ class TestOrchestrateExportNwb:
         # rather than requiring the caller to pass a sink.
         orchestrate_export_nwb(two_sessions)
 
-        assert exported == [
+        assert [call["nwbfile_path"] for call in exported] == [
             "/data/Photo_A/Photo_A_output_run1/Photo_A_output_run1.nwb",
             "/data/Photo_B/Photo_B_output_run1/Photo_B_output_run1.nwb",
         ]

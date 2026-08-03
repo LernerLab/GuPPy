@@ -83,6 +83,31 @@ class TestMetadataSelector:
         assert text_input not in selector.experimenter_inputs
         assert row not in selector.experimenter_box
 
+    # -- Session start time -------------------------------------------------------------------------------------------
+    def test_session_start_time_round_trips_through_the_metadata_dict(self, selector):
+        selector.session_start_time.value = "2018-10-30T10:33:32-05:00"
+        built = build_metadata_dict(
+            selector.get_devices(), selector.get_channel_rows(), selector.get_scalars(), CHANNELS
+        )
+        selector.set_from_metadata(built)
+        assert selector.session_start_time.value == "2018-10-30T10:33:32-05:00"
+
+    def test_not_marked_required_by_default(self, selector):
+        assert "session_start_time" not in selector.required_scalars
+        assert selector.session_start_time.stylesheets == selector.identifier.stylesheets
+
+    def test_marked_required_when_the_format_supplies_none(self, panel_extension):
+        selector = MetadataSelector(
+            session_label="Photo (run1)",
+            channels=CHANNELS,
+            initial_metadata={},
+            require_session_start_time=True,
+        )
+        assert "session_start_time" in selector.required_scalars
+        # The required mark is an extra stylesheet on top of the plain input's.
+        assert selector.session_start_time.stylesheets == selector.subject_id.stylesheets
+        assert len(selector.session_start_time.stylesheets) == len(selector.identifier.stylesheets) + 1
+
     # -- Age vs date-of-birth toggle ----------------------------------------------------------------------------------
     def test_age_branch_blanks_date_of_birth(self, selector):
         selector.age.value = "P90D"

@@ -12,6 +12,7 @@ import pytest
 from guppy.orchestration import metadata as metadata_module
 from guppy.orchestration.metadata import (
     METADATA_FILENAME,
+    _requires_session_start_time,
     _selected_session_runs,
     build_metadata_template,
     orchestrate_metadata_page,
@@ -141,6 +142,36 @@ class TestBuildMetadataTemplate:
         assert "Invalid YAML" in selector.alert.object
         assert not (tmp_path / "out").exists()
 
+    def test_save_reports_a_missing_session_start_time_when_required(self, captured, tmp_path):
+        # A format that records no start time makes the form its only source, so Save must refuse
+        # metadata that would otherwise be complete.
+        path = str(tmp_path / "out" / METADATA_FILENAME)
+        build_metadata_template("Photo (run1)", CHANNELS, {}, path, require_session_start_time=True)
+        selector = captured[0]
+        selector.set_yaml(_complete_metadata())
+
+        selector.save.clicks += 1
+
+        assert "NWBFile.session_start_time is required" in selector.alert.object
+        assert not (tmp_path / "out").exists()
+
+    def test_save_writes_when_the_required_session_start_time_is_supplied(self, captured, tmp_path):
+        path = str(tmp_path / "out" / METADATA_FILENAME)
+        build_metadata_template("Photo (run1)", CHANNELS, {}, path, require_session_start_time=True)
+        selector = captured[0]
+        built = build_metadata_dict(
+            COMPLETE_DEVICES,
+            COMPLETE_ROWS,
+            {**COMPLETE_SCALARS, "session_start_time": "2018-10-30T10:33:32-05:00"},
+            CHANNELS,
+        )
+        selector.set_yaml(built)
+
+        selector.save.clicks += 1
+
+        assert load_yaml(path) == built
+        assert "No alerts" in selector.alert.object
+
     def test_save_validation_errors_do_not_write(self, captured, tmp_path):
         path = str(tmp_path / "out" / METADATA_FILENAME)
         build_metadata_template("Photo (run1)", CHANNELS, {}, path)
@@ -151,6 +182,26 @@ class TestBuildMetadataTemplate:
 
         assert "Missing required metadata for NWB export" in selector.alert.object
         assert not (tmp_path / "out").exists()
+
+
+class TestRequiresSessionStartTime:
+    @pytest.fixture
+    def session_path(self, tmp_path):
+        session = tmp_path / "Photo_session"
+        session.mkdir()
+        return session
+
+    def test_tdt_session_does_not_require_one(self, session_path):
+        (session_path / "Photo_session.tsq").write_bytes(b"\x00")
+        assert _requires_session_start_time(str(session_path)) is False
+
+    def test_csv_session_requires_one(self, session_path):
+        (session_path / "signal_dms.csv").write_text("timestamps,data,sampling_rate\n0.0,1.0,100.0\n")
+        assert _requires_session_start_time(str(session_path)) is True
+
+    def test_unresolvable_format_requires_one(self, session_path):
+        # Step 7 reports the format problem itself; asking for the start time here costs nothing.
+        assert _requires_session_start_time(str(session_path)) is True
 
 
 class TestOrchestrateMetadataPage:
