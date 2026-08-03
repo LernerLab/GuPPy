@@ -170,7 +170,13 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
         orchestrate_metadata_page(inputParameters)
 
     def onclickExportNwb(event: object = None) -> None:
-        _run_worker_with_progress(run_export_nwb_step, sidebar.export_progress)
+        def _notify_exported(inputParameters: dict[str, object]) -> None:
+            # The export writes its .nwb files into the output directories and opens no result
+            # view, so this notification is the only sign the step finished. A partial failure
+            # takes the error branch instead, so this only fires when every session succeeded.
+            pn.state.notifications.success("Export to NWB complete.")
+
+        _run_worker_with_progress(run_export_nwb_step, sidebar.export_progress, on_success=_notify_exported)
 
     # ------------------------------------------------------------------------------------------------------------------
 

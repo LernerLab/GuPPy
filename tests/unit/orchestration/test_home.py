@@ -289,6 +289,45 @@ def test_step_handler_no_folder_selected_skips_worker(
     assert "poll" not in capture_periodic
 
 
+class TestExportNwbCompletionNotification:
+    """Export writes its files and opens no result view, so a completion notification is the
+    only sign it finished. It was lost when the step moved onto the background-thread pattern."""
+
+    def test_successful_export_notifies_completion(self, homepage, selected_session, monkeypatch, capture_periodic):
+        finished = threading.Event()
+        monkeypatch.setattr("guppy.orchestration.home.run_export_nwb_step", lambda params: finished.set())
+
+        captured = []
+        monkeypatch.setattr(pn.state.notifications, "success", lambda message: captured.append(message))
+
+        homepage._hooks["onclickExportNwb"]()
+        assert finished.wait(timeout=3), "worker thread did not run"
+        poll_until_stopped(capture_periodic)
+
+        assert captured == ["Export to NWB complete."]
+
+    def test_failed_export_notifies_the_error_and_not_success(
+        self, homepage, selected_session, monkeypatch, capture_periodic
+    ):
+        finished = threading.Event()
+
+        def worker(params):
+            progress.fail("NWB export failed for 1 of 1 session(s): Photo_A (run1): boom")
+            finished.set()
+
+        monkeypatch.setattr("guppy.orchestration.home.run_export_nwb_step", worker)
+
+        successes = []
+        monkeypatch.setattr(pn.state.notifications, "success", lambda message: successes.append(message))
+        monkeypatch.setattr(pn.state.notifications, "error", lambda message, *, duration: None)
+
+        homepage._hooks["onclickExportNwb"]()
+        assert finished.wait(timeout=3), "worker thread did not run"
+        poll_until_stopped(capture_periodic)
+
+        assert successes == []
+
+
 def test_poll_reports_progress_without_completing_while_worker_runs(
     homepage, selected_session, monkeypatch, capture_periodic
 ):
