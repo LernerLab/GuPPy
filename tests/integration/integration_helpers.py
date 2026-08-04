@@ -16,8 +16,8 @@ REPRESENTATIVE_SESSIONS = {
             "Sample_Signal_Channel": "signal_region",
             "Sample_TTL": "ttl",
         },
-        "npm_timestamp_column_names": None,
-        "npm_time_units": None,
+        "npm_timestamp_column_name": None,
+        "npm_time_unit": None,
         "npm_split_events": [True, True],
     },
     "tdt": {
@@ -27,8 +27,8 @@ REPRESENTATIVE_SESSIONS = {
             "Dv2A": "signal_dms",
             "PrtN": "port_entries_dms",
         },
-        "npm_timestamp_column_names": None,
-        "npm_time_units": None,
+        "npm_timestamp_column_name": None,
+        "npm_time_unit": None,
         "npm_split_events": [True, True],
     },
     "npm": {
@@ -38,8 +38,9 @@ REPRESENTATIVE_SESSIONS = {
             "file0_chod1": "signal_region1",
             "event0": "ttl_region1",
         },
-        "npm_timestamp_column_names": None,
-        "npm_time_units": None,
+        "npm_timestamp_column_name": None,
+        # Header-less session: its clock is in milliseconds, which only the user can state.
+        "npm_time_unit": "milliseconds",
         "npm_split_events": None,
     },
     "doric": {
@@ -49,8 +50,8 @@ REPRESENTATIVE_SESSIONS = {
             "AIn-2 - Raw": "signal_region",
             "DI--O-1": "ttl",
         },
-        "npm_timestamp_column_names": None,
-        "npm_time_units": None,
+        "npm_timestamp_column_name": None,
+        "npm_time_unit": None,
         "npm_split_events": [True, True],
     },
     "nwb": {
@@ -60,8 +61,8 @@ REPRESENTATIVE_SESSIONS = {
             "fiber_photometry_response_series_1": "signal_region",
             "events": "ttl",
         },
-        "npm_timestamp_column_names": None,
-        "npm_time_units": None,
+        "npm_timestamp_column_name": None,
+        "npm_time_unit": None,
         "npm_split_events": [True, True],
     },
 }

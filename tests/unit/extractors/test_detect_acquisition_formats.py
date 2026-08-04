@@ -165,8 +165,8 @@ def test_detect_acquisition_formats_after_npm_split_events(tmp_path):
     shutil.copytree(src, session_copy)
 
     inputParameters = {
-        "npm_timestamp_column_names": None,
-        "npm_time_units": None,
+        "npm_timestamp_column_name": None,
+        "npm_time_unit": None,
         "npm_split_events": [True, True],
     }
     NpmRecordingExtractor.discover_events_and_flags(

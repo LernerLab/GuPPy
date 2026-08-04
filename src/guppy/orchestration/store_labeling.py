@@ -17,6 +17,7 @@ from guppy.extractors import (
     TdtRecordingExtractor,
     detect_acquisition_formats,
 )
+from guppy.extractors.npm_recording_extractor import DEFAULT_TIME_UNIT
 from guppy.frontend.frontend_utils import scanPortsAndFind
 from guppy.frontend.store_labeling_instructions import (
     StoreLabelingInstructions,
@@ -205,6 +206,28 @@ def _fetchValues(
     return "#### No alerts !!"
 
 
+def _npm_params_to_persist(inputParameters: dict[str, object]) -> dict[str, object]:
+    """Snapshot the NPM decomposition parameters as the extractor will apply them.
+
+    The timestamp unit is recorded resolved rather than left unset, so
+    ``.npm_params.json`` always states the unit the run was read with.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters.
+
+    Returns
+    -------
+    dict
+        The NPM parameters (keys in :data:`NPM_PARAM_KEYS`) to persist.
+    """
+    npm_params = {key: inputParameters.get(key) for key in NPM_PARAM_KEYS}
+    if npm_params["npm_time_unit"] is None:
+        npm_params["npm_time_unit"] = DEFAULT_TIME_UNIT
+    return npm_params
+
+
 def _save(store_labeling_config: dict, select_location: str, npm_params: dict[str, object] | None = None) -> str:
     store_ids_array = np.asarray(store_labeling_config["store_ids"])
     store_labels_array = np.asarray(store_labeling_config["store_labels"])
@@ -304,8 +327,8 @@ def build_store_labeling_template(
         the confirm callback can decompose the session and persist the choices.
     npm_interactive : dict, optional
         NPM configuration-form probe data (``multiple_event_ttls``,
-        ``ts_unit_needs``, ``col_names_ts``). When set, the NPM configuration
-        form is rendered and NPM discovery/previews are deferred to its confirm
+        ``timestamp_column_options``). When set, the NPM configuration form is
+        rendered and NPM discovery/previews are deferred to its confirm
         callback.
 
     Returns
@@ -322,8 +345,7 @@ def build_store_labeling_template(
             folder_path=folder_path,
             channel_previews={},
             multiple_event_ttls=npm_interactive["multiple_event_ttls"],
-            ts_unit_needs=npm_interactive["ts_unit_needs"],
-            col_names_ts=npm_interactive["col_names_ts"],
+            timestamp_column_options=npm_interactive["timestamp_column_options"],
         )
     else:
         store_labeling_instructions = StoreLabelingInstructions(folder_path=folder_path)
@@ -395,7 +417,7 @@ def build_store_labeling_template(
         # Read the NPM choices at save time so the values confirmed on the page
         # (not any build-time snapshot) are persisted next to storesList.csv.
         is_npm = npm_interactive is not None or "data_np_v2" in flags or "data_np" in flags or "event_np" in flags
-        npm_params = {key: inputParameters.get(key) for key in NPM_PARAM_KEYS} if is_npm else None
+        npm_params = _npm_params_to_persist(inputParameters) if is_npm else None
         alert_message = _save(
             store_labeling_config=store_labeling_config, select_location=select_location, npm_params=npm_params
         )
@@ -404,14 +426,11 @@ def build_store_labeling_template(
 
     # on clicking the NPM "Confirm NPM configuration" button, following function is executed
     def confirm_npm_configuration(event: object = None) -> None:
-        npm_split_events = store_labeling_instructions.get_npm_split_events()
-        ts_units, npm_timestamp_column_names = store_labeling_instructions.get_timestamp_configuration()
+        npm_time_unit, npm_timestamp_column_name = store_labeling_instructions.get_timestamp_configuration()
 
-        inputParameters["npm_split_events"] = npm_split_events
-        inputParameters["npm_time_units"] = ts_units if ts_units else None
-        inputParameters["npm_timestamp_column_names"] = (
-            npm_timestamp_column_names if npm_timestamp_column_names else None
-        )
+        inputParameters["npm_split_events"] = store_labeling_instructions.get_npm_split_events()
+        inputParameters["npm_time_unit"] = npm_time_unit
+        inputParameters["npm_timestamp_column_name"] = npm_timestamp_column_name
 
         num_ch = inputParameters["noChannels"]
         events, _ = NpmRecordingExtractor.discover_events_and_flags(
@@ -481,7 +500,7 @@ def build_store_labeling_page(
     # NPM decomposition is parameterized by interactive Step-1 choices; persist them
     # next to storesList.csv so Step 2 can reproduce the same in-memory decomposition.
     is_npm = "data_np_v2" in flags or "data_np" in flags or "event_np" in flags
-    npm_params = {key: inputParameters.get(key) for key in NPM_PARAM_KEYS} if is_npm else None
+    npm_params = _npm_params_to_persist(inputParameters) if is_npm else None
 
     # Headless path: if store_id_to_store_label provided, write storesList.csv without building the Panel UI
     store_id_to_store_label = inputParameters.get("store_id_to_store_label")
@@ -534,8 +553,8 @@ def _compute_npm_channel_previews(
     extractor = NpmRecordingExtractor(
         folder_path=folder_path,
         num_ch=inputParameters["noChannels"],
-        npm_timestamp_column_names=inputParameters.get("npm_timestamp_column_names"),
-        npm_time_units=inputParameters.get("npm_time_units"),
+        npm_timestamp_column_name=inputParameters.get("npm_timestamp_column_name"),
+        npm_time_unit=inputParameters.get("npm_time_unit"),
         npm_split_events=inputParameters.get("npm_split_events"),
     )
     streams = extractor.decompose()
@@ -578,8 +597,8 @@ def read_header(
         Feature flags (e.g. ``"data_np_v2"``) from the discovered formats.
     npm_interactive : dict or None
         When NPM data is present and running non-headless, the probe outputs
-        (``multiple_event_ttls``, ``ts_unit_needs``, ``col_names_ts``) needed to
-        build the on-page NPM configuration form. NPM discovery is deferred to
+        (``multiple_event_ttls``, ``timestamp_column_options``) needed to build
+        the on-page NPM configuration form. NPM discovery is deferred to
         the form's confirm callback because event names depend on the answers.
         ``None`` otherwise.
     """
@@ -596,12 +615,9 @@ def read_header(
     # event names change with the split-events answer).
     npm_interactive = None
     if "npm" in all_formats and not headless:
-        multiple_event_ttls = NpmRecordingExtractor.has_multiple_event_ttls(folder_path=folder_path)
-        ts_unit_needs, col_names_ts = NpmRecordingExtractor.needs_ts_unit(folder_path=folder_path, num_ch=num_ch)
         npm_interactive = {
-            "multiple_event_ttls": multiple_event_ttls,
-            "ts_unit_needs": ts_unit_needs,
-            "col_names_ts": col_names_ts,
+            "multiple_event_ttls": NpmRecordingExtractor.has_multiple_event_ttls(folder_path=folder_path),
+            "timestamp_column_options": NpmRecordingExtractor.timestamp_column_options(folder_path=folder_path),
         }
 
     events, flags = [], []

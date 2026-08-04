@@ -1,5 +1,6 @@
 import csv
 import glob
+import json
 import os
 import shutil
 
@@ -161,18 +162,20 @@ def test_step1(tmp_path, session_subdir, store_id_to_store_label):
       - Asserts storesList.csv exists and exactly matches the provided mapping (2xN)
     """
     if session_subdir == "npm/sampleData_NPM_1":
-        npm_timestamp_column_names = None
-        npm_time_units = None
+        npm_timestamp_column_name = None
+        npm_time_unit = None
         npm_split_events = [False, True]
     elif session_subdir == "npm/sampleData_NPM_3":
-        npm_timestamp_column_names = ["ComputerTimestamp", None]
-        npm_time_units = ["milliseconds", "seconds"]
+        npm_timestamp_column_name = "ComputerTimestamp"
+        npm_time_unit = "milliseconds"
         npm_split_events = [False, True]
     else:
-        npm_timestamp_column_names = None
-        npm_time_units = None
+        npm_timestamp_column_name = None
+        npm_time_unit = None
         npm_split_events = [True, True]
     if session_subdir == "npm/sampleData_NPM_5":
+        # Header-less session: its clock is in milliseconds, which only the user can state.
+        npm_time_unit = "milliseconds"
         npm_split_events = None
     # Source sample data
     src_base_dir = str(STUBBED_TESTING_DATA)
@@ -201,8 +204,8 @@ def test_step1(tmp_path, session_subdir, store_id_to_store_label):
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
         store_id_to_store_label=store_id_to_store_label,
-        npm_timestamp_column_names=npm_timestamp_column_names,
-        npm_time_units=npm_time_units,
+        npm_timestamp_column_name=npm_timestamp_column_name,
+        npm_time_unit=npm_time_unit,
         npm_split_events=npm_split_events,
     )
 
@@ -242,3 +245,11 @@ def test_step1(tmp_path, session_subdir, store_id_to_store_label):
 
         npm_params_fp = os.path.join(out_dir, ".npm_params.json")
         assert os.path.exists(npm_params_fp), f"Missing persisted NPM params at Step 1: {npm_params_fp}"
+
+        # The persisted unit is the only record of the clock a run was read with, so it must
+        # state the unit that was actually applied — not a default the extractor overrode
+        # (issue #411). "seconds" is what an unset unit resolves to.
+        with open(npm_params_fp) as npm_params_file:
+            npm_params = json.load(npm_params_file)
+        assert npm_params["npm_time_unit"] == (npm_time_unit or "seconds")
+        assert npm_params["npm_timestamp_column_name"] == npm_timestamp_column_name

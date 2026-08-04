@@ -26,8 +26,8 @@ def test_combine_data(tmp_path):
     expected_recording_site = "dms"
     expected_ttl = "port_entries_dms"
 
-    npm_timestamp_column_names = None
-    npm_time_units = None
+    npm_timestamp_column_name = None
+    npm_time_unit = None
     npm_split_events = [True, True]
 
     # Use the CSV sample session
@@ -63,8 +63,8 @@ def test_combine_data(tmp_path):
         base_dir=base_dir,
         selected_folders=selected_folders,
         store_id_to_store_label=store_id_to_store_label,
-        npm_timestamp_column_names=npm_timestamp_column_names,
-        npm_time_units=npm_time_units,
+        npm_timestamp_column_name=npm_timestamp_column_name,
+        npm_time_unit=npm_time_unit,
         npm_split_events=npm_split_events,
     )
 
@@ -74,8 +74,8 @@ def test_combine_data(tmp_path):
     step2(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        npm_timestamp_column_names=npm_timestamp_column_names,
-        npm_time_units=npm_time_units,
+        npm_timestamp_column_name=npm_timestamp_column_name,
+        npm_time_unit=npm_time_unit,
         npm_split_events=npm_split_events,
         selected_runs=selected_runs,
     )
@@ -84,8 +84,8 @@ def test_combine_data(tmp_path):
     step3(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        npm_timestamp_column_names=npm_timestamp_column_names,
-        npm_time_units=npm_time_units,
+        npm_timestamp_column_name=npm_timestamp_column_name,
+        npm_time_unit=npm_time_unit,
         npm_split_events=npm_split_events,
         combine_data=True,
         selected_runs=selected_runs,
@@ -95,8 +95,8 @@ def test_combine_data(tmp_path):
     step4(
         base_dir=str(tmp_base),
         selected_folders=selected_folders,
-        npm_timestamp_column_names=npm_timestamp_column_names,
-        npm_time_units=npm_time_units,
+        npm_timestamp_column_name=npm_timestamp_column_name,
+        npm_time_unit=npm_time_unit,
         npm_split_events=npm_split_events,
         combine_data=True,
         selected_runs=selected_runs,
