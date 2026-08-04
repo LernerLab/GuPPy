@@ -8,17 +8,12 @@ either step's orchestration.
 from .utils import RAISE_ISSUE_URL
 from ..extractors.detect_acquisition_formats import detect_acquisition_formats
 
-# The acquisition formats NWB export can read.
-SUPPORTED_ACQUISITION_FORMATS = ("tdt", "doric", "csv")
+# The acquisition formats NWB export can read: every format GuPPy reads raw acquisition files for.
+SUPPORTED_ACQUISITION_FORMATS = ("tdt", "doric", "npm", "csv")
 
-# The rest of what GuPPy reads, each with why the export cannot take it yet. Naming the reason beats a
-# bare "unsupported": one of these is a data-correctness hold rather than missing plumbing.
+# The rest of what GuPPy reads, each with why the export cannot take it. Naming the reason beats a
+# bare "unsupported".
 _UNSUPPORTED_ACQUISITION_FORMATS = {
-    "npm": (
-        "GuPPy records a timestamp unit for a Neurophotometrics run that does not match the one it "
-        "applied, so the exported timestamps would disagree with GuPPy's own by a factor of 1000. "
-        "Tracked in https://github.com/LernerLab/GuPPy/issues/411."
-    ),
     "nwb": (
         "A session read from an NWB file has no raw acquisition to bundle with the GuPPy outputs, and "
         "the converter has no interface for reading one back out."

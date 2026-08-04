@@ -56,6 +56,7 @@ class TestResolveAcquisitionFormat:
             (write_tdt, "tdt"),
             (write_doric_hdf5, "doric"),
             (write_doric_csv, "doric"),
+            (write_npm, "npm"),
             (write_csv_data, "csv"),
             (write_csv_event, "csv"),
         ],
@@ -77,16 +78,6 @@ class TestResolveAcquisitionFormat:
         message = str(excinfo.value)
         assert "does not support the 'nwb' acquisition format" in message
         assert "no raw acquisition to bundle" in message
-
-    def test_npm_is_rejected_and_names_the_blocking_issue(self, session_path):
-        # Held back until GuPPy records the timestamp unit it actually applied; the export would
-        # otherwise write timestamps 1000x GuPPy's own.
-        write_npm(session_path)
-        with pytest.raises(ValueError) as excinfo:
-            resolve_acquisition_format(str(session_path))
-        message = str(excinfo.value)
-        assert "does not support the 'npm' acquisition format" in message
-        assert "https://github.com/LernerLab/GuPPy/issues/411" in message
 
     def test_tdt_with_a_custom_event_csv_is_rejected_as_mixed(self, session_path):
         # Custom events are written as single-column CSVs into the session folder, which makes a TDT
@@ -116,7 +107,7 @@ class TestAcquisitionSuppliesSessionStartTime:
         write_tdt(session_path)
         assert acquisition_supplies_session_start_time(session_folder_path=str(session_path), acquisition_format="tdt")
 
-    @pytest.mark.parametrize("acquisition_format", ["doric", "csv"])
+    @pytest.mark.parametrize("acquisition_format", ["doric", "npm", "csv"])
     def test_every_other_format_leaves_it_to_the_form(self, session_path, acquisition_format):
         # A .doric HDF5 export carries a creation timestamp only when the acquisition software wrote
         # one, so Doric cannot be counted on either.

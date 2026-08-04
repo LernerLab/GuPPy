@@ -13,6 +13,7 @@ import pytest
 from pynwb import NWBHDF5IO
 
 from guppy.orchestration.export_nwb import export_session_to_nwb
+from guppy.utils._hdf5_io import read_hdf5
 from guppy.utils.acquisition_format import (
     acquisition_supplies_session_start_time,
     resolve_acquisition_format,
@@ -36,6 +37,7 @@ SUPPLIED_SESSION_START_TIME = datetime.fromisoformat("2020-05-04T09:00:00+00:00"
 EXPECTED_TOPOLOGY = {
     "tdt": {"recording_sites": ["dms"], "event_types": {"port_entries_dms"}},
     "csv": {"recording_sites": ["region"], "event_types": {"ttl"}},
+    "npm": {"recording_sites": ["region1"], "event_types": {"ttl_region1"}},
     "doric": {"recording_sites": ["region"], "event_types": {"ttl"}},
 }
 
@@ -144,6 +146,39 @@ class TestExportSessionToNwb:
             behavioral_events = nwbfile.events["BehavioralEvents"].to_dataframe()
             assert set(behavioral_events["event_type"]) == expected["event_types"]
 
+    def test_acquisition_timestamps_are_on_the_clock_guppy_analyzed(
+        self, pipeline_state, acquisition_format, metadata_yaml_path, tmp_path
+    ):
+        """The raw series must land on GuPPy's own clock, not a unit-scaled copy of it.
+
+        GuPPy records that clock's origin as ``recordingStart`` (0 for TDT, the first raw timestamp
+        otherwise). A series read in the wrong timestamp unit lands orders of magnitude away from it
+        while every topology assertion still passes -- the failure that held Neurophotometrics back
+        (issue #411), and the one this guards against for all four formats.
+        """
+        nwbfile_path = tmp_path / "exported.nwb"
+        export_session_to_nwb(
+            session_folder_path=str(pipeline_state["session_copy"]),
+            acquisition_format=acquisition_format,
+            guppy_folder_path=str(pipeline_state["output_directory"]),
+            metadata_yaml_path=metadata_yaml_path,
+            nwbfile_path=str(nwbfile_path),
+        )
+
+        recording_site = EXPECTED_TOPOLOGY[acquisition_format]["recording_sites"][0]
+        guppy_origin = read_hdf5(
+            f"timeCorrection_{recording_site}", str(pipeline_state["output_directory"]), "recordingStart"
+        )[0]
+
+        with NWBHDF5IO(str(nwbfile_path), "r") as io:
+            series = io.read().acquisition["FiberPhotometryResponseSeriesSignal"]
+            # A regularly sampled series carries starting_time + rate rather than a timestamps array.
+            first_timestamp = float(series.starting_time if series.timestamps is None else series.timestamps[0])
+
+        # Loose on purpose: this catches a wrong unit (a factor of 1000), not sample-level drift
+        # between the reference channel GuPPy timed from and the one stacked into this series.
+        assert first_timestamp == pytest.approx(guppy_origin, abs=1.0)
+
     def test_session_start_time_comes_from_the_acquisition_or_the_form(
         self, pipeline_state, acquisition_format, metadata_yaml_path, tmp_path
     ):
@@ -196,12 +231,3 @@ class TestUnsupportedSource:
         with pytest.raises(ValueError) as excinfo:
             resolve_acquisition_format(str(step5_output_nwb["session_copy"]))
         assert "does not support the 'nwb' acquisition format" in str(excinfo.value)
-
-    def test_npm_session_is_refused_and_names_the_blocking_issue(self, step5_output_npm):
-        # Held back until GuPPy records the timestamp unit it actually applied (issue #411): the
-        # export would otherwise write timestamps 1000x GuPPy's own, silently.
-        with pytest.raises(ValueError) as excinfo:
-            resolve_acquisition_format(str(step5_output_npm["session_copy"]))
-        message = str(excinfo.value)
-        assert "does not support the 'npm' acquisition format" in message
-        assert "https://github.com/LernerLab/GuPPy/issues/411" in message
