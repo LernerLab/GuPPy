@@ -100,8 +100,8 @@ def test_npm_session_routes_all_events_to_npm_extractor(tmp_path):
     input_parameters = {
         "noChannels": 2,
         "npm_split_events": [False, True],
-        "npm_timestamp_column_names": None,
-        "npm_time_units": None,
+        "npm_timestamp_column_name": None,
+        "npm_time_unit": None,
     }
     result = _build_event_to_extractor(
         folder_path=str(session_copy),

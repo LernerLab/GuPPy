@@ -49,8 +49,8 @@ def test_step4(step3_fixture_name, expected_recording_site, expected_ttl, reques
     step4(
         base_dir=base_directory,
         selected_folders=[str(session_copy)],
-        npm_timestamp_column_names=pipeline_state["npm_timestamp_column_names"],
-        npm_time_units=pipeline_state["npm_time_units"],
+        npm_timestamp_column_name=pipeline_state["npm_timestamp_column_name"],
+        npm_time_unit=pipeline_state["npm_time_unit"],
         npm_split_events=pipeline_state["npm_split_events"],
         selected_runs={session_copy: ["1"]},
     )

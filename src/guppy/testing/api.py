@@ -180,8 +180,8 @@ def step1(
     base_dir: str,
     selected_folders: Iterable[str],
     store_id_to_store_label: dict[str, str],
-    npm_timestamp_column_names: list[str | None] | None = None,
-    npm_time_units: list[str] | None = None,
+    npm_timestamp_column_name: str | None = None,
+    npm_time_unit: str | None = None,
     npm_split_events: list[bool] | None = None,
     dandi_uri_map: dict[str, str] | None = None,
     run_name: str | None = None,
@@ -208,10 +208,11 @@ def step1(
     store_id_to_store_label : dict[str, str]
         Mapping from raw store_ids (e.g., "Dv1A") to store labels
         (e.g., "control_DMS"). Insertion order is preserved.
-    npm_timestamp_column_names : list[str | None] | None
-        List of timestamp column names for NPM files, one per CSV file. None if not applicable.
-    npm_time_units : list[str] | None
-        List of time units for NPM files, one per CSV file (e.g., 'seconds', 'milliseconds'). None if not applicable.
+    npm_timestamp_column_name : str | None
+        Timestamp column to use in NPM files that offer more than one. None to use the first.
+    npm_time_unit : str | None
+        Unit of the NPM session's timestamps (e.g., 'seconds', 'milliseconds'), applied to every
+        file in the folder. None defaults to seconds.
     npm_split_events : list[bool] | None
         List of booleans indicating whether to split events for NPM files, one per CSV file. None if not applicable.
 
@@ -282,8 +283,8 @@ def step1(
     input_params["run_name_policy"] = run_name_policy
 
     # Add npm parameters
-    input_params["npm_timestamp_column_names"] = npm_timestamp_column_names
-    input_params["npm_time_units"] = npm_time_units
+    input_params["npm_timestamp_column_name"] = npm_timestamp_column_name
+    input_params["npm_time_unit"] = npm_time_unit
     input_params["npm_split_events"] = npm_split_events
 
     # Inject DANDI mode and URI map for streaming
@@ -301,8 +302,8 @@ def step2(
     *,
     base_dir: str,
     selected_folders: Iterable[str],
-    npm_timestamp_column_names: list[str | None] | None = None,
-    npm_time_units: list[str] | None = None,
+    npm_timestamp_column_name: str | None = None,
+    npm_time_unit: str | None = None,
     npm_split_events: list[bool] | None = None,
     number_of_cores: int = 1,
     dandi_uri_map: dict[str, str] | None = None,
@@ -324,10 +325,11 @@ def step2(
         must reside directly under this path.
     selected_folders : Iterable[str]
         Absolute paths to the session directories to process.
-    npm_timestamp_column_names : list[str | None] | None
-        List of timestamp column names for NPM files, one per CSV file. None if not applicable.
-    npm_time_units : list[str] | None
-        List of time units for NPM files, one per CSV file (e.g., 'seconds', 'milliseconds'). None if not applicable.
+    npm_timestamp_column_name : str | None
+        Timestamp column to use in NPM files that offer more than one. None to use the first.
+    npm_time_unit : str | None
+        Unit of the NPM session's timestamps (e.g., 'seconds', 'milliseconds'), applied to every
+        file in the folder. None defaults to seconds.
     npm_split_events : list[bool] | None
         List of booleans indicating whether to split events for NPM files, one per CSV file. None if not applicable.
     number_of_cores : int
@@ -378,8 +380,8 @@ def step2(
     input_params = template._hooks["getInputParameters"]()
 
     # Inject explicit NPM parameters
-    input_params["npm_timestamp_column_names"] = npm_timestamp_column_names
-    input_params["npm_time_units"] = npm_time_units
+    input_params["npm_timestamp_column_name"] = npm_timestamp_column_name
+    input_params["npm_time_unit"] = npm_time_unit
     input_params["npm_split_events"] = npm_split_events
 
     # Override parallelism — default 1 keeps tests single-process
@@ -403,8 +405,8 @@ def step3(
     *,
     base_dir: str,
     selected_folders: Iterable[str],
-    npm_timestamp_column_names: list[str | None] | None = None,
-    npm_time_units: list[str] | None = None,
+    npm_timestamp_column_name: str | None = None,
+    npm_time_unit: str | None = None,
     npm_split_events: list[bool] | None = None,
     combine_data: bool = False,
     remove_artifacts: bool = False,
@@ -437,10 +439,11 @@ def step3(
         must reside directly under this path.
     selected_folders : Iterable[str]
         Absolute paths to the session directories to process.
-    npm_timestamp_column_names : list[str | None] | None
-        List of timestamp column names for NPM files, one per CSV file. None if not applicable.
-    npm_time_units : list[str] | None
-        List of time units for NPM files, one per CSV file (e.g., 'seconds', 'milliseconds'). None if not applicable.
+    npm_timestamp_column_name : str | None
+        Timestamp column to use in NPM files that offer more than one. None to use the first.
+    npm_time_unit : str | None
+        Unit of the NPM session's timestamps (e.g., 'seconds', 'milliseconds'), applied to every
+        file in the folder. None defaults to seconds.
     npm_split_events : list[bool] | None
         List of booleans indicating whether to split events for NPM files, one per CSV file. None if not applicable.
     combine_data : bool
@@ -529,8 +532,8 @@ def step3(
     input_params = template._hooks["getInputParameters"]()
 
     # Inject explicit NPM parameters
-    input_params["npm_timestamp_column_names"] = npm_timestamp_column_names
-    input_params["npm_time_units"] = npm_time_units
+    input_params["npm_timestamp_column_name"] = npm_timestamp_column_name
+    input_params["npm_time_unit"] = npm_time_unit
     input_params["npm_split_events"] = npm_split_events
 
     # Inject combine_data
@@ -580,8 +583,8 @@ def step4(
     *,
     base_dir: str,
     selected_folders: Iterable[str],
-    npm_timestamp_column_names: list[str | None] | None = None,
-    npm_time_units: list[str] | None = None,
+    npm_timestamp_column_name: str | None = None,
+    npm_time_unit: str | None = None,
     npm_split_events: list[bool] | None = None,
     combine_data: bool = False,
     compute_corr: bool = False,
@@ -612,10 +615,11 @@ def step4(
         must reside directly under this path.
     selected_folders : Iterable[str]
         Absolute paths to the session directories to process.
-    npm_timestamp_column_names : list[str | None] | None
-        List of timestamp column names for NPM files, one per CSV file. None if not applicable.
-    npm_time_units : list[str] | None
-        List of time units for NPM files, one per CSV file (e.g., 'seconds', 'milliseconds'). None if not applicable.
+    npm_timestamp_column_name : str | None
+        Timestamp column to use in NPM files that offer more than one. None to use the first.
+    npm_time_unit : str | None
+        Unit of the NPM session's timestamps (e.g., 'seconds', 'milliseconds'), applied to every
+        file in the folder. None defaults to seconds.
     npm_split_events : list[bool] | None
         List of booleans indicating whether to split events for NPM files, one per CSV file. None if not applicable.
     combine_data : bool
@@ -694,8 +698,8 @@ def step4(
     input_params = template._hooks["getInputParameters"]()
 
     # Inject explicit NPM parameters
-    input_params["npm_timestamp_column_names"] = npm_timestamp_column_names
-    input_params["npm_time_units"] = npm_time_units
+    input_params["npm_timestamp_column_name"] = npm_timestamp_column_name
+    input_params["npm_time_unit"] = npm_time_unit
     input_params["npm_split_events"] = npm_split_events
 
     # Inject combine_data
@@ -739,8 +743,8 @@ def step5(
     *,
     base_dir: str,
     selected_folders: Iterable[str],
-    npm_timestamp_column_names: list[str | None] | None = None,
-    npm_time_units: list[str] | None = None,
+    npm_timestamp_column_name: str | None = None,
+    npm_time_unit: str | None = None,
     npm_split_events: list[bool] | None = None,
     visualize_zscore_or_dff: str = "z_score",
     visualize_average_results: bool = False,
@@ -766,10 +770,11 @@ def step5(
         must reside directly under this path.
     selected_folders : Iterable[str]
         Absolute paths to the session directories to process.
-    npm_timestamp_column_names : list[str | None] | None
-        List of timestamp column names for NPM files, one per CSV file. None if not applicable.
-    npm_time_units : list[str] | None
-        List of time units for NPM files, one per CSV file. None if not applicable.
+    npm_timestamp_column_name : str | None
+        Timestamp column to use in NPM files that offer more than one. None to use the first.
+    npm_time_unit : str | None
+        Unit of the NPM session's timestamps (e.g., 'seconds', 'milliseconds'), applied to every
+        file in the folder. None defaults to seconds.
     npm_split_events : list[bool] | None
         List of booleans indicating whether to split events for NPM files. None if not applicable.
     visualize_zscore_or_dff : str
@@ -826,8 +831,8 @@ def step5(
     input_params = template._hooks["getInputParameters"]()
 
     # Inject explicit NPM parameters
-    input_params["npm_timestamp_column_names"] = npm_timestamp_column_names
-    input_params["npm_time_units"] = npm_time_units
+    input_params["npm_timestamp_column_name"] = npm_timestamp_column_name
+    input_params["npm_time_unit"] = npm_time_unit
     input_params["npm_split_events"] = npm_split_events
 
     # Inject visualization signal-type selection

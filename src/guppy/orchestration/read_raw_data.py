@@ -101,8 +101,8 @@ def _build_event_to_extractor(*, folder_path: str, store_array: np.ndarray, inpu
             extractor = NpmRecordingExtractor(
                 folder_path=folder_path,
                 num_ch=num_ch,
-                npm_timestamp_column_names=inputParameters.get("npm_timestamp_column_names"),
-                npm_time_units=inputParameters.get("npm_time_units"),
+                npm_timestamp_column_name=inputParameters.get("npm_timestamp_column_name"),
+                npm_time_unit=inputParameters.get("npm_time_unit"),
                 npm_split_events=inputParameters.get("npm_split_events"),
             )
             format_events, _ = NpmRecordingExtractor.discover_events_and_flags(

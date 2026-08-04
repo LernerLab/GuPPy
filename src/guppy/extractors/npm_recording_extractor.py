@@ -19,6 +19,11 @@ pn.extension()
 
 logger = logging.getLogger(__name__)
 
+# Timestamp units an NPM session can be recorded in, and the factor that converts them
+# to seconds. Nothing in the raw files states which one applies, so it is a parameter.
+TIME_UNIT_DIVISORS = {"seconds": 1.0, "milliseconds": 1e3, "microseconds": 1e6}
+DEFAULT_TIME_UNIT = "seconds"
+
 
 class NpmRecordingExtractor(CsvRecordingExtractor):
     """
@@ -37,12 +42,13 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         Path to the session folder containing the NPM CSV files.
     num_ch : int, optional
         Number of interleaved channels expected. Default is 2.
-    npm_timestamp_column_names : list of str, optional
-        Per-file timestamp column names (for files with multiple timestamp
-        columns). ``None`` lets the extractor pick the first timestamp column.
-    npm_time_units : list of str, optional
-        Per-file timestamp units (``"seconds"``, ``"milliseconds"``, or
-        ``"microseconds"``). ``None`` defaults to seconds per file.
+    npm_timestamp_column_name : str, optional
+        Timestamp column to use in files that have more than one. ``None`` lets
+        the extractor pick the first timestamp column.
+    npm_time_unit : str, optional
+        Unit of the session's timestamps (``"seconds"``, ``"milliseconds"``, or
+        ``"microseconds"``), applied to every file in the folder. ``None``
+        defaults to seconds.
     npm_split_events : list of bool, optional
         Per-file flag controlling whether a multi-type event column is split
         into one event stream per unique value. ``None`` defaults to no split.
@@ -53,14 +59,14 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         folder_path: str,
         *,
         num_ch: int = 2,
-        npm_timestamp_column_names: list[str] | None = None,
-        npm_time_units: list[str] | None = None,
+        npm_timestamp_column_name: str | None = None,
+        npm_time_unit: str | None = None,
         npm_split_events: list[bool] | None = None,
     ) -> None:
         self.folder_path = folder_path
         self.num_ch = num_ch
-        self.npm_timestamp_column_names = npm_timestamp_column_names
-        self.npm_time_units = npm_time_units
+        self.npm_timestamp_column_name = npm_timestamp_column_name
+        self.npm_time_unit = npm_time_unit
         self.npm_split_events = npm_split_events
         self._decomposed: dict[str, dict[str, np.ndarray]] | None = None
 
@@ -90,23 +96,136 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         flags : list of str
             Format indicators or file type flags.
         """
-        npm_timestamp_column_names = None
-        npm_time_units = None
+        npm_timestamp_column_name = None
+        npm_time_unit = None
         npm_split_events = None
         if isinstance(inputParameters, dict):
-            npm_timestamp_column_names = inputParameters.get("npm_timestamp_column_names")
-            npm_time_units = inputParameters.get("npm_time_units")
+            npm_timestamp_column_name = inputParameters.get("npm_timestamp_column_name")
+            npm_time_unit = inputParameters.get("npm_time_unit")
             # TODO: come up with a better name for npm_split_events that can be appropriately pluralized for a list
             npm_split_events = inputParameters.get("npm_split_events")
 
         streams, flags = cls._decompose_streams(
             folder_path=folder_path,
             num_ch=num_ch,
-            npm_timestamp_column_names=npm_timestamp_column_names,
-            npm_time_units=npm_time_units,
+            npm_timestamp_column_name=npm_timestamp_column_name,
+            npm_time_unit=npm_time_unit,
             npm_split_events=npm_split_events,
         )
         return list(streams.keys()), flags
+
+    @staticmethod
+    def _list_npm_files(folder_path: str) -> list[str]:
+        """List the raw NPM source files in a session folder, in processing order.
+
+        Excludes the derived per-channel/per-event filenames and the
+        single-column timestamp CSVs handled by
+        :class:`~guppy.extractors.CsvRecordingExtractor`.
+
+        Parameters
+        ----------
+        folder_path : str
+            Path to the session folder.
+
+        Returns
+        -------
+        list of str
+            Sorted paths of the raw NPM files. The index of a path in this list
+            is the ``file{i}_`` prefix its channels are named with, and the
+            index its ``npm_split_events`` entry is read from.
+        """
+        path = sorted(glob.glob(os.path.join(folder_path, "*.csv"))) + sorted(
+            glob.glob(os.path.join(folder_path, "*.doric"))
+        )
+        path_chev = glob.glob(os.path.join(folder_path, "*chev*"))
+        path_chod = glob.glob(os.path.join(folder_path, "*chod*"))
+        path_chpr = glob.glob(os.path.join(folder_path, "*chpr*"))
+        path_event = glob.glob(os.path.join(folder_path, "event*"))
+        path_chev_chod_event = path_chev + path_chod + path_event + path_chpr
+
+        path = sorted(list(set(path) - set(path_chev_chod_event)))
+        return [csv_path for csv_path in path if not (csv_path.endswith(".csv") and _is_event_csv(csv_path))]
+
+    @classmethod
+    def _classify_npm_file(cls, path: str) -> tuple[str, pd.DataFrame, bool]:
+        """Read one raw NPM file and determine which NPM layout it uses.
+
+        Parameters
+        ----------
+        path : str
+            Path to a raw NPM file, as returned by :meth:`_list_npm_files`.
+
+        Returns
+        -------
+        flag : str
+            ``"data_np"`` (interleaved channels, no state column),
+            ``"data_np_v2"`` (interleaved channels annotated by a
+            ``Flags``/``LedState`` column), or ``"event_np"`` (timestamp/value
+            event pairs).
+        dataframe : pd.DataFrame
+            The file's contents, read with or without a text header according to
+            the layout.
+        columns_are_strings : bool
+            Whether the file carries a text header row.
+        """
+        extension = os.path.basename(path).split(".")[-1]
+        if extension == "doric":
+            raise ValueError(f"Doric files are not supported by NpmRecordingExtractor; got '{path}'.")
+        df = pd.read_csv(path, header=None, nrows=2, index_col=False, dtype=str)
+        df = df.dropna(axis=1, how="all")
+        header_values = np.array(df).flatten()
+        check_all_str = []
+        for element in header_values:
+            try:
+                float(element)
+            except:
+                check_all_str.append(element)
+        if len(check_all_str) == len(header_values):
+            raise ValueError(
+                f"CSV file '{path}' appears to be a Doric .csv (all-string header rows). "
+                "NpmRecordingExtractor only supports NPM .csv files; use the Doric extractor instead."
+            )
+        df = pd.read_csv(path, index_col=False)
+        _, numeric_headers = cls._check_header(df)
+
+        # check dataframe structure and read data accordingly
+        if len(numeric_headers) > 0:
+            columns_are_strings = False
+            df = pd.read_csv(path, header=None)
+        else:
+            columns_are_strings = True
+        columns = np.array(list(df.columns), dtype=str)
+
+        # check the structure of dataframe and assign flag to the type of file
+        if len(columns) == 1:
+            raise ValueError(
+                f"CSV file '{path}' has 1 column (event .csv layout). "
+                "NpmRecordingExtractor only supports NPM .csv files; use the standard CSV extractor for event timestamp files."
+            )
+        if len(columns) == 3:
+            raise ValueError(
+                f"CSV file '{path}' has 3 columns {list(columns)} (data .csv layout). "
+                "NpmRecordingExtractor only supports NPM .csv files; use the standard CSV extractor for 3-column data files."
+            )
+        if len(columns) == 2:
+            flag = "event_or_data_np"
+        else:
+            flag = "data_np"
+
+        if columns_are_strings and (
+            "flags" in np.char.lower(np.array(columns)) or "ledstate" in np.char.lower(np.array(columns))
+        ):
+            flag = flag + "_v2"
+
+        if flag == "event_or_data_np":
+            second_column_values = list(df.iloc[:, 1])
+            check_float = [True for value in second_column_values if isinstance(value, float)]
+            if len(second_column_values) == len(check_float) and not columns_are_strings:
+                flag = "data_np"
+            else:
+                flag = "event_np"
+
+        return flag, df, columns_are_strings
 
     @classmethod
     def _decompose_streams(
@@ -114,8 +233,8 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         *,
         folder_path: str,
         num_ch: int,
-        npm_timestamp_column_names: list[str] | None,
-        npm_time_units: list[str] | None,
+        npm_timestamp_column_name: str | None,
+        npm_time_unit: str | None,
         npm_split_events: list[bool] | None,
     ) -> tuple[dict[str, dict[str, np.ndarray]], list[str]]:
         """
@@ -130,10 +249,12 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             Path to the folder containing the raw NPM files.
         num_ch : int
             Number of interleaved channels expected.
-        npm_timestamp_column_names : list of str or None
-            Per-file timestamp column names; ``None`` for default selection.
-        npm_time_units : list of str or None
-            Per-file timestamp units; ``None`` for seconds.
+        npm_timestamp_column_name : str or None
+            Timestamp column to use in files with more than one; ``None`` for
+            default selection.
+        npm_time_unit : str or None
+            Unit of the session's timestamps, applied to every file in the
+            folder; ``None`` for seconds.
         npm_split_events : list of bool or None
             Per-file event-split flags; ``None`` for no split.
 
@@ -148,18 +269,8 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             One format flag per raw source file processed.
         """
         logger.debug("If it exists, importing NPM file based on the structure of file")
-        path = sorted(glob.glob(os.path.join(folder_path, "*.csv"))) + sorted(
-            glob.glob(os.path.join(folder_path, "*.doric"))
-        )
-        path_chev = glob.glob(os.path.join(folder_path, "*chev*"))
-        path_chod = glob.glob(os.path.join(folder_path, "*chod*"))
-        path_chpr = glob.glob(os.path.join(folder_path, "*chpr*"))
-        path_event = glob.glob(os.path.join(folder_path, "event*"))
-        path_chev_chod_event = path_chev + path_chod + path_event + path_chpr
-
-        path = sorted(list(set(path) - set(path_chev_chod_event)))
-        # Exclude single-column timestamp CSVs — those are handled by CsvRecordingExtractor.
-        path = [csv_path for csv_path in path if not (csv_path.endswith(".csv") and _is_event_csv(csv_path))]
+        divisor = cls._time_unit_divisor(npm_time_unit)
+        path = cls._list_npm_files(folder_path)
 
         streams: dict[str, dict[str, np.ndarray]] = {}
         # Track derived stream names in creation order so the cross-file channel
@@ -167,86 +278,15 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         chev_names: list[str] = []
         chod_names: list[str] = []
         chpr_names: list[str] = []
-        event_names: list[str] = []
         flags: list[str] = []
-        ts_unit = "seconds"
         for i in range(len(path)):
-            # TODO: validate npm_timestamp_column_names, npm_time_units, npm_split_events lengths
-            if npm_timestamp_column_names is None:
-                npm_timestamp_column_name = None
-            else:
-                npm_timestamp_column_name = npm_timestamp_column_names[i]
-            if npm_time_units is None:
-                npm_time_unit = "seconds"
-            else:
-                npm_time_unit = npm_time_units[i]
+            # TODO: validate npm_split_events length
             if npm_split_events is None:
                 split_events = False
             else:
                 split_events = npm_split_events[i]
 
-            extension = os.path.basename(path[i]).split(".")[-1]
-            if extension == "doric":
-                raise ValueError(f"Doric files are not supported by NpmRecordingExtractor; got '{path[i]}'.")
-            df = pd.read_csv(path[i], header=None, nrows=2, index_col=False, dtype=str)
-            df = df.dropna(axis=1, how="all")
-            header_values = np.array(df).flatten()
-            check_all_str = []
-            for element in header_values:
-                try:
-                    float(element)
-                except:
-                    check_all_str.append(i)
-            if len(check_all_str) == len(header_values):
-                raise ValueError(
-                    f"CSV file '{path[i]}' appears to be a Doric .csv (all-string header rows). "
-                    "NpmRecordingExtractor only supports NPM .csv files; use the Doric extractor instead."
-                )
-            df = pd.read_csv(path[i], index_col=False)
-            _, numeric_headers = cls._check_header(df)
-
-            # check dataframe structure and read data accordingly
-            if len(numeric_headers) > 0:
-                columns_isstr = False
-                df = pd.read_csv(path[i], header=None)
-                columns = np.array(list(df.columns), dtype=str)
-            else:
-                df = df
-                columns_isstr = True
-                columns = np.array(list(df.columns), dtype=str)
-            # check the structure of dataframe and assign flag to the type of file
-            if len(columns) == 1:
-                raise ValueError(
-                    f"CSV file '{path[i]}' has 1 column (event .csv layout). "
-                    "NpmRecordingExtractor only supports NPM .csv files; use the standard CSV extractor for event timestamp files."
-                )
-            if len(columns) == 3:
-                raise ValueError(
-                    f"CSV file '{path[i]}' has 3 columns {list(columns)} (data .csv layout). "
-                    "NpmRecordingExtractor only supports NPM .csv files; use the standard CSV extractor for 3-column data files."
-                )
-            if len(columns) == 2:
-                flag = "event_or_data_np"
-            elif len(columns) > 2:
-                flag = "data_np"
-
-            if columns_isstr == True and (
-                "flags" in np.char.lower(np.array(columns)) or "ledstate" in np.char.lower(np.array(columns))
-            ):
-                flag = flag + "_v2"
-            else:
-                flag = flag
-
-            # used assigned flags to process the files and read the data
-            if flag == "event_or_data_np":
-                second_column_values = list(df.iloc[:, 1])
-                check_float = [True for value in second_column_values if isinstance(value, float)]
-                if len(second_column_values) == len(check_float) and columns_isstr == False:
-                    flag = "data_np"
-                elif columns_isstr == True and ("value" in np.char.lower(np.array(columns))):
-                    flag = "event_np"
-                else:
-                    flag = "event_np"
+            flag, df, _ = cls._classify_npm_file(path[i])
 
             flags.append(flag)
             logger.info(flag)
@@ -275,15 +315,12 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
                         matching_indices = np.where(type_val == type_val_unique[j])
                         name = "event" + str(type_val_unique[j])
                         streams[name] = {"timestamps": np.asarray(timestamps[matching_indices], dtype=float)}
-                        event_names.append(name)
                 else:
                     timestamps = np.array(df.iloc[:, 0])
                     name = "event" + str(0)
                     streams[name] = {"timestamps": np.asarray(timestamps, dtype=float)}
-                    event_names.append(name)
             else:
                 file_prefix = f"file{str(i)}_"
-                ts_unit = npm_time_unit
                 df = cls._update_df_with_timestamp_columns(df, timestamp_column_name=npm_timestamp_column_name)
                 df, indices_dict, _ = cls.decide_indices(file_prefix, df, flag)
                 keys = list(indices_dict.keys())
@@ -299,55 +336,68 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
                             }
                             cls._register_channel_name(name, keys[k], chev_names, chod_names, chpr_names)
 
-        # Convert timestamps to seconds and compute sampling rates. Timestamps keep the
-        # acquisition's own clock. Only runs when at least one data channel is present.
-        if "data_np_v2" in flags or "data_np" in flags:
-            if "data_np_v2" in flags:
-                if ts_unit == "seconds":
-                    divisor = 1
-                elif ts_unit == "milliseconds":
-                    divisor = 1e3
-                else:
-                    divisor = 1e6
-            else:
-                divisor = 1000
+        # Convert every stream to seconds with the session's single timestamp unit, then
+        # compute sampling rates. Timestamps keep the acquisition's own clock.
+        for stream in streams.values():
+            stream["timestamps"] = stream["timestamps"] / divisor
 
-            for name in event_names:
-                streams[name]["timestamps"] = streams[name]["timestamps"] / divisor
+        channel_group_lengths = [len(names) for names in (chev_names, chod_names, chpr_names) if len(names) > 0]
+        if len(set(channel_group_lengths)) > 1:
+            channel_group_counts = {
+                "chev": len(chev_names),
+                "chod": len(chod_names),
+                "chpr": len(chpr_names),
+            }
+            message = (
+                "Number of channel files must match across channel groups (chev/chod/chpr). "
+                f"Found per-channel-group counts: {channel_group_counts}."
+            )
+            logger.error(message)
+            raise ValueError(message)
 
-            channel_group_lengths = [len(names) for names in (chev_names, chod_names, chpr_names) if len(names) > 0]
-            if len(set(channel_group_lengths)) > 1:
-                channel_group_counts = {
-                    "chev": len(chev_names),
-                    "chod": len(chod_names),
-                    "chpr": len(chpr_names),
-                }
-                message = (
-                    "Number of channel files must match across channel groups (chev/chod/chpr). "
-                    f"Found per-channel-group counts: {channel_group_counts}."
-                )
-                logger.error(message)
-                raise ValueError(message)
+        # The paired chod/chpr channels borrow chev's timestamps and rate.
+        for j in range(len(chev_names)):
+            chev_stream = streams[chev_names[j]]
+            chev_timestamps = chev_stream["timestamps"]
+            sampling_rate = chev_timestamps.shape[0] / (chev_timestamps[-1] - chev_timestamps[0])
+            chev_stream["sampling_rate"] = np.array([sampling_rate])
 
-            # The paired chod/chpr channels borrow chev's timestamps and rate.
-            for j in range(len(chev_names)):
-                chev_stream = streams[chev_names[j]]
-                chev_timestamps = chev_stream["timestamps"] / divisor
-                sampling_rate = chev_timestamps.shape[0] / (chev_timestamps[-1] - chev_timestamps[0])
-                chev_stream["timestamps"] = chev_timestamps
-                chev_stream["sampling_rate"] = np.array([sampling_rate])
-
-                if j < len(chod_names):
-                    chod_stream = streams[chod_names[j]]
-                    chod_stream["timestamps"] = chev_timestamps
-                    chod_stream["sampling_rate"] = np.array([sampling_rate])
-                if j < len(chpr_names):
-                    chpr_stream = streams[chpr_names[j]]
-                    chpr_stream["timestamps"] = chev_timestamps
-                    chpr_stream["sampling_rate"] = np.array([sampling_rate])
+            if j < len(chod_names):
+                chod_stream = streams[chod_names[j]]
+                chod_stream["timestamps"] = chev_timestamps
+                chod_stream["sampling_rate"] = np.array([sampling_rate])
+            if j < len(chpr_names):
+                chpr_stream = streams[chpr_names[j]]
+                chpr_stream["timestamps"] = chev_timestamps
+                chpr_stream["sampling_rate"] = np.array([sampling_rate])
 
         logger.info("Importing of NPM file is done.")
         return streams, flags
+
+    @staticmethod
+    def _time_unit_divisor(npm_time_unit: str | None) -> float:
+        """Return the factor converting ``npm_time_unit`` timestamps to seconds.
+
+        Parameters
+        ----------
+        npm_time_unit : str or None
+            One of the keys of :data:`TIME_UNIT_DIVISORS`. ``None`` selects
+            :data:`DEFAULT_TIME_UNIT`.
+
+        Returns
+        -------
+        float
+            Divisor to apply to raw timestamps.
+        """
+        time_unit = npm_time_unit if npm_time_unit is not None else DEFAULT_TIME_UNIT
+        if time_unit not in TIME_UNIT_DIVISORS:
+            message = (
+                f"npm_time_unit='{time_unit}' is not a recognized timestamp unit; "
+                f"choose one of {list(TIME_UNIT_DIVISORS)}."
+            )
+            logger.error(message)
+            raise ValueError(message)
+        return TIME_UNIT_DIVISORS[time_unit]
 
     @staticmethod
     def _register_channel_name(
@@ -376,8 +426,8 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             streams, _ = self._decompose_streams(
                 folder_path=self.folder_path,
                 num_ch=self.num_ch,
-                npm_timestamp_column_names=self.npm_timestamp_column_names,
-                npm_time_units=self.npm_time_units,
+                npm_timestamp_column_name=self.npm_timestamp_column_name,
+                npm_time_unit=self.npm_time_unit,
                 npm_split_events=self.npm_split_events,
             )
             self._decomposed = streams
@@ -482,52 +532,9 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             One entry per NPM data file. ``True`` if the corresponding event
             file encodes more than one unique TTL state value, ``False`` otherwise.
         """
-        path = sorted(glob.glob(os.path.join(folder_path, "*.csv")))
-        path_chev = glob.glob(os.path.join(folder_path, "*chev*"))
-        path_chod = glob.glob(os.path.join(folder_path, "*chod*"))
-        path_chpr = glob.glob(os.path.join(folder_path, "*chpr*"))
-        path_event = glob.glob(os.path.join(folder_path, "event*"))
-        path_chev_chod_event = path_chev + path_chod + path_event + path_chpr
-
-        path = sorted(list(set(path) - set(path_chev_chod_event)))
-        path = [
-            csv_path for csv_path in path if not _is_event_csv(csv_path)
-        ]  # Skip event CSVs, which are handled by CsvRecordingExtractor
         multiple_event_ttls = []
-        for i in range(len(path)):
-            df = pd.read_csv(path[i], index_col=False)
-            _, numeric_headers = cls._check_header(df)
-
-            # check dataframe structure and read data accordingly
-            if len(numeric_headers) > 0:
-                columns_isstr = False
-                df = pd.read_csv(path[i], header=None)
-                columns = np.array(list(df.columns), dtype=str)
-            else:
-                columns_isstr = True
-                columns = np.array(list(df.columns), dtype=str)
-            if len(columns) == 2:
-                flag = "event_or_data_np"
-            elif len(columns) > 2:
-                flag = "data_np"
-            else:
-                message = (
-                    f"CSV file '{path[i]}' has {len(columns)} columns, which is not a recognized NPM layout. "
-                    "Expected 2+ columns."
-                )
-                logger.error(message)
-                raise ValueError(message)
-
-            # used assigned flags to process the files and read the data
-            if flag == "event_or_data_np":
-                second_column_values = list(df.iloc[:, 1])
-                check_float = [True for value in second_column_values if isinstance(value, float)]
-                if len(second_column_values) == len(check_float) and columns_isstr == False:
-                    flag = "data_np"
-                elif columns_isstr == True and ("value" in np.char.lower(np.array(columns))):
-                    flag = "event_np"
-                else:
-                    flag = "event_np"
+        for path in cls._list_npm_files(folder_path):
+            flag, df, _ = cls._classify_npm_file(path)
 
             if flag == "event_np":
                 type_val = np.array(df.iloc[:, 1])
@@ -652,124 +659,69 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         return unique_state.shape[0], unique_state
 
     @classmethod
-    def needs_ts_unit(cls, folder_path: str, num_ch: int) -> tuple[list[bool], list[str]]:
+    def timestamp_column_options(cls, folder_path: str) -> list[str]:
         """
-        Determine which NPM files require explicit timestamp-unit configuration.
+        List the timestamp columns the session's data files offer.
 
-        Files with more than one timestamp-like column (e.g. both
-        ``Timestamp`` and ``ComputerTimestamp``) require the user to specify
-        which column to use and what units it is in.
+        Newer NPM exports can carry more than one timestamp column (e.g. both
+        ``Timestamp`` and ``ComputerTimestamp``), which are on different clocks,
+        so the user has to say which one to use.
 
         Parameters
         ----------
         folder_path : str
             Path to the folder containing NPM CSV files.
-        num_ch : int
-            Number of interleaved channels, used when demultiplexing
-            ``data_np`` layout files.
 
         Returns
         -------
-        ts_unit_needs : list of bool
-            One entry per NPM data file. ``True`` if the file has multiple
-            timestamp columns and requires unit disambiguation.
-        timestamp_column_names : list of str
-            Names of all timestamp-like columns found across the files.
+        list of str
+            Distinct timestamp-like column names across the session's data
+            files, in the order encountered. Empty for sessions whose files
+            carry no text header.
         """
-        path = sorted(glob.glob(os.path.join(folder_path, "*.csv"))) + sorted(
-            glob.glob(os.path.join(folder_path, "*.doric"))
-        )
-        path_chev = glob.glob(os.path.join(folder_path, "*chev*"))
-        path_chod = glob.glob(os.path.join(folder_path, "*chod*"))
-        path_chpr = glob.glob(os.path.join(folder_path, "*chpr*"))
-        path_event = glob.glob(os.path.join(folder_path, "event*"))
-        # path_sig = glob.glob(os.path.join(filepath, 'sig*')) # TODO: what is this for?
-        path_chev_chod_event = path_chev + path_chod + path_event + path_chpr
-
-        path = sorted(list(set(path) - set(path_chev_chod_event)))
-        path = [
-            csv_path for csv_path in path if not _is_event_csv(csv_path)
-        ]  # Skip event CSVs, which are handled by CsvRecordingExtractor
-        ts_unit_needs = []
-        timestamp_column_names = [""]
-        for i in range(len(path)):
-            df = pd.read_csv(path[i], index_col=False)
-            _, numeric_headers = cls._check_header(df)
-
-            # check dataframe structure and read data accordingly
-            if len(numeric_headers) > 0:
-                df = pd.read_csv(path[i], header=None)
-                columns = np.array(list(df.columns), dtype=str)
-                columns_isstr = False
-            else:
-                columns_isstr = True
-                columns = np.array(list(df.columns), dtype=str)
-            # check the structure of dataframe and assign flag to the type of file
-            if len(columns) == 2:
-                flag = "event_or_data_np"
-            elif len(columns) > 2:
-                flag = "data_np"
-            else:
-                message = (
-                    f"CSV file '{path[i]}' has {len(columns)} columns, which is not a recognized NPM layout. "
-                    "Expected 2+ columns."
-                )
-                logger.error(message)
-                raise ValueError(message)
-
-            if columns_isstr == True and (
-                "flags" in np.char.lower(np.array(columns)) or "ledstate" in np.char.lower(np.array(columns))
-            ):
-                flag = flag + "_v2"
-
-            # used assigned flags to process the files and read the data
-            if flag == "event_or_data_np":
-                second_column_values = list(df.iloc[:, 1])
-                check_float = [True for value in second_column_values if isinstance(value, float)]
-                if len(second_column_values) == len(check_float) and columns_isstr == False:
-                    flag = "data_np"
-                elif columns_isstr == True and ("value" in np.char.lower(np.array(columns))):
-                    flag = "event_np"
-                else:
-                    flag = "event_np"
-
-            if flag == "data_np":
-                file_prefix = f"file{str(i)}_"
-                df, _, _ = cls.decide_indices(file_prefix, df, flag, num_ch)
-
-            if flag == "event_np" or flag == "data_np":
-                ts_unit_needs.append(False)
+        column_options: list[str] = []
+        for path in cls._list_npm_files(folder_path):
+            flag, df, _ = cls._classify_npm_file(path)
+            if flag == "event_np":
                 continue
+            for name in df.columns:
+                if "timestamp" in str(name).lower() and name not in column_options:
+                    column_options.append(str(name))
 
-            column_names = np.array(list(df.columns))
-            for name in column_names:
-                if "timestamp" in name.lower():
-                    timestamp_column_names.append(name)
-
-            if len(timestamp_column_names) > 2:
-                ts_unit_needs.append(True)
-            else:
-                ts_unit_needs.append(False)
-
-        return ts_unit_needs, timestamp_column_names
+        return column_options
 
     @staticmethod
     def _update_df_with_timestamp_columns(df: pd.DataFrame, timestamp_column_name: str | None) -> pd.DataFrame:
-        column_names = np.array(list(df.columns))
-        timestamp_column_names = [""]
-        for name in column_names:
-            if "timestamp" in name.lower():
-                timestamp_column_names.append(name)
-        if len(timestamp_column_names) <= 2:
+        """Reduce multiple timestamp columns to a single ``Timestamp`` column.
+
+        Files offering only one timestamp column are returned unchanged, so a
+        session-wide ``timestamp_column_name`` may name a column that some of
+        the session's files do not have.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            NPM data file contents, with a text header.
+        timestamp_column_name : str or None
+            Timestamp column to keep; ``None`` keeps the first one.
+
+        Returns
+        -------
+        pd.DataFrame
+            The DataFrame with the chosen column inserted as ``Timestamp`` and
+            the original timestamp columns dropped.
+        """
+        timestamp_column_names = [name for name in df.columns if "timestamp" in name.lower()]
+        if len(timestamp_column_names) <= 1:
             return df
 
         timestamp_column_name = (
-            timestamp_column_name if timestamp_column_name is not None else timestamp_column_names[1]
+            timestamp_column_name if timestamp_column_name is not None else timestamp_column_names[0]
         )
         if timestamp_column_name not in timestamp_column_names:
             raise ValueError(
-                f"Provided timestamp_column_name '{timestamp_column_name}' not found in columns {timestamp_column_names[1:]}."
+                f"Provided timestamp_column_name '{timestamp_column_name}' not found in columns {timestamp_column_names}."
             )
         df.insert(1, "Timestamp", df[timestamp_column_name])
-        df = df.drop(timestamp_column_names[1:], axis=1)
+        df = df.drop(timestamp_column_names, axis=1)
         return df

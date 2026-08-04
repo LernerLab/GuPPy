@@ -5,11 +5,16 @@ import holoviews as hv
 import numpy as np
 import panel as pn
 
+from guppy.extractors.npm_recording_extractor import (
+    DEFAULT_TIME_UNIT,
+    TIME_UNIT_DIVISORS,
+)
+
 pn.extension()
 
 logger = logging.getLogger(__name__)
 
-TIME_UNIT_OPTIONS = ["seconds", "milliseconds", "microseconds"]
+TIME_UNIT_OPTIONS = list(TIME_UNIT_DIVISORS)
 
 
 class StoreLabelingInstructions:
@@ -75,11 +80,9 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
         One entry per NPM data file; ``True`` when the file encodes multiple TTL
         types and a split-events checkbox should be shown. When ``None`` the
         interactive configuration form is not built.
-    ts_unit_needs : list of bool, optional
-        One entry per NPM data file; ``True`` when the file has multiple
-        timestamp columns and requires column/unit selection.
-    col_names_ts : list of str, optional
-        Timestamp-column options offered in the column selectors.
+    timestamp_column_options : list of str, optional
+        Timestamp columns the session's data files offer. A column selector is
+        shown only when there are two or more to choose between.
     """
 
     def __init__(
@@ -88,13 +91,11 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
         *,
         channel_previews: dict[str, dict[str, np.ndarray]],
         multiple_event_ttls: list[bool] | None = None,
-        ts_unit_needs: list[bool] | None = None,
-        col_names_ts: list[str] | None = None,
+        timestamp_column_options: list[str] | None = None,
     ) -> None:
         super().__init__(folder_path=folder_path)
         self.multiple_event_ttls = multiple_event_ttls
-        self.ts_unit_needs = ts_unit_needs
-        self.col_names_ts = col_names_ts
+        self.timestamp_column_options = timestamp_column_options
 
         self.mark_down_np = pn.pane.Markdown(
             """
@@ -118,11 +119,11 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
             width=550,
         )
 
-        # Per-file configuration widgets, keyed by file index. Only files that
-        # actually need input get a widget, mirroring the old per-file dialogs.
+        # Split-events is asked per file, keyed by file index, and only for the files
+        # that encode more than one TTL type. The timestamp widgets below are per session.
         self.split_event_checkboxes: dict[int, pn.widgets.Checkbox] = {}
-        self.timestamp_column_selects: dict[int, pn.widgets.Select] = {}
-        self.time_unit_selects: dict[int, pn.widgets.Select] = {}
+        self.timestamp_column_select: pn.widgets.Select | None = None
+        self.time_unit_select: pn.widgets.Select | None = None
         self.confirm_button: pn.widgets.Button | None = None
         config_form = pn.Column()
 
@@ -137,24 +138,24 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
                     self.split_event_checkboxes[file_index] = checkbox
                     config_form.append(checkbox)
 
-            # col_names_ts accumulates timestamp column names across all files and
-            # may repeat names; offer each distinct, non-empty column once.
-            column_options = list(dict.fromkeys(name for name in col_names_ts if name))
-            for file_index, needs_unit in enumerate(ts_unit_needs):
-                if needs_unit:
-                    column_select = pn.widgets.Select(
-                        name=f"File {file_index}: select which timestamps to use",
-                        options=column_options,
-                        width=550,
-                    )
-                    unit_select = pn.widgets.Select(
-                        name=f"File {file_index}: select timestamps unit",
-                        options=TIME_UNIT_OPTIONS,
-                        width=550,
-                    )
-                    self.timestamp_column_selects[file_index] = column_select
-                    self.time_unit_selects[file_index] = unit_select
-                    config_form.extend([column_select, unit_select])
+            # A session is recorded on one clock, so the timestamp column and unit are
+            # asked once for the whole folder. The column is only ambiguous when the
+            # files offer more than one to choose between; the unit always is.
+            if timestamp_column_options is not None and len(timestamp_column_options) > 1:
+                self.timestamp_column_select = pn.widgets.Select(
+                    name="Select which timestamps to use",
+                    options=list(timestamp_column_options),
+                    width=550,
+                )
+                config_form.append(self.timestamp_column_select)
+
+            self.time_unit_select = pn.widgets.Select(
+                name="Select the unit of the timestamps",
+                options=TIME_UNIT_OPTIONS,
+                value=DEFAULT_TIME_UNIT,
+                width=550,
+            )
+            config_form.append(self.time_unit_select)
 
             self.confirm_button = pn.widgets.Button(name="Confirm NPM configuration", width=550)
             config_form.append(self.confirm_button)
@@ -193,29 +194,20 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
             for file_index, has_multiple in enumerate(self.multiple_event_ttls)
         ]
 
-    def get_timestamp_configuration(self) -> tuple[list[str], list[str | None]]:
-        """Return the per-file timestamp units and column names.
-
-        Files that do not need disambiguation default to ``"seconds"`` and a
-        ``None`` column name; the rest reflect their column and unit selectors.
+    def get_timestamp_configuration(self) -> tuple[str, str | None]:
+        """Return the session's timestamp unit and column.
 
         Returns
         -------
-        ts_units : list of str
-            Time unit for each NPM data file.
-        npm_timestamp_column_names : list of str or None
-            Selected timestamp column for each file, or ``None`` when no
-            selection was required.
+        npm_time_unit : str
+            Unit the session's timestamps are recorded in.
+        npm_timestamp_column_name : str or None
+            Selected timestamp column, or ``None`` when the files offer only one.
         """
-        ts_units, npm_timestamp_column_names = [], []
-        for file_index, needs_unit in enumerate(self.ts_unit_needs):
-            if not needs_unit:
-                ts_units.append("seconds")
-                npm_timestamp_column_names.append(None)
-                continue
-            ts_units.append(self.time_unit_selects[file_index].value)
-            npm_timestamp_column_names.append(self.timestamp_column_selects[file_index].value)
-        return ts_units, npm_timestamp_column_names
+        npm_timestamp_column_name = (
+            self.timestamp_column_select.value if self.timestamp_column_select is not None else None
+        )
+        return self.time_unit_select.value, npm_timestamp_column_name
 
     def set_channel_previews(self, *, channel_previews: dict[str, dict[str, np.ndarray]]) -> None:
         """Render (or re-render) the channel selector and preview plot.
