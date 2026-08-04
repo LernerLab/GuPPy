@@ -27,6 +27,11 @@ before Step 3 has run, GuPPy tells you so rather than showing an empty page.
 2. Click **Select Artifact Windows**. A page opens in a new browser tab showing
    the control, signal, and fitted-control traces for one recording site. The main
    GuPPy tab stays responsive.
+
+   <!-- TODO: add select_artifact_windows_button.png (the sidebar showing the two optional
+   steps between Step 3 and Step 4). `docs/take_screenshots.py` already generates it via
+   screenshot_select_artifact_windows_button; it just needs a run against the sample data. -->
+
 3. Pick the recording site you want to mark with the **Recording site** selector.
 4. Read the start and end times of the contaminated stretch off the trace, then
    enter them in the table: one row per period, in **seconds**. The shaded spans on
