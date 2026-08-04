@@ -60,6 +60,9 @@ dependencies = [
     "selenium",
     "dandi",
     "remfile",
+    "pyyaml",
+    "neuroconv[guppy] @ git+https://github.com/catalystneuro/neuroconv@guppy-converter",
+    "ndx-guppy==0.1.0",
 ]
 
 [dependency-groups]

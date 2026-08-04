@@ -7,6 +7,8 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+RAISE_ISSUE_URL = "https://github.com/LernerLab/GuPPy/issues/new"
+
 _RUN_NAME_MARKER = "_output_"
 _FORBIDDEN_RUN_NAME_CHARACTERS = ("/", "\\", ":", "\0")
 
