@@ -101,7 +101,7 @@ def screenshot_select_artifact_windows_button(page: Page) -> None:
     page.wait_for_timeout(1000)
     page.screenshot(
         path=OUTPUT_DIR / "select_artifact_windows_button.png",
-        clip={"x": 0, "y": 320, "width": 340, "height": 340},
+        clip={"x": 0, "y": 400, "width": 340, "height": 440},
     )
     print("Saved select_artifact_windows_button.png")
 
@@ -277,9 +277,7 @@ def screenshot_visualization(page: Page, tmp_path: Path) -> None:
     columns = ["trial_1", "trial_2", "trial_3", "bin_1", "timestamps", "mean", "err", "bin_err_1"]
 
     def make_df() -> pd.DataFrame:
-        return pd.DataFrame(
-            {col: (timestamps if col == "timestamps" else np.zeros(n_timepoints)) for col in columns}
-        )
+        return pd.DataFrame({col: (timestamps if col == "timestamps" else np.zeros(n_timepoints)) for col in columns})
 
     df_new = pd.concat([make_df() for _ in events], keys=events, axis=1)
 

@@ -149,7 +149,12 @@ class PreprocessingReviewView:
 
 
 class ControlSignalFitView:
-    """Read-only control/signal/fit review for one run folder, with the saved keep-windows shaded."""
+    """Read-only control/signal/fit review for one run folder.
+
+    Before removal the saved keep-windows are shaded, so the marking is visible against
+    the traces it was drawn on. After removal nothing is shaded: the artifacts are gone
+    from the data, so the traces themselves are the result.
+    """
 
     def __init__(self, filepath: str, pair_traces: dict[str, dict[str, object]], *, artifacts_removed: bool) -> None:
         self.filepath = filepath
@@ -172,7 +177,9 @@ class ControlSignalFitView:
         site = self.site_select.value
         trace = self.pair_traces[site]
         windows = []
-        if os.path.exists(os.path.join(self.filepath, f"coordsForPreProcessing_{site}.npy")):
+        if not self.artifacts_removed and os.path.exists(
+            os.path.join(self.filepath, f"coordsForPreProcessing_{site}.npy")
+        ):
             windows = [(float(start), float(end)) for start, end in fetchCoords(self.filepath, site, trace["x"])]
         return build_control_signal_fit(
             x=trace["x"],
@@ -181,7 +188,6 @@ class ControlSignalFitView:
             fit=trace["fit"],
             titles=trace["plot_name"],
             suptitle=os.path.basename(self.filepath),
-            artifacts_have_been_removed=self.artifacts_removed,
             spans=make_spans_pipe(windows=windows),
         )
 

@@ -1,5 +1,6 @@
 import json
 import os
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
@@ -16,6 +17,14 @@ from guppy.utils._hdf5_io import write_hdf5
 
 # The keep-window span is widened by one sample, so it runs from -1.0 to 11.0.
 TIMESTAMPS = np.arange(0.0, 11.0, 1.0)
+
+
+@dataclass
+class FakeTableClick:
+    """A Tabulator cell-click event: which column was clicked, and on which row."""
+
+    column: str
+    row: int
 
 
 def _write_site(filepath, site):
@@ -125,10 +134,31 @@ class TestArtifactWindowSelector:
         assert len(table.value) == 2
 
         table.value = pd.DataFrame({"start": [1.0, 6.0], "end": [2.0, 7.0]})
-        table.selection = [0]
-        selector.remove_selected_window_rows()
+        selector.remove_window_row(0)
 
         assert list(table.value.itertuples(index=False, name=None)) == [(6.0, 7.0)]
+
+    def test_each_row_carries_its_own_delete_button(self, selector):
+        """No checkbox column to explain: the ✕ on a row deletes that row."""
+        table = selector.site_to_table["DMS"]
+        assert table.selectable is False
+        assert list(table.buttons) == ["remove"]
+
+    def test_clicking_a_row_delete_button_removes_that_row(self, selector):
+        table = selector.site_to_table["DMS"]
+        table.value = pd.DataFrame({"start": [1.0, 6.0], "end": [2.0, 7.0]})
+
+        selector._on_table_click(FakeTableClick(column="remove", row=1))
+
+        assert list(table.value.itertuples(index=False, name=None)) == [(1.0, 2.0)]
+
+    def test_clicking_a_data_cell_removes_nothing(self, selector):
+        table = selector.site_to_table["DMS"]
+        table.value = pd.DataFrame({"start": [1.0, 6.0], "end": [2.0, 7.0]})
+
+        selector._on_table_click(FakeTableClick(column="start", row=1))
+
+        assert len(table.value) == 2
 
     def test_apply_to_all_sites_copies_table(self, selector):
         selector.site_to_table["DMS"].value = pd.DataFrame({"start": [3.0], "end": [5.0]})

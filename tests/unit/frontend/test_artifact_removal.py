@@ -106,23 +106,38 @@ class TestPreprocessingReviewView:
         assert resolve_plot(view.plot_pane.object).bounds.lbrt() == (0.0, 0.0, 10.0, 1.0)
 
 
+def _shaded_spans(view):
+    """The VSpans element on each of the view's three panels."""
+    spans = []
+    for element in (resolve_plot(axis) for axis in view.plot_pane.object.values()):
+        panel_spans = [item for item in element.values() if isinstance(item, hv.VSpans)]
+        assert len(panel_spans) == 1
+        spans.append(panel_spans[0])
+    return spans
+
+
 class TestControlSignalFitView:
-    def test_shades_saved_keep_windows(self, panel_extension, run_folder):
+    def test_shades_saved_keep_windows_before_removal(self, panel_extension, run_folder):
+        np.save(str(run_folder / "coordsForPreProcessing_DMS.npy"), np.array([[2.0, 0.0], [5.0, 0.0]]))
+        view = ControlSignalFitView(str(run_folder), load_pair_traces(str(run_folder)), artifacts_removed=False)
+        view.site_select.value = "DMS"
+
+        for spans in _shaded_spans(view):
+            np.testing.assert_array_equal(spans.dimension_values("x0"), np.array([2.0]))
+            np.testing.assert_array_equal(spans.dimension_values("x1"), np.array([5.0]))
+
+    def test_shades_nothing_after_removal(self, panel_extension, run_folder):
+        """Once the artifacts are gone from the data, shading the kept region says nothing."""
         np.save(str(run_folder / "coordsForPreProcessing_DMS.npy"), np.array([[2.0, 0.0], [5.0, 0.0]]))
         view = ControlSignalFitView(str(run_folder), load_pair_traces(str(run_folder)), artifacts_removed=True)
         view.site_select.value = "DMS"
 
-        for element in (resolve_plot(axis) for axis in view.plot_pane.object.values()):
-            spans = [item for item in element.values() if isinstance(item, hv.VSpans)]
-            assert len(spans) == 1
-            np.testing.assert_array_equal(spans[0].dimension_values("x0"), np.array([2.0]))
-            np.testing.assert_array_equal(spans[0].dimension_values("x1"), np.array([5.0]))
+        for spans in _shaded_spans(view):
+            assert spans.dimension_values("x0").size == 0
 
     def test_shades_nothing_before_windows_are_saved(self, panel_extension, run_folder):
         view = ControlSignalFitView(str(run_folder), load_pair_traces(str(run_folder)), artifacts_removed=False)
         view.site_select.value = "DMS"
 
-        for element in (resolve_plot(axis) for axis in view.plot_pane.object.values()):
-            spans = [item for item in element.values() if isinstance(item, hv.VSpans)]
-            assert len(spans) == 1
-            assert spans[0].dimension_values("x0").size == 0
+        for spans in _shaded_spans(view):
+            assert spans.dimension_values("x0").size == 0

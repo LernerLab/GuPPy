@@ -62,7 +62,6 @@ class TestBuildControlSignalFit:
             fit=fit,
             titles=["control", "signal", "fit"],
             suptitle="session",
-            artifacts_have_been_removed=False,
             spans=make_spans_pipe(windows=[]),
         )
         assert isinstance(layout, hv.Layout)
@@ -77,7 +76,6 @@ class TestBuildControlSignalFit:
             fit=fit,
             titles=["control", "signal", "fit"],
             suptitle="session",
-            artifacts_have_been_removed=False,
             spans=make_spans_pipe(windows=[]),
         )
         # Top two carry a single shaded trace plus the (empty) spans layer; the bottom
@@ -100,7 +98,6 @@ class TestBuildControlSignalFit:
             fit=fit,
             titles=["control", "signal", "fit"],
             suptitle="session",
-            artifacts_have_been_removed=False,
             spans=make_spans_pipe(windows=[(1.0, 2.0), (3.0, 4.0)]),
         )
         for plot in layout.values():
@@ -122,7 +119,6 @@ class TestBuildControlSignalFit:
             fit=fit,
             titles=["control", "signal", "fit"],
             suptitle="session",
-            artifacts_have_been_removed=False,
             spans=spans,
         )
 
@@ -131,3 +127,42 @@ class TestBuildControlSignalFit:
         for plot in layout.values():
             span_element = [item for item in resolve_plot(plot).values() if isinstance(item, hv.VSpans)][0]
             np.testing.assert_array_equal(span_element.dimension_values("x0"), np.array([1.0]))
+
+
+class TestPanelSizing:
+    """All three panels must render at the same size, spans layer or not.
+
+    The fit panel is an Overlay rather than a single curve, and options set on an Overlay
+    are dropped when the spans layer composes it into a new one — which silently left it
+    at bokeh's 300x300 default next to two 750x220 neighbours.
+    """
+
+    @pytest.fixture
+    def rendered_plots(self, panel_extension):
+        from bokeh.models import Plot
+
+        def render(windows):
+            x = np.arange(0.0, 50.0, 0.1)
+            layout = build_control_signal_fit(
+                x=x,
+                control=np.sin(x),
+                signal=np.cos(x),
+                fit=np.cos(x) * 0.9,
+                titles=["control", "signal", "fit"],
+                suptitle="session",
+                spans=make_spans_pipe(windows=windows),
+            )
+            figure = hv.render(layout)
+            return [model for model in figure.references() if isinstance(model, Plot)]
+
+        return render
+
+    @pytest.mark.parametrize("windows", [[], [(10.0, 20.0)]], ids=["no_spans", "with_spans"])
+    def test_every_panel_has_the_same_size(self, rendered_plots, windows):
+        plots = rendered_plots(windows)
+        assert len(plots) == 3
+        assert {(plot.width, plot.height) for plot in plots} == {(750, 220)}
+
+    def test_every_panel_keeps_its_title(self, rendered_plots):
+        titles = {plot.title.text for plot in rendered_plots([])}
+        assert titles == {"session — control", "signal", "fit"}

@@ -7,8 +7,6 @@ from .shading import FIT_COLOR, PLOT_WIDTH, shade_trace
 
 logger = logging.getLogger(__name__)
 
-_ARTIFACTS_REMOVED_NOTE = "Note: Artifacts have been removed, but are not reflected in this plot."
-
 
 def build_preprocessing_curve(*, suptitle: str, title: str, x: np.ndarray, y: np.ndarray) -> hv.DynamicMap:
     """Build a HoloViews curve of a preprocessing time series.
@@ -65,7 +63,6 @@ def build_control_signal_fit(
     fit: np.ndarray,
     titles: list[str],
     suptitle: str,
-    artifacts_have_been_removed: bool,
     spans: hv.streams.Pipe,
 ) -> hv.Layout:
     """Build three stacked curves (control, signal, signal+fit) with pipe-driven shaded spans.
@@ -84,8 +81,6 @@ def build_control_signal_fit(
         Titles for the three curves (control, signal, fit).
     suptitle : str
         Session-level title prefix applied to the control curve.
-    artifacts_have_been_removed : bool
-        When True, annotates the bottom curve that artifacts were removed.
     spans : hv.streams.Pipe
         Stream carrying the ``(start, end)`` windows shaded on all three curves.
 
@@ -94,22 +89,22 @@ def build_control_signal_fit(
     hv.Layout
         Three vertically stacked curves.
     """
-    control_curve = shade_trace(hv.Curve((x, control), "time (s)", titles[0])).opts(
-        title=f"{suptitle} — {titles[0]}", width=PLOT_WIDTH, height=220
+    control_curve = shade_trace(hv.Curve((x, control), "time (s)", titles[0]))
+    signal_curve = shade_trace(hv.Curve((x, signal), "time (s)", titles[1]))
+    fit_curve = shade_trace(hv.Curve((x, signal), "time (s)", titles[2])) * shade_trace(
+        hv.Curve((x, fit), "time (s)", titles[2]), color=FIT_COLOR
     )
-    signal_curve = shade_trace(hv.Curve((x, signal), "time (s)", titles[1])).opts(
-        title=titles[1], width=PLOT_WIDTH, height=220
-    )
-    fit_title = titles[2] + (f" ({_ARTIFACTS_REMOVED_NOTE})" if artifacts_have_been_removed else "")
-    fit_curve = (
-        shade_trace(hv.Curve((x, signal), "time (s)", titles[2]))
-        * shade_trace(hv.Curve((x, fit), "time (s)", titles[2]), color=FIT_COLOR)
-    ).opts(title=fit_title, width=PLOT_WIDTH, height=220)
+
+    # Size and title the composed panel, not the bare curve: options set on an Overlay are
+    # dropped when the spans layer composes it into a new one, which left the fit panel at
+    # bokeh's 300x300 default while the two single-curve panels kept theirs.
+    def panel(curve: hv.DynamicMap, title: str) -> hv.DynamicMap:
+        return _spans_overlay(curve=curve, spans=spans).opts(title=title, width=PLOT_WIDTH, height=220)
 
     return hv.Layout(
         [
-            _spans_overlay(curve=control_curve, spans=spans),
-            _spans_overlay(curve=signal_curve, spans=spans),
-            _spans_overlay(curve=fit_curve, spans=spans),
+            panel(control_curve, f"{suptitle} — {titles[0]}"),
+            panel(signal_curve, titles[1]),
+            panel(fit_curve, titles[2]),
         ]
     ).cols(1)

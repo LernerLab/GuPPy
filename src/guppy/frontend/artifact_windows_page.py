@@ -30,11 +30,16 @@ logger = logging.getLogger(__name__)
 
 ARTIFACT_REMOVAL_METHODS = ["replace with NaN", "concatenate"]
 
+# Name of the per-row delete-button column added to each site's table.
+_REMOVE_COLUMN = "remove"
+
 _INSTRUCTIONS = (
     "Mark the periods where **artifacts occurred** for each recording site: type the "
     "start/end times (seconds) into the table and the shaded spans update to match. "
-    "Everything outside the marked periods is kept. Leave the table empty to keep the "
-    "entire recording. Click **Save** to write the windows, then run **Remove Artifacts**."
+    "Everything outside the marked periods is kept — leave the table empty to keep the "
+    "entire recording.\n\n"
+    "Use **Add window** for another period, or the ✕ on a row to delete it. "
+    "Click **Save** to write the windows, then run **Remove Artifacts** to apply them."
 )
 
 _METHOD_HELP = (
@@ -119,18 +124,20 @@ class ArtifactWindowSelector:
         self.pair_traces = pair_traces
         self.sites = list(pair_traces.keys())
 
+        # Each row carries its own delete button, so there is nothing to select and no
+        # separate "remove the checked ones" step to explain.
         self.site_to_table = {
             site: pn.widgets.Tabulator(
                 _windows_df(_saved_artifact_windows(filepath, site, pair_traces[site]["x"])),
                 show_index=False,
-                selectable="checkbox",
+                selectable=False,
+                buttons={_REMOVE_COLUMN: "✕"},
                 widths=180,
             )
             for site in self.sites
         }
         self.site_select = pn.widgets.Select(name="Recording site", options=self.sites, value=self.sites[0])
         self.add_row_button = pn.widgets.Button(name="Add window", button_type="default")
-        self.remove_rows_button = pn.widgets.Button(name="Remove selected", button_type="default")
         self.apply_to_all_button = pn.widgets.Button(name="Apply to all recording sites", button_type="default")
         self.method_select = pn.widgets.Select(
             name="Removal method", options=ARTIFACT_REMOVAL_METHODS, value=ARTIFACT_REMOVAL_METHODS[0], width=200
@@ -144,8 +151,8 @@ class ArtifactWindowSelector:
         self.site_select.param.watch(self._on_site_change, "value")
         for table in self.site_to_table.values():
             table.on_edit(self._on_table_edit)
+            table.on_click(self._on_table_click)
         self.add_row_button.on_click(lambda event: self.add_window_row())
-        self.remove_rows_button.on_click(lambda event: self.remove_selected_window_rows())
         self.apply_to_all_button.on_click(lambda event: self.apply_windows_to_all_sites())
         self.save_button.on_click(self._on_save)
 
@@ -155,7 +162,7 @@ class ArtifactWindowSelector:
             self.site_select,
             self.marking_pane,
             self.table_container,
-            pn.Row(self.add_row_button, self.remove_rows_button, self.apply_to_all_button),
+            pn.Row(self.add_row_button, self.apply_to_all_button),
             self.method_select,
             pn.pane.Markdown(_METHOD_HELP),
             self.save_button,
@@ -175,7 +182,6 @@ class ArtifactWindowSelector:
             fit=trace["fit"],
             titles=trace["plot_name"],
             suptitle=os.path.basename(self.filepath),
-            artifacts_have_been_removed=False,
             spans=self.spans_pipe,
         )
 
@@ -188,11 +194,10 @@ class ArtifactWindowSelector:
         table = self.site_to_table[self.site_select.value]
         table.value = pd.concat([table.value, pd.DataFrame({"start": [np.nan], "end": [np.nan]})], ignore_index=True)
 
-    def remove_selected_window_rows(self) -> None:
-        """Drop the checked rows from the selected site's table."""
+    def remove_window_row(self, row_index: int) -> None:
+        """Drop one window row from the selected site's table."""
         table = self.site_to_table[self.site_select.value]
-        table.value = table.value.drop(index=table.value.index[table.selection]).reset_index(drop=True)
-        table.selection = []
+        table.value = table.value.drop(index=table.value.index[row_index]).reset_index(drop=True)
         self.refresh_spans()
 
     def apply_windows_to_all_sites(self) -> None:
@@ -239,6 +244,10 @@ class ArtifactWindowSelector:
 
     def _on_table_edit(self, event: object) -> None:
         self.refresh_spans()
+
+    def _on_table_click(self, event: object) -> None:
+        if event.column == _REMOVE_COLUMN:
+            self.remove_window_row(event.row)
 
     def _on_save(self, event: object) -> None:
         try:

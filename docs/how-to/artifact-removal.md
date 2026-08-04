@@ -28,17 +28,17 @@ before Step 3 has run, GuPPy tells you so rather than showing an empty page.
    the control, signal, and fitted-control traces for one recording site. The main
    GuPPy tab stays responsive.
 
-   <!-- TODO: add select_artifact_windows_button.png (the sidebar showing the two optional
-   steps between Step 3 and Step 4). `docs/take_screenshots.py` already generates it via
-   screenshot_select_artifact_windows_button; it just needs a run against the sample data. -->
+   ```{image} ../_static/images/select_artifact_windows_button.png
+   :alt: The sidebar with the two optional artifact steps, Select Artifact Windows and Remove Artifacts, positioned between Step 3 Preprocess and Step 4 PSTH Computation
+   :width: 50%
+   ```
 
 3. Pick the recording site you want to mark with the **Recording site** selector.
 4. Read the start and end times of the contaminated stretch off the trace, then
    enter them in the table: one row per period, in **seconds**. The shaded spans on
    the traces update as you type, so you can check the marking against the data.
 
-   Use **Add window** for another period and **Remove selected** to delete rows you
-   have checked.
+   Use **Add window** for another period, or the ✕ at the end of a row to delete it.
 
 5. If the same artifact appears across every recording site — a motion artifact
    usually does, since it hits all sites at the same instant — click **Apply to all
