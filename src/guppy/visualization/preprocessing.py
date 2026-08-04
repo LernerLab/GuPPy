@@ -33,14 +33,28 @@ def build_preprocessing_curve(*, suptitle: str, title: str, x: np.ndarray, y: np
     return shade_trace(curve).opts(title=f"{suptitle} — {title}", width=PLOT_WIDTH, height=250)
 
 
-def _shade_windows(curve: hv.DynamicMap, windows: list[tuple[float, float]] | None) -> hv.DynamicMap:
-    """Overlay shaded vertical spans for each ``(start, end)`` window on a curve."""
-    if not windows:
-        return curve
-    overlay = curve
-    for start, end in windows:
-        overlay = overlay * hv.VSpan(float(start), float(end)).opts(color="orange", alpha=0.2)
-    return overlay
+def make_spans_pipe(*, windows: list[tuple[float, float]]) -> hv.streams.Pipe:
+    """Build the stream that drives the shaded spans on a control/signal/fit layout.
+
+    Sending a new window list on the returned pipe repaints only the spans; the
+    density-shaded traces are not re-aggregated.
+
+    Parameters
+    ----------
+    windows : list of (float, float)
+        Initial ``(start, end)`` windows to shade.
+
+    Returns
+    -------
+    hv.streams.Pipe
+        Stream carrying the current window list.
+    """
+    return hv.streams.Pipe(data=list(windows))
+
+
+def _spans_overlay(*, curve: hv.DynamicMap, spans: hv.streams.Pipe) -> hv.DynamicMap:
+    """Overlay pipe-driven shaded vertical spans on a curve."""
+    return curve * hv.DynamicMap(lambda data: hv.VSpans(list(data)).opts(color="orange", alpha=0.2), streams=[spans])
 
 
 def build_control_signal_fit(
@@ -52,9 +66,9 @@ def build_control_signal_fit(
     titles: list[str],
     suptitle: str,
     artifacts_have_been_removed: bool,
-    windows: list[tuple[float, float]] | None = None,
+    spans: hv.streams.Pipe,
 ) -> hv.Layout:
-    """Build three stacked curves (control, signal, signal+fit) with optional shaded windows.
+    """Build three stacked curves (control, signal, signal+fit) with pipe-driven shaded spans.
 
     Parameters
     ----------
@@ -72,8 +86,8 @@ def build_control_signal_fit(
         Session-level title prefix applied to the control curve.
     artifacts_have_been_removed : bool
         When True, annotates the bottom curve that artifacts were removed.
-    windows : list of (float, float), optional
-        Good-chunk ``(start, end)`` windows shaded as vertical spans on all three curves.
+    spans : hv.streams.Pipe
+        Stream carrying the ``(start, end)`` windows shaded on all three curves.
 
     Returns
     -------
@@ -94,8 +108,8 @@ def build_control_signal_fit(
 
     return hv.Layout(
         [
-            _shade_windows(control_curve, windows),
-            _shade_windows(signal_curve, windows),
-            _shade_windows(fit_curve, windows),
+            _spans_overlay(curve=control_curve, spans=spans),
+            _spans_overlay(curve=signal_curve, spans=spans),
+            _spans_overlay(curve=fit_curve, spans=spans),
         ]
     ).cols(1)

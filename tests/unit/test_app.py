@@ -17,10 +17,16 @@ def served(monkeypatch):
 
 
 class TestServeApp:
-    def test_serves_the_three_routes_and_opens_the_homepage(self, served):
+    def test_serves_every_route_and_opens_the_homepage(self, served):
         app.serve_app()
 
-        assert sorted(served["routes"]) == ["/", "/preprocess-view", "/transients-view"]
+        assert sorted(served["routes"]) == [
+            "/",
+            "/artifact-view",
+            "/preprocess-view",
+            "/select-artifact-windows",
+            "/transients-view",
+        ]
         assert served["kwargs"] == {"show": True}
 
     def test_view_routes_are_the_step_view_factories(self, served):

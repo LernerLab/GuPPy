@@ -1,3 +1,6 @@
+import json
+import os
+
 import h5py
 import numpy as np
 import pytest
@@ -79,15 +82,40 @@ def test_execute_compute_cross_correlation_no_op_when_compute_corr_false(
     assert len(get_corr_calls) == 0
 
 
-def test_execute_compute_cross_correlation_raises_when_concatenate_and_remove_artifacts(
-    psth_output_dir, base_input_parameters
-):
-    base_input_parameters["computeCorr"] = True
-    base_input_parameters["removeArtifacts"] = True
-    base_input_parameters["artifactsRemovalMethod"] = "concatenate"
+def _record_artifact_provenance(run_folder, *, remove_artifacts, artifacts_removal_method):
+    """Write the artifact provenance the Remove Artifacts step would have left behind."""
+    with open(os.path.join(str(run_folder), "GuPPyParamtersUsed.json"), "w") as parameters_file:
+        json.dump(
+            {"removeArtifacts": remove_artifacts, "artifactsRemovalMethod": artifacts_removal_method},
+            parameters_file,
+        )
 
-    with pytest.raises(ValueError, match=r"must be 'replace with NaNs' and not 'concatenate'"):
+
+def test_execute_compute_cross_correlation_raises_when_run_was_concatenated(psth_output_dir, base_input_parameters):
+    """The guard reads what was actually applied to this run, not a live form value."""
+    base_input_parameters["computeCorr"] = True
+    _record_artifact_provenance(psth_output_dir, remove_artifacts=True, artifacts_removal_method="concatenate")
+
+    with pytest.raises(ValueError, match=r"cannot run on concatenated data"):
         execute_compute_cross_correlation(str(psth_output_dir), "lever_press", base_input_parameters)
+
+
+def test_execute_compute_cross_correlation_allows_run_removed_with_nan(
+    psth_output_dir, base_input_parameters, monkeypatch
+):
+    """A run removed with 'replace with NaN' passes the guard and proceeds to the correlation itself."""
+    base_input_parameters["computeCorr"] = True
+    _record_artifact_provenance(psth_output_dir, remove_artifacts=True, artifacts_removal_method="replace with NaN")
+    get_corr_calls = []
+    monkeypatch.setattr(
+        "guppy.orchestration.psth.getCorrCombinations",
+        lambda filepath, params: get_corr_calls.append(filepath) or (["dms", "vms"], ["z_score"]),
+    )
+    monkeypatch.setattr("guppy.orchestration.psth.read_Df", lambda *args, **kwargs: None)
+
+    execute_compute_cross_correlation(str(psth_output_dir), "control_DMS", base_input_parameters)
+
+    assert get_corr_calls == [str(psth_output_dir)]
 
 
 def test_execute_average_for_group_raises_for_empty_folders(base_input_parameters):
@@ -111,7 +139,6 @@ def test_execute_compute_cross_correlation_returns_early_for_control_event(
     )
 
     base_input_parameters["computeCorr"] = True
-    base_input_parameters["removeArtifacts"] = False
     execute_compute_cross_correlation(str(psth_output_dir), "control_DMS", base_input_parameters)
 
     assert len(read_df_calls) == 0
@@ -127,7 +154,6 @@ def test_execute_compute_cross_correlation_raises_for_single_recording_site(
     )
 
     base_input_parameters["computeCorr"] = True
-    base_input_parameters["removeArtifacts"] = False
 
     with pytest.raises(ValueError, match="only one was found: 'dms'"):
         execute_compute_cross_correlation(str(psth_output_dir), "lever_press", base_input_parameters)
@@ -143,7 +169,6 @@ def test_execute_compute_cross_correlation_raises_for_no_recording_sites(
     )
 
     base_input_parameters["computeCorr"] = True
-    base_input_parameters["removeArtifacts"] = False
 
     with pytest.raises(ValueError, match="no signal recording sites were found"):
         execute_compute_cross_correlation(str(psth_output_dir), "lever_press", base_input_parameters)

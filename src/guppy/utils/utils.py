@@ -3,6 +3,7 @@ import json
 import logging
 import os
 
+import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -343,3 +344,32 @@ def read_Df(filepath: str, event: str, name: str) -> pd.DataFrame:
     df = pd.read_hdf(hdf5_path, key="df", mode="r")
 
     return df
+
+
+def resolve_run_folders(session_folders: list, inputParameters: dict) -> list[str]:
+    """Return the output (run) folders a compute job wrote for the given sessions.
+
+    Mirrors the folder selection the step workers use: per-session run folders normally,
+    or the first folder of each combine-group when ``combine_data`` is set.
+
+    Parameters
+    ----------
+    session_folders : list
+        Session directories to resolve.
+    inputParameters : dict
+        Pipeline configuration; must include ``'combine_data'``.
+
+    Returns
+    -------
+    list of str
+        The resolved run folders.
+    """
+    selected_runs = inputParameters.get("selected_runs") or {}
+    run_folders: list[str] = []
+    for session in session_folders:
+        run_folders.append(select_run_folders(session, selected_runs.get(session)))
+    run_folders = list(np.concatenate(run_folders).flatten())
+
+    if inputParameters["combine_data"] == True:
+        return [group[0] for group in get_all_stores_for_combining_data(run_folders)]
+    return run_folders

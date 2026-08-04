@@ -91,6 +91,23 @@ def screenshot_import_custom_events_button(page: Page) -> None:
     pn.state.kill_all_servers()
 
 
+def screenshot_select_artifact_windows_button(page: Page) -> None:
+    """How-to: the sidebar showing the two optional artifact steps between Step 3 and Step 4."""
+    os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
+    template = build_homepage()
+    url = _serve(template)
+    page.goto(url)
+    page.get_by_text("Individual Analysis").first.wait_for()
+    page.wait_for_timeout(1000)
+    page.screenshot(
+        path=OUTPUT_DIR / "select_artifact_windows_button.png",
+        clip={"x": 0, "y": 320, "width": 340, "height": 340},
+    )
+    print("Saved select_artifact_windows_button.png")
+
+    pn.state.kill_all_servers()
+
+
 def screenshot_import_custom_events(page: Page) -> None:
     """How-to: the Import Custom Events pop-out with two example events filled in.
 
@@ -190,13 +207,13 @@ def screenshot_parameters(page: Page) -> None:
 def screenshot_sidebar_progress(page: Page, progress_index: int, output_name: str) -> None:
     """Screenshot the homepage sidebar with one progress bar mid-fill.
 
-    The homepage sidebar contains three Progress indicators (read raw data,
-    preprocess, PSTH) that fill from 0 to 100 as the corresponding pipeline
-    step runs. We render the homepage with one of them pre-set to 60 to
-    illustrate the in-progress state, then clip the screenshot to the
+    The homepage sidebar contains four Progress indicators that fill from 0 to 100 as
+    the corresponding pipeline step runs. We render the homepage with one of them
+    pre-set to 60 to illustrate the in-progress state, then clip the screenshot to the
     leftmost 360 px so the result is just the sidebar.
 
-    progress_index: 0 = read raw data, 1 = preprocess, 2 = PSTH computation.
+    progress_index follows sidebar order: 0 = read raw data, 1 = preprocess,
+    2 = remove artifacts, 3 = PSTH computation.
     """
     os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
     template = build_homepage()
@@ -315,7 +332,8 @@ def main() -> None:
             screenshot_label_stores_configured(page, tmp_path)
             screenshot_sidebar_progress(page, 0, "04_read_progress.png")
             screenshot_sidebar_progress(page, 1, "05_preprocess_progress.png")
-            screenshot_sidebar_progress(page, 2, "06_psth_progress.png")
+            screenshot_sidebar_progress(page, 3, "06_psth_progress.png")
+            screenshot_select_artifact_windows_button(page)
             screenshot_visualization(page, tmp_path)
 
         browser.close()

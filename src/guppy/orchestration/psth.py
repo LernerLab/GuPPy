@@ -11,7 +11,7 @@ import numpy as np
 from scipy import signal as ss
 
 from .group_utils import gather_group_run_folders
-from .save_parameters import save_parameters
+from .save_parameters import read_artifact_provenance, save_parameters
 from .transients import executeFindFreqAndAmp
 from ..analysis.compute_psth import compute_psth
 from ..analysis.cross_correlation import compute_cross_correlation
@@ -194,14 +194,14 @@ def execute_compute_cross_correlation(filepath: str, event: str, inputParameters
         Full pipeline input parameters.
     """
     isCompute = inputParameters["computeCorr"]
-    removeArtifacts = inputParameters["removeArtifacts"]
-    artifactsRemovalMethod = inputParameters["artifactsRemovalMethod"]
+    removeArtifacts, artifactsRemovalMethod = read_artifact_provenance(destination=filepath)
     if isCompute == True:
         if removeArtifacts == True and artifactsRemovalMethod == "concatenate":
             raise ValueError(
-                "For cross-correlation, when removeArtifacts is True, the artifacts removal method "
-                "must be 'replace with NaNs' and not 'concatenate'. Change 'Method for Artifact "
-                "Removal' in the Input Parameters GUI."
+                f"Cross-correlation cannot run on concatenated data, but the outputs in '{filepath}' were "
+                "produced by the Remove Artifacts step using the 'concatenate' method. Re-run Select "
+                "Artifact Windows with the method set to 'replace with NaN' followed by Remove Artifacts, "
+                "or disable Compute Cross-correlation."
             )
         corr_info, type = getCorrCombinations(filepath, inputParameters)
         if len(corr_info) < 2:

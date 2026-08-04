@@ -150,7 +150,7 @@ Click **Read Raw Data**. A progress bar appears in the sidebar directly below th
 :align: center
 ```
 
-The other bars on the sidebar (under *Preprocess and Remove Artifacts* and *PSTH Computation*) appear pre-filled at 100% as a styling default; they reset to 0 and fill while their own step is running. So a fully-green bar does not mean that step is done, it just means it has not been touched yet.
+The other bars on the sidebar (under *Preprocess*, *Remove Artifacts*, and *PSTH Computation*) appear pre-filled at 100% as a styling default; they reset to 0 and fill while their own step is running. So a fully-green bar does not mean that step is done, it just means it has not been touched yet.
 
 GuPPy loads each CSV file and writes the data into the output folder you created in Step 1, one HDF5 file per store (so for this tutorial: `sample_data_csv_1_output_1/control_A.hdf5`, `.../signal_A.hdf5`, `.../RewardPort.hdf5`). Each file holds the channel's `data`, `timestamps`, and `sampling_rate` datasets plus a few metadata fields. HDF5 is a binary format that stores large numerical arrays efficiently and supports partial reads, which speeds up the later pipeline steps.
 
@@ -161,7 +161,7 @@ When the progress bar reaches 100% the step is complete. Confirmation messages a
 Click **Preprocess**. As with Read Raw Data, a progress bar appears in the sidebar directly below the button and fills as the work runs.
 
 ```{image} ../_static/images/05_preprocess_progress.png
-:alt: GuPPy homepage sidebar with the Preprocess and Remove Artifacts progress bar partially filled
+:alt: GuPPy homepage sidebar with the Preprocess progress bar partially filled
 :align: center
 ```
 
@@ -184,6 +184,10 @@ The results are written into the same output folder as Step 2, in four new HDF5 
 When preprocessing finishes, GuPPy opens the preprocessing results in a new browser tab. The `plot_zScore_dff` input parameter controls the z-score / ΔF/F review shown there — `z_score`, `dff`, `Both`, or `None` (the default). The main GuPPy tab stays responsive, so you can leave the results tab open and keep working.
 
 <!-- TODO: add a screenshot of the preprocessing results tab that opens after preprocess completes (e.g. 05_preprocess_plot.png). It is a separate browser tab served by GuPPy, so the screenshot script will need to capture that route. -->
+
+### Optional: remove artifacts
+
+If the traces in that results tab show stretches you want excluded — a knocked patchcord, a chewing bout — two optional steps sit between Step 3 and Step 4 for that: **Select Artifact Windows**, where you mark the contaminated periods, and **Remove Artifacts**, which applies them. The sample data for this tutorial is clean, so you can skip both. See [Remove artifacts from a recording](../how-to/artifact-removal.md) when you need them.
 
 
 ## Step 4: Compute the PSTH

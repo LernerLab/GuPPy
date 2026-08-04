@@ -125,16 +125,16 @@ The largest card on the homepage, collapsed by default (only Input Folder Select
 
 ### Artifact removal
 
-*Used by: Step 3 (Preprocess) runs the interactive removal flow when enabled.*
+Artifact removal is not configured from this form. It is handled by two optional steps that run after Step 3 — **Select Artifact Windows** and **Remove Artifacts** — and the removal method is chosen on the Select Artifact Windows page. See [Remove artifacts from a recording](../how-to/artifact-removal.md).
 
-| Parameter | Description | Type | Default | Options / range |
-|-----------|-------------|------|---------|-----------------|
-| removeArtifacts? | Enable the interactive removal flow. | bool | `False` | `True`, `False` |
-| removeArtifacts method | How dropped chunks are handled. | str | `concatenate` | `concatenate`, `replace with NaN` |
+Both settings still appear in `GuPPyParamtersUsed.json` as a record of what was applied to each run:
 
-**removeArtifacts?** enables the manual artifact-removal step in Step 3: when `True`, GuPPy presents an interactive plot during preprocessing and lets you select bad chunks to drop. When `False`, no chunks are removed.
+| Internal name | Meaning | Written by |
+|---------------|---------|------------|
+| `removeArtifacts` | Whether artifacts were removed from this run. | `False` after Step 3; `True` after Remove Artifacts. |
+| `artifactsRemovalMethod` | How the marked periods were applied. | Select Artifact Windows records the method chosen on the page. |
 
-**removeArtifacts method** chooses how dropped chunks are handled. `concatenate` removes the bad sections and stitches the surviving good sections together (so the resulting trace is shorter than the input). `replace with NaN` keeps the trace at its original length but masks the dropped samples with NaN, which downstream code treats as missing.
+`replace with NaN` (the default) keeps the trace at its original length and masks the marked samples with NaN, which downstream code treats as missing. `concatenate` drops the marked sections and stitches the surviving ones together, so the resulting trace is shorter than the input; it re-times the kept samples onto a new timeline, is unsupported by NWB export, and cannot be combined with cross-correlation.
 
 ### Z-score Parameters
 
@@ -247,7 +247,7 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 | Internal name | Parameter | Section |
 |---------------|-----------|---------|
 | `abspath` | (auto-derived; not user-set) | [Input Folder Selection](#input-folder-selection) |
-| `artifactsRemovalMethod` | removeArtifacts method | [Artifact removal](#artifact-removal) |
+| `artifactsRemovalMethod` | (recorded provenance; set on the Select Artifact Windows page) | [Artifact removal](#artifact-removal) |
 | `averageForGroup` | Average Group? | [Group Analysis](#group-analysis) |
 | `baselineCorrectionEnd` | Baseline Correction End time | [Baseline Parameters](#baseline-parameters) |
 | `baselineCorrectionStart` | Baseline Correction Start time | [Baseline Parameters](#baseline-parameters) |
@@ -275,7 +275,7 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 | `peak_endPoint` | Peak End time | [Peak and AUC Parameters](#peak-and-auc-parameters) |
 | `peak_startPoint` | Peak Start time | [Peak and AUC Parameters](#peak-and-auc-parameters) |
 | `plot_zScore_dff` | z-score plot and/or ΔF/F plot? | [Output metric selection](#output-metric-selection) |
-| `removeArtifacts` | removeArtifacts? | [Artifact removal](#artifact-removal) |
+| `removeArtifacts` | (recorded provenance; not user-set) | [Artifact removal](#artifact-removal) |
 | `selectForComputePsth` | z_score and/or ΔF/F? (psth) | [Output metric selection](#output-metric-selection) |
 | `selectForTransientsComputation` | z_score and/or ΔF/F? (transients) | [Output metric selection](#output-metric-selection) |
 | `timeForLightsTurnOn` | Eliminate first few seconds | [Signal preprocessing](#signal-preprocessing) |
