@@ -11,6 +11,7 @@ from guppy.frontend.store_labeling_instructions import StoreLabelingInstructions
 from guppy.orchestration.store_labeling import (
     _compute_npm_channel_previews,
     _fetchValues,
+    _npm_params_to_persist,
     _save,
     build_store_labeling_template,
     make_dir,
@@ -938,8 +939,7 @@ def test_read_header_non_headless_npm_defers_discovery():
     assert flags == []
     assert npm_interactive == {
         "multiple_event_ttls": [False, True],
-        "ts_unit_needs": [True, False],
-        "col_names_ts": ["", "SystemTimestamp", "ComputerTimestamp"],
+        "timestamp_column_options": ["SystemTimestamp", "ComputerTimestamp"],
     }
 
 
@@ -979,16 +979,16 @@ def test_confirm_npm_configuration_writes_params_and_populates_page(panel_extens
     instructions = template._widgets["instructions"]
     selector = template._widgets["selector"]
 
-    # file0 needs a timestamp column/unit; file1 gets a split-events checkbox.
-    instructions.timestamp_column_selects[0].value = "ComputerTimestamp"
-    instructions.time_unit_selects[0].value = "milliseconds"
+    # The session offers two timestamp columns; file1 gets a split-events checkbox.
+    instructions.timestamp_column_select.value = "ComputerTimestamp"
+    instructions.time_unit_select.value = "milliseconds"
     instructions.split_event_checkboxes[1].value = True
 
     template._hooks["confirm_npm_configuration"]()
 
     assert input_parameters["npm_split_events"] == [False, True]
-    assert input_parameters["npm_time_units"] == ["milliseconds", "seconds"]
-    assert input_parameters["npm_timestamp_column_names"] == ["ComputerTimestamp", None]
+    assert input_parameters["npm_time_unit"] == "milliseconds"
+    assert input_parameters["npm_timestamp_column_name"] == "ComputerTimestamp"
 
     # Discovery ran and populated the store selector with the derived NPM store_ids.
     assert "file0_chod3" in selector.cross_selector.options
@@ -998,3 +998,32 @@ def test_confirm_npm_configuration_writes_params_and_populates_page(panel_extens
     # Preview plot is rendered after confirmation.
     assert instructions.plot_select is not None
     assert instructions.plot_select.options
+
+
+# ---------------------------------------------------------------------------
+# _npm_params_to_persist
+# ---------------------------------------------------------------------------
+
+
+def test_npm_params_to_persist_records_the_unit_that_will_be_applied():
+    # An unset unit must not be persisted as-is: .npm_params.json is the only record of
+    # the unit a run was read with, so it states the resolved value (issue #411).
+    npm_params = _npm_params_to_persist({"npm_split_events": [True, False], "noChannels": 2})
+
+    assert npm_params == {
+        "npm_split_events": [True, False],
+        "npm_time_unit": "seconds",
+        "npm_timestamp_column_name": None,
+    }
+
+
+def test_npm_params_to_persist_keeps_an_explicit_unit():
+    npm_params = _npm_params_to_persist(
+        {"npm_split_events": None, "npm_time_unit": "milliseconds", "npm_timestamp_column_name": "ComputerTimestamp"}
+    )
+
+    assert npm_params == {
+        "npm_split_events": None,
+        "npm_time_unit": "milliseconds",
+        "npm_timestamp_column_name": "ComputerTimestamp",
+    }

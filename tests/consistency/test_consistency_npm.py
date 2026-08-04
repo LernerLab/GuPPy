@@ -27,8 +27,8 @@ CONSISTENCY_CASES = [
             "event3": "ttl_region3",
         },
         {
-            "npm_timestamp_column_names": ["ComputerTimestamp", None],
-            "npm_time_units": ["milliseconds", "seconds"],
+            "npm_timestamp_column_name": "ComputerTimestamp",
+            "npm_time_unit": "milliseconds",
             "npm_split_events": [False, True],
         },
     ),
@@ -50,7 +50,8 @@ CONSISTENCY_CASES = [
             "file0_chod1": "signal_region1",
             "event0": "ttl_region1",
         },
-        {"npm_split_events": None},
+        # Header-less session: its clock is in milliseconds, which only the user can state.
+        {"npm_time_unit": "milliseconds", "npm_split_events": None},
     ),
 ]
 
