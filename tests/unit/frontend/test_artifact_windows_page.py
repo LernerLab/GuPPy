@@ -1,9 +1,7 @@
 import json
 import os
-from dataclasses import dataclass
 
 import numpy as np
-import pandas as pd
 import panel as pn
 import pytest
 
@@ -17,14 +15,6 @@ from guppy.utils._hdf5_io import write_hdf5
 
 # The keep-window span is widened by one sample, so it runs from -1.0 to 11.0.
 TIMESTAMPS = np.arange(0.0, 11.0, 1.0)
-
-
-@dataclass
-class FakeTableClick:
-    """A Tabulator cell-click event: which column was clicked, and on which row."""
-
-    column: str
-    row: int
 
 
 def _write_site(filepath, site):
@@ -48,8 +38,8 @@ def run_folder(tmp_path):
 @pytest.fixture
 def selector(panel_extension, run_folder):
     selector = ArtifactWindowSelector(str(run_folder), load_pair_traces(str(run_folder)))
-    # The row, apply-to-all, and preview methods act on the selected site; pin it so the
-    # tests do not depend on which site load_pair_traces happens to yield first.
+    # Adding, removing, and the live preview act on the selected site; pin it so the tests
+    # do not depend on which site load_pair_traces happens to yield first.
     selector.site_select.value = "DMS"
     return selector
 
@@ -58,14 +48,13 @@ class TestArtifactWindowSelector:
     def test_sites_discovered_from_control_signal_pairs(self, selector):
         assert sorted(selector.sites) == ["DLS", "DMS"]
 
-    def test_table_starts_empty_with_only_start_and_end_columns(self, selector):
-        table = selector.site_to_table["DMS"]
-        assert list(table.value.columns) == ["start", "end"]
-        assert len(table.value) == 0
+    def test_starts_with_no_marked_periods(self, selector):
+        assert selector.windows_for("DMS") == []
+        assert selector.windows_for("DLS") == []
 
     def test_save_writes_the_complement_of_the_marked_artifacts(self, selector, run_folder):
         """The user marks the bad stretch; disk stores the keep-windows around it."""
-        selector.site_to_table["DMS"].value = pd.DataFrame({"start": [3.0], "end": [5.0]})
+        selector.set_windows("DMS", [(3.0, 5.0)])
 
         selector.save()
 
@@ -73,7 +62,7 @@ class TestArtifactWindowSelector:
         np.testing.assert_array_equal(coords, np.array([[-1.0, 3.0], [5.0, 11.0]]))
 
     def test_save_merges_overlapping_artifact_windows(self, selector, run_folder):
-        selector.site_to_table["DMS"].value = pd.DataFrame({"start": [3.0, 4.0], "end": [5.0, 7.0]})
+        selector.set_windows("DMS", [(3.0, 5.0), (4.0, 7.0)])
 
         selector.save()
 
@@ -81,29 +70,35 @@ class TestArtifactWindowSelector:
         np.testing.assert_array_equal(coords, np.array([[-1.0, 3.0], [7.0, 11.0]]))
 
     def test_save_writes_interleaved_npy(self, selector, run_folder):
-        selector.site_to_table["DMS"].value = pd.DataFrame({"start": [3.0], "end": [5.0]})
+        selector.set_windows("DMS", [(3.0, 5.0)])
 
         selector.save()
 
         saved = np.load(str(run_folder / "coordsForPreProcessing_DMS.npy"))
         np.testing.assert_array_equal(saved[:, 0], np.array([-1.0, 3.0, 5.0, 11.0]))
 
-    def test_save_empty_table_writes_no_file(self, selector, run_folder):
+    def test_save_with_nothing_marked_writes_no_file(self, selector, run_folder):
         selector.save()
 
         assert not (run_folder / "coordsForPreProcessing_DMS.npy").exists()
         assert not (run_folder / "coordsForPreProcessing_DLS.npy").exists()
 
     def test_save_raises_when_window_outside_timespan(self, selector, run_folder):
-        selector.site_to_table["DMS"].value = pd.DataFrame({"start": [8.0], "end": [15.0]})
+        selector.set_windows("DMS", [(8.0, 15.0)])
 
         with pytest.raises(ValueError, match="outside the recording timespan"):
             selector.save()
 
         assert not (run_folder / "coordsForPreProcessing_DMS.npy").exists()
 
+    def test_save_raises_when_window_is_inverted(self, selector, run_folder):
+        selector.set_windows("DMS", [(5.0, 5.0)])
+
+        with pytest.raises(ValueError, match="must be less than"):
+            selector.save()
+
     def test_save_records_removal_method_in_snapshot(self, selector, run_folder):
-        selector.site_to_table["DMS"].value = pd.DataFrame({"start": [3.0], "end": [5.0]})
+        selector.set_windows("DMS", [(3.0, 5.0)])
         selector.method_select.value = "concatenate"
 
         selector.save()
@@ -115,7 +110,7 @@ class TestArtifactWindowSelector:
         assert saved["removeArtifacts"] is False
 
     def test_seeded_from_disk_inverts_saved_keep_windows(self, panel_extension, run_folder):
-        """Re-opening the page shows the artifact windows the user marked, not the keep-windows."""
+        """Re-opening the page shows the artifact periods the user marked, not the keep-windows."""
         np.save(
             str(run_folder / "coordsForPreProcessing_DMS.npy"),
             np.array([[-1.0, 0.0], [3.0, 0.0], [5.0, 0.0], [11.0, 0.0]]),
@@ -123,52 +118,78 @@ class TestArtifactWindowSelector:
 
         reopened = ArtifactWindowSelector(str(run_folder), load_pair_traces(str(run_folder)))
 
-        assert list(reopened.site_to_table["DMS"].value.itertuples(index=False, name=None)) == [(3.0, 5.0)]
-        assert len(reopened.site_to_table["DLS"].value) == 0
+        assert reopened.windows_for("DMS") == [(3.0, 5.0)]
+        assert reopened.windows_for("DLS") == []
 
-    def test_add_and_remove_rows(self, selector):
-        table = selector.site_to_table["DMS"]
+    def test_empty_state_explains_what_happens_when_nothing_is_marked(self, selector):
+        rendered = selector.rows_container.objects
+        assert len(rendered) == 1
+        assert "entire recording will be kept" in rendered[0].object
 
+    def test_marked_periods_render_with_a_column_header(self, selector):
+        selector.set_windows("DMS", [(1.0, 2.0), (6.0, 7.0)])
+
+        rendered = selector.rows_container.objects
+        # One header row plus one row per marked period.
+        assert len(rendered) == 3
+        assert [row.widget for row in selector.site_to_rows["DMS"]] == list(rendered[1:])
+
+    def test_switching_site_shows_that_site_periods(self, selector):
+        selector.set_windows("DMS", [(1.0, 2.0)])
+        selector.set_windows("DLS", [(3.0, 4.0), (6.0, 7.0)])
+
+        selector.site_select.value = "DLS"
+
+        assert [row.widget for row in selector.site_to_rows["DLS"]] == list(selector.rows_container.objects[1:])
+        assert selector.spans_pipe.data == [(3.0, 4.0), (6.0, 7.0)]
+
+    def test_add_period_appends_a_blank_row(self, selector):
         selector.add_window_row()
         selector.add_window_row()
-        assert len(table.value) == 2
 
-        table.value = pd.DataFrame({"start": [1.0, 6.0], "end": [2.0, 7.0]})
+        assert len(selector.site_to_rows["DMS"]) == 2
+        # Blank rows are not yet windows, so they do not shade or save.
+        assert selector.windows_for("DMS") == []
+
+    def test_remove_period_drops_that_row(self, selector):
+        selector.set_windows("DMS", [(1.0, 2.0), (6.0, 7.0)])
+
         selector.remove_window_row(0)
 
-        assert list(table.value.itertuples(index=False, name=None)) == [(6.0, 7.0)]
+        assert selector.windows_for("DMS") == [(6.0, 7.0)]
 
-    def test_each_row_carries_its_own_delete_button(self, selector):
-        """No checkbox column to explain: the ✕ on a row deletes that row."""
-        table = selector.site_to_table["DMS"]
-        assert table.selectable is False
-        assert list(table.buttons) == ["remove"]
+    def test_row_delete_button_removes_its_own_row(self, selector):
+        """Each period owns its delete button, so there is nothing to select first."""
+        selector.set_windows("DMS", [(1.0, 2.0), (6.0, 7.0)])
 
-    def test_clicking_a_row_delete_button_removes_that_row(self, selector):
-        table = selector.site_to_table["DMS"]
-        table.value = pd.DataFrame({"start": [1.0, 6.0], "end": [2.0, 7.0]})
+        selector.site_to_rows["DMS"][1].remove_button.clicks += 1
 
-        selector._on_table_click(FakeTableClick(column="remove", row=1))
+        assert selector.windows_for("DMS") == [(1.0, 2.0)]
 
-        assert list(table.value.itertuples(index=False, name=None)) == [(1.0, 2.0)]
+    def test_editing_a_bound_updates_the_marked_window(self, selector):
+        selector.set_windows("DMS", [(1.0, 2.0)])
 
-    def test_clicking_a_data_cell_removes_nothing(self, selector):
-        table = selector.site_to_table["DMS"]
-        table.value = pd.DataFrame({"start": [1.0, 6.0], "end": [2.0, 7.0]})
+        selector.site_to_rows["DMS"][0].end_input.value = 4.5
 
-        selector._on_table_click(FakeTableClick(column="start", row=1))
+        assert selector.windows_for("DMS") == [(1.0, 4.5)]
 
-        assert len(table.value) == 2
+    def test_bounds_are_limited_to_the_recording_span(self, selector):
+        """A guardrail in the browser; values set programmatically are still validated on save."""
+        selector.add_window_row()
+        row = selector.site_to_rows["DMS"][0]
 
-    def test_apply_to_all_sites_copies_table(self, selector):
-        selector.site_to_table["DMS"].value = pd.DataFrame({"start": [3.0], "end": [5.0]})
+        assert (row.start_input.start, row.start_input.end) == (-1.0, 11.0)
+        assert (row.end_input.start, row.end_input.end) == (-1.0, 11.0)
+
+    def test_apply_to_all_sites_copies_periods(self, selector):
+        selector.set_windows("DMS", [(3.0, 5.0)])
 
         selector.apply_windows_to_all_sites()
 
-        assert list(selector.site_to_table["DLS"].value.itertuples(index=False, name=None)) == [(3.0, 5.0)]
+        assert selector.windows_for("DLS") == [(3.0, 5.0)]
 
     def test_apply_to_all_sites_then_save_writes_every_site(self, selector, run_folder):
-        selector.site_to_table["DMS"].value = pd.DataFrame({"start": [3.0], "end": [5.0]})
+        selector.set_windows("DMS", [(3.0, 5.0)])
         selector.apply_windows_to_all_sites()
 
         selector.save()
@@ -179,24 +200,25 @@ class TestArtifactWindowSelector:
             )
 
     def test_edit_updates_spans_without_rebuilding_the_layout(self, selector):
-        """A table edit repaints only the shaded spans; the trace layout object is untouched."""
+        """Editing a bound repaints only the shaded spans; the trace layout object is untouched."""
+        selector.set_windows("DMS", [(1.0, 2.0)])
         layout_before = selector.marking_pane.object
-        selector.site_to_table["DMS"].value = pd.DataFrame({"start": [3.0], "end": [5.0]})
 
-        selector.refresh_spans()
+        selector.site_to_rows["DMS"][0].end_input.value = 4.5
 
         assert selector.marking_pane.object is layout_before
-        assert selector.spans_pipe.data == [(3.0, 5.0)]
+        assert selector.spans_pipe.data == [(1.0, 4.5)]
 
-    def test_incomplete_rows_are_skipped_in_the_live_preview(self, selector):
-        selector.site_to_table["DMS"].value = pd.DataFrame({"start": [3.0, 7.0], "end": [5.0, np.nan]})
+    def test_blank_rows_are_skipped_in_the_live_preview(self, selector):
+        selector.set_windows("DMS", [(3.0, 5.0)])
+        selector.add_window_row()
 
         selector.refresh_spans()
 
         assert selector.spans_pipe.data == [(3.0, 5.0)]
 
     def test_on_save_swallows_validation_error_without_writing(self, selector, run_folder):
-        selector.site_to_table["DMS"].value = pd.DataFrame({"start": [5.0], "end": [5.0]})
+        selector.set_windows("DMS", [(5.0, 5.0)])
 
         selector._on_save(None)
 
@@ -204,9 +226,14 @@ class TestArtifactWindowSelector:
 
 
 class TestBuildArtifactWindowPage:
-    def test_page_has_an_editable_table(self, panel_extension, run_folder):
+    def test_page_has_no_data_grid(self, panel_extension, run_folder):
+        """Periods are form controls, not a spreadsheet."""
         page = build_artifact_window_page(run_folders=[str(run_folder)])
-        assert page.select(pn.widgets.Tabulator), "the marking page must contain the editable windows table"
+        assert not page.select(pn.widgets.Tabulator)
+
+    def test_page_offers_an_add_control(self, panel_extension, run_folder):
+        page = build_artifact_window_page(run_folders=[str(run_folder)])
+        assert [button for button in page.select(pn.widgets.Button) if button.name == "Add period"]
 
     def test_single_folder_has_no_folder_selector(self, panel_extension, run_folder):
         page = build_artifact_window_page(run_folders=[str(run_folder)])

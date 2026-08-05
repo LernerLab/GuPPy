@@ -8,9 +8,9 @@ run's ``GuPPyParamtersUsed.json``, which the Remove Artifacts step then consumes
 
 import logging
 import os
+from collections.abc import Callable
 
 import numpy as np
-import pandas as pd
 import panel as pn
 
 from .artifact_removal import build_run_folder_page, load_pair_traces
@@ -24,23 +24,25 @@ from ..utils.artifact_windows import (
 )
 from ..visualization.preprocessing import build_control_signal_fit, make_spans_pipe
 
-pn.extension("tabulator", notifications=True)
+pn.extension(notifications=True)
 
 logger = logging.getLogger(__name__)
 
 ARTIFACT_REMOVAL_METHODS = ["replace with NaN", "concatenate"]
 
-# Name of the per-row delete-button column added to each site's table.
-_REMOVE_COLUMN = "remove"
+# Seconds per arrow-key press on a window bound, for nudging an edge into place.
+_NUDGE_STEP = 0.1
+_INPUT_WIDTH = 110
 
 _INSTRUCTIONS = (
-    "Mark the periods where **artifacts occurred** for each recording site: type the "
-    "start/end times (seconds) into the table and the shaded spans update to match. "
-    "Everything outside the marked periods is kept — leave the table empty to keep the "
-    "entire recording.\n\n"
-    "Use **Add window** for another period, or the ✕ on a row to delete it. "
+    "Mark the periods where **artifacts occurred** for each recording site: enter the "
+    "start and end time (seconds) of each period and the shaded spans update to match. "
+    "Everything outside the marked periods is kept — mark nothing to keep the entire "
+    "recording.\n\n"
     "Click **Save** to write the windows, then run **Remove Artifacts** to apply them."
 )
+
+_NO_WINDOWS_HINT = "_No artifact periods marked — the entire recording will be kept._"
 
 _METHOD_HELP = (
     "How the marked periods are applied. **replace with NaN** (recommended) blanks them "
@@ -51,27 +53,8 @@ _METHOD_HELP = (
 )
 
 
-def _empty_windows_df() -> pd.DataFrame:
-    return pd.DataFrame({"start": pd.Series(dtype="float"), "end": pd.Series(dtype="float")})
-
-
-def _windows_df(windows: list[tuple[float, float]]) -> pd.DataFrame:
-    if not windows:
-        return _empty_windows_df()
-    return pd.DataFrame({"start": [start for start, _ in windows], "end": [end for _, end in windows]})
-
-
-def _complete_windows(df: pd.DataFrame) -> list[tuple[float, float]]:
-    """Return the ``(start, end)`` rows that have both bounds filled in."""
-    return [
-        (float(row["start"]), float(row["end"]))
-        for _, row in df.iterrows()
-        if not pd.isna(row["start"]) and not pd.isna(row["end"])
-    ]
-
-
-def _validated_windows(df: pd.DataFrame, timestamps: np.ndarray) -> list[tuple[float, float]]:
-    """Validate the complete rows of an artifact-window table against the recording timespan.
+def _validated_windows(windows: list[tuple[float, float]], timestamps: np.ndarray) -> list[tuple[float, float]]:
+    """Validate marked artifact windows against the recording timespan.
 
     Raises
     ------
@@ -79,8 +62,7 @@ def _validated_windows(df: pd.DataFrame, timestamps: np.ndarray) -> list[tuple[f
         If a window is inverted or falls outside the recording.
     """
     low, high = float(timestamps[0]), float(timestamps[-1])
-    windows = []
-    for start, end in _complete_windows(df):
+    for start, end in windows:
         if start >= end:
             message = f"Artifact window start={start} must be less than end={end}."
             logger.error(message)
@@ -92,8 +74,7 @@ def _validated_windows(df: pd.DataFrame, timestamps: np.ndarray) -> list[tuple[f
             )
             logger.error(message)
             raise ValueError(message)
-        windows.append((start, end))
-    return windows
+    return list(windows)
 
 
 def _margined_span(timestamps: np.ndarray) -> tuple[float, float]:
@@ -111,12 +92,50 @@ def _saved_artifact_windows(filepath: str, site: str, timestamps: np.ndarray) ->
     return complement_windows(windows=keep_windows, span_start=span_start, span_end=span_end)
 
 
+class ArtifactWindowRow:
+    """One marked artifact period: a start bound, an end bound, and a delete button.
+
+    The bounds are numeric inputs limited to the recording timespan, so an edge can be
+    nudged with the arrow keys. The limits are a browser-side guardrail only — a value
+    set programmatically is not clamped, so callers still validate before saving.
+    """
+
+    def __init__(
+        self,
+        *,
+        start: float | None,
+        end: float | None,
+        span: tuple[float, float],
+        on_change: Callable[[], None],
+        on_remove: Callable[["ArtifactWindowRow"], None],
+    ) -> None:
+        low, high = span
+        self.start_input = pn.widgets.FloatInput(value=start, start=low, end=high, step=_NUDGE_STEP, width=_INPUT_WIDTH)
+        self.end_input = pn.widgets.FloatInput(value=end, start=low, end=high, step=_NUDGE_STEP, width=_INPUT_WIDTH)
+        self.remove_button = pn.widgets.Button(
+            icon="trash", button_type="light", width=40, height=38, description="Delete this period"
+        )
+
+        self.start_input.param.watch(lambda event: on_change(), "value")
+        self.end_input.param.watch(lambda event: on_change(), "value")
+        self.remove_button.on_click(lambda event: on_remove(self))
+
+        self.widget = pn.Row(self.start_input, self.end_input, self.remove_button, align="center", margin=(0, 0, 4, 0))
+
+    @property
+    def window(self) -> tuple[float, float] | None:
+        """The ``(start, end)`` period, or None while either bound is still blank."""
+        if self.start_input.value is None or self.end_input.value is None:
+            return None
+        return float(self.start_input.value), float(self.end_input.value)
+
+
 class ArtifactWindowSelector:
     """Interactive artifact-marking page for one run folder across all recording sites.
 
     Shows the selected site's control/signal/fit traces with the marked artifact periods
-    shaded, an editable ``(start, end)`` table, and a removal-method selector. On save,
-    writes one ``coordsForPreProcessing_<site>.npy`` per site holding the keep-windows.
+    shaded, one editable row per period, and a removal-method selector. On save, writes
+    one ``coordsForPreProcessing_<site>.npy`` per site holding the keep-windows.
     """
 
     def __init__(self, filepath: str, pair_traces: dict[str, dict[str, object]]) -> None:
@@ -124,34 +143,28 @@ class ArtifactWindowSelector:
         self.pair_traces = pair_traces
         self.sites = list(pair_traces.keys())
 
-        # Each row carries its own delete button, so there is nothing to select and no
-        # separate "remove the checked ones" step to explain.
-        self.site_to_table = {
-            site: pn.widgets.Tabulator(
-                _windows_df(_saved_artifact_windows(filepath, site, pair_traces[site]["x"])),
-                show_index=False,
-                selectable=False,
-                buttons={_REMOVE_COLUMN: "✕"},
-                widths=180,
-            )
+        self.site_to_rows: dict[str, list[ArtifactWindowRow]] = {
+            site: [
+                self._build_row(site, start, end)
+                for start, end in _saved_artifact_windows(filepath, site, pair_traces[site]["x"])
+            ]
             for site in self.sites
         }
+
         self.site_select = pn.widgets.Select(name="Recording site", options=self.sites, value=self.sites[0])
-        self.add_row_button = pn.widgets.Button(name="Add window", button_type="default")
+        self.add_row_button = pn.widgets.Button(name="Add period", button_type="default", icon="plus")
         self.apply_to_all_button = pn.widgets.Button(name="Apply to all recording sites", button_type="default")
         self.method_select = pn.widgets.Select(
             name="Removal method", options=ARTIFACT_REMOVAL_METHODS, value=ARTIFACT_REMOVAL_METHODS[0], width=200
         )
         self.save_button = pn.widgets.Button(name="Save", button_type="primary")
 
-        self.spans_pipe = make_spans_pipe(windows=self._marked_windows(self.sites[0]))
+        self.spans_pipe = make_spans_pipe(windows=self.windows_for(self.sites[0]))
         self.marking_pane = pn.pane.HoloViews(self._make_marking_plot(), width=800)
-        self.table_container = pn.Row(self.site_to_table[self.sites[0]])
+        self.rows_container = pn.Column()
+        self._render_rows()
 
         self.site_select.param.watch(self._on_site_change, "value")
-        for table in self.site_to_table.values():
-            table.on_edit(self._on_table_edit)
-            table.on_click(self._on_table_click)
         self.add_row_button.on_click(lambda event: self.add_window_row())
         self.apply_to_all_button.on_click(lambda event: self.apply_windows_to_all_sites())
         self.save_button.on_click(self._on_save)
@@ -161,64 +174,80 @@ class ArtifactWindowSelector:
             pn.pane.Markdown(_INSTRUCTIONS),
             self.site_select,
             self.marking_pane,
-            self.table_container,
+            self.rows_container,
             pn.Row(self.add_row_button, self.apply_to_all_button),
             self.method_select,
             pn.pane.Markdown(_METHOD_HELP),
             self.save_button,
         )
 
-    def _marked_windows(self, site: str) -> list[tuple[float, float]]:
-        """Complete rows of a site's table, unvalidated — used for the live preview."""
-        return _complete_windows(self.site_to_table[site].value)
-
-    def _make_marking_plot(self) -> object:
-        site = self.site_select.value
-        trace = self.pair_traces[site]
-        return build_control_signal_fit(
-            x=trace["x"],
-            control=trace["control"],
-            signal=trace["signal"],
-            fit=trace["fit"],
-            titles=trace["plot_name"],
-            suptitle=os.path.basename(self.filepath),
-            spans=self.spans_pipe,
+    def _build_row(self, site: str, start: float | None, end: float | None) -> ArtifactWindowRow:
+        return ArtifactWindowRow(
+            start=start,
+            end=end,
+            span=_margined_span(self.pair_traces[site]["x"]),
+            on_change=self.refresh_spans,
+            on_remove=self._remove_row,
         )
 
+    def _column_header(self) -> pn.Row:
+        return pn.Row(
+            pn.pane.HTML("<b>start (s)</b>", width=_INPUT_WIDTH),
+            pn.pane.HTML("<b>end (s)</b>", width=_INPUT_WIDTH),
+            pn.Spacer(width=40),
+            margin=(0, 0, 2, 0),
+        )
+
+    def _render_rows(self) -> None:
+        rows = self.site_to_rows[self.site_select.value]
+        if not rows:
+            self.rows_container[:] = [pn.pane.Markdown(_NO_WINDOWS_HINT)]
+            return
+        self.rows_container[:] = [self._column_header()] + [row.widget for row in rows]
+
+    def windows_for(self, site: str) -> list[tuple[float, float]]:
+        """The fully-entered artifact periods marked for one recording site."""
+        return [row.window for row in self.site_to_rows[site] if row.window is not None]
+
+    def set_windows(self, site: str, windows: list[tuple[float, float]]) -> None:
+        """Replace one recording site's marked periods."""
+        self.site_to_rows[site] = [self._build_row(site, start, end) for start, end in windows]
+        if site == self.site_select.value:
+            self._render_rows()
+        self.refresh_spans()
+
     def refresh_spans(self) -> None:
-        """Repaint the shaded spans from the current table, leaving the traces untouched."""
-        self.spans_pipe.send(self._marked_windows(self.site_select.value))
+        """Repaint the shaded spans from the current rows, leaving the traces untouched."""
+        self.spans_pipe.send(self.windows_for(self.site_select.value))
 
     def add_window_row(self) -> None:
-        """Append an empty window row to the selected site's table."""
-        table = self.site_to_table[self.site_select.value]
-        table.value = pd.concat([table.value, pd.DataFrame({"start": [np.nan], "end": [np.nan]})], ignore_index=True)
+        """Append a blank period to the selected site."""
+        site = self.site_select.value
+        self.site_to_rows[site].append(self._build_row(site, None, None))
+        self._render_rows()
 
     def remove_window_row(self, row_index: int) -> None:
-        """Drop one window row from the selected site's table."""
-        table = self.site_to_table[self.site_select.value]
-        table.value = table.value.drop(index=table.value.index[row_index]).reset_index(drop=True)
-        self.refresh_spans()
+        """Drop one period from the selected site."""
+        self._remove_row(self.site_to_rows[self.site_select.value][row_index])
 
     def apply_windows_to_all_sites(self) -> None:
-        """Copy the selected site's windows into every other recording site."""
-        source = self.site_to_table[self.site_select.value].value
-        for site, table in self.site_to_table.items():
+        """Copy the selected site's periods into every other recording site."""
+        windows = self.windows_for(self.site_select.value)
+        for site in self.sites:
             if site != self.site_select.value:
-                table.value = source.copy()
-        self.refresh_spans()
+                self.set_windows(site, windows)
 
     def save(self) -> None:
         """Write the keep-windows for every site, then record the removal method.
 
-        All sites are validated before anything is written, so an invalid window raises
+        All sites are validated before anything is written, so an invalid period raises
         up-front without leaving a partially-written set of coords files. A site with no
-        marked windows writes no file (keep-the-entire-recording default).
+        marked periods writes no file (keep-the-entire-recording default).
         """
         site_to_keep_windows = {}
-        for site, table in self.site_to_table.items():
+        for site in self.sites:
             timestamps = self.pair_traces[site]["x"]
-            artifact_windows = _validated_windows(table.value, timestamps)
+            artifact_windows = _validated_windows(self.windows_for(site), timestamps)
             if not artifact_windows:
                 continue
             span_start, span_end = _margined_span(timestamps)
@@ -235,19 +264,30 @@ class ArtifactWindowSelector:
 
         record_artifact_provenance(destination=self.filepath, artifacts_removal_method=self.method_select.value)
 
-    def _on_site_change(self, event: object) -> None:
-        self.table_container[:] = [self.site_to_table[self.site_select.value]]
-        # A new site means new traces, so the layout is rebuilt; give it a fresh pipe
-        # so the discarded plot stops receiving updates.
-        self.spans_pipe = make_spans_pipe(windows=self._marked_windows(self.site_select.value))
-        self.marking_pane.object = self._make_marking_plot()
-
-    def _on_table_edit(self, event: object) -> None:
+    def _remove_row(self, row: ArtifactWindowRow) -> None:
+        self.site_to_rows[self.site_select.value].remove(row)
+        self._render_rows()
         self.refresh_spans()
 
-    def _on_table_click(self, event: object) -> None:
-        if event.column == _REMOVE_COLUMN:
-            self.remove_window_row(event.row)
+    def _on_site_change(self, event: object) -> None:
+        self._render_rows()
+        # A new site means new traces, so the layout is rebuilt; give it a fresh pipe
+        # so the discarded plot stops receiving updates.
+        self.spans_pipe = make_spans_pipe(windows=self.windows_for(self.site_select.value))
+        self.marking_pane.object = self._make_marking_plot()
+
+    def _make_marking_plot(self) -> object:
+        site = self.site_select.value
+        trace = self.pair_traces[site]
+        return build_control_signal_fit(
+            x=trace["x"],
+            control=trace["control"],
+            signal=trace["signal"],
+            fit=trace["fit"],
+            titles=trace["plot_name"],
+            suptitle=os.path.basename(self.filepath),
+            spans=self.spans_pipe,
+        )
 
     def _on_save(self, event: object) -> None:
         try:

@@ -34,11 +34,12 @@ before Step 3 has run, GuPPy tells you so rather than showing an empty page.
    ```
 
 3. Pick the recording site you want to mark with the **Recording site** selector.
-4. Read the start and end times of the contaminated stretch off the trace, then
-   enter them in the table: one row per period, in **seconds**. The shaded spans on
-   the traces update as you type, so you can check the marking against the data.
+4. Click **+ Add period** and enter the start and end time of the contaminated
+   stretch, in **seconds**. The shaded spans on the traces update as you type, so you
+   can check the marking against the data — and the arrow keys nudge a bound by 0.1 s
+   at a time if you need to fine-tune an edge.
 
-   Use **Add window** for another period, or the ✕ at the end of a row to delete it.
+   Add a period for each contaminated stretch; the trash button on a row deletes it.
 
 5. If the same artifact appears across every recording site — a motion artifact
    usually does, since it hits all sites at the same instant — click **Apply to all
@@ -46,11 +47,11 @@ before Step 3 has run, GuPPy tells you so rather than showing an empty page.
 6. Choose the **Removal method** (see below).
 7. Click **Save**.
 
-You are marking the periods to **remove**. Everything outside them is kept.
-Leaving the table empty keeps the entire recording.
+You are marking the periods to **remove**. Everything outside them is kept, so
+marking nothing keeps the entire recording.
 
-Re-opening the page later shows the periods you marked, so you can widen a window
-or add one without starting over.
+Re-opening the page later shows the periods you marked, so you can widen one or add
+another without starting over.
 
 ## Choosing a removal method
 
@@ -73,17 +74,18 @@ This step does more than mask samples: the marked periods change the control fit
 and the z-score baseline statistics, so the z-score and dF/F are recomputed
 against them. That is why it takes about as long as Step 3 itself.
 
-When it finishes, GuPPy opens a review tab showing the same traces with the kept
-periods shaded, so you can confirm the result.
+When it finishes, GuPPy opens a review tab showing the cleaned traces, so you can
+confirm the result. Nothing is shaded there — the marked periods are gone from the
+data, so the traces themselves are the result.
 
-If you click Remove Artifacts without having saved any windows, GuPPy tells you
+If you click Remove Artifacts without having saved any periods, GuPPy tells you
 which run is unmarked instead of silently doing nothing.
 
-## Adjusting a window
+## Adjusting a marked period
 
-Marking is re-runnable. Open **Select Artifact Windows** again, change the table,
+Marking is re-runnable. Open **Select Artifact Windows** again, change the periods,
 save, and click **Remove Artifacts** again — the step recomputes from the raw data
-each time, so widening a window does not compound with the previous removal.
+each time, so widening a period does not compound with the previous removal.
 
 ## What lands on disk
 
