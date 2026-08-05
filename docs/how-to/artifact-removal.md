@@ -17,9 +17,9 @@ automatically, see the [artifacts explainer](../explanation/artifacts.md).
 
 ## Before you start
 
-Run **Step 3: Preprocess** first. Both optional steps read its outputs, and the
-traces you mark on are the ones it produced. If you open Select Artifact Windows
-before Step 3 has run, GuPPy tells you so.
+Run **Step 1: Label Stores**, **Step 2: Read Raw Data**, and **Step 3: Preprocess**
+on the sessions you want to clean. The traces you mark on are the ones Step 3
+produced, so both optional steps need its outputs on disk.
 
 ## Marking the periods
 
@@ -31,6 +31,10 @@ before Step 3 has run, GuPPy tells you so.
    ```{image} ../_static/images/select_artifact_windows_button.png
    :alt: The sidebar with the two optional artifact steps, Select Artifact Windows and Remove Artifacts, positioned between Step 3 Preprocess and Step 4 PSTH Computation
    :width: 50%
+   ```
+
+   ```{image} ../_static/images/select_artifact_windows.png
+   :alt: The Select Artifact Windows page: a Recording site selector above the control, signal, and fitted-control traces, with a knocked-patchcord dropout shaded orange; below them a row of start and end bounds for that period, the Add period and Apply to all recording sites buttons, the Removal method selector, and Save
    ```
 
 3. Pick the recording site you want to mark with the **Recording site** selector.
