@@ -19,7 +19,7 @@ automatically, see the [artifacts explainer](../explanation/artifacts.md).
 
 Run **Step 3: Preprocess** first. Both optional steps read its outputs, and the
 traces you mark on are the ones it produced. If you open Select Artifact Windows
-before Step 3 has run, GuPPy tells you so rather than showing an empty page.
+before Step 3 has run, GuPPy tells you so.
 
 ## Marking the periods
 
@@ -70,22 +70,20 @@ unsupported by NWB export and cannot be combined with cross-correlation. Prefer
 Click **Remove Artifacts**. A progress bar appears in the sidebar directly below
 the button and fills as the work runs.
 
-This step does more than mask samples: the marked periods change the control fit
-and the z-score baseline statistics, so the z-score and dF/F are recomputed
-against them. That is why it takes about as long as Step 3 itself.
+The step recomputes the control fit, z-score, and dF/F with the marked periods
+excluded, so it takes about as long as Step 3 itself.
 
 When it finishes, GuPPy opens a review tab showing the cleaned traces, so you can
-confirm the result. Nothing is shaded there — the marked periods are gone from the
-data, so the traces themselves are the result.
+confirm the result.
 
 If you click Remove Artifacts without having saved any periods, GuPPy tells you
-which run is unmarked instead of silently doing nothing.
+which run is unmarked.
 
 ## Adjusting a marked period
 
 Marking is re-runnable. Open **Select Artifact Windows** again, change the periods,
-save, and click **Remove Artifacts** again — the step recomputes from the raw data
-each time, so widening a period does not compound with the previous removal.
+save, and click **Remove Artifacts** again. Each run recomputes from the raw data,
+so removals do not compound.
 
 ## What lands on disk
 
