@@ -72,10 +72,10 @@ class PeaksReviewView:
         self.labels = list(entries.keys())
 
         self.trace_select = pn.widgets.Select(name="Trace", options=self.labels, value=self.labels[0])
-        self.plot_pane = pn.pane.HoloViews(self._make_plot(), width=800)
+        self.plot_pane = pn.pane.HoloViews(self._make_plot(), sizing_mode="stretch_width")
         self.trace_select.param.watch(self._refresh, "value")
 
-        self.widget = pn.Column("## Transient peaks", self.trace_select, self.plot_pane)
+        self.widget = pn.Column("## Transient peaks", self.trace_select, self.plot_pane, sizing_mode="stretch_width")
 
     def _make_plot(self) -> hv.DynamicMap:
         entry = self.entries[self.trace_select.value]

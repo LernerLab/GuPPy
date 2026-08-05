@@ -160,7 +160,7 @@ class ArtifactWindowSelector:
         self.save_button = pn.widgets.Button(name="Save", button_type="primary")
 
         self.spans_pipe = make_spans_pipe(windows=self.windows_for(self.sites[0]))
-        self.marking_pane = pn.pane.HoloViews(self._make_marking_plot(), width=800)
+        self.marking_pane = pn.pane.HoloViews(self._make_marking_plot(), sizing_mode="stretch_width")
         self.rows_container = pn.Column()
         self._render_rows()
 
@@ -179,6 +179,7 @@ class ArtifactWindowSelector:
             self.method_select,
             pn.pane.Markdown(_METHOD_HELP),
             self.save_button,
+            sizing_mode="stretch_width",
         )
 
     def _build_row(self, site: str, start: float | None, end: float | None) -> ArtifactWindowRow:

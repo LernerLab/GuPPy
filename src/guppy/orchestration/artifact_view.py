@@ -13,7 +13,7 @@ from ..frontend.artifact_removal import build_artifact_review_page
 
 def _build_page(session_folders: list, inputParameters: dict) -> "object":
     run_folders = resolve_run_folders(session_folders, inputParameters)
-    return build_artifact_review_page(run_folders=run_folders, plot_zScore_dff=inputParameters["plot_zScore_dff"])
+    return build_artifact_review_page(run_folders=run_folders)
 
 
 _view = StepView(route="artifact-view", title="GuPPy — Artifact Removal", build_page=_build_page)

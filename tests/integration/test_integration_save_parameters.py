@@ -40,7 +40,6 @@ def default_parameters():
         "moving_window": 15,
         "highAmpFilt": 2,
         "transientsThresh": 3,
-        "plot_zScore_dff": "None",
         "visualize_zscore_or_dff": "z_score",
         "averageForGroup": False,
     }

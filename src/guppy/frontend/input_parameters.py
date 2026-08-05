@@ -211,13 +211,6 @@ class ParameterForm:
             name="z_score and/or \u0394F/F? (transients)", options=["z_score", "dff", "Both"], width=320
         )
 
-        self.plot_zScore_dff = pn.widgets.Select(
-            name="z-score plot and/or \u0394F/F plot?",
-            options=["z_score", "dff", "Both", "None"],
-            value="None",
-            width=320,
-        )
-
         self.moving_wd = pn.widgets.IntInput(
             name="Moving Window for transients detection (s) (int)", value=15, width=320
         )
@@ -369,7 +362,6 @@ class ParameterForm:
             self.moving_avg_filter,
             self.computePsth,
             self.transients,
-            self.plot_zScore_dff,
             self.moving_wd,
             pn.Row(self.highAmpFilt, self.transientsThresh),
             self.no_channels_np,
@@ -726,7 +718,6 @@ class ParameterForm:
             "moving_window": self.moving_wd.value,
             "highAmpFilt": self.highAmpFilt.value,
             "transientsThresh": self.transientsThresh.value,
-            "plot_zScore_dff": self.plot_zScore_dff.value,
             "visualize_zscore_or_dff": self.visualize_zscore_or_dff.value,
             "group_session_folders": self.files_2.value,
             "averageForGroup": self.averageForGroup.value,
@@ -776,7 +767,6 @@ class ParameterForm:
             "moving_window": self.moving_wd,
             "highAmpFilt": self.highAmpFilt,
             "transientsThresh": self.transientsThresh,
-            "plot_zScore_dff": self.plot_zScore_dff,
             "visualize_zscore_or_dff": self.visualize_zscore_or_dff,
             "averageForGroup": self.averageForGroup,
         }

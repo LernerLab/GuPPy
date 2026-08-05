@@ -5,9 +5,8 @@ These are terminal displays composed by ``orchestration/preprocess_view.py`` and
 compute job finishes — the components never signal a waiting backend (no blocking, no
 server teardown):
 
-* :class:`PreprocessingReviewView` — read-only z-score / dF-F review.
-* :class:`ControlSignalFitView` — read-only control/signal/fit review, with the saved
-  keep-windows shaded once they exist.
+* :class:`PreprocessingReviewView` — read-only review of one run folder's preprocessing
+  output.
 * :func:`build_run_folder_page` — composes a per-folder page over all run folders.
 
 The interactive marking page lives in ``frontend/artifact_windows_page.py``.
@@ -24,37 +23,17 @@ import panel as pn
 
 from ..analysis.io_utils import (
     decide_naming_convention,
-    fetchCoords,
     read_hdf5,
     recording_site_from_channel_path,
     recording_site_from_preprocessed_label,
 )
-from ..visualization.preprocessing import (
-    build_control_signal_fit,
-    build_preprocessing_curve,
-    make_spans_pipe,
-)
+from ..visualization.preprocessing import build_control_signal_fit
 
 # Load the bokeh HoloViews backend these components rely on for the trace plots.
 pn.extension(notifications=True)
 hv.extension("bokeh")
 
 logger = logging.getLogger(__name__)
-
-
-def signal_options(plot_zScore_dff: str) -> list[str]:
-    """Return the z-score / dF-F toggle options implied by the ``plot_zScore_dff`` parameter.
-
-    ``"None"`` (no review requested) yields an empty list, so no z-score/dF-F section
-    is rendered — mirroring the legacy behavior where no such figure was created.
-    """
-    if plot_zScore_dff == "Both":
-        return ["z_score", "dff"]
-    if plot_zScore_dff == "dff":
-        return ["dff"]
-    if plot_zScore_dff == "z_score":
-        return ["z_score"]
-    return []
 
 
 def load_pair_traces(filepath: str) -> dict[str, dict[str, object]]:
@@ -114,73 +93,42 @@ def load_preprocessed_traces(filepath: str) -> dict[str, dict[str, np.ndarray]]:
 
 
 class PreprocessingReviewView:
-    """Read-only z-score / dF-F review for one run folder, with a site + signal selector."""
+    """Read-only review of one run folder's preprocessing output, with a site selector.
 
-    def __init__(
-        self, filepath: str, preprocessed_traces: dict[str, dict[str, np.ndarray]], signals: list[str]
-    ) -> None:
-        self.filepath = filepath
-        self.preprocessed_traces = preprocessed_traces
-        self.sites = list(preprocessed_traces.keys())
-
-        self.site_select = pn.widgets.Select(name="Recording site", options=self.sites, value=self.sites[0])
-        self.signal_toggle = pn.widgets.RadioButtonGroup(name="Signal", options=signals, value=signals[0])
-        self.plot_pane = pn.pane.HoloViews(self._make_plot(), width=800)
-
-        self.site_select.param.watch(self._refresh, "value")
-        self.signal_toggle.param.watch(self._refresh, "value")
-
-        self.widget = pn.Column(
-            "## z-score / dF-F — {}".format(os.path.basename(filepath)),
-            pn.Row(self.site_select, self.signal_toggle),
-            self.plot_pane,
-        )
-
-    def _make_plot(self) -> hv.DynamicMap:
-        site = self.site_select.value
-        trace = self.preprocessed_traces[site]
-        y = trace["y_zscore"] if self.signal_toggle.value == "z_score" else trace["y_dff"]
-        return build_preprocessing_curve(
-            suptitle=os.path.basename(self.filepath), title=f"{self.signal_toggle.value}_{site}", x=trace["x"], y=y
-        )
-
-    def _refresh(self, event: object) -> None:
-        self.plot_pane.object = self._make_plot()
-
-
-class ControlSignalFitView:
-    """Read-only control/signal/fit review for one run folder.
-
-    Before removal the saved keep-windows are shaded, so the marking is visible against
-    the traces it was drawn on. After removal nothing is shaded: the artifacts are gone
-    from the data, so the traces themselves are the result.
+    A recording site's five traces — control, signal, signal+fit, z-score and dF-F — stack
+    in one axis-linked layout, so an excursion in the raw signal can be followed straight
+    down into the metrics derived from it.
     """
 
-    def __init__(self, filepath: str, pair_traces: dict[str, dict[str, object]], *, artifacts_removed: bool) -> None:
+    def __init__(
+        self,
+        filepath: str,
+        pair_traces: dict[str, dict[str, object]],
+        preprocessed_traces: dict[str, dict[str, np.ndarray]],
+        *,
+        artifacts_removed: bool,
+    ) -> None:
         self.filepath = filepath
         self.pair_traces = pair_traces
-        self.artifacts_removed = artifacts_removed
+        self.preprocessed_traces = preprocessed_traces
         self.sites = list(pair_traces.keys())
 
         self.site_select = pn.widgets.Select(name="Recording site", options=self.sites, value=self.sites[0])
-        self.plot_pane = pn.pane.HoloViews(self._make_plot(), width=800)
+        self.plot_pane = pn.pane.HoloViews(self._make_plot(), sizing_mode="stretch_width")
         self.site_select.param.watch(self._refresh, "value")
 
-        heading = "Artifact removal review" if artifacts_removed else "Control / signal / fit"
+        heading = "Artifact removal review" if artifacts_removed else "Preprocessing review"
         self.widget = pn.Column(
             "## {} — {}".format(heading, os.path.basename(filepath)),
             self.site_select,
             self.plot_pane,
+            sizing_mode="stretch_width",
         )
 
     def _make_plot(self) -> hv.Layout:
         site = self.site_select.value
         trace = self.pair_traces[site]
-        windows = []
-        if not self.artifacts_removed and os.path.exists(
-            os.path.join(self.filepath, f"coordsForPreProcessing_{site}.npy")
-        ):
-            windows = [(float(start), float(end)) for start, end in fetchCoords(self.filepath, site, trace["x"])]
+        preprocessed = self.preprocessed_traces[site]
         return build_control_signal_fit(
             x=trace["x"],
             control=trace["control"],
@@ -188,7 +136,10 @@ class ControlSignalFitView:
             fit=trace["fit"],
             titles=trace["plot_name"],
             suptitle=os.path.basename(self.filepath),
-            spans=make_spans_pipe(windows=windows),
+            extra_traces={
+                f"z_score_{site}": preprocessed["y_zscore"],
+                f"dff_{site}": preprocessed["y_dff"],
+            },
         )
 
     def _refresh(self, event: object) -> None:
@@ -214,7 +165,7 @@ def build_run_folder_page(
         between them so only the selected folder is rendered at a time.
     """
     run_folders = list(run_folders)
-    content = pn.Column(build_folder_page(run_folders[0]))
+    content = pn.Column(build_folder_page(run_folders[0]), sizing_mode="stretch_width")
     if len(run_folders) == 1:
         return content
 
@@ -225,27 +176,26 @@ def build_run_folder_page(
         content[:] = [build_folder_page(folder_select.value)]
 
     folder_select.param.watch(_on_folder_change, "value")
-    return pn.Column(folder_select, content)
+    return pn.Column(folder_select, content, sizing_mode="stretch_width")
 
 
-def _build_review_page(filepath: str, plot_zScore_dff: str, *, artifacts_removed: bool) -> pn.viewable.Viewable:
-    """Compose the control/signal/fit review and, when requested, the z-score/dF-F review."""
-    sections = [ControlSignalFitView(filepath, load_pair_traces(filepath), artifacts_removed=artifacts_removed).widget]
-    signals = signal_options(plot_zScore_dff)
-    if signals:
-        sections.append(PreprocessingReviewView(filepath, load_preprocessed_traces(filepath), signals).widget)
-    return pn.Column(*sections)
+def _build_review_page(filepath: str, *, artifacts_removed: bool) -> pn.viewable.Viewable:
+    """Compose one run folder's preprocessing review."""
+    return PreprocessingReviewView(
+        filepath,
+        load_pair_traces(filepath),
+        load_preprocessed_traces(filepath),
+        artifacts_removed=artifacts_removed,
+    ).widget
 
 
-def build_preprocess_view_page(*, run_folders: list[str], plot_zScore_dff: str) -> pn.viewable.Viewable:
+def build_preprocess_view_page(*, run_folders: list[str]) -> pn.viewable.Viewable:
     """Compose the read-only Step-3 preprocessing view across all run folders.
 
     Parameters
     ----------
     run_folders : list of str
         Session output (run) directories produced by the preprocessing job.
-    plot_zScore_dff : str
-        The ``plot_zScore_dff`` parameter selecting which review traces to offer.
 
     Returns
     -------
@@ -254,19 +204,17 @@ def build_preprocess_view_page(*, run_folders: list[str], plot_zScore_dff: str) 
     """
     return build_run_folder_page(
         run_folders=run_folders,
-        build_folder_page=lambda filepath: _build_review_page(filepath, plot_zScore_dff, artifacts_removed=False),
+        build_folder_page=lambda filepath: _build_review_page(filepath, artifacts_removed=False),
     )
 
 
-def build_artifact_review_page(*, run_folders: list[str], plot_zScore_dff: str) -> pn.viewable.Viewable:
+def build_artifact_review_page(*, run_folders: list[str]) -> pn.viewable.Viewable:
     """Compose the read-only post-removal review across all run folders.
 
     Parameters
     ----------
     run_folders : list of str
         Session output (run) directories the Remove Artifacts step processed.
-    plot_zScore_dff : str
-        The ``plot_zScore_dff`` parameter selecting which review traces to offer.
 
     Returns
     -------
@@ -275,5 +223,5 @@ def build_artifact_review_page(*, run_folders: list[str], plot_zScore_dff: str) 
     """
     return build_run_folder_page(
         run_folders=run_folders,
-        build_folder_page=lambda filepath: _build_review_page(filepath, plot_zScore_dff, artifacts_removed=True),
+        build_folder_page=lambda filepath: _build_review_page(filepath, artifacts_removed=True),
     )
