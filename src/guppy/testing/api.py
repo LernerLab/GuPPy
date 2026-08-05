@@ -18,14 +18,14 @@ import numpy as np
 
 from guppy.orchestration.home import build_homepage
 from guppy.orchestration.import_custom_events import orchestrate_custom_events_page
-from guppy.orchestration.preprocess import extractTsAndSignal
+from guppy.orchestration.preprocess import extractTsAndSignal, removeArtifactsFromSignal
 from guppy.orchestration.psth import psthForEachStore
 from guppy.orchestration.read_raw_data import orchestrate_read_raw_data
 from guppy.orchestration.save_parameters import save_parameters
 from guppy.orchestration.store_labeling import orchestrate_store_labeling_page
 from guppy.orchestration.transients import executeFindFreqAndAmp
 from guppy.orchestration.visualize import visualizeResults
-from guppy.utils.utils import select_run_folders
+from guppy.utils.utils import resolve_run_folders
 
 
 def _normalize_selected_runs(
@@ -401,92 +401,40 @@ def step2(
     orchestrate_read_raw_data(input_params)
 
 
-def step3(
+def _build_preprocess_input_parameters(
     *,
     base_dir: str,
     selected_folders: Iterable[str],
-    npm_timestamp_column_name: str | None = None,
-    npm_time_unit: str | None = None,
-    npm_split_events: list[bool] | None = None,
-    combine_data: bool = False,
-    remove_artifacts: bool = False,
-    artifact_removal_method: str | None = None,
-    artifact_coords: dict[str, np.ndarray] | None = None,
-    zscore_method: str = "standard z-score",
-    baseline_window_start: int = 0,
-    baseline_window_end: int = 0,
-    isosbestic_control: bool = True,
-    control_fit_method: Literal["IRWLS", "OLS"] = "IRWLS",
-    control_fit_window_mode: Literal["full trace", "baseline epoch"] = "full trace",
-    control_fit_window_start: int = 0,
-    control_fit_window_end: int = 0,
-    time_for_lights_turn_on: float = 1.0,
+    npm_timestamp_column_name: str | None,
+    npm_time_unit: str | None,
+    npm_split_events: list[bool] | None,
+    combine_data: bool,
+    zscore_method: str,
+    baseline_window_start: int,
+    baseline_window_end: int,
+    isosbestic_control: bool,
+    control_fit_method: Literal["IRWLS", "OLS"],
+    control_fit_window_mode: Literal["full trace", "baseline epoch"],
+    control_fit_window_start: int,
+    control_fit_window_end: int,
+    time_for_lights_turn_on: float,
     selected_runs: dict[str, list[str]],
-) -> None:
+) -> tuple[dict[str, object], list[str], dict[str, list[str]]]:
     """
-    Run pipeline Step 3 (Extract timestamps and signal) via the Panel-backed logic, headlessly.
+    Build the input-parameter dict the preprocessing workers consume, headlessly.
 
-    This builds the template headlessly (using ``GUPPY_BASE_DIR`` to bypass
-    the folder dialog), sets the FileSelector to ``selected_folders``, retrieves
-    the full input parameters via ``getInputParameters()``, and calls the
-    underlying worker ``guppy.preprocess.extractTsAndSignal(input_params)`` that the
-    UI invokes on its background worker thread. No GUI is spawned.
+    Validates the folder arguments, builds the Panel template with
+    ``GUPPY_BASE_DIR`` set, retrieves ``getInputParameters()``, and overwrites the
+    keys the caller specified.
 
-    Parameters
-    ----------
-    base_dir : str
-        Root directory used to initialize the FileSelector. All ``selected_folders``
-        must reside directly under this path.
-    selected_folders : Iterable[str]
-        Absolute paths to the session directories to process.
-    npm_timestamp_column_name : str | None
-        Timestamp column to use in NPM files that offer more than one. None to use the first.
-    npm_time_unit : str | None
-        Unit of the NPM session's timestamps (e.g., 'seconds', 'milliseconds'), applied to every
-        file in the folder. None defaults to seconds.
-    npm_split_events : list[bool] | None
-        List of booleans indicating whether to split events for NPM files, one per CSV file. None if not applicable.
-    combine_data : bool
-        Whether to enable data combining logic in Step 3.
-    remove_artifacts : bool
-        Whether to run artifact removal.
-    artifact_removal_method : str | None
-        Artifact removal method to use ('concatenate' or 'replace with NaN').
-        Only applied when ``remove_artifacts`` is True.
-    artifact_coords : dict[str, np.ndarray] | None
-        Mapping of pair name to coordinates array (shape ``(N_clicks, 2)``, x/time in
-        column 0) to write as ``coordsForPreProcessing_<pair_name>.npy`` into every
-        ``_output_*`` directory before artifact removal runs. Bypasses the interactive
-        artifact-selection UI. Ignored when ``remove_artifacts`` is False.
-    zscore_method : str
-        Z-score computation method. One of ``'standard z-score'``, ``'baseline z-score'``,
-        or ``'modified z-score'``. Defaults to ``'standard z-score'``.
-    baseline_window_start : int
-        Start of the baseline window in seconds. Only used when ``zscore_method`` is
-        ``'baseline z-score'``. Defaults to 0.
-    baseline_window_end : int
-        End of the baseline window in seconds. Only used when ``zscore_method`` is
-        ``'baseline z-score'``. Defaults to 0.
-    isosbestic_control : bool
-        Whether a separate isosbestic control channel is present. When ``False``, GuPPy
-        synthesizes a control channel from the signal. Defaults to ``True``.
-    control_fit_method : str
-        Regression method for fitting the control channel to the signal. One of
-        ``'IRWLS'`` (robust, down-weights outliers) or ``'OLS'`` (ordinary least
-        squares). Defaults to ``'IRWLS'``.
-    control_fit_window_mode : str
-        Control-fit mode. ``'full trace'`` (default) re-fits within each artifact-removal
-        chunk. ``'baseline epoch'`` estimates fit coefficients once from the fit window
-        (isosbestic control only) and applies them across the whole trace.
-    control_fit_window_start : int
-        Fit-window start in seconds. Only used when ``control_fit_window_mode`` is
-        ``'baseline epoch'``. Defaults to 0.
-    control_fit_window_end : int
-        Fit-window end in seconds. Only used when ``control_fit_window_mode`` is
-        ``'baseline epoch'``. Defaults to 0.
-    time_for_lights_turn_on : float
-        Seconds of warm-up discarded from the start of the recording. Defaults to 1.0.
-        Accepts fractional values; the GUI widget is integer-only.
+    Returns
+    -------
+    input_params : dict
+        The populated input parameters.
+    abs_sessions : list of str
+        Absolute paths to the selected session directories.
+    normalized_selected_runs : dict
+        The per-session run-name filter.
 
     Raises
     ------
@@ -542,11 +490,6 @@ def step3(
     # Inject the warm-up trim (bypasses the integer-only widget, so fractions are allowed)
     input_params["timeForLightsTurnOn"] = time_for_lights_turn_on
 
-    # Inject artifact removal parameters
-    input_params["removeArtifacts"] = remove_artifacts
-    if artifact_removal_method is not None:
-        input_params["artifactsRemovalMethod"] = artifact_removal_method
-
     # Inject z-score parameters
     input_params["zscore_method"] = zscore_method
     input_params["baselineWindowStart"] = baseline_window_start
@@ -567,16 +510,249 @@ def step3(
     normalized_selected_runs = _normalize_selected_runs(selected_runs, abs_sessions)
     input_params["selected_runs"] = normalized_selected_runs
 
-    # Write artifact coordinates into each output directory so that the artifact
-    # removal worker can find them without the interactive selection UI.
-    if remove_artifacts and artifact_coords:
-        for session in abs_sessions:
-            for run_folder in select_run_folders(session, normalized_selected_runs[session]):
-                for pair_name, coords in artifact_coords.items():
-                    np.save(os.path.join(run_folder, f"coordsForPreProcessing_{pair_name}.npy"), coords)
+    return input_params, abs_sessions, normalized_selected_runs
+
+
+def step3(
+    *,
+    base_dir: str,
+    selected_folders: Iterable[str],
+    npm_timestamp_column_name: str | None = None,
+    npm_time_unit: str | None = None,
+    npm_split_events: list[bool] | None = None,
+    combine_data: bool = False,
+    zscore_method: str = "standard z-score",
+    baseline_window_start: int = 0,
+    baseline_window_end: int = 0,
+    isosbestic_control: bool = True,
+    control_fit_method: Literal["IRWLS", "OLS"] = "IRWLS",
+    control_fit_window_mode: Literal["full trace", "baseline epoch"] = "full trace",
+    control_fit_window_start: int = 0,
+    control_fit_window_end: int = 0,
+    time_for_lights_turn_on: float = 1.0,
+    selected_runs: dict[str, list[str]],
+) -> None:
+    """
+    Run pipeline Step 3 (Extract timestamps and signal) via the Panel-backed logic, headlessly.
+
+    This builds the template headlessly (using ``GUPPY_BASE_DIR`` to bypass
+    the folder dialog), sets the FileSelector to ``selected_folders``, retrieves
+    the full input parameters via ``getInputParameters()``, and calls the
+    underlying worker ``guppy.preprocess.extractTsAndSignal(input_params)`` that the
+    UI invokes on its background worker thread. No GUI is spawned.
+
+    Parameters
+    ----------
+    base_dir : str
+        Root directory used to initialize the FileSelector. All ``selected_folders``
+        must reside directly under this path.
+    selected_folders : Iterable[str]
+        Absolute paths to the session directories to process.
+    npm_timestamp_column_name : str | None
+        Timestamp column to use in NPM files that offer more than one. None to use the first.
+    npm_time_unit : str | None
+        Unit of the NPM session's timestamps (e.g., 'seconds', 'milliseconds'), applied to every
+        file in the folder. None defaults to seconds.
+    npm_split_events : list[bool] | None
+        List of booleans indicating whether to split events for NPM files, one per CSV file. None if not applicable.
+    combine_data : bool
+        Whether to enable data combining logic in Step 3.
+    zscore_method : str
+        Z-score computation method. One of ``'standard z-score'``, ``'baseline z-score'``,
+        or ``'modified z-score'``. Defaults to ``'standard z-score'``.
+    baseline_window_start : int
+        Start of the baseline window in seconds. Only used when ``zscore_method`` is
+        ``'baseline z-score'``. Defaults to 0.
+    baseline_window_end : int
+        End of the baseline window in seconds. Only used when ``zscore_method`` is
+        ``'baseline z-score'``. Defaults to 0.
+    isosbestic_control : bool
+        Whether a separate isosbestic control channel is present. When ``False``, GuPPy
+        synthesizes a control channel from the signal. Defaults to ``True``.
+    control_fit_method : str
+        Regression method for fitting the control channel to the signal. One of
+        ``'IRWLS'`` (robust, down-weights outliers) or ``'OLS'`` (ordinary least
+        squares). Defaults to ``'IRWLS'``.
+    control_fit_window_mode : str
+        Control-fit mode. ``'full trace'`` (default) re-fits within each artifact-removal
+        chunk. ``'baseline epoch'`` estimates fit coefficients once from the fit window
+        (isosbestic control only) and applies them across the whole trace.
+    control_fit_window_start : int
+        Fit-window start in seconds. Only used when ``control_fit_window_mode`` is
+        ``'baseline epoch'``. Defaults to 0.
+    control_fit_window_end : int
+        Fit-window end in seconds. Only used when ``control_fit_window_mode`` is
+        ``'baseline epoch'``. Defaults to 0.
+    time_for_lights_turn_on : float
+        Seconds of warm-up discarded from the start of the recording. Defaults to 1.0.
+        Accepts fractional values; the GUI widget is integer-only.
+
+    Raises
+    ------
+    ValueError
+        If validation fails (e.g., empty iterable, invalid directories, or parent mismatch).
+    RuntimeError
+        If the template does not expose the required testing hooks/widgets.
+    """
+    input_params, _, _ = _build_preprocess_input_parameters(
+        base_dir=base_dir,
+        selected_folders=selected_folders,
+        npm_timestamp_column_name=npm_timestamp_column_name,
+        npm_time_unit=npm_time_unit,
+        npm_split_events=npm_split_events,
+        combine_data=combine_data,
+        zscore_method=zscore_method,
+        baseline_window_start=baseline_window_start,
+        baseline_window_end=baseline_window_end,
+        isosbestic_control=isosbestic_control,
+        control_fit_method=control_fit_method,
+        control_fit_window_mode=control_fit_window_mode,
+        control_fit_window_start=control_fit_window_start,
+        control_fit_window_end=control_fit_window_end,
+        time_for_lights_turn_on=time_for_lights_turn_on,
+        selected_runs=selected_runs,
+    )
 
     # Call the underlying Step 3 worker directly, as the GUI does
     extractTsAndSignal(input_params)
+
+
+def select_artifact_windows(
+    *,
+    base_dir: str,
+    selected_folders: Iterable[str],
+    artifact_coords: dict[str, np.ndarray],
+    artifact_removal_method: str = "replace with NaN",
+    npm_timestamp_column_name: str | None = None,
+    npm_time_unit: str | None = None,
+    npm_split_events: list[bool] | None = None,
+    combine_data: bool = False,
+    zscore_method: str = "standard z-score",
+    baseline_window_start: int = 0,
+    baseline_window_end: int = 0,
+    isosbestic_control: bool = True,
+    control_fit_method: Literal["IRWLS", "OLS"] = "IRWLS",
+    control_fit_window_mode: Literal["full trace", "baseline epoch"] = "full trace",
+    control_fit_window_start: int = 0,
+    control_fit_window_end: int = 0,
+    time_for_lights_turn_on: float = 1.0,
+    selected_runs: dict[str, list[str]],
+) -> None:
+    """
+    Run the optional Select Artifact Windows step headlessly.
+
+    Writes the keep-window coordinates into every selected output directory and records
+    the removal method into each directory's ``GuPPyParamtersUsed.json``, exactly as the
+    interactive page does when the user clicks Save.
+
+    Parameters
+    ----------
+    base_dir : str
+        Root directory used to initialize the FileSelector. All ``selected_folders``
+        must reside directly under this path.
+    selected_folders : Iterable[str]
+        Absolute paths to the session directories to process.
+    artifact_coords : dict[str, np.ndarray]
+        Mapping of recording-site name to the keep-window coordinates array (shape
+        ``(2M, 2)``, time in column 0) written as
+        ``coordsForPreProcessing_<recording_site>.npy``.
+    artifact_removal_method : str
+        Removal method recorded for these runs; ``'concatenate'`` or ``'replace with NaN'``.
+    selected_runs : dict[str, list[str]]
+        Per-session output-directory subset filter.
+
+    Raises
+    ------
+    ValueError
+        If validation fails (e.g., empty iterable, invalid directories, or parent mismatch).
+    """
+    input_params, abs_sessions, normalized_selected_runs = _build_preprocess_input_parameters(
+        base_dir=base_dir,
+        selected_folders=selected_folders,
+        npm_timestamp_column_name=npm_timestamp_column_name,
+        npm_time_unit=npm_time_unit,
+        npm_split_events=npm_split_events,
+        combine_data=combine_data,
+        zscore_method=zscore_method,
+        baseline_window_start=baseline_window_start,
+        baseline_window_end=baseline_window_end,
+        isosbestic_control=isosbestic_control,
+        control_fit_method=control_fit_method,
+        control_fit_window_mode=control_fit_window_mode,
+        control_fit_window_start=control_fit_window_start,
+        control_fit_window_end=control_fit_window_end,
+        time_for_lights_turn_on=time_for_lights_turn_on,
+        selected_runs=selected_runs,
+    )
+
+    for run_folder in resolve_run_folders(abs_sessions, input_params):
+        for recording_site, coords in artifact_coords.items():
+            np.save(os.path.join(run_folder, f"coordsForPreProcessing_{recording_site}.npy"), coords)
+
+    save_parameters(inputParameters=input_params, artifacts_removal_method=artifact_removal_method)
+
+
+def remove_artifacts(
+    *,
+    base_dir: str,
+    selected_folders: Iterable[str],
+    npm_timestamp_column_name: str | None = None,
+    npm_time_unit: str | None = None,
+    npm_split_events: list[bool] | None = None,
+    combine_data: bool = False,
+    zscore_method: str = "standard z-score",
+    baseline_window_start: int = 0,
+    baseline_window_end: int = 0,
+    isosbestic_control: bool = True,
+    control_fit_method: Literal["IRWLS", "OLS"] = "IRWLS",
+    control_fit_window_mode: Literal["full trace", "baseline epoch"] = "full trace",
+    control_fit_window_start: int = 0,
+    control_fit_window_end: int = 0,
+    time_for_lights_turn_on: float = 1.0,
+    selected_runs: dict[str, list[str]],
+) -> None:
+    """
+    Run the optional Remove Artifacts step headlessly.
+
+    Re-runs timestamp correction and z-score against the windows saved by
+    :func:`select_artifact_windows`, then excises the artifacts. The removal method is
+    read from each run's recorded provenance.
+
+    Parameters
+    ----------
+    base_dir : str
+        Root directory used to initialize the FileSelector. All ``selected_folders``
+        must reside directly under this path.
+    selected_folders : Iterable[str]
+        Absolute paths to the session directories to process.
+    selected_runs : dict[str, list[str]]
+        Per-session output-directory subset filter.
+
+    Raises
+    ------
+    ValueError
+        If validation fails, or if any selected run has no saved artifact windows.
+    """
+    input_params, _, _ = _build_preprocess_input_parameters(
+        base_dir=base_dir,
+        selected_folders=selected_folders,
+        npm_timestamp_column_name=npm_timestamp_column_name,
+        npm_time_unit=npm_time_unit,
+        npm_split_events=npm_split_events,
+        combine_data=combine_data,
+        zscore_method=zscore_method,
+        baseline_window_start=baseline_window_start,
+        baseline_window_end=baseline_window_end,
+        isosbestic_control=isosbestic_control,
+        control_fit_method=control_fit_method,
+        control_fit_window_mode=control_fit_window_mode,
+        control_fit_window_start=control_fit_window_start,
+        control_fit_window_end=control_fit_window_end,
+        time_for_lights_turn_on=time_for_lights_turn_on,
+        selected_runs=selected_runs,
+    )
+
+    removeArtifactsFromSignal(input_params)
 
 
 def step4(

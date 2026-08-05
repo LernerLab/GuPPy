@@ -5,6 +5,7 @@ import pytest
 from guppy.visualization.preprocessing import (
     build_control_signal_fit,
     build_preprocessing_curve,
+    make_spans_pipe,
 )
 from guppy_test_data import resolve_plot
 
@@ -61,7 +62,7 @@ class TestBuildControlSignalFit:
             fit=fit,
             titles=["control", "signal", "fit"],
             suptitle="session",
-            artifacts_have_been_removed=False,
+            spans=make_spans_pipe(windows=[]),
         )
         assert isinstance(layout, hv.Layout)
         elements = layout.values()
@@ -75,15 +76,17 @@ class TestBuildControlSignalFit:
             fit=fit,
             titles=["control", "signal", "fit"],
             suptitle="session",
-            artifacts_have_been_removed=False,
+            spans=make_spans_pipe(windows=[]),
         )
-        # Top two are single shaded traces; the bottom overlays the signal and the fit.
-        control_image, signal_image, fit_overlay = (resolve_plot(plot) for plot in layout.values())
+        # Top two carry a single shaded trace plus the (empty) spans layer; the bottom
+        # also overlays the fit.
+        control_overlay, signal_overlay, fit_overlay = (resolve_plot(plot) for plot in layout.values())
+        control_image, _ = control_overlay.values()
+        signal_image, _ = signal_overlay.values()
         assert image_extent(control_image) == (0.0, 1.0, 4.0, 5.0)
         assert image_extent(signal_image) == (0.0, 10.0, 4.0, 14.0)
 
-        assert isinstance(fit_overlay, hv.Overlay)
-        shaded_signal, shaded_fit = fit_overlay.values()
+        shaded_signal, shaded_fit, _ = fit_overlay.values()
         assert image_extent(shaded_signal) == (0.0, 10.0, 4.0, 14.0)
         assert image_extent(shaded_fit) == (0.0, 20.0, 4.0, 24.0)
 
@@ -95,12 +98,71 @@ class TestBuildControlSignalFit:
             fit=fit,
             titles=["control", "signal", "fit"],
             suptitle="session",
-            artifacts_have_been_removed=False,
-            windows=[(1.0, 2.0), (3.0, 4.0)],
+            spans=make_spans_pipe(windows=[(1.0, 2.0), (3.0, 4.0)]),
         )
         for plot in layout.values():
             element = resolve_plot(plot)
             assert isinstance(element, hv.Overlay)
-            # Two windows -> two VSpans shaded on this axis.
-            vspans = [item for item in element.values() if isinstance(item, hv.VSpan)]
-            assert len(vspans) == 2
+            spans = [item for item in element.values() if isinstance(item, hv.VSpans)]
+            assert len(spans) == 1
+            np.testing.assert_array_equal(spans[0].dimension_values("x0"), np.array([1.0, 3.0]))
+            np.testing.assert_array_equal(spans[0].dimension_values("x1"), np.array([2.0, 4.0]))
+
+    def test_sending_on_the_pipe_repaints_spans_without_rebuilding_the_layout(
+        self, panel_extension, timestamps, control, signal_trace, fit
+    ):
+        spans = make_spans_pipe(windows=[])
+        layout = build_control_signal_fit(
+            x=timestamps,
+            control=control,
+            signal=signal_trace,
+            fit=fit,
+            titles=["control", "signal", "fit"],
+            suptitle="session",
+            spans=spans,
+        )
+
+        spans.send([(1.0, 2.0)])
+
+        for plot in layout.values():
+            span_element = [item for item in resolve_plot(plot).values() if isinstance(item, hv.VSpans)][0]
+            np.testing.assert_array_equal(span_element.dimension_values("x0"), np.array([1.0]))
+
+
+class TestPanelSizing:
+    """All three panels must render at the same size, spans layer or not.
+
+    The fit panel is an Overlay rather than a single curve, and options set on an Overlay
+    are dropped when the spans layer composes it into a new one — which silently left it
+    at bokeh's 300x300 default next to two 750x220 neighbours.
+    """
+
+    @pytest.fixture
+    def rendered_plots(self, panel_extension):
+        from bokeh.models import Plot
+
+        def render(windows):
+            x = np.arange(0.0, 50.0, 0.1)
+            layout = build_control_signal_fit(
+                x=x,
+                control=np.sin(x),
+                signal=np.cos(x),
+                fit=np.cos(x) * 0.9,
+                titles=["control", "signal", "fit"],
+                suptitle="session",
+                spans=make_spans_pipe(windows=windows),
+            )
+            figure = hv.render(layout)
+            return [model for model in figure.references() if isinstance(model, Plot)]
+
+        return render
+
+    @pytest.mark.parametrize("windows", [[], [(10.0, 20.0)]], ids=["no_spans", "with_spans"])
+    def test_every_panel_has_the_same_size(self, rendered_plots, windows):
+        plots = rendered_plots(windows)
+        assert len(plots) == 3
+        assert {(plot.width, plot.height) for plot in plots} == {(750, 220)}
+
+    def test_every_panel_keeps_its_title(self, rendered_plots):
+        titles = {plot.title.text for plot in rendered_plots([])}
+        assert titles == {"session — control", "signal", "fit"}

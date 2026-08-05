@@ -6,4 +6,5 @@ How-to guides are task-oriented references for readers who know what they want t
 :maxdepth: 1
 
 import-custom-events
+artifact-removal
 ```

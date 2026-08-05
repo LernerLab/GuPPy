@@ -1,20 +1,7 @@
 import panel as pn
 
 from guppy.orchestration import step_view
-from guppy.orchestration.step_view import StepView, resolve_run_folders
-
-
-class TestResolveRunFolders:
-    def test_non_combine_returns_per_session_run_folders(self, monkeypatch):
-        monkeypatch.setattr(step_view, "select_run_folders", lambda session, runs: [session + "/output_1"])
-        result = resolve_run_folders(["/a", "/b"], {"combine_data": False, "selected_runs": {}})
-        assert result == ["/a/output_1", "/b/output_1"]
-
-    def test_combine_returns_first_folder_of_each_group(self, monkeypatch):
-        monkeypatch.setattr(step_view, "select_run_folders", lambda session, runs: [session + "/output_1"])
-        monkeypatch.setattr(step_view, "get_all_stores_for_combining_data", lambda folders: [[folders[0], folders[1]]])
-        result = resolve_run_folders(["/a", "/b"], {"combine_data": True, "selected_runs": {}})
-        assert result == ["/a/output_1"]
+from guppy.orchestration.step_view import StepView
 
 
 class TestStepView:

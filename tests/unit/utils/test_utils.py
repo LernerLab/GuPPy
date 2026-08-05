@@ -3,6 +3,7 @@ import json
 import pandas as pd
 import pytest
 
+from guppy.utils import utils
 from guppy.utils.utils import (
     NPM_PARAM_KEYS,
     discover_run_folders,
@@ -11,6 +12,7 @@ from guppy.utils.utils import (
     load_npm_params,
     parse_run_name,
     read_Df,
+    resolve_run_folders,
     run_folder_for_run,
     select_run_folders,
     takeOnlyDirs,
@@ -406,3 +408,16 @@ def test_is_headless_true_when_base_dir_set(monkeypatch):
 def test_is_headless_false_when_base_dir_unset(monkeypatch):
     monkeypatch.delenv("GUPPY_BASE_DIR", raising=False)
     assert is_headless() is False
+
+
+class TestResolveRunFolders:
+    def test_non_combine_returns_per_session_run_folders(self, monkeypatch):
+        monkeypatch.setattr(utils, "select_run_folders", lambda session, runs: [session + "/output_1"])
+        result = resolve_run_folders(["/a", "/b"], {"combine_data": False, "selected_runs": {}})
+        assert result == ["/a/output_1", "/b/output_1"]
+
+    def test_combine_returns_first_folder_of_each_group(self, monkeypatch):
+        monkeypatch.setattr(utils, "select_run_folders", lambda session, runs: [session + "/output_1"])
+        monkeypatch.setattr(utils, "get_all_stores_for_combining_data", lambda folders: [[folders[0], folders[1]]])
+        result = resolve_run_folders(["/a", "/b"], {"combine_data": True, "selected_runs": {}})
+        assert result == ["/a/output_1"]

@@ -4,7 +4,16 @@ from importlib.metadata import version
 
 import pytest
 
-from guppy.orchestration.save_parameters import save_parameters
+from guppy.orchestration.save_parameters import (
+    read_artifact_provenance,
+    save_parameters,
+)
+
+# Derived provenance, recorded by the preprocessing steps rather than taken from the form.
+ARTIFACT_PROVENANCE_KEYS = {
+    "removeArtifacts",
+    "artifactsRemovalMethod",
+}
 
 PARAMETER_KEYS = {
     "combine_data",
@@ -15,8 +24,6 @@ PARAMETER_KEYS = {
     "controlFitWindowEnd",
     "timeForLightsTurnOn",
     "filter_window",
-    "removeArtifacts",
-    "artifactsRemovalMethod",
     "noChannels",
     "zscore_method",
     "baselineWindowStart",
@@ -41,7 +48,7 @@ PARAMETER_KEYS = {
     "averageForGroup",
 }
 
-EXPECTED_KEYS = PARAMETER_KEYS | {"guppy_version"}
+EXPECTED_KEYS = PARAMETER_KEYS | ARTIFACT_PROVENANCE_KEYS | {"guppy_version"}
 
 ORCHESTRATION_ONLY_KEYS = {
     "session_folders",
@@ -70,8 +77,6 @@ def base_input_parameters(tmp_path):
         "controlFitWindowEnd": 0,
         "timeForLightsTurnOn": 5.0,
         "filter_window": 100,
-        "removeArtifacts": False,
-        "artifactsRemovalMethod": "concatenate",
         "noChannels": 2,
         "zscore_method": "standard",
         "baselineWindowStart": 0.0,
@@ -171,8 +176,6 @@ def test_save_parameters_single_folder(tmp_path):
         "controlFitWindowEnd": 0,
         "timeForLightsTurnOn": 0.0,
         "filter_window": 200,
-        "removeArtifacts": True,
-        "artifactsRemovalMethod": "replace with NaN",
         "noChannels": 1,
         "zscore_method": "baseline",
         "baselineWindowStart": 1.0,
@@ -251,3 +254,40 @@ def test_save_parameters_raises_for_unknown_selected_run(base_input_parameters):
 
     with pytest.raises(ValueError, match="Output directory not found"):
         save_parameters(base_input_parameters)
+
+
+class TestArtifactProvenance:
+    """Artifact-removal state is recorded per output directory, not taken from the parameter form."""
+
+    def test_read_returns_defaults_when_no_snapshot_exists(self, tmp_path):
+        assert read_artifact_provenance(destination=str(tmp_path)) == (False, "replace with NaN")
+
+    def test_defaults_are_written_for_a_fresh_folder(self, base_input_parameters):
+        save_parameters(base_input_parameters)
+
+        folder = base_input_parameters["session_folders"][0]
+        assert read_artifact_provenance(destination=folder) == (False, "replace with NaN")
+
+    def test_explicit_values_are_recorded(self, base_input_parameters):
+        save_parameters(base_input_parameters, remove_artifacts=True, artifacts_removal_method="concatenate")
+
+        folder = base_input_parameters["session_folders"][0]
+        assert read_artifact_provenance(destination=folder) == (True, "concatenate")
+
+    def test_omitted_values_carry_forward(self, base_input_parameters):
+        save_parameters(base_input_parameters, remove_artifacts=True, artifacts_removal_method="concatenate")
+
+        save_parameters(base_input_parameters)
+
+        folder = base_input_parameters["session_folders"][0]
+        assert read_artifact_provenance(destination=folder) == (True, "concatenate")
+
+    def test_method_carries_forward_while_removal_state_is_overwritten(self, base_input_parameters):
+        """The marking page records the method; the Remove Artifacts step then records only the state."""
+        save_parameters(base_input_parameters, artifacts_removal_method="concatenate")
+        folder = base_input_parameters["session_folders"][0]
+        assert read_artifact_provenance(destination=folder) == (False, "concatenate")
+
+        save_parameters(base_input_parameters, remove_artifacts=True)
+
+        assert read_artifact_provenance(destination=folder) == (True, "concatenate")
