@@ -168,9 +168,6 @@ class TestParameterForm:
     def test_transients_default(self, parameter_form):
         assert parameter_form.transients.value == "z_score"
 
-    def test_plot_z_score_dff_default(self, parameter_form):
-        assert parameter_form.plot_zScore_dff.value == "None"
-
     def test_z_score_computation_default(self, parameter_form):
         assert parameter_form.z_score_computation.value == "standard z-score"
         assert "standard z-score" in parameter_form.z_score_computation.options
@@ -614,7 +611,6 @@ SAVED_PARAMETERS = {
     "moving_window": 12,
     "highAmpFilt": 5,
     "transientsThresh": 6,
-    "plot_zScore_dff": "Both",
     "visualize_zscore_or_dff": "dff",
     "averageForGroup": True,
 }

@@ -3,32 +3,9 @@ import logging
 import holoviews as hv
 import numpy as np
 
-from .shading import FIT_COLOR, PLOT_WIDTH, shade_trace
+from .shading import FIT_COLOR, shade_trace
 
 logger = logging.getLogger(__name__)
-
-
-def build_preprocessing_curve(*, suptitle: str, title: str, x: np.ndarray, y: np.ndarray) -> hv.DynamicMap:
-    """Build a HoloViews curve of a preprocessing time series.
-
-    Parameters
-    ----------
-    suptitle : str
-        Session-level title prefix.
-    title : str
-        Trace title (e.g. the ``z_score_<site>`` basename).
-    x : np.ndarray
-        Time axis values.
-    y : np.ndarray
-        Signal values to plot.
-
-    Returns
-    -------
-    hv.DynamicMap
-        Density-shaded view of ``y`` versus ``x``.
-    """
-    curve = hv.Curve((x, y), "time (s)", title)
-    return shade_trace(curve).opts(title=f"{suptitle} — {title}", width=PLOT_WIDTH, height=250)
 
 
 def make_spans_pipe(*, windows: list[tuple[float, float]]) -> hv.streams.Pipe:
@@ -63,14 +40,18 @@ def build_control_signal_fit(
     fit: np.ndarray,
     titles: list[str],
     suptitle: str,
-    spans: hv.streams.Pipe,
+    spans: hv.streams.Pipe | None = None,
+    extra_traces: dict[str, np.ndarray] | None = None,
 ) -> hv.Layout:
-    """Build three stacked curves (control, signal, signal+fit) with pipe-driven shaded spans.
+    """Build stacked curves (control, signal, signal+fit) over a shared time axis.
+
+    Every panel plots against the same time dimension, so bokeh links their axes: zooming
+    one panel zooms them all.
 
     Parameters
     ----------
     x : np.ndarray
-        Time axis values shared by all three curves.
+        Time axis values shared by all curves.
     control : np.ndarray
         Control channel trace (top).
     signal : np.ndarray
@@ -81,13 +62,16 @@ def build_control_signal_fit(
         Titles for the three curves (control, signal, fit).
     suptitle : str
         Session-level title prefix applied to the control curve.
-    spans : hv.streams.Pipe
-        Stream carrying the ``(start, end)`` windows shaded on all three curves.
+    spans : hv.streams.Pipe, optional
+        Stream carrying the ``(start, end)`` windows shaded on every curve. Omit to draw
+        the traces unshaded.
+    extra_traces : dict, optional
+        Further traces to stack below the fit, as title → values against the same ``x``.
 
     Returns
     -------
     hv.Layout
-        Three vertically stacked curves.
+        Vertically stacked curves, one per trace.
     """
     control_curve = shade_trace(hv.Curve((x, control), "time (s)", titles[0]))
     signal_curve = shade_trace(hv.Curve((x, signal), "time (s)", titles[1]))
@@ -99,12 +83,15 @@ def build_control_signal_fit(
     # dropped when the spans layer composes it into a new one, which left the fit panel at
     # bokeh's 300x300 default while the two single-curve panels kept theirs.
     def panel(curve: hv.DynamicMap, title: str) -> hv.DynamicMap:
-        return _spans_overlay(curve=curve, spans=spans).opts(title=title, width=PLOT_WIDTH, height=220)
+        shaded = curve if spans is None else _spans_overlay(curve=curve, spans=spans)
+        return shaded.opts(title=title, responsive=True, height=220)
 
-    return hv.Layout(
-        [
-            panel(control_curve, f"{suptitle} — {titles[0]}"),
-            panel(signal_curve, titles[1]),
-            panel(fit_curve, titles[2]),
-        ]
-    ).cols(1)
+    panels = [
+        panel(control_curve, f"{suptitle} — {titles[0]}"),
+        panel(signal_curve, titles[1]),
+        panel(fit_curve, titles[2]),
+    ]
+    for title, values in (extra_traces or {}).items():
+        panels.append(panel(shade_trace(hv.Curve((x, values), "time (s)", title)), title))
+
+    return hv.Layout(panels).cols(1)

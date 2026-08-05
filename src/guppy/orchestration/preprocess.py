@@ -139,7 +139,6 @@ def execute_zscore(session_folders: list[str], inputParameters: dict[str, object
         compute over the full recording.
     """
 
-    plot_zScore_dff = inputParameters["plot_zScore_dff"]
     combine_data = inputParameters["combine_data"]
     filter_window = inputParameters["filter_window"]
     isosbestic_control = inputParameters["isosbestic_control"]

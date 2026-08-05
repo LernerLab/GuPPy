@@ -181,7 +181,7 @@ The results are written into the same output folder as Step 2, in four new HDF5 
 | `cntrl_sig_fit_A.hdf5` | The fitted control trace (used internally and for artifact-removal plots) |
 | `timeCorrection_A.hdf5` | Corrected timestamps, sampling rate, and a few related metadata fields |
 
-When preprocessing finishes, GuPPy opens the preprocessing results in a new browser tab. The `plot_zScore_dff` input parameter controls the z-score / ΔF/F review shown there — `z_score`, `dff`, `Both`, or `None` (the default). The main GuPPy tab stays responsive, so you can leave the results tab open and keep working.
+When preprocessing finishes, GuPPy opens the preprocessing results in a new browser tab. Pick a recording site and its five traces stack up together — control, signal, signal with the fitted control, z-score, and ΔF/F — sharing one time axis, so zooming any of them zooms them all. The main GuPPy tab stays responsive, so you can leave the results tab open and keep working.
 
 <!-- TODO: add a screenshot of the preprocessing results tab that opens after preprocess completes (e.g. 05_preprocess_plot.png). It is a separate browser tab served by GuPPy, so the screenshot script will need to capture that route. -->
 

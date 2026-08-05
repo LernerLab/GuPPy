@@ -89,13 +89,10 @@ The largest card on the homepage, collapsed by default (only Input Folder Select
 |-----------|-------------|------|---------|-----------------|
 | z_score and/or ΔF/F? (psth) | Metric Step 4 aligns events on. | str | `z_score` | `z_score`, `dff`, `Both` |
 | z_score and/or ΔF/F? (transients) | Metric the transient detector operates on. | str | `z_score` | `z_score`, `dff`, `Both` |
-| z-score plot and/or ΔF/F plot? | Review plots shown in a browser tab after Step 3. | str | `None` | `z_score`, `dff`, `Both`, `None` |
 
 **z_score and/or ΔF/F? (psth)** chooses which metric Step 4 uses to align events. Selecting `Both` writes two complete sets of PSTH outputs, one per metric. See the [z-score normalization explainer](../explanation/zscore.md) for what `z_score` is and how it differs from `dff`.
 
 **z_score and/or ΔF/F? (transients)** chooses which metric the transient detector operates on. Same `Both` semantics.
-
-**z-score plot and/or ΔF/F plot?** controls the review plots shown after Step 3 finishes. `None` skips the review; otherwise GuPPy opens a browser tab with the preprocessed trace for each recording site — the chosen metric, or a z-score/ΔF/F toggle when `Both`.
 
 ### Transient detection
 
@@ -274,7 +271,6 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 | `numberOfCores` | # of cores | [Compute and batching](#compute-and-batching) |
 | `peak_endPoint` | Peak End time | [Peak and AUC Parameters](#peak-and-auc-parameters) |
 | `peak_startPoint` | Peak Start time | [Peak and AUC Parameters](#peak-and-auc-parameters) |
-| `plot_zScore_dff` | z-score plot and/or ΔF/F plot? | [Output metric selection](#output-metric-selection) |
 | `removeArtifacts` | (recorded provenance; not user-set) | [Artifact removal](#artifact-removal) |
 | `selectForComputePsth` | z_score and/or ΔF/F? (psth) | [Output metric selection](#output-metric-selection) |
 | `selectForTransientsComputation` | z_score and/or ΔF/F? (transients) | [Output metric selection](#output-metric-selection) |

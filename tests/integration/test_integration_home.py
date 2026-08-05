@@ -41,7 +41,6 @@ EXPECTED_JSON_KEYS = {
     "moving_window",
     "highAmpFilt",
     "transientsThresh",
-    "plot_zScore_dff",
     "visualize_zscore_or_dff",
     "averageForGroup",
 }

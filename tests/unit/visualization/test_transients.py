@@ -53,6 +53,18 @@ class TestBuildPeaksOverlay:
         np.testing.assert_array_equal(overlay.Scatter.I.dimension_values(0), np.array([1.0, 3.0]))
         np.testing.assert_array_equal(overlay.Scatter.I.dimension_values(1), np.array([1.5, 2.5]))
 
+    def test_stretches_to_the_page_width(self, panel_extension, timestamps, z_score, peaks_index):
+        from bokeh.models import Plot
+
+        figure = hv.render(
+            build_peaks_overlay(
+                title="z_score_DMS", suptitle="session", z_score=z_score, timestamps=timestamps, peaksIndex=peaks_index
+            )
+        )
+        plots = [model for model in figure.references() if isinstance(model, Plot)]
+        assert len(plots) == 1
+        assert (plots[0].sizing_mode, plots[0].width, plots[0].height) == ("stretch_width", None, 300)
+
     def test_empty_peaks_index(self, panel_extension, timestamps, z_score):
         overlay = resolve_plot(
             build_peaks_overlay(
