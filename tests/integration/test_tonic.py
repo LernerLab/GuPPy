@@ -2,10 +2,11 @@
 
 Runs step1 -> step2 -> step3 -> define_tonic_epochs headlessly on the synthetic injection
 CSV session (``stubbed_testing_data/csv/sample_data_csv_injection_1``), whose 465 nm signal
-has a sustained step at the injection time (t=60 s). Epoch windows are written by
-``define_tonic_epochs`` (bypassing the interactive epoch page), which also averages the
-traces over them; the resulting ``tonic_region.h5`` is checked for correct per-epoch means
-and the expected baseline -> post-injection increase.
+walks through the three epochs of a bolus experiment: a flat baseline, a sustained plateau
+from the injection at t=60 s, and an exponential clearance from t=160 s. Epoch windows are
+written by ``define_tonic_epochs`` (bypassing the interactive epoch page), which also
+averages the traces over them; the resulting ``tonic_region.h5`` is checked for correct
+per-epoch means and for the rise-then-recover ordering across the three epochs.
 """
 
 import glob
@@ -28,8 +29,11 @@ STORE_ID_TO_STORE_LABEL = {
     "Sample_TTL": "ttl",
 }
 FIT_WINDOW = (2, 55)  # pre-injection window for baseline-epoch control fitting
+# The three epochs of the bolus experiment. Each sits inside its phase, clear of the
+# transitions at t=60 s (injection) and t=160 s (washout onset).
 BASELINE_EPOCH = (2.0, 55.0)  # pre-injection
-POST_EPOCH = (65.0, 115.0)  # post-injection
+WASH_IN_EPOCH = (70.0, 155.0)  # drug on board, plateau
+WASH_OUT_EPOCH = (200.0, 238.0)  # clearance largely complete
 
 
 def _stubbed_data_root():
@@ -60,9 +64,9 @@ class TestTonicAnalysis:
     def test_define_tonic_epochs_writes_means_per_epoch(self, injection_session):
         epochs = pd.DataFrame(
             {
-                "label": ["baseline", "post"],
-                "start": [BASELINE_EPOCH[0], POST_EPOCH[0]],
-                "end": [BASELINE_EPOCH[1], POST_EPOCH[1]],
+                "label": ["baseline", "wash_in", "wash_out"],
+                "start": [BASELINE_EPOCH[0], WASH_IN_EPOCH[0], WASH_OUT_EPOCH[0]],
+                "end": [BASELINE_EPOCH[1], WASH_IN_EPOCH[1], WASH_OUT_EPOCH[1]],
             }
         )
         step3(
@@ -87,7 +91,7 @@ class TestTonicAnalysis:
         assert os.path.exists(tonic_path)
 
         tonic = pd.read_hdf(tonic_path, key="df")
-        assert list(tonic.index) == ["baseline", "post"]
+        assert list(tonic.index) == ["baseline", "wash_in", "wash_out"]
         assert list(tonic.columns) == ["mean_zscore", "mean_dff"]
 
         # Cross-check the stored means against the pipeline's own preprocessed trace:
@@ -95,14 +99,21 @@ class TestTonicAnalysis:
         timestamps = np.asarray(read_hdf5("timeCorrection_region", output_directory, "timestampNew")).ravel()
         z_score = np.asarray(read_hdf5("z_score_region", output_directory, "data")).ravel()
         dff = np.asarray(read_hdf5("dff_region", output_directory, "data")).ravel()
-        for label, (start, end) in {"baseline": BASELINE_EPOCH, "post": POST_EPOCH}.items():
+        epoch_windows = {"baseline": BASELINE_EPOCH, "wash_in": WASH_IN_EPOCH, "wash_out": WASH_OUT_EPOCH}
+        for label, (start, end) in epoch_windows.items():
             mask = (timestamps >= start) & (timestamps <= end)
             assert tonic.loc[label, "mean_zscore"] == pytest.approx(np.nanmean(z_score[mask]))
             assert tonic.loc[label, "mean_dff"] == pytest.approx(np.nanmean(dff[mask]))
 
-        # Scientific sanity: the injection raises the signal, so post > baseline.
-        assert tonic.loc["post", "mean_dff"] > tonic.loc["baseline", "mean_dff"]
-        assert tonic.loc["post", "mean_zscore"] > tonic.loc["baseline", "mean_zscore"]
+        # Scientific sanity: the drug raises the signal and clearance brings it back down,
+        # so the three epochs must order wash_in > wash_out > baseline.
+        for column in ("mean_dff", "mean_zscore"):
+            assert tonic.loc["wash_in", column] > tonic.loc["wash_out", column]
+            assert tonic.loc["wash_out", column] > tonic.loc["baseline", column]
+
+        # The plateau carries the full ~24% step while the cleared epoch retains only a
+        # fraction of it, so the recovery is unambiguous rather than a marginal dip.
+        assert tonic.loc["wash_out", "mean_dff"] < 0.3 * tonic.loc["wash_in", "mean_dff"]
 
     def test_step3_alone_writes_no_tonic_file(self, injection_session):
         step3(

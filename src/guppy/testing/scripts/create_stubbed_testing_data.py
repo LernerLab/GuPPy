@@ -142,15 +142,23 @@ def _sessions() -> list[tuple[BaseRecordingExtractor, float | None, Path]]:
 # 405 nm isosbestic control does not. Fitting the control->signal model over
 # the full trace is corrupted by the step, whereas fitting only the
 # pre-injection window recovers the true relationship.
+#
+# The signal walks through the three epochs of a bolus-injection experiment, so it
+# also serves the tonic/basal analysis tests: a flat baseline, a sustained plateau
+# once the drug is on board, and an exponential clearance back toward baseline. The
+# rise stays instantaneous — a bolus reaches the tissue fast relative to this
+# timebase, and it is the discontinuity that breaks a full-trace control fit.
 
 INJECTION_CSV_SAMPLING_RATE = 100.0  # Hz — kept low so the committed CSVs stay small
-INJECTION_CSV_DURATION = 120.0  # s
+INJECTION_CSV_DURATION = 240.0  # s
 INJECTION_TIME = 60.0  # s — signal step onset and one of the TTL pulses
-INJECTION_TTL_TIMES = (20.0, 40.0, 60.0, 80.0, 100.0)  # s — 5 pulses, one at injection
+WASHOUT_TIME = 160.0  # s — drug clearance begins; also a TTL pulse
+WASHOUT_TAU = 25.0  # s — clearance time constant, so the trace is ~95% recovered by 235 s
+INJECTION_TTL_TIMES = tuple(float(t) for t in range(20, 240, 20))  # 20 s grid; 60 s = injection, 160 s = washout
 # True pre-injection control->signal relationship (signal = SLOPE * control + INTERCEPT).
 INJECTION_TRUE_SLOPE = 1.5
 INJECTION_TRUE_INTERCEPT = 10.0
-INJECTION_STEP_AMPLITUDE = 40.0  # sustained signal increase after injection
+INJECTION_STEP_AMPLITUDE = 40.0  # signal increase held between injection and washout
 
 
 def _write_injection_csv_session(destination: Path) -> None:
@@ -164,10 +172,13 @@ def _write_injection_csv_session(destination: Path) -> None:
     motion = 2.0 * np.sin(2.0 * np.pi * 0.05 * timestamps)
     control = 100.0 + bleach + motion + rng.normal(0.0, 0.5, num_samples)
 
-    # 465 nm signal: shares bleaching/motion via the linear relationship, plus a sustained
-    # post-injection step (the effect that breaks a full-trace fit).
+    # 465 nm signal: shares bleaching/motion via the linear relationship, plus the drug
+    # effect — a step up at injection (what breaks a full-trace fit), held while the drug
+    # is on board, then cleared exponentially from the washout time.
     step = np.where(timestamps >= INJECTION_TIME, INJECTION_STEP_AMPLITUDE, 0.0)
-    signal = INJECTION_TRUE_SLOPE * control + INJECTION_TRUE_INTERCEPT + step + rng.normal(0.0, 0.5, num_samples)
+    clearance = np.where(timestamps >= WASHOUT_TIME, np.exp(-(timestamps - WASHOUT_TIME) / WASHOUT_TAU), 1.0)
+    drug_effect = step * clearance
+    signal = INJECTION_TRUE_SLOPE * control + INJECTION_TRUE_INTERCEPT + drug_effect + rng.normal(0.0, 0.5, num_samples)
 
     destination.mkdir(parents=True, exist_ok=True)
     for name, data in (("Sample_Control_Channel", control), ("Sample_Signal_Channel", signal)):
