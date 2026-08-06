@@ -35,6 +35,7 @@ def default_parameters():
         "baselineCorrectionEnd": 0,
         "peak_startPoint": [-5.0, 0.0, 5.0, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan],
         "peak_endPoint": [0.0, 3.0, 10.0, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan],
+        "auc_units": "samples",
         "selectForComputePsth": "z_score",
         "selectForTransientsComputation": "z_score",
         "moving_window": 15,

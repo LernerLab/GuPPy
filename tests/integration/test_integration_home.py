@@ -36,6 +36,7 @@ EXPECTED_JSON_KEYS = {
     "baselineCorrectionEnd",
     "peak_startPoint",
     "peak_endPoint",
+    "auc_units",
     "selectForComputePsth",
     "selectForTransientsComputation",
     "moving_window",

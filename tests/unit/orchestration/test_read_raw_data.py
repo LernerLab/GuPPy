@@ -36,6 +36,7 @@ DEFAULT_ANALYSIS_PARAMETERS = {
     "baselineCorrectionEnd": 0,
     "peak_startPoint": [-5.0, 0.0, 5.0],
     "peak_endPoint": [0.0, 3.0, 10.0],
+    "auc_units": "samples",
     "selectForComputePsth": "z_score",
     "selectForTransientsComputation": "z_score",
     "moving_window": 15,

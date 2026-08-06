@@ -772,6 +772,7 @@ def step4(
     bin_psth_trials: int = 0,
     use_time_or_trials: str = "Time (min)",
     time_for_lights_turn_on: float = 1.0,
+    auc_units: str = "samples",
     selected_runs: dict[str, list[str]],
     group_selected_runs: dict[str, list[str]] | None = None,
 ) -> None:
@@ -829,6 +830,10 @@ def step4(
     time_for_lights_turn_on : float
         Seconds of warm-up discarded from the start of the recording. Must match the value
         passed to :func:`step3`. Defaults to 1.0.
+    auc_units : str
+        Integration spacing for the peak/AUC areas. ``'samples'`` (the default) integrates
+        with one-sample spacing; ``'seconds'`` integrates against the PSTH time axis, giving
+        areas in z-score (or ΔF/F) × seconds.
 
     Raises
     ------
@@ -907,6 +912,9 @@ def step4(
     # Inject PSTH binning parameters
     input_params["bin_psth_trials"] = bin_psth_trials
     input_params["use_time_or_trials"] = use_time_or_trials
+
+    # Inject the peak/AUC integration spacing
+    input_params["auc_units"] = auc_units
 
     # Call the underlying Step 4 worker directly, as the GUI does
     psthForEachStore(input_params)

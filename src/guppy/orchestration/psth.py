@@ -148,6 +148,7 @@ def execute_compute_psth_peak_and_area(filepath: str, event: str, inputParameter
 
     peak_startPoint = inputParameters["peak_startPoint"]
     peak_endPoint = inputParameters["peak_endPoint"]
+    auc_units = inputParameters["auc_units"]
     selectForComputePsth = inputParameters["selectForComputePsth"]
 
     if selectForComputePsth == "z_score":
@@ -172,7 +173,7 @@ def execute_compute_psth_peak_and_area(filepath: str, event: str, inputParameter
         psth_mean_bin_mean = np.asarray(psth[psth_mean_bin_names])
         timestamps = np.asarray(psth["timestamps"]).ravel()
         peak_area = compute_psth_peak_and_area(
-            psth_mean_bin_mean, timestamps, sampling_rate, peak_startPoint, peak_endPoint
+            psth_mean_bin_mean, timestamps, sampling_rate, peak_startPoint, peak_endPoint, auc_units=auc_units
         )
         fileName = [os.path.basename(os.path.dirname(filepath))]
         index = [fileName[0] + "_" + name for name in psth_mean_bin_names]

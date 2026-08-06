@@ -335,6 +335,9 @@ class ParameterForm:
                         - Peak and AUC parameters must be within the PSTH parameters set in the PSTH parameters section.<br>
                         - Please make sure when user changes the parameters in the table below, click on any other cell after
                         changing a value in a particular cell.
+                        - ***AUC Units :*** ```seconds``` reports the area in z-score (or ΔF/F) × seconds, the unit
+                        commonly reported in the literature. ```samples``` integrates with one-sample spacing instead,
+                        so the area also scales with the recording's sampling rate.
                         """,
             width=580,
         )
@@ -348,7 +351,13 @@ class ParameterForm:
 
         self.df_widget = pn.widgets.Tabulator(self.start_end_point_df, name="DataFrame", show_index=False, widths=280)
 
-        self.peak_param_wd = pn.WidgetBox("### Peak and AUC Parameters", self.peak_explain, self.df_widget, width=600)
+        self.auc_units = pn.widgets.Select(
+            name="AUC Units (str)", options=["samples", "seconds"], value="samples", width=200
+        )
+
+        self.peak_param_wd = pn.WidgetBox(
+            "### Peak and AUC Parameters", self.peak_explain, self.df_widget, self.auc_units, width=600
+        )
 
         self.individual_analysis_wd_2 = pn.Column(
             self.explain_time_artifacts,
@@ -713,6 +722,7 @@ class ParameterForm:
             "baselineCorrectionEnd": self.baselineCorrectionEnd.value,
             "peak_startPoint": list(self.df_widget.value["Peak Start time"]),  # startPoint.value,
             "peak_endPoint": list(self.df_widget.value["Peak End time"]),  # endPoint.value,
+            "auc_units": self.auc_units.value,
             "selectForComputePsth": self.computePsth.value,
             "selectForTransientsComputation": self.transients.value,
             "moving_window": self.moving_wd.value,
@@ -762,6 +772,7 @@ class ParameterForm:
             "use_time_or_trials": self.use_time_or_trials,
             "baselineCorrectionStart": self.baselineCorrectionStart,
             "baselineCorrectionEnd": self.baselineCorrectionEnd,
+            "auc_units": self.auc_units,
             "selectForComputePsth": self.computePsth,
             "selectForTransientsComputation": self.transients,
             "moving_window": self.moving_wd,
