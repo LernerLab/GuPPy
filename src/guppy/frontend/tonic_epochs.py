@@ -21,7 +21,11 @@ import panel as pn
 
 from .artifact_removal import build_run_folder_page
 from ..analysis.io_utils import read_hdf5, recording_site_from_preprocessed_label
-from ..analysis.standard_io import read_tonic_epochs, write_tonic_to_hdf5
+from ..analysis.standard_io import (
+    read_tonic_epochs,
+    remove_tonic_results,
+    write_tonic_to_hdf5,
+)
 from ..analysis.tonic import (
     TONIC_EPOCH_COLUMNS,
     compute_tonic_means,
@@ -44,10 +48,11 @@ _INSTRUCTIONS = (
     "end time (seconds) of each window, and the shaded spans update to match. Use "
     "**Apply to all recording sites** when the injection is systemic.\n\n"
     "Click **Save** to compute and store each window's mean z-score and ΔF/F; the results "
-    "appear on the Tonic tab of the visualization. A site with no windows is skipped."
+    "appear on the Tonic tab of the visualization. Clearing a site's windows drops it from "
+    "the results."
 )
 
-_NO_WINDOWS_HINT = "_No epoch windows defined — this recording site will be skipped._"
+_NO_WINDOWS_HINT = "_No epoch windows defined — this recording site will not appear in the results._"
 
 # Bar hues for the results view: the baseline epoch is the reference the others read against.
 _EPOCH_BAR_COLOR = "#1f77b4"
@@ -183,7 +188,7 @@ class TonicEpochConfig:
         self.save_button.on_click(self._on_save)
 
         self.widget = pn.Column(
-            "# Define Tonic Epochs — {}".format(os.path.basename(filepath)),
+            "# Tonic Analysis — {}".format(os.path.basename(filepath)),
             pn.pane.Markdown(_INSTRUCTIONS),
             self.site_select,
             self.plot_pane,
@@ -253,7 +258,7 @@ class TonicEpochConfig:
                 self.set_epochs(site, epochs)
 
     def save(self) -> None:
-        """Validate and write ``tonic_epochs_<site>.csv`` for every site with a complete window.
+        """Write each site's epoch windows and their means, to match what the page now shows.
 
         Every site's windows are validated (against that site's own timespan)
         before anything is written, so an invalid window raises up-front without
@@ -262,6 +267,9 @@ class TonicEpochConfig:
         Averaging the traces over the windows is a read-only reduction over the
         Step-3 outputs already in memory here, so the means are computed and
         written alongside the windows rather than on a later preprocessing pass.
+
+        A site left with no windows has any previously saved files removed, so clearing
+        its rows and saving drops it from the results.
         """
         to_write = {}
         for site in self.sites:
@@ -272,6 +280,10 @@ class TonicEpochConfig:
             timestamps = self.site_traces[site]["x"]
             validate_tonic_epochs(complete, float(timestamps[0]), float(timestamps[-1]))
             to_write[site] = complete
+
+        for site in self.sites:
+            if site not in to_write:
+                remove_tonic_results(self.filepath, site)
 
         for site, complete in to_write.items():
             complete.to_csv(os.path.join(self.filepath, "tonic_epochs_" + site + ".csv"), index=False)
@@ -318,7 +330,7 @@ class TonicEpochConfig:
 
 
 def build_tonic_epoch_page(*, run_folders: list[str]) -> pn.viewable.Viewable:
-    """Compose the Define Tonic Epochs page across all run folders.
+    """Compose the Tonic Analysis page across all run folders.
 
     Parameters
     ----------

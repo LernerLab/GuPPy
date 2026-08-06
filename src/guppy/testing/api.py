@@ -620,7 +620,7 @@ def step3(
     extractTsAndSignal(input_params)
 
 
-def define_tonic_epochs(
+def tonic_analysis(
     *,
     base_dir: str,
     selected_folders: Iterable[str],
@@ -632,7 +632,7 @@ def define_tonic_epochs(
     selected_runs: dict[str, list[str]],
 ) -> None:
     """
-    Run the optional Define Tonic Epochs step headlessly.
+    Run the optional Tonic Analysis step headlessly.
 
     Writes the per-recording-site epoch windows into every selected output directory and
     averages the Step-3 traces over them, exactly as the interactive page does when the

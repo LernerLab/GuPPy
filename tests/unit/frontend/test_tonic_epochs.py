@@ -80,6 +80,29 @@ class TestTonicEpochConfig:
         saved = pd.read_csv(tmp_path / "tonic_epochs_DMS.csv")
         pd.testing.assert_frame_equal(saved, pd.DataFrame({"label": ["baseline"], "start": [0.0], "end": [2.0]}))
 
+    def test_clearing_a_sites_rows_removes_its_saved_files(self, config, tmp_path):
+        """Save reflects the page, so a site cleared of windows drops out of the results."""
+        config.set_epochs("DMS", [("baseline", 0.0, 2.0)])
+        config.save()
+        assert (tmp_path / "tonic_epochs_DMS.csv").exists()
+        assert (tmp_path / "tonic_DMS.h5").exists()
+
+        config.set_epochs("DMS", [])
+        config.save()
+
+        assert not (tmp_path / "tonic_epochs_DMS.csv").exists()
+        assert not (tmp_path / "tonic_DMS.h5").exists()
+
+    def test_saving_a_site_that_never_had_windows_is_a_no_op(self, config, tmp_path):
+        config.set_epochs("DMS", [("baseline", 0.0, 2.0)])
+
+        config.save()
+
+        # DLS was never populated, so there is nothing of its own to remove and the
+        # cleanup must not disturb the site that was saved.
+        assert not (tmp_path / "tonic_epochs_DLS.csv").exists()
+        assert (tmp_path / "tonic_epochs_DMS.csv").exists()
+
     def test_removing_a_row_drops_its_window(self, config):
         config.set_epochs("DMS", [("baseline", 0.0, 2.0), ("post", 8.0, 10.0)])
 

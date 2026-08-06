@@ -202,7 +202,7 @@ def _synthetic_site_traces(*, recording_sites: list[str]) -> dict[str, dict[str,
     return site_traces
 
 
-def screenshot_define_tonic_epochs_button(page: Page) -> None:
+def screenshot_tonic_analysis_button(page: Page) -> None:
     """How-to: the sidebar showing the optional tonic step between Remove Artifacts and Step 4."""
     os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
     template = build_homepage()
@@ -214,24 +214,24 @@ def screenshot_define_tonic_epochs_button(page: Page) -> None:
     page.get_by_text("Individual Analysis").first.wait_for()
     page.wait_for_timeout(1000)
     page.screenshot(
-        path=OUTPUT_DIR / "define_tonic_epochs_button.png",
+        path=OUTPUT_DIR / "tonic_analysis_button.png",
         clip={"x": 0, "y": 400, "width": 340, "height": 680},
     )
-    print("Saved define_tonic_epochs_button.png")
+    print("Saved tonic_analysis_button.png")
 
     page.set_viewport_size(VIEWPORT)
     pn.state.kill_all_servers()
 
 
-def screenshot_define_tonic_epochs(page: Page, tmp_path: Path) -> None:
-    """How-to: the Define Tonic Epochs page with the three injection phases filled in."""
+def screenshot_tonic_analysis(page: Page, tmp_path: Path) -> None:
+    """How-to: the Tonic Analysis page with the three injection phases filled in."""
     run_folder = tmp_path / "sample_data_csv_injection_1_output_1"
     run_folder.mkdir(exist_ok=True)
 
     config = TonicEpochConfig(str(run_folder), _synthetic_site_traces(recording_sites=["DMS", "DLS"]))
     config.set_epochs("DMS", TONIC_EPOCHS)
 
-    template = pn.template.BootstrapTemplate(title="GuPPy — Define Tonic Epochs")
+    template = pn.template.BootstrapTemplate(title="GuPPy — Tonic Analysis")
     template.main.append(config.widget)
     url = _serve(template)
 
@@ -239,13 +239,13 @@ def screenshot_define_tonic_epochs(page: Page, tmp_path: Path) -> None:
     # never enter the viewport), then clip to the content instead of the padded page.
     page.set_viewport_size({"width": 1280, "height": 1500})
     page.goto(url)
-    page.get_by_text("Define Tonic Epochs").first.wait_for()
+    page.get_by_text("Tonic Analysis").first.wait_for()
     page.wait_for_timeout(3000)
     page.screenshot(
-        path=OUTPUT_DIR / "define_tonic_epochs.png",
+        path=OUTPUT_DIR / "tonic_analysis.png",
         clip={"x": 0, "y": 0, "width": 1280, "height": 1060},
     )
-    print("Saved define_tonic_epochs.png")
+    print("Saved tonic_analysis.png")
 
     page.set_viewport_size(VIEWPORT)
     pn.state.kill_all_servers()
@@ -517,8 +517,8 @@ def main() -> None:
             screenshot_sidebar_progress(page, 3, "06_psth_progress.png")
             screenshot_select_artifact_windows_button(page)
             screenshot_select_artifact_windows(page, tmp_path)
-            screenshot_define_tonic_epochs_button(page)
-            screenshot_define_tonic_epochs(page, tmp_path)
+            screenshot_tonic_analysis_button(page)
+            screenshot_tonic_analysis(page, tmp_path)
             screenshot_tonic_results(page, tmp_path)
             screenshot_visualization(page, tmp_path)
 

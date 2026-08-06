@@ -1,6 +1,6 @@
 import pytest
 
-from guppy.orchestration import define_tonic_epochs
+from guppy.orchestration import tonic_analysis
 
 
 @pytest.fixture
@@ -14,12 +14,12 @@ def preprocessed_run_folder(tmp_path):
 
 def test_build_page_resolves_folders_and_composes(monkeypatch, preprocessed_run_folder):
     monkeypatch.setattr(
-        define_tonic_epochs, "resolve_run_folders", lambda session_folders, params: [preprocessed_run_folder]
+        tonic_analysis, "resolve_run_folders", lambda session_folders, params: [preprocessed_run_folder]
     )
     calls = []
-    monkeypatch.setattr(define_tonic_epochs, "build_tonic_epoch_page", lambda *, run_folders: calls.append(run_folders))
+    monkeypatch.setattr(tonic_analysis, "build_tonic_epoch_page", lambda *, run_folders: calls.append(run_folders))
 
-    define_tonic_epochs._build_page(["/a"], {"combine_data": False})
+    tonic_analysis._build_page(["/a"], {"combine_data": False})
 
     assert calls == [[preprocessed_run_folder]]
 
@@ -27,17 +27,17 @@ def test_build_page_resolves_folders_and_composes(monkeypatch, preprocessed_run_
 class TestOrchestrateDefineTonicEpochs:
     def test_opens_the_view_for_the_selected_sessions(self, monkeypatch, preprocessed_run_folder):
         monkeypatch.setattr(
-            define_tonic_epochs, "resolve_run_folders", lambda session_folders, params: [preprocessed_run_folder]
+            tonic_analysis, "resolve_run_folders", lambda session_folders, params: [preprocessed_run_folder]
         )
         opened = []
         monkeypatch.setattr(
-            define_tonic_epochs,
-            "open_define_tonic_epochs_view",
+            tonic_analysis,
+            "open_tonic_analysis_view",
             lambda session_folders, params: opened.append(session_folders),
         )
         input_parameters = {"session_folders": ["/a"], "combine_data": False}
 
-        define_tonic_epochs.orchestrate_define_tonic_epochs(input_parameters)
+        tonic_analysis.orchestrate_tonic_analysis(input_parameters)
 
         assert opened == [["/a"]]
 
@@ -45,21 +45,21 @@ class TestOrchestrateDefineTonicEpochs:
         empty_run_folder = tmp_path / "session_output_1"
         empty_run_folder.mkdir()
         monkeypatch.setattr(
-            define_tonic_epochs, "resolve_run_folders", lambda session_folders, params: [str(empty_run_folder)]
+            tonic_analysis, "resolve_run_folders", lambda session_folders, params: [str(empty_run_folder)]
         )
         opened = []
         monkeypatch.setattr(
-            define_tonic_epochs,
-            "open_define_tonic_epochs_view",
+            tonic_analysis,
+            "open_tonic_analysis_view",
             lambda session_folders, params: opened.append(session_folders),
         )
 
-        with pytest.raises(ValueError, match="Run Step 3 \\(Preprocess\\) before defining tonic epochs"):
-            define_tonic_epochs.orchestrate_define_tonic_epochs({"session_folders": ["/a"], "combine_data": False})
+        with pytest.raises(ValueError, match="Run Step 3 \\(Preprocess\\) before running tonic analysis"):
+            tonic_analysis.orchestrate_tonic_analysis({"session_folders": ["/a"], "combine_data": False})
 
         assert opened == []
 
 
 def test_exposes_route_factory_and_open_helper():
-    assert callable(define_tonic_epochs.build_define_tonic_epochs_view)
-    assert callable(define_tonic_epochs.open_define_tonic_epochs_view)
+    assert callable(tonic_analysis.build_tonic_analysis_view)
+    assert callable(tonic_analysis.open_tonic_analysis_view)

@@ -39,7 +39,7 @@ src/guppy/
 │   ├── read_raw_data.py       (Step 2)
 │   ├── preprocess.py          (Step 3 + the optional Remove Artifacts step)
 │   ├── select_artifact_windows.py  (optional: mark artifact periods)
-│   ├── define_tonic_epochs.py (optional: name epoch windows and average them)
+│   ├── tonic_analysis.py (optional: name epoch windows and average them)
 │   ├── psth.py                (Step 4)
 │   ├── transients.py          (Step 4)
 │   └── visualize.py           (Step 5)

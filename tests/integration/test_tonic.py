@@ -1,10 +1,10 @@
 """End-to-end test for tonic/basal fluorescence analysis (issue #210).
 
-Runs step1 -> step2 -> step3 -> define_tonic_epochs headlessly on the synthetic injection
+Runs step1 -> step2 -> step3 -> tonic_analysis headlessly on the synthetic injection
 CSV session (``stubbed_testing_data/csv/sample_data_csv_injection_1``), whose 465 nm signal
 holds three equal 60 s phases: a flat baseline, a sustained plateau from the injection at
 t=60 s, and a clearance to a 25% residual from t=120 s. Epoch windows are
-written by ``define_tonic_epochs`` (bypassing the interactive epoch page), which also
+written by ``tonic_analysis`` (bypassing the interactive epoch page), which also
 averages the traces over them; the resulting ``tonic_region.h5`` is checked for correct
 per-epoch means and for the rise-then-recover ordering across the three epochs.
 """
@@ -18,7 +18,7 @@ import pandas as pd
 import pytest
 
 from guppy.analysis.io_utils import read_hdf5
-from guppy.testing.api import define_tonic_epochs, step1, step2, step3
+from guppy.testing.api import step1, step2, step3, tonic_analysis
 from guppy.utils.utils import parse_run_name
 
 SESSION_NAME = "sample_data_csv_injection_1"
@@ -61,7 +61,7 @@ def injection_session(tmp_path):
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
 class TestTonicAnalysis:
-    def test_define_tonic_epochs_writes_means_per_epoch(self, injection_session):
+    def test_tonic_analysis_writes_means_per_epoch(self, injection_session):
         epochs = pd.DataFrame(
             {
                 "label": ["baseline", "wash_in", "wash_out"],
@@ -79,7 +79,7 @@ class TestTonicAnalysis:
         )
         # Epochs are defined on the traces Step 3 produced; the optional step averages
         # them on save, so no second preprocessing run is needed.
-        define_tonic_epochs(
+        tonic_analysis(
             base_dir=injection_session["base_dir"],
             selected_folders=[injection_session["session"]],
             tonic_epochs={"region": epochs},

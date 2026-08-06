@@ -39,9 +39,9 @@ def test_remove_artifacts_button_visible(page, live_server_url):
 
 
 @pytest.mark.ui
-def test_define_tonic_epochs_button_visible(page, live_server_url):
+def test_tonic_analysis_button_visible(page, live_server_url):
     page.goto(live_server_url)
-    expect(page.get_by_role("button", name="Define Tonic Epochs")).to_be_visible()
+    expect(page.get_by_role("button", name="Tonic Analysis")).to_be_visible()
 
 
 @pytest.mark.ui

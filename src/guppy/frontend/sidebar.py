@@ -28,7 +28,7 @@ class Sidebar:
         self.mark_down_preprocess = pn.pane.Markdown("""**Step 3 : Preprocess**""", width=300)
         self.mark_down_select_windows = pn.pane.Markdown("""**Select Artifact Windows (optional)**""", width=300)
         self.mark_down_remove_artifacts = pn.pane.Markdown("""**Remove Artifacts (optional)**""", width=300)
-        self.mark_down_define_tonic_epochs = pn.pane.Markdown("""**Define Tonic Epochs (optional)**""", width=300)
+        self.mark_down_tonic_analysis = pn.pane.Markdown("""**Tonic Analysis (optional)**""", width=300)
         self.mark_down_psth = pn.pane.Markdown("""**Step 4 : PSTH Computation**""", width=300)
         self.mark_down_visualization = pn.pane.Markdown("""**Step 5 : Visualization**""", width=300)
 
@@ -46,9 +46,7 @@ class Sidebar:
         self.remove_artifacts = pn.widgets.Button(
             name="Remove Artifacts", button_type="default", width=300, align="end"
         )
-        self.define_tonic_epochs = pn.widgets.Button(
-            name="Define Tonic Epochs", button_type="default", width=300, align="end"
-        )
+        self.tonic_analysis = pn.widgets.Button(name="Tonic Analysis", button_type="default", width=300, align="end")
         self.psth_computation = pn.widgets.Button(
             name="PSTH Computation", button_type="primary", width=300, align="end"
         )
@@ -93,8 +91,8 @@ class Sidebar:
         self.template.sidebar.append(self.mark_down_remove_artifacts)
         self.template.sidebar.append(self.remove_artifacts)
         self.template.sidebar.append(self.remove_artifacts_progress)
-        self.template.sidebar.append(self.mark_down_define_tonic_epochs)
-        self.template.sidebar.append(self.define_tonic_epochs)
+        self.template.sidebar.append(self.mark_down_tonic_analysis)
+        self.template.sidebar.append(self.tonic_analysis)
         self.template.sidebar.append(self.mark_down_psth)
         self.template.sidebar.append(self.psth_computation)
         self.template.sidebar.append(self.psth_progress)

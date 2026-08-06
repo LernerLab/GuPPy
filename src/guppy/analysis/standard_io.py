@@ -714,6 +714,23 @@ def write_tonic_to_hdf5(filepath: str, tonic_data: pd.DataFrame, site: str) -> N
     tonic_data.to_hdf(output_path, key="df", mode="w")
 
 
+def remove_tonic_results(filepath: str, site: str) -> None:
+    """Delete a recording site's saved epoch windows and means, if any are present.
+
+    Parameters
+    ----------
+    filepath : str
+        Session output (run) directory.
+    site : str
+        Recording-site name; removes ``tonic_epochs_<site>.csv`` and ``tonic_<site>.h5``.
+    """
+    for name in ("tonic_epochs_" + site + ".csv", "tonic_" + site + ".h5"):
+        path = os.path.join(filepath, name)
+        if os.path.exists(path):
+            os.remove(path)
+            logger.info(f"Removed {name} for recording site {site}.")
+
+
 def write_freq_and_amp_to_hdf5(
     filepath: str, freq_and_amp_data: object, name: str, index: list[object] = [], columns: list[object] = []
 ) -> None:

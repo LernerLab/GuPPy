@@ -8,10 +8,7 @@ This guide shows how to name those phases and get the mean z-score and ΔF/F of 
 One **optional** step handles this, and it sits between *Remove Artifacts* and
 *Step 4: PSTH Computation* in the sidebar:
 
-- **Define Tonic Epochs** — name the windows and compute their means.
-
-Naming and computing happen together: **Save** writes the windows and the means in
-one go.
+- **Tonic Analysis** — name the epoch windows and average the traces over them.
 
 If your question is event-triggered, skip it. PSTH computation is unaffected, and
 nothing downstream requires it.
@@ -26,26 +23,30 @@ If the recording also needs artifact removal, run **Select Artifact Windows** an
 **Remove Artifacts** first. The means are computed from the traces on disk when you
 save.
 
+## Set the control fit window
+
 For a recording with a step change partway through — a drug injection, say — set
 **Control Fit Window** to `baseline epoch` in Step 3 and give it a window from
 before the change. A full-trace fit treats the step as part of the control-to-signal
 relationship and absorbs most of it, leaving little for the epoch means to measure.
 See the [parameters reference](../reference/parameters.md).
 
+If you already ran Step 3 with the default `full trace` fit, change the setting and
+run it again before going on.
+
 ## Defining the epochs
 
 1. Select your session folder(s) and output run(s) on the homepage as usual.
-2. Click **Define Tonic Epochs**. A page opens in a new browser tab showing the
-   z-score and ΔF/F traces for one recording site on a shared time axis. The main
-   GuPPy tab stays responsive.
+2. Click **Tonic Analysis**. A page opens in a new browser tab showing the z-score
+   and ΔF/F traces for one recording site on a shared time axis.
 
-   ```{image} ../_static/images/define_tonic_epochs_button.png
-   :alt: The sidebar with the optional Define Tonic Epochs step positioned between Remove Artifacts and Step 4 PSTH Computation
+   ```{image} ../_static/images/tonic_analysis_button.png
+   :alt: The sidebar with the optional Tonic Analysis step positioned between Remove Artifacts and Step 4 PSTH Computation
    :width: 50%
    ```
 
-   ```{image} ../_static/images/define_tonic_epochs.png
-   :alt: The Define Tonic Epochs page: a Recording site selector above the z-score and delta F over F traces of a bolus-injection recording, with the baseline, drug, and washout windows shaded orange; below them one row per epoch giving its label, start, and end, the Add epoch and Apply to all recording sites buttons, and Save
+   ```{image} ../_static/images/tonic_analysis.png
+   :alt: The Tonic Analysis page: a Recording site selector above the z-score and delta F over F traces of a bolus-injection recording, with the baseline, drug, and washout windows shaded orange; below them one row per epoch giving its label, start, and end, the Add epoch and Apply to all recording sites buttons, and Save
    ```
 
 3. Pick the recording site you want to measure with the **Recording site** selector.
@@ -63,22 +64,12 @@ See the [parameters reference](../reference/parameters.md).
    | `drug`     | 70  | 110 |
    | `washout`  | 138 | 178 |
 
-5. If the manipulation reaches every recording site at the same time — a systemic
-   injection usually does — click **Apply to all recording sites** to copy the
-   current site's epochs to the others.
+5. If the manipulation reaches every recording site at the same time, click **Apply
+   to all recording sites** to copy the current site's epochs to the others.
 6. Click **Save**.
 
 The labels you type are the identifiers you see in the results: on the bar chart, in
 the table, and in the baseline selector.
-
-Save checks every recording site before writing anything, so a rejected window
-leaves the run folder untouched.
-
-Leave a site's rows empty to skip it. The page says so in place of the rows, and no
-files are written for that site.
-
-Re-opening the page shows the epochs you saved, so you can adjust a bound without
-starting over.
 
 ## Choosing epoch bounds
 
@@ -105,7 +96,7 @@ mean ΔF/F. The baseline epoch sits at zero by definition; the dashed line marks
 change, so bars above it rose relative to baseline and bars below it fell.
 
 ```{image} ../_static/images/tonic_results.png
-:alt: The Tonic tab of the visualization: Recording site and Baseline epoch selectors above two bar panels, change in mean z-score and change in mean delta F over F, each showing the baseline epoch highlighted at zero with the drug and washout epochs raised above the dashed no-change line
+:alt: The Tonic tab of the visualization: Recording site and Baseline epoch selectors above two bar panels, change in mean z-score and change in mean delta F over F, each showing the baseline epoch at zero with the drug and washout epochs raised above the dashed no-change line
 ```
 
 Below the bars, the traces show the analysed windows shaded, and the table gives the
@@ -117,15 +108,12 @@ absolute means do not move.
 
 ## Adjusting the epochs
 
-Defining epochs is re-runnable. Open **Define Tonic Epochs** again, change the
-epochs, and save; both files are rewritten for each site.
+Tonic Analysis is re-runnable. Open it again, change the epochs, and save. Clearing
+a recording site's rows and saving drops that site from the results.
 
 The means are computed when you save, from the traces the page loaded when it
 opened. If you re-run Step 3 or **Remove Artifacts** afterwards, open the page and
 save again so the stored means match the current traces.
-
-Clearing a site's rows does not delete its files. To drop a recording site's epochs,
-delete its two files from the run folder.
 
 ## What lands on disk
 
