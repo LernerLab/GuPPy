@@ -10,7 +10,11 @@ GuPPy/runFiberPhotometryAnalysis.ipynb
 .venv/
 
 testing_data/
-*_output_*
+# GuPPy writes its results into the session folders it reads, and everything under
+# stubbed_testing_data/ is LFS-tracked, so a stray output becomes billed LFS storage.
+# Directory-only, so TDT tanks keep shipping their own StoresListing_output_<n>.txt.
+*_output_*/
+GuPPyParamtersUsed.json
 
 CLAUDE.md
 .codex
