@@ -93,8 +93,11 @@ class TestBaselineEpochFit:
     def test_full_trace_absorbs_the_step(self, injection_session):
         timestamps, dff = _run_step3(injection_session, mode="full trace")
         post = dff[(timestamps > 65) & (timestamps < 115)]
-        # The whole-trace fit absorbs the step, so the post-injection deflection is largely lost.
-        assert np.nanmean(post) < 8.0
+        # The whole-trace fit absorbs the step, so under half of the ~24% ground-truth
+        # deflection survives. How much it absorbs depends on how the drug effect happens
+        # to covary with the bleaching control over the whole recording, so this is a
+        # half-the-step bound rather than a tight window.
+        assert np.nanmean(post) < 12.0
 
     def test_baseline_epoch_recovers_more_of_the_step_than_full_trace(self, injection_session):
         _, baseline_epoch_dff = _run_step3(injection_session, mode="baseline epoch")

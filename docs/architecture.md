@@ -39,6 +39,7 @@ src/guppy/
 │   ├── read_raw_data.py       (Step 2)
 │   ├── preprocess.py          (Step 3 + the optional Remove Artifacts step)
 │   ├── select_artifact_windows.py  (optional: mark artifact periods)
+│   ├── tonic_analysis.py (optional: name epoch windows and average them)
 │   ├── psth.py                (Step 4)
 │   ├── transients.py          (Step 4)
 │   └── visualize.py           (Step 5)
@@ -52,6 +53,7 @@ src/guppy/
 │   ├── compute_psth.py
 │   ├── psth_peak_and_area.py
 │   ├── cross_correlation.py
+│   ├── tonic.py
 │   ├── psth_average.py
 │   ├── transients.py
 │   ├── transients_average.py
@@ -64,6 +66,7 @@ src/guppy/
 │   ├── store_labeling_config.py
 │   ├── artifact_removal.py
 │   ├── artifact_windows_page.py
+│   ├── tonic_epochs.py
 │   ├── visualization_dashboard.py
 │   ├── parameterized_plotter.py
 │   ├── sidebar.py
