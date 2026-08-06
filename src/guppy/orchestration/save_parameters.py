@@ -113,7 +113,6 @@ def save_parameters(
         # Resolved per destination below; listed here to fix their position in the file.
         "removeArtifacts": None,
         "artifactsRemovalMethod": None,
-        "computeTonic": inputParameters["computeTonic"],
         "noChannels": inputParameters["noChannels"],
         "zscore_method": inputParameters["zscore_method"],
         "baselineWindowStart": inputParameters["baselineWindowStart"],

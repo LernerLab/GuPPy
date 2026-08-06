@@ -5,8 +5,8 @@ absolute-time windows. Because injection timing can differ per recording site
 (e.g. an ICV injection reaches sites at different times), windows are defined
 per recording site. This page shows each site's z-score and dF/F traces with the
 current windows shaded, plus one editable ``(label, start, end)`` row per window.
-On save it writes one ``tonic_epochs_<site>.csv`` per site into the run folder,
-which the preprocessing step then consumes.
+Saving averages the traces over the windows and writes both the definitions
+(``tonic_epochs_<site>.csv``) and the per-epoch means (``tonic_<site>.h5``).
 """
 
 import glob
@@ -21,8 +21,12 @@ import panel as pn
 
 from .artifact_removal import build_run_folder_page
 from ..analysis.io_utils import read_hdf5, recording_site_from_preprocessed_label
-from ..analysis.standard_io import read_tonic_epochs
-from ..analysis.tonic import TONIC_EPOCH_COLUMNS, validate_tonic_epochs
+from ..analysis.standard_io import read_tonic_epochs, write_tonic_to_hdf5
+from ..analysis.tonic import (
+    TONIC_EPOCH_COLUMNS,
+    compute_tonic_means,
+    validate_tonic_epochs,
+)
 from ..visualization.preprocessing import build_stacked_traces, make_spans_pipe
 
 pn.extension(notifications=True)
@@ -39,11 +43,21 @@ _INSTRUCTIONS = (
     "Define named epoch windows for each recording site: enter a label and the start and "
     "end time (seconds) of each window, and the shaded spans update to match. Use "
     "**Apply to all recording sites** when the injection is systemic.\n\n"
-    "Click **Save** to write the windows, then re-run **Preprocess** to compute the "
-    "per-epoch means — a site with no windows is skipped."
+    "Click **Save** to compute and store each window's mean z-score and ΔF/F; the results "
+    "appear on the Tonic tab of the visualization. A site with no windows is skipped."
 )
 
 _NO_WINDOWS_HINT = "_No epoch windows defined — this recording site will be skipped._"
+
+# Bar hues for the results view: the baseline epoch is the reference the others read against.
+_EPOCH_BAR_COLOR = "#1f77b4"
+_BASELINE_BAR_COLOR = "#ff7f0e"
+
+_BASELINE_HINT = (
+    "Bars show each epoch's mean; the **baseline epoch** is highlighted and its value drawn "
+    "as a dashed reference line, so every other bar's distance from it is the change from "
+    "baseline reported in the table below."
+)
 
 
 def load_site_traces(filepath: str) -> dict[str, dict[str, np.ndarray]]:
@@ -137,7 +151,7 @@ class TonicEpochConfig:
 
     Shows the selected site's z-score and dF/F traces with the current epoch windows
     shaded, one editable row per window, and an "apply to all recording sites" button.
-    On save, writes one ``tonic_epochs_<site>.csv`` per site holding the windows.
+    On save, writes each site's windows and their per-epoch means.
     """
 
     def __init__(self, filepath: str, site_traces: dict[str, dict[str, np.ndarray]]) -> None:
@@ -243,6 +257,10 @@ class TonicEpochConfig:
         Every site's windows are validated (against that site's own timespan)
         before anything is written, so an invalid window raises up-front without
         leaving a partially-written set of epoch files.
+
+        Averaging the traces over the windows is a read-only reduction over the
+        Step-3 outputs already in memory here, so the means are computed and
+        written alongside the windows rather than on a later preprocessing pass.
         """
         to_write = {}
         for site in self.sites:
@@ -256,7 +274,13 @@ class TonicEpochConfig:
 
         for site, complete in to_write.items():
             complete.to_csv(os.path.join(self.filepath, "tonic_epochs_" + site + ".csv"), index=False)
-            logger.info(f"Saved {len(complete)} tonic epoch(s) for recording site {site}.")
+            trace = self.site_traces[site]
+            write_tonic_to_hdf5(
+                self.filepath,
+                compute_tonic_means(trace["y_zscore"], trace["y_dff"], trace["x"], complete),
+                site,
+            )
+            logger.info(f"Saved {len(complete)} tonic epoch(s) and means for recording site {site}.")
 
     def _remove_row(self, row: TonicEpochRow) -> None:
         self.site_to_rows[self.site_select.value].remove(row)
@@ -323,10 +347,11 @@ def _tonic_result_sites(filepath: str) -> list[str]:
 class TonicResultsView:
     """Read-only view of tonic results for a single run folder.
 
-    For each recording site it shows the preprocessed trace with the analysed
-    epoch windows shaded, and a table of per-epoch means. Because the difference
-    from baseline is a viewing choice, a baseline-epoch selector adds live
-    ``diff_zscore`` / ``diff_dff`` columns computed against the chosen epoch.
+    For each recording site it shows a bar chart of the per-epoch means — the
+    headline result — above the preprocessed traces with the analysed windows
+    shaded, and a table of the same numbers. Because the difference from baseline
+    is a viewing choice, a baseline-epoch selector marks the reference epoch on
+    the bars and adds live ``diff_zscore`` / ``diff_dff`` columns.
     """
 
     def __init__(self, filepath: str) -> None:
@@ -338,6 +363,7 @@ class TonicResultsView:
         self.baseline_select = pn.widgets.Select(
             name="Baseline epoch", options=list(means.index), value=list(means.index)[0]
         )
+        self.bars_pane = pn.pane.HoloViews(self._make_bars(), sizing_mode="stretch_width")
         self.plot_pane = pn.pane.HoloViews(self._make_plot(), sizing_mode="stretch_width")
         self.table_pane = pn.pane.DataFrame(self._means_with_diff(), width=520)
 
@@ -347,6 +373,8 @@ class TonicResultsView:
         self.widget = pn.Column(
             "## Tonic / basal analysis — {}".format(os.path.basename(filepath)),
             pn.Row(self.site_select, self.baseline_select),
+            self.bars_pane,
+            pn.pane.Markdown(_BASELINE_HINT),
             self.plot_pane,
             self.table_pane,
             sizing_mode="stretch_width",
@@ -354,6 +382,36 @@ class TonicResultsView:
 
     def _means(self, site: str) -> pd.DataFrame:
         return pd.read_hdf(os.path.join(self.filepath, "tonic_" + site + ".h5"), key="df")
+
+    def _make_bars(self) -> hv.Layout:
+        """Per-epoch means as bars, one panel per signal.
+
+        The z-score and dF/F means differ by orders of magnitude, so they get a panel
+        each rather than a shared axis that would flatten one of them.
+        """
+        means = self._means(self.site_select.value)
+        baseline = self.baseline_select.value
+
+        panels = []
+        for column, label in (("mean_zscore", "mean z-score"), ("mean_dff", "mean ΔF/F")):
+            epochs = list(means.index)
+            values = [float(means.loc[epoch, column]) for epoch in epochs]
+            colors = [_BASELINE_BAR_COLOR if epoch == baseline else _EPOCH_BAR_COLOR for epoch in epochs]
+            bars = hv.Bars(list(zip(epochs, values)), "epoch", label).opts(
+                color=hv.dim("epoch").categorize(dict(zip(epochs, colors))),
+                title=label,
+                responsive=True,
+                height=280,
+                xrotation=30,
+                tools=["hover"],
+            )
+            # A line at the baseline value turns each bar's height difference from the
+            # reference into something readable straight off the chart.
+            reference = hv.HLine(float(means.loc[baseline, column])).opts(
+                color=_BASELINE_BAR_COLOR, line_dash="dashed", line_width=1.5
+            )
+            panels.append(bars * reference)
+        return hv.Layout(panels).cols(2)
 
     def _means_with_diff(self) -> pd.DataFrame:
         means = self._means(self.site_select.value)
@@ -397,6 +455,7 @@ class TonicResultsView:
         self._refresh(event)
 
     def _refresh(self, event: object) -> None:
+        self.bars_pane.object = self._make_bars()
         self.plot_pane.object = self._make_plot()
         self.table_pane.object = self._means_with_diff()
 

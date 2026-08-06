@@ -17,6 +17,9 @@ from typing import Iterable, Literal
 import numpy as np
 import pandas as pd
 
+from guppy.analysis.standard_io import write_tonic_to_hdf5
+from guppy.analysis.tonic import compute_tonic_means
+from guppy.frontend.tonic_epochs import load_site_traces
 from guppy.orchestration.home import build_homepage
 from guppy.orchestration.import_custom_events import orchestrate_custom_events_page
 from guppy.orchestration.preprocess import extractTsAndSignal, removeArtifactsFromSignal
@@ -531,7 +534,6 @@ def step3(
     control_fit_window_start: int = 0,
     control_fit_window_end: int = 0,
     time_for_lights_turn_on: float = 1.0,
-    compute_tonic: bool = False,
     selected_runs: dict[str, list[str]],
 ) -> None:
     """
@@ -588,11 +590,6 @@ def step3(
     time_for_lights_turn_on : float
         Seconds of warm-up discarded from the start of the recording. Defaults to 1.0.
         Accepts fractional values; the GUI widget is integer-only.
-    compute_tonic : bool
-        Whether to average the preprocessed traces over the epoch windows written by
-        :func:`define_tonic_epochs` and save the per-epoch means to ``tonic_<site>.h5``.
-        Sites without an epoch file are skipped. Defaults to False.
-
     Raises
     ------
     ValueError
@@ -618,7 +615,6 @@ def step3(
         time_for_lights_turn_on=time_for_lights_turn_on,
         selected_runs=selected_runs,
     )
-    input_params["computeTonic"] = compute_tonic
 
     # Call the underlying Step 3 worker directly, as the GUI does
     extractTsAndSignal(input_params)
@@ -638,9 +634,9 @@ def define_tonic_epochs(
     """
     Run the optional Define Tonic Epochs step headlessly.
 
-    Writes the per-recording-site epoch windows into every selected output directory,
-    exactly as the interactive page does when the user clicks Save. A subsequent
-    ``step3(..., compute_tonic=True)`` averages the preprocessed traces over them.
+    Writes the per-recording-site epoch windows into every selected output directory and
+    averages the Step-3 traces over them, exactly as the interactive page does when the
+    user clicks Save. Requires Step 3 to have run.
 
     Parameters
     ----------
@@ -658,7 +654,8 @@ def define_tonic_epochs(
     Raises
     ------
     ValueError
-        If validation fails (e.g., empty iterable, invalid directories, or parent mismatch).
+        If validation fails (e.g., empty iterable, invalid directories, or parent mismatch),
+        or if an epoch window does not overlap its recording site's timespan.
     """
     input_params, abs_sessions, _ = _build_preprocess_input_parameters(
         base_dir=base_dir,
@@ -680,8 +677,15 @@ def define_tonic_epochs(
     )
 
     for run_folder in resolve_run_folders(abs_sessions, input_params):
+        site_traces = load_site_traces(run_folder)
         for recording_site, epochs in tonic_epochs.items():
             epochs.to_csv(os.path.join(run_folder, f"tonic_epochs_{recording_site}.csv"), index=False)
+            trace = site_traces[recording_site]
+            write_tonic_to_hdf5(
+                run_folder,
+                compute_tonic_means(trace["y_zscore"], trace["y_dff"], trace["x"], epochs),
+                recording_site,
+            )
 
 
 def select_artifact_windows(

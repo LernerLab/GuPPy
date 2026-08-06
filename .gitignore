@@ -10,6 +10,7 @@ GuPPy/runFiberPhotometryAnalysis.ipynb
 .venv/
 
 testing_data/
+*_output_*
 
 CLAUDE.md
 .codex

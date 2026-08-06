@@ -15,7 +15,6 @@ from ..analysis.io_utils import (
     get_coords,
     read_hdf5,
     recording_site_from_channel_path,
-    recording_site_from_preprocessed_label,
     write_combined_stores_list,
 )
 from ..analysis.standard_io import (
@@ -27,7 +26,6 @@ from ..analysis.standard_io import (
     read_corrected_ttl_timestamps,
     read_data_for_combining_data,
     read_timestamps_for_combining_data,
-    read_tonic_epochs,
     read_ttl,
     read_ttl_timestamps_for_combining_data,
     write_artifact_removal,
@@ -35,11 +33,9 @@ from ..analysis.standard_io import (
     write_corrected_data,
     write_corrected_timestamps,
     write_corrected_ttl_timestamps,
-    write_tonic_to_hdf5,
     write_zscore,
 )
 from ..analysis.timestamp_correction import correct_timestamps
-from ..analysis.tonic import compute_tonic_means
 from ..analysis.z_score import compute_z_score
 from ..utils import progress
 from ..utils.progress import step_error_handler
@@ -259,55 +255,6 @@ def execute_artifact_removal(session_folders: list[str], inputParameters: dict[s
     logger.info("Artifact removal completed.")
 
 
-def execute_tonic_analysis(inputParameters: dict[str, object], session_folders: list) -> None:
-    """Average the preprocessed traces over user-defined tonic epoch windows.
-
-    For each run folder and recording site with a ``tonic_epochs_<site>.csv``
-    definition, load the full-session z-score / dF/F traces and their time axis,
-    compute the per-epoch means, and write them to ``tonic_<site>.h5``. Sites
-    without an epoch file are skipped. Runs in both GUI and headless modes; the
-    epoch files are produced graphically by the tonic epoch page in GUI mode and
-    injected directly in headless tests.
-
-    Parameters
-    ----------
-    inputParameters : dict
-        Pipeline configuration; must include ``'combine_data'``.
-    session_folders : list
-        Session directories (or combined-output groups when ``combine_data``).
-    """
-    combine_data = inputParameters["combine_data"]
-
-    run_folders = []
-    for i in range(len(session_folders)):
-        if combine_data == True:
-            run_folders.append([session_folders[i][0]])
-        else:
-            filepath = session_folders[i]
-            run_folders.append(select_run_folders(filepath, (inputParameters.get("selected_runs") or {}).get(filepath)))
-    run_folders = np.concatenate(run_folders)
-
-    for j in range(len(run_folders)):
-        filepath = run_folders[j]
-        path = sorted(glob.glob(os.path.join(filepath, "z_score_*")))
-        for i in range(len(path)):
-            basename = (os.path.basename(path[i])).split(".")[0]
-            name_1 = recording_site_from_preprocessed_label(basename)
-            epochs = read_tonic_epochs(filepath, name_1)
-            if epochs.empty:
-                continue
-            timestamps = read_hdf5("timeCorrection_" + name_1, filepath, "timestampNew")
-            z_score = read_hdf5("", path[i], "data")
-            dff = read_hdf5("", os.path.join(filepath, "dff_" + name_1 + ".hdf5"), "data")
-            tonic_df = compute_tonic_means(z_score, dff, timestamps, epochs)
-            write_tonic_to_hdf5(filepath, tonic_df, name_1)
-            logger.info(f"Tonic analysis computed for recording site {name_1}.")
-
-        progress.advance()
-
-    logger.info("Tonic analysis completed.")
-
-
 def execute_combine_data(
     session_folders: list[str], inputParameters: dict[str, object], store_array: np.ndarray
 ) -> list:
@@ -464,16 +411,12 @@ def extractTsAndSignal(inputParameters: dict[str, object]) -> None:
     save_parameters(inputParameters=inputParameters, remove_artifacts=False)
 
     session_folders = inputParameters["session_folders"]
-    compute_tonic = inputParameters["computeTonic"]
     logger.info(f"Combine Data : {inputParameters['combine_data']}")
     logger.info(f"Isosbestic Control Channel : {inputParameters['isosbestic_control']}")
-    logger.info(f"Compute Tonic Analysis : {compute_tonic}")
 
-    _start_progress(inputParameters, passes_per_folder=3 if compute_tonic else 2)
+    _start_progress(inputParameters, passes_per_folder=2)
     folders = _correct_and_maybe_combine(session_folders, inputParameters)
     execute_zscore(folders, inputParameters, remove_artifacts=False)
-    if compute_tonic == True:
-        execute_tonic_analysis(inputParameters, folders)
 
 
 def removeArtifactsFromSignal(inputParameters: dict[str, object]) -> None:

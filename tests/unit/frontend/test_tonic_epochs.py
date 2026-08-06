@@ -54,6 +54,22 @@ class TestTonicEpochConfig:
 
         # DLS was left empty, so no file is written for it.
         assert not (tmp_path / "tonic_epochs_DLS.csv").exists()
+        assert not (tmp_path / "tonic_DLS.h5").exists()
+
+    def test_save_also_computes_the_per_epoch_means(self, config, tmp_path):
+        """Saving is the whole step — no later preprocessing pass produces the means."""
+        config.set_epochs("DMS", [("baseline", 0.0, 2.0), ("post", 8.0, 10.0)])
+
+        config.save()
+
+        means = pd.read_hdf(tmp_path / "tonic_DMS.h5", key="df")
+        # The DMS z-score trace is the timestamps themselves (0..10 by 1), and dF/F is
+        # that over 10, so [0, 2] averages to 1.0 / 0.1 and [8, 10] to 9.0 / 0.9.
+        assert list(means.index) == ["baseline", "post"]
+        assert means.loc["baseline", "mean_zscore"] == pytest.approx(1.0)
+        assert means.loc["baseline", "mean_dff"] == pytest.approx(0.1)
+        assert means.loc["post", "mean_zscore"] == pytest.approx(9.0)
+        assert means.loc["post", "mean_dff"] == pytest.approx(0.9)
 
     def test_blank_row_is_not_saved(self, config, tmp_path):
         config.set_epochs("DMS", [("baseline", 0.0, 2.0)])
@@ -144,3 +160,30 @@ class TestTonicResultsView:
         rebased = view.table_pane.object
         assert rebased.loc["baseline", "diff_zscore"] == pytest.approx(-8.0)
         assert rebased.loc["post", "diff_zscore"] == 0.0
+
+    def test_bars_plot_one_panel_per_signal_with_a_bar_per_epoch(self, panel_extension, tmp_path):
+        _write_tonic_results(tmp_path, "DMS")
+        view = TonicResultsView(str(tmp_path))
+
+        bars = view.bars_pane.object
+        # One panel for mean z-score, one for mean dF/F — the two differ by an order of
+        # magnitude, so a shared axis would flatten the dF/F bars.
+        assert len(bars) == 2
+
+        zscore_bars = bars[0].Bars.I
+        assert list(zscore_bars.dimension_values("epoch")) == ["baseline", "post"]
+        np.testing.assert_allclose(zscore_bars.dimension_values("mean z-score"), [1.0, 9.0])
+
+        dff_bars = bars[1].Bars.I
+        np.testing.assert_allclose(dff_bars.dimension_values("mean ΔF/F"), [0.1, 0.9])
+
+    def test_bars_reference_line_tracks_the_selected_baseline(self, panel_extension, tmp_path):
+        _write_tonic_results(tmp_path, "DMS")
+        view = TonicResultsView(str(tmp_path))
+
+        # The dashed line sits at the baseline epoch's own mean, so every bar's distance
+        # from it reads as the change from baseline.
+        assert view.bars_pane.object[0].HLine.I.data == pytest.approx(1.0)
+
+        view.baseline_select.value = "post"
+        assert view.bars_pane.object[0].HLine.I.data == pytest.approx(9.0)

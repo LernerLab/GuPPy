@@ -223,10 +223,6 @@ class ParameterForm:
             name="Window for Moving Average filter (int)", value=100, width=320
         )
 
-        self.computeTonic = pn.widgets.Select(
-            name="Compute tonic/basal analysis? (bool)", value=False, options=[True, False], width=250
-        )
-
         self.no_channels_np = pn.widgets.IntInput(
             name="Number of channels (Neurophotometrics only)", value=2, width=320
         )
@@ -369,7 +365,6 @@ class ParameterForm:
             self.moving_wd,
             pn.Row(self.highAmpFilt, self.transientsThresh),
             self.no_channels_np,
-            self.computeTonic,
         )
 
         self.psth_baseline_param = pn.Column(
@@ -704,7 +699,6 @@ class ParameterForm:
             "controlFitWindowEnd": self.control_fit_window_end.value,
             "timeForLightsTurnOn": self.timeForLightsTurnOn.value,
             "filter_window": self.moving_avg_filter.value,
-            "computeTonic": self.computeTonic.value,
             "noChannels": self.no_channels_np.value,
             "zscore_method": self.z_score_computation.value,
             "baselineWindowStart": self.baseline_wd_strt.value,
@@ -756,7 +750,6 @@ class ParameterForm:
             "controlFitWindowEnd": self.control_fit_window_end,
             "timeForLightsTurnOn": self.timeForLightsTurnOn,
             "filter_window": self.moving_avg_filter,
-            "computeTonic": self.computeTonic,
             "noChannels": self.no_channels_np,
             "zscore_method": self.z_score_computation,
             "baselineWindowStart": self.baseline_wd_strt,

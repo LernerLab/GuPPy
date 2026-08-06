@@ -1,11 +1,11 @@
 """End-to-end test for tonic/basal fluorescence analysis (issue #210).
 
-Runs step1 -> step2 -> step3 -> define_tonic_epochs -> step3 headlessly on the synthetic
-injection CSV session (``stubbed_testing_data/csv/sample_data_csv_injection_1``), whose
-465 nm signal has a sustained step at the injection time (t=60 s). Epoch windows are
-written by ``define_tonic_epochs`` (bypassing the interactive epoch page), and the
-``tonic_region.h5`` produced by the second step-3 run is checked for correct per-epoch
-means and the expected baseline -> post-injection increase.
+Runs step1 -> step2 -> step3 -> define_tonic_epochs headlessly on the synthetic injection
+CSV session (``stubbed_testing_data/csv/sample_data_csv_injection_1``), whose 465 nm signal
+has a sustained step at the injection time (t=60 s). Epoch windows are written by
+``define_tonic_epochs`` (bypassing the interactive epoch page), which also averages the
+traces over them; the resulting ``tonic_region.h5`` is checked for correct per-epoch means
+and the expected baseline -> post-injection increase.
 """
 
 import glob
@@ -45,7 +45,9 @@ def injection_session(tmp_path):
     source = os.path.join(_stubbed_data_root(), SESSION_SUBDIR)
     base_dir = str(tmp_path)
     session = os.path.join(base_dir, SESSION_NAME)
-    shutil.copytree(source, session)
+    # Output dirs are gitignored, so running GuPPy against the stubbed data leaves them
+    # behind; copying them would seed this session with another run's results.
+    shutil.copytree(source, session, ignore=shutil.ignore_patterns("*_output_*"))
 
     step1(base_dir=base_dir, selected_folders=[session], store_id_to_store_label=STORE_ID_TO_STORE_LABEL)
     selected_runs = {session: [parse_run_name(_output_directory(session))]}
@@ -55,7 +57,7 @@ def injection_session(tmp_path):
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
 class TestTonicAnalysis:
-    def test_step3_writes_tonic_means_per_epoch(self, injection_session):
+    def test_define_tonic_epochs_writes_means_per_epoch(self, injection_session):
         epochs = pd.DataFrame(
             {
                 "label": ["baseline", "post"],
@@ -63,7 +65,7 @@ class TestTonicAnalysis:
                 "end": [BASELINE_EPOCH[1], POST_EPOCH[1]],
             }
         )
-        preprocess_kwargs = dict(
+        step3(
             base_dir=injection_session["base_dir"],
             selected_folders=[injection_session["session"]],
             control_fit_window_mode="baseline epoch",
@@ -71,16 +73,14 @@ class TestTonicAnalysis:
             control_fit_window_end=FIT_WINDOW[1],
             selected_runs=injection_session["selected_runs"],
         )
-        # Epochs are defined on the traces the first run produced, so tonic means
-        # only land on the second run — the flow the GUI's optional step follows.
-        step3(**preprocess_kwargs)
+        # Epochs are defined on the traces Step 3 produced; the optional step averages
+        # them on save, so no second preprocessing run is needed.
         define_tonic_epochs(
             base_dir=injection_session["base_dir"],
             selected_folders=[injection_session["session"]],
             tonic_epochs={"region": epochs},
             selected_runs=injection_session["selected_runs"],
         )
-        step3(**preprocess_kwargs, compute_tonic=True)
 
         output_directory = _output_directory(injection_session["session"])
         tonic_path = os.path.join(output_directory, "tonic_region.h5")
@@ -104,7 +104,7 @@ class TestTonicAnalysis:
         assert tonic.loc["post", "mean_dff"] > tonic.loc["baseline", "mean_dff"]
         assert tonic.loc["post", "mean_zscore"] > tonic.loc["baseline", "mean_zscore"]
 
-    def test_step3_without_tonic_writes_no_tonic_file(self, injection_session):
+    def test_step3_alone_writes_no_tonic_file(self, injection_session):
         step3(
             base_dir=injection_session["base_dir"],
             selected_folders=[injection_session["session"]],

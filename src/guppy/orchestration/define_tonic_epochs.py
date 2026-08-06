@@ -1,11 +1,12 @@
 """Define Tonic Epochs step: an interactive page served by the persistent main app.
 
-This optional step runs no compute. Clicking its sidebar button opens a browser tab on the
+Clicking its sidebar button opens a browser tab on the
 main app's ``/define-tonic-epochs`` route (served by :data:`build_define_tonic_epochs_view`),
-composed from the Step-3 outputs already on disk. Saving on that page writes
-``tonic_epochs_<recording_site>.csv``, which a subsequent Preprocess run consumes to compute
-the per-epoch means. See ``orchestration/step_view.py`` for the shared token/registry/serving
-plumbing.
+composed from the Step-3 outputs already on disk. Averaging those traces over the windows is
+a read-only reduction, so saving on that page both writes the definitions
+(``tonic_epochs_<recording_site>.csv``) and computes the per-epoch means
+(``tonic_<recording_site>.h5``) — no further pipeline step is needed. See
+``orchestration/step_view.py`` for the shared token/registry/serving plumbing.
 """
 
 import logging

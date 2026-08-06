@@ -592,7 +592,6 @@ SAVED_PARAMETERS = {
     "controlFitWindowEnd": 8,
     "timeForLightsTurnOn": 7,
     "filter_window": 42,
-    "computeTonic": True,
     "noChannels": 3,
     "zscore_method": "modified z-score",
     "baselineWindowStart": 2,
