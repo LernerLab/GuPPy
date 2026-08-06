@@ -191,8 +191,11 @@ Set both to `0` to disable baseline correction. If the first event timestamp in 
 |-----------|-------------|------|---------|-----------------|
 | Peak Start time | Start times for the peak/AUC windows. | list of int | `[-5, 0, 5]` (rows 1-3 of the table; rows 4-10 are NaN) | one or more start times in seconds, within `[Seconds before 0, Seconds after 0]` |
 | Peak End time | End times paired with the starts. | list of int | `[0, 3, 10]` (rows 1-3 of the table; rows 4-10 are NaN) | one or more end times in seconds, paired with starts |
+| AUC Units | Time unit the area under the curve is integrated against. | str | `samples` | `samples`, `seconds` |
 
 The peak / AUC widget is a small table with rows of (start, end) pairs. Each row defines a window inside the PSTH within which GuPPy computes the peak amplitude and area under the curve of the trial-mean trace. Multiple rows let you measure the same PSTH across multiple windows in a single run (for example, an early `[-5, 0]` baseline window, an immediate post-event `[0, 3]` window, and a later `[5, 10]` window). The tabulator widget accepts up to ten rows; rows whose start or end value is NaN are ignored.
+
+**AUC Units** controls the spacing used to integrate each window. `seconds` reports the area in z-score × seconds (or ΔF/F × seconds), the unit commonly reported in the literature. `samples` integrates with one-sample spacing instead, so the same response reads larger the faster it was sampled; a 1017 Hz recording gives a value roughly 1000× that of a 1 Hz recording. The choice applies to every `area_*` column in the `peak_AUC_*` outputs and is recorded in `GuPPyParamtersUsed.json`.
 
 ---
 
@@ -245,6 +248,7 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 |---------------|-----------|---------|
 | `abspath` | (auto-derived; not user-set) | [Input Folder Selection](#input-folder-selection) |
 | `artifactsRemovalMethod` | (recorded provenance; set on the Select Artifact Windows page) | [Artifact removal](#artifact-removal) |
+| `auc_units` | AUC Units | [Peak and AUC Parameters](#peak-and-auc-parameters) |
 | `averageForGroup` | Average Group? | [Group Analysis](#group-analysis) |
 | `baselineCorrectionEnd` | Baseline Correction End time | [Baseline Parameters](#baseline-parameters) |
 | `baselineCorrectionStart` | Baseline Correction Start time | [Baseline Parameters](#baseline-parameters) |

@@ -127,6 +127,7 @@ def save_parameters(
         "baselineCorrectionEnd": inputParameters["baselineCorrectionEnd"],
         "peak_startPoint": inputParameters["peak_startPoint"],
         "peak_endPoint": inputParameters["peak_endPoint"],
+        "auc_units": inputParameters["auc_units"],
         "selectForComputePsth": inputParameters["selectForComputePsth"],
         "selectForTransientsComputation": inputParameters["selectForTransientsComputation"],
         "moving_window": inputParameters["moving_window"],

@@ -178,6 +178,10 @@ class TestParameterForm:
         assert parameter_form.computeCorr.value is False
         assert parameter_form.computeCorr.options == [True, False]
 
+    def test_auc_units_default(self, parameter_form):
+        assert parameter_form.auc_units.value == "samples"
+        assert parameter_form.auc_units.options == ["samples", "seconds"]
+
     def test_use_time_or_trials_default(self, parameter_form):
         assert parameter_form.use_time_or_trials.value == "Time (min)"
         assert "Time (min)" in parameter_form.use_time_or_trials.options
@@ -606,6 +610,7 @@ SAVED_PARAMETERS = {
     "baselineCorrectionEnd": 1,
     "peak_startPoint": [-4.0, 1.0, 6.0] + [float("nan")] * 7,
     "peak_endPoint": [1.0, 4.0, 11.0] + [float("nan")] * 7,
+    "auc_units": "seconds",
     "selectForComputePsth": "dff",
     "selectForTransientsComputation": "Both",
     "moving_window": 12,
