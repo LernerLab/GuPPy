@@ -15,24 +15,19 @@ nothing downstream requires it.
 
 ## Before you start
 
-Run **Step 1: Label Stores**, **Step 2: Read Raw Data**, and **Step 3: Preprocess**
-on the sessions you want to measure. The traces you average are the ones Step 3
-produced.
+Tonic analysis averages the traces Step 3 produces, so run the pipeline up to that
+point first:
 
-If the recording also needs artifact removal, run **Select Artifact Windows** and
-**Remove Artifacts** first. The means are computed from the traces on disk when you
-save.
-
-## Set the control fit window
-
-For a recording with a step change partway through — a drug injection, say — set
-**Control Fit Window** to `baseline epoch` in Step 3 and give it a window from
-before the change. A full-trace fit treats the step as part of the control-to-signal
-relationship and absorbs most of it, leaving little for the epoch means to measure.
-See the [parameters reference](../reference/parameters.md).
-
-If you already ran Step 3 with the default `full trace` fit, change the setting and
-run it again before going on.
+1. Run **Step 1: Label Stores** and **Step 2: Read Raw Data** on the sessions you
+   want to measure.
+2. If the signal steps partway through — a drug injection, say — set **Control Fit
+   Window** to `baseline epoch` and give it a window from before the change. A
+   full-trace fit treats the step as part of the control-to-signal relationship and
+   absorbs most of it, leaving little for the epoch means to measure. See the
+   [parameters reference](../reference/parameters.md).
+3. Run **Step 3: Preprocess**.
+4. If the recording also needs artifact removal, run **Select Artifact Windows** and
+   **Remove Artifacts**.
 
 ## Defining the epochs
 
