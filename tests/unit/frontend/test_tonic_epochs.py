@@ -161,29 +161,41 @@ class TestTonicResultsView:
         assert rebased.loc["baseline", "diff_zscore"] == pytest.approx(-8.0)
         assert rebased.loc["post", "diff_zscore"] == 0.0
 
-    def test_bars_plot_one_panel_per_signal_with_a_bar_per_epoch(self, panel_extension, tmp_path):
+    def test_bars_plot_the_change_from_baseline_not_the_absolute_means(self, panel_extension, tmp_path):
         _write_tonic_results(tmp_path, "DMS")
         view = TonicResultsView(str(tmp_path))
 
         bars = view.bars_pane.object
-        # One panel for mean z-score, one for mean dF/F — the two differ by an order of
-        # magnitude, so a shared axis would flatten the dF/F bars.
+        # One panel for z-score, one for dF/F — the two differ by an order of magnitude,
+        # so a shared axis would flatten the dF/F bars.
         assert len(bars) == 2
 
         zscore_bars = bars[0].Bars.I
         assert list(zscore_bars.dimension_values("epoch")) == ["baseline", "post"]
-        np.testing.assert_allclose(zscore_bars.dimension_values("mean z-score"), [1.0, 9.0])
+        # Means are 1.0 and 9.0; against the default "baseline" epoch the bars carry the
+        # change, so the reference epoch sits at zero and "post" carries the full step.
+        np.testing.assert_allclose(zscore_bars.dimension_values("Δ mean z-score"), [0.0, 8.0])
 
         dff_bars = bars[1].Bars.I
-        np.testing.assert_allclose(dff_bars.dimension_values("mean ΔF/F"), [0.1, 0.9])
+        np.testing.assert_allclose(dff_bars.dimension_values("Δ mean ΔF/F"), [0.0, 0.8])
 
-    def test_bars_reference_line_tracks_the_selected_baseline(self, panel_extension, tmp_path):
+    def test_bars_rebase_when_the_baseline_epoch_changes(self, panel_extension, tmp_path):
         _write_tonic_results(tmp_path, "DMS")
         view = TonicResultsView(str(tmp_path))
 
-        # The dashed line sits at the baseline epoch's own mean, so every bar's distance
-        # from it reads as the change from baseline.
-        assert view.bars_pane.object[0].HLine.I.data == pytest.approx(1.0)
-
         view.baseline_select.value = "post"
-        assert view.bars_pane.object[0].HLine.I.data == pytest.approx(9.0)
+
+        # Re-basing on "post" puts it at zero and sends "baseline" negative by the step.
+        zscore_bars = view.bars_pane.object[0].Bars.I
+        np.testing.assert_allclose(zscore_bars.dimension_values("Δ mean z-score"), [-8.0, 0.0])
+        assert view.bars_pane.object[0].Bars.I.kdims[0].name == "epoch"
+
+    def test_bars_mark_no_change_at_zero(self, panel_extension, tmp_path):
+        _write_tonic_results(tmp_path, "DMS")
+        view = TonicResultsView(str(tmp_path))
+
+        # Bars run either side of zero, so the dashed line is pinned to no-change
+        # regardless of which epoch is the baseline.
+        assert view.bars_pane.object[0].HLine.I.data == pytest.approx(0.0)
+        view.baseline_select.value = "post"
+        assert view.bars_pane.object[0].HLine.I.data == pytest.approx(0.0)

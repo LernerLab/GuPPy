@@ -52,11 +52,12 @@ _NO_WINDOWS_HINT = "_No epoch windows defined — this recording site will be sk
 # Bar hues for the results view: the baseline epoch is the reference the others read against.
 _EPOCH_BAR_COLOR = "#1f77b4"
 _BASELINE_BAR_COLOR = "#ff7f0e"
+_ZERO_LINE_COLOR = "#666666"
 
 _BASELINE_HINT = (
-    "Bars show each epoch's mean; the **baseline epoch** is highlighted and its value drawn "
-    "as a dashed reference line, so every other bar's distance from it is the change from "
-    "baseline reported in the table below."
+    "Bars show each epoch's **change from the baseline epoch**, which is highlighted and sits "
+    "at zero by definition. Bars above the dashed line rose relative to baseline, bars below "
+    "it fell. The absolute means these are taken from are in the table."
 )
 
 
@@ -347,11 +348,11 @@ def _tonic_result_sites(filepath: str) -> list[str]:
 class TonicResultsView:
     """Read-only view of tonic results for a single run folder.
 
-    For each recording site it shows a bar chart of the per-epoch means — the
-    headline result — above the preprocessed traces with the analysed windows
-    shaded, and a table of the same numbers. Because the difference from baseline
-    is a viewing choice, a baseline-epoch selector marks the reference epoch on
-    the bars and adds live ``diff_zscore`` / ``diff_dff`` columns.
+    For each recording site it charts each epoch's change from a selectable
+    baseline epoch — the headline result — above the preprocessed traces with the
+    analysed windows shaded, and a table carrying both the absolute means and the
+    same differences. Because the choice of baseline is a viewing decision, moving
+    the selector re-bases the bars and the ``diff_zscore`` / ``diff_dff`` columns.
     """
 
     def __init__(self, filepath: str) -> None:
@@ -384,33 +385,35 @@ class TonicResultsView:
         return pd.read_hdf(os.path.join(self.filepath, "tonic_" + site + ".h5"), key="df")
 
     def _make_bars(self) -> hv.Layout:
-        """Per-epoch means as bars, one panel per signal.
+        """Each epoch's change from the baseline epoch, as bars, one panel per signal.
 
-        The z-score and dF/F means differ by orders of magnitude, so they get a panel
-        each rather than a shared axis that would flatten one of them.
+        The change is what the experiment asks about, so it is what the bars encode; the
+        absolute means the differences are taken from stay in the table. The baseline
+        epoch is included at zero rather than dropped, so it stays visible as the
+        reference the others are measured against. z-score and dF/F differ by orders of
+        magnitude, so they get a panel each rather than a shared axis that would flatten
+        one of them.
         """
-        means = self._means(self.site_select.value)
+        table = self._means_with_diff()
         baseline = self.baseline_select.value
+        epochs = list(table.index)
+        colors = [_BASELINE_BAR_COLOR if epoch == baseline else _EPOCH_BAR_COLOR for epoch in epochs]
 
         panels = []
-        for column, label in (("mean_zscore", "mean z-score"), ("mean_dff", "mean ΔF/F")):
-            epochs = list(means.index)
-            values = [float(means.loc[epoch, column]) for epoch in epochs]
-            colors = [_BASELINE_BAR_COLOR if epoch == baseline else _EPOCH_BAR_COLOR for epoch in epochs]
+        for column, label in (("diff_zscore", "Δ mean z-score"), ("diff_dff", "Δ mean ΔF/F")):
+            values = [float(table.loc[epoch, column]) for epoch in epochs]
             bars = hv.Bars(list(zip(epochs, values)), "epoch", label).opts(
                 color=hv.dim("epoch").categorize(dict(zip(epochs, colors))),
-                title=label,
+                title=f"{label} vs. {baseline}",
                 responsive=True,
                 height=280,
                 xrotation=30,
                 tools=["hover"],
             )
-            # A line at the baseline value turns each bar's height difference from the
-            # reference into something readable straight off the chart.
-            reference = hv.HLine(float(means.loc[baseline, column])).opts(
-                color=_BASELINE_BAR_COLOR, line_dash="dashed", line_width=1.5
-            )
-            panels.append(bars * reference)
+            # Bars run either side of zero, so mark no-change explicitly rather than
+            # leaving it to be inferred from where the negative bars turn over.
+            no_change = hv.HLine(0.0).opts(color=_ZERO_LINE_COLOR, line_dash="dashed", line_width=1.5)
+            panels.append(bars * no_change)
         return hv.Layout(panels).cols(2)
 
     def _means_with_diff(self) -> pd.DataFrame:
