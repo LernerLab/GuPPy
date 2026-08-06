@@ -2,8 +2,8 @@
 
 Runs step1 -> step2 -> step3 -> define_tonic_epochs headlessly on the synthetic injection
 CSV session (``stubbed_testing_data/csv/sample_data_csv_injection_1``), whose 465 nm signal
-walks through the three epochs of a bolus experiment: a flat baseline, a sustained plateau
-from the injection at t=60 s, and an exponential clearance from t=160 s. Epoch windows are
+holds three equal 60 s phases: a flat baseline, a sustained plateau from the injection at
+t=60 s, and a clearance to a 25% residual from t=120 s. Epoch windows are
 written by ``define_tonic_epochs`` (bypassing the interactive epoch page), which also
 averages the traces over them; the resulting ``tonic_region.h5`` is checked for correct
 per-epoch means and for the rise-then-recover ordering across the three epochs.
@@ -29,11 +29,11 @@ STORE_ID_TO_STORE_LABEL = {
     "Sample_TTL": "ttl",
 }
 FIT_WINDOW = (2, 55)  # pre-injection window for baseline-epoch control fitting
-# The three epochs of the bolus experiment. Each sits inside its phase, clear of the
-# transitions at t=60 s (injection) and t=160 s (washout onset).
+# The session's three equal 60 s phases. Each window sits inside its phase, clear of the
+# transitions at t=60 s (injection) and t=120 s (washout onset).
 BASELINE_EPOCH = (2.0, 55.0)  # pre-injection
-WASH_IN_EPOCH = (70.0, 155.0)  # drug on board, plateau
-WASH_OUT_EPOCH = (200.0, 238.0)  # clearance largely complete
+WASH_IN_EPOCH = (65.0, 115.0)  # drug on board, plateau
+WASH_OUT_EPOCH = (145.0, 178.0)  # clearance settled onto its residual level
 
 
 def _stubbed_data_root():
@@ -111,9 +111,11 @@ class TestTonicAnalysis:
             assert tonic.loc["wash_in", column] > tonic.loc["wash_out", column]
             assert tonic.loc["wash_out", column] > tonic.loc["baseline", column]
 
-        # The plateau carries the full ~24% step while the cleared epoch retains only a
-        # fraction of it, so the recovery is unambiguous rather than a marginal dip.
-        assert tonic.loc["wash_out", "mean_dff"] < 0.3 * tonic.loc["wash_in", "mean_dff"]
+        # Clearance leaves a 25% residual, so the washout epoch keeps roughly a quarter of
+        # the plateau: bounded on both sides, since the point is that it is neither still
+        # elevated nor all the way back onto the baseline.
+        recovered_fraction = tonic.loc["wash_out", "mean_dff"] / tonic.loc["wash_in", "mean_dff"]
+        assert 0.15 < recovered_fraction < 0.40
 
     def test_step3_alone_writes_no_tonic_file(self, injection_session):
         step3(

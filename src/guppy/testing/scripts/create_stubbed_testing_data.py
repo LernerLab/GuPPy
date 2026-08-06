@@ -150,11 +150,15 @@ def _sessions() -> list[tuple[BaseRecordingExtractor, float | None, Path]]:
 # timebase, and it is the discontinuity that breaks a full-trace control fit.
 
 INJECTION_CSV_SAMPLING_RATE = 100.0  # Hz — kept low so the committed CSVs stay small
-INJECTION_CSV_DURATION = 240.0  # s
+# Three equal 60 s phases: baseline, drug on board, clearance.
+INJECTION_CSV_DURATION = 180.0  # s
 INJECTION_TIME = 60.0  # s — signal step onset and one of the TTL pulses
-WASHOUT_TIME = 160.0  # s — drug clearance begins; also a TTL pulse
-WASHOUT_TAU = 25.0  # s — clearance time constant, so the trace is ~95% recovered by 235 s
-INJECTION_TTL_TIMES = tuple(float(t) for t in range(20, 240, 20))  # 20 s grid; 60 s = injection, 160 s = washout
+WASHOUT_TIME = 120.0  # s — drug clearance begins; also a TTL pulse
+WASHOUT_TAU = 6.0  # s — clearance is ~95% done within 18 s, so most of the phase is a flat plateau
+# Clearance is incomplete, so the washout phase settles at its own level rather than back
+# onto the baseline. Three separated plateaus are the point of the session.
+WASHOUT_RESIDUAL_FRACTION = 0.25
+INJECTION_TTL_TIMES = tuple(float(t) for t in range(20, 180, 20))  # 20 s grid; 60 s = injection, 120 s = washout
 # True pre-injection control->signal relationship (signal = SLOPE * control + INTERCEPT).
 INJECTION_TRUE_SLOPE = 1.5
 INJECTION_TRUE_INTERCEPT = 10.0
@@ -176,8 +180,9 @@ def _write_injection_csv_session(destination: Path) -> None:
     # effect — a step up at injection (what breaks a full-trace fit), held while the drug
     # is on board, then cleared exponentially from the washout time.
     step = np.where(timestamps >= INJECTION_TIME, INJECTION_STEP_AMPLITUDE, 0.0)
-    clearance = np.where(timestamps >= WASHOUT_TIME, np.exp(-(timestamps - WASHOUT_TIME) / WASHOUT_TAU), 1.0)
-    drug_effect = step * clearance
+    decay = np.exp(-np.maximum(timestamps - WASHOUT_TIME, 0.0) / WASHOUT_TAU)
+    clearance = WASHOUT_RESIDUAL_FRACTION + (1.0 - WASHOUT_RESIDUAL_FRACTION) * decay
+    drug_effect = step * np.where(timestamps >= WASHOUT_TIME, clearance, 1.0)
     signal = INJECTION_TRUE_SLOPE * control + INJECTION_TRUE_INTERCEPT + drug_effect + rng.normal(0.0, 0.5, num_samples)
 
     destination.mkdir(parents=True, exist_ok=True)
