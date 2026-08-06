@@ -5,9 +5,16 @@ import holoviews as hv
 import numpy as np
 import panel as pn
 
+from guppy.extractors.npm_recording_extractor import (
+    DEFAULT_TIME_UNIT,
+    TIME_UNIT_DIVISORS,
+)
+
 pn.extension()
 
 logger = logging.getLogger(__name__)
+
+TIME_UNIT_OPTIONS = list(TIME_UNIT_DIVISORS)
 
 
 class StoreLabelingInstructions:
@@ -52,13 +59,13 @@ class StoreLabelingInstructions:
 
 
 class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
-    """Label Stores instructions panel extended with NPM-specific channel preview plots.
+    """Label Stores instructions panel extended with NPM-specific configuration and previews.
 
-    Adds a channel selector and a live HoloViews curve so the user can inspect
-    each NPM channel before assigning it a signal or control role. The decomposed
-    channel traces are computed upstream (by the orchestrator, via
-    ``NpmRecordingExtractor.decompose``) and passed in; this widget only renders
-    them.
+    Renders per-file widgets so the user can choose whether to split multiple
+    behavior TTLs into separate files and which timestamp column/unit to use,
+    plus a "Confirm NPM configuration" button whose click handler is wired by
+    the orchestrator. After confirmation the orchestrator decomposes the NPM
+    session and calls :meth:`set_channel_previews` to render the channel traces.
 
     Parameters
     ----------
@@ -67,16 +74,29 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
         heading above the instructions.
     channel_previews : dict
         Maps each chev/chod/chpr channel name to a dict with ``"x"`` (timestamps)
-        and ``"y"`` (data) arrays to plot.
+        and ``"y"`` (data) arrays to plot. Pass an empty dict to start with no
+        preview (populated later via :meth:`set_channel_previews`).
+    multiple_event_ttls : list of bool, optional
+        One entry per NPM data file; ``True`` when the file encodes multiple TTL
+        types and a split-events checkbox should be shown. When ``None`` the
+        interactive configuration form is not built.
+    timestamp_column_options : list of str, optional
+        Timestamp columns the session's data files offer. A column selector is
+        shown only when there are two or more to choose between.
     """
 
-    def __init__(self, folder_path: str, *, channel_previews: dict[str, dict[str, np.ndarray]]) -> None:
+    def __init__(
+        self,
+        folder_path: str,
+        *,
+        channel_previews: dict[str, dict[str, np.ndarray]],
+        multiple_event_ttls: list[bool] | None = None,
+        timestamp_column_options: list[str] | None = None,
+    ) -> None:
         super().__init__(folder_path=folder_path)
-        self.channel_preview_arrays = {
-            name: {"x": np.asarray(preview["x"]), "y": np.asarray(preview["y"])}
-            for name, preview in channel_previews.items()
-        }
-        channel_names = list(self.channel_preview_arrays.keys())
+        self.multiple_event_ttls = multiple_event_ttls
+        self.timestamp_column_options = timestamp_column_options
+
         self.mark_down_np = pn.pane.Markdown(
             """
                                         ### Extra Instructions to follow when using Neurophotometrics data :
@@ -95,21 +115,120 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
                                         as **control** and set its **Control for** to “chev1” (or vice
                                         versa).
 
-                                            """
+                                            """,
+            width=550,
         )
-        self.plot_select = pn.widgets.Select(
-            name="Select channel to see correspondings channels", options=channel_names, value=channel_names[0]
-        )
-        self.plot_pane = pn.pane.HoloViews(self._make_plot(self.plot_select.value), width=550)
-        self.plot_select.param.watch(self._on_plot_select_change, "value")
+
+        # Split-events is asked per file, keyed by file index, and only for the files
+        # that encode more than one TTL type. The timestamp widgets below are per session.
+        self.split_event_checkboxes: dict[int, pn.widgets.Checkbox] = {}
+        self.timestamp_column_select: pn.widgets.Select | None = None
+        self.time_unit_select: pn.widgets.Select | None = None
+        self.confirm_button: pn.widgets.Button | None = None
+        config_form = pn.Column()
+
+        if multiple_event_ttls is not None:
+            for file_index, has_multiple in enumerate(multiple_event_ttls):
+                if has_multiple:
+                    checkbox = pn.widgets.Checkbox(
+                        name=f"File {file_index}: create multiple files for each behavior type?",
+                        value=False,
+                        width=550,
+                    )
+                    self.split_event_checkboxes[file_index] = checkbox
+                    config_form.append(checkbox)
+
+            # A session is recorded on one clock, so the timestamp column and unit are
+            # asked once for the whole folder. The column is only ambiguous when the
+            # files offer more than one to choose between; the unit always is.
+            if timestamp_column_options is not None and len(timestamp_column_options) > 1:
+                self.timestamp_column_select = pn.widgets.Select(
+                    name="Select which timestamps to use",
+                    options=list(timestamp_column_options),
+                    width=550,
+                )
+                config_form.append(self.timestamp_column_select)
+
+            self.time_unit_select = pn.widgets.Select(
+                name="Select the unit of the timestamps",
+                options=TIME_UNIT_OPTIONS,
+                value=DEFAULT_TIME_UNIT,
+                width=550,
+            )
+            config_form.append(self.time_unit_select)
+
+            self.confirm_button = pn.widgets.Button(name="Confirm NPM configuration", width=550)
+            config_form.append(self.confirm_button)
+
+        # Preview area is filled by set_channel_previews (immediately if previews
+        # were supplied, otherwise after the user confirms the configuration).
+        self.channel_preview_arrays: dict[str, dict[str, np.ndarray]] = {}
+        self.plot_select: pn.widgets.Select | None = None
+        self.plot_pane: pn.pane.HoloViews | None = None
+        self.plot_area = pn.Column()
 
         self.widget = pn.Column(
             "# " + os.path.basename(folder_path),
             self.mark_down,
             self.mark_down_np,
-            self.plot_select,
-            self.plot_pane,
+            config_form,
+            self.plot_area,
         )
+
+        if channel_previews:
+            self.set_channel_previews(channel_previews=channel_previews)
+
+    def get_npm_split_events(self) -> list[bool]:
+        """Return, per NPM data file, whether to split multiple behavior TTLs.
+
+        Files that do not encode multiple TTL types are always ``False``;
+        the rest reflect their split-events checkbox.
+
+        Returns
+        -------
+        list of bool
+            One entry per NPM data file.
+        """
+        return [
+            bool(self.split_event_checkboxes[file_index].value) if has_multiple else False
+            for file_index, has_multiple in enumerate(self.multiple_event_ttls)
+        ]
+
+    def get_timestamp_configuration(self) -> tuple[str, str | None]:
+        """Return the session's timestamp unit and column.
+
+        Returns
+        -------
+        npm_time_unit : str
+            Unit the session's timestamps are recorded in.
+        npm_timestamp_column_name : str or None
+            Selected timestamp column, or ``None`` when the files offer only one.
+        """
+        npm_timestamp_column_name = (
+            self.timestamp_column_select.value if self.timestamp_column_select is not None else None
+        )
+        return self.time_unit_select.value, npm_timestamp_column_name
+
+    def set_channel_previews(self, *, channel_previews: dict[str, dict[str, np.ndarray]]) -> None:
+        """Render (or re-render) the channel selector and preview plot.
+
+        Parameters
+        ----------
+        channel_previews : dict
+            Maps each chev/chod/chpr channel name to a dict with ``"x"`` and
+            ``"y"`` arrays to plot.
+        """
+        self.channel_preview_arrays = {
+            name: {"x": np.asarray(preview["x"]), "y": np.asarray(preview["y"])}
+            for name, preview in channel_previews.items()
+        }
+        channel_names = list(self.channel_preview_arrays.keys())
+        self.plot_select = pn.widgets.Select(
+            name="Select channel to see correspondings channels", options=channel_names, value=channel_names[0]
+        )
+        self.plot_pane = pn.pane.HoloViews(self._make_plot(self.plot_select.value), width=550)
+        self.plot_select.param.watch(self._on_plot_select_change, "value")
+        self.plot_area.objects = [self.plot_select, self.plot_pane]
 
     def _make_plot(self, plot_key: str) -> hv.Curve:
         preview = self.channel_preview_arrays[plot_key]

@@ -23,7 +23,6 @@ def base_input_parameters() -> dict[str, object]:
         "zscore_method": "standard z-score",
         "baselineWindowStart": 0.0,
         "baselineWindowEnd": 2.0,
-        "plot_zScore_dff": "z_score",
         "selectForComputePsth": "z_score",
         "nSecPrev": 5.0,
         "nSecPost": 10.0,

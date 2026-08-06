@@ -3,6 +3,7 @@ import json
 import logging
 import os
 
+import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -13,14 +14,14 @@ _FORBIDDEN_RUN_NAME_CHARACTERS = ("/", "\\", ":", "\0")
 # NPM decomposition parameters chosen interactively in Step 1 are not part of the
 # saved analysis parameters, so they are persisted next to storesList.csv for Step 2.
 NPM_PARAMS_FILENAME = ".npm_params.json"
-NPM_PARAM_KEYS = ("npm_split_events", "npm_time_units", "npm_timestamp_column_names")
+NPM_PARAM_KEYS = ("npm_split_events", "npm_time_unit", "npm_timestamp_column_name")
 
 
 def is_headless() -> bool:
     """Report whether GuPPy is running in headless/test mode.
 
     Headless mode is signalled by the ``GUPPY_BASE_DIR`` environment variable,
-    which the testing API sets to bypass the Tk folder dialog. Code paths that
+    which the testing API sets to bypass the folder dialog. Code paths that
     open GUI dialogs or interactive matplotlib backends should be skipped when
     this returns ``True``.
 
@@ -35,8 +36,8 @@ def is_headless() -> bool:
 def write_npm_params(*, run_folder: str, npm_params: dict[str, object]) -> None:
     """Persist the NPM decomposition parameters for one output directory.
 
-    The interactive NPM choices made during Step 1 (event splitting, timestamp
-    units, timestamp column names) determine how :class:`NpmRecordingExtractor`
+    The NPM choices made during Step 1 (event splitting, the session's timestamp
+    unit and timestamp column) determine how :class:`NpmRecordingExtractor`
     demultiplexes the raw files in memory. They are written next to
     ``storesList.csv`` so Step 2 can reproduce the identical decomposition.
 
@@ -63,12 +64,29 @@ def load_npm_params(run_folder: str) -> dict[str, object]:
     -------
     dict
         The persisted NPM parameters, or an empty dict if none were written.
+
+    Raises
+    ------
+    ValueError
+        If the file predates the session-wide timestamp unit and so records no
+        unit that can be trusted to match the one its data was read with.
     """
     npm_params_path = os.path.join(run_folder, NPM_PARAMS_FILENAME)
     if not os.path.exists(npm_params_path):
         return {}
     with open(npm_params_path) as file:
-        return json.load(file)
+        npm_params = json.load(file)
+
+    if "npm_time_unit" not in npm_params:
+        message = (
+            f"'{npm_params_path}' records no 'npm_time_unit' and was written by a GuPPy version whose "
+            "recorded timestamp unit did not always match the one applied. Re-run Step 1 (Label Stores) "
+            f"for '{run_folder}' to record the unit this session's timestamps are in."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+    return npm_params
 
 
 def takeOnlyDirs(paths: list[str]) -> list[str]:
@@ -326,3 +344,32 @@ def read_Df(filepath: str, event: str, name: str) -> pd.DataFrame:
     df = pd.read_hdf(hdf5_path, key="df", mode="r")
 
     return df
+
+
+def resolve_run_folders(session_folders: list, inputParameters: dict) -> list[str]:
+    """Return the output (run) folders a compute job wrote for the given sessions.
+
+    Mirrors the folder selection the step workers use: per-session run folders normally,
+    or the first folder of each combine-group when ``combine_data`` is set.
+
+    Parameters
+    ----------
+    session_folders : list
+        Session directories to resolve.
+    inputParameters : dict
+        Pipeline configuration; must include ``'combine_data'``.
+
+    Returns
+    -------
+    list of str
+        The resolved run folders.
+    """
+    selected_runs = inputParameters.get("selected_runs") or {}
+    run_folders: list[str] = []
+    for session in session_folders:
+        run_folders.append(select_run_folders(session, selected_runs.get(session)))
+    run_folders = list(np.concatenate(run_folders).flatten())
+
+    if inputParameters["combine_data"] == True:
+        return [group[0] for group in get_all_stores_for_combining_data(run_folders)]
+    return run_folders

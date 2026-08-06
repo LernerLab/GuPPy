@@ -1,17 +1,9 @@
-import matplotlib
-
-matplotlib.use("Agg")
-
-import matplotlib.axes
-import matplotlib.figure
+import holoviews as hv
 import numpy as np
 import pytest
 
-from guppy.visualization.transients import visualize_peaks
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
+from guppy.visualization.transients import build_peaks_overlay
+from guppy_test_data import resolve_plot
 
 
 @pytest.fixture
@@ -21,59 +13,62 @@ def timestamps():
 
 @pytest.fixture
 def z_score():
-    return np.array([0.1, 0.5, 0.9, 0.4, 0.2])
+    return np.array([0.5, 1.5, 0.2, 2.5, 0.1])
 
 
 @pytest.fixture
 def peaks_index():
-    return np.array([2])  # index of the maximum value (0.9)
+    return np.array([1, 3])
 
 
-@pytest.fixture
-def peaks_result(timestamps, z_score, peaks_index):
-    return visualize_peaks("my_title", "my_suptitle", z_score, timestamps, peaks_index)
+class TestBuildPeaksOverlay:
+    def test_returns_shaded_trace_and_scatter(self, panel_extension, timestamps, z_score, peaks_index):
+        overlay = resolve_plot(
+            build_peaks_overlay(
+                title="z_score_DMS", suptitle="session", z_score=z_score, timestamps=timestamps, peaksIndex=peaks_index
+            )
+        )
+        assert isinstance(overlay, hv.Overlay)
+        # The trace is shaded into an image; the peak markers stay a scatter of real points.
+        types = [type(element).__name__ for element in overlay.values()]
+        assert types == ["RGB", "Scatter"]
 
+    def test_trace_has_correct_data(self, panel_extension, timestamps, z_score, peaks_index):
+        overlay = resolve_plot(
+            build_peaks_overlay(
+                title="z_score_DMS", suptitle="session", z_score=z_score, timestamps=timestamps, peaksIndex=peaks_index
+            )
+        )
+        # The shaded trace spans the full timestamp range and the z-score min/max.
+        extent = tuple(float(value) for value in overlay.RGB.I.bounds.lbrt())
+        assert extent == (0.0, 0.1, 4.0, 2.5)
 
-# ---------------------------------------------------------------------------
-# visualize_peaks
-# ---------------------------------------------------------------------------
+    def test_markers_at_peak_positions(self, panel_extension, timestamps, z_score, peaks_index):
+        overlay = resolve_plot(
+            build_peaks_overlay(
+                title="z_score_DMS", suptitle="session", z_score=z_score, timestamps=timestamps, peaksIndex=peaks_index
+            )
+        )
+        # Markers sit at t=1.0 and t=3.0 with the corresponding z-score values.
+        np.testing.assert_array_equal(overlay.Scatter.I.dimension_values(0), np.array([1.0, 3.0]))
+        np.testing.assert_array_equal(overlay.Scatter.I.dimension_values(1), np.array([1.5, 2.5]))
 
+    def test_stretches_to_the_page_width(self, panel_extension, timestamps, z_score, peaks_index):
+        from bokeh.models import Plot
 
-def test_visualize_peaks_returns_figure(peaks_result):
-    fig, ax = peaks_result
-    assert isinstance(fig, matplotlib.figure.Figure)
+        figure = hv.render(
+            build_peaks_overlay(
+                title="z_score_DMS", suptitle="session", z_score=z_score, timestamps=timestamps, peaksIndex=peaks_index
+            )
+        )
+        plots = [model for model in figure.references() if isinstance(model, Plot)]
+        assert len(plots) == 1
+        assert (plots[0].sizing_mode, plots[0].width, plots[0].height) == ("stretch_width", None, 300)
 
-
-def test_visualize_peaks_returns_axes(peaks_result):
-    fig, ax = peaks_result
-    assert isinstance(ax, matplotlib.axes.Axes)
-
-
-def test_visualize_peaks_ax_title(peaks_result):
-    fig, ax = peaks_result
-    assert ax.get_title() == "my_title"
-
-
-def test_visualize_peaks_suptitle(peaks_result):
-    fig, ax = peaks_result
-    suptitle_texts = [text.get_text() for text in fig.texts]
-    assert "my_suptitle" in suptitle_texts
-
-
-def test_visualize_peaks_signal_line_has_correct_data(peaks_result, timestamps, z_score):
-    fig, ax = peaks_result
-    np.testing.assert_array_equal(ax.lines[0].get_xdata(), timestamps)
-    np.testing.assert_array_equal(ax.lines[0].get_ydata(), z_score)
-
-
-def test_visualize_peaks_markers_have_correct_data(peaks_result, timestamps, z_score, peaks_index):
-    fig, ax = peaks_result
-    np.testing.assert_array_equal(ax.lines[1].get_xdata(), timestamps[peaks_index])
-    np.testing.assert_array_equal(ax.lines[1].get_ydata(), z_score[peaks_index])
-
-
-def test_visualize_peaks_empty_peaks_index(timestamps, z_score):
-    empty_index = np.array([], dtype=int)
-    fig, ax = visualize_peaks("title", "suptitle", z_score, timestamps, empty_index)
-    assert len(ax.lines) == 2
-    assert len(ax.lines[1].get_xdata()) == 0
+    def test_empty_peaks_index(self, panel_extension, timestamps, z_score):
+        overlay = resolve_plot(
+            build_peaks_overlay(
+                title="t", suptitle="s", z_score=z_score, timestamps=timestamps, peaksIndex=np.array([], dtype=int)
+            )
+        )
+        assert overlay.Scatter.I.dimension_values(0).shape == (0,)

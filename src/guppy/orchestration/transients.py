@@ -1,11 +1,8 @@
 import glob
-import json
 import logging
 import multiprocessing as mp
 import os
-import sys
 
-import matplotlib.pyplot as plt
 import numpy as np
 
 from .group_utils import gather_group_run_folders
@@ -14,20 +11,17 @@ from ..analysis.io_utils import (
     recording_site_from_preprocessed_label,
 )
 from ..analysis.standard_io import (
-    read_transients_from_hdf5,
     write_freq_and_amp_to_csv,
     write_freq_and_amp_to_hdf5,
     write_transients_to_hdf5,
 )
 from ..analysis.transients import analyze_transients
 from ..analysis.transients_average import averageForGroup
-from ..frontend.progress import PB_STEPS_FILE, subprocess_main_handler, writeToFile
+from ..utils import progress
 from ..utils.utils import (
     get_all_stores_for_combining_data,
-    is_headless,
     select_run_folders,
 )
-from ..visualization.transients import visualize_peaks
 
 logger = logging.getLogger(__name__)
 
@@ -91,86 +85,6 @@ def findFreqAndAmp(
     logger.info("Frequency and amplitude of transients in z_score data are calculated.")
 
 
-def execute_visualize_peaks(session_folders: list[str], inputParameters: dict[str, object]) -> None:
-    """Plot detected transient peaks for each individual session.
-
-    Parameters
-    ----------
-    session_folders : list of str
-        Session folder paths.
-    inputParameters : dict
-        Full pipeline input parameters.
-    """
-    selectForTransientsComputation = inputParameters["selectForTransientsComputation"]
-    selected_runs = inputParameters.get("selected_runs") or {}
-    for i in range(len(session_folders)):
-        logger.debug(
-            f"Finding transients in z-score data of {session_folders[i]} and calculating frequency and amplitude."
-        )
-        filepath = session_folders[i]
-        run_folders = select_run_folders(filepath, selected_runs.get(filepath))
-        for j in range(len(run_folders)):
-            filepath = run_folders[j]
-            if selectForTransientsComputation == "z_score":
-                path = glob.glob(os.path.join(filepath, "z_score_*"))
-            elif selectForTransientsComputation == "dff":
-                path = glob.glob(os.path.join(filepath, "dff_*"))
-            else:
-                path = glob.glob(os.path.join(filepath, "z_score_*")) + glob.glob(os.path.join(filepath, "dff_*"))
-
-            for i in range(len(path)):
-                basename = (os.path.basename(path[i])).split(".")[0]
-                z_score, timestamps, peaksInd = read_transients_from_hdf5(filepath, basename)
-
-                suptitle = os.path.basename(os.path.dirname(path[i]))
-                title = (os.path.basename(path[i])).split(".")[0]
-                visualize_peaks(title, suptitle, z_score, timestamps, peaksInd)
-
-    logger.info("Frequency and amplitude of transients in z_score data are visualized.")
-    plt.show()
-
-
-def execute_visualize_peaks_combined(session_folders: list[str], inputParameters: dict[str, object]) -> None:
-    """Plot detected transient peaks for combined (multi-session) data.
-
-    Parameters
-    ----------
-    session_folders : list of str
-        Session folder paths.
-    inputParameters : dict
-        Full pipeline input parameters.
-    """
-    selectForTransientsComputation = inputParameters["selectForTransientsComputation"]
-    selected_runs = inputParameters.get("selected_runs") or {}
-
-    run_folders = []
-    for i in range(len(session_folders)):
-        filepath = session_folders[i]
-        run_folders.append(select_run_folders(filepath, selected_runs.get(filepath)))
-    run_folders = list(np.concatenate(run_folders).flatten())
-    combined_output_groups = get_all_stores_for_combining_data(run_folders)
-    for i in range(len(combined_output_groups)):
-        filepath = combined_output_groups[i][0]
-
-        if selectForTransientsComputation == "z_score":
-            path = glob.glob(os.path.join(filepath, "z_score_*"))
-        elif selectForTransientsComputation == "dff":
-            path = glob.glob(os.path.join(filepath, "dff_*"))
-        else:
-            path = glob.glob(os.path.join(filepath, "z_score_*")) + glob.glob(os.path.join(filepath, "dff_*"))
-
-        for i in range(len(path)):
-            basename = (os.path.basename(path[i])).split(".")[0]
-            z_score, timestamps, peaksInd = read_transients_from_hdf5(filepath, basename)
-
-            suptitle = os.path.basename(os.path.dirname(path[i]))
-            title = (os.path.basename(path[i])).split(".")[0]
-            visualize_peaks(title, suptitle, z_score, timestamps, peaksInd)
-
-    logger.info("Frequency and amplitude of transients in z_score data are calculated.")
-    plt.show()
-
-
 def executeFindFreqAndAmp(inputParameters: dict[str, object]) -> None:
     """Entry point for step-4 transient analysis: dispatches to the appropriate sub-routine.
 
@@ -200,16 +114,10 @@ def executeFindFreqAndAmp(inputParameters: dict[str, object]) -> None:
 
     if average == True:
         execute_average_for_group(inputParameters, group_session_folders)
+    elif combine_data == True:
+        execute_find_freq_and_amp_combined(inputParameters, session_folders, moving_window, numProcesses)
     else:
-        headless = is_headless()
-        if combine_data == True:
-            execute_find_freq_and_amp_combined(inputParameters, session_folders, moving_window, numProcesses)
-            if not headless:
-                execute_visualize_peaks_combined(session_folders, inputParameters)
-        else:
-            execute_find_freq_and_amp(inputParameters, session_folders, moving_window, numProcesses)
-            if not headless:
-                execute_visualize_peaks(session_folders, inputParameters)
+        execute_find_freq_and_amp(inputParameters, session_folders, moving_window, numProcesses)
 
     logger.info("Transients in z-score data found and frequency and amplitude are calculated.")
 
@@ -243,8 +151,7 @@ def execute_find_freq_and_amp(
                 2, -1
             )
             findFreqAndAmp(filepath, inputParameters, window=moving_window, numProcesses=numProcesses)
-            writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
-            inputParameters["step"] += 1
+            progress.advance()
         logger.info("Transients in z-score data found and frequency and amplitude are calculated.")
 
 
@@ -275,8 +182,7 @@ def execute_find_freq_and_amp_combined(
         filepath = combined_output_groups[i][0]
         store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
         findFreqAndAmp(filepath, inputParameters, window=moving_window, numProcesses=numProcesses)
-        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
-        inputParameters["step"] += 1
+        progress.advance()
 
 
 def execute_average_for_group(inputParameters: dict[str, object], group_session_folders: list[str]) -> None:
@@ -296,22 +202,4 @@ def execute_average_for_group(inputParameters: dict[str, object], group_session_
     """
     run_folders = gather_group_run_folders(inputParameters, group_session_folders)
     averageForGroup(run_folders, inputParameters)
-    writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
-    inputParameters["step"] += 1
-
-
-@subprocess_main_handler
-def main(input_parameters: dict[str, object]) -> None:
-    """Subprocess entry point for the transient-analysis step.
-
-    Parameters
-    ----------
-    input_parameters : dict
-        Full pipeline input parameters deserialized from the subprocess argument.
-    """
-    executeFindFreqAndAmp(input_parameters)
-
-
-if __name__ == "__main__":
-    input_parameters = json.loads(sys.argv[1])
-    main(input_parameters=input_parameters)
+    progress.advance()

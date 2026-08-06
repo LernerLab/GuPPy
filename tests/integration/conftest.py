@@ -40,8 +40,8 @@ def _prepare_pipeline_state(
         "base_directory": str(temporary_base_directory),
         "session_copy": str(session_copy_path),
         "store_id_to_store_label": representative_config["store_id_to_store_label"],
-        "npm_timestamp_column_names": representative_config["npm_timestamp_column_names"],
-        "npm_time_units": representative_config["npm_time_units"],
+        "npm_timestamp_column_name": representative_config["npm_timestamp_column_name"],
+        "npm_time_unit": representative_config["npm_time_unit"],
         "npm_split_events": representative_config["npm_split_events"],
     }
 
@@ -51,8 +51,8 @@ def _run_step1(*, pipeline_state: dict[str, str | list[bool] | None]) -> dict[st
         base_dir=str(pipeline_state["base_directory"]),
         selected_folders=[str(pipeline_state["session_copy"])],
         store_id_to_store_label=pipeline_state["store_id_to_store_label"],
-        npm_timestamp_column_names=pipeline_state["npm_timestamp_column_names"],
-        npm_time_units=pipeline_state["npm_time_units"],
+        npm_timestamp_column_name=pipeline_state["npm_timestamp_column_name"],
+        npm_time_unit=pipeline_state["npm_time_unit"],
         npm_split_events=pipeline_state["npm_split_events"],
     )
     pipeline_state["output_directory"] = _locate_output_directory(session_copy=str(pipeline_state["session_copy"]))
@@ -69,8 +69,8 @@ def _run_step2(*, pipeline_state: dict[str, str | list[bool] | None]) -> dict[st
     step2(
         base_dir=str(pipeline_state["base_directory"]),
         selected_folders=[str(pipeline_state["session_copy"])],
-        npm_timestamp_column_names=pipeline_state["npm_timestamp_column_names"],
-        npm_time_units=pipeline_state["npm_time_units"],
+        npm_timestamp_column_name=pipeline_state["npm_timestamp_column_name"],
+        npm_time_unit=pipeline_state["npm_time_unit"],
         npm_split_events=pipeline_state["npm_split_events"],
         selected_runs=_selected_runs_for_session(pipeline_state=pipeline_state),
     )
@@ -82,8 +82,8 @@ def _run_step3(*, pipeline_state: dict[str, str | list[bool] | None]) -> dict[st
     step3(
         base_dir=str(pipeline_state["base_directory"]),
         selected_folders=[str(pipeline_state["session_copy"])],
-        npm_timestamp_column_names=pipeline_state["npm_timestamp_column_names"],
-        npm_time_units=pipeline_state["npm_time_units"],
+        npm_timestamp_column_name=pipeline_state["npm_timestamp_column_name"],
+        npm_time_unit=pipeline_state["npm_time_unit"],
         npm_split_events=pipeline_state["npm_split_events"],
         selected_runs=_selected_runs_for_session(pipeline_state=pipeline_state),
     )
@@ -175,8 +175,8 @@ def _run_step4(*, pipeline_state: dict[str, str | list[bool] | None]) -> dict[st
     step4(
         base_dir=str(pipeline_state["base_directory"]),
         selected_folders=[str(pipeline_state["session_copy"])],
-        npm_timestamp_column_names=pipeline_state["npm_timestamp_column_names"],
-        npm_time_units=pipeline_state["npm_time_units"],
+        npm_timestamp_column_name=pipeline_state["npm_timestamp_column_name"],
+        npm_time_unit=pipeline_state["npm_time_unit"],
         npm_split_events=pipeline_state["npm_split_events"],
         selected_runs=_selected_runs_for_session(pipeline_state=pipeline_state),
     )
@@ -201,8 +201,8 @@ def _run_step5(*, pipeline_state: dict[str, str | list[bool] | None]) -> dict[st
             step5(
                 base_dir=str(pipeline_state["base_directory"]),
                 selected_folders=[str(pipeline_state["session_copy"])],
-                npm_timestamp_column_names=pipeline_state["npm_timestamp_column_names"],
-                npm_time_units=pipeline_state["npm_time_units"],
+                npm_timestamp_column_name=pipeline_state["npm_timestamp_column_name"],
+                npm_time_unit=pipeline_state["npm_time_unit"],
                 npm_split_events=pipeline_state["npm_split_events"],
                 selected_runs=_selected_runs_for_session(pipeline_state=pipeline_state),
             )

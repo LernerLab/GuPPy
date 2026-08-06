@@ -17,11 +17,8 @@ from guppy.extractors import (
     TdtRecordingExtractor,
     detect_acquisition_formats,
 )
+from guppy.extractors.npm_recording_extractor import DEFAULT_TIME_UNIT
 from guppy.frontend.frontend_utils import scanPortsAndFind
-from guppy.frontend.npm_gui_prompts import (
-    get_multi_event_responses,
-    get_timestamp_configuration,
-)
 from guppy.frontend.store_labeling_instructions import (
     StoreLabelingInstructions,
     StoreLabelingInstructionsNPM,
@@ -209,6 +206,28 @@ def _fetchValues(
     return "#### No alerts !!"
 
 
+def _npm_params_to_persist(inputParameters: dict[str, object]) -> dict[str, object]:
+    """Snapshot the NPM decomposition parameters as the extractor will apply them.
+
+    The timestamp unit is recorded resolved rather than left unset, so
+    ``.npm_params.json`` always states the unit the run was read with.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters.
+
+    Returns
+    -------
+    dict
+        The NPM parameters (keys in :data:`NPM_PARAM_KEYS`) to persist.
+    """
+    npm_params = {key: inputParameters.get(key) for key in NPM_PARAM_KEYS}
+    if npm_params["npm_time_unit"] is None:
+        npm_params["npm_time_unit"] = DEFAULT_TIME_UNIT
+    return npm_params
+
+
 def _save(store_labeling_config: dict, select_location: str, npm_params: dict[str, object] | None = None) -> str:
     store_ids_array = np.asarray(store_labeling_config["store_ids"])
     store_labels_array = np.asarray(store_labeling_config["store_labels"])
@@ -285,27 +304,32 @@ def build_store_labeling_template(
     flags: list[str],
     folder_path: str,
     isosbestic_control: bool = False,
-    channel_previews: dict[str, dict[str, np.ndarray]] | None = None,
-    npm_params: dict[str, object] | None = None,
+    *,
+    inputParameters: dict[str, object] | None = None,
+    npm_interactive: dict[str, object] | None = None,
 ) -> pn.template.BootstrapTemplate:
     """Build and return the Label Stores GUI Panel template without serving it.
 
     Parameters
     ----------
     events : list of str
-        store_id strings discovered from the data acquisition files.
+        store_id strings discovered from the data acquisition files. Empty for
+        interactive NPM sessions, which populate the selector after the user
+        confirms the NPM configuration.
     flags : list of str
-        Feature flags (e.g. ``"data_np_v2"``) that control which instructions widget is shown.
+        Feature flags (e.g. ``"data_np_v2"``) from the discovered formats.
     folder_path : str
         Absolute path to the session directory.
     isosbestic_control : bool, optional
         Whether isosbestic-control naming applies. Default is False.
-    channel_previews : dict, optional
-        NPM chev/chod/chpr channel traces (``{name: {"x", "y"}}``) used to render
-        the NPM channel-preview plots. Required when the flags indicate NPM data.
-    npm_params : dict, optional
-        NPM decomposition parameters persisted next to ``storesList.csv`` on save
-        so Step 2 can reproduce the decomposition. Set when flags indicate NPM data.
+    inputParameters : dict, optional
+        Full pipeline input parameters. Required for interactive NPM sessions so
+        the confirm callback can decompose the session and persist the choices.
+    npm_interactive : dict, optional
+        NPM configuration-form probe data (``multiple_event_ttls``,
+        ``timestamp_column_options``). When set, the NPM configuration form is
+        rendered and NPM discovery/previews are deferred to its confirm
+        callback.
 
     Returns
     -------
@@ -316,9 +340,12 @@ def build_store_labeling_template(
 
     template = pn.template.BootstrapTemplate(title="Label Stores GUI - {}".format(os.path.basename(folder_path)))
 
-    if "data_np_v2" in flags or "data_np" in flags or "event_np" in flags:
+    if npm_interactive is not None:
         store_labeling_instructions = StoreLabelingInstructionsNPM(
-            folder_path=folder_path, channel_previews=channel_previews or {}
+            folder_path=folder_path,
+            channel_previews={},
+            multiple_event_ttls=npm_interactive["multiple_event_ttls"],
+            timestamp_column_options=npm_interactive["timestamp_column_options"],
         )
     else:
         store_labeling_instructions = StoreLabelingInstructions(folder_path=folder_path)
@@ -387,11 +414,32 @@ def build_store_labeling_template(
     def save_button(event: object = None) -> None:
         store_labeling_config = store_labeling_selector.get_literal_input_2()
         select_location = store_labeling_selector.get_select_location()
+        # Read the NPM choices at save time so the values confirmed on the page
+        # (not any build-time snapshot) are persisted next to storesList.csv.
+        is_npm = npm_interactive is not None or "data_np_v2" in flags or "data_np" in flags or "event_np" in flags
+        npm_params = _npm_params_to_persist(inputParameters) if is_npm else None
         alert_message = _save(
             store_labeling_config=store_labeling_config, select_location=select_location, npm_params=npm_params
         )
         store_labeling_selector.set_alert_message(alert_message)
         store_labeling_selector.set_path(os.path.join(select_location, "storesList.csv"))
+
+    # on clicking the NPM "Confirm NPM configuration" button, following function is executed
+    def confirm_npm_configuration(event: object = None) -> None:
+        npm_time_unit, npm_timestamp_column_name = store_labeling_instructions.get_timestamp_configuration()
+
+        inputParameters["npm_split_events"] = store_labeling_instructions.get_npm_split_events()
+        inputParameters["npm_time_unit"] = npm_time_unit
+        inputParameters["npm_timestamp_column_name"] = npm_timestamp_column_name
+
+        num_ch = inputParameters["noChannels"]
+        events, _ = NpmRecordingExtractor.discover_events_and_flags(
+            folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
+        )
+        store_labeling_selector.set_events(events=events)
+        channel_previews = _compute_npm_channel_previews(inputParameters, folder_path)
+        store_labeling_instructions.set_channel_previews(channel_previews=channel_previews)
+        store_labeling_selector.set_alert_message("#### No alerts !!")
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -405,13 +453,25 @@ def build_store_labeling_template(
     store_labeling_selector.attach_callbacks(button_name_to_onclick_fn)
     store_labeling_selector.attach_run_name_watcher(run_name_input_changed)
 
+    if npm_interactive is not None:
+        store_labeling_instructions.confirm_button.on_click(confirm_npm_configuration)
+
     template.main.append(pn.Row(store_labeling_instructions.widget, store_labeling_selector.widget))
+
+    # Expose hooks/widgets so tests can drive the page headlessly without a browser.
+    template._hooks = {"save_button": save_button, "confirm_npm_configuration": confirm_npm_configuration}
+    template._widgets = {"instructions": store_labeling_instructions, "selector": store_labeling_selector}
 
     return template
 
 
 def build_store_labeling_page(
-    inputParameters: dict[str, object], events: list[str], flags: list[str], folder_path: str
+    inputParameters: dict[str, object],
+    events: list[str],
+    flags: list[str],
+    folder_path: str,
+    *,
+    npm_interactive: dict[str, object] | None = None,
 ) -> None:
     """Write storesList.csv for one session, headlessly or via the Panel GUI.
 
@@ -430,13 +490,17 @@ def build_store_labeling_page(
         Feature flags (e.g. ``"data_np_v2"``) passed to the GUI template.
     folder_path : str
         Absolute path to the session directory.
+    npm_interactive : dict or None
+        NPM configuration-form probe data from :func:`read_header` (non-headless
+        NPM only); when set, the GUI renders the NPM configuration form and
+        defers NPM discovery/previews to its confirm callback.
     """
     logger.debug("Saving stores list file.")
 
     # NPM decomposition is parameterized by interactive Step-1 choices; persist them
     # next to storesList.csv so Step 2 can reproduce the same in-memory decomposition.
     is_npm = "data_np_v2" in flags or "data_np" in flags or "event_np" in flags
-    npm_params = {key: inputParameters.get(key) for key in NPM_PARAM_KEYS} if is_npm else None
+    npm_params = _npm_params_to_persist(inputParameters) if is_npm else None
 
     # Headless path: if store_id_to_store_label provided, write storesList.csv without building the Panel UI
     store_id_to_store_label = inputParameters.get("store_id_to_store_label")
@@ -454,15 +518,13 @@ def build_store_labeling_page(
         logger.info("Storeslist : \n" + str(store_array))
         return
 
-    channel_previews = _compute_npm_channel_previews(inputParameters, folder_path) if is_npm else None
-
     template = build_store_labeling_template(
         events,
         flags,
         folder_path,
         isosbestic_control=bool(inputParameters.get("isosbestic_control")),
-        channel_previews=channel_previews,
-        npm_params=npm_params,
+        inputParameters=inputParameters,
+        npm_interactive=npm_interactive,
     )
 
     # creating widgets, adding them to template and showing a GUI on a new browser window
@@ -491,8 +553,8 @@ def _compute_npm_channel_previews(
     extractor = NpmRecordingExtractor(
         folder_path=folder_path,
         num_ch=inputParameters["noChannels"],
-        npm_timestamp_column_names=inputParameters.get("npm_timestamp_column_names"),
-        npm_time_units=inputParameters.get("npm_time_units"),
+        npm_timestamp_column_name=inputParameters.get("npm_timestamp_column_name"),
+        npm_time_unit=inputParameters.get("npm_time_unit"),
         npm_split_events=inputParameters.get("npm_split_events"),
     )
     streams = extractor.decompose()
@@ -510,7 +572,7 @@ def _compute_npm_channel_previews(
 
 def read_header(
     inputParameters: dict[str, object], num_ch: int, folder_path: str, headless: bool
-) -> tuple[list[str], list[str]]:
+) -> tuple[list[str], list[str], dict[str, object] | None]:
     """Discover events and feature flags for a single session folder.
 
     Parameters
@@ -523,41 +585,48 @@ def read_header(
     folder_path : str
         Absolute path to the session directory.
     headless : bool
-        When True, suppress interactive NPM GUI prompts.
+        When True, suppress the interactive NPM configuration form.
 
     Returns
     -------
     events : list of str
         Unique event names discovered across all acquisition formats present.
+        NPM events are excluded when ``npm_interactive`` is returned, since they
+        depend on choices the user has not yet made.
     flags : list of str
-        Feature flags (e.g. ``"data_np_v2"``) from all formats.
+        Feature flags (e.g. ``"data_np_v2"``) from the discovered formats.
+    npm_interactive : dict or None
+        When NPM data is present and running non-headless, the probe outputs
+        (``multiple_event_ttls``, ``timestamp_column_options``) needed to build
+        the on-page NPM configuration form. NPM discovery is deferred to
+        the form's confirm callback because event names depend on the answers.
+        ``None`` otherwise.
     """
     # DANDI mode bypasses local format detection — discover events via streaming
     if inputParameters.get("mode") == "dandi":
         dandi_uri = inputParameters["dandi_uri_map"][folder_path]
         events, flags = DandiNwbRecordingExtractor.discover_events_and_flags(folder_path=dandi_uri)
-        return events, flags
+        return events, flags, None
 
     all_formats = detect_acquisition_formats(folder_path)
 
-    # NPM GUI prompts (non-headless only) must run before NPM discovery so that
-    # inputParameters is populated with split_events, time_units, etc.
+    # Non-headless NPM: probe the files for the configuration form and defer NPM
+    # discovery/decomposition until the user confirms their choices (the derived
+    # event names change with the split-events answer).
+    npm_interactive = None
     if "npm" in all_formats and not headless:
-        multiple_event_ttls = NpmRecordingExtractor.has_multiple_event_ttls(folder_path=folder_path)
-        responses = get_multi_event_responses(multiple_event_ttls)
-        inputParameters["npm_split_events"] = responses
-
-        ts_unit_needs, col_names_ts = NpmRecordingExtractor.needs_ts_unit(folder_path=folder_path, num_ch=num_ch)
-        ts_units, npm_timestamp_column_names = get_timestamp_configuration(ts_unit_needs, col_names_ts)
-        inputParameters["npm_time_units"] = ts_units if ts_units else None
-        inputParameters["npm_timestamp_column_names"] = (
-            npm_timestamp_column_names if npm_timestamp_column_names else None
-        )
+        npm_interactive = {
+            "multiple_event_ttls": NpmRecordingExtractor.has_multiple_event_ttls(folder_path=folder_path),
+            "timestamp_column_options": NpmRecordingExtractor.timestamp_column_options(folder_path=folder_path),
+        }
 
     events, flags = [], []
     existing_events = set()
 
     for format in sorted(all_formats):
+        # NPM discovery is deferred to the confirm callback in interactive mode.
+        if format == "npm" and npm_interactive is not None:
+            continue
         if format == "nwb":
             fmt_events, fmt_flags = NwbRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
         elif format == "tdt":
@@ -581,7 +650,7 @@ def read_header(
         for flag in fmt_flags:
             flags.append(flag)
 
-    return events, flags
+    return events, flags, npm_interactive
 
 
 def orchestrate_store_labeling_page(inputParameters: dict[str, object]) -> None:
@@ -604,8 +673,8 @@ def orchestrate_store_labeling_page(inputParameters: dict[str, object]) -> None:
     try:
         for i in session_folders:
             folder_path = os.path.join(inputParameters["abspath"], i)
-            events, flags = read_header(inputParameters, num_ch, folder_path, headless)
-            build_store_labeling_page(inputParameters, events, flags, folder_path)
+            events, flags, npm_interactive = read_header(inputParameters, num_ch, folder_path, headless)
+            build_store_labeling_page(inputParameters, events, flags, folder_path, npm_interactive=npm_interactive)
         logger.info("#" * 400)
     except Exception as e:
         logger.error(str(e))

@@ -1,20 +1,18 @@
 # coding: utf-8
 
 import glob
-import json
 import logging
 import multiprocessing as mp
 import os
 import re
-import subprocess
-import sys
 from itertools import repeat
 
 import numpy as np
 from scipy import signal as ss
 
 from .group_utils import gather_group_run_folders
-from .save_parameters import save_parameters
+from .save_parameters import read_artifact_provenance, save_parameters
+from .transients import executeFindFreqAndAmp
 from ..analysis.compute_psth import compute_psth
 from ..analysis.cross_correlation import compute_cross_correlation
 from ..analysis.io_utils import (
@@ -36,7 +34,8 @@ from ..analysis.standard_io import (
     write_peak_and_area_to_csv,
     write_peak_and_area_to_hdf5,
 )
-from ..frontend.progress import PB_STEPS_FILE, subprocess_main_handler, writeToFile
+from ..utils import progress
+from ..utils.progress import step_error_handler
 from ..utils.utils import get_all_stores_for_combining_data, read_Df, select_run_folders
 from ..utils.validation import validate_peak_windows, validate_window_bounds
 
@@ -93,6 +92,7 @@ def execute_compute_psth(filepath: str, event: str, inputParameters: dict[str, o
 
         sampling_rate = read_hdf5("timeCorrection_" + name_1, filepath, "sampling_rate")[0]
         timestamps = read_hdf5(event + "_" + name_1, filepath, "ts")
+        recordingStart = read_hdf5("timeCorrection_" + name_1, filepath, "recordingStart")[0]
         if use_time_or_trials == "Time (min)" and bin_psth_trials > 0:
             corrected_timestamps = read_hdf5("timeCorrection_" + name_1, filepath, "timestampNew")
         else:
@@ -113,6 +113,7 @@ def execute_compute_psth(filepath: str, event: str, inputParameters: dict[str, o
             sampling_rate,
             timestamps,
             corrected_timestamps,
+            recordingStart,
             timeForLightsTurnOn,
         )
         write_hdf5(timestamps, event + "_" + name_1, filepath, "ts")
@@ -193,14 +194,14 @@ def execute_compute_cross_correlation(filepath: str, event: str, inputParameters
         Full pipeline input parameters.
     """
     isCompute = inputParameters["computeCorr"]
-    removeArtifacts = inputParameters["removeArtifacts"]
-    artifactsRemovalMethod = inputParameters["artifactsRemovalMethod"]
+    removeArtifacts, artifactsRemovalMethod = read_artifact_provenance(destination=filepath)
     if isCompute == True:
         if removeArtifacts == True and artifactsRemovalMethod == "concatenate":
             raise ValueError(
-                "For cross-correlation, when removeArtifacts is True, the artifacts removal method "
-                "must be 'replace with NaNs' and not 'concatenate'. Change 'Method for Artifact "
-                "Removal' in the Input Parameters GUI."
+                f"Cross-correlation cannot run on concatenated data, but the outputs in '{filepath}' were "
+                "produced by the Remove Artifacts step using the 'concatenate' method. Re-run Select "
+                "Artifact Windows with the method set to 'replace with NaN' followed by Remove Artifacts, "
+                "or disable Compute Cross-correlation."
             )
         corr_info, type = getCorrCombinations(filepath, inputParameters)
         if len(corr_info) < 2:
@@ -270,15 +271,18 @@ def orchestrate_psth(inputParameters: dict[str, object]) -> None:
     """
     session_folders = inputParameters["session_folders"]
     numProcesses = inputParameters["numberOfCores"]
+    # Pinned rather than inherited: this runs on a background thread of the Panel server
+    # process, and forking a process that has other live threads can leave a lock they
+    # held (logging, HDF5) permanently locked in the child.
+    spawn_context = mp.get_context("spawn")
     selected_runs = inputParameters.get("selected_runs") or {}
     run_folders = []
     for i in range(len(session_folders)):
         run_folders.append(select_run_folders(session_folders[i], selected_runs.get(session_folders[i])))
     run_folders = np.concatenate(run_folders)
-    writeToFile(
-        str((run_folders.shape[0] + run_folders.shape[0] + 1) * 10) + "\n" + str(10) + "\n",
-        file_path=PB_STEPS_FILE,
-    )
+    # Two units per folder: PSTH here, then transient analysis, which shares this bar
+    # because both run under the single step-4 button.
+    progress.start(run_folders.shape[0] * 2)
     for i in range(len(session_folders)):
         logger.debug(f"Computing PSTH, Peak and Area for each event in {session_folders[i]}")
         run_folders = select_run_folders(session_folders[i], selected_runs.get(session_folders[i]))
@@ -288,24 +292,23 @@ def orchestrate_psth(inputParameters: dict[str, object]) -> None:
                 2, -1
             )
 
-            with mp.Pool(numProcesses) as psth_pool:
+            with spawn_context.Pool(numProcesses) as psth_pool:
                 psth_pool.starmap(
                     execute_compute_psth, zip(repeat(filepath), store_array[1, :], repeat(inputParameters))
                 )
 
-            with mp.Pool(numProcesses) as peak_area_pool:
+            with spawn_context.Pool(numProcesses) as peak_area_pool:
                 peak_area_pool.starmap(
                     execute_compute_psth_peak_and_area,
                     zip(repeat(filepath), store_array[1, :], repeat(inputParameters)),
                 )
 
-            with mp.Pool(numProcesses) as cross_correlation_pool:
+            with spawn_context.Pool(numProcesses) as cross_correlation_pool:
                 cross_correlation_pool.starmap(
                     execute_compute_cross_correlation, zip(repeat(filepath), store_array[1, :], repeat(inputParameters))
                 )
 
-            writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
-            inputParameters["step"] += 1
+            progress.advance()
         logger.info(f"PSTH, Area and Peak are computed for all events in {session_folders[i]}.")
 
 
@@ -324,10 +327,8 @@ def execute_psth_combined(inputParameters: dict[str, object]) -> None:
         run_folders.append(select_run_folders(session_folders[i], selected_runs.get(session_folders[i])))
     run_folders = list(np.concatenate(run_folders).flatten())
     combined_output_groups = get_all_stores_for_combining_data(run_folders)
-    writeToFile(
-        str((len(combined_output_groups) + len(combined_output_groups) + 1) * 10) + "\n" + str(10) + "\n",
-        file_path=PB_STEPS_FILE,
-    )
+    # Two units per combined group: PSTH here, then transient analysis on the same bar.
+    progress.start(len(combined_output_groups) * 2)
     for i in range(len(combined_output_groups)):
         store_array = np.asarray([[], []])
         for j in range(len(combined_output_groups[i])):
@@ -345,8 +346,7 @@ def execute_psth_combined(inputParameters: dict[str, object]) -> None:
             execute_compute_psth(combined_output_groups[i][0], store_array[1, k], inputParameters)
             execute_compute_psth_peak_and_area(combined_output_groups[i][0], store_array[1, k], inputParameters)
             execute_compute_cross_correlation(combined_output_groups[i][0], store_array[1, k], inputParameters)
-        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
-        inputParameters["step"] += 1
+        progress.advance()
 
 
 def _validate_fiber_recording_sites_consistent_for_group(run_folders: np.ndarray) -> None:
@@ -467,35 +467,30 @@ def execute_average_for_group(inputParameters: dict[str, object]) -> None:
     store_array = np.unique(store_array, axis=1)
     average_dir = makeAverageDir(inputParameters["abspath"])
     np.savetxt(os.path.join(average_dir, "storesList.csv"), store_array, delimiter=",", fmt="%s")
-    pbMaxValue = 0
+    event_store_count = 0
     for j in range(store_array.shape[1]):
         if "control" in store_array[1, j].lower() or "signal" in store_array[1, j].lower():
             continue
         else:
-            pbMaxValue += 1
-    writeToFile(str((1 + pbMaxValue + 1) * 10) + "\n" + str(10) + "\n", file_path=PB_STEPS_FILE)
+            event_store_count += 1
+    # One unit per event store here, plus the single unit that group transient analysis
+    # reports onto this same bar.
+    progress.start(event_store_count + 1)
     for k in range(store_array.shape[1]):
         if "control" in store_array[1, k].lower() or "signal" in store_array[1, k].lower():
             continue
         else:
             averageForGroup(run_folders, store_array[1, k], inputParameters)
-        writeToFile(str(10 + ((inputParameters["step"] + 1) * 10)) + "\n", file_path=PB_STEPS_FILE)
-        inputParameters["step"] += 1
+        progress.advance()
 
 
-def psthForEachStore(inputParameters: dict[str, object]) -> dict[str, object]:
+def psthForEachStore(inputParameters: dict[str, object]) -> None:
     """Entry point for step-4 PSTH computation: validates parameters and dispatches to the appropriate sub-routine.
 
     Parameters
     ----------
     inputParameters : dict
         Full pipeline input parameters.
-
-    Returns
-    -------
-    dict
-        The same ``inputParameters`` dict, potentially updated with the step
-        counter used for progress tracking.
     """
     logger.info("Computing PSTH, Peak and Area for each event...")
     inputParameters = inputParameters
@@ -505,7 +500,6 @@ def psthForEachStore(inputParameters: dict[str, object]) -> dict[str, object]:
     average = inputParameters["averageForGroup"]
     combine_data = inputParameters["combine_data"]
     numProcesses = inputParameters["numberOfCores"]
-    inputParameters["step"] = 0
 
     # Snapshot the parameters being executed into each selected output dir so the
     # on-disk GuPPyParamtersUsed.json always reflects the last-run configuration.
@@ -535,22 +529,16 @@ def psthForEachStore(inputParameters: dict[str, object]) -> dict[str, object]:
         else:
             orchestrate_psth(inputParameters)
     logger.info("PSTH, Area and Peak are computed for all events.")
-    return inputParameters
 
 
-@subprocess_main_handler
-def main(input_parameters: dict[str, object]) -> None:
-    """Run step-4 PSTH computation and chain to the transients step.
+@step_error_handler
+def run_psth_step(input_parameters: dict[str, object]) -> None:
+    """Run step-4 PSTH computation, then transient analysis, with failure reporting attached.
 
     Parameters
     ----------
     input_parameters : dict
-        Full pipeline input parameters deserialized from the subprocess argument.
+        Full pipeline input parameters.
     """
-    inputParameters = psthForEachStore(input_parameters)
-    subprocess.call([sys.executable, "-m", "guppy.orchestration.transients", json.dumps(inputParameters)])
-
-
-if __name__ == "__main__":
-    input_parameters = json.loads(sys.argv[1])
-    main(input_parameters=input_parameters)
+    psthForEachStore(input_parameters)
+    executeFindFreqAndAmp(input_parameters)

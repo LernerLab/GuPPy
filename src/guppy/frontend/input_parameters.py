@@ -154,15 +154,6 @@ class ParameterForm:
                                 - ***Number of channels (Neurophotometrics only) :*** Number of
                                 channels used while recording, when data files has no column names mentioning "Flags"
                                 or "LedState".
-                                - ***removeArtifacts? :*** Make this parameter ``` True``` if there are
-                                artifacts and user wants to remove the artifacts.
-                                - ***removeArtifacts method :*** Selecting ```replace with NaN```
-                                (recommended, default) will replace bad chunks with NaN values,
-                                preserving the original recording timeline.
-                                Selecting ```concatenate``` will remove bad chunks and concatenate the
-                                selected good chunks together; this is discouraged because it re-times
-                                the kept samples onto a new timeline (breaking alignment to the
-                                acquisition clock) and is not supported by NWB export.
                                 """,
             width=350,
         )
@@ -220,13 +211,6 @@ class ParameterForm:
             name="z_score and/or \u0394F/F? (transients)", options=["z_score", "dff", "Both"], width=320
         )
 
-        self.plot_zScore_dff = pn.widgets.Select(
-            name="z-score plot and/or \u0394F/F plot?",
-            options=["z_score", "dff", "Both", "None"],
-            value="None",
-            width=320,
-        )
-
         self.moving_wd = pn.widgets.IntInput(
             name="Moving Window for transients detection (s) (int)", value=15, width=320
         )
@@ -237,17 +221,6 @@ class ParameterForm:
 
         self.moving_avg_filter = pn.widgets.IntInput(
             name="Window for Moving Average filter (int)", value=100, width=320
-        )
-
-        self.removeArtifacts = pn.widgets.Select(
-            name="removeArtifacts? (bool)", value=False, options=[True, False], width=150
-        )
-
-        self.artifactsRemovalMethod = pn.widgets.Select(
-            name="removeArtifacts method",
-            value="replace with NaN",
-            options=["concatenate", "replace with NaN"],
-            width=150,
         )
 
         self.computeTonic = pn.widgets.Select(
@@ -393,11 +366,9 @@ class ParameterForm:
             self.moving_avg_filter,
             self.computePsth,
             self.transients,
-            self.plot_zScore_dff,
             self.moving_wd,
             pn.Row(self.highAmpFilt, self.transientsThresh),
             self.no_channels_np,
-            pn.Row(self.removeArtifacts, self.artifactsRemovalMethod),
             self.computeTonic,
         )
 
@@ -733,8 +704,6 @@ class ParameterForm:
             "controlFitWindowEnd": self.control_fit_window_end.value,
             "timeForLightsTurnOn": self.timeForLightsTurnOn.value,
             "filter_window": self.moving_avg_filter.value,
-            "removeArtifacts": self.removeArtifacts.value,
-            "artifactsRemovalMethod": self.artifactsRemovalMethod.value,
             "computeTonic": self.computeTonic.value,
             "noChannels": self.no_channels_np.value,
             "zscore_method": self.z_score_computation.value,
@@ -755,7 +724,6 @@ class ParameterForm:
             "moving_window": self.moving_wd.value,
             "highAmpFilt": self.highAmpFilt.value,
             "transientsThresh": self.transientsThresh.value,
-            "plot_zScore_dff": self.plot_zScore_dff.value,
             "visualize_zscore_or_dff": self.visualize_zscore_or_dff.value,
             "group_session_folders": self.files_2.value,
             "averageForGroup": self.averageForGroup.value,
@@ -788,8 +756,6 @@ class ParameterForm:
             "controlFitWindowEnd": self.control_fit_window_end,
             "timeForLightsTurnOn": self.timeForLightsTurnOn,
             "filter_window": self.moving_avg_filter,
-            "removeArtifacts": self.removeArtifacts,
-            "artifactsRemovalMethod": self.artifactsRemovalMethod,
             "computeTonic": self.computeTonic,
             "noChannels": self.no_channels_np,
             "zscore_method": self.z_score_computation,
@@ -808,7 +774,6 @@ class ParameterForm:
             "moving_window": self.moving_wd,
             "highAmpFilt": self.highAmpFilt,
             "transientsThresh": self.transientsThresh,
-            "plot_zScore_dff": self.plot_zScore_dff,
             "visualize_zscore_or_dff": self.visualize_zscore_or_dff,
             "averageForGroup": self.averageForGroup,
         }

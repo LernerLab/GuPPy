@@ -15,7 +15,13 @@ import numpy as np
 import pytest
 
 from guppy.analysis.io_utils import read_hdf5
-from guppy.testing.api import step1, step2, step3
+from guppy.testing.api import (
+    remove_artifacts,
+    select_artifact_windows,
+    step1,
+    step2,
+    step3,
+)
 from guppy.utils.utils import parse_run_name
 
 SESSION_NAME = "sample_data_csv_injection_1"
@@ -54,17 +60,18 @@ def injection_session(tmp_path):
 
 
 def _run_step3(injection_session, *, mode, artifact_coords=None):
-    step3(
+    common_kwargs = dict(
         base_dir=injection_session["base_dir"],
         selected_folders=[injection_session["session"]],
         control_fit_window_mode=mode,
         control_fit_window_start=FIT_WINDOW[0],
         control_fit_window_end=FIT_WINDOW[1],
-        remove_artifacts=artifact_coords is not None,
-        artifact_removal_method="replace with NaN" if artifact_coords is not None else None,
-        artifact_coords=artifact_coords,
         selected_runs=injection_session["selected_runs"],
     )
+    step3(**common_kwargs)
+    if artifact_coords is not None:
+        select_artifact_windows(**common_kwargs, artifact_coords=artifact_coords)
+        remove_artifacts(**common_kwargs)
     output_directory = _output_directory(injection_session["session"])
     timestamps = read_hdf5("timeCorrection_region", output_directory, "timestampNew")
     dff = read_hdf5("dff_region", output_directory, "data")

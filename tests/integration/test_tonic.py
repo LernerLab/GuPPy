@@ -1,11 +1,11 @@
 """End-to-end test for tonic/basal fluorescence analysis (issue #210).
 
-Runs step1 -> step2 -> step3 headlessly on the synthetic injection CSV session
-(``stubbed_testing_data/csv/sample_data_csv_injection_1``), whose 465 nm signal has a
-sustained step at the injection time (t=60 s). Tonic epoch windows are injected via the
-``tonic_epochs`` kwarg (bypassing the interactive epoch page), and the resulting
-``tonic_region.h5`` is checked for correct per-epoch means and the expected baseline ->
-post-injection increase.
+Runs step1 -> step2 -> step3 -> define_tonic_epochs -> step3 headlessly on the synthetic
+injection CSV session (``stubbed_testing_data/csv/sample_data_csv_injection_1``), whose
+465 nm signal has a sustained step at the injection time (t=60 s). Epoch windows are
+written by ``define_tonic_epochs`` (bypassing the interactive epoch page), and the
+``tonic_region.h5`` produced by the second step-3 run is checked for correct per-epoch
+means and the expected baseline -> post-injection increase.
 """
 
 import glob
@@ -17,7 +17,7 @@ import pandas as pd
 import pytest
 
 from guppy.analysis.io_utils import read_hdf5
-from guppy.testing.api import step1, step2, step3
+from guppy.testing.api import define_tonic_epochs, step1, step2, step3
 from guppy.utils.utils import parse_run_name
 
 SESSION_NAME = "sample_data_csv_injection_1"
@@ -63,15 +63,24 @@ class TestTonicAnalysis:
                 "end": [BASELINE_EPOCH[1], POST_EPOCH[1]],
             }
         )
-        step3(
+        preprocess_kwargs = dict(
             base_dir=injection_session["base_dir"],
             selected_folders=[injection_session["session"]],
             control_fit_window_mode="baseline epoch",
             control_fit_window_start=FIT_WINDOW[0],
             control_fit_window_end=FIT_WINDOW[1],
+            selected_runs=injection_session["selected_runs"],
+        )
+        # Epochs are defined on the traces the first run produced, so tonic means
+        # only land on the second run — the flow the GUI's optional step follows.
+        step3(**preprocess_kwargs)
+        define_tonic_epochs(
+            base_dir=injection_session["base_dir"],
+            selected_folders=[injection_session["session"]],
             tonic_epochs={"region": epochs},
             selected_runs=injection_session["selected_runs"],
         )
+        step3(**preprocess_kwargs, compute_tonic=True)
 
         output_directory = _output_directory(injection_session["session"])
         tonic_path = os.path.join(output_directory, "tonic_region.h5")

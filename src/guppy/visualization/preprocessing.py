@@ -1,100 +1,97 @@
 import logging
-import os
 
-import matplotlib.pyplot as plt
+import holoviews as hv
 import numpy as np
-from matplotlib.axes import Axes
-from matplotlib.figure import Figure
+
+from .shading import FIT_COLOR, shade_trace
 
 logger = logging.getLogger(__name__)
 
-# Only set matplotlib backend if not in CI environment
-if not os.getenv("CI"):
-    plt.switch_backend("TKAgg")
 
+def make_spans_pipe(*, windows: list[tuple[float, float]]) -> hv.streams.Pipe:
+    """Build the stream that drives the shaded spans on a control/signal/fit layout.
 
-def visualize_preprocessing(*, suptitle: str, title: str, x: np.ndarray, y: np.ndarray) -> tuple[Figure, Axes]:
-    """Plot a preprocessing time series.
+    Sending a new window list on the returned pipe repaints only the spans; the
+    density-shaded traces are not re-aggregated.
 
     Parameters
     ----------
-    suptitle : str
-        Figure-level super-title.
-    title : str
-        Axes title.
-    x : np.ndarray
-        Time axis values.
-    y : np.ndarray
-        Signal values to plot.
+    windows : list of (float, float)
+        Initial ``(start, end)`` windows to shade.
 
     Returns
     -------
-    fig : Figure
-        The created figure.
-    ax : Axes
-        The created axes.
+    hv.streams.Pipe
+        Stream carrying the current window list.
     """
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    ax.plot(x, y)
-    ax.set_title(title)
-    fig.suptitle(suptitle)
-
-    return fig, ax
+    return hv.streams.Pipe(data=list(windows))
 
 
-def visualize_control_signal_fit(
+def _spans_overlay(*, curve: hv.DynamicMap, spans: hv.streams.Pipe) -> hv.DynamicMap:
+    """Overlay pipe-driven shaded vertical spans on a curve."""
+    return curve * hv.DynamicMap(lambda data: hv.VSpans(list(data)).opts(color="orange", alpha=0.2), streams=[spans])
+
+
+def build_control_signal_fit(
+    *,
     x: np.ndarray,
-    y1: np.ndarray,
-    y2: np.ndarray,
-    y3: np.ndarray,
-    plot_name: list[str],
-    name: str,
-    artifacts_have_been_removed: bool,
-) -> tuple[Figure, Axes, Axes, Axes]:
-    """Plot control channel, signal channel, and fitted signal in three stacked axes.
+    control: np.ndarray,
+    signal: np.ndarray,
+    fit: np.ndarray,
+    titles: list[str],
+    suptitle: str,
+    spans: hv.streams.Pipe | None = None,
+    extra_traces: dict[str, np.ndarray] | None = None,
+) -> hv.Layout:
+    """Build stacked curves (control, signal, signal+fit) over a shared time axis.
+
+    Every panel plots against the same time dimension, so bokeh links their axes: zooming
+    one panel zooms them all.
 
     Parameters
     ----------
     x : np.ndarray
-        Time axis values shared by all three axes.
-    y1 : np.ndarray
-        Control channel trace (top axes).
-    y2 : np.ndarray
-        Signal channel trace (middle axes).
-    y3 : np.ndarray
-        Fitted control channel trace overlaid on signal (bottom axes).
-    plot_name : list[str]
-        Titles for the three axes (control, signal, fitted).
-    name : str
-        Figure super-title.
-    artifacts_have_been_removed : bool
-        When True, adds a note on the x-axis label that artifacts were removed.
+        Time axis values shared by all curves.
+    control : np.ndarray
+        Control channel trace (top).
+    signal : np.ndarray
+        Signal channel trace (middle).
+    fit : np.ndarray
+        Fitted control trace overlaid on the signal (bottom).
+    titles : list[str]
+        Titles for the three curves (control, signal, fit).
+    suptitle : str
+        Session-level title prefix applied to the control curve.
+    spans : hv.streams.Pipe, optional
+        Stream carrying the ``(start, end)`` windows shaded on every curve. Omit to draw
+        the traces unshaded.
+    extra_traces : dict, optional
+        Further traces to stack below the fit, as title → values against the same ``x``.
 
     Returns
     -------
-    fig : Figure
-        The created figure.
-    ax1, ax2, ax3 : Axes
-        The three stacked axes.
+    hv.Layout
+        Vertically stacked curves, one per trace.
     """
-    fig = plt.figure()
-    ax1 = fig.add_subplot(311)
-    (line1,) = ax1.plot(x, y1)
-    ax1.set_title(plot_name[0])
-    ax2 = fig.add_subplot(312)
-    (line2,) = ax2.plot(x, y2)
-    ax2.set_title(plot_name[1])
-    ax3 = fig.add_subplot(313)
-    (line3,) = ax3.plot(x, y2)
-    (line3,) = ax3.plot(x, y3)
-    ax3.set_title(plot_name[2])
-    fig.suptitle(name)
+    control_curve = shade_trace(hv.Curve((x, control), "time (s)", titles[0]))
+    signal_curve = shade_trace(hv.Curve((x, signal), "time (s)", titles[1]))
+    fit_curve = shade_trace(hv.Curve((x, signal), "time (s)", titles[2])) * shade_trace(
+        hv.Curve((x, fit), "time (s)", titles[2]), color=FIT_COLOR
+    )
 
-    hfont = {"fontname": "DejaVu Sans"}
+    # Size and title the composed panel, not the bare curve: options set on an Overlay are
+    # dropped when the spans layer composes it into a new one, which left the fit panel at
+    # bokeh's 300x300 default while the two single-curve panels kept theirs.
+    def panel(curve: hv.DynamicMap, title: str) -> hv.DynamicMap:
+        shaded = curve if spans is None else _spans_overlay(curve=curve, spans=spans)
+        return shaded.opts(title=title, responsive=True, height=220)
 
-    if artifacts_have_been_removed:
-        ax3.set_xlabel("Time(s) \n Note : Artifacts have been removed, but are not reflected in this plot.", **hfont)
-    else:
-        ax3.set_xlabel("Time(s)", **hfont)
-    return fig, ax1, ax2, ax3
+    panels = [
+        panel(control_curve, f"{suptitle} — {titles[0]}"),
+        panel(signal_curve, titles[1]),
+        panel(fit_curve, titles[2]),
+    ]
+    for title, values in (extra_traces or {}).items():
+        panels.append(panel(shade_trace(hv.Curve((x, values), "time (s)", title)), title))
+
+    return hv.Layout(panels).cols(1)

@@ -8,6 +8,11 @@ from guppy.testing import compare_output_folders
 from guppy.testing.api import step1, step2, step3, step4
 from guppy_test_data import TESTING_DATA, event_ts_offset_for
 
+# The last field of each case is timeForLightsTurnOn. It now means "seconds of warm-up measured
+# from the recording's own start", whereas v1.3.0 compared it against the absolute clock and so
+# always cut, and anchored the PSTH, at absolute 1.0s. For a reference whose clock starts at
+# t0 != 0 the parameter is therefore translated to 1.0 - t0, which reproduces the v1.3.0 cut and
+# anchor exactly. Sessions starting at t0 = 0 keep 1.0.
 CONSISTENCY_CASES = [
     (
         "SampleData_Doric/sample_doric_1",
@@ -20,17 +25,13 @@ CONSISTENCY_CASES = [
         # scipy 1.5→1.17 and numpy 1.18→2.x cause up to ~1% drift in filtfilt/polyfit;
         # widened tolerance accommodates known dependency changes without masking real regressions.
         {"rtol": 1e-2, "atol": 2e-3},
+        1.0,
     ),
-    (
-        "SampleData_Doric/sample_doric_2",
-        "StandardOutputs_Doric/sample_data_doric_2/sample_doric_2_output_1",
-        {
-            "AIn-1 - Dem (ref)": "control_region",
-            "AIn-1 - Dem (da)": "signal_region",
-            "DI/O-1": "ttl",
-        },
-        {},
-    ),
+    # sample_doric_2 (the only Doric CSV case) was dropped: making the CSV reader use the absolute
+    # clock (issue #398) shifts its timestamps and keeps one extra leading sample past the
+    # timeForLightsTurnOn cut, so the v1.3.0 reference (generated with the old zeroed clock) no longer
+    # applies. CSV absolute-time reading is covered directly by TestDoricCsvAbsoluteTime in the
+    # extractor unit tests.
     (
         "SampleData_Doric/sample_doric_3",
         "StandardOutputs_Doric/sample_data_doric_3/sample_doric_3_output_1",
@@ -40,6 +41,8 @@ CONSISTENCY_CASES = [
             "DigitalIO/CAM1": "ttl",
         },
         {},
+        # The pair reference is the signal channel (CAM1_EXC2), whose grid starts at 0.025.
+        1.0 - 0.025,
     ),
     (
         "SampleData_Doric/sample_doric_4",
@@ -49,6 +52,7 @@ CONSISTENCY_CASES = [
             "Series0001/AIN01xAOUT02-LockIn": "signal_region",
         },
         {},
+        1.0 - 0.086735,
     ),
     (
         "SampleData_Doric/sample_doric_5",
@@ -58,16 +62,16 @@ CONSISTENCY_CASES = [
             "Series0001/AIN01xAOUT02-LockIn": "signal_region",
         },
         {},
+        1.0 - 0.090885,
     ),
 ]
 
 
 @pytest.mark.parametrize(
-    "session_subdir, standard_output_subdir, store_id_to_store_label, compare_kwargs",
+    "session_subdir, standard_output_subdir, store_id_to_store_label, compare_kwargs, time_for_lights_turn_on",
     CONSISTENCY_CASES,
     ids=[
         "sample_doric_1",
-        "sample_doric_2",
         "sample_doric_3",
         "sample_doric_4",
         "sample_doric_5",
@@ -81,6 +85,7 @@ def test_consistency(
     standard_output_subdir,
     store_id_to_store_label,
     compare_kwargs,
+    time_for_lights_turn_on,
 ):
     """
     Consistency test: run the full pipeline (Steps 2-5) and assert that the output
@@ -112,8 +117,13 @@ def test_consistency(
     selected_runs = {folder: ["1"] for folder in common_kwargs["selected_folders"]}
     step1(**common_kwargs, store_id_to_store_label=store_id_to_store_label)
     step2(**common_kwargs, selected_runs=selected_runs)
-    step3(**common_kwargs, control_fit_method="OLS", selected_runs=selected_runs)
-    step4(**common_kwargs, selected_runs=selected_runs)
+    step3(
+        **common_kwargs,
+        control_fit_method="OLS",
+        selected_runs=selected_runs,
+        time_for_lights_turn_on=time_for_lights_turn_on,
+    )
+    step4(**common_kwargs, selected_runs=selected_runs, time_for_lights_turn_on=time_for_lights_turn_on)
 
     run_folders = sorted(glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")))
     assert run_folders, f"No output directory found under {session_copy}"

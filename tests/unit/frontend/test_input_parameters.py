@@ -15,8 +15,8 @@ from guppy.utils.utils import run_folder_for_run
 def frontend_base_dir(tmp_path_factory):
     """Create a real temp directory and point GUPPY_BASE_DIR at it.
 
-    Ensures FileSelector resolves to a real path and prevents Tk dialogs.
-    Restores the original value on teardown.
+    Ensures FileSelector resolves to a real path. Restores the original value
+    on teardown.
     """
     base_dir = tmp_path_factory.mktemp("frontend_base")
     original = os.environ.get("GUPPY_BASE_DIR")
@@ -167,18 +167,6 @@ class TestParameterForm:
 
     def test_transients_default(self, parameter_form):
         assert parameter_form.transients.value == "z_score"
-
-    def test_plot_z_score_dff_default(self, parameter_form):
-        assert parameter_form.plot_zScore_dff.value == "None"
-
-    def test_remove_artifacts_default(self, parameter_form):
-        assert parameter_form.removeArtifacts.value is False
-        assert parameter_form.removeArtifacts.options == [True, False]
-
-    def test_artifacts_removal_method_default(self, parameter_form):
-        assert parameter_form.artifactsRemovalMethod.value == "replace with NaN"
-        assert "concatenate" in parameter_form.artifactsRemovalMethod.options
-        assert "replace with NaN" in parameter_form.artifactsRemovalMethod.options
 
     def test_z_score_computation_default(self, parameter_form):
         assert parameter_form.z_score_computation.value == "standard z-score"
@@ -604,8 +592,6 @@ SAVED_PARAMETERS = {
     "controlFitWindowEnd": 8,
     "timeForLightsTurnOn": 7,
     "filter_window": 42,
-    "removeArtifacts": True,
-    "artifactsRemovalMethod": "replace with NaN",
     "computeTonic": True,
     "noChannels": 3,
     "zscore_method": "modified z-score",
@@ -626,7 +612,6 @@ SAVED_PARAMETERS = {
     "moving_window": 12,
     "highAmpFilt": 5,
     "transientsThresh": 6,
-    "plot_zScore_dff": "Both",
     "visualize_zscore_or_dff": "dff",
     "averageForGroup": True,
 }
@@ -655,6 +640,14 @@ class TestParameterAutoPopulate:
         # guppy_version has no backing widget and must be ignored without error.
         parameter_form.setInputParameters({"guppy_version": "x", "nSecPost": 99})
         assert parameter_form.nSecPost.value == 99
+
+    def test_set_input_parameters_ignores_retired_artifact_keys(self, parameter_form):
+        """Snapshots still record the artifact keys as provenance, but the form has no widgets for them."""
+        parameter_form.setInputParameters(
+            {"removeArtifacts": True, "artifactsRemovalMethod": "concatenate", "nSecPost": 99}
+        )
+        assert parameter_form.nSecPost.value == 99
+        assert "removeArtifacts" not in parameter_form.getInputParameters()
 
     def test_selecting_output_run_populates_widgets(self, bare_parameter_form, tmp_path):
         session = tmp_path / "sessionA"

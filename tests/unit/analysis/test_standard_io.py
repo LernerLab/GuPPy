@@ -192,7 +192,7 @@ def test_write_corrected_timestamps_writes_all_keys(tmp_path):
     sampling_rate = {"control_dms": np.array([100.0]), "signal_dms": np.array([100.0])}
     correction_index = {"control_dms": np.array([2, 3, 4]), "signal_dms": np.array([2, 3, 4])}
 
-    write_corrected_timestamps(str(tmp_path), corrected_ts, original_ts, sampling_rate, correction_index)
+    write_corrected_timestamps(str(tmp_path), corrected_ts, original_ts, sampling_rate, correction_index, "csv")
 
     with h5py.File(tmp_path / "timeCorrection_dms.hdf5", "r") as file:
         assert "timestampNew" in file
@@ -200,6 +200,41 @@ def test_write_corrected_timestamps_writes_all_keys(tmp_path):
         assert "correctionIndex" in file
         assert "sampling_rate" in file
         np.testing.assert_array_equal(file["timestampNew"][:], np.array([2.0, 3.0, 4.0]))
+
+
+def test_write_corrected_timestamps_csv_mode_records_the_acquisition_clock_start(tmp_path):
+    # csv mode keeps the acquisition clock, so the recording start is the first raw timestamp.
+    corrected_ts = {"control_dms": np.array([102.0, 103.0]), "signal_dms": np.array([102.0, 103.0])}
+    original_ts = {
+        "control_dms": np.array([100.0, 101.0, 102.0, 103.0]),
+        "signal_dms": np.array([100.0, 101.0, 102.0, 103.0]),
+    }
+    sampling_rate = {"control_dms": np.array([1.0]), "signal_dms": np.array([1.0])}
+    correction_index = {"control_dms": np.array([2, 3]), "signal_dms": np.array([2, 3])}
+
+    write_corrected_timestamps(str(tmp_path), corrected_ts, original_ts, sampling_rate, correction_index, "csv")
+
+    with h5py.File(tmp_path / "timeCorrection_dms.hdf5", "r") as file:
+        np.testing.assert_array_equal(file["recordingStart"][:], np.array([100.0]))
+        np.testing.assert_array_equal(file["timeRecStart"][:], np.array([100.0]))
+
+
+def test_write_corrected_timestamps_tdt_mode_records_a_zero_start(tmp_path):
+    # tdt timestamps are rebased to the recording start during correction, so on the corrected
+    # basis the recording begins at 0 even though timeRecStart holds the raw epoch value.
+    corrected_ts = {"control_dms": np.array([1.0, 2.0]), "signal_dms": np.array([1.0, 2.0])}
+    original_ts = {
+        "control_dms": np.array([1595956345.0, 1595956346.0]),
+        "signal_dms": np.array([1595956345.0, 1595956346.0]),
+    }
+    sampling_rate = {"control_dms": np.array([1.0]), "signal_dms": np.array([1.0])}
+    correction_index = {"control_dms": np.array([0, 1]), "signal_dms": np.array([0, 1])}
+
+    write_corrected_timestamps(str(tmp_path), corrected_ts, original_ts, sampling_rate, correction_index, "tdt")
+
+    with h5py.File(tmp_path / "timeCorrection_dms.hdf5", "r") as file:
+        np.testing.assert_array_equal(file["recordingStart"][:], np.array([0.0]))
+        np.testing.assert_array_equal(file["timeRecStart"][:], np.array([1595956345.0]))
 
 
 # ── read_control_and_signal ───────────────────────────────────────────────────

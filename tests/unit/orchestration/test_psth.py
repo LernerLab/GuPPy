@@ -1,3 +1,6 @@
+import json
+import os
+
 import h5py
 import numpy as np
 import pytest
@@ -9,7 +12,9 @@ from guppy.orchestration.psth import (
     execute_compute_cross_correlation,
     execute_compute_psth,
     execute_compute_psth_peak_and_area,
+    run_psth_step,
 )
+from guppy.utils.progress import StepProgress, _current_step
 
 
 @pytest.fixture
@@ -77,15 +82,40 @@ def test_execute_compute_cross_correlation_no_op_when_compute_corr_false(
     assert len(get_corr_calls) == 0
 
 
-def test_execute_compute_cross_correlation_raises_when_concatenate_and_remove_artifacts(
-    psth_output_dir, base_input_parameters
-):
-    base_input_parameters["computeCorr"] = True
-    base_input_parameters["removeArtifacts"] = True
-    base_input_parameters["artifactsRemovalMethod"] = "concatenate"
+def _record_artifact_provenance(run_folder, *, remove_artifacts, artifacts_removal_method):
+    """Write the artifact provenance the Remove Artifacts step would have left behind."""
+    with open(os.path.join(str(run_folder), "GuPPyParamtersUsed.json"), "w") as parameters_file:
+        json.dump(
+            {"removeArtifacts": remove_artifacts, "artifactsRemovalMethod": artifacts_removal_method},
+            parameters_file,
+        )
 
-    with pytest.raises(ValueError, match=r"must be 'replace with NaNs' and not 'concatenate'"):
+
+def test_execute_compute_cross_correlation_raises_when_run_was_concatenated(psth_output_dir, base_input_parameters):
+    """The guard reads what was actually applied to this run, not a live form value."""
+    base_input_parameters["computeCorr"] = True
+    _record_artifact_provenance(psth_output_dir, remove_artifacts=True, artifacts_removal_method="concatenate")
+
+    with pytest.raises(ValueError, match=r"cannot run on concatenated data"):
         execute_compute_cross_correlation(str(psth_output_dir), "lever_press", base_input_parameters)
+
+
+def test_execute_compute_cross_correlation_allows_run_removed_with_nan(
+    psth_output_dir, base_input_parameters, monkeypatch
+):
+    """A run removed with 'replace with NaN' passes the guard and proceeds to the correlation itself."""
+    base_input_parameters["computeCorr"] = True
+    _record_artifact_provenance(psth_output_dir, remove_artifacts=True, artifacts_removal_method="replace with NaN")
+    get_corr_calls = []
+    monkeypatch.setattr(
+        "guppy.orchestration.psth.getCorrCombinations",
+        lambda filepath, params: get_corr_calls.append(filepath) or (["dms", "vms"], ["z_score"]),
+    )
+    monkeypatch.setattr("guppy.orchestration.psth.read_Df", lambda *args, **kwargs: None)
+
+    execute_compute_cross_correlation(str(psth_output_dir), "control_DMS", base_input_parameters)
+
+    assert get_corr_calls == [str(psth_output_dir)]
 
 
 def test_execute_average_for_group_raises_for_empty_folders(base_input_parameters):
@@ -109,7 +139,6 @@ def test_execute_compute_cross_correlation_returns_early_for_control_event(
     )
 
     base_input_parameters["computeCorr"] = True
-    base_input_parameters["removeArtifacts"] = False
     execute_compute_cross_correlation(str(psth_output_dir), "control_DMS", base_input_parameters)
 
     assert len(read_df_calls) == 0
@@ -125,7 +154,6 @@ def test_execute_compute_cross_correlation_raises_for_single_recording_site(
     )
 
     base_input_parameters["computeCorr"] = True
-    base_input_parameters["removeArtifacts"] = False
 
     with pytest.raises(ValueError, match="only one was found: 'dms'"):
         execute_compute_cross_correlation(str(psth_output_dir), "lever_press", base_input_parameters)
@@ -141,7 +169,6 @@ def test_execute_compute_cross_correlation_raises_for_no_recording_sites(
     )
 
     base_input_parameters["computeCorr"] = True
-    base_input_parameters["removeArtifacts"] = False
 
     with pytest.raises(ValueError, match="no signal recording sites were found"):
         execute_compute_cross_correlation(str(psth_output_dir), "lever_press", base_input_parameters)
@@ -301,3 +328,54 @@ def test_validate_psth_window_parameters_raises_for_unequal_peak_array_lengths(p
     psth_window_inputs["peak_endPoint"] = [2.0]
     with pytest.raises(ValueError, match=r"unequal \(start: 2, end: 1\)"):
         _validate_psth_window_parameters(psth_window_inputs)
+
+
+# ---------------------------------------------------------------------------
+# run_psth_step — chains PSTH into transient analysis in-process
+# ---------------------------------------------------------------------------
+
+
+class TestRunPsthStep:
+    @pytest.fixture
+    def recorded_calls(self, monkeypatch):
+        """Record the order in which main() invokes the two step-4 workers."""
+        calls = []
+
+        def fake_psth_for_each_store(inputParameters):
+            calls.append(("psthForEachStore", inputParameters))
+            return inputParameters
+
+        def fake_execute_find_freq_and_amp(inputParameters):
+            calls.append(("executeFindFreqAndAmp", inputParameters))
+
+        monkeypatch.setattr("guppy.orchestration.psth.psthForEachStore", fake_psth_for_each_store)
+        monkeypatch.setattr("guppy.orchestration.psth.executeFindFreqAndAmp", fake_execute_find_freq_and_amp)
+        return calls
+
+    def test_runs_psth_then_transients_on_the_same_parameters(self, recorded_calls):
+        input_parameters = {"session_folders": ["/tmp/session1"]}
+
+        run_psth_step(input_parameters)
+
+        assert [name for name, _ in recorded_calls] == ["psthForEachStore", "executeFindFreqAndAmp"]
+        assert recorded_calls[0][1] is input_parameters
+        assert recorded_calls[1][1] is input_parameters
+
+    def test_transients_failure_is_reported_through_the_progress_channel(self, recorded_calls, monkeypatch):
+        """A failure in the chained transients step must reach the progress error channel,
+        which is how the GUI surfaces it — previously it was lost in a grandchild process."""
+        step = StepProgress()
+        token = _current_step.set(step)
+
+        def failing_transients(inputParameters):
+            raise ValueError("transientsThresh=0 must be positive")
+
+        monkeypatch.setattr("guppy.orchestration.psth.executeFindFreqAndAmp", failing_transients)
+
+        try:
+            with pytest.raises(ValueError, match="transientsThresh=0 must be positive"):
+                run_psth_step({})
+        finally:
+            _current_step.reset(token)
+
+        assert step.error_message == "transientsThresh=0 must be positive"

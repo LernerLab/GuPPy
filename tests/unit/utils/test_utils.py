@@ -1,6 +1,9 @@
+import json
+
 import pandas as pd
 import pytest
 
+from guppy.utils import utils
 from guppy.utils.utils import (
     NPM_PARAM_KEYS,
     discover_run_folders,
@@ -9,6 +12,7 @@ from guppy.utils.utils import (
     load_npm_params,
     parse_run_name,
     read_Df,
+    resolve_run_folders,
     run_folder_for_run,
     select_run_folders,
     takeOnlyDirs,
@@ -357,8 +361,8 @@ def test_write_then_load_npm_params_round_trips(tmp_path):
     run_folder.mkdir()
     input_parameters = {
         "npm_split_events": [True, False],
-        "npm_time_units": ["milliseconds", "seconds"],
-        "npm_timestamp_column_names": ["ComputerTimestamp", None],
+        "npm_time_unit": "milliseconds",
+        "npm_timestamp_column_name": "ComputerTimestamp",
         "unrelated_key": "ignored",
     }
 
@@ -369,8 +373,8 @@ def test_write_then_load_npm_params_round_trips(tmp_path):
 
     assert load_npm_params(str(run_folder)) == {
         "npm_split_events": [True, False],
-        "npm_time_units": ["milliseconds", "seconds"],
-        "npm_timestamp_column_names": ["ComputerTimestamp", None],
+        "npm_time_unit": "milliseconds",
+        "npm_timestamp_column_name": "ComputerTimestamp",
     }
 
 
@@ -378,6 +382,19 @@ def test_load_npm_params_returns_empty_when_file_absent(tmp_path):
     run_folder = tmp_path / "session_output_1"
     run_folder.mkdir()
     assert load_npm_params(str(run_folder)) == {}
+
+
+def test_load_npm_params_raises_for_file_written_before_the_session_wide_unit(tmp_path):
+    # Pre-fix files recorded a per-file unit list whose header-less entries said "seconds"
+    # while milliseconds were applied, so the recorded unit cannot be trusted.
+    run_folder = tmp_path / "session_output_1"
+    run_folder.mkdir()
+    (run_folder / ".npm_params.json").write_text(
+        json.dumps({"npm_split_events": [True, False], "npm_time_units": ["seconds", "seconds"]})
+    )
+
+    with pytest.raises(ValueError, match=r"records no 'npm_time_unit'"):
+        load_npm_params(str(run_folder))
 
 
 # ── is_headless ───────────────────────────────────────────────────────────────
@@ -391,3 +408,16 @@ def test_is_headless_true_when_base_dir_set(monkeypatch):
 def test_is_headless_false_when_base_dir_unset(monkeypatch):
     monkeypatch.delenv("GUPPY_BASE_DIR", raising=False)
     assert is_headless() is False
+
+
+class TestResolveRunFolders:
+    def test_non_combine_returns_per_session_run_folders(self, monkeypatch):
+        monkeypatch.setattr(utils, "select_run_folders", lambda session, runs: [session + "/output_1"])
+        result = resolve_run_folders(["/a", "/b"], {"combine_data": False, "selected_runs": {}})
+        assert result == ["/a/output_1", "/b/output_1"]
+
+    def test_combine_returns_first_folder_of_each_group(self, monkeypatch):
+        monkeypatch.setattr(utils, "select_run_folders", lambda session, runs: [session + "/output_1"])
+        monkeypatch.setattr(utils, "get_all_stores_for_combining_data", lambda folders: [[folders[0], folders[1]]])
+        result = resolve_run_folders(["/a", "/b"], {"combine_data": True, "selected_runs": {}})
+        assert result == ["/a/output_1"]

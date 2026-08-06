@@ -6,7 +6,7 @@ import pytest
 
 from guppy.testing import compare_output_folders
 from guppy.testing.api import step1, step2, step3, step4
-from guppy_test_data import TESTING_DATA, event_ts_offset_for
+from guppy_test_data import TESTING_DATA, event_ts_offset_for, recording_start_for
 
 CONSISTENCY_CASES = [
     (
@@ -27,8 +27,8 @@ CONSISTENCY_CASES = [
             "event3": "ttl_region3",
         },
         {
-            "npm_timestamp_column_names": ["ComputerTimestamp", None],
-            "npm_time_units": ["milliseconds", "seconds"],
+            "npm_timestamp_column_name": "ComputerTimestamp",
+            "npm_time_unit": "milliseconds",
             "npm_split_events": [False, True],
         },
     ),
@@ -50,7 +50,8 @@ CONSISTENCY_CASES = [
             "file0_chod1": "signal_region1",
             "event0": "ttl_region1",
         },
-        {"npm_split_events": None},
+        # Header-less session: its clock is in milliseconds, which only the user can state.
+        {"npm_time_unit": "milliseconds", "npm_split_events": None},
     ),
 ]
 
@@ -118,4 +119,9 @@ def test_consistency(
         actual_dir=actual_output_dir,
         expected_dir=str(standard_output_dir),
         event_ts_offset=event_ts_offset_for(tmp_base),
+        # NPM now emits the acquisition clock (issue #407); the v1.3.0 reference was
+        # generated with it re-zeroed, so its continuous timestamps sit one recording
+        # start lower. The warm-up trim is measured from that same start, so the set of
+        # retained samples — and every value derived from them — is unchanged.
+        continuous_ts_offset=recording_start_for(tmp_base),
     )

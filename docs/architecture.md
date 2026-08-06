@@ -37,7 +37,8 @@ src/guppy/
 │   ├── save_parameters.py     (writes GuPPyParamtersUsed.json; invoked automatically by steps 1-5)
 │   ├── store_labeling.py          (Step 1)
 │   ├── read_raw_data.py       (Step 2)
-│   ├── preprocess.py          (Step 3)
+│   ├── preprocess.py          (Step 3 + the optional Remove Artifacts step)
+│   ├── select_artifact_windows.py  (optional: mark artifact periods)
 │   ├── psth.py                (Step 4)
 │   ├── transients.py          (Step 4)
 │   └── visualize.py           (Step 5)
@@ -62,12 +63,13 @@ src/guppy/
 │   ├── store_labeling_selector.py
 │   ├── store_labeling_config.py
 │   ├── artifact_removal.py
+│   ├── artifact_windows_page.py
 │   ├── visualization_dashboard.py
 │   ├── parameterized_plotter.py
 │   ├── sidebar.py
 │   └── progress.py
 │
-├── visualization/             ← matplotlib plotting functions for signals and transients
+├── visualization/             ← HoloViews plotting functions for signals and transients
 │   ├── preprocessing.py
 │   └── transients.py
 │
@@ -139,8 +141,8 @@ flowchart LR
     EX["TDT · Doric · NPM · CSV<br/>extractors"]
     F2(["&lt;store_id&gt;.hdf5"])
 
-    S4["preprocess.py<br/><i>Step 3</i>"]
-    A4["timestamp_correction<br/>z_score · artifact_removal"]
+    S4["preprocess.py<br/><i>Step 3 (+ optional Remove Artifacts)</i>"]
+    A4["timestamp_correction · z_score<br/>artifact_removal <i>(optional step only)</i>"]
     V4["visualization.preprocessing"]
     F3(["z_score / dff .hdf5"])
 

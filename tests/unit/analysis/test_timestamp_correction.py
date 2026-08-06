@@ -86,9 +86,9 @@ def test_check_cntrl_sig_length_multiple_pairs():
 
 
 def test_timestamp_correction_csv_mode_slices_at_lights_turn_on():
-    # CSV mode: correctionIndex = where timestamp >= timeForLightsTurnOn
-    # timestamps = [0, 1, 2, 3, 4, 5]; timeForLightsTurnOn = 2.0
-    # → correctionIndex = [2, 3, 4, 5]; timestampNew = [2.0, 3.0, 4.0, 5.0]
+    # CSV mode: the cut is measured from the recording's own start.
+    # timestamps = [0, 1, 2, 3, 4, 5] start at 0, so with timeForLightsTurnOn = 2.0 the cut
+    # is at 0 + 2.0 → correctionIndex = [2, 3, 4, 5]; timestampNew = [2.0, 3.0, 4.0, 5.0]
     store_array = np.array([["ctrl0", "sig0"], ["control_dms", "signal_dms"]])
     timestamps = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
     data = np.array([10.0, 20.0, 30.0, 40.0, 50.0, 60.0])
@@ -108,6 +108,35 @@ def test_timestamp_correction_csv_mode_slices_at_lights_turn_on():
     )
 
     np.testing.assert_array_equal(result_ts["control_dms"], np.array([2.0, 3.0, 4.0, 5.0]))
+    np.testing.assert_array_equal(result_data["control_dms"], np.array([30.0, 40.0, 50.0, 60.0]))
+    np.testing.assert_array_equal(result_data["signal_dms"], np.array([60.0, 80.0, 100.0, 120.0]))
+
+
+def test_timestamp_correction_csv_mode_measures_lights_turn_on_from_recording_start():
+    # A recording whose clock does not start at 0 (e.g. an NWB file with starting_time=100.0).
+    # timestamps = [100..105]; timeForLightsTurnOn = 2.0 → cut at 100.0 + 2.0 = 102.0
+    # → correctionIndex = [2, 3, 4, 5]; timestampNew = [102.0, 103.0, 104.0, 105.0].
+    # Comparing against timeForLightsTurnOn alone would keep every sample.
+    store_array = np.array([["ctrl0", "sig0"], ["control_dms", "signal_dms"]])
+    timestamps = np.array([100.0, 101.0, 102.0, 103.0, 104.0, 105.0])
+    data = np.array([10.0, 20.0, 30.0, 40.0, 50.0, 60.0])
+    store_label_to_timestamps = {"control_dms": timestamps.copy(), "signal_dms": timestamps.copy()}
+    store_label_to_data = {"control_dms": data.copy(), "signal_dms": data.copy() * 2}
+    store_label_to_sampling_rate = {"control_dms": np.array([1.0]), "signal_dms": np.array([1.0])}
+    store_label_to_npoints = {"control_dms": None, "signal_dms": None}
+
+    result_ts, result_idx, result_data = timestampCorrection(
+        2.0,
+        store_array,
+        store_label_to_timestamps,
+        store_label_to_data,
+        store_label_to_sampling_rate,
+        store_label_to_npoints,
+        mode="csv",
+    )
+
+    np.testing.assert_array_equal(result_ts["control_dms"], np.array([102.0, 103.0, 104.0, 105.0]))
+    np.testing.assert_array_equal(result_idx["control_dms"], np.array([2, 3, 4, 5]))
     np.testing.assert_array_equal(result_data["control_dms"], np.array([30.0, 40.0, 50.0, 60.0]))
     np.testing.assert_array_equal(result_data["signal_dms"], np.array([60.0, 80.0, 100.0, 120.0]))
 

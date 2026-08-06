@@ -151,8 +151,10 @@ def test_update_df_with_timestamp_columns_raises_for_missing_name():
 
 
 def test_has_multiple_event_ttls_data_file_returns_false(tmp_path):
-    # Multi-column file → classified as data_np, not an event file → False
-    dataframe = pd.DataFrame({"FrameCounter": [1, 2], "LedState": [1, 2], "Signal": [0.1, 0.2]})
+    # Multi-column file → classified as data_np_v2, not an event file → False
+    dataframe = pd.DataFrame(
+        {"FrameCounter": [1, 2], "Timestamp": [0.1, 0.2], "LedState": [1, 2], "Signal": [0.1, 0.2]}
+    )
     dataframe.to_csv(tmp_path / "data.csv", index=False)
     result = NpmRecordingExtractor.has_multiple_event_ttls(folder_path=str(tmp_path))
     assert result == [False]
@@ -177,7 +179,7 @@ def test_has_multiple_event_ttls_multiple_ttl_event_file_returns_true(tmp_path):
 def test_has_multiple_event_ttls_raises_for_unrecognized_layout(tmp_path):
     pd.DataFrame({"event_code": [1, 2]}).to_csv(tmp_path / "single_column.csv", index=False)
 
-    with pytest.raises(ValueError, match=r"has 1 columns, which is not a recognized NPM layout"):
+    with pytest.raises(ValueError, match=r"has 1 column \(event \.csv layout\)"):
         NpmRecordingExtractor.has_multiple_event_ttls(folder_path=str(tmp_path))
 
 
@@ -195,32 +197,26 @@ def test_has_multiple_event_ttls_intra_session_mixed_modality_npm_with_csv_event
 
 
 # ---------------------------------------------------------------------------
-# needs_ts_unit
+# timestamp_column_options
 # ---------------------------------------------------------------------------
 
 
-def test_needs_ts_unit_event_file_returns_false(tmp_path):
-    # 2-column event file → classified as event_np and skipped → False
+def test_timestamp_column_options_event_file_returns_no_options(tmp_path):
+    # 2-column event file → classified as event_np and skipped → no columns to choose from
     dataframe = pd.DataFrame({"timestamp": [0.1, 0.2], "value": [1, 1]})
     dataframe.to_csv(tmp_path / "stimuli.csv", index=False)
-    ts_unit_needs, col_names_ts = NpmRecordingExtractor.needs_ts_unit(folder_path=str(tmp_path), num_ch=2)
-    assert ts_unit_needs == [False]
-    assert col_names_ts == [""]
+    assert NpmRecordingExtractor.timestamp_column_options(folder_path=str(tmp_path)) == []
 
 
-def test_needs_ts_unit_single_timestamp_column_returns_false(tmp_path):
-    # data_np_v2 file with only one timestamp column → does not exceed threshold → False
+def test_timestamp_column_options_single_timestamp_column(tmp_path):
     dataframe = pd.DataFrame(
         {"FrameCounter": [1, 2], "Timestamp": [0.1, 0.2], "LedState": [1, 2], "Signal": [0.5, 0.6]}
     )
     dataframe.to_csv(tmp_path / "data.csv", index=False)
-    ts_unit_needs, col_names_ts = NpmRecordingExtractor.needs_ts_unit(folder_path=str(tmp_path), num_ch=2)
-    assert ts_unit_needs == [False]
-    assert col_names_ts == ["", "Timestamp"]
+    assert NpmRecordingExtractor.timestamp_column_options(folder_path=str(tmp_path)) == ["Timestamp"]
 
 
-def test_needs_ts_unit_multiple_timestamp_columns_returns_true(tmp_path):
-    # data_np_v2 file with two timestamp columns → exceeds threshold → True
+def test_timestamp_column_options_multiple_timestamp_columns(tmp_path):
     dataframe = pd.DataFrame(
         {
             "FrameCounter": [1, 2],
@@ -231,20 +227,38 @@ def test_needs_ts_unit_multiple_timestamp_columns_returns_true(tmp_path):
         }
     )
     dataframe.to_csv(tmp_path / "data.csv", index=False)
-    ts_unit_needs, col_names_ts = NpmRecordingExtractor.needs_ts_unit(folder_path=str(tmp_path), num_ch=2)
-    assert ts_unit_needs == [True]
-    assert col_names_ts == ["", "SystemTimestamp", "ComputerTimestamp"]
+    assert NpmRecordingExtractor.timestamp_column_options(folder_path=str(tmp_path)) == [
+        "SystemTimestamp",
+        "ComputerTimestamp",
+    ]
 
 
-def test_needs_ts_unit_raises_for_unrecognized_layout(tmp_path):
+def test_timestamp_column_options_headerless_session_has_no_options(tmp_path):
+    # Header-less files carry no column names, so there is nothing to disambiguate.
+    (tmp_path / "data.csv").write_text("".join(f"{700000.0 + 500.0 * i},{i},{10 + i},{20 + i}\n" for i in range(6)))
+    assert NpmRecordingExtractor.timestamp_column_options(folder_path=str(tmp_path)) == []
+
+
+def test_timestamp_column_options_repeated_column_offered_once(tmp_path):
+    # sampleData_NPM_2 layout: two data files with the same single timestamp column. The
+    # option list must not grow per file — that accumulation used to make GuPPy ask which
+    # timestamp column to use for the second file, a question with one possible answer.
+    for file_name in ("FiberData415.csv", "FiberData470.csv"):
+        pd.DataFrame(
+            {"FrameCounter": [1, 2], "Timestamp": [0.1, 0.2], "LedState": [1, 2], "Region0G": [0.5, 0.6]}
+        ).to_csv(tmp_path / file_name, index=False)
+    assert NpmRecordingExtractor.timestamp_column_options(folder_path=str(tmp_path)) == ["Timestamp"]
+
+
+def test_timestamp_column_options_raises_for_unrecognized_layout(tmp_path):
     pd.DataFrame({"event_code": [1, 2]}).to_csv(tmp_path / "single_column.csv", index=False)
 
-    with pytest.raises(ValueError, match=r"has 1 columns, which is not a recognized NPM layout"):
-        NpmRecordingExtractor.needs_ts_unit(folder_path=str(tmp_path), num_ch=2)
+    with pytest.raises(ValueError, match=r"has 1 column \(event \.csv layout\)"):
+        NpmRecordingExtractor.timestamp_column_options(folder_path=str(tmp_path))
 
 
-def test_needs_ts_unit_intra_session_mixed_modality_npm_with_csv_event(tmp_path):
-    # Mixed intra-session folder: NPM files plus external 1-column CSV event should not crash TS-unit inference.
+def test_timestamp_column_options_intra_session_mixed_modality_npm_with_csv_event(tmp_path):
+    # Mixed intra-session folder: NPM files plus external 1-column CSV event should not crash detection.
     source_folder = STUBBED_TESTING_DATA / "npm" / "sampleData_NPM_1"
     session_folder = tmp_path / "sampleData_NPM_1"
     shutil.copytree(source_folder, session_folder)
@@ -252,9 +266,10 @@ def test_needs_ts_unit_intra_session_mixed_modality_npm_with_csv_event(tmp_path)
     csv_ttl_timestamps = np.array([20.0, 40.0, 60.0, 80.0, 100.0])
     np.savetxt(session_folder / "csv_event.csv", csv_ttl_timestamps, header="timestamps", comments="", fmt="%.6f")
 
-    ts_unit_needs, col_names_ts = NpmRecordingExtractor.needs_ts_unit(folder_path=str(session_folder), num_ch=2)
-    assert ts_unit_needs == [True, False]
-    assert col_names_ts == ["", "SystemTimestamp", "ComputerTimestamp"]
+    assert NpmRecordingExtractor.timestamp_column_options(folder_path=str(session_folder)) == [
+        "SystemTimestamp",
+        "ComputerTimestamp",
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -356,9 +371,10 @@ class NpmRecordingExtractorTestMixin(RecordingExtractorTestMixin):
         return result[0]["timestamps"]
 
     def test_stub_ttl_timestamps_within_duration(self, tmp_path, isolated_extractor_instance):
-        # NPM stub() truncates the raw files in their native timestamp units, so a
-        # seconds-based cutoff (base mixin) does not apply. Assert instead that stubbing
-        # retains exactly a non-empty prefix of the original TTL events.
+        # NPM stub() truncates each raw file at its own first timestamp plus the duration,
+        # so the event file's window is not the data file's window and the base mixin's
+        # cutoff (anchored on the continuous stream) does not apply. Assert instead that
+        # stubbing retains exactly a non-empty prefix of the original TTL events.
         if self.ttl_event is None:
             return
         original_ttl = isolated_extractor_instance.read(events=[self.ttl_event], outputPath="")[0]["timestamps"]
@@ -434,12 +450,129 @@ class TestNpmRecordingExtractorSession4(NpmRecordingExtractorTestMixin):
 class TestNpmRecordingExtractorSession5(NpmRecordingExtractorTestMixin):
     extractor_class = NpmRecordingExtractor
     folder_path = os.path.join(STUBBED_TESTING_DATA, "npm", "sampleData_NPM_5")
-    extractor_instance = NpmRecordingExtractor(folder_path, num_ch=2)
+    extractor_instance = NpmRecordingExtractor(folder_path, num_ch=2, npm_time_unit="milliseconds")
     expected_events = ["file0_chev1", "file0_chod1", "event0"]
     # npm_split_events=None means no splitting: the event stream becomes event0.
-    discover_kwargs = {"num_ch": 2, "inputParameters": {}}
-    stub_extractor_kwargs = {"num_ch": 2}
+    discover_kwargs = {"num_ch": 2, "inputParameters": {"npm_time_unit": "milliseconds"}}
+    stub_extractor_kwargs = {"num_ch": 2, "npm_time_unit": "milliseconds"}
     control_event = "file0_chev1"
     signal_event = "file0_chod1"
     ttl_event = "event0"
     stub_ttl_test_duration_in_seconds = 100.0
+
+
+# ---------------------------------------------------------------------------
+# Absolute-clock contract
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def headerless_session(tmp_path):
+    """A data_np session (headerless) whose clock starts at 700000 ms."""
+    session_folder = tmp_path / "headerless"
+    session_folder.mkdir()
+    rows = "".join(f"{700000.0 + 500.0 * i},{i},{10 + i},{20 + i}\n" for i in range(6))
+    (session_folder / "a_data.csv").write_text(rows)
+    (session_folder / "z_events.csv").write_text("701500.0,1\n")
+    return session_folder
+
+
+class TestNpmAbsoluteTime:
+    """NPM keeps the acquisition's own clock (issue #407): neither the continuous channels
+    nor the event streams are re-zeroed to start at 0. The conversion to seconds still applies.
+
+    The per-session contract classes above cannot catch a regression here — their
+    ``expected_*`` fixtures compare ``read()`` against ``read()``, so they hold for any time
+    basis. These tests pin the basis with hand-computed literals.
+    """
+
+    @pytest.fixture
+    def headered_session(self, tmp_path):
+        """A data_np_v2 session (LedState interleaving) whose clock starts at 500 s."""
+        session_folder = tmp_path / "headered"
+        session_folder.mkdir()
+        rows = "".join(f"{i},{500.0 + 0.5 * i},{1 if i % 2 == 0 else 2},{i}\n" for i in range(12))
+        (session_folder / "a_signals.csv").write_text("FrameCounter,Timestamp,LedState,Region0G\n" + rows)
+        # Two events on the same clock as the signal file.
+        (session_folder / "b_events.csv").write_text("502.0,1\n504.0,1\n")
+        return session_folder
+
+    def test_headered_channel_timestamps_are_absolute(self, headered_session):
+        streams = NpmRecordingExtractor(
+            str(headered_session),
+            num_ch=2,
+            npm_time_unit="seconds",
+            npm_split_events=[False, False],
+        ).decompose()
+
+        # LedState==1 selects rows 0,2,4,6,8,10 → Timestamp 500.0 + 0.5*row. Re-zeroing
+        # would have produced [0, 1, 2, 3, 4, 5].
+        expected = np.array([500.0, 501.0, 502.0, 503.0, 504.0, 505.0])
+        np.testing.assert_allclose(streams["file0_chev1"]["timestamps"], expected)
+        # chod borrows chev's axis, so it is absolute too.
+        np.testing.assert_allclose(streams["file0_chod1"]["timestamps"], expected)
+        # 6 samples spanning 505.0 - 500.0 = 5.0 s.
+        np.testing.assert_allclose(streams["file0_chev1"]["sampling_rate"], np.array([1.2]))
+
+    def test_headered_event_timestamps_are_absolute(self, headered_session):
+        streams = NpmRecordingExtractor(
+            str(headered_session),
+            num_ch=2,
+            npm_time_unit="seconds",
+            npm_split_events=[False, False],
+        ).decompose()
+
+        # Raw event values, not shifted by the 500.0 chev reference (which gave [2.0, 4.0]).
+        np.testing.assert_allclose(streams["event0"]["timestamps"], np.array([502.0, 504.0]))
+
+    def test_headerless_timestamps_are_absolute_and_converted_to_seconds(self, headerless_session):
+        streams = NpmRecordingExtractor(
+            str(headerless_session), num_ch=2, npm_time_unit="milliseconds", npm_split_events=[False, False]
+        ).decompose()
+
+        # Headerless files are milliseconds: rows 0,2,4 → 700000/701000/702000 ms.
+        # The divisor still applies; only the re-zeroing is gone ([0, 1, 2] before).
+        np.testing.assert_allclose(streams["file0_chev1"]["timestamps"], np.array([700.0, 701.0, 702.0]))
+        np.testing.assert_allclose(streams["file0_chev1"]["sampling_rate"], np.array([1.5]))
+        # The event file shares the millisecond clock: 701500 ms → 701.5 s, not 1.5 s.
+        np.testing.assert_allclose(streams["event0"]["timestamps"], np.array([701.5]))
+
+
+# ---------------------------------------------------------------------------
+# Timestamp unit
+# ---------------------------------------------------------------------------
+
+
+class TestNpmTimeUnit:
+    """The timestamp unit is one value per session folder, supplied as a parameter.
+
+    Nothing in the raw files states it, so it is never inferred from the layout: the
+    same folder read with a different unit yields timestamps scaled by that factor.
+    """
+
+    def test_unit_defaults_to_seconds(self, headerless_session):
+        streams = NpmRecordingExtractor(str(headerless_session), num_ch=2, npm_split_events=[False, False]).decompose()
+
+        # Left unspecified, the raw values are taken to be seconds already: no division.
+        np.testing.assert_allclose(streams["file0_chev1"]["timestamps"], np.array([700000.0, 701000.0, 702000.0]))
+        np.testing.assert_allclose(streams["event0"]["timestamps"], np.array([701500.0]))
+
+    def test_unit_applies_to_every_stream_in_the_folder(self, headerless_session):
+        streams = NpmRecordingExtractor(
+            str(headerless_session), num_ch=2, npm_time_unit="microseconds", npm_split_events=[False, False]
+        ).decompose()
+
+        # 700000 µs → 0.7 s, and the event file rides the same clock: 701500 µs → 0.7015 s.
+        np.testing.assert_allclose(streams["file0_chev1"]["timestamps"], np.array([0.7, 0.701, 0.702]))
+        np.testing.assert_allclose(streams["file0_chod1"]["timestamps"], np.array([0.7, 0.701, 0.702]))
+        np.testing.assert_allclose(streams["event0"]["timestamps"], np.array([0.7015]))
+        # 3 samples spanning 0.702 - 0.7 = 0.002 s.
+        np.testing.assert_allclose(streams["file0_chev1"]["sampling_rate"], np.array([1500.0]))
+
+    def test_unrecognized_unit_raises(self, headerless_session):
+        extractor = NpmRecordingExtractor(
+            str(headerless_session), num_ch=2, npm_time_unit="minutes", npm_split_events=[False, False]
+        )
+
+        with pytest.raises(ValueError, match=r"npm_time_unit='minutes' is not a recognized timestamp unit"):
+            extractor.decompose()

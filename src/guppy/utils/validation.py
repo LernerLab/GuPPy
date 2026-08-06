@@ -30,6 +30,7 @@ Conventions
   the user the valid range or fix. See PR #283 for the established template.
 """
 
+import glob
 import logging
 import os
 from typing import Sequence
@@ -251,3 +252,50 @@ def validate_same_parent_directory(*, paths: Sequence[str]) -> np.ndarray:
         logger.error(message)
         raise ValueError(message)
     return parents
+
+
+def validate_artifact_coords_present(*, run_folders: Sequence[str]) -> None:
+    """Validate that artifact windows have been selected for every run folder.
+
+    Parameters
+    ----------
+    run_folders : sequence of str
+        Session output (run) directories the Remove Artifacts step will process.
+
+    Raises
+    ------
+    ValueError
+        If any run folder has no ``coordsForPreProcessing_<recording_site>.npy`` file.
+    """
+    for run_folder in run_folders:
+        if not glob.glob(os.path.join(run_folder, "coordsForPreProcessing_*.npy")):
+            message = (
+                f"No artifact windows have been selected for '{run_folder}'. Run Select Artifact Windows "
+                "and save at least one window before running Remove Artifacts."
+            )
+            logger.error(message)
+            raise ValueError(message)
+
+
+def validate_preprocessing_outputs_present(
+    *, run_folders: Sequence[str], action: str = "selecting artifact windows"
+) -> None:
+    """Validate that every run folder holds the preprocessing outputs the step-3 result pages read.
+
+    Parameters
+    ----------
+    run_folders : sequence of str
+        Session output (run) directories to check.
+    action : str
+        Phrase naming what the caller is about to do, used to close the error message.
+
+    Raises
+    ------
+    ValueError
+        If any run folder is missing its ``cntrl_sig_fit_<recording_site>.hdf5`` files.
+    """
+    for run_folder in run_folders:
+        if not glob.glob(os.path.join(run_folder, "cntrl_sig_fit_*.hdf5")):
+            message = f"No preprocessing outputs found in '{run_folder}'. Run Step 3 (Preprocess) before {action}."
+            logger.error(message)
+            raise ValueError(message)
