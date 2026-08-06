@@ -23,59 +23,85 @@ def site_traces():
 class TestTonicEpochConfig:
     @pytest.fixture
     def config(self, panel_extension, tmp_path, site_traces):
-        return TonicEpochConfig(str(tmp_path), site_traces)
+        config = TonicEpochConfig(str(tmp_path), site_traces)
+        # Adding, removing, and the live preview act on the selected site; pin it so the
+        # tests do not depend on dict iteration order.
+        config.site_select.value = "DMS"
+        return config
 
-    def test_save_writes_csv_only_for_sites_with_complete_rows(self, config, tmp_path):
-        config.site_to_widget["DMS"].value = pd.DataFrame(
-            {
-                "label": ["baseline", "post", ""],
-                "start": [0.0, 8.0, np.nan],
-                "end": [2.0, 10.0, np.nan],
-            }
+    def test_starts_with_no_epoch_windows(self, config):
+        assert config.epochs_for("DMS") == []
+        assert config.epochs_for("DLS") == []
+
+    def test_reloads_epoch_windows_saved_on_disk(self, panel_extension, tmp_path, site_traces):
+        pd.DataFrame({"label": ["baseline"], "start": [0.0], "end": [2.0]}).to_csv(
+            tmp_path / "tonic_epochs_DMS.csv", index=False
         )
+
+        config = TonicEpochConfig(str(tmp_path), site_traces)
+
+        assert config.epochs_for("DMS") == [("baseline", 0.0, 2.0)]
+        assert config.epochs_for("DLS") == []
+
+    def test_save_writes_csv_only_for_sites_with_windows(self, config, tmp_path):
+        config.set_epochs("DMS", [("baseline", 0.0, 2.0), ("post", 8.0, 10.0)])
+
         config.save()
 
-        dms_path = tmp_path / "tonic_epochs_DMS.csv"
-        assert dms_path.exists()
-        saved = pd.read_csv(dms_path)
-        # The incomplete trailing row is dropped; only the two complete windows persist.
+        saved = pd.read_csv(tmp_path / "tonic_epochs_DMS.csv")
         expected = pd.DataFrame({"label": ["baseline", "post"], "start": [0.0, 8.0], "end": [2.0, 10.0]})
         pd.testing.assert_frame_equal(saved, expected)
 
         # DLS was left empty, so no file is written for it.
         assert not (tmp_path / "tonic_epochs_DLS.csv").exists()
 
+    def test_blank_row_is_not_saved(self, config, tmp_path):
+        config.set_epochs("DMS", [("baseline", 0.0, 2.0)])
+        config.add_epoch_row()
+
+        config.save()
+
+        saved = pd.read_csv(tmp_path / "tonic_epochs_DMS.csv")
+        pd.testing.assert_frame_equal(saved, pd.DataFrame({"label": ["baseline"], "start": [0.0], "end": [2.0]}))
+
+    def test_removing_a_row_drops_its_window(self, config):
+        config.set_epochs("DMS", [("baseline", 0.0, 2.0), ("post", 8.0, 10.0)])
+
+        config._remove_row(config.site_to_rows["DMS"][0])
+
+        assert config.epochs_for("DMS") == [("post", 8.0, 10.0)]
+
     def test_save_raises_on_window_not_overlapping_recording(self, config, tmp_path):
         # site traces span t in [0, 10]; a [15, 20] window overlaps nothing -> reject early,
         # before any file is written, so the worker never sees an invalid epoch.
-        config.site_to_widget["DMS"].value = pd.DataFrame({"label": ["late"], "start": [15.0], "end": [20.0]})
+        config.set_epochs("DMS", [("late", 15.0, 20.0)])
         with pytest.raises(ValueError, match="does not overlap"):
             config.save()
         assert not (tmp_path / "tonic_epochs_DMS.csv").exists()
 
     def test_on_save_swallows_validation_error_without_writing(self, config, tmp_path):
-        config.site_to_widget["DMS"].value = pd.DataFrame({"label": ["late"], "start": [15.0], "end": [20.0]})
+        config.set_epochs("DMS", [("late", 15.0, 20.0)])
         # _on_save catches the ValueError (surfacing it as a notification when served)
         # instead of propagating; no file is written.
         config._on_save(None)
         assert not (tmp_path / "tonic_epochs_DMS.csv").exists()
 
-    def test_copy_to_all_replicates_current_sites_windows(self, config):
-        source = pd.DataFrame({"label": ["baseline"], "start": [0.0], "end": [2.0]})
-        config.site_select.value = "DMS"
-        config.site_to_widget["DMS"].value = source
-        config._on_copy_to_all(None)
+    def test_apply_to_all_replicates_current_sites_windows(self, config):
+        config.set_epochs("DMS", [("baseline", 0.0, 2.0)])
 
-        pd.testing.assert_frame_equal(config.site_to_widget["DLS"].value, source)
+        config.apply_epochs_to_all_sites()
 
-    def test_make_plot_overlays_spans_for_defined_windows(self, config):
-        import holoviews as hv
+        assert config.epochs_for("DLS") == [("baseline", 0.0, 2.0)]
 
-        config.site_to_widget["DMS"].value = pd.DataFrame({"label": ["baseline"], "start": [0.0], "end": [2.0]})
-        config.site_select.value = "DMS"
-        plot = config._make_plot()
-        # Curve overlaid with one VSpan -> an Overlay, not a bare Curve.
-        assert isinstance(plot, hv.Overlay)
+    def test_editing_a_bound_repaints_the_spans_without_rebuilding_the_plot(self, config):
+        config.set_epochs("DMS", [("baseline", 0.0, 2.0)])
+        plot = config.plot_pane.object
+
+        config.site_to_rows["DMS"][0].end_input.value = 4.0
+
+        assert config.spans_pipe.data == [(0.0, 4.0)]
+        # The traces are density-shaded server-side, so a bound edit must not re-aggregate them.
+        assert config.plot_pane.object is plot
 
 
 def _write_tonic_results(filepath, site):

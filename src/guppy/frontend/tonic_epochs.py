@@ -3,16 +3,16 @@
 Tonic analysis averages the preprocessed z-score / dF/F trace over user-defined
 absolute-time windows. Because injection timing can differ per recording site
 (e.g. an ICV injection reaches sites at different times), windows are defined
-per recording site. This page shows each site's preprocessed trace alongside an
-editable ``(label, start, end)`` table so the user can see where to place a
-window and type its exact bounds — the Panel-native replacement for the legacy
-matplotlib popups. On save it writes one ``tonic_epochs_<site>.csv`` per site
-into the run folder, which the preprocessing step then consumes.
+per recording site. This page shows each site's z-score and dF/F traces with the
+current windows shaded, plus one editable ``(label, start, end)`` row per window.
+On save it writes one ``tonic_epochs_<site>.csv`` per site into the run folder,
+which the preprocessing step then consumes.
 """
 
 import glob
 import logging
 import os
+from collections.abc import Callable
 
 import holoviews as hv
 import numpy as np
@@ -23,13 +23,27 @@ from .artifact_removal import build_run_folder_page
 from ..analysis.io_utils import read_hdf5, recording_site_from_preprocessed_label
 from ..analysis.standard_io import read_tonic_epochs
 from ..analysis.tonic import TONIC_EPOCH_COLUMNS, validate_tonic_epochs
+from ..visualization.preprocessing import build_stacked_traces, make_spans_pipe
 
 pn.extension(notifications=True)
 hv.extension("bokeh")
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_EPOCH_ROWS = 3
+# Seconds per arrow-key press on a window bound, for nudging an edge into place.
+_NUDGE_STEP = 0.1
+_LABEL_WIDTH = 160
+_INPUT_WIDTH = 110
+
+_INSTRUCTIONS = (
+    "Define named epoch windows for each recording site: enter a label and the start and "
+    "end time (seconds) of each window, and the shaded spans update to match. Use "
+    "**Apply to all recording sites** when the injection is systemic.\n\n"
+    "Click **Save** to write the windows, then re-run **Preprocess** to compute the "
+    "per-epoch means — a site with no windows is skipped."
+)
+
+_NO_WINDOWS_HINT = "_No epoch windows defined — this recording site will be skipped._"
 
 
 def load_site_traces(filepath: str) -> dict[str, dict[str, np.ndarray]]:
@@ -57,24 +71,73 @@ def load_site_traces(filepath: str) -> dict[str, dict[str, np.ndarray]]:
     return site_traces
 
 
-def _empty_epoch_df() -> pd.DataFrame:
-    return pd.DataFrame(
-        {
-            "label": [""] * _DEFAULT_EPOCH_ROWS,
-            "start": [np.nan] * _DEFAULT_EPOCH_ROWS,
-            "end": [np.nan] * _DEFAULT_EPOCH_ROWS,
-        }
-    )
+def _saved_epoch_windows(filepath: str, site: str) -> list[tuple[str, float, float]]:
+    """Re-read the epoch windows saved on disk for one recording site."""
+    epochs = read_tonic_epochs(filepath, site)
+    if epochs.empty:
+        return []
+    return [(str(row["label"]), float(row["start"]), float(row["end"])) for _, row in epochs.iterrows()]
+
+
+class TonicEpochRow:
+    """One epoch window: a label, a start bound, an end bound, and a delete button.
+
+    The bounds are numeric inputs limited to the recording timespan, so an edge can be
+    nudged with the arrow keys. The limits are a browser-side guardrail only — a value
+    set programmatically is not clamped, so callers still validate before saving.
+    """
+
+    def __init__(
+        self,
+        *,
+        label: str,
+        start: float | None,
+        end: float | None,
+        span: tuple[float, float],
+        on_change: Callable[[], None],
+        on_remove: Callable[["TonicEpochRow"], None],
+    ) -> None:
+        low, high = span
+        self.label_input = pn.widgets.TextInput(value=label, width=_LABEL_WIDTH)
+        self.start_input = pn.widgets.FloatInput(value=start, start=low, end=high, step=_NUDGE_STEP, width=_INPUT_WIDTH)
+        self.end_input = pn.widgets.FloatInput(value=end, start=low, end=high, step=_NUDGE_STEP, width=_INPUT_WIDTH)
+        self.remove_button = pn.widgets.Button(
+            icon="trash", button_type="light", width=40, height=38, description="Delete this epoch"
+        )
+
+        self.start_input.param.watch(lambda event: on_change(), "value")
+        self.end_input.param.watch(lambda event: on_change(), "value")
+        self.remove_button.on_click(lambda event: on_remove(self))
+
+        self.widget = pn.Row(
+            self.label_input,
+            self.start_input,
+            self.end_input,
+            self.remove_button,
+            align="center",
+            margin=(0, 0, 4, 0),
+        )
+
+    @property
+    def epoch(self) -> tuple[str, float, float] | None:
+        """The ``(label, start, end)`` window, or None while a bound is still blank."""
+        if self.start_input.value is None or self.end_input.value is None:
+            return None
+        return self.label_input.value, float(self.start_input.value), float(self.end_input.value)
+
+    @property
+    def window(self) -> tuple[float, float] | None:
+        """The ``(start, end)`` bounds used for shading, or None while a bound is blank."""
+        epoch = self.epoch
+        return None if epoch is None else (epoch[1], epoch[2])
 
 
 class TonicEpochConfig:
-    """Per-run-folder editor for tonic epoch windows across all recording sites.
+    """Interactive epoch-definition page for one run folder across all recording sites.
 
-    Renders the selected site's preprocessed trace with the current epoch windows
-    overlaid as shaded spans, plus an editable ``(label, start, end)`` table. A
-    signal toggle switches the displayed trace between z-score and dF/F; a
-    "copy to all sites" button replicates the current table to every site; and
-    save writes one ``tonic_epochs_<site>.csv`` per site into the run folder.
+    Shows the selected site's z-score and dF/F traces with the current epoch windows
+    shaded, one editable row per window, and an "apply to all recording sites" button.
+    On save, writes one ``tonic_epochs_<site>.csv`` per site holding the windows.
     """
 
     def __init__(self, filepath: str, site_traces: dict[str, dict[str, np.ndarray]]) -> None:
@@ -82,69 +145,97 @@ class TonicEpochConfig:
         self.site_traces = site_traces
         self.sites = list(site_traces.keys())
 
-        self.site_to_widget = {
-            site: pn.widgets.Tabulator(_empty_epoch_df(), show_index=False, widths=180) for site in self.sites
+        self.site_to_rows: dict[str, list[TonicEpochRow]] = {
+            site: [
+                self._build_row(site, label, start, end) for label, start, end in _saved_epoch_windows(filepath, site)
+            ]
+            for site in self.sites
         }
 
-        self.signal_toggle = pn.widgets.RadioButtonGroup(name="Signal", options=["z_score", "dff"], value="z_score")
         self.site_select = pn.widgets.Select(name="Recording site", options=self.sites, value=self.sites[0])
-        self.copy_to_all_button = pn.widgets.Button(name="Copy windows to all sites", button_type="default")
+        self.add_row_button = pn.widgets.Button(name="Add epoch", button_type="default", icon="plus")
+        self.apply_to_all_button = pn.widgets.Button(name="Apply to all recording sites", button_type="default")
         self.save_button = pn.widgets.Button(name="Save", button_type="primary")
 
-        self.plot_pane = pn.pane.HoloViews(self._make_plot(), width=750)
+        self.spans_pipe = make_spans_pipe(windows=self.windows_for(self.sites[0]))
+        self.plot_pane = pn.pane.HoloViews(self._make_plot(), sizing_mode="stretch_width")
+        self.rows_container = pn.Column()
+        self._render_rows()
 
-        self.signal_toggle.param.watch(self._refresh_plot, "value")
-        self.site_select.param.watch(self._refresh_plot, "value")
-        for widget in self.site_to_widget.values():
-            widget.param.watch(self._refresh_plot, "value")
-        self.copy_to_all_button.on_click(self._on_copy_to_all)
+        self.site_select.param.watch(self._on_site_change, "value")
+        self.add_row_button.on_click(lambda event: self.add_epoch_row())
+        self.apply_to_all_button.on_click(lambda event: self.apply_epochs_to_all_sites())
         self.save_button.on_click(self._on_save)
 
         self.widget = pn.Column(
-            "# Tonic Epochs — {}".format(os.path.basename(filepath)),
-            pn.pane.Markdown(
-                "Define named epoch windows on each recording site's preprocessed trace. "
-                "Type exact start/end times (seconds); the shaded spans update to match. "
-                "Use **Copy windows to all sites** when the injection is systemic. "
-                "Click **Save**, then re-run **Preprocess** to compute the per-epoch means "
-                "(leave the tables empty to skip a site)."
-            ),
-            pn.Row(self.site_select, self.signal_toggle),
+            "# Define Tonic Epochs — {}".format(os.path.basename(filepath)),
+            pn.pane.Markdown(_INSTRUCTIONS),
+            self.site_select,
             self.plot_pane,
-            self._active_table_row(),
-            pn.Row(self.copy_to_all_button, self.save_button),
+            self.rows_container,
+            pn.Row(self.add_row_button, self.apply_to_all_button),
+            self.save_button,
+            sizing_mode="stretch_width",
         )
 
-    def _active_table_row(self) -> pn.Row:
-        return pn.Row(self.site_to_widget[self.site_select.value])
+    def _build_row(self, site: str, label: str, start: float | None, end: float | None) -> TonicEpochRow:
+        timestamps = self.site_traces[site]["x"]
+        return TonicEpochRow(
+            label=label,
+            start=start,
+            end=end,
+            span=(float(timestamps[0]), float(timestamps[-1])),
+            on_change=self.refresh_spans,
+            on_remove=self._remove_row,
+        )
 
-    def _epoch_spans(self, site: str) -> "hv.Overlay | hv.VSpan | None":
-        overlay = None
-        df = self.site_to_widget[site].value
-        for _, row in df.iterrows():
-            if pd.isna(row["start"]) or pd.isna(row["end"]):
-                continue
-            span = hv.VSpan(float(row["start"]), float(row["end"])).opts(color="orange", alpha=0.2)
-            overlay = span if overlay is None else overlay * span
-        return overlay
+    def _column_header(self) -> pn.Row:
+        return pn.Row(
+            pn.pane.HTML("<b>label</b>", width=_LABEL_WIDTH),
+            pn.pane.HTML("<b>start (s)</b>", width=_INPUT_WIDTH),
+            pn.pane.HTML("<b>end (s)</b>", width=_INPUT_WIDTH),
+            pn.Spacer(width=40),
+            margin=(0, 0, 2, 0),
+        )
 
-    def _make_plot(self) -> "hv.Overlay | hv.Curve":
+    def _render_rows(self) -> None:
+        rows = self.site_to_rows[self.site_select.value]
+        if not rows:
+            self.rows_container[:] = [pn.pane.Markdown(_NO_WINDOWS_HINT)]
+            return
+        self.rows_container[:] = [self._column_header()] + [row.widget for row in rows]
+
+    def epochs_for(self, site: str) -> list[tuple[str, float, float]]:
+        """The fully-entered epoch windows defined for one recording site."""
+        return [row.epoch for row in self.site_to_rows[site] if row.epoch is not None]
+
+    def windows_for(self, site: str) -> list[tuple[float, float]]:
+        """The ``(start, end)`` bounds of one recording site's fully-entered windows."""
+        return [row.window for row in self.site_to_rows[site] if row.window is not None]
+
+    def set_epochs(self, site: str, epochs: list[tuple[str, float, float]]) -> None:
+        """Replace one recording site's epoch windows."""
+        self.site_to_rows[site] = [self._build_row(site, label, start, end) for label, start, end in epochs]
+        if site == self.site_select.value:
+            self._render_rows()
+        self.refresh_spans()
+
+    def refresh_spans(self) -> None:
+        """Repaint the shaded spans from the current rows, leaving the traces untouched."""
+        self.spans_pipe.send(self.windows_for(self.site_select.value))
+
+    def add_epoch_row(self) -> None:
+        """Append a blank epoch window to the selected site."""
         site = self.site_select.value
-        trace = self.site_traces[site]
-        y = trace["y_zscore"] if self.signal_toggle.value == "z_score" else trace["y_dff"]
-        curve = hv.Curve((trace["x"], y), "time (s)", self.signal_toggle.value).opts(width=750, height=320)
-        spans = self._epoch_spans(site)
-        return curve if spans is None else curve * spans
+        self.site_to_rows[site].append(self._build_row(site, "", None, None))
+        self._render_rows()
 
-    def _refresh_plot(self, event: object) -> None:
-        self.widget[4] = self._active_table_row()
-        self.plot_pane.object = self._make_plot()
-
-    def _on_copy_to_all(self, event: object) -> None:
-        source = self.site_to_widget[self.site_select.value].value.copy()
-        for site, widget in self.site_to_widget.items():
-            widget.value = source.copy()
-        self.plot_pane.object = self._make_plot()
+    def apply_epochs_to_all_sites(self) -> None:
+        """Copy the selected site's epoch windows into every other recording site."""
+        epochs = self.epochs_for(self.site_select.value)
+        for site in self.sites:
+            if site != self.site_select.value:
+                self.set_epochs(site, epochs)
 
     def save(self) -> None:
         """Validate and write ``tonic_epochs_<site>.csv`` for every site with a complete window.
@@ -154,11 +245,11 @@ class TonicEpochConfig:
         leaving a partially-written set of epoch files.
         """
         to_write = {}
-        for site, widget in self.site_to_widget.items():
-            df = widget.value
-            complete = df[df["start"].notna() & df["end"].notna()][TONIC_EPOCH_COLUMNS]
-            if complete.empty:
+        for site in self.sites:
+            epochs = self.epochs_for(site)
+            if not epochs:
                 continue
+            complete = pd.DataFrame(epochs, columns=TONIC_EPOCH_COLUMNS)
             timestamps = self.site_traces[site]["x"]
             validate_tonic_epochs(complete, float(timestamps[0]), float(timestamps[-1]))
             to_write[site] = complete
@@ -166,6 +257,28 @@ class TonicEpochConfig:
         for site, complete in to_write.items():
             complete.to_csv(os.path.join(self.filepath, "tonic_epochs_" + site + ".csv"), index=False)
             logger.info(f"Saved {len(complete)} tonic epoch(s) for recording site {site}.")
+
+    def _remove_row(self, row: TonicEpochRow) -> None:
+        self.site_to_rows[self.site_select.value].remove(row)
+        self._render_rows()
+        self.refresh_spans()
+
+    def _on_site_change(self, event: object) -> None:
+        self._render_rows()
+        # A new site means new traces, so the layout is rebuilt; give it a fresh pipe
+        # so the discarded plot stops receiving updates.
+        self.spans_pipe = make_spans_pipe(windows=self.windows_for(self.site_select.value))
+        self.plot_pane.object = self._make_plot()
+
+    def _make_plot(self) -> object:
+        site = self.site_select.value
+        trace = self.site_traces[site]
+        return build_stacked_traces(
+            x=trace["x"],
+            traces={"z-score": trace["y_zscore"], "ΔF/F": trace["y_dff"]},
+            suptitle=os.path.basename(self.filepath),
+            spans=self.spans_pipe,
+        )
 
     def _on_save(self, event: object) -> None:
         try:
@@ -221,23 +334,22 @@ class TonicResultsView:
         self.sites = _tonic_result_sites(filepath)
 
         self.site_select = pn.widgets.Select(name="Recording site", options=self.sites, value=self.sites[0])
-        self.signal_toggle = pn.widgets.RadioButtonGroup(name="Signal", options=["z_score", "dff"], value="z_score")
         means = self._means(self.sites[0])
         self.baseline_select = pn.widgets.Select(
             name="Baseline epoch", options=list(means.index), value=list(means.index)[0]
         )
-        self.plot_pane = pn.pane.HoloViews(self._make_plot(), width=750)
+        self.plot_pane = pn.pane.HoloViews(self._make_plot(), sizing_mode="stretch_width")
         self.table_pane = pn.pane.DataFrame(self._means_with_diff(), width=520)
 
         self.site_select.param.watch(self._on_site_change, "value")
-        self.signal_toggle.param.watch(self._refresh, "value")
         self.baseline_select.param.watch(self._refresh, "value")
 
         self.widget = pn.Column(
             "## Tonic / basal analysis — {}".format(os.path.basename(filepath)),
-            pn.Row(self.site_select, self.signal_toggle, self.baseline_select),
+            pn.Row(self.site_select, self.baseline_select),
             self.plot_pane,
             self.table_pane,
+            sizing_mode="stretch_width",
         )
 
     def _means(self, site: str) -> pd.DataFrame:
@@ -256,18 +368,27 @@ class TonicResultsView:
             }
         )
 
-    def _make_plot(self) -> "hv.Overlay | hv.Curve":
+    def _make_plot(self) -> object:
         site = self.site_select.value
         timestamps = np.asarray(read_hdf5("timeCorrection_" + site, self.filepath, "timestampNew")).ravel()
-        signal = "z_score" if self.signal_toggle.value == "z_score" else "dff"
-        y = np.asarray(read_hdf5("", os.path.join(self.filepath, signal + "_" + site + ".hdf5"), "data")).ravel()
-        curve = hv.Curve((timestamps, y), "time (s)", self.signal_toggle.value).opts(width=750, height=320)
-
-        overlay = None
-        for _, row in read_tonic_epochs(self.filepath, site).iterrows():
-            span = hv.VSpan(float(row["start"]), float(row["end"])).opts(color="orange", alpha=0.2)
-            overlay = span if overlay is None else overlay * span
-        return curve if overlay is None else curve * overlay
+        traces = {
+            "z-score": np.asarray(
+                read_hdf5("", os.path.join(self.filepath, "z_score_" + site + ".hdf5"), "data")
+            ).ravel(),
+            "ΔF/F": np.asarray(read_hdf5("", os.path.join(self.filepath, "dff_" + site + ".hdf5"), "data")).ravel(),
+        }
+        # The analysed windows are fixed on disk, so the pipe is seeded once per rebuild
+        # rather than driven by edits; it is retained so the spans layer keeps its source.
+        epochs = read_tonic_epochs(self.filepath, site)
+        self.spans_pipe = make_spans_pipe(
+            windows=[(float(row["start"]), float(row["end"])) for _, row in epochs.iterrows()]
+        )
+        return build_stacked_traces(
+            x=timestamps,
+            traces=traces,
+            suptitle=os.path.basename(self.filepath),
+            spans=self.spans_pipe,
+        )
 
     def _on_site_change(self, event: object) -> None:
         means = self._means(self.site_select.value)
