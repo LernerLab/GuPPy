@@ -55,9 +55,9 @@ _BASELINE_BAR_COLOR = "#ff7f0e"
 _ZERO_LINE_COLOR = "#666666"
 
 _BASELINE_HINT = (
-    "Bars show each epoch's **change from the baseline epoch**, which is highlighted and sits "
-    "at zero by definition. Bars above the dashed line rose relative to baseline, bars below "
-    "it fell. The absolute means these are taken from are in the table."
+    "Bars show each epoch's **change from the baseline epoch**, which sits at zero by "
+    "definition. Bars above the dashed line rose relative to baseline, bars below it fell. "
+    "The absolute means these are taken from are in the table."
 )
 
 
