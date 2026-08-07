@@ -165,15 +165,6 @@ def execute_zscore(session_folders: list[str], inputParameters: dict[str, object
             "or set photobleaching detrending back to False."
         )
 
-    if photobleaching_detrend == True and control_fit_window_mode == "baseline epoch":
-        raise ValueError(
-            "photobleaching_detrend=True cannot be combined with controlFitWindowMode='baseline epoch'. "
-            "Baseline-epoch mode estimates the fit from one window and applies it across the recording, "
-            "but a decay constant estimated from a short window cannot be extrapolated over the rest of "
-            "the session. Set the control fit window to 'full trace', or set photobleaching detrending "
-            "back to False."
-        )
-
     run_folders = []
     for i in range(len(session_folders)):
         if combine_data == True:

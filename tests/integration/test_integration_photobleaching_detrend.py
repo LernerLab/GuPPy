@@ -93,12 +93,14 @@ def test_detrending_without_isosbestic_control_raises(run_preprocessing):
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_detrending_with_baseline_epoch_fitting_raises(run_preprocessing):
-    with pytest.raises(ValueError, match="cannot be combined with"):
-        run_preprocessing(
-            "baseline_epoch",
-            photobleaching_detrend=True,
-            control_fit_window_mode="baseline epoch",
-            control_fit_window_start=1,
-            control_fit_window_end=5,
-        )
+def test_detrending_composes_with_baseline_epoch_fitting(run_preprocessing):
+    """Baseline-epoch fitting is what produces a slow drift, so the two must work together."""
+    output_directory = run_preprocessing(
+        "baseline_epoch",
+        photobleaching_detrend=True,
+        control_fit_window_mode="baseline epoch",
+        control_fit_window_start=2,
+        control_fit_window_end=60,
+    )
+
+    assert os.path.exists(os.path.join(output_directory, f"dff_{EXPECTED_RECORDING_SITE}.hdf5"))

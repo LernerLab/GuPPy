@@ -68,18 +68,6 @@ def test_execute_zscore_raises_when_detrending_without_isosbestic_control(base_i
     assert "requires an isosbestic control channel" in message
 
 
-def test_execute_zscore_raises_when_detrending_with_baseline_epoch_fitting(base_input_parameters):
-    """A decay constant estimated from one window cannot be extrapolated across the session."""
-    base_input_parameters["photobleaching_detrend"] = True
-    base_input_parameters["controlFitWindowMode"] = "baseline epoch"
-
-    with pytest.raises(ValueError) as exception_info:
-        execute_zscore([["/tmp/session_output_1"]], base_input_parameters, remove_artifacts=False)
-    message = str(exception_info.value)
-    assert "photobleaching_detrend=True" in message
-    assert "baseline epoch" in message
-
-
 # ── compute (no GUI in the worker) ──────────────────────────────────────────────
 
 
