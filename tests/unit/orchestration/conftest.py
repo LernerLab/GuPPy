@@ -14,6 +14,7 @@ def base_input_parameters() -> dict[str, object]:
         "controlFitWindowMode": "full trace",
         "controlFitWindowStart": 0,
         "controlFitWindowEnd": 0,
+        "photobleaching_detrend": False,
         "timeForLightsTurnOn": 5.0,
         "combine_data": False,
         "removeArtifacts": False,

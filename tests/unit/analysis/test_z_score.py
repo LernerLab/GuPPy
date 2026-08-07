@@ -7,6 +7,8 @@ from guppy.analysis.z_score import (
     deltaFF,
     execute_controlFit_dff,
     filterSignal,
+    fit_control_with_bleaching,
+    fit_linear_model,
     validate_chunk_lengths_for_filtering,
     z_score_computation,
 )
@@ -250,6 +252,83 @@ def test_execute_control_fit_dff_isosbestic_false_signal_offset_from_control():
     np.testing.assert_allclose(control_fit, np.array([2.0, 3.0, 4.0]), atol=1e-10)
 
 
+# ── fit_linear_model ──────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("method", ["OLS", "IRWLS"])
+def test_fit_linear_model_recovers_two_regressors(method):
+    first = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
+    second = np.array([1.0, 0.0, 1.0, 0.0, 1.0])
+    # signal = 2*first + 5*second + 1
+    signal = np.array([6.0, 3.0, 10.0, 7.0, 14.0])
+
+    intercept, first_coefficient, second_coefficient = fit_linear_model(
+        design_matrix=np.column_stack([first, second]), signal=signal, method=method
+    )
+
+    np.testing.assert_allclose([intercept, first_coefficient, second_coefficient], [1.0, 2.0, 5.0], atol=1e-8)
+
+
+def test_fit_linear_model_unknown_method_raises():
+    with pytest.raises(ValueError, match="is not recognized"):
+        fit_linear_model(design_matrix=np.arange(5.0), signal=np.arange(5.0), method="quadratic")
+
+
+# ── fit_control_with_bleaching ────────────────────────────────────────────────
+
+# A control that varies enough for the regression to be well determined, plus bleaching the control
+# does not carry: signal = 2*control + 5 + 30*exp(-i/500) over 5000 samples.
+BLEACHING_SAMPLE_INDEX = np.arange(5000.0)
+BLEACHING_CONTROL = 100.0 + 10.0 * np.sin(2.0 * np.pi * BLEACHING_SAMPLE_INDEX / 700.0)
+BLEACHING_SIGNAL = 2.0 * BLEACHING_CONTROL + 5.0 + 30.0 * np.exp(-BLEACHING_SAMPLE_INDEX / 500.0)
+
+
+@pytest.mark.parametrize("method", ["OLS", "IRWLS"])
+def test_fit_control_with_bleaching_reproduces_the_signal(method):
+    fitted_values = fit_control_with_bleaching(BLEACHING_CONTROL, BLEACHING_SIGNAL, method=method)
+
+    np.testing.assert_allclose(fitted_values, BLEACHING_SIGNAL, atol=0.05)
+
+
+def test_fit_control_with_bleaching_beats_a_control_only_fit():
+    """The point of the joint fit: fitting the control alone lets its slope absorb the decay."""
+    joint = fit_control_with_bleaching(BLEACHING_CONTROL, BLEACHING_SIGNAL, method="OLS")
+    control_only = controlFit(BLEACHING_CONTROL, BLEACHING_SIGNAL, method="OLS")
+
+    assert np.abs(joint - BLEACHING_SIGNAL).max() < 0.05
+    assert np.abs(control_only - BLEACHING_SIGNAL).max() > 5.0
+
+
+def test_fit_control_with_bleaching_invents_no_trend_when_there_is_none():
+    signal_without_bleaching = 2.0 * BLEACHING_CONTROL + 5.0
+
+    fitted_values = fit_control_with_bleaching(BLEACHING_CONTROL, signal_without_bleaching, method="OLS")
+
+    np.testing.assert_allclose(fitted_values, signal_without_bleaching, atol=1e-4)
+
+
+def test_fit_control_with_bleaching_stays_bounded_on_a_ramp():
+    """A decay slower than the chunk is unidentifiable; left free the fit runs away.
+
+    The exponential flattens into a straight line, which it reaches by growing the amplitude and
+    offset without limit in opposite directions. Capping the decay constant at the chunk length
+    keeps the fitted values in the range of the data.
+    """
+    ramp = 2.0 * BLEACHING_CONTROL + 5.0 + BLEACHING_SAMPLE_INDEX * 0.01
+
+    fitted_values = fit_control_with_bleaching(BLEACHING_CONTROL, ramp, method="OLS")
+
+    assert np.abs(fitted_values).max() < 10.0 * np.abs(ramp).max()
+
+
+def test_control_fit_option_matches_the_joint_fit():
+    """The parameter is a passthrough on controlFit, not a second implementation."""
+    through_option = controlFit(BLEACHING_CONTROL, BLEACHING_SIGNAL, method="OLS", photobleaching_detrend=True)
+    direct = fit_control_with_bleaching(BLEACHING_CONTROL, BLEACHING_SIGNAL, method="OLS")
+
+    np.testing.assert_allclose(through_option, direct, atol=1e-12)
+
+
 # ── compute_z_score ───────────────────────────────────────────────────────────
 
 
@@ -288,3 +367,73 @@ def test_compute_z_score_isosbestic_returns_standard_normalized_array():
     inside = (tsNew > 0.5) & (tsNew < 11.5)
     assert not np.any(np.isnan(norm_data_arr[inside]))
     assert not np.any(np.isnan(control_fit_arr[inside]))
+
+
+def _bleaching_pair(n=2000):
+    """A control/signal pair carrying bleaching the control cannot account for.
+
+    The control oscillates so the control-to-signal regression is well determined; the signal
+    adds an exponential decay on top of that linear relationship, which no rescaling of the
+    control can remove and which therefore shows up as drift in the dF/F.
+    """
+    tsNew = np.linspace(0.0, 100.0, n)
+    control = 2.0 + 0.5 * np.sin(tsNew)
+    signal = 3.0 * control + 1.0 + 4.0 * np.exp(-np.arange(n) / 200.0)
+    return tsNew, control, signal
+
+
+def _run_compute_z_score(tsNew, control, signal, photobleaching_detrend):
+    return compute_z_score(
+        control=control,
+        signal=signal,
+        tsNew=tsNew,
+        coords=np.array([[-1.0, 101.0]]),
+        artifactsRemovalMethod="replace with NaN",
+        filter_window=0,
+        isosbestic_control=True,
+        zscore_method="standard z-score",
+        baseline_start=0.0,
+        baseline_end=0.0,
+        control_fit_method="OLS",
+        photobleaching_detrend=photobleaching_detrend,
+    )
+
+
+def _drift(dff, tsNew):
+    """Start-to-end change in the dF/F, over the first and last second of the trace."""
+    return float(np.mean(dff[tsNew <= 1.0]) - np.mean(dff[tsNew >= 99.0]))
+
+
+def test_compute_z_score_detrending_flattens_the_dff_drift():
+    tsNew, control, signal = _bleaching_pair()
+
+    _, dff_without_detrend, _, _ = _run_compute_z_score(tsNew, control, signal, False)
+    _, dff_with_detrend, _, _ = _run_compute_z_score(tsNew, control, signal, True)
+
+    # The decay dominates the trace when the fit cannot represent it, and is gone once it can.
+    assert _drift(dff_without_detrend, tsNew) > 20.0
+    assert abs(_drift(dff_with_detrend, tsNew)) < 0.5
+
+
+def test_compute_z_score_detrending_folds_the_decay_into_the_fitted_control():
+    """The bleaching is part of the fit, not something removed from the dF/F afterwards."""
+    tsNew, control, signal = _bleaching_pair()
+
+    _, _, fit_without_detrend, _ = _run_compute_z_score(tsNew, control, signal, False)
+    _, _, fit_with_detrend, _ = _run_compute_z_score(tsNew, control, signal, True)
+
+    # Only the joint fit tracks the signal, because only it can represent the decay.
+    assert np.abs(fit_with_detrend - signal).max() < 0.05
+    assert np.abs(fit_without_detrend - signal).max() > 1.0
+
+
+def test_compute_z_score_detrending_leaves_a_bleaching_free_pair_alone():
+    """A signal that is already a linear function of its control has nothing to detrend."""
+    tsNew = np.linspace(0.0, 100.0, 2000)
+    control = 2.0 + 0.5 * np.sin(tsNew)
+    signal = 3.0 * control + 1.0
+
+    _, dff_without_detrend, _, _ = _run_compute_z_score(tsNew, control, signal, False)
+    _, dff_with_detrend, _, _ = _run_compute_z_score(tsNew, control, signal, True)
+
+    np.testing.assert_allclose(dff_with_detrend, dff_without_detrend, atol=1e-3)

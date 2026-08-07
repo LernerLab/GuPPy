@@ -155,6 +155,10 @@ class TestParameterForm:
         assert parameter_form.isosbestic_control.value is True
         assert parameter_form.isosbestic_control.options == [True, False]
 
+    def test_photobleaching_detrend_default(self, parameter_form):
+        assert parameter_form.photobleaching_detrend.value is False
+        assert parameter_form.photobleaching_detrend.options == [True, False]
+
     def test_combine_data_default(self, parameter_form):
         assert parameter_form.combine_data.value is False
         assert parameter_form.combine_data.options == [True, False]
@@ -594,6 +598,7 @@ SAVED_PARAMETERS = {
     "controlFitWindowMode": "baseline epoch",
     "controlFitWindowStart": 3,
     "controlFitWindowEnd": 8,
+    "photobleaching_detrend": True,
     "timeForLightsTurnOn": 7,
     "filter_window": 42,
     "noChannels": 3,

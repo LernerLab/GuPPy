@@ -4,11 +4,21 @@ from typing import Literal
 import numpy as np
 import statsmodels.api as sm
 from scipy import signal as ss
+from scipy.optimize import minimize_scalar
 
 from .control_channel import helper_create_control_channel
 from ..utils.validation import validate_window_bounds
 
 logger = logging.getLogger(__name__)
+
+# When the control fit carries a photobleaching term, its decay constant is measured in samples,
+# not seconds: a chunk is a contiguous run at a fixed sampling rate, so the sample index is the same
+# axis up to that scale factor and the fitted curve is identical either way. It is searched over a
+# log-spaced grid spanning this fraction of the chunk up to its full length. A constant longer than
+# the chunk cannot be estimated from it — that is the regime where the exponential flattens into a
+# straight line and the amplitude and offset are free to grow without bound as long as they cancel.
+SHORTEST_DECAY_CONSTANT_FRACTION = 1 / 1000
+DECAY_CONSTANT_GRID_SIZE = 50
 
 
 def validate_chunk_lengths_for_filtering(tsNew: np.ndarray, coords: np.ndarray, filter_window: int) -> None:
@@ -66,6 +76,7 @@ def compute_z_score(
     control_fit_window_mode: Literal["full trace", "baseline epoch"] = "full trace",
     control_fit_window_start: float = 0,
     control_fit_window_end: float = 0,
+    photobleaching_detrend: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray | None]:
     """
     Compute the z-score and dF/F for a control/signal channel pair.
@@ -106,6 +117,10 @@ def compute_z_score(
         Fit-window start (s); used only in ``'baseline epoch'`` mode.
     control_fit_window_end : float, optional
         Fit-window end (s); used only in ``'baseline epoch'`` mode.
+    photobleaching_detrend : bool, optional
+        When True, the control fit gains an exponential term for the photobleaching the
+        control channel does not see, so the fitted baseline absorbs the residual decay that
+        would otherwise survive into the dF/F. Default is False.
 
     Returns
     -------
@@ -167,6 +182,7 @@ def compute_z_score(
                 filter_window,
                 control_fit_method,
                 fit_coefficients=fit_coefficients,
+                photobleaching_detrend=photobleaching_detrend,
             )
         normalized_data[chunk_indices] = norm_data
         fitted_control[chunk_indices] = control_fit
@@ -200,6 +216,7 @@ def execute_controlFit_dff(
     control_fit_method: Literal["IRWLS", "OLS"] = "IRWLS",
     *,
     fit_coefficients: tuple[float, float] | None = None,
+    photobleaching_detrend: bool = False,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Filter channels, fit the control to the signal, and compute dF/F.
@@ -222,6 +239,9 @@ def execute_controlFit_dff(
         Precomputed ``(slope, intercept)`` to apply instead of estimating from this
         segment. When None (default), coefficients are estimated from this segment
         (current per-chunk behavior).
+    photobleaching_detrend : bool, optional
+        When True, the fit gains an exponential term for the photobleaching the control
+        channel does not see. Default is False.
 
     Returns
     -------
@@ -242,7 +262,12 @@ def execute_controlFit_dff(
         control_smooth = filterSignal(filter_window, control)
         signal_smooth = filterSignal(filter_window, signal)
         if fit_coefficients is None:
-            control_fit = controlFit(control_smooth, signal_smooth, method=control_fit_method)
+            control_fit = controlFit(
+                control_smooth,
+                signal_smooth,
+                method=control_fit_method,
+                photobleaching_detrend=photobleaching_detrend,
+            )
         else:
             control_fit = apply_control_fit(control_smooth, *fit_coefficients)
         norm_data = deltaFF(signal_smooth, control_fit)
@@ -300,19 +325,8 @@ def estimate_control_fit_coefficients(
         Additive offset of the linear fit.
     """
 
-    if method == "OLS":
-        slope, intercept = np.polyfit(control, signal, 1)
-        return float(slope), float(intercept)
-    elif method == "IRWLS":
-        # sm.add_constant prepends the intercept column, so params are (intercept, slope).
-        design_matrix = sm.add_constant(control)
-        results = sm.RLM(signal, design_matrix, M=sm.robust.norms.TukeyBiweight()).fit()
-        intercept, slope = results.params
-        return float(slope), float(intercept)
-    else:
-        raise ValueError(
-            f"control fitting method '{method}' is not recognized. Use 'IRWLS' (robust, default) or 'OLS'."
-        )
+    intercept, slope = fit_linear_model(design_matrix=control, signal=signal, method=method)
+    return float(slope), float(intercept)
 
 
 def apply_control_fit(control: np.ndarray, slope: float, intercept: float) -> np.ndarray:
@@ -337,9 +351,116 @@ def apply_control_fit(control: np.ndarray, slope: float, intercept: float) -> np
     return (slope * control) + intercept
 
 
-def controlFit(control: np.ndarray, signal: np.ndarray, *, method: Literal["IRWLS", "OLS"] = "IRWLS") -> np.ndarray:
+def fit_linear_model(
+    *, design_matrix: np.ndarray, signal: np.ndarray, method: Literal["IRWLS", "OLS"] = "IRWLS"
+) -> np.ndarray:
     """
-    Fit a linear model from control to signal and return the fitted values.
+    Fit ``signal ~ intercept + design_matrix`` and return the coefficients.
+
+    Parameters
+    ----------
+    design_matrix : np.ndarray
+        Regressor columns, without an intercept column; shape ``(n_samples, n_regressors)``.
+    signal : np.ndarray
+        Values to fit to.
+    method : str, optional
+        Regression method. ``'IRWLS'`` (default) uses Iteratively Re-Weighted Least Squares
+        with a Tukey bisquare norm, which down-weights outliers and matches ordinary least
+        squares on clean data. ``'OLS'`` uses ordinary least squares.
+
+    Returns
+    -------
+    np.ndarray
+        Coefficients, intercept first, then one per column of ``design_matrix``.
+    """
+    design_with_intercept = sm.add_constant(design_matrix)
+    if method == "OLS":
+        return np.linalg.lstsq(design_with_intercept, signal, rcond=None)[0]
+    elif method == "IRWLS":
+        return sm.RLM(signal, design_with_intercept, M=sm.robust.norms.TukeyBiweight()).fit().params
+    else:
+        raise ValueError(
+            f"control fitting method '{method}' is not recognized. Use 'IRWLS' (robust, default) or 'OLS'."
+        )
+
+
+def _fit_with_decay_constant(
+    control: np.ndarray,
+    signal: np.ndarray,
+    sample_index: np.ndarray,
+    decay_constant: float,
+    method: Literal["IRWLS", "OLS"],
+) -> tuple[np.ndarray, float]:
+    """Fit control plus bleaching with the decay constant fixed; return the fit and its error."""
+    bleaching = np.exp(-sample_index / decay_constant)
+    intercept, slope, amplitude = fit_linear_model(
+        design_matrix=np.column_stack([control, bleaching]), signal=signal, method=method
+    )
+    fitted_values = intercept + slope * control + amplitude * bleaching
+    return fitted_values, float(np.sum((signal - fitted_values) ** 2))
+
+
+def fit_control_with_bleaching(
+    control: np.ndarray, signal: np.ndarray, *, method: Literal["IRWLS", "OLS"] = "IRWLS"
+) -> np.ndarray:
+    """
+    Fit ``signal = slope*control + intercept + amplitude*exp(-i/decay_constant)``.
+
+    The exponential term stands for the photobleaching the control channel does not see, which no
+    rescaling of the control can remove. It is estimated together with the linear coefficients
+    rather than subtracted afterwards, because fitting the control on its own lets the slope
+    absorb the decay — which is what leaves a residual in the dF/F in the first place.
+
+    The model is linear once the decay constant is fixed, so the constant is found by a search
+    over a log-spaced grid refined by a bounded scalar minimization, and the coefficients at each
+    candidate come from an ordinary least-squares fit. Only the final fit uses ``method``: the
+    error curve that locates the decay constant is insensitive to the robust weighting, and an
+    iteratively re-weighted fit at every candidate would dominate the runtime on a long recording.
+
+    Parameters
+    ----------
+    control : np.ndarray
+        Control channel array.
+    signal : np.ndarray
+        Signal channel array.
+    method : str, optional
+        Regression method for the final fit; ``'IRWLS'`` (default) or ``'OLS'``.
+
+    Returns
+    -------
+    fitted_values : np.ndarray
+        Fitted baseline, aligned with ``signal``.
+    """
+    sample_index = np.arange(control.shape[0], dtype=float)
+    length = float(sample_index[-1])
+
+    def sum_of_squared_errors(decay_constant: float) -> float:
+        return _fit_with_decay_constant(control, signal, sample_index, decay_constant, "OLS")[1]
+
+    candidates = np.geomspace(length * SHORTEST_DECAY_CONSTANT_FRACTION, length, DECAY_CONSTANT_GRID_SIZE)
+    errors = [sum_of_squared_errors(candidate) for candidate in candidates]
+    best = int(np.argmin(errors))
+
+    # Refine within the bracket the neighbouring grid points form, so the grid only has to get close.
+    lower, upper = candidates[max(best - 1, 0)], candidates[min(best + 1, candidates.shape[0] - 1)]
+    if lower < upper:
+        decay_constant = float(minimize_scalar(sum_of_squared_errors, bounds=(lower, upper), method="bounded").x)
+    else:
+        decay_constant = float(candidates[best])
+
+    logger.debug(f"Control fit bleaching term: decay constant {decay_constant:.4g} samples")
+    return _fit_with_decay_constant(control, signal, sample_index, decay_constant, method)[0]
+
+
+def controlFit(
+    control: np.ndarray,
+    signal: np.ndarray,
+    *,
+    method: Literal["IRWLS", "OLS"] = "IRWLS",
+    photobleaching_detrend: bool = False,
+) -> np.ndarray:
+    """
+    Fit a model from control to signal and return the fitted values.
 
     Parameters
     ----------
@@ -352,13 +473,19 @@ def controlFit(control: np.ndarray, signal: np.ndarray, *, method: Literal["IRWL
         Iteratively Re-Weighted Least Squares with a Tukey bisquare norm, which
         down-weights outliers and matches ordinary least squares on clean data.
         ``'OLS'`` uses ordinary least squares.
+    photobleaching_detrend : bool, optional
+        When True, the fit gains an exponential decay term for the photobleaching the control
+        channel does not see, so the fitted baseline absorbs the residual decay that would
+        otherwise survive into the dF/F. Default is False.
 
     Returns
     -------
     fitted_values : np.ndarray
-        Fitted control values (linear projection onto the signal scale).
+        Fitted control values, projected onto the signal scale.
     """
 
+    if photobleaching_detrend == True:
+        return fit_control_with_bleaching(control, signal, method=method)
     slope, intercept = estimate_control_fit_coefficients(control, signal, method=method)
     return apply_control_fit(control, slope, intercept)
 
