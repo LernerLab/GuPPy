@@ -165,6 +165,14 @@ def execute_zscore(session_folders: list[str], inputParameters: dict[str, object
             "or set photobleaching detrending back to False."
         )
 
+    if photobleaching_detrend == True and control_fit_method != "OLS":
+        raise ValueError(
+            f"photobleaching_detrend=True requires control_fit_method='OLS', but it is "
+            f"'{control_fit_method}'. Adding the photobleaching term makes the control fit nonlinear, and "
+            "the nonlinear solver has no robust variant. Set the control fit method to 'OLS', or set "
+            "photobleaching detrending back to False."
+        )
+
     run_folders = []
     for i in range(len(session_folders)):
         if combine_data == True:

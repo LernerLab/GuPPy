@@ -61,8 +61,8 @@ def run_preprocessing(tmp_path):
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_detrending_changes_the_fitted_control_and_the_dff(run_preprocessing):
     """The bleaching term is part of the control fit, so both the fit and the dF/F move."""
-    plain_output = run_preprocessing("plain")
-    detrended_output = run_preprocessing("detrended", photobleaching_detrend=True)
+    plain_output = run_preprocessing("plain", control_fit_method="OLS")
+    detrended_output = run_preprocessing("detrended", control_fit_method="OLS", photobleaching_detrend=True)
 
     def load(output_directory, prefix):
         return np.asarray(read_hdf5(f"{prefix}_{EXPECTED_RECORDING_SITE}", output_directory, "data")).ravel()
@@ -79,7 +79,7 @@ def test_detrending_changes_the_fitted_control_and_the_dff(run_preprocessing):
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_detrending_choice_is_recorded_in_the_parameter_snapshot(run_preprocessing):
-    output_directory = run_preprocessing("recorded", photobleaching_detrend=True)
+    output_directory = run_preprocessing("recorded", control_fit_method="OLS", photobleaching_detrend=True)
 
     with open(os.path.join(output_directory, "GuPPyParamtersUsed.json")) as parameters_file:
         parameters = json.load(parameters_file)
@@ -89,7 +89,16 @@ def test_detrending_choice_is_recorded_in_the_parameter_snapshot(run_preprocessi
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_detrending_without_isosbestic_control_raises(run_preprocessing):
     with pytest.raises(ValueError, match="requires an isosbestic control channel"):
-        run_preprocessing("no_isosbestic", photobleaching_detrend=True, isosbestic_control=False)
+        run_preprocessing(
+            "no_isosbestic", control_fit_method="OLS", photobleaching_detrend=True, isosbestic_control=False
+        )
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+def test_detrending_with_a_robust_fit_raises(run_preprocessing):
+    """The nonlinear solver the bleaching term needs has no robust variant."""
+    with pytest.raises(ValueError, match="requires control_fit_method='OLS'"):
+        run_preprocessing("robust", control_fit_method="IRWLS", photobleaching_detrend=True)
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
@@ -97,6 +106,7 @@ def test_detrending_composes_with_baseline_epoch_fitting(run_preprocessing):
     """Baseline-epoch fitting is what produces a slow drift, so the two must work together."""
     output_directory = run_preprocessing(
         "baseline_epoch",
+        control_fit_method="OLS",
         photobleaching_detrend=True,
         control_fit_window_mode="baseline epoch",
         control_fit_window_start=2,

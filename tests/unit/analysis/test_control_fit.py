@@ -87,9 +87,8 @@ def _fit_with_bleaching(control=None, signal=None, method="OLS"):
     return _fit_and_predict(control, signal, method=method, photobleaching_detrend=True)
 
 
-@pytest.mark.parametrize("method", ["OLS", "IRWLS"])
-def test_bleaching_fit_recovers_the_generating_coefficients(method):
-    model, fitted_values = _fit_with_bleaching(method=method)
+def test_bleaching_fit_recovers_the_generating_coefficients():
+    model, fitted_values = _fit_with_bleaching()
 
     np.testing.assert_allclose(model.slope, 2.0, atol=1e-3)
     np.testing.assert_allclose(model.intercept, 5.0, atol=0.1)

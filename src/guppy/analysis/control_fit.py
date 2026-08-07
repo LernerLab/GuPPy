@@ -12,6 +12,12 @@ The first is the ``photobleaching_detrend`` argument to :func:`fit`; the second 
 argument shared by :func:`fit` and :func:`predict`, with :func:`select_fit_window_indices` picking
 them for a baseline epoch. So the two compose without either knowing about the other.
 
+The regressor choice decides how the fit is solved. Without the bleaching term every coefficient
+is linear, so the fit is a least-squares solve with an exact answer. The bleaching term puts a
+coefficient inside an exponent, which makes the whole fit nonlinear and hands it to ``curve_fit``.
+That is also why the robust ``'IRWLS'`` method does not apply when detrending — ``curve_fit`` has
+no robust norm — and the two are refused as a combination upstream.
+
 :func:`execute` composes them over a whole recording, fitting either per retained chunk or once
 on a baseline epoch. It takes channels that have already been smoothed, and a control that has
 already been chosen — whether that control was measured at the isosbestic wavelength or synthesized
@@ -30,18 +36,20 @@ from typing import Literal, NamedTuple
 
 import numpy as np
 import statsmodels.api as sm
-from scipy.optimize import minimize_scalar
+from scipy.optimize import curve_fit
 
 from ..utils.validation import validate_window_bounds
 
 logger = logging.getLogger(__name__)
 
-# The decay constant is searched in log space, since it ranges over orders of magnitude, and is
-# bounded only to keep the search finite. The upper bound sits well past the fitted span so it does
-# not act as a constraint: beyond a few multiples of the span every larger constant describes the
-# same near-straight line, so widening it further changes nothing.
+# The decay constant is bounded relative to the span of data being fit. The upper bound sits well
+# past that span so it does not act as a constraint on any decay the data can actually show: beyond
+# a few multiples of the span every larger constant describes the same near-straight line. Without
+# it, though, an unidentifiable trace lets the offset and the amplitude run away in opposite
+# directions chasing that straight line.
 SHORTEST_DECAY_CONSTANT_FRACTION = 1 / 1000
 LONGEST_DECAY_CONSTANT_MULTIPLE = 10
+INITIAL_DECAY_CONSTANT_FRACTION = 1 / 4
 
 
 class ControlFitModel(NamedTuple):
@@ -54,16 +62,19 @@ class ControlFitModel(NamedTuple):
     intercept : float
         Additive offset of the fit.
     bleaching_amplitude : float
-        Size of the photobleaching term at sample 0; 0.0 when the model has no such term.
+        Size of the photobleaching term at ``sample_origin``; 0.0 when the model has no such term.
     decay_constant : float or None
         Decay constant of the photobleaching term, in samples; None when the model has no
         such term.
+    sample_origin : float
+        Sample the photobleaching term decays from — the first sample the model was fit on.
     """
 
     slope: float
     intercept: float
     bleaching_amplitude: float = 0.0
     decay_constant: float | None = None
+    sample_origin: float = 0.0
 
 
 def predict(model: ControlFitModel, control: np.ndarray, *, indices: np.ndarray | None = None) -> np.ndarray:
@@ -88,78 +99,88 @@ def predict(model: ControlFitModel, control: np.ndarray, *, indices: np.ndarray 
 
     predicted = model.intercept + model.slope * control[indices]
     if model.decay_constant is not None:
-        predicted = predicted + model.bleaching_amplitude * np.exp(-indices / model.decay_constant)
+        elapsed = indices - model.sample_origin
+        predicted = predicted + model.bleaching_amplitude * np.exp(-elapsed / model.decay_constant)
     return predicted
 
 
-def _fit_at_decay_constant(
-    control: np.ndarray,
-    signal: np.ndarray,
-    sample_index: np.ndarray,
-    decay_constant: float | None,
-    method: Literal["IRWLS", "OLS"],
-) -> tuple[ControlFitModel, np.ndarray]:
-    """Fit the coefficients with the decay constant held fixed, or absent when it is None.
+def _fit_without_bleaching(control: np.ndarray, signal: np.ndarray, method: Literal["IRWLS", "OLS"]) -> ControlFitModel:
+    """Fit ``signal ~ intercept + slope * control``.
 
-    Every coefficient enters the model linearly once the decay constant is fixed, so this is a
-    single least-squares solve: no starting guess, no iteration, and the same code path whether
-    or not there is a bleaching term.
-
-    Returns the coefficients along with the values they predict on the samples fit, which the
-    solve produces anyway and which the decay-constant search scores.
+    The model is linear in both coefficients, so this is solved exactly in one step rather than
+    searched for.
     """
-    if decay_constant is None:
-        regressors = control
-    else:
-        regressors = np.column_stack([control, np.exp(-sample_index / decay_constant)])
-
     # sm.add_constant prepends the intercept column, so the coefficients come back intercept-first.
-    design_matrix = sm.add_constant(regressors)
+    design_matrix = sm.add_constant(control)
     if method == "OLS":
-        coefficients = np.linalg.lstsq(design_matrix, signal, rcond=None)[0]
+        intercept, slope = np.linalg.lstsq(design_matrix, signal, rcond=None)[0]
     elif method == "IRWLS":
-        coefficients = sm.RLM(signal, design_matrix, M=sm.robust.norms.TukeyBiweight()).fit().params
+        intercept, slope = sm.RLM(signal, design_matrix, M=sm.robust.norms.TukeyBiweight()).fit().params
     else:
         raise ValueError(
             f"control fitting method '{method}' is not recognized. Use 'IRWLS' (robust, default) or 'OLS'."
         )
 
-    intercept, slope, *bleaching_amplitude = coefficients
-    model = ControlFitModel(
+    return ControlFitModel(slope=float(slope), intercept=float(intercept))
+
+
+def _bleaching_model(
+    regressors: tuple[np.ndarray, np.ndarray],
+    intercept: float,
+    slope: float,
+    bleaching_amplitude: float,
+    decay_constant: float,
+) -> np.ndarray:
+    """``intercept + slope * control + bleaching_amplitude * exp(-elapsed / decay_constant)``."""
+    control, elapsed = regressors
+    return intercept + slope * control + bleaching_amplitude * np.exp(-elapsed / decay_constant)
+
+
+def _fit_with_bleaching(control: np.ndarray, signal: np.ndarray, sample_index: np.ndarray) -> ControlFitModel:
+    """Fit the same model plus an exponential decay term, by nonlinear least squares.
+
+    The decay constant sits inside an exponent, so unlike every other coefficient it cannot be
+    solved for directly. That makes the whole fit nonlinear, and ``curve_fit`` needs a starting
+    guess: the linear fit supplies the intercept and slope, its residual at the first sample
+    supplies the amplitude, and the decay constant starts at a fraction of the span.
+
+    Elapsed samples are measured from the first sample fit rather than from the start of the
+    recording. Anchored at the recording start, a segment far into a long session would evaluate
+    the exponential deep in its tail, where it underflows to zero and takes the gradient with it,
+    and the fit would return the starting guess unchanged.
+    """
+    elapsed = sample_index - sample_index[0]
+    span = float(elapsed[-1])
+
+    linear_fit = _fit_without_bleaching(control, signal, "OLS")
+    residual = signal - predict(linear_fit, control)
+    initial_guess = [
+        linear_fit.intercept,
+        linear_fit.slope,
+        float(residual[0]),
+        span * INITIAL_DECAY_CONSTANT_FRACTION,
+    ]
+
+    coefficients, _ = curve_fit(
+        _bleaching_model,
+        (control, elapsed),
+        signal,
+        p0=initial_guess,
+        bounds=(
+            [-np.inf, -np.inf, -np.inf, span * SHORTEST_DECAY_CONSTANT_FRACTION],
+            [np.inf, np.inf, np.inf, span * LONGEST_DECAY_CONSTANT_MULTIPLE],
+        ),
+    )
+    intercept, slope, bleaching_amplitude, decay_constant = coefficients
+    logger.debug(f"Control fit bleaching term: decay constant {decay_constant:.4g} samples")
+
+    return ControlFitModel(
         slope=float(slope),
         intercept=float(intercept),
-        bleaching_amplitude=float(bleaching_amplitude[0]) if bleaching_amplitude else 0.0,
-        decay_constant=decay_constant,
+        bleaching_amplitude=float(bleaching_amplitude),
+        decay_constant=float(decay_constant),
+        sample_origin=float(sample_index[0]),
     )
-    return model, design_matrix @ coefficients
-
-
-def _search_decay_constant(control: np.ndarray, signal: np.ndarray, sample_index: np.ndarray) -> float:
-    """Find the decay constant minimizing the fit error, searching in log space.
-
-    The decay constant is the one parameter the model is not linear in, so it is the only one that
-    needs a search; every other coefficient is solved exactly at each candidate.
-
-    Candidates are scored with ordinary least squares even when the final fit is robust: the error
-    curve locating the constant is insensitive to the weighting, and an iteratively re-weighted fit
-    at every candidate would dominate the runtime on a long recording.
-    """
-    span = float(sample_index[-1] - sample_index[0])
-
-    def sum_of_squared_errors(log_decay_constant: float) -> float:
-        decay_constant = float(np.exp(log_decay_constant))
-        _, predicted = _fit_at_decay_constant(control, signal, sample_index, decay_constant, "OLS")
-        return float(np.sum((signal - predicted) ** 2))
-
-    result = minimize_scalar(
-        sum_of_squared_errors,
-        bounds=(
-            np.log(span * SHORTEST_DECAY_CONSTANT_FRACTION),
-            np.log(span * LONGEST_DECAY_CONSTANT_MULTIPLE),
-        ),
-        method="bounded",
-    )
-    return float(np.exp(result.x))
 
 
 def fit(
@@ -183,7 +204,8 @@ def fit(
         Indices of the samples to fit on: the segment being corrected for a per-segment fit, or
         the baseline epoch for a frozen one. Default is the whole trace.
     method : str, optional
-        Regression method; ``'IRWLS'`` (default) or ``'OLS'``.
+        Regression method; ``'IRWLS'`` (default) or ``'OLS'``. Ignored when
+        ``photobleaching_detrend`` is True, which is fit by ordinary least squares.
     photobleaching_detrend : bool, optional
         When True, the model gains an exponential decay term for the photobleaching the control
         channel does not see. It is fit together with the linear coefficients, since fitting the
@@ -195,15 +217,10 @@ def fit(
         The fitted coefficients.
     """
     indices = np.arange(control.shape[0]) if indices is None else indices
-    control, signal = control[indices], signal[indices]
 
-    decay_constant = None
     if photobleaching_detrend == True:
-        decay_constant = _search_decay_constant(control, signal, indices)
-        logger.debug(f"Control fit bleaching term: decay constant {decay_constant:.4g} samples")
-
-    model, _ = _fit_at_decay_constant(control, signal, indices, decay_constant, method)
-    return model
+        return _fit_with_bleaching(control[indices], signal[indices], indices)
+    return _fit_without_bleaching(control[indices], signal[indices], method)
 
 
 def select_fit_window_indices(
