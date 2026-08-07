@@ -13,13 +13,18 @@ linear relationship is exact.
 import numpy as np
 import pytest
 
-from guppy.analysis.control_fit import (
-    ControlFitModel,
-    apply_control_fit,
-    estimate_baseline_epoch_model,
-    estimate_control_fit,
-)
+from guppy.analysis import control_fit
+from guppy.analysis.artifact_removal import retained_chunk_indices
+from guppy.analysis.control_fit import ControlFitModel, select_fit_window_indices
 from guppy.analysis.z_score import compute_z_score
+
+
+def _baseline_epoch_model(control, signal, ts, coords, window, photobleaching_detrend=False):
+    """Select the fit window's retained samples and estimate from them, as compute_z_score does."""
+    fit_indices = select_fit_window_indices(ts, retained_chunk_indices(ts, coords), window[0], window[1])
+    return control_fit.fit(
+        control, signal, indices=fit_indices, method="OLS", photobleaching_detrend=photobleaching_detrend
+    )
 
 
 class TestEstimateAndApply:
@@ -27,7 +32,7 @@ class TestEstimateAndApply:
         # signal = 2 * control + 1 exactly, so OLS returns (slope, intercept) = (2, 1).
         control = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
         signal = 2.0 * control + 1.0
-        model = estimate_control_fit(control, signal, sample_index=np.arange(5.0), method="OLS")
+        model = control_fit.fit(control, signal, method="OLS")
         assert model.slope == pytest.approx(2.0)
         assert model.intercept == pytest.approx(1.0)
         assert model.decay_constant is None
@@ -36,7 +41,7 @@ class TestEstimateAndApply:
         control = np.array([1.0, 2.0, 3.0])
         # 2 * [1, 2, 3] + 1 = [3, 5, 7]
         model = ControlFitModel(slope=2.0, intercept=1.0)
-        np.testing.assert_allclose(apply_control_fit(model, control, np.arange(3.0)), np.array([3.0, 5.0, 7.0]))
+        np.testing.assert_allclose(control_fit.predict(model, control), np.array([3.0, 5.0, 7.0]))
 
 
 class TestBaselineEpochCoefficientEstimation:
@@ -51,18 +56,9 @@ class TestBaselineEpochCoefficientEstimation:
         # Good chunks keep {0,1,2} and {4,...,9}; t=3 falls in the removed gap.
         coords = np.array([[-0.5, 2.5], [3.5, 9.5]])
         # Fit window spans the whole trace, but the artifact at t=3 is excluded by artifact removal.
-        model = estimate_baseline_epoch_model(control, signal, ts, coords, 0, "OLS", 0, 9)
+        model = _baseline_epoch_model(control, signal, ts, coords, (0, 9))
         assert model.slope == pytest.approx(2.0)
         assert model.intercept == pytest.approx(1.0)
-
-    def test_empty_estimation_mask_raises(self):
-        ts = np.arange(10.0)
-        control = np.arange(1.0, 11.0)
-        signal = 2.0 * control + 1.0
-        # Retain only {4,...,9}; a fit window of [0, 3] intersects no retained data.
-        coords = np.array([[3.5, 9.5]])
-        with pytest.raises(ValueError, match="no data after artifact removal"):
-            estimate_baseline_epoch_model(control, signal, ts, coords, 0, "OLS", 0, 3)
 
 
 class TestBaselineEpochComputeZScore:
@@ -196,7 +192,7 @@ class TestBaselineEpochWithPhotobleachingDetrend:
         ts, control, signal = self._pair()
         coords = np.array([[-1.0, ts[-1] + 1.0]])
 
-        model = estimate_baseline_epoch_model(control, signal, ts, coords, 0, "OLS", 0, 15, photobleaching_detrend=True)
+        model = _baseline_epoch_model(control, signal, ts, coords, (0, 15), photobleaching_detrend=True)
 
         assert model.decay_constant is not None
         np.testing.assert_allclose(model.slope, 2.0, atol=1e-2)

@@ -1,17 +1,28 @@
-"""Fitting the control channel to the signal channel, and normalizing against that fit.
+"""Fitting the control channel to the signal channel.
 
 The fitted control is the estimated baseline the signal is measured against: dF/F divides by it,
 and everything downstream is derived from the result. Two independent choices shape it:
 
 * **Which regressors.** The control alone, or the control plus an exponential decay term standing
   for the photobleaching the control channel does not see.
-* **Which samples estimate the coefficients.** The segment being corrected, or a baseline epoch
-  chosen by the user.
+* **Which samples the model is fit on.** The segment being corrected, or a baseline epoch chosen
+  by the user.
 
-Both are arguments to :func:`estimate_control_fit`, so all four combinations compose. The estimated
-coefficients travel as a :class:`ControlFitModel`, which :func:`apply_control_fit` evaluates over
-whatever segment is being corrected — so a model estimated from a baseline epoch can be applied
-across the whole recording.
+The first is the ``photobleaching_detrend`` argument to :func:`fit`; the second is the ``indices``
+argument shared by :func:`fit` and :func:`predict`, with :func:`select_fit_window_indices` picking
+them for a baseline epoch. So the two compose without either knowing about the other.
+
+:func:`execute` composes them over a whole recording, fitting either per retained chunk or once
+on a baseline epoch. It takes channels that have already been smoothed, and a control that has
+already been chosen — whether that control was measured at the isosbestic wavelength or synthesized
+from the signal is the caller's concern, not this module's.
+
+Both :func:`fit` and :func:`predict` take the full trace and select from it, rather than a segment.
+The photobleaching term is exponential in time, so it needs an origin, and taking the whole trace
+makes that origin the start of the recording for every caller. That is what lets a model fit on a
+baseline epoch be applied across the rest of the recording: the two calls share an axis without
+the caller having to construct or carry one. (Sample position stands in for time throughout — the
+trace is uniformly sampled, so the two axes differ only by the sampling rate.)
 """
 
 import logging
@@ -19,7 +30,6 @@ from typing import Literal, NamedTuple
 
 import numpy as np
 import statsmodels.api as sm
-from scipy import signal as ss
 from scipy.optimize import minimize_scalar
 
 from ..utils.validation import validate_window_bounds
@@ -27,9 +37,9 @@ from ..utils.validation import validate_window_bounds
 logger = logging.getLogger(__name__)
 
 # The decay constant is searched in log space, since it ranges over orders of magnitude, and is
-# bounded only to keep the search finite. The upper bound sits well past the estimation span so it
-# does not act as a constraint: beyond a few multiples of the span every larger constant describes
-# the same near-straight line, so widening it further changes nothing.
+# bounded only to keep the search finite. The upper bound sits well past the fitted span so it does
+# not act as a constraint: beyond a few multiples of the span every larger constant describes the
+# same near-straight line, so widening it further changes nothing.
 SHORTEST_DECAY_CONSTANT_FRACTION = 1 / 1000
 LONGEST_DECAY_CONSTANT_MULTIPLE = 10
 
@@ -56,134 +66,90 @@ class ControlFitModel(NamedTuple):
     decay_constant: float | None = None
 
 
-def validate_chunk_lengths_for_filtering(tsNew: np.ndarray, coords: np.ndarray, filter_window: int) -> None:
+def predict(model: ControlFitModel, control: np.ndarray, *, indices: np.ndarray | None = None) -> np.ndarray:
     """
-    Ensure every artifact-removal chunk is long enough for the moving-average filter.
-
-    ``filterSignal`` filters each retained chunk with ``scipy.signal.filtfilt``, which
-    zero-phase pads by ``padlen = 3 * filter_window`` and therefore requires each chunk to
-    contain more than ``3 * filter_window`` samples. A large artifact can leave a short
-    surviving chunk; without this check ``filtfilt`` raises an opaque
-    "input vector x must be greater than padlen" error naming neither the chunk nor the cause.
+    Evaluate a fitted model over part of the recording.
 
     Parameters
     ----------
-    tsNew : np.ndarray
-        Corrected timestamp array aligned with the channel data.
-    coords : np.ndarray
-        Shape ``(N, 2)`` good-chunk boundary array from artifact removal.
-    filter_window : int
-        Moving-average filter window length; 0 disables filtering (no check needed).
-
-    Raises
-    ------
-    ValueError
-        If any retained chunk has ``<= 3 * filter_window`` samples.
-    """
-    if filter_window <= 1:
-        return
-
-    padlen = 3 * filter_window
-    for i in range(coords.shape[0]):
-        chunk_indices = np.where((tsNew > coords[i, 0]) & (tsNew < coords[i, 1]))[0]
-        if chunk_indices.shape[0] <= padlen:
-            message = (
-                f"retained segment [{coords[i, 0]}, {coords[i, 1]}]s has {chunk_indices.shape[0]} samples, but "
-                f"the moving-average filter (window={filter_window}) needs more than {padlen}. Shrink the artifact "
-                "selection over this segment, or lower the moving-average filter window."
-            )
-            logger.error(message)
-            raise ValueError(message)
-
-
-def filterSignal(filter_window: int, signal: np.ndarray) -> np.ndarray:
-    """
-    Apply a moving-average (uniform FIR) filter to a signal array.
-
-    Parameters
-    ----------
-    filter_window : int
-        Window length in samples; 0 returns ``signal`` unchanged; must be > 1 to filter.
-    signal : np.ndarray
-        1-D signal array.
+    model : ControlFitModel
+        Coefficients from :func:`fit`.
+    control : np.ndarray
+        Full control channel trace.
+    indices : np.ndarray or None, optional
+        Indices of the samples to predict at. Default is the whole trace.
 
     Returns
     -------
     np.ndarray
-        Filtered signal array, or ``signal`` when ``filter_window`` is 0.
+        The predicted baseline, aligned with ``indices``.
     """
-    if filter_window == 0:
-        return signal
-    elif filter_window > 1:
-        b = np.divide(np.ones((filter_window,)), filter_window)
-        a = 1
-        filtered_signal = ss.filtfilt(b, a, signal)
-        return filtered_signal
+    indices = np.arange(control.shape[0]) if indices is None else indices
+
+    predicted = model.intercept + model.slope * control[indices]
+    if model.decay_constant is not None:
+        predicted = predicted + model.bleaching_amplitude * np.exp(-indices / model.decay_constant)
+    return predicted
+
+
+def _fit_at_decay_constant(
+    control: np.ndarray,
+    signal: np.ndarray,
+    sample_index: np.ndarray,
+    decay_constant: float | None,
+    method: Literal["IRWLS", "OLS"],
+) -> tuple[ControlFitModel, np.ndarray]:
+    """Fit the coefficients with the decay constant held fixed, or absent when it is None.
+
+    Every coefficient enters the model linearly once the decay constant is fixed, so this is a
+    single least-squares solve: no starting guess, no iteration, and the same code path whether
+    or not there is a bleaching term.
+
+    Returns the coefficients along with the values they predict on the samples fit, which the
+    solve produces anyway and which the decay-constant search scores.
+    """
+    if decay_constant is None:
+        regressors = control
     else:
-        message = (
-            f"filter_window={filter_window} is not a valid moving-average window. Use 0 to disable "
-            "filtering, or a window length greater than 1."
-        )
-        logger.error(message)
-        raise ValueError(message)
+        regressors = np.column_stack([control, np.exp(-sample_index / decay_constant)])
 
-
-def fit_linear_model(
-    *, design_matrix: np.ndarray, signal: np.ndarray, method: Literal["IRWLS", "OLS"] = "IRWLS"
-) -> np.ndarray:
-    """
-    Fit ``signal ~ intercept + design_matrix`` and return the coefficients.
-
-    Parameters
-    ----------
-    design_matrix : np.ndarray
-        Regressor columns, without an intercept column; shape ``(n_samples, n_regressors)``.
-    signal : np.ndarray
-        Values to fit to.
-    method : str, optional
-        Regression method. ``'IRWLS'`` (default) uses Iteratively Re-Weighted Least Squares
-        with a Tukey bisquare norm, which down-weights outliers and matches ordinary least
-        squares on clean data. ``'OLS'`` uses ordinary least squares.
-
-    Returns
-    -------
-    np.ndarray
-        Coefficients, intercept first, then one per column of ``design_matrix``.
-    """
-    design_with_intercept = sm.add_constant(design_matrix)
+    # sm.add_constant prepends the intercept column, so the coefficients come back intercept-first.
+    design_matrix = sm.add_constant(regressors)
     if method == "OLS":
-        return np.linalg.lstsq(design_with_intercept, signal, rcond=None)[0]
+        coefficients = np.linalg.lstsq(design_matrix, signal, rcond=None)[0]
     elif method == "IRWLS":
-        return sm.RLM(signal, design_with_intercept, M=sm.robust.norms.TukeyBiweight()).fit().params
+        coefficients = sm.RLM(signal, design_matrix, M=sm.robust.norms.TukeyBiweight()).fit().params
     else:
         raise ValueError(
             f"control fitting method '{method}' is not recognized. Use 'IRWLS' (robust, default) or 'OLS'."
         )
 
-
-def _fit_with_decay_constant(
-    control: np.ndarray,
-    signal: np.ndarray,
-    sample_index: np.ndarray,
-    decay_constant: float,
-    method: Literal["IRWLS", "OLS"],
-) -> tuple[ControlFitModel, float]:
-    """Fit control plus bleaching with the decay constant held fixed; return model and error."""
-    bleaching = np.exp(-sample_index / decay_constant)
-    intercept, slope, amplitude = fit_linear_model(
-        design_matrix=np.column_stack([control, bleaching]), signal=signal, method=method
+    intercept, slope, *bleaching_amplitude = coefficients
+    model = ControlFitModel(
+        slope=float(slope),
+        intercept=float(intercept),
+        bleaching_amplitude=float(bleaching_amplitude[0]) if bleaching_amplitude else 0.0,
+        decay_constant=decay_constant,
     )
-    fitted_values = intercept + slope * control + amplitude * bleaching
-    model = ControlFitModel(float(slope), float(intercept), float(amplitude), float(decay_constant))
-    return model, float(np.sum((signal - fitted_values) ** 2))
+    return model, design_matrix @ coefficients
 
 
-def _estimate_decay_constant(control: np.ndarray, signal: np.ndarray, sample_index: np.ndarray) -> float:
-    """Find the decay constant minimizing the fit error, searching in log space."""
+def _search_decay_constant(control: np.ndarray, signal: np.ndarray, sample_index: np.ndarray) -> float:
+    """Find the decay constant minimizing the fit error, searching in log space.
+
+    The decay constant is the one parameter the model is not linear in, so it is the only one that
+    needs a search; every other coefficient is solved exactly at each candidate.
+
+    Candidates are scored with ordinary least squares even when the final fit is robust: the error
+    curve locating the constant is insensitive to the weighting, and an iteratively re-weighted fit
+    at every candidate would dominate the runtime on a long recording.
+    """
     span = float(sample_index[-1] - sample_index[0])
 
     def sum_of_squared_errors(log_decay_constant: float) -> float:
-        return _fit_with_decay_constant(control, signal, sample_index, np.exp(log_decay_constant), "OLS")[1]
+        decay_constant = float(np.exp(log_decay_constant))
+        _, predicted = _fit_at_decay_constant(control, signal, sample_index, decay_constant, "OLS")
+        return float(np.sum((signal - predicted) ** 2))
 
     result = minimize_scalar(
         sum_of_squared_errors,
@@ -196,159 +162,75 @@ def _estimate_decay_constant(control: np.ndarray, signal: np.ndarray, sample_ind
     return float(np.exp(result.x))
 
 
-def estimate_control_fit(
+def fit(
     control: np.ndarray,
     signal: np.ndarray,
     *,
-    sample_index: np.ndarray,
+    indices: np.ndarray | None = None,
     method: Literal["IRWLS", "OLS"] = "IRWLS",
     photobleaching_detrend: bool = False,
 ) -> ControlFitModel:
     """
-    Estimate the control-to-signal fit from the samples given.
-
-    Pass the samples the coefficients should be estimated from: the whole segment being
-    corrected for a per-segment fit, or a subset for a baseline-epoch fit. ``sample_index``
-    positions those samples on the recording's sample axis, so a model estimated from one span
-    evaluates correctly over another.
+    Fit the control-to-signal model.
 
     Parameters
     ----------
     control : np.ndarray
-        Control channel values to fit from.
+        Full control channel trace.
     signal : np.ndarray
-        Signal channel values to fit to.
-    sample_index : np.ndarray
-        Position of each sample on the recording's sample axis. Only the photobleaching term
-        depends on it; the linear coefficients do not.
+        Full signal channel trace.
+    indices : np.ndarray or None, optional
+        Indices of the samples to fit on: the segment being corrected for a per-segment fit, or
+        the baseline epoch for a frozen one. Default is the whole trace.
     method : str, optional
         Regression method; ``'IRWLS'`` (default) or ``'OLS'``.
     photobleaching_detrend : bool, optional
         When True, the model gains an exponential decay term for the photobleaching the control
-        channel does not see. It is estimated together with the linear coefficients, since
-        fitting the control on its own lets its slope absorb the decay. Default is False.
+        channel does not see. It is fit together with the linear coefficients, since fitting the
+        control on its own lets its slope absorb the decay. Default is False.
 
     Returns
     -------
     ControlFitModel
-        The estimated coefficients.
+        The fitted coefficients.
     """
-    if photobleaching_detrend == False:
-        intercept, slope = fit_linear_model(design_matrix=control, signal=signal, method=method)
-        return ControlFitModel(float(slope), float(intercept))
+    indices = np.arange(control.shape[0]) if indices is None else indices
+    control, signal = control[indices], signal[indices]
 
-    # The model is linear once the decay constant is fixed, so only that one parameter needs a
-    # search. Its candidates are scored with ordinary least squares: the error curve locating it is
-    # insensitive to the robust weighting, and an iteratively re-weighted fit at every candidate
-    # would dominate the runtime on a long recording. The final fit below uses the chosen method.
-    decay_constant = _estimate_decay_constant(control, signal, sample_index)
-    model, _ = _fit_with_decay_constant(control, signal, sample_index, decay_constant, method)
-    logger.debug(f"Control fit bleaching term: decay constant {model.decay_constant:.4g} samples")
+    decay_constant = None
+    if photobleaching_detrend == True:
+        decay_constant = _search_decay_constant(control, signal, indices)
+        logger.debug(f"Control fit bleaching term: decay constant {decay_constant:.4g} samples")
+
+    model, _ = _fit_at_decay_constant(control, signal, indices, decay_constant, method)
     return model
 
 
-def apply_control_fit(model: ControlFitModel, control: np.ndarray, sample_index: np.ndarray) -> np.ndarray:
+def select_fit_window_indices(
+    tsNew: np.ndarray,
+    chunk_index_list: list[np.ndarray],
+    control_fit_window_start: float,
+    control_fit_window_end: float,
+) -> np.ndarray:
     """
-    Evaluate a fitted model over a segment.
+    Pick the samples a baseline-epoch model is fit on.
+
+    The fit set is the fit window intersected with the data retained by artifact removal, so an
+    artifact inside the window cannot corrupt the coefficients.
 
     Parameters
     ----------
-    model : ControlFitModel
-        Coefficients from :func:`estimate_control_fit`.
-    control : np.ndarray
-        Control channel values for the segment.
-    sample_index : np.ndarray
-        Position of each sample on the recording's sample axis, on the same basis used to
-        estimate the model.
+    tsNew : np.ndarray
+        Corrected timestamp array aligned with the channel data.
+    chunk_index_list : list of np.ndarray
+        Indices of each retained chunk, from ``retained_chunk_indices``.
+    control_fit_window_start, control_fit_window_end : float
+        Fit-window bounds (s).
 
     Returns
     -------
     np.ndarray
-        The fitted baseline, aligned with ``control``.
-    """
-    fitted_values = model.intercept + model.slope * control
-    if model.decay_constant is not None:
-        fitted_values = fitted_values + model.bleaching_amplitude * np.exp(-sample_index / model.decay_constant)
-    return fitted_values
-
-
-def controlFit(
-    control: np.ndarray,
-    signal: np.ndarray,
-    *,
-    method: Literal["IRWLS", "OLS"] = "IRWLS",
-    photobleaching_detrend: bool = False,
-) -> np.ndarray:
-    """
-    Fit a model from control to signal over one segment and return the fitted values.
-
-    Parameters
-    ----------
-    control : np.ndarray
-        Control channel array.
-    signal : np.ndarray
-        Signal channel array.
-    method : str, optional
-        Regression method; ``'IRWLS'`` (default) or ``'OLS'``.
-    photobleaching_detrend : bool, optional
-        When True, the fit gains an exponential decay term for the photobleaching the control
-        channel does not see. Default is False.
-
-    Returns
-    -------
-    fitted_values : np.ndarray
-        Fitted control values, projected onto the signal scale.
-    """
-    sample_index = np.arange(control.shape[0], dtype=float)
-    model = estimate_control_fit(
-        control,
-        signal,
-        sample_index=sample_index,
-        method=method,
-        photobleaching_detrend=photobleaching_detrend,
-    )
-    return apply_control_fit(model, control, sample_index)
-
-
-def estimate_baseline_epoch_model(
-    control: np.ndarray,
-    signal: np.ndarray,
-    tsNew: np.ndarray,
-    coords: np.ndarray,
-    filter_window: int,
-    control_fit_method: Literal["IRWLS", "OLS"],
-    control_fit_window_start: float,
-    control_fit_window_end: float,
-    *,
-    photobleaching_detrend: bool = False,
-) -> ControlFitModel:
-    """
-    Estimate the control fit from the baseline fit window.
-
-    The estimation set is the fit window intersected with the data retained by artifact
-    removal, so an artifact inside the window cannot corrupt the coefficient estimate.
-
-    Parameters
-    ----------
-    control, signal : np.ndarray
-        Full-trace control and signal channel arrays.
-    tsNew : np.ndarray
-        Corrected timestamp array aligned with ``control`` and ``signal``.
-    coords : np.ndarray
-        Shape ``(N, 2)`` good-chunk boundary array from artifact removal.
-    filter_window : int
-        Moving-average filter window length; 0 disables filtering.
-    control_fit_method : {'IRWLS', 'OLS'}
-        Regression method for the fit.
-    control_fit_window_start, control_fit_window_end : float
-        Fit-window bounds (s).
-    photobleaching_detrend : bool, optional
-        When True, the model gains an exponential decay term. Default is False.
-
-    Returns
-    -------
-    ControlFitModel
-        Coefficients estimated from the fit window, on the full trace's sample axis.
+        Indices into ``tsNew`` of the samples to fit on.
 
     Raises
     ------
@@ -365,12 +247,9 @@ def estimate_baseline_epoch_model(
         range_label="signal timespan",
     )
 
-    retained_indices = np.concatenate(
-        [np.where((tsNew > coords[i, 0]) & (tsNew < coords[i, 1]))[0] for i in range(coords.shape[0])]
-    )
     window_indices = np.where((tsNew >= control_fit_window_start) & (tsNew <= control_fit_window_end))[0]
-    estimation_indices = np.intersect1d(window_indices, retained_indices)
-    if estimation_indices.size == 0:
+    fit_indices = np.intersect1d(window_indices, np.concatenate(chunk_index_list))
+    if fit_indices.size == 0:
         message = (
             f"control fit window [{control_fit_window_start}, {control_fit_window_end}]s contains no data after "
             f"artifact removal within the retained range [{tsNew[0]}, {tsNew[-1]}]s; no points remain to estimate "
@@ -379,103 +258,63 @@ def estimate_baseline_epoch_model(
         logger.error(message)
         raise ValueError(message)
 
-    control_smooth = filterSignal(filter_window, control)
-    signal_smooth = filterSignal(filter_window, signal)
-    sample_index = np.arange(tsNew.shape[0], dtype=float)
-    return estimate_control_fit(
-        control_smooth[estimation_indices],
-        signal_smooth[estimation_indices],
-        sample_index=sample_index[estimation_indices],
-        method=control_fit_method,
-        photobleaching_detrend=photobleaching_detrend,
-    )
+    return fit_indices
 
 
-def deltaFF(signal: np.ndarray, control: np.ndarray) -> np.ndarray:
-    """
-    Compute dF/F as ``(signal - control) / control * 100``.
-
-    Parameters
-    ----------
-    signal : np.ndarray
-        Filtered signal channel.
-    control : np.ndarray
-        Fitted control channel.
-
-    Returns
-    -------
-    normData : np.ndarray
-        Percent dF/F array.
-    """
-
-    difference = np.subtract(signal, control)
-    normData = np.divide(difference, control)
-    normData = normData * 100
-
-    return normData
-
-
-def execute_controlFit_dff(
+def execute(
     control: np.ndarray,
     signal: np.ndarray,
-    isosbestic_control: bool,
-    filter_window: int,
-    control_fit_method: Literal["IRWLS", "OLS"] = "IRWLS",
+    chunk_index_list: list[np.ndarray],
     *,
-    sample_index: np.ndarray | None = None,
-    model: ControlFitModel | None = None,
+    fit_indices: np.ndarray | None = None,
+    method: Literal["IRWLS", "OLS"] = "IRWLS",
     photobleaching_detrend: bool = False,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> np.ndarray:
     """
-    Filter channels, fit the control to the signal, and compute dF/F.
+    Produce the fitted baseline across every retained chunk of a recording.
 
     Parameters
     ----------
     control : np.ndarray
-        Control channel data (or synthetic control when no isosbestic exists).
+        Full smoothed control channel trace.
     signal : np.ndarray
-        Signal channel data.
-    isosbestic_control : bool
-        When True, both channels are filtered before fitting.
-        When False, only the signal is filtered.
-    filter_window : int
-        Moving-average filter window length; 0 disables filtering.
-    control_fit_method : str, optional
+        Full smoothed signal channel trace.
+    chunk_index_list : list of np.ndarray
+        Indices of each retained chunk, from ``retained_chunk_indices``.
+    fit_indices : np.ndarray or None, optional
+        Samples to fit a single frozen model on, applied to every chunk. Default is None, which
+        fits each chunk on itself instead.
+    method : str, optional
         Regression method; ``'IRWLS'`` (default) or ``'OLS'``.
-    sample_index : np.ndarray or None, optional
-        Position of each sample on the recording's sample axis. Defaults to a range starting
-        at 0, which is correct whenever the model is estimated from this same segment.
-    model : ControlFitModel or None, optional
-        Precomputed coefficients to apply instead of estimating from this segment. When None
-        (default), coefficients are estimated from this segment.
     photobleaching_detrend : bool, optional
-        When True, an estimated fit gains an exponential decay term. Ignored when ``model``
-        is given, since that model already carries its own terms. Default is False.
+        When True, the fit gains an exponential decay term. Default is False.
 
     Returns
     -------
-    norm_data : np.ndarray
-        Normalized dF/F array.
-    control_fit : np.ndarray
-        Fitted control channel aligned with ``signal``.
+    np.ndarray
+        Full-length fitted baseline, NaN wherever no chunk covers the sample.
     """
-    if sample_index is None:
-        sample_index = np.arange(control.shape[0], dtype=float)
-
-    if isosbestic_control == False:
-        control_smooth = control
-    else:
-        control_smooth = filterSignal(filter_window, control)
-    signal_smooth = filterSignal(filter_window, signal)
-
-    if model is None:
-        model = estimate_control_fit(
-            control_smooth,
-            signal_smooth,
-            sample_index=sample_index,
-            method=control_fit_method,
+    frozen_model = None
+    if fit_indices is not None:
+        frozen_model = fit(
+            control,
+            signal,
+            indices=fit_indices,
+            method=method,
             photobleaching_detrend=photobleaching_detrend,
         )
-    control_fit = apply_control_fit(model, control_smooth, sample_index)
 
-    return deltaFF(signal_smooth, control_fit), control_fit
+    fitted_control = np.full(control.shape[0], np.nan)
+    for chunk_indices in chunk_index_list:
+        model = frozen_model
+        if model is None:
+            model = fit(
+                control,
+                signal,
+                indices=chunk_indices,
+                method=method,
+                photobleaching_detrend=photobleaching_detrend,
+            )
+        fitted_control[chunk_indices] = predict(model, control, indices=chunk_indices)
+
+    return fitted_control

@@ -3,12 +3,10 @@ from typing import Literal
 
 import numpy as np
 
-from .control_channel import helper_create_control_channel
-from .control_fit import (
-    estimate_baseline_epoch_model,
-    execute_controlFit_dff,
-    validate_chunk_lengths_for_filtering,
-)
+from . import control_fit
+from .artifact_removal import retained_chunk_indices
+from .control_channel import synthesize_over_chunks
+from .filtering import filter_over_chunks, validate_chunk_lengths_for_filtering
 from ..utils.validation import validate_window_bounds
 
 logger = logging.getLogger(__name__)
@@ -90,81 +88,66 @@ def compute_z_score(
         control = np.zeros(tsNew.shape[0])
 
     validate_chunk_lengths_for_filtering(tsNew, coords, filter_window)
+    chunk_index_list = retained_chunk_indices(tsNew, coords)
 
-    z_scores = np.array([])
-    normalized_data = np.full(tsNew.shape[0], np.nan)
-    fitted_control = np.full(tsNew.shape[0], np.nan)
-    synthetic_control = np.full(tsNew.shape[0], np.nan)
-    # The photobleaching term is exponential in time, so the fit needs to know where each chunk
-    # sits in the recording. Sample position stands in for time: the trace is uniformly sampled,
-    # so the two axes differ only by the sampling rate.
-    sample_index = np.arange(tsNew.shape[0], dtype=float)
+    smoothed_signal = filter_over_chunks(signal, chunk_index_list, filter_window)
+    if isosbestic_control == True:
+        smoothed_control = filter_over_chunks(control, chunk_index_list, filter_window)
+        synthetic_control = None
+    else:
+        # A synthesized control is a curve fit to the signal, not a filtered trace, so it is not
+        # smoothed again.
+        synthetic_control = synthesize_over_chunks(signal, tsNew, chunk_index_list)
+        smoothed_control = synthetic_control
 
-    # In baseline-epoch mode, estimate the fit once from the fit window and reuse it for every
-    # chunk below, instead of re-fitting per chunk.
-    baseline_epoch_model = None
+    fit_indices = None
     if control_fit_window_mode == "baseline epoch":
-        baseline_epoch_model = estimate_baseline_epoch_model(
-            control,
-            signal,
-            tsNew,
-            coords,
-            filter_window,
-            control_fit_method,
-            control_fit_window_start,
-            control_fit_window_end,
-            photobleaching_detrend=photobleaching_detrend,
+        fit_indices = control_fit.select_fit_window_indices(
+            tsNew, chunk_index_list, control_fit_window_start, control_fit_window_end
         )
 
-    # for artifacts removal, each chunk which was selected by user is being processed individually and then
-    # z-score is calculated
-    for i in range(coords.shape[0]):
-        chunk_indices = np.where((tsNew > coords[i, 0]) & (tsNew < coords[i, 1]))[0]
-        if isosbestic_control == False:
-            control_segment = helper_create_control_channel(signal[chunk_indices], tsNew[chunk_indices], window=101)
-            signal_segment = signal[chunk_indices]
-            norm_data, control_fit = execute_controlFit_dff(
-                control_segment, signal_segment, isosbestic_control, filter_window, control_fit_method
-            )
-            synthetic_control[chunk_indices] = control_segment
-            if i < coords.shape[0] - 1:
-                gap_indices = np.where((tsNew > coords[i, 1]) & (tsNew < coords[i + 1, 0]))[0]
-                synthetic_control[gap_indices] = np.full(gap_indices.shape[0], np.nan)
-        else:
-            control_segment = control[chunk_indices]
-            signal_segment = signal[chunk_indices]
-            norm_data, control_fit = execute_controlFit_dff(
-                control_segment,
-                signal_segment,
-                isosbestic_control,
-                filter_window,
-                control_fit_method,
-                sample_index=sample_index[chunk_indices],
-                model=baseline_epoch_model,
-                photobleaching_detrend=photobleaching_detrend,
-            )
-        normalized_data[chunk_indices] = norm_data
-        fitted_control[chunk_indices] = control_fit
+    fitted_control = control_fit.execute(
+        smoothed_control,
+        smoothed_signal,
+        chunk_index_list,
+        fit_indices=fit_indices,
+        method=control_fit_method,
+        photobleaching_detrend=photobleaching_detrend,
+    )
+
+    # dF/F is elementwise, so the NaNs outside the retained chunks carry through on their own.
+    normalized_data = deltaFF(smoothed_signal, fitted_control)
 
     if artifactsRemovalMethod == "concatenate":
         normalized_data = normalized_data[~np.isnan(normalized_data)]
         fitted_control = fitted_control[~np.isnan(fitted_control)]
-    z_score = z_score_computation(normalized_data, tsNew, zscore_method, baseline_start, baseline_end)
-    z_scores = np.concatenate((z_scores, z_score))
-
-    # handle the case if there are chunks being cut in the front and the end
-    if isosbestic_control == False:
-        coords = coords.flatten()
-        # front chunk
-        front_chunk_indices = np.where((tsNew >= tsNew[0]) & (tsNew < coords[0]))[0]
-        synthetic_control[front_chunk_indices] = np.full(front_chunk_indices.shape[0], np.nan)
-        # end chunk
-        end_chunk_indices = np.where((tsNew > coords[-1]) & (tsNew <= tsNew[-1]))[0]
-        synthetic_control[end_chunk_indices] = np.full(end_chunk_indices.shape[0], np.nan)
-    else:
-        synthetic_control = None
+    z_scores = z_score_computation(normalized_data, tsNew, zscore_method, baseline_start, baseline_end)
 
     return z_scores, normalized_data, fitted_control, synthetic_control
+
+
+def deltaFF(signal: np.ndarray, control: np.ndarray) -> np.ndarray:
+    """
+    Compute dF/F as ``(signal - control) / control * 100``.
+
+    Parameters
+    ----------
+    signal : np.ndarray
+        Filtered signal channel.
+    control : np.ndarray
+        Fitted control channel.
+
+    Returns
+    -------
+    normData : np.ndarray
+        Percent dF/F array.
+    """
+
+    difference = np.subtract(signal, control)
+    normData = np.divide(difference, control)
+    normData = normData * 100
+
+    return normData
 
 
 def z_score_computation(

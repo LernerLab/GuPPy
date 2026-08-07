@@ -1,7 +1,24 @@
 import numpy as np
 import pytest
 
-from guppy.analysis.z_score import compute_z_score, z_score_computation
+from guppy.analysis.z_score import compute_z_score, deltaFF, z_score_computation
+
+# ── deltaFF ───────────────────────────────────────────────────────────────────
+
+
+def test_delta_ff_equal_signal_and_control_returns_zeros():
+    signal = np.array([1.0, 2.0, 3.0])
+    control = np.array([1.0, 2.0, 3.0])
+    result = deltaFF(signal, control)
+    np.testing.assert_allclose(result, np.zeros(3))
+
+
+def test_delta_ff_double_signal_returns_one_hundred():
+    control = np.array([1.0, 2.0, 3.0])
+    signal = 2.0 * control
+    result = deltaFF(signal, control)
+    np.testing.assert_allclose(result, np.full(3, 100.0))
+
 
 # ── z_score_computation ───────────────────────────────────────────────────────
 
@@ -144,6 +161,36 @@ def test_compute_z_score_isosbestic_returns_standard_normalized_array():
     inside = (tsNew > 0.5) & (tsNew < 11.5)
     assert not np.any(np.isnan(norm_data_arr[inside]))
     assert not np.any(np.isnan(control_fit_arr[inside]))
+
+
+def test_compute_z_score_without_isosbestic_returns_a_synthetic_control_inside_the_chunks():
+    # The synthetic control is fit as a + b*exp(-t/c), so a signal from that family is
+    # reproduced almost exactly and the dF/F against it collapses to zero.
+    tsNew = np.linspace(1.0, 61.0, 600)
+    signal = 5.0 + 50.0 * np.exp(-tsNew / 60.0)
+    coords = np.array([[5.0, 55.0]])
+
+    _, norm_data, control_fit, synthetic_control = compute_z_score(
+        control=np.zeros(600),
+        signal=signal,
+        tsNew=tsNew,
+        coords=coords,
+        artifactsRemovalMethod="replace with NaN",
+        filter_window=0,
+        isosbestic_control=False,
+        zscore_method="standard z-score",
+        baseline_start=0.0,
+        baseline_end=0.0,
+        control_fit_method="OLS",
+    )
+
+    inside = (tsNew > 5.0) & (tsNew < 55.0)
+    # The synthetic control exists only where data was retained.
+    np.testing.assert_allclose(synthetic_control[inside], signal[inside], atol=1e-2)
+    assert np.all(np.isnan(synthetic_control[~inside]))
+    assert np.all(np.isnan(control_fit[~inside]))
+    # Fitting that control back onto the signal it came from leaves nothing behind.
+    np.testing.assert_allclose(norm_data[inside], np.zeros(inside.sum()), atol=1e-2)
 
 
 def _bleaching_pair(n=2000):

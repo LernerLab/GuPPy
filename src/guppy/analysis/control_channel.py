@@ -124,6 +124,36 @@ def create_control_channel(filepath: str, store_array: np.ndarray, window: int =
             logger.info("Control channel from signal channel created using curve-fitting")
 
 
+def synthesize_over_chunks(
+    signal: np.ndarray, timestamps: np.ndarray, chunk_index_list: list[np.ndarray], window: int = 101
+) -> np.ndarray:
+    """
+    Synthesize a control channel from the signal, one fit per retained chunk.
+
+    Parameters
+    ----------
+    signal : np.ndarray
+        Full-length signal channel trace.
+    timestamps : np.ndarray
+        Timestamp array aligned with ``signal``.
+    chunk_index_list : list of np.ndarray
+        Indices of each retained chunk, from ``retained_chunk_indices``.
+    window : int, optional
+        Savitzky-Golay window length used before curve fitting. Default is 101.
+
+    Returns
+    -------
+    np.ndarray
+        Full-length synthetic control, NaN wherever no chunk covers the sample.
+    """
+    synthetic_control = np.full(signal.shape[0], np.nan)
+    for chunk_indices in chunk_index_list:
+        synthetic_control[chunk_indices] = helper_create_control_channel(
+            signal[chunk_indices], timestamps[chunk_indices], window
+        )
+    return synthetic_control
+
+
 # TODO: figure out why a control channel is created for both timestamp correction and z-score steps.
 def helper_create_control_channel(signal: np.ndarray, timestamps: np.ndarray, window: int) -> np.ndarray:
     """
