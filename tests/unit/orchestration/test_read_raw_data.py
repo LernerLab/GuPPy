@@ -18,6 +18,7 @@ DEFAULT_ANALYSIS_PARAMETERS = {
     "controlFitWindowMode": "full trace",
     "controlFitWindowStart": 0,
     "controlFitWindowEnd": 0,
+    "photobleaching_detrend": False,
     "timeForLightsTurnOn": 1,
     "filter_window": 100,
     "removeArtifacts": False,

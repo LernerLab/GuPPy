@@ -1,6 +1,7 @@
 # v2.0.0-alpha9 (Upcoming)
 
 ## Features
+- Added a **Photobleaching Detrend?** parameter: the isosbestic control fit can now include an exponential decay term for the photobleaching the control channel does not see, removing the slow drift that otherwise survives into the ΔF/F on multi-hour recordings. [PR #416](https://github.com/LernerLab/GuPPy/pull/416)
 - Added an **AUC Units** parameter: the peak/AUC areas can now be reported in z-score (or ΔF/F) × seconds, the unit commonly reported in the literature, instead of the sampling-rate-dependent one-sample spacing that remains the default. [PR #415](https://github.com/LernerLab/GuPPy/pull/415)
 - Artifact removal is now two optional steps of its own — **Select Artifact Windows** and **Remove Artifacts** — where you mark the periods containing artifacts and apply them in one pass. [PR #413](https://github.com/LernerLab/GuPPy/pull/413)
 - Added a baseline-epoch mode for isosbestic control fitting: fit coefficients can now be estimated from a user-specified pre-injection window and applied across the whole recording, so a step-change (e.g. a drug injection) no longer corrupts the control fit. [PR #392](https://github.com/LernerLab/GuPPy/pull/392)
