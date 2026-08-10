@@ -6,4 +6,5 @@ Tutorials are learning-oriented guides that walk you through a complete workflow
 :maxdepth: 1
 
 first_analysis
+custom_plots
 ```

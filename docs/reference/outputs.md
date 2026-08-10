@@ -28,7 +28,7 @@ The `average/` directory is not inside any session folder. It is created in the 
 
 ## File formats
 
-GuPPy's two HDF5 extensions are **not** interchangeable: `.hdf5` and `.h5` are written by different libraries and have to be read by different ones.
+GuPPy's two HDF5 extensions are **not** interchangeable: `.hdf5` and `.h5` are written by different libraries and have to be read by different ones. [Custom Plots from GuPPy Outputs](../tutorials/custom_plots.md) works through loading each of them in Python.
 
 ### `.hdf5`
 
