@@ -1,6 +1,6 @@
 # Custom Plots from GuPPy Outputs
 
-The Visualization GUI covers the plots most analyses need, but sooner or later you will want a figure it does not offer: your own colour scheme for a paper, two recording sites overlaid, a subset of trials, a statistic GuPPy does not compute. Everything you need for that is already on disk in the run folder, and this tutorial opens it.
+The Visualization GUI covers the plots most analyses need, but sooner or later you will want a figure it does not offer: your own color scheme for a paper, two recording sites overlaid, a subset of trials, a statistic GuPPy does not compute. Everything you need for that is already on disk in the run folder, and this tutorial opens it.
 
 This is the sequel to [Your First Analysis](first_analysis.md). It uses the run folder that tutorial produces and builds three figures from it with plain matplotlib.
 
@@ -193,7 +193,7 @@ axes.legend(frameon=False, fontsize=9)
 ```
 
 ```{image} ../_static/images/custom_plots/psth.png
-:alt: PSTH of the RewardPort event at recording site A, showing five grey single-trial traces, a red mean trace with a shaded standard-error band, and a dashed green line at time zero
+:alt: PSTH of the RewardPort event at recording site A, showing five gray single-trial traces, a red mean trace with a shaded standard-error band, and a dashed green line at time zero
 :align: center
 ```
 
@@ -226,7 +226,7 @@ figure.colorbar(image, ax=axes, label="z-score")
 ```
 
 ```{image} ../_static/images/custom_plots/heatmap.png
-:alt: Heat map of the five RewardPort trials at recording site A, time on the horizontal axis and trial number on the vertical, coloured by z-score, with trial 5 blank after time zero
+:alt: Heat map of the five RewardPort trials at recording site A, time on the horizontal axis and trial number on the vertical, colored by z-score, with trial 5 blank after time zero
 :align: center
 ```
 
