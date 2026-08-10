@@ -18,6 +18,7 @@ EXPECTED_JSON_KEYS = {
     "controlFitWindowMode",
     "controlFitWindowStart",
     "controlFitWindowEnd",
+    "photobleaching_detrend",
     "timeForLightsTurnOn",
     "filter_window",
     "removeArtifacts",

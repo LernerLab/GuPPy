@@ -417,6 +417,7 @@ def _build_preprocess_input_parameters(
     control_fit_window_mode: Literal["full trace", "baseline epoch"],
     control_fit_window_start: int,
     control_fit_window_end: int,
+    photobleaching_detrend: bool,
     time_for_lights_turn_on: float,
     selected_runs: dict[str, list[str]],
 ) -> tuple[dict[str, object], list[str], dict[str, list[str]]]:
@@ -506,6 +507,9 @@ def _build_preprocess_input_parameters(
     input_params["controlFitWindowStart"] = control_fit_window_start
     input_params["controlFitWindowEnd"] = control_fit_window_end
 
+    # Inject photobleaching detrending
+    input_params["photobleaching_detrend"] = photobleaching_detrend
+
     # Per-session output-directory subset filter — every session must have at least one run name.
     normalized_selected_runs = _normalize_selected_runs(selected_runs, abs_sessions)
     input_params["selected_runs"] = normalized_selected_runs
@@ -529,6 +533,7 @@ def step3(
     control_fit_window_mode: Literal["full trace", "baseline epoch"] = "full trace",
     control_fit_window_start: int = 0,
     control_fit_window_end: int = 0,
+    photobleaching_detrend: bool = False,
     time_for_lights_turn_on: float = 1.0,
     selected_runs: dict[str, list[str]],
 ) -> None:
@@ -583,6 +588,9 @@ def step3(
     control_fit_window_end : int
         Fit-window end in seconds. Only used when ``control_fit_window_mode`` is
         ``'baseline epoch'``. Defaults to 0.
+    photobleaching_detrend : bool
+        When True, fit an exponential trend to the dF/F after the control channel is
+        subtracted and remove it. Defaults to False. Requires ``isosbestic_control=True``.
     time_for_lights_turn_on : float
         Seconds of warm-up discarded from the start of the recording. Defaults to 1.0.
         Accepts fractional values; the GUI widget is integer-only.
@@ -609,6 +617,7 @@ def step3(
         control_fit_window_mode=control_fit_window_mode,
         control_fit_window_start=control_fit_window_start,
         control_fit_window_end=control_fit_window_end,
+        photobleaching_detrend=photobleaching_detrend,
         time_for_lights_turn_on=time_for_lights_turn_on,
         selected_runs=selected_runs,
     )
@@ -635,6 +644,7 @@ def select_artifact_windows(
     control_fit_window_mode: Literal["full trace", "baseline epoch"] = "full trace",
     control_fit_window_start: int = 0,
     control_fit_window_end: int = 0,
+    photobleaching_detrend: bool = False,
     time_for_lights_turn_on: float = 1.0,
     selected_runs: dict[str, list[str]],
 ) -> None:
@@ -681,6 +691,7 @@ def select_artifact_windows(
         control_fit_window_mode=control_fit_window_mode,
         control_fit_window_start=control_fit_window_start,
         control_fit_window_end=control_fit_window_end,
+        photobleaching_detrend=photobleaching_detrend,
         time_for_lights_turn_on=time_for_lights_turn_on,
         selected_runs=selected_runs,
     )
@@ -708,6 +719,7 @@ def remove_artifacts(
     control_fit_window_mode: Literal["full trace", "baseline epoch"] = "full trace",
     control_fit_window_start: int = 0,
     control_fit_window_end: int = 0,
+    photobleaching_detrend: bool = False,
     time_for_lights_turn_on: float = 1.0,
     selected_runs: dict[str, list[str]],
 ) -> None:
@@ -748,6 +760,7 @@ def remove_artifacts(
         control_fit_window_mode=control_fit_window_mode,
         control_fit_window_start=control_fit_window_start,
         control_fit_window_end=control_fit_window_end,
+        photobleaching_detrend=photobleaching_detrend,
         time_for_lights_turn_on=time_for_lights_turn_on,
         selected_runs=selected_runs,
     )

@@ -108,6 +108,7 @@ def save_parameters(
         "controlFitWindowMode": inputParameters["controlFitWindowMode"],
         "controlFitWindowStart": inputParameters["controlFitWindowStart"],
         "controlFitWindowEnd": inputParameters["controlFitWindowEnd"],
+        "photobleaching_detrend": inputParameters["photobleaching_detrend"],
         "timeForLightsTurnOn": inputParameters["timeForLightsTurnOn"],
         "filter_window": inputParameters["filter_window"],
         # Resolved per destination below; listed here to fix their position in the file.

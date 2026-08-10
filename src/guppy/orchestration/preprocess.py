@@ -133,7 +133,7 @@ def execute_zscore(session_folders: list[str], inputParameters: dict[str, object
     inputParameters : dict
         Pipeline configuration; must include ``'filter_window'``, ``'isosbestic_control'``,
         ``'zscore_method'``, ``'control_fit_method'``, ``'baselineWindowStart'``,
-        ``'baselineWindowEnd'``, and ``'combine_data'``.
+        ``'baselineWindowEnd'``, ``'photobleaching_detrend'``, and ``'combine_data'``.
     remove_artifacts : bool
         When True, chunk the signal on each run's saved artifact windows; when False,
         compute over the full recording.
@@ -148,12 +148,29 @@ def execute_zscore(session_folders: list[str], inputParameters: dict[str, object
     control_fit_window_mode = inputParameters["controlFitWindowMode"]
     control_fit_window_start = inputParameters["controlFitWindowStart"]
     control_fit_window_end = inputParameters["controlFitWindowEnd"]
+    photobleaching_detrend = inputParameters["photobleaching_detrend"]
 
     if control_fit_window_mode == "baseline epoch" and isosbestic_control == False:
         raise ValueError(
             "controlFitWindowMode='baseline epoch' requires an isosbestic control channel, but "
             "isosbestic_control is False. Enable the isosbestic control channel, or set the control fit "
             "window back to 'full trace'."
+        )
+
+    if photobleaching_detrend == True and isosbestic_control == False:
+        raise ValueError(
+            "photobleaching_detrend=True requires an isosbestic control channel, but isosbestic_control "
+            "is False. Without one the synthetic control is itself an exponential fit to the signal, so "
+            "the photobleaching trend has already been removed. Enable the isosbestic control channel, "
+            "or set photobleaching detrending back to False."
+        )
+
+    if photobleaching_detrend == True and control_fit_method != "OLS":
+        raise ValueError(
+            f"photobleaching_detrend=True requires control_fit_method='OLS', but it is "
+            f"'{control_fit_method}'. Adding the photobleaching term makes the control fit nonlinear, and "
+            "the nonlinear solver has no robust variant. Set the control fit method to 'OLS', or set "
+            "photobleaching detrending back to False."
         )
 
     run_folders = []
@@ -191,6 +208,7 @@ def execute_zscore(session_folders: list[str], inputParameters: dict[str, object
                 control_fit_window_mode,
                 control_fit_window_start,
                 control_fit_window_end,
+                photobleaching_detrend,
             )
             write_zscore(filepath, name, z_score, dff, control_fit, control_array)
 

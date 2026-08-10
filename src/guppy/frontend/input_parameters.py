@@ -137,6 +137,11 @@ class ParameterForm:
                                 data files for the same recording session.<br>
                                 - ***Isosbestic Control Channel? :*** Make this parameter ``` False ``` if user
                                 does not want to use isosbestic control channel in the analysis.<br>
+                                - ***Photobleaching Detrend? :*** Make this parameter ``` True ``` to fit an
+                                exponential decay to the corrected &#916;F/F and subtract it, removing the
+                                residual photobleaching drift that remains after the control channel is
+                                subtracted. Useful for long (multi-hour) recordings. Requires an isosbestic
+                                control channel. Default is ``` False ```.<br>
                                 - ***Eliminate first few seconds :*** It is the parameter to cut out first x seconds
                                 from the data. Default is 1 seconds.<br>
                                 - ***Window for Moving Average filter :*** The filtering of signals
@@ -182,6 +187,10 @@ class ParameterForm:
         )
         self.control_fit_window_end = pn.widgets.IntInput(
             name="Control Fit Window End Time (s) (int)", value=0, width=320
+        )
+
+        self.photobleaching_detrend = pn.widgets.Select(
+            name="Photobleaching Detrend? (bool)", value=False, options=[True, False], width=320
         )
 
         self.numberOfCores = pn.widgets.IntInput(name="# of cores (int)", value=2, width=150)
@@ -367,6 +376,7 @@ class ParameterForm:
             self.control_fit_window_mode,
             self.control_fit_window_strt,
             self.control_fit_window_end,
+            self.photobleaching_detrend,
             self.timeForLightsTurnOn,
             self.moving_avg_filter,
             self.computePsth,
@@ -706,6 +716,7 @@ class ParameterForm:
             "controlFitWindowMode": self.control_fit_window_mode.value,
             "controlFitWindowStart": self.control_fit_window_strt.value,
             "controlFitWindowEnd": self.control_fit_window_end.value,
+            "photobleaching_detrend": self.photobleaching_detrend.value,
             "timeForLightsTurnOn": self.timeForLightsTurnOn.value,
             "filter_window": self.moving_avg_filter.value,
             "noChannels": self.no_channels_np.value,
@@ -758,6 +769,7 @@ class ParameterForm:
             "controlFitWindowMode": self.control_fit_window_mode,
             "controlFitWindowStart": self.control_fit_window_strt,
             "controlFitWindowEnd": self.control_fit_window_end,
+            "photobleaching_detrend": self.photobleaching_detrend,
             "timeForLightsTurnOn": self.timeForLightsTurnOn,
             "filter_window": self.moving_avg_filter,
             "noChannels": self.no_channels_np,
