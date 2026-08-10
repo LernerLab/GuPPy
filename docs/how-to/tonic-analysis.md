@@ -119,4 +119,5 @@ Per recording site with at least one epoch window, in the output run folder:
 | `tonic_epochs_<site>.csv` | The epoch windows: `label`, `start`, `end` |
 | `tonic_<site>.h5` | Each epoch's `mean_zscore` and `mean_dff`, indexed by label |
 
-Both are rewritten each time you save.
+Both are rewritten each time you save. See [Output data model](../reference/outputs.md)
+for how they sit alongside the rest of a run folder.
