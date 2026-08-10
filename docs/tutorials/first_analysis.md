@@ -181,6 +181,8 @@ The results are written into the same output folder as Step 2, in four new HDF5 
 | `cntrl_sig_fit_A.hdf5` | The fitted control trace (used internally and for artifact-removal plots) |
 | `timeCorrection_A.hdf5` | Corrected timestamps, sampling rate, and a few related metadata fields |
 
+Step 3 also rewrites the per-channel files under their store labels. The [Output data model](../reference/outputs.md) reference lists every file and the datasets inside it.
+
 When preprocessing finishes, GuPPy opens the preprocessing results in a new browser tab. Pick a recording site and its five traces stack up together — control, signal, signal with the fitted control, z-score, and ΔF/F — sharing one time axis, so zooming any of them zooms them all. The main GuPPy tab stays responsive, so you can leave the results tab open and keep working.
 
 <!-- TODO: add a screenshot of the preprocessing results tab that opens after preprocess completes (e.g. 05_preprocess_plot.png). It is a separate browser tab served by GuPPy, so the screenshot script will need to capture that route. -->
@@ -210,9 +212,9 @@ The outputs land in the same `sample_data_csv_1_output_1/` directory you have be
 | `RewardPort_A.hdf5` | The peri-event timestamps (the x-axis of the PSTH) |
 | `RewardPort_A_z_score_A.h5` | The PSTH dataframe: one column per trial, plus `mean` and `err` (standard error) columns and the `timestamps` column |
 | `RewardPort_A_baselineUncorrected_z_score_A.h5` | Same dataframe before baseline correction was applied (kept for inspection) |
-| `peak_AUC_RewardPort_A_z_score_A.csv` and matching `.hdf5` | Peak amplitude and area-under-curve for the trial-mean PSTH |
+| `peak_AUC_RewardPort_A_z_score_A.csv` and matching `.h5` | Peak amplitude and area-under-curve for the trial-mean PSTH |
 
-The visualization step in Step 5 reads these files; you do not need to inspect them by hand.
+The visualization step in Step 5 reads these files; you do not need to inspect them by hand. If you do want to open them yourself, the [Output data model](../reference/outputs.md) reference gives the columns of each table and the datasets in each HDF5 file.
 
 ## Step 5: Visualize the results
 
