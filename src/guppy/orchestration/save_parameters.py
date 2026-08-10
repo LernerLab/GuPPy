@@ -135,6 +135,8 @@ def save_parameters(
         "moving_window": inputParameters["moving_window"],
         "highAmpFilt": inputParameters["highAmpFilt"],
         "transientsThresh": inputParameters["transientsThresh"],
+        "computeBinnedMetrics": inputParameters["computeBinnedMetrics"],
+        "binnedMetricsWidth": inputParameters["binnedMetricsWidth"],
         "visualize_zscore_or_dff": inputParameters["visualize_zscore_or_dff"],
         "averageForGroup": inputParameters["averageForGroup"],
     }

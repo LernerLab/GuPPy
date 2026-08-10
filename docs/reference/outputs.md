@@ -41,6 +41,11 @@ A pandas DataFrame written with `DataFrame.to_hdf`, holding exactly one DataFram
 ### `.csv`
 
 Flat text. Inside a run folder: the store mappings (`storesList.csv`, `combine_storesList.csv`), tables that also exist as an `.h5` (peak/AUC, transient frequency and amplitude), and the two tables written as CSV only — `transientsOccurrences_<metric>.csv` and `tonic_epochs_<site>.csv`. The channel exports written outside the run folder are CSV too.
+A pandas DataFrame written with `DataFrame.to_hdf`, holding exactly one DataFrame under the key `df`, and read back through pandas rather than h5py. These are the PSTH, peak/AUC, transient-summary, binned-metrics and cross-correlation tables.
+
+### `.csv`
+
+Flat text. Inside a run folder: the store mappings (`storesList.csv`, `combine_storesList.csv`), tables that also exist as an `.h5` (peak/AUC, transient frequency and amplitude, binned metrics), and `transientsOccurrences_<metric>.csv`, the one table written as CSV only. The channel exports written outside the run folder are CSV too.
 
 ### `.npy`
 
@@ -197,6 +202,7 @@ The means are computed at save time from the traces then on disk, and the differ
 | `transientsOccurrences_<metric>.csv` | One row per detected transient |
 | `transient_outputs_<metric>.hdf5` | The trace and peak indices behind the transient results |
 | `transients_<metric>.hdf5` | The transient times as an event train, **Use Transients as Events?** runs only |
+| `binned_metrics_<site>.h5` and `.csv` | One row per fixed-width time bin, when **Compute Binned Metrics?** is enabled |
 | `cross_correlation_output/corr_<event>_<metric-prefix>_<siteA>_<siteB>.h5` | Cross-correlation between two recording sites |
 
 **The PSTH files** hold a `float32` DataFrame under the key `df`, with one row per time point in the peri-event window. The columns, in order: one column per trial, labeled with that trial's event timestamp as a string; then, when trial binning is enabled, a `bin_(<label>)` and `bin_err_(<label>)` pair per bin; then `timestamps` (the peri-event time axis, running from `-nSecPrev` to `+nSecPost`); then `mean` and `err`, the mean and standard error across the single-trial columns only. The `_baselineUncorrected_` file is the same table before the baseline correction was subtracted.
@@ -210,6 +216,14 @@ The means are computed at save time from the traces then on disk, and the differ
 **`transient_outputs_<metric>.hdf5`** holds the inputs the transient plot is drawn from: `z_score` (the NaN-free trace the detector ran on), `timestamps`, and `peaksInd` (the integer indices of the detected peaks within that trace).
 
 **`transients_<metric>.hdf5`** appears only when **Use Transients as Events?** is on. It holds a single dataset `ts` — the detected transient times — in exactly the shape of an `<event>_<site>.hdf5` event file, which is how the transients stand in for a TTL train. The event label is `transients_z_score` (or `transients_dff`), so the recording site is the metric's own site: `transients_z_score_DMS.hdf5` is the DMS transient train, and the PSTH computed from it lands in `transients_z_score_DMS_z_score_DMS.h5` with a matching `peak_AUC_` pair. As with any event file, Step 4 rewrites `ts` in place with the subset of transients the PSTH actually used.
+
+**`binned_metrics_<site>.h5` and `.csv`** are written only when **Compute Binned Metrics?** is enabled. They hold the same table: one row per fixed-width time bin, indexed `0..n-1` (index name `bin`). The columns are `bin_start` and `bin_end` (seconds of absolute session time, on the same timebase as `timestampNew`), `n_samples`, `mean_zscore`, `mean_dff`, and a `transient_count_z_score` and/or `transient_count_dff` column.
+
+Bins start at the first corrected timestamp and run in **Bin Width** steps to the last. The final bin is kept even when the session does not divide evenly, so it may be shorter than the rest — compare `bin_end - bin_start` against the others to spot it. Bins are half-open, `[bin_start, bin_end)`, except the last, which includes its own end; the transient counts follow the same convention. `n_samples` counts the samples behind the means, so a bin lost entirely to artifact removal reads `0` with `NaN` means.
+
+Which count columns appear depends on **z_score and/or ΔF/F? (transients)**: the detector only runs on the metrics you select, and only those get a count column. The two mean columns are always present.
+
+Two cases where a bin does not correspond to a fixed stretch of wall-clock time: with **Combine Data?** enabled the sessions are re-timed onto one synthetic timeline, so a bin can straddle the boundary between two of them; and with the `concatenate` artifact-removal method the time axis is compressed where artifacts were cut, so a 60-second bin spans more than 60 seconds of the original recording.
 
 **The cross-correlation files** hold a `float32` DataFrame under the key `df`, one row per lag. Columns are the trial labels the two recording sites have in common, then `timestamps`, then `mean` and `err`. Despite its name, the `timestamps` column holds **lag values in seconds**, not times. Cross-correlation cannot run on a recording processed with the `concatenate` artifact-removal method; Step 4 raises instead.
 
@@ -276,7 +290,7 @@ The group PSTH has the same shape as a per-session PSTH, but its trial columns a
 
 A JSON snapshot of the analysis parameters, written into every run folder the step operated on. Each of Steps 2, 3 and 4 rewrites it, so the file always reflects the most recent step to touch that run. Group averaging is the one exception: it writes no snapshot into `average/`. When a session has no run folder yet, the snapshot is written at the session folder root instead.
 
-The first key is `guppy_version`, the installed version of the `guppy-neuro` package that produced the run. The rest are the analysis parameters themselves: `combine_data`, `isosbestic_control`, `control_fit_method`, `controlFitWindowMode`, `controlFitWindowStart`, `controlFitWindowEnd`, `photobleaching_detrend`, `timeForLightsTurnOn`, `filter_window`, `removeArtifacts`, `artifactsRemovalMethod`, `noChannels`, `zscore_method`, `baselineWindowStart`, `baselineWindowEnd`, `nSecPrev`, `nSecPost`, `computeCorr`, `useTransientsAsEvents`, `timeInterval`, `bin_psth_trials`, `use_time_or_trials`, `baselineCorrectionStart`, `baselineCorrectionEnd`, `peak_startPoint`, `peak_endPoint`, `auc_units`, `selectForComputePsth`, `selectForTransientsComputation`, `moving_window`, `highAmpFilt`, `transientsThresh`, `visualize_zscore_or_dff` and `averageForGroup`. See the [Input parameter reference](parameters.md) for what each one controls.
+The first key is `guppy_version`, the installed version of the `guppy-neuro` package that produced the run. The rest are the analysis parameters themselves: `combine_data`, `isosbestic_control`, `control_fit_method`, `controlFitWindowMode`, `controlFitWindowStart`, `controlFitWindowEnd`, `photobleaching_detrend`, `timeForLightsTurnOn`, `filter_window`, `removeArtifacts`, `artifactsRemovalMethod`, `noChannels`, `zscore_method`, `baselineWindowStart`, `baselineWindowEnd`, `nSecPrev`, `nSecPost`, `computeCorr`, `useTransientsAsEvents`, `timeInterval`, `bin_psth_trials`, `use_time_or_trials`, `baselineCorrectionStart`, `baselineCorrectionEnd`, `peak_startPoint`, `peak_endPoint`, `auc_units`, `selectForComputePsth`, `selectForTransientsComputation`, `moving_window`, `highAmpFilt`, `transientsThresh`, `computeBinnedMetrics`, `binnedMetricsWidth`, `visualize_zscore_or_dff` and `averageForGroup`. See the [Input parameter reference](parameters.md) for what each one controls.
 
 `removeArtifacts` and `artifactsRemovalMethod` describe what was applied to that run rather than what the form currently holds: each step carries them forward from whatever the run folder already records. Saving artifact windows patches these two keys in place and leaves everything else untouched.
 
@@ -335,6 +349,8 @@ The first key is `guppy_version`, the installed version of the `guppy-neuro` pac
     freqAndAmp_<metric>.csv                        step 4
     transientsOccurrences_<metric>.csv             step 4
     transient_outputs_<metric>.hdf5                step 4   z_score, timestamps, peaksInd
+    binned_metrics_<site>.h5                       step 4   DataFrame, key "df"
+    binned_metrics_<site>.csv                      step 4
     cross_correlation_output/
       corr_<event>_<metric-prefix>_<siteA>_<siteB>.h5   step 4   DataFrame, key "df"
     saved_plots/                                   step 5, created empty

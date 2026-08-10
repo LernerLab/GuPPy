@@ -876,3 +876,63 @@ def read_transients_from_hdf5(filepath: str, name: str) -> tuple[np.ndarray, np.
     timestamps = read_hdf5(event, filepath, "timestamps")
     peaksInd = read_hdf5(event, filepath, "peaksInd")
     return z_score, timestamps, peaksInd
+
+
+def write_binned_metrics_to_hdf5(filepath: str, binned_metrics: pd.DataFrame, recording_site: str) -> None:
+    """
+    Save whole-session time-binned metrics to an HDF5 file.
+
+    Parameters
+    ----------
+    filepath : str
+        Output directory.
+    binned_metrics : pd.DataFrame
+        One row per time bin, as returned by
+        :func:`guppy.analysis.binned_metrics.compute_binned_metrics`.
+    recording_site : str
+        Recording site name; the file is written as ``binned_metrics_<recording_site>.h5``.
+    """
+    output_path = os.path.join(filepath, "binned_metrics_" + recording_site + ".h5")
+
+    binned_metrics.to_hdf(output_path, key="df", mode="w")
+
+
+def write_binned_metrics_to_csv(filepath: str, binned_metrics: pd.DataFrame, recording_site: str) -> None:
+    """
+    Save whole-session time-binned metrics to a CSV file.
+
+    Parameters
+    ----------
+    filepath : str
+        Output directory.
+    binned_metrics : pd.DataFrame
+        One row per time bin, as returned by
+        :func:`guppy.analysis.binned_metrics.compute_binned_metrics`.
+    recording_site : str
+        Recording site name; the file is written as ``binned_metrics_<recording_site>.csv``.
+    """
+    output_path = os.path.join(filepath, "binned_metrics_" + recording_site + ".csv")
+
+    binned_metrics.to_csv(output_path)
+
+
+def read_binned_metrics_from_hdf5(filepath: str, recording_site: str) -> pd.DataFrame:
+    """
+    Load whole-session time-binned metrics from an HDF5 file.
+
+    Parameters
+    ----------
+    filepath : str
+        Directory containing the ``binned_metrics_<recording_site>.h5`` file.
+    recording_site : str
+        Recording site name (without the ``binned_metrics_`` prefix or ``.h5`` suffix).
+
+    Returns
+    -------
+    binned_metrics : pd.DataFrame
+        One row per time bin.
+    """
+    output_path = os.path.join(filepath, "binned_metrics_" + recording_site + ".h5")
+    binned_metrics = pd.read_hdf(output_path, key="df", mode="r")
+
+    return binned_metrics

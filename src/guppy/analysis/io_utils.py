@@ -91,6 +91,35 @@ def recording_site_from_preprocessed_label(label: str) -> str:
     return label
 
 
+def metric_from_preprocessed_label(label: str) -> str:
+    """
+    Return the metric name of a ``z_score_*`` / ``dff_*`` label or basename.
+
+    Parameters
+    ----------
+    label : str
+        Label or extension-stripped basename, e.g. ``"z_score_left_hemisphere"``.
+
+    Returns
+    -------
+    str
+        ``"z_score"`` or ``"dff"``.
+
+    Raises
+    ------
+    ValueError
+        If the label carries neither prefix.
+    """
+    if label.startswith(ZSCORE_PREFIX):
+        return ZSCORE_PREFIX.rstrip("_")
+    if label.startswith(DFF_PREFIX):
+        return DFF_PREFIX.rstrip("_")
+
+    message = f"Preprocessed label {label!r} starts with neither {ZSCORE_PREFIX!r} nor {DFF_PREFIX!r}."
+    logger.error(message)
+    raise ValueError(message)
+
+
 def recording_site_from_channel_path(path: str) -> str:
     """
     Return the recording-site name of a ``control_*`` / ``signal_*`` HDF5 file path.

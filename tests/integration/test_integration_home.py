@@ -44,6 +44,8 @@ EXPECTED_JSON_KEYS = {
     "moving_window",
     "highAmpFilt",
     "transientsThresh",
+    "computeBinnedMetrics",
+    "binnedMetricsWidth",
     "visualize_zscore_or_dff",
     "averageForGroup",
 }

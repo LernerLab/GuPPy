@@ -4,6 +4,7 @@ from io import BytesIO
 
 import panel as pn
 
+from .binned_metrics_view import build_binned_metrics_view
 from .frontend_utils import scanPortsAndFind
 from .tonic_epochs import build_tonic_results_view
 
@@ -35,6 +36,7 @@ class VisualizationDashboard:
         self._psth_tab = self._build_psth_tab()
         self._heatmap_tab = self._build_heatmap_tab()
         self._tonic_tab = build_tonic_results_view(plotter.filepath)
+        self._binned_tab = build_binned_metrics_view(plotter.filepath)
 
     def _range_number_inputs(self, *, name: str, label: str) -> pn.Row:
         """Return two-way-bound min/max number boxes for a plotter ``Range`` param.
@@ -375,6 +377,7 @@ class VisualizationDashboard:
             ("Heat Map", self._heatmap_tab),
             ("Tonic", self._tonic_tab),
         )
+        app = pn.Tabs(("PSTH", self._psth_tab), ("Heat Map", self._heatmap_tab), ("Binned", self._binned_tab))
         template.main.append(app)
         return template
 
