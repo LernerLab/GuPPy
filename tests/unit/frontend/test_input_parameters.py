@@ -155,6 +155,10 @@ class TestParameterForm:
         assert parameter_form.isosbestic_control.value is True
         assert parameter_form.isosbestic_control.options == [True, False]
 
+    def test_photobleaching_detrend_default(self, parameter_form):
+        assert parameter_form.photobleaching_detrend.value is False
+        assert parameter_form.photobleaching_detrend.options == [True, False]
+
     def test_combine_data_default(self, parameter_form):
         assert parameter_form.combine_data.value is False
         assert parameter_form.combine_data.options == [True, False]
@@ -177,6 +181,10 @@ class TestParameterForm:
     def test_compute_corr_default(self, parameter_form):
         assert parameter_form.computeCorr.value is False
         assert parameter_form.computeCorr.options == [True, False]
+
+    def test_auc_units_default(self, parameter_form):
+        assert parameter_form.auc_units.value == "samples"
+        assert parameter_form.auc_units.options == ["samples", "seconds"]
 
     def test_use_time_or_trials_default(self, parameter_form):
         assert parameter_form.use_time_or_trials.value == "Time (min)"
@@ -590,6 +598,7 @@ SAVED_PARAMETERS = {
     "controlFitWindowMode": "baseline epoch",
     "controlFitWindowStart": 3,
     "controlFitWindowEnd": 8,
+    "photobleaching_detrend": True,
     "timeForLightsTurnOn": 7,
     "filter_window": 42,
     "noChannels": 3,
@@ -606,6 +615,7 @@ SAVED_PARAMETERS = {
     "baselineCorrectionEnd": 1,
     "peak_startPoint": [-4.0, 1.0, 6.0] + [float("nan")] * 7,
     "peak_endPoint": [1.0, 4.0, 11.0] + [float("nan")] * 7,
+    "auc_units": "seconds",
     "selectForComputePsth": "dff",
     "selectForTransientsComputation": "Both",
     "moving_window": 12,

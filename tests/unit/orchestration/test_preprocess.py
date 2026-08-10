@@ -57,6 +57,17 @@ def test_execute_combine_data_raises_for_mismatched_sampling_rates(monkeypatch, 
         execute_combine_data(folder_names, base_input_parameters, store_array)
 
 
+def test_execute_zscore_raises_when_detrending_without_isosbestic_control(base_input_parameters):
+    base_input_parameters["isosbestic_control"] = False
+    base_input_parameters["photobleaching_detrend"] = True
+
+    with pytest.raises(ValueError) as exception_info:
+        execute_zscore([["/tmp/session_output_1"]], base_input_parameters, remove_artifacts=False)
+    message = str(exception_info.value)
+    assert "photobleaching_detrend=True" in message
+    assert "requires an isosbestic control channel" in message
+
+
 # ── compute (no GUI in the worker) ──────────────────────────────────────────────
 
 

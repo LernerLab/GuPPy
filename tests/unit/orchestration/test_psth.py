@@ -3,6 +3,7 @@ import os
 
 import h5py
 import numpy as np
+import pandas as pd
 import pytest
 
 from guppy.orchestration.psth import (
@@ -60,6 +61,47 @@ def test_execute_compute_psth_peak_and_area_returns_zero_for_control_event(psth_
 def test_execute_compute_psth_peak_and_area_returns_zero_for_signal_event(psth_output_dir, base_input_parameters):
     result = execute_compute_psth_peak_and_area(str(psth_output_dir), "signal_DMS", base_input_parameters)
     assert result == 0
+
+
+# ---------------------------------------------------------------------------
+# execute_compute_psth_peak_and_area — AUC units
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def peak_and_area_output_dir(psth_output_dir):
+    """Add the timeCorrection and PSTH files execute_compute_psth_peak_and_area reads.
+
+    The PSTH is a single trial rising to 2.0 and back to 0.0 on a 0.5 s time axis,
+    so the trapezoid over the (0.0, 1.5) window has hand-checkable areas: 3.0 with
+    one-sample spacing and 1.5 in z-score*seconds.
+    """
+    with h5py.File(str(psth_output_dir / "timeCorrection_DMS.hdf5"), "w") as hdf5_file:
+        hdf5_file.create_dataset("sampling_rate", data=np.array([2.0]))
+    psth = pd.DataFrame(
+        {
+            "12.5": [0.0, 2.0, 2.0, 0.0],
+            "mean": [0.0, 2.0, 2.0, 0.0],
+            "err": [0.0, 0.0, 0.0, 0.0],
+            "timestamps": [0.0, 0.5, 1.0, 1.5],
+        }
+    )
+    psth.to_hdf(str(psth_output_dir / "lever_press_DMS_z_score_DMS.h5"), key="df", mode="w")
+    return psth_output_dir
+
+
+@pytest.mark.parametrize("auc_units, expected_area", [("samples", 3.0), ("seconds", 1.5)])
+def test_execute_compute_psth_peak_and_area_honors_auc_units(
+    peak_and_area_output_dir, base_input_parameters, auc_units, expected_area
+):
+    base_input_parameters["peak_startPoint"] = [0.0]
+    base_input_parameters["peak_endPoint"] = [1.5]
+    base_input_parameters["auc_units"] = auc_units
+
+    execute_compute_psth_peak_and_area(str(peak_and_area_output_dir), "lever_press", base_input_parameters)
+
+    written = pd.read_csv(peak_and_area_output_dir / "peak_AUC_lever_press_DMS_z_score_DMS.csv", index_col=0)
+    np.testing.assert_allclose(written["area_1"].to_numpy(), np.full(2, expected_area), atol=1e-12)
 
 
 # ---------------------------------------------------------------------------

@@ -137,6 +137,11 @@ class ParameterForm:
                                 data files for the same recording session.<br>
                                 - ***Isosbestic Control Channel? :*** Make this parameter ``` False ``` if user
                                 does not want to use isosbestic control channel in the analysis.<br>
+                                - ***Photobleaching Detrend? :*** Make this parameter ``` True ``` to fit an
+                                exponential decay to the corrected &#916;F/F and subtract it, removing the
+                                residual photobleaching drift that remains after the control channel is
+                                subtracted. Useful for long (multi-hour) recordings. Requires an isosbestic
+                                control channel. Default is ``` False ```.<br>
                                 - ***Eliminate first few seconds :*** It is the parameter to cut out first x seconds
                                 from the data. Default is 1 seconds.<br>
                                 - ***Window for Moving Average filter :*** The filtering of signals
@@ -182,6 +187,10 @@ class ParameterForm:
         )
         self.control_fit_window_end = pn.widgets.IntInput(
             name="Control Fit Window End Time (s) (int)", value=0, width=320
+        )
+
+        self.photobleaching_detrend = pn.widgets.Select(
+            name="Photobleaching Detrend? (bool)", value=False, options=[True, False], width=320
         )
 
         self.numberOfCores = pn.widgets.IntInput(name="# of cores (int)", value=2, width=150)
@@ -335,6 +344,9 @@ class ParameterForm:
                         - Peak and AUC parameters must be within the PSTH parameters set in the PSTH parameters section.<br>
                         - Please make sure when user changes the parameters in the table below, click on any other cell after
                         changing a value in a particular cell.
+                        - ***AUC Units :*** ```seconds``` reports the area in z-score (or ΔF/F) × seconds, the unit
+                        commonly reported in the literature. ```samples``` integrates with one-sample spacing instead,
+                        so the area also scales with the recording's sampling rate.
                         """,
             width=580,
         )
@@ -348,7 +360,13 @@ class ParameterForm:
 
         self.df_widget = pn.widgets.Tabulator(self.start_end_point_df, name="DataFrame", show_index=False, widths=280)
 
-        self.peak_param_wd = pn.WidgetBox("### Peak and AUC Parameters", self.peak_explain, self.df_widget, width=600)
+        self.auc_units = pn.widgets.Select(
+            name="AUC Units (str)", options=["samples", "seconds"], value="samples", width=200
+        )
+
+        self.peak_param_wd = pn.WidgetBox(
+            "### Peak and AUC Parameters", self.peak_explain, self.df_widget, self.auc_units, width=600
+        )
 
         self.individual_analysis_wd_2 = pn.Column(
             self.explain_time_artifacts,
@@ -358,6 +376,7 @@ class ParameterForm:
             self.control_fit_window_mode,
             self.control_fit_window_strt,
             self.control_fit_window_end,
+            self.photobleaching_detrend,
             self.timeForLightsTurnOn,
             self.moving_avg_filter,
             self.computePsth,
@@ -697,6 +716,7 @@ class ParameterForm:
             "controlFitWindowMode": self.control_fit_window_mode.value,
             "controlFitWindowStart": self.control_fit_window_strt.value,
             "controlFitWindowEnd": self.control_fit_window_end.value,
+            "photobleaching_detrend": self.photobleaching_detrend.value,
             "timeForLightsTurnOn": self.timeForLightsTurnOn.value,
             "filter_window": self.moving_avg_filter.value,
             "noChannels": self.no_channels_np.value,
@@ -713,6 +733,7 @@ class ParameterForm:
             "baselineCorrectionEnd": self.baselineCorrectionEnd.value,
             "peak_startPoint": list(self.df_widget.value["Peak Start time"]),  # startPoint.value,
             "peak_endPoint": list(self.df_widget.value["Peak End time"]),  # endPoint.value,
+            "auc_units": self.auc_units.value,
             "selectForComputePsth": self.computePsth.value,
             "selectForTransientsComputation": self.transients.value,
             "moving_window": self.moving_wd.value,
@@ -748,6 +769,7 @@ class ParameterForm:
             "controlFitWindowMode": self.control_fit_window_mode,
             "controlFitWindowStart": self.control_fit_window_strt,
             "controlFitWindowEnd": self.control_fit_window_end,
+            "photobleaching_detrend": self.photobleaching_detrend,
             "timeForLightsTurnOn": self.timeForLightsTurnOn,
             "filter_window": self.moving_avg_filter,
             "noChannels": self.no_channels_np,
@@ -762,6 +784,7 @@ class ParameterForm:
             "use_time_or_trials": self.use_time_or_trials,
             "baselineCorrectionStart": self.baselineCorrectionStart,
             "baselineCorrectionEnd": self.baselineCorrectionEnd,
+            "auc_units": self.auc_units,
             "selectForComputePsth": self.computePsth,
             "selectForTransientsComputation": self.transients,
             "moving_window": self.moving_wd,

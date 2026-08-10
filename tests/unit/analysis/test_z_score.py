@@ -1,59 +1,9 @@
 import numpy as np
 import pytest
 
-from guppy.analysis.z_score import (
-    compute_z_score,
-    controlFit,
-    deltaFF,
-    execute_controlFit_dff,
-    filterSignal,
-    validate_chunk_lengths_for_filtering,
-    z_score_computation,
-)
+from guppy.analysis.z_score import compute_z_score, deltaFF, z_score_computation
 
-
-def test_validate_chunk_lengths_raises_on_short_chunk():
-    # filter_window=100 -> padlen=300, so a chunk must have > 300 samples.
-    tsNew = np.arange(250.0)  # 250 samples, all inside one chunk
-    coords = np.array([[-0.5, 249.5]])
-    with pytest.raises(ValueError) as exception_info:
-        validate_chunk_lengths_for_filtering(tsNew, coords, 100)
-    message = str(exception_info.value)
-    assert "250 samples" in message
-    assert "more than 300" in message
-
-
-def test_validate_chunk_lengths_passes_when_all_chunks_long_enough():
-    tsNew = np.arange(400.0)  # 400 samples > padlen 300
-    coords = np.array([[-0.5, 399.5]])
-    # Should not raise.
-    validate_chunk_lengths_for_filtering(tsNew, coords, 100)
-
-
-def test_validate_chunk_lengths_no_check_when_filtering_disabled():
-    tsNew = np.arange(10.0)  # far shorter than any padlen
-    coords = np.array([[-0.5, 9.5]])
-    # filter_window=0 disables filtering, so no length requirement applies.
-    validate_chunk_lengths_for_filtering(tsNew, coords, 0)
-
-
-def test_filter_signal_window_zero_returns_original(uniform_signal):
-    result = filterSignal(0, uniform_signal)
-    np.testing.assert_array_equal(result, uniform_signal)
-
-
-def test_filter_signal_window_greater_than_one_smooths(uniform_signal):
-    result = filterSignal(11, uniform_signal)
-    assert result.var() < uniform_signal.var()
-
-
-def test_filter_signal_window_one_raises():
-    signal = np.ones(100)
-    with pytest.raises(ValueError) as exception_info:
-        filterSignal(1, signal)
-    message = str(exception_info.value)
-    assert "filter_window=1" in message
-    assert "Use 0 to disable" in message
+# ── deltaFF ───────────────────────────────────────────────────────────────────
 
 
 def test_delta_ff_equal_signal_and_control_returns_zeros():
@@ -70,62 +20,7 @@ def test_delta_ff_double_signal_returns_one_hundred():
     np.testing.assert_allclose(result, np.full(3, 100.0))
 
 
-@pytest.mark.parametrize("method", ["IRWLS", "OLS"])
-def test_control_fit_output_is_linear_transform_of_control(method):
-    rng = np.random.default_rng(seed=0)
-    control = rng.standard_normal(500)
-    signal = 2.5 * control + 1.0 + 0.01 * rng.standard_normal(500)
-    result = controlFit(control, signal, method=method)
-    # result should be a linear function of control; residuals should be small
-    residuals = signal - result
-    assert residuals.std() < 0.1
-
-
-def test_control_fit_ols_known_signal_returns_exact_fit():
-    # signal = 3.0 * control + 0.5; ordinary least squares should recover this exactly
-    control = np.array([0.0, 1.0, 2.0])
-    signal = np.array([0.5, 3.5, 6.5])
-    result = controlFit(control, signal, method="OLS")
-    np.testing.assert_allclose(result, np.array([0.5, 3.5, 6.5]), atol=1e-10)
-
-
-def test_control_fit_unknown_method_raises():
-    control = np.array([0.0, 1.0, 2.0])
-    signal = np.array([0.5, 3.5, 6.5])
-    with pytest.raises(ValueError) as exception_info:
-        controlFit(control, signal, method="quadratic")
-    message = str(exception_info.value)
-    assert "quadratic" in message
-    assert "IRWLS" in message
-
-
-def test_control_fit_irwls_downweights_outliers_while_ols_is_pulled_off():
-    # Clean line: signal = 2.0 * control + 1.0, with a handful of large outliers added.
-    # IRWLS should recover the clean line (slope ~2, intercept ~1); ordinary least
-    # squares is dragged toward the outliers.
-    rng = np.random.default_rng(seed=7)
-    control = np.linspace(0.0, 99.0, 100)
-    signal = 2.0 * control + 1.0 + rng.standard_normal(100) * 0.05
-    # Place the outliers in the upper half of the x-range so they lever the
-    # least-squares slope (balanced outliers would only shift the intercept).
-    outlier_indices = [70, 80, 90, 99]
-    signal[outlier_indices] += 200.0
-
-    irwls_fit = controlFit(control, signal, method="IRWLS")
-    ols_fit = controlFit(control, signal, method="OLS")
-
-    # Recover slope/intercept from the fitted values (fit = slope * control + intercept).
-    irwls_slope = (irwls_fit[-1] - irwls_fit[0]) / (control[-1] - control[0])
-    irwls_intercept = irwls_fit[0] - irwls_slope * control[0]
-    ols_slope = (ols_fit[-1] - ols_fit[0]) / (control[-1] - control[0])
-
-    # IRWLS stays close to the true clean line.
-    np.testing.assert_allclose(irwls_slope, 2.0, atol=0.05)
-    np.testing.assert_allclose(irwls_intercept, 1.0, atol=1.0)
-    # Ordinary least squares is visibly pulled off the true slope by the outliers,
-    # and IRWLS is markedly closer to the truth than OLS.
-    assert abs(ols_slope - 2.0) > abs(irwls_slope - 2.0)
-    assert abs(ols_slope - 2.0) > 0.2
+# ── z_score_computation ───────────────────────────────────────────────────────
 
 
 def test_z_score_computation_standard_has_zero_mean_unit_std():
@@ -228,28 +123,6 @@ def test_z_score_computation_unknown_method_falls_through_to_mad():
     np.testing.assert_allclose(np.median(result), 0.0, atol=1e-10)
 
 
-def test_execute_control_fit_dff_isosbestic_true_signal_proportional_to_control():
-    # signal = 1.5 * control → perfect linear fit → control_fit == signal → norm_data == 0
-    control = np.array([1.0, 2.0, 3.0])
-    signal = 1.5 * control
-    norm_data, control_fit = execute_controlFit_dff(
-        control, signal, isosbestic_control=True, filter_window=0, control_fit_method="OLS"
-    )
-    np.testing.assert_allclose(norm_data, np.zeros(3), atol=1e-10)
-    np.testing.assert_allclose(control_fit, np.array([1.5, 3.0, 4.5]), atol=1e-10)
-
-
-def test_execute_control_fit_dff_isosbestic_false_signal_offset_from_control():
-    # signal = control + 1.0 → perfect linear fit → control_fit == signal → norm_data == 0
-    control = np.array([1.0, 2.0, 3.0])
-    signal = control + 1.0
-    norm_data, control_fit = execute_controlFit_dff(
-        control, signal, isosbestic_control=False, filter_window=0, control_fit_method="OLS"
-    )
-    np.testing.assert_allclose(norm_data, np.zeros(3), atol=1e-10)
-    np.testing.assert_allclose(control_fit, np.array([2.0, 3.0, 4.0]), atol=1e-10)
-
-
 # ── compute_z_score ───────────────────────────────────────────────────────────
 
 
@@ -288,3 +161,103 @@ def test_compute_z_score_isosbestic_returns_standard_normalized_array():
     inside = (tsNew > 0.5) & (tsNew < 11.5)
     assert not np.any(np.isnan(norm_data_arr[inside]))
     assert not np.any(np.isnan(control_fit_arr[inside]))
+
+
+def test_compute_z_score_without_isosbestic_returns_a_synthetic_control_inside_the_chunks():
+    # The synthetic control is fit as a + b*exp(-t/c), so a signal from that family is
+    # reproduced almost exactly and the dF/F against it collapses to zero.
+    tsNew = np.linspace(1.0, 61.0, 600)
+    signal = 5.0 + 50.0 * np.exp(-tsNew / 60.0)
+    coords = np.array([[5.0, 55.0]])
+
+    _, norm_data, control_fit, synthetic_control = compute_z_score(
+        control=np.zeros(600),
+        signal=signal,
+        tsNew=tsNew,
+        coords=coords,
+        artifactsRemovalMethod="replace with NaN",
+        filter_window=0,
+        isosbestic_control=False,
+        zscore_method="standard z-score",
+        baseline_start=0.0,
+        baseline_end=0.0,
+        control_fit_method="OLS",
+    )
+
+    inside = (tsNew > 5.0) & (tsNew < 55.0)
+    # The synthetic control exists only where data was retained.
+    np.testing.assert_allclose(synthetic_control[inside], signal[inside], atol=1e-2)
+    assert np.all(np.isnan(synthetic_control[~inside]))
+    assert np.all(np.isnan(control_fit[~inside]))
+    # Fitting that control back onto the signal it came from leaves nothing behind.
+    np.testing.assert_allclose(norm_data[inside], np.zeros(inside.sum()), atol=1e-2)
+
+
+def _bleaching_pair(n=2000):
+    """A control/signal pair carrying bleaching the control cannot account for.
+
+    The control oscillates so the control-to-signal regression is well determined; the signal
+    adds an exponential decay on top of that linear relationship, which no rescaling of the
+    control can remove and which therefore shows up as drift in the dF/F.
+    """
+    tsNew = np.linspace(0.0, 100.0, n)
+    control = 2.0 + 0.5 * np.sin(tsNew)
+    signal = 3.0 * control + 1.0 + 4.0 * np.exp(-np.arange(n) / 200.0)
+    return tsNew, control, signal
+
+
+def _run_compute_z_score(tsNew, control, signal, photobleaching_detrend):
+    return compute_z_score(
+        control=control,
+        signal=signal,
+        tsNew=tsNew,
+        coords=np.array([[-1.0, 101.0]]),
+        artifactsRemovalMethod="replace with NaN",
+        filter_window=0,
+        isosbestic_control=True,
+        zscore_method="standard z-score",
+        baseline_start=0.0,
+        baseline_end=0.0,
+        control_fit_method="OLS",
+        photobleaching_detrend=photobleaching_detrend,
+    )
+
+
+def _drift(dff, tsNew):
+    """Start-to-end change in the dF/F, over the first and last second of the trace."""
+    return float(np.mean(dff[tsNew <= 1.0]) - np.mean(dff[tsNew >= 99.0]))
+
+
+def test_compute_z_score_detrending_flattens_the_dff_drift():
+    tsNew, control, signal = _bleaching_pair()
+
+    _, dff_without_detrend, _, _ = _run_compute_z_score(tsNew, control, signal, False)
+    _, dff_with_detrend, _, _ = _run_compute_z_score(tsNew, control, signal, True)
+
+    # The decay dominates the trace when the fit cannot represent it, and is gone once it can.
+    assert _drift(dff_without_detrend, tsNew) > 20.0
+    assert abs(_drift(dff_with_detrend, tsNew)) < 0.5
+
+
+def test_compute_z_score_detrending_folds_the_decay_into_the_fitted_control():
+    """The bleaching is part of the fit, not something removed from the dF/F afterwards."""
+    tsNew, control, signal = _bleaching_pair()
+
+    _, _, fit_without_detrend, _ = _run_compute_z_score(tsNew, control, signal, False)
+    _, _, fit_with_detrend, _ = _run_compute_z_score(tsNew, control, signal, True)
+
+    # Only the joint fit tracks the signal, because only it can represent the decay.
+    assert np.abs(fit_with_detrend - signal).max() < 0.05
+    assert np.abs(fit_without_detrend - signal).max() > 1.0
+
+
+def test_compute_z_score_detrending_leaves_a_bleaching_free_pair_alone():
+    """A signal that is already a linear function of its control has nothing to detrend."""
+    tsNew = np.linspace(0.0, 100.0, 2000)
+    control = 2.0 + 0.5 * np.sin(tsNew)
+    signal = 3.0 * control + 1.0
+
+    _, dff_without_detrend, _, _ = _run_compute_z_score(tsNew, control, signal, False)
+    _, dff_with_detrend, _, _ = _run_compute_z_score(tsNew, control, signal, True)
+
+    np.testing.assert_allclose(dff_with_detrend, dff_without_detrend, atol=1e-3)

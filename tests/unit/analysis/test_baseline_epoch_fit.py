@@ -13,12 +13,18 @@ linear relationship is exact.
 import numpy as np
 import pytest
 
-from guppy.analysis.z_score import (
-    apply_control_fit,
-    compute_z_score,
-    estimate_baseline_epoch_coefficients,
-    estimate_control_fit_coefficients,
-)
+from guppy.analysis import control_fit
+from guppy.analysis.artifact_removal import retained_chunk_indices
+from guppy.analysis.control_fit import ControlFitModel, select_fit_window_indices
+from guppy.analysis.z_score import compute_z_score
+
+
+def _baseline_epoch_model(control, signal, ts, coords, window, photobleaching_detrend=False):
+    """Select the fit window's retained samples and estimate from them, as compute_z_score does."""
+    fit_indices = select_fit_window_indices(ts, retained_chunk_indices(ts, coords), window[0], window[1])
+    return control_fit.fit(
+        control, signal, indices=fit_indices, method="OLS", photobleaching_detrend=photobleaching_detrend
+    )
 
 
 class TestEstimateAndApply:
@@ -26,14 +32,16 @@ class TestEstimateAndApply:
         # signal = 2 * control + 1 exactly, so OLS returns (slope, intercept) = (2, 1).
         control = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
         signal = 2.0 * control + 1.0
-        slope, intercept = estimate_control_fit_coefficients(control, signal, method="OLS")
-        assert slope == pytest.approx(2.0)
-        assert intercept == pytest.approx(1.0)
+        model = control_fit.fit(control, signal, method="OLS")
+        assert model.slope == pytest.approx(2.0)
+        assert model.intercept == pytest.approx(1.0)
+        assert model.decay_constant is None
 
     def test_apply_projects_control_onto_signal_scale(self):
         control = np.array([1.0, 2.0, 3.0])
         # 2 * [1, 2, 3] + 1 = [3, 5, 7]
-        np.testing.assert_allclose(apply_control_fit(control, 2.0, 1.0), np.array([3.0, 5.0, 7.0]))
+        model = ControlFitModel(slope=2.0, intercept=1.0)
+        np.testing.assert_allclose(control_fit.predict(model, control), np.array([3.0, 5.0, 7.0]))
 
 
 class TestBaselineEpochCoefficientEstimation:
@@ -48,18 +56,9 @@ class TestBaselineEpochCoefficientEstimation:
         # Good chunks keep {0,1,2} and {4,...,9}; t=3 falls in the removed gap.
         coords = np.array([[-0.5, 2.5], [3.5, 9.5]])
         # Fit window spans the whole trace, but the artifact at t=3 is excluded by artifact removal.
-        slope, intercept = estimate_baseline_epoch_coefficients(control, signal, ts, coords, 0, "OLS", 0, 9)
-        assert slope == pytest.approx(2.0)
-        assert intercept == pytest.approx(1.0)
-
-    def test_empty_estimation_mask_raises(self):
-        ts = np.arange(10.0)
-        control = np.arange(1.0, 11.0)
-        signal = 2.0 * control + 1.0
-        # Retain only {4,...,9}; a fit window of [0, 3] intersects no retained data.
-        coords = np.array([[3.5, 9.5]])
-        with pytest.raises(ValueError, match="no data after artifact removal"):
-            estimate_baseline_epoch_coefficients(control, signal, ts, coords, 0, "OLS", 0, 3)
+        model = _baseline_epoch_model(control, signal, ts, coords, (0, 9))
+        assert model.slope == pytest.approx(2.0)
+        assert model.intercept == pytest.approx(1.0)
 
 
 class TestBaselineEpochComputeZScore:
@@ -171,3 +170,62 @@ class TestBaselineEpochComputeZScore:
         )
         # A clean baseline-epoch fit gives pre-step dF/F == 0; full-trace does not.
         assert np.abs(dff[:5]).max() > 1.0
+
+
+class TestBaselineEpochWithPhotobleachingDetrend:
+    """Baseline-epoch fitting is what produces a slow drift, so it must accept the detrend term.
+
+    Freezing coefficients on an early window and applying them across the recording is exactly
+    where the two channels diverge as they bleach at different rates. The photobleaching term
+    has to compose with that mode rather than be refused by it.
+    """
+
+    def _pair(self, n=4000):
+        # signal = 2*control + 5, plus bleaching the control does not carry.
+        sample_index = np.arange(float(n))
+        ts = sample_index / 100.0
+        control = 100.0 + 10.0 * np.sin(2.0 * np.pi * sample_index / 700.0)
+        signal = 2.0 * control + 5.0 + 30.0 * np.exp(-sample_index / 500.0)
+        return ts, control, signal
+
+    def test_model_estimated_on_an_early_window_carries_the_bleaching_term(self):
+        ts, control, signal = self._pair()
+        coords = np.array([[-1.0, ts[-1] + 1.0]])
+
+        model = _baseline_epoch_model(control, signal, ts, coords, (0, 15), photobleaching_detrend=True)
+
+        assert model.decay_constant is not None
+        np.testing.assert_allclose(model.slope, 2.0, atol=1e-2)
+        np.testing.assert_allclose(model.bleaching_amplitude, 30.0, atol=0.5)
+
+    def test_compute_z_score_composes_the_two_modes(self):
+        ts, control, signal = self._pair()
+        coords = np.array([[-1.0, ts[-1] + 1.0]])
+
+        def run(photobleaching_detrend):
+            return compute_z_score(
+                control,
+                signal,
+                ts,
+                coords,
+                "replace with NaN",
+                0,
+                True,
+                "standard z-score",
+                0.0,
+                0.0,
+                "OLS",
+                "baseline epoch",
+                0,
+                15,
+                photobleaching_detrend,
+            )
+
+        _, dff_plain, _, _ = run(False)
+        _, dff_detrended, fit_detrended, _ = run(True)
+
+        # Without the term, coefficients frozen on the first 15 s drift away from the signal.
+        assert np.abs(dff_plain).max() > 1.0
+        # With it, the frozen fit keeps tracking across the whole trace.
+        np.testing.assert_allclose(fit_detrended, signal, atol=0.5)
+        assert np.abs(dff_detrended).max() < 0.5

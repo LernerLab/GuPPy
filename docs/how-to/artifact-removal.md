@@ -100,3 +100,7 @@ Per recording site, in the output run folder:
 `GuPPyParamtersUsed.json` records what was applied to the run: `removeArtifacts`
 becomes `true` once Remove Artifacts has run, and `artifactsRemovalMethod` records
 the method you chose.
+
+Removing artifacts rewrites the preprocessed traces in place rather than adding new
+files. See [Output data model](../reference/outputs.md) for the array layout of
+`coordsForPreProcessing_<site>.npy` and for which files Remove Artifacts overwrites.

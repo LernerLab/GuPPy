@@ -108,6 +108,7 @@ def save_parameters(
         "controlFitWindowMode": inputParameters["controlFitWindowMode"],
         "controlFitWindowStart": inputParameters["controlFitWindowStart"],
         "controlFitWindowEnd": inputParameters["controlFitWindowEnd"],
+        "photobleaching_detrend": inputParameters["photobleaching_detrend"],
         "timeForLightsTurnOn": inputParameters["timeForLightsTurnOn"],
         "filter_window": inputParameters["filter_window"],
         # Resolved per destination below; listed here to fix their position in the file.
@@ -127,6 +128,7 @@ def save_parameters(
         "baselineCorrectionEnd": inputParameters["baselineCorrectionEnd"],
         "peak_startPoint": inputParameters["peak_startPoint"],
         "peak_endPoint": inputParameters["peak_endPoint"],
+        "auc_units": inputParameters["auc_units"],
         "selectForComputePsth": inputParameters["selectForComputePsth"],
         "selectForTransientsComputation": inputParameters["selectForTransientsComputation"],
         "moving_window": inputParameters["moving_window"],

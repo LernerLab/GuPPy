@@ -40,7 +40,7 @@ Once a PSTH has been built and corrected for drift, scalars summarise its respon
 
 - **Peak amplitude**: the largest value of the PSTH inside a chosen post-event window.
 - **Peak latency**: the time at which that maximum occurs, relative to the event.
-- **AUC** (area under the curve): the integral of the PSTH over the same window.
+- **AUC** (area under the curve): the integral of the PSTH over the same window. Set **AUC Units** to `seconds` to report it in z-score × seconds, the unit used in most published work; the `samples` setting integrates with one-sample spacing instead, so the value also scales with the recording's sampling rate.
 
 For responses that go below baseline (suppressions, omitted-reward dips), the relevant version of peak amplitude is the signed minimum rather than the maximum, and peak latency is the time of that minimum.
 
