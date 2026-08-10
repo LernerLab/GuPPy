@@ -3,6 +3,7 @@
 ## Features
 - Added a **Use Transients as Events?** parameter for spontaneous activity, where there is no external event to align to: the transients detected in each recording site now become that recording site's event timestamps, so the PSTH, peak and AUC are computed against them directly instead of requiring an artificial TTL file to be exported and re-imported by hand. [PR #424](https://github.com/LernerLab/GuPPy/pull/424)
 - Added tonic/basal fluorescence analysis for pharmacological experiments as a new optional **Tonic Analysis** step: name epoch windows (e.g. baseline vs. post-injection) per recording site on the preprocessed traces, and saving averages the z-score and ΔF/F over each window into `tonic_<recording_site>.h5`. The visualization's Tonic tab charts each epoch's change from a selectable baseline epoch as bars, alongside the windows shaded on the traces and a table of the absolute means. PSTH analysis is unaffected. [PR #397](https://github.com/LernerLab/GuPPy/pull/397)
+- Added a **Compute Binned Metrics?** parameter: the whole session can now be divided into fixed-width time bins, each reporting its mean z-score, mean ΔF/F and transient count, for correlating the signal against a behavioral measure scored on its own fixed schedule instead of against discrete events. Results are written per recording site and shown on a new **Binned** tab in Step 5. [PR #422](https://github.com/LernerLab/GuPPy/pull/422)
 
 ## Fixes
 
