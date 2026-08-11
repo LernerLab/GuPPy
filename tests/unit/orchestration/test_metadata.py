@@ -216,7 +216,17 @@ class TestOrchestrateMetadataPage:
             delimiter=",",
             fmt="%s",
         )
-        input_parameters = {"selected_runs": {str(session): ["run1"]}}
+        input_parameters = {"selected_runs": {str(session): ["run1"]}, "combine_data": False}
 
         # Must return without raising and without opening a server.
         orchestrate_metadata_page(input_parameters)
+
+    def test_combined_run_is_refused_before_any_page_is_built(self, panel_extension, tmp_path):
+        # Step 6 edits one metadata file per session output directory, which combining collapses,
+        # so the form has nothing coherent to edit. Refused the same way Step 7 refuses it.
+        input_parameters = {"selected_runs": {str(tmp_path / "Photo_session"): ["run1"]}, "combine_data": True}
+
+        with pytest.raises(ValueError) as excinfo:
+            orchestrate_metadata_page(input_parameters)
+
+        assert "does not support combine_data=True" in str(excinfo.value)

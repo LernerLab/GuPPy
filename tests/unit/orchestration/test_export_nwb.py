@@ -1,10 +1,10 @@
 """Unit tests for the upfront NWB-export prerequisite checks and the export batch loop.
 
-`orchestrate_export_nwb` reads each selected session's ``GuPPyParamtersUsed.json`` and
-aborts the whole batch before writing anything if any session was processed with the
-``concatenate`` artifact-removal method, which re-times kept samples and breaks alignment to
-the acquisition clock. It aborts the same way for DANDI-streamed sessions, whose source is an
-NWB file rather than raw acquisition files.
+`orchestrate_export_nwb` reads each selected run's recorded artifact provenance and aborts the
+whole batch before writing anything if any run had its artifacts removed by the ``concatenate``
+method, which re-times kept samples and breaks alignment to the acquisition clock. It aborts the
+same way for DANDI-streamed sessions, whose source is an NWB file rather than raw acquisition
+files, and for combined runs, which have no single session the collapsed outputs belong to.
 """
 
 import json
@@ -55,11 +55,17 @@ class TestValidateArtifactRemovalMethods:
         self._write_parameters(session_path, {"removeArtifacts": False, "artifactsRemovalMethod": "concatenate"})
         _validate_artifact_removal_methods([(str(session_path), "run1")])
 
+    def test_snapshot_without_artifact_keys_does_not_abort(self, session_path):
+        # The shape a Step-3-only run leaves behind once artifact removal became its own step:
+        # the snapshot records no removal at all, which must read as "artifacts not removed".
+        self._write_parameters(session_path, {"combine_data": False})
+        _validate_artifact_removal_methods([(str(session_path), "run1")])
+
     def test_orchestrate_aborts_before_any_export(self, session_path):
         # End-to-end through the public entry point: the offending config must raise the
         # ValueError before the export loop touches neuroconv.
         self._write_parameters(session_path, {"removeArtifacts": True, "artifactsRemovalMethod": "concatenate"})
-        input_parameters = {"selected_runs": {str(session_path): ["run1"]}}
+        input_parameters = {"selected_runs": {str(session_path): ["run1"]}, "combine_data": False}
         with pytest.raises(ValueError, match="does not support the 'concatenate'"):
             orchestrate_export_nwb(input_parameters)
 
@@ -77,9 +83,23 @@ class TestValidateLocalMode:
 
     def test_orchestrate_aborts_before_any_export(self, monkeypatch):
         monkeypatch.setattr(export_nwb_module, "_validate_artifact_removal_methods", lambda pairs: None)
-        input_parameters = {"mode": "dandi", "selected_runs": {"/data/Photo_A": ["run1"]}}
+        input_parameters = {"mode": "dandi", "selected_runs": {"/data/Photo_A": ["run1"]}, "combine_data": False}
         with pytest.raises(ValueError, match="does not support sessions read from DANDI"):
             orchestrate_export_nwb(input_parameters)
+
+
+class TestValidateDataNotCombined:
+    """Combining collapses a run group into one output directory, so the per-session export
+    has no session its outputs belong to. Refused upfront rather than half-exported."""
+
+    def test_combined_run_aborts_before_any_export(self, monkeypatch):
+        monkeypatch.setattr(export_nwb_module, "_validate_artifact_removal_methods", lambda pairs: None)
+        input_parameters = {"selected_runs": {"/data/Photo_A": ["run1"]}, "combine_data": True}
+
+        with pytest.raises(ValueError) as excinfo:
+            orchestrate_export_nwb(input_parameters)
+
+        assert "does not support combine_data=True" in str(excinfo.value)
 
 
 @pytest.fixture
@@ -94,7 +114,7 @@ def bound_step():
 class TestOrchestrateExportNwb:
     @pytest.fixture
     def two_sessions(self):
-        return {"selected_runs": {"/data/Photo_A": ["run1"], "/data/Photo_B": ["run1"]}}
+        return {"selected_runs": {"/data/Photo_A": ["run1"], "/data/Photo_B": ["run1"]}, "combine_data": False}
 
     @pytest.fixture
     def stubbed_prerequisites(self, monkeypatch):
@@ -187,6 +207,6 @@ class TestRunExportNwbStep:
             json.dump({"removeArtifacts": True, "artifactsRemovalMethod": "concatenate"}, parameters_file)
 
         with pytest.raises(ValueError, match="does not support the 'concatenate'"):
-            run_export_nwb_step({"selected_runs": {str(session): ["run1"]}})
+            run_export_nwb_step({"selected_runs": {str(session): ["run1"]}, "combine_data": False})
 
         assert "does not support the 'concatenate'" in bound_step.error_message

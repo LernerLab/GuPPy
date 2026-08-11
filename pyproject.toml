@@ -61,7 +61,7 @@ dependencies = [
     "dandi",
     "remfile",
     "pyyaml",
-    "neuroconv[guppy] @ git+https://github.com/catalystneuro/neuroconv@guppy-converter",
+    "neuroconv[guppy]==0.10.0rc1",
     "ndx-guppy==0.1.0",
 ]
 

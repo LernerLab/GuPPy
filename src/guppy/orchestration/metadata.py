@@ -29,6 +29,7 @@ from ..utils.nwb_metadata import (
     validate_metadata_dict,
 )
 from ..utils.utils import run_folder_for_run
+from ..utils.validation import validate_data_not_combined
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +134,13 @@ def orchestrate_metadata_page(inputParameters: dict[str, object]) -> None:
     directory), bootstrapped from the saved file when present and otherwise empty.
     Each window is served on its own port in a new browser tab, mirroring the
     Storenames GUI. Skipped in headless mode (``GUPPY_BASE_DIR`` set).
+
+    Raises
+    ------
+    ValueError
+        If the pipeline was run with ``combine_data`` enabled.
     """
+    validate_data_not_combined(combine_data=inputParameters["combine_data"])
     headless = bool(os.environ.get("GUPPY_BASE_DIR"))
 
     for session_path, run_name in _selected_session_runs(inputParameters):

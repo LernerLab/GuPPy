@@ -7,15 +7,16 @@ interfaces read a session's raw folder follows from the acquisition format detec
 in it, so a session exports as whatever the pipeline processed it as.
 """
 
-import json
 import logging
 import os
 
 from .metadata import METADATA_FILENAME, _selected_session_runs
+from .save_parameters import read_artifact_provenance
 from ..utils import progress
 from ..utils.acquisition_format import resolve_acquisition_format
 from ..utils.progress import step_error_handler
 from ..utils.utils import RAISE_ISSUE_URL, run_folder_for_run
+from ..utils.validation import validate_data_not_combined
 
 logger = logging.getLogger(__name__)
 
@@ -26,12 +27,12 @@ _UNSUPPORTED_ARTIFACT_REMOVAL_METHOD = "concatenate"
 
 
 def _validate_artifact_removal_methods(pairs: list[tuple[str, str]]) -> None:
-    """Abort the NWB export batch if any selected session used ``concatenate`` artifact removal.
+    """Abort the NWB export batch if any selected run had its artifacts removed by ``concatenate``.
 
     ``concatenate`` re-times the kept samples onto a fresh timeline (see GuPPy issue #354),
     which is incompatible with NWB export's need to align processed traces to the acquisition
-    clock. Reads each session's ``GuPPyParamtersUsed.json`` (the configuration the data was
-    actually processed with) and raises before any file is written.
+    clock. Reads each run's recorded artifact provenance (the state the data on disk was
+    actually produced with) and raises before any file is written.
 
     Parameters
     ----------
@@ -41,17 +42,14 @@ def _validate_artifact_removal_methods(pairs: list[tuple[str, str]]) -> None:
     Raises
     ------
     ValueError
-        If any selected session was processed with ``removeArtifacts=True`` and
+        If any selected run recorded ``removeArtifacts=True`` with
         ``artifactsRemovalMethod="concatenate"``.
     """
     offending = []
     for session_path, run_name in pairs:
         guppy_folder_path = run_folder_for_run(session_path, run_name)
-        with open(os.path.join(guppy_folder_path, "GuPPyParamtersUsed.json")) as parameters_file:
-            parameters = json.load(parameters_file)
-        if parameters.get("removeArtifacts") and (
-            parameters.get("artifactsRemovalMethod") == _UNSUPPORTED_ARTIFACT_REMOVAL_METHOD
-        ):
+        artifacts_removed, removal_method = read_artifact_provenance(destination=guppy_folder_path)
+        if artifacts_removed and removal_method == _UNSUPPORTED_ARTIFACT_REMOVAL_METHOD:
             offending.append(f"{os.path.basename(session_path.rstrip(os.sep))} ({run_name})")
 
     if offending:
@@ -59,8 +57,9 @@ def _validate_artifact_removal_methods(pairs: list[tuple[str, str]]) -> None:
             f"NWB export does not support the '{_UNSUPPORTED_ARTIFACT_REMOVAL_METHOD}' artifact-removal "
             f"method because it re-times the kept samples onto a fresh timeline, breaking alignment to the "
             f"acquisition clock. The following session(s) were processed this way: {', '.join(offending)}. "
-            f"Re-run Step 3 (Preprocess and Remove Artifacts) with artifactsRemovalMethod='replace with NaN', "
-            f"which preserves the original timeline, then export again. "
+            f"Re-run Remove Artifacts after choosing 'replace with NaN' on the Select Artifact Windows page, "
+            f"which preserves the original timeline; or re-run Step 3 (Preprocess) to drop the artifact "
+            f"removal entirely. Then export again. "
             f"If you need '{_UNSUPPORTED_ARTIFACT_REMOVAL_METHOD}' support "
             f"for NWB export, please raise an issue at {RAISE_ISSUE_URL}."
         )
@@ -174,6 +173,7 @@ def orchestrate_export_nwb(inputParameters: dict[str, object]) -> None:
     """
     pairs = _selected_session_runs(inputParameters)
     _validate_local_mode(inputParameters)
+    validate_data_not_combined(combine_data=inputParameters["combine_data"])
     _validate_artifact_removal_methods(pairs)
     progress.start(len(pairs))
 

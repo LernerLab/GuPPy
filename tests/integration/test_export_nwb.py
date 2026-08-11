@@ -34,11 +34,18 @@ SUPPLIED_SESSION_START_TIME = datetime.fromisoformat("2020-05-04T09:00:00+00:00"
 
 # The topology each stubbed session was labeled with in REPRESENTATIVE_SESSIONS
 # (tests/integration/integration_helpers.py): one recording site, one behavioral event store.
+# ``raw_event_tables`` are the per-event tables the acquisition's own events interface writes,
+# named after the event in CamelCase; ``event_types`` are the rows GuPPy analyzed, which the
+# converter collects into the single ``GuppyEvents`` table.
 EXPECTED_TOPOLOGY = {
-    "tdt": {"recording_sites": ["dms"], "event_types": {"port_entries_dms"}},
-    "csv": {"recording_sites": ["region"], "event_types": {"ttl"}},
-    "npm": {"recording_sites": ["region1"], "event_types": {"ttl_region1"}},
-    "doric": {"recording_sites": ["region"], "event_types": {"ttl"}},
+    "tdt": {
+        "recording_sites": ["dms"],
+        "event_types": {"port_entries_dms"},
+        "raw_event_tables": {"PortEntriesDms"},
+    },
+    "csv": {"recording_sites": ["region"], "event_types": {"ttl"}, "raw_event_tables": {"Ttl"}},
+    "npm": {"recording_sites": ["region1"], "event_types": {"ttl_region1"}, "raw_event_tables": {"TtlRegion1"}},
+    "doric": {"recording_sites": ["region"], "event_types": {"ttl"}, "raw_event_tables": {"Ttl"}},
 }
 
 # Per-role annotations for the derived channels, using the example library's device names.
@@ -143,8 +150,12 @@ class TestExportSessionToNwb:
             assert list(fiber_photometry_rows["location"]) == expected["recording_sites"] * 2
             assert list(fiber_photometry_rows["excitation_wavelength_in_nm"]) == [405.0, 465.0]
 
-            behavioral_events = nwbfile.events["BehavioralEvents"].to_dataframe()
-            assert set(behavioral_events["event_type"]) == expected["event_types"]
+            # Both halves of the events story must reach the file: the raw stream the acquisition
+            # recorded, in its own per-event table, and the onsets GuPPy analyzed, collected into
+            # one chronological table keyed by event name.
+            assert set(nwbfile.events) == expected["raw_event_tables"] | {"GuppyEvents"}
+            analyzed_events = nwbfile.events["GuppyEvents"].to_dataframe()
+            assert set(analyzed_events["event_type"]) == expected["event_types"]
 
     def test_acquisition_timestamps_are_on_the_clock_guppy_analyzed(
         self, pipeline_state, acquisition_format, metadata_yaml_path, tmp_path
