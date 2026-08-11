@@ -7,6 +7,26 @@ from .realignment import concatenate_and_realign_data, realign_ttl_timestamps
 logger = logging.getLogger(__name__)
 
 
+def retained_chunk_indices(timestamps: np.ndarray, coords: np.ndarray) -> list[np.ndarray]:
+    """
+    Index the samples that survived artifact removal, one array per retained chunk.
+
+    Parameters
+    ----------
+    timestamps : np.ndarray
+        1-D timestamp array.
+    coords : np.ndarray
+        Shape ``(N, 2)`` array of ``[start, end]`` bounds for good chunks.
+
+    Returns
+    -------
+    list of np.ndarray
+        Indices into ``timestamps`` for each chunk, in order. Samples falling in no chunk appear
+        in none of them.
+    """
+    return [np.where((timestamps > coords[i, 0]) & (timestamps < coords[i, 1]))[0] for i in range(coords.shape[0])]
+
+
 def remove_artifacts(
     timeForLightsTurnOn: float,
     store_array: np.ndarray,

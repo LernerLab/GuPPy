@@ -11,7 +11,7 @@ import numpy as np
 from scipy import signal as ss
 
 from .group_utils import gather_group_run_folders
-from .save_parameters import save_parameters
+from .save_parameters import read_artifact_provenance, save_parameters
 from .transients import executeFindFreqAndAmp
 from ..analysis.compute_psth import compute_psth
 from ..analysis.cross_correlation import compute_cross_correlation
@@ -148,6 +148,7 @@ def execute_compute_psth_peak_and_area(filepath: str, event: str, inputParameter
 
     peak_startPoint = inputParameters["peak_startPoint"]
     peak_endPoint = inputParameters["peak_endPoint"]
+    auc_units = inputParameters["auc_units"]
     selectForComputePsth = inputParameters["selectForComputePsth"]
 
     if selectForComputePsth == "z_score":
@@ -172,7 +173,7 @@ def execute_compute_psth_peak_and_area(filepath: str, event: str, inputParameter
         psth_mean_bin_mean = np.asarray(psth[psth_mean_bin_names])
         timestamps = np.asarray(psth["timestamps"]).ravel()
         peak_area = compute_psth_peak_and_area(
-            psth_mean_bin_mean, timestamps, sampling_rate, peak_startPoint, peak_endPoint
+            psth_mean_bin_mean, timestamps, sampling_rate, peak_startPoint, peak_endPoint, auc_units=auc_units
         )
         fileName = [os.path.basename(os.path.dirname(filepath))]
         index = [fileName[0] + "_" + name for name in psth_mean_bin_names]
@@ -194,14 +195,14 @@ def execute_compute_cross_correlation(filepath: str, event: str, inputParameters
         Full pipeline input parameters.
     """
     isCompute = inputParameters["computeCorr"]
-    removeArtifacts = inputParameters["removeArtifacts"]
-    artifactsRemovalMethod = inputParameters["artifactsRemovalMethod"]
+    removeArtifacts, artifactsRemovalMethod = read_artifact_provenance(destination=filepath)
     if isCompute == True:
         if removeArtifacts == True and artifactsRemovalMethod == "concatenate":
             raise ValueError(
-                "For cross-correlation, when removeArtifacts is True, the artifacts removal method "
-                "must be 'replace with NaNs' and not 'concatenate'. Change 'Method for Artifact "
-                "Removal' in the Input Parameters GUI."
+                f"Cross-correlation cannot run on concatenated data, but the outputs in '{filepath}' were "
+                "produced by the Remove Artifacts step using the 'concatenate' method. Re-run Select "
+                "Artifact Windows with the method set to 'replace with NaN' followed by Remove Artifacts, "
+                "or disable Compute Cross-correlation."
             )
         corr_info, type = getCorrCombinations(filepath, inputParameters)
         if len(corr_info) < 2:

@@ -165,6 +165,7 @@ class TestMetadataHook:
 STEP_HANDLERS = [
     ("onclickreaddata", "run_read_raw_data_step", False),
     ("onclickpreprocess", "run_preprocess_step", False),
+    ("onclickRemoveArtifacts", "run_remove_artifacts_step", False),
     ("onclickpsth", "run_psth_step", True),
     ("onclickExportNwb", "run_export_nwb_step", False),
 ]
@@ -450,3 +451,39 @@ def test_success_snaps_the_bar_to_full_when_the_step_undercounted(
 
     read_progress = homepage._widgets["read_progress"]
     assert (read_progress.value, read_progress.max) == (10, 10)
+
+
+class TestSelectArtifactWindowsHandler:
+    """The marking step runs no compute: it opens a page synchronously, with no progress bar."""
+
+    def test_opens_the_page_with_the_collected_input_parameters(self, homepage, selected_session, monkeypatch):
+        captured = []
+        monkeypatch.setattr(
+            "guppy.orchestration.home.orchestrate_select_artifact_windows", lambda params: captured.append(params)
+        )
+
+        homepage._hooks["onclickSelectArtifactWindows"]()
+
+        assert len(captured) == 1
+        assert captured[0]["session_folders"] == [str(selected_session)]
+
+    def test_surfaces_value_error_as_panel_notification(self, homepage, selected_session, monkeypatch):
+        error_text = "No preprocessing outputs found in '/a/output_1'."
+
+        def _raise(params):
+            raise ValueError(error_text)
+
+        monkeypatch.setattr("guppy.orchestration.home.orchestrate_select_artifact_windows", _raise)
+        captured_notifications = []
+        monkeypatch.setattr(
+            pn.state.notifications,
+            "error",
+            lambda message, *, duration: captured_notifications.append({"message": message, "duration": duration}),
+        )
+
+        # Must not raise — the ValueError is caught and forwarded to Panel.
+        homepage._hooks["onclickSelectArtifactWindows"]()
+
+        assert len(captured_notifications) == 1
+        assert error_text in captured_notifications[0]["message"]
+        assert captured_notifications[0]["duration"] == 0

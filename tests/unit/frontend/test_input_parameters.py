@@ -155,6 +155,10 @@ class TestParameterForm:
         assert parameter_form.isosbestic_control.value is True
         assert parameter_form.isosbestic_control.options == [True, False]
 
+    def test_photobleaching_detrend_default(self, parameter_form):
+        assert parameter_form.photobleaching_detrend.value is False
+        assert parameter_form.photobleaching_detrend.options == [True, False]
+
     def test_combine_data_default(self, parameter_form):
         assert parameter_form.combine_data.value is False
         assert parameter_form.combine_data.options == [True, False]
@@ -168,18 +172,6 @@ class TestParameterForm:
     def test_transients_default(self, parameter_form):
         assert parameter_form.transients.value == "z_score"
 
-    def test_plot_z_score_dff_default(self, parameter_form):
-        assert parameter_form.plot_zScore_dff.value == "None"
-
-    def test_remove_artifacts_default(self, parameter_form):
-        assert parameter_form.removeArtifacts.value is False
-        assert parameter_form.removeArtifacts.options == [True, False]
-
-    def test_artifacts_removal_method_default(self, parameter_form):
-        assert parameter_form.artifactsRemovalMethod.value == "replace with NaN"
-        assert "concatenate" in parameter_form.artifactsRemovalMethod.options
-        assert "replace with NaN" in parameter_form.artifactsRemovalMethod.options
-
     def test_z_score_computation_default(self, parameter_form):
         assert parameter_form.z_score_computation.value == "standard z-score"
         assert "standard z-score" in parameter_form.z_score_computation.options
@@ -189,6 +181,10 @@ class TestParameterForm:
     def test_compute_corr_default(self, parameter_form):
         assert parameter_form.computeCorr.value is False
         assert parameter_form.computeCorr.options == [True, False]
+
+    def test_auc_units_default(self, parameter_form):
+        assert parameter_form.auc_units.value == "samples"
+        assert parameter_form.auc_units.options == ["samples", "seconds"]
 
     def test_use_time_or_trials_default(self, parameter_form):
         assert parameter_form.use_time_or_trials.value == "Time (min)"
@@ -602,10 +598,9 @@ SAVED_PARAMETERS = {
     "controlFitWindowMode": "baseline epoch",
     "controlFitWindowStart": 3,
     "controlFitWindowEnd": 8,
+    "photobleaching_detrend": True,
     "timeForLightsTurnOn": 7,
     "filter_window": 42,
-    "removeArtifacts": True,
-    "artifactsRemovalMethod": "replace with NaN",
     "noChannels": 3,
     "zscore_method": "modified z-score",
     "baselineWindowStart": 2,
@@ -620,12 +615,12 @@ SAVED_PARAMETERS = {
     "baselineCorrectionEnd": 1,
     "peak_startPoint": [-4.0, 1.0, 6.0] + [float("nan")] * 7,
     "peak_endPoint": [1.0, 4.0, 11.0] + [float("nan")] * 7,
+    "auc_units": "seconds",
     "selectForComputePsth": "dff",
     "selectForTransientsComputation": "Both",
     "moving_window": 12,
     "highAmpFilt": 5,
     "transientsThresh": 6,
-    "plot_zScore_dff": "Both",
     "visualize_zscore_or_dff": "dff",
     "averageForGroup": True,
 }
@@ -654,6 +649,14 @@ class TestParameterAutoPopulate:
         # guppy_version has no backing widget and must be ignored without error.
         parameter_form.setInputParameters({"guppy_version": "x", "nSecPost": 99})
         assert parameter_form.nSecPost.value == 99
+
+    def test_set_input_parameters_ignores_retired_artifact_keys(self, parameter_form):
+        """Snapshots still record the artifact keys as provenance, but the form has no widgets for them."""
+        parameter_form.setInputParameters(
+            {"removeArtifacts": True, "artifactsRemovalMethod": "concatenate", "nSecPost": 99}
+        )
+        assert parameter_form.nSecPost.value == 99
+        assert "removeArtifacts" not in parameter_form.getInputParameters()
 
     def test_selecting_output_run_populates_widgets(self, bare_parameter_form, tmp_path):
         session = tmp_path / "sessionA"

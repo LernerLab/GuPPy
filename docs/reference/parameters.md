@@ -68,6 +68,7 @@ The largest card on the homepage, collapsed by default (only Input Folder Select
 | Control Fit Window | Whether the control-to-signal fit is estimated over the full trace or a baseline epoch. | str | `full trace` | `full trace`, `baseline epoch` |
 | Control Fit Window Start Time (s) | Start of the baseline epoch used to estimate the fit. | int | `0` | seconds, must be `< Control Fit Window End Time` and within the signal's recorded timespan |
 | Control Fit Window End Time (s) | End of the baseline epoch used to estimate the fit. | int | `0` | seconds, must be `> Control Fit Window Start Time` and within the signal's recorded timespan |
+| Photobleaching Detrend? | Add an exponential decay term to the control fit. | bool | `False` | `True`, `False` |
 | Eliminate first few seconds | Drop the LED-warmup transient at the start. | int | `1` | non-negative seconds |
 | Window for Moving Average filter | Width of the smoothing kernel. | int | `100` | positive integer, in samples (not seconds) |
 
@@ -76,6 +77,8 @@ The largest card on the homepage, collapsed by default (only Input Folder Select
 **Control Channel Fitting Method** chooses how the control channel is rescaled onto the signal before subtraction. `IRWLS` (the default) uses Iteratively Re-Weighted Least Squares with a Tukey bisquare weighting, a robust regression that down-weights outlier samples (transients, brief wavelength-dependent artifacts) so they do not distort the fit. It is equivalent to ordinary least squares on clean data and more reliable when outliers are present, so it is almost always equal to or better than a plain least-squares fit. `OLS` selects ordinary least-squares regression instead. See the [isosbestic correction explainer](../explanation/isosbestic_correction.md) for details.
 
 **Control Fit Window** chooses which part of the recording the control-to-signal fit is estimated from. `full trace` (the default) estimates the fit coefficients over the whole recording, matching prior behavior. `baseline epoch` estimates the coefficients from only the window set by **Control Fit Window Start Time (s)** and **Control Fit Window End Time (s)**, then applies those fixed coefficients across the entire recording. Use it when a sustained step-change in the signal — such as a drug injection — would otherwise distort a full-trace fit: fitting on the clean pre-injection window keeps the coefficients stable while the measured control channel continues to correct motion and photobleaching after the injection. This mode requires an isosbestic control channel (**Isosbestic Control Channel?** set to `True`). Both time bounds are in seconds; the validator enforces start < end and that both fall within the signal's recorded timespan, and it reports an error if the window contains no data after artifact removal.
+
+**Photobleaching Detrend?** extends the control fit with an exponential decay term, for the photobleaching the isosbestic control channel does not see. Fitting and subtracting the control cancels the bleaching the two wavelengths share, but the indicator bleaches by its own kinetics as well, and no rescaling of the control can remove that part — on long recordings it survives into the corrected ΔF/F as a slow drift, which confounds any comparison between an early part of the session and a late one. When `True`, the fitted baseline becomes `slope·control + intercept + b·exp(-x/c)` instead of `slope·control + intercept`, and ΔF/F is computed against that. The decay term is part of the fit, so it appears in `cntrl_sig_fit_<recording site>` and in the preprocessing review page. Its time constant is held within the length of the recording, since a decay slower than the recording cannot be measured from it. This parameter requires an isosbestic control channel (**Isosbestic Control Channel?** set to `True`), and requires **Control Channel Fitting Method** to be `OLS` — the decay term makes the fit nonlinear, and the nonlinear fit has no robust variant.
 
 **Eliminate first few seconds** drops this many seconds from the start of every recording. The first second or two of fiber-photometry data is usually contaminated by the bright transient when the LED first turns on; this parameter exists to discard that. Default `1` is conservative.
 
@@ -89,13 +92,10 @@ The largest card on the homepage, collapsed by default (only Input Folder Select
 |-----------|-------------|------|---------|-----------------|
 | z_score and/or ΔF/F? (psth) | Metric Step 4 aligns events on. | str | `z_score` | `z_score`, `dff`, `Both` |
 | z_score and/or ΔF/F? (transients) | Metric the transient detector operates on. | str | `z_score` | `z_score`, `dff`, `Both` |
-| z-score plot and/or ΔF/F plot? | Review plots shown in a browser tab after Step 3. | str | `None` | `z_score`, `dff`, `Both`, `None` |
 
 **z_score and/or ΔF/F? (psth)** chooses which metric Step 4 uses to align events. Selecting `Both` writes two complete sets of PSTH outputs, one per metric. See the [z-score normalization explainer](../explanation/zscore.md) for what `z_score` is and how it differs from `dff`.
 
 **z_score and/or ΔF/F? (transients)** chooses which metric the transient detector operates on. Same `Both` semantics.
-
-**z-score plot and/or ΔF/F plot?** controls the review plots shown after Step 3 finishes. `None` skips the review; otherwise GuPPy opens a browser tab with the preprocessed trace for each recording site — the chosen metric, or a z-score/ΔF/F toggle when `Both`.
 
 ### Transient detection
 
@@ -125,16 +125,16 @@ The largest card on the homepage, collapsed by default (only Input Folder Select
 
 ### Artifact removal
 
-*Used by: Step 3 (Preprocess) runs the interactive removal flow when enabled.*
+Artifact removal is not configured from this form. It is handled by two optional steps that run after Step 3 — **Select Artifact Windows** and **Remove Artifacts** — and the removal method is chosen on the Select Artifact Windows page. See [Remove artifacts from a recording](../how-to/artifact-removal.md).
 
-| Parameter | Description | Type | Default | Options / range |
-|-----------|-------------|------|---------|-----------------|
-| removeArtifacts? | Enable the interactive removal flow. | bool | `False` | `True`, `False` |
-| removeArtifacts method | How dropped chunks are handled. | str | `concatenate` | `concatenate`, `replace with NaN` |
+Both settings still appear in `GuPPyParamtersUsed.json` as a record of what was applied to each run:
 
-**removeArtifacts?** enables the manual artifact-removal step in Step 3: when `True`, GuPPy presents an interactive plot during preprocessing and lets you select bad chunks to drop. When `False`, no chunks are removed.
+| Internal name | Meaning | Written by |
+|---------------|---------|------------|
+| `removeArtifacts` | Whether artifacts were removed from this run. | `False` after Step 3; `True` after Remove Artifacts. |
+| `artifactsRemovalMethod` | How the marked periods were applied. | Select Artifact Windows records the method chosen on the page. |
 
-**removeArtifacts method** chooses how dropped chunks are handled. `concatenate` removes the bad sections and stitches the surviving good sections together (so the resulting trace is shorter than the input). `replace with NaN` keeps the trace at its original length but masks the dropped samples with NaN, which downstream code treats as missing.
+`replace with NaN` (the default) keeps the trace at its original length and masks the marked samples with NaN, which downstream code treats as missing. `concatenate` drops the marked sections and stitches the surviving ones together, so the resulting trace is shorter than the input; it re-times the kept samples onto a new timeline, is unsupported by NWB export, and cannot be combined with cross-correlation.
 
 ### Z-score Parameters
 
@@ -194,8 +194,11 @@ Set both to `0` to disable baseline correction. If the first event timestamp in 
 |-----------|-------------|------|---------|-----------------|
 | Peak Start time | Start times for the peak/AUC windows. | list of int | `[-5, 0, 5]` (rows 1-3 of the table; rows 4-10 are NaN) | one or more start times in seconds, within `[Seconds before 0, Seconds after 0]` |
 | Peak End time | End times paired with the starts. | list of int | `[0, 3, 10]` (rows 1-3 of the table; rows 4-10 are NaN) | one or more end times in seconds, paired with starts |
+| AUC Units | Time unit the area under the curve is integrated against. | str | `samples` | `samples`, `seconds` |
 
 The peak / AUC widget is a small table with rows of (start, end) pairs. Each row defines a window inside the PSTH within which GuPPy computes the peak amplitude and area under the curve of the trial-mean trace. Multiple rows let you measure the same PSTH across multiple windows in a single run (for example, an early `[-5, 0]` baseline window, an immediate post-event `[0, 3]` window, and a later `[5, 10]` window). The tabulator widget accepts up to ten rows; rows whose start or end value is NaN are ignored.
+
+**AUC Units** controls the spacing used to integrate each window. `seconds` reports the area in z-score × seconds (or ΔF/F × seconds), the unit commonly reported in the literature. `samples` integrates with one-sample spacing instead, so the same response reads larger the faster it was sampled; a 1017 Hz recording gives a value roughly 1000× that of a 1 Hz recording. The choice applies to every `area_*` column in the `peak_AUC_*` outputs and is recorded in `GuPPyParamtersUsed.json`.
 
 ---
 
@@ -247,7 +250,8 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 | Internal name | Parameter | Section |
 |---------------|-----------|---------|
 | `abspath` | (auto-derived; not user-set) | [Input Folder Selection](#input-folder-selection) |
-| `artifactsRemovalMethod` | removeArtifacts method | [Artifact removal](#artifact-removal) |
+| `artifactsRemovalMethod` | (recorded provenance; set on the Select Artifact Windows page) | [Artifact removal](#artifact-removal) |
+| `auc_units` | AUC Units | [Peak and AUC Parameters](#peak-and-auc-parameters) |
 | `averageForGroup` | Average Group? | [Group Analysis](#group-analysis) |
 | `baselineCorrectionEnd` | Baseline Correction End time | [Baseline Parameters](#baseline-parameters) |
 | `baselineCorrectionStart` | Baseline Correction Start time | [Baseline Parameters](#baseline-parameters) |
@@ -274,8 +278,8 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 | `numberOfCores` | # of cores | [Compute and batching](#compute-and-batching) |
 | `peak_endPoint` | Peak End time | [Peak and AUC Parameters](#peak-and-auc-parameters) |
 | `peak_startPoint` | Peak Start time | [Peak and AUC Parameters](#peak-and-auc-parameters) |
-| `plot_zScore_dff` | z-score plot and/or ΔF/F plot? | [Output metric selection](#output-metric-selection) |
-| `removeArtifacts` | removeArtifacts? | [Artifact removal](#artifact-removal) |
+| `photobleaching_detrend` | Photobleaching Detrend? | [Signal preprocessing](#signal-preprocessing) |
+| `removeArtifacts` | (recorded provenance; not user-set) | [Artifact removal](#artifact-removal) |
 | `selectForComputePsth` | z_score and/or ΔF/F? (psth) | [Output metric selection](#output-metric-selection) |
 | `selectForTransientsComputation` | z_score and/or ΔF/F? (transients) | [Output metric selection](#output-metric-selection) |
 | `timeForLightsTurnOn` | Eliminate first few seconds | [Signal preprocessing](#signal-preprocessing) |

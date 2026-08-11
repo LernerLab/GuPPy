@@ -137,6 +137,11 @@ class ParameterForm:
                                 data files for the same recording session.<br>
                                 - ***Isosbestic Control Channel? :*** Make this parameter ``` False ``` if user
                                 does not want to use isosbestic control channel in the analysis.<br>
+                                - ***Photobleaching Detrend? :*** Make this parameter ``` True ``` to fit an
+                                exponential decay to the corrected &#916;F/F and subtract it, removing the
+                                residual photobleaching drift that remains after the control channel is
+                                subtracted. Useful for long (multi-hour) recordings. Requires an isosbestic
+                                control channel. Default is ``` False ```.<br>
                                 - ***Eliminate first few seconds :*** It is the parameter to cut out first x seconds
                                 from the data. Default is 1 seconds.<br>
                                 - ***Window for Moving Average filter :*** The filtering of signals
@@ -154,15 +159,6 @@ class ParameterForm:
                                 - ***Number of channels (Neurophotometrics only) :*** Number of
                                 channels used while recording, when data files has no column names mentioning "Flags"
                                 or "LedState".
-                                - ***removeArtifacts? :*** Make this parameter ``` True``` if there are
-                                artifacts and user wants to remove the artifacts.
-                                - ***removeArtifacts method :*** Selecting ```replace with NaN```
-                                (recommended, default) will replace bad chunks with NaN values,
-                                preserving the original recording timeline.
-                                Selecting ```concatenate``` will remove bad chunks and concatenate the
-                                selected good chunks together; this is discouraged because it re-times
-                                the kept samples onto a new timeline (breaking alignment to the
-                                acquisition clock) and is not supported by NWB export.
                                 """,
             width=350,
         )
@@ -193,6 +189,10 @@ class ParameterForm:
             name="Control Fit Window End Time (s) (int)", value=0, width=320
         )
 
+        self.photobleaching_detrend = pn.widgets.Select(
+            name="Photobleaching Detrend? (bool)", value=False, options=[True, False], width=320
+        )
+
         self.numberOfCores = pn.widgets.IntInput(name="# of cores (int)", value=2, width=150)
 
         self.combine_data = pn.widgets.Select(
@@ -220,13 +220,6 @@ class ParameterForm:
             name="z_score and/or \u0394F/F? (transients)", options=["z_score", "dff", "Both"], width=320
         )
 
-        self.plot_zScore_dff = pn.widgets.Select(
-            name="z-score plot and/or \u0394F/F plot?",
-            options=["z_score", "dff", "Both", "None"],
-            value="None",
-            width=320,
-        )
-
         self.moving_wd = pn.widgets.IntInput(
             name="Moving Window for transients detection (s) (int)", value=15, width=320
         )
@@ -237,17 +230,6 @@ class ParameterForm:
 
         self.moving_avg_filter = pn.widgets.IntInput(
             name="Window for Moving Average filter (int)", value=100, width=320
-        )
-
-        self.removeArtifacts = pn.widgets.Select(
-            name="removeArtifacts? (bool)", value=False, options=[True, False], width=150
-        )
-
-        self.artifactsRemovalMethod = pn.widgets.Select(
-            name="removeArtifacts method",
-            value="replace with NaN",
-            options=["concatenate", "replace with NaN"],
-            width=150,
         )
 
         self.no_channels_np = pn.widgets.IntInput(
@@ -362,6 +344,9 @@ class ParameterForm:
                         - Peak and AUC parameters must be within the PSTH parameters set in the PSTH parameters section.<br>
                         - Please make sure when user changes the parameters in the table below, click on any other cell after
                         changing a value in a particular cell.
+                        - ***AUC Units :*** ```seconds``` reports the area in z-score (or ΔF/F) × seconds, the unit
+                        commonly reported in the literature. ```samples``` integrates with one-sample spacing instead,
+                        so the area also scales with the recording's sampling rate.
                         """,
             width=580,
         )
@@ -375,7 +360,13 @@ class ParameterForm:
 
         self.df_widget = pn.widgets.Tabulator(self.start_end_point_df, name="DataFrame", show_index=False, widths=280)
 
-        self.peak_param_wd = pn.WidgetBox("### Peak and AUC Parameters", self.peak_explain, self.df_widget, width=600)
+        self.auc_units = pn.widgets.Select(
+            name="AUC Units (str)", options=["samples", "seconds"], value="samples", width=200
+        )
+
+        self.peak_param_wd = pn.WidgetBox(
+            "### Peak and AUC Parameters", self.peak_explain, self.df_widget, self.auc_units, width=600
+        )
 
         self.individual_analysis_wd_2 = pn.Column(
             self.explain_time_artifacts,
@@ -385,15 +376,14 @@ class ParameterForm:
             self.control_fit_window_mode,
             self.control_fit_window_strt,
             self.control_fit_window_end,
+            self.photobleaching_detrend,
             self.timeForLightsTurnOn,
             self.moving_avg_filter,
             self.computePsth,
             self.transients,
-            self.plot_zScore_dff,
             self.moving_wd,
             pn.Row(self.highAmpFilt, self.transientsThresh),
             self.no_channels_np,
-            pn.Row(self.removeArtifacts, self.artifactsRemovalMethod),
         )
 
         self.psth_baseline_param = pn.Column(
@@ -726,10 +716,9 @@ class ParameterForm:
             "controlFitWindowMode": self.control_fit_window_mode.value,
             "controlFitWindowStart": self.control_fit_window_strt.value,
             "controlFitWindowEnd": self.control_fit_window_end.value,
+            "photobleaching_detrend": self.photobleaching_detrend.value,
             "timeForLightsTurnOn": self.timeForLightsTurnOn.value,
             "filter_window": self.moving_avg_filter.value,
-            "removeArtifacts": self.removeArtifacts.value,
-            "artifactsRemovalMethod": self.artifactsRemovalMethod.value,
             "noChannels": self.no_channels_np.value,
             "zscore_method": self.z_score_computation.value,
             "baselineWindowStart": self.baseline_wd_strt.value,
@@ -744,12 +733,12 @@ class ParameterForm:
             "baselineCorrectionEnd": self.baselineCorrectionEnd.value,
             "peak_startPoint": list(self.df_widget.value["Peak Start time"]),  # startPoint.value,
             "peak_endPoint": list(self.df_widget.value["Peak End time"]),  # endPoint.value,
+            "auc_units": self.auc_units.value,
             "selectForComputePsth": self.computePsth.value,
             "selectForTransientsComputation": self.transients.value,
             "moving_window": self.moving_wd.value,
             "highAmpFilt": self.highAmpFilt.value,
             "transientsThresh": self.transientsThresh.value,
-            "plot_zScore_dff": self.plot_zScore_dff.value,
             "visualize_zscore_or_dff": self.visualize_zscore_or_dff.value,
             "group_session_folders": self.files_2.value,
             "averageForGroup": self.averageForGroup.value,
@@ -780,10 +769,9 @@ class ParameterForm:
             "controlFitWindowMode": self.control_fit_window_mode,
             "controlFitWindowStart": self.control_fit_window_strt,
             "controlFitWindowEnd": self.control_fit_window_end,
+            "photobleaching_detrend": self.photobleaching_detrend,
             "timeForLightsTurnOn": self.timeForLightsTurnOn,
             "filter_window": self.moving_avg_filter,
-            "removeArtifacts": self.removeArtifacts,
-            "artifactsRemovalMethod": self.artifactsRemovalMethod,
             "noChannels": self.no_channels_np,
             "zscore_method": self.z_score_computation,
             "baselineWindowStart": self.baseline_wd_strt,
@@ -796,12 +784,12 @@ class ParameterForm:
             "use_time_or_trials": self.use_time_or_trials,
             "baselineCorrectionStart": self.baselineCorrectionStart,
             "baselineCorrectionEnd": self.baselineCorrectionEnd,
+            "auc_units": self.auc_units,
             "selectForComputePsth": self.computePsth,
             "selectForTransientsComputation": self.transients,
             "moving_window": self.moving_wd,
             "highAmpFilt": self.highAmpFilt,
             "transientsThresh": self.transientsThresh,
-            "plot_zScore_dff": self.plot_zScore_dff,
             "visualize_zscore_or_dff": self.visualize_zscore_or_dff,
             "averageForGroup": self.averageForGroup,
         }

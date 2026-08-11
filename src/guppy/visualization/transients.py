@@ -3,7 +3,7 @@ import logging
 import holoviews as hv
 import numpy as np
 
-from .shading import PLOT_WIDTH, shade_trace
+from .shading import shade_trace
 
 logger = logging.getLogger(__name__)
 
@@ -34,4 +34,4 @@ def build_peaks_overlay(
     """
     curve = shade_trace(hv.Curve((timestamps, z_score), "time (s)", title))
     peaks = hv.Scatter((timestamps[peaksIndex], z_score[peaksIndex])).opts(color="red", size=6)
-    return (curve * peaks).opts(title=f"{suptitle} — {title}", width=PLOT_WIDTH, height=300)
+    return (curve * peaks).opts(title=f"{suptitle} — {title}", responsive=True, height=300)

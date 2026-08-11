@@ -18,29 +18,13 @@ from collections.abc import Callable
 from urllib.parse import urlsplit
 from uuid import uuid4
 
-import numpy as np
 import panel as pn
 
-from ..utils.utils import get_all_stores_for_combining_data, select_run_folders
+from ..utils.utils import (
+    resolve_run_folders,  # noqa: F401  (re-exported for the step views)
+)
 
 logger = logging.getLogger(__name__)
-
-
-def resolve_run_folders(session_folders: list, inputParameters: dict) -> list[str]:
-    """Return the output (run) folders a compute job wrote for the given sessions.
-
-    Mirrors the folder selection the step workers use: per-session run folders normally,
-    or the first folder of each combine-group when ``combine_data`` is set.
-    """
-    selected_runs = inputParameters.get("selected_runs") or {}
-    run_folders: list[str] = []
-    for session in session_folders:
-        run_folders.append(select_run_folders(session, selected_runs.get(session)))
-    run_folders = list(np.concatenate(run_folders).flatten())
-
-    if inputParameters["combine_data"] == True:
-        return [group[0] for group in get_all_stores_for_combining_data(run_folders)]
-    return run_folders
 
 
 def _read_token() -> str:

@@ -6,7 +6,14 @@ import numpy as np
 import pytest
 
 from guppy.testing import compare_output_folders
-from guppy.testing.api import step1, step2, step3, step4
+from guppy.testing.api import (
+    remove_artifacts,
+    select_artifact_windows,
+    step1,
+    step2,
+    step3,
+    step4,
+)
 from guppy_test_data import TESTING_DATA, event_ts_offset_for
 
 # Artifact window coordinates (x/time values only; col 1 is y and not used by the analysis).
@@ -104,14 +111,15 @@ def test_consistency(
     selected_runs = {folder: ["1"] for folder in common_kwargs["selected_folders"]}
     step1(**common_kwargs, store_id_to_store_label=STORE_ID_TO_STORE_LABEL)
     step2(**common_kwargs, selected_runs=selected_runs)
-    step3(
+    step3(**common_kwargs, control_fit_method="OLS", selected_runs=selected_runs)
+    select_artifact_windows(
         **common_kwargs,
-        remove_artifacts=True,
-        artifact_removal_method=artifact_removal_method,
         artifact_coords={"dms": coords},
+        artifact_removal_method=artifact_removal_method,
         control_fit_method="OLS",
         selected_runs=selected_runs,
     )
+    remove_artifacts(**common_kwargs, control_fit_method="OLS", selected_runs=selected_runs)
     step4(**common_kwargs, selected_runs=selected_runs)
 
     run_folders = sorted(glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")))

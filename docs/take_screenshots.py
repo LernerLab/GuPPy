@@ -22,6 +22,7 @@ import numpy as np
 import pandas as pd
 import panel as pn
 
+from guppy.frontend.artifact_windows_page import ArtifactWindowSelector
 from guppy.frontend.custom_events_config import CustomEventsConfig
 from guppy.frontend.frontend_utils import scanPortsAndFind
 from guppy.frontend.parameterized_plotter import ParameterizedPlotter
@@ -88,6 +89,81 @@ def screenshot_import_custom_events_button(page: Page) -> None:
     )
     print("Saved import_custom_events_button.png")
 
+    pn.state.kill_all_servers()
+
+
+def screenshot_select_artifact_windows_button(page: Page) -> None:
+    """How-to: the sidebar showing the two optional artifact steps between Step 3 and Step 4."""
+    os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
+    template = build_homepage()
+    url = _serve(template)
+    page.goto(url)
+    page.get_by_text("Individual Analysis").first.wait_for()
+    page.wait_for_timeout(1000)
+    page.screenshot(
+        path=OUTPUT_DIR / "select_artifact_windows_button.png",
+        clip={"x": 0, "y": 400, "width": 340, "height": 440},
+    )
+    print("Saved select_artifact_windows_button.png")
+
+    pn.state.kill_all_servers()
+
+
+def _synthetic_pair_traces(*, recording_sites: list[str]) -> dict[str, dict[str, object]]:
+    """Build stand-in control/signal/fit traces containing one obvious artifact.
+
+    Mirrors the shape ``load_pair_traces`` returns, so the marking page can be rendered
+    without a preprocessed run folder on disk.
+    """
+    timestamps = np.arange(0.0, 300.0, 0.01)
+    random_generator = np.random.default_rng(0)
+    bleaching = 40.0 * np.exp(-timestamps / 260.0)
+    # A knocked patchcord: both channels drop out together for a few seconds.
+    dropout = -22.0 * np.exp(-(((timestamps - 134.0) / 3.0) ** 2))
+
+    pair_traces = {}
+    for site in recording_sites:
+        transients = sum(3.0 * np.exp(-(((timestamps - onset) / 0.9) ** 2)) for onset in np.arange(12.0, 300.0, 17.0))
+        fit = 100.0 + bleaching + dropout
+        pair_traces[site] = {
+            "x": timestamps,
+            "control": fit + random_generator.normal(0.0, 0.6, timestamps.size),
+            "signal": fit + transients + random_generator.normal(0.0, 0.6, timestamps.size),
+            "fit": fit,
+            "plot_name": [f"control_{site}", f"signal_{site}", f"cntrl_sig_fit_{site}"],
+        }
+    return pair_traces
+
+
+def screenshot_select_artifact_windows(page: Page, tmp_path: Path) -> None:
+    """How-to: the Select Artifact Windows page with the dropout marked as one period.
+
+    The selector is built against synthetic traces rather than a preprocessed run folder
+    so the screenshot does not depend on running Steps 1-3 first.
+    """
+    run_folder = tmp_path / "sample_data_csv_1_output_1"
+    run_folder.mkdir(exist_ok=True)
+
+    selector = ArtifactWindowSelector(str(run_folder), _synthetic_pair_traces(recording_sites=["DMS", "DLS"]))
+    selector.set_windows("DMS", [(128.0, 140.0)])
+
+    template = pn.template.BootstrapTemplate(title="GuPPy — Select Artifact Windows")
+    template.main.append(selector.widget)
+    url = _serve(template)
+
+    # Render tall enough that every trace panel lays out (bokeh does not draw plots that
+    # never enter the viewport), then clip to the content instead of the padded page.
+    page.set_viewport_size({"width": 1280, "height": 1700})
+    page.goto(url)
+    page.get_by_text("Select Artifact Windows").first.wait_for()
+    page.wait_for_timeout(3000)
+    page.screenshot(
+        path=OUTPUT_DIR / "select_artifact_windows.png",
+        clip={"x": 0, "y": 0, "width": 1280, "height": 1310},
+    )
+    print("Saved select_artifact_windows.png")
+
+    page.set_viewport_size(VIEWPORT)
     pn.state.kill_all_servers()
 
 
@@ -190,13 +266,13 @@ def screenshot_parameters(page: Page) -> None:
 def screenshot_sidebar_progress(page: Page, progress_index: int, output_name: str) -> None:
     """Screenshot the homepage sidebar with one progress bar mid-fill.
 
-    The homepage sidebar contains three Progress indicators (read raw data,
-    preprocess, PSTH) that fill from 0 to 100 as the corresponding pipeline
-    step runs. We render the homepage with one of them pre-set to 60 to
-    illustrate the in-progress state, then clip the screenshot to the
+    The homepage sidebar contains four Progress indicators that fill from 0 to 100 as
+    the corresponding pipeline step runs. We render the homepage with one of them
+    pre-set to 60 to illustrate the in-progress state, then clip the screenshot to the
     leftmost 360 px so the result is just the sidebar.
 
-    progress_index: 0 = read raw data, 1 = preprocess, 2 = PSTH computation.
+    progress_index follows sidebar order: 0 = read raw data, 1 = preprocess,
+    2 = remove artifacts, 3 = PSTH computation.
     """
     os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
     template = build_homepage()
@@ -260,9 +336,7 @@ def screenshot_visualization(page: Page, tmp_path: Path) -> None:
     columns = ["trial_1", "trial_2", "trial_3", "bin_1", "timestamps", "mean", "err", "bin_err_1"]
 
     def make_df() -> pd.DataFrame:
-        return pd.DataFrame(
-            {col: (timestamps if col == "timestamps" else np.zeros(n_timepoints)) for col in columns}
-        )
+        return pd.DataFrame({col: (timestamps if col == "timestamps" else np.zeros(n_timepoints)) for col in columns})
 
     df_new = pd.concat([make_df() for _ in events], keys=events, axis=1)
 
@@ -315,7 +389,9 @@ def main() -> None:
             screenshot_label_stores_configured(page, tmp_path)
             screenshot_sidebar_progress(page, 0, "04_read_progress.png")
             screenshot_sidebar_progress(page, 1, "05_preprocess_progress.png")
-            screenshot_sidebar_progress(page, 2, "06_psth_progress.png")
+            screenshot_sidebar_progress(page, 3, "06_psth_progress.png")
+            screenshot_select_artifact_windows_button(page)
+            screenshot_select_artifact_windows(page, tmp_path)
             screenshot_visualization(page, tmp_path)
 
         browser.close()

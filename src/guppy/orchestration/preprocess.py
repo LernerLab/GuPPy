@@ -4,7 +4,7 @@ import os
 
 import numpy as np
 
-from .save_parameters import save_parameters
+from .save_parameters import read_artifact_provenance, save_parameters
 from ..analysis.artifact_removal import remove_artifacts
 from ..analysis.combine_data import combine_data
 from ..analysis.control_channel import add_control_channel, create_control_channel
@@ -41,8 +41,10 @@ from ..utils import progress
 from ..utils.progress import step_error_handler
 from ..utils.utils import (
     get_all_stores_for_combining_data,
+    resolve_run_folders,
     select_run_folders,
 )
+from ..utils.validation import validate_artifact_coords_present
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +122,7 @@ def execute_timestamp_correction(session_folders: list[str], inputParameters: di
         logger.info(f"Timestamps corrections finished for {filepath}")
 
 
-def execute_zscore(session_folders: list[str], inputParameters: dict[str, object]) -> None:
+def execute_zscore(session_folders: list[str], inputParameters: dict[str, object], *, remove_artifacts: bool) -> None:
     """
     Compute z-score and dF/F for all channel pairs across session output directories.
 
@@ -131,14 +133,13 @@ def execute_zscore(session_folders: list[str], inputParameters: dict[str, object
     inputParameters : dict
         Pipeline configuration; must include ``'filter_window'``, ``'isosbestic_control'``,
         ``'zscore_method'``, ``'control_fit_method'``, ``'baselineWindowStart'``,
-        ``'baselineWindowEnd'``, ``'removeArtifacts'``, ``'artifactsRemovalMethod'``,
-        and ``'combine_data'``.
+        ``'baselineWindowEnd'``, ``'photobleaching_detrend'``, and ``'combine_data'``.
+    remove_artifacts : bool
+        When True, chunk the signal on each run's saved artifact windows; when False,
+        compute over the full recording.
     """
 
-    plot_zScore_dff = inputParameters["plot_zScore_dff"]
     combine_data = inputParameters["combine_data"]
-    remove_artifacts = inputParameters["removeArtifacts"]
-    artifactsRemovalMethod = inputParameters["artifactsRemovalMethod"]
     filter_window = inputParameters["filter_window"]
     isosbestic_control = inputParameters["isosbestic_control"]
     zscore_method = inputParameters["zscore_method"]
@@ -147,12 +148,29 @@ def execute_zscore(session_folders: list[str], inputParameters: dict[str, object
     control_fit_window_mode = inputParameters["controlFitWindowMode"]
     control_fit_window_start = inputParameters["controlFitWindowStart"]
     control_fit_window_end = inputParameters["controlFitWindowEnd"]
+    photobleaching_detrend = inputParameters["photobleaching_detrend"]
 
     if control_fit_window_mode == "baseline epoch" and isosbestic_control == False:
         raise ValueError(
             "controlFitWindowMode='baseline epoch' requires an isosbestic control channel, but "
             "isosbestic_control is False. Enable the isosbestic control channel, or set the control fit "
             "window back to 'full trace'."
+        )
+
+    if photobleaching_detrend == True and isosbestic_control == False:
+        raise ValueError(
+            "photobleaching_detrend=True requires an isosbestic control channel, but isosbestic_control "
+            "is False. Without one the synthetic control is itself an exponential fit to the signal, so "
+            "the photobleaching trend has already been removed. Enable the isosbestic control channel, "
+            "or set photobleaching detrending back to False."
+        )
+
+    if photobleaching_detrend == True and control_fit_method != "OLS":
+        raise ValueError(
+            f"photobleaching_detrend=True requires control_fit_method='OLS', but it is "
+            f"'{control_fit_method}'. Adding the photobleaching term makes the control fit nonlinear, and "
+            "the nonlinear solver has no robust variant. Set the control fit method to 'OLS', or set "
+            "photobleaching detrending back to False."
         )
 
     run_folders = []
@@ -168,6 +186,7 @@ def execute_zscore(session_folders: list[str], inputParameters: dict[str, object
         filepath = run_folders[j]
         logger.debug(f"Computing z-score for each of the data in {filepath}")
         path = decide_naming_convention(filepath)
+        _, artifactsRemovalMethod = read_artifact_provenance(destination=filepath)
 
         for i in range(path.shape[1]):
             name = recording_site_from_channel_path(path[0, i])
@@ -189,6 +208,7 @@ def execute_zscore(session_folders: list[str], inputParameters: dict[str, object
                 control_fit_window_mode,
                 control_fit_window_start,
                 control_fit_window_end,
+                photobleaching_detrend,
             )
             write_zscore(filepath, name, z_score, dff, control_fit, control_array)
 
@@ -207,12 +227,11 @@ def execute_artifact_removal(session_folders: list[str], inputParameters: dict[s
     session_folders : list of str
         Session directories to process.
     inputParameters : dict
-        Pipeline configuration; must include ``'timeForLightsTurnOn'``,
-        ``'artifactsRemovalMethod'``, and ``'combine_data'``.
+        Pipeline configuration; must include ``'timeForLightsTurnOn'`` and ``'combine_data'``.
+        The removal method is read from each run's recorded provenance.
     """
 
     timeForLightsTurnOn = inputParameters["timeForLightsTurnOn"]
-    artifactsRemovalMethod = inputParameters["artifactsRemovalMethod"]
     combine_data = inputParameters["combine_data"]
 
     run_folders = []
@@ -228,6 +247,7 @@ def execute_artifact_removal(session_folders: list[str], inputParameters: dict[s
     for j in range(len(run_folders)):
         filepath = run_folders[j]
         store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
+        _, artifactsRemovalMethod = read_artifact_provenance(destination=filepath)
 
         store_label_to_data = read_corrected_data_dict(filepath, store_array)
         pair_name_to_tsNew, pair_name_to_sampling_rate = read_corrected_timestamps_pairwise(filepath)
@@ -335,59 +355,117 @@ def execute_combine_data(
     return combined_output_groups
 
 
-def extractTsAndSignal(inputParameters: dict[str, object]) -> None:
+def _start_progress(inputParameters: dict[str, object], *, passes_per_folder: int) -> None:
     """
-    Orchestrate the full preprocessing pipeline (timestamp correction, z-score, artifact removal).
+    Size the progress bar for a preprocessing run.
+
+    Each pass reports one unit per folder it visits, so the denominator is the folder
+    count times the number of passes. Combining collapses the run folders into one
+    output folder per run name, so only timestamp correction visits every folder.
 
     Parameters
     ----------
     inputParameters : dict
-        Full pipeline configuration, including ``'session_folders'``, ``'timeForLightsTurnOn'``,
-        ``'isosbestic_control'``, ``'removeArtifacts'``, and ``'combine_data'``.
+        Pipeline configuration; must include ``'session_folders'`` and ``'combine_data'``.
+    passes_per_folder : int
+        Number of passes that will run over each folder.
     """
-
-    logger.debug("Extracting signal data and event timestamps...")
-    inputParameters = inputParameters
-
-    # Snapshot the parameters being executed into each selected output dir so the
-    # on-disk GuPPyParamtersUsed.json always reflects the last-run configuration.
-    save_parameters(inputParameters=inputParameters)
-
     session_folders = inputParameters["session_folders"]
-    timeForLightsTurnOn = inputParameters["timeForLightsTurnOn"]
-    isosbestic_control = inputParameters["isosbestic_control"]
-    remove_artifacts = inputParameters["removeArtifacts"]
-    combine_data = inputParameters["combine_data"]
-
-    logger.info(f"Remove Artifacts : {remove_artifacts}")
-    logger.info(f"Combine Data : {combine_data}")
-    logger.info(f"Isosbestic Control Channel : {isosbestic_control}")
     selected_runs = inputParameters.get("selected_runs") or {}
     run_folders = []
     for i in range(len(session_folders)):
         run_folders.append(select_run_folders(session_folders[i], selected_runs.get(session_folders[i])))
     run_folders = np.concatenate(run_folders)
-    # Each pass below reports one unit per folder it visits, so the denominator is the
-    # folder count times the number of passes that will actually run.
-    passes_per_folder = 2 + (1 if remove_artifacts == True else 0)
-    if combine_data == False:
+
+    if inputParameters["combine_data"] == False:
         progress.start(run_folders.shape[0] * passes_per_folder)
-        execute_timestamp_correction(session_folders, inputParameters)
-        execute_zscore(session_folders, inputParameters)
-        if remove_artifacts == True:
-            execute_artifact_removal(session_folders, inputParameters)
     else:
-        # Combining collapses the run folders into one output folder per run name, so only
-        # timestamp correction visits every folder; the later passes visit the collapsed set.
         combined_group_count = len(get_all_stores_for_combining_data(list(run_folders.flatten())))
         progress.start(run_folders.shape[0] + combined_group_count * (passes_per_folder - 1))
-        execute_timestamp_correction(session_folders, inputParameters)
-        store_array = check_storeslistfile(session_folders)
-        combined_output_folders = execute_combine_data(session_folders, inputParameters, store_array)
-        write_combined_stores_list(combined_output_folders, store_array)
-        execute_zscore(combined_output_folders, inputParameters)
-        if remove_artifacts == True:
-            execute_artifact_removal(combined_output_folders, inputParameters)
+
+
+def _correct_and_maybe_combine(session_folders: list[str], inputParameters: dict[str, object]) -> list:
+    """
+    Run timestamp correction, then combining when enabled.
+
+    Parameters
+    ----------
+    session_folders : list of str
+        Session directories to process.
+    inputParameters : dict
+        Pipeline configuration; must include ``'combine_data'``.
+
+    Returns
+    -------
+    list
+        The folder structure the z-score and artifact-removal passes consume: the
+        session folders, or the combined-output folder groups when combining.
+    """
+    execute_timestamp_correction(session_folders, inputParameters)
+    if inputParameters["combine_data"] == False:
+        return session_folders
+
+    store_array = check_storeslistfile(session_folders)
+    combined_output_folders = execute_combine_data(session_folders, inputParameters, store_array)
+    write_combined_stores_list(combined_output_folders, store_array)
+    return combined_output_folders
+
+
+def extractTsAndSignal(inputParameters: dict[str, object]) -> None:
+    """
+    Orchestrate step-3 preprocessing (timestamp correction and z-score over the full recording).
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline configuration, including ``'session_folders'``,
+        ``'timeForLightsTurnOn'``, ``'isosbestic_control'``, and ``'combine_data'``.
+    """
+
+    logger.debug("Extracting signal data and event timestamps...")
+
+    # Snapshot the parameters being executed into each selected output dir so the
+    # on-disk GuPPyParamtersUsed.json always reflects the last-run configuration.
+    save_parameters(inputParameters=inputParameters, remove_artifacts=False)
+
+    session_folders = inputParameters["session_folders"]
+    logger.info(f"Combine Data : {inputParameters['combine_data']}")
+    logger.info(f"Isosbestic Control Channel : {inputParameters['isosbestic_control']}")
+
+    _start_progress(inputParameters, passes_per_folder=2)
+    folders = _correct_and_maybe_combine(session_folders, inputParameters)
+    execute_zscore(folders, inputParameters, remove_artifacts=False)
+
+
+def removeArtifactsFromSignal(inputParameters: dict[str, object]) -> None:
+    """
+    Orchestrate the optional Remove Artifacts step.
+
+    Re-runs timestamp correction and z-score against the artifact windows saved by the
+    Select Artifact Windows step, then excises the artifacts from the corrected data,
+    timestamps, and TTLs.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline configuration, including ``'session_folders'``,
+        ``'timeForLightsTurnOn'``, ``'isosbestic_control'``, and ``'combine_data'``.
+    """
+
+    logger.debug("Removing artifacts from signal data...")
+
+    session_folders = inputParameters["session_folders"]
+    validate_artifact_coords_present(run_folders=resolve_run_folders(session_folders, inputParameters))
+
+    save_parameters(inputParameters=inputParameters, remove_artifacts=True)
+
+    logger.info(f"Combine Data : {inputParameters['combine_data']}")
+    logger.info(f"Isosbestic Control Channel : {inputParameters['isosbestic_control']}")
+
+    _start_progress(inputParameters, passes_per_folder=3)
+    folders = _correct_and_maybe_combine(session_folders, inputParameters)
+    execute_zscore(folders, inputParameters, remove_artifacts=True)
+    execute_artifact_removal(folders, inputParameters)
 
 
 @step_error_handler
@@ -400,3 +478,15 @@ def run_preprocess_step(input_parameters: dict[str, object]) -> None:
         Full pipeline input parameters.
     """
     extractTsAndSignal(input_parameters)
+
+
+@step_error_handler
+def run_remove_artifacts_step(input_parameters: dict[str, object]) -> None:
+    """Run the optional Remove Artifacts step with failure reporting attached.
+
+    Parameters
+    ----------
+    input_parameters : dict
+        Full pipeline input parameters.
+    """
+    removeArtifactsFromSignal(input_parameters)

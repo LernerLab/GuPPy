@@ -40,6 +40,52 @@ def test_triangular_peak_area_matches_trapezoid():
     np.testing.assert_allclose(result["area_1"], np.array([expected_area]), rtol=1e-5)
 
 
+def test_area_in_samples_uses_unit_spacing():
+    # Trapezoid over rows 0-2 of [0, 2, 2] with dx = 1 sample:
+    # (0 + 2)/2 + (2 + 2)/2 = 1.0 + 2.0 = 3.0
+    timestamps = np.array([0.0, 0.5, 1.0, 1.5])
+    psth_mean = np.array([[0.0], [2.0], [2.0], [0.0]])
+    result = compute_psth_peak_and_area(
+        psth_mean,
+        timestamps,
+        sampling_rate=2.0,
+        peak_startPoint=[0.0],
+        peak_endPoint=[1.5],
+        auc_units="samples",
+    )
+    np.testing.assert_allclose(result["area_1"], np.array([3.0]), atol=1e-12)
+
+
+def test_area_in_seconds_uses_time_axis():
+    # Same rows integrated against timestamps [0.0, 0.5, 1.0]:
+    # 0.5*(0 + 2)/2 + 0.5*(2 + 2)/2 = 0.5 + 1.0 = 1.5
+    timestamps = np.array([0.0, 0.5, 1.0, 1.5])
+    psth_mean = np.array([[0.0], [2.0], [2.0], [0.0]])
+    result = compute_psth_peak_and_area(
+        psth_mean,
+        timestamps,
+        sampling_rate=2.0,
+        peak_startPoint=[0.0],
+        peak_endPoint=[1.5],
+        auc_units="seconds",
+    )
+    np.testing.assert_allclose(result["area_1"], np.array([1.5]), atol=1e-12)
+
+
+def test_unrecognized_auc_units_raises():
+    psth_mean = _make_psth_mean()
+    timestamps = np.linspace(-5, 5, 101)
+    with pytest.raises(ValueError, match="auc_units"):
+        compute_psth_peak_and_area(
+            psth_mean,
+            timestamps,
+            sampling_rate=10.0,
+            peak_startPoint=[0.0],
+            peak_endPoint=[1.0],
+            auc_units="minutes",
+        )
+
+
 def test_end_point_less_than_start_point_raises():
     psth_mean = _make_psth_mean()
     timestamps = np.linspace(-5, 5, 101)

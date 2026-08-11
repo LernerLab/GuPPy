@@ -29,7 +29,13 @@ class TestMain:
     def test_no_arguments_serves_the_app(self, served, exported):
         main(argv=[])
 
-        assert sorted(served["routes"]) == ["/", "/preprocess-view", "/transients-view"]
+        assert sorted(served["routes"]) == [
+            "/",
+            "/artifact-view",
+            "/preprocess-view",
+            "/select-artifact-windows",
+            "/transients-view",
+        ]
         assert exported == []
 
     def test_start_path_reaches_the_homepage_route(self, served, exported, panel_extension, tmp_path):

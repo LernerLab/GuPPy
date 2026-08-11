@@ -25,7 +25,9 @@ class Sidebar:
         self.mark_down_import_events = pn.pane.Markdown("""**Import Custom Events (optional)**""", width=300)
         self.mark_down_label_stores = pn.pane.Markdown("""**Step 1 : Label Stores**""", width=300)
         self.mark_down_read = pn.pane.Markdown("""**Step 2 : Read Raw Data**""", width=300)
-        self.mark_down_preprocess = pn.pane.Markdown("""**Step 3 : Preprocess and Remove Artifacts**""", width=300)
+        self.mark_down_preprocess = pn.pane.Markdown("""**Step 3 : Preprocess**""", width=300)
+        self.mark_down_select_windows = pn.pane.Markdown("""**Select Artifact Windows (optional)**""", width=300)
+        self.mark_down_remove_artifacts = pn.pane.Markdown("""**Remove Artifacts (optional)**""", width=300)
         self.mark_down_psth = pn.pane.Markdown("""**Step 4 : PSTH Computation**""", width=300)
         self.mark_down_visualization = pn.pane.Markdown("""**Step 5 : Visualization**""", width=300)
         self.mark_down_metadata = pn.pane.Markdown("""**Step 6 : Input Metadata**""", width=300)
@@ -38,8 +40,12 @@ class Sidebar:
         )
         self.open_label_stores = pn.widgets.Button(name="Label Stores", button_type="primary", width=300, align="end")
         self.read_rawData = pn.widgets.Button(name="Read Raw Data", button_type="primary", width=300, align="end")
-        self.preprocess = pn.widgets.Button(
-            name="Preprocess and Remove Artifacts", button_type="primary", width=300, align="end"
+        self.preprocess = pn.widgets.Button(name="Preprocess", button_type="primary", width=300, align="end")
+        self.select_artifact_windows = pn.widgets.Button(
+            name="Select Artifact Windows", button_type="default", width=300, align="end"
+        )
+        self.remove_artifacts = pn.widgets.Button(
+            name="Remove Artifacts", button_type="default", width=300, align="end"
         )
         self.psth_computation = pn.widgets.Button(
             name="PSTH Computation", button_type="primary", width=300, align="end"
@@ -68,6 +74,7 @@ class Sidebar:
         self.read_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
         self.extract_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
         self.psth_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
+        self.remove_artifacts_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
         self.export_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
 
     def add_to_template(self) -> None:
@@ -82,6 +89,11 @@ class Sidebar:
         self.template.sidebar.append(self.mark_down_preprocess)
         self.template.sidebar.append(self.preprocess)
         self.template.sidebar.append(self.extract_progress)
+        self.template.sidebar.append(self.mark_down_select_windows)
+        self.template.sidebar.append(self.select_artifact_windows)
+        self.template.sidebar.append(self.mark_down_remove_artifacts)
+        self.template.sidebar.append(self.remove_artifacts)
+        self.template.sidebar.append(self.remove_artifacts_progress)
         self.template.sidebar.append(self.mark_down_psth)
         self.template.sidebar.append(self.psth_computation)
         self.template.sidebar.append(self.psth_progress)

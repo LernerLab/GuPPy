@@ -3,44 +3,33 @@ import logging
 import holoviews as hv
 import numpy as np
 
-from .shading import FIT_COLOR, PLOT_WIDTH, shade_trace
+from .shading import FIT_COLOR, shade_trace
 
 logger = logging.getLogger(__name__)
 
-_ARTIFACTS_REMOVED_NOTE = "Note: Artifacts have been removed, but are not reflected in this plot."
 
+def make_spans_pipe(*, windows: list[tuple[float, float]]) -> hv.streams.Pipe:
+    """Build the stream that drives the shaded spans on a control/signal/fit layout.
 
-def build_preprocessing_curve(*, suptitle: str, title: str, x: np.ndarray, y: np.ndarray) -> hv.DynamicMap:
-    """Build a HoloViews curve of a preprocessing time series.
+    Sending a new window list on the returned pipe repaints only the spans; the
+    density-shaded traces are not re-aggregated.
 
     Parameters
     ----------
-    suptitle : str
-        Session-level title prefix.
-    title : str
-        Trace title (e.g. the ``z_score_<site>`` basename).
-    x : np.ndarray
-        Time axis values.
-    y : np.ndarray
-        Signal values to plot.
+    windows : list of (float, float)
+        Initial ``(start, end)`` windows to shade.
 
     Returns
     -------
-    hv.DynamicMap
-        Density-shaded view of ``y`` versus ``x``.
+    hv.streams.Pipe
+        Stream carrying the current window list.
     """
-    curve = hv.Curve((x, y), "time (s)", title)
-    return shade_trace(curve).opts(title=f"{suptitle} — {title}", width=PLOT_WIDTH, height=250)
+    return hv.streams.Pipe(data=list(windows))
 
 
-def _shade_windows(curve: hv.DynamicMap, windows: list[tuple[float, float]] | None) -> hv.DynamicMap:
-    """Overlay shaded vertical spans for each ``(start, end)`` window on a curve."""
-    if not windows:
-        return curve
-    overlay = curve
-    for start, end in windows:
-        overlay = overlay * hv.VSpan(float(start), float(end)).opts(color="orange", alpha=0.2)
-    return overlay
+def _spans_overlay(*, curve: hv.DynamicMap, spans: hv.streams.Pipe) -> hv.DynamicMap:
+    """Overlay pipe-driven shaded vertical spans on a curve."""
+    return curve * hv.DynamicMap(lambda data: hv.VSpans(list(data)).opts(color="orange", alpha=0.2), streams=[spans])
 
 
 def build_control_signal_fit(
@@ -51,15 +40,18 @@ def build_control_signal_fit(
     fit: np.ndarray,
     titles: list[str],
     suptitle: str,
-    artifacts_have_been_removed: bool,
-    windows: list[tuple[float, float]] | None = None,
+    spans: hv.streams.Pipe | None = None,
+    extra_traces: dict[str, np.ndarray] | None = None,
 ) -> hv.Layout:
-    """Build three stacked curves (control, signal, signal+fit) with optional shaded windows.
+    """Build stacked curves (control, signal, signal+fit) over a shared time axis.
+
+    Every panel plots against the same time dimension, so bokeh links their axes: zooming
+    one panel zooms them all.
 
     Parameters
     ----------
     x : np.ndarray
-        Time axis values shared by all three curves.
+        Time axis values shared by all curves.
     control : np.ndarray
         Control channel trace (top).
     signal : np.ndarray
@@ -70,32 +62,36 @@ def build_control_signal_fit(
         Titles for the three curves (control, signal, fit).
     suptitle : str
         Session-level title prefix applied to the control curve.
-    artifacts_have_been_removed : bool
-        When True, annotates the bottom curve that artifacts were removed.
-    windows : list of (float, float), optional
-        Good-chunk ``(start, end)`` windows shaded as vertical spans on all three curves.
+    spans : hv.streams.Pipe, optional
+        Stream carrying the ``(start, end)`` windows shaded on every curve. Omit to draw
+        the traces unshaded.
+    extra_traces : dict, optional
+        Further traces to stack below the fit, as title → values against the same ``x``.
 
     Returns
     -------
     hv.Layout
-        Three vertically stacked curves.
+        Vertically stacked curves, one per trace.
     """
-    control_curve = shade_trace(hv.Curve((x, control), "time (s)", titles[0])).opts(
-        title=f"{suptitle} — {titles[0]}", width=PLOT_WIDTH, height=220
+    control_curve = shade_trace(hv.Curve((x, control), "time (s)", titles[0]))
+    signal_curve = shade_trace(hv.Curve((x, signal), "time (s)", titles[1]))
+    fit_curve = shade_trace(hv.Curve((x, signal), "time (s)", titles[2])) * shade_trace(
+        hv.Curve((x, fit), "time (s)", titles[2]), color=FIT_COLOR
     )
-    signal_curve = shade_trace(hv.Curve((x, signal), "time (s)", titles[1])).opts(
-        title=titles[1], width=PLOT_WIDTH, height=220
-    )
-    fit_title = titles[2] + (f" ({_ARTIFACTS_REMOVED_NOTE})" if artifacts_have_been_removed else "")
-    fit_curve = (
-        shade_trace(hv.Curve((x, signal), "time (s)", titles[2]))
-        * shade_trace(hv.Curve((x, fit), "time (s)", titles[2]), color=FIT_COLOR)
-    ).opts(title=fit_title, width=PLOT_WIDTH, height=220)
 
-    return hv.Layout(
-        [
-            _shade_windows(control_curve, windows),
-            _shade_windows(signal_curve, windows),
-            _shade_windows(fit_curve, windows),
-        ]
-    ).cols(1)
+    # Size and title the composed panel, not the bare curve: options set on an Overlay are
+    # dropped when the spans layer composes it into a new one, which left the fit panel at
+    # bokeh's 300x300 default while the two single-curve panels kept theirs.
+    def panel(curve: hv.DynamicMap, title: str) -> hv.DynamicMap:
+        shaded = curve if spans is None else _spans_overlay(curve=curve, spans=spans)
+        return shaded.opts(title=title, responsive=True, height=220)
+
+    panels = [
+        panel(control_curve, f"{suptitle} — {titles[0]}"),
+        panel(signal_curve, titles[1]),
+        panel(fit_curve, titles[2]),
+    ]
+    for title, values in (extra_traces or {}).items():
+        panels.append(panel(shade_trace(hv.Curve((x, values), "time (s)", title)), title))
+
+    return hv.Layout(panels).cols(1)

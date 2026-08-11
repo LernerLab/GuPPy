@@ -13,9 +13,7 @@ from ..frontend.artifact_removal import build_preprocess_view_page
 
 def _build_page(session_folders: list, inputParameters: dict) -> "object":
     run_folders = resolve_run_folders(session_folders, inputParameters)
-    return build_preprocess_view_page(
-        run_folders, inputParameters["removeArtifacts"], inputParameters["plot_zScore_dff"]
-    )
+    return build_preprocess_view_page(run_folders=run_folders)
 
 
 _view = StepView(route="preprocess-view", title="GuPPy — Preprocessing", build_page=_build_page)
