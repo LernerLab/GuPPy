@@ -154,3 +154,28 @@ class TestStoreLabelingConfig:
         options = control_refs["Dv1A_0"].options
         assert options["Dv2A – left_hemisphere"] == "Dv2A_1"
         assert NO_SIGNAL_OPTION in options
+
+    # ── Behavioral covariate rows ─────────────────────────────────────────────
+
+    def test_behavioral_covariate_is_offered(self, panel_extension, show_config_button):
+        _, dropdowns, _, _ = build_config(show_config_button, ["akinesia"])
+
+        assert dropdowns["akinesia_0"].options == ["", "control", "signal", "event TTLs", "behavioral covariate"]
+
+    def test_covariate_row_shows_name_box_hides_signal_picker(self, panel_extension, show_config_button):
+        _, dropdowns, textboxes, control_refs = build_config(show_config_button, ["akinesia"])
+
+        dropdowns["akinesia_0"].value = "behavioral covariate"
+
+        assert textboxes["akinesia_0"].visible is True
+        assert control_refs["akinesia_0"].visible is False
+
+    def test_cached_covariate_repopulates_as_a_covariate(self, panel_extension, show_config_button):
+        # Regression guard: without its own branch the cache round-trip falls through
+        # to the event catch-all and comes back named "covariate_akinesia".
+        _, dropdowns, textboxes, _ = build_config(
+            show_config_button, ["akinesia"], {"akinesia": ["covariate_akinesia"]}
+        )
+
+        assert dropdowns["akinesia_0"].value == "behavioral covariate"
+        assert textboxes["akinesia_0"].value == "akinesia"

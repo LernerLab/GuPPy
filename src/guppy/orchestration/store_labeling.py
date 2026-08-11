@@ -167,6 +167,13 @@ def _fetchValues(
             if len(name.split()) > 1:
                 return "####Alert !! \n Whitespace is not allowed in the text box entry."
             store_labels.append(name)
+        elif dropdown_value == "behavioral covariate":
+            name = store_id_textboxes[key].value or ""
+            if not name:
+                return "####Alert !! \n One of the text box entry is empty."
+            if len(name.split()) > 1:
+                return "####Alert !! \n Whitespace is not allowed in the text box entry."
+            store_labels.append("covariate_{}".format(name))
         else:
             store_labels.append(dropdown_value)
 

@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 SIGNAL_PREFIX = "signal_"
 CONTROL_PREFIX = "control_"
+COVARIATE_PREFIX = "covariate_"
 ZSCORE_PREFIX = "z_score_"
 DFF_PREFIX = "dff_"
 
@@ -36,6 +37,43 @@ def is_channel_label(label: str) -> bool:
     """
     lowered = label.lower()
     return "control" in lowered or "signal" in lowered
+
+
+def is_covariate_label(label: str) -> bool:
+    """
+    Return True if a store label names a behavioral covariate.
+
+    Parameters
+    ----------
+    label : str
+        Store label from row 1 of ``storesList.csv``.
+
+    Returns
+    -------
+    bool
+        True for labels carrying the ``covariate_`` prefix.
+    """
+    return label.lower().startswith(COVARIATE_PREFIX)
+
+
+def is_event_label(label: str) -> bool:
+    """
+    Return True if a store label names a behavioral event.
+
+    Events are the stores analyses align to, so this is the predicate that gates
+    PSTH computation, artifact-window elimination and the visualization event list.
+
+    Parameters
+    ----------
+    label : str
+        Store label from row 1 of ``storesList.csv``.
+
+    Returns
+    -------
+    bool
+        True for stores that are neither photometry channels nor covariates.
+    """
+    return not is_channel_label(label) and not is_covariate_label(label)
 
 
 def recording_site_from_channel_label(label: str) -> str:

@@ -36,11 +36,11 @@ Raw HDF5 written with h5py, following GuPPy's convention of one file per store w
 
 ### `.h5`
 
-A pandas DataFrame written with `DataFrame.to_hdf`, holding exactly one DataFrame under the key `df`, and read back through pandas rather than h5py. These are the PSTH, peak/AUC, transient-summary, binned-metrics, cross-correlation and tonic tables.
+A pandas DataFrame written with `DataFrame.to_hdf`, holding exactly one DataFrame under the key `df`, and read back through pandas rather than h5py. These are the PSTH, peak/AUC, transient-summary, binned-metrics, covariate, cross-correlation and tonic tables.
 
 ### `.csv`
 
-Flat text. Inside a run folder: the store mappings (`storesList.csv`, `combine_storesList.csv`), tables that also exist as an `.h5` (peak/AUC, transient frequency and amplitude, binned metrics), and the two tables written as CSV only — `transientsOccurrences_<metric>.csv` and `tonic_epochs_<site>.csv`. The channel exports written outside the run folder are CSV too.
+Flat text. Inside a run folder: the store mappings (`storesList.csv`, `combine_storesList.csv`), tables that also exist as an `.h5` (peak/AUC, transient frequency and amplitude, binned metrics, binned covariates and covariate correlations), and the two tables written as CSV only — `transientsOccurrences_<metric>.csv` and `tonic_epochs_<site>.csv`. The channel exports written outside the run folder are CSV too.
 
 ### `.npy`
 
@@ -198,6 +198,8 @@ The means are computed at save time from the traces then on disk, and the differ
 | `transient_outputs_<metric>.hdf5` | The trace and peak indices behind the transient results |
 | `transients_<metric>.hdf5` | The transient times as an event train, **Use Transients as Events?** runs only |
 | `binned_metrics_<site>.h5` and `.csv` | One row per fixed-width time bin, when **Compute Binned Metrics?** is enabled |
+| `binned_covariates_<site>.h5` and `.csv` | One row per time bin, holding the behavioral covariate means |
+| `covariate_correlations_<site>.h5` and `.csv` | One row per metric–covariate pair |
 | `cross_correlation_output/corr_<event>_<metric-prefix>_<siteA>_<siteB>.h5` | Cross-correlation between two recording sites |
 
 **The PSTH files** hold a `float32` DataFrame under the key `df`, with one row per time point in the peri-event window. The columns, in order: one column per trial, labeled with that trial's event timestamp as a string; then, when trial binning is enabled, a `bin_(<label>)` and `bin_err_(<label>)` pair per bin; then `timestamps` (the peri-event time axis, running from `-nSecPrev` to `+nSecPost`); then `mean` and `err`, the mean and standard error across the single-trial columns only. The `_baselineUncorrected_` file is the same table before the baseline correction was subtracted.
@@ -219,6 +221,12 @@ Bins start at the first corrected timestamp and run in **Bin Width** steps to th
 Which count columns appear depends on **z_score and/or ΔF/F? (transients)**: the detector only runs on the metrics you select, and only those get a count column. The two mean columns are always present.
 
 Two cases where a bin does not correspond to a fixed stretch of wall-clock time: with **Combine Data?** enabled the sessions are re-timed onto one synthetic timeline, so a bin can straddle the boundary between two of them; and with the `concatenate` artifact-removal method the time axis is compressed where artifacts were cut, so a 60-second bin spans more than 60 seconds of the original recording.
+
+**`binned_covariates_<site>.h5` and `.csv`** are written only when the session carries a store labeled **behavioral covariate** and **Compute Binned Metrics?** is enabled. They hold one row per time bin, on exactly the bins of the matching `binned_metrics_<site>` table, indexed `0..n-1` (index name `bin`). The columns are `bin_start` and `bin_end`, then one column per covariate holding its mean over that bin, then one `n_samples_<covariate>` column per covariate. A bin holding no score reads `NaN` with a count of `0`. Scores timestamped outside the binned span are dropped rather than folded into the first or last bin.
+
+**`covariate_correlations_<site>.h5` and `.csv`** hold one row per (metric, covariate) pair, indexed `0..n-1` (index name `pair`), with columns `metric`, `covariate`, `pearson_r`, `spearman_rho` and `n_bins`. Every column of `binned_metrics_<site>` that is not bin geometry is correlated, so both means and any transient counts appear. `n_bins` is the number of bins where the metric and the covariate are both present — the sample size actually behind the two coefficients, which is usually much smaller than the number of samples in the recording. Coefficients read `NaN` when either series is constant across the paired bins, or when fewer than three bins pair up.
+
+**There is no p-value column, by design.** Pearson r and Spearman rho are reported as descriptive statistics only. Both the per-bin photometry values and a behavioral score vary slowly across a session, so successive bins are correlated with each other — and the standard significance tests for r and rho assume the opposite, that every sample is independent. A p-value computed from these numbers would therefore be far too small, and this holds whether GuPPy computes it or you compute it yourself from the reported columns. Treat the coefficients as a description of this one session, and see the [how-to guide](../how-to/correlate-behavioral-covariates.md) for what you can do with them.
 
 **The cross-correlation files** hold a `float32` DataFrame under the key `df`, one row per lag. Columns are the trial labels the two recording sites have in common, then `timestamps`, then `mean` and `err`. Despite its name, the `timestamps` column holds **lag values in seconds**, not times. Cross-correlation cannot run on a recording processed with the `concatenate` artifact-removal method; Step 4 raises instead.
 
@@ -346,6 +354,10 @@ The first key is `guppy_version`, the installed version of the `guppy-neuro` pac
     transient_outputs_<metric>.hdf5                step 4   z_score, timestamps, peaksInd
     binned_metrics_<site>.h5                       step 4   DataFrame, key "df"
     binned_metrics_<site>.csv                      step 4
+    binned_covariates_<site>.h5                    step 4   DataFrame, key "df"
+    binned_covariates_<site>.csv                   step 4
+    covariate_correlations_<site>.h5               step 4   DataFrame, key "df"
+    covariate_correlations_<site>.csv              step 4
     cross_correlation_output/
       corr_<event>_<metric-prefix>_<siteA>_<siteB>.h5   step 4   DataFrame, key "df"
     saved_plots/                                   step 5, created empty

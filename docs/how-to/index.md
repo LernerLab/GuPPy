@@ -12,4 +12,5 @@ combine-data
 tonic-analysis
 group-analysis
 export-to-nwb
+correlate-behavioral-covariates
 ```

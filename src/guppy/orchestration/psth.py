@@ -17,6 +17,7 @@ from ..analysis.compute_psth import compute_psth
 from ..analysis.cross_correlation import compute_cross_correlation
 from ..analysis.io_utils import (
     is_channel_label,
+    is_event_label,
     make_dir_for_cross_correlation,
     makeAverageDir,
     read_hdf5,
@@ -64,7 +65,7 @@ def execute_compute_psth(filepath: str, event: str, inputParameters: dict[str, o
     """
     event = event.replace("\\", "_")
     event = event.replace("/", "_")
-    if is_channel_label(event):
+    if not is_event_label(event):
         return 0
 
     selectForComputePsth = inputParameters["selectForComputePsth"]

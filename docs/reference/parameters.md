@@ -126,6 +126,8 @@ The largest card on the homepage, collapsed by default (only Input Folder Select
 
 **Bin Width (s)** is how wide each bin is. Bins start at the first corrected timestamp; the last bin is kept even when the session does not divide evenly, so it can be shorter than the rest. Whole seconds only.
 
+If the thing measured on its own schedule was recorded as data rather than watched by eye, label it as a **behavioral covariate** in Step 1 and GuPPy will bin it onto the same bins and correlate it against every per-bin metric. That needs no additional parameter — labeling the store is what turns it on — but it does require **Compute Binned Metrics?** to be enabled. See [Correlate a behavioral covariate](../how-to/correlate-behavioral-covariates.md).
+
 ### Format-specific (Neurophotometrics)
 
 *Used by: Step 2 (Load the raw data) when the recording is an NPM CSV without `Flags` or `LedState` columns.*

@@ -14,10 +14,11 @@ class StoreLabelingConfig:
     """Panel widget that renders a configuration row for each discovered store_id.
 
     Each row lets the user classify a store_id as ``"control"``, ``"signal"``,
-    or ``"event TTLs"``.  ``signal`` and ``event TTLs`` rows provide a free-text
-    name box; ``control`` rows instead pick which signal store they are the
-    control for (via a dropdown), so the pair name is entered exactly once — on
-    the signal row — and a control can never be mismatched to the wrong recording site.
+    ``"event TTLs"`` or ``"behavioral covariate"``.  ``signal``, ``event TTLs``
+    and ``behavioral covariate`` rows provide a free-text name box; ``control``
+    rows instead pick which signal store they are the control for (via a
+    dropdown), so the pair name is entered exactly once — on the signal row —
+    and a control can never be mismatched to the wrong recording site.
 
     Selections are stored in-place in the provided ``store_id_dropdowns``,
     ``store_id_textboxes`` and ``store_id_control_refs`` dictionaries so the
@@ -111,6 +112,8 @@ class StoreLabelingConfig:
             return "*Type appropriate recording-site name*"
         elif dropdown_value == "event TTLs":
             return "*Type event name for the TTLs*"
+        elif dropdown_value == "behavioral covariate":
+            return "*Type name for the measured variable*"
         else:
             return ""
 
@@ -120,6 +123,8 @@ class StoreLabelingConfig:
             return "control", cached_value[len("control_") :]
         elif cached_value.startswith("signal_"):
             return "signal", cached_value[len("signal_") :]
+        elif cached_value.startswith("covariate_"):
+            return "behavioral covariate", cached_value[len("covariate_") :]
         elif cached_value:
             return "event TTLs", cached_value
         else:
@@ -129,7 +134,11 @@ class StoreLabelingConfig:
         """Show the Name box for signal/event rows and the signal picker for control rows."""
         widget_key = self._dropdown_to_key[dropdown]
         dropdown_value = dropdown.value
-        self.store_id_textboxes[widget_key].visible = dropdown_value in ("signal", "event TTLs")
+        self.store_id_textboxes[widget_key].visible = dropdown_value in (
+            "signal",
+            "event TTLs",
+            "behavioral covariate",
+        )
         self.store_id_control_refs[widget_key].visible = dropdown_value == "control"
 
     def _signal_options(self) -> dict[str, str]:
@@ -200,7 +209,7 @@ class StoreLabelingConfig:
         row_widgets.append(label)
 
         # Pre-populate from cache if available; otherwise start blank
-        options = ["", "control", "signal", "event TTLs"]
+        options = ["", "control", "signal", "event TTLs", "behavioral covariate"]
         if store_id in store_id_to_store_labels and store_id_to_store_labels[store_id]:
             default_type, default_name = self._parse_cached_value(store_id_to_store_labels[store_id][0])
         else:
@@ -219,9 +228,9 @@ class StoreLabelingConfig:
         store_id_dropdowns[widget_key] = dropdown
         self._dropdown_to_key[dropdown] = widget_key
 
-        # Name box (used for signal / event TTLs rows)
+        # Name box (used for signal / event TTLs / behavioral covariate rows)
         textbox = pn.widgets.TextInput(
-            name="Name", value=default_name, placeholder="Enter recording-site/event name", width=200
+            name="Name", value=default_name, placeholder="Enter recording-site/event/variable name", width=200
         )
         store_id_textboxes[widget_key] = textbox
         textbox.param.watch(lambda event: self._refresh_control_options(), "value")
@@ -239,8 +248,8 @@ class StoreLabelingConfig:
         self._dropdown_help_map[dropdown] = help_pane
         dropdown.param.watch(self._on_dropdown_value_change, "value")
 
-        # Show the Name box for signal/event rows, the signal picker for control rows.
-        textbox.visible = default_type in ("signal", "event TTLs")
+        # Show the Name box for signal/event/covariate rows, the signal picker for control rows.
+        textbox.visible = default_type in ("signal", "event TTLs", "behavioral covariate")
         control_ref.visible = default_type == "control"
 
         # Wrap dropdown in a column with a same-height spacer so it bottom-aligns with the inputs
