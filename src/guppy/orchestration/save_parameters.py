@@ -121,6 +121,7 @@ def save_parameters(
         "nSecPrev": inputParameters["nSecPrev"],
         "nSecPost": inputParameters["nSecPost"],
         "computeCorr": inputParameters["computeCorr"],
+        "useTransientsAsEvents": inputParameters["useTransientsAsEvents"],
         "timeInterval": inputParameters["timeInterval"],
         "bin_psth_trials": inputParameters["bin_psth_trials"],
         "use_time_or_trials": inputParameters["use_time_or_trials"],

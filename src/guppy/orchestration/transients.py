@@ -13,6 +13,7 @@ from ..analysis.io_utils import (
 from ..analysis.standard_io import (
     write_freq_and_amp_to_csv,
     write_freq_and_amp_to_hdf5,
+    write_transients_as_event_to_hdf5,
     write_transients_to_hdf5,
 )
 from ..analysis.transients import analyze_transients
@@ -46,6 +47,7 @@ def findFreqAndAmp(
     selectForTransientsComputation = inputParameters["selectForTransientsComputation"]
     highAmpFilt = inputParameters["highAmpFilt"]
     transientsThresh = inputParameters["transientsThresh"]
+    useTransientsAsEvents = inputParameters["useTransientsAsEvents"]
 
     if selectForTransientsComputation == "z_score":
         path = glob.glob(os.path.join(filepath, "z_score_*"))
@@ -82,6 +84,8 @@ def findFreqAndAmp(
             columns=["timestamps", "amplitude"],
         )
         write_transients_to_hdf5(filepath, basename, z_score, timestamps, peaksInd)
+        if useTransientsAsEvents == True:
+            write_transients_as_event_to_hdf5(filepath, basename, peaks_occurrences[:, 0])
     logger.info("Frequency and amplitude of transients in z_score data are calculated.")
 
 

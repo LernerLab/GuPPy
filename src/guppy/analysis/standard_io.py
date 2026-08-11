@@ -13,6 +13,7 @@ from .io_utils import (
     recording_site_from_channel_path,
     write_hdf5,
 )
+from ..utils.utils import TRANSIENT_EVENT_PREFIX
 
 logger = logging.getLogger(__name__)
 
@@ -770,6 +771,26 @@ def write_transients_to_hdf5(
     write_hdf5(z_score, event, filepath, "z_score")
     write_hdf5(timestamps, event, filepath, "timestamps")
     write_hdf5(peaksInd, event, filepath, "peaksInd")
+
+
+def write_transients_as_event_to_hdf5(filepath: str, name: str, event_timestamps: np.ndarray) -> None:
+    """
+    Write detected transient times as an event timestamp file usable by the PSTH step.
+
+    The file follows the ``<event>_<recording_site>.hdf5`` convention that corrected TTL
+    timestamps use, so the transients of a recording site can stand in for an external
+    event train.
+
+    Parameters
+    ----------
+    filepath : str
+        Session output directory.
+    name : str
+        Preprocessed basename the transients were detected on, e.g. ``"z_score_DMS"``.
+    event_timestamps : np.ndarray
+        Times of the detected transients, on the corrected timestamp basis.
+    """
+    write_hdf5(event_timestamps, TRANSIENT_EVENT_PREFIX + name, filepath, "ts")
 
 
 def read_transients_from_hdf5(filepath: str, name: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
