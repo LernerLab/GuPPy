@@ -87,7 +87,10 @@ class TestMetadataSelector:
     def test_session_start_time_round_trips_through_the_metadata_dict(self, selector):
         selector.session_start_time.value = "2018-10-30T10:33:32-05:00"
         built = build_metadata_dict(
-            selector.get_devices(), selector.get_channel_rows(), selector.get_scalars(), CHANNELS
+            devices=selector.get_devices(),
+            channel_rows=selector.get_channel_rows(),
+            scalars=selector.get_scalars(),
+            channels=CHANNELS,
         )
         selector.set_from_metadata(built)
         assert selector.session_start_time.value == "2018-10-30T10:33:32-05:00"
@@ -193,9 +196,41 @@ class TestMetadataSelector:
         assert row["emission_wavelength_in_nm"] == 525.0
         assert row["optical_fiber"] == "fiber"
 
+    # -- FiberPhotometryTable identity ---------------------------------------------------------------------------------
+    def test_a_hand_edited_table_name_survives_a_rebuild(self, selector):
+        # The form offers no widget for the table name, so it must be carried through rather than
+        # re-emitted blank -- otherwise Build & preview silently replaces it with the default.
+        built = build_metadata_dict(
+            devices=COMPLETE_DEVICES, channel_rows=COMPLETE_ROWS, scalars=COMPLETE_SCALARS, channels=CHANNELS
+        )
+        built["FiberPhotometry"]["FiberPhotometryTable"]["name"] = "my_custom_table"
+        built["FiberPhotometry"]["FiberPhotometryTable"]["description"] = "Hand-written description."
+
+        selector.set_from_metadata(built)
+        rebuilt = build_metadata_dict(
+            devices=selector.get_devices(),
+            channel_rows=selector.get_channel_rows(),
+            scalars=selector.get_scalars(),
+            channels=CHANNELS,
+        )
+
+        assert rebuilt["FiberPhotometry"]["FiberPhotometryTable"]["name"] == "my_custom_table"
+        assert rebuilt["FiberPhotometry"]["FiberPhotometryTable"]["description"] == "Hand-written description."
+
+    def test_an_unset_table_name_still_falls_back_to_the_default(self, selector):
+        rebuilt = build_metadata_dict(
+            devices=selector.get_devices(),
+            channel_rows=selector.get_channel_rows(),
+            scalars=selector.get_scalars(),
+            channels=CHANNELS,
+        )
+        assert rebuilt["FiberPhotometry"]["FiberPhotometryTable"]["name"] == "fiber_photometry_table"
+
     # -- Full form round trip ------------------------------------------------------------------------------------------
     def test_set_from_metadata_round_trips_through_read_back(self, selector):
-        built = build_metadata_dict(COMPLETE_DEVICES, COMPLETE_ROWS, COMPLETE_SCALARS, CHANNELS)
+        built = build_metadata_dict(
+            devices=COMPLETE_DEVICES, channel_rows=COMPLETE_ROWS, scalars=COMPLETE_SCALARS, channels=CHANNELS
+        )
         selector.set_from_metadata(built)
 
         scalars = selector.get_scalars()
@@ -208,7 +243,10 @@ class TestMetadataSelector:
 
         # Rebuilding from the form's read-back must reproduce the original metadata exactly.
         rebuilt = build_metadata_dict(
-            selector.get_devices(), selector.get_channel_rows(), selector.get_scalars(), CHANNELS
+            devices=selector.get_devices(),
+            channel_rows=selector.get_channel_rows(),
+            scalars=selector.get_scalars(),
+            channels=CHANNELS,
         )
         assert rebuilt == built
 
@@ -219,12 +257,20 @@ class TestMetadataSelector:
         assert selector.get_yaml() == metadata
 
     def test_set_alert_message_colors_errors_red(self, selector):
-        selector.set_alert_message("####Alert !! \n something missing")
+        selector.set_alert_message("####Alert !! \n something missing", is_error=True)
         assert selector.alert.alert_type == "danger"
 
     def test_set_alert_message_colors_success_green(self, selector):
-        selector.set_alert_message("#### No alerts !!")
+        selector.set_alert_message("#### No alerts !!", is_error=False)
         assert selector.alert.alert_type == "success"
+
+    def test_set_alert_message_severity_does_not_key_off_the_message_text(self, selector):
+        # Severity used to be inferred from the substring "Alert", so a success message that
+        # happened to contain it rendered red.
+        selector.set_alert_message("#### Loaded metadata from Alert.yaml", is_error=False)
+        assert selector.alert.alert_type == "success"
+        selector.set_alert_message("#### something went wrong", is_error=True)
+        assert selector.alert.alert_type == "danger"
 
     def test_set_path_updates_widget(self, selector):
         selector.set_path("/tmp/nwb_metadata.yaml")
@@ -232,7 +278,9 @@ class TestMetadataSelector:
 
     # -- File upload ---------------------------------------------------------------------------------------------------
     def test_on_file_upload_populates_form(self, selector):
-        built = build_metadata_dict(COMPLETE_DEVICES, COMPLETE_ROWS, COMPLETE_SCALARS, CHANNELS)
+        built = build_metadata_dict(
+            devices=COMPLETE_DEVICES, channel_rows=COMPLETE_ROWS, scalars=COMPLETE_SCALARS, channels=CHANNELS
+        )
         selector.load_existing.filename = "other_session.yaml"
         # Setting the FileInput value fires the registered _on_file_upload watcher.
         selector.load_existing.value = dumps_yaml(built).encode("utf-8")
@@ -299,6 +347,18 @@ class TestReadWidget:
     def test_float_returns_raw(self):
         spec = FieldSpec("numerical_aperture", True, "doc", "float", False, "self")
         assert _read_widget(spec, _StubWidget(value=0.48)) == 0.48
+
+    def test_float_coerces_a_whole_number_away_from_int(self):
+        # A FloatInput hands back an int when the entered value is whole, and the ndx constructors
+        # reject an int outright ("incorrect type for 'depth_in_mm'"), so the read-back must coerce.
+        spec = FieldSpec("depth_in_mm", False, "doc", "float", False, "insertion")
+        value = _read_widget(spec, _StubWidget(value=2))
+        assert value == 2.0
+        assert isinstance(value, float)
+
+    def test_float_blank_stays_none(self):
+        spec = FieldSpec("depth_in_mm", False, "doc", "float", False, "insertion")
+        assert _read_widget(spec, _StubWidget(value=None)) is None
 
     def test_text_blank_returns_none(self):
         spec = FieldSpec("serial_number", False, "doc", "text", False, "self")

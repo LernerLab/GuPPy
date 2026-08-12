@@ -15,6 +15,8 @@ from pynwb import NWBHDF5IO
 
 from guppy.extractors.nwb_recording_extractor import _find_nwb_file
 from guppy.orchestration.export_nwb import export_session_to_nwb
+from guppy.orchestration.metadata import METADATA_FILENAME
+from guppy.testing.api import step7
 from guppy.utils._hdf5_io import read_hdf5
 from guppy.utils.acquisition_format import (
     acquisition_supplies_session_start_time,
@@ -28,6 +30,7 @@ from guppy.utils.nwb_metadata import (
     load_yaml,
     parse_metadata_dict,
 )
+from guppy.utils.utils import parse_run_name
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE_METADATA = PROJECT_ROOT / "data" / "fiber_photometry_metadata_example.yaml"
@@ -76,9 +79,9 @@ ROLE_CHANNEL_ANNOTATIONS = {
 
 def write_metadata_yaml(*, session_folder_path: str, output_directory: str, acquisition_format: str, path: Path) -> str:
     """Write a session metadata YAML the way the form does: device library + per-channel annotations."""
-    channels = derive_channels(output_directory)
+    channels = derive_channels(output_dir=output_directory)
     # Reuse the example's hardware/biology library (recombined into merged device entries).
-    devices, _channel_rows, _scalars = parse_metadata_dict(load_yaml(EXAMPLE_METADATA), channels)
+    devices, _channel_rows, _scalars = parse_metadata_dict(metadata=load_yaml(EXAMPLE_METADATA), channels=channels)
     channel_rows = [{**COMMON_CHANNEL_ANNOTATIONS, **ROLE_CHANNEL_ANNOTATIONS[channel.role]} for channel in channels]
     scalars = {
         "session_description": "RI30 photometry session",
@@ -95,7 +98,10 @@ def write_metadata_yaml(*, session_folder_path: str, output_directory: str, acqu
     ):
         scalars["session_start_time"] = SUPPLIED_SESSION_START_TIME.isoformat()
 
-    dump_yaml(build_metadata_dict(devices, channel_rows, scalars, channels), path)
+    dump_yaml(
+        metadata=build_metadata_dict(devices=devices, channel_rows=channel_rows, scalars=scalars, channels=channels),
+        path=path,
+    )
     return str(path)
 
 
@@ -339,3 +345,56 @@ class TestExportMixedFormatSession:
         with NWBHDF5IO(str(nwbfile_path), "r") as io:
             nwbfile = io.read()
             assert set(nwbfile.events) == EXPECTED_TOPOLOGY["tdt"]["raw_event_tables"] | {"GuppyEvents"}
+
+
+class TestStep7EndToEnd:
+    """The orchestration layer driven the way the GUI drives it: batching, the upfront
+    prerequisite checks, and the per-session metadata overlay picked up from disk."""
+
+    @pytest.fixture
+    def session_with_metadata(self, step5_output_tdt) -> Path:
+        """A pipeline-processed session whose output directory holds the Step 6 metadata YAML."""
+        output_directory = Path(step5_output_tdt["output_directory"])
+        write_metadata_yaml(
+            session_folder_path=str(step5_output_tdt["session_copy"]),
+            output_directory=str(output_directory),
+            acquisition_format="tdt",
+            path=output_directory / METADATA_FILENAME,
+        )
+        return Path(step5_output_tdt["session_copy"])
+
+    def test_step7_writes_one_nwb_file_per_selected_run(self, session_with_metadata, step5_output_tdt):
+        output_directory = Path(step5_output_tdt["output_directory"])
+
+        step7(
+            base_dir=str(session_with_metadata.parent),
+            selected_folders=[str(session_with_metadata)],
+            selected_runs={str(session_with_metadata): [parse_run_name(str(output_directory))]},
+        )
+
+        # Named after the full output directory so exports from several runs stay distinct.
+        nwbfile_path = output_directory / f"{output_directory.name}.nwb"
+        assert nwbfile_path.exists()
+
+        with NWBHDF5IO(str(nwbfile_path), "r") as io:
+            nwbfile = io.read()
+            # The overlay the orchestrator found on disk reached the file.
+            assert nwbfile.subject.subject_id == "63_207"
+            assert nwbfile.session_description == "RI30 photometry session"
+            assert "guppy" in nwbfile.processing
+
+    def test_step7_refuses_a_combined_run_before_writing_anything(self, session_with_metadata, step5_output_tdt):
+        output_directory = Path(step5_output_tdt["output_directory"])
+        # step5_output_tdt is session-scoped, so a sibling test may already have exported into it.
+        nwbfile_path = output_directory / f"{output_directory.name}.nwb"
+        nwbfile_path.unlink(missing_ok=True)
+
+        with pytest.raises(ValueError, match="does not support combine_data=True"):
+            step7(
+                base_dir=str(session_with_metadata.parent),
+                selected_folders=[str(session_with_metadata)],
+                combine_data=True,
+                selected_runs={str(session_with_metadata): [parse_run_name(str(output_directory))]},
+            )
+
+        assert not nwbfile_path.exists()

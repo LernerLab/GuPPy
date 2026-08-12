@@ -59,7 +59,14 @@ def resolve_acquisition_format(session_folder_path: str) -> str:
             f"{RAISE_ISSUE_URL}."
         )
 
-    return detected_formats.pop()
+    acquisition_format = detected_formats.pop()
+    if acquisition_format not in SUPPORTED_ACQUISITION_FORMATS:
+        raise ValueError(
+            f"'{session_folder_path}' holds '{acquisition_format}' data, which NWB export cannot read. "
+            f"The supported formats are {sorted(SUPPORTED_ACQUISITION_FORMATS)}. If you need NWB export "
+            f"for this format, please raise an issue at {RAISE_ISSUE_URL}."
+        )
+    return acquisition_format
 
 
 def resolve_session_source(*, session_folder_path: str, inputParameters: dict[str, object]) -> tuple[str, str | None]:
@@ -88,7 +95,14 @@ def resolve_session_source(*, session_folder_path: str, inputParameters: dict[st
     # A DANDI session's folder is a local stand-in holding only GuPPy's outputs, so the source is the
     # remote asset the pipeline streamed rather than anything the folder can be inspected for.
     if inputParameters.get("mode") == "dandi":
-        return "nwb", inputParameters["dandi_uri_map"][session_folder_path]
+        dandi_uri_map: dict[str, str] = inputParameters["dandi_uri_map"]
+        if session_folder_path not in dandi_uri_map:
+            raise ValueError(
+                f"'{session_folder_path}' has no DANDI URI recorded, so there is no source to add the "
+                f"GuPPy outputs to. The pipeline was run in DANDI mode, where each session's URI is "
+                f"recorded when its data is read; re-run Step 2 (Read Raw Data) for this session."
+            )
+        return "nwb", dandi_uri_map[session_folder_path]
 
     acquisition_format = resolve_acquisition_format(session_folder_path)
     if acquisition_format == "nwb":

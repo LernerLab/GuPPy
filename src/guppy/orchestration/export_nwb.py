@@ -10,8 +10,9 @@ to the standalone :class:`GuppyInterface`, which adds the GuPPy outputs to the f
 
 import logging
 import os
+from contextlib import closing
 
-from .metadata import METADATA_FILENAME, _selected_session_runs
+from .metadata import METADATA_FILENAME
 from .save_parameters import read_artifact_provenance
 from ..extractors.dandi_nwb_recording_extractor import (
     _stream_nwb,
@@ -21,7 +22,7 @@ from ..extractors.dandi_nwb_recording_extractor import (
 from ..utils import progress
 from ..utils.acquisition_format import resolve_session_source
 from ..utils.progress import step_error_handler
-from ..utils.utils import RAISE_ISSUE_URL, run_folder_for_run
+from ..utils.utils import RAISE_ISSUE_URL, run_folder_for_run, selected_session_runs
 from ..utils.validation import validate_data_not_combined
 
 logger = logging.getLogger(__name__)
@@ -32,7 +33,7 @@ logger = logging.getLogger(__name__)
 _UNSUPPORTED_ARTIFACT_REMOVAL_METHOD = "concatenate"
 
 
-def _validate_artifact_removal_methods(pairs: list[tuple[str, str]]) -> None:
+def _validate_artifact_removal_methods(*, pairs: list[tuple[str, str]]) -> None:
     """Abort the NWB export batch if any selected run had its artifacts removed by ``concatenate``.
 
     ``concatenate`` re-times the kept samples onto a fresh timeline (see GuPPy issue #354),
@@ -71,7 +72,7 @@ def _validate_artifact_removal_methods(pairs: list[tuple[str, str]]) -> None:
         )
 
 
-def _overlay_metadata_yaml(metadata: dict, metadata_yaml_path: str | None) -> dict:
+def _overlay_metadata_yaml(*, metadata: dict, metadata_yaml_path: str | None) -> dict:
     """Apply the session's ``nwb_metadata.yaml`` on top of auto-filled metadata, when it exists."""
     from neuroconv.utils import dict_deep_update, load_dict_from_file
 
@@ -106,9 +107,10 @@ def _export_session_from_nwb_source(
         source_io = NWBHDF5IO(nwb_source, "r")
         nwbfile = source_io.read()
 
-    try:
+    with closing(source_io):
         interface.add_to_nwbfile(
-            nwbfile=nwbfile, metadata=_overlay_metadata_yaml(interface.get_metadata(), metadata_yaml_path)
+            nwbfile=nwbfile,
+            metadata=_overlay_metadata_yaml(metadata=interface.get_metadata(), metadata_yaml_path=metadata_yaml_path),
         )
         # pynwb's own export rather than neuroconv's configure_and_write_nwbfile: building a backend
         # configuration walks the source builder for every dataset, which cannot locate the ones an
@@ -116,8 +118,6 @@ def _export_session_from_nwb_source(
         nwbfile.set_modified()
         with NWBHDF5IO(nwbfile_path, "w") as export_io:
             export_io.export(src_io=source_io, nwbfile=nwbfile, write_args=dict(link_data=False))
-    finally:
-        source_io.close()
 
     logger.info(f"Wrote NWB file to {nwbfile_path}")
     return nwbfile_path
@@ -173,8 +173,8 @@ def export_session_to_nwb(
             nwbfile_path=nwbfile_path,
         )
 
-    # Imported here rather than at module scope so the pure-Python prerequisite checks in this
-    # module stay importable (and unit-testable) without the heavyweight neuroconv dependency.
+    # Imported here rather than at module scope because neuroconv is slow to import, and the GUI
+    # imports this module at startup to wire up the Export button.
     from neuroconv.converters import GuppyConverter
 
     converter = GuppyConverter(
@@ -184,7 +184,7 @@ def export_session_to_nwb(
         acquisition_format=acquisition_format,
     )
 
-    metadata = _overlay_metadata_yaml(converter.get_metadata(), metadata_yaml_path)
+    metadata = _overlay_metadata_yaml(metadata=converter.get_metadata(), metadata_yaml_path=metadata_yaml_path)
 
     # Only a TDT tank's header always records one, so for every other format the metadata form is the
     # only source. Checked here because pynwb's own failure names neither the session nor the step
@@ -213,9 +213,9 @@ def orchestrate_export_nwb(inputParameters: dict[str, object]) -> None:
     failed, the collected failures are reported through the progress channel once the batch
     ends.
     """
-    pairs = _selected_session_runs(inputParameters)
+    pairs = selected_session_runs(inputParameters=inputParameters)
     validate_data_not_combined(combine_data=inputParameters["combine_data"])
-    _validate_artifact_removal_methods(pairs)
+    _validate_artifact_removal_methods(pairs=pairs)
     progress.start(len(pairs))
 
     failures = []
@@ -242,7 +242,9 @@ def orchestrate_export_nwb(inputParameters: dict[str, object]) -> None:
             )
             logger.info(f"Exported {session_basename} ({run_name}) to NWB.")
         except Exception as exception:
-            logger.error(f"NWB export failed for {session_basename} ({run_name}): {exception}")
+            # logger.exception so the traceback survives: the user-facing summary below is only the
+            # message, and a partial-success batch is exactly the case where the log is all there is.
+            logger.exception(f"NWB export failed for {session_basename} ({run_name})")
             failures.append(f"{session_basename} ({run_name}): {exception}")
         finally:
             progress.advance()

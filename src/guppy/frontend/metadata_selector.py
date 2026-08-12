@@ -82,7 +82,8 @@ class MetadataSelector:
             margin=(0, 0, 10, 0),
         )
 
-        devices, channel_rows, scalars = parse_metadata_dict(initial_metadata, channels)
+        devices, channel_rows, scalars = parse_metadata_dict(metadata=initial_metadata, channels=channels)
+        self._remember_table_identity(scalars)
 
         # Tracking structures populated as widgets are built.
         self.device_entry_records: dict[str, list[dict]] = {key: [] for key in CATEGORIES}
@@ -183,20 +184,29 @@ class MetadataSelector:
         )
 
         self.refresh_link_options()
-        self.set_yaml(build_metadata_dict(self.get_devices(), self.get_channel_rows(), self.get_scalars(), channels))
+        self.set_yaml(
+            build_metadata_dict(
+                devices=self.get_devices(),
+                channel_rows=self.get_channel_rows(),
+                scalars=self.get_scalars(),
+                channels=channels,
+            )
+        )
 
     # ------------------------------------------------------------------------------------------------------------------
     # Session & Subject
     # ------------------------------------------------------------------------------------------------------------------
     def _build_scalar_section(self, scalars: dict) -> pn.Card:
-        text = lambda name, **kw: pn.widgets.TextInput(  # noqa: E731
-            name=style.humanize(name),
-            value=scalars.get(name, ""),
-            description=_SCALAR_DOCS.get(name),
-            sizing_mode="stretch_width",
-            stylesheets=_sheets(name in self.required_scalars),
-            **kw,
-        )
+        def text(name: str, **keywords: object) -> pn.widgets.TextInput:
+            return pn.widgets.TextInput(
+                name=style.humanize(name),
+                value=scalars.get(name, ""),
+                description=_SCALAR_DOCS.get(name),
+                sizing_mode="stretch_width",
+                stylesheets=_sheets(name in self.required_scalars),
+                **keywords,
+            )
+
         self.session_description = pn.widgets.TextAreaInput(
             name="Session description",
             value=scalars.get("session_description", ""),
@@ -612,8 +622,10 @@ class MetadataSelector:
             "species": self.species.value,
             "genotype": self.genotype.value,
             "strain": self.strain.value,
-            "fiber_photometry_table_name": "",
-            "fiber_photometry_table_description": "",
+            # Carried through rather than re-emitted blank: the form offers no widget for either,
+            # so defaulting them here would overwrite a name set by hand in the YAML.
+            "fiber_photometry_table_name": self.fiber_photometry_table_name,
+            "fiber_photometry_table_description": self.fiber_photometry_table_description,
         }
         if self.age_or_dob.value == "Age":
             scalars["age"] = self.age.value
@@ -623,9 +635,15 @@ class MetadataSelector:
             scalars["date_of_birth"] = self.date_of_birth.value
         return scalars
 
+    def _remember_table_identity(self, scalars: dict) -> None:
+        """Hold on to the FiberPhotometryTable name/description, which the form does not edit."""
+        self.fiber_photometry_table_name = scalars.get("fiber_photometry_table_name", "")
+        self.fiber_photometry_table_description = scalars.get("fiber_photometry_table_description", "")
+
     def set_from_metadata(self, metadata: dict) -> None:
         """Rebuild the whole form from a saved metadata dict."""
-        devices, channel_rows, scalars = parse_metadata_dict(metadata, self.channels)
+        devices, channel_rows, scalars = parse_metadata_dict(metadata=metadata, channels=self.channels)
+        self._remember_table_identity(scalars)
         # Scalars.
         self.session_description.value = scalars.get("session_description", "")
         self.identifier.value = scalars.get("identifier", "")
@@ -677,10 +695,10 @@ class MetadataSelector:
         """Serialize ``metadata`` into the YAML code editor."""
         self.code_editor.value = dumps_yaml(metadata)
 
-    def set_alert_message(self, message: str) -> None:
-        """Set the alert text, colored red for errors (messages containing 'Alert') and green otherwise."""
+    def set_alert_message(self, message: str, *, is_error: bool) -> None:
+        """Set the alert text, colored red when it reports a problem and green otherwise."""
         self.alert.object = message
-        self.alert.alert_type = "danger" if "Alert" in message else "success"
+        self.alert.alert_type = "danger" if is_error else "success"
 
     def set_path(self, value: str) -> None:
         """Set the displayed save path."""
@@ -693,11 +711,11 @@ class MetadataSelector:
         try:
             metadata = loads_yaml(self.load_existing.value.decode("utf-8"))
         except Exception as exception:
-            self.set_alert_message(f"####Alert !! \n Could not read uploaded YAML: {exception}")
+            self.set_alert_message(f"####Alert !! \n Could not read uploaded YAML: {exception}", is_error=True)
             return
         self.set_from_metadata(metadata)
         self.set_yaml(metadata)
-        self.set_alert_message(f"#### Loaded metadata from {self.load_existing.filename}")
+        self.set_alert_message(f"#### Loaded metadata from {self.load_existing.filename}", is_error=False)
 
     def attach_callbacks(self, button_name_to_onclick_fn: dict[str, object]) -> None:
         """Register click-handler callbacks on this selector's buttons."""
@@ -728,8 +746,9 @@ def _read_widget(spec: FieldSpec, widget: object) -> object:
         return None
     raw = widget.value
     if spec.dtype == "float":
-        # FloatInput already yields a float or None.
-        return raw
+        # Coerced because a FloatInput yields an int for a whole number (2, not 2.0), which the
+        # ndx constructors reject outright.
+        return raw if raw is None else float(raw)
     if not str(raw).strip():
         return None
     return raw

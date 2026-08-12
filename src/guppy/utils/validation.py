@@ -313,7 +313,7 @@ def validate_data_not_combined(*, combine_data: bool) -> None:
     ValueError
         If ``combine_data`` is True.
     """
-    if combine_data == True:
+    if combine_data:
         message = (
             "NWB export does not support combine_data=True. Combining collapses a run group into a "
             "single output directory, while the export writes one NWB file per selected session from "

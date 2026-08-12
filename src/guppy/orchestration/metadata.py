@@ -18,7 +18,6 @@ from ..frontend import nwb_form_style as style
 from ..frontend.metadata_selector import MetadataSelector
 from ..utils.acquisition_format import (
     acquisition_supplies_session_start_time,
-    resolve_acquisition_format,
     resolve_session_source,
 )
 from ..utils.nwb_metadata import (
@@ -29,7 +28,7 @@ from ..utils.nwb_metadata import (
     load_yaml,
     validate_metadata_dict,
 )
-from ..utils.utils import run_folder_for_run
+from ..utils.utils import run_folder_for_run, selected_session_runs
 from ..utils.validation import validate_data_not_combined
 
 logger = logging.getLogger(__name__)
@@ -38,17 +37,8 @@ logger = logging.getLogger(__name__)
 METADATA_FILENAME = "nwb_metadata.yaml"
 
 
-def _selected_session_runs(inputParameters: dict[str, object]) -> list[tuple[str, str]]:
-    """Flatten ``selected_runs`` into ``(session_path, run_name)`` pairs."""
-    selected_runs: dict[str, list[str]] = inputParameters["selected_runs"]
-    pairs: list[tuple[str, str]] = []
-    for session_path, run_names in selected_runs.items():
-        for run_name in run_names:
-            pairs.append((session_path, run_name))
-    return pairs
-
-
 def build_metadata_template(
+    *,
     session_label: str,
     channels: list[Channel],
     metadata: dict,
@@ -83,66 +73,40 @@ def build_metadata_template(
         selector.refresh_link_options()
         try:
             built = build_metadata_dict(
-                selector.get_devices(), selector.get_channel_rows(), selector.get_scalars(), channels
+                devices=selector.get_devices(),
+                channel_rows=selector.get_channel_rows(),
+                scalars=selector.get_scalars(),
+                channels=channels,
             )
         except ValueError as exception:
-            selector.set_alert_message(f"####Alert !! \n {exception}")
+            selector.set_alert_message(f"####Alert !! \n {exception}", is_error=True)
             return
         selector.set_yaml(built)
-        errors = validate_metadata_dict(built, channels, require_session_start_time=require_session_start_time)
-        selector.set_alert_message(_format_errors(errors) if errors else "#### No alerts !!")
+        errors = validate_metadata_dict(
+            metadata=built, channels=channels, require_session_start_time=require_session_start_time
+        )
+        selector.set_alert_message(_format_errors(errors) if errors else "#### No alerts !!", is_error=bool(errors))
 
     def save(event: object = None) -> None:
         try:
             to_save = selector.get_yaml()
         except Exception as exception:
-            selector.set_alert_message(f"####Alert !! \n Invalid YAML: {exception}")
+            selector.set_alert_message(f"####Alert !! \n Invalid YAML: {exception}", is_error=True)
             return
-        errors = validate_metadata_dict(to_save, channels, require_session_start_time=require_session_start_time)
+        errors = validate_metadata_dict(
+            metadata=to_save, channels=channels, require_session_start_time=require_session_start_time
+        )
         if errors:
-            selector.set_alert_message(_format_errors(errors))
+            selector.set_alert_message(_format_errors(errors), is_error=True)
             return
         os.makedirs(os.path.dirname(metadata_yaml_path), exist_ok=True)
-        dump_yaml(to_save, metadata_yaml_path)
+        dump_yaml(metadata=to_save, path=metadata_yaml_path)
         selector.set_path(metadata_yaml_path)
-        selector.set_alert_message("#### No alerts !!")
+        selector.set_alert_message("#### No alerts !!", is_error=False)
 
     selector.attach_callbacks({"build_config": build_config, "save": save})
     template.main.append(selector.widget)
     return template
-
-
-def _requires_session_start_time(session_path: str) -> bool:
-    """Report whether the user must supply this session's start time in the form.
-
-    A session whose format cannot be resolved is treated as needing one: Step 7 reports the format
-    problem itself, and asking for the start time here costs nothing if it turns out to be redundant.
-    """
-    try:
-        acquisition_format = resolve_acquisition_format(session_path)
-    except ValueError as exception:
-        logger.warning(f"Could not resolve the acquisition format of '{session_path}': {exception}")
-        return True
-    return not acquisition_supplies_session_start_time(
-        session_folder_path=session_path, acquisition_format=acquisition_format
-    )
-
-
-def _is_nwb_sourced(session_path: str, inputParameters: dict[str, object]) -> bool:
-    """Report whether a session was processed out of an NWB file rather than raw acquisition files.
-
-    Such a session needs no metadata form: the file it came from already carries the devices, the
-    fiber photometry chain, and the session start time. A session whose source cannot be resolved is
-    treated as raw, so the form still opens and Step 7 reports the problem itself.
-    """
-    try:
-        _acquisition_format, nwb_source = resolve_session_source(
-            session_folder_path=session_path, inputParameters=inputParameters
-        )
-    except ValueError as exception:
-        logger.warning(f"Could not resolve the source of '{session_path}': {exception}")
-        return False
-    return nwb_source is not None
 
 
 def orchestrate_metadata_page(inputParameters: dict[str, object]) -> None:
@@ -159,16 +123,21 @@ def orchestrate_metadata_page(inputParameters: dict[str, object]) -> None:
     Raises
     ------
     ValueError
-        If the pipeline was run with ``combine_data`` enabled.
+        If the pipeline was run with ``combine_data`` enabled, or if a selected session's source
+        cannot be resolved.
     """
     validate_data_not_combined(combine_data=inputParameters["combine_data"])
     headless = bool(os.environ.get("GUPPY_BASE_DIR"))
 
-    pairs = _selected_session_runs(inputParameters)
+    pairs = selected_session_runs(inputParameters=inputParameters)
+    # Resolved once per session and reused below: a session already in NWB needs no form at all, and
+    # for the rest the format decides whether the user must supply the session start time.
+    source_by_session = {
+        session_path: resolve_session_source(session_folder_path=session_path, inputParameters=inputParameters)
+        for session_path, _run_name in pairs
+    }
     pairs_needing_metadata = [
-        (session_path, run_name)
-        for session_path, run_name in pairs
-        if not _is_nwb_sourced(session_path, inputParameters)
+        (session_path, run_name) for session_path, run_name in pairs if source_by_session[session_path][1] is None
     ]
     if pairs and not pairs_needing_metadata:
         message = (
@@ -185,14 +154,17 @@ def orchestrate_metadata_page(inputParameters: dict[str, object]) -> None:
         guppy_folder_path = run_folder_for_run(session_path, run_name)
         metadata_yaml_path = os.path.join(guppy_folder_path, METADATA_FILENAME)
         initial_metadata = load_yaml(metadata_yaml_path) if os.path.exists(metadata_yaml_path) else {}
-        channels = derive_channels(guppy_folder_path)
+        channels = derive_channels(output_dir=guppy_folder_path)
         session_label = f"{os.path.basename(session_path.rstrip(os.sep))} ({run_name})"
+        acquisition_format, _nwb_source = source_by_session[session_path]
         template = build_metadata_template(
-            session_label,
-            channels,
-            initial_metadata,
-            metadata_yaml_path,
-            require_session_start_time=_requires_session_start_time(session_path),
+            session_label=session_label,
+            channels=channels,
+            metadata=initial_metadata,
+            metadata_yaml_path=metadata_yaml_path,
+            require_session_start_time=not acquisition_supplies_session_start_time(
+                session_folder_path=session_path, acquisition_format=acquisition_format
+            ),
         )
         if not headless:
             template.show(port=scanPortsAndFind(start_port=5000, end_port=5200))

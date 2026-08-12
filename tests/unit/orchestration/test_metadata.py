@@ -12,8 +12,6 @@ import pytest
 from guppy.orchestration import metadata as metadata_module
 from guppy.orchestration.metadata import (
     METADATA_FILENAME,
-    _requires_session_start_time,
-    _selected_session_runs,
     build_metadata_template,
     orchestrate_metadata_page,
 )
@@ -54,17 +52,9 @@ COMPLETE_SCALARS = {"session_description": "RI30", "subject_id": "63", "sex": "M
 
 
 def _complete_metadata() -> dict:
-    return build_metadata_dict(COMPLETE_DEVICES, COMPLETE_ROWS, COMPLETE_SCALARS, CHANNELS)
-
-
-class TestSelectedSessionRuns:
-    def test_flattens_sessions_and_runs_in_order(self):
-        input_parameters = {"selected_runs": {"/data/A": ["run1", "run2"], "/data/B": ["run1"]}}
-        assert _selected_session_runs(input_parameters) == [
-            ("/data/A", "run1"),
-            ("/data/A", "run2"),
-            ("/data/B", "run1"),
-        ]
+    return build_metadata_dict(
+        devices=COMPLETE_DEVICES, channel_rows=COMPLETE_ROWS, scalars=COMPLETE_SCALARS, channels=CHANNELS
+    )
 
 
 class TestBuildMetadataTemplate:
@@ -84,7 +74,7 @@ class TestBuildMetadataTemplate:
 
     def test_build_config_complete_metadata_clears_alerts(self, captured, tmp_path):
         path = str(tmp_path / "out" / METADATA_FILENAME)
-        build_metadata_template("Photo (run1)", CHANNELS, {}, path)
+        build_metadata_template(session_label="Photo (run1)", channels=CHANNELS, metadata={}, metadata_yaml_path=path)
         selector = captured[0]
         selector.set_from_metadata(_complete_metadata())
 
@@ -95,7 +85,7 @@ class TestBuildMetadataTemplate:
 
     def test_build_config_incomplete_metadata_lists_missing(self, captured, tmp_path):
         path = str(tmp_path / "out" / METADATA_FILENAME)
-        build_metadata_template("Photo (run1)", CHANNELS, {}, path)
+        build_metadata_template(session_label="Photo (run1)", channels=CHANNELS, metadata={}, metadata_yaml_path=path)
         selector = captured[0]
 
         selector.build_config.clicks += 1
@@ -104,7 +94,7 @@ class TestBuildMetadataTemplate:
 
     def test_build_config_value_error_sets_alert_and_keeps_yaml(self, captured, tmp_path, monkeypatch):
         path = str(tmp_path / "out" / METADATA_FILENAME)
-        build_metadata_template("Photo (run1)", CHANNELS, {}, path)
+        build_metadata_template(session_label="Photo (run1)", channels=CHANNELS, metadata={}, metadata_yaml_path=path)
         selector = captured[0]
         selector.set_yaml({"sentinel": True})
 
@@ -120,7 +110,7 @@ class TestBuildMetadataTemplate:
 
     def test_save_writes_complete_metadata(self, captured, tmp_path):
         path = str(tmp_path / "out" / METADATA_FILENAME)
-        build_metadata_template("Photo (run1)", CHANNELS, {}, path)
+        build_metadata_template(session_label="Photo (run1)", channels=CHANNELS, metadata={}, metadata_yaml_path=path)
         selector = captured[0]
         built = _complete_metadata()
         selector.set_yaml(built)
@@ -133,7 +123,7 @@ class TestBuildMetadataTemplate:
 
     def test_save_invalid_yaml_does_not_write(self, captured, tmp_path):
         path = str(tmp_path / "out" / METADATA_FILENAME)
-        build_metadata_template("Photo (run1)", CHANNELS, {}, path)
+        build_metadata_template(session_label="Photo (run1)", channels=CHANNELS, metadata={}, metadata_yaml_path=path)
         selector = captured[0]
         selector.code_editor.value = "*undefined_alias"
 
@@ -146,7 +136,13 @@ class TestBuildMetadataTemplate:
         # A format that records no start time makes the form its only source, so Save must refuse
         # metadata that would otherwise be complete.
         path = str(tmp_path / "out" / METADATA_FILENAME)
-        build_metadata_template("Photo (run1)", CHANNELS, {}, path, require_session_start_time=True)
+        build_metadata_template(
+            session_label="Photo (run1)",
+            channels=CHANNELS,
+            metadata={},
+            metadata_yaml_path=path,
+            require_session_start_time=True,
+        )
         selector = captured[0]
         selector.set_yaml(_complete_metadata())
 
@@ -157,13 +153,19 @@ class TestBuildMetadataTemplate:
 
     def test_save_writes_when_the_required_session_start_time_is_supplied(self, captured, tmp_path):
         path = str(tmp_path / "out" / METADATA_FILENAME)
-        build_metadata_template("Photo (run1)", CHANNELS, {}, path, require_session_start_time=True)
+        build_metadata_template(
+            session_label="Photo (run1)",
+            channels=CHANNELS,
+            metadata={},
+            metadata_yaml_path=path,
+            require_session_start_time=True,
+        )
         selector = captured[0]
         built = build_metadata_dict(
-            COMPLETE_DEVICES,
-            COMPLETE_ROWS,
-            {**COMPLETE_SCALARS, "session_start_time": "2018-10-30T10:33:32-05:00"},
-            CHANNELS,
+            devices=COMPLETE_DEVICES,
+            channel_rows=COMPLETE_ROWS,
+            scalars={**COMPLETE_SCALARS, "session_start_time": "2018-10-30T10:33:32-05:00"},
+            channels=CHANNELS,
         )
         selector.set_yaml(built)
 
@@ -174,7 +176,7 @@ class TestBuildMetadataTemplate:
 
     def test_save_validation_errors_do_not_write(self, captured, tmp_path):
         path = str(tmp_path / "out" / METADATA_FILENAME)
-        build_metadata_template("Photo (run1)", CHANNELS, {}, path)
+        build_metadata_template(session_label="Photo (run1)", channels=CHANNELS, metadata={}, metadata_yaml_path=path)
         selector = captured[0]
         selector.set_yaml({})  # valid YAML but missing every required field
 
@@ -185,23 +187,58 @@ class TestBuildMetadataTemplate:
 
 
 class TestRequiresSessionStartTime:
+    """Only the formats whose raw files record a start time leave the field optional."""
+
+    @pytest.fixture
+    def required_flags(self, monkeypatch):
+        """Record the ``require_session_start_time`` each built page was given."""
+        flags = []
+        monkeypatch.setattr(
+            metadata_module,
+            "build_metadata_template",
+            lambda *args, require_session_start_time, **kwargs: flags.append(require_session_start_time),
+        )
+        return flags
+
     @pytest.fixture
     def session_path(self, tmp_path):
         session = tmp_path / "Photo_session"
-        session.mkdir()
+        output_dir = session / "Photo_session_output_run1"
+        output_dir.mkdir(parents=True)
+        np.savetxt(
+            output_dir / "storesList.csv",
+            np.array([["Dv1A", "Dv2A"], ["control_dms", "signal_dms"]]),
+            delimiter=",",
+            fmt="%s",
+        )
         return session
 
-    def test_tdt_session_does_not_require_one(self, session_path):
+    @staticmethod
+    def _input_parameters(session_path):
+        return {"selected_runs": {str(session_path): ["run1"]}, "combine_data": False}
+
+    def test_tdt_session_does_not_require_one(self, required_flags, session_path):
         (session_path / "Photo_session.tsq").write_bytes(b"\x00")
-        assert _requires_session_start_time(str(session_path)) is False
 
-    def test_csv_session_requires_one(self, session_path):
+        orchestrate_metadata_page(self._input_parameters(session_path))
+
+        assert required_flags == [False]
+
+    def test_csv_session_requires_one(self, required_flags, session_path):
         (session_path / "signal_dms.csv").write_text("timestamps,data,sampling_rate\n0.0,1.0,100.0\n")
-        assert _requires_session_start_time(str(session_path)) is True
 
-    def test_unresolvable_format_requires_one(self, session_path):
-        # Step 7 reports the format problem itself; asking for the start time here costs nothing.
-        assert _requires_session_start_time(str(session_path)) is True
+        orchestrate_metadata_page(self._input_parameters(session_path))
+
+        assert required_flags == [True]
+
+    def test_unresolvable_format_is_reported_rather_than_guessed(self, required_flags, session_path):
+        # No acquisition files at all. Surfaced here, where the user can act on it, rather than
+        # opening a form for a session the export will refuse.
+        with pytest.raises(ValueError) as excinfo:
+            orchestrate_metadata_page(self._input_parameters(session_path))
+
+        assert "No acquisition data was found" in str(excinfo.value)
+        assert required_flags == []
 
 
 class TestOrchestrateMetadataPage:
@@ -210,6 +247,7 @@ class TestOrchestrateMetadataPage:
         session = tmp_path / "Photo_session"
         output_dir = session / "Photo_session_output_run1"
         output_dir.mkdir(parents=True)
+        (session / "Photo_session.tsq").write_bytes(b"\x00")
         np.savetxt(
             output_dir / "storesList.csv",
             np.array([["Dv1A", "Dv2A"], ["control_dms", "signal_dms"]]),

@@ -16,8 +16,10 @@ from typing import Iterable, Literal
 
 import numpy as np
 
+from guppy.orchestration.export_nwb import orchestrate_export_nwb
 from guppy.orchestration.home import build_homepage
 from guppy.orchestration.import_custom_events import orchestrate_custom_events_page
+from guppy.orchestration.metadata import orchestrate_metadata_page
 from guppy.orchestration.preprocess import extractTsAndSignal, removeArtifactsFromSignal
 from guppy.orchestration.psth import psthForEachStore
 from guppy.orchestration.read_raw_data import orchestrate_read_raw_data
@@ -1046,3 +1048,157 @@ def step5(
 
     # Call the underlying Step 5 worker directly, as the GUI does
     visualizeResults(input_params)
+
+
+def _build_headless_input_parameters(
+    *, base_dir: str, selected_folders: Iterable[str]
+) -> tuple[dict[str, object], list[str]]:
+    """Validate the folder selection and return the input parameters a headless step runs with.
+
+    Mirrors the production call chain: set ``GUPPY_BASE_DIR`` so the folder dialog is bypassed,
+    build the homepage, select the sessions, then read the parameters back off the form.
+
+    Parameters
+    ----------
+    base_dir : str
+        Root directory used to initialize the FileSelector. All ``selected_folders``
+        must reside directly under this path.
+    selected_folders : Iterable[str]
+        Absolute paths to the session directories to process.
+
+    Returns
+    -------
+    input_params : dict
+        The full pipeline input parameters, ready for per-step injection.
+    abs_sessions : list of str
+        The selected session paths, made absolute.
+
+    Raises
+    ------
+    ValueError
+        If ``base_dir`` or any selected folder is missing, or a session's parent is not ``base_dir``.
+    RuntimeError
+        If the template does not expose the required testing hooks/widgets.
+    """
+    if not isinstance(base_dir, str) or not base_dir:
+        raise ValueError("base_dir must be a non-empty string")
+    base_dir = os.path.abspath(base_dir)
+    if not os.path.isdir(base_dir):
+        raise ValueError(f"base_dir does not exist or is not a directory: {base_dir}")
+
+    sessions = list(selected_folders or [])
+    if not sessions:
+        raise ValueError("selected_folders must be a non-empty iterable of session directories")
+    abs_sessions = [os.path.abspath(session) for session in sessions]
+    for session in abs_sessions:
+        if not os.path.isdir(session):
+            raise ValueError(f"Session path does not exist or is not a directory: {session}")
+        parent = os.path.dirname(session)
+        if parent != base_dir:
+            raise ValueError(
+                f"All selected_folders must share the same parent equal to base_dir. "
+                f"Got parent {parent!r} for session {session!r}, expected {base_dir!r}"
+            )
+
+    os.environ["GUPPY_BASE_DIR"] = base_dir
+    template = build_homepage()
+
+    if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
+        raise RuntimeError("savingInputParameters did not expose 'getInputParameters' hook")
+    if not hasattr(template, "_widgets") or "files_1" not in template._widgets:
+        raise RuntimeError("savingInputParameters did not expose 'files_1' widget")
+
+    template._widgets["files_1"].value = abs_sessions
+    return template._hooks["getInputParameters"](), abs_sessions
+
+
+def step6(
+    *,
+    base_dir: str,
+    selected_folders: Iterable[str],
+    combine_data: bool = False,
+    selected_runs: dict[str, list[str]],
+) -> None:
+    """
+    Run pipeline Step 6 (Input Metadata) via the Panel-backed logic, headlessly.
+
+    Builds one metadata page per selected session that needs one, without serving any of them:
+    ``orchestrate_metadata_page`` skips ``template.show`` whenever ``GUPPY_BASE_DIR`` is set.
+    Sessions GuPPy processed out of an NWB file are skipped entirely, as in the GUI.
+
+    Because nothing is served, this writes no ``nwb_metadata.yaml``; it exercises the page
+    construction and the session-source resolution. Tests that need a saved metadata file should
+    build one with :func:`guppy.utils.nwb_metadata.build_metadata_dict` and
+    :func:`guppy.utils.nwb_metadata.dump_yaml`.
+
+    Parameters
+    ----------
+    base_dir : str
+        Root directory used to initialize the FileSelector. All ``selected_folders``
+        must reside directly under this path.
+    selected_folders : Iterable[str]
+        Absolute paths to the session directories to process.
+    combine_data : bool
+        The pipeline's ``combine_data`` setting. Step 6 refuses ``True``. Defaults to ``False``.
+    selected_runs : dict of {str: list of str}
+        Per-session output-directory subset filter, one entry per selected session.
+
+    Raises
+    ------
+    ValueError
+        If validation fails, if ``combine_data`` is ``True``, or if a session's source
+        cannot be resolved.
+    RuntimeError
+        If the template does not expose the required testing hooks/widgets.
+    """
+    input_params, abs_sessions = _build_headless_input_parameters(base_dir=base_dir, selected_folders=selected_folders)
+    input_params["combine_data"] = combine_data
+    input_params["selected_runs"] = _normalize_selected_runs(selected_runs, abs_sessions)
+
+    # Call the underlying Step 6 worker directly, as the GUI does
+    orchestrate_metadata_page(input_params)
+
+
+def step7(
+    *,
+    base_dir: str,
+    selected_folders: Iterable[str],
+    combine_data: bool = False,
+    selected_runs: dict[str, list[str]],
+) -> None:
+    """
+    Run pipeline Step 7 (Export to NWB) via the Panel-backed logic, headlessly.
+
+    Writes one ``.nwb`` file per selected ``(session, run)`` into that run's output directory,
+    picking up the session's ``nwb_metadata.yaml`` overlay when one is present.
+
+    One failed session is skipped without aborting the rest of the batch, matching the GUI. Since
+    no progress channel is bound headlessly, those failures are reported only through the log --
+    callers that need to assert on them should bind a ``StepProgress`` first.
+
+    Parameters
+    ----------
+    base_dir : str
+        Root directory used to initialize the FileSelector. All ``selected_folders``
+        must reside directly under this path.
+    selected_folders : Iterable[str]
+        Absolute paths to the session directories to process.
+    combine_data : bool
+        The pipeline's ``combine_data`` setting. Step 7 refuses ``True``. Defaults to ``False``.
+    selected_runs : dict of {str: list of str}
+        Per-session output-directory subset filter, one entry per selected session.
+
+    Raises
+    ------
+    ValueError
+        If validation fails, if ``combine_data`` is ``True``, or if a selected run was
+        processed with the unsupported ``concatenate`` artifact-removal method.
+    RuntimeError
+        If the template does not expose the required testing hooks/widgets.
+    """
+    input_params, abs_sessions = _build_headless_input_parameters(base_dir=base_dir, selected_folders=selected_folders)
+    input_params["combine_data"] = combine_data
+    input_params["selected_runs"] = _normalize_selected_runs(selected_runs, abs_sessions)
+
+    # Call the underlying Step 7 worker directly, as the GUI does
+    orchestrate_export_nwb(input_params)

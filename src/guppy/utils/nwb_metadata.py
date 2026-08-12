@@ -63,7 +63,7 @@ class Channel:
         return f"{self.recording_site}_{self.role}"
 
 
-def derive_channels(output_dir: str | Path) -> list[Channel]:
+def derive_channels(*, output_dir: str | Path) -> list[Channel]:
     """Return the ordered fiber-photometry channels for a GuPPy output directory.
 
     Reads ``<output_dir>/storesList.csv`` and pairs each ``signal_<recording_site>`` label
@@ -296,13 +296,18 @@ def _type_spec(type_name: str):  # noqa: ANN202  (returns an hdmf Spec)
     import ndx_ophys_devices  # noqa: F401
     from pynwb import get_type_map
 
+    namespaces = ("ndx-ophys-devices", "ndx-fiber-photometry")
     catalog = get_type_map().namespace_catalog
-    for namespace in ("ndx-ophys-devices", "ndx-fiber-photometry"):
+    for namespace in namespaces:
         try:
             return catalog.get_spec(namespace, type_name)
         except ValueError:
             continue
-    raise AssertionError(f"Type {type_name!r} not found in installed ndx namespaces.")
+    raise ValueError(
+        f"Type {type_name!r} is not defined by any of the installed extensions {namespaces}. The "
+        f"metadata form is built from the installed specs, so this means the installed "
+        f"ndx-ophys-devices/ndx-fiber-photometry versions are older than GuPPy expects; upgrade them."
+    )
 
 
 def _type_attrs(type_name: str) -> tuple[tuple[str, bool, str, str, bool], ...]:
@@ -412,7 +417,7 @@ def format_session_start_time(value: object) -> str:
 # ----------------------------------------------------------------------------------------------------------------------
 # Device serialization (one form entry <-> one ndx object dict)
 # ----------------------------------------------------------------------------------------------------------------------
-def _serialize_device(category: CategorySpec, entry: dict) -> dict:
+def _serialize_device(*, category: CategorySpec, entry: dict) -> dict:
     """Serialize one form entry into its ndx object dict (nesting the fiber_insertion group)."""
     obj: dict = {}
     registry_type = _registry_type(category)
@@ -432,7 +437,7 @@ def _serialize_device(category: CategorySpec, entry: dict) -> dict:
     return obj
 
 
-def _deserialize_device(category: CategorySpec, object_dict: dict) -> dict:
+def _deserialize_device(*, category: CategorySpec, object_dict: dict) -> dict:
     """Flatten one ndx object dict back into a form entry (un-nesting fiber_insertion)."""
     entry = {key: value for key, value in object_dict.items() if key not in ("fiber_insertion", "type")}
     entry.update(object_dict.get("fiber_insertion") or {})
@@ -443,7 +448,7 @@ def _deserialize_device(category: CategorySpec, object_dict: dict) -> dict:
     return entry
 
 
-def _collection(metadata: dict, destination: tuple[str, ...], *, create: bool) -> dict:
+def _collection(*, metadata: dict, destination: tuple[str, ...], create: bool) -> dict:
     """Return the dict at ``destination``, optionally creating the intermediate levels."""
     node = metadata
     for key in destination:
@@ -464,7 +469,7 @@ _ROLE_SERIES_DESCRIPTIONS = {
 
 
 def build_metadata_dict(
-    devices: dict[str, list[dict]], channel_rows: list[dict], scalars: dict, channels: list[Channel]
+    *, devices: dict[str, list[dict]], channel_rows: list[dict], scalars: dict, channels: list[Channel]
 ) -> dict:
     """Assemble the full session metadata overlay from the form state.
 
@@ -487,9 +492,9 @@ def build_metadata_dict(
         entries = [entry for entry in devices.get(category.key, []) if not _is_empty(entry.get("name"))]
         if not entries:
             continue
-        collection = _collection(metadata, category.destination, create=True)
+        collection = _collection(metadata=metadata, destination=category.destination, create=True)
         for entry in entries:
-            collection[entry["name"]] = _serialize_device(category, entry)
+            collection[entry["name"]] = _serialize_device(category=category, entry=entry)
 
     recording_sites = list(dict.fromkeys(channel.recording_site for channel in channels))
     table_rows: dict[str, dict] = {}
@@ -501,7 +506,7 @@ def build_metadata_dict(
         table_rows[channel.table_row_key] = row
 
     if table_rows:
-        fiber_photometry = _collection(metadata, (FIBER_PHOTOMETRY_KEY,), create=True)
+        fiber_photometry = _collection(metadata=metadata, destination=(FIBER_PHOTOMETRY_KEY,), create=True)
         fiber_photometry["FiberPhotometryTable"] = {
             "name": scalars.get("fiber_photometry_table_name") or "fiber_photometry_table",
             "description": scalars.get("fiber_photometry_table_description") or "Fiber photometry table.",
@@ -522,13 +527,13 @@ def build_metadata_dict(
     return metadata
 
 
-def parse_metadata_dict(metadata: dict, channels: list[Channel]) -> tuple[dict[str, list[dict]], list[dict], dict]:
+def parse_metadata_dict(*, metadata: dict, channels: list[Channel]) -> tuple[dict[str, list[dict]], list[dict], dict]:
     """Inverse of :func:`build_metadata_dict` for repopulating the form from a saved dict."""
     devices: dict[str, list[dict]] = {}
     for category in CATEGORIES.values():
-        collection = _collection(metadata, category.destination, create=False)
+        collection = _collection(metadata=metadata, destination=category.destination, create=False)
         devices[category.key] = [
-            _deserialize_device(category, entry)
+            _deserialize_device(category=category, object_dict=entry)
             for entry in collection.values()
             if entry.get("type") == _registry_type(category)
         ]
@@ -561,7 +566,7 @@ _REQUIRED_SUBJECT_KEYS = ("subject_id", "sex", "species")
 
 
 def validate_metadata_dict(
-    metadata: dict, channels: list[Channel], *, require_session_start_time: bool = False
+    *, metadata: dict, channels: list[Channel], require_session_start_time: bool = False
 ) -> list[str]:
     """Return a list of human-readable problems that would break NWB export.
 
@@ -601,7 +606,7 @@ def validate_metadata_dict(
 
     entries_by_category: dict[str, dict[str, dict]] = {}
     for category in CATEGORIES.values():
-        collection = _collection(metadata, category.destination, create=False)
+        collection = _collection(metadata=metadata, destination=category.destination, create=False)
         entries_by_category[category.key] = {
             key: entry for key, entry in collection.items() if entry.get("type") == _registry_type(category)
         }
@@ -650,7 +655,7 @@ def load_yaml(path: str | Path) -> dict:
         return yaml.safe_load(yaml_file) or {}
 
 
-def dump_yaml(metadata: dict, path: str | Path) -> None:
+def dump_yaml(*, metadata: dict, path: str | Path) -> None:
     """Write ``metadata`` to ``path`` as human-editable YAML (insertion order preserved)."""
     with open(path, "w") as yaml_file:
         yaml.dump(metadata, yaml_file, Dumper=_RobustDumper, sort_keys=False, default_flow_style=False)

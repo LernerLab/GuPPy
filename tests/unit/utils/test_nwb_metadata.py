@@ -28,7 +28,7 @@ class TestDeriveChannels:
 
     def test_parses_storeslist_into_ordered_channels(self, tmp_path):
         self._write_stores_list(tmp_path, ["Dv1A", "Dv2A", "PrtN"], ["control_dms", "signal_dms", "port_entries_dms"])
-        channels = m.derive_channels(str(tmp_path))
+        channels = m.derive_channels(output_dir=str(tmp_path))
         assert [(c.recording_site, c.role, c.store_name) for c in channels] == [
             ("dms", "control", "Dv1A"),
             ("dms", "signal", "Dv2A"),
@@ -44,7 +44,7 @@ class TestDeriveChannels:
             ["Dv1A", "Dv2A", "Dv3B", "Dv4B"],
             ["control_dms", "signal_dms", "control_dls", "signal_dls"],
         )
-        channels = m.derive_channels(str(tmp_path))
+        channels = m.derive_channels(output_dir=str(tmp_path))
         assert [c.table_row_key for c in channels] == ["dms_control", "dms_signal", "dls_control", "dls_signal"]
 
 
@@ -87,7 +87,7 @@ class TestBuildMetadata:
                 {"name": "dls_fiber", "model": "fmodel"},  # reuses the same model; no coordinates
             ],
         }
-        metadata = m.build_metadata_dict(devices, [{}, {}], {}, channels)
+        metadata = m.build_metadata_dict(devices=devices, channel_rows=[{}, {}], scalars={}, channels=channels)
         # Models and instances land in the shared, cross-modality registries, each tagged with the
         # concrete ndx class to build, and instances link their model by metadata_key.
         assert metadata["DeviceModels"] == {
@@ -117,14 +117,16 @@ class TestBuildMetadata:
 
     def test_empty_channels_and_no_devices_yields_empty_metadata(self):
         # No channels -> no table/series; no devices/scalars -> no Devices/NWBFile/Subject keys.
-        assert m.build_metadata_dict({}, [], {}, []) == {}
+        assert m.build_metadata_dict(devices={}, channel_rows=[], scalars={}, channels=[]) == {}
 
     def test_generates_table_rows_and_per_role_series_from_channels(self, channels):
         channel_rows = [
             {"excitation_wavelength_in_nm": 405.0, "emission_wavelength_in_nm": 525.0, "optical_fiber": "dms_fiber"},
             {"excitation_wavelength_in_nm": 465.0, "emission_wavelength_in_nm": 525.0, "optical_fiber": "dms_fiber"},
         ]
-        fiber_photometry = m.build_metadata_dict({}, channel_rows, {}, channels)["FiberPhotometry"]
+        fiber_photometry = m.build_metadata_dict(devices={}, channel_rows=channel_rows, scalars={}, channels=channels)[
+            "FiberPhotometry"
+        ]
         assert fiber_photometry["FiberPhotometryTable"]["rows"] == {
             "dms_control": {
                 "location": "dms",
@@ -150,7 +152,9 @@ class TestBuildMetadata:
             m.Channel("dls", "control", "Dv3B"),
             m.Channel("dls", "signal", "Dv4B"),
         ]
-        fiber_photometry = m.build_metadata_dict({}, [{}] * 4, {}, channels)["FiberPhotometry"]
+        fiber_photometry = m.build_metadata_dict(devices={}, channel_rows=[{}] * 4, scalars={}, channels=channels)[
+            "FiberPhotometry"
+        ]
         assert fiber_photometry["signal"]["fiber_photometry_table_region"] == ["dms_signal", "dls_signal"]
         assert fiber_photometry["control"]["fiber_photometry_table_region"] == ["dms_control", "dls_control"]
 
@@ -166,7 +170,7 @@ class TestBuildMetadata:
             "date_of_birth": "",
             "species": "Mus musculus",
         }
-        metadata = m.build_metadata_dict({}, [{}, {}], scalars, channels)
+        metadata = m.build_metadata_dict(devices={}, channel_rows=[{}, {}], scalars=scalars, channels=channels)
         assert metadata["NWBFile"] == {
             "session_description": "RI30",
             "identifier": "id1",
@@ -178,35 +182,54 @@ class TestBuildMetadata:
 class TestSessionStartTime:
     def test_build_normalizes_the_form_string_to_a_datetime(self, channels):
         # NWBFile rejects a string, so the value must not survive as one through the YAML.
-        metadata = m.build_metadata_dict({}, [{}, {}], {"session_start_time": "2018-10-30T10:33:32-05:00"}, channels)
+        metadata = m.build_metadata_dict(
+            devices={},
+            channel_rows=[{}, {}],
+            scalars={"session_start_time": "2018-10-30T10:33:32-05:00"},
+            channels=channels,
+        )
         assert metadata["NWBFile"]["session_start_time"] == datetime(
             2018, 10, 30, 10, 33, 32, tzinfo=timezone(timedelta(hours=-5))
         )
 
     def test_build_drops_a_blank_session_start_time(self, channels):
-        metadata = m.build_metadata_dict({}, [{}, {}], {"session_description": "RI30"}, channels)
+        metadata = m.build_metadata_dict(
+            devices={}, channel_rows=[{}, {}], scalars={"session_description": "RI30"}, channels=channels
+        )
         assert "session_start_time" not in metadata["NWBFile"]
 
     def test_build_rejects_an_unparseable_session_start_time(self, channels):
         with pytest.raises(ValueError):
-            m.build_metadata_dict({}, [{}, {}], {"session_start_time": "last tuesday"}, channels)
+            m.build_metadata_dict(
+                devices={}, channel_rows=[{}, {}], scalars={"session_start_time": "last tuesday"}, channels=channels
+            )
 
     def test_parse_returns_it_as_the_iso_string_the_form_edits(self, channels):
-        metadata = m.build_metadata_dict({}, [{}, {}], {"session_start_time": "2018-10-30T10:33:32-05:00"}, channels)
-        _devices, _rows, scalars = m.parse_metadata_dict(metadata, channels)
+        metadata = m.build_metadata_dict(
+            devices={},
+            channel_rows=[{}, {}],
+            scalars={"session_start_time": "2018-10-30T10:33:32-05:00"},
+            channels=channels,
+        )
+        _devices, _rows, scalars = m.parse_metadata_dict(metadata=metadata, channels=channels)
         assert scalars["session_start_time"] == "2018-10-30T10:33:32-05:00"
 
     def test_survives_a_yaml_round_trip_as_a_datetime(self, channels, tmp_path):
-        metadata = m.build_metadata_dict({}, [{}, {}], {"session_start_time": "2018-10-30T10:33:32-05:00"}, channels)
+        metadata = m.build_metadata_dict(
+            devices={},
+            channel_rows=[{}, {}],
+            scalars={"session_start_time": "2018-10-30T10:33:32-05:00"},
+            channels=channels,
+        )
         path = tmp_path / "nwb_metadata.yaml"
-        m.dump_yaml(metadata, path)
+        m.dump_yaml(metadata=metadata, path=path)
         assert m.load_yaml(path)["NWBFile"]["session_start_time"] == metadata["NWBFile"]["session_start_time"]
 
 
 class TestParseMetadata:
     def test_splits_example_into_model_and_instance_categories(self, channels):
         example = m.load_yaml(EXAMPLE_METADATA)
-        devices, channel_rows, scalars = m.parse_metadata_dict(example, channels)
+        devices, channel_rows, scalars = m.parse_metadata_dict(metadata=example, channels=channels)
         # Model and instance land in separate categories; the instance links the model + flattens insertion.
         assert devices["optical_fiber_model"][0]["name"] == "optical_fiber_model"
         assert devices["optical_fiber_model"][0]["numerical_aperture"] == 0.48
@@ -222,9 +245,9 @@ class TestParseMetadata:
             "optical_fiber": [{"name": "f", "model": "fmodel", "depth_in_mm": 2.8}],
         }
         rows = [{"excitation_wavelength_in_nm": 405.0}, {"excitation_wavelength_in_nm": 465.0}]
-        built = m.build_metadata_dict(devices, rows, {}, channels)
-        devices2, rows2, _ = m.parse_metadata_dict(built, channels)
-        rebuilt = m.build_metadata_dict(devices2, rows2, {}, channels)
+        built = m.build_metadata_dict(devices=devices, channel_rows=rows, scalars={}, channels=channels)
+        devices2, rows2, _ = m.parse_metadata_dict(metadata=built, channels=channels)
+        rebuilt = m.build_metadata_dict(devices=devices2, channel_rows=rows2, scalars={}, channels=channels)
         assert rebuilt == built
 
 
@@ -260,16 +283,16 @@ class TestValidateMetadata:
             },
         ]
         scalars = {"session_description": "RI30", "subject_id": "63", "sex": "M", "species": "Mus musculus"}
-        return m.build_metadata_dict(devices, rows, scalars, channels)
+        return m.build_metadata_dict(devices=devices, channel_rows=rows, scalars=scalars, channels=channels)
 
     def test_complete_metadata_has_no_errors(self, channels):
-        assert m.validate_metadata_dict(self._complete_metadata(channels), channels) == []
+        assert m.validate_metadata_dict(metadata=self._complete_metadata(channels), channels=channels) == []
 
     def test_unlinked_optical_fiber_model_is_reported(self, channels):
         metadata = self._complete_metadata(channels)
         # Drop the instance's link to its model -> required-link violation.
         metadata["Devices"]["fiber"].pop("device_model_metadata_key")
-        errors = m.validate_metadata_dict(metadata, channels)
+        errors = m.validate_metadata_dict(metadata=metadata, channels=channels)
         assert any("optical fiber 'fiber'" in error and "model is required" in error for error in errors)
 
     def test_dangling_link_and_missing_scalar_and_wavelength(self, channels):
@@ -278,7 +301,7 @@ class TestValidateMetadata:
         rows = metadata["FiberPhotometry"]["FiberPhotometryTable"]["rows"]
         rows["dms_control"].pop("excitation_wavelength_in_nm")
         rows["dms_signal"]["optical_fiber_metadata_key"] = "ghost"
-        errors = m.validate_metadata_dict(metadata, channels)
+        errors = m.validate_metadata_dict(metadata=metadata, channels=channels)
         assert any("Subject.species is required" in error for error in errors)
         assert any("excitation_wavelength_in_nm is required" in error for error in errors)
         assert any("'ghost' is not a defined optical fiber" in error for error in errors)
@@ -286,27 +309,27 @@ class TestValidateMetadata:
     def test_missing_nwbfile_session_description_is_reported(self, channels):
         metadata = self._complete_metadata(channels)
         metadata["NWBFile"].pop("session_description")
-        errors = m.validate_metadata_dict(metadata, channels)
+        errors = m.validate_metadata_dict(metadata=metadata, channels=channels)
         assert any("NWBFile.session_description is required" in error for error in errors)
 
     def test_missing_required_device_field_is_reported(self, channels):
         metadata = self._complete_metadata(channels)
         # numerical_aperture is a required (non-link) field on the optical fiber model.
         metadata["DeviceModels"]["fmodel"].pop("numerical_aperture")
-        errors = m.validate_metadata_dict(metadata, channels)
+        errors = m.validate_metadata_dict(metadata=metadata, channels=channels)
         assert any("numerical_aperture is required" in error for error in errors)
 
     def test_dangling_device_link_is_reported(self, channels):
         metadata = self._complete_metadata(channels)
         metadata["Devices"]["fiber"]["device_model_metadata_key"] = "ghost"
-        errors = m.validate_metadata_dict(metadata, channels)
+        errors = m.validate_metadata_dict(metadata=metadata, channels=channels)
         assert any("'ghost' is not a defined optical fiber model" in error for error in errors)
 
     def test_missing_session_start_time_is_reported_only_when_required(self, channels):
         metadata = self._complete_metadata(channels)
-        assert m.validate_metadata_dict(metadata, channels) == []
+        assert m.validate_metadata_dict(metadata=metadata, channels=channels) == []
 
-        errors = m.validate_metadata_dict(metadata, channels, require_session_start_time=True)
+        errors = m.validate_metadata_dict(metadata=metadata, channels=channels, require_session_start_time=True)
         assert errors == [
             "NWBFile.session_start_time is required: this session's acquisition format does not record one."
         ]
@@ -314,19 +337,19 @@ class TestValidateMetadata:
     def test_supplied_session_start_time_satisfies_the_requirement(self, channels):
         metadata = self._complete_metadata(channels)
         metadata["NWBFile"]["session_start_time"] = datetime(2018, 10, 30, 10, 33, 32)
-        assert m.validate_metadata_dict(metadata, channels, require_session_start_time=True) == []
+        assert m.validate_metadata_dict(metadata=metadata, channels=channels, require_session_start_time=True) == []
 
     def test_unparseable_session_start_time_is_reported(self, channels):
         # A hand-edited YAML can hold anything; the form's own field is normalized on build.
         metadata = self._complete_metadata(channels)
         metadata["NWBFile"]["session_start_time"] = "last tuesday"
-        errors = m.validate_metadata_dict(metadata, channels)
+        errors = m.validate_metadata_dict(metadata=metadata, channels=channels)
         assert errors == ["NWBFile.session_start_time 'last tuesday' is not a valid ISO 8601 timestamp."]
 
     def test_missing_required_channel_link_is_reported(self, channels):
         metadata = self._complete_metadata(channels)
         metadata["FiberPhotometry"]["FiberPhotometryTable"]["rows"]["dms_control"].pop("indicator_metadata_key")
-        errors = m.validate_metadata_dict(metadata, channels)
+        errors = m.validate_metadata_dict(metadata=metadata, channels=channels)
         assert any("indicator link is required" in error for error in errors)
 
 
@@ -350,8 +373,8 @@ class TestIsEmpty:
 
 
 class TestTypeIntrospection:
-    def test_unknown_type_raises_assertion_error(self):
-        with pytest.raises(AssertionError, match="not found in installed ndx namespaces"):
+    def test_unknown_type_names_the_installed_extensions(self):
+        with pytest.raises(ValueError, match="is not defined by any of the installed extensions"):
             m._type_spec("ThisTypeDoesNotExist")
 
 
@@ -359,7 +382,7 @@ class TestYamlIO:
     def test_dump_then_load_round_trip(self, tmp_path):
         metadata = {"NWBFile": {"lab": "Lerner"}, "Devices": {"f": {"type": "OpticalFiber", "name": "f"}}}
         path = tmp_path / "meta.yaml"
-        m.dump_yaml(metadata, path)
+        m.dump_yaml(metadata=metadata, path=path)
         assert m.load_yaml(path) == metadata
 
     def test_loads_blank_text_returns_empty_dict(self):

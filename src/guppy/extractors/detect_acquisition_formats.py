@@ -102,6 +102,44 @@ def _is_event_csv(path: str) -> bool:
     return len(columns) == 1 and columns[0].lower() == "timestamps"
 
 
+def _detect(folder_path: str) -> tuple[set[str], bool]:
+    """Classify a session folder once, returning its trace formats and whether it holds event CSVs.
+
+    Each CSV is opened and read a single time here, which is why both public detectors share it.
+    """
+    formats = set()
+
+    # NWB .nwb files provide photometry channels via acquisition series
+    if glob.glob(os.path.join(folder_path, "*.nwb")):
+        formats.add("nwb")
+
+    # TDT .tsq files provide both photometry stores and TTL event stores
+    if glob.glob(os.path.join(folder_path, "*.tsq")):
+        formats.add("tdt")
+
+    # Doric .doric files provide both photometry channels and digital TTL channels
+    if glob.glob(os.path.join(folder_path, "*.doric")):
+        formats.add("doric")
+
+    csv_paths = glob.glob(os.path.join(folder_path, "*.csv"))
+    event_csv_by_path = {csv_path: _is_event_csv(csv_path) for csv_path in csv_paths}
+
+    # Multi-column CSV files can be NPM, Doric CSV exports, or 3-column data_csv files.
+    # NPM demultiplexes its raw files in memory and never writes intermediates to the
+    # folder, so each modality is detected independently of the others here.
+    non_event_csv_paths = [csv_path for csv_path, is_event in event_csv_by_path.items() if not is_event]
+    if non_event_csv_paths:
+        labels = {_classify_csv_file(csv_path) for csv_path in non_event_csv_paths}
+        if "npm" in labels:
+            formats.add("npm")
+        if "doric" in labels:
+            formats.add("doric")
+        if "csv" in labels:
+            formats.add("csv")
+
+    return formats, any(event_csv_by_path.values())
+
+
 def detect_trace_formats(folder_path: str) -> set[str]:
     """
     Detect the acquisition formats supplying photometry traces in a session folder.
@@ -121,36 +159,8 @@ def detect_trace_formats(folder_path: str) -> set[str]:
         Format strings for the trace sources found in the folder.
         Possible elements: ``"nwb"``, ``"tdt"``, ``"doric"``, ``"csv"``, ``"npm"``.
     """
-    formats = set()
-
-    # NWB .nwb files provide photometry channels via acquisition series
-    if glob.glob(os.path.join(folder_path, "*.nwb")):
-        formats.add("nwb")
-
-    # TDT .tsq files provide both photometry stores and TTL event stores
-    if glob.glob(os.path.join(folder_path, "*.tsq")):
-        formats.add("tdt")
-
-    # Doric .doric files provide both photometry channels and digital TTL channels
-    if glob.glob(os.path.join(folder_path, "*.doric")):
-        formats.add("doric")
-
-    # Multi-column CSV files can be NPM, Doric CSV exports, or 3-column data_csv files.
-    # NPM demultiplexes its raw files in memory and never writes intermediates to the
-    # folder, so each modality is detected independently of the others here.
-    non_event_csv_paths = [
-        csv_path for csv_path in glob.glob(os.path.join(folder_path, "*.csv")) if not _is_event_csv(csv_path)
-    ]
-    if non_event_csv_paths:
-        labels = {_classify_csv_file(csv_path) for csv_path in non_event_csv_paths}
-        if "npm" in labels:
-            formats.add("npm")
-        if "doric" in labels:
-            formats.add("doric")
-        if "csv" in labels:
-            formats.add("csv")
-
-    return formats
+    trace_formats, _has_event_csv = _detect(folder_path)
+    return trace_formats
 
 
 def detect_acquisition_formats(folder_path: str) -> set[str]:
@@ -171,12 +181,12 @@ def detect_acquisition_formats(folder_path: str) -> set[str]:
         Format strings for all sources found in the folder.
         Possible elements: ``"nwb"``, ``"tdt"``, ``"doric"``, ``"csv"``, ``"npm"``.
     """
-    formats = detect_trace_formats(folder_path)
+    formats, has_event_csv = _detect(folder_path)
 
     # Single-column timestamp CSVs are genuine external TTL files read by
     # CsvRecordingExtractor. NpmRecordingExtractor owns its own event streams in
     # memory, so single-column files no longer originate from NPM processing.
-    if any(_is_event_csv(csv_path) for csv_path in glob.glob(os.path.join(folder_path, "*.csv"))):
+    if has_event_csv:
         formats.add("csv")
 
     return formats

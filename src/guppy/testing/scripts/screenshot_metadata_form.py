@@ -6,16 +6,16 @@ and writes a full-page PNG. Used to iterate on the form's visual design; it is n
 test (no assertions). Requires playwright + chromium in the active environment.
 
 Run from the project root:
-    python -m guppy.testing.scripts.screenshot_metadata_form /tmp/metadata.png [--expand] [--example]
+    python -m guppy.testing.scripts.screenshot_metadata_form /tmp/metadata.png \\
+        [--expand] [--example tests/data/fiber_photometry_metadata_example.yaml]
 
-    --example   prefill the form from tests/data/fiber_photometry_metadata_example.yaml
-    --expand    click every collapsible card open before capturing
+    --example PATH   prefill the form from a metadata YAML on disk
+    --expand         click every collapsible card open before capturing
 """
 
 import socket
 import sys
 import time
-from pathlib import Path
 
 import panel as pn
 from playwright.sync_api import sync_playwright
@@ -29,23 +29,20 @@ from guppy.utils.nwb_metadata import (
     parse_metadata_dict,
 )
 
-PROJECT_ROOT = Path(__file__).resolve().parents[4]
-EXAMPLE = PROJECT_ROOT / "tests" / "data" / "fiber_photometry_metadata_example.yaml"
-
 
 def main() -> None:
     """Serve the metadata form, capture a full-page screenshot to the path in argv[1]."""
     out_path = sys.argv[1] if len(sys.argv) > 1 else "/tmp/metadata.png"
     expand = "--expand" in sys.argv
-    use_example = "--example" in sys.argv
+    example_path = sys.argv[sys.argv.index("--example") + 1] if "--example" in sys.argv else None
 
     pn.extension(notifications=True)
     channels = [Channel("dms", "control", "Dv1A"), Channel("dms", "signal", "Dv2A")]
 
     metadata = {}
-    if use_example:
-        example = load_yaml(EXAMPLE)
-        devices, _rows, scalars = parse_metadata_dict(example, channels)
+    if example_path:
+        example = load_yaml(example_path)
+        devices, _rows, scalars = parse_metadata_dict(metadata=example, channels=channels)
         rows = [
             {
                 "excitation_wavelength_in_nm": 405.0,
@@ -74,7 +71,7 @@ def main() -> None:
             "species": "Mus musculus",
             "experimenter": ["Adkisson, Paul"],
         }
-        metadata = build_metadata_dict(devices, rows, scalars, channels)
+        metadata = build_metadata_dict(devices=devices, channel_rows=rows, scalars=scalars, channels=channels)
 
     template = build_metadata_template(
         session_label="Photo_63 (1)",
@@ -97,12 +94,15 @@ def main() -> None:
         page.goto(f"http://localhost:{port}", wait_until="networkidle")
         time.sleep(1.5)
         if expand:
-            cards = page.locator("div.card-header")
-            for index in range(cards.count()):
-                try:
-                    cards.nth(index).click(timeout=500)
-                except Exception:
-                    pass
+            # Several passes: opening an outer card is what makes the cards nested inside it
+            # visible, and only a visible header can be clicked.
+            for _ in range(3):
+                cards = page.locator("div.card-header")
+                for index in range(cards.count()):
+                    card = cards.nth(index)
+                    if card.is_visible():
+                        card.click()
+                time.sleep(0.5)
             time.sleep(1.0)
         page.screenshot(path=out_path, full_page=True)
         browser.close()
