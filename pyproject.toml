@@ -61,7 +61,10 @@ dependencies = [
     "dandi",
     "remfile",
     "pyyaml",
-    "neuroconv[guppy]==0.10.0rc1",
+    # TODO: back to a released pin once neuroconv 0.10.0 ships. A direct URL cannot be uploaded to
+    # PyPI, and 0.10.0rc1 predates the read-manager builder fix (catalystneuro/neuroconv#1904) the
+    # NWB-sourced export needs.
+    "neuroconv[guppy] @ git+https://github.com/catalystneuro/neuroconv.git@main",
     "ndx-guppy==0.1.0",
 ]
 

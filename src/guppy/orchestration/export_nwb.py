@@ -96,6 +96,7 @@ def _export_session_from_nwb_source(
     ``FiberPhotometryTable`` already there.
     """
     from neuroconv.datainterfaces import GuppyInterface
+    from neuroconv.tools.nwb_helpers import configure_and_write_nwbfile
     from pynwb import NWBHDF5IO
 
     interface = GuppyInterface(folder_path=guppy_folder_path)
@@ -112,12 +113,7 @@ def _export_session_from_nwb_source(
             nwbfile=nwbfile,
             metadata=_overlay_metadata_yaml(metadata=interface.get_metadata(), metadata_yaml_path=metadata_yaml_path),
         )
-        # pynwb's own export rather than neuroconv's configure_and_write_nwbfile: building a backend
-        # configuration walks the source builder for every dataset, which cannot locate the ones an
-        # extension nests under lab_meta_data (the FiberPhotometryTable a photometry source holds).
-        nwbfile.set_modified()
-        with NWBHDF5IO(nwbfile_path, "w") as export_io:
-            export_io.export(src_io=source_io, nwbfile=nwbfile, write_args=dict(link_data=False))
+        configure_and_write_nwbfile(nwbfile=nwbfile, nwbfile_path=nwbfile_path, backend="hdf5")
 
     logger.info(f"Wrote NWB file to {nwbfile_path}")
     return nwbfile_path
