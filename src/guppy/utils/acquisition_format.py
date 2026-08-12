@@ -6,26 +6,25 @@ either step's orchestration.
 """
 
 from .utils import RAISE_ISSUE_URL
-from ..extractors.detect_acquisition_formats import detect_acquisition_formats
+from ..extractors.detect_acquisition_formats import detect_trace_formats
+from ..extractors.nwb_recording_extractor import _find_nwb_file
 
 # The acquisition formats NWB export can read: every format GuPPy reads raw acquisition files for.
-SUPPORTED_ACQUISITION_FORMATS = ("tdt", "doric", "npm", "csv")
+# ``"nwb"`` is not a converter format -- a session already in NWB is exported by adding the GuPPy
+# outputs to the file it came from, rather than by bundling raw acquisition files.
+SUPPORTED_ACQUISITION_FORMATS = ("tdt", "doric", "npm", "csv", "nwb")
 
-# The rest of what GuPPy reads, each with why the export cannot take it. Naming the reason beats a
-# bare "unsupported".
-_UNSUPPORTED_ACQUISITION_FORMATS = {
-    "nwb": (
-        "A session read from an NWB file has no raw acquisition to bundle with the GuPPy outputs, and "
-        "the converter has no interface for reading one back out."
-    ),
-}
+# The formats whose raw files record the session's start time. Only a TDT tank's header always does;
+# a session already in NWB carries one because NWB requires it.
+_FORMATS_RECORDING_SESSION_START_TIME = ("tdt", "nwb")
 
 
 def resolve_acquisition_format(session_folder_path: str) -> str:
     """Return the acquisition format to read a session's raw files with.
 
-    Uses the same folder detection the rest of the pipeline dispatches on, so a session exports as
-    whatever GuPPy processed it as.
+    Resolved from the formats supplying the session's photometry traces, so a session exports as
+    whatever GuPPy processed it as. Event stores GuPPy's custom-event import wrote single-column
+    CSVs for are read from those CSVs by the converter itself and do not enter this decision.
 
     Parameters
     ----------
@@ -40,10 +39,9 @@ def resolve_acquisition_format(session_folder_path: str) -> str:
     Raises
     ------
     ValueError
-        If the folder holds no acquisition data, more than one acquisition format, or a format NWB
-        export cannot read.
+        If the folder holds no acquisition data, or traces from more than one acquisition format.
     """
-    detected_formats = detect_acquisition_formats(session_folder_path)
+    detected_formats = detect_trace_formats(session_folder_path)
 
     if not detected_formats:
         raise ValueError(
@@ -54,30 +52,55 @@ def resolve_acquisition_format(session_folder_path: str) -> str:
 
     if len(detected_formats) > 1:
         raise ValueError(
-            f"NWB export does not support sessions holding more than one acquisition format, and "
-            f"'{session_folder_path}' holds {sorted(detected_formats)}. The export reads a session's "
-            f"traces and its events through a single format. Note that custom events are written as "
-            f"single-column CSVs into the session folder, which makes the session a 'csv' source as "
-            f"well. If you need NWB export for mixed-format sessions, please raise an issue at "
+            f"NWB export does not support sessions whose traces come from more than one acquisition "
+            f"system, and '{session_folder_path}' holds {sorted(detected_formats)}. A recording site's "
+            f"stores are written onto a single shared timestamps vector, which two acquisition systems "
+            f"do not share. If you need NWB export for such sessions, please raise an issue at "
             f"{RAISE_ISSUE_URL}."
         )
 
-    acquisition_format = detected_formats.pop()
-    if acquisition_format not in SUPPORTED_ACQUISITION_FORMATS:
-        raise ValueError(
-            f"NWB export does not support the '{acquisition_format}' acquisition format, which is what "
-            f"'{session_folder_path}' holds. {_UNSUPPORTED_ACQUISITION_FORMATS[acquisition_format]} "
-            f"Supported formats: {list(SUPPORTED_ACQUISITION_FORMATS)}."
-        )
-    return acquisition_format
+    return detected_formats.pop()
+
+
+def resolve_session_source(*, session_folder_path: str, inputParameters: dict[str, object]) -> tuple[str, str | None]:
+    """Return how a session's source must be read for NWB export.
+
+    Parameters
+    ----------
+    session_folder_path : str
+        Path to the session folder.
+    inputParameters : dict
+        Full pipeline input parameters.
+
+    Returns
+    -------
+    acquisition_format : str
+        One of :data:`SUPPORTED_ACQUISITION_FORMATS`.
+    nwb_source : str or None
+        The NWB file the session was processed out of — a local path or a ``dandi://`` URI — or
+        ``None`` for a session recorded in a raw acquisition format.
+
+    Raises
+    ------
+    ValueError
+        If the folder holds no acquisition data, or traces from more than one acquisition format.
+    """
+    # A DANDI session's folder is a local stand-in holding only GuPPy's outputs, so the source is the
+    # remote asset the pipeline streamed rather than anything the folder can be inspected for.
+    if inputParameters.get("mode") == "dandi":
+        return "nwb", inputParameters["dandi_uri_map"][session_folder_path]
+
+    acquisition_format = resolve_acquisition_format(session_folder_path)
+    if acquisition_format == "nwb":
+        return acquisition_format, _find_nwb_file(session_folder_path)
+    return acquisition_format, None
 
 
 def acquisition_supplies_session_start_time(*, session_folder_path: str, acquisition_format: str) -> bool:
     """Report whether the raw acquisition is guaranteed to record the session's start time.
 
-    NWB requires a session start time, and only a TDT tank's header always carries one. Where this
-    returns ``False`` the user must supply the start time through the Step 6 metadata form, which
-    overrides whatever the acquisition may have read.
+    NWB requires a session start time. Where this returns ``False`` the user must supply the start
+    time through the Step 6 metadata form, which overrides whatever the acquisition may have read.
 
     Parameters
     ----------
@@ -89,7 +112,8 @@ def acquisition_supplies_session_start_time(*, session_folder_path: str, acquisi
     Returns
     -------
     bool
-        ``True`` for TDT tanks, ``False`` otherwise. A ``.doric`` HDF5 export carries a creation
-        timestamp only when the acquisition software wrote one, so Doric is not counted here.
+        ``True`` for TDT tanks and for sessions already in NWB, ``False`` otherwise. A ``.doric``
+        HDF5 export carries a creation timestamp only when the acquisition software wrote one, so
+        Doric is not counted here.
     """
-    return acquisition_format == "tdt"
+    return acquisition_format in _FORMATS_RECORDING_SESSION_START_TIME

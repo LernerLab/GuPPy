@@ -1,7 +1,7 @@
 """Unit tests for resolving a session folder's acquisition format for NWB export.
 
-NWB export reads a session through one format's interfaces, so it has to collapse the set of
-formats GuPPy detects in a folder into a single choice -- and refuse the folders where it cannot.
+NWB export reads a session's traces through one format's interfaces, so it has to collapse the set
+of formats GuPPy detects in a folder into a single choice -- and refuse the folders where it cannot.
 """
 
 import pytest
@@ -9,6 +9,7 @@ import pytest
 from guppy.utils.acquisition_format import (
     acquisition_supplies_session_start_time,
     resolve_acquisition_format,
+    resolve_session_source,
 )
 
 
@@ -58,7 +59,7 @@ class TestResolveAcquisitionFormat:
             (write_doric_csv, "doric"),
             (write_npm, "npm"),
             (write_csv_data, "csv"),
-            (write_csv_event, "csv"),
+            (write_nwb, "nwb"),
         ],
     )
     def test_single_format_resolves(self, session_path, write_session, expected_format):
@@ -71,26 +72,23 @@ class TestResolveAcquisitionFormat:
         assert "No acquisition data was found" in str(excinfo.value)
         assert str(session_path) in str(excinfo.value)
 
-    def test_nwb_source_is_rejected(self, session_path):
-        write_nwb(session_path)
+    def test_event_csvs_alone_supply_no_traces(self, session_path):
+        write_csv_event(session_path)
         with pytest.raises(ValueError) as excinfo:
             resolve_acquisition_format(str(session_path))
-        message = str(excinfo.value)
-        assert "does not support the 'nwb' acquisition format" in message
-        assert "no raw acquisition to bundle" in message
+        assert "No acquisition data was found" in str(excinfo.value)
 
-    def test_tdt_with_a_custom_event_csv_is_rejected_as_mixed(self, session_path):
-        # Custom events are written as single-column CSVs into the session folder, which makes a TDT
-        # session a 'csv' source as well -- and the converter reads traces and events as one format.
-        write_tdt(session_path)
+    @pytest.mark.parametrize(
+        "write_session, expected_format",
+        [(write_tdt, "tdt"), (write_doric_hdf5, "doric"), (write_npm, "npm"), (write_csv_data, "csv")],
+    )
+    def test_a_custom_event_csv_does_not_make_the_session_mixed(self, session_path, write_session, expected_format):
+        # Custom events are written as single-column CSVs into the session folder. The converter reads
+        # each such store from its own CSV, so they do not enter the trace format decision.
+        write_session(session_path)
         write_csv_event(session_path)
 
-        with pytest.raises(ValueError) as excinfo:
-            resolve_acquisition_format(str(session_path))
-        message = str(excinfo.value)
-        assert "more than one acquisition format" in message
-        assert "['csv', 'tdt']" in message
-        assert "https://github.com/LernerLab/GuPPy/issues/new" in message
+        assert resolve_acquisition_format(str(session_path)) == expected_format
 
     def test_two_photometry_formats_are_rejected_as_mixed(self, session_path):
         write_doric_hdf5(session_path)
@@ -99,13 +97,42 @@ class TestResolveAcquisitionFormat:
         with pytest.raises(ValueError) as excinfo:
             resolve_acquisition_format(str(session_path))
         message = str(excinfo.value)
+        assert "more than one acquisition system" in message
         assert "['doric', 'npm']" in message
+        assert "https://github.com/LernerLab/GuPPy/issues/new" in message
+
+
+class TestResolveSessionSource:
+    def test_raw_session_has_no_nwb_source(self, session_path):
+        write_tdt(session_path)
+        assert resolve_session_source(session_folder_path=str(session_path), inputParameters={}) == ("tdt", None)
+
+    def test_local_nwb_session_names_its_file(self, session_path):
+        write_nwb(session_path)
+        assert resolve_session_source(session_folder_path=str(session_path), inputParameters={}) == (
+            "nwb",
+            str(session_path / "session.nwb"),
+        )
+
+    def test_dandi_session_names_its_uri(self, session_path):
+        # A DANDI session's folder holds only GuPPy's outputs, so the source is the streamed asset.
+        input_parameters = {
+            "mode": "dandi",
+            "dandi_uri_map": {str(session_path): "dandi://000971/sub-112/sub-112_ses-1.nwb"},
+        }
+        assert resolve_session_source(session_folder_path=str(session_path), inputParameters=input_parameters) == (
+            "nwb",
+            "dandi://000971/sub-112/sub-112_ses-1.nwb",
+        )
 
 
 class TestAcquisitionSuppliesSessionStartTime:
-    def test_tdt_supplies_it(self, session_path):
+    @pytest.mark.parametrize("acquisition_format", ["tdt", "nwb"])
+    def test_tdt_and_nwb_supply_it(self, session_path, acquisition_format):
         write_tdt(session_path)
-        assert acquisition_supplies_session_start_time(session_folder_path=str(session_path), acquisition_format="tdt")
+        assert acquisition_supplies_session_start_time(
+            session_folder_path=str(session_path), acquisition_format=acquisition_format
+        )
 
     @pytest.mark.parametrize("acquisition_format", ["doric", "npm", "csv"])
     def test_every_other_format_leaves_it_to_the_form(self, session_path, acquisition_format):

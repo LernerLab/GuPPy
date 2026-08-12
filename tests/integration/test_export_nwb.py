@@ -6,17 +6,20 @@ stubbed session to a temp dir and run the real pipeline to produce a populated
 interfaces read the raw folder, so each format runs the same assertions against its own topology.
 """
 
+import shutil
 from datetime import datetime
 from pathlib import Path
 
 import pytest
 from pynwb import NWBHDF5IO
 
+from guppy.extractors.nwb_recording_extractor import _find_nwb_file
 from guppy.orchestration.export_nwb import export_session_to_nwb
 from guppy.utils._hdf5_io import read_hdf5
 from guppy.utils.acquisition_format import (
     acquisition_supplies_session_start_time,
     resolve_acquisition_format,
+    resolve_session_source,
 )
 from guppy.utils.nwb_metadata import (
     build_metadata_dict,
@@ -71,6 +74,31 @@ ROLE_CHANNEL_ANNOTATIONS = {
 }
 
 
+def write_metadata_yaml(*, session_folder_path: str, output_directory: str, acquisition_format: str, path: Path) -> str:
+    """Write a session metadata YAML the way the form does: device library + per-channel annotations."""
+    channels = derive_channels(output_directory)
+    # Reuse the example's hardware/biology library (recombined into merged device entries).
+    devices, _channel_rows, _scalars = parse_metadata_dict(load_yaml(EXAMPLE_METADATA), channels)
+    channel_rows = [{**COMMON_CHANNEL_ANNOTATIONS, **ROLE_CHANNEL_ANNOTATIONS[channel.role]} for channel in channels]
+    scalars = {
+        "session_description": "RI30 photometry session",
+        "identifier": f"{acquisition_format}_run1",
+        "lab": "Lerner Lab",
+        "institution": "Northwestern University",
+        "subject_id": "63_207",
+        "sex": "M",
+        "species": "Mus musculus",
+    }
+    # The form only asks for a start time where the raw files carry none.
+    if not acquisition_supplies_session_start_time(
+        session_folder_path=session_folder_path, acquisition_format=acquisition_format
+    ):
+        scalars["session_start_time"] = SUPPLIED_SESSION_START_TIME.isoformat()
+
+    dump_yaml(build_metadata_dict(devices, channel_rows, scalars, channels), path)
+    return str(path)
+
+
 class TestExportSessionToNwb:
     @pytest.fixture(params=sorted(EXPECTED_TOPOLOGY))
     def acquisition_format(self, request) -> str:
@@ -82,32 +110,12 @@ class TestExportSessionToNwb:
 
     @pytest.fixture
     def metadata_yaml_path(self, pipeline_state, acquisition_format, tmp_path) -> str:
-        """Build a session metadata YAML the way the form does: device library + per-channel annotations."""
-        channels = derive_channels(pipeline_state["output_directory"])
-        # Reuse the example's hardware/biology library (recombined into merged device entries).
-        devices, _channel_rows, _scalars = parse_metadata_dict(load_yaml(EXAMPLE_METADATA), channels)
-        channel_rows = [
-            {**COMMON_CHANNEL_ANNOTATIONS, **ROLE_CHANNEL_ANNOTATIONS[channel.role]} for channel in channels
-        ]
-        scalars = {
-            "session_description": "RI30 photometry session",
-            "identifier": f"{acquisition_format}_run1",
-            "lab": "Lerner Lab",
-            "institution": "Northwestern University",
-            "subject_id": "63_207",
-            "sex": "M",
-            "species": "Mus musculus",
-        }
-        # The form only asks for a start time where the raw files carry none.
-        if not acquisition_supplies_session_start_time(
-            session_folder_path=pipeline_state["session_copy"], acquisition_format=acquisition_format
-        ):
-            scalars["session_start_time"] = SUPPLIED_SESSION_START_TIME.isoformat()
-
-        metadata = build_metadata_dict(devices, channel_rows, scalars, channels)
-        path = tmp_path / "nwb_metadata.yaml"
-        dump_yaml(metadata, path)
-        return str(path)
+        return write_metadata_yaml(
+            session_folder_path=str(pipeline_state["session_copy"]),
+            output_directory=str(pipeline_state["output_directory"]),
+            acquisition_format=acquisition_format,
+            path=tmp_path / "nwb_metadata.yaml",
+        )
 
     def test_exports_stubbed_session(self, pipeline_state, acquisition_format, metadata_yaml_path, tmp_path):
         session_folder_path = str(pipeline_state["session_copy"])
@@ -233,12 +241,101 @@ class TestExportSessionToNwb:
         assert "Step 6 (Input Metadata)" in str(excinfo.value)
 
 
-class TestUnsupportedSource:
-    """Formats GuPPy processes that the export refuses, each named before the converter is built."""
+class TestExportNwbSourcedSession:
+    """A session GuPPy processed out of an NWB file is exported by adding its outputs to that file.
 
-    def test_nwb_sourced_session_is_refused(self, step5_output_nwb):
-        # GuPPy can process a session read from an NWB file, but the converter has no interface for
-        # re-exporting one, so the export must say so rather than fail deep inside neuroconv.
-        with pytest.raises(ValueError) as excinfo:
-            resolve_acquisition_format(str(step5_output_nwb["session_copy"]))
-        assert "does not support the 'nwb' acquisition format" in str(excinfo.value)
+    No metadata form feeds this route: the source already carries the devices, the fiber photometry
+    chain, and the session start time, and GuPPy's store ids were derived from its own response
+    series, so the recording sites registry links into the table already there.
+    """
+
+    @pytest.fixture
+    def source_nwbfile_path(self, step5_output_nwb) -> str:
+        return _find_nwb_file(str(step5_output_nwb["session_copy"]))
+
+    @pytest.fixture
+    def exported_nwbfile_path(self, step5_output_nwb, source_nwbfile_path, tmp_path) -> Path:
+        nwbfile_path = tmp_path / "exported.nwb"
+        export_session_to_nwb(
+            session_folder_path=str(step5_output_nwb["session_copy"]),
+            acquisition_format="nwb",
+            guppy_folder_path=str(step5_output_nwb["output_directory"]),
+            metadata_yaml_path=None,
+            nwbfile_path=str(nwbfile_path),
+            nwb_source=source_nwbfile_path,
+        )
+        return nwbfile_path
+
+    def test_session_source_resolves_to_the_file_it_came_from(self, step5_output_nwb, source_nwbfile_path):
+        assert resolve_session_source(
+            session_folder_path=str(step5_output_nwb["session_copy"]), inputParameters={}
+        ) == ("nwb", source_nwbfile_path)
+
+    def test_the_source_is_carried_across_un_duplicated(self, exported_nwbfile_path, source_nwbfile_path):
+        with NWBHDF5IO(source_nwbfile_path, "r") as io:
+            source = io.read()
+            expected_acquisition = set(source.acquisition)
+            expected_session_start_time = source.session_start_time
+
+        with NWBHDF5IO(str(exported_nwbfile_path), "r") as io:
+            nwbfile = io.read()
+            assert set(nwbfile.acquisition) == expected_acquisition
+            assert nwbfile.session_start_time == expected_session_start_time
+
+    def test_the_guppy_outputs_are_added(self, exported_nwbfile_path):
+        with NWBHDF5IO(str(exported_nwbfile_path), "r") as io:
+            nwbfile = io.read()
+            assert "guppy" in nwbfile.processing
+            # GuPPy's own analyzed onsets, written by the interface rather than by a converter.
+            assert "GuppyEvents" in nwbfile.events
+            analyzed_events = nwbfile.events["GuppyEvents"].to_dataframe()
+            assert set(analyzed_events["event_type"]) == {"ttl"}
+
+    def test_each_recording_site_links_into_the_files_own_fiber_photometry_table(self, exported_nwbfile_path):
+        # The stores GuPPy listed name the source's response series columns, so the registry can
+        # reference the FiberPhotometryTable rows those columns were recorded on.
+        with NWBHDF5IO(str(exported_nwbfile_path), "r") as io:
+            recording_sites = io.read().processing["guppy"]["recording_sites"].to_dataframe()
+            assert list(recording_sites["recording_site"]) == ["region"]
+            assert list(recording_sites["fiber_photometry_table_region"][0].index) == [0, 1]
+
+
+class TestExportMixedFormatSession:
+    """GuPPy's custom-event import writes single-column ``timestamps`` CSVs into the session folder,
+    which the converter reads alongside whatever the rig recorded."""
+
+    @pytest.fixture
+    def mixed_session(self, step5_output_tdt, tmp_path) -> Path:
+        """A copy of the TDT session with an imported-event CSV dropped in beside the tank."""
+        session_copy = tmp_path / "mixed_session"
+        shutil.copytree(step5_output_tdt["session_copy"], session_copy)
+        (session_copy / "imported_licks.csv").write_text("timestamps\n1.5\n2.5\n3.5\n")
+        return session_copy
+
+    @pytest.fixture
+    def output_directory(self, mixed_session, step5_output_tdt) -> Path:
+        return mixed_session / Path(step5_output_tdt["output_directory"]).name
+
+    def test_the_traces_still_resolve_to_the_acquisition_format(self, mixed_session):
+        assert resolve_acquisition_format(str(mixed_session)) == "tdt"
+
+    def test_the_session_exports(self, mixed_session, output_directory, tmp_path):
+        nwbfile_path = tmp_path / "exported.nwb"
+        metadata_yaml_path = write_metadata_yaml(
+            session_folder_path=str(mixed_session),
+            output_directory=str(output_directory),
+            acquisition_format="tdt",
+            path=tmp_path / "nwb_metadata.yaml",
+        )
+
+        export_session_to_nwb(
+            session_folder_path=str(mixed_session),
+            acquisition_format="tdt",
+            guppy_folder_path=str(output_directory),
+            metadata_yaml_path=metadata_yaml_path,
+            nwbfile_path=str(nwbfile_path),
+        )
+
+        with NWBHDF5IO(str(nwbfile_path), "r") as io:
+            nwbfile = io.read()
+            assert set(nwbfile.events) == EXPECTED_TOPOLOGY["tdt"]["raw_event_tables"] | {"GuppyEvents"}

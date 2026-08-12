@@ -19,6 +19,7 @@ from ..frontend.metadata_selector import MetadataSelector
 from ..utils.acquisition_format import (
     acquisition_supplies_session_start_time,
     resolve_acquisition_format,
+    resolve_session_source,
 )
 from ..utils.nwb_metadata import (
     Channel,
@@ -127,13 +128,33 @@ def _requires_session_start_time(session_path: str) -> bool:
     )
 
 
+def _is_nwb_sourced(session_path: str, inputParameters: dict[str, object]) -> bool:
+    """Report whether a session was processed out of an NWB file rather than raw acquisition files.
+
+    Such a session needs no metadata form: the file it came from already carries the devices, the
+    fiber photometry chain, and the session start time. A session whose source cannot be resolved is
+    treated as raw, so the form still opens and Step 7 reports the problem itself.
+    """
+    try:
+        _acquisition_format, nwb_source = resolve_session_source(
+            session_folder_path=session_path, inputParameters=inputParameters
+        )
+    except ValueError as exception:
+        logger.warning(f"Could not resolve the source of '{session_path}': {exception}")
+        return False
+    return nwb_source is not None
+
+
 def orchestrate_metadata_page(inputParameters: dict[str, object]) -> None:
-    """Open one metadata window per selected session.
+    """Open one metadata window per selected session that needs one.
 
     Each window edits that session's ``nwb_metadata.yaml`` (in its output
     directory), bootstrapped from the saved file when present and otherwise empty.
     Each window is served on its own port in a new browser tab, mirroring the
     Storenames GUI. Skipped in headless mode (``GUPPY_BASE_DIR`` set).
+
+    Sessions GuPPy processed out of an NWB file are skipped: the export adds their outputs to the
+    file they came from, which already carries everything this form collects.
 
     Raises
     ------
@@ -143,7 +164,24 @@ def orchestrate_metadata_page(inputParameters: dict[str, object]) -> None:
     validate_data_not_combined(combine_data=inputParameters["combine_data"])
     headless = bool(os.environ.get("GUPPY_BASE_DIR"))
 
-    for session_path, run_name in _selected_session_runs(inputParameters):
+    pairs = _selected_session_runs(inputParameters)
+    pairs_needing_metadata = [
+        (session_path, run_name)
+        for session_path, run_name in pairs
+        if not _is_nwb_sourced(session_path, inputParameters)
+    ]
+    if pairs and not pairs_needing_metadata:
+        message = (
+            "No metadata form is needed: every selected session was processed out of an NWB file, "
+            "which already carries the devices, the fiber photometry chain, and the session start "
+            "time. Run Export to NWB to add the GuPPy outputs to it."
+        )
+        logger.info(message)
+        if pn.state.notifications is not None:
+            pn.state.notifications.info(message, duration=0)
+        return
+
+    for session_path, run_name in pairs_needing_metadata:
         guppy_folder_path = run_folder_for_run(session_path, run_name)
         metadata_yaml_path = os.path.join(guppy_folder_path, METADATA_FILENAME)
         initial_metadata = load_yaml(metadata_yaml_path) if os.path.exists(metadata_yaml_path) else {}

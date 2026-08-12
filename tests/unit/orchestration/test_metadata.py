@@ -230,3 +230,71 @@ class TestOrchestrateMetadataPage:
             orchestrate_metadata_page(input_parameters)
 
         assert "does not support combine_data=True" in str(excinfo.value)
+
+
+class TestOrchestrateMetadataPageSkipsNwbSources:
+    """A session GuPPy processed out of an NWB file gets no form: the export adds its outputs to
+    the file it came from, which already carries everything the form collects."""
+
+    @pytest.fixture
+    def built_sessions(self, monkeypatch):
+        """Record which sessions a page was built for, without building any Panel widgets."""
+        labels = []
+        monkeypatch.setattr(
+            metadata_module,
+            "build_metadata_template",
+            lambda session_label, *args, **kwargs: labels.append(session_label),
+        )
+        return labels
+
+    @pytest.fixture
+    def raw_session(self, tmp_path):
+        session = tmp_path / "Photo_raw"
+        (session / "Photo_raw_output_run1").mkdir(parents=True)
+        (session / "Photo_raw.tsq").write_bytes(b"\x00")
+        np.savetxt(
+            session / "Photo_raw_output_run1" / "storesList.csv",
+            np.array([["Dv1A", "Dv2A"], ["control_dms", "signal_dms"]]),
+            delimiter=",",
+            fmt="%s",
+        )
+        return session
+
+    @pytest.fixture
+    def nwb_session(self, tmp_path):
+        session = tmp_path / "Photo_nwb"
+        (session / "Photo_nwb_output_run1").mkdir(parents=True)
+        (session / "session.nwb").write_bytes(b"\x00")
+        return session
+
+    def test_nwb_session_is_skipped_and_the_raw_one_is_not(self, built_sessions, raw_session, nwb_session):
+        input_parameters = {
+            "selected_runs": {str(raw_session): ["run1"], str(nwb_session): ["run1"]},
+            "combine_data": False,
+        }
+
+        orchestrate_metadata_page(input_parameters)
+
+        assert built_sessions == ["Photo_raw (run1)"]
+
+    def test_an_all_nwb_batch_builds_nothing(self, built_sessions, nwb_session):
+        input_parameters = {"selected_runs": {str(nwb_session): ["run1"]}, "combine_data": False}
+
+        orchestrate_metadata_page(input_parameters)
+
+        assert built_sessions == []
+
+    def test_a_dandi_batch_builds_nothing(self, built_sessions, tmp_path):
+        # A DANDI session's folder holds only GuPPy's outputs, so there is nothing to detect in it.
+        session = tmp_path / "Photo_dandi"
+        (session / "Photo_dandi_output_run1").mkdir(parents=True)
+        input_parameters = {
+            "mode": "dandi",
+            "dandi_uri_map": {str(session): "dandi://000971/sub-112/sub-112_ses-1.nwb"},
+            "selected_runs": {str(session): ["run1"]},
+            "combine_data": False,
+        }
+
+        orchestrate_metadata_page(input_parameters)
+
+        assert built_sessions == []

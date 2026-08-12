@@ -1,10 +1,11 @@
 """Step 7 orchestration: export selected GuPPy sessions to NWB.
 
-Drives the neuroconv :class:`GuppyConverter` for each selected ``(session, run)``
-pair, merging the converter's auto-filled metadata with the session-level YAML
-overlay produced by Step 6, then writing one NWB file per output directory. Which
-interfaces read a session's raw folder follows from the acquisition format detected
-in it, so a session exports as whatever the pipeline processed it as.
+Each selected ``(session, run)`` pair is written to one NWB file in its output directory, by
+whichever of two routes the session's source calls for. A session recorded in a raw acquisition
+format is bundled with its GuPPy outputs by the neuroconv :class:`GuppyConverter`, with the
+converter's auto-filled metadata merged with the session-level YAML overlay produced by Step 6.
+A session GuPPy processed out of an NWB file — a local file or a DANDI asset — is instead handed
+to the standalone :class:`GuppyInterface`, which adds the GuPPy outputs to the file it came from.
 """
 
 import logging
@@ -12,8 +13,13 @@ import os
 
 from .metadata import METADATA_FILENAME, _selected_session_runs
 from .save_parameters import read_artifact_provenance
+from ..extractors.dandi_nwb_recording_extractor import (
+    _stream_nwb,
+    is_dandi_uri,
+    parse_dandi_uri,
+)
 from ..utils import progress
-from ..utils.acquisition_format import resolve_acquisition_format
+from ..utils.acquisition_format import resolve_session_source
 from ..utils.progress import step_error_handler
 from ..utils.utils import RAISE_ISSUE_URL, run_folder_for_run
 from ..utils.validation import validate_data_not_combined
@@ -65,30 +71,56 @@ def _validate_artifact_removal_methods(pairs: list[tuple[str, str]]) -> None:
         )
 
 
-def _validate_local_mode(inputParameters: dict[str, object]) -> None:
-    """Abort the NWB export batch if the pipeline was run against DANDI-streamed sessions.
+def _overlay_metadata_yaml(metadata: dict, metadata_yaml_path: str | None) -> dict:
+    """Apply the session's ``nwb_metadata.yaml`` on top of auto-filled metadata, when it exists."""
+    from neuroconv.utils import dict_deep_update, load_dict_from_file
 
-    DANDI mode reads each session from a remote NWB asset rather than from raw acquisition files, so
-    there is no raw source on disk to bundle with the GuPPy outputs. Raised before any file is
-    written.
+    if metadata_yaml_path and os.path.exists(metadata_yaml_path):
+        return dict_deep_update(metadata, load_dict_from_file(metadata_yaml_path))
+    return metadata
 
-    Parameters
-    ----------
-    inputParameters : dict
-        Full pipeline input parameters.
 
-    Raises
-    ------
-    ValueError
-        If ``inputParameters["mode"]`` is ``"dandi"``.
+def _export_session_from_nwb_source(
+    *,
+    nwb_source: str,
+    guppy_folder_path: str,
+    metadata_yaml_path: str | None,
+    nwbfile_path: str,
+) -> str:
+    """Add one GuPPy session/run's outputs to the NWB file it was processed out of.
+
+    The source is read, the GuPPy outputs are added to it, and the result is written to
+    ``nwbfile_path``; writing to a new path leaves the source untouched. GuPPy's store ids were
+    derived from the source's own response series, so the recording sites registry links into the
+    ``FiberPhotometryTable`` already there.
     """
-    if inputParameters.get("mode") == "dandi":
-        raise ValueError(
-            "NWB export does not support sessions read from DANDI. The export bundles a session's raw "
-            "acquisition with its GuPPy outputs, and a DANDI session's source is an NWB file that was "
-            "already written. If you need NWB export for DANDI-streamed sessions, please raise an issue "
-            f"at {RAISE_ISSUE_URL}."
+    from neuroconv.datainterfaces import GuppyInterface
+    from pynwb import NWBHDF5IO
+
+    interface = GuppyInterface(folder_path=guppy_folder_path)
+
+    if is_dandi_uri(nwb_source):
+        dandiset_id, asset_path = parse_dandi_uri(nwb_source)
+        nwbfile, source_io, _counter = _stream_nwb(dandiset_id=dandiset_id, asset_path=asset_path)
+    else:
+        source_io = NWBHDF5IO(nwb_source, "r")
+        nwbfile = source_io.read()
+
+    try:
+        interface.add_to_nwbfile(
+            nwbfile=nwbfile, metadata=_overlay_metadata_yaml(interface.get_metadata(), metadata_yaml_path)
         )
+        # pynwb's own export rather than neuroconv's configure_and_write_nwbfile: building a backend
+        # configuration walks the source builder for every dataset, which cannot locate the ones an
+        # extension nests under lab_meta_data (the FiberPhotometryTable a photometry source holds).
+        nwbfile.set_modified()
+        with NWBHDF5IO(nwbfile_path, "w") as export_io:
+            export_io.export(src_io=source_io, nwbfile=nwbfile, write_args=dict(link_data=False))
+    finally:
+        source_io.close()
+
+    logger.info(f"Wrote NWB file to {nwbfile_path}")
+    return nwbfile_path
 
 
 def export_session_to_nwb(
@@ -98,6 +130,7 @@ def export_session_to_nwb(
     guppy_folder_path: str,
     metadata_yaml_path: str | None,
     nwbfile_path: str,
+    nwb_source: str | None = None,
 ) -> str:
     """Convert one GuPPy session/run to NWB.
 
@@ -114,9 +147,13 @@ def export_session_to_nwb(
         Path to the GuPPy ``<session>_output_<run>`` directory.
     metadata_yaml_path : str or None
         The session's metadata overlay (``nwb_metadata.yaml``). Applied, when
-        present, on top of the converter's auto-filled metadata.
+        present, on top of the auto-filled metadata.
     nwbfile_path : str
         Output path for the written ``.nwb`` file.
+    nwb_source : str or None, optional
+        The NWB file this session was processed out of — a local path or a ``dandi://`` URI. When
+        given, the GuPPy outputs are added to that file rather than bundled with raw acquisition
+        files, and ``acquisition_format`` is not used.
 
     Returns
     -------
@@ -128,10 +165,17 @@ def export_session_to_nwb(
     ValueError
         If neither the raw acquisition nor the metadata overlay supplies a session start time.
     """
+    if nwb_source is not None:
+        return _export_session_from_nwb_source(
+            nwb_source=nwb_source,
+            guppy_folder_path=guppy_folder_path,
+            metadata_yaml_path=metadata_yaml_path,
+            nwbfile_path=nwbfile_path,
+        )
+
     # Imported here rather than at module scope so the pure-Python prerequisite checks in this
     # module stay importable (and unit-testable) without the heavyweight neuroconv dependency.
     from neuroconv.converters import GuppyConverter
-    from neuroconv.utils import dict_deep_update, load_dict_from_file
 
     converter = GuppyConverter(
         fiber_photometry_folder_path=session_folder_path,
@@ -140,9 +184,7 @@ def export_session_to_nwb(
         acquisition_format=acquisition_format,
     )
 
-    metadata = converter.get_metadata()
-    if metadata_yaml_path and os.path.exists(metadata_yaml_path):
-        metadata = dict_deep_update(metadata, load_dict_from_file(metadata_yaml_path))
+    metadata = _overlay_metadata_yaml(converter.get_metadata(), metadata_yaml_path)
 
     # Only a TDT tank's header always records one, so for every other format the metadata form is the
     # only source. Checked here because pynwb's own failure names neither the session nor the step
@@ -172,7 +214,6 @@ def orchestrate_export_nwb(inputParameters: dict[str, object]) -> None:
     ends.
     """
     pairs = _selected_session_runs(inputParameters)
-    _validate_local_mode(inputParameters)
     validate_data_not_combined(combine_data=inputParameters["combine_data"])
     _validate_artifact_removal_methods(pairs)
     progress.start(len(pairs))
@@ -188,12 +229,16 @@ def orchestrate_export_nwb(inputParameters: dict[str, object]) -> None:
         nwbfile_path = os.path.join(guppy_folder_path, f"{output_dir_name}.nwb")
 
         try:
+            acquisition_format, nwb_source = resolve_session_source(
+                session_folder_path=session_path, inputParameters=inputParameters
+            )
             export_session_to_nwb(
                 session_folder_path=session_path,
-                acquisition_format=resolve_acquisition_format(session_path),
+                acquisition_format=acquisition_format,
                 guppy_folder_path=guppy_folder_path,
                 metadata_yaml_path=metadata_yaml_path,
                 nwbfile_path=nwbfile_path,
+                nwb_source=nwb_source,
             )
             logger.info(f"Exported {session_basename} ({run_name}) to NWB.")
         except Exception as exception:
