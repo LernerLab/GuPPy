@@ -160,7 +160,11 @@ ignore-words-list = 'assertin,sortings'
 # omitting it only broke CI. Must be source_pkgs, not source: "guppy" as a source entry is
 # resolved as a relative directory (./guppy, which does not exist), not as a package name.
 source_pkgs = ["guppy"]
-concurrency = ["multiprocessing"]
+# "thread" is required alongside "multiprocessing" for the pools the pipeline steps spawn to be
+# measured under pytest-xdist: without it, coverage from a pool started inside an xdist worker is
+# never combined, so paths exercised only through a Pool (e.g. execute_compute_cross_correlation)
+# read as uncovered even though their tests run and pass.
+concurrency = ["multiprocessing", "thread"]
 sigterm = true
 branch = true
 

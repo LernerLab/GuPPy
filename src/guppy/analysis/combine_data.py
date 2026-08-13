@@ -4,6 +4,7 @@ import numpy as np
 
 from .io_utils import (
     decide_naming_convention,
+    is_channel_label,
     recording_site_from_channel_path,
 )
 from .realignment import concatenate_and_realign_data, realign_ttl_timestamps
@@ -154,7 +155,7 @@ def combine_data(
                 pair_name_to_tsNew[pair_name] = timestampNew
                 store_label_to_data[store_label] = data
             else:
-                if "control" in store_labels[i].lower() or "signal" in store_labels[i].lower():
+                if is_channel_label(store_labels[i]):
                     continue
                 compound_name = store_labels[i] + "_" + pair_name
                 filepath_to_timestamps = pair_name_to_filepath_to_timestamps[pair_name]

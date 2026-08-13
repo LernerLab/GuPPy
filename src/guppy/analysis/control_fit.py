@@ -110,12 +110,13 @@ def _fit_without_bleaching(control: np.ndarray, signal: np.ndarray, method: Lite
     The model is linear in both coefficients, so this is solved exactly in one step rather than
     searched for.
     """
-    # sm.add_constant prepends the intercept column, so the coefficients come back intercept-first.
-    design_matrix = sm.add_constant(control)
     if method == "OLS":
-        intercept, slope = np.linalg.lstsq(design_matrix, signal, rcond=None)[0]
+        # polyfit rather than a plain lstsq: it scales the design matrix columns before solving,
+        # which the raw control does need — its offset dwarfs its fluctuation.
+        slope, intercept = np.polyfit(control, signal, 1)
     elif method == "IRWLS":
-        intercept, slope = sm.RLM(signal, design_matrix, M=sm.robust.norms.TukeyBiweight()).fit().params
+        # sm.add_constant prepends the intercept column, so the coefficients come back intercept-first.
+        intercept, slope = sm.RLM(signal, sm.add_constant(control), M=sm.robust.norms.TukeyBiweight()).fit().params
     else:
         raise ValueError(
             f"control fitting method '{method}' is not recognized. Use 'IRWLS' (robust, default) or 'OLS'."

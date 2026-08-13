@@ -181,7 +181,7 @@ The results are written into the same output folder as Step 2, in four new HDF5 
 | `cntrl_sig_fit_A.hdf5` | The fitted control trace (used internally and for artifact-removal plots) |
 | `timeCorrection_A.hdf5` | Corrected timestamps, sampling rate, and a few related metadata fields |
 
-Step 3 also rewrites the per-channel files under their store labels. The [Output data model](../reference/outputs.md) reference lists every file and the datasets inside it.
+Step 3 also rewrites the per-channel files under their store labels. The [Output data model](../reference/outputs.md) reference lists every file and the datasets inside it, and [Custom Plots from GuPPy Outputs](custom_plots.md) shows how to load them in Python.
 
 When preprocessing finishes, GuPPy opens the preprocessing results in a new browser tab. Pick a recording site and its five traces stack up together — control, signal, signal with the fitted control, z-score, and ΔF/F — sharing one time axis, so zooming any of them zooms them all. The main GuPPy tab stays responsive, so you can leave the results tab open and keep working.
 
@@ -214,7 +214,7 @@ The outputs land in the same `sample_data_csv_1_output_1/` directory you have be
 | `RewardPort_A_baselineUncorrected_z_score_A.h5` | Same dataframe before baseline correction was applied (kept for inspection) |
 | `peak_AUC_RewardPort_A_z_score_A.csv` and matching `.h5` | Peak amplitude and area-under-curve for the trial-mean PSTH |
 
-The visualization step in Step 5 reads these files; you do not need to inspect them by hand. If you do want to open them yourself, the [Output data model](../reference/outputs.md) reference gives the columns of each table and the datasets in each HDF5 file.
+The visualization step in Step 5 reads these files; you do not need to inspect them by hand. If you do want to open them yourself, the [Output data model](../reference/outputs.md) reference gives the columns of each table and the datasets in each HDF5 file, and [Custom Plots from GuPPy Outputs](custom_plots.md) walks through loading them and plotting them yourself.
 
 ## Step 5: Visualize the results
 
@@ -242,5 +242,6 @@ For this tutorial, the goal is just to reach a rendered PSTH; feel free to play 
 
 ## Next steps
 
+- See [Custom Plots from GuPPy Outputs](custom_plots.md) to open this run folder in Python and build your own figures from it.
 - See [How-to Guides](../how-to/index.md) for task-specific instructions (TDT data ingestion, artifact removal, group analysis, etc.).
 - See [Explanation](../explanation/index.md) for background on the isosbestic correction and z-score methods.
