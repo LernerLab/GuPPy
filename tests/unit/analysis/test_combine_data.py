@@ -88,3 +88,52 @@ def test_combine_data_single_filepath_produces_correct_output_keys(tmp_path):
     assert "signal_dms" in store_label_to_data
     assert "TTL1_dms" in compound_name_to_ttl
     assert store_label_to_data["control_dms"].shape[0] == 4
+
+
+def test_combine_data_leaves_the_other_recording_sites_channels_alone(tmp_path):
+    """Each pair's pass skips the other pair's channels instead of treating them as TTLs."""
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    for name in ["control_dms", "signal_dms", "control_nac", "signal_nac"]:
+        (session_dir / f"{name}.hdf5").touch()
+
+    store_array = np.array(
+        [
+            ["ctrl0", "sig0", "ctrl1", "sig1", "ttl0"],
+            ["control_dms", "signal_dms", "control_nac", "signal_nac", "TTL1"],
+        ]
+    )
+    filepath = str(session_dir)
+    timestamps = np.array([0.0, 1.0, 2.0, 3.0])
+
+    pair_name_to_filepath_to_timestamps = {
+        "dms": {filepath: timestamps.copy()},
+        "nac": {filepath: timestamps.copy()},
+    }
+    store_label_to_filepath_to_data = {
+        "control_dms": {filepath: np.ones(4)},
+        "signal_dms": {filepath: np.ones(4) * 2.0},
+        "control_nac": {filepath: np.ones(4) * 3.0},
+        "signal_nac": {filepath: np.ones(4) * 4.0},
+    }
+    compound_name_to_filepath_to_ttl_timestamps = {
+        "TTL1_dms": {filepath: np.array([1.5, 2.5])},
+        "TTL1_nac": {filepath: np.array([0.5, 3.5])},
+    }
+
+    pair_name_to_tsNew, store_label_to_data, compound_name_to_ttl = combine_data(
+        filepaths_to_combine=[filepath],
+        pair_name_to_filepath_to_timestamps=pair_name_to_filepath_to_timestamps,
+        store_label_to_filepath_to_data=store_label_to_filepath_to_data,
+        compound_name_to_filepath_to_ttl_timestamps=compound_name_to_filepath_to_ttl_timestamps,
+        timeForLightsTurnOn=0.0,
+        store_array=store_array,
+        sampling_rate=100.0,
+    )
+
+    # A single session, so the data passes through unchanged for both recording sites.
+    np.testing.assert_array_equal(store_label_to_data["control_nac"], np.full(4, 3.0))
+    np.testing.assert_array_equal(store_label_to_data["signal_nac"], np.full(4, 4.0))
+    np.testing.assert_allclose(pair_name_to_tsNew["nac"], np.array([0.0, 1.0, 2.0, 3.0]), atol=1e-6)
+    # Only the TTL store is paired with each recording site; the channels produce no TTL entries.
+    assert sorted(compound_name_to_ttl) == ["TTL1_dms", "TTL1_nac"]

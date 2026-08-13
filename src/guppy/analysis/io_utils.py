@@ -17,6 +17,27 @@ ZSCORE_PREFIX = "z_score_"
 DFF_PREFIX = "dff_"
 
 
+def is_channel_label(label: str) -> bool:
+    """
+    Return True if a store label names a photometry channel.
+
+    ``control`` and ``signal`` are matched as substrings, so a label containing
+    either word anywhere is treated as a channel.
+
+    Parameters
+    ----------
+    label : str
+        Store label from row 1 of ``storesList.csv``.
+
+    Returns
+    -------
+    bool
+        True for control and signal channels.
+    """
+    lowered = label.lower()
+    return "control" in lowered or "signal" in lowered
+
+
 def recording_site_from_channel_label(label: str) -> str:
     """
     Return the recording-site name of a control or signal channel label.

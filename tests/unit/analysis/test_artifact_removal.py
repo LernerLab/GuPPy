@@ -203,6 +203,44 @@ def test_adding_nan_to_chunks_drops_ttls_outside_coords():
     np.testing.assert_array_equal(result_ttl["TTL1_dms"], np.array([1.5, 2.5]))
 
 
+def test_adding_nan_to_chunks_leaves_the_other_recording_sites_channels_alone():
+    """Each pair's pass skips the other pair's channels instead of treating them as TTLs."""
+    store_array = np.array(
+        [
+            ["ctrl0", "sig0", "ctrl1", "sig1", "ttl0"],
+            ["control_dms", "signal_dms", "control_nac", "signal_nac", "TTL1"],
+        ]
+    )
+    tsNew = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
+    coords = np.array([[1.0, 4.0]])
+    store_label_to_data = {
+        "control_dms": np.ones(6),
+        "signal_dms": np.ones(6) * 2.0,
+        "control_nac": np.ones(6) * 3.0,
+        "signal_nac": np.ones(6) * 4.0,
+    }
+    compound_name_to_ttl_timestamps = {
+        "TTL1_dms": np.array([1.5, 2.5, 4.5]),
+        "TTL1_nac": np.array([0.5, 3.5]),
+    }
+
+    result_data, result_ttl = addingNaNtoChunksWithArtifacts(
+        store_array,
+        {"dms": tsNew, "nac": tsNew},
+        {"dms": coords, "nac": coords},
+        store_label_to_data,
+        compound_name_to_ttl_timestamps,
+    )
+
+    # ts=[0,1,2,3,4,5]: strictly inside (1,4) → indices 2,3 survive in every channel.
+    np.testing.assert_array_equal(result_data["signal_dms"], np.array([np.nan, np.nan, 2.0, 2.0, np.nan, np.nan]))
+    np.testing.assert_array_equal(result_data["control_nac"], np.array([np.nan, np.nan, 3.0, 3.0, np.nan, np.nan]))
+    np.testing.assert_array_equal(result_data["signal_nac"], np.array([np.nan, np.nan, 4.0, 4.0, np.nan, np.nan]))
+    # Only the TTL store is paired with each recording site; 4.5 and 0.5 fall outside the window.
+    np.testing.assert_array_equal(result_ttl["TTL1_dms"], np.array([1.5, 2.5]))
+    np.testing.assert_array_equal(result_ttl["TTL1_nac"], np.array([3.5]))
+
+
 # ── processTimestampsForArtifacts ─────────────────────────────────────────────
 
 
@@ -234,6 +272,47 @@ def test_process_timestamps_for_artifacts_concatenates_data_inside_coords():
     np.testing.assert_allclose(result_ts["dms"][0], 0.5, atol=1e-6)
     # TTLs: 1.5 and 2.5 inside; 4.5 outside
     assert result_ttl["TTL1_dms"].shape[0] == 2
+
+
+def test_process_timestamps_for_artifacts_leaves_the_other_recording_sites_channels_alone():
+    """Each pair's pass skips the other pair's channels instead of treating them as TTLs."""
+    store_array = np.array(
+        [
+            ["ctrl0", "sig0", "ctrl1", "sig1", "ttl0"],
+            ["control_dms", "signal_dms", "control_nac", "signal_nac", "TTL1"],
+        ]
+    )
+    tsNew = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
+    coords = np.array([[1.0, 4.0]])
+    store_label_to_data = {
+        "control_dms": np.array([10.0, 20.0, 30.0, 40.0, 50.0, 60.0]),
+        "signal_dms": np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
+        "control_nac": np.array([11.0, 22.0, 33.0, 44.0, 55.0, 66.0]),
+        "signal_nac": np.array([1.5, 2.5, 3.5, 4.5, 5.5, 6.5]),
+    }
+    compound_name_to_ttl_timestamps = {
+        "TTL1_dms": np.array([1.5, 2.5, 4.5]),
+        "TTL1_nac": np.array([0.5, 3.5]),
+    }
+
+    result_data, result_ts, result_ttl = processTimestampsForArtifacts(
+        0.5,
+        store_array,
+        {"dms": tsNew, "nac": tsNew},
+        {"dms": 100.0, "nac": 100.0},
+        {"dms": coords, "nac": coords},
+        store_label_to_data,
+        compound_name_to_ttl_timestamps,
+    )
+
+    # ts strictly inside (1, 4): indices 2 and 3 survive in every channel.
+    np.testing.assert_array_equal(result_data["signal_dms"], np.array([3.0, 4.0]))
+    np.testing.assert_array_equal(result_data["control_nac"], np.array([33.0, 44.0]))
+    np.testing.assert_array_equal(result_data["signal_nac"], np.array([3.5, 4.5]))
+    np.testing.assert_allclose(result_ts["nac"][0], 0.5, atol=1e-6)
+    # Only the TTL store is paired with each recording site; 4.5 and 0.5 fall outside the window.
+    assert result_ttl["TTL1_dms"].shape[0] == 2
+    assert result_ttl["TTL1_nac"].shape[0] == 1
 
 
 # ── remove_artifacts ──────────────────────────────────────────────────────────
