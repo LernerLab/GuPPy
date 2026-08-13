@@ -11,6 +11,7 @@ import h5py
 import numpy as np
 import pandas as pd
 
+from guppy.analysis.io_utils import is_channel_label
 from guppy.extractors import BaseRecordingExtractor
 from guppy.extractors.detect_acquisition_formats import _is_event_csv
 from guppy.utils._hdf5_io import write_hdf5
@@ -349,7 +350,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                     "'Unnamed: N') are filtered during discovery."
                 )
             event_type = self._event_name_to_event_type[event]
-            if "control" in event_type or "signal" in event_type:
+            if is_channel_label(event_type):
                 timestamps = np.array(df["Time(s)"])
                 sampling_rate = np.array([1 / (timestamps[-1] - timestamps[-2])])
                 data = np.array(df[event])
@@ -412,7 +413,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
         output_dicts = []
         for event in events:
             event_type = self._event_name_to_event_type[event]
-            if "control" in event_type or "signal" in event_type:
+            if is_channel_label(event_type):
                 regex = re.compile("(.*?)" + str(event) + "(.*?)")
                 matching_indices = [i for i in range(len(decide_path)) if regex.match(decide_path[i])]
                 if len(matching_indices) > 1:
@@ -487,7 +488,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                     f"Doric channel {event!r} not found in Doric V1 file. " f"Available channels: {available}."
                 )
             event_type = self._event_name_to_event_type[event]
-            if "control" in event_type or "signal" in event_type:
+            if is_channel_label(event_type):
                 timestamps = np.array(console["Time(s)"]["Console_time(s)"])
                 data = np.array(console[event][event])
                 self._validate_signal_control_data(event, data, event_type)

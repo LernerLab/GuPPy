@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 from .save_parameters import save_parameters
-from ..analysis.io_utils import recording_site_from_preprocessed_label
+from ..analysis.io_utils import is_channel_label, recording_site_from_preprocessed_label
 from ..frontend.parameterized_plotter import (
     ParameterizedPlotter,
     overview_y_options,
@@ -196,7 +196,7 @@ def createPlots(filepath: str, event: list[str], inputParameters: dict[str, obje
 
     index = []
     for i in range(len(event)):
-        if "control" in event[i].lower() or "signal" in event[i].lower():
+        if is_channel_label(event[i]):
             index.append(i)
 
     event = np.delete(event, index)
