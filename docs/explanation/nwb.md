@@ -1,20 +1,8 @@
 # Fiber photometry data in NWB
 
-[Neurodata Without Borders](https://nwb.org) (NWB) is the standard format for neurophysiology data, and the format the [DANDI Archive](https://dandiarchive.org) publishes. GuPPy can export a finished run to it; this page covers what that gets you, what ends up in the file, and where GuPPy's own export stops. For the mechanics, see [Export a session to NWB](../how-to/export-to-nwb.md).
+[Neurodata Without Borders](https://nwb.org) (NWB) is a common data format for neurophysiology, holding one experimental session per file. What NWB is and how it is structured are covered by [NWB's own documentation](https://nwb-overview.readthedocs.io/); this page covers only GuPPy's side of it — what GuPPy puts in a file, what it needs from you in order to do that, and where its export stops.
 
-## What NWB is
-
-An NWB file is one HDF5 file holding one session: the raw acquisition, the derived results, and the metadata describing both. What makes it more than a zip of arrays is that every object in it is *typed*. A dataset is not a nameless array you have to interpret from its filename and this documentation — it declares itself an `ElectricalSeries`, a `FiberPhotometryResponseSeries`, an `EventsTable`, and any NWB-aware tool can read it on that basis without knowing anything about GuPPy.
-
-The type system is extensible. Where the core schema has no type for something, a domain extension defines one, and files carry the extension's own definition inside them — so a file written against an extension stays readable even by software that has never heard of it.
-
-## Why export
-
-**Your run folder means something because this documentation says so.** The [output data model](../reference/outputs.md) is what tells you that `z_score_dms.hdf5` holds a z-scored trace for the `dms` recording site, or which of GuPPy's two HDF5 dialects a given `.h5` is. An NWB file carries that meaning itself.
-
-**Archives and journals increasingly expect it.** DANDI takes NWB, and a growing number of funders and journals expect data deposited there.
-
-**One session, one file, one clock.** The raw traces, the events they align to, and every derived result sit together with their timing reconciled — rather than spread across a run folder, an acquisition system's own export, and whatever else the experiment produced.
+For the mechanics of running an export, see [Export a session to NWB](../how-to/export-to-nwb.md).
 
 ## What GuPPy writes
 

@@ -1,6 +1,6 @@
 # Export a session to NWB
 
-[NWB](https://nwb.org) is the standard neurophysiology data format, and the one
+[NWB](https://nwb.org) is a common data format for neurophysiology, and the one
 the [DANDI Archive](https://dandiarchive.org) publishes. GuPPy can package a
 finished run — the raw traces, the events, and every derived result — into a
 single `.nwb` file.
