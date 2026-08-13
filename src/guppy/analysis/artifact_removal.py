@@ -2,6 +2,7 @@ import logging
 
 import numpy as np
 
+from .io_utils import is_event_label
 from .realignment import concatenate_and_realign_data, realign_ttl_timestamps
 
 logger = logging.getLogger(__name__)
@@ -147,7 +148,7 @@ def addingNaNtoChunksWithArtifacts(
                 data = addingNaNValues(data=data, timestamps=tsNew, coords=coords)
                 store_label_to_corrected_data[store_labels[i]] = data
             else:
-                if "control" in store_labels[i].lower() or "signal" in store_labels[i].lower():
+                if not is_event_label(store_labels[i]):
                     continue
                 ttl_name = store_labels[i]
                 compound_name = ttl_name + "_" + pair_name
@@ -225,7 +226,7 @@ def processTimestampsForArtifacts(
                 store_label_to_corrected_data[store_labels[i]] = data
                 pair_name_to_corrected_timestamps[pair_name] = timestampNew
             else:
-                if "control" in store_labels[i].lower() or "signal" in store_labels[i].lower():
+                if not is_event_label(store_labels[i]):
                     continue
                 compound_name = store_labels[i] + "_" + pair_name
                 ttl_timestamps = compound_name_to_ttl_timestamps[compound_name]

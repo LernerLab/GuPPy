@@ -229,6 +229,48 @@ class TestDoricRecordingExtractorV6(DoricRecordingExtractorTestMixin):
 
 
 # ---------------------------------------------------------------------------
+# Channel-label casing
+# ---------------------------------------------------------------------------
+
+
+class TestChannelLabelCasing:
+    """A capitalized store label is read as a channel, not as a TTL.
+
+    The store label is matched case-insensitively, as it is everywhere else in
+    the pipeline, so a hand-edited ``storesList.csv`` carrying ``Signal_DMS``
+    reads the raw trace instead of falling through to TTL onset detection.
+    Expected values are the first samples of each stub file, read directly.
+    """
+
+    def test_doric_csv_reads_capitalized_signal_label_as_a_channel(self):
+        extractor = DoricRecordingExtractor(
+            os.path.join(STUBBED_TESTING_DATA, "doric", "sample_doric_2"),
+            {"AIn-1 - Dem (da)": "Signal_DMS"},
+        )
+        result = extractor.read(events=["AIn-1 - Dem (da)"], outputPath="")[0]
+        np.testing.assert_allclose(result["data"][:3], [0.631673814, 0.630647443, 0.629943851])
+        np.testing.assert_allclose(result["timestamps"][:3], [0.0041085, 0.0124085, 0.0207085])
+        np.testing.assert_allclose(result["sampling_rate"], [1 / 0.0083], rtol=1e-6)
+
+    def test_doric_v1_reads_capitalized_control_label_as_a_channel(self):
+        extractor = DoricRecordingExtractor(
+            os.path.join(STUBBED_TESTING_DATA, "doric", "sample_doric_1"),
+            {"AIn-2 - Raw": "Control_DMS"},
+        )
+        result = extractor.read(events=["AIn-2 - Raw"], outputPath="")[0]
+        np.testing.assert_allclose(result["data"][:3], [0.0006103702, 0.1222266305, 0.3563035981])
+        np.testing.assert_allclose(result["timestamps"][:3], [0.0, 8.3e-05, 1.66e-04])
+
+    def test_doric_v6_reads_capitalized_signal_label_as_a_channel(self):
+        extractor = DoricRecordingExtractor(
+            os.path.join(STUBBED_TESTING_DATA, "doric", "sample_doric_3"),
+            {"CAM1_EXC2/ROI01": "Signal_DMS"},
+        )
+        result = extractor.read(events=["CAM1_EXC2/ROI01"], outputPath="")[0]
+        np.testing.assert_allclose(result["data"][:3], [626.9210203423, 626.7288343558, 626.1341943817])
+
+
+# ---------------------------------------------------------------------------
 # Validation of signal/control data (issue #270)
 # ---------------------------------------------------------------------------
 

@@ -16,6 +16,8 @@ from .transients import executeFindFreqAndAmp
 from ..analysis.compute_psth import compute_psth
 from ..analysis.cross_correlation import compute_cross_correlation
 from ..analysis.io_utils import (
+    is_channel_label,
+    is_event_label,
     make_dir_for_cross_correlation,
     makeAverageDir,
     read_hdf5,
@@ -56,7 +58,7 @@ def execute_compute_psth(filepath: str, event: str, inputParameters: dict[str, o
     """
     event = event.replace("\\", "_")
     event = event.replace("/", "_")
-    if "control" in event.lower() or "signal" in event.lower():
+    if not is_event_label(event):
         return 0
 
     selectForComputePsth = inputParameters["selectForComputePsth"]
@@ -143,7 +145,7 @@ def execute_compute_psth_peak_and_area(filepath: str, event: str, inputParameter
     """
     event = event.replace("\\", "_")
     event = event.replace("/", "_")
-    if "control" in event.lower() or "signal" in event.lower():
+    if not is_event_label(event):
         return 0
 
     peak_startPoint = inputParameters["peak_startPoint"]
@@ -218,7 +220,7 @@ def execute_compute_cross_correlation(filepath: str, event: str, inputParameters
                     "recording sites were found. Please either disable compute_cross_correlation or add "
                     "signal recording sites in step 1."
                 )
-        if "control" in event.lower() or "signal" in event.lower():
+        if not is_event_label(event):
             return
         else:
             for i in range(1, len(corr_info)):
@@ -377,11 +379,7 @@ def _validate_fiber_recording_sites_consistent_for_group(run_folders: np.ndarray
         session_stores_list = np.genfromtxt(
             os.path.join(run_folder, "storesList.csv"), dtype="str", delimiter=","
         ).reshape(2, -1)
-        fiber_stores = tuple(
-            sorted(
-                name for name in set(session_stores_list[1, :]) if "control" in name.lower() or "signal" in name.lower()
-            )
-        )
+        fiber_stores = tuple(sorted(name for name in set(session_stores_list[1, :]) if is_channel_label(name)))
         per_session_fibers[run_folder] = fiber_stores
 
     unique_fiber_sets = set(per_session_fibers.values())
@@ -470,7 +468,7 @@ def execute_average_for_group(inputParameters: dict[str, object]) -> None:
     np.savetxt(os.path.join(average_dir, "storesList.csv"), store_array, delimiter=",", fmt="%s")
     event_store_count = 0
     for j in range(store_array.shape[1]):
-        if "control" in store_array[1, j].lower() or "signal" in store_array[1, j].lower():
+        if not is_event_label(store_array[1, j]):
             continue
         else:
             event_store_count += 1
@@ -478,7 +476,7 @@ def execute_average_for_group(inputParameters: dict[str, object]) -> None:
     # reports onto this same bar.
     progress.start(event_store_count + 1)
     for k in range(store_array.shape[1]):
-        if "control" in store_array[1, k].lower() or "signal" in store_array[1, k].lower():
+        if not is_event_label(store_array[1, k]):
             continue
         else:
             averageForGroup(run_folders, store_array[1, k], inputParameters)
