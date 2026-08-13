@@ -38,26 +38,6 @@ def is_channel_label(label: str) -> bool:
     return "control" in lowered or "signal" in lowered
 
 
-def is_event_label(label: str) -> bool:
-    """
-    Return True if a store label names a behavioral event.
-
-    Events are the stores analyses align to, so this is the predicate that gates
-    PSTH computation, artifact-window elimination and the visualization event list.
-
-    Parameters
-    ----------
-    label : str
-        Store label from row 1 of ``storesList.csv``.
-
-    Returns
-    -------
-    bool
-        True for stores that are not photometry channels.
-    """
-    return not is_channel_label(label)
-
-
 def recording_site_from_channel_label(label: str) -> str:
     """
     Return the recording-site name of a control or signal channel label.

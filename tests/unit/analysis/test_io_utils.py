@@ -12,7 +12,6 @@ from guppy.analysis.io_utils import (
     get_control_and_signal_channel_names,
     get_coords,
     is_channel_label,
-    is_event_label,
     make_dir_for_cross_correlation,
     makeAverageDir,
     read_hdf5,
@@ -274,7 +273,7 @@ def test_get_control_and_signal_channel_names_pairs_recording_sites_with_undersc
     np.testing.assert_array_equal(result, np.array([["control_left_hemisphere"], ["signal_left_hemisphere"]]))
 
 
-# ── store-label predicates ────────────────────────────────────────────────────
+# ── is_channel_label ──────────────────────────────────────────────────────────
 
 
 def test_is_channel_label_matches_control_and_signal_labels():
@@ -296,13 +295,6 @@ def test_is_channel_label_matches_the_words_anywhere_in_the_label():
 def test_is_channel_label_rejects_event_labels():
     assert is_channel_label("port_entry") is False
     assert is_channel_label("RewardCue") is False
-
-
-def test_is_event_label_is_the_complement_of_is_channel_label():
-    assert is_event_label("port_entry") is True
-    assert is_event_label("RewardCue") is True
-    assert is_event_label("control_DMS") is False
-    assert is_event_label("Signal_DMS") is False
 
 
 # ── recording_site_from_* helpers ─────────────────────────────────────────────────────
