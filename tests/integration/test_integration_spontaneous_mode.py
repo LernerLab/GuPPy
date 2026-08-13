@@ -6,10 +6,10 @@ from unittest.mock import patch
 
 import holoviews as hv
 import numpy as np
-import pandas as pd
 import pytest
 
 from guppy.analysis.io_utils import read_hdf5
+from guppy.analysis.standard_io import read_transients_from_hdf5
 from guppy.frontend.visualization_dashboard import VisualizationDashboard
 from guppy.testing.api import step1, step2, step3, step4, step5
 from guppy.utils.utils import read_Df
@@ -100,8 +100,8 @@ def test_transient_event_train_is_written_and_drives_the_psth(run_pipeline):
     output_directory = run_pipeline("spontaneous", use_transients_as_events=True)["output_directory"]
 
     event_timestamps = np.asarray(read_hdf5(TRANSIENT_EVENT, output_directory, "ts")).ravel()
-    detected = pd.read_csv(os.path.join(output_directory, f"transientsOccurrences_{METRIC_BASENAME}.csv"), index_col=0)
-    detected_timestamps = detected["timestamps"].to_numpy()
+    _, detector_timestamps, peaks_index = read_transients_from_hdf5(output_directory, METRIC_BASENAME)
+    detected_timestamps = detector_timestamps[peaks_index]
 
     # The PSTH step drops transients too close to the recording start or to each other, so the
     # event train it kept is a non-empty subset of what the detector found.
