@@ -177,12 +177,11 @@ def _read_covariate_series(filepath: str) -> dict[str, tuple[np.ndarray, np.ndar
 
     covariate_series = {}
     for store_id, store_label in zip(store_array[0, :], store_array[1, :]):
-        if not is_covariate_label(store_label):
-            continue
-        name = store_label[len(COVARIATE_PREFIX) :]
-        timestamps = np.asarray(read_hdf5(store_id, filepath, "timestamps")).ravel()
-        values = np.asarray(read_hdf5(store_id, filepath, "data")).ravel()
-        covariate_series[name] = (timestamps, values)
+        if is_covariate_label(store_label):
+            name = store_label[len(COVARIATE_PREFIX) :]
+            timestamps = np.asarray(read_hdf5(store_id, filepath, "timestamps")).ravel()
+            values = np.asarray(read_hdf5(store_id, filepath, "data")).ravel()
+            covariate_series[name] = (timestamps, values)
 
     return covariate_series
 

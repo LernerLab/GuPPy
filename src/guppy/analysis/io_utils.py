@@ -56,12 +56,14 @@ def is_covariate_label(label: str) -> bool:
     return label.lower().startswith(COVARIATE_PREFIX)
 
 
-def is_event_label(label: str) -> bool:
+def is_continuous_label(label: str) -> bool:
     """
-    Return True if a store label names a behavioral event.
+    Return True if a store label names a continuously sampled stream.
 
-    Events are the stores analyses align to, so this is the predicate that gates
-    PSTH computation, artifact-window elimination and the visualization event list.
+    Photometry channels and behavioral covariates both carry a value per timestamp;
+    event stores carry timestamps alone. Analyses that align to events — PSTH
+    computation, artifact-window elimination, the visualization event list — use this
+    to skip the streams they cannot align to.
 
     Parameters
     ----------
@@ -71,9 +73,9 @@ def is_event_label(label: str) -> bool:
     Returns
     -------
     bool
-        True for stores that are neither photometry channels nor covariates.
+        True for photometry channels and behavioral covariates.
     """
-    return not is_channel_label(label) and not is_covariate_label(label)
+    return is_channel_label(label) or is_covariate_label(label)
 
 
 def recording_site_from_channel_label(label: str) -> str:
