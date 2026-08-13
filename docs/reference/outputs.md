@@ -50,6 +50,14 @@ A raw NumPy array, used only for the artifact keep-windows in `coordsForPreProce
 
 Provenance and configuration: `GuPPyParamtersUsed.json` and `.npm_params.json`.
 
+### `.yaml`
+
+Plain text, written only by Step 6: the NWB metadata overlay `nwb_metadata.yaml`. It is the authoritative artifact behind the metadata form, and is meant to be read, edited and copied between sessions by hand.
+
+### `.nwb`
+
+HDF5 written through pynwb, holding the whole session — raw traces, events and every GuPPy product — as typed NWB objects rather than named arrays. Written only by Step 7. The file carries the `ndx-fiber-photometry`, `ndx-ophys-devices` and `ndx-guppy` schema extensions inside it, so it stays readable without them installed. See [Fiber photometry data in NWB](../explanation/nwb.md).
+
 ---
 
 ## Filename vocabulary
@@ -191,6 +199,36 @@ Step 5 writes no data. It creates a `saved_plots/` subdirectory inside the run f
 
 ---
 
+## Step 6: Input Metadata
+
+*Written by: Step 6 (Input Metadata), optional.*
+
+| File | Contents |
+|------|----------|
+| `nwb_metadata.yaml` | The session's NWB metadata overlay |
+
+**`nwb_metadata.yaml`** holds everything the NWB export needs that the data itself cannot supply. Its top-level keys are `NWBFile` (session description, identifier, start time, lab, institution, experimenter), `Subject`, `DeviceModels` and `Devices` (the optical hardware, models and instances), and `FiberPhotometry` — which nests `FiberPhotometryViruses`, `FiberPhotometryVirusInjections`, `FiberPhotometryIndicators`, the `FiberPhotometryTable` and its `rows` (one per channel, keyed `<recording_site>_<role>`), and the per-role `signal` and `control` entries naming which rows each response series covers.
+
+The file is a session-level overlay, not a complete metadata document: at export it is applied on top of what GuPPy and the acquisition files already supply, so it only ever adds or replaces. It is written only for sessions read from raw acquisition files — a session GuPPy processed out of an NWB file never gets one, because its source already carries this information. See [Export a session to NWB](../how-to/export-to-nwb.md).
+
+---
+
+## Step 7: Export to NWB
+
+*Written by: Step 7 (Export to NWB), optional.*
+
+| File | Contents |
+|------|----------|
+| `<session_name>_output_<run_name>.nwb` | The whole session as one NWB file |
+
+**The NWB file** is named after the run folder rather than the session, so exports from several runs or sessions can be pooled into one directory without renaming. It holds three top-level groups: `acquisition` (the raw photometry response series), `events` (one table per raw event store, plus the `GuppyEvents` table of the onsets GuPPy analyzed), and `processing/guppy` (the derived traces, transients, PSTHs, peak/AUC summaries, cross-correlations, valid-signal intervals and the parameters used). Re-running Step 7 overwrites the file; each export rebuilds from the run folder rather than adding to what is there.
+
+For a session GuPPy read from an NWB file — a local `.nwb` or a DANDI asset — the output is a **copy of that source** with the GuPPy outputs added, written on the extension versions the source used. The source file is never modified.
+
+See [Fiber photometry data in NWB](../explanation/nwb.md) for what each object holds.
+
+---
+
 ## Group analysis: the `average/` directory
 
 *Written by: Step 4 (Compute the PSTH), when **Average Group?** is enabled.*
@@ -276,6 +314,8 @@ The first key is `guppy_version`, the installed version of the `guppy-neuro` pac
     cross_correlation_output/
       corr_<event>_<metric-prefix>_<siteA>_<siteB>.h5   step 4   DataFrame, key "df"
     saved_plots/                                   step 5, created empty
+    nwb_metadata.yaml                              step 6, optional
+    <session_name>_output_<run_name>.nwb           step 7, optional
 
 <common parent of the selected sessions>/
   average/                                         step 4, Average Group? only
