@@ -12,6 +12,9 @@ import logging
 import os
 from contextlib import closing
 
+from pynwb import NWBFile
+from pynwb.device import DeviceModel
+
 from .metadata import METADATA_FILENAME
 from .save_parameters import read_artifact_provenance
 from ..extractors.dandi_nwb_recording_extractor import (
@@ -21,6 +24,7 @@ from ..extractors.dandi_nwb_recording_extractor import (
 )
 from ..utils import progress
 from ..utils.acquisition_format import resolve_session_source
+from ..utils.nwb_io import open_nwbfile_io, write_nwbfile_from_source
 from ..utils.progress import step_error_handler
 from ..utils.utils import RAISE_ISSUE_URL, run_folder_for_run, selected_session_runs
 from ..utils.validation import validate_data_not_combined
@@ -81,6 +85,59 @@ def _overlay_metadata_yaml(*, metadata: dict, metadata_yaml_path: str | None) ->
     return metadata
 
 
+def _adopt_orphan_device_models(*, nwbfile: NWBFile) -> None:
+    """Give every device model read off a legacy file a place in ``nwbfile``.
+
+    NWB 2.9 turned ``Device.model`` from a text attribute into a link to a ``DeviceModel``. Reading a
+    file written before that, pynwb turns each ``model`` string into a ``DeviceModel`` container but
+    never adds it to the file, so it has no parent and no path to link to; writing then fails. Each
+    such model is added here, so the model strings survive the export.
+
+    Devices agreeing on every model field share one container. Where a model name covers more than
+    one set of fields, every model under that name is renamed after its device, since a name can
+    only be claimed once and no device's metadata may stand in for another's.
+
+    Parameters
+    ----------
+    nwbfile : pynwb.NWBFile
+        The file to repair, in place. Devices whose model already has a parent are left alone, so
+        this does nothing to a file written against a current schema.
+    """
+
+    def fields_of(model: DeviceModel) -> tuple:
+        return (model.name, model.description, model.manufacturer, model.model_number)
+
+    orphans = {
+        device.name: device.model
+        for device in nwbfile.devices.values()
+        if device.model is not None and device.model.parent is None
+    }
+    fields_by_name = {}
+    for model in orphans.values():
+        fields_by_name.setdefault(model.name, set()).add(fields_of(model))
+    ambiguous_names = {name for name, fields in fields_by_name.items() if len(fields) > 1}
+
+    adopted = {}
+    for device_name, model in orphans.items():
+        model_fields = fields_of(model)
+        device = nwbfile.devices[device_name]
+        if model_fields in adopted:
+            # Assigned through ``fields`` because ``Device.model`` is set once and rejects a second
+            # assignment, and ``DeviceModel.name`` is read-only.
+            device.fields["model"] = adopted[model_fields]
+            continue
+        if model.name in ambiguous_names:
+            model = DeviceModel(
+                name=f"{model.name} ({device_name})",
+                description=model.description,
+                manufacturer=model.manufacturer,
+                model_number=model.model_number,
+            )
+            device.fields["model"] = model
+        adopted[model_fields] = model
+        nwbfile.add_device_model(model)
+
+
 def _export_session_from_nwb_source(
     *,
     nwb_source: str,
@@ -94,10 +151,12 @@ def _export_session_from_nwb_source(
     ``nwbfile_path``; writing to a new path leaves the source untouched. GuPPy's store ids were
     derived from the source's own response series, so the recording sites registry links into the
     ``FiberPhotometryTable`` already there.
+
+    The output stays on the extension versions the source was written with, so a session recorded
+    against an older ndx-fiber-photometry exports as a file on that same version rather than one
+    claiming a schema its contents do not match.
     """
     from neuroconv.datainterfaces import GuppyInterface
-    from neuroconv.tools.nwb_helpers import configure_and_write_nwbfile
-    from pynwb import NWBHDF5IO
 
     interface = GuppyInterface(folder_path=guppy_folder_path)
 
@@ -105,15 +164,22 @@ def _export_session_from_nwb_source(
         dandiset_id, asset_path = parse_dandi_uri(nwb_source)
         nwbfile, source_io, _counter = _stream_nwb(dandiset_id=dandiset_id, asset_path=asset_path)
     else:
-        source_io = NWBHDF5IO(nwb_source, "r")
+        source_io = open_nwbfile_io(path=nwb_source)
         nwbfile = source_io.read()
+
+    _adopt_orphan_device_models(nwbfile=nwbfile)
 
     with closing(source_io):
         interface.add_to_nwbfile(
             nwbfile=nwbfile,
             metadata=_overlay_metadata_yaml(metadata=interface.get_metadata(), metadata_yaml_path=metadata_yaml_path),
         )
-        configure_and_write_nwbfile(nwbfile=nwbfile, nwbfile_path=nwbfile_path, backend="hdf5")
+        write_nwbfile_from_source(
+            nwbfile=nwbfile,
+            source_io=source_io,
+            nwbfile_path=nwbfile_path,
+            added_namespaces=("ndx-guppy",),
+        )
 
     logger.info(f"Wrote NWB file to {nwbfile_path}")
     return nwbfile_path

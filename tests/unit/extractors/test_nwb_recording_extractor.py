@@ -1,13 +1,8 @@
 """Tests for NwbRecordingExtractor and its private helper functions."""
 
-import json
-import subprocess
-import sys
-
-import h5py
 import numpy as np
 import pytest
-from pynwb import TimeSeries, read_nwb
+from pynwb import TimeSeries
 
 from guppy.extractors.nwb_recording_extractor import (
     NwbRecordingExtractor,
@@ -18,6 +13,7 @@ from guppy.extractors.nwb_recording_extractor import (
     _register_unique_name,
     _resolve_timing,
 )
+from guppy.utils.nwb_io import open_nwbfile_io
 from guppy_test_data import STUBBED_TESTING_DATA
 
 from .recording_extractor_test_mixin import RecordingExtractorTestMixin
@@ -234,8 +230,10 @@ class NwbRecordingExtractorTestMixin(RecordingExtractorTestMixin):
 
     @pytest.fixture
     def expected_control_data(self):
-        nwbfile = read_nwb(self.file_path)
-        return np.array(nwbfile.acquisition["fiber_photometry_response_series"].data[:, 0])
+        # Read the way the extractor does, so a file whose cached namespace differs from the
+        # installed extension is built against its own spec here too.
+        with open_nwbfile_io(path=self.file_path) as io:
+            return np.array(io.read().acquisition["fiber_photometry_response_series"].data[:, 0])
 
     @pytest.fixture
     def expected_signal_timestamps(self):
@@ -243,8 +241,8 @@ class NwbRecordingExtractorTestMixin(RecordingExtractorTestMixin):
 
     @pytest.fixture
     def expected_signal_data(self):
-        nwbfile = read_nwb(self.file_path)
-        return np.array(nwbfile.acquisition["fiber_photometry_response_series"].data[:, 1])
+        with open_nwbfile_io(path=self.file_path) as io:
+            return np.array(io.read().acquisition["fiber_photometry_response_series"].data[:, 1])
 
     # --- override stub tests (stub() raises NotImplementedError for NWB) ---
 
@@ -310,112 +308,29 @@ class TestNwbRecordingExtractorLabeledEvents(NwbRecordingExtractorTestMixin):
 # Contract tests for ndx-fiber-photometry v0.1.0 mock NWB file
 # ---------------------------------------------------------------------------
 
-# The v0.1.0 file carries its own cached namespace, which hdmf refuses to load once a different
-# version of ndx-fiber-photometry is registered in the process-wide type map: it then builds the
-# file's FiberPhotometryTable against the installed 0.2.x spec and raises ConstructError. Importing
-# the package is what registers it, so any test sharing this process with one that imports neuroconv
-# decides the outcome. The extractor therefore runs in a fresh interpreter, as
-# tests/integration/test_integration_ndx_events_import_state.py does for the same reason.
-V010_PROBE_SCRIPT = """
-import json, sys
-import numpy as np
-from pynwb import read_nwb
-from guppy.extractors.nwb_recording_extractor import NwbRecordingExtractor
 
-folder_path, file_path, output_path, events_json = sys.argv[1:5]
-expected_events = json.loads(events_json)
+class TestNwbRecordingExtractorNdxFiberPhotometryV010Events(NwbRecordingExtractorTestMixin):
+    """Contract tests for the ndx-fiber-photometry v0.1.0 mock file.
 
-events, flags = NwbRecordingExtractor.discover_events_and_flags(folder_path)
-extractor = NwbRecordingExtractor(folder_path=folder_path)
-output_dicts = extractor.read(events=expected_events, outputPath=output_path)
-extractor.save(output_dicts=output_dicts, outputPath=output_path)
-
-# The source columns come from the same interpreter, since reading this file is what needs isolating.
-nwbfile = read_nwb(file_path)
-source_data = np.asarray(nwbfile.acquisition["fiber_photometry_response_series"].data)
-np.save(output_path + "/source_data.npy", source_data)
-
-print(json.dumps({
-    "events": sorted(events),
-    "flags": flags,
-    "store_ids": [output_dict["store_id"] for output_dict in output_dicts],
-    "control_sample_count": extractor.count_samples(event="fiber_photometry_response_series_0"),
-    "signal_sample_count": extractor.count_samples(event="fiber_photometry_response_series_1"),
-    "ndx_fiber_photometry_imported": "ndx_fiber_photometry" in sys.modules,
-}))
-"""
-
-
-class TestNwbRecordingExtractorNdxFiberPhotometryV010Events:
-    """Contract tests for the ndx-fiber-photometry v0.1.0 mock file, read in an isolated interpreter.
-
-    The v0.1.0 mock holds identical data to the current mock — same FiberPhotometryResponseSeries
-    shape, same events — but was produced with the older ndx-fiber-photometry API (devices in
+    The v0.1.0 mock holds identical data to the current mock -- same FiberPhotometryResponseSeries
+    shape, same events -- but was produced with the older ndx-fiber-photometry API (devices in
     ndx_fiber_photometry directly, no virus/injection/indicator containers in FiberPhotometry).
+
+    The extractor reads it through ``open_nwbfile_io``, which builds each file against its own
+    cached namespace, so the installed 0.2.x extension cannot shadow the file's spec however this
+    module's process got here. Constructing the extractor in the class body below reads the file at
+    collection time, which makes that a standing check.
     """
 
-    expected_events = NwbRecordingExtractorTestMixin.expected_events
-    control_event = "fiber_photometry_response_series_0"
-    signal_event = "fiber_photometry_response_series_1"
+    folder_path = str(MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_FOLDER)
+    file_path = str(MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_FILE)
+    extractor_instance = NwbRecordingExtractor(folder_path=str(MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_FOLDER))
     ttl_event = "events"
 
-    @pytest.fixture(scope="class")
-    def probe(self, tmp_path_factory) -> dict:
-        """Read, save and inspect the v0.1.0 file once, in a process that never imports the extension."""
-        output_path = tmp_path_factory.mktemp("ndx_fiber_photometry_v010")
-        completed = subprocess.run(
-            [
-                sys.executable,
-                "-c",
-                V010_PROBE_SCRIPT,
-                str(MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_FOLDER),
-                str(MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_FILE),
-                str(output_path),
-                json.dumps(self.expected_events),
-            ],
-            capture_output=True,
-            text=True,
-        )
-        assert completed.returncode == 0, completed.stderr
-        return {"output_path": output_path, **json.loads(completed.stdout)}
-
-    def test_the_extension_stays_unimported(self, probe):
-        # The premise of the isolation: with the package imported, every read below raises
-        # ConstructError instead.
-        assert probe["ndx_fiber_photometry_imported"] is False
-
-    def test_discover_returns_events_and_flags_as_lists_of_strings(self, probe):
-        assert all(isinstance(event, str) for event in probe["events"])
-        assert all(isinstance(flag, str) for flag in probe["flags"])
-
-    def test_discover_includes_expected_events(self, probe):
-        assert set(self.expected_events) <= set(probe["events"])
-
-    def test_count_samples_matches_the_series_length(self, probe):
-        assert probe["control_sample_count"] == _NUM_SAMPLES
-        assert probe["signal_sample_count"] == _NUM_SAMPLES
-
-    def test_read_reports_a_store_id_per_event(self, probe):
-        assert probe["store_ids"] == self.expected_events
-
-    def test_save_produces_one_hdf5_per_store_with_timestamps(self, probe):
-        for store_id in probe["store_ids"]:
-            store_path = probe["output_path"] / f"{store_id}.hdf5"
-            assert store_path.exists()
-            with h5py.File(store_path, "r") as file:
-                assert "timestamps" in file
-
-    @pytest.mark.parametrize("event_name, column_index", [("control_event", 0), ("signal_event", 1)])
-    def test_roundtrip_preserves_the_series(self, probe, event_name, column_index):
-        source_data = np.load(probe["output_path"] / "source_data.npy")
-        with h5py.File(probe["output_path"] / f"{getattr(self, event_name)}.hdf5", "r") as file:
-            # rate=30 Hz, starting_time=0.0 -> timestamps are exactly arange(3000)/30
-            np.testing.assert_array_equal(file["timestamps"][:], np.arange(_NUM_SAMPLES) / _SAMPLING_RATE)
-            np.testing.assert_array_equal(file["data"][:], source_data[:, column_index])
-
-    def test_roundtrip_preserves_the_ttl_timestamps(self, probe):
-        with h5py.File(probe["output_path"] / f"{self.ttl_event}.hdf5", "r") as file:
-            np.testing.assert_array_equal(file["timestamps"][:], np.arange(45, 55, dtype=np.float64))
+    @pytest.fixture
+    def expected_ttl_timestamps(self):
+        # Events timestamps: 45, 46, ..., 54
+        return np.arange(45, 55, dtype=np.float64)
 
 
 # ---------------------------------------------------------------------------

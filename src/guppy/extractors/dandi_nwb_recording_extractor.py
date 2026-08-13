@@ -16,6 +16,7 @@ from guppy.extractors.nwb_recording_extractor import (
     _discover_events_from_nwbfile,
     _read_events_from_nwbfile,
 )
+from guppy.utils.nwb_io import open_nwbfile_io
 
 logger = logging.getLogger(__name__)
 
@@ -166,7 +167,7 @@ def _stream_nwb(
     file_system = remfile.File(s3_url)
     counter = _CountingRemfile(file_system)
     file = h5py.File(counter, mode="r")
-    io = NWBHDF5IO(file=file, load_namespaces=True)
+    io = open_nwbfile_io(file=file)
     nwbfile = io.read()
     return nwbfile, io, counter
 

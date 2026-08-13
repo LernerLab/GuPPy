@@ -12,9 +12,13 @@ import json
 import os
 
 import pytest
+from pynwb import NWBFile
+from pynwb.device import Device, DeviceModel
+from pynwb.testing.mock.file import mock_NWBFile
 
 from guppy.orchestration import export_nwb as export_nwb_module
 from guppy.orchestration.export_nwb import (
+    _adopt_orphan_device_models,
     _validate_artifact_removal_methods,
     orchestrate_export_nwb,
     run_export_nwb_step,
@@ -216,3 +220,85 @@ class TestRunExportNwbStep:
             run_export_nwb_step({"selected_runs": {str(session): ["run1"]}, "combine_data": False})
 
         assert "does not support the 'concatenate'" in bound_step.error_message
+
+
+class TestAdoptOrphanDeviceModels:
+    """A file written before NWB 2.9 arrives with its device models detached and unwritable.
+
+    pynwb turns each legacy ``Device.model`` string into a ``DeviceModel`` it never adds to the
+    file, which is the state each fixture here builds directly.
+    """
+
+    @pytest.fixture
+    def agreeing_devices(self) -> NWBFile:
+        """Two devices whose model strings and metadata match, as four of one mini cube's ports do."""
+        nwbfile = mock_NWBFile()
+        for device_name in ("dichroic_mirror", "emission_filter"):
+            model = DeviceModel(name="Mini Cube", description="A 4 port mini cube.", manufacturer="Doric")
+            nwbfile.add_device(Device(name=device_name, description="A 4 port mini cube.", model=model))
+        return nwbfile
+
+    @pytest.fixture
+    def disagreeing_devices(self) -> NWBFile:
+        """Two devices sharing a model string but described differently, as the mock's lasers are."""
+        nwbfile = mock_NWBFile()
+        for device_name, description in (
+            ("excitation_source_control", "405 nm isosbestic excitation source."),
+            ("excitation_source_signal", "470 nm signal excitation source."),
+        ):
+            model = DeviceModel(name="laser model", description=description, manufacturer="Doric")
+            nwbfile.add_device(Device(name=device_name, description=description, model=model))
+        return nwbfile
+
+    def test_agreeing_devices_share_one_model(self, agreeing_devices):
+        _adopt_orphan_device_models(nwbfile=agreeing_devices)
+
+        assert list(agreeing_devices.device_models) == ["Mini Cube"]
+        assert (
+            agreeing_devices.devices["dichroic_mirror"].model
+            is agreeing_devices.devices["emission_filter"].model
+            is agreeing_devices.device_models["Mini Cube"]
+        )
+
+    def test_disagreeing_devices_each_keep_their_own_model(self, disagreeing_devices):
+        _adopt_orphan_device_models(nwbfile=disagreeing_devices)
+
+        assert sorted(disagreeing_devices.device_models) == [
+            "laser model (excitation_source_control)",
+            "laser model (excitation_source_signal)",
+        ]
+        assert (
+            disagreeing_devices.devices["excitation_source_control"].model.description
+            == "405 nm isosbestic excitation source."
+        )
+        assert (
+            disagreeing_devices.devices["excitation_source_signal"].model.description
+            == "470 nm signal excitation source."
+        )
+
+    def test_every_adopted_model_has_a_parent(self, disagreeing_devices):
+        # The point of the whole helper: a parentless link target has no path to write.
+        _adopt_orphan_device_models(nwbfile=disagreeing_devices)
+
+        assert all(device.model.parent is disagreeing_devices for device in disagreeing_devices.devices.values())
+
+    def test_a_model_already_in_the_file_is_left_alone(self):
+        # A file written against a current schema arrives this way, so the helper must be a no-op.
+        nwbfile = mock_NWBFile()
+        model = DeviceModel(name="Mini Cube", description="A 4 port mini cube.", manufacturer="Doric")
+        nwbfile.add_device_model(model)
+        nwbfile.add_device(Device(name="dichroic_mirror", description="A 4 port mini cube.", model=model))
+
+        _adopt_orphan_device_models(nwbfile=nwbfile)
+
+        assert list(nwbfile.device_models) == ["Mini Cube"]
+        assert nwbfile.devices["dichroic_mirror"].model is model
+
+    def test_a_device_without_a_model_is_left_alone(self):
+        nwbfile = mock_NWBFile()
+        nwbfile.add_device(Device(name="indicator", description="GCaMP7b."))
+
+        _adopt_orphan_device_models(nwbfile=nwbfile)
+
+        assert list(nwbfile.device_models) == []
+        assert nwbfile.devices["indicator"].model is None

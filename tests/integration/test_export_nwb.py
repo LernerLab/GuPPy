@@ -10,6 +10,7 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
+import h5py
 import pytest
 from pynwb import NWBHDF5IO
 
@@ -23,6 +24,7 @@ from guppy.utils.acquisition_format import (
     resolve_acquisition_format,
     resolve_session_source,
 )
+from guppy.utils.nwb_io import open_nwbfile_io
 from guppy.utils.nwb_metadata import (
     build_metadata_dict,
     derive_channels,
@@ -31,9 +33,17 @@ from guppy.utils.nwb_metadata import (
     parse_metadata_dict,
 )
 from guppy.utils.utils import parse_run_name
+from guppy_test_data import STUBBED_TESTING_DATA
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE_METADATA = PROJECT_ROOT / "data" / "fiber_photometry_metadata_example.yaml"
+
+MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_FILE = (
+    STUBBED_TESTING_DATA
+    / "nwb"
+    / "mock_nwbfile_ndx_fiber_photometry_v0_1_ndx_events_v0_2"
+    / "mock_nwbfile_ndx_fiber_photometry_v0_1_ndx_events_v0_2.nwb"
+)
 
 # Supplied by the form for the formats whose raw files record no recording start.
 SUPPLIED_SESSION_START_TIME = datetime.fromisoformat("2020-05-04T09:00:00+00:00")
@@ -304,6 +314,80 @@ class TestExportNwbSourcedSession:
             recording_sites = io.read().processing["guppy"]["recording_sites"].to_dataframe()
             assert list(recording_sites["recording_site"]) == ["region"]
             assert list(recording_sites["fiber_photometry_table_region"][0].index) == [0, 1]
+
+
+class TestExportLegacyNwbSource:
+    """A source written with ndx-fiber-photometry 0.1.0 exports, and keeps exporting.
+
+    That file predates NWB 2.9, so pynwb reads its ``Device.model`` strings back as ``DeviceModel``
+    containers it never adds to the file, and writing a link to a container with no parent fails.
+    Exporting twice in one process covers the second hazard: the first export imports ndx-guppy,
+    registering ndx-fiber-photometry 0.2.x, after which reading a 0.1.0 file against the
+    process-wide type map builds it under the wrong spec.
+
+    Driven off the v0.2 mock's GuPPy outputs, whose store ids name the same response series columns
+    the v0.1.0 mock holds.
+    """
+
+    @pytest.fixture(scope="class")
+    def exported_nwbfile_paths(self, step5_output_nwb, tmp_path_factory) -> list[Path]:
+        output_directory = tmp_path_factory.mktemp("legacy_nwb_source")
+        nwbfile_paths = []
+        for export_index in range(2):
+            nwbfile_path = output_directory / f"exported_{export_index}.nwb"
+            export_session_to_nwb(
+                session_folder_path=str(step5_output_nwb["session_copy"]),
+                acquisition_format="nwb",
+                guppy_folder_path=str(step5_output_nwb["output_directory"]),
+                metadata_yaml_path=None,
+                nwbfile_path=str(nwbfile_path),
+                nwb_source=str(MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_FILE),
+            )
+            nwbfile_paths.append(nwbfile_path)
+        return nwbfile_paths
+
+    @pytest.fixture(params=[0, 1])
+    def exported_nwbfile_path(self, exported_nwbfile_paths, request) -> Path:
+        return exported_nwbfile_paths[request.param]
+
+    def test_every_device_model_is_written(self, exported_nwbfile_path):
+        with open_nwbfile_io(path=str(exported_nwbfile_path)) as io:
+            nwbfile = io.read()
+            models = {device.name: device.model for device in nwbfile.devices.values()}
+
+            assert sorted(name for name, model in models.items() if model is not None) == [
+                "dichroic_mirror",
+                "excitation_source_control",
+                "excitation_source_signal",
+                "optical_fiber",
+                "optical_filter",
+            ]
+            assert all(model.parent is nwbfile for model in models.values() if model is not None)
+
+    def test_devices_sharing_a_model_string_keep_their_own_metadata(self, exported_nwbfile_path):
+        # Both lasers are recorded as "laser model" but describe different excitation wavelengths,
+        # so collapsing them onto one DeviceModel would put one laser's description on the other.
+        with open_nwbfile_io(path=str(exported_nwbfile_path)) as io:
+            nwbfile = io.read()
+
+            assert nwbfile.devices["excitation_source_control"].model.description == (
+                "405 nm isosbestic excitation source."
+            )
+            assert nwbfile.devices["excitation_source_signal"].model.description == ("470 nm signal excitation source.")
+
+    def test_the_guppy_outputs_are_added(self, exported_nwbfile_path):
+        with open_nwbfile_io(path=str(exported_nwbfile_path)) as io:
+            nwbfile = io.read()
+            assert "guppy" in nwbfile.processing
+
+    def test_the_output_keeps_the_sources_extension_versions(self, exported_nwbfile_path):
+        # The point of the whole write path: a file claiming 0.2.x over a table with 0.1.0's columns
+        # is one nothing can read back, so the output stays on the version its contents match.
+        with h5py.File(str(exported_nwbfile_path), "r") as file:
+            cached_versions = {name: list(group) for name, group in file["/specifications"].items()}
+
+        assert cached_versions["ndx-fiber-photometry"] == ["0.1.0"]
+        assert "ndx-guppy" in cached_versions
 
 
 class TestExportMixedFormatSession:
