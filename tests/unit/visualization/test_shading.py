@@ -17,6 +17,9 @@ SPIKE_VALUE = 50.0
 # datashade aggregates onto a 400x400 grid by default when no plot size is attached.
 IMAGE_SIZE = 400
 
+# Antialiased drawing strokes a sample across the two columns its line spans.
+SPIKE_COLUMN_SPAN = 2
+
 
 @pytest.fixture
 def spiked_trace():
@@ -40,13 +43,14 @@ class TestShadeTrace:
         """The density distinction the shading exists to make.
 
         Rows run bottom-up: the flat baseline at y=0 lands in row 0 and the spike at y=50
-        in the last row. The baseline is drawn in every column, the spike in exactly one —
-        so a transient stays visible without being given the same weight as the noise band.
+        in the last row. The baseline is drawn in every column, the spike in only the two
+        its stroke spans — so a transient stays visible without being given the same weight
+        as the noise band.
         """
         alpha = resolve_plot(shade_trace(spiked_trace)).dimension_values("A", flat=False)
         inked_columns_per_row = (alpha > 0).sum(axis=1)
         assert inked_columns_per_row[0] == IMAGE_SIZE
-        assert inked_columns_per_row[-1] == 1
+        assert inked_columns_per_row[-1] == SPIKE_COLUMN_SPAN
 
     def test_zoom_reaggregates_against_the_full_trace(self, panel_extension, spiked_trace):
         plot = shade_trace(spiked_trace)
