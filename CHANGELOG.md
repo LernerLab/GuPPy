@@ -47,6 +47,7 @@
 - Renamed vague variable names (`arr`, `d`, `ts`, `op`, `cols`, suffixed `*_arr`, etc.) throughout `src/guppy/` to descriptive, context-appropriate names; behavior-preserving (consistency suite unchanged). [PR #378](https://github.com/LernerLab/GuPPy/pull/378)
 - Deduplicated copy-pasted code: shared timestamp-realignment kernels for artifact-removal and multi-session combining, a shared group-averaging preamble, a single pipeline-step launch helper in the homepage, and shared ndx-fiber-photometry boilerplate across the mock-NWB generators. [PR #377](https://github.com/LernerLab/GuPPy/pull/377)
 - Removed commented-out dead code throughout `src/guppy/` and clarified the remaining comments. [PR #376](https://github.com/LernerLab/GuPPy/pull/376)
+- Improved plot rendering by setting line_width to 1. [PR #430](https://github.com/LernerLab/GuPPy/pull/430)
 
 ## Deprecations and Removals
 - Removed the `removeArtifacts?` and `removeArtifacts method` controls from the Input Parameters form; the method is now chosen on the Select Artifact Windows page. Both keys remain in `GuPPyParamtersUsed.json`. [PR #413](https://github.com/LernerLab/GuPPy/pull/413)
