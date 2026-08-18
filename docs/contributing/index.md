@@ -7,4 +7,5 @@ oriented in the codebase.
 :maxdepth: 1
 
 architecture
+testing
 ```
