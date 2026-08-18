@@ -25,6 +25,7 @@ import panel as pn
 from guppy.frontend.artifact_windows_page import ArtifactWindowSelector
 from guppy.frontend.custom_events_config import CustomEventsConfig
 from guppy.frontend.frontend_utils import scanPortsAndFind
+from guppy.frontend.input_parameters import ParameterForm
 from guppy.frontend.parameterized_plotter import ParameterizedPlotter
 from guppy.frontend.store_labeling_selector import StoreLabelingSelector
 from guppy.frontend.visualization_dashboard import VisualizationDashboard
@@ -368,6 +369,76 @@ def screenshot_visualization(page: Page, tmp_path: Path) -> None:
     pn.state.kill_all_servers()
 
 
+def screenshot_compare_parameters_run_name(page: Page) -> None:
+    """Screenshot for the compare-parameters how-to: the save section with a named run.
+
+    Only the save block is in shot, with **Run name** filled in, since naming a run
+    after the parameter it varies is the point of that guide.
+    """
+    selector = StoreLabelingSelector(allnames=["Sample_Control_Channel"])
+    selector.run_name.value = "baseline_zscore"
+
+    template = pn.template.BootstrapTemplate(title="Label Stores GUI - sample_data_csv_1")
+    template.main.append(pn.Column(selector.mark_down_for_overwrite, selector.overwrite_button, selector.run_name))
+    url = _serve(template)
+
+    page.goto(url)
+    page.get_by_text("Choose how to save this store_array").first.wait_for()
+    page.wait_for_timeout(1000)
+    page.screenshot(
+        path=OUTPUT_DIR / "compare_parameters_run_name.png",
+        clip={"x": 0, "y": 0, "width": 660, "height": 320},
+    )
+    print("Saved compare_parameters_run_name.png")
+
+    pn.state.kill_all_servers()
+
+
+def screenshot_compare_parameters_existing_runs(page: Page) -> None:
+    """Screenshot for the compare-parameters how-to: two sibling runs to choose between.
+
+    The run folders are created inside the real sample-data directory, and removed
+    afterwards, so the Directory field shows a normal session path rather than a
+    temp-dir basename.
+    """
+    run_names = ("baseline_zscore", "standard_zscore")
+    run_folders = [SAMPLE_DATA_DIR / f"sample_data_csv_1_output_{name}" for name in run_names]
+    for run_folder in run_folders:
+        run_folder.mkdir(exist_ok=True)
+
+    try:
+        os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
+
+        # Drive the card directly rather than through the homepage: selecting a run
+        # in a served FileSelector takes several dependent clicks, and only this one
+        # card is in shot. Assigning the inner cross-selector's value is what moves
+        # an entry into the "Selected files" pane; setting FileSelector.value alone
+        # updates the parameter without redrawing the panes.
+        form = ParameterForm(template=pn.template.MaterialTemplate(title="Input Parameters GUI"))
+        form.outputs_selector._directory.value = str(SAMPLE_DATA_DIR)
+        form.outputs_selector._update_files()
+        form.outputs_selector._selector.value = [str(run_folders[0])]
+        form.output_folder_selection.collapsed = False
+
+        template = pn.template.MaterialTemplate(title="Input Parameters GUI")
+        template.main.append(form.output_folder_selection)
+        url = _serve(template)
+
+        page.goto(url)
+        page.get_by_text("Existing runs (steps 2–5)").first.wait_for()
+        page.wait_for_timeout(1500)
+        page.screenshot(
+            path=OUTPUT_DIR / "compare_parameters_existing_runs.png",
+            clip={"x": 0, "y": 0, "width": 1060, "height": 520},
+        )
+        print("Saved compare_parameters_existing_runs.png")
+
+        pn.state.kill_all_servers()
+    finally:
+        for run_folder in run_folders:
+            run_folder.rmdir()
+
+
 def main() -> None:
     """Launch a headless browser and regenerate every tutorial screenshot in order."""
     import tempfile
@@ -393,6 +464,8 @@ def main() -> None:
             screenshot_select_artifact_windows_button(page)
             screenshot_select_artifact_windows(page, tmp_path)
             screenshot_visualization(page, tmp_path)
+            screenshot_compare_parameters_run_name(page)
+            screenshot_compare_parameters_existing_runs(page)
 
         browser.close()
 
