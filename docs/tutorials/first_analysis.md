@@ -64,7 +64,7 @@ Inside the **Individual Analysis** card, use the file browser at the top of the 
 :align: center
 ```
 
-The **Data Source** toggle at the top lets you switch between `local` (the default, file-system browsing) and `dandi` (streaming NWB sessions directly from DANDI). We are using local files here.
+The **Data Source** toggle at the top lets you switch between `local` (the default, file-system browsing) and `dandi` (streaming NWB sessions directly from DANDI). We are using local files here; see [Analyze data streamed from the DANDI Archive](../how-to/analyze-dandi-data.md) for the DANDI workflow.
 
 ### Set parameters
 
