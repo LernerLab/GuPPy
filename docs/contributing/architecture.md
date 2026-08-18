@@ -42,8 +42,9 @@ means a user sees the error before a progress bar starts moving.
 ### `extractors/`
 
 Reads raw acquisition data. Every reader subclasses `BaseRecordingExtractor` and implements the same
-four methods — `discover_events_and_flags()`, `read()`, `save()`, and `stub()` — so the rest of the
-codebase never branches on acquisition format.
+four required methods — `discover_events_and_flags()`, `read()`, `save()`, and `stub()` — plus
+`count_samples()` for progress reporting, so the rest of the codebase never branches on acquisition
+format.
 
 Supported formats: `TdtRecordingExtractor`, `DoricRecordingExtractor`, `NpmRecordingExtractor`,
 `CsvRecordingExtractor`, `NwbRecordingExtractor`, and `DandiNwbRecordingExtractor` for streaming
@@ -135,10 +136,6 @@ produced it.
 
 ## Adding a new acquisition format
 
-The most common extension is a new reader. Subclass `BaseRecordingExtractor` in `extractors/`,
-implement the four abstract methods, export it from `extractors/__init__.py`, teach
-`detect_acquisition_formats()` to recognize the format on disk, and add a branch in
-`read_raw_data._build_event_to_extractor()` so events route to it. Then add unit tests in
-`tests/unit/extractors/` — the shared `recording_extractor_test_mixin.py` covers the interface
-contract — and a stubbed sample session under `stubbed_testing_data/` so the integration tests can
-run the format end to end.
+The most common extension is a new reader. See
+[Adding a new acquisition format](new_recording_format.md) for the full extractor contract and the
+end-to-end registration checklist.

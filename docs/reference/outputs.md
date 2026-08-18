@@ -103,7 +103,7 @@ Which datasets a file carries depends on the acquisition format and on whether t
 |---------|-------|----------|------------|
 | `timestamps` | 1-D float | Sample or event times on the acquisition clock | every format |
 | `data` | 1-D float | The samples (continuous stores only) | every format |
-| `sampling_rate` | 1-D float, length 1 | Samples per second (continuous stores only) | every format |
+| `sampling_rate` | 0-D float (TDT, NWB); 1-D float, length 1 (CSV, Doric, NPM) | Samples per second (continuous stores only) | every format |
 | `store_id` | 0-D string | The store's own name | TDT, NWB |
 | `npoints` | 0-D int | Samples per acquisition block | TDT, NWB |
 | `channels` | 1-D int | Per-block channel number | TDT |
