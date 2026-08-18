@@ -48,6 +48,7 @@
 - Deduplicated copy-pasted code: shared timestamp-realignment kernels for artifact-removal and multi-session combining, a shared group-averaging preamble, a single pipeline-step launch helper in the homepage, and shared ndx-fiber-photometry boilerplate across the mock-NWB generators. [PR #377](https://github.com/LernerLab/GuPPy/pull/377)
 - Removed commented-out dead code throughout `src/guppy/` and clarified the remaining comments. [PR #376](https://github.com/LernerLab/GuPPy/pull/376)
 - Improved plot rendering by setting line_width to 1. [PR #430](https://github.com/LernerLab/GuPPy/pull/430)
+- Added a [Development Environment](https://guppy.readthedocs.io/en/latest/contributing/development_environment.html) page to the Contributor's Guide: conda setup, the `dev`/`test`/`docs` dependency groups, running GuPPy from source, headless mode, the pre-commit style stack, and building the docs locally. [PR #431](https://github.com/LernerLab/GuPPy/pull/431)
 
 ## Deprecations and Removals
 - Removed the `removeArtifacts?` and `removeArtifacts method` controls from the Input Parameters form; the method is now chosen on the Select Artifact Windows page. Both keys remain in `GuPPyParamtersUsed.json`. [PR #413](https://github.com/LernerLab/GuPPy/pull/413)
