@@ -1,3 +1,13 @@
+# v2.0.0-beta2 (Upcoming)
+
+## Features
+
+## Fixes
+
+## Improvements
+
+## Deprecations and Removals
+
 # v2.0.0-beta1 (August 20th, 2026)
 
 ## Features
