@@ -683,6 +683,7 @@ def tonic_analysis(
         control_fit_window_mode="full trace",
         control_fit_window_start=0,
         control_fit_window_end=0,
+        photobleaching_detrend=False,
         time_for_lights_turn_on=1.0,
         selected_runs=selected_runs,
     )
