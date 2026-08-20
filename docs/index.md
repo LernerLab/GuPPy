@@ -28,6 +28,7 @@ tutorials/index
 how-to/index
 explanation/index
 reference/index
+contributing/index
 ```
 
 ## Links

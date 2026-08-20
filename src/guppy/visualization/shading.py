@@ -41,4 +41,4 @@ def shade_trace(curve: hv.Curve, color: str = TRACE_COLOR) -> hv.DynamicMap:
     hv.DynamicMap
         Range-linked density image of ``curve``.
     """
-    return datashade(curve, cmap=[color])
+    return datashade(curve, cmap=[color], line_width=1)
