@@ -7,7 +7,9 @@ from typing import Callable
 import panel as pn
 
 from .artifact_view import open_artifact_view
+from .export_nwb import run_export_nwb_step
 from .import_custom_events import orchestrate_custom_events_page
+from .metadata import orchestrate_metadata_page
 from .preprocess import run_preprocess_step, run_remove_artifacts_step
 from .preprocess_view import open_preprocess_view
 from .psth import run_psth_step
@@ -178,6 +180,24 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
 
         _run_worker_with_progress(run_psth_step, sidebar.psth_progress, add_curr_dir=True, on_success=_open_view)
 
+    def onclickMetadata(event: object = None) -> None:
+        inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
+        if inputParameters is None:
+            return
+        try:
+            orchestrate_metadata_page(inputParameters)
+        except ValueError as e:
+            pn.state.notifications.error(str(e), duration=0)
+
+    def onclickExportNwb(event: object = None) -> None:
+        def _notify_exported(inputParameters: dict[str, object]) -> None:
+            # The export writes its .nwb files into the output directories and opens no result
+            # view, so this notification is the only sign the step finished. A partial failure
+            # takes the error branch instead, so this only fires when every session succeeded.
+            pn.state.notifications.success("Export to NWB complete.")
+
+        _run_worker_with_progress(run_export_nwb_step, sidebar.export_progress, on_success=_notify_exported)
+
     # ------------------------------------------------------------------------------------------------------------------
 
     button_name_to_onclick_fn = {
@@ -189,6 +209,8 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
         "remove_artifacts": onclickRemoveArtifacts,
         "psth_computation": onclickpsth,
         "open_visualization": onclickVisualization,
+        "open_metadata": onclickMetadata,
+        "export_nwb": onclickExportNwb,
     }
     sidebar.attach_callbacks(button_name_to_onclick_fn=button_name_to_onclick_fn)
     sidebar.add_to_template()
@@ -196,6 +218,8 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
     # Expose minimal hooks and widgets to enable programmatic testing
     template._hooks = {
         "onclickVisualization": onclickVisualization,
+        "onclickMetadata": onclickMetadata,
+        "onclickExportNwb": onclickExportNwb,
         "onclickImportCustomEvents": onclickImportCustomEvents,
         "onclickreaddata": onclickreaddata,
         "onclickpreprocess": onclickpreprocess,

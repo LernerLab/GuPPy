@@ -60,6 +60,9 @@ dependencies = [
     "selenium",
     "dandi",
     "remfile",
+    "pyyaml",
+    "neuroconv[guppy]>=0.10.0",
+    "ndx-guppy==0.1.0",
 ]
 
 [dependency-groups]
