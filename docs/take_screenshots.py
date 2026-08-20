@@ -32,8 +32,15 @@ from guppy.frontend.store_labeling_selector import StoreLabelingSelector
 from guppy.frontend.tonic_epochs import TonicEpochConfig, TonicResultsView
 from guppy.frontend.visualization_dashboard import VisualizationDashboard
 from guppy.orchestration.home import build_homepage
+from guppy.orchestration.metadata import build_metadata_template
 from guppy.orchestration.store_labeling import build_store_labeling_template
 from guppy.utils._hdf5_io import write_hdf5
+from guppy.utils.nwb_metadata import (
+    Channel,
+    build_metadata_dict,
+    load_yaml,
+    parse_metadata_dict,
+)
 
 if TYPE_CHECKING:
     from panel.template.base import BasicTemplate
@@ -62,6 +69,28 @@ def _serve(template: BasicTemplate) -> str:
     pn.serve(template, port=port, show=False, threaded=True)
     _wait_for_port(port)
     return f"http://localhost:{port}"
+
+
+def _sidebar_clip(page: Page, from_step: str | None) -> dict[str, float]:
+    """Clip rectangle over the sidebar, optionally starting at one step's label.
+
+    Without ``from_step`` the crop runs from the top of the page. With it, the crop starts
+    just above that step's label and ends below the Export to NWB progress bar, which is
+    the last thing in the sidebar. Both edges are measured off the rendered page rather
+    than hard-coded, since where a step lands depends on how many precede it.
+    """
+    viewport_height = page.viewport_size["height"]
+    if from_step is None:
+        return {"x": 0, "y": 0, "width": 360, "height": viewport_height}
+
+    top = page.get_by_text(from_step).first.bounding_box()["y"] - 14
+    # The export progress bar is the last thing in the sidebar; anchoring on it rather than
+    # on the button above keeps the whole bar inside the crop whatever its height.
+    export_progress = page.locator("progress").last
+    export_progress.wait_for(timeout=15000)
+    export_bar = export_progress.bounding_box()
+    bottom = min(export_bar["y"] + export_bar["height"] + 16, viewport_height)
+    return {"x": 0, "y": top, "width": 340, "height": bottom - top}
 
 
 def screenshot_homepage(page: Page) -> None:
@@ -388,16 +417,27 @@ def screenshot_parameters(page: Page) -> None:
     pn.state.kill_all_servers()
 
 
-def screenshot_sidebar_progress(page: Page, progress_index: int, output_name: str) -> None:
+def screenshot_sidebar_progress(
+    page: Page,
+    progress_index: int,
+    output_name: str,
+    *,
+    viewport_height: int = 900,
+    clip_from_step: str | None = None,
+) -> None:
     """Screenshot the homepage sidebar with one progress bar mid-fill.
 
-    The homepage sidebar contains four Progress indicators that fill from 0 to 100 as
+    The homepage sidebar contains five Progress indicators that fill from 0 to 100 as
     the corresponding pipeline step runs. We render the homepage with one of them
     pre-set to 60 to illustrate the in-progress state, then clip the screenshot to the
     leftmost 360 px so the result is just the sidebar.
 
     progress_index follows sidebar order: 0 = read raw data, 1 = preprocess,
-    2 = remove artifacts, 3 = PSTH computation.
+    2 = remove artifacts, 3 = PSTH computation, 4 = export to NWB.
+
+    The steps below the fold need a taller viewport to render at all, and a clip
+    anchored on the step they belong to rather than on the top of the page — pass
+    viewport_height and clip_from_step (the sidebar label to start the crop at) for those.
     """
     os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
     template = build_homepage()
@@ -406,15 +446,14 @@ def screenshot_sidebar_progress(page: Page, progress_index: int, output_name: st
     progress_bars[progress_index].value = 60
 
     url = _serve(template)
+    page.set_viewport_size({"width": VIEWPORT["width"], "height": viewport_height})
     page.goto(url)
     page.get_by_text("Individual Analysis").first.wait_for()
     page.wait_for_timeout(1000)
-    page.screenshot(
-        path=OUTPUT_DIR / output_name,
-        clip={"x": 0, "y": 0, "width": 360, "height": 900},
-    )
+    page.screenshot(path=OUTPUT_DIR / output_name, clip=_sidebar_clip(page, clip_from_step))
     print(f"Saved {output_name}")
 
+    page.set_viewport_size(VIEWPORT)
     pn.state.kill_all_servers()
 
 
@@ -493,6 +532,125 @@ def screenshot_visualization(page: Page, tmp_path: Path) -> None:
     pn.state.kill_all_servers()
 
 
+def screenshot_export_to_nwb_button(page: Page) -> None:
+    """How-to: the sidebar bottom showing the two optional NWB steps below Step 5."""
+    os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
+    template = build_homepage()
+    url = _serve(template)
+    page.set_viewport_size({"width": VIEWPORT["width"], "height": 1400})
+    page.goto(url)
+    page.get_by_text("Individual Analysis").first.wait_for()
+    page.wait_for_timeout(1000)
+    page.screenshot(
+        path=OUTPUT_DIR / "export_to_nwb_button.png",
+        clip=_sidebar_clip(page, "Step 5 : Visualization"),
+    )
+    print("Saved export_to_nwb_button.png")
+
+    page.set_viewport_size(VIEWPORT)
+    pn.state.kill_all_servers()
+
+
+def _metadata_template() -> BasicTemplate:
+    """Build the Step 6 form pre-filled from the example metadata, for the how-to figures.
+
+    ``build_metadata_template`` takes its channels as an argument, so the form renders without
+    a pipeline run behind it: the two channels below stand in for what ``derive_channels`` would
+    read out of a session's ``storesList.csv``.
+    """
+    channels = [Channel("dms", "control", "Dv1A"), Channel("dms", "signal", "Dv2A")]
+    example = load_yaml(str(REPO_ROOT / "tests" / "data" / "fiber_photometry_metadata_example.yaml"))
+    devices, _rows, scalars = parse_metadata_dict(metadata=example, channels=channels)
+    channel_rows = [
+        {
+            "excitation_wavelength_in_nm": 405.0,
+            "emission_wavelength_in_nm": 525.0,
+            "indicator": "dms_green_fluorophore",
+            "optical_fiber": "optical_fiber",
+            "excitation_source": "excitation_source_isosbestic_control",
+            "photodetector": "photodetector",
+        },
+        {
+            "excitation_wavelength_in_nm": 465.0,
+            "emission_wavelength_in_nm": 525.0,
+            "indicator": "dms_green_fluorophore",
+            "optical_fiber": "optical_fiber",
+            "excitation_source": "excitation_source_calcium_signal",
+            "photodetector": "photodetector",
+        },
+    ]
+    scalars = {
+        **scalars,
+        "session_description": "Fiber photometry recording during RI30 training.",
+        "session_start_time": "2018-10-30T10:33:32-05:00",
+        "lab": "Lerner Lab",
+        "institution": "Northwestern University",
+        "subject_id": "Photo_63_207",
+        "sex": "M",
+        "species": "Mus musculus",
+        "experimenter": ["Doe, Jane"],
+    }
+    return build_metadata_template(
+        session_label="Photo_63_207 (1)",
+        channels=channels,
+        metadata=build_metadata_dict(
+            devices=devices, channel_rows=channel_rows, scalars=scalars, channels=channels
+        ),
+        metadata_yaml_path=str(SAMPLE_DATA_DIR / "nwb_metadata.yaml"),
+    )
+
+
+def _card_top(page: Page, title: str) -> float:
+    """Y coordinate of a Panel Card's header, located by its title.
+
+    Matched on the header element rather than the title text, because the form's intro
+    paragraph names several of the cards in bold and would otherwise match first.
+    """
+    header = page.locator(".card-header").filter(has_text=title).first
+    header.wait_for(timeout=15000)
+    return header.bounding_box()["y"]
+
+
+def screenshot_input_metadata(page: Page) -> None:
+    """How-to: the top of the Step 6 form, down to the end of the Core NWB metadata card."""
+    pn.extension(notifications=True)
+    url = _serve(_metadata_template())
+    page.set_viewport_size({"width": VIEWPORT["width"], "height": 1400})
+    page.goto(url)
+    page.get_by_text("NWB metadata").first.wait_for()
+    page.wait_for_timeout(1500)
+    page.screenshot(
+        path=OUTPUT_DIR / "input_metadata.png",
+        clip={"x": 0, "y": 0, "width": VIEWPORT["width"], "height": _card_top(page, "Optical hardware") - 8},
+    )
+    print("Saved input_metadata.png")
+
+    page.set_viewport_size(VIEWPORT)
+    pn.state.kill_all_servers()
+
+
+def screenshot_input_metadata_channels(page: Page) -> None:
+    """How-to: the Step 6 channel section.
+
+    The channel card sits well below the fold, so the card element is screenshotted
+    directly: that scrolls it into view and sizes the image to the card, where a clipped
+    page screenshot would have to address a point outside the viewport.
+    """
+    pn.extension(notifications=True)
+    url = _serve(_metadata_template())
+    page.set_viewport_size({"width": VIEWPORT["width"], "height": 1400})
+    page.goto(url)
+    page.get_by_text("NWB metadata").first.wait_for()
+    page.wait_for_timeout(1500)
+    card = page.locator(".card").filter(has_text="Fiber-photometry channels").first
+    card.wait_for(timeout=15000)
+    card.screenshot(path=OUTPUT_DIR / "input_metadata_channels.png", timeout=30000)
+    print("Saved input_metadata_channels.png")
+
+    page.set_viewport_size(VIEWPORT)
+    pn.state.kill_all_servers()
+
+
 def main() -> None:
     """Launch a headless browser and regenerate every tutorial screenshot in order."""
     import tempfile
@@ -521,6 +679,16 @@ def main() -> None:
             screenshot_tonic_analysis(page, tmp_path)
             screenshot_tonic_results(page, tmp_path)
             screenshot_visualization(page, tmp_path)
+            screenshot_export_to_nwb_button(page)
+            screenshot_sidebar_progress(
+                page,
+                4,
+                "export_to_nwb_progress.png",
+                viewport_height=1400,
+                clip_from_step="Step 5 : Visualization",
+            )
+            screenshot_input_metadata(page)
+            screenshot_input_metadata_channels(page)
 
         browser.close()
 

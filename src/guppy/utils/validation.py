@@ -299,3 +299,27 @@ def validate_preprocessing_outputs_present(
             message = f"No preprocessing outputs found in '{run_folder}'. Run Step 3 (Preprocess) before {action}."
             logger.error(message)
             raise ValueError(message)
+
+
+def validate_data_not_combined(*, combine_data: bool) -> None:
+    """Validate that the selected sessions were not analyzed with combining enabled.
+
+    Parameters
+    ----------
+    combine_data : bool
+        The pipeline's ``combine_data`` setting.
+
+    Raises
+    ------
+    ValueError
+        If ``combine_data`` is True.
+    """
+    if combine_data:
+        message = (
+            "NWB export does not support combine_data=True. Combining collapses a run group into a "
+            "single output directory, while the export writes one NWB file per selected session from "
+            "that session's own raw folder, so there is no session the combined outputs belong to. "
+            "Re-run the pipeline with 'Combine Data?' set to False to export."
+        )
+        logger.error(message)
+        raise ValueError(message)

@@ -1,7 +1,18 @@
-# v2.0.0-alpha9 (Upcoming)
+# v2.0.0-beta2 (Upcoming)
 
 ## Features
 - Added tonic/basal fluorescence analysis for pharmacological experiments as a new optional **Tonic Analysis** step: name epoch windows (e.g. baseline vs. post-injection) per recording site on the preprocessed traces, and saving averages the z-score and ΔF/F over each window into `tonic_<recording_site>.h5`. The visualization's Tonic tab charts each epoch's change from a selectable baseline epoch as bars, alongside the windows shaded on the traces and a table of the absolute means. PSTH analysis is unaffected. [PR #397](https://github.com/LernerLab/GuPPy/pull/397)
+
+## Fixes
+
+## Improvements
+
+## Deprecations and Removals
+
+# v2.0.0-beta1 (August 20th, 2026)
+
+## Features
+- Added export to NWB, with a metadata input form for supplying subject/session details. Every format GuPPy reads is supported: a session recorded in TDT, Doric, Neurophotometrics or GuPPy's own CSV layout is bundled with its GuPPy outputs, and a session read from an NWB file — locally or streamed from DANDI — has its outputs added to the file it came from, so it needs no metadata form at all. A session's format is detected from its folder rather than assumed, and events imported from custom CSVs are read alongside whatever the rig recorded. The metadata form takes a session start time, marked as required for every format but TDT, whose tank header is the only raw one that reliably records it. Sessions the export cannot take are refused upfront with a message naming why: sessions whose traces come from more than one acquisition system, and sessions analyzed with **Combine Data?** enabled. NWB export also aborts upfront with a clear message when a selected session had its artifacts removed with the `concatenate` method, which re-times samples and breaks alignment to the acquisition clock. Documented in a how-to covering both export routes, an explanation page on what an exported file holds, and reference entries for the files the two steps write; sessions carrying data GuPPy does not read are pointed at NeuroConv, which can combine the GuPPy outputs with other acquisition streams in a single file. [PR #357](https://github.com/LernerLab/GuPPy/pull/357)
 - Added a **Photobleaching Detrend?** parameter: the isosbestic control fit can now include an exponential decay term for the photobleaching the control channel does not see, removing the slow drift that otherwise survives into the ΔF/F on multi-hour recordings. [PR #416](https://github.com/LernerLab/GuPPy/pull/416)
 - Added an **AUC Units** parameter: the peak/AUC areas can now be reported in z-score (or ΔF/F) × seconds, the unit commonly reported in the literature, instead of the sampling-rate-dependent one-sample spacing that remains the default. [PR #415](https://github.com/LernerLab/GuPPy/pull/415)
 - Artifact removal is now two optional steps of its own — **Select Artifact Windows** and **Remove Artifacts** — where you mark the periods containing artifacts and apply them in one pass. [PR #413](https://github.com/LernerLab/GuPPy/pull/413)
@@ -30,6 +41,7 @@
 - The Heat Map's first and last trial rows no longer render at half height: the Trials (Y) axis now always spans the full cell edges on every render, and its manual axis-limit boxes (which could clip the edge rows) were removed since the axis only encodes trial number. [PR #374](https://github.com/LernerLab/GuPPy/pull/374)
 
 ## Improvements
+- Added a [Contributor's Guide](https://guppy.readthedocs.io/en/latest/contributing/index.html) section to the documentation, opening with an [Architecture](https://guppy.readthedocs.io/en/latest/contributing/architecture.html) page that maps the seven packages under `src/guppy/`, their entry points, and which orchestration module backs each pipeline step. Replaces the orphaned `docs/architecture.md`, which described the v1-to-v2 refactor and was unreachable from the site nav. [PR #428](https://github.com/LernerLab/GuPPy/pull/428)
 - Replaced twelve hand-written copies of the "is this store a photometry channel" test with a single named `is_channel_label` predicate. Three of the copies, in the Doric reader, were case-sensitive, so a store label hand-edited to `Signal_DMS` was read there as a TTL instead of as a channel; all twelve now match case-insensitively, as the rest of the pipeline already did. [PR #427](https://github.com/LernerLab/GuPPy/pull/427)
 - Added a [Custom Plots from GuPPy Outputs](https://guppy.readthedocs.io/en/latest/tutorials/custom_plots.html) tutorial: how to open a run folder's HDF5 files in Python and build your own figures from the traces, the PSTH table and the peak/AUC table. [PR #421](https://github.com/LernerLab/GuPPy/pull/421)
 - Added an [Output data model](https://guppy.readthedocs.io/en/latest/reference/outputs.html) reference page documenting every file GuPPy writes: the run-folder naming scheme, the `.hdf5` and `.h5` formats, and the datasets or table columns inside each output from Step 1 through the group average. [PR #418](https://github.com/LernerLab/GuPPy/pull/418)
@@ -47,6 +59,7 @@
 - Renamed vague variable names (`arr`, `d`, `ts`, `op`, `cols`, suffixed `*_arr`, etc.) throughout `src/guppy/` to descriptive, context-appropriate names; behavior-preserving (consistency suite unchanged). [PR #378](https://github.com/LernerLab/GuPPy/pull/378)
 - Deduplicated copy-pasted code: shared timestamp-realignment kernels for artifact-removal and multi-session combining, a shared group-averaging preamble, a single pipeline-step launch helper in the homepage, and shared ndx-fiber-photometry boilerplate across the mock-NWB generators. [PR #377](https://github.com/LernerLab/GuPPy/pull/377)
 - Removed commented-out dead code throughout `src/guppy/` and clarified the remaining comments. [PR #376](https://github.com/LernerLab/GuPPy/pull/376)
+- Improved plot rendering by setting line_width to 1. [PR #430](https://github.com/LernerLab/GuPPy/pull/430)
 
 ## Deprecations and Removals
 - Removed the `removeArtifacts?` and `removeArtifacts method` controls from the Input Parameters form; the method is now chosen on the Select Artifact Windows page. Both keys remain in `GuPPyParamtersUsed.json`. [PR #413](https://github.com/LernerLab/GuPPy/pull/413)

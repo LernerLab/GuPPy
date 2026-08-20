@@ -11,6 +11,7 @@ from guppy.extractors.detect_acquisition_formats import (
     _is_event_csv,
     _is_float,
     detect_acquisition_formats,
+    detect_trace_formats,
 )
 from guppy_test_data import STUBBED_TESTING_DATA
 
@@ -176,3 +177,51 @@ def test_detect_acquisition_formats_after_npm_split_events(tmp_path):
     )
 
     assert detect_acquisition_formats(str(session_copy)) == {"npm"}
+
+
+# ---------------------------------------------------------------------------
+# detect_trace_formats
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "session_subdir, expected_formats",
+    [
+        ("tdt/Photo_63_207-181030-103332", {"tdt"}),
+        ("doric/sample_doric_1", {"doric"}),
+        ("csv/sample_data_csv_1", {"csv"}),
+        ("npm/sampleData_NPM_1", {"npm"}),
+    ],
+    ids=["tdt", "doric", "csv", "npm"],
+)
+def test_detect_trace_formats(session_subdir, expected_formats):
+    folder_path = os.path.join(STUBBED_TESTING_DATA, session_subdir)
+    assert detect_trace_formats(folder_path) == expected_formats
+
+
+@pytest.mark.parametrize(
+    "session_subdir, expected_formats",
+    [
+        ("tdt/Photo_63_207-181030-103332", {"tdt"}),
+        ("doric/sample_doric_1", {"doric"}),
+        ("npm/sampleData_NPM_1", {"npm"}),
+        ("csv/sample_data_csv_1", {"csv"}),
+    ],
+    ids=["tdt", "doric", "npm", "csv"],
+)
+def test_detect_trace_formats_ignores_external_csv_events(tmp_path, session_subdir, expected_formats):
+    # A single-column timestamps CSV carries event onsets and no photometry channel, so it must not
+    # make the folder a "csv" trace source the way detect_acquisition_formats reports it.
+    src = os.path.join(STUBBED_TESTING_DATA, session_subdir)
+    session_copy = tmp_path / os.path.basename(session_subdir)
+    shutil.copytree(src, session_copy)
+    (session_copy / "port_entries.csv").write_text("timestamps\n0.1\n0.2\n0.3\n")
+
+    assert detect_trace_formats(str(session_copy)) == expected_formats
+
+
+def test_detect_trace_formats_finds_nothing_in_an_events_only_folder(tmp_path):
+    (tmp_path / "port_entries.csv").write_text("timestamps\n0.1\n0.2\n0.3\n")
+
+    assert detect_trace_formats(str(tmp_path)) == set()
+    assert detect_acquisition_formats(str(tmp_path)) == {"csv"}

@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 856" width="1400" height="856" role="img" aria-labelledby="guppy-arch-title guppy-arch-desc">
+  <title id="guppy-arch-title">The seven packages that make up GuPPy</title>
+  <desc id="guppy-arch-desc">A tree diagram rooted at the GuPPy name, branching to seven cards, one per package under src/guppy. Top row: orchestration (the five-step pipeline), extractors (acquisition readers), analysis (signal processing), visualization (HoloViews overlays). Bottom row: frontend (Panel GUI), utils (shared substrate), testing (headless API).</desc>
+
+  <style>
+    .bg    { fill: none; }
+    .card  { fill: #222a27; stroke: #3a4540; stroke-width: 1.5; }
+    .pill  { fill: #1a211e; stroke: #3a4540; stroke-width: 1.5; }
+    .line  { stroke: #4a544e; stroke-width: 2; fill: none; stroke-linecap: round; }
+    .pkg   { fill: #4ade80; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 17px; }
+    .head  { fill: #e9edeb; font-weight: 700; font-size: 21px; }
+    .item  { fill: #9fb0a7; font-size: 18px; }
+    .brand { fill: #e9edeb; font-weight: 800; font-size: 52px; letter-spacing: -1px; }
+    .brand-accent { fill: #4ade80; }
+    text  { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  </style>
+
+  <rect class="bg" x="0" y="0" width="1400" height="856"/>
+
+  <!-- brand -->
+  <text class="brand" x="700" y="58" text-anchor="middle">Gu<tspan class="brand-accent">PP</tspan>y</text>
+
+  <!-- trunk and buses -->
+  <path class="line" d="M700 78 V520"/>
+  <path class="line" d="M190 136 H1210"/>
+  <path class="line" d="M190 136 V162 M530 136 V162 M870 136 V162 M1210 136 V162"/>
+  <path class="line" d="M360 520 H1040"/>
+  <path class="line" d="M360 520 V548 M700 520 V548 M1040 520 V548"/>
+
+  <!-- ── orchestration ── -->
+  <rect class="card" x="40" y="178" width="300" height="250" rx="14"/>
+  <rect class="pill" x="109" y="162" width="162" height="32" rx="16"/>
+  <text class="pkg" x="190" y="184" text-anchor="middle">orchestration</text>
+  <text class="head" x="66" y="224">Five-step pipeline</text>
+  <text class="item" x="66" y="266">label stores</text>
+  <text class="item" x="66" y="300">read raw data</text>
+  <text class="item" x="66" y="334">preprocess</text>
+  <text class="item" x="66" y="368">compute PSTH</text>
+  <text class="item" x="66" y="402">visualize</text>
+
+  <!-- ── extractors ── -->
+  <rect class="card" x="380" y="178" width="300" height="284" rx="14"/>
+  <rect class="pill" x="465" y="162" width="130" height="32" rx="16"/>
+  <text class="pkg" x="530" y="184" text-anchor="middle">extractors</text>
+  <text class="head" x="406" y="224">Acquisition readers</text>
+  <text class="item" x="406" y="266">TDT</text>
+  <text class="item" x="406" y="300">Doric</text>
+  <text class="item" x="406" y="334">Neurophotometrics</text>
+  <text class="item" x="406" y="368">CSV</text>
+  <text class="item" x="406" y="402">NWB / DANDI</text>
+  <text class="item" x="406" y="436">format auto-detect</text>
+
+  <!-- ── analysis ── -->
+  <rect class="card" x="720" y="178" width="300" height="284" rx="14"/>
+  <rect class="pill" x="815" y="162" width="110" height="32" rx="16"/>
+  <text class="pkg" x="870" y="184" text-anchor="middle">analysis</text>
+  <text class="head" x="746" y="224">Signal processing</text>
+  <text class="item" x="746" y="266">artifact removal</text>
+  <text class="item" x="746" y="300">control-channel fit</text>
+  <text class="item" x="746" y="334">ΔF/F &amp; z-score</text>
+  <text class="item" x="746" y="368">PSTH &amp; peak / AUC</text>
+  <text class="item" x="746" y="402">transient detection</text>
+  <text class="item" x="746" y="436">cross-correlation</text>
+
+  <!-- ── visualization ── -->
+  <rect class="card" x="1060" y="178" width="300" height="216" rx="14"/>
+  <rect class="pill" x="1129" y="162" width="162" height="32" rx="16"/>
+  <text class="pkg" x="1210" y="184" text-anchor="middle">visualization</text>
+  <text class="head" x="1086" y="224">HoloViews overlays</text>
+  <text class="item" x="1086" y="266">control &amp; signal traces</text>
+  <text class="item" x="1086" y="300">artifact window spans</text>
+  <text class="item" x="1086" y="334">transient peak overlays</text>
+  <text class="item" x="1086" y="368">datashaded rendering</text>
+
+  <!-- ── frontend ── -->
+  <rect class="card" x="210" y="564" width="300" height="250" rx="14"/>
+  <rect class="pill" x="305" y="548" width="110" height="32" rx="16"/>
+  <text class="pkg" x="360" y="570" text-anchor="middle">frontend</text>
+  <text class="head" x="236" y="610">Panel GUI</text>
+  <text class="item" x="236" y="652">sidebar &amp; folder select</text>
+  <text class="item" x="236" y="686">parameter forms</text>
+  <text class="item" x="236" y="720">store-label selector</text>
+  <text class="item" x="236" y="754">artifact editor</text>
+  <text class="item" x="236" y="788">visualization dashboard</text>
+
+  <!-- ── utils ── -->
+  <rect class="card" x="550" y="564" width="300" height="216" rx="14"/>
+  <rect class="pill" x="661" y="548" width="79" height="32" rx="16"/>
+  <text class="pkg" x="700" y="570" text-anchor="middle">utils</text>
+  <text class="head" x="576" y="610">Shared substrate</text>
+  <text class="item" x="576" y="652">HDF5 read / write</text>
+  <text class="item" x="576" y="686">run-folder discovery</text>
+  <text class="item" x="576" y="720">progress reporting</text>
+  <text class="item" x="576" y="754">input validation</text>
+
+  <!-- ── testing ── -->
+  <rect class="card" x="890" y="564" width="300" height="182" rx="14"/>
+  <rect class="pill" x="990" y="548" width="99" height="32" rx="16"/>
+  <text class="pkg" x="1040" y="570" text-anchor="middle">testing</text>
+  <text class="head" x="916" y="610">Headless API</text>
+  <text class="item" x="916" y="652">step1() – step5()</text>
+  <text class="item" x="916" y="686">consistency checks</text>
+  <text class="item" x="916" y="720">mock extractors</text>
+</svg>
