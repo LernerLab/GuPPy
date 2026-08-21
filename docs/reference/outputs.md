@@ -36,16 +36,11 @@ Raw HDF5 written with h5py, following GuPPy's convention of one file per store w
 
 ### `.h5`
 
-A pandas DataFrame written with `DataFrame.to_hdf`, holding exactly one DataFrame under the key `df`, and read back through pandas rather than h5py. These are the PSTH, peak/AUC, transient-summary, cross-correlation and tonic tables.
+A pandas DataFrame written with `DataFrame.to_hdf`, holding exactly one DataFrame under the key `df`, and read back through pandas rather than h5py. These are the PSTH, peak/AUC, transient-summary, binned-metrics, cross-correlation and tonic tables.
 
 ### `.csv`
 
-Flat text. Inside a run folder: the store mappings (`storesList.csv`, `combine_storesList.csv`), tables that also exist as an `.h5` (peak/AUC, transient frequency and amplitude), and the two tables written as CSV only — `transientsOccurrences_<metric>.csv` and `tonic_epochs_<site>.csv`. The channel exports written outside the run folder are CSV too.
-A pandas DataFrame written with `DataFrame.to_hdf`, holding exactly one DataFrame under the key `df`, and read back through pandas rather than h5py. These are the PSTH, peak/AUC, transient-summary, binned-metrics and cross-correlation tables.
-
-### `.csv`
-
-Flat text. Inside a run folder: the store mappings (`storesList.csv`, `combine_storesList.csv`), tables that also exist as an `.h5` (peak/AUC, transient frequency and amplitude, binned metrics), and `transientsOccurrences_<metric>.csv`, the one table written as CSV only. The channel exports written outside the run folder are CSV too.
+Flat text. Inside a run folder: the store mappings (`storesList.csv`, `combine_storesList.csv`), tables that also exist as an `.h5` (peak/AUC, transient frequency and amplitude, binned metrics), and the two tables written as CSV only — `transientsOccurrences_<metric>.csv` and `tonic_epochs_<site>.csv`. The channel exports written outside the run folder are CSV too.
 
 ### `.npy`
 

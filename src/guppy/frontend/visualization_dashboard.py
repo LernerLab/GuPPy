@@ -376,8 +376,8 @@ class VisualizationDashboard:
             ("PSTH", self._psth_tab),
             ("Heat Map", self._heatmap_tab),
             ("Tonic", self._tonic_tab),
+            ("Binned", self._binned_tab),
         )
-        app = pn.Tabs(("PSTH", self._psth_tab), ("Heat Map", self._heatmap_tab), ("Binned", self._binned_tab))
         template.main.append(app)
         return template
 
