@@ -1,8 +1,7 @@
 # Development environment
 
 This page covers the mechanics of working on GuPPy itself: setting up a conda environment,
-installing the dependency groups, running the app from source, and the style checks a pull
-request has to pass.
+installing the dependency groups, and the style checks a pull request has to pass.
 
 ## Setting up a conda environment
 
@@ -49,29 +48,6 @@ pip install --group dev
 pip install --group test
 pip install --group docs
 ```
-
-## Running GuPPy from source
-
-The `guppy` console script is the `main` function in
-[`main.py`](https://github.com/LernerLab/GuPPy/blob/main/src/guppy/main.py), registered via the
-`guppy = "guppy.main:main"` entry point. With no flags it launches the GUI:
-
-```bash
-guppy
-```
-
-Two flags are available:
-
-- `--export-logs` exports the current log file to the Desktop with a timestamped filename, for
-  sharing with support, and exits without launching the GUI.
-- `--start-path PATH` sets the initial directory the folder selector opens to, instead of the
-  home directory.
-
-### Headless mode
-
-Setting the `GUPPY_BASE_DIR` environment variable bypasses the Tk folder dialogs, which is what
-makes the application runnable and testable without a display. See [testing.md](testing.md) for
-how the test suite drives the app this way.
 
 ## Code style
 
