@@ -34,6 +34,7 @@ class TestMain:
             "/artifact-view",
             "/preprocess-view",
             "/select-artifact-windows",
+            "/tonic-analysis",
             "/transients-view",
         ]
         assert exported == []

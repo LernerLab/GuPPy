@@ -84,7 +84,9 @@ This will launch the GuPPy user interface, where you can begin analyzing your fi
 
 ## Documentation
 
-> **Note:** The Wiki and video tutorials below refer to GuPPy v1.3.0 and earlier. Updated documentation for v2.0 is coming soon.
+The GuPPy documentation lives at [guppy.readthedocs.io](https://guppy.readthedocs.io/): a [tutorial](https://guppy.readthedocs.io/en/latest/tutorials/index.html) walking through a first analysis end to end, [how-to guides](https://guppy.readthedocs.io/en/latest/how-to/index.html) for individual tasks, [explanations](https://guppy.readthedocs.io/en/latest/explanation/index.html) of how the analysis works, and a [reference](https://guppy.readthedocs.io/en/latest/reference/index.html) for every input parameter and output file.
+
+> **Note:** The Wiki and video tutorials below refer to GuPPy v1.3.0 and earlier.
 
 ### Wiki
 - The full instructions along with detailed descriptions of each step to run the GuPPy tool is on [Github Wiki Page](https://github.com/LernerLab/GuPPy/wiki).

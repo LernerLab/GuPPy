@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from guppy.utils.validation import (
+    validate_data_not_combined,
     validate_non_negative,
     validate_peak_windows,
     validate_positive,
@@ -215,3 +216,16 @@ class TestValidateSameParentDirectory:
         ]
         with pytest.raises(ValueError, match="folders selected should be at the same location"):
             validate_same_parent_directory(paths=paths)
+
+
+class TestValidateDataNotCombined:
+    def test_raises_when_combining(self):
+        with pytest.raises(ValueError) as excinfo:
+            validate_data_not_combined(combine_data=True)
+
+        message = str(excinfo.value)
+        assert "does not support combine_data=True" in message
+        assert "'Combine Data?' set to False" in message
+
+    def test_passes_when_not_combining(self):
+        validate_data_not_combined(combine_data=False)

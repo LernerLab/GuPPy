@@ -8,6 +8,8 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+RAISE_ISSUE_URL = "https://github.com/LernerLab/GuPPy/issues/new"
+
 _RUN_NAME_MARKER = "_output_"
 _FORBIDDEN_RUN_NAME_CHARACTERS = ("/", "\\", ":", "\0")
 
@@ -181,6 +183,23 @@ def run_folder_for_run(session_path: str, run_name: str) -> str:
     """
     basename = os.path.basename(session_path.rstrip(os.sep))
     return os.path.join(session_path, basename + _RUN_NAME_MARKER + run_name)
+
+
+def selected_session_runs(*, inputParameters: dict[str, object]) -> list[tuple[str, str]]:
+    """Flatten ``selected_runs`` into ``(session_path, run_name)`` pairs.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters.
+
+    Returns
+    -------
+    list of (str, str)
+        One pair per selected run, in the order the sessions and runs were selected.
+    """
+    selected_runs: dict[str, list[str]] = inputParameters["selected_runs"]
+    return [(session_path, run_name) for session_path, run_names in selected_runs.items() for run_name in run_names]
 
 
 def select_run_folders(session_path: str, selected_runs: list[str]) -> list[str]:

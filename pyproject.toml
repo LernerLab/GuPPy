@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "guppy-neuro"
-version = "2.0.0-alpha9"
+version = "2.0.0-beta2"
 description = "Guided Photometry Analysis in Python, a free and open-source fiber photometry data analysis tool."
 readme = "README.md"
 authors = [
@@ -30,6 +30,7 @@ keywords = [
     "signal-processing",
 ]
 classifiers = [
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.12",
@@ -38,8 +39,7 @@ classifiers = [
     "Operating System :: POSIX :: Linux",
     "Operating System :: Microsoft :: Windows",
     "Operating System :: MacOS",
-    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
-
+    "License :: OSI Approved :: BSD License",
 ]
 requires-python = ">=3.10"
 dependencies = [
@@ -60,6 +60,9 @@ dependencies = [
     "selenium",
     "dandi",
     "remfile",
+    "pyyaml",
+    "neuroconv[guppy]>=0.10.0",
+    "ndx-guppy==0.1.0",
 ]
 
 [dependency-groups]
