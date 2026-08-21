@@ -9,6 +9,17 @@ how the two relate across the session.
 This is an **optional** step. If you only care about signal aligned to discrete
 events, use event TTLs instead and skip this guide.
 
+**To try it without your own data**, the repository ships a sample session at
+`stubbed_testing_data/csv/sample_data_csv_covariate_1/`. It holds a control and a
+signal channel, a TTL channel, and two covariates: `akinesia`, which tracks the
+signal, and `grooming`, which does not. Follow this guide against that folder with a
+**Bin Width (s)** of `50`. The CSVs are stored with [Git LFS](https://git-lfs.com),
+so pull them before use:
+
+```bash
+git lfs pull --include="stubbed_testing_data/csv/sample_data_csv_covariate_1/*"
+```
+
 ## 1. Prepare the CSV
 
 A covariate is an ordinary GuPPy CSV: three columns, one row per score.
@@ -65,6 +76,11 @@ Open **Step 1: Label Stores**. Your file appears as a store named after the file
 **behavioral covariate** and type a **Name** for the variable — this is the name
 that appears in the outputs and in the plots.
 
+```{image} ../_static/images/covariate_label_stores.png
+:alt: The Label Stores GUI for a session with two covariates: the control, signal and TTL stores labeled as usual, then rows for akinesia and grooming whose Type is set to behavioral covariate with the variable name typed alongside
+:width: 90%
+```
+
 Names cannot contain spaces, and each one must be unique within the session.
 
 ## 5. Run Steps 2 to 4
@@ -99,7 +115,12 @@ behind the two coefficients.
 ## 7. View the scatter
 
 Open **Step 5: Visualize** and select the **Covariates** tab. Pick a recording site,
-a metric and a covariate to see one point per bin.
+a metric and a covariate to see one point per bin. The correlations table sits below
+the scatter, so every pair is visible at once.
+
+```{image} ../_static/images/covariate_correlations.png
+:alt: The Covariates tab: Recording site, Metric and Covariate selectors above a scatter of mean delta F over F against akinesia, one point per bin colored by bin number, titled with the Pearson r, Spearman rho and bin count; below it the note on why no p-value is reported, and the table of every metric-covariate pair
+```
 
 Points are colored by bin number, running from the start of the session to the end.
 That coloring is worth attending to: if the colors form a clean gradient across the

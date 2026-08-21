@@ -29,6 +29,7 @@ import panel as pn
 from guppy.analysis.standard_io import write_tonic_to_hdf5
 from guppy.analysis.tonic import compute_tonic_means
 from guppy.frontend.artifact_windows_page import ArtifactWindowSelector
+from guppy.frontend.covariate_correlation_view import build_covariate_correlation_view
 from guppy.frontend.custom_events_config import CustomEventsConfig
 from guppy.frontend.dandi_selector import DandiSelector
 from guppy.frontend.frontend_utils import scanPortsAndFind
@@ -40,6 +41,7 @@ from guppy.frontend.visualization_dashboard import VisualizationDashboard
 from guppy.orchestration.home import build_homepage
 from guppy.orchestration.metadata import build_metadata_template
 from guppy.orchestration.store_labeling import build_store_labeling_template
+from guppy.testing.covariate_session import run_covariate_session
 from guppy.utils._hdf5_io import write_hdf5
 from guppy.utils.nwb_metadata import (
     Channel,
@@ -328,6 +330,78 @@ def screenshot_tonic_results(page: Page, tmp_path: Path) -> None:
         clip={"x": 0, "y": 0, "width": 1280, "height": 1220},
     )
     print("Saved tonic_results.png")
+
+    page.set_viewport_size(VIEWPORT)
+    pn.state.kill_all_servers()
+
+
+def screenshot_covariate_label_stores(page: Page) -> None:
+    """How-to: the Label Stores GUI with both behavioral covariates typed and named.
+
+    Built directly rather than driven through the UI, for the reasons
+    ``screenshot_label_stores_configured`` documents. The cached labels are the
+    ``covariate_<name>`` strings Step 1 writes, which the config parses back into a
+    "behavioral covariate" type and a name.
+    """
+    store_ids = ["Sample_Control_Channel", "Sample_Signal_Channel", "Sample_TTL", "akinesia", "grooming"]
+
+    selector = StoreLabelingSelector(allnames=store_ids)
+    selector.cross_selector.value = store_ids
+    selector.set_change_widgets(store_ids)
+    selector.store_ids = store_ids
+    selector.configure_store_ids(
+        store_id_to_store_labels={
+            "Sample_Control_Channel": ["control_DMS"],
+            "Sample_Signal_Channel": ["signal_DMS"],
+            "Sample_TTL": ["ttl"],
+            "akinesia": ["covariate_akinesia"],
+            "grooming": ["covariate_grooming"],
+        }
+    )
+
+    template = pn.template.BootstrapTemplate(title="Label Stores GUI - sample_data_csv_covariate_1")
+    template.main.append(selector.widget)
+    url = _serve(template)
+
+    page.set_viewport_size({"width": 1280, "height": 1100})
+    page.goto(url)
+    page.get_by_text("Label Stores").first.wait_for()
+    page.wait_for_timeout(1500)
+    page.screenshot(
+        path=OUTPUT_DIR / "covariate_label_stores.png",
+        clip={"x": 0, "y": 0, "width": 660, "height": 1090},
+    )
+    print("Saved covariate_label_stores.png")
+
+    page.set_viewport_size(VIEWPORT)
+    pn.state.kill_all_servers()
+
+
+def screenshot_covariate_correlations(page: Page, tmp_path: Path) -> None:
+    """How-to: the Covariates tab of the visualization.
+
+    Unlike every other screenshot here, this one runs the real pipeline. The view reads
+    the binned metrics, binned covariates and correlations straight off disk, and those
+    three tables are exactly what the how-to is describing, so staging fabricated ones
+    would let the picture drift from what Step 4 actually writes.
+    """
+    base_directory = tmp_path / "covariate_run"
+    base_directory.mkdir(exist_ok=True)
+    run_folder = run_covariate_session(base_directory=base_directory)
+
+    template = pn.template.BootstrapTemplate(title="GuPPy — Visualization")
+    template.main.append(build_covariate_correlation_view(run_folder))
+    url = _serve(template)
+
+    page.set_viewport_size({"width": 1280, "height": 1500})
+    page.goto(url)
+    page.get_by_text("Covariate").first.wait_for()
+    page.wait_for_timeout(3000)
+    page.screenshot(
+        path=OUTPUT_DIR / "covariate_correlations.png",
+        clip={"x": 0, "y": 0, "width": 1280, "height": 850},
+    )
+    print("Saved covariate_correlations.png")
 
     page.set_viewport_size(VIEWPORT)
     pn.state.kill_all_servers()
@@ -919,6 +993,8 @@ def main() -> None:
             screenshot_tonic_analysis_button(page)
             screenshot_tonic_analysis(page, tmp_path)
             screenshot_tonic_results(page, tmp_path)
+            screenshot_covariate_label_stores(page)
+            screenshot_covariate_correlations(page, tmp_path)
             screenshot_visualization(page, tmp_path)
             screenshot_compare_parameters_run_name(page)
             screenshot_compare_parameters_existing_runs(page)

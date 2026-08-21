@@ -1,6 +1,5 @@
 import glob
 import os
-import shutil
 
 import numpy as np
 import pandas as pd
@@ -12,70 +11,51 @@ from guppy.analysis.standard_io import (
     read_binned_metrics_from_hdf5,
     read_covariate_correlations_from_hdf5,
 )
-from guppy.testing.api import step1, step2, step3, step4
-from guppy.utils.utils import parse_run_name
-from guppy_test_data import STUBBED_TESTING_DATA
+from guppy.testing.covariate_session import (
+    BIN_WIDTH,
+    COVARIATE_NAMES,
+    RECORDING_SITE,
+    run_covariate_session,
+)
+from guppy.testing.scripts.create_stubbed_testing_data import (
+    COVARIATE_CSV_DURATION,
+    COVARIATE_SCORING_CADENCE,
+)
 
-from .integration_helpers import REPRESENTATIVE_SESSIONS, _locate_output_directory
+# The sample session runs 600 s, so the 50 s bins give twelve of them. The first
+# second is trimmed with the lights-on window, which shortens the first and last bins
+# but leaves every bin holding at least one score.
+EXPECTED_BIN_COUNT = 12
+DRIVING_COVARIATE, NULL_COVARIATE = COVARIATE_NAMES
 
-# The stubbed CSV session runs ~411 s, so 100 s bins give four whole bins and a
-# short fifth one. Scoring every 50 s puts at least one sample in every bin.
-BIN_WIDTH = 100
-COVARIATE_CADENCE = 50.0
-RECORDING_SITE = "region"
-COVARIATE_NAME = "akinesia"
+# The session is synthesized so that akinesia drives the signal and grooming does not.
+# Both numbers are what the deterministic generator produces; the contrast between them
+# is the assertion with teeth, since crossed covariate columns or a misaligned binning
+# would not preserve it.
+DRIVING_PEARSON_R = 0.8436
+NULL_PEARSON_R = 0.3288
 
 
 @pytest.fixture(scope="module")
 def covariate_session(tmp_path_factory):
-    """A stubbed CSV session carrying a hand-scored behavioral covariate, run through step 4."""
-    representative_config = REPRESENTATIVE_SESSIONS["csv"]
-    source_session = os.path.join(str(STUBBED_TESTING_DATA), representative_config["session_subdir"])
+    """The behavioral-covariate sample session, run through step 4."""
     base_directory = tmp_path_factory.mktemp("integration_covariates")
-    session = base_directory / os.path.basename(source_session)
-    shutil.copytree(source_session, session, ignore=shutil.ignore_patterns("*_output_*"))
-
-    signal = pd.read_csv(session / "Sample_Signal_Channel.csv")
-    span_end = float(signal["timestamps"].iloc[-1])
-    timestamps = np.arange(0.0, span_end, COVARIATE_CADENCE)
-    pd.DataFrame(
-        {
-            "timestamps": timestamps,
-            "data": np.arange(timestamps.size, dtype=float),
-            "sampling_rate": np.full(timestamps.size, 1.0 / COVARIATE_CADENCE),
-        }
-    ).to_csv(session / (COVARIATE_NAME + ".csv"), index=False)
-
-    store_id_to_store_label = dict(representative_config["store_id_to_store_label"])
-    store_id_to_store_label[COVARIATE_NAME] = "covariate_" + COVARIATE_NAME
-
-    step1(
-        base_dir=str(base_directory),
-        selected_folders=[str(session)],
-        store_id_to_store_label=store_id_to_store_label,
-    )
-    output_directory = _locate_output_directory(session_copy=str(session))
-    selected_runs = {str(session): [parse_run_name(output_directory)]}
-
-    step2(base_dir=str(base_directory), selected_folders=[str(session)], selected_runs=selected_runs)
-    step3(base_dir=str(base_directory), selected_folders=[str(session)], selected_runs=selected_runs)
-    step4(
-        base_dir=str(base_directory),
-        selected_folders=[str(session)],
-        selected_runs=selected_runs,
-        compute_binned_metrics=True,
-        binned_metrics_width=BIN_WIDTH,
-    )
-    return _locate_output_directory(session_copy=str(session))
+    return run_covariate_session(base_directory=base_directory)
 
 
 class TestCovariateIngestion:
     def test_step2_preserves_values_and_timestamps(self, covariate_session):
-        values = np.asarray(read_hdf5(COVARIATE_NAME, covariate_session, "data")).ravel()
-        timestamps = np.asarray(read_hdf5(COVARIATE_NAME, covariate_session, "timestamps")).ravel()
+        values = np.asarray(read_hdf5(DRIVING_COVARIATE, covariate_session, "data")).ravel()
+        timestamps = np.asarray(read_hdf5(DRIVING_COVARIATE, covariate_session, "timestamps")).ravel()
+        scored = pd.read_csv(
+            os.path.join(
+                os.path.dirname(covariate_session),
+                DRIVING_COVARIATE + ".csv",
+            )
+        )
 
-        np.testing.assert_allclose(values, np.arange(values.size, dtype=float))
-        np.testing.assert_allclose(timestamps, np.arange(0.0, timestamps.size * COVARIATE_CADENCE, COVARIATE_CADENCE))
+        np.testing.assert_allclose(values, scored["data"].to_numpy())
+        np.testing.assert_allclose(timestamps, np.arange(0.0, COVARIATE_CSV_DURATION, COVARIATE_SCORING_CADENCE))
 
     def test_step3_does_not_treat_the_covariate_as_an_event(self, covariate_session):
         # Regression guard: a covariate must not go down the event-correction path,
@@ -84,7 +64,8 @@ class TestCovariateIngestion:
 
     def test_step4_computes_no_psth_for_the_covariate(self, covariate_session):
         psth_files = glob.glob(os.path.join(covariate_session, "*covariate*psth*"))
-        psth_files += glob.glob(os.path.join(covariate_session, "*" + COVARIATE_NAME + "*_z_score*"))
+        for name in COVARIATE_NAMES:
+            psth_files += glob.glob(os.path.join(covariate_session, "*" + name + "*_z_score*"))
 
         assert psth_files == []
 
@@ -105,10 +86,19 @@ class TestCovariateOutputs:
         assert list(binned.columns) == [
             "bin_start",
             "bin_end",
-            COVARIATE_NAME,
-            "n_samples_" + COVARIATE_NAME,
+            "akinesia",
+            "grooming",
+            "n_samples_akinesia",
+            "n_samples_grooming",
         ]
         assert binned.index.name == "bin"
+
+    def test_bins_cover_the_session_at_the_requested_width(self, covariate_session):
+        binned = read_binned_covariates_from_hdf5(filepath=covariate_session, recording_site=RECORDING_SITE)
+
+        assert len(binned) == EXPECTED_BIN_COUNT
+        np.testing.assert_allclose(binned["bin_start"].to_numpy()[1:5], [51.0, 101.0, 151.0, 201.0])
+        np.testing.assert_allclose(np.diff(binned["bin_start"].to_numpy()), BIN_WIDTH)
 
     def test_bins_are_identical_to_the_metrics_table(self, covariate_session):
         binned = read_binned_covariates_from_hdf5(filepath=covariate_session, recording_site=RECORDING_SITE)
@@ -124,13 +114,20 @@ class TestCovariateOutputs:
         assert list(correlations.columns) == ["metric", "covariate", "pearson_r", "spearman_rho", "n_bins"]
         assert correlations.index.name == "pair"
 
-    def test_every_metric_is_correlated_against_the_covariate(self, covariate_session):
+    def test_every_metric_is_correlated_against_every_covariate(self, covariate_session):
         correlations = read_covariate_correlations_from_hdf5(filepath=covariate_session, recording_site=RECORDING_SITE)
         metrics = read_binned_metrics_from_hdf5(covariate_session, RECORDING_SITE)
         expected_metrics = [name for name in metrics.columns if name not in ("bin_start", "bin_end", "n_samples")]
 
-        assert sorted(correlations["metric"]) == sorted(expected_metrics)
-        assert set(correlations["covariate"]) == {COVARIATE_NAME}
+        assert set(correlations["covariate"]) == set(COVARIATE_NAMES)
+        assert sorted(correlations["metric"]) == sorted(name for name in expected_metrics for _ in COVARIATE_NAMES)
+
+    def test_the_driving_covariate_correlates_and_the_null_one_does_not(self, covariate_session):
+        correlations = read_covariate_correlations_from_hdf5(filepath=covariate_session, recording_site=RECORDING_SITE)
+        mean_zscore = correlations[correlations["metric"] == "mean_zscore"].set_index("covariate")
+
+        assert mean_zscore.loc[DRIVING_COVARIATE, "pearson_r"] == pytest.approx(DRIVING_PEARSON_R, abs=0.02)
+        assert mean_zscore.loc[NULL_COVARIATE, "pearson_r"] == pytest.approx(NULL_PEARSON_R, abs=0.02)
 
     def test_reported_bin_count_matches_the_tables_on_disk(self, covariate_session):
         correlations = read_covariate_correlations_from_hdf5(filepath=covariate_session, recording_site=RECORDING_SITE)
