@@ -22,15 +22,19 @@ import numpy as np
 import pandas as pd
 import panel as pn
 
+from guppy.analysis.standard_io import write_tonic_to_hdf5
+from guppy.analysis.tonic import compute_tonic_means
 from guppy.frontend.artifact_windows_page import ArtifactWindowSelector
 from guppy.frontend.custom_events_config import CustomEventsConfig
 from guppy.frontend.frontend_utils import scanPortsAndFind
 from guppy.frontend.parameterized_plotter import ParameterizedPlotter
 from guppy.frontend.store_labeling_selector import StoreLabelingSelector
+from guppy.frontend.tonic_epochs import TonicEpochConfig, TonicResultsView
 from guppy.frontend.visualization_dashboard import VisualizationDashboard
 from guppy.orchestration.home import build_homepage
 from guppy.orchestration.metadata import build_metadata_template
 from guppy.orchestration.store_labeling import build_store_labeling_template
+from guppy.utils._hdf5_io import write_hdf5
 from guppy.utils.nwb_metadata import (
     Channel,
     build_metadata_dict,
@@ -191,6 +195,127 @@ def screenshot_select_artifact_windows(page: Page, tmp_path: Path) -> None:
         clip={"x": 0, "y": 0, "width": 1280, "height": 1310},
     )
     print("Saved select_artifact_windows.png")
+
+    page.set_viewport_size(VIEWPORT)
+    pn.state.kill_all_servers()
+
+
+# Equal-length windows placed inside each phase, clear of the transitions at 60 s and 120 s —
+# the placement the how-to recommends, so the shaded spans read as three separate windows.
+TONIC_EPOCHS = [("baseline", 10.0, 50.0), ("drug", 70.0, 110.0), ("washout", 138.0, 178.0)]
+
+
+def _synthetic_site_traces(*, recording_sites: list[str]) -> dict[str, dict[str, object]]:
+    """Build stand-in z-score / dF/F traces for a bolus-injection recording.
+
+    Mirrors the shape ``load_site_traces`` returns, and the three phases of the
+    ``sample_data_csv_injection_1`` stub, so the epoch page can be rendered without a
+    preprocessed run folder on disk and the picture matches the worked example in the docs.
+    """
+    timestamps = np.arange(0.0, 180.0, 0.01)
+    random_generator = np.random.default_rng(0)
+    # Held from the injection at 60 s, then cleared exponentially to a residual from 120 s.
+    step = np.where(timestamps >= 60.0, 1.0, 0.0)
+    decay = np.exp(-np.maximum(timestamps - 120.0, 0.0) / 6.0)
+    drug_effect = step * np.where(timestamps >= 120.0, 0.25 + 0.75 * decay, 1.0)
+
+    site_traces = {}
+    for index, site in enumerate(recording_sites):
+        amplitude = 3.0 - index  # sites respond at different magnitudes
+        z_score = amplitude * drug_effect + random_generator.normal(0.0, 0.25, timestamps.size)
+        site_traces[site] = {
+            "x": timestamps,
+            "y_zscore": z_score,
+            "y_dff": z_score / 10.0,
+        }
+    return site_traces
+
+
+def screenshot_tonic_analysis_button(page: Page) -> None:
+    """How-to: the sidebar showing the optional tonic step between Remove Artifacts and Step 4."""
+    os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
+    template = build_homepage()
+    url = _serve(template)
+    # The crop has to reach Step 4 to show where the optional step falls in the order, which
+    # runs past the bottom of the default viewport — a clip beyond it is silently truncated.
+    page.set_viewport_size({"width": 1280, "height": 1200})
+    page.goto(url)
+    page.get_by_text("Individual Analysis").first.wait_for()
+    page.wait_for_timeout(1000)
+    page.screenshot(
+        path=OUTPUT_DIR / "tonic_analysis_button.png",
+        clip={"x": 0, "y": 400, "width": 340, "height": 680},
+    )
+    print("Saved tonic_analysis_button.png")
+
+    page.set_viewport_size(VIEWPORT)
+    pn.state.kill_all_servers()
+
+
+def screenshot_tonic_analysis(page: Page, tmp_path: Path) -> None:
+    """How-to: the Tonic Analysis page with the three injection phases filled in."""
+    run_folder = tmp_path / "sample_data_csv_injection_1_output_1"
+    run_folder.mkdir(exist_ok=True)
+
+    config = TonicEpochConfig(str(run_folder), _synthetic_site_traces(recording_sites=["DMS", "DLS"]))
+    config.set_epochs("DMS", TONIC_EPOCHS)
+
+    template = pn.template.BootstrapTemplate(title="GuPPy — Tonic Analysis")
+    template.main.append(config.widget)
+    url = _serve(template)
+
+    # Render tall enough that both trace panels lay out (bokeh does not draw plots that
+    # never enter the viewport), then clip to the content instead of the padded page.
+    page.set_viewport_size({"width": 1280, "height": 1500})
+    page.goto(url)
+    page.get_by_text("Tonic Analysis").first.wait_for()
+    page.wait_for_timeout(3000)
+    page.screenshot(
+        path=OUTPUT_DIR / "tonic_analysis.png",
+        clip={"x": 0, "y": 0, "width": 1280, "height": 1060},
+    )
+    print("Saved tonic_analysis.png")
+
+    page.set_viewport_size(VIEWPORT)
+    pn.state.kill_all_servers()
+
+
+def screenshot_tonic_results(page: Page, tmp_path: Path) -> None:
+    """How-to: the Tonic tab of the visualization, showing each epoch's change from baseline.
+
+    ``TonicResultsView`` reads everything from the run folder, so the preprocessed traces and
+    the saved epochs are staged on disk first.
+    """
+    run_folder = tmp_path / "sample_data_csv_injection_1_output_2"
+    run_folder.mkdir(exist_ok=True)
+
+    site = "DMS"
+    trace = _synthetic_site_traces(recording_sites=[site])[site]
+    write_hdf5(trace["x"], "timeCorrection_" + site, str(run_folder), "timestampNew")
+    write_hdf5(trace["y_zscore"], "z_score_" + site, str(run_folder), "data")
+    write_hdf5(trace["y_dff"], "dff_" + site, str(run_folder), "data")
+
+    epochs = pd.DataFrame(TONIC_EPOCHS, columns=["label", "start", "end"])
+    epochs.to_csv(run_folder / f"tonic_epochs_{site}.csv", index=False)
+    write_tonic_to_hdf5(
+        str(run_folder),
+        compute_tonic_means(trace["y_zscore"], trace["y_dff"], trace["x"], epochs),
+        site,
+    )
+
+    template = pn.template.BootstrapTemplate(title="GuPPy — Visualization")
+    template.main.append(TonicResultsView(str(run_folder)).widget)
+    url = _serve(template)
+
+    page.set_viewport_size({"width": 1280, "height": 1500})
+    page.goto(url)
+    page.get_by_text("Tonic / basal analysis").first.wait_for()
+    page.wait_for_timeout(3000)
+    page.screenshot(
+        path=OUTPUT_DIR / "tonic_results.png",
+        clip={"x": 0, "y": 0, "width": 1280, "height": 1220},
+    )
+    print("Saved tonic_results.png")
 
     page.set_viewport_size(VIEWPORT)
     pn.state.kill_all_servers()
@@ -550,6 +675,9 @@ def main() -> None:
             screenshot_sidebar_progress(page, 3, "06_psth_progress.png")
             screenshot_select_artifact_windows_button(page)
             screenshot_select_artifact_windows(page, tmp_path)
+            screenshot_tonic_analysis_button(page)
+            screenshot_tonic_analysis(page, tmp_path)
+            screenshot_tonic_results(page, tmp_path)
             screenshot_visualization(page, tmp_path)
             screenshot_export_to_nwb_button(page)
             screenshot_sidebar_progress(

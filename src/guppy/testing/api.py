@@ -15,7 +15,11 @@ import os
 from typing import Iterable, Literal
 
 import numpy as np
+import pandas as pd
 
+from guppy.analysis.standard_io import write_tonic_to_hdf5
+from guppy.analysis.tonic import compute_tonic_means
+from guppy.frontend.tonic_epochs import load_site_traces
 from guppy.orchestration.export_nwb import orchestrate_export_nwb
 from guppy.orchestration.home import build_homepage
 from guppy.orchestration.import_custom_events import orchestrate_custom_events_page
@@ -596,7 +600,6 @@ def step3(
     time_for_lights_turn_on : float
         Seconds of warm-up discarded from the start of the recording. Defaults to 1.0.
         Accepts fractional values; the GUI widget is integer-only.
-
     Raises
     ------
     ValueError
@@ -626,6 +629,75 @@ def step3(
 
     # Call the underlying Step 3 worker directly, as the GUI does
     extractTsAndSignal(input_params)
+
+
+def tonic_analysis(
+    *,
+    base_dir: str,
+    selected_folders: Iterable[str],
+    tonic_epochs: dict[str, pd.DataFrame],
+    npm_timestamp_column_name: str | None = None,
+    npm_time_unit: str | None = None,
+    npm_split_events: list[bool] | None = None,
+    combine_data: bool = False,
+    selected_runs: dict[str, list[str]],
+) -> None:
+    """
+    Run the optional Tonic Analysis step headlessly.
+
+    Writes the per-recording-site epoch windows into every selected output directory and
+    averages the Step-3 traces over them, exactly as the interactive page does when the
+    user clicks Save. Requires Step 3 to have run.
+
+    Parameters
+    ----------
+    base_dir : str
+        Root directory used to initialize the FileSelector. All ``selected_folders``
+        must reside directly under this path.
+    selected_folders : Iterable[str]
+        Absolute paths to the session directories to process.
+    tonic_epochs : dict[str, pd.DataFrame]
+        Mapping of recording-site name to an epoch-window DataFrame (columns ``label``,
+        ``start``, ``end``) written as ``tonic_epochs_<recording_site>.csv``.
+    selected_runs : dict[str, list[str]]
+        Per-session output-directory subset filter.
+
+    Raises
+    ------
+    ValueError
+        If validation fails (e.g., empty iterable, invalid directories, or parent mismatch),
+        or if an epoch window does not overlap its recording site's timespan.
+    """
+    input_params, abs_sessions, _ = _build_preprocess_input_parameters(
+        base_dir=base_dir,
+        selected_folders=selected_folders,
+        npm_timestamp_column_name=npm_timestamp_column_name,
+        npm_time_unit=npm_time_unit,
+        npm_split_events=npm_split_events,
+        combine_data=combine_data,
+        zscore_method="standard z-score",
+        baseline_window_start=0,
+        baseline_window_end=0,
+        isosbestic_control=True,
+        control_fit_method="IRWLS",
+        control_fit_window_mode="full trace",
+        control_fit_window_start=0,
+        control_fit_window_end=0,
+        photobleaching_detrend=False,
+        time_for_lights_turn_on=1.0,
+        selected_runs=selected_runs,
+    )
+
+    for run_folder in resolve_run_folders(abs_sessions, input_params):
+        site_traces = load_site_traces(run_folder)
+        for recording_site, epochs in tonic_epochs.items():
+            epochs.to_csv(os.path.join(run_folder, f"tonic_epochs_{recording_site}.csv"), index=False)
+            trace = site_traces[recording_site]
+            write_tonic_to_hdf5(
+                run_folder,
+                compute_tonic_means(trace["y_zscore"], trace["y_dff"], trace["x"], epochs),
+                recording_site,
+            )
 
 
 def select_artifact_windows(

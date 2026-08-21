@@ -36,11 +36,11 @@ Raw HDF5 written with h5py, following GuPPy's convention of one file per store w
 
 ### `.h5`
 
-A pandas DataFrame written with `DataFrame.to_hdf`, holding exactly one DataFrame under the key `df`, and read back through pandas rather than h5py. These are the PSTH, peak/AUC, transient-summary and cross-correlation tables.
+A pandas DataFrame written with `DataFrame.to_hdf`, holding exactly one DataFrame under the key `df`, and read back through pandas rather than h5py. These are the PSTH, peak/AUC, transient-summary, cross-correlation and tonic tables.
 
 ### `.csv`
 
-Flat text. Inside a run folder: the store mappings (`storesList.csv`, `combine_storesList.csv`), tables that also exist as an `.h5` (peak/AUC, transient frequency and amplitude), and `transientsOccurrences_<metric>.csv`, the one table written as CSV only. The channel exports written outside the run folder are CSV too.
+Flat text. Inside a run folder: the store mappings (`storesList.csv`, `combine_storesList.csv`), tables that also exist as an `.h5` (peak/AUC, transient frequency and amplitude), and the two tables written as CSV only — `transientsOccurrences_<metric>.csv` and `tonic_epochs_<site>.csv`. The channel exports written outside the run folder are CSV too.
 
 ### `.npy`
 
@@ -164,6 +164,25 @@ A run folder ends up with two overlapping sets of HDF5 files. Step 2 writes one 
 **`coordsForPreProcessing_<site>.npy`** is a float array of shape `(2M, 2)`. Column 0 holds the keep-window bounds interleaved as `[start_0, end_0, start_1, end_1, …]`; column 1 is an unused placeholder of zeros. The file records what survives, not the artifact periods you marked in the GUI. A recording site with no marked artifacts gets no file at all, and the pipeline then treats the whole recording as one keep window.
 
 Remove Artifacts does not create new files. It rewrites the Step 3 outputs in place: `data` in each `<store_label>.hdf5`, and `ts` in each `<event>_<site>.hdf5`. The `concatenate` method additionally rewrites `timestampNew` and sets `recordingStart` to `0.0` in `timeCorrection_<site>.hdf5`. See [Remove artifacts from a recording](../how-to/artifact-removal.md).
+
+---
+
+## Tonic analysis
+
+*Written by: Tonic Analysis (optional, between Remove Artifacts and Step 4).*
+
+| File | Contents |
+|------|----------|
+| `tonic_epochs_<site>.csv` | The epoch windows defined for one recording site |
+| `tonic_<site>.h5` | Each epoch's mean z-score and mean ΔF/F |
+
+Both files are written per recording site, and only for sites that have at least one epoch window. Saving with a site's windows cleared deletes that site's pair.
+
+**`tonic_epochs_<site>.csv`** has a header row and one row per epoch, with columns `label`, `start` and `end`. `start` and `end` are in seconds of absolute session time, on the same timebase as `timestampNew`. There is no index column.
+
+**`tonic_<site>.h5`** holds a DataFrame under the key `df`, indexed by the epoch labels from the CSV (index name `epoch`), with columns `mean_zscore` and `mean_dff` — the mean of `z_score_<site>.hdf5` and of `dff_<site>.hdf5` over that epoch's window. Windows are clamped to the recording's timespan and NaN samples are excluded from the mean.
+
+The means are computed at save time from the traces then on disk, and the differences between epochs shown in the visualization are derived at view time from a selectable baseline epoch — only the absolute means are stored. See [Measure tonic signal levels across a session](../how-to/tonic-analysis.md).
 
 ---
 
@@ -303,6 +322,8 @@ The first key is `guppy_version`, the installed version of the `guppy-neuro` pac
     cntrl_sig_fit_<site>.hdf5                      step 3   data
     combine_storesList.csv                         step 3, Combine Data? only
     coordsForPreProcessing_<site>.npy              Select Artifact Windows
+    tonic_epochs_<site>.csv                        Tonic Analysis   label, start, end
+    tonic_<site>.h5                                Tonic Analysis   DataFrame, key "df"
     <event>_<site>_<metric>.h5                     step 4   DataFrame, key "df"
     <event>_<site>_baselineUncorrected_<metric>.h5 step 4   DataFrame, key "df"
     peak_AUC_<event>_<site>_<metric>.h5            step 4   DataFrame, key "df"

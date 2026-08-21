@@ -25,6 +25,7 @@ class TestServeApp:
             "/artifact-view",
             "/preprocess-view",
             "/select-artifact-windows",
+            "/tonic-analysis",
             "/transients-view",
         ]
         assert served["kwargs"] == {"show": True}

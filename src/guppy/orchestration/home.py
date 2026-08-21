@@ -16,6 +16,7 @@ from .psth import run_psth_step
 from .read_raw_data import run_read_raw_data_step
 from .select_artifact_windows import orchestrate_select_artifact_windows
 from .store_labeling import orchestrate_store_labeling_page
+from .tonic_analysis import orchestrate_tonic_analysis
 from .transients_view import open_transients_view
 from .visualize import visualizeResults
 from ..frontend.input_parameters import ParameterForm
@@ -166,6 +167,15 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
         except ValueError as e:
             pn.state.notifications.error(str(e), duration=0)
 
+    def onclickTonicAnalysis(event: object = None) -> None:
+        inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
+        if inputParameters is None:
+            return
+        try:
+            orchestrate_tonic_analysis(inputParameters)
+        except ValueError as e:
+            pn.state.notifications.error(str(e), duration=0)
+
     def onclickRemoveArtifacts(event: object = None) -> None:
         def _open_view(inputParameters: dict[str, object]) -> None:
             open_artifact_view(inputParameters["session_folders"], inputParameters)
@@ -207,6 +217,7 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
         "preprocess": onclickpreprocess,
         "select_artifact_windows": onclickSelectArtifactWindows,
         "remove_artifacts": onclickRemoveArtifacts,
+        "tonic_analysis": onclickTonicAnalysis,
         "psth_computation": onclickpsth,
         "open_visualization": onclickVisualization,
         "open_metadata": onclickMetadata,
@@ -225,6 +236,7 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
         "onclickpreprocess": onclickpreprocess,
         "onclickSelectArtifactWindows": onclickSelectArtifactWindows,
         "onclickRemoveArtifacts": onclickRemoveArtifacts,
+        "onclickTonicAnalysis": onclickTonicAnalysis,
         "onclickpsth": onclickpsth,
         "getInputParameters": parameter_form.getInputParameters,
     }

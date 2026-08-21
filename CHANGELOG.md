@@ -1,6 +1,7 @@
 # v2.0.0-beta2 (Upcoming)
 
 ## Features
+- Added tonic/basal fluorescence analysis for pharmacological experiments as a new optional **Tonic Analysis** step: name epoch windows (e.g. baseline vs. post-injection) per recording site on the preprocessed traces, and saving averages the z-score and ΔF/F over each window into `tonic_<recording_site>.h5`. The visualization's Tonic tab charts each epoch's change from a selectable baseline epoch as bars, alongside the windows shaded on the traces and a table of the absolute means. PSTH analysis is unaffected. [PR #397](https://github.com/LernerLab/GuPPy/pull/397)
 
 ## Fixes
 
