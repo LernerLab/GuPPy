@@ -277,13 +277,17 @@ def validate_artifact_coords_present(*, run_folders: Sequence[str]) -> None:
             raise ValueError(message)
 
 
-def validate_preprocessing_outputs_present(*, run_folders: Sequence[str]) -> None:
-    """Validate that every run folder holds the preprocessing outputs the artifact pages read.
+def validate_preprocessing_outputs_present(
+    *, run_folders: Sequence[str], action: str = "selecting artifact windows"
+) -> None:
+    """Validate that every run folder holds the preprocessing outputs the step-3 result pages read.
 
     Parameters
     ----------
     run_folders : sequence of str
         Session output (run) directories to check.
+    action : str
+        Phrase naming what the caller is about to do, used to close the error message.
 
     Raises
     ------
@@ -292,9 +296,30 @@ def validate_preprocessing_outputs_present(*, run_folders: Sequence[str]) -> Non
     """
     for run_folder in run_folders:
         if not glob.glob(os.path.join(run_folder, "cntrl_sig_fit_*.hdf5")):
-            message = (
-                f"No preprocessing outputs found in '{run_folder}'. Run Step 3 (Preprocess) before "
-                "selecting artifact windows."
-            )
+            message = f"No preprocessing outputs found in '{run_folder}'. Run Step 3 (Preprocess) before {action}."
             logger.error(message)
             raise ValueError(message)
+
+
+def validate_data_not_combined(*, combine_data: bool) -> None:
+    """Validate that the selected sessions were not analyzed with combining enabled.
+
+    Parameters
+    ----------
+    combine_data : bool
+        The pipeline's ``combine_data`` setting.
+
+    Raises
+    ------
+    ValueError
+        If ``combine_data`` is True.
+    """
+    if combine_data:
+        message = (
+            "NWB export does not support combine_data=True. Combining collapses a run group into a "
+            "single output directory, while the export writes one NWB file per selected session from "
+            "that session's own raw folder, so there is no session the combined outputs belong to. "
+            "Re-run the pipeline with 'Combine Data?' set to False to export."
+        )
+        logger.error(message)
+        raise ValueError(message)

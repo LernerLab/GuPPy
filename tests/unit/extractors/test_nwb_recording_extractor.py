@@ -2,7 +2,7 @@
 
 import numpy as np
 import pytest
-from pynwb import TimeSeries, read_nwb
+from pynwb import TimeSeries
 
 from guppy.extractors.nwb_recording_extractor import (
     NwbRecordingExtractor,
@@ -13,6 +13,7 @@ from guppy.extractors.nwb_recording_extractor import (
     _register_unique_name,
     _resolve_timing,
 )
+from guppy.utils.nwb_io import open_nwbfile_io
 from guppy_test_data import STUBBED_TESTING_DATA
 
 from .recording_extractor_test_mixin import RecordingExtractorTestMixin
@@ -229,8 +230,10 @@ class NwbRecordingExtractorTestMixin(RecordingExtractorTestMixin):
 
     @pytest.fixture
     def expected_control_data(self):
-        nwbfile = read_nwb(self.file_path)
-        return np.array(nwbfile.acquisition["fiber_photometry_response_series"].data[:, 0])
+        # Read the way the extractor does, so a file whose cached namespace differs from the
+        # installed extension is built against its own spec here too.
+        with open_nwbfile_io(path=self.file_path) as io:
+            return np.array(io.read().acquisition["fiber_photometry_response_series"].data[:, 0])
 
     @pytest.fixture
     def expected_signal_timestamps(self):
@@ -238,8 +241,8 @@ class NwbRecordingExtractorTestMixin(RecordingExtractorTestMixin):
 
     @pytest.fixture
     def expected_signal_data(self):
-        nwbfile = read_nwb(self.file_path)
-        return np.array(nwbfile.acquisition["fiber_photometry_response_series"].data[:, 1])
+        with open_nwbfile_io(path=self.file_path) as io:
+            return np.array(io.read().acquisition["fiber_photometry_response_series"].data[:, 1])
 
     # --- override stub tests (stub() raises NotImplementedError for NWB) ---
 
@@ -307,20 +310,21 @@ class TestNwbRecordingExtractorLabeledEvents(NwbRecordingExtractorTestMixin):
 
 
 class TestNwbRecordingExtractorNdxFiberPhotometryV010Events(NwbRecordingExtractorTestMixin):
-    """Contract tests for the ndx-fiber-photometry v0.1.0 mock file using a plain ``Events`` object as the TTL channel.
+    """Contract tests for the ndx-fiber-photometry v0.1.0 mock file.
 
-    The ndx-fiber-photometry v0.1.0 mock file contains identical data to the current mock — same
-    FiberPhotometryResponseSeries shape, same events — but was produced with the older
-    ndx-fiber-photometry API (devices in ndx_fiber_photometry directly, no virus/injection/indicator
-    containers in FiberPhotometry).
+    The v0.1.0 mock holds identical data to the current mock -- same FiberPhotometryResponseSeries
+    shape, same events -- but was produced with the older ndx-fiber-photometry API (devices in
+    ndx_fiber_photometry directly, no virus/injection/indicator containers in FiberPhotometry).
+
+    The extractor reads it through ``open_nwbfile_io``, which builds each file against its own
+    cached namespace, so the installed 0.2.x extension cannot shadow the file's spec however this
+    module's process got here. Constructing the extractor in the class body below reads the file at
+    collection time, which makes that a standing check.
     """
 
-    extractor_class = NwbRecordingExtractor
     folder_path = str(MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_FOLDER)
     file_path = str(MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_FILE)
     extractor_instance = NwbRecordingExtractor(folder_path=str(MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_FOLDER))
-    control_event = "fiber_photometry_response_series_0"
-    signal_event = "fiber_photometry_response_series_1"
     ttl_event = "events"
 
     @pytest.fixture

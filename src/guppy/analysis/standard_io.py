@@ -13,6 +13,7 @@ from .io_utils import (
     recording_site_from_channel_path,
     write_hdf5,
 )
+from .tonic import TONIC_EPOCH_COLUMNS
 
 logger = logging.getLogger(__name__)
 
@@ -671,6 +672,63 @@ def write_peak_and_area_to_csv(filepath: str, peak_and_area_data: object, name: 
     df = pd.DataFrame(peak_and_area_data, index=index)
 
     df.to_csv(output_path)
+
+
+def read_tonic_epochs(filepath: str, site: str) -> pd.DataFrame:
+    """Read the tonic epoch-window definitions for a single recording site.
+
+    Parameters
+    ----------
+    filepath : str
+        Session output (run) directory.
+    site : str
+        Recording-site name; the file is read from ``tonic_epochs_<site>.csv``.
+
+    Returns
+    -------
+    pd.DataFrame
+        Epoch definitions with columns ``label``, ``start``, ``end``. An empty
+        frame (with those columns) is returned when the site has no epoch file,
+        so a site without defined epochs is simply skipped downstream.
+    """
+    input_path = os.path.join(filepath, "tonic_epochs_" + site + ".csv")
+    if not os.path.exists(input_path):
+        return pd.DataFrame(columns=TONIC_EPOCH_COLUMNS)
+    return pd.read_csv(input_path)
+
+
+def write_tonic_to_hdf5(filepath: str, tonic_data: pd.DataFrame, site: str) -> None:
+    """Save per-epoch tonic means for a single recording site.
+
+    Parameters
+    ----------
+    filepath : str
+        Session output (run) directory.
+    tonic_data : pd.DataFrame
+        Per-epoch means (index = epoch label, columns ``mean_zscore`` /
+        ``mean_dff``) as returned by :func:`guppy.analysis.tonic.compute_tonic_means`.
+    site : str
+        Recording-site name; the file is written as ``tonic_<site>.h5``.
+    """
+    output_path = os.path.join(filepath, "tonic_" + site + ".h5")
+    tonic_data.to_hdf(output_path, key="df", mode="w")
+
+
+def remove_tonic_results(filepath: str, site: str) -> None:
+    """Delete a recording site's saved epoch windows and means, if any are present.
+
+    Parameters
+    ----------
+    filepath : str
+        Session output (run) directory.
+    site : str
+        Recording-site name; removes ``tonic_epochs_<site>.csv`` and ``tonic_<site>.h5``.
+    """
+    for name in ("tonic_epochs_" + site + ".csv", "tonic_" + site + ".h5"):
+        path = os.path.join(filepath, name)
+        if os.path.exists(path):
+            os.remove(path)
+            logger.info(f"Removed {name} for recording site {site}.")
 
 
 def write_freq_and_amp_to_hdf5(

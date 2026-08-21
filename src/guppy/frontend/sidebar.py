@@ -28,8 +28,11 @@ class Sidebar:
         self.mark_down_preprocess = pn.pane.Markdown("""**Step 3 : Preprocess**""", width=300)
         self.mark_down_select_windows = pn.pane.Markdown("""**Select Artifact Windows (optional)**""", width=300)
         self.mark_down_remove_artifacts = pn.pane.Markdown("""**Remove Artifacts (optional)**""", width=300)
+        self.mark_down_tonic_analysis = pn.pane.Markdown("""**Tonic Analysis (optional)**""", width=300)
         self.mark_down_psth = pn.pane.Markdown("""**Step 4 : PSTH Computation**""", width=300)
         self.mark_down_visualization = pn.pane.Markdown("""**Step 5 : Visualization**""", width=300)
+        self.mark_down_metadata = pn.pane.Markdown("""**Step 6 : Input Metadata**""", width=300)
+        self.mark_down_export_nwb = pn.pane.Markdown("""**Step 7 : Export to NWB**""", width=300)
 
     def setup_buttons(self) -> None:
         """Create pipeline-step action buttons and store them as instance attributes."""
@@ -45,12 +48,15 @@ class Sidebar:
         self.remove_artifacts = pn.widgets.Button(
             name="Remove Artifacts", button_type="default", width=300, align="end"
         )
+        self.tonic_analysis = pn.widgets.Button(name="Tonic Analysis", button_type="default", width=300, align="end")
         self.psth_computation = pn.widgets.Button(
             name="PSTH Computation", button_type="primary", width=300, align="end"
         )
         self.open_visualization = pn.widgets.Button(
             name="Open Visualization GUI", button_type="primary", width=300, align="end"
         )
+        self.open_metadata = pn.widgets.Button(name="Input Metadata", button_type="primary", width=300, align="end")
+        self.export_nwb = pn.widgets.Button(name="Export to NWB", button_type="primary", width=300, align="end")
 
     def attach_callbacks(self, button_name_to_onclick_fn: dict[str, object]) -> None:
         """Register click-handler callbacks on sidebar buttons.
@@ -71,6 +77,7 @@ class Sidebar:
         self.extract_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
         self.psth_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
         self.remove_artifacts_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
+        self.export_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
 
     def add_to_template(self) -> None:
         """Append all sidebar widgets to the template's sidebar area in pipeline order."""
@@ -89,8 +96,15 @@ class Sidebar:
         self.template.sidebar.append(self.mark_down_remove_artifacts)
         self.template.sidebar.append(self.remove_artifacts)
         self.template.sidebar.append(self.remove_artifacts_progress)
+        self.template.sidebar.append(self.mark_down_tonic_analysis)
+        self.template.sidebar.append(self.tonic_analysis)
         self.template.sidebar.append(self.mark_down_psth)
         self.template.sidebar.append(self.psth_computation)
         self.template.sidebar.append(self.psth_progress)
         self.template.sidebar.append(self.mark_down_visualization)
         self.template.sidebar.append(self.open_visualization)
+        self.template.sidebar.append(self.mark_down_metadata)
+        self.template.sidebar.append(self.open_metadata)
+        self.template.sidebar.append(self.mark_down_export_nwb)
+        self.template.sidebar.append(self.export_nwb)
+        self.template.sidebar.append(self.export_progress)

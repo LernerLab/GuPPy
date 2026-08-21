@@ -243,5 +243,6 @@ For this tutorial, the goal is just to reach a rendered PSTH; feel free to play 
 ## Next steps
 
 - See [Custom Plots from GuPPy Outputs](custom_plots.md) to open this run folder in Python and build your own figures from it.
+- See [Export a session to NWB](../how-to/export-to-nwb.md) to package this run — raw traces, events, and every derived result — into a single shareable NWB file.
 - See [How-to Guides](../how-to/index.md) for task-specific instructions (TDT data ingestion, artifact removal, group analysis, etc.).
 - See [Explanation](../explanation/index.md) for background on the isosbestic correction and z-score methods.
