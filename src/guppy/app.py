@@ -6,6 +6,7 @@ from .orchestration.artifact_view import build_artifact_view
 from .orchestration.home import build_homepage
 from .orchestration.preprocess_view import build_preprocess_view
 from .orchestration.select_artifact_windows import build_select_artifact_windows_view
+from .orchestration.tonic_analysis import build_tonic_analysis_view
 from .orchestration.transients_view import build_transients_view
 
 
@@ -27,6 +28,7 @@ def serve_app(*, start_path: str | None = None) -> None:
         "/preprocess-view": build_preprocess_view,
         "/select-artifact-windows": build_select_artifact_windows_view,
         "/artifact-view": build_artifact_view,
+        "/tonic-analysis": build_tonic_analysis_view,
         "/transients-view": build_transients_view,
     }
     pn.serve(routes, show=True)

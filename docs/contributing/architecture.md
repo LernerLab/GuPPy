@@ -131,6 +131,7 @@ Three modules sit directly under `src/guppy/`: `main.py` (the `guppy` console en
 | *optional* — Import Custom Events | `orchestration/import_custom_events.py` | `orchestrate_custom_events_page` |
 | *optional* — Select Artifact Windows | `orchestration/select_artifact_windows.py` | `orchestrate_select_artifact_windows` |
 | *optional* — Remove Artifacts | `orchestration/preprocess.py` | `removeArtifactsFromSignal` |
+| *optional* — Tonic Analysis | `orchestration/tonic_analysis.py` | `orchestrate_tonic_analysis` |
 
 Saving the parameters is not a step of its own. `orchestration/save_parameters.py` is called by each
 worker, so `GuPPyParamtersUsed.json` in an output folder always reflects the configuration that

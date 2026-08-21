@@ -1,6 +1,18 @@
-# v2.0.0-alpha9 (Upcoming)
+# v2.0.0-beta2 (Upcoming)
 
 ## Features
+- Added tonic/basal fluorescence analysis for pharmacological experiments as a new optional **Tonic Analysis** step: name epoch windows (e.g. baseline vs. post-injection) per recording site on the preprocessed traces, and saving averages the z-score and ΔF/F over each window into `tonic_<recording_site>.h5`. The visualization's Tonic tab charts each epoch's change from a selectable baseline epoch as bars, alongside the windows shaded on the traces and a table of the absolute means. PSTH analysis is unaffected. [PR #397](https://github.com/LernerLab/GuPPy/pull/397)
+
+## Fixes
+
+## Improvements
+
+## Deprecations and Removals
+
+# v2.0.0-beta1 (August 20th, 2026)
+
+## Features
+- Added export to NWB, with a metadata input form for supplying subject/session details. Every format GuPPy reads is supported: a session recorded in TDT, Doric, Neurophotometrics or GuPPy's own CSV layout is bundled with its GuPPy outputs, and a session read from an NWB file — locally or streamed from DANDI — has its outputs added to the file it came from, so it needs no metadata form at all. A session's format is detected from its folder rather than assumed, and events imported from custom CSVs are read alongside whatever the rig recorded. The metadata form takes a session start time, marked as required for every format but TDT, whose tank header is the only raw one that reliably records it. Sessions the export cannot take are refused upfront with a message naming why: sessions whose traces come from more than one acquisition system, and sessions analyzed with **Combine Data?** enabled. NWB export also aborts upfront with a clear message when a selected session had its artifacts removed with the `concatenate` method, which re-times samples and breaks alignment to the acquisition clock. Documented in a how-to covering both export routes, an explanation page on what an exported file holds, and reference entries for the files the two steps write; sessions carrying data GuPPy does not read are pointed at NeuroConv, which can combine the GuPPy outputs with other acquisition streams in a single file. [PR #357](https://github.com/LernerLab/GuPPy/pull/357)
 - Added a **Photobleaching Detrend?** parameter: the isosbestic control fit can now include an exponential decay term for the photobleaching the control channel does not see, removing the slow drift that otherwise survives into the ΔF/F on multi-hour recordings. [PR #416](https://github.com/LernerLab/GuPPy/pull/416)
 - Added an **AUC Units** parameter: the peak/AUC areas can now be reported in z-score (or ΔF/F) × seconds, the unit commonly reported in the literature, instead of the sampling-rate-dependent one-sample spacing that remains the default. [PR #415](https://github.com/LernerLab/GuPPy/pull/415)
 - Artifact removal is now two optional steps of its own — **Select Artifact Windows** and **Remove Artifacts** — where you mark the periods containing artifacts and apply them in one pass. [PR #413](https://github.com/LernerLab/GuPPy/pull/413)

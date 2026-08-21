@@ -10,6 +10,7 @@ from pynwb import NWBHDF5IO, NWBFile
 
 from guppy.extractors.base_recording_extractor import BaseRecordingExtractor
 from guppy.utils._hdf5_io import write_hdf5
+from guppy.utils.nwb_io import open_nwbfile_io
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,7 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
         """
         nwb_path = _find_nwb_file(folder_path)
 
-        with NWBHDF5IO(nwb_path, "r") as io:
+        with open_nwbfile_io(path=nwb_path) as io:
             nwbfile = io.read()
             events = _discover_events_from_nwbfile(nwbfile=nwbfile, io=io)
 
@@ -57,7 +58,7 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
     def count_samples(self, *, event: str) -> int:
         """Return the total number of samples for ``event`` without reading bulk data."""
         nwb_path = _find_nwb_file(self.folder_path)
-        with NWBHDF5IO(nwb_path, "r") as io:
+        with open_nwbfile_io(path=nwb_path) as io:
             nwbfile = io.read()
             return _count_event_samples(nwbfile=nwbfile, io=io, event=event)
 
@@ -80,7 +81,7 @@ class NwbRecordingExtractor(BaseRecordingExtractor):
         """
         nwb_path = _find_nwb_file(self.folder_path)
 
-        with NWBHDF5IO(nwb_path, "r") as io:
+        with open_nwbfile_io(path=nwb_path) as io:
             nwbfile = io.read()
             output_dicts = _read_events_from_nwbfile(nwbfile=nwbfile, io=io, events=events)
 
