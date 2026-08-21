@@ -18,15 +18,6 @@ command to run while iterating on it — saves you from waiting on the slow ones
 `visualization/`. When you add a function to `src/guppy/analysis/`, its test belongs in
 `tests/unit/analysis/`, and so on.
 
-## Running a single test
-
-```bash
-pytest tests/unit/analysis/test_z_score.py -v
-```
-
-The same pattern works for a single test function with `::test_name` appended, or for an entire
-directory in place of a file.
-
 ## Markers
 
 Four of the five registered markers gate tests that need something beyond a plain `pytest`
