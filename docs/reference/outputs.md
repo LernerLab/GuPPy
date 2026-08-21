@@ -36,11 +36,11 @@ Raw HDF5 written with h5py, following GuPPy's convention of one file per store w
 
 ### `.h5`
 
-A pandas DataFrame written with `DataFrame.to_hdf`, holding exactly one DataFrame under the key `df`, and read back through pandas rather than h5py. These are the PSTH, peak/AUC, transient-summary and cross-correlation tables.
+A pandas DataFrame written with `DataFrame.to_hdf`, holding exactly one DataFrame under the key `df`, and read back through pandas rather than h5py. These are the PSTH, peak/AUC, transient-summary, cross-correlation and tonic tables.
 
 ### `.csv`
 
-Flat text. Inside a run folder: the store mappings (`storesList.csv`, `combine_storesList.csv`), tables that also exist as an `.h5` (peak/AUC, transient frequency and amplitude), and `transientsOccurrences_<metric>.csv`, the one table written as CSV only. The channel exports written outside the run folder are CSV too.
+Flat text. Inside a run folder: the store mappings (`storesList.csv`, `combine_storesList.csv`), tables that also exist as an `.h5` (peak/AUC, transient frequency and amplitude), and the two tables written as CSV only — `transientsOccurrences_<metric>.csv` and `tonic_epochs_<site>.csv`. The channel exports written outside the run folder are CSV too.
 
 ### `.npy`
 
@@ -49,6 +49,14 @@ A raw NumPy array, used only for the artifact keep-windows in `coordsForPreProce
 ### `.json`
 
 Provenance and configuration: `GuPPyParamtersUsed.json` and `.npm_params.json`.
+
+### `.yaml`
+
+Plain text, written only by Step 6: the NWB metadata overlay `nwb_metadata.yaml`. It is the authoritative artifact behind the metadata form, and is meant to be read, edited and copied between sessions by hand.
+
+### `.nwb`
+
+HDF5 written through pynwb, holding the whole session — raw traces, events and every GuPPy product — as typed NWB objects rather than named arrays. Written only by Step 7. The file carries the `ndx-fiber-photometry`, `ndx-ophys-devices` and `ndx-guppy` schema extensions inside it, so it stays readable without them installed. See [Fiber photometry data in NWB](../explanation/nwb.md).
 
 ---
 
@@ -159,6 +167,25 @@ Remove Artifacts does not create new files. It rewrites the Step 3 outputs in pl
 
 ---
 
+## Tonic analysis
+
+*Written by: Tonic Analysis (optional, between Remove Artifacts and Step 4).*
+
+| File | Contents |
+|------|----------|
+| `tonic_epochs_<site>.csv` | The epoch windows defined for one recording site |
+| `tonic_<site>.h5` | Each epoch's mean z-score and mean ΔF/F |
+
+Both files are written per recording site, and only for sites that have at least one epoch window. Saving with a site's windows cleared deletes that site's pair.
+
+**`tonic_epochs_<site>.csv`** has a header row and one row per epoch, with columns `label`, `start` and `end`. `start` and `end` are in seconds of absolute session time, on the same timebase as `timestampNew`. There is no index column.
+
+**`tonic_<site>.h5`** holds a DataFrame under the key `df`, indexed by the epoch labels from the CSV (index name `epoch`), with columns `mean_zscore` and `mean_dff` — the mean of `z_score_<site>.hdf5` and of `dff_<site>.hdf5` over that epoch's window. Windows are clamped to the recording's timespan and NaN samples are excluded from the mean.
+
+The means are computed at save time from the traces then on disk, and the differences between epochs shown in the visualization are derived at view time from a selectable baseline epoch — only the absolute means are stored. See [Measure tonic signal levels across a session](../how-to/tonic-analysis.md).
+
+---
+
 ## Step 4: Compute the PSTH
 
 | File | Contents |
@@ -188,6 +215,36 @@ Remove Artifacts does not create new files. It rewrites the Step 3 outputs in pl
 ## Step 5: Visualize the results
 
 Step 5 writes no data. It creates a `saved_plots/` subdirectory inside the run folder, but nothing is ever written into it: the **Save As** buttons deliver the figure to the browser as a PNG or SVG download, so exported figures land wherever your browser saves downloads.
+
+---
+
+## Step 6: Input Metadata
+
+*Written by: Step 6 (Input Metadata), optional.*
+
+| File | Contents |
+|------|----------|
+| `nwb_metadata.yaml` | The session's NWB metadata overlay |
+
+**`nwb_metadata.yaml`** holds everything the NWB export needs that the data itself cannot supply. Its top-level keys are `NWBFile` (session description, identifier, start time, lab, institution, experimenter), `Subject`, `DeviceModels` and `Devices` (the optical hardware, models and instances), and `FiberPhotometry` — which nests `FiberPhotometryViruses`, `FiberPhotometryVirusInjections`, `FiberPhotometryIndicators`, the `FiberPhotometryTable` and its `rows` (one per channel, keyed `<recording_site>_<role>`), and the per-role `signal` and `control` entries naming which rows each response series covers.
+
+The file is a session-level overlay, not a complete metadata document: at export it is applied on top of what GuPPy and the acquisition files already supply, so it only ever adds or replaces. It is written only for sessions read from raw acquisition files — a session GuPPy processed out of an NWB file never gets one, because its source already carries this information. See [Export a session to NWB](../how-to/export-to-nwb.md).
+
+---
+
+## Step 7: Export to NWB
+
+*Written by: Step 7 (Export to NWB), optional.*
+
+| File | Contents |
+|------|----------|
+| `<session_name>_output_<run_name>.nwb` | The whole session as one NWB file |
+
+**The NWB file** is named after the run folder rather than the session, so exports from several runs or sessions can be pooled into one directory without renaming. It holds three top-level groups: `acquisition` (the raw photometry response series), `events` (one table per raw event store, plus the `GuppyEvents` table of the onsets GuPPy analyzed), and `processing/guppy` (the derived traces, transients, PSTHs, peak/AUC summaries, cross-correlations, valid-signal intervals and the parameters used). Re-running Step 7 overwrites the file; each export rebuilds from the run folder rather than adding to what is there.
+
+For a session GuPPy read from an NWB file — a local `.nwb` or a DANDI asset — the output is a **copy of that source** with the GuPPy outputs added, written on the extension versions the source used. The source file is never modified.
+
+See [Fiber photometry data in NWB](../explanation/nwb.md) for what each object holds.
 
 ---
 
@@ -265,6 +322,8 @@ The first key is `guppy_version`, the installed version of the `guppy-neuro` pac
     cntrl_sig_fit_<site>.hdf5                      step 3   data
     combine_storesList.csv                         step 3, Combine Data? only
     coordsForPreProcessing_<site>.npy              Select Artifact Windows
+    tonic_epochs_<site>.csv                        Tonic Analysis   label, start, end
+    tonic_<site>.h5                                Tonic Analysis   DataFrame, key "df"
     <event>_<site>_<metric>.h5                     step 4   DataFrame, key "df"
     <event>_<site>_baselineUncorrected_<metric>.h5 step 4   DataFrame, key "df"
     peak_AUC_<event>_<site>_<metric>.h5            step 4   DataFrame, key "df"
@@ -276,6 +335,8 @@ The first key is `guppy_version`, the installed version of the `guppy-neuro` pac
     cross_correlation_output/
       corr_<event>_<metric-prefix>_<siteA>_<siteB>.h5   step 4   DataFrame, key "df"
     saved_plots/                                   step 5, created empty
+    nwb_metadata.yaml                              step 6, optional
+    <session_name>_output_<run_name>.nwb           step 7, optional
 
 <common parent of the selected sessions>/
   average/                                         step 4, Average Group? only

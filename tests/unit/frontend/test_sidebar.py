@@ -14,7 +14,15 @@ def sidebar(panel_extension):
 class TestSidebar:
     @pytest.mark.parametrize(
         "name",
-        ["open_label_stores", "read_rawData", "preprocess", "psth_computation", "open_visualization"],
+        [
+            "open_label_stores",
+            "read_rawData",
+            "preprocess",
+            "psth_computation",
+            "open_visualization",
+            "open_metadata",
+            "export_nwb",
+        ],
     )
     def test_numbered_step_buttons_are_primary(self, sidebar, name):
         button = getattr(sidebar, name)
@@ -35,7 +43,13 @@ class TestSidebar:
         assert sidebar.mark_down_preprocess.object == "**Step 3 : Preprocess**"
 
     def test_progress_bars_initial_values(self, sidebar):
-        for bar_name in ("read_progress", "extract_progress", "psth_progress", "remove_artifacts_progress"):
+        for bar_name in (
+            "read_progress",
+            "extract_progress",
+            "psth_progress",
+            "remove_artifacts_progress",
+            "export_progress",
+        ):
             bar = getattr(sidebar, bar_name)
             assert bar.value == 100, f"{bar_name} does not start at 100"
             assert bar.max == 100, f"{bar_name} max is not 100"
@@ -65,6 +79,22 @@ class TestSidebar:
         assert sidebar.select_artifact_windows in objects
         assert sidebar.remove_artifacts in objects
         assert sidebar.remove_artifacts_progress in objects
+        assert sidebar.open_metadata in objects
+        assert sidebar.export_nwb in objects
+        assert sidebar.export_progress in objects
+
+    def test_nwb_export_steps_follow_visualization(self, panel_extension):
+        """Steps 6 and 7 close the pipeline: Step 5 -> Input Metadata -> Export to NWB."""
+        template = pn.template.BootstrapTemplate(title="Test")
+        sidebar = Sidebar(template=template)
+        sidebar.add_to_template()
+
+        objects = template.sidebar.objects
+        assert (
+            objects.index(sidebar.open_visualization)
+            < objects.index(sidebar.open_metadata)
+            < objects.index(sidebar.export_nwb)
+        )
 
     def test_artifact_steps_sit_between_preprocess_and_psth(self, panel_extension):
         """The optional pair is positioned, not free-floating: Step 3 -> mark -> remove -> Step 4."""
