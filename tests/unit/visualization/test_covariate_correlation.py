@@ -11,12 +11,11 @@ from guppy.visualization.covariate_correlation import (
 def scatter(panel_extension):
     """A three-bin scatter with one unusable bin, so the drop is observable."""
     return build_covariate_scatter(
-        covariate_values=np.array([2.0, np.nan, 4.0, 10.0]),
-        metric_values=np.array([1.5, 5.0, 5.5, 9.0]),
+        covariate_values=np.array([0.0, np.nan, 2.0, 4.0]),
+        metric_values=np.array([1.0, 5.0, 2.0, 6.0]),
         covariate_label="akinesia",
         metric_label="mean z-score",
-        pearson_r=0.9493907,
-        spearman_rho=1.0,
+        pearson_r=0.9449112,
         n_bins=3,
         suptitle="dms",
     )
@@ -75,37 +74,64 @@ class TestBuildCovariatePanel:
 
 class TestBuildCovariateScatter:
     def test_drops_bins_missing_either_value(self, scatter):
-        np.testing.assert_allclose(scatter.dimension_values("akinesia"), np.array([2.0, 4.0, 10.0]))
-        np.testing.assert_allclose(scatter.dimension_values("mean z-score"), np.array([1.5, 5.5, 9.0]))
+        points = scatter.Points.I
+
+        np.testing.assert_allclose(points.dimension_values("akinesia"), np.array([0.0, 2.0, 4.0]))
+        np.testing.assert_allclose(points.dimension_values("mean z-score"), np.array([1.0, 2.0, 6.0]))
 
     def test_axis_labels_come_from_the_arguments(self, scatter):
-        assert [dimension.name for dimension in scatter.kdims] == ["akinesia", "mean z-score"]
+        assert [dimension.name for dimension in scatter.Points.I.kdims] == ["akinesia", "mean z-score"]
 
     def test_points_carry_no_extra_dimension_to_color_by(self, scatter):
-        assert scatter.vdims == []
-        assert "colorbar" not in scatter.opts.get().kwargs
+        assert scatter.Points.I.vdims == []
+        assert "colorbar" not in scatter.Points.I.opts.get().kwargs
 
-    def test_title_reports_both_coefficients_and_the_bin_count(self, scatter):
+    def test_fit_line_spans_the_covariate_range(self, scatter):
+        # Least squares through (0, 1), (2, 2) and (4, 6): slope 10/8 = 1.25,
+        # intercept 3 - 1.25 * 2 = 0.5, so the line runs from (0, 0.5) to (4, 5.5).
+        line = scatter.Curve.I
+
+        np.testing.assert_allclose(line.dimension_values("akinesia"), [0.0, 4.0])
+        np.testing.assert_allclose(line.dimension_values("mean z-score"), [0.5, 5.5])
+
+    def test_fit_line_is_drawn_under_the_points(self, scatter):
+        assert [element.__class__.__name__ for element in scatter] == ["Curve", "Points"]
+
+    def test_title_reports_pearson_r_and_the_bin_count(self, scatter):
         title = scatter.opts.get().kwargs["title"]
 
-        assert title == "dms — r = 0.95, rho = 1.00, n = 3 bins"
+        assert title == "dms — r = 0.94, n = 3 bins"
 
-    def test_title_reports_no_p_value(self, scatter):
+    def test_title_reports_neither_a_p_value_nor_spearman_rho(self, scatter):
         title = scatter.opts.get().kwargs["title"]
 
         assert "p =" not in title
         assert "p-value" not in title
+        assert "rho" not in title
 
-    def test_undefined_coefficients_render_as_nan(self, panel_extension):
+    def test_undefined_coefficient_renders_as_nan_with_no_fit_line(self, panel_extension):
         scatter = build_covariate_scatter(
             covariate_values=np.array([3.0, 3.0, 3.0]),
             metric_values=np.array([1.5, 5.5, 9.0]),
             covariate_label="akinesia",
             metric_label="mean z-score",
             pearson_r=float("nan"),
-            spearman_rho=float("nan"),
             n_bins=3,
             suptitle="dms",
         )
 
-        assert scatter.opts.get().kwargs["title"] == "dms — r = nan, rho = nan, n = 3 bins"
+        assert scatter.opts.get().kwargs["title"] == "dms — r = nan, n = 3 bins"
+        assert len(scatter.Curve.I) == 0
+
+    def test_a_single_usable_bin_draws_no_fit_line(self, panel_extension):
+        scatter = build_covariate_scatter(
+            covariate_values=np.array([2.0, np.nan]),
+            metric_values=np.array([1.5, 5.5]),
+            covariate_label="akinesia",
+            metric_label="mean z-score",
+            pearson_r=float("nan"),
+            n_bins=1,
+            suptitle="dms",
+        )
+
+        assert len(scatter.Curve.I) == 0

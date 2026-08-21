@@ -121,9 +121,19 @@ class TestCovariateCorrelationView:
 
     def test_plot_uses_the_selected_covariate_and_metric(self, session):
         view = CovariateCorrelationView(session)
+        points = view.plot_pane.object.Points.I
 
-        np.testing.assert_allclose(view.plot_pane.object.dimension_values("akinesia"), [2.0, 4.0, 10.0])
-        np.testing.assert_allclose(view.plot_pane.object.dimension_values("mean z-score"), [1.5, 5.5, 9.0])
+        np.testing.assert_allclose(points.dimension_values("akinesia"), [2.0, 4.0, 10.0])
+        np.testing.assert_allclose(points.dimension_values("mean z-score"), [1.5, 5.5, 9.0])
+
+    def test_plot_draws_the_least_squares_line(self, session):
+        view = CovariateCorrelationView(session)
+        # Least squares through (2, 1.5), (4, 5.5) and (10, 9.0): slope 89/104,
+        # intercept 20/26, so the line runs from (2, 2.480769) to (10, 9.326923).
+        line = view.plot_pane.object.Curve.I
+
+        np.testing.assert_allclose(line.dimension_values("akinesia"), [2.0, 10.0])
+        np.testing.assert_allclose(line.dimension_values("mean z-score"), [2.480769, 9.326923], rtol=1e-5)
 
     def test_trace_layout_stacks_photometry_and_covariate_panels(self, session):
         view = CovariateCorrelationView(session)

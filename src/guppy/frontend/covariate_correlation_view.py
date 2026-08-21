@@ -137,7 +137,7 @@ class CovariateCorrelationView:
 
         return hv.Layout(list(metric_panel) + list(covariate_panel)).cols(1)
 
-    def _make_plot(self) -> hv.Points:
+    def _make_plot(self) -> hv.Overlay:
         site = self.site_select.value
         metric = self.metric_select.value
         covariate = self.covariate_select.value
@@ -154,7 +154,6 @@ class CovariateCorrelationView:
             covariate_label=covariate,
             metric_label=METRICS[metric][1],
             pearson_r=selected["pearson_r"],
-            spearman_rho=selected["spearman_rho"],
             n_bins=int(selected["n_bins"]),
             suptitle=site,
         )

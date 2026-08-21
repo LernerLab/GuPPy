@@ -118,7 +118,7 @@ Open **Step 5: Visualize** and select the **Covariates** tab. Pick a recording s
 a metric and a covariate.
 
 ```{image} ../_static/images/covariate_correlations.png
-:alt: The Covariates tab: Recording site, Metric and Covariate selectors above four stacked panels - the photometry trace, its per-bin metric, the raw akinesia scores, and their per-bin means - then a scatter of the metric against akinesia titled with the Pearson r, Spearman rho and bin count, and the table of every metric-covariate pair
+:alt: The Covariates tab: Recording site, Metric and Covariate selectors above four stacked panels - the photometry trace, its per-bin metric, the raw akinesia scores, and their per-bin means - then a scatter of the metric against akinesia with a least-squares line through it, titled with the Pearson r and bin count, and the table of every metric-covariate pair
 ```
 
 Four panels stack above the scatter, sharing one time axis: the photometry trace,
@@ -130,8 +130,10 @@ cadence, is obvious at a glance, and where you can see whether a high coefficien
 comes from the two series tracking each other bin by bin or from both drifting the
 same way across the session.
 
-Below them, the scatter puts one point per bin, and the correlations table lists
-every metric-covariate pair at once.
+Below them, the scatter puts one point per bin, with the least-squares line through
+it — the line is `pearson_r` drawn, so it is exactly as steep as the coefficient in
+the title says. The correlations table lists every metric-covariate pair at once,
+`spearman_rho` included.
 
 ## No p-value, and why
 

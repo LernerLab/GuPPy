@@ -12,6 +12,7 @@ import holoviews as hv
 import numpy as np
 
 from .binned_metrics import build_bin_bars
+from .shading import FIT_COLOR
 
 logger = logging.getLogger(__name__)
 
@@ -84,14 +85,16 @@ def build_covariate_scatter(
     covariate_label: str,
     metric_label: str,
     pearson_r: float,
-    spearman_rho: float,
     n_bins: int,
     suptitle: str,
-) -> hv.Points:
+) -> hv.Overlay:
     """Scatter a per-bin photometry metric against a behavioral covariate.
 
     Bins where either value is missing are dropped, so the point count matches the
-    ``n_bins`` reported alongside the coefficients.
+    ``n_bins`` reported alongside the coefficient. A least-squares line is drawn under
+    the points, which is Pearson r made visible: the two are the same fit, so the line
+    is only as steep as the reported coefficient says. It is omitted when the fit is
+    undefined, which is the same condition that leaves ``pearson_r`` NaN.
 
     Parameters
     ----------
@@ -99,30 +102,51 @@ def build_covariate_scatter(
         Per-bin covariate means and metric values, same length.
     covariate_label, metric_label : str
         Axis labels.
-    pearson_r, spearman_rho : float
-        Coefficients shown in the title.
+    pearson_r : float
+        Coefficient shown in the title.
     n_bins : int
-        Number of bins behind the coefficients.
+        Number of bins behind the coefficient.
     suptitle : str
         Prefix for the title, typically the recording site.
 
     Returns
     -------
-    hv.Points
-        One point per usable bin.
+    hv.Overlay
+        The least-squares line under one point per usable bin.
     """
     covariate_values = np.asarray(covariate_values, dtype=float).ravel()
     metric_values = np.asarray(metric_values, dtype=float).ravel()
 
     usable = ~np.isnan(covariate_values) & ~np.isnan(metric_values)
+    covariate_values = covariate_values[usable]
+    metric_values = metric_values[usable]
 
-    return hv.Points(
-        (covariate_values[usable], metric_values[usable]),
-        kdims=[covariate_label, metric_label],
-    ).opts(
-        color=POINT_COLOR,
-        size=7,
+    points = hv.Points((covariate_values, metric_values), kdims=[covariate_label, metric_label]).opts(
+        color=POINT_COLOR, size=7
+    )
+    fit_line = hv.Curve(
+        _least_squares_line(covariate_values=covariate_values, metric_values=metric_values),
+        covariate_label,
+        metric_label,
+    ).opts(color=FIT_COLOR, line_width=1.5, alpha=0.8)
+
+    return (fit_line * points).opts(
         responsive=True,
         height=380,
-        title=f"{suptitle} — r = {pearson_r:.2f}, rho = {spearman_rho:.2f}, n = {n_bins} bins",
+        title=f"{suptitle} — r = {pearson_r:.2f}, n = {n_bins} bins",
     )
+
+
+def _least_squares_line(*, covariate_values: np.ndarray, metric_values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """The fitted line across the covariate range, empty where the fit is undefined.
+
+    A constant covariate has no slope, and a single point has no line, so both return
+    nothing to draw rather than a horizontal line that would read as a real fit.
+    """
+    if len(np.unique(covariate_values)) < 2:
+        return np.array([]), np.array([])
+
+    slope, intercept = np.polyfit(covariate_values, metric_values, 1)
+    endpoints = np.array([covariate_values.min(), covariate_values.max()])
+
+    return endpoints, slope * endpoints + intercept
