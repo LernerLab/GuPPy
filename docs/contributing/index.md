@@ -8,5 +8,6 @@ oriented in the codebase.
 
 architecture
 testing
+new_recording_format
 development_environment
 ```
