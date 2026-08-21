@@ -14,14 +14,13 @@ from ..analysis.covariates import (
     compute_covariate_correlations,
 )
 from ..analysis.io_utils import (
-    COVARIATE_PREFIX,
-    is_covariate_label,
     metric_from_preprocessed_label,
     read_hdf5,
     recording_site_from_preprocessed_label,
 )
 from ..analysis.standard_io import (
     read_binned_metrics_from_hdf5,
+    read_covariate_series,
     write_binned_covariates_to_csv,
     write_binned_covariates_to_hdf5,
     write_binned_metrics_to_csv,
@@ -157,35 +156,6 @@ def findBinnedMetrics(
     logger.info("Binned metrics computed.")
 
 
-def _read_covariate_series(filepath: str) -> dict[str, tuple[np.ndarray, np.ndarray]]:
-    """Load every behavioral covariate store in a run folder.
-
-    Step 2 writes each store under its raw store_id, so the covariate labels in
-    ``storesList.csv`` are mapped back to the store_ids in row 0 to find the files.
-
-    Parameters
-    ----------
-    filepath : str
-        Path to the session output directory.
-
-    Returns
-    -------
-    dict of str to tuple of np.ndarray
-        Covariate name (label minus its prefix) → ``(timestamps, values)``.
-    """
-    store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
-
-    covariate_series = {}
-    for store_id, store_label in zip(store_array[0, :], store_array[1, :]):
-        if is_covariate_label(store_label):
-            name = store_label[len(COVARIATE_PREFIX) :]
-            timestamps = np.asarray(read_hdf5(store_id, filepath, "timestamps")).ravel()
-            values = np.asarray(read_hdf5(store_id, filepath, "data")).ravel()
-            covariate_series[name] = (timestamps, values)
-
-    return covariate_series
-
-
 def findCovariateCorrelations(filepath: str, inputParameters: dict[str, object], recording_sites: list[str]) -> None:
     """Correlate each recording site's binned metrics against the session's behavioral covariates.
 
@@ -206,7 +176,7 @@ def findCovariateCorrelations(filepath: str, inputParameters: dict[str, object],
         If the outputs were produced with the ``concatenate`` artifact-removal method,
         which compresses the time axis the covariate timestamps are read against.
     """
-    covariate_series = _read_covariate_series(filepath)
+    covariate_series = read_covariate_series(filepath)
     if not covariate_series:
         return
 

@@ -23,14 +23,14 @@ logger = logging.getLogger(__name__)
 _FILE_PREFIX = "binned_metrics_"
 
 # Column -> (menu label, axis label, the trace the metric was reduced from).
-_METRICS = {
+METRICS = {
     "mean_zscore": ("Mean z-score", "mean z-score", "z_score"),
     "mean_dff": ("Mean ΔF/F", "mean ΔF/F", "dff"),
     "transient_count_z_score": ("Transient count (z-score)", "transients per bin", "z_score"),
     "transient_count_dff": ("Transient count (ΔF/F)", "transients per bin", "dff"),
 }
 
-_TRACE_LABELS = {"z_score": "z-score", "dff": "ΔF/F"}
+TRACE_LABELS = {"z_score": "z-score", "dff": "ΔF/F"}
 
 
 def binned_metrics_sites(filepath: str) -> list[str]:
@@ -73,12 +73,12 @@ class BinnedMetricsView:
     def _metric_options(self, site: str) -> dict[str, str]:
         """Menu label -> column, for the metric columns this site actually has."""
         columns = read_binned_metrics_from_hdf5(self.filepath, site).columns
-        return {_METRICS[column][0]: column for column in _METRICS if column in columns}
+        return {METRICS[column][0]: column for column in METRICS if column in columns}
 
     def _make_plot(self) -> hv.Layout:
         site = self.site_select.value
         column = self.metric_select.value
-        _, value_label, trace_name = _METRICS[column]
+        _, value_label, trace_name = METRICS[column]
 
         binned_metrics = read_binned_metrics_from_hdf5(self.filepath, site)
         timestamps = np.asarray(read_hdf5("timeCorrection_" + site, self.filepath, "timestampNew")).ravel()
@@ -87,7 +87,7 @@ class BinnedMetricsView:
         return build_binned_metrics_panel(
             timestamps=timestamps,
             trace=trace,
-            trace_label=_TRACE_LABELS[trace_name],
+            trace_label=TRACE_LABELS[trace_name],
             bin_starts=binned_metrics["bin_start"].to_numpy(),
             bin_ends=binned_metrics["bin_end"].to_numpy(),
             values=binned_metrics[column].to_numpy(),

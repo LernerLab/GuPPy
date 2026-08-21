@@ -393,13 +393,13 @@ def screenshot_covariate_correlations(page: Page, tmp_path: Path) -> None:
     template.main.append(build_covariate_correlation_view(run_folder))
     url = _serve(template)
 
-    page.set_viewport_size({"width": 1280, "height": 1500})
+    page.set_viewport_size({"width": 1280, "height": 2000})
     page.goto(url)
     page.get_by_text("Covariate").first.wait_for()
-    page.wait_for_timeout(3000)
+    page.wait_for_timeout(5000)
     page.screenshot(
         path=OUTPUT_DIR / "covariate_correlations.png",
-        clip={"x": 0, "y": 0, "width": 1280, "height": 850},
+        clip={"x": 0, "y": 0, "width": 1280, "height": 1560},
     )
     print("Saved covariate_correlations.png")
 

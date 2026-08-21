@@ -66,6 +66,7 @@ def build_binned_metrics_panel(
     values: np.ndarray,
     value_label: str,
     suptitle: str,
+    panel_height: int = 220,
 ) -> hv.Layout:
     """Stack the binned values under the full-session trace they reduce.
 
@@ -85,6 +86,8 @@ def build_binned_metrics_panel(
         Axis label for the binned values.
     suptitle : str
         Session-level title prefix applied to the trace panel.
+    panel_height : int, optional
+        Height in pixels of each of the two panels.
 
     Returns
     -------
@@ -92,10 +95,10 @@ def build_binned_metrics_panel(
         The shaded trace above, the per-bin bars below, on a linked time axis.
     """
     trace_curve = shade_trace(hv.Curve((timestamps, trace), "time (s)", trace_label)).opts(
-        title=f"{suptitle} — {trace_label}", responsive=True, height=220
+        title=f"{suptitle} — {trace_label}", responsive=True, height=panel_height
     )
     bars = build_bin_bars(bin_starts=bin_starts, bin_ends=bin_ends, values=values, value_label=value_label).opts(
-        color=BAR_COLOR, line_color="white", title=value_label, responsive=True, height=220
+        color=BAR_COLOR, line_color="white", title=value_label, responsive=True, height=panel_height
     )
 
     return hv.Layout([trace_curve, bars]).cols(1)

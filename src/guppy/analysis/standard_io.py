@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 
 from .io_utils import (
+    COVARIATE_PREFIX,
     decide_naming_convention,
     fetchCoords,
     get_control_and_signal_channel_names,
@@ -1057,3 +1058,32 @@ def read_covariate_correlations_from_hdf5(*, filepath: str, recording_site: str)
     correlations = pd.read_hdf(output_path, key="df", mode="r")
 
     return correlations
+
+
+def read_covariate_series(filepath: str) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+    """Load every behavioral covariate store in a run folder.
+
+    Step 2 writes each store under its raw store_id, so the covariate labels in
+    ``storesList.csv`` are mapped back to the store_ids in row 0 to find the files.
+
+    Parameters
+    ----------
+    filepath : str
+        Path to the session output directory.
+
+    Returns
+    -------
+    dict of str to tuple of np.ndarray
+        Covariate name (label minus its prefix) → ``(timestamps, values)``.
+    """
+    store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
+
+    covariate_series = {}
+    for store_id, store_label in zip(store_array[0, :], store_array[1, :]):
+        if is_covariate_label(store_label):
+            name = store_label[len(COVARIATE_PREFIX) :]
+            timestamps = np.asarray(read_hdf5(store_id, filepath, "timestamps")).ravel()
+            values = np.asarray(read_hdf5(store_id, filepath, "data")).ravel()
+            covariate_series[name] = (timestamps, values)
+
+    return covariate_series

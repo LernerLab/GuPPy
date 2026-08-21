@@ -112,20 +112,26 @@ the two move together in rank order, and so tolerates a curved relationship.
 `n_bins` is the number of bins where both values were present — the sample size
 behind the two coefficients.
 
-## 7. View the scatter
+## 7. View the results
 
 Open **Step 5: Visualize** and select the **Covariates** tab. Pick a recording site,
-a metric and a covariate to see one point per bin. The correlations table sits below
-the scatter, so every pair is visible at once.
+a metric and a covariate.
 
 ```{image} ../_static/images/covariate_correlations.png
-:alt: The Covariates tab: Recording site, Metric and Covariate selectors above a scatter of mean delta F over F against akinesia, one point per bin colored by bin number, titled with the Pearson r, Spearman rho and bin count; below it the note on why no p-value is reported, and the table of every metric-covariate pair
+:alt: The Covariates tab: Recording site, Metric and Covariate selectors above four stacked panels - the photometry trace, its per-bin metric, the raw akinesia scores, and their per-bin means - then a scatter of the metric against akinesia titled with the Pearson r, Spearman rho and bin count, and the table of every metric-covariate pair
 ```
 
-Points are colored by bin number, running from the start of the session to the end.
-That coloring is worth attending to: if the colors form a clean gradient across the
-cloud, the two series are mostly drifting together over the session rather than
-tracking each other bin by bin, and the correlation says less than it appears to.
+Four panels stack above the scatter, sharing one time axis: the photometry trace,
+the per-bin metric it was reduced to, your covariate as you scored it, and your
+scores averaged into the same bins. Zooming or panning any one of them moves all
+four together. This is the view to check first — it is where a covariate that landed
+on the wrong timebase, or a bin width that is far coarser or finer than your scoring
+cadence, is obvious at a glance, and where you can see whether a high coefficient
+comes from the two series tracking each other bin by bin or from both drifting the
+same way across the session.
+
+Below them, the scatter puts one point per bin, and the correlations table lists
+every metric-covariate pair at once.
 
 ## No p-value, and why
 
@@ -145,8 +151,8 @@ What you can do with the coefficients:
 
 - **Compare them across recording sites within a session.** All the sites share the
   same behavior, so a much stronger relationship at one site is informative.
-- **Watch the bin coloring on the scatter** to tell a bin-by-bin relationship apart
-  from shared drift.
+- **Compare the stacked panels** to tell a bin-by-bin relationship apart from two
+  series that merely drift the same way across the session.
 - **Treat any claim of significance as needing a comparison across independent
   sessions**, which GuPPy does not yet perform.
 
