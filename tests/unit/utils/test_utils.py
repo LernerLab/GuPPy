@@ -17,6 +17,7 @@ from guppy.utils.utils import (
     resolve_run_folders,
     run_folder_for_run,
     select_run_folders,
+    selected_session_runs,
     takeOnlyDirs,
     transient_event_labels,
     validate_run_name,
@@ -463,3 +464,13 @@ class TestResolveRunFolders:
         monkeypatch.setattr(utils, "get_all_stores_for_combining_data", lambda folders: [[folders[0], folders[1]]])
         result = resolve_run_folders(["/a", "/b"], {"combine_data": True, "selected_runs": {}})
         assert result == ["/a/output_1"]
+
+
+class TestSelectedSessionRuns:
+    def test_flattens_sessions_and_runs_in_order(self):
+        input_parameters = {"selected_runs": {"/data/A": ["run1", "run2"], "/data/B": ["run1"]}}
+        assert selected_session_runs(inputParameters=input_parameters) == [
+            ("/data/A", "run1"),
+            ("/data/A", "run2"),
+            ("/data/B", "run1"),
+        ]

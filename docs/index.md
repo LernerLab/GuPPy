@@ -6,7 +6,7 @@
 :align: center
 ```
 
-**Guided Photometry Analysis in Python** is an open-source tool for processing and analyzing fiber photometry recordings. It provides a GUI-based pipeline covering raw data ingestion, signal preprocessing, PSTH computation, transient detection, and visualization. Data formats supported include TDT, Doric, Neurophotometrics (NPM), and generic CSV.
+**Guided Photometry Analysis in Python** is an open-source tool for processing and analyzing fiber photometry recordings. It provides a GUI-based pipeline covering raw data ingestion, signal preprocessing, PSTH computation, transient detection, visualization, and export to NWB. Data formats supported include TDT, Doric, Neurophotometrics (NPM), and generic CSV.
 
 ## Installation
 
@@ -28,6 +28,7 @@ tutorials/index
 how-to/index
 explanation/index
 reference/index
+contributing/index
 ```
 
 ## Links
