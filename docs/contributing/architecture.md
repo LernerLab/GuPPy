@@ -89,8 +89,11 @@ Validation at this layer covers only what the form can judge by itself — a req
 not selected, a missing DANDI URI. Anything needing cross-parameter context belongs in orchestration
 instead.
 
-The GUI has a headless mode: setting the `GUPPY_BASE_DIR` environment variable bypasses the Tk folder
-dialogs, which is what makes the whole application testable without a display.
+The GUI has a headless mode, signalled by the `GUPPY_BASE_DIR` environment variable. It points the
+folder and run selectors at that directory instead of the user's home directory, and makes
+`utils.is_headless()` return `True` so the steps skip the parts that need a user at the browser — the
+Neurophotometrics configuration form in step 1, for one. This is what lets the testing API drive the
+whole application without one.
 
 ### `utils/`
 
