@@ -7,6 +7,7 @@ How-to guides are task-oriented references for readers who know what they want t
 
 import-custom-events
 artifact-removal
+combine-data
 tonic-analysis
 group-analysis
 export-to-nwb
