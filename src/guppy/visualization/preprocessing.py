@@ -32,6 +32,53 @@ def _spans_overlay(*, curve: hv.DynamicMap, spans: hv.streams.Pipe) -> hv.Dynami
     return curve * hv.DynamicMap(lambda data: hv.VSpans(list(data)).opts(color="orange", alpha=0.2), streams=[spans])
 
 
+def _shaded_panel(*, curve: hv.DynamicMap, title: str, spans: hv.streams.Pipe | None) -> hv.DynamicMap:
+    """Size and title one stacked panel, shading it with the span stream when given.
+
+    Options are set on the composed panel rather than the bare curve: options set on an
+    Overlay are dropped when the spans layer composes it into a new one, which left the
+    fit panel at bokeh's 300x300 default while the two single-curve panels kept theirs.
+    """
+    shaded = curve if spans is None else _spans_overlay(curve=curve, spans=spans)
+    return shaded.opts(title=title, responsive=True, height=220)
+
+
+def build_stacked_traces(
+    *,
+    x: np.ndarray,
+    traces: dict[str, np.ndarray],
+    suptitle: str,
+    spans: hv.streams.Pipe | None = None,
+) -> hv.Layout:
+    """Build density-shaded curves stacked over a shared time axis.
+
+    Every panel plots against the same time dimension, so bokeh links their axes: zooming
+    one panel zooms them all.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Time axis values shared by all curves.
+    traces : dict
+        Panel title → trace values against the same ``x``, stacked in iteration order.
+    suptitle : str
+        Session-level title prefix applied to the first panel.
+    spans : hv.streams.Pipe, optional
+        Stream carrying the ``(start, end)`` windows shaded on every curve. Omit to draw
+        the traces unshaded.
+
+    Returns
+    -------
+    hv.Layout
+        Vertically stacked curves, one per trace.
+    """
+    panels = []
+    for index, (title, values) in enumerate(traces.items()):
+        curve = shade_trace(hv.Curve((x, values), "time (s)", title))
+        panels.append(_shaded_panel(curve=curve, title=f"{suptitle} — {title}" if index == 0 else title, spans=spans))
+    return hv.Layout(panels).cols(1)
+
+
 def build_control_signal_fit(
     *,
     x: np.ndarray,
@@ -79,12 +126,8 @@ def build_control_signal_fit(
         hv.Curve((x, fit), "time (s)", titles[2]), color=FIT_COLOR
     )
 
-    # Size and title the composed panel, not the bare curve: options set on an Overlay are
-    # dropped when the spans layer composes it into a new one, which left the fit panel at
-    # bokeh's 300x300 default while the two single-curve panels kept theirs.
     def panel(curve: hv.DynamicMap, title: str) -> hv.DynamicMap:
-        shaded = curve if spans is None else _spans_overlay(curve=curve, spans=spans)
-        return shaded.opts(title=title, responsive=True, height=220)
+        return _shaded_panel(curve=curve, title=title, spans=spans)
 
     panels = [
         panel(control_curve, f"{suptitle} — {titles[0]}"),

@@ -39,6 +39,12 @@ def test_remove_artifacts_button_visible(page, live_server_url):
 
 
 @pytest.mark.ui
+def test_tonic_analysis_button_visible(page, live_server_url):
+    page.goto(live_server_url)
+    expect(page.get_by_role("button", name="Tonic Analysis")).to_be_visible()
+
+
+@pytest.mark.ui
 def test_psth_computation_button_visible(page, live_server_url):
     page.goto(live_server_url)
     expect(page.get_by_role("button", name="PSTH Computation")).to_be_visible()

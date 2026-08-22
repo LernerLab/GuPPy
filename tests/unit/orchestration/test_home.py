@@ -124,13 +124,50 @@ def test_onclick_visualization_surfaces_value_error_as_panel_notification(homepa
     assert captured_notifications[0]["duration"] == 0
 
 
-# The pipeline steps that run a worker in a background thread behind a progress bar all
-# share the `_run_worker_with_progress` closure. Only PSTH injects `curr_dir`.
+class TestMetadataHook:
+    """Step 6 opens a page synchronously; Step 7's export goes through STEP_HANDLERS below."""
+
+    def test_hooks_contain_metadata_and_export(self, homepage):
+        assert callable(homepage._hooks["onclickMetadata"])
+        assert callable(homepage._hooks["onclickExportNwb"])
+
+    def test_onclick_metadata_invokes_worker_with_input_parameters(self, homepage, selected_session, monkeypatch):
+        worker_calls = []
+        monkeypatch.setattr(
+            "guppy.orchestration.home.orchestrate_metadata_page", lambda params: worker_calls.append(params)
+        )
+
+        homepage._hooks["onclickMetadata"]()
+
+        assert len(worker_calls) == 1
+        assert isinstance(worker_calls[0], dict)
+
+    def test_onclick_metadata_no_folder_notifies_and_skips_worker(self, homepage, monkeypatch):
+        homepage._widgets["files_1"].value = []
+
+        worker_calls = []
+        monkeypatch.setattr(
+            "guppy.orchestration.home.orchestrate_metadata_page", lambda params: worker_calls.append(params)
+        )
+
+        captured = []
+        monkeypatch.setattr(pn.state.notifications, "error", lambda message, *, duration: captured.append(message))
+
+        homepage._hooks["onclickMetadata"]()
+
+        assert worker_calls == []
+        assert any("No folder is selected for analysis" in message for message in captured)
+
+
+# The pipeline steps that run a worker in a background thread behind a progress bar all share
+# the `_run_worker_with_progress` closure, so launch, error surfacing, and the no-folder guard
+# are asserted once for all of them. Only PSTH injects `curr_dir`.
 STEP_HANDLERS = [
     ("onclickreaddata", "run_read_raw_data_step", False),
     ("onclickpreprocess", "run_preprocess_step", False),
     ("onclickRemoveArtifacts", "run_remove_artifacts_step", False),
     ("onclickpsth", "run_psth_step", True),
+    ("onclickExportNwb", "run_export_nwb_step", False),
 ]
 
 
@@ -251,6 +288,45 @@ def test_step_handler_no_folder_selected_skips_worker(
     assert "No folder is selected for analysis" in captured_notifications[0]
     # No worker launched and no poller registered.
     assert "poll" not in capture_periodic
+
+
+class TestExportNwbCompletionNotification:
+    """Export writes its files and opens no result view, so a completion notification is the
+    only sign it finished. It was lost when the step moved onto the background-thread pattern."""
+
+    def test_successful_export_notifies_completion(self, homepage, selected_session, monkeypatch, capture_periodic):
+        finished = threading.Event()
+        monkeypatch.setattr("guppy.orchestration.home.run_export_nwb_step", lambda params: finished.set())
+
+        captured = []
+        monkeypatch.setattr(pn.state.notifications, "success", lambda message: captured.append(message))
+
+        homepage._hooks["onclickExportNwb"]()
+        assert finished.wait(timeout=3), "worker thread did not run"
+        poll_until_stopped(capture_periodic)
+
+        assert captured == ["Export to NWB complete."]
+
+    def test_failed_export_notifies_the_error_and_not_success(
+        self, homepage, selected_session, monkeypatch, capture_periodic
+    ):
+        finished = threading.Event()
+
+        def worker(params):
+            progress.fail("NWB export failed for 1 of 1 session(s): Photo_A (run1): boom")
+            finished.set()
+
+        monkeypatch.setattr("guppy.orchestration.home.run_export_nwb_step", worker)
+
+        successes = []
+        monkeypatch.setattr(pn.state.notifications, "success", lambda message: successes.append(message))
+        monkeypatch.setattr(pn.state.notifications, "error", lambda message, *, duration: None)
+
+        homepage._hooks["onclickExportNwb"]()
+        assert finished.wait(timeout=3), "worker thread did not run"
+        poll_until_stopped(capture_periodic)
+
+        assert successes == []
 
 
 def test_poll_reports_progress_without_completing_while_worker_runs(

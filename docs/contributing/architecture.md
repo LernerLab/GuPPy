@@ -42,8 +42,9 @@ means a user sees the error before a progress bar starts moving.
 ### `extractors/`
 
 Reads raw acquisition data. Every reader subclasses `BaseRecordingExtractor` and implements the same
-four methods — `discover_events_and_flags()`, `read()`, `save()`, and `stub()` — so the rest of the
-codebase never branches on acquisition format.
+four required methods — `discover_events_and_flags()`, `read()`, `save()`, and `stub()` — plus
+`count_samples()` for progress reporting, so the rest of the codebase never branches on acquisition
+format.
 
 Supported formats: `TdtRecordingExtractor`, `DoricRecordingExtractor`, `NpmRecordingExtractor`,
 `CsvRecordingExtractor`, `NwbRecordingExtractor`, and `DandiNwbRecordingExtractor` for streaming
@@ -89,8 +90,11 @@ Validation at this layer covers only what the form can judge by itself — a req
 not selected, a missing DANDI URI. Anything needing cross-parameter context belongs in orchestration
 instead.
 
-The GUI has a headless mode: setting the `GUPPY_BASE_DIR` environment variable bypasses the Tk folder
-dialogs, which is what makes the whole application testable without a display.
+The GUI has a headless mode, signalled by the `GUPPY_BASE_DIR` environment variable. It points the
+folder and run selectors at that directory instead of the user's home directory, and makes
+`utils.is_headless()` return `True` so the steps skip the parts that need a user at the browser — the
+Neurophotometrics configuration form in step 1, for one. This is what lets the testing API drive the
+whole application without one.
 
 ### `utils/`
 
@@ -128,6 +132,7 @@ Three modules sit directly under `src/guppy/`: `main.py` (the `guppy` console en
 | *optional* — Import Custom Events | `orchestration/import_custom_events.py` | `orchestrate_custom_events_page` |
 | *optional* — Select Artifact Windows | `orchestration/select_artifact_windows.py` | `orchestrate_select_artifact_windows` |
 | *optional* — Remove Artifacts | `orchestration/preprocess.py` | `removeArtifactsFromSignal` |
+| *optional* — Tonic Analysis | `orchestration/tonic_analysis.py` | `orchestrate_tonic_analysis` |
 
 Saving the parameters is not a step of its own. `orchestration/save_parameters.py` is called by each
 worker, so `GuPPyParamtersUsed.json` in an output folder always reflects the configuration that
@@ -135,10 +140,6 @@ produced it.
 
 ## Adding a new acquisition format
 
-The most common extension is a new reader. Subclass `BaseRecordingExtractor` in `extractors/`,
-implement the four abstract methods, export it from `extractors/__init__.py`, teach
-`detect_acquisition_formats()` to recognize the format on disk, and add a branch in
-`read_raw_data._build_event_to_extractor()` so events route to it. Then add unit tests in
-`tests/unit/extractors/` — the shared `recording_extractor_test_mixin.py` covers the interface
-contract — and a stubbed sample session under `stubbed_testing_data/` so the integration tests can
-run the format end to end.
+The most common extension is a new reader. See
+[Adding a new acquisition format](new_recording_format.md) for the full extractor contract and the
+end-to-end registration checklist.
