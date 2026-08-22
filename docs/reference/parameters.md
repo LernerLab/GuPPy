@@ -18,7 +18,7 @@ The first card on the homepage, open by default. Selects the session data the pi
 | (file browser) | Session folders to analyze. | list of paths | empty | absolute paths to session directories |
 | (DANDI selector) | DANDI assets to materialize as sessions. | dict | `None` (local mode) | per-session mapping of `dandi://` URIs |
 
-**Data Source** picks between selecting local session folders from the file browser (the common case) and streaming NWB sessions directly from DANDI. The browser is hidden when `dandi` is selected and the DANDI selector takes its place.
+**Data Source** picks between selecting local session folders from the file browser (the common case) and streaming NWB sessions directly from DANDI. The browser is hidden when `dandi` is selected and the DANDI selector takes its place. See [Analyze data streamed from the DANDI Archive](../how-to/analyze-dandi-data.md) for the DANDI workflow.
 
 **File browser** holds the list of session folder paths the pipeline will analyze. Multiple folders are allowed for batch runs; all of them must share a common parent directory or the pipeline raises a validation error before any work starts. The pipeline records the common parent automatically and uses it to anchor output locations; this is not a configurable knob.
 

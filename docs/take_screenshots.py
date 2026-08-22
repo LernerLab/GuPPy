@@ -8,6 +8,10 @@ Re-run this script whenever the GUI changes.
 
 Playwright browser binaries must be installed:
     uv run --group test playwright install chromium
+
+The DANDI screenshots query the live DANDI Archive for the demo dandiset's asset
+list, so this script needs network access. No API token is required: browsing a
+public dandiset is unauthenticated (only streaming an asset's data authenticates).
 """
 
 from __future__ import annotations
@@ -26,6 +30,7 @@ from guppy.analysis.standard_io import write_tonic_to_hdf5
 from guppy.analysis.tonic import compute_tonic_means
 from guppy.frontend.artifact_windows_page import ArtifactWindowSelector
 from guppy.frontend.custom_events_config import CustomEventsConfig
+from guppy.frontend.dandi_selector import DandiSelector
 from guppy.frontend.frontend_utils import scanPortsAndFind
 from guppy.frontend.input_parameters import ParameterForm
 from guppy.frontend.parameterized_plotter import ParameterizedPlotter
@@ -53,6 +58,12 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 VIEWPORT = {"width": 1280, "height": 900}
 SAMPLE_DATA_DIR = REPO_ROOT / "stubbed_testing_data" / "csv" / "sample_data_csv_1"
+
+# Public dandiset used for the DANDI how-to screenshots. The asset is the same one
+# the live DANDI test pins, so the guide and the test describe the same recording.
+DANDI_DEMO_DANDISET_ID = "000971"
+DANDI_DEMO_SUBJECT = "sub-112-283"
+DANDI_DEMO_ASSET = "sub-112-283_ses-FP-PS-2019-06-20T09-32-04_behavior.nwb"
 
 
 def _wait_for_port(port: int, retries: int = 50, delay: float = 0.05) -> None:
@@ -418,6 +429,100 @@ def screenshot_parameters(page: Page) -> None:
     pn.state.kill_all_servers()
 
 
+def screenshot_group_analysis_card(page: Page) -> None:
+    """How-to: the Group Analysis card, expanded, with its folder browser and toggle.
+
+    The card is collapsed by default, so expand it before rendering, then clip to its
+    region — mirrors screenshot_parameters.
+    """
+    os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
+    template = build_homepage()
+    for card in template.main:
+        if isinstance(card, pn.Card) and card.title == "Group Analysis":
+            card.collapsed = False
+    url = _serve(template)
+    page.set_viewport_size({"width": 1280, "height": 1800})
+    page.goto(url)
+    page.get_by_text("Group Analysis").first.wait_for()
+    page.wait_for_timeout(1500)
+    page.screenshot(
+        path=OUTPUT_DIR / "group_analysis_card.png",
+        clip={"x": 0, "y": 620, "width": 1280, "height": 750},
+    )
+    print("Saved group_analysis_card.png")
+    page.set_viewport_size(VIEWPORT)
+    pn.state.kill_all_servers()
+
+
+def screenshot_visualize_average_toggle(page: Page) -> None:
+    """How-to: the Visualization Parameters card showing the Visualize Average Results? toggle."""
+    os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
+    template = build_homepage()
+    for card in template.main:
+        if isinstance(card, pn.Card) and card.title == "Visualization Parameters":
+            card.collapsed = False
+    url = _serve(template)
+    page.set_viewport_size({"width": 1280, "height": 1800})
+    page.goto(url)
+    page.get_by_text("Visualization Parameters").first.wait_for()
+    page.wait_for_timeout(1500)
+    page.screenshot(
+        path=OUTPUT_DIR / "visualize_average_results_toggle.png",
+        clip={"x": 0, "y": 600, "width": 1280, "height": 300},
+    )
+    print("Saved visualize_average_results_toggle.png")
+    page.set_viewport_size(VIEWPORT)
+    pn.state.kill_all_servers()
+
+
+def screenshot_group_psth_plot(page: Page, tmp_path: Path) -> None:
+    """How-to: the Visualization dashboard's PSTH plot with one trace per session.
+
+    Mirrors screenshot_visualization, but names the data columns like session folders
+    rather than trials, matching the real shape of a group-averaged PSTH file.
+    """
+    events = ["RewardPort"]
+    sessions = ["session_1", "session_2", "session_3"]
+    n_timepoints = 30
+    timestamps = np.linspace(-10.0, 20.0, n_timepoints)
+    # bin_1 / bin_err_1 keep the column count and trailing order the same shape the
+    # dashboard's default-selection logic expects (mirrors screenshot_visualization);
+    # they do not represent real group-average output, which has no bin_* columns.
+    columns = [*sessions, "bin_1", "timestamps", "mean", "err", "bin_err_1"]
+
+    def make_df() -> pd.DataFrame:
+        return pd.DataFrame({col: (timestamps if col == "timestamps" else np.zeros(n_timepoints)) for col in columns})
+
+    df_new = pd.concat([make_df() for _ in events], keys=events, axis=1)
+
+    plotter = ParameterizedPlotter(
+        event_selector_objects=events,
+        event_selector_heatmap_objects=events,
+        selector_for_multipe_events_plot_objects=events,
+        color_map_objects=["plasma", "viridis"],
+        x_objects=["timestamps"],
+        y_objects=[*sessions, "mean"],
+        heatmap_y_objects=[f"1 - {sessions[0]}", "All"],
+        psth_y_objects=None,
+        filepath=str(tmp_path),
+        columns_dict={e: columns for e in events},
+        df_new=df_new,
+        x_min=-10.0,
+        x_max=20.0,
+    )
+    dashboard = VisualizationDashboard(plotter=plotter, basename="average")
+    template = dashboard.build_template()
+    url = _serve(template)
+
+    page.goto(url)
+    page.get_by_text("PSTH").first.wait_for()
+    page.wait_for_timeout(1500)
+    page.screenshot(path=OUTPUT_DIR / "group_psth_plot.png", full_page=False)
+    print("Saved group_psth_plot.png")
+
+    pn.state.kill_all_servers()
+
+
 def screenshot_sidebar_progress(
     page: Page,
     progress_index: int,
@@ -554,6 +659,29 @@ def screenshot_compare_parameters_run_name(page: Page) -> None:
         clip={"x": 0, "y": 0, "width": 660, "height": 320},
     )
     print("Saved compare_parameters_run_name.png")
+def screenshot_dandi_source_selection(page: Page) -> None:
+    """How-to: Input Folder Selection with the Data Source toggle set to ``dandi``.
+
+    Assigning ``source_mode`` and ``dandiset_input`` fires their param watchers
+    synchronously, so the DANDI panel is swapped in and the dandiset's assets are
+    fetched before the template is served (mirroring screenshot_label_stores_configured).
+    Fetching the asset list touches one zero-byte placeholder per NWB asset under the
+    system temp dir; the tree is reused on subsequent runs.
+    """
+    os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
+    template = build_homepage()
+    template._widgets["source_mode"].value = "dandi"
+    template._widgets["dandi_selector"].dandiset_input.value = DANDI_DEMO_DANDISET_ID
+    url = _serve(template)
+
+    page.goto(url)
+    page.get_by_text("DANDI source").first.wait_for()
+    page.wait_for_timeout(1500)
+    page.screenshot(
+        path=OUTPUT_DIR / "dandi_source_selection.png",
+        clip={"x": 0, "y": 80, "width": 1280, "height": 355},
+    )
+    print("Saved dandi_source_selection.png")
 
     pn.state.kill_all_servers()
 
@@ -603,6 +731,42 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
         for run_folder in run_folders:
             run_folder.rmdir()
 
+def screenshot_dandi_asset_browser(page: Page) -> None:
+    """How-to: the DANDI asset browser descended into a subject folder, one asset selected.
+
+    Built from the component directly rather than the homepage so the browser is not
+    pushed down by the sidebar and card chrome. ``FileSelector`` computes its
+    selected/unselected lists at construction, so the widget is built with ``value``
+    already set and swapped into the selector's slot rather than assigned afterwards.
+    """
+    selector = DandiSelector()
+    selector.dandiset_input.value = DANDI_DEMO_DANDISET_ID
+    subject_directory = os.path.join(selector._current_mirror_root, DANDI_DEMO_SUBJECT)
+    file_selector = pn.widgets.FileSelector(
+        subject_directory,
+        root_directory=selector._current_mirror_root,
+        file_pattern="*.nwb",
+        name="NWB assets",
+        value=[os.path.join(subject_directory, DANDI_DEMO_ASSET)],
+        width=950,
+    )
+    file_selector._directory.visible = False
+    selector._asset_file_selector_slot[:] = [file_selector]
+
+    template = pn.template.BootstrapTemplate(title="Input Folder Selection - DANDI source")
+    template.main.append(selector.panel)
+    url = _serve(template)
+
+    page.set_viewport_size({"width": 1280, "height": 1700})
+    page.goto(url)
+    page.get_by_text("DANDI source").first.wait_for()
+    page.wait_for_timeout(1500)
+    page.screenshot(
+        path=OUTPUT_DIR / "dandi_asset_browser.png",
+        clip={"x": 0, "y": 335, "width": 1130, "height": 430},
+    )
+    print("Saved dandi_asset_browser.png")
+    page.set_viewport_size(VIEWPORT)
 
 def screenshot_export_to_nwb_button(page: Page) -> None:
     """How-to: the sidebar bottom showing the two optional NWB steps below Step 5."""
@@ -740,6 +904,8 @@ def main() -> None:
             screenshot_import_custom_events(page)
             screenshot_data_selection(page)
             screenshot_parameters(page)
+            screenshot_dandi_source_selection(page)
+            screenshot_dandi_asset_browser(page)
             screenshot_label_stores(page, tmp_path)
             screenshot_label_stores_configured(page, tmp_path)
             screenshot_sidebar_progress(page, 0, "04_read_progress.png")
@@ -753,6 +919,9 @@ def main() -> None:
             screenshot_visualization(page, tmp_path)
             screenshot_compare_parameters_run_name(page)
             screenshot_compare_parameters_existing_runs(page)
+            screenshot_group_analysis_card(page)
+            screenshot_visualize_average_toggle(page)
+            screenshot_group_psth_plot(page, tmp_path)
             screenshot_export_to_nwb_button(page)
             screenshot_sidebar_progress(
                 page,

@@ -6,6 +6,7 @@
 ## Fixes
 
 ## Improvements
+- Added a [how-to guide for group analysis](https://guppy.readthedocs.io/en/latest/how-to/group-analysis.html): running Step 4's cross-session averaging and Step 5's averaged-results visualization. [PR #435](https://github.com/LernerLab/GuPPy/pull/435)
 
 ## Deprecations and Removals
 
@@ -42,6 +43,8 @@
 
 ## Improvements
 - Added a [Comparing Two Parameter Sets](https://guppy.readthedocs.io/en/latest/tutorials/compare_parameters.html) tutorial: how to give each parameter set its own named run so a second analysis sits beside the first instead of overwriting it, worked through standard vs baseline z-score. [PR #438](https://github.com/LernerLab/GuPPy/pull/438)
+- Added an [Analyze data streamed from the DANDI Archive](https://guppy.readthedocs.io/en/latest/how-to/analyze-dandi-data.html) how-to guide: the API key prerequisite, selecting assets from a public dandiset, mapping NWB store ids onto signal/control labels via the `FiberPhotometryTable`, and what the pipeline writes locally. [PR #437](https://github.com/LernerLab/GuPPy/pull/437)
+- Added a [how-to guide for combining a session split across two data files](https://guppy.readthedocs.io/en/latest/how-to/combine-data.html): setting up matching run names and session-folder naming for **Combine Data?**. [PR #436](https://github.com/LernerLab/GuPPy/pull/436)
 - Added a [Testing](https://guppy.readthedocs.io/en/latest/contributing/testing.html) page to the Contributor's Guide: the `tests/unit`/`integration`/`consistency`/`UI` layout, the registered pytest markers, the `stubbed_testing_data/` vs. `testing_data/` distinction, and the headless `GUPPY_BASE_DIR` testing pattern. [PR #432](https://github.com/LernerLab/GuPPy/pull/432)
 - Added an [Adding a new acquisition format](https://guppy.readthedocs.io/en/latest/contributing/new_recording_format.html) contributor's guide page: the extractor contract, the end-to-end registration checklist, and what the test suite requires. Also corrects two stale statements it superseded, in [Architecture](https://guppy.readthedocs.io/en/latest/contributing/architecture.html) and [Output data model](https://guppy.readthedocs.io/en/latest/reference/outputs.html). [PR #434](https://github.com/LernerLab/GuPPy/pull/434)
 - Added a [Contributor's Guide](https://guppy.readthedocs.io/en/latest/contributing/index.html) section to the documentation, opening with an [Architecture](https://guppy.readthedocs.io/en/latest/contributing/architecture.html) page that maps the seven packages under `src/guppy/`, their entry points, and which orchestration module backs each pipeline step. Replaces the orphaned `docs/architecture.md`, which described the v1-to-v2 refactor and was unreachable from the site nav. [PR #428](https://github.com/LernerLab/GuPPy/pull/428)
