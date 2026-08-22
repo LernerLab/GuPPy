@@ -8,6 +8,10 @@ Re-run this script whenever the GUI changes.
 
 Playwright browser binaries must be installed:
     uv run --group test playwright install chromium
+
+The DANDI screenshots query the live DANDI Archive for the demo dandiset's asset
+list, so this script needs network access. No API token is required: browsing a
+public dandiset is unauthenticated (only streaming an asset's data authenticates).
 """
 
 from __future__ import annotations
@@ -26,6 +30,7 @@ from guppy.analysis.standard_io import write_tonic_to_hdf5
 from guppy.analysis.tonic import compute_tonic_means
 from guppy.frontend.artifact_windows_page import ArtifactWindowSelector
 from guppy.frontend.custom_events_config import CustomEventsConfig
+from guppy.frontend.dandi_selector import DandiSelector
 from guppy.frontend.frontend_utils import scanPortsAndFind
 from guppy.frontend.parameterized_plotter import ParameterizedPlotter
 from guppy.frontend.store_labeling_selector import StoreLabelingSelector
@@ -52,6 +57,12 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 VIEWPORT = {"width": 1280, "height": 900}
 SAMPLE_DATA_DIR = REPO_ROOT / "stubbed_testing_data" / "csv" / "sample_data_csv_1"
+
+# Public dandiset used for the DANDI how-to screenshots. The asset is the same one
+# the live DANDI test pins, so the guide and the test describe the same recording.
+DANDI_DEMO_DANDISET_ID = "000971"
+DANDI_DEMO_SUBJECT = "sub-112-283"
+DANDI_DEMO_ASSET = "sub-112-283_ses-FP-PS-2019-06-20T09-32-04_behavior.nwb"
 
 
 def _wait_for_port(port: int, retries: int = 50, delay: float = 0.05) -> None:
@@ -626,6 +637,70 @@ def screenshot_visualization(page: Page, tmp_path: Path) -> None:
     pn.state.kill_all_servers()
 
 
+def screenshot_dandi_source_selection(page: Page) -> None:
+    """How-to: Input Folder Selection with the Data Source toggle set to ``dandi``.
+
+    Assigning ``source_mode`` and ``dandiset_input`` fires their param watchers
+    synchronously, so the DANDI panel is swapped in and the dandiset's assets are
+    fetched before the template is served (mirroring screenshot_label_stores_configured).
+    Fetching the asset list touches one zero-byte placeholder per NWB asset under the
+    system temp dir; the tree is reused on subsequent runs.
+    """
+    os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
+    template = build_homepage()
+    template._widgets["source_mode"].value = "dandi"
+    template._widgets["dandi_selector"].dandiset_input.value = DANDI_DEMO_DANDISET_ID
+    url = _serve(template)
+
+    page.goto(url)
+    page.get_by_text("DANDI source").first.wait_for()
+    page.wait_for_timeout(1500)
+    page.screenshot(
+        path=OUTPUT_DIR / "dandi_source_selection.png",
+        clip={"x": 0, "y": 80, "width": 1280, "height": 355},
+    )
+    print("Saved dandi_source_selection.png")
+
+    pn.state.kill_all_servers()
+
+
+def screenshot_dandi_asset_browser(page: Page) -> None:
+    """How-to: the DANDI asset browser descended into a subject folder, one asset selected.
+
+    Built from the component directly rather than the homepage so the browser is not
+    pushed down by the sidebar and card chrome. ``FileSelector`` computes its
+    selected/unselected lists at construction, so the widget is built with ``value``
+    already set and swapped into the selector's slot rather than assigned afterwards.
+    """
+    selector = DandiSelector()
+    selector.dandiset_input.value = DANDI_DEMO_DANDISET_ID
+    subject_directory = os.path.join(selector._current_mirror_root, DANDI_DEMO_SUBJECT)
+    file_selector = pn.widgets.FileSelector(
+        subject_directory,
+        root_directory=selector._current_mirror_root,
+        file_pattern="*.nwb",
+        name="NWB assets",
+        value=[os.path.join(subject_directory, DANDI_DEMO_ASSET)],
+        width=950,
+    )
+    file_selector._directory.visible = False
+    selector._asset_file_selector_slot[:] = [file_selector]
+
+    template = pn.template.BootstrapTemplate(title="Input Folder Selection - DANDI source")
+    template.main.append(selector.panel)
+    url = _serve(template)
+
+    page.set_viewport_size({"width": 1280, "height": 1700})
+    page.goto(url)
+    page.get_by_text("DANDI source").first.wait_for()
+    page.wait_for_timeout(1500)
+    page.screenshot(
+        path=OUTPUT_DIR / "dandi_asset_browser.png",
+        clip={"x": 0, "y": 335, "width": 1130, "height": 430},
+    )
+    print("Saved dandi_asset_browser.png")
+    page.set_viewport_size(VIEWPORT)
+
 def screenshot_export_to_nwb_button(page: Page) -> None:
     """How-to: the sidebar bottom showing the two optional NWB steps below Step 5."""
     os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
@@ -762,6 +837,8 @@ def main() -> None:
             screenshot_import_custom_events(page)
             screenshot_data_selection(page)
             screenshot_parameters(page)
+            screenshot_dandi_source_selection(page)
+            screenshot_dandi_asset_browser(page)
             screenshot_label_stores(page, tmp_path)
             screenshot_label_stores_configured(page, tmp_path)
             screenshot_sidebar_progress(page, 0, "04_read_progress.png")
