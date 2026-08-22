@@ -18,6 +18,11 @@ _FORBIDDEN_RUN_NAME_CHARACTERS = ("/", "\\", ":", "\0")
 NPM_PARAMS_FILENAME = ".npm_params.json"
 NPM_PARAM_KEYS = ("npm_split_events", "npm_time_unit", "npm_timestamp_column_name")
 
+# Event-label prefix for the transient trains that stand in for external TTLs when
+# useTransientsAsEvents is on. Prepended to a preprocessed basename it yields the
+# event file name, e.g. "transients_" + "z_score_DMS" -> transients_z_score_DMS.hdf5.
+TRANSIENT_EVENT_PREFIX = "transients_"
+
 
 def is_headless() -> bool:
     """Report whether GuPPy is running in headless/test mode.
@@ -334,6 +339,59 @@ def get_all_stores_for_combining_data(run_folders: list[str]) -> list[list[str]]
 
     ordered_run_names = sorted(run_name_to_paths.keys(), key=_run_name_sort_key)
     return [sorted(run_name_to_paths[name], key=str.casefold) for name in ordered_run_names]
+
+
+def transient_event_labels(*, inputParameters: dict[str, object]) -> list[str]:
+    """Return the event labels contributed by the detected transients.
+
+    The labels are derived from the parameters rather than discovered on disk, so
+    transient event files left behind by an earlier run cannot re-enter the analysis
+    once the toggle is switched off.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters.
+
+    Returns
+    -------
+    list of str
+        ``[]`` when ``useTransientsAsEvents`` is off, otherwise one label per metric
+        the transient detector runs on, e.g. ``["transients_z_score"]``.
+    """
+    if inputParameters["useTransientsAsEvents"] == False:
+        return []
+
+    selectForTransientsComputation = inputParameters["selectForTransientsComputation"]
+    if selectForTransientsComputation == "z_score":
+        metrics = ["z_score"]
+    elif selectForTransientsComputation == "dff":
+        metrics = ["dff"]
+    else:
+        metrics = ["z_score", "dff"]
+
+    return [TRANSIENT_EVENT_PREFIX + metric for metric in metrics]
+
+
+def event_labels_for_analysis(*, store_array: np.ndarray, inputParameters: dict[str, object]) -> list[str]:
+    """Return every store label the PSTH and visualization steps should fan out over.
+
+    Parameters
+    ----------
+    store_array : np.ndarray
+        2-D array with rows [store_id, store_label].
+    inputParameters : dict
+        Full pipeline input parameters.
+
+    Returns
+    -------
+    list of str
+        The storesList labels, followed by the transient event labels when
+        ``useTransientsAsEvents`` is on. Labels are deduplicated in first-seen order,
+        since two stores may share a label across the merged storesList files.
+    """
+    labels = list(store_array[1, :]) + transient_event_labels(inputParameters=inputParameters)
+    return list(dict.fromkeys(labels))
 
 
 def read_Df(filepath: str, event: str, name: str) -> pd.DataFrame:

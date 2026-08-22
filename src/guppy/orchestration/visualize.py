@@ -15,7 +15,12 @@ from ..frontend.parameterized_plotter import (
     remove_cols,
 )
 from ..frontend.visualization_dashboard import VisualizationDashboard
-from ..utils.utils import get_all_stores_for_combining_data, read_Df, select_run_folders
+from ..utils.utils import (
+    event_labels_for_analysis,
+    get_all_stores_for_combining_data,
+    read_Df,
+    select_run_folders,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -152,7 +157,7 @@ def helper_plots(filepath: str, event: list[str], name: list[str] | str, inputPa
     dashboard.show()
 
 
-def createPlots(filepath: str, event: np.ndarray, inputParameters: dict[str, object]) -> None:
+def createPlots(filepath: str, event: list[str], inputParameters: dict[str, object]) -> None:
     """Assemble PSTH data from an output directory and delegate to ``helper_plots``.
 
     Parameters
@@ -391,7 +396,11 @@ def visualizeResults(inputParameters: dict[str, object]) -> None:
             )
         store_array = np.unique(store_array, axis=1)
 
-        createPlots(filepath_avg, np.unique(store_array[1, :]), inputParameters)
+        createPlots(
+            filepath_avg,
+            event_labels_for_analysis(store_array=store_array, inputParameters=inputParameters),
+            inputParameters,
+        )
 
     else:
         selected_runs = inputParameters.get("selected_runs") or {}
@@ -418,7 +427,11 @@ def visualizeResults(inputParameters: dict[str, object]) -> None:
                     )
                 store_array = np.unique(store_array, axis=1)
                 filepath = combined_output_groups[i][0]
-                createPlots(filepath, store_array[1, :], inputParameters)
+                createPlots(
+                    filepath,
+                    event_labels_for_analysis(store_array=store_array, inputParameters=inputParameters),
+                    inputParameters,
+                )
         else:
             for i in range(len(session_folders)):
 
@@ -430,4 +443,8 @@ def visualizeResults(inputParameters: dict[str, object]) -> None:
                         os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=","
                     ).reshape(2, -1)
 
-                    createPlots(filepath, store_array[1, :], inputParameters)
+                    createPlots(
+                        filepath,
+                        event_labels_for_analysis(store_array=store_array, inputParameters=inputParameters),
+                        inputParameters,
+                    )

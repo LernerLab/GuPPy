@@ -30,6 +30,7 @@ EXPECTED_JSON_KEYS = {
     "nSecPrev",
     "nSecPost",
     "computeCorr",
+    "useTransientsAsEvents",
     "timeInterval",
     "bin_psth_trials",
     "use_time_or_trials",

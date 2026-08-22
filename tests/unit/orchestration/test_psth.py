@@ -124,6 +124,23 @@ def test_execute_compute_cross_correlation_no_op_when_compute_corr_false(
     assert len(get_corr_calls) == 0
 
 
+def test_execute_compute_cross_correlation_no_op_for_transient_events(
+    psth_output_dir, base_input_parameters, monkeypatch
+):
+    """Each recording site's transients are its own event train, so there are no shared trials."""
+    get_corr_calls = []
+    monkeypatch.setattr(
+        "guppy.orchestration.psth.getCorrCombinations",
+        lambda filepath, inputParameters: get_corr_calls.append(filepath) or ([], []),
+    )
+
+    base_input_parameters["computeCorr"] = True
+    base_input_parameters["useTransientsAsEvents"] = True
+    execute_compute_cross_correlation(str(psth_output_dir), "transients_z_score", base_input_parameters)
+
+    assert get_corr_calls == []
+
+
 def _record_artifact_provenance(run_folder, *, remove_artifacts, artifacts_removal_method):
     """Write the artifact provenance the Remove Artifacts step would have left behind."""
     with open(os.path.join(str(run_folder), "GuPPyParamtersUsed.json"), "w") as parameters_file:
@@ -373,11 +390,24 @@ def test_validate_psth_window_parameters_raises_for_unequal_peak_array_lengths(p
 
 
 # ---------------------------------------------------------------------------
-# run_psth_step — chains PSTH into transient analysis in-process
+# run_psth_step — chains transient analysis into PSTH in-process
 # ---------------------------------------------------------------------------
 
 
 class TestRunPsthStep:
+    @pytest.fixture
+    def step_parameters(self, tmp_path, base_input_parameters):
+        """Parameters naming one real output directory, with a valid PSTH window."""
+        run_folder = tmp_path / "session1" / "session1_output_1"
+        run_folder.mkdir(parents=True)
+        (run_folder / "storesList.csv").write_text("Dv1A,Dv2A\ncontrol_DMS,signal_DMS\n")
+        base_input_parameters["session_folders"] = [str(tmp_path / "session1")]
+        base_input_parameters["selected_runs"] = {str(tmp_path / "session1"): ["1"]}
+        base_input_parameters["nSecPrev"] = -5.0
+        base_input_parameters["peak_startPoint"] = [0.0]
+        base_input_parameters["peak_endPoint"] = [5.0]
+        return base_input_parameters
+
     @pytest.fixture
     def recorded_calls(self, monkeypatch):
         """Record the order in which main() invokes the two step-4 workers."""
@@ -394,16 +424,36 @@ class TestRunPsthStep:
         monkeypatch.setattr("guppy.orchestration.psth.executeFindFreqAndAmp", fake_execute_find_freq_and_amp)
         return calls
 
-    def test_runs_psth_then_transients_on_the_same_parameters(self, recorded_calls):
-        input_parameters = {"session_folders": ["/tmp/session1"]}
+    def test_runs_transients_then_psth_on_the_same_parameters(self, recorded_calls, step_parameters):
+        run_psth_step(step_parameters)
 
-        run_psth_step(input_parameters)
+        assert [name for name, _ in recorded_calls] == ["executeFindFreqAndAmp", "psthForEachStore"]
+        assert recorded_calls[0][1] is step_parameters
+        assert recorded_calls[1][1] is step_parameters
 
-        assert [name for name, _ in recorded_calls] == ["psthForEachStore", "executeFindFreqAndAmp"]
-        assert recorded_calls[0][1] is input_parameters
-        assert recorded_calls[1][1] is input_parameters
+    def test_declares_two_progress_units_per_output_directory(self, recorded_calls, step_parameters):
+        """Both halves of step 4 share one bar, so the denominator covers both."""
+        step = StepProgress()
+        token = _current_step.set(step)
 
-    def test_transients_failure_is_reported_through_the_progress_channel(self, recorded_calls, monkeypatch):
+        try:
+            run_psth_step(step_parameters)
+        finally:
+            _current_step.reset(token)
+
+        assert step.total == 2
+
+    def test_invalid_psth_window_is_rejected_before_any_worker_runs(self, recorded_calls, step_parameters):
+        step_parameters["baselineCorrectionStart"] = -20.0
+
+        with pytest.raises(ValueError, match="baselineCorrectionStart"):
+            run_psth_step(step_parameters)
+
+        assert recorded_calls == []
+
+    def test_transients_failure_is_reported_through_the_progress_channel(
+        self, recorded_calls, step_parameters, monkeypatch
+    ):
         """A failure in the chained transients step must reach the progress error channel,
         which is how the GUI surfaces it — previously it was lost in a grandchild process."""
         step = StepProgress()
@@ -416,7 +466,7 @@ class TestRunPsthStep:
 
         try:
             with pytest.raises(ValueError, match="transientsThresh=0 must be positive"):
-                run_psth_step({})
+                run_psth_step(step_parameters)
         finally:
             _current_step.reset(token)
 

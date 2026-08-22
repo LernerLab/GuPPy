@@ -274,6 +274,10 @@ class ParameterForm:
                         - ***Compute Cross-correlation :*** Make this parameter ```True```, when user wants
                         to compute cross-correlation between PSTHs of two different signals or signals
                         recorded from different recording sites.
+                        - ***Use Transients as Events :*** Make this parameter ```True```, when user studies
+                        spontaneous activity and has no external event TTLs. The transients detected in each
+                        recording site are then used as that recording site's event timestamps for the PSTH
+                        and peak/area computation.
                         """,
             width=580,
         )
@@ -284,6 +288,10 @@ class ParameterForm:
 
         self.computeCorr = pn.widgets.Select(
             name="Compute Cross-correlation (bool)", options=[True, False], value=False, width=200
+        )
+
+        self.useTransientsAsEvents = pn.widgets.Select(
+            name="Use Transients as Events? (bool)", options=[True, False], value=False, width=200
         )
 
         self.timeInterval = pn.widgets.IntInput(name="Time Interval (s)", value=2, width=120)
@@ -328,6 +336,7 @@ class ParameterForm:
             self.explain_nsec,
             pn.Row(self.nSecPrev, self.nSecPost, self.computeCorr),
             pn.Row(self.timeInterval, self.use_time_or_trials, self.bin_psth_trials),
+            pn.Row(self.useTransientsAsEvents),
             width=600,
         )
 
@@ -726,6 +735,7 @@ class ParameterForm:
             "nSecPrev": self.nSecPrev.value,
             "nSecPost": self.nSecPost.value,
             "computeCorr": self.computeCorr.value,
+            "useTransientsAsEvents": self.useTransientsAsEvents.value,
             "timeInterval": self.timeInterval.value,
             "bin_psth_trials": self.bin_psth_trials.value,
             "use_time_or_trials": self.use_time_or_trials.value,
@@ -779,6 +789,7 @@ class ParameterForm:
             "nSecPrev": self.nSecPrev,
             "nSecPost": self.nSecPost,
             "computeCorr": self.computeCorr,
+            "useTransientsAsEvents": self.useTransientsAsEvents,
             "timeInterval": self.timeInterval,
             "bin_psth_trials": self.bin_psth_trials,
             "use_time_or_trials": self.use_time_or_trials,
