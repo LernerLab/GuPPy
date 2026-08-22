@@ -8,4 +8,6 @@ How-to guides are task-oriented references for readers who know what they want t
 import-custom-events
 artifact-removal
 analyze-dandi-data
+tonic-analysis
+export-to-nwb
 ```
