@@ -6,6 +6,7 @@
 ## Fixes
 
 ## Improvements
+- Added a [how-to guide for group analysis](https://guppy.readthedocs.io/en/latest/how-to/group-analysis.html): running Step 4's cross-session averaging and Step 5's averaged-results visualization. [PR #435](https://github.com/LernerLab/GuPPy/pull/435)
 
 ## Deprecations and Removals
 

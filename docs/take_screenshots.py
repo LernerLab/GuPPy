@@ -417,6 +417,100 @@ def screenshot_parameters(page: Page) -> None:
     pn.state.kill_all_servers()
 
 
+def screenshot_group_analysis_card(page: Page) -> None:
+    """How-to: the Group Analysis card, expanded, with its folder browser and toggle.
+
+    The card is collapsed by default, so expand it before rendering, then clip to its
+    region — mirrors screenshot_parameters.
+    """
+    os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
+    template = build_homepage()
+    for card in template.main:
+        if isinstance(card, pn.Card) and card.title == "Group Analysis":
+            card.collapsed = False
+    url = _serve(template)
+    page.set_viewport_size({"width": 1280, "height": 1800})
+    page.goto(url)
+    page.get_by_text("Group Analysis").first.wait_for()
+    page.wait_for_timeout(1500)
+    page.screenshot(
+        path=OUTPUT_DIR / "group_analysis_card.png",
+        clip={"x": 0, "y": 620, "width": 1280, "height": 750},
+    )
+    print("Saved group_analysis_card.png")
+    page.set_viewport_size(VIEWPORT)
+    pn.state.kill_all_servers()
+
+
+def screenshot_visualize_average_toggle(page: Page) -> None:
+    """How-to: the Visualization Parameters card showing the Visualize Average Results? toggle."""
+    os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
+    template = build_homepage()
+    for card in template.main:
+        if isinstance(card, pn.Card) and card.title == "Visualization Parameters":
+            card.collapsed = False
+    url = _serve(template)
+    page.set_viewport_size({"width": 1280, "height": 1800})
+    page.goto(url)
+    page.get_by_text("Visualization Parameters").first.wait_for()
+    page.wait_for_timeout(1500)
+    page.screenshot(
+        path=OUTPUT_DIR / "visualize_average_results_toggle.png",
+        clip={"x": 0, "y": 600, "width": 1280, "height": 300},
+    )
+    print("Saved visualize_average_results_toggle.png")
+    page.set_viewport_size(VIEWPORT)
+    pn.state.kill_all_servers()
+
+
+def screenshot_group_psth_plot(page: Page, tmp_path: Path) -> None:
+    """How-to: the Visualization dashboard's PSTH plot with one trace per session.
+
+    Mirrors screenshot_visualization, but names the data columns like session folders
+    rather than trials, matching the real shape of a group-averaged PSTH file.
+    """
+    events = ["RewardPort"]
+    sessions = ["session_1", "session_2", "session_3"]
+    n_timepoints = 30
+    timestamps = np.linspace(-10.0, 20.0, n_timepoints)
+    # bin_1 / bin_err_1 keep the column count and trailing order the same shape the
+    # dashboard's default-selection logic expects (mirrors screenshot_visualization);
+    # they do not represent real group-average output, which has no bin_* columns.
+    columns = [*sessions, "bin_1", "timestamps", "mean", "err", "bin_err_1"]
+
+    def make_df() -> pd.DataFrame:
+        return pd.DataFrame({col: (timestamps if col == "timestamps" else np.zeros(n_timepoints)) for col in columns})
+
+    df_new = pd.concat([make_df() for _ in events], keys=events, axis=1)
+
+    plotter = ParameterizedPlotter(
+        event_selector_objects=events,
+        event_selector_heatmap_objects=events,
+        selector_for_multipe_events_plot_objects=events,
+        color_map_objects=["plasma", "viridis"],
+        x_objects=["timestamps"],
+        y_objects=[*sessions, "mean"],
+        heatmap_y_objects=[f"1 - {sessions[0]}", "All"],
+        psth_y_objects=None,
+        filepath=str(tmp_path),
+        columns_dict={e: columns for e in events},
+        df_new=df_new,
+        x_min=-10.0,
+        x_max=20.0,
+    )
+    dashboard = VisualizationDashboard(plotter=plotter, basename="average")
+    template = dashboard.build_template()
+    url = _serve(template)
+
+    page.goto(url)
+    page.get_by_text("PSTH").first.wait_for()
+    page.wait_for_timeout(1500)
+    page.screenshot(path=OUTPUT_DIR / "group_psth_plot.png", full_page=False)
+    print("Saved group_psth_plot.png")
+
+    pn.state.kill_all_servers()
+
+
 def screenshot_sidebar_progress(
     page: Page,
     progress_index: int,
@@ -679,6 +773,9 @@ def main() -> None:
             screenshot_tonic_analysis(page, tmp_path)
             screenshot_tonic_results(page, tmp_path)
             screenshot_visualization(page, tmp_path)
+            screenshot_group_analysis_card(page)
+            screenshot_visualize_average_toggle(page)
+            screenshot_group_psth_plot(page, tmp_path)
             screenshot_export_to_nwb_button(page)
             screenshot_sidebar_progress(
                 page,

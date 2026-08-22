@@ -9,5 +9,6 @@ import-custom-events
 artifact-removal
 combine-data
 tonic-analysis
+group-analysis
 export-to-nwb
 ```
