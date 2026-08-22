@@ -37,7 +37,14 @@ from ..analysis.standard_io import (
 )
 from ..utils import progress
 from ..utils.progress import step_error_handler
-from ..utils.utils import get_all_stores_for_combining_data, read_Df, select_run_folders
+from ..utils.utils import (
+    event_labels_for_analysis,
+    get_all_stores_for_combining_data,
+    read_Df,
+    resolve_run_folders,
+    select_run_folders,
+    transient_event_labels,
+)
 from ..utils.validation import validate_peak_windows, validate_window_bounds
 
 logger = logging.getLogger(__name__)
@@ -196,6 +203,10 @@ def execute_compute_cross_correlation(filepath: str, event: str, inputParameters
         Full pipeline input parameters.
     """
     isCompute = inputParameters["computeCorr"]
+    # Each recording site's transients are its own event train, so the two sites' PSTHs
+    # share no trials and there is nothing to correlate.
+    if event in transient_event_labels(inputParameters=inputParameters):
+        return
     removeArtifacts, artifactsRemovalMethod = read_artifact_provenance(destination=filepath)
     if isCompute == True:
         if removeArtifacts == True and artifactsRemovalMethod == "concatenate":
@@ -278,13 +289,6 @@ def orchestrate_psth(inputParameters: dict[str, object]) -> None:
     # held (logging, HDF5) permanently locked in the child.
     spawn_context = mp.get_context("spawn")
     selected_runs = inputParameters.get("selected_runs") or {}
-    run_folders = []
-    for i in range(len(session_folders)):
-        run_folders.append(select_run_folders(session_folders[i], selected_runs.get(session_folders[i])))
-    run_folders = np.concatenate(run_folders)
-    # Two units per folder: PSTH here, then transient analysis, which shares this bar
-    # because both run under the single step-4 button.
-    progress.start(run_folders.shape[0] * 2)
     for i in range(len(session_folders)):
         logger.debug(f"Computing PSTH, Peak and Area for each event in {session_folders[i]}")
         run_folders = select_run_folders(session_folders[i], selected_runs.get(session_folders[i]))
@@ -293,21 +297,20 @@ def orchestrate_psth(inputParameters: dict[str, object]) -> None:
             store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(
                 2, -1
             )
+            event_labels = event_labels_for_analysis(store_array=store_array, inputParameters=inputParameters)
 
             with spawn_context.Pool(numProcesses) as psth_pool:
-                psth_pool.starmap(
-                    execute_compute_psth, zip(repeat(filepath), store_array[1, :], repeat(inputParameters))
-                )
+                psth_pool.starmap(execute_compute_psth, zip(repeat(filepath), event_labels, repeat(inputParameters)))
 
             with spawn_context.Pool(numProcesses) as peak_area_pool:
                 peak_area_pool.starmap(
                     execute_compute_psth_peak_and_area,
-                    zip(repeat(filepath), store_array[1, :], repeat(inputParameters)),
+                    zip(repeat(filepath), event_labels, repeat(inputParameters)),
                 )
 
             with spawn_context.Pool(numProcesses) as cross_correlation_pool:
                 cross_correlation_pool.starmap(
-                    execute_compute_cross_correlation, zip(repeat(filepath), store_array[1, :], repeat(inputParameters))
+                    execute_compute_cross_correlation, zip(repeat(filepath), event_labels, repeat(inputParameters))
                 )
 
             progress.advance()
@@ -329,8 +332,6 @@ def execute_psth_combined(inputParameters: dict[str, object]) -> None:
         run_folders.append(select_run_folders(session_folders[i], selected_runs.get(session_folders[i])))
     run_folders = list(np.concatenate(run_folders).flatten())
     combined_output_groups = get_all_stores_for_combining_data(run_folders)
-    # Two units per combined group: PSTH here, then transient analysis on the same bar.
-    progress.start(len(combined_output_groups) * 2)
     for i in range(len(combined_output_groups)):
         store_array = np.asarray([[], []])
         for j in range(len(combined_output_groups[i])):
@@ -344,10 +345,10 @@ def execute_psth_combined(inputParameters: dict[str, object]) -> None:
                 axis=1,
             )
         store_array = np.unique(store_array, axis=1)
-        for k in range(store_array.shape[1]):
-            execute_compute_psth(combined_output_groups[i][0], store_array[1, k], inputParameters)
-            execute_compute_psth_peak_and_area(combined_output_groups[i][0], store_array[1, k], inputParameters)
-            execute_compute_cross_correlation(combined_output_groups[i][0], store_array[1, k], inputParameters)
+        for event in event_labels_for_analysis(store_array=store_array, inputParameters=inputParameters):
+            execute_compute_psth(combined_output_groups[i][0], event, inputParameters)
+            execute_compute_psth_peak_and_area(combined_output_groups[i][0], event, inputParameters)
+            execute_compute_cross_correlation(combined_output_groups[i][0], event, inputParameters)
         progress.advance()
 
 
@@ -431,6 +432,53 @@ def _validate_psth_window_parameters(inputParameters: dict[str, object]) -> None
     )
 
 
+def _merge_group_stores_list(run_folders: np.ndarray) -> np.ndarray:
+    """Return the union of every group session's storesList as a single store array.
+
+    Parameters
+    ----------
+    run_folders : np.ndarray
+        Output directories of every session in the group.
+
+    Returns
+    -------
+    np.ndarray
+        2-D array with rows [store_id, store_label], deduplicated column-wise.
+    """
+    store_array = np.asarray([[], []])
+    for run_folder in run_folders:
+        store_array = np.concatenate(
+            (
+                store_array,
+                np.genfromtxt(os.path.join(run_folder, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1),
+            ),
+            axis=1,
+        )
+    return np.unique(store_array, axis=1)
+
+
+def _group_event_labels(*, store_array: np.ndarray, inputParameters: dict[str, object]) -> list[str]:
+    """Return the event labels group averaging computes a PSTH average for.
+
+    Parameters
+    ----------
+    store_array : np.ndarray
+        Merged store array of every session in the group.
+    inputParameters : dict
+        Full pipeline input parameters.
+
+    Returns
+    -------
+    list of str
+        Store labels with the control/signal channels dropped.
+    """
+    return [
+        label
+        for label in event_labels_for_analysis(store_array=store_array, inputParameters=inputParameters)
+        if "control" not in label.lower() and "signal" not in label.lower()
+    ]
+
+
 def execute_average_for_group(inputParameters: dict[str, object]) -> None:
     """Average PSTH results across all selected sessions in the group.
 
@@ -451,34 +499,11 @@ def execute_average_for_group(inputParameters: dict[str, object]) -> None:
 
     _validate_fiber_recording_sites_consistent_for_group(run_folders)
 
-    store_array = np.asarray([[], []])
-    for i in range(run_folders.shape[0]):
-        store_array = np.concatenate(
-            (
-                store_array,
-                np.genfromtxt(os.path.join(run_folders[i], "storesList.csv"), dtype="str", delimiter=",").reshape(
-                    2, -1
-                ),
-            ),
-            axis=1,
-        )
-    store_array = np.unique(store_array, axis=1)
+    store_array = _merge_group_stores_list(run_folders)
     average_dir = makeAverageDir(inputParameters["abspath"])
     np.savetxt(os.path.join(average_dir, "storesList.csv"), store_array, delimiter=",", fmt="%s")
-    event_store_count = 0
-    for j in range(store_array.shape[1]):
-        if is_channel_label(store_array[1, j]):
-            continue
-        else:
-            event_store_count += 1
-    # One unit per event store here, plus the single unit that group transient analysis
-    # reports onto this same bar.
-    progress.start(event_store_count + 1)
-    for k in range(store_array.shape[1]):
-        if is_channel_label(store_array[1, k]):
-            continue
-        else:
-            averageForGroup(run_folders, store_array[1, k], inputParameters)
+    for event in _group_event_labels(store_array=store_array, inputParameters=inputParameters):
+        averageForGroup(run_folders, event, inputParameters)
         progress.advance()
 
 
@@ -529,14 +554,44 @@ def psthForEachStore(inputParameters: dict[str, object]) -> None:
     logger.info("PSTH, Area and Peak are computed for all events.")
 
 
-@step_error_handler
-def run_psth_step(input_parameters: dict[str, object]) -> None:
-    """Run step-4 PSTH computation, then transient analysis, with failure reporting attached.
+def _start_step4_progress(input_parameters: dict[str, object]) -> None:
+    """Declare the step-4 progress denominator for both halves of the step.
+
+    Transient analysis and PSTH computation run under a single button and share one
+    progress bar, so the denominator is declared once here rather than by whichever
+    half happens to run first.
 
     Parameters
     ----------
     input_parameters : dict
         Full pipeline input parameters.
     """
-    psthForEachStore(input_parameters)
+    if input_parameters["averageForGroup"] == True:
+        run_folders = gather_group_run_folders(input_parameters, input_parameters["group_session_folders"])
+        store_array = _merge_group_stores_list(run_folders)
+        event_labels = _group_event_labels(store_array=store_array, inputParameters=input_parameters)
+        # One unit per event store, plus the single unit group transient analysis reports.
+        progress.start(len(event_labels) + 1)
+        return
+
+    # Two units per output directory: transient analysis, then PSTH.
+    run_folders = resolve_run_folders(input_parameters["session_folders"], input_parameters)
+    progress.start(len(run_folders) * 2)
+
+
+@step_error_handler
+def run_psth_step(input_parameters: dict[str, object]) -> None:
+    """Run step-4 transient analysis, then PSTH computation, with failure reporting attached.
+
+    Transients run first because ``useTransientsAsEvents`` turns their timestamps into the
+    event train the PSTH is computed against.
+
+    Parameters
+    ----------
+    input_parameters : dict
+        Full pipeline input parameters.
+    """
+    _validate_psth_window_parameters(input_parameters)
+    _start_step4_progress(input_parameters)
     executeFindFreqAndAmp(input_parameters)
+    psthForEachStore(input_parameters)

@@ -161,6 +161,7 @@ See the [PSTH explainer](../explanation/psth.md) for what these parameters confi
 | Seconds before 0 | Pre-event window edge. | int | `-10` | typically negative; defines the pre-event window |
 | Seconds after 0 | Post-event window edge. | int | `20` | typically positive; defines the post-event window |
 | Compute Cross-correlation | Cross-correlate PSTHs across recording sites. | bool | `False` | `True`, `False`. Requires at least two distinct signal recording sites; raises `ValueError` otherwise. |
+| Use Transients as Events? | Use each recording site's detected transients as its event timestamps. | bool | `False` | `True`, `False` |
 | Time Interval (s) | Minimum spacing for accepted event timestamps. | int | `2` | seconds; bursts of event timestamps closer than this are discarded as duplicates |
 | Bin PSTH trials | Binning unit (time vs count). | str | `Time (min)` | `Time (min)`, `# of trials` |
 | Time(min) / # of trials for binning | Bin size; `0` disables binning. | int | `0` | `0` disables binning; positive values use the unit selected above |
@@ -168,6 +169,8 @@ See the [PSTH explainer](../explanation/psth.md) for what these parameters confi
 **Seconds before 0** and **Seconds after 0** define the peri-event window. Defaults give a 30-second window from 10 s before to 20 s after each event timestamp.
 
 **Compute Cross-correlation** turns on cross-correlation between PSTHs of two distinct signal recording sites, useful for detecting coordinated activity between brain areas. The pipeline raises a descriptive `ValueError` when this is `True` but only one signal recording site is configured. See the [cross-correlation explainer](../explanation/cross_correlation.md) for interpretation guidance.
+
+**Use Transients as Events?** is for spontaneous activity, where there is no external event to align to. With it on, the [transients detected](#transient-detection) in each recording site become that recording site's event timestamps, and the PSTH, peak and AUC are computed against them exactly as they would be against a TTL train — no manual export and re-import of an artificial TTL file. One event is produced per metric the detector runs on, named `transients_z_score` and/or `transients_dff` depending on **z_score and/or ΔF/F? (transients)**. The peak and AUC windows are then measured relative to each transient's peak, and **Time Interval (s)** below de-bursts the transient train the same way it de-bursts a TTL train. Cross-correlation is skipped for these events, since each recording site has its own transient times and the two sites therefore share no trials.
 
 **Time Interval (s)** suppresses bursts of event timestamps. If two event timestamps in the input are closer than this number of seconds, the second one is dropped before PSTH alignment, preventing double-counted overlapping windows.
 
@@ -286,6 +289,7 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 | `timeInterval` | Time Interval (s) | [PSTH Parameters](#psth-parameters) |
 | `transientsThresh` | TD Thresh | [Transient detection](#transient-detection) |
 | `use_time_or_trials` | Bin PSTH trials | [PSTH Parameters](#psth-parameters) |
+| `useTransientsAsEvents` | Use Transients as Events? | [PSTH Parameters](#psth-parameters) |
 | `visualize_zscore_or_dff` | z-score or ΔF/F? (for visualization) | [Visualization Parameters](#visualization-parameters) |
 | `visualizeAverageResults` | Visualize Average Results? | [Visualization Parameters](#visualization-parameters) |
 | `zscore_method` | z-score computation Method | [Z-score Parameters](#z-score-parameters) |

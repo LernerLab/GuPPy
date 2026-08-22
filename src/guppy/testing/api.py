@@ -851,6 +851,7 @@ def step4(
     npm_split_events: list[bool] | None = None,
     combine_data: bool = False,
     compute_corr: bool = False,
+    use_transients_as_events: bool = False,
     average_for_group: bool = False,
     group_folders: list[str] | None = None,
     select_for_compute_psth: str = "z_score",
@@ -890,6 +891,9 @@ def step4(
         Whether to enable combined-session processing mode in Step 4. Defaults to False.
     compute_corr : bool
         Whether to compute cross-correlation between signals. Defaults to False.
+    use_transients_as_events : bool
+        Whether to use each recording site's detected transients as its event timestamps.
+        Defaults to False.
     average_for_group : bool
         Whether to run group-level averaging across sessions instead of per-session PSTH
         computation. When ``True``, individual PSTH files must already exist in each session's
@@ -980,6 +984,9 @@ def step4(
     # Inject cross-correlation flag
     input_params["computeCorr"] = compute_corr
 
+    # Inject the spontaneous-activity flag
+    input_params["useTransientsAsEvents"] = use_transients_as_events
+
     # Inject group analysis parameters
     input_params["averageForGroup"] = average_for_group
     abs_group_folders = [os.path.abspath(folder) for folder in group_folders] if group_folders else []
@@ -1003,11 +1010,10 @@ def step4(
     # Inject the peak/AUC integration spacing
     input_params["auc_units"] = auc_units
 
-    # Call the underlying Step 4 worker directly, as the GUI does
-    psthForEachStore(input_params)
-
-    # Also compute frequency/amplitude and transients occurrences (normally triggered by CLI main)
+    # Call the underlying Step 4 workers directly, in the order the GUI runs them:
+    # transients first, so their timestamps are available as events for the PSTH.
     executeFindFreqAndAmp(input_params)
+    psthForEachStore(input_params)
 
 
 def step5(
@@ -1019,6 +1025,8 @@ def step5(
     npm_split_events: list[bool] | None = None,
     visualize_zscore_or_dff: str = "z_score",
     visualize_average_results: bool = False,
+    use_transients_as_events: bool = False,
+    select_for_transients: str = "z_score",
     group_folders: list[str] | None = None,
     selected_runs: dict[str, list[str]],
     group_selected_runs: dict[str, list[str]] | None = None,
@@ -1054,6 +1062,12 @@ def step5(
         When ``True``, visualize the group-averaged results from the ``average/``
         directory instead of the individual sessions. Injected as
         ``visualizeAverageResults``. Defaults to ``False``.
+    use_transients_as_events : bool
+        Whether step 4 used each recording site's detected transients as its event
+        timestamps; must match the value step 4 ran with. Defaults to False.
+    select_for_transients : str
+        Metric the transient detector ran on in step 4; must match the value step 4 ran
+        with. One of ``'z_score'``, ``'dff'`` or ``'Both'``. Defaults to ``'z_score'``.
     group_folders : list[str] | None
         Session directories whose group average is being visualized; required when
         ``visualize_average_results`` is ``True``. Injected as ``group_session_folders``.
@@ -1108,6 +1122,11 @@ def step5(
 
     # Inject visualization signal-type selection
     input_params["visualize_zscore_or_dff"] = visualize_zscore_or_dff
+
+    # Inject the spontaneous-activity flag, which decides whether the transient event
+    # PSTHs step 4 computed are offered in the dashboard
+    input_params["useTransientsAsEvents"] = use_transients_as_events
+    input_params["selectForTransientsComputation"] = select_for_transients
 
     # Inject group-average visualization selection
     input_params["visualizeAverageResults"] = visualize_average_results

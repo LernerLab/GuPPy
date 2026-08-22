@@ -1,5 +1,6 @@
 import json
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -7,6 +8,7 @@ from guppy.utils import utils
 from guppy.utils.utils import (
     NPM_PARAM_KEYS,
     discover_run_folders,
+    event_labels_for_analysis,
     get_all_stores_for_combining_data,
     is_headless,
     load_npm_params,
@@ -17,6 +19,7 @@ from guppy.utils.utils import (
     select_run_folders,
     selected_session_runs,
     takeOnlyDirs,
+    transient_event_labels,
     validate_run_name,
     write_npm_params,
 )
@@ -409,6 +412,45 @@ def test_is_headless_true_when_base_dir_set(monkeypatch):
 def test_is_headless_false_when_base_dir_unset(monkeypatch):
     monkeypatch.delenv("GUPPY_BASE_DIR", raising=False)
     assert is_headless() is False
+
+
+class TestTransientEventLabels:
+    def test_no_labels_when_toggle_is_off(self):
+        parameters = {"useTransientsAsEvents": False, "selectForTransientsComputation": "Both"}
+        assert transient_event_labels(inputParameters=parameters) == []
+
+    @pytest.mark.parametrize(
+        "select_for_transients, expected",
+        [
+            ("z_score", ["transients_z_score"]),
+            ("dff", ["transients_dff"]),
+            ("Both", ["transients_z_score", "transients_dff"]),
+        ],
+    )
+    def test_one_label_per_detected_metric(self, select_for_transients, expected):
+        parameters = {"useTransientsAsEvents": True, "selectForTransientsComputation": select_for_transients}
+        assert transient_event_labels(inputParameters=parameters) == expected
+
+
+class TestEventLabelsForAnalysis:
+    @pytest.fixture
+    def store_array(self):
+        return np.array([["Dv1A", "Dv2A", "PrtR"], ["control_DMS", "signal_DMS", "port_entry"]])
+
+    def test_stores_list_labels_only_when_toggle_is_off(self, store_array):
+        parameters = {"useTransientsAsEvents": False, "selectForTransientsComputation": "z_score"}
+        labels = event_labels_for_analysis(store_array=store_array, inputParameters=parameters)
+        assert labels == ["control_DMS", "signal_DMS", "port_entry"]
+
+    def test_transient_labels_appended_when_toggle_is_on(self, store_array):
+        parameters = {"useTransientsAsEvents": True, "selectForTransientsComputation": "z_score"}
+        labels = event_labels_for_analysis(store_array=store_array, inputParameters=parameters)
+        assert labels == ["control_DMS", "signal_DMS", "port_entry", "transients_z_score"]
+
+    def test_duplicate_labels_are_collapsed(self):
+        store_array = np.array([["Dv1A", "Dv1B"], ["port_entry", "port_entry"]])
+        parameters = {"useTransientsAsEvents": False, "selectForTransientsComputation": "z_score"}
+        assert event_labels_for_analysis(store_array=store_array, inputParameters=parameters) == ["port_entry"]
 
 
 class TestResolveRunFolders:

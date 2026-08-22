@@ -30,6 +30,7 @@ DEFAULT_ANALYSIS_PARAMETERS = {
     "nSecPrev": -10,
     "nSecPost": 20,
     "computeCorr": False,
+    "useTransientsAsEvents": False,
     "timeInterval": 2,
     "bin_psth_trials": 0,
     "use_time_or_trials": "Time (min)",
