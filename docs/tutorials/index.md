@@ -7,4 +7,5 @@ Tutorials are learning-oriented guides that walk you through a complete workflow
 
 first_analysis
 custom_plots
+compare_parameters
 ```

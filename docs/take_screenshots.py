@@ -534,7 +534,7 @@ def screenshot_visualization(page: Page, tmp_path: Path) -> None:
 
 
 def screenshot_compare_parameters_run_name(page: Page) -> None:
-    """Screenshot for the compare-parameters how-to: the save section with a named run.
+    """Screenshot for the compare-parameters tutorial: the save section with a named run.
 
     Only the save block is in shot, with **Run name** filled in, since naming a run
     after the parameter it varies is the point of that guide.
@@ -559,13 +559,14 @@ def screenshot_compare_parameters_run_name(page: Page) -> None:
 
 
 def screenshot_compare_parameters_existing_runs(page: Page) -> None:
-    """Screenshot for the compare-parameters how-to: two sibling runs to choose between.
+    """Screenshot for the compare-parameters tutorial: the run folders to choose between.
 
-    The run folders are created inside the real sample-data directory, and removed
-    afterwards, so the Directory field shows a normal session path rather than a
-    temp-dir basename.
+    The three runs match what a reader following the tutorial sees: the unnamed run left
+    by the first-analysis tutorial, plus the two named ones this tutorial builds. The run
+    folders are created inside the real sample-data directory, and removed afterwards, so
+    the Directory field shows a normal session path rather than a temp-dir basename.
     """
-    run_names = ("baseline_zscore", "standard_zscore")
+    run_names = ("1", "baseline_zscore", "standard_zscore")
     run_folders = [SAMPLE_DATA_DIR / f"sample_data_csv_1_output_{name}" for name in run_names]
     for run_folder in run_folders:
         run_folder.mkdir(exist_ok=True)
@@ -581,7 +582,7 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
         form = ParameterForm(template=pn.template.MaterialTemplate(title="Input Parameters GUI"))
         form.outputs_selector._directory.value = str(SAMPLE_DATA_DIR)
         form.outputs_selector._update_files()
-        form.outputs_selector._selector.value = [str(run_folders[0])]
+        form.outputs_selector._selector.value = [str(run_folders[1])]
         form.output_folder_selection.collapsed = False
 
         template = pn.template.MaterialTemplate(title="Input Parameters GUI")
@@ -601,6 +602,8 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
     finally:
         for run_folder in run_folders:
             run_folder.rmdir()
+
+
 def screenshot_export_to_nwb_button(page: Page) -> None:
     """How-to: the sidebar bottom showing the two optional NWB steps below Step 5."""
     os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
