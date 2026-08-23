@@ -1,9 +1,8 @@
 # Comparing Two Parameter Sets
 
 Some parameters have no right answer until you try them. Is the moving-average window
-wide enough to suppress the noise without flattening the transients? Does the control fit
-need a photobleaching detrend term on a recording this long? The way to decide is to
-analyze the session both ways and look at both results.
+wide enough to suppress the noise without flattening the transients? The way to decide is
+to analyze the session both ways and look at both results.
 
 GuPPy keeps parameter sets apart with **runs**. A run is one analysis pass over a
 session — its stores, its parameter set, and its own output folder — and one session can
@@ -54,12 +53,10 @@ Now the part that is new. Set **over-write storeslist file or create a new one?*
 Click **Save**.
 
 A run's name is the suffix on its output folder, `<session>_output_<run name>`, so this
-one creates `sample_data_csv_1_output_filter_100/`. Left blank, the name defaults to
-the next free integer — `1`, then `2` — which is what the first tutorial got, and which
-tells you nothing later about which folder held which parameters. Naming a run for the
-parameter that varies does: the name becomes the folder name, the heading on the
-visualization dashboard, and the only reminder you get months later of what you were
-testing.
+one creates `sample_data_csv_1_output_filter_100/`. Left blank, it defaults to the next
+free integer — `1`, then `2` — which is what the first tutorial got. Naming the run for
+the parameter you are varying carries that name into the folder name and into the heading
+on the run's visualization dashboard.
 
 Run names may not be empty, contain path separators or `..`, or contain the substring
 `_output_`.
@@ -114,16 +111,15 @@ In the **Individual Analysis** card, change the one parameter you are testing:
 
 The window is a number of **samples**, not seconds. This session is sampled at about
 1017 Hz, so the default `100` smooths over roughly a tenth of a second and `250` over
-about a quarter of a second — a modest, defensible amount of extra smoothing rather than
-an obviously wrong one.
+about a quarter of a second.
 
 Now run **Step 2: Read Raw Data**, **Step 3: Preprocess**, and **Step 4: PSTH
 Computation** again, this time into the new run.
 
 Step 2 is not optional even though you already ran it for the first run. Each run
 folder holds its own copy of the raw HDF5 data, and a run folder fresh from Label Stores is
-empty until Read Raw Data fills it. That is also why each run costs another copy of the raw
-data on disk — worth knowing before you set up eight of them on a large session.
+empty until Read Raw Data fills it. Each run therefore costs another copy of the raw data
+on disk.
 
 Run one run at a time through Steps 2–4. The parameters in the form apply to every run you
 have selected, so selecting both here would compute both runs with identical parameters and
@@ -136,22 +132,14 @@ GUI**. GuPPy opens one dashboard per selected run, each in its own browser tab, 
 flip between them with the same event and view selected.
 
 Selecting two runs whose saved parameters differ shows the notification "Selected output
-runs have different saved parameters; the form was left unchanged." That is expected here,
-and harmless: the parameters are already baked into each run's outputs, and Step 5 only
-reads them.
+runs have different saved parameters; the form was left unchanged." That is expected here:
+each run's parameters are already saved in its outputs, and Step 5 only reads them.
 
 Every dashboard's browser tab is titled `Visualization GUI`, so the tabs look identical.
 The run folder name is the heading at the top of each page — that is how you tell which is
-which. Put the two tabs on the same z-score PSTH and you are looking at the answer to the
-question you started with: the sharp peak just after the reward port entry reaches about
-3.0 in `filter_100` and about 2.5 in `filter_250`, while the slow dip roughly 10 s later
-sits near −1.7 in both. The wider window rounds off the fast response and leaves the slow
-one alone.
-
-The difference here is small enough that the plots look similar at a glance, which is
-exactly when the numbers are worth reading: each run's
-`peak_AUC_RewardPort_A_z_score_A.csv` lists the peak amplitude of every trial, and every
-trial's peak is lower under the wider window.
+which. Put the two tabs on the same z-score PSTH and the trade-off is there to see: the
+wider window gives a smoother curve, at the cost of a lower peak amplitude and coarser
+timing.
 
 To keep a figure, use **Save As...** above each plot; the file arrives through your
 browser's downloads.
@@ -186,10 +174,6 @@ with. Nothing is shared between run folders, so deleting one leaves the others i
   baseline correction, transient thresholds) means re-running only Step 4.
 - **A new run always starts at Step 2.** Even if you are only varying a Step 4 parameter,
   a run fresh from Label Stores needs Steps 2 and 3 before Step 4 has anything to read.
-- **Some parameters only rescale the PSTH.** Switching between `standard z-score` and
-  `baseline z-score` changes the y-axis units but not the shape of the trace, so the two
-  PSTHs look identical. Compare parameters that change the response itself, the way the
-  filter window does.
 - **Re-running into the same folder overwrites it.** Pointing the pipeline at a run folder
   you have already computed replaces that result instead of sitting beside it, and you end
   up with nothing to compare.
