@@ -41,6 +41,7 @@ from guppy.frontend.visualization_dashboard import VisualizationDashboard
 from guppy.orchestration.home import build_homepage
 from guppy.orchestration.metadata import build_metadata_template
 from guppy.orchestration.store_labeling import build_store_labeling_template
+from guppy.testing.covariate_session import SESSION_NAME as COVARIATE_SESSION_NAME
 from guppy.testing.covariate_session import run_covariate_session
 from guppy.utils._hdf5_io import write_hdf5
 from guppy.utils.nwb_metadata import (
@@ -387,7 +388,10 @@ def screenshot_covariate_correlations(page: Page, tmp_path: Path) -> None:
     """
     base_directory = tmp_path / "covariate_run"
     base_directory.mkdir(exist_ok=True)
-    run_folder = run_covariate_session(base_directory=base_directory)
+    run_folder = run_covariate_session(
+        session_path=REPO_ROOT / "stubbed_testing_data" / "csv" / COVARIATE_SESSION_NAME,
+        base_directory=base_directory,
+    )
 
     template = pn.template.BootstrapTemplate(title="GuPPy — Visualization")
     template.main.append(build_covariate_correlation_view(run_folder))

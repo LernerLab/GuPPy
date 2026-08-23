@@ -1,7 +1,6 @@
 """Run the behavioral-covariate sample session through Steps 1-4.
 
-The session lives at ``stubbed_testing_data/csv/sample_data_csv_covariate_1`` and is
-written by ``_write_covariate_csv_session`` in
+The session is written by ``_write_covariate_csv_session`` in
 ``guppy/testing/scripts/create_stubbed_testing_data.py``. Both the covariate integration
 tests and the documentation screenshot script need the same four steps run against it
 with the same store labels and bin width, so that run lives here.
@@ -15,8 +14,7 @@ from pathlib import Path
 from guppy.testing.api import step1, step2, step3, step4
 from guppy.utils.utils import parse_run_name
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
-SESSION_PATH = PROJECT_ROOT / "stubbed_testing_data" / "csv" / "sample_data_csv_covariate_1"
+SESSION_NAME = "sample_data_csv_covariate_1"
 
 RECORDING_SITE = "DMS"
 COVARIATE_NAMES = ("akinesia", "grooming")
@@ -41,14 +39,15 @@ def locate_output_directory(*, session: str) -> str:
     raise AssertionError(f"no output directory in {session} contains storesList.csv")
 
 
-def run_covariate_session(*, base_directory: str | Path) -> str:
-    """Copy the covariate sample session into ``base_directory``, run Steps 1-4, return its run folder.
+def run_covariate_session(*, session_path: str | Path, base_directory: str | Path) -> str:
+    """Copy the covariate sample session at ``session_path`` into ``base_directory``, run Steps 1-4, return its run folder.
 
     The steps require the session to sit directly under ``base_directory``.
     """
+    session_path = Path(session_path)
     base_directory = Path(base_directory)
-    session = base_directory / SESSION_PATH.name
-    shutil.copytree(SESSION_PATH, session, ignore=shutil.ignore_patterns("*_output_*"))
+    session = base_directory / session_path.name
+    shutil.copytree(session_path, session, ignore=shutil.ignore_patterns("*_output_*"))
 
     base_dir = str(base_directory)
     selected_folders = [str(session)]

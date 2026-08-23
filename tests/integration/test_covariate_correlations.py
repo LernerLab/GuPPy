@@ -15,12 +15,14 @@ from guppy.testing.covariate_session import (
     BIN_WIDTH,
     COVARIATE_NAMES,
     RECORDING_SITE,
+    SESSION_NAME,
     run_covariate_session,
 )
 from guppy.testing.scripts.create_stubbed_testing_data import (
     COVARIATE_CSV_DURATION,
     COVARIATE_SCORING_CADENCE,
 )
+from guppy_test_data import STUBBED_TESTING_DATA
 
 # The sample session runs 600 s, so the 50 s bins give twelve of them. The first
 # second is trimmed with the lights-on window, which shortens the first and last bins
@@ -40,7 +42,10 @@ NULL_PEARSON_R = 0.3288
 def covariate_session(tmp_path_factory):
     """The behavioral-covariate sample session, run through step 4."""
     base_directory = tmp_path_factory.mktemp("integration_covariates")
-    return run_covariate_session(base_directory=base_directory)
+    return run_covariate_session(
+        session_path=STUBBED_TESTING_DATA / "csv" / SESSION_NAME,
+        base_directory=base_directory,
+    )
 
 
 class TestCovariateIngestion:
