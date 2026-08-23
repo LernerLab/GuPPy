@@ -12,7 +12,7 @@ Every output of a run lives in a single directory, the run folder, created as a 
 <session_folder>/<session_name>_output_<run_name>/
 ```
 
-`<session_name>` is the session folder's own name, so a session at `/data/Photo_63_207` gets run folders at `/data/Photo_63_207/Photo_63_207_output_1`. `<run_name>` is either the name you type in the Label Stores GUI or, when you leave it to GuPPy, the lowest integer for which no such directory exists yet — `_output_1` on the first run, `_output_2` on the second. Re-running Step 1 over an existing run folder with the overwrite option deletes its entire contents first.
+`<session_name>` is the session folder's own name, so a session at `/data/Photo_63_207` gets run folders at `/data/Photo_63_207/Photo_63_207_output_1`. `<run_name>` is either the name you type in the Label Stores GUI or, when you leave it to GuPPy, the lowest integer for which no such directory exists yet — `_output_1` on the first run, `_output_2` on the second. Re-running Step 1 over an existing run folder with the overwrite option deletes its entire contents first. Because each run folder is self-contained, one session can hold several runs analyzed under different parameters — see [Comparing Two Parameter Sets](../tutorials/compare_parameters.md).
 
 Three further directories can appear:
 
