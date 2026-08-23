@@ -645,7 +645,7 @@ def screenshot_compare_parameters_run_name(page: Page) -> None:
     after the parameter it varies is the point of that guide.
     """
     selector = StoreLabelingSelector(allnames=["Sample_Control_Channel"])
-    selector.run_name.value = "baseline_zscore"
+    selector.run_name.value = "filter_1000"
 
     template = pn.template.BootstrapTemplate(title="Label Stores GUI - sample_data_csv_1")
     template.main.append(pn.Column(selector.mark_down_for_overwrite, selector.overwrite_button, selector.run_name))
@@ -659,6 +659,8 @@ def screenshot_compare_parameters_run_name(page: Page) -> None:
         clip={"x": 0, "y": 0, "width": 660, "height": 320},
     )
     print("Saved compare_parameters_run_name.png")
+
+
 def screenshot_dandi_source_selection(page: Page) -> None:
     """How-to: Input Folder Selection with the Data Source toggle set to ``dandi``.
 
@@ -694,7 +696,7 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
     folders are created inside the real sample-data directory, and removed afterwards, so
     the Directory field shows a normal session path rather than a temp-dir basename.
     """
-    run_names = ("1", "baseline_zscore", "standard_zscore")
+    run_names = ("1", "filter_100", "filter_1000")
     run_folders = [SAMPLE_DATA_DIR / f"sample_data_csv_1_output_{name}" for name in run_names]
     for run_folder in run_folders:
         run_folder.mkdir(exist_ok=True)
@@ -710,7 +712,7 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
         form = ParameterForm(template=pn.template.MaterialTemplate(title="Input Parameters GUI"))
         form.outputs_selector._directory.value = str(SAMPLE_DATA_DIR)
         form.outputs_selector._update_files()
-        form.outputs_selector._selector.value = [str(run_folders[1])]
+        form.outputs_selector._selector.value = [str(run_folders[2])]
         form.output_folder_selection.collapsed = False
 
         template = pn.template.MaterialTemplate(title="Input Parameters GUI")
@@ -730,6 +732,7 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
     finally:
         for run_folder in run_folders:
             run_folder.rmdir()
+
 
 def screenshot_dandi_asset_browser(page: Page) -> None:
     """How-to: the DANDI asset browser descended into a subject folder, one asset selected.
