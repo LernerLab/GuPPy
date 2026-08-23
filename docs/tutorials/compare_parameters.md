@@ -28,10 +28,6 @@ By the end you will have:
   first tutorial. You need the same setup: GuPPy installed from source, and the sample
   session at `stubbed_testing_data/csv/sample_data_csv_1/` pulled down with Git LFS.
 
-- The run that tutorial produced, `sample_data_csv_1_output_1`, is not used here. Leave
-  it where it is — the two runs you build below sit beside it, which is the whole point
-  of runs.
-
 Launch GuPPy, and in the **Individual Analysis** card select
 `stubbed_testing_data/csv/sample_data_csv_1/` as before:
 
@@ -171,24 +167,7 @@ stubbed_testing_data/csv/sample_data_csv_1/
 
 Each is a complete, independent result — its own raw HDF5 copies, preprocessed traces,
 PSTH outputs, and a `GuPPyParamtersUsed.json` recording the parameters the run was analyzed
-with. Open both snapshots and you can see the difference you introduced:
-
-```python
-import json
-from pathlib import Path
-
-session = Path("stubbed_testing_data/csv/sample_data_csv_1")
-for run in ("standard_zscore", "baseline_zscore"):
-    parameters = json.loads((session / f"sample_data_csv_1_output_{run}" / "GuPPyParamtersUsed.json").read_text())
-    print(run, parameters["zscore_method"], parameters["baselineWindowStart"], parameters["baselineWindowEnd"])
-```
-
-```text
-standard_zscore standard z-score 0 0
-baseline_zscore baseline z-score 2 60
-```
-
-Nothing is shared between run folders, so deleting one leaves the others intact. See
+with. Nothing is shared between run folders, so deleting one leaves the others intact. See
 [Output data model](../reference/outputs.md) for the full file layout.
 
 ## Gotchas
