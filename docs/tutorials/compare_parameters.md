@@ -16,7 +16,7 @@ applies to any parameter.
 
 By the end you will have:
 
-- Created two named runs on one session, `filter_100` and `filter_1000`
+- Created two named runs on one session, `filter_100` and `filter_250`
 - Run Steps 2 through 4 into each run, one run at a time
 - Opened both runs in the Visualization GUI to compare them
 - Confirmed on disk that each run kept its own data and its own parameter snapshot
@@ -84,10 +84,10 @@ names as before — `control_A`, `signal_A`, `RewardPort`. The stores must match
 comparison to mean anything; only the analysis parameters should differ.
 
 Set **over-write storeslist file or create a new one?** to `create_new_file` again, type
-`filter_1000` into **Run name**, and click **Save**.
+`filter_250` into **Run name**, and click **Save**.
 
 ```{image} ../_static/images/compare_parameters_run_name.png
-:alt: The Label Stores GUI's "Choose how to save this store_array" section, with the save menu button below it and the Run name field filled in with filter_1000
+:alt: The Label Stores GUI's "Choose how to save this store_array" section, with the save menu button below it and the Run name field filled in with filter_250
 :width: 70%
 ```
 
@@ -97,11 +97,11 @@ which would throw away the result you just computed.
 ## Analyze it with a wider filter window
 
 Back on the homepage, open **Output Folder Selection** again. Both runs are now listed
-under **Existing runs (steps 2–5)**. Select `sample_data_csv_1_output_filter_1000`, and
+under **Existing runs (steps 2–5)**. Select `sample_data_csv_1_output_filter_250`, and
 make sure the first run is *not* selected.
 
 ```{image} ../_static/images/compare_parameters_existing_runs.png
-:alt: The Output Folder Selection card's file browser listing the session's three run folders, sample_data_csv_1_output_1 and sample_data_csv_1_output_filter_100 on the left, with sample_data_csv_1_output_filter_1000 moved into the Selected files list
+:alt: The Output Folder Selection card's file browser listing the session's three run folders, sample_data_csv_1_output_1 and sample_data_csv_1_output_filter_100 on the left, with sample_data_csv_1_output_filter_250 moved into the Selected files list
 :width: 100%
 ```
 
@@ -110,12 +110,12 @@ start from the new run rather than editing the form first.
 
 In the **Individual Analysis** card, change the one parameter you are testing:
 
-- **Window for Moving Average filter (int)** → `1000`
+- **Window for Moving Average filter (int)** → `250`
 
 The window is a number of **samples**, not seconds. This session is sampled at about
-1017 Hz, so the default `100` smooths over roughly a tenth of a second and `1000` smooths
-over a full second — long enough to blur a sub-second response into the seconds around
-it.
+1017 Hz, so the default `100` smooths over roughly a tenth of a second and `250` over
+about a quarter of a second — a modest, defensible amount of extra smoothing rather than
+an obviously wrong one.
 
 Now run **Step 2: Read Raw Data**, **Step 3: Preprocess**, and **Step 4: PSTH
 Computation** again, this time into the new run.
@@ -144,9 +144,14 @@ Every dashboard's browser tab is titled `Visualization GUI`, so the tabs look id
 The run folder name is the heading at the top of each page — that is how you tell which is
 which. Put the two tabs on the same z-score PSTH and you are looking at the answer to the
 question you started with: the sharp peak just after the reward port entry reaches about
-3.0 in `filter_100` and only about 0.7 in `filter_1000`, while the slow dip roughly 10 s
-later sits near −1.7 in both. A one-second window is wide enough to erase the fast
-response and leave the slow one intact.
+3.0 in `filter_100` and about 2.5 in `filter_250`, while the slow dip roughly 10 s later
+sits near −1.7 in both. The wider window rounds off the fast response and leaves the slow
+one alone.
+
+The difference here is small enough that the plots look similar at a glance, which is
+exactly when the numbers are worth reading: each run's
+`peak_AUC_RewardPort_A_z_score_A.csv` lists the peak amplitude of every trial, and every
+trial's peak is lower under the wider window.
 
 To keep a figure, use **Save As...** above each plot; the file arrives through your
 browser's downloads.
@@ -160,7 +165,7 @@ from the first:
 stubbed_testing_data/csv/sample_data_csv_1/
 ├── sample_data_csv_1_output_1/
 ├── sample_data_csv_1_output_filter_100/
-└── sample_data_csv_1_output_filter_1000/
+└── sample_data_csv_1_output_filter_250/
 ```
 
 Each is a complete, independent result — its own raw HDF5 copies, preprocessed traces,

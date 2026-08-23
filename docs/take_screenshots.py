@@ -645,7 +645,7 @@ def screenshot_compare_parameters_run_name(page: Page) -> None:
     after the parameter it varies is the point of that guide.
     """
     selector = StoreLabelingSelector(allnames=["Sample_Control_Channel"])
-    selector.run_name.value = "filter_1000"
+    selector.run_name.value = "filter_250"
 
     template = pn.template.BootstrapTemplate(title="Label Stores GUI - sample_data_csv_1")
     template.main.append(pn.Column(selector.mark_down_for_overwrite, selector.overwrite_button, selector.run_name))
@@ -696,7 +696,7 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
     folders are created inside the real sample-data directory, and removed afterwards, so
     the Directory field shows a normal session path rather than a temp-dir basename.
     """
-    run_names = ("1", "filter_100", "filter_1000")
+    run_names = ("1", "filter_100", "filter_250")
     run_folders = [SAMPLE_DATA_DIR / f"sample_data_csv_1_output_{name}" for name in run_names]
     for run_folder in run_folders:
         run_folder.mkdir(exist_ok=True)
