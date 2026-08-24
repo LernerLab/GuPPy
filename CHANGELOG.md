@@ -9,6 +9,7 @@
 ## Fixes
 
 ## Improvements
+- Reworked the documentation home page into a card-grid launch point over the Diátaxis sections, moved the installation walkthrough from the README onto its own [installation page](https://guppy.readthedocs.io/en/latest/installation.html), and trimmed the README to a quick start plus pointers to the docs. [PR #444](https://github.com/LernerLab/GuPPy/pull/444)
 - Added a [how-to guide for group analysis](https://guppy.readthedocs.io/en/latest/how-to/group-analysis.html): running Step 4's cross-session averaging and Step 5's averaged-results visualization. [PR #435](https://github.com/LernerLab/GuPPy/pull/435)
 
 ## Deprecations and Removals

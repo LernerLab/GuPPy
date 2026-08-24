@@ -71,6 +71,7 @@ docs = [
     "pydata-sphinx-theme",
     "myst-parser",
     "sphinx-autodoc-typehints",
+    "sphinx-design",
 ]
 
 test = [
