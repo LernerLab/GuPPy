@@ -49,10 +49,14 @@ With the `guppy_env` environment active, install GuPPy using one of the two meth
 
 ### Option A: Install from PyPI (recommended)
 
-Install the latest stable release:
-
 ```bash
 pip install guppy-neuro
+```
+
+```{note}
+GuPPy 2.0 is in beta. No 2.0 stable release has been published yet, so this installs the latest
+beta. If you need a stable version, see the [v1.3.0 release](https://github.com/LernerLab/GuPPy/releases/tag/v1.3.0),
+which predates the 2.0 rewrite and is documented on the [GitHub Wiki](https://github.com/LernerLab/GuPPy/wiki).
 ```
 
 ### Option B: Install from GitHub (latest development version)

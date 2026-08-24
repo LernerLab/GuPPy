@@ -22,6 +22,21 @@ guppy
 
 See the [installation guide](https://guppy.readthedocs.io/en/latest/installation.html) for the full walkthrough, including installing conda and installing from source.
 
+## Version status
+
+**GuPPy 2.0 is in beta.** No 2.0 stable release has been published yet, so the command above installs the latest beta.
+
+If you need a stable version, use **[GuPPy v1.3.0](https://github.com/LernerLab/GuPPy/releases/tag/v1.3.0)**. It predates the 2.0 rewrite and is not installable with `pip`: download the source from that release, then from inside the unpacked folder run
+
+```bash
+# Substitute spec_file_windows10.txt or spec_file_linux.txt for your OS.
+conda create --name guppy --file spec_file_mac.txt
+conda activate guppy
+panel serve --show GuPPy/savingInputParameters.ipynb
+```
+
+v1.3.0 has a different interface and different parameters, so the documentation below does not apply to it. Use the [GitHub Wiki](https://github.com/LernerLab/GuPPy/wiki) instead.
+
 ## Documentation
 
 The GuPPy documentation lives at [guppy.readthedocs.io](https://guppy.readthedocs.io/): a [tutorial](https://guppy.readthedocs.io/en/latest/tutorials/index.html) walking through a first analysis end to end, [how-to guides](https://guppy.readthedocs.io/en/latest/how-to/index.html) for individual tasks, [explanations](https://guppy.readthedocs.io/en/latest/explanation/index.html) of how the analysis works, and a [reference](https://guppy.readthedocs.io/en/latest/reference/index.html) for every input parameter and output file.
