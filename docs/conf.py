@@ -22,6 +22,19 @@ html_logo = "../assets/GuppyLogo.png"
 
 html_theme_options = {
     "github_url": "https://github.com/LernerLab/GuPPy",
+    "header_links_before_dropdown": 7,
+    "icon_links": [
+        {
+            "name": "PyPI",
+            "url": "https://pypi.org/project/guppy-neuro/",
+            "icon": "fa-brands fa-python",
+        },
+        {
+            "name": "Issue tracker",
+            "url": "https://github.com/LernerLab/GuPPy/issues",
+            "icon": "fa-solid fa-circle-dot",
+        },
+    ],
     "logo": {
         "image_light": "../assets/GuppyLogo.png",
         "image_dark": "../assets/GuppyLogo.png",

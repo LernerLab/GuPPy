@@ -6,7 +6,7 @@
 :align: center
 ```
 
-**Guided Photometry Analysis in Python** is an open-source tool for processing and analyzing fiber photometry recordings. It provides a GUI-based pipeline covering raw data ingestion, signal preprocessing, PSTH computation, transient detection, visualization, and export to NWB. Data formats supported include TDT, Doric, Neurophotometrics (NPM), and generic CSV.
+**Guided Photometry Analysis in Python** is an open-source tool for processing and analyzing fiber photometry recordings. It provides a GUI-based pipeline covering raw data ingestion, signal preprocessing, PSTH computation, transient detection, visualization, and export to NWB. Data formats supported include TDT, Doric, Neurophotometrics (NPM), NWB, and generic CSV.
 
 ::::{grid} 1 1 2 2
 :gutter: 3
@@ -55,22 +55,6 @@ Get oriented in the codebase: pipeline architecture, the test suite, and how to 
 
 ::::
 
-## Getting help
-
-GuPPy was initially developed with TDT recordings in mind. It now also supports Neurophotometrics, Doric, NWB and generic CSV inputs, but these are less extensively tested because of the limited sample data available for them. If you run into problems, get in touch on the [chat room](https://gitter.im/LernerLab/GuPPy?utm_source=share-link&utm_medium=link&utm_campaign=share-link) or by [raising an issue](https://github.com/LernerLab/GuPPy/issues), so that we can continue to improve the tool.
-
-## Citing GuPPy
-
-If you use GuPPy in your research, please cite:
-
-> Venus N. Sherathiya, Michael D. Schaid, Jillian L. Seiler, Gabriela C. Lopez, and Talia N. Lerner. [GuPPy, a Python toolbox for the analysis of fiber photometry data](https://www.nature.com/articles/s41598-021-03626-9). Sci Rep 11, 24212 (2021). <https://doi.org/10.1038/s41598-021-03626-9>
-
-## Links
-
-- [Source code](https://github.com/LernerLab/GuPPy)
-- [PyPI package](https://pypi.org/project/guppy-neuro/)
-- [Issue tracker](https://github.com/LernerLab/GuPPy/issues)
-
 ```{toctree}
 :maxdepth: 1
 :hidden:
@@ -80,5 +64,6 @@ tutorials/index
 how-to/index
 explanation/index
 reference/index
-contributing/index
+Contributing <contributing/index>
+Cite <citing>
 ```

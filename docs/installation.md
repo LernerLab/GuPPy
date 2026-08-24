@@ -96,8 +96,6 @@ git lfs install
 git lfs pull --include="stubbed_testing_data/csv/sample_data_csv_1/*"
 ```
 
-Larger practice recordings for every supported acquisition format are listed under [sample data](tutorials/index.md#sample-data).
-
 ## Setting up a development environment
 
 Contributors who need the test, docs or linting dependencies should follow the [development environment guide](contributing/development_environment.md), which covers GuPPy's [PEP 735](https://peps.python.org/pep-0735/) dependency groups.
