@@ -26,7 +26,7 @@ By the end you will have:
   pip install -e .
   ```
 
-  See the [README](https://github.com/LernerLab/GuPPy#installation) for the full installation guide, including how to set up a conda environment first. The plain `pip install guppy-neuro` path also works for installing the GUI itself, but you would still need to clone the repo (with Git LFS) separately to access the sample data.
+  See [installation](../installation.md) for the full installation guide, including how to set up a conda environment first. The plain `pip install guppy-neuro` path also works for installing the GUI itself, but you would still need to clone the repo (with Git LFS) separately to access the sample data.
 
 - The sample data lives at `stubbed_testing_data/csv/sample_data_csv_1/` inside the cloned repository. It contains three CSV files:
 

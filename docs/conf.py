@@ -8,6 +8,7 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.intersphinx",
     "sphinx_autodoc_typehints",
+    "sphinx_design",
 ]
 
 html_theme = "pydata_sphinx_theme"
