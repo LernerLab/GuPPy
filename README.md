@@ -20,22 +20,7 @@ Then launch the user interface:
 guppy
 ```
 
-See the [installation guide](https://guppy.readthedocs.io/en/latest/installation.html) for the full walkthrough, including installing conda and installing from source.
-
-## Version status
-
-**GuPPy 2.0 is in beta.** No 2.0 stable release has been published yet, so the command above installs the latest beta.
-
-If you need a stable version, use **[GuPPy v1.3.0](https://github.com/LernerLab/GuPPy/releases/tag/v1.3.0)**. It predates the 2.0 rewrite and is not installable with `pip`: download the source from that release, then from inside the unpacked folder run
-
-```bash
-# Substitute spec_file_windows10.txt or spec_file_linux.txt for your OS.
-conda create --name guppy --file spec_file_mac.txt
-conda activate guppy
-panel serve --show GuPPy/savingInputParameters.ipynb
-```
-
-v1.3.0 has a different interface and different parameters, so the documentation below does not apply to it. Use the [GitHub Wiki](https://github.com/LernerLab/GuPPy/wiki) instead.
+See the [installation guide](https://guppy.readthedocs.io/en/latest/installation.html) for the full walkthrough, including installing conda and installing from source. This installs the GuPPy 2.0 beta — see [Older versions](#older-versions) if you need the stable v1.3.0.
 
 ## Documentation
 
@@ -55,3 +40,18 @@ The GuPPy documentation lives at [guppy.readthedocs.io](https://guppy.readthedoc
 - [Gabriela Lopez](https://github.com/glopez924)
 - [Talia Lerner](https://github.com/talialerner)
 - [Paul Adkisson-Floro](https://github.com/pauladkisson)
+
+## Older versions
+
+**GuPPy 2.0 is in beta.** No 2.0 stable release has been published yet, so `pip install guppy-neuro` installs the latest beta.
+
+If you need a stable version, use **[GuPPy v1.3.0](https://github.com/LernerLab/GuPPy/releases/tag/v1.3.0)**. It predates the 2.0 rewrite and is not installable with `pip`: download the source from that release, then from inside the unpacked folder run
+
+```bash
+# Substitute spec_file_windows10.txt or spec_file_linux.txt for your OS.
+conda create --name guppy --file spec_file_mac.txt
+conda activate guppy
+panel serve --show GuPPy/savingInputParameters.ipynb
+```
+
+v1.3.0 has a different interface and different parameters, so the documentation at guppy.readthedocs.io does not apply to it. Use the [GitHub Wiki](https://github.com/LernerLab/GuPPy/wiki) instead.
