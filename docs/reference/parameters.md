@@ -113,6 +113,21 @@ The largest card on the homepage, collapsed by default (only Input Folder Select
 
 **TD Thresh** (Transients Detection threshold) is the detection threshold proper: local maxima exceeding this multiple of MAD above the median (computed after the high-amplitude filter) are flagged as transients.
 
+### Binned metrics
+
+*Used by: Step 4 (Compute the PSTH), after transient detection.*
+
+| Parameter | Description | Type | Default | Options / range |
+|-----------|-------------|------|---------|-----------------|
+| Compute Binned Metrics? | Reduce the whole session to one row per fixed time bin. | bool | `False` | `True` / `False` |
+| Bin Width (s) | Width of those bins. | int | `120` | positive seconds |
+
+**Compute Binned Metrics?** divides the whole recording into equal time bins and reports, for each bin and each recording site, the mean z-score, the mean ΔF/F and the number of transients detected in it. Use it when you want to relate the signal to something measured on its own fixed schedule across the session — a behavior score rated every couple of minutes, say — rather than to discrete events. The results are written as `binned_metrics_<site>.csv` and `.h5`, and shown on the **Binned** tab in Step 5. Off by default; see the [output data model](outputs.md#step-4-compute-the-psth) for the exact table.
+
+**Bin Width (s)** is how wide each bin is. Bins start at the first corrected timestamp; the last bin is kept even when the session does not divide evenly, so it can be shorter than the rest. Whole seconds only.
+
+If the thing measured on its own schedule was recorded as data rather than watched by eye, label it as a **behavioral covariate** in Step 1 and GuPPy will bin it onto the same bins and correlate it against every per-bin metric. That needs no additional parameter — labeling the store is what turns it on — but it does require **Compute Binned Metrics?** to be enabled. See [Correlate a behavioral covariate](../how-to/correlate-behavioral-covariates.md).
+
 ### Format-specific (Neurophotometrics)
 
 *Used by: Step 2 (Load the raw data) when the recording is an NPM CSV without `Flags` or `LedState` columns.*
@@ -261,7 +276,9 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 | `baselineWindowEnd` | Baseline Window End Time (s) | [Z-score Parameters](#z-score-parameters) |
 | `baselineWindowStart` | Baseline Window Start Time (s) | [Z-score Parameters](#z-score-parameters) |
 | `bin_psth_trials` | Time(min) / # of trials for binning | [PSTH Parameters](#psth-parameters) |
+| `binnedMetricsWidth` | Bin Width (s) | [Binned metrics](#binned-metrics) |
 | `combine_data` | Combine Data? | [Compute and batching](#compute-and-batching) |
+| `computeBinnedMetrics` | Compute Binned Metrics? | [Binned metrics](#binned-metrics) |
 | `computeCorr` | Compute Cross-correlation | [PSTH Parameters](#psth-parameters) |
 | `control_fit_method` | Control Channel Fitting Method | [Signal preprocessing](#signal-preprocessing) |
 | `controlFitWindowEnd` | Control Fit Window End Time (s) | [Signal preprocessing](#signal-preprocessing) |

@@ -156,6 +156,13 @@ class ParameterForm:
                                 - ***Transients detection threshold (TD Thresh):*** Peaks with local maxima greater than x times
                                 the MAD above the median of the trace (after filtering high amplitude events) are detected
                                 as transients. Here, x is transients detection threshold. Default is 3.
+                                - ***Compute Binned Metrics? :*** Make this parameter ``` True ``` to divide the
+                                whole session into equal time bins and report the mean z-score, mean &#916;F/F and
+                                number of transients in each one. Useful for correlating the signal against a
+                                behavioral measure scored at a fixed cadence. Default is ``` False ```.<br>
+                                - ***Bin Width :*** Width of those bins in seconds. The last bin is kept even
+                                when the session does not divide evenly, so it may be shorter than the rest.
+                                Default is 120 seconds.<br>
                                 - ***Number of channels (Neurophotometrics only) :*** Number of
                                 channels used while recording, when data files has no column names mentioning "Flags"
                                 or "LedState".
@@ -227,6 +234,12 @@ class ParameterForm:
         self.highAmpFilt = pn.widgets.IntInput(name="HAFT (int)", value=2, width=150)
 
         self.transientsThresh = pn.widgets.IntInput(name="TD Thresh (int)", value=3, width=150)
+
+        self.computeBinnedMetrics = pn.widgets.Select(
+            name="Compute Binned Metrics? (bool)", options=[True, False], value=False, width=200
+        )
+
+        self.binnedMetricsWidth = pn.widgets.IntInput(name="Bin Width (s) (int)", value=120, width=150)
 
         self.moving_avg_filter = pn.widgets.IntInput(
             name="Window for Moving Average filter (int)", value=100, width=320
@@ -392,6 +405,7 @@ class ParameterForm:
             self.transients,
             self.moving_wd,
             pn.Row(self.highAmpFilt, self.transientsThresh),
+            pn.Row(self.computeBinnedMetrics, self.binnedMetricsWidth),
             self.no_channels_np,
         )
 
@@ -678,6 +692,7 @@ class ParameterForm:
         validate_positive(value=self.moving_wd.value, name="moving_window")
         validate_positive(value=self.highAmpFilt.value, name="highAmpFilt")
         validate_positive(value=self.transientsThresh.value, name="transientsThresh")
+        validate_positive(value=self.binnedMetricsWidth.value, name="binnedMetricsWidth")
 
         if self.nSecPrev.value >= self.nSecPost.value:
             message = (
@@ -749,6 +764,8 @@ class ParameterForm:
             "moving_window": self.moving_wd.value,
             "highAmpFilt": self.highAmpFilt.value,
             "transientsThresh": self.transientsThresh.value,
+            "computeBinnedMetrics": self.computeBinnedMetrics.value,
+            "binnedMetricsWidth": self.binnedMetricsWidth.value,
             "visualize_zscore_or_dff": self.visualize_zscore_or_dff.value,
             "group_session_folders": self.files_2.value,
             "averageForGroup": self.averageForGroup.value,
@@ -801,6 +818,8 @@ class ParameterForm:
             "moving_window": self.moving_wd,
             "highAmpFilt": self.highAmpFilt,
             "transientsThresh": self.transientsThresh,
+            "computeBinnedMetrics": self.computeBinnedMetrics,
+            "binnedMetricsWidth": self.binnedMetricsWidth,
             "visualize_zscore_or_dff": self.visualize_zscore_or_dff,
             "averageForGroup": self.averageForGroup,
         }

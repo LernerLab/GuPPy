@@ -861,6 +861,8 @@ def step4(
     use_time_or_trials: str = "Time (min)",
     time_for_lights_turn_on: float = 1.0,
     auc_units: str = "samples",
+    compute_binned_metrics: bool = False,
+    binned_metrics_width: int = 120,
     selected_runs: dict[str, list[str]],
     group_selected_runs: dict[str, list[str]] | None = None,
 ) -> None:
@@ -925,6 +927,12 @@ def step4(
         Integration spacing for the peak/AUC areas. ``'samples'`` (the default) integrates
         with one-sample spacing; ``'seconds'`` integrates against the PSTH time axis, giving
         areas in z-score (or ΔF/F) × seconds.
+    compute_binned_metrics : bool
+        Whether to divide the session into fixed-width time bins and write the per-bin mean
+        z-score, mean ΔF/F and transient counts. Defaults to False.
+    binned_metrics_width : int
+        Width of those bins in seconds. Only meaningful when ``compute_binned_metrics`` is
+        ``True``. Defaults to 120.
 
     Raises
     ------
@@ -1009,6 +1017,10 @@ def step4(
 
     # Inject the peak/AUC integration spacing
     input_params["auc_units"] = auc_units
+
+    # Inject the whole-session binned metrics parameters
+    input_params["computeBinnedMetrics"] = compute_binned_metrics
+    input_params["binnedMetricsWidth"] = binned_metrics_width
 
     # Call the underlying Step 4 workers directly, in the order the GUI runs them:
     # transients first, so their timestamps are available as events for the PSTH.

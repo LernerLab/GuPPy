@@ -17,6 +17,7 @@ from ..analysis.compute_psth import compute_psth
 from ..analysis.cross_correlation import compute_cross_correlation
 from ..analysis.io_utils import (
     is_channel_label,
+    is_continuous_label,
     make_dir_for_cross_correlation,
     makeAverageDir,
     read_hdf5,
@@ -64,7 +65,7 @@ def execute_compute_psth(filepath: str, event: str, inputParameters: dict[str, o
     """
     event = event.replace("\\", "_")
     event = event.replace("/", "_")
-    if is_channel_label(event):
+    if is_continuous_label(event):
         return 0
 
     selectForComputePsth = inputParameters["selectForComputePsth"]
@@ -151,7 +152,7 @@ def execute_compute_psth_peak_and_area(filepath: str, event: str, inputParameter
     """
     event = event.replace("\\", "_")
     event = event.replace("/", "_")
-    if is_channel_label(event):
+    if is_continuous_label(event):
         return 0
 
     peak_startPoint = inputParameters["peak_startPoint"]
@@ -230,7 +231,7 @@ def execute_compute_cross_correlation(filepath: str, event: str, inputParameters
                     "recording sites were found. Please either disable compute_cross_correlation or add "
                     "signal recording sites in step 1."
                 )
-        if is_channel_label(event):
+        if is_continuous_label(event):
             return
         else:
             for i in range(1, len(corr_info)):
@@ -470,12 +471,12 @@ def _group_event_labels(*, store_array: np.ndarray, inputParameters: dict[str, o
     Returns
     -------
     list of str
-        Store labels with the control/signal channels dropped.
+        Store labels with the continuously sampled streams dropped.
     """
     return [
         label
         for label in event_labels_for_analysis(store_array=store_array, inputParameters=inputParameters)
-        if "control" not in label.lower() and "signal" not in label.lower()
+        if not is_continuous_label(label)
     ]
 
 

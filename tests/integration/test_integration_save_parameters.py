@@ -43,6 +43,8 @@ def default_parameters():
         "moving_window": 15,
         "highAmpFilt": 2,
         "transientsThresh": 3,
+        "computeBinnedMetrics": False,
+        "binnedMetricsWidth": 120,
         "visualize_zscore_or_dff": "z_score",
         "averageForGroup": False,
     }

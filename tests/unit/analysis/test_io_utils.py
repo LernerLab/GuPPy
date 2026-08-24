@@ -12,8 +12,11 @@ from guppy.analysis.io_utils import (
     get_control_and_signal_channel_names,
     get_coords,
     is_channel_label,
+    is_continuous_label,
+    is_covariate_label,
     make_dir_for_cross_correlation,
     makeAverageDir,
+    metric_from_preprocessed_label,
     read_hdf5,
     recording_site_from_channel_label,
     recording_site_from_channel_path,
@@ -297,6 +300,43 @@ def test_is_channel_label_rejects_event_labels():
     assert is_channel_label("RewardCue") is False
 
 
+def test_is_channel_label_rejects_covariate_labels():
+    assert is_channel_label("covariate_akinesia") is False
+
+
+# ── is_covariate_label ────────────────────────────────────────────────────────
+
+
+def test_is_covariate_label_matches_the_covariate_prefix():
+    assert is_covariate_label("covariate_akinesia") is True
+    assert is_covariate_label("Covariate_Akinesia") is True
+
+
+def test_is_covariate_label_requires_the_prefix_not_a_substring():
+    # Prefix, unlike is_channel_label: an event merely mentioning the word is not one.
+    assert is_covariate_label("my_covariate_score") is False
+
+
+def test_is_covariate_label_rejects_channels_and_events():
+    assert is_covariate_label("signal_DMS") is False
+    assert is_covariate_label("port_entry") is False
+
+
+# ── is_continuous_label ───────────────────────────────────────────────────────
+
+
+def test_is_continuous_label_matches_channels_and_covariates():
+    assert is_continuous_label("signal_DMS") is True
+    assert is_continuous_label("control_DMS") is True
+    assert is_continuous_label("covariate_akinesia") is True
+
+
+def test_is_continuous_label_rejects_event_labels():
+    # The stores analyses align to are the ones this must let through.
+    assert is_continuous_label("port_entry") is False
+    assert is_continuous_label("RewardCue") is False
+
+
 # ── recording_site_from_* helpers ─────────────────────────────────────────────────────
 
 
@@ -317,6 +357,16 @@ def test_recording_site_from_channel_path_strips_prefix_and_extension():
 def test_recording_site_from_preprocessed_label_strips_zscore_or_dff_prefix():
     assert recording_site_from_preprocessed_label("z_score_left_hemisphere") == "left_hemisphere"
     assert recording_site_from_preprocessed_label("dff_d_ms") == "d_ms"
+
+
+def test_metric_from_preprocessed_label_returns_the_prefix():
+    assert metric_from_preprocessed_label("z_score_left_hemisphere") == "z_score"
+    assert metric_from_preprocessed_label("dff_d_ms") == "dff"
+
+
+def test_metric_from_preprocessed_label_without_a_known_prefix_raises():
+    with pytest.raises(ValueError, match="starts with neither"):
+        metric_from_preprocessed_label("control_dms")
 
 
 # ── make_dir_for_cross_correlation ────────────────────────────────────────────

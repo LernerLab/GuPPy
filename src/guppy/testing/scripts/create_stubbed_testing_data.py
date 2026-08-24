@@ -196,6 +196,116 @@ def _write_injection_csv_session(destination: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Synthetic behavioral-covariate CSV session
+# ---------------------------------------------------------------------------
+# Also fully synthesized. This session carries two hand-scored behavioral covariates
+# alongside the photometry, so the covariate correlation analysis has a session to run
+# on and the how-to has a session to screenshot.
+#
+# The covariates differ in one respect only. `akinesia` drives the 465 nm signal, so it
+# correlates with the per-bin metrics. `grooming` is generated independently and drives
+# nothing. Both are equally slow and equally smooth, because that is the point: a score
+# that is unrelated to the signal still lands at a moderate correlation over a dozen
+# bins, which is what the covariate how-to warns readers to expect.
+#
+# The signal also carries an independent slow nuisance component. Without it, averaging
+# over 50 s bins would annihilate the white noise and leave `akinesia` correlating at
+# ~1.0 — a straight line that would misrepresent what this analysis produces.
+
+COVARIATE_CSV_SAMPLING_RATE = 100.0  # Hz — kept low so the committed CSVs stay small
+COVARIATE_CSV_DURATION = 600.0  # s — 12 whole bins at the 50 s bin width the consumers use
+COVARIATE_SCORING_CADENCE = 25.0  # s between scores, so every bin holds two of them
+COVARIATE_TRUE_SLOPE = 1.5
+COVARIATE_TRUE_INTERCEPT = 10.0
+# Each covariate is a sum of (amplitude, period_in_seconds, phase) sinusoids around a
+# baseline, sampled and rounded to one decimal to look like a rated severity score.
+AKINESIA_BASELINE = 2.5
+AKINESIA_COMPONENTS = ((1.5, 260.0, 0.0), (0.7, 97.0, 1.1))
+GROOMING_BASELINE = 2.0
+GROOMING_COMPONENTS = ((1.2, 205.0, 2.3), (0.6, 71.0, 0.4))
+COVARIATE_EFFECT_GAIN = 8.0  # signal units per akinesia point
+# Slow signal variation that no covariate explains. Its amplitude was chosen so the
+# nuisance contributes ~0.62 times the effect's per-bin spread, which puts the designed
+# akinesia correlation near 0.85 rather than at a degenerate 1.0.
+COVARIATE_NUISANCE_COMPONENTS = ((1.0, 173.0, 0.7), (0.6, 311.0, 2.9))
+COVARIATE_NUISANCE_AMPLITUDE = 6.427150403216821
+# Dopamine-like transients at a constant rate, so per-bin transient counts vary without
+# tracking either covariate.
+COVARIATE_TRANSIENT_RATE = 0.4  # Hz
+COVARIATE_TRANSIENT_AMPLITUDE = 6.0
+COVARIATE_TRANSIENT_TAU = 0.4  # s
+COVARIATE_TTL_TIMES = tuple(float(t) for t in range(30, 600, 30))  # 30 s grid, so the PSTH tabs have events
+
+
+def _slow_score(timestamps: np.ndarray, baseline: float, components: tuple) -> np.ndarray:
+    """Sum sinusoidal components onto a baseline to make a smooth, slowly varying score."""
+    values = np.full(timestamps.shape, float(baseline))
+    for amplitude, period, phase in components:
+        values += amplitude * np.sin(2.0 * np.pi * timestamps / period + phase)
+    return values
+
+
+def _write_covariate_csv_session(destination: Path) -> None:
+    """Synthesize the behavioral-covariate CSV session and write its five CSVs."""
+    rng = np.random.default_rng(425)  # deterministic — PR #425
+    num_samples = int(round(COVARIATE_CSV_DURATION * COVARIATE_CSV_SAMPLING_RATE))
+    timestamps = np.arange(num_samples) / COVARIATE_CSV_SAMPLING_RATE
+
+    # 405 nm isosbestic control: photobleaching decay + slow motion wiggle + noise. It carries
+    # no covariate effect, so the control fit cannot regress the effect out of the signal.
+    bleach = 30.0 * np.exp(-timestamps / 200.0)
+    motion = 2.0 * np.sin(2.0 * np.pi * 0.05 * timestamps)
+    control = 100.0 + bleach + motion + rng.normal(0.0, 0.5, num_samples)
+
+    akinesia = _slow_score(timestamps, AKINESIA_BASELINE, AKINESIA_COMPONENTS)
+    grooming = _slow_score(timestamps, GROOMING_BASELINE, GROOMING_COMPONENTS)
+    nuisance = COVARIATE_NUISANCE_AMPLITUDE * _slow_score(timestamps, 0.0, COVARIATE_NUISANCE_COMPONENTS)
+
+    num_transients = int(round(COVARIATE_TRANSIENT_RATE * COVARIATE_CSV_DURATION))
+    transient_onsets = np.sort(rng.uniform(0.0, COVARIATE_CSV_DURATION, num_transients))
+    transient_span = int(6.0 * COVARIATE_TRANSIENT_TAU * COVARIATE_CSV_SAMPLING_RATE)
+    transients = np.zeros(num_samples)
+    for onset in transient_onsets:
+        start = int(onset * COVARIATE_CSV_SAMPLING_RATE)
+        decay_window = slice(start, min(start + transient_span, num_samples))
+        elapsed = timestamps[decay_window] - onset
+        transients[decay_window] += COVARIATE_TRANSIENT_AMPLITUDE * np.exp(-elapsed / COVARIATE_TRANSIENT_TAU)
+
+    # 465 nm signal: the control relationship, plus the akinesia effect, plus everything
+    # the covariates do not explain.
+    signal = (
+        COVARIATE_TRUE_SLOPE * control
+        + COVARIATE_TRUE_INTERCEPT
+        + COVARIATE_EFFECT_GAIN * akinesia
+        + nuisance
+        + transients
+        + rng.normal(0.0, 0.5, num_samples)
+    )
+
+    destination.mkdir(parents=True, exist_ok=True)
+    for name, data in (("Sample_Control_Channel", control), ("Sample_Signal_Channel", signal)):
+        sampling_rate_column = np.full(num_samples, np.nan)
+        sampling_rate_column[0] = COVARIATE_CSV_SAMPLING_RATE
+        frame = pd.DataFrame({"timestamps": timestamps, "data": data, "sampling_rate": sampling_rate_column})
+        frame.to_csv(destination / f"{name}.csv", index=False)
+
+    pd.DataFrame({"timestamps": np.array(COVARIATE_TTL_TIMES)}).to_csv(destination / "Sample_TTL.csv", index=False)
+
+    # Each covariate is its own GuPPy CSV, which is how a user supplies more than one.
+    score_times = np.arange(0.0, COVARIATE_CSV_DURATION, COVARIATE_SCORING_CADENCE)
+    for name, latent in (("akinesia", akinesia), ("grooming", grooming)):
+        scores = np.round(np.interp(score_times, timestamps, latent), 1)
+        frame = pd.DataFrame(
+            {
+                "timestamps": score_times,
+                "data": scores,
+                "sampling_rate": np.full(score_times.size, 1.0 / COVARIATE_SCORING_CADENCE),
+            }
+        )
+        frame.to_csv(destination / f"{name}.csv", index=False)
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -216,6 +326,11 @@ def main() -> None:
     injection_destination = STUBBED_TESTING_DATA / "csv" / "sample_data_csv_injection_1"
     print(f"  CSV   {injection_destination.name} (synthetic) ...", end=" ", flush=True)
     _write_injection_csv_session(injection_destination)
+    print("done")
+
+    covariate_destination = STUBBED_TESTING_DATA / "csv" / "sample_data_csv_covariate_1"
+    print(f"  CSV   {covariate_destination.name} (synthetic) ...", end=" ", flush=True)
+    _write_covariate_csv_session(covariate_destination)
     print("done")
     print("\nDone.")
 

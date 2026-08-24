@@ -124,6 +124,12 @@ class TestParameterForm:
     def test_transients_thresh_default(self, parameter_form):
         assert parameter_form.transientsThresh.value == 3
 
+    def test_compute_binned_metrics_default(self, parameter_form):
+        assert parameter_form.computeBinnedMetrics.value is False
+
+    def test_binned_metrics_width_default(self, parameter_form):
+        assert parameter_form.binnedMetricsWidth.value == 120
+
     def test_no_channels_np_default(self, parameter_form):
         assert parameter_form.no_channels_np.value == 2
 
@@ -321,6 +327,11 @@ class TestNumericParameterValidation:
     def test_negative_transients_thresh_raises(self, parameter_form):
         parameter_form.transientsThresh.value = -3
         with pytest.raises(ValueError, match="transientsThresh=-3 must be greater than 0"):
+            parameter_form.getInputParameters()
+
+    def test_zero_binned_metrics_width_raises(self, parameter_form):
+        parameter_form.binnedMetricsWidth.value = 0
+        with pytest.raises(ValueError, match="binnedMetricsWidth=0 must be greater than 0"):
             parameter_form.getInputParameters()
 
     def test_nsecprev_equal_to_nsecpost_raises(self, parameter_form):
@@ -626,6 +637,8 @@ SAVED_PARAMETERS = {
     "moving_window": 12,
     "highAmpFilt": 5,
     "transientsThresh": 6,
+    "computeBinnedMetrics": True,
+    "binnedMetricsWidth": 60,
     "visualize_zscore_or_dff": "dff",
     "averageForGroup": True,
 }

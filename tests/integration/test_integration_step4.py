@@ -1,3 +1,4 @@
+import glob
 import os
 
 import pandas as pd
@@ -119,3 +120,7 @@ def test_step4(step3_fixture_name, expected_recording_site, expected_ttl, reques
     assert os.path.exists(
         transients_occurrences_csv_file_path
     ), f"Missing transients occurrences CSV: {transients_occurrences_csv_file_path}"
+
+    # Binned metrics are opt-in, so a default Step 4 must not produce them.
+    binned_metrics_file_paths = glob.glob(os.path.join(output_directory, "binned_metrics_*"))
+    assert binned_metrics_file_paths == [], f"Unexpected binned metrics outputs: {binned_metrics_file_paths}"

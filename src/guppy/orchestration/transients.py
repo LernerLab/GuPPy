@@ -6,11 +6,27 @@ import os
 import numpy as np
 
 from .group_utils import gather_group_run_folders
+from .save_parameters import read_artifact_provenance
+from ..analysis.binned_metrics import compute_binned_metrics
+from ..analysis.covariates import (
+    bin_edges_from_binned_metrics,
+    compute_binned_covariates,
+    compute_covariate_correlations,
+)
 from ..analysis.io_utils import (
+    metric_from_preprocessed_label,
     read_hdf5,
     recording_site_from_preprocessed_label,
 )
 from ..analysis.standard_io import (
+    read_binned_metrics_from_hdf5,
+    read_covariate_series,
+    write_binned_covariates_to_csv,
+    write_binned_covariates_to_hdf5,
+    write_binned_metrics_to_csv,
+    write_binned_metrics_to_hdf5,
+    write_covariate_correlations_to_csv,
+    write_covariate_correlations_to_hdf5,
     write_freq_and_amp_to_csv,
     write_freq_and_amp_to_hdf5,
     write_transients_as_event_to_hdf5,
@@ -56,6 +72,11 @@ def findFreqAndAmp(
     else:
         path = glob.glob(os.path.join(filepath, "z_score_*")) + glob.glob(os.path.join(filepath, "dff_*"))
 
+    # Occurrence times per recording site per metric, kept for the binned metrics
+    # below; with "Both" selected each site is visited twice, so they are
+    # accumulated here and consumed once the loop is done.
+    site_to_transient_timestamps = {}
+
     for i in range(len(path)):
         basename = (os.path.basename(path[i])).split(".")[0]
         name_1 = recording_site_from_preprocessed_label(basename)
@@ -84,9 +105,114 @@ def findFreqAndAmp(
             columns=["timestamps", "amplitude"],
         )
         write_transients_to_hdf5(filepath, basename, z_score, timestamps, peaksInd)
+        site_to_transient_timestamps.setdefault(name_1, {})[metric_from_preprocessed_label(basename)] = (
+            peaks_occurrences[:, 0]
+        )
         if useTransientsAsEvents == True:
             write_transients_as_event_to_hdf5(filepath, basename, peaks_occurrences[:, 0])
     logger.info("Frequency and amplitude of transients in z_score data are calculated.")
+
+    if inputParameters["computeBinnedMetrics"] == True:
+        findBinnedMetrics(filepath, inputParameters, site_to_transient_timestamps)
+        findCovariateCorrelations(filepath, inputParameters, sorted(site_to_transient_timestamps))
+
+
+def findBinnedMetrics(
+    filepath: str, inputParameters: dict[str, object], site_to_transient_timestamps: dict[str, dict[str, np.ndarray]]
+) -> None:
+    """Reduce each recording site to one row per fixed-width time bin.
+
+    Parameters
+    ----------
+    filepath : str
+        Path to the session output directory.
+    inputParameters : dict
+        Full pipeline input parameters; uses ``binnedMetricsWidth``.
+    site_to_transient_timestamps : dict
+        Detected transient occurrence times (s), keyed by recording site and then
+        by the metric they were detected on.
+    """
+    logger.debug("Computing binned metrics over the whole session....")
+    bin_width = inputParameters["binnedMetricsWidth"]
+
+    for recording_site in sorted(site_to_transient_timestamps):
+        # Read the traces fresh: the detection loop above rebinds its own
+        # z_score/timestamps to the NaN-stripped arrays, which carry a compressed
+        # time axis that would misplace every bin edge.
+        timestamps = read_hdf5("timeCorrection_" + recording_site, filepath, "timestampNew")
+        z_score = read_hdf5("z_score_" + recording_site, filepath, "data")
+        dff = read_hdf5("dff_" + recording_site, filepath, "data")
+
+        binned_metrics = compute_binned_metrics(
+            z_score=z_score,
+            dff=dff,
+            timestamps=timestamps,
+            transient_timestamps=site_to_transient_timestamps[recording_site],
+            bin_width=bin_width,
+        )
+        write_binned_metrics_to_hdf5(filepath, binned_metrics, recording_site)
+        write_binned_metrics_to_csv(filepath, binned_metrics, recording_site)
+
+    logger.info("Binned metrics computed.")
+
+
+def findCovariateCorrelations(filepath: str, inputParameters: dict[str, object], recording_sites: list[str]) -> None:
+    """Correlate each recording site's binned metrics against the session's behavioral covariates.
+
+    Does nothing when the session carries no covariate stores.
+
+    Parameters
+    ----------
+    filepath : str
+        Path to the session output directory.
+    inputParameters : dict
+        Full pipeline input parameters.
+    recording_sites : list of str
+        Recording sites with a ``binned_metrics_<site>`` table in ``filepath``.
+
+    Raises
+    ------
+    ValueError
+        If the outputs were produced with the ``concatenate`` artifact-removal method,
+        which compresses the time axis the covariate timestamps are read against.
+    """
+    covariate_series = read_covariate_series(filepath)
+    if not covariate_series:
+        return
+
+    removeArtifacts, artifactsRemovalMethod = read_artifact_provenance(destination=filepath)
+    if removeArtifacts == True and artifactsRemovalMethod == "concatenate":
+        message = (
+            f"Behavioral covariates cannot be correlated against concatenated data, but the outputs in "
+            f"'{filepath}' were produced by the Remove Artifacts step using the 'concatenate' method, which "
+            "compresses the time axis. Re-run Select Artifact Windows with the method set to 'replace with "
+            "NaN' followed by Remove Artifacts, or remove the behavioral covariate store in Label Stores."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+    logger.debug("Correlating behavioral covariates against binned metrics....")
+    for recording_site in recording_sites:
+        binned_metrics = read_binned_metrics_from_hdf5(filepath, recording_site)
+        binned_covariates = compute_binned_covariates(
+            covariate_series=covariate_series,
+            bin_edges=bin_edges_from_binned_metrics(binned_metrics=binned_metrics),
+        )
+        correlations = compute_covariate_correlations(
+            binned_metrics=binned_metrics, binned_covariates=binned_covariates
+        )
+        write_binned_covariates_to_hdf5(
+            filepath=filepath, binned_covariates=binned_covariates, recording_site=recording_site
+        )
+        write_binned_covariates_to_csv(
+            filepath=filepath, binned_covariates=binned_covariates, recording_site=recording_site
+        )
+        write_covariate_correlations_to_hdf5(
+            filepath=filepath, correlations=correlations, recording_site=recording_site
+        )
+        write_covariate_correlations_to_csv(filepath=filepath, correlations=correlations, recording_site=recording_site)
+
+    logger.info("Behavioral covariates correlated against binned metrics.")
 
 
 def executeFindFreqAndAmp(inputParameters: dict[str, object]) -> None:

@@ -5,6 +5,7 @@ import pytest
 
 from guppy.analysis.io_utils import write_hdf5
 from guppy.analysis.standard_io import (
+    read_binned_metrics_from_hdf5,
     read_control_and_signal,
     read_coords_pairwise,
     read_corrected_data,
@@ -19,6 +20,8 @@ from guppy.analysis.standard_io import (
     read_ttl_timestamps_for_combining_data,
     write_artifact_corrected_timestamps,
     write_artifact_removal,
+    write_binned_metrics_to_csv,
+    write_binned_metrics_to_hdf5,
     write_combined_data,
     write_corrected_data,
     write_corrected_timestamps,
@@ -469,3 +472,37 @@ def test_read_ttl_timestamps_for_combining_data_mismatched_recording_sites_raise
     store_array = np.array([["ctrl0", "sig0", "ttl0"], ["control_dms", "signal_vms", "TTL1"]])
     with pytest.raises(ValueError, match="Mismatched control/signal files"):
         read_ttl_timestamps_for_combining_data([str(session)], store_array)
+
+
+# ── write_binned_metrics_to_hdf5 / _to_csv / read_binned_metrics_from_hdf5 ────
+
+
+@pytest.fixture
+def binned_metrics():
+    return pd.DataFrame(
+        {
+            "bin_start": [0.0, 5.0],
+            "bin_end": [5.0, 10.0],
+            "n_samples": [5, 6],
+            "mean_zscore": [2.0, 7.5],
+            "mean_dff": [0.2, 0.75],
+            "transient_count_z_score": [1, 3],
+        },
+        index=pd.RangeIndex(2, name="bin"),
+    )
+
+
+def test_write_and_read_binned_metrics_roundtrip(tmp_path, binned_metrics):
+    write_binned_metrics_to_hdf5(str(tmp_path), binned_metrics, "dms")
+    result = read_binned_metrics_from_hdf5(str(tmp_path), "dms")
+
+    pd.testing.assert_frame_equal(result, binned_metrics)
+
+
+def test_write_binned_metrics_to_csv_preserves_the_bin_index(tmp_path, binned_metrics):
+    write_binned_metrics_to_csv(str(tmp_path), binned_metrics, "dms")
+    result = pd.read_csv(tmp_path / "binned_metrics_dms.csv", index_col="bin")
+
+    np.testing.assert_allclose(result["mean_zscore"].to_numpy(), [2.0, 7.5])
+    np.testing.assert_allclose(result["bin_end"].to_numpy(), [5.0, 10.0])
+    np.testing.assert_array_equal(result["transient_count_z_score"].to_numpy(), [1, 3])

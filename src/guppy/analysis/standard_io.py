@@ -5,9 +5,11 @@ import numpy as np
 import pandas as pd
 
 from .io_utils import (
+    COVARIATE_PREFIX,
     decide_naming_convention,
     fetchCoords,
     get_control_and_signal_channel_names,
+    is_covariate_label,
     read_hdf5,
     recording_site_from_channel_label,
     recording_site_from_channel_path,
@@ -87,7 +89,7 @@ def read_control_and_signal(
 
 def read_ttl(filepath: str, store_array: np.ndarray) -> dict[str, np.ndarray]:
     """
-    Load TTL event timestamps from HDF5 files, skipping control/signal channels.
+    Load TTL event timestamps from HDF5 files, skipping control/signal channels and covariates.
 
     Parameters
     ----------
@@ -107,7 +109,7 @@ def read_ttl(filepath: str, store_array: np.ndarray) -> dict[str, np.ndarray]:
 
     store_label_to_timestamps = {}
     for store_id, store_label in zip(store_ids, store_labels):
-        if store_label in control_signal_names:
+        if store_label in control_signal_names or is_covariate_label(store_label):
             continue
         timestamps = read_hdf5(store_id, filepath, "timestamps")
         store_label_to_timestamps[store_label] = timestamps
@@ -876,3 +878,212 @@ def read_transients_from_hdf5(filepath: str, name: str) -> tuple[np.ndarray, np.
     timestamps = read_hdf5(event, filepath, "timestamps")
     peaksInd = read_hdf5(event, filepath, "peaksInd")
     return z_score, timestamps, peaksInd
+
+
+def write_binned_metrics_to_hdf5(filepath: str, binned_metrics: pd.DataFrame, recording_site: str) -> None:
+    """
+    Save whole-session time-binned metrics to an HDF5 file.
+
+    Parameters
+    ----------
+    filepath : str
+        Output directory.
+    binned_metrics : pd.DataFrame
+        One row per time bin, as returned by
+        :func:`guppy.analysis.binned_metrics.compute_binned_metrics`.
+    recording_site : str
+        Recording site name; the file is written as ``binned_metrics_<recording_site>.h5``.
+    """
+    output_path = os.path.join(filepath, "binned_metrics_" + recording_site + ".h5")
+
+    binned_metrics.to_hdf(output_path, key="df", mode="w")
+
+
+def write_binned_metrics_to_csv(filepath: str, binned_metrics: pd.DataFrame, recording_site: str) -> None:
+    """
+    Save whole-session time-binned metrics to a CSV file.
+
+    Parameters
+    ----------
+    filepath : str
+        Output directory.
+    binned_metrics : pd.DataFrame
+        One row per time bin, as returned by
+        :func:`guppy.analysis.binned_metrics.compute_binned_metrics`.
+    recording_site : str
+        Recording site name; the file is written as ``binned_metrics_<recording_site>.csv``.
+    """
+    output_path = os.path.join(filepath, "binned_metrics_" + recording_site + ".csv")
+
+    binned_metrics.to_csv(output_path)
+
+
+def read_binned_metrics_from_hdf5(filepath: str, recording_site: str) -> pd.DataFrame:
+    """
+    Load whole-session time-binned metrics from an HDF5 file.
+
+    Parameters
+    ----------
+    filepath : str
+        Directory containing the ``binned_metrics_<recording_site>.h5`` file.
+    recording_site : str
+        Recording site name (without the ``binned_metrics_`` prefix or ``.h5`` suffix).
+
+    Returns
+    -------
+    binned_metrics : pd.DataFrame
+        One row per time bin.
+    """
+    output_path = os.path.join(filepath, "binned_metrics_" + recording_site + ".h5")
+    binned_metrics = pd.read_hdf(output_path, key="df", mode="r")
+
+    return binned_metrics
+
+
+def write_binned_covariates_to_hdf5(*, filepath: str, binned_covariates: pd.DataFrame, recording_site: str) -> None:
+    """
+    Save per-bin behavioral covariate means to an HDF5 file.
+
+    Parameters
+    ----------
+    filepath : str
+        Output directory.
+    binned_covariates : pd.DataFrame
+        One row per time bin, as returned by
+        :func:`guppy.analysis.covariates.compute_binned_covariates`.
+    recording_site : str
+        Recording site name; the file is written as ``binned_covariates_<recording_site>.h5``.
+    """
+    output_path = os.path.join(filepath, "binned_covariates_" + recording_site + ".h5")
+
+    binned_covariates.to_hdf(output_path, key="df", mode="w")
+
+
+def write_binned_covariates_to_csv(*, filepath: str, binned_covariates: pd.DataFrame, recording_site: str) -> None:
+    """
+    Save per-bin behavioral covariate means to a CSV file.
+
+    Parameters
+    ----------
+    filepath : str
+        Output directory.
+    binned_covariates : pd.DataFrame
+        One row per time bin, as returned by
+        :func:`guppy.analysis.covariates.compute_binned_covariates`.
+    recording_site : str
+        Recording site name; the file is written as ``binned_covariates_<recording_site>.csv``.
+    """
+    output_path = os.path.join(filepath, "binned_covariates_" + recording_site + ".csv")
+
+    binned_covariates.to_csv(output_path)
+
+
+def read_binned_covariates_from_hdf5(*, filepath: str, recording_site: str) -> pd.DataFrame:
+    """
+    Load per-bin behavioral covariate means from an HDF5 file.
+
+    Parameters
+    ----------
+    filepath : str
+        Directory containing the ``binned_covariates_<recording_site>.h5`` file.
+    recording_site : str
+        Recording site name (without the ``binned_covariates_`` prefix or ``.h5`` suffix).
+
+    Returns
+    -------
+    binned_covariates : pd.DataFrame
+        One row per time bin.
+    """
+    output_path = os.path.join(filepath, "binned_covariates_" + recording_site + ".h5")
+    binned_covariates = pd.read_hdf(output_path, key="df", mode="r")
+
+    return binned_covariates
+
+
+def write_covariate_correlations_to_hdf5(*, filepath: str, correlations: pd.DataFrame, recording_site: str) -> None:
+    """
+    Save covariate-versus-metric correlation coefficients to an HDF5 file.
+
+    Parameters
+    ----------
+    filepath : str
+        Output directory.
+    correlations : pd.DataFrame
+        One row per (metric, covariate) pair, as returned by
+        :func:`guppy.analysis.covariates.compute_covariate_correlations`.
+    recording_site : str
+        Recording site name; the file is written as ``covariate_correlations_<recording_site>.h5``.
+    """
+    output_path = os.path.join(filepath, "covariate_correlations_" + recording_site + ".h5")
+
+    correlations.to_hdf(output_path, key="df", mode="w")
+
+
+def write_covariate_correlations_to_csv(*, filepath: str, correlations: pd.DataFrame, recording_site: str) -> None:
+    """
+    Save covariate-versus-metric correlation coefficients to a CSV file.
+
+    Parameters
+    ----------
+    filepath : str
+        Output directory.
+    correlations : pd.DataFrame
+        One row per (metric, covariate) pair, as returned by
+        :func:`guppy.analysis.covariates.compute_covariate_correlations`.
+    recording_site : str
+        Recording site name; the file is written as ``covariate_correlations_<recording_site>.csv``.
+    """
+    output_path = os.path.join(filepath, "covariate_correlations_" + recording_site + ".csv")
+
+    correlations.to_csv(output_path)
+
+
+def read_covariate_correlations_from_hdf5(*, filepath: str, recording_site: str) -> pd.DataFrame:
+    """
+    Load covariate-versus-metric correlation coefficients from an HDF5 file.
+
+    Parameters
+    ----------
+    filepath : str
+        Directory containing the ``covariate_correlations_<recording_site>.h5`` file.
+    recording_site : str
+        Recording site name (without the ``covariate_correlations_`` prefix or ``.h5`` suffix).
+
+    Returns
+    -------
+    correlations : pd.DataFrame
+        One row per (metric, covariate) pair.
+    """
+    output_path = os.path.join(filepath, "covariate_correlations_" + recording_site + ".h5")
+    correlations = pd.read_hdf(output_path, key="df", mode="r")
+
+    return correlations
+
+
+def read_covariate_series(filepath: str) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+    """Load every behavioral covariate store in a run folder.
+
+    Step 2 writes each store under its raw store_id, so the covariate labels in
+    ``storesList.csv`` are mapped back to the store_ids in row 0 to find the files.
+
+    Parameters
+    ----------
+    filepath : str
+        Path to the session output directory.
+
+    Returns
+    -------
+    dict of str to tuple of np.ndarray
+        Covariate name (label minus its prefix) → ``(timestamps, values)``.
+    """
+    store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
+
+    covariate_series = {}
+    for store_id, store_label in zip(store_array[0, :], store_array[1, :]):
+        if is_covariate_label(store_label):
+            name = store_label[len(COVARIATE_PREFIX) :]
+            timestamps = np.asarray(read_hdf5(store_id, filepath, "timestamps")).ravel()
+            values = np.asarray(read_hdf5(store_id, filepath, "data")).ravel()
+            covariate_series[name] = (timestamps, values)
+
+    return covariate_series

@@ -1027,3 +1027,39 @@ def test_npm_params_to_persist_keeps_an_explicit_unit():
         "npm_time_unit": "milliseconds",
         "npm_timestamp_column_name": "ComputerTimestamp",
     }
+
+
+def test_fetchValues_prefixes_behavioral_covariate_labels():
+    text, store_ids, dropdowns, textboxes, control_refs = _build_fetchValues_args(
+        dropdown_values={"akinesia": "behavioral covariate"},
+        textbox_values={"akinesia": "akinesia"},
+        text_value=["akinesia"],
+    )
+    result_dict = {}
+
+    result = _fetchValues(text, store_ids, dropdowns, textboxes, control_refs, result_dict)
+
+    assert "Alert" not in result
+    assert result_dict["store_labels"] == ["covariate_akinesia"]
+
+
+def test_fetchValues_returns_alert_when_covariate_name_empty():
+    text, store_ids, dropdowns, textboxes, control_refs = _build_fetchValues_args(
+        dropdown_values={"akinesia": "behavioral covariate"},
+        textbox_values={"akinesia": ""},
+    )
+
+    result = _fetchValues(text, store_ids, dropdowns, textboxes, control_refs, {})
+
+    assert "Alert" in result
+
+
+def test_fetchValues_returns_alert_when_whitespace_in_covariate_name():
+    text, store_ids, dropdowns, textboxes, control_refs = _build_fetchValues_args(
+        dropdown_values={"akinesia": "behavioral covariate"},
+        textbox_values={"akinesia": "akinesia severity"},
+    )
+
+    result = _fetchValues(text, store_ids, dropdowns, textboxes, control_refs, {})
+
+    assert "Alert" in result

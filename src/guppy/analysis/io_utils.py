@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 SIGNAL_PREFIX = "signal_"
 CONTROL_PREFIX = "control_"
+COVARIATE_PREFIX = "covariate_"
 ZSCORE_PREFIX = "z_score_"
 DFF_PREFIX = "dff_"
 
@@ -36,6 +37,45 @@ def is_channel_label(label: str) -> bool:
     """
     lowered = label.lower()
     return "control" in lowered or "signal" in lowered
+
+
+def is_covariate_label(label: str) -> bool:
+    """
+    Return True if a store label names a behavioral covariate.
+
+    Parameters
+    ----------
+    label : str
+        Store label from row 1 of ``storesList.csv``.
+
+    Returns
+    -------
+    bool
+        True for labels carrying the ``covariate_`` prefix.
+    """
+    return label.lower().startswith(COVARIATE_PREFIX)
+
+
+def is_continuous_label(label: str) -> bool:
+    """
+    Return True if a store label names a continuously sampled stream.
+
+    Photometry channels and behavioral covariates both carry a value per timestamp;
+    event stores carry timestamps alone. Analyses that align to events — PSTH
+    computation, artifact-window elimination, the visualization event list — use this
+    to skip the streams they cannot align to.
+
+    Parameters
+    ----------
+    label : str
+        Store label from row 1 of ``storesList.csv``.
+
+    Returns
+    -------
+    bool
+        True for photometry channels and behavioral covariates.
+    """
+    return is_channel_label(label) or is_covariate_label(label)
 
 
 def recording_site_from_channel_label(label: str) -> str:
@@ -89,6 +129,35 @@ def recording_site_from_preprocessed_label(label: str) -> str:
     if label.startswith(DFF_PREFIX):
         return label[len(DFF_PREFIX) :]
     return label
+
+
+def metric_from_preprocessed_label(label: str) -> str:
+    """
+    Return the metric name of a ``z_score_*`` / ``dff_*`` label or basename.
+
+    Parameters
+    ----------
+    label : str
+        Label or extension-stripped basename, e.g. ``"z_score_left_hemisphere"``.
+
+    Returns
+    -------
+    str
+        ``"z_score"`` or ``"dff"``.
+
+    Raises
+    ------
+    ValueError
+        If the label carries neither prefix.
+    """
+    if label.startswith(ZSCORE_PREFIX):
+        return ZSCORE_PREFIX.rstrip("_")
+    if label.startswith(DFF_PREFIX):
+        return DFF_PREFIX.rstrip("_")
+
+    message = f"Preprocessed label {label!r} starts with neither {ZSCORE_PREFIX!r} nor {DFF_PREFIX!r}."
+    logger.error(message)
+    raise ValueError(message)
 
 
 def recording_site_from_channel_path(path: str) -> str:

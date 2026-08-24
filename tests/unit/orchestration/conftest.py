@@ -42,4 +42,6 @@ def base_input_parameters() -> dict[str, object]:
         "moving_window": 15,
         "highAmpFilt": 3.0,
         "transientsThresh": 2.0,
+        "computeBinnedMetrics": False,
+        "binnedMetricsWidth": 120,
     }
