@@ -5,6 +5,9 @@ import pytest
 
 from guppy.utils.validation import (
     validate_data_not_combined,
+    validate_group_destination,
+    validate_group_folders,
+    validate_group_member_run_folders,
     validate_non_negative,
     validate_peak_windows,
     validate_positive,
@@ -229,3 +232,89 @@ class TestValidateDataNotCombined:
 
     def test_passes_when_not_combining(self):
         validate_data_not_combined(combine_data=False)
+
+
+@pytest.fixture
+def member_run_folder(tmp_path):
+    """A valid group member: an ``_output_`` directory holding storesList.csv."""
+    session = tmp_path / "sessionA"
+    session.mkdir()
+    run_folder = session / "sessionA_output_1"
+    run_folder.mkdir()
+    (run_folder / "storesList.csv").write_text("Dv1A,Dv2A\ncontrol_dms,signal_dms\n")
+    return run_folder
+
+
+@pytest.fixture
+def group_folder(tmp_path):
+    """A valid group output directory holding storesList.csv."""
+    folder = tmp_path / "saline_group"
+    folder.mkdir()
+    (folder / "storesList.csv").write_text("Dv1A,Dv2A\ncontrol_dms,signal_dms\n")
+    return folder
+
+
+class TestValidateGroupMemberRunFolders:
+    def test_passes_for_valid_member(self, member_run_folder):
+        validate_group_member_run_folders(member_run_folders=[str(member_run_folder)])
+
+    def test_raises_when_empty(self):
+        with pytest.raises(ValueError, match="No member runs selected"):
+            validate_group_member_run_folders(member_run_folders=[])
+
+    def test_raises_for_session_folder_instead_of_run_folder(self, tmp_path):
+        session = tmp_path / "sessionA"
+        session.mkdir()
+        with pytest.raises(ValueError, match="must be output directories"):
+            validate_group_member_run_folders(member_run_folders=[str(session)])
+
+    def test_raises_for_missing_directory(self, tmp_path):
+        with pytest.raises(ValueError, match="do not exist"):
+            validate_group_member_run_folders(member_run_folders=[str(tmp_path / "gone_output_1")])
+
+    def test_raises_when_stores_list_missing(self, tmp_path):
+        run_folder = tmp_path / "sessionA_output_1"
+        run_folder.mkdir()
+        with pytest.raises(ValueError, match="missing storesList.csv"):
+            validate_group_member_run_folders(member_run_folders=[str(run_folder)])
+
+
+class TestValidateGroupFolders:
+    def test_passes_for_valid_group(self, group_folder):
+        validate_group_folders(group_folders=[str(group_folder)])
+
+    def test_passes_for_empty_selection(self):
+        validate_group_folders(group_folders=[])
+
+    def test_raises_for_run_folder(self, member_run_folder):
+        with pytest.raises(ValueError, match="not group output directories"):
+            validate_group_folders(group_folders=[str(member_run_folder)])
+
+    def test_raises_for_missing_directory(self, tmp_path):
+        with pytest.raises(ValueError, match="do not exist"):
+            validate_group_folders(group_folders=[str(tmp_path / "gone_group")])
+
+    def test_raises_when_stores_list_missing(self, tmp_path):
+        folder = tmp_path / "saline_group"
+        folder.mkdir()
+        with pytest.raises(ValueError, match="missing storesList.csv"):
+            validate_group_folders(group_folders=[str(folder)])
+
+
+class TestValidateGroupDestination:
+    def test_returns_the_single_selected_directory(self, tmp_path):
+        assert validate_group_destination(destination_directories=[str(tmp_path)]) == str(tmp_path)
+
+    def test_raises_when_nothing_selected(self):
+        with pytest.raises(ValueError, match="exactly one destination directory"):
+            validate_group_destination(destination_directories=[])
+
+    def test_raises_when_more_than_one_selected(self, tmp_path):
+        other = tmp_path / "other"
+        other.mkdir()
+        with pytest.raises(ValueError, match="exactly one destination directory"):
+            validate_group_destination(destination_directories=[str(tmp_path), str(other)])
+
+    def test_raises_when_directory_does_not_exist(self, tmp_path):
+        with pytest.raises(ValueError, match="does not exist"):
+            validate_group_destination(destination_directories=[str(tmp_path / "gone")])

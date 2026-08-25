@@ -6,21 +6,29 @@ import pytest
 
 from guppy.utils import utils
 from guppy.utils.utils import (
+    GROUP_MEMBERS_FILENAME,
     NPM_PARAM_KEYS,
+    discover_group_folders,
     discover_run_folders,
     event_labels_for_analysis,
     get_all_stores_for_combining_data,
+    group_folder_for_group,
+    is_group_folder,
     is_headless,
     load_npm_params,
+    parse_group_name,
     parse_run_name,
     read_Df,
+    read_group_members,
     resolve_run_folders,
     run_folder_for_run,
     select_run_folders,
     selected_session_runs,
     takeOnlyDirs,
     transient_event_labels,
+    validate_group_name,
     validate_run_name,
+    write_group_members,
     write_npm_params,
 )
 
@@ -474,3 +482,117 @@ class TestSelectedSessionRuns:
             ("/data/A", "run2"),
             ("/data/B", "run1"),
         ]
+
+
+class TestParseGroupName:
+    def test_returns_name_before_marker(self):
+        assert parse_group_name("/data/saline_group") == "saline"
+
+    def test_name_may_contain_underscores(self):
+        assert parse_group_name("/data/saline_cohort_2_group") == "saline_cohort_2"
+
+    def test_trailing_separator_is_tolerated(self):
+        assert parse_group_name("/data/saline_group/") == "saline"
+
+    def test_raises_when_marker_missing(self):
+        with pytest.raises(ValueError, match="does not match"):
+            parse_group_name("/data/saline")
+
+    def test_raises_for_bare_marker(self):
+        with pytest.raises(ValueError, match="does not match"):
+            parse_group_name("/data/_group")
+
+
+class TestIsGroupFolder:
+    def test_true_for_group_folder(self):
+        assert is_group_folder("/data/saline_group") is True
+
+    def test_false_for_run_folder(self):
+        assert is_group_folder("/data/session_output_1") is False
+
+    def test_false_for_bare_marker(self):
+        assert is_group_folder("/data/_group") is False
+
+    def test_false_for_a_run_named_group(self):
+        assert is_group_folder("/data/session_output_group") is False
+
+
+class TestGroupFolderForGroup:
+    def test_builds_expected_path(self, tmp_path):
+        assert group_folder_for_group(destination_directory=str(tmp_path), group_name="saline") == str(
+            tmp_path / "saline_group"
+        )
+
+    def test_does_not_create_directory(self, tmp_path):
+        group_folder_for_group(destination_directory=str(tmp_path), group_name="saline")
+        assert list(tmp_path.iterdir()) == []
+
+
+class TestDiscoverGroupFolders:
+    def test_returns_only_group_folders_sorted_by_name(self, tmp_path):
+        for name in ["saline_group", "Cocaine_group", "notes", "session_output_1"]:
+            (tmp_path / name).mkdir()
+        assert discover_group_folders(str(tmp_path)) == [
+            str(tmp_path / "Cocaine_group"),
+            str(tmp_path / "saline_group"),
+        ]
+
+    def test_empty_when_no_groups(self, tmp_path):
+        (tmp_path / "session_output_1").mkdir()
+        assert discover_group_folders(str(tmp_path)) == []
+
+    def test_a_run_named_group_is_not_discovered_as_a_group(self, tmp_path):
+        # "session_output_group" ends with the group marker but is a run folder.
+        (tmp_path / "session_output_group").mkdir()
+        assert discover_group_folders(str(tmp_path)) == []
+        assert discover_run_folders(str(tmp_path)) == [str(tmp_path / "session_output_group")]
+
+
+class TestValidateGroupName:
+    @pytest.mark.parametrize("group_name", ["saline", "cohort-2", "v2.0", "alpha_beta", "1"])
+    def test_accepts_valid_names(self, group_name):
+        validate_group_name(group_name)
+
+    @pytest.mark.parametrize(
+        "group_name, match",
+        [
+            ("", "non-empty"),
+            ("   ", "whitespace"),
+            (" leading", "whitespace"),
+            ("trailing ", "whitespace"),
+            ("a/b", "forbidden character"),
+            ("a\\b", "forbidden character"),
+            ("a:b", "forbidden character"),
+            ("a..b", "'..'"),
+            ("foo_output_bar", "_output_"),
+            ("foo_group", "_group"),
+        ],
+    )
+    def test_rejects_invalid(self, group_name, match):
+        with pytest.raises(ValueError, match=match):
+            validate_group_name(group_name)
+
+    def test_rejects_non_string(self):
+        with pytest.raises(ValueError, match="must be a string"):
+            validate_group_name(123)
+
+
+class TestGroupMembersManifest:
+    def test_write_then_read_round_trips(self, tmp_path):
+        members = ["/data/A/A_output_1", "/data/B/B_output_2"]
+        write_group_members(group_folder=str(tmp_path), member_run_folders=members)
+        assert read_group_members(group_folder=str(tmp_path)) == members
+
+    def test_write_preserves_member_order(self, tmp_path):
+        members = ["/data/Z/Z_output_1", "/data/A/A_output_1"]
+        write_group_members(group_folder=str(tmp_path), member_run_folders=members)
+        assert read_group_members(group_folder=str(tmp_path)) == members
+
+    def test_manifest_holds_only_the_members_key(self, tmp_path):
+        write_group_members(group_folder=str(tmp_path), member_run_folders=["/data/A/A_output_1"])
+        with open(tmp_path / GROUP_MEMBERS_FILENAME) as file:
+            assert json.load(file) == {"member_run_folders": ["/data/A/A_output_1"]}
+
+    def test_read_raises_when_manifest_absent(self, tmp_path):
+        with pytest.raises(ValueError, match=GROUP_MEMBERS_FILENAME):
+            read_group_members(group_folder=str(tmp_path))

@@ -37,6 +37,8 @@ from typing import Sequence
 
 import numpy as np
 
+from .utils import _RUN_NAME_MARKER, is_group_folder
+
 logger = logging.getLogger(__name__)
 
 
@@ -299,6 +301,131 @@ def validate_preprocessing_outputs_present(
             message = f"No preprocessing outputs found in '{run_folder}'. Run Step 3 (Preprocess) before {action}."
             logger.error(message)
             raise ValueError(message)
+
+
+def validate_group_member_run_folders(*, member_run_folders: Sequence[str]) -> None:
+    """Validate the run folders selected as a group's members.
+
+    Parameters
+    ----------
+    member_run_folders : sequence of str
+        Output (run) directories selected to be averaged into a group.
+
+    Raises
+    ------
+    ValueError
+        If the selection is empty, or if any path is missing, is not an output
+        directory, or holds no ``storesList.csv``.
+    """
+    if not member_run_folders:
+        message = (
+            "No member runs selected for group averaging. Pick at least one "
+            "'<session>_output_<run>' directory in the Group Analysis card before running the step."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+    not_output_directories = [path for path in member_run_folders if _RUN_NAME_MARKER not in os.path.basename(path)]
+    if not_output_directories:
+        message = (
+            f"Group members must be output directories, but these are not: {not_output_directories!r}. "
+            "Select the '<session>_output_<run>' directories inside each session, not the session folders "
+            "themselves."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+    missing = [path for path in member_run_folders if not os.path.isdir(path)]
+    if missing:
+        message = f"Group member run folders do not exist: {missing!r}. Re-select the group's members."
+        logger.error(message)
+        raise ValueError(message)
+
+    missing_stores = [path for path in member_run_folders if not os.path.exists(os.path.join(path, "storesList.csv"))]
+    if missing_stores:
+        message = (
+            f"Group member run folders are missing storesList.csv: {missing_stores!r}. "
+            "Re-run Step 1 (Label Stores) for these runs before adding them to a group."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+
+def validate_group_folders(*, group_folders: Sequence[str]) -> None:
+    """Validate a selection of existing group output directories.
+
+    Parameters
+    ----------
+    group_folders : sequence of str
+        Group output directories selected for a downstream step.
+
+    Raises
+    ------
+    ValueError
+        If any path is missing, is not a ``<group_name>_group`` directory, or
+        holds no ``storesList.csv``.
+    """
+    not_group_directories = [path for path in group_folders if not is_group_folder(path)]
+    if not_group_directories:
+        message = (
+            f"These are not group output directories: {not_group_directories!r}. "
+            "A group directory is named '<group_name>_group' and is created by the Group Analysis step."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+    missing = [path for path in group_folders if not os.path.isdir(path)]
+    if missing:
+        message = f"Group output directories do not exist: {missing!r}. Re-run the Group Analysis step."
+        logger.error(message)
+        raise ValueError(message)
+
+    missing_stores = [path for path in group_folders if not os.path.exists(os.path.join(path, "storesList.csv"))]
+    if missing_stores:
+        message = (
+            f"Group output directories are missing storesList.csv: {missing_stores!r}. "
+            "Re-run the Group Analysis step for these groups."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+
+def validate_group_destination(*, destination_directories: Sequence[str]) -> str:
+    """Validate that exactly one existing destination directory is selected for a group.
+
+    Parameters
+    ----------
+    destination_directories : sequence of str
+        Raw value of the group destination selector.
+
+    Returns
+    -------
+    str
+        The single selected destination directory.
+
+    Raises
+    ------
+    ValueError
+        If the selection does not name exactly one existing directory.
+    """
+    if len(destination_directories) != 1:
+        message = (
+            f"Select exactly one destination directory for the group; got {len(destination_directories)} "
+            f"({list(destination_directories)!r}). The group is written to "
+            "'<destination>/<group_name>_group'."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+    destination_directory = destination_directories[0]
+    if not os.path.isdir(destination_directory):
+        message = (
+            f"Group destination directory {destination_directory!r} does not exist. "
+            "Select an existing directory in the Group Analysis card."
+        )
+        logger.error(message)
+        raise ValueError(message)
+    return destination_directory
 
 
 def validate_data_not_combined(*, combine_data: bool) -> None:

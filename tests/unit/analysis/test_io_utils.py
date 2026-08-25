@@ -15,7 +15,6 @@ from guppy.analysis.io_utils import (
     is_continuous_label,
     is_covariate_label,
     make_dir_for_cross_correlation,
-    makeAverageDir,
     metric_from_preprocessed_label,
     read_hdf5,
     recording_site_from_channel_label,
@@ -382,18 +381,3 @@ def test_make_dir_for_cross_correlation_is_idempotent(tmp_path):
     make_dir_for_cross_correlation(str(tmp_path))
     result = make_dir_for_cross_correlation(str(tmp_path))
     assert result == str(tmp_path / "cross_correlation_output")
-
-
-# ── makeAverageDir ────────────────────────────────────────────────────────────
-
-
-def test_make_average_dir_creates_directory_and_returns_path(tmp_path):
-    result = makeAverageDir(str(tmp_path))
-    assert result == str(tmp_path / "average")
-    assert (tmp_path / "average").is_dir()
-
-
-def test_make_average_dir_is_idempotent(tmp_path):
-    makeAverageDir(str(tmp_path))
-    result = makeAverageDir(str(tmp_path))
-    assert result == str(tmp_path / "average")

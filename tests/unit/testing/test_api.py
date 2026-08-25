@@ -263,25 +263,3 @@ class TestNormalizeSelectedRuns:
                 [str(tmp_path)],
                 parameter_name="custom_param",
             )
-
-
-class TestNormalizeGroupSelectedRuns:
-    def test_raises_when_runs_provided_but_no_group_folders(self):
-        with pytest.raises(ValueError, match="no group_folders were selected"):
-            testing_api._normalize_group_selected_runs({"/abs/session": ["run1"]}, [])
-
-    def test_returns_empty_when_no_group_folders_and_no_runs(self):
-        assert testing_api._normalize_group_selected_runs(None, []) == {}
-        assert testing_api._normalize_group_selected_runs({}, []) == {}
-
-    def test_raises_when_group_folders_present_but_runs_is_none(self, tmp_path):
-        session = tmp_path / "session"
-        session.mkdir()
-        with pytest.raises(ValueError, match="group_selected_runs is required"):
-            testing_api._normalize_group_selected_runs(None, [str(session)])
-
-    def test_delegates_to_normalize_selected_runs_with_group_param_name(self, tmp_path):
-        session = tmp_path / "session"
-        session.mkdir()
-        with pytest.raises(ValueError, match="group_selected_runs"):
-            testing_api._normalize_group_selected_runs({str(session): []}, [str(session)])

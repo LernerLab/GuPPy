@@ -483,25 +483,3 @@ def make_dir_for_cross_correlation(filepath: str) -> str:
     if not os.path.exists(run_folder):
         os.mkdir(run_folder)
     return run_folder
-
-
-def makeAverageDir(filepath: str) -> str:
-    """
-    Create and return the group-average output subdirectory.
-
-    Parameters
-    ----------
-    filepath : str
-        Parent directory inside which ``average/`` is created.
-
-    Returns
-    -------
-    run_folder : str
-        Path to the average output directory.
-    """
-
-    run_folder = os.path.join(filepath, "average")
-    if not os.path.exists(run_folder):
-        os.mkdir(run_folder)
-
-    return run_folder

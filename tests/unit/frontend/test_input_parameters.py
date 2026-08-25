@@ -7,7 +7,7 @@ import panel as pn
 import pytest
 
 from guppy.frontend.frontend_utils import default_root_path
-from guppy.frontend.input_parameters import ParameterForm, checkSameLocation, getAbsPath
+from guppy.frontend.input_parameters import ParameterForm, checkSameLocation
 from guppy.utils.utils import run_folder_for_run
 
 
@@ -70,36 +70,6 @@ def test_check_same_location_different_parents_raises(tmp_path):
     paths = [str(dir_a / "x"), str(dir_b / "y")]
     with pytest.raises(Exception, match="same location"):
         checkSameLocation(paths, [])
-
-
-# ── getAbsPath ────────────────────────────────────────────────────────────────
-
-
-def test_get_abs_path_both_empty_raises(bare_parameter_form):
-    with pytest.raises(Exception, match="No folder"):
-        getAbsPath(bare_parameter_form.files_1, bare_parameter_form.files_2)
-
-
-def test_get_abs_path_files_1_populated_returns_parent(tmp_path, bare_parameter_form):
-    parent = tmp_path / "data"
-    parent.mkdir()
-    session = parent / "session1"
-    session.mkdir()
-    bare_parameter_form.files_1.value = [str(session)]
-    result = getAbsPath(bare_parameter_form.files_1, bare_parameter_form.files_2)
-    assert len(result) == 1
-    assert result[0] == str(parent)
-
-
-def test_get_abs_path_files_2_used_when_files_1_empty(tmp_path, bare_parameter_form):
-    parent = tmp_path / "data"
-    parent.mkdir()
-    session = parent / "session1"
-    session.mkdir()
-    bare_parameter_form.files_2.value = [str(session)]
-    result = getAbsPath(bare_parameter_form.files_1, bare_parameter_form.files_2)
-    assert len(result) == 1
-    assert result[0] == str(parent)
 
 
 # ── ParameterForm ─────────────────────────────────────────────────────────────
@@ -200,12 +170,6 @@ class TestParameterForm:
         assert parameter_form.use_time_or_trials.value == "Time (min)"
         assert "Time (min)" in parameter_form.use_time_or_trials.options
         assert "# of trials" in parameter_form.use_time_or_trials.options
-
-    def test_average_for_group_default(self, parameter_form):
-        assert parameter_form.averageForGroup.value is False
-
-    def test_visualize_average_results_default(self, parameter_form):
-        assert parameter_form.visualizeAverageResults.value is False
 
     def test_visualize_zscore_or_dff_default(self, parameter_form):
         assert parameter_form.visualize_zscore_or_dff.value == "z_score"
@@ -539,47 +503,6 @@ class TestOutputsSelector:
         assert result["selected_runs"] == {str(session): ["baseline"]}
 
 
-class TestRebuildPerSessionWidgets:
-    def test_preserves_existing_widget_value_across_rebuilds(self, bare_parameter_form, tmp_path):
-        """When files_2 fires twice and the prior selection still exists, preserve it."""
-        session = tmp_path / "sessionA"
-        session.mkdir()
-        os.mkdir(run_folder_for_run(str(session), "run1"))
-        os.mkdir(run_folder_for_run(str(session), "run2"))
-
-        bare_parameter_form.files_2.value = [str(session)]
-        widget = bare_parameter_form.group_selected_outputs_widgets[str(session)]
-        widget.value = "run2"
-
-        # Rebuild with the same session — existing widget is reused, "run2" preserved.
-        bare_parameter_form.files_2.param.trigger("value")
-        reused_widget = bare_parameter_form.group_selected_outputs_widgets[str(session)]
-        assert reused_widget is widget
-        assert reused_widget.value == "run2"
-
-    def test_resets_existing_widget_value_when_prior_selection_invalid(self, bare_parameter_form, tmp_path):
-        """When the prior selection no longer exists in run_names, fall back to the first option."""
-        session = tmp_path / "sessionA"
-        session.mkdir()
-        run1 = run_folder_for_run(str(session), "run1")
-        run2 = run_folder_for_run(str(session), "run2")
-        os.mkdir(run1)
-        os.mkdir(run2)
-
-        bare_parameter_form.files_2.value = [str(session)]
-        widget = bare_parameter_form.group_selected_outputs_widgets[str(session)]
-        widget.value = "run2"
-
-        # Remove run2 so the prior selection becomes invalid; rebuild.
-        os.rmdir(run2)
-        bare_parameter_form.files_2.param.trigger("value")
-
-        reused_widget = bare_parameter_form.group_selected_outputs_widgets[str(session)]
-        assert reused_widget is widget
-        assert reused_widget.value == "run1"
-        assert reused_widget.options == ["run1"]
-
-
 class TestFolderSelectionCards:
     def test_input_folder_selection_card_exists_and_is_open(self, parameter_form):
         assert isinstance(parameter_form.input_folder_selection, pn.Card)
@@ -640,7 +563,6 @@ SAVED_PARAMETERS = {
     "computeBinnedMetrics": True,
     "binnedMetricsWidth": 60,
     "visualize_zscore_or_dff": "dff",
-    "averageForGroup": True,
 }
 
 

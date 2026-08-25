@@ -5,7 +5,7 @@ import shutil
 import pandas as pd
 import pytest
 
-from guppy.testing.api import step1, step2, step3, step4
+from guppy.testing.api import group_analysis, step1, step2, step3, step4
 from guppy_test_data import STUBBED_TESTING_DATA
 
 
@@ -14,7 +14,7 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
     """
     Verify that step4 with bin_psth_trials=2 and use_time_or_trials='# of trials'
     produces bin columns in the per-session PSTH output HDF5, and that running
-    group averaging (average_for_group=True) on that binned output also produces
+    the Group Analysis step on that binned output also produces
     bin columns in the averaged PSTH — exercising the bin-averaging branch in
     psth_average.averageForGroup.
     """
@@ -103,24 +103,19 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
     )
 
     # Run group averaging on the binned per-session output.  This exercises the
-    # `if len(bins_cols) > 0:` branch inside psth_average.averageForGroup, which
-    # concatenates and aggregates bin columns across sessions.
-    step4(
+    # `if len(bin_columns) > 0:` branch inside psth_average.average_psth_for_group, which
+    # concatenates and aggregates bin columns across the member runs.
+    group_analysis(
         base_dir=base_dir,
-        selected_folders=selected_folders,
-        npm_timestamp_column_name=None,
-        npm_time_unit=None,
-        npm_split_events=[True, True],
-        average_for_group=True,
-        group_folders=selected_folders,
-        bin_psth_trials=2,
-        use_time_or_trials="# of trials",
-        selected_runs=selected_runs,
-        group_selected_runs=selected_runs,
+        member_run_folders=[
+            os.path.join(folder, f"{os.path.basename(folder)}_output_1") for folder in selected_folders
+        ],
+        destination_directory=base_dir,
+        group_name="binned",
     )
 
-    average_directory = os.path.join(base_dir, "average")
-    assert os.path.isdir(average_directory), f"No average directory found under {base_dir}"
+    average_directory = os.path.join(base_dir, "binned_group")
+    assert os.path.isdir(average_directory), f"No group directory found under {base_dir}"
 
     average_psth_file_path = os.path.join(
         average_directory,

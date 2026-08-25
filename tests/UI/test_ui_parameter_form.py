@@ -60,7 +60,7 @@ def test_group_analysis_card_expands_on_click(page, live_server_url):
     page.goto(live_server_url)
     expect(page.get_by_text("Group Analysis").first).to_be_visible()
     page.get_by_text("Group Analysis").first.click()
-    expect(page.get_by_text("Select folders for the average analysis").first).to_be_visible()
+    expect(page.get_by_text("Create a group:").first).to_be_visible()
 
 
 @pytest.mark.ui

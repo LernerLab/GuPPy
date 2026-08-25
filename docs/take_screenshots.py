@@ -508,7 +508,7 @@ def screenshot_parameters(page: Page) -> None:
 
 
 def screenshot_group_analysis_card(page: Page) -> None:
-    """How-to: the Group Analysis card, expanded, with its folder browser and toggle.
+    """How-to: the Group Analysis card, expanded, with its member and destination browsers.
 
     The card is collapsed by default, so expand it before rendering, then clip to its
     region — mirrors screenshot_parameters.
@@ -525,30 +525,9 @@ def screenshot_group_analysis_card(page: Page) -> None:
     page.wait_for_timeout(1500)
     page.screenshot(
         path=OUTPUT_DIR / "group_analysis_card.png",
-        clip={"x": 0, "y": 620, "width": 1280, "height": 750},
+        clip={"x": 0, "y": 620, "width": 1280, "height": 1100},
     )
     print("Saved group_analysis_card.png")
-    page.set_viewport_size(VIEWPORT)
-    pn.state.kill_all_servers()
-
-
-def screenshot_visualize_average_toggle(page: Page) -> None:
-    """How-to: the Visualization Parameters card showing the Visualize Average Results? toggle."""
-    os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
-    template = build_homepage()
-    for card in template.main:
-        if isinstance(card, pn.Card) and card.title == "Visualization Parameters":
-            card.collapsed = False
-    url = _serve(template)
-    page.set_viewport_size({"width": 1280, "height": 1800})
-    page.goto(url)
-    page.get_by_text("Visualization Parameters").first.wait_for()
-    page.wait_for_timeout(1500)
-    page.screenshot(
-        path=OUTPUT_DIR / "visualize_average_results_toggle.png",
-        clip={"x": 0, "y": 600, "width": 1280, "height": 300},
-    )
-    print("Saved visualize_average_results_toggle.png")
     page.set_viewport_size(VIEWPORT)
     pn.state.kill_all_servers()
 
@@ -1003,7 +982,6 @@ def main() -> None:
             screenshot_compare_parameters_run_name(page)
             screenshot_compare_parameters_existing_runs(page)
             screenshot_group_analysis_card(page)
-            screenshot_visualize_average_toggle(page)
             screenshot_group_psth_plot(page, tmp_path)
             screenshot_export_to_nwb_button(page)
             screenshot_sidebar_progress(

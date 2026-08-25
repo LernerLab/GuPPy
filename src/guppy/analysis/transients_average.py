@@ -4,9 +4,6 @@ import os
 
 import numpy as np
 
-from .io_utils import (
-    makeAverageDir,
-)
 from .standard_io import (
     read_freq_and_amp_from_hdf5,
     write_freq_and_amp_to_csv,
@@ -16,38 +13,40 @@ from .standard_io import (
 logger = logging.getLogger(__name__)
 
 
-def averageForGroup(session_folders: list[str], inputParameters: dict[str, object]) -> None:
+def average_transients_for_group(
+    *, member_run_folders: list[str], group_folder: str, inputParameters: dict[str, object]
+) -> None:
     """
-    Combine transient frequency and amplitude results across a group of sessions.
+    Combine transient frequency and amplitude results across a group's member runs.
 
     Parameters
     ----------
-    session_folders : list of str
-        Session directories whose output subdirectories contain precomputed
-        ``freqAndAmp_*.h5`` files.
+    member_run_folders : list of str
+        Output (run) directories holding the precomputed ``freqAndAmp_*.h5`` files.
+    group_folder : str
+        Group output directory the combined results are written into.
     inputParameters : dict
-        Analysis configuration dictionary; must include ``'abspath'`` and
+        Analysis configuration dictionary; must include
         ``'selectForTransientsComputation'``.
     """
 
     logger.debug("Combining results for frequency and amplitude of transients in z-score data...")
     path = []
-    abspath = inputParameters["abspath"]
     selectForTransientsComputation = inputParameters["selectForTransientsComputation"]
 
-    for i in range(len(session_folders)):
+    for i in range(len(member_run_folders)):
         if selectForTransientsComputation == "z_score":
-            matched_paths = glob.glob(os.path.join(session_folders[i], "z_score_*"))
+            matched_paths = glob.glob(os.path.join(member_run_folders[i], "z_score_*"))
         elif selectForTransientsComputation == "dff":
-            matched_paths = glob.glob(os.path.join(session_folders[i], "dff_*"))
+            matched_paths = glob.glob(os.path.join(member_run_folders[i], "dff_*"))
         else:
-            matched_paths = glob.glob(os.path.join(session_folders[i], "z_score_*")) + glob.glob(
-                os.path.join(session_folders[i], "dff_*")
+            matched_paths = glob.glob(os.path.join(member_run_folders[i], "z_score_*")) + glob.glob(
+                os.path.join(member_run_folders[i], "dff_*")
             )
 
         for j in range(len(matched_paths)):
             basename = (os.path.basename(matched_paths[j])).split(".")[0]
-            entry = [session_folders[i], basename]
+            entry = [member_run_folders[i], basename]
             path.append(entry)
 
     naming = []
@@ -62,7 +61,7 @@ def averageForGroup(session_folders: list[str], inputParameters: dict[str, objec
         index = np.where(naming == path[i][1])[0][0]
         new_path[index].append(path[i])
 
-    run_folder = makeAverageDir(abspath)
+    run_folder = group_folder
 
     for i in range(len(new_path)):
         freq_and_amp_values = []

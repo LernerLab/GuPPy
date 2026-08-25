@@ -5,7 +5,6 @@ import os
 
 import numpy as np
 
-from .group_utils import gather_group_run_folders
 from .save_parameters import read_artifact_provenance
 from ..analysis.binned_metrics import compute_binned_metrics
 from ..analysis.covariates import (
@@ -33,7 +32,6 @@ from ..analysis.standard_io import (
     write_transients_to_hdf5,
 )
 from ..analysis.transients import analyze_transients
-from ..analysis.transients_average import averageForGroup
 from ..utils import progress
 from ..utils.utils import (
     get_all_stores_for_combining_data,
@@ -227,8 +225,6 @@ def executeFindFreqAndAmp(inputParameters: dict[str, object]) -> None:
 
     inputParameters = inputParameters
 
-    average = inputParameters["averageForGroup"]
-    group_session_folders = inputParameters["group_session_folders"]
     session_folders = inputParameters["session_folders"]
     combine_data = inputParameters["combine_data"]
     moving_window = inputParameters["moving_window"]
@@ -242,9 +238,7 @@ def executeFindFreqAndAmp(inputParameters: dict[str, object]) -> None:
         )
         numProcesses = mp.cpu_count() - 1
 
-    if average == True:
-        execute_average_for_group(inputParameters, group_session_folders)
-    elif combine_data == True:
+    if combine_data == True:
         execute_find_freq_and_amp_combined(inputParameters, session_folders, moving_window, numProcesses)
     else:
         execute_find_freq_and_amp(inputParameters, session_folders, moving_window, numProcesses)
@@ -313,23 +307,3 @@ def execute_find_freq_and_amp_combined(
         store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
         findFreqAndAmp(filepath, inputParameters, window=moving_window, numProcesses=numProcesses)
         progress.advance()
-
-
-def execute_average_for_group(inputParameters: dict[str, object], group_session_folders: list[str]) -> None:
-    """Average transient frequency and amplitude results across all group sessions.
-
-    Parameters
-    ----------
-    inputParameters : dict
-        Full pipeline input parameters.
-    group_session_folders : list of str
-        Session folder paths selected for group averaging.
-
-    Raises
-    ------
-    ValueError
-        When ``group_session_folders`` is empty.
-    """
-    run_folders = gather_group_run_folders(inputParameters, group_session_folders)
-    averageForGroup(run_folders, inputParameters)
-    progress.advance()

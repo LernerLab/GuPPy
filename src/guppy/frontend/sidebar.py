@@ -30,6 +30,7 @@ class Sidebar:
         self.mark_down_remove_artifacts = pn.pane.Markdown("""**Remove Artifacts (optional)**""", width=300)
         self.mark_down_tonic_analysis = pn.pane.Markdown("""**Tonic Analysis (optional)**""", width=300)
         self.mark_down_psth = pn.pane.Markdown("""**Step 4 : PSTH Computation**""", width=300)
+        self.mark_down_group_analysis = pn.pane.Markdown("""**Group Analysis (optional)**""", width=300)
         self.mark_down_visualization = pn.pane.Markdown("""**Step 5 : Visualization**""", width=300)
         self.mark_down_metadata = pn.pane.Markdown("""**Step 6 : Input Metadata**""", width=300)
         self.mark_down_export_nwb = pn.pane.Markdown("""**Step 7 : Export to NWB**""", width=300)
@@ -52,6 +53,7 @@ class Sidebar:
         self.psth_computation = pn.widgets.Button(
             name="PSTH Computation", button_type="primary", width=300, align="end"
         )
+        self.group_analysis = pn.widgets.Button(name="Group Analysis", button_type="default", width=300, align="end")
         self.open_visualization = pn.widgets.Button(
             name="Open Visualization GUI", button_type="primary", width=300, align="end"
         )
@@ -78,6 +80,7 @@ class Sidebar:
         self.psth_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
         self.remove_artifacts_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
         self.export_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
+        self.group_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
 
     def add_to_template(self) -> None:
         """Append all sidebar widgets to the template's sidebar area in pipeline order."""
@@ -101,6 +104,9 @@ class Sidebar:
         self.template.sidebar.append(self.mark_down_psth)
         self.template.sidebar.append(self.psth_computation)
         self.template.sidebar.append(self.psth_progress)
+        self.template.sidebar.append(self.mark_down_group_analysis)
+        self.template.sidebar.append(self.group_analysis)
+        self.template.sidebar.append(self.group_progress)
         self.template.sidebar.append(self.mark_down_visualization)
         self.template.sidebar.append(self.open_visualization)
         self.template.sidebar.append(self.mark_down_metadata)

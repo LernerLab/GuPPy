@@ -1,15 +1,17 @@
 import glob
+import json
 import os
 import shutil
 from pathlib import Path
 from unittest.mock import patch
 
 import holoviews as hv
+import numpy as np
 import pandas as pd
 import pytest
 
 from guppy.frontend.visualization_dashboard import VisualizationDashboard
-from guppy.testing.api import step1, step2, step3, step4, step5
+from guppy.testing.api import group_analysis, step1, step2, step3, step4, step5
 from guppy_test_data import STUBBED_TESTING_DATA
 
 SESSION_SUBDIRS = [
@@ -91,19 +93,20 @@ def test_group_analysis(copied_sessions):
     step4(**common_kwargs, selected_runs=selected_runs)
 
     # Run group averaging pass
-    step4(
-        **common_kwargs,
-        average_for_group=True,
-        group_folders=selected_folders,
-        selected_runs=selected_runs,
-        group_selected_runs=selected_runs,
+    group_analysis(
+        base_dir=base_dir,
+        member_run_folders=[
+            os.path.join(folder, f"{os.path.basename(folder)}_output_1") for folder in selected_folders
+        ],
+        destination_directory=base_dir,
+        group_name="saline",
     )
 
-    average_directory = temporary_base_directory / "average"
-    assert average_directory.is_dir(), f"No average directory found under {temporary_base_directory}"
+    group_directory = temporary_base_directory / "saline_group"
+    assert group_directory.is_dir(), f"No group directory found under {temporary_base_directory}"
 
     group_psth_file_path = os.path.join(
-        average_directory,
+        group_directory,
         f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.h5",
     )
     assert os.path.exists(group_psth_file_path), f"Missing group PSTH HDF5: {group_psth_file_path}"
@@ -159,17 +162,17 @@ def test_group_analysis_different_event_names_per_session(copied_sessions):
     step2(**common_kwargs, selected_runs=selected_runs)
     step3(**common_kwargs, selected_runs=selected_runs)
     step4(**common_kwargs, selected_runs=selected_runs)
-    step4(
-        **common_kwargs,
-        average_for_group=True,
-        group_folders=selected_folders,
-        selected_runs=selected_runs,
-        group_selected_runs=selected_runs,
+    member_run_folders = [os.path.join(folder, f"{os.path.basename(folder)}_output_1") for folder in selected_folders]
+    group_analysis(
+        base_dir=base_dir,
+        member_run_folders=member_run_folders,
+        destination_directory=base_dir,
+        group_name="cross_condition",
     )
 
     # Both events must be averaged even though no session has both -- cross-condition
     # averaging that the pre-#368 validation rejected outright.
-    average_directory = temporary_base_directory / "average"
+    average_directory = temporary_base_directory / "cross_condition_group"
     expected_columns_by_event = {
         "rewarded_nose_pokes": "Photo_048_392-200728-121222_output_1",
         "unrewarded_nose_pokes": "Photo_63_207-181030-103332_output_1",
@@ -201,13 +204,15 @@ def test_group_analysis_different_event_names_per_session(copied_sessions):
                 base_dir=base_dir,
                 selected_folders=selected_folders,
                 selected_runs=selected_runs,
-                visualize_average_results=True,
-                group_folders=selected_folders,
-                group_selected_runs=selected_runs,
+                selected_group_folders=[str(average_directory)],
             )
 
     assert len(captured_dashboards) >= 1, "step5 created no VisualizationDashboard instances"
-    plotter = captured_dashboards[0].plotter
+    # Step 5 opens a dashboard per selected session run *and* per selected group, so pick
+    # out the group's own dashboard by the directory it was built from.
+    group_dashboards = [dashboard for dashboard in captured_dashboards if dashboard.basename == average_directory.name]
+    assert len(group_dashboards) == 1, f"Expected exactly one group dashboard, got {len(group_dashboards)}"
+    plotter = group_dashboards[0].plotter
     heatmap_events = list(plotter.param.event_selector_heatmap.objects)
     assert len(heatmap_events) == 2, f"Expected both events in the average dashboard, got {heatmap_events}"
     for event in heatmap_events:
@@ -218,3 +223,85 @@ def test_group_analysis_different_event_names_per_session(copied_sessions):
             image, hv.QuadMesh
         ), f"Single-trial heatmap for {event!r} used the broken raw-QuadMesh path"
         hv.render(image)  # must not raise (the JS stack overflow reproduced here as a build/render error)
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+def test_group_analysis_step_writes_a_named_group_directory(copied_sessions):
+    """The Group Analysis step averages selected runs into <destination>/<name>_group.
+
+    Runs Steps 1-4 per session, then the new Group Analysis step, and asserts the group
+    directory's name, manifest, provenance snapshot, stores list and averaged PSTH.
+    """
+    base_dir, selected_folders = copied_sessions
+    common_kwargs = dict(base_dir=base_dir, selected_folders=selected_folders)
+    selected_runs = {folder: ["1"] for folder in selected_folders}
+
+    step1(**common_kwargs, store_id_to_store_label=STORE_ID_TO_STORE_LABEL)
+    step2(**common_kwargs, selected_runs=selected_runs)
+    step3(**common_kwargs, selected_runs=selected_runs)
+    step4(**common_kwargs, selected_runs=selected_runs)
+
+    member_run_folders = [os.path.join(folder, f"{os.path.basename(folder)}_output_1") for folder in selected_folders]
+    group_analysis(
+        base_dir=base_dir,
+        member_run_folders=member_run_folders,
+        destination_directory=base_dir,
+        group_name="saline",
+    )
+
+    group_folder = Path(base_dir) / "saline_group"
+    assert group_folder.is_dir(), f"No 'saline_group' directory under {base_dir}"
+    # The legacy, location-derived output directory is not written any more.
+    assert not (Path(base_dir) / "average").exists()
+
+    with open(group_folder / "group_members.json") as manifest_file:
+        assert json.load(manifest_file) == {"member_run_folders": member_run_folders}
+
+    assert (group_folder / "GuPPyParamtersUsed.json").exists()
+
+    stores_list = np.genfromtxt(group_folder / "storesList.csv", dtype="str", delimiter=",").reshape(2, -1)
+    assert EXPECTED_TTL in stores_list[1, :].tolist()
+
+    group_psth_path = group_folder / f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.h5"
+    group_psth = pd.read_hdf(group_psth_path, key="df")
+    # One column per member run, named by the run folder's basename, plus mean/err/timestamps.
+    for run_folder in member_run_folders:
+        assert os.path.basename(run_folder) in group_psth.columns
+    assert list(group_psth.columns[-3:]) == ["timestamps", "mean", "err"]
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+def test_group_analysis_step_rebuilds_the_group_when_a_member_is_dropped(copied_sessions):
+    """Re-running a group with fewer members must not leave the dropped member behind."""
+    base_dir, selected_folders = copied_sessions
+    common_kwargs = dict(base_dir=base_dir, selected_folders=selected_folders)
+    selected_runs = {folder: ["1"] for folder in selected_folders}
+
+    step1(**common_kwargs, store_id_to_store_label=STORE_ID_TO_STORE_LABEL)
+    step2(**common_kwargs, selected_runs=selected_runs)
+    step3(**common_kwargs, selected_runs=selected_runs)
+    step4(**common_kwargs, selected_runs=selected_runs)
+
+    member_run_folders = [os.path.join(folder, f"{os.path.basename(folder)}_output_1") for folder in selected_folders]
+    group_analysis(
+        base_dir=base_dir,
+        member_run_folders=member_run_folders,
+        destination_directory=base_dir,
+        group_name="saline",
+    )
+    group_folder = Path(base_dir) / "saline_group"
+    psth_path = group_folder / f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.h5"
+    assert len(pd.read_hdf(psth_path, key="df").columns) == 5  # 2 members + timestamps/mean/err
+
+    group_analysis(
+        base_dir=base_dir,
+        member_run_folders=member_run_folders[:1],
+        destination_directory=base_dir,
+        group_name="saline",
+    )
+
+    with open(group_folder / "group_members.json") as manifest_file:
+        assert json.load(manifest_file) == {"member_run_folders": member_run_folders[:1]}
+    remaining = pd.read_hdf(psth_path, key="df")
+    assert os.path.basename(member_run_folders[0]) in remaining.columns
+    assert os.path.basename(member_run_folders[1]) not in remaining.columns

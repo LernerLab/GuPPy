@@ -13,6 +13,14 @@ RAISE_ISSUE_URL = "https://github.com/LernerLab/GuPPy/issues/new"
 _RUN_NAME_MARKER = "_output_"
 _FORBIDDEN_RUN_NAME_CHARACTERS = ("/", "\\", ":", "\0")
 
+# Group output directories are named "<group_name>_group". The marker contains no
+# "_output_", so discover_run_folders can never return a group folder.
+_GROUP_NAME_MARKER = "_group"
+
+# Records which run folders a group averaged, so the group can be reopened and rebuilt
+# and so column N of a group PSTH can be traced back to member N.
+GROUP_MEMBERS_FILENAME = "group_members.json"
+
 # NPM decomposition parameters chosen interactively in Step 1 are not part of the
 # saved analysis parameters, so they are persisted next to storesList.csv for Step 2.
 NPM_PARAMS_FILENAME = ".npm_params.json"
@@ -94,6 +102,50 @@ def load_npm_params(run_folder: str) -> dict[str, object]:
         raise ValueError(message)
 
     return npm_params
+
+
+def write_group_members(*, group_folder: str, member_run_folders: list[str]) -> None:
+    """Persist the run folders a group was averaged from.
+
+    Parameters
+    ----------
+    group_folder : str
+        Group output directory receiving the manifest.
+    member_run_folders : list of str
+        Absolute paths of the member run folders, in averaging order.
+    """
+    with open(os.path.join(group_folder, GROUP_MEMBERS_FILENAME), "w") as file:
+        json.dump({"member_run_folders": list(member_run_folders)}, file, indent=4)
+
+
+def read_group_members(*, group_folder: str) -> list[str]:
+    """Return the run folders recorded in a group's manifest.
+
+    Parameters
+    ----------
+    group_folder : str
+        Group output directory holding the manifest.
+
+    Returns
+    -------
+    list of str
+        Absolute paths of the member run folders, in averaging order.
+
+    Raises
+    ------
+    ValueError
+        If the group directory holds no manifest.
+    """
+    manifest_path = os.path.join(group_folder, GROUP_MEMBERS_FILENAME)
+    if not os.path.exists(manifest_path):
+        message = (
+            f"{group_folder!r} holds no {GROUP_MEMBERS_FILENAME}, so it was not created by GuPPy's "
+            "Group Analysis step. Re-create the group from the Group Analysis card."
+        )
+        logger.error(message)
+        raise ValueError(message)
+    with open(manifest_path) as file:
+        return json.load(file)["member_run_folders"]
 
 
 def takeOnlyDirs(paths: list[str]) -> list[str]:
@@ -295,6 +347,134 @@ def validate_run_name(run_name: str) -> None:
             f"run_name {run_name!r} must not contain the substring {_RUN_NAME_MARKER!r}; "
             "this would break parsing of the output directory name."
         )
+
+
+def parse_group_name(group_folder: str) -> str:
+    """Return the group name of a group output directory.
+
+    Parameters
+    ----------
+    group_folder : str
+        Path to a ``<group_name>_group`` directory.
+
+    Returns
+    -------
+    str
+        The group name.
+
+    Raises
+    ------
+    ValueError
+        If the basename does not match the expected pattern.
+    """
+    basename = os.path.basename(group_folder.rstrip("/\\"))
+    if not basename.endswith(_GROUP_NAME_MARKER) or basename == _GROUP_NAME_MARKER:
+        raise ValueError(
+            f"Cannot parse group name from {group_folder!r}: basename {basename!r} does not match "
+            f"'<group_name>_group' pattern."
+        )
+    return basename[: -len(_GROUP_NAME_MARKER)]
+
+
+def is_group_folder(path: str) -> bool:
+    """Report whether a path names a group output directory.
+
+    Parameters
+    ----------
+    path : str
+        Path to test.
+
+    Returns
+    -------
+    bool
+        ``True`` when the basename ends with ``_group`` and is not itself a run
+        folder (a run named ``group`` would otherwise match both).
+    """
+    basename = os.path.basename(path.rstrip("/\\"))
+    if _RUN_NAME_MARKER in basename:
+        return False
+    return basename.endswith(_GROUP_NAME_MARKER) and basename != _GROUP_NAME_MARKER
+
+
+def discover_group_folders(destination_directory: str) -> list[str]:
+    """Return all group output directories within a destination directory.
+
+    Parameters
+    ----------
+    destination_directory : str
+        Directory that group output directories are written into.
+
+    Returns
+    -------
+    list of str
+        Absolute paths of every ``<group_name>_group`` subdirectory, sorted
+        case-insensitively by group name.
+    """
+    candidates = takeOnlyDirs(glob.glob(os.path.join(destination_directory, "*" + _GROUP_NAME_MARKER)))
+    group_folders = [path for path in candidates if is_group_folder(path)]
+    return sorted(group_folders, key=lambda path: parse_group_name(path).casefold())
+
+
+def group_folder_for_group(*, destination_directory: str, group_name: str) -> str:
+    """Build the path of the output directory for a given group name.
+
+    Does not check whether the directory exists.
+
+    Parameters
+    ----------
+    destination_directory : str
+        Directory the group output directory is written into.
+    group_name : str
+        Name of the group.
+
+    Returns
+    -------
+    str
+        Path of the group output directory.
+    """
+    return os.path.join(destination_directory, group_name + _GROUP_NAME_MARKER)
+
+
+def validate_group_name(group_name: str) -> None:
+    """Validate that ``group_name`` is a legal group name.
+
+    Rejects empty strings, whitespace-only strings, path separators, ``..``,
+    null bytes, and any string containing ``_output_`` or ``_group`` (either of
+    which would make the resulting directory indistinguishable from a run
+    folder or from a session folder that merely ends in ``_group``).
+
+    Parameters
+    ----------
+    group_name : str
+        Candidate group name.
+
+    Raises
+    ------
+    ValueError
+        If ``group_name`` is invalid.
+    """
+    if not isinstance(group_name, str):
+        raise ValueError(f"group_name must be a string; got {type(group_name).__name__}.")
+    if not group_name:
+        raise ValueError("group_name must be a non-empty string. Type a name in the Group Analysis card.")
+    if group_name.strip() != group_name or not group_name.strip():
+        raise ValueError(
+            f"group_name {group_name!r} must not contain leading/trailing whitespace or be all whitespace."
+        )
+    for character in _FORBIDDEN_RUN_NAME_CHARACTERS:
+        if character in group_name:
+            raise ValueError(
+                f"group_name {group_name!r} contains forbidden character {character!r}. "
+                f"Path separators and null bytes are not allowed."
+            )
+    if ".." in group_name:
+        raise ValueError(f"group_name {group_name!r} must not contain '..' (path traversal).")
+    for marker in (_RUN_NAME_MARKER, _GROUP_NAME_MARKER):
+        if marker in group_name:
+            raise ValueError(
+                f"group_name {group_name!r} must not contain the substring {marker!r}; "
+                "this would break parsing of the group directory name."
+            )
 
 
 def _run_name_sort_key(run_name: str) -> tuple[int, int, str]:

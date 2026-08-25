@@ -266,5 +266,5 @@ The areas look large next to the peaks because the default **AUC Units** setting
 
 ## Next steps
 
-- The [Output data model](../reference/outputs.md) reference documents every remaining file: the transient detections, the cross-correlation tables, and the group `average/` directory, which has the same shape as a run folder with one column per session instead of one per trial.
+- The [Output data model](../reference/outputs.md) reference documents every remaining file: the transient detections, the cross-correlation tables, and group directories, which have the same shape as a run folder with one column per member run instead of one per trial.
 - See [How-to Guides](../how-to/index.md) for the optional steps that add to a run folder.

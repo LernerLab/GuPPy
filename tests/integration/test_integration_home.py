@@ -47,7 +47,6 @@ EXPECTED_JSON_KEYS = {
     "computeBinnedMetrics",
     "binnedMetricsWidth",
     "visualize_zscore_or_dff",
-    "averageForGroup",
 }
 
 

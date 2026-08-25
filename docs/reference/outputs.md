@@ -19,10 +19,10 @@ Three further directories can appear:
 | Directory | Location | Written by |
 |-----------|----------|------------|
 | `cross_correlation_output/` | inside a run folder | Step 4, when **Compute Cross-correlation** is enabled |
-| `average/` | beside the session folders, in their common parent directory | Step 4, when **Average Group?** is enabled |
+| `<name>_group/` | in the destination directory you pick | the Group Analysis step |
 | `saved_plots/` | inside a run folder | Step 5 — created but left empty, see [Step 5](#step-5-visualize-the-results) |
 
-The `average/` directory is not inside any session folder. It is created in the directory that contains all the sessions selected for the group.
+A group directory is not inside any session folder. It is created in the destination directory chosen in the Group Analysis card.
 
 ---
 
@@ -268,22 +268,28 @@ See [Fiber photometry data in NWB](../explanation/nwb.md) for what each object h
 
 ---
 
-## Group analysis: the `average/` directory
+## Group analysis: group directories
 
-*Written by: Step 4 (Compute the PSTH), when **Average Group?** is enabled.*
+*Written by: the Group Analysis step.*
 
-The `average/` directory sits in the common parent of the selected session folders and holds the same filename patterns as a run folder, with the per-session values combined:
+A group directory is named `<group_name>_group` and sits in the destination directory chosen in the Group Analysis card. It holds the same filename patterns as a run folder, with the per-member values combined:
 
 | File | Contents |
 |------|----------|
-| `storesList.csv` | The store mapping the group was averaged under |
+| `group_members.json` | The run folders this group averaged, in averaging order |
+| `GuPPyParamtersUsed.json` | The parameters the averaging ran under |
+| `storesList.csv` | The store mapping, listing only the events the group holds a PSTH for |
 | `z_score_<site>.hdf5`, `dff_<site>.hdf5` | Empty placeholders |
-| `<event>_<site>_<metric>.h5` | Group PSTH: one column per session |
-| `peak_AUC_<event>_<site>_<metric>.h5` and `.csv` | Every session's peak/AUC rows concatenated |
-| `freqAndAmp_<metric>.h5` and `.csv` | One row per session |
-| `cross_correlation_output/corr_<event>_<metric-prefix>_<siteA>_<siteB>.h5` | One column per session |
+| `<event>_<site>_<metric>.h5` | Group PSTH: one column per member run |
+| `peak_AUC_<event>_<site>_<metric>.h5` and `.csv` | Every member's peak/AUC rows concatenated |
+| `freqAndAmp_<metric>.h5` and `.csv` | One row per member run |
+| `cross_correlation_output/corr_<event>_<metric-prefix>_<siteA>_<siteB>.h5` | One column per member run |
 
-The group PSTH has the same shape as a per-session PSTH, but its trial columns are replaced by one column per session, labeled with the session folder's name, followed by the same `timestamps`, `mean` and `err` columns. The `z_score_<site>.hdf5` and `dff_<site>.hdf5` files in `average/` hold an empty `data` dataset; only their filenames carry information, naming the group's recording sites.
+The group PSTH has the same shape as a per-session PSTH, but its trial columns are replaced by one column per member run, labeled with the run folder's name, followed by the same `timestamps`, `mean` and `err` columns. Column order matches `group_members.json`, so column *n* is member *n*. The `z_score_<site>.hdf5` and `dff_<site>.hdf5` files hold an empty `data` dataset; only their filenames carry information, naming the group's recording sites.
+
+`group_members.json` has a single key, `member_run_folders`, holding the absolute paths of the runs that were averaged. GuPPy uses it to reload a group into the form, and to confirm a directory is one of its own before rebuilding it.
+
+Because the step averages what its members already hold, `storesList.csv` lists only the events a PSTH was actually written for. An event that no member recorded is dropped rather than listed.
 
 ---
 
@@ -291,11 +297,11 @@ The group PSTH has the same shape as a per-session PSTH, but its trial columns a
 
 *Written by: Steps 2, 3 and 4, and by Select Artifact Windows.*
 
-A JSON snapshot of the analysis parameters, written into every run folder the step operated on. Each of Steps 2, 3 and 4 rewrites it, so the file always reflects the most recent step to touch that run. Group averaging is the one exception: it writes no snapshot into `average/`. When a session has no run folder yet, the snapshot is written at the session folder root instead.
+A JSON snapshot of the analysis parameters, written into every run folder the step operated on. Each of Steps 2, 3 and 4 rewrites it, so the file always reflects the most recent step to touch that run. When a session has no run folder yet, the snapshot is written at the session folder root instead. The Group Analysis step writes one into the group directory too, recording the parameters the averaging ran under.
 
-The first key is `guppy_version`, the installed version of the `guppy-neuro` package that produced the run. The rest are the analysis parameters themselves: `combine_data`, `isosbestic_control`, `control_fit_method`, `controlFitWindowMode`, `controlFitWindowStart`, `controlFitWindowEnd`, `photobleaching_detrend`, `timeForLightsTurnOn`, `filter_window`, `removeArtifacts`, `artifactsRemovalMethod`, `noChannels`, `zscore_method`, `baselineWindowStart`, `baselineWindowEnd`, `nSecPrev`, `nSecPost`, `computeCorr`, `useTransientsAsEvents`, `timeInterval`, `bin_psth_trials`, `use_time_or_trials`, `baselineCorrectionStart`, `baselineCorrectionEnd`, `peak_startPoint`, `peak_endPoint`, `auc_units`, `selectForComputePsth`, `selectForTransientsComputation`, `moving_window`, `highAmpFilt`, `transientsThresh`, `computeBinnedMetrics`, `binnedMetricsWidth`, `visualize_zscore_or_dff` and `averageForGroup`. See the [Input parameter reference](parameters.md) for what each one controls.
+The first key is `guppy_version`, the installed version of the `guppy-neuro` package that produced the run. The rest are the analysis parameters themselves: `combine_data`, `isosbestic_control`, `control_fit_method`, `controlFitWindowMode`, `controlFitWindowStart`, `controlFitWindowEnd`, `photobleaching_detrend`, `timeForLightsTurnOn`, `filter_window`, `removeArtifacts`, `artifactsRemovalMethod`, `noChannels`, `zscore_method`, `baselineWindowStart`, `baselineWindowEnd`, `nSecPrev`, `nSecPost`, `computeCorr`, `useTransientsAsEvents`, `timeInterval`, `bin_psth_trials`, `use_time_or_trials`, `baselineCorrectionStart`, `baselineCorrectionEnd`, `peak_startPoint`, `peak_endPoint`, `auc_units`, `selectForComputePsth`, `selectForTransientsComputation`, `moving_window`, `highAmpFilt`, `transientsThresh`, `computeBinnedMetrics`, `binnedMetricsWidth` and `visualize_zscore_or_dff`. See the [Input parameter reference](parameters.md) for what each one controls.
 
-`removeArtifacts` and `artifactsRemovalMethod` describe what was applied to that run rather than what the form currently holds: each step carries them forward from whatever the run folder already records. Saving artifact windows patches these two keys in place and leaves everything else untouched.
+`removeArtifacts` and `artifactsRemovalMethod` describe what was applied to that run rather than what the form currently holds: each step carries them forward from whatever the run folder already records. Saving artifact windows patches these two keys in place and leaves everything else untouched. In a group directory both take their defaults, since the Group Analysis step removes no artifacts of its own.
 
 ---
 
@@ -364,8 +370,10 @@ The first key is `guppy_version`, the installed version of the `guppy-neuro` pac
     nwb_metadata.yaml                              step 6, optional
     <session_name>_output_<run_name>.nwb           step 7, optional
 
-<common parent of the selected sessions>/
-  average/                                         step 4, Average Group? only
+<group destination directory>/
+  <group_name>_group/                              Group Analysis step
+    group_members.json
+    GuPPyParamtersUsed.json
     storesList.csv
     z_score_<site>.hdf5                            empty placeholder
     dff_<site>.hdf5                                empty placeholder

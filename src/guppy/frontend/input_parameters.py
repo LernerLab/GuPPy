@@ -8,7 +8,14 @@ import panel as pn
 
 from .dandi_selector import DandiSelector
 from .frontend_utils import default_root_path
-from ..utils.utils import discover_run_folders, parse_run_name
+from ..utils.utils import (
+    discover_group_folders,
+    discover_run_folders,
+    is_group_folder,
+    parse_group_name,
+    parse_run_name,
+    read_group_members,
+)
 from ..utils.validation import (
     validate_non_negative,
     validate_positive,
@@ -40,25 +47,27 @@ def checkSameLocation(paths: list[str], abspath: object) -> str:
     return validate_same_parent_directory(paths=list(paths))
 
 
-def getAbsPath(files_1: pn.widgets.FileSelector, files_2: pn.widgets.FileSelector) -> str:
-    """Return the common parent directory of the selected folders.
+def _reject_group_folder_selected_as_run(*, path: str) -> None:
+    """Raise when a group output directory is selected where a session run is expected.
 
     Parameters
     ----------
-    files_1 : pn.widgets.FileSelector
-        Primary file selector (individual analysis).
-    files_2 : pn.widgets.FileSelector
-        Secondary file selector (group analysis).
+    path : str
+        A path selected in the individual-analysis session or output selectors.
 
-    Returns
-    -------
-    str
-        Absolute path of the common parent directory shared by the selected
-        folders.
+    Raises
+    ------
+    ValueError
+        If ``path`` names a ``<group_name>_group`` directory.
     """
-    validate_required_folder_selection(file_selectors=[files_1, files_2])
-    selected = files_1.value if len(files_1.value) > 0 else files_2.value
-    return validate_same_parent_directory(paths=list(selected))
+    if is_group_folder(path):
+        message = (
+            f"'{path}' is a group output directory, not a session run. Groups are created in the "
+            "Group Analysis card and can only be opened by Step 5 (Visualization); Steps 2-4 need "
+            "the raw traces a group directory does not contain."
+        )
+        logger.error(message)
+        raise ValueError(message)
 
 
 class ParameterForm:
@@ -82,13 +91,15 @@ class ParameterForm:
         self.template = template
         self.folder_path = start_path if start_path and os.path.isdir(start_path) else default_root_path()
         self.styles = dict(background="WhiteSmoke")
-        self.group_selected_outputs_widgets: dict[str, pn.widgets.Select] = {}
+
         self.setup_individual_parameters()
         self.setup_group_parameters()
         self.setup_visualization_parameters()
         self.add_to_template()
         self.files_1.param.watch(self._retarget_outputs_selector, "value")
-        self.files_2.param.watch(self._rebuild_group_selected_outputs_widgets, "value")
+        self.group_members_selector.param.watch(self._update_group_members_summary, "value")
+        self.group_destination_selector.param.watch(self.refresh_group_folders, "value")
+        self.group_folders_selector.param.watch(self._reload_group_from_selection, "value")
         self.outputs_selector.param.watch(self._load_parameters_from_selected_runs, "value")
 
     def setup_individual_parameters(self) -> None:
@@ -451,9 +462,16 @@ class ParameterForm:
         self.dandi_selector.panel.visible = is_dandi
 
     def _collect_selected_runs(self) -> dict[str, list[str]]:
-        """Group the FileSelector's selected output dirs by parent session."""
+        """Group the FileSelector's selected output dirs by parent session.
+
+        Raises
+        ------
+        ValueError
+            If a group output directory was selected as an individual run.
+        """
         grouped: dict[str, list[str]] = {}
         for path in self.outputs_selector.value or []:
+            _reject_group_folder_selected_as_run(path=path)
             session = os.path.dirname(path)
             grouped.setdefault(session, []).append(parse_run_name(path))
         return grouped
@@ -465,6 +483,8 @@ class ParameterForm:
         output directories). Skips sessions with no ``_output_<run>`` subdirs
         yet — those are typically pre-step-1 states.
         """
+        for session in self.files_1.value or []:
+            _reject_group_folder_selected_as_run(path=session)
         grouped = self._collect_selected_runs()
         missing = [
             session
@@ -512,27 +532,9 @@ class ParameterForm:
         # back to the stale _cwd — visible to the user as "selection resets the directory".
         self.outputs_selector._update_files()
 
-    def _rebuild_group_selected_outputs_widgets(self, event: object) -> None:
-        """Rebuild the per-session group-run-name Selects when files_2 changes."""
-        self._rebuild_per_session_widgets(
-            sessions=event.new,
-            target_box=self.group_selected_outputs_box,
-            store=self.group_selected_outputs_widgets,
-            scope="group",
-        )
-
     def refresh_individual_outputs(self) -> None:
         """Re-list the outputs FileSelector so newly-created run dirs (e.g. from step 1) appear."""
         self.outputs_selector._refresh()
-
-    def refresh_group_outputs(self) -> None:
-        """Re-discover output directories for the currently-selected group sessions."""
-        self._rebuild_per_session_widgets(
-            sessions=self.files_2.value,
-            target_box=self.group_selected_outputs_box,
-            store=self.group_selected_outputs_widgets,
-            scope="group",
-        )
 
     @staticmethod
     def _make_outputs_placeholder(scope: str) -> pn.pane.Markdown:
@@ -617,37 +619,95 @@ class ParameterForm:
     def setup_group_parameters(self) -> None:
         """Build all widgets for the group-analysis card and store them as instance attributes."""
         self.mark_down_2 = pn.pane.Markdown(
-            """**Select folders for the average analysis from the file selector below**""", width=600
+            "**Create a group:** select the output runs to average, a destination directory, and a "
+            "name. Running the Group Analysis step writes "
+            "`<destination>/<name>_group/`.",
+            width=950,
         )
 
-        self.files_2 = pn.widgets.FileSelector(
-            self.folder_path, root_directory="/", name="group_session_folders", width=950
+        self.group_members_selector = pn.widgets.FileSelector(
+            self.folder_path,
+            root_directory="/",
+            file_pattern="*_output_*",
+            name="Group members",
+            width=950,
+        )
+        self.group_members_summary = pn.pane.Markdown(self._group_members_summary_text([]), width=950)
+
+        self.group_destination_selector = pn.widgets.FileSelector(
+            self.folder_path, root_directory="/", name="Group destination", width=950
         )
 
-        self.averageForGroup = pn.widgets.Select(
-            name="Average Group? (bool)", value=False, options=[True, False], width=435
+        self.group_name_input = pn.widgets.TextInput(
+            name="Group name", value="", placeholder="e.g. saline_cohort", width=435
         )
 
-        self.group_selected_outputs_box = pn.Column(self._make_outputs_placeholder("group"))
+        self.mark_down_existing_groups = pn.pane.Markdown(
+            "**Existing groups:** select groups to open in Step 5's visualization. Selecting exactly "
+            "one also reloads its members and name above.",
+            width=950,
+        )
+        self.group_folders_selector = pn.widgets.MultiSelect(name="Existing groups", options={}, size=6, width=950)
 
         self.group_analysis_wd_1 = pn.Column(
-            self.mark_down_2, self.files_2, self.group_selected_outputs_box, self.averageForGroup, width=800
+            self.mark_down_2,
+            self.group_members_selector,
+            self.group_members_summary,
+            self.group_destination_selector,
+            self.group_name_input,
+            pn.layout.Divider(),
+            self.mark_down_existing_groups,
+            self.group_folders_selector,
+            width=980,
         )
         self.group = pn.Card(
             self.group_analysis_wd_1, title="Group Analysis", styles=self.styles, width=1000, collapsed=True
         )
 
+    @staticmethod
+    def _group_members_summary_text(member_run_folders: list[str]) -> str:
+        """Return the read-only echo of the current group-member selection."""
+        if not member_run_folders:
+            return "**Members (0):** none selected."
+        names = ", ".join(os.path.basename(run_folder) for run_folder in member_run_folders)
+        return f"**Members ({len(member_run_folders)}):** {names}"
+
+    def _update_group_members_summary(self, event: object) -> None:
+        """Refresh the member echo whenever the member selection changes."""
+        self.group_members_summary.object = self._group_members_summary_text(list(event.new or []))
+
+    def refresh_group_folders(self, event: object = None) -> None:
+        """Re-list the existing groups found in the selected destination directory."""
+        destinations = self.group_destination_selector.value or []
+        group_folders = discover_group_folders(destinations[0]) if len(destinations) == 1 else []
+        previously_selected = set(self.group_folders_selector.value or [])
+        self.group_folders_selector.options = {
+            parse_group_name(group_folder): group_folder for group_folder in group_folders
+        }
+        # Preserve selections that still exist so a refresh does not silently drop them.
+        self.group_folders_selector.value = [
+            group_folder for group_folder in group_folders if group_folder in previously_selected
+        ]
+
+    def _reload_group_from_selection(self, event: object) -> None:
+        """Repopulate the member selection and name from a single selected group's manifest.
+
+        A zero- or multi-group selection leaves the creation form untouched, since there is
+        no single group to reload from.
+        """
+        selected = list(event.new or [])
+        if len(selected) != 1:
+            return
+        self.group_members_selector.value = read_group_members(group_folder=selected[0])
+        self.group_name_input.value = parse_group_name(selected[0])
+
     def setup_visualization_parameters(self) -> None:
         """Build all widgets for the visualization-parameters card and store them as instance attributes."""
-        self.visualizeAverageResults = pn.widgets.Select(
-            name="Visualize Average Results? (bool)", value=False, options=[True, False], width=435
-        )
-
         self.visualize_zscore_or_dff = pn.widgets.Select(
             name="z-score or \u0394F/F? (for visualization)", options=["z_score", "dff"], width=435
         )
 
-        self.visualization_wd = pn.Row(self.visualize_zscore_or_dff, pn.Spacer(width=60), self.visualizeAverageResults)
+        self.visualization_wd = pn.Row(self.visualize_zscore_or_dff)
         self.visualize = pn.Card(
             self.visualization_wd, title="Visualization Parameters", styles=self.styles, width=1000, collapsed=True
         )
@@ -712,9 +772,8 @@ class ParameterForm:
             pipeline, keyed by the parameter names expected by the orchestration
             layer (e.g. ``"session_folders"``, ``"zscore_method"``, ``"nSecPrev"``).
         """
-        # Re-discover group output dirs so the per-session filters reflect any new dirs
-        # produced by step 1 since the user last deselected/reselected their session folder.
-        self.refresh_group_outputs()
+        # Re-list existing groups so a group created since the last interaction is selectable.
+        self.refresh_group_folders()
 
         self._validate_numeric_parameters()
 
@@ -722,9 +781,13 @@ class ParameterForm:
             folder_names, abspath_value, dandi_uri_map = self._resolve_dandi_sessions()
             mode = "dandi"
         else:
-            abspath = getAbsPath(self.files_1, self.files_2)
+            # Local mode requires a selection somewhere: individual sessions, or the group
+            # card's members or existing-group picker for a group-only workflow.
+            validate_required_folder_selection(
+                file_selectors=[self.files_1, self.group_members_selector, self.group_folders_selector]
+            )
             folder_names = self.files_1.value
-            abspath_value = abspath[0]
+            abspath_value = validate_same_parent_directory(paths=list(folder_names))[0] if folder_names else None
             dandi_uri_map = None
             mode = "local"
 
@@ -767,13 +830,11 @@ class ParameterForm:
             "computeBinnedMetrics": self.computeBinnedMetrics.value,
             "binnedMetricsWidth": self.binnedMetricsWidth.value,
             "visualize_zscore_or_dff": self.visualize_zscore_or_dff.value,
-            "group_session_folders": self.files_2.value,
-            "averageForGroup": self.averageForGroup.value,
-            "visualizeAverageResults": self.visualizeAverageResults.value,
+            "group_member_run_folders": list(self.group_members_selector.value or []),
+            "group_destination_directories": list(self.group_destination_selector.value or []),
+            "group_name": self.group_name_input.value,
+            "selected_group_folders": list(self.group_folders_selector.value or []),
             "selected_runs": self._collect_selected_runs(),
-            "group_selected_runs": {
-                session: [widget.value] for session, widget in self.group_selected_outputs_widgets.items()
-            },
         }
         return inputParameters
 
@@ -821,7 +882,6 @@ class ParameterForm:
             "computeBinnedMetrics": self.computeBinnedMetrics,
             "binnedMetricsWidth": self.binnedMetricsWidth,
             "visualize_zscore_or_dff": self.visualize_zscore_or_dff,
-            "averageForGroup": self.averageForGroup,
         }
 
     def setInputParameters(self, parameters: dict[str, object]) -> None:

@@ -222,18 +222,22 @@ The peak / AUC widget is a small table with rows of (start, end) pairs. Each row
 
 ## Group Analysis
 
-Collapsed by default on the homepage. Configures cross-session averaging.
+Collapsed by default on the homepage. Defines a named group of output runs to average.
 
-*Used by: Step 4 (Compute the PSTH) writes the averages when enabled.*
+*Used by: the Group Analysis step, and Step 5 (Visualize the results) for the group selection.*
 
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
-| (file browser) | Session folders to include in the cross-session average. | list of paths | empty | absolute paths to session directories |
-| Average Group? | Write averaged outputs to `average/`. | bool | `False` | `True`, `False` |
+| Group members (file browser) | Output run directories to average into the group. | list of paths | empty | absolute paths to `<session>_output_<run>` directories |
+| Group destination (file browser) | Directory the group is written into. | list of paths | empty | exactly one absolute path to an existing directory |
+| Group name | Name of the group; becomes the `<name>_group` directory. | str | empty | no path separators, `..`, `_output_` or `_group` |
+| Existing groups | Groups to open in Step 5's visualization. | list of paths | empty | groups found in the selected destination |
 
-**File browser** is the list of session folders to include in the cross-session average. Distinct from the Input Folder Selection browser so you can run individual analyses and group analyses against different folder sets in the same configuration.
+**Group members** are output run directories, not session folders — pick the `<session>_output_<run>` directories inside each session. The browser is independent of the Input Folder Selection browser, so individual and group analyses never interfere and a group's members may live under different parents.
 
-**Average Group?** must be `True` for Step 4 to write averaged outputs into the `average/` directory. If `False`, PSTH outputs are per-session only.
+**Group destination** and **Group name** together fix where the group is written: `<destination>/<name>_group/`. Re-running an existing group name rebuilds that directory from scratch; a directory GuPPy did not create is never overwritten.
+
+**Existing groups** lists the groups found in the selected destination. Selecting groups here opens them in Step 5 alongside any selected session runs; selecting exactly one also reloads its members and name into the fields above.
 
 ---
 
@@ -246,11 +250,10 @@ Collapsed by default on the homepage. Configures Step 5.
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
 | z-score or ΔF/F? (for visualization) | Which metric the Visualization GUI plots. | str | `z_score` | `z_score`, `dff` |
-| Visualize Average Results? | Show cross-session averages instead of per-session. | bool | `False` | `True`, `False` |
 
 **z-score or ΔF/F? (for visualization)** picks which metric the Visualization GUI plots. Must match a metric that Step 3 actually wrote: if you ran preprocessing with the PSTH metric set to `z_score` and try to visualize `dff`, GuPPy raises a descriptive error pointing at the missing files.
 
-**Visualize Average Results?** decides whether the Visualization GUI shows individual-session results or the cross-session averages produced by Step 4 with `Average Group?` set to `True`. Single-session analyses should leave this `False`.
+Groups are visualized by selecting them under **Existing groups** in the [Group Analysis](#group-analysis) card; there is no separate mode to switch on.
 
 ---
 
@@ -270,7 +273,6 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 | `abspath` | (auto-derived; not user-set) | [Input Folder Selection](#input-folder-selection) |
 | `artifactsRemovalMethod` | (recorded provenance; set on the Select Artifact Windows page) | [Artifact removal](#artifact-removal) |
 | `auc_units` | AUC Units | [Peak and AUC Parameters](#peak-and-auc-parameters) |
-| `averageForGroup` | Average Group? | [Group Analysis](#group-analysis) |
 | `baselineCorrectionEnd` | Baseline Correction End time | [Baseline Parameters](#baseline-parameters) |
 | `baselineCorrectionStart` | Baseline Correction Start time | [Baseline Parameters](#baseline-parameters) |
 | `baselineWindowEnd` | Baseline Window End Time (s) | [Z-score Parameters](#z-score-parameters) |
@@ -286,8 +288,11 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 | `controlFitWindowStart` | Control Fit Window Start Time (s) | [Signal preprocessing](#signal-preprocessing) |
 | `dandi_uri_map` | (DANDI selector) | [Input Folder Selection](#input-folder-selection) |
 | `filter_window` | Window for Moving Average filter | [Signal preprocessing](#signal-preprocessing) |
+| `selected_group_folders` | Existing groups | [Group Analysis](#group-analysis) |
 | `session_folders` | (file browser, Input Folder Selection) | [Input Folder Selection](#input-folder-selection) |
-| `group_session_folders` | (file browser, Group Analysis) | [Group Analysis](#group-analysis) |
+| `group_destination_directories` | Group destination (file browser) | [Group Analysis](#group-analysis) |
+| `group_member_run_folders` | Group members (file browser) | [Group Analysis](#group-analysis) |
+| `group_name` | Group name | [Group Analysis](#group-analysis) |
 | `highAmpFilt` | HAFT | [Transient detection](#transient-detection) |
 | `isosbestic_control` | Isosbestic Control Channel? | [Signal preprocessing](#signal-preprocessing) |
 | `mode` | Data Source | [Input Folder Selection](#input-folder-selection) |
@@ -308,5 +313,4 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 | `use_time_or_trials` | Bin PSTH trials | [PSTH Parameters](#psth-parameters) |
 | `useTransientsAsEvents` | Use Transients as Events? | [PSTH Parameters](#psth-parameters) |
 | `visualize_zscore_or_dff` | z-score or ΔF/F? (for visualization) | [Visualization Parameters](#visualization-parameters) |
-| `visualizeAverageResults` | Visualize Average Results? | [Visualization Parameters](#visualization-parameters) |
 | `zscore_method` | z-score computation Method | [Z-score Parameters](#z-score-parameters) |
