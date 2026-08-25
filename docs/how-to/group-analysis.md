@@ -69,6 +69,10 @@ leaving them behind; the definition itself is preserved.
 A group directory is an ordinary output directory to the visualizer, so there is no separate mode
 to switch on and nothing to re-select — just click **Open Visualization GUI** in the sidebar.
 
+A group can be visualized on its own: unlike Steps 2–4, Step 5 does not need an output directory
+picked for every selected session, so you can leave the individual selection empty and open only
+the groups.
+
 One dashboard opens per selected group, with one line per member run in place of one line per
 trial. Selected session runs open their own dashboards at the same time, so you can compare a
 group against an individual session in one click.

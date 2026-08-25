@@ -269,18 +269,29 @@ def visualizeResults(inputParameters: dict[str, object]) -> None:
     inputParameters = inputParameters
 
     _validate_metric_against_step4_outputs(inputParameters)
-    validate_group_definitions(group_folders=inputParameters.get("selected_group_folders") or [])
+    group_folders = list(inputParameters.get("selected_group_folders") or [])
+    validate_group_definitions(group_folders=group_folders)
+
+    combine_data = inputParameters["combine_data"]
+    selected_runs = inputParameters.get("selected_runs") or {}
+    # A session with no selected run is skipped rather than fatal: visualizing a group on
+    # its own is a legitimate request that leaves the individual selection empty.
+    session_folders = [session for session in inputParameters["session_folders"] if selected_runs.get(session)]
+
+    if not session_folders and not group_folders:
+        message = (
+            "Nothing is selected to visualize. Pick at least one output directory in the Output "
+            "Folder Selection panel, or at least one group in the Group Output Folder Selection panel."
+        )
+        logger.error(message)
+        raise ValueError(message)
 
     # Snapshot the parameters being executed into each selected output dir so the
     # on-disk GuPPyParamtersUsed.json always reflects the last-run configuration. This
     # iterates the individual sessions only, so a group's own snapshot keeps recording
     # how it was averaged.
-    save_parameters(inputParameters=inputParameters)
-
-    session_folders = inputParameters["session_folders"]
-    combine_data = inputParameters["combine_data"]
-
-    selected_runs = inputParameters.get("selected_runs") or {}
+    if session_folders:
+        save_parameters(inputParameters={**inputParameters, "session_folders": session_folders})
     if combine_data == True:
         run_folders = []
         for i in range(len(session_folders)):
@@ -327,7 +338,7 @@ def visualizeResults(inputParameters: dict[str, object]) -> None:
 
     # Groups are ordinary output directories to the visualizer: one dashboard each,
     # opened alongside any selected session runs rather than instead of them.
-    for group_folder in inputParameters.get("selected_group_folders") or []:
+    for group_folder in group_folders:
         store_array = np.genfromtxt(os.path.join(group_folder, "storesList.csv"), dtype="str", delimiter=",").reshape(
             2, -1
         )

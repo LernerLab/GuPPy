@@ -6,7 +6,10 @@ import re
 
 import pytest
 
-from guppy.orchestration.visualize import _validate_metric_against_step4_outputs
+from guppy.orchestration.visualize import (
+    _validate_metric_against_step4_outputs,
+    visualizeResults,
+)
 
 
 @pytest.fixture
@@ -180,3 +183,70 @@ class TestGroupFolders:
             _validate_metric_against_step4_outputs(
                 make_parameters(session_dir, selected_group_folders=[str(group_folder)])
             )
+
+
+class TestVisualizeResultsSelectionSources:
+    """Step 5 runs on whatever is selected: session runs, groups, or both."""
+
+    @pytest.fixture
+    def group_with_results(self, tmp_path):
+        group_folder = tmp_path / "saline_group"
+        group_folder.mkdir()
+        (group_folder / "group_members.json").write_text('{"member_run_folders": []}')
+        (group_folder / "storesList.csv").write_text("LNRW\nport_entries\n")
+        (group_folder / "ttl_region_z_score_region.h5").write_bytes(b"")
+        return group_folder
+
+    @pytest.fixture
+    def parameters(self, tmp_path):
+        return {
+            "session_folders": [],
+            "combine_data": False,
+            "visualize_zscore_or_dff": "z_score",
+            "selected_runs": {},
+            "selected_group_folders": [],
+            "useTransientsAsEvents": False,
+            "selectForTransientsComputation": "z_score",
+        }
+
+    def test_a_group_alone_is_visualized_without_any_selected_runs(
+        self, monkeypatch, parameters, group_with_results, tmp_path, make_session
+    ):
+        """Sessions with no selected run are skipped, not fatal."""
+        session_dir, _ = make_session(tmp_path)
+        plotted = []
+        monkeypatch.setattr(
+            "guppy.orchestration.visualize.createPlots",
+            lambda filepath, event, inputParameters: plotted.append(filepath),
+        )
+        parameters["session_folders"] = [str(session_dir)]
+        parameters["selected_group_folders"] = [str(group_with_results)]
+
+        visualizeResults(parameters)
+
+        assert plotted == [str(group_with_results)]
+
+    def test_saving_parameters_is_skipped_when_only_groups_are_selected(
+        self, monkeypatch, parameters, group_with_results, tmp_path, make_session
+    ):
+        """A group-only run has no individual output dir to snapshot into."""
+        session_dir, _ = make_session(tmp_path)
+        saved = []
+        monkeypatch.setattr("guppy.orchestration.visualize.createPlots", lambda *a, **k: None)
+        monkeypatch.setattr(
+            "guppy.orchestration.visualize.save_parameters",
+            lambda *, inputParameters: saved.append(inputParameters),
+        )
+        parameters["session_folders"] = [str(session_dir)]
+        parameters["selected_group_folders"] = [str(group_with_results)]
+
+        visualizeResults(parameters)
+
+        assert saved == []
+
+    def test_raises_when_nothing_at_all_is_selected(self, parameters, tmp_path, make_session):
+        session_dir, _ = make_session(tmp_path)
+        parameters["session_folders"] = [str(session_dir)]
+
+        with pytest.raises(ValueError, match="Nothing is selected to visualize"):
+            visualizeResults(parameters)

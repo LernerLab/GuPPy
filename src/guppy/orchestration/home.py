@@ -143,7 +143,10 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
         parameter_form.refresh_individual_outputs()
 
     def onclickVisualization(event: object = None) -> None:
-        inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
+        # Unlike steps 2-4, visualization can run on groups alone, so it does not require
+        # every selected session to have a run picked. visualizeResults reports what is
+        # actually missing.
+        inputParameters = _getInputParametersOrNotify()
         if inputParameters is None:
             return
         try:
