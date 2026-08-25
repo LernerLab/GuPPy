@@ -1,3 +1,4 @@
+{.homepage-heading}
 # GuPPy
 
 ```{image} ../assets/GuppyLogo.png

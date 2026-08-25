@@ -1,0 +1,12 @@
+/* The homepage renders the full GuPPy lockup, which already carries the wordmark,
+   so its page heading is hidden from view. It stays in the document -- Sphinx
+   builds the browser title and the child pages' breadcrumbs from it -- and stays
+   in the accessibility tree for screen readers. */
+.homepage-heading > h1 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
