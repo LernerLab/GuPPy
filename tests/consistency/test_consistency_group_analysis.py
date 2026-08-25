@@ -5,7 +5,7 @@ import shutil
 import pytest
 
 from guppy.testing import compare_output_folders
-from guppy.testing.api import group_analysis, step1, step2, step3, step4
+from guppy.testing.api import group_analysis, label_groups, step1, step2, step3, step4
 from guppy_test_data import TESTING_DATA, event_ts_offset_for
 
 SESSION_SUBDIRS = [
@@ -70,7 +70,7 @@ def test_consistency_group_analysis(tmp_path):
     step3(**common_kwargs, control_fit_method="OLS", selected_runs=selected_runs)
     step4(**common_kwargs, selected_runs=selected_runs)
 
-    group_analysis(
+    label_groups(
         base_dir=str(tmp_base),
         member_run_folders=[
             os.path.join(folder, f"{os.path.basename(folder)}_output_1") for folder in selected_folders
@@ -78,6 +78,7 @@ def test_consistency_group_analysis(tmp_path):
         destination_directory=str(tmp_base),
         group_name="consistency",
     )
+    group_analysis(base_dir=str(tmp_base), selected_group_folders=[str(tmp_base / "consistency_group")])
 
     actual_output_dir = str(tmp_base / "consistency_group")
     assert os.path.isdir(actual_output_dir), f"No group directory found under {tmp_base}"

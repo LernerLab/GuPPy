@@ -4,7 +4,7 @@ Group analysis pools an event's response — PSTH, peak/AUC, transient frequency
 and cross-correlation — across a set of output runs into one averaged output, with one column per
 member run instead of one column per trial. Use it to see a cohort- or animal-level average rather
 than reading each session's plot separately. It is **optional**: most analyses only need
-per-session results, produced without touching the Group Analysis card at all.
+per-session results, produced without touching the group steps at all.
 
 A group is a named output directory, so you can keep several groups side by side — a `saline_group`
 and a `cocaine_group`, say — and visualize them together.
@@ -23,37 +23,51 @@ step and stops with an error naming the mismatched run if the sites don't line u
 alongside a `novelfemale1` session is supported, and each event is averaged over just the members
 that recorded it.
 
-## Creating a group
+## Defining a group
 
-1. Open the **Group Analysis** card in the main area (collapsed by default).
-2. In the first file browser, select the **output run directories** to average — the
-   `<session>_output_<run>` folders inside each session, not the session folders themselves. A
-   summary line below the browser echoes what you have selected. This browser is independent of
-   the Individual Analysis selection, so the two never interfere, and members may live under
-   different parent directories.
-3. In the second file browser, select the **destination directory** the group is written into.
-4. Type a **Group name**. The name may not contain path separators, `..`, `_output_`, or `_group`.
-5. Click **Group Analysis** in the sidebar.
+Groups work the way individual runs do: **Label Groups** defines one, and the
+**Group Output Folder Selection** card picks which defined groups you are working with — once,
+for every step that touches them.
 
-   ```{image} ../_static/images/group_analysis_card.png
-   :alt: The Group Analysis card, expanded, showing the member run browser, the destination browser, the group name field and the existing-groups list
+1. Click **Label Groups** in the sidebar. A new browser tab opens with the Label Groups page.
+2. Leave the mode at **create_new_group**.
+3. Under **1 · What goes into the group?**, pick the **member runs** — the
+   `<session>_output_<run>` directories to average, not the session folders themselves. They may
+   live under different parent directories.
+4. Under **2 · Where does the group go?**, type a **Group name** and pick the **destination
+   directory** the group is written into. The name may not contain path separators, `..`,
+   `_output_`, or `_group`.
+5. Click **Save group definition**.
+
+   ```{image} ../_static/images/label_groups_page.png
+   :alt: The Label Groups page, with the member-runs browser on the left and the group name and destination browser on the right
    :width: 100%
    ```
 
-The group is written to `<destination>/<name>_group/`.
+This writes `<destination>/<name>_group/` containing only `group_members.json` — the group's
+definition. It holds no results yet, in the same way a run folder holds `storesList.csv` before
+Step 2 fills it.
 
-Re-running a group name rebuilds that directory from scratch, so dropping a member removes its
-results rather than leaving them behind. If a directory of that name already exists but GuPPy did
-not create it, the step stops rather than deleting it — pick a different name or destination.
+To change a group later, open Label Groups again and switch the mode to **edit_existing_group**.
+Section 2 becomes a browser for the group itself: navigate to the `<name>_group` directory you
+want to change, and its recorded members load into the member browser ready to adjust. Editing
+needs nothing selected on the homepage first.
+
+## Selecting and averaging
+
+1. Open the **Group Output Folder Selection** card and tick the `<name>_group` directories you
+   want to work with. This is the group counterpart of Output Folder Selection, and like that
+   card you choose once: the same selection serves both averaging and visualization.
+2. Click **Group Analysis** in the sidebar.
+
+Each selected group is averaged from its recorded members into its own directory. Re-running
+rebuilds a group's results from scratch, so dropping a member removes its columns rather than
+leaving them behind; the definition itself is preserved.
 
 ## Visualizing a group
 
 A group directory is an ordinary output directory to the visualizer, so there is no separate mode
-to switch on:
-
-1. In the Group Analysis card's **Existing groups** list, select the groups you want to open.
-   The list shows the groups found in the selected destination directory.
-2. Click **Open Visualization GUI** in the sidebar.
+to switch on and nothing to re-select — just click **Open Visualization GUI** in the sidebar.
 
 One dashboard opens per selected group, with one line per member run in place of one line per
 trial. Selected session runs open their own dashboards at the same time, so you can compare a
@@ -63,9 +77,6 @@ group against an individual session in one click.
 :alt: The Visualization dashboard's PSTH plot showing one trace per member run in the group
 :width: 100%
 ```
-
-Selecting exactly one group also reloads its members and name into the fields above, so you can
-inspect what a group contains or re-run it after re-analyzing a session.
 
 ## What lands on disk
 
@@ -89,6 +100,6 @@ full file layout, including the empty placeholder files also written there.
 
 ## Re-running
 
-Group averaging fully recomputes the group directory from its members' current outputs each
-time — nothing compounds. To add a member, re-analyze one, or drop one from the group, adjust the
-selection and click **Group Analysis** again.
+Group averaging fully recomputes a group's results from its members' current outputs each time —
+nothing compounds. To re-analyze a member, just click **Group Analysis** again. To add or drop a
+member, edit the group in **Label Groups** first, then re-run.

@@ -30,6 +30,7 @@ class Sidebar:
         self.mark_down_remove_artifacts = pn.pane.Markdown("""**Remove Artifacts (optional)**""", width=300)
         self.mark_down_tonic_analysis = pn.pane.Markdown("""**Tonic Analysis (optional)**""", width=300)
         self.mark_down_psth = pn.pane.Markdown("""**Step 4 : PSTH Computation**""", width=300)
+        self.mark_down_label_groups = pn.pane.Markdown("""**Label Groups (optional)**""", width=300)
         self.mark_down_group_analysis = pn.pane.Markdown("""**Group Analysis (optional)**""", width=300)
         self.mark_down_visualization = pn.pane.Markdown("""**Step 5 : Visualization**""", width=300)
         self.mark_down_metadata = pn.pane.Markdown("""**Step 6 : Input Metadata**""", width=300)
@@ -53,6 +54,7 @@ class Sidebar:
         self.psth_computation = pn.widgets.Button(
             name="PSTH Computation", button_type="primary", width=300, align="end"
         )
+        self.label_groups = pn.widgets.Button(name="Label Groups", button_type="default", width=300, align="end")
         self.group_analysis = pn.widgets.Button(name="Group Analysis", button_type="default", width=300, align="end")
         self.open_visualization = pn.widgets.Button(
             name="Open Visualization GUI", button_type="primary", width=300, align="end"
@@ -104,6 +106,8 @@ class Sidebar:
         self.template.sidebar.append(self.mark_down_psth)
         self.template.sidebar.append(self.psth_computation)
         self.template.sidebar.append(self.psth_progress)
+        self.template.sidebar.append(self.mark_down_label_groups)
+        self.template.sidebar.append(self.label_groups)
         self.template.sidebar.append(self.mark_down_group_analysis)
         self.template.sidebar.append(self.group_analysis)
         self.template.sidebar.append(self.group_progress)

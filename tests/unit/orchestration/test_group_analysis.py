@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from guppy.orchestration.group_analysis import (
-    _create_group_folder,
+    _clear_group_results,
     _filter_stores_list_to_averaged_events,
     _group_event_labels,
     _merge_group_stores_list,
@@ -128,34 +128,29 @@ class TestGroupEventLabels:
         assert _group_event_labels(store_array=store_array, inputParameters=parameters) == ["rewarded"]
 
 
-class TestCreateGroupFolder:
-    def test_creates_the_directory(self, tmp_path):
-        group_folder = tmp_path / "saline_group"
-
-        _create_group_folder(group_folder=str(group_folder))
-
-        assert group_folder.is_dir()
-
-    def test_rebuilds_an_existing_group_from_scratch(self, tmp_path):
+class TestClearGroupResults:
+    def test_removes_results_but_keeps_the_definition(self, tmp_path):
         group_folder = tmp_path / "saline_group"
         group_folder.mkdir()
         (group_folder / GROUP_MEMBERS_FILENAME).write_text('{"member_run_folders": []}')
         (group_folder / "dropped_member_leftover.h5").touch()
+        (group_folder / "storesList.csv").touch()
+        nested = group_folder / "cross_correlation_output"
+        nested.mkdir()
+        (nested / "corr_event_z_score_a_b.h5").touch()
 
-        _create_group_folder(group_folder=str(group_folder))
+        _clear_group_results(group_folder=str(group_folder))
 
-        assert group_folder.is_dir()
-        assert list(group_folder.iterdir()) == []
+        assert [entry.name for entry in group_folder.iterdir()] == [GROUP_MEMBERS_FILENAME]
 
-    def test_refuses_a_directory_it_did_not_create(self, tmp_path):
-        existing = tmp_path / "important_group"
-        existing.mkdir()
-        (existing / "someones_data.csv").touch()
+    def test_is_a_no_op_for_a_definition_only_group(self, tmp_path):
+        group_folder = tmp_path / "saline_group"
+        group_folder.mkdir()
+        (group_folder / GROUP_MEMBERS_FILENAME).write_text('{"member_run_folders": []}')
 
-        with pytest.raises(ValueError, match="was not created by the Group Analysis step"):
-            _create_group_folder(group_folder=str(existing))
+        _clear_group_results(group_folder=str(group_folder))
 
-        assert (existing / "someones_data.csv").exists()
+        assert [entry.name for entry in group_folder.iterdir()] == [GROUP_MEMBERS_FILENAME]
 
 
 class TestFilterStoresListToAveragedEvents:

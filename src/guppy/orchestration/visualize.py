@@ -24,7 +24,7 @@ from ..utils.utils import (
     read_Df,
     select_run_folders,
 )
-from ..utils.validation import validate_group_folders
+from ..utils.validation import validate_group_definitions
 
 logger = logging.getLogger(__name__)
 
@@ -247,7 +247,8 @@ def _validate_metric_against_step4_outputs(inputParameters: dict[str, object]) -
             f"  - {session_lines}\n\n"
             f"To fix this, either:\n"
             f"  1. Change the visualization selection to '{other_metric}', or\n"
-            f"  2. Re-run step 4 with '{visualize_zscore_or_dff}' (or 'Both') enabled."
+            f"  2. Re-run step 4 (or, for a '_group' directory, the Group Analysis step) "
+            f"with '{visualize_zscore_or_dff}' (or 'Both') enabled."
         )
 
 
@@ -268,7 +269,7 @@ def visualizeResults(inputParameters: dict[str, object]) -> None:
     inputParameters = inputParameters
 
     _validate_metric_against_step4_outputs(inputParameters)
-    validate_group_folders(group_folders=inputParameters.get("selected_group_folders") or [])
+    validate_group_definitions(group_folders=inputParameters.get("selected_group_folders") or [])
 
     # Snapshot the parameters being executed into each selected output dir so the
     # on-disk GuPPyParamtersUsed.json always reflects the last-run configuration. This

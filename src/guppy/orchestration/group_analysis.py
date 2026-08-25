@@ -25,12 +25,11 @@ from ..utils.progress import step_error_handler
 from ..utils.utils import (
     GROUP_MEMBERS_FILENAME,
     event_labels_for_analysis,
-    group_folder_for_group,
-    validate_group_name,
-    write_group_members,
+    parse_group_name,
+    read_group_members,
 )
 from ..utils.validation import (
-    validate_group_destination,
+    validate_group_folders_selected,
     validate_group_member_run_folders,
 )
 
@@ -138,35 +137,27 @@ def _group_event_labels(*, store_array: np.ndarray, inputParameters: dict[str, o
     ]
 
 
-def _create_group_folder(*, group_folder: str) -> None:
-    """Create the group output directory, rebuilding it from scratch if it already exists.
+def _clear_group_results(*, group_folder: str) -> None:
+    """Delete a group's previously averaged results, keeping its definition.
 
-    A group is fully recomputed from its members each run, so a pre-existing group
-    directory is cleared first: otherwise dropping a member would leave that member's
-    files behind. A directory that carries no manifest was not written by this step and
-    is never deleted.
+    A group is fully recomputed from its members each run, so stale results are removed
+    first: otherwise dropping a member would leave that member's columns behind in files
+    the new run does not rewrite. ``group_members.json`` is preserved — it is the
+    definition the averaging is driven from, not a result.
 
     Parameters
     ----------
     group_folder : str
-        Path of the group output directory.
-
-    Raises
-    ------
-    ValueError
-        If the path exists but holds no ``group_members.json``.
+        Group output directory to clear.
     """
-    if os.path.isdir(group_folder):
-        if not os.path.exists(os.path.join(group_folder, GROUP_MEMBERS_FILENAME)):
-            message = (
-                f"'{group_folder}' already exists but was not created by the Group Analysis step "
-                f"(it holds no {GROUP_MEMBERS_FILENAME}). Choose a different group name or destination "
-                "directory."
-            )
-            logger.error(message)
-            raise ValueError(message)
-        shutil.rmtree(group_folder)
-    os.makedirs(group_folder)
+    for entry in os.listdir(group_folder):
+        if entry == GROUP_MEMBERS_FILENAME:
+            continue
+        path = os.path.join(group_folder, entry)
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+        else:
+            os.remove(path)
 
 
 def _filter_stores_list_to_averaged_events(*, store_array: np.ndarray, averaged_events: list[str]) -> np.ndarray:
@@ -195,37 +186,30 @@ def _filter_stores_list_to_averaged_events(*, store_array: np.ndarray, averaged_
     return store_array[:, keep]
 
 
-def orchestrate_group_analysis(inputParameters: dict[str, object]) -> None:
-    """Average the selected member runs into a named group output directory.
+def average_one_group(*, group_folder: str, inputParameters: dict[str, object]) -> None:
+    """Average a single group's member runs into its directory.
 
     Parameters
     ----------
+    group_folder : str
+        Group output directory holding a ``group_members.json`` manifest.
     inputParameters : dict
-        Full pipeline input parameters; uses ``group_member_run_folders``,
-        ``group_destination_directories`` and ``group_name``.
+        Full pipeline input parameters.
 
     Raises
     ------
     ValueError
-        When the group name, destination or member selection is invalid, when the
-        members disagree on their fiber recording sites, or when the target directory
-        exists but was not created by this step.
+        When the group holds no manifest, its members are unusable, or the members
+        disagree on their fiber recording sites.
     """
-    member_run_folders = list(inputParameters["group_member_run_folders"])
-    group_name = inputParameters["group_name"]
-
-    validate_group_name(group_name)
-    destination_directory = validate_group_destination(
-        destination_directories=inputParameters["group_destination_directories"]
-    )
+    member_run_folders = read_group_members(group_folder=group_folder)
     validate_group_member_run_folders(member_run_folders=member_run_folders)
     _validate_fiber_recording_sites_consistent_for_group(member_run_folders=member_run_folders)
 
-    group_folder = group_folder_for_group(destination_directory=destination_directory, group_name=group_name)
+    group_name = parse_group_name(group_folder)
     logger.info(f"Averaging {len(member_run_folders)} member run(s) into '{group_folder}'...")
 
-    _create_group_folder(group_folder=group_folder)
-    write_group_members(group_folder=group_folder, member_run_folders=member_run_folders)
+    _clear_group_results(group_folder=group_folder)
     write_analysis_parameters(
         destination=group_folder,
         analysis_parameters=build_analysis_parameters(inputParameters=inputParameters),
@@ -257,6 +241,25 @@ def orchestrate_group_analysis(inputParameters: dict[str, object]) -> None:
     logger.info(f"Group '{group_name}' averaged {len(averaged_events)} event(s) from {len(member_run_folders)} run(s).")
 
 
+def orchestrate_group_analysis(inputParameters: dict[str, object]) -> None:
+    """Average every selected group's member runs into its own directory.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters; uses ``selected_group_folders``.
+
+    Raises
+    ------
+    ValueError
+        When no groups are selected, or when a group's manifest or members are unusable.
+    """
+    group_folders = list(inputParameters["selected_group_folders"])
+    validate_group_folders_selected(group_folders=group_folders)
+    for group_folder in group_folders:
+        average_one_group(group_folder=group_folder, inputParameters=inputParameters)
+
+
 @step_error_handler
 def run_group_analysis_step(input_parameters: dict[str, object]) -> None:
     """Run the Group Analysis step with progress reporting and failure handling attached.
@@ -266,10 +269,16 @@ def run_group_analysis_step(input_parameters: dict[str, object]) -> None:
     input_parameters : dict
         Full pipeline input parameters.
     """
-    member_run_folders = list(input_parameters["group_member_run_folders"])
-    validate_group_member_run_folders(member_run_folders=member_run_folders)
-    store_array = _merge_group_stores_list(member_run_folders=member_run_folders)
-    event_labels = _group_event_labels(store_array=store_array, inputParameters=input_parameters)
-    # One unit per event store, plus the single unit the transient average reports.
-    progress.start(len(event_labels) + 1)
+    group_folders = list(input_parameters["selected_group_folders"])
+    validate_group_folders_selected(group_folders=group_folders)
+
+    # One unit per event store per group, plus one per group for its transient average.
+    total = 0
+    for group_folder in group_folders:
+        member_run_folders = read_group_members(group_folder=group_folder)
+        validate_group_member_run_folders(member_run_folders=member_run_folders)
+        store_array = _merge_group_stores_list(member_run_folders=member_run_folders)
+        total += len(_group_event_labels(store_array=store_array, inputParameters=input_parameters)) + 1
+    progress.start(total)
+
     orchestrate_group_analysis(input_parameters)

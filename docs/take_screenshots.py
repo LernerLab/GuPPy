@@ -33,6 +33,7 @@ from guppy.frontend.covariate_correlation_view import build_covariate_correlatio
 from guppy.frontend.custom_events_config import CustomEventsConfig
 from guppy.frontend.dandi_selector import DandiSelector
 from guppy.frontend.frontend_utils import scanPortsAndFind
+from guppy.frontend.group_labeling import GroupLabelingPage
 from guppy.frontend.input_parameters import ParameterForm
 from guppy.frontend.parameterized_plotter import ParameterizedPlotter
 from guppy.frontend.store_labeling_selector import StoreLabelingSelector
@@ -507,27 +508,21 @@ def screenshot_parameters(page: Page) -> None:
     pn.state.kill_all_servers()
 
 
-def screenshot_group_analysis_card(page: Page) -> None:
-    """How-to: the Group Analysis card, expanded, with its member and destination browsers.
-
-    The card is collapsed by default, so expand it before rendering, then clip to its
-    region — mirrors screenshot_parameters.
-    """
+def screenshot_label_groups_page(page: Page) -> None:
+    """How-to: the Label Groups page, showing its member-runs and destination sections."""
     os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
-    template = build_homepage()
-    for card in template.main:
-        if isinstance(card, pn.Card) and card.title == "Group Analysis":
-            card.collapsed = False
-    url = _serve(template)
-    page.set_viewport_size({"width": 1280, "height": 1800})
+    labeling_page = GroupLabelingPage(start_path=str(SAMPLE_DATA_DIR.parent), selected_group_folders=[])
+    url = _serve(labeling_page.build_template())
+    # The page lays out two 640px columns side by side, so it needs a wide viewport.
+    page.set_viewport_size({"width": 1600, "height": 1300})
     page.goto(url)
-    page.get_by_text("Group Analysis").first.wait_for()
+    page.get_by_text("Group name").first.wait_for()
     page.wait_for_timeout(1500)
     page.screenshot(
-        path=OUTPUT_DIR / "group_analysis_card.png",
-        clip={"x": 0, "y": 620, "width": 1280, "height": 1100},
+        path=OUTPUT_DIR / "label_groups_page.png",
+        clip={"x": 0, "y": 0, "width": 1600, "height": 1050},
     )
-    print("Saved group_analysis_card.png")
+    print("Saved label_groups_page.png")
     page.set_viewport_size(VIEWPORT)
     pn.state.kill_all_servers()
 
@@ -981,7 +976,7 @@ def main() -> None:
             screenshot_visualization(page, tmp_path)
             screenshot_compare_parameters_run_name(page)
             screenshot_compare_parameters_existing_runs(page)
-            screenshot_group_analysis_card(page)
+            screenshot_label_groups_page(page)
             screenshot_group_psth_plot(page, tmp_path)
             screenshot_export_to_nwb_button(page)
             screenshot_sidebar_progress(

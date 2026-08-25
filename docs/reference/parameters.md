@@ -1,6 +1,6 @@
 # Input parameter reference
 
-Every parameter the GuPPy GUI exposes, organized to match what you see on screen. The page mirrors the five cards on the homepage (**Input Folder Selection**, **Output Folder Selection**, **Individual Analysis**, **Group Analysis**, **Visualization Parameters**) and the visual sub-groupings inside each card. Each row gives the parameter as it appears in the GUI, a one-line description of what it does, the data type, the default value, and the accepted values or range. Prose paragraphs underneath cover the parameters that need more than a single line. If this is your first time using GuPPy, follow the [Your First Analysis](../tutorials/first_analysis.md) tutorial instead.
+Every parameter the GuPPy GUI exposes, organized to match what you see on screen. The page mirrors the five cards on the homepage (**Input Folder Selection**, **Output Folder Selection**, **Individual Analysis**, **Group Output Folder Selection**, **Visualization Parameters**) and the visual sub-groupings inside each card. Each row gives the parameter as it appears in the GUI, a one-line description of what it does, the data type, the default value, and the accepted values or range. Prose paragraphs underneath cover the parameters that need more than a single line. If this is your first time using GuPPy, follow the [Your First Analysis](../tutorials/first_analysis.md) tutorial instead.
 
 The pipeline-step numbering used in this page matches the steps in [Your First Analysis](../tutorials/first_analysis.md): Step 2 (Load the raw data), Step 3 (Preprocess the signal), Step 4 (Compute the PSTH), Step 5 (Visualize the results).
 
@@ -220,24 +220,39 @@ The peak / AUC widget is a small table with rows of (start, end) pairs. Each row
 
 ---
 
-## Group Analysis
+## Group Output Folder Selection
 
-Collapsed by default on the homepage. Defines a named group of output runs to average.
+Collapsed by default on the homepage. Picks which defined groups the pipeline works with.
 
-*Used by: the Group Analysis step, and Step 5 (Visualize the results) for the group selection.*
+*Used by: the Group Analysis step, and Step 5 (Visualize the results).*
 
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
-| Group members (file browser) | Output run directories to average into the group. | list of paths | empty | absolute paths to `<session>_output_<run>` directories |
-| Group destination (file browser) | Directory the group is written into. | list of paths | empty | exactly one absolute path to an existing directory |
+| (file browser) | Group output directories to work with. | list of paths | empty | absolute paths to `<name>_group` directories |
+
+**File browser** is the group counterpart of [Output Folder Selection](#output-folder-selection), rooted at your home directory. The same selection serves both averaging and visualization, so you choose it once: the Group Analysis step averages into the selected groups, and Step 5 opens them alongside any selected session runs. Groups are defined in the Label Groups step, not here.
+
+---
+
+## Label Groups
+
+Opened in its own browser tab by the **Label Groups** sidebar button. Defines a group's identity and membership; computes nothing.
+
+*Used by: the Label Groups step, which writes `group_members.json`.*
+
+| Parameter | Description | Type | Default | Options / range |
+|-----------|-------------|------|---------|-----------------|
+| (mode) | Whether to define a new group or edit an existing one. | str | `create_new_group` | `create_new_group`, `edit_existing_group` |
+| Member runs to average | Output run directories to average into the group. | list of paths | empty | absolute paths to `<session>_output_<run>` directories |
 | Group name | Name of the group; becomes the `<name>_group` directory. | str | empty | no path separators, `..`, `_output_` or `_group` |
-| Existing groups | Groups to open in Step 5's visualization. | list of paths | empty | groups found in the selected destination |
+| Destination directory for the new group | Directory the group is written into. | list of paths | empty | exactly one absolute path to an existing directory |
+| Group directory to edit | Which existing group to change. | list of paths | empty | exactly one absolute path to a `<name>_group` directory |
 
-**Group members** are output run directories, not session folders — pick the `<session>_output_<run>` directories inside each session. The browser is independent of the Input Folder Selection browser, so individual and group analyses never interfere and a group's members may live under different parents.
+**Group name** and **Destination directory** together fix where the group is written: `<destination>/<name>_group/`. Saving writes only the membership manifest, so the group holds no results until the Group Analysis step runs against it.
 
-**Group destination** and **Group name** together fix where the group is written: `<destination>/<name>_group/`. Re-running an existing group name rebuilds that directory from scratch; a directory GuPPy did not create is never overwritten.
+**Member runs to average** are output run directories, not session folders — pick the `<session>_output_<run>` directories inside each session. They may live under different parents, and the selection is independent of Input Folder Selection, so individual and group analyses never interfere.
 
-**Existing groups** lists the groups found in the selected destination. Selecting groups here opens them in Step 5 alongside any selected session runs; selecting exactly one also reloads its members and name into the fields above.
+**Group name** and **Destination directory** apply in `create_new_group` mode; **Group directory to edit** replaces them in `edit_existing_group` mode, where browsing to a group loads its recorded members ready to adjust. Editing does not require the group to be selected on the homepage first.
 
 ---
 
@@ -253,7 +268,7 @@ Collapsed by default on the homepage. Configures Step 5.
 
 **z-score or ΔF/F? (for visualization)** picks which metric the Visualization GUI plots. Must match a metric that Step 3 actually wrote: if you ran preprocessing with the PSTH metric set to `z_score` and try to visualize `dff`, GuPPy raises a descriptive error pointing at the missing files.
 
-Groups are visualized by selecting them under **Existing groups** in the [Group Analysis](#group-analysis) card; there is no separate mode to switch on.
+Groups are visualized by selecting them in the [Group Output Folder Selection](#group-output-folder-selection) card; there is no separate mode to switch on.
 
 ---
 
@@ -288,11 +303,11 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 | `controlFitWindowStart` | Control Fit Window Start Time (s) | [Signal preprocessing](#signal-preprocessing) |
 | `dandi_uri_map` | (DANDI selector) | [Input Folder Selection](#input-folder-selection) |
 | `filter_window` | Window for Moving Average filter | [Signal preprocessing](#signal-preprocessing) |
-| `selected_group_folders` | Existing groups | [Group Analysis](#group-analysis) |
+| `selected_group_folders` | (file browser, Group Output Folder Selection) | [Group Output Folder Selection](#group-output-folder-selection) |
 | `session_folders` | (file browser, Input Folder Selection) | [Input Folder Selection](#input-folder-selection) |
-| `group_destination_directories` | Group destination (file browser) | [Group Analysis](#group-analysis) |
-| `group_member_run_folders` | Group members (file browser) | [Group Analysis](#group-analysis) |
-| `group_name` | Group name | [Group Analysis](#group-analysis) |
+| `group_destination_directory` | Destination directory | [Label Groups](#label-groups) |
+| `group_member_run_folders` | Member runs | [Label Groups](#label-groups) |
+| `group_name` | Group name | [Label Groups](#label-groups) |
 | `highAmpFilt` | HAFT | [Transient detection](#transient-detection) |
 | `isosbestic_control` | Isosbestic Control Channel? | [Signal preprocessing](#signal-preprocessing) |
 | `mode` | Data Source | [Input Folder Selection](#input-folder-selection) |

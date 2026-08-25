@@ -22,6 +22,7 @@ from guppy.analysis.tonic import compute_tonic_means
 from guppy.frontend.tonic_epochs import load_site_traces
 from guppy.orchestration.export_nwb import orchestrate_export_nwb
 from guppy.orchestration.group_analysis import run_group_analysis_step
+from guppy.orchestration.group_labeling import orchestrate_group_labeling_page
 from guppy.orchestration.home import build_homepage
 from guppy.orchestration.import_custom_events import orchestrate_custom_events_page
 from guppy.orchestration.metadata import orchestrate_metadata_page
@@ -993,34 +994,60 @@ def step4(
     psthForEachStore(input_params)
 
 
-def group_analysis(
+def label_groups(
     *,
     base_dir: str,
     member_run_folders: Iterable[str],
     destination_directory: str,
     group_name: str,
-    select_for_compute_psth: str = "z_score",
-    select_for_transients: str = "z_score",
-    use_transients_as_events: bool = False,
-    compute_corr: bool = False,
 ) -> None:
-    """
-    Run the Group Analysis step via the Panel-backed logic, headlessly.
+    """Define a group headlessly, as the Label Groups page does.
 
-    Averages the Step-4 results of ``member_run_folders`` into a named group output
-    directory at ``<destination_directory>/<group_name>_group``.
+    Writes only ``group_members.json`` into ``<destination_directory>/<group_name>_group/``.
+    The group holds no averaged results until :func:`group_analysis` runs against it.
 
     Parameters
     ----------
     base_dir : str
         Root directory used to initialize the FileSelector.
     member_run_folders : iterable of str
-        Output (run) directories to average into the group. Each must already hold
-        Step-4 results.
+        Output (run) directories to record as the group's members. Each must already
+        hold Step-4 results.
     destination_directory : str
         Directory the group output directory is written into.
     group_name : str
         Name of the group. Becomes the ``<group_name>_group`` directory name.
+    """
+    os.environ["GUPPY_BASE_DIR"] = base_dir
+    orchestrate_group_labeling_page(
+        {
+            "group_name": group_name,
+            "group_destination_directory": os.path.abspath(destination_directory),
+            "group_member_run_folders": [os.path.abspath(run_folder) for run_folder in member_run_folders],
+        }
+    )
+
+
+def group_analysis(
+    *,
+    base_dir: str,
+    selected_group_folders: Iterable[str],
+    select_for_compute_psth: str = "z_score",
+    select_for_transients: str = "z_score",
+    use_transients_as_events: bool = False,
+    compute_corr: bool = False,
+) -> None:
+    """Run the Group Analysis step headlessly against already-defined groups.
+
+    Averages each group's recorded member runs into its own directory. Define the groups
+    first with :func:`label_groups`.
+
+    Parameters
+    ----------
+    base_dir : str
+        Root directory used to initialize the FileSelector.
+    selected_group_folders : iterable of str
+        Group output directories to average into.
     select_for_compute_psth : str
         Which PSTH metric to average: ``"z_score"``, ``"dff"`` or ``"Both"``.
     select_for_transients : str
@@ -1033,19 +1060,11 @@ def group_analysis(
     os.environ["GUPPY_BASE_DIR"] = base_dir
     template = build_homepage()
 
-    if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
-        raise RuntimeError("build_homepage did not expose 'getInputParameters' hook")
-
-    absolute_members = [os.path.abspath(run_folder) for run_folder in member_run_folders]
-    # The form's own selection gate needs at least one folder selected; the group step
-    # reads only the group keys injected below.
-    template._widgets["files_1"].value = [os.path.dirname(run_folder) for run_folder in absolute_members]
+    absolute_groups = [os.path.abspath(folder) for folder in selected_group_folders]
+    template._widgets["group_folders_selector"].value = absolute_groups
     input_params = template._hooks["getInputParameters"]()
 
-    input_params["group_member_run_folders"] = absolute_members
-    input_params["group_destination_directories"] = [os.path.abspath(destination_directory)]
-    input_params["group_name"] = group_name
-
+    input_params["selected_group_folders"] = absolute_groups
     input_params["selectForComputePsth"] = select_for_compute_psth
     input_params["selectForTransientsComputation"] = select_for_transients
     input_params["useTransientsAsEvents"] = use_transients_as_events

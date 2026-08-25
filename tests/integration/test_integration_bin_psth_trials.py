@@ -5,7 +5,7 @@ import shutil
 import pandas as pd
 import pytest
 
-from guppy.testing.api import group_analysis, step1, step2, step3, step4
+from guppy.testing.api import group_analysis, label_groups, step1, step2, step3, step4
 from guppy_test_data import STUBBED_TESTING_DATA
 
 
@@ -105,7 +105,7 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
     # Run group averaging on the binned per-session output.  This exercises the
     # `if len(bin_columns) > 0:` branch inside psth_average.average_psth_for_group, which
     # concatenates and aggregates bin columns across the member runs.
-    group_analysis(
+    label_groups(
         base_dir=base_dir,
         member_run_folders=[
             os.path.join(folder, f"{os.path.basename(folder)}_output_1") for folder in selected_folders
@@ -113,6 +113,7 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
         destination_directory=base_dir,
         group_name="binned",
     )
+    group_analysis(base_dir=base_dir, selected_group_folders=[os.path.join(base_dir, "binned_group")])
 
     average_directory = os.path.join(base_dir, "binned_group")
     assert os.path.isdir(average_directory), f"No group directory found under {base_dir}"

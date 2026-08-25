@@ -9,12 +9,9 @@ import panel as pn
 from .dandi_selector import DandiSelector
 from .frontend_utils import default_root_path
 from ..utils.utils import (
-    discover_group_folders,
     discover_run_folders,
     is_group_folder,
-    parse_group_name,
     parse_run_name,
-    read_group_members,
 )
 from ..utils.validation import (
     validate_non_negative,
@@ -97,9 +94,6 @@ class ParameterForm:
         self.setup_visualization_parameters()
         self.add_to_template()
         self.files_1.param.watch(self._retarget_outputs_selector, "value")
-        self.group_members_selector.param.watch(self._update_group_members_summary, "value")
-        self.group_destination_selector.param.watch(self.refresh_group_folders, "value")
-        self.group_folders_selector.param.watch(self._reload_group_from_selection, "value")
         self.outputs_selector.param.watch(self._load_parameters_from_selected_runs, "value")
 
     def setup_individual_parameters(self) -> None:
@@ -617,89 +611,33 @@ class ParameterForm:
         return folder_names, output_root, dandi_uri_map
 
     def setup_group_parameters(self) -> None:
-        """Build all widgets for the group-analysis card and store them as instance attributes."""
+        """Build the group output-folder selection card and store its widgets as attributes."""
         self.mark_down_2 = pn.pane.Markdown(
-            "**Create a group:** select the output runs to average, a destination directory, and a "
-            "name. Running the Group Analysis step writes "
-            "`<destination>/<name>_group/`.",
+            "**Existing groups:** pick the `<name>_group` directories to work with. The Group "
+            "Analysis step averages into them, and Step 5 opens them — the same selection serves "
+            "both, so you choose it once. To define a new group, use the Label Groups step.",
             width=950,
         )
-
-        self.group_members_selector = pn.widgets.FileSelector(
-            self.folder_path,
-            root_directory="/",
-            file_pattern="*_output_*",
-            name="Group members",
-            width=950,
+        self.group_folders_selector = pn.widgets.FileSelector(
+            self.folder_path, root_directory="/", name="Group output directories", width=950
         )
-        self.group_members_summary = pn.pane.Markdown(self._group_members_summary_text([]), width=950)
-
-        self.group_destination_selector = pn.widgets.FileSelector(
-            self.folder_path, root_directory="/", name="Group destination", width=950
-        )
-
-        self.group_name_input = pn.widgets.TextInput(
-            name="Group name", value="", placeholder="e.g. saline_cohort", width=435
-        )
-
-        self.mark_down_existing_groups = pn.pane.Markdown(
-            "**Existing groups:** select groups to open in Step 5's visualization. Selecting exactly "
-            "one also reloads its members and name above.",
-            width=950,
-        )
-        self.group_folders_selector = pn.widgets.MultiSelect(name="Existing groups", options={}, size=6, width=950)
 
         self.group_analysis_wd_1 = pn.Column(
             self.mark_down_2,
-            self.group_members_selector,
-            self.group_members_summary,
-            self.group_destination_selector,
-            self.group_name_input,
-            pn.layout.Divider(),
-            self.mark_down_existing_groups,
             self.group_folders_selector,
             width=980,
         )
         self.group = pn.Card(
-            self.group_analysis_wd_1, title="Group Analysis", styles=self.styles, width=1000, collapsed=True
+            self.group_analysis_wd_1,
+            title="Group Output Folder Selection",
+            styles=self.styles,
+            width=1000,
+            collapsed=True,
         )
 
-    @staticmethod
-    def _group_members_summary_text(member_run_folders: list[str]) -> str:
-        """Return the read-only echo of the current group-member selection."""
-        if not member_run_folders:
-            return "**Members (0):** none selected."
-        names = ", ".join(os.path.basename(run_folder) for run_folder in member_run_folders)
-        return f"**Members ({len(member_run_folders)}):** {names}"
-
-    def _update_group_members_summary(self, event: object) -> None:
-        """Refresh the member echo whenever the member selection changes."""
-        self.group_members_summary.object = self._group_members_summary_text(list(event.new or []))
-
-    def refresh_group_folders(self, event: object = None) -> None:
-        """Re-list the existing groups found in the selected destination directory."""
-        destinations = self.group_destination_selector.value or []
-        group_folders = discover_group_folders(destinations[0]) if len(destinations) == 1 else []
-        previously_selected = set(self.group_folders_selector.value or [])
-        self.group_folders_selector.options = {
-            parse_group_name(group_folder): group_folder for group_folder in group_folders
-        }
-        # Preserve selections that still exist so a refresh does not silently drop them.
-        self.group_folders_selector.value = [
-            group_folder for group_folder in group_folders if group_folder in previously_selected
-        ]
-
-    def _reload_group_from_selection(self, event: object) -> None:
-        """Repopulate the member selection and name from a single selected group's manifest.
-
-        A zero- or multi-group selection leaves the creation form untouched, since there is
-        no single group to reload from.
-        """
-        selected = list(event.new or [])
-        if len(selected) != 1:
-            return
-        self.group_members_selector.value = read_group_members(group_folder=selected[0])
-        self.group_name_input.value = parse_group_name(selected[0])
+    def refresh_group_folders(self) -> None:
+        """Re-list the group selector so groups created since the last interaction appear."""
+        self.group_folders_selector._refresh()
 
     def setup_visualization_parameters(self) -> None:
         """Build all widgets for the visualization-parameters card and store them as instance attributes."""
@@ -772,9 +710,6 @@ class ParameterForm:
             pipeline, keyed by the parameter names expected by the orchestration
             layer (e.g. ``"session_folders"``, ``"zscore_method"``, ``"nSecPrev"``).
         """
-        # Re-list existing groups so a group created since the last interaction is selectable.
-        self.refresh_group_folders()
-
         self._validate_numeric_parameters()
 
         if self.source_mode.value == "dandi":
@@ -783,9 +718,7 @@ class ParameterForm:
         else:
             # Local mode requires a selection somewhere: individual sessions, or the group
             # card's members or existing-group picker for a group-only workflow.
-            validate_required_folder_selection(
-                file_selectors=[self.files_1, self.group_members_selector, self.group_folders_selector]
-            )
+            validate_required_folder_selection(file_selectors=[self.files_1, self.group_folders_selector])
             folder_names = self.files_1.value
             abspath_value = validate_same_parent_directory(paths=list(folder_names))[0] if folder_names else None
             dandi_uri_map = None
@@ -830,9 +763,6 @@ class ParameterForm:
             "computeBinnedMetrics": self.computeBinnedMetrics.value,
             "binnedMetricsWidth": self.binnedMetricsWidth.value,
             "visualize_zscore_or_dff": self.visualize_zscore_or_dff.value,
-            "group_member_run_folders": list(self.group_members_selector.value or []),
-            "group_destination_directories": list(self.group_destination_selector.value or []),
-            "group_name": self.group_name_input.value,
             "selected_group_folders": list(self.group_folders_selector.value or []),
             "selected_runs": self._collect_selected_runs(),
         }

@@ -9,6 +9,7 @@ import panel as pn
 from .artifact_view import open_artifact_view
 from .export_nwb import run_export_nwb_step
 from .group_analysis import run_group_analysis_step
+from .group_labeling import orchestrate_group_labeling_page
 from .import_custom_events import orchestrate_custom_events_page
 from .metadata import orchestrate_metadata_page
 from .preprocess import run_preprocess_step, run_remove_artifacts_step
@@ -189,6 +190,17 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
 
         _run_worker_with_progress(run_psth_step, sidebar.psth_progress, add_curr_dir=True, on_success=_open_view)
 
+    def onclickLabelGroups(event: object = None) -> None:
+        inputParameters = _getInputParametersOrNotify()
+        if inputParameters is None:
+            return
+        try:
+            orchestrate_group_labeling_page(inputParameters)
+        except ValueError as e:
+            pn.state.notifications.error(str(e), duration=0)
+        # A group defined just now becomes selectable without re-navigating the browser.
+        parameter_form.refresh_group_folders()
+
     def onclickGroupAnalysis(event: object = None) -> None:
         def _list_new_group(inputParameters: dict[str, object]) -> None:
             # Make the group just written selectable for visualization without
@@ -233,6 +245,7 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
         "remove_artifacts": onclickRemoveArtifacts,
         "tonic_analysis": onclickTonicAnalysis,
         "psth_computation": onclickpsth,
+        "label_groups": onclickLabelGroups,
         "group_analysis": onclickGroupAnalysis,
         "open_visualization": onclickVisualization,
         "open_metadata": onclickMetadata,
@@ -253,6 +266,7 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
         "onclickRemoveArtifacts": onclickRemoveArtifacts,
         "onclickTonicAnalysis": onclickTonicAnalysis,
         "onclickpsth": onclickpsth,
+        "onclickLabelGroups": onclickLabelGroups,
         "onclickGroupAnalysis": onclickGroupAnalysis,
         "getInputParameters": parameter_form.getInputParameters,
     }
@@ -264,9 +278,6 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
         "extract_progress": sidebar.extract_progress,
         "psth_progress": sidebar.psth_progress,
         "group_progress": sidebar.group_progress,
-        "group_members_selector": parameter_form.group_members_selector,
-        "group_destination_selector": parameter_form.group_destination_selector,
-        "group_name_input": parameter_form.group_name_input,
         "group_folders_selector": parameter_form.group_folders_selector,
         "remove_artifacts_progress": sidebar.remove_artifacts_progress,
     }

@@ -19,10 +19,10 @@ Three further directories can appear:
 | Directory | Location | Written by |
 |-----------|----------|------------|
 | `cross_correlation_output/` | inside a run folder | Step 4, when **Compute Cross-correlation** is enabled |
-| `<name>_group/` | in the destination directory you pick | the Group Analysis step |
+| `<name>_group/` | in the destination directory you pick | the Label Groups step (definition) and the Group Analysis step (results) |
 | `saved_plots/` | inside a run folder | Step 5 — created but left empty, see [Step 5](#step-5-visualize-the-results) |
 
-A group directory is not inside any session folder. It is created in the destination directory chosen in the Group Analysis card.
+A group directory is not inside any session folder. It is created in the destination directory chosen on the Label Groups page.
 
 ---
 
@@ -270,9 +270,9 @@ See [Fiber photometry data in NWB](../explanation/nwb.md) for what each object h
 
 ## Group analysis: group directories
 
-*Written by: the Group Analysis step.*
+*Written by: the Label Groups step (`group_members.json`) and the Group Analysis step (everything else).*
 
-A group directory is named `<group_name>_group` and sits in the destination directory chosen in the Group Analysis card. It holds the same filename patterns as a run folder, with the per-member values combined:
+A group directory is named `<group_name>_group` and sits in the destination directory chosen on the Label Groups page. It holds the same filename patterns as a run folder, with the per-member values combined:
 
 | File | Contents |
 |------|----------|
@@ -287,7 +287,7 @@ A group directory is named `<group_name>_group` and sits in the destination dire
 
 The group PSTH has the same shape as a per-session PSTH, but its trial columns are replaced by one column per member run, labeled with the run folder's name, followed by the same `timestamps`, `mean` and `err` columns. Column order matches `group_members.json`, so column *n* is member *n*. The `z_score_<site>.hdf5` and `dff_<site>.hdf5` files hold an empty `data` dataset; only their filenames carry information, naming the group's recording sites.
 
-`group_members.json` has a single key, `member_run_folders`, holding the absolute paths of the runs that were averaged. GuPPy uses it to reload a group into the form, and to confirm a directory is one of its own before rebuilding it.
+`group_members.json` has a single key, `member_run_folders`, holding the absolute paths of the runs the group averages. It is the group's definition: the Label Groups step writes it, and the Group Analysis step reads it to know what to average. A group directory holding only this file is a defined group with no results yet, in the same way a run folder holds `storesList.csv` before Step 2 fills it.
 
 Because the step averages what its members already hold, `storesList.csv` lists only the events a PSTH was actually written for. An event that no member recorded is dropped rather than listed.
 
