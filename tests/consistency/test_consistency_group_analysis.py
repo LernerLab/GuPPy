@@ -87,4 +87,8 @@ def test_consistency_group_analysis(tmp_path):
         actual_dir=actual_output_dir,
         expected_dir=str(standard_output_dir),
         event_ts_offset=event_ts_offset_for(tmp_base),
+        # The reference holds empty z_score_<site>.hdf5 stand-ins that only existed so the
+        # visualizer could read recording-site names off their filenames. Sites now come
+        # from storesList.csv, so a group no longer writes them.
+        name_map={"z_score_region.hdf5": None},
     )
