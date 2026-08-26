@@ -230,29 +230,7 @@ Collapsed by default on the homepage. Picks which defined groups the pipeline wo
 |-----------|-------------|------|---------|-----------------|
 | (file browser) | Group output directories to work with. | list of paths | empty | absolute paths to `<name>_group` directories |
 
-**File browser** is the group counterpart of [Output Folder Selection](#output-folder-selection), rooted at your home directory. The same selection serves both averaging and visualization, so you choose it once: the Group Analysis step averages into the selected groups, and Step 5 opens them alongside any selected session runs. Groups are defined in the Label Groups step, not here.
-
----
-
-## Label Groups
-
-Opened in its own browser tab by the **Label Groups** sidebar button. Defines a group's identity and membership; computes nothing.
-
-*Used by: the Label Groups step, which writes `group_members.json`.*
-
-| Parameter | Description | Type | Default | Options / range |
-|-----------|-------------|------|---------|-----------------|
-| (mode) | Whether to define a new group or edit an existing one. | str | `create_new_group` | `create_new_group`, `edit_existing_group` |
-| Member runs to average | Output run directories to average into the group. | list of paths | empty | absolute paths to `<session>_output_<run>` directories |
-| Group name | Name of the group; becomes the `<name>_group` directory. | str | empty | no path separators, `..`, `_output_` or `_group` |
-| Destination directory for the new group | Directory the group is written into. | list of paths | empty | exactly one absolute path to an existing directory |
-| Group directory to edit | Which existing group to change. | list of paths | empty | exactly one absolute path to a `<name>_group` directory |
-
-**Group name** and **Destination directory** together fix where the group is written: `<destination>/<name>_group/`. Saving writes only the membership manifest, so the group holds no results until the Group Analysis step runs against it.
-
-**Member runs to average** are output run directories, not session folders — pick the `<session>_output_<run>` directories inside each session. They may live under different parents, and the selection is independent of Input Folder Selection, so individual and group analyses never interfere.
-
-**Group name** and **Destination directory** apply in `create_new_group` mode; **Group directory to edit** replaces them in `edit_existing_group` mode, where browsing to a group loads its recorded members ready to adjust. Editing does not require the group to be selected on the homepage first.
+**File browser** is the group counterpart of [Output Folder Selection](#output-folder-selection), rooted at your home directory. The same selection serves both averaging and visualization, so you choose it once: the Group Analysis step averages into the selected groups, and Step 5 opens them alongside any selected session runs. Groups are created in the Label Groups GUI, whose controls are covered in [Average results across sessions](../how-to/group-analysis.md). This is a UI selector, not a saved analysis parameter, so it has no internal name in the index below.
 
 ---
 
@@ -303,11 +281,7 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 | `controlFitWindowStart` | Control Fit Window Start Time (s) | [Signal preprocessing](#signal-preprocessing) |
 | `dandi_uri_map` | (DANDI selector) | [Input Folder Selection](#input-folder-selection) |
 | `filter_window` | Window for Moving Average filter | [Signal preprocessing](#signal-preprocessing) |
-| `selected_group_folders` | (file browser, Group Output Folder Selection) | [Group Output Folder Selection](#group-output-folder-selection) |
 | `session_folders` | (file browser, Input Folder Selection) | [Input Folder Selection](#input-folder-selection) |
-| `group_destination_directory` | Destination directory | [Label Groups](#label-groups) |
-| `group_member_run_folders` | Member runs | [Label Groups](#label-groups) |
-| `group_name` | Group name | [Label Groups](#label-groups) |
 | `highAmpFilt` | HAFT | [Transient detection](#transient-detection) |
 | `isosbestic_control` | Isosbestic Control Channel? | [Signal preprocessing](#signal-preprocessing) |
 | `mode` | Data Source | [Input Folder Selection](#input-folder-selection) |
