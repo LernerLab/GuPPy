@@ -8,11 +8,12 @@ a different concern. This page is the full recipe; [Architecture](architecture.m
 
 Every reader subclasses
 [`BaseRecordingExtractor`](https://github.com/LernerLab/GuPPy/blob/main/src/guppy/extractors/base_recording_extractor.py)
-and implements four `@abstractmethod`s:
+and implements five `@abstractmethod`s:
 
 - `discover_events_and_flags(cls) -> tuple[list[str], list[str]]`
 - `read(self, *, events: list[str], outputPath: str) -> list[dict[str, Any]]`
 - `save(self, *, output_dicts: list[dict[str, Any]], outputPath: str) -> None`
+- `count_samples(self, *, event: str) -> int`
 - `stub(self, *, folder_path: str | Path, duration_in_seconds: float = 1.0) -> None`
 
 `discover_events_and_flags` is declared on the base class with no parameters beyond `cls` — an
@@ -23,22 +24,17 @@ demultiplexing its interleaved channels needs the channel count and, optionally,
 settings chosen in the Label Stores GUI.
 
 `read()` returns one dict per event with keys such as `store_id`, `timestamps`, `data`, and
-`sampling_rate`; `save()` writes those dicts to HDF5; `stub()` copies the source folder and truncates
-it to a short duration for the test suite.
+`sampling_rate`; `save()` writes those dicts to HDF5; `count_samples()` reports an event's total
+sample count, which `orchestrate_read_raw_data` sums to size the step-2 progress bar before any data
+is read — so answer it from metadata rather than by reading the samples; `stub()` copies the source
+folder and truncates it to a short duration for the test suite.
 
-### `count_samples` and `committed_samples_for_event`
-
-Every concrete extractor also implements `count_samples(self, *, event: str) -> int`, even though it
-is not one of the four `@abstractmethod`s. `orchestrate_read_raw_data` in
-[`orchestration/read_raw_data.py`](https://github.com/LernerLab/GuPPy/blob/main/src/guppy/orchestration/read_raw_data.py)
-calls it via `hasattr(extractor, "count_samples")`, defaulting to `0` when absent, so it is
-duck-typed rather than enforced by the base class — but every extractor needs it to size the
-step-2 progress bar, so treat it as a fifth required method.
+### `committed_samples_for_event`
 
 `committed_samples_for_event(self, event) -> int` is an optional hook for extractors that report
-progress incrementally during `read()` itself, ahead of the event finishing. Only
-`DandiNwbRecordingExtractor` implements it, to convert the bytes its streaming reader has already
-pulled off the wire into a samples estimate. Most new extractors will not need it.
+progress incrementally during `read()` itself, ahead of the event finishing. The base class returns
+`0`; only `DandiNwbRecordingExtractor` overrides it, to convert the bytes its streaming reader has
+already pulled off the wire into a samples estimate. Most new extractors will not need it.
 
 ## Start from the mock extractor
 

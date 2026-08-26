@@ -174,9 +174,7 @@ def orchestrate_read_raw_data(inputParameters: dict[str, object]) -> None:
                         f"Event '{event}' not found in any extractor for folder {filepath}. "
                         f"Available events: {available}."
                     )
-                event_total_samples[event] = (
-                    int(extractor.count_samples(event=event)) if hasattr(extractor, "count_samples") else 0
-                )
+                event_total_samples[event] = int(extractor.count_samples(event=event))
                 total_samples += event_total_samples[event]
 
             # Group events by extractor instance identity so each task is one
