@@ -42,9 +42,8 @@ means a user sees the error before a progress bar starts moving.
 ### `extractors/`
 
 Reads raw acquisition data. Every reader subclasses `BaseRecordingExtractor` and implements the same
-four required methods — `discover_events_and_flags()`, `read()`, `save()`, and `stub()` — plus
-`count_samples()` for progress reporting, so the rest of the codebase never branches on acquisition
-format.
+five required methods — `discover_events_and_flags()`, `read()`, `save()`, `count_samples()`, and
+`stub()` — so the rest of the codebase never branches on acquisition format.
 
 Supported formats: `TdtRecordingExtractor`, `DoricRecordingExtractor`, `NpmRecordingExtractor`,
 `CsvRecordingExtractor`, `NwbRecordingExtractor`, and `DandiNwbRecordingExtractor` for streaming

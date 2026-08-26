@@ -98,6 +98,47 @@ class BaseRecordingExtractor(ABC):
         pass
 
     @abstractmethod
+    def count_samples(self, *, event: str) -> int:
+        """
+        Return the total number of samples recorded for one event.
+
+        Used to size the denominator of the step-2 progress bar before any data
+        is read, so it should be answered from metadata rather than by reading
+        the event's samples.
+
+        Parameters
+        ----------
+        event : str
+            Name of the event/store to count.
+
+        Returns
+        -------
+        int
+            Total number of samples for the event.
+        """
+        pass
+
+    def committed_samples_for_event(self, event: str) -> int:
+        """
+        Return the number of samples already reported to the progress counter.
+
+        Extractors that advance the shared progress counter incrementally during
+        read() override this so the residual added once the event completes does
+        not double-count. The default reports nothing committed mid-read.
+
+        Parameters
+        ----------
+        event : str
+            Name of the event/store to report on.
+
+        Returns
+        -------
+        int
+            Number of samples already committed for the event.
+        """
+        return 0
+
+    @abstractmethod
     def stub(self, *, folder_path: str | Path, duration_in_seconds: float = 1.0) -> None:
         """
         Create a stubbed copy of the data folder truncated to a short duration.
@@ -149,10 +190,9 @@ def read_and_save_events_for_extractor(
     output_dicts = extractor.read(events=normalized_events, outputPath=outputPath)
     extractor.save(output_dicts=output_dicts, outputPath=outputPath)
     # Extractors that report progress incrementally during read (e.g. DANDI's
-    # passive byte counter) expose ``committed_samples_for_event``. Subtract
+    # passive byte counter) override ``committed_samples_for_event``. Subtract
     # what they already committed so we only add the residual at event end.
-    has_passive_counter = hasattr(extractor, "committed_samples_for_event")
     for event in normalized_events:
-        already_committed = int(extractor.committed_samples_for_event(event)) if has_passive_counter else 0
+        already_committed = int(extractor.committed_samples_for_event(event))
         add_samples_done(int(event_total_samples.get(event, 0)) - already_committed)
         logger.info("Data for event {} fetched and stored.".format(event))
