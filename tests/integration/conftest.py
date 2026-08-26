@@ -116,6 +116,12 @@ def step1_output_doric(tmp_path_factory: pytest.TempPathFactory):
 
 
 @pytest.fixture(scope="session")
+def step1_output_pyphotometry(tmp_path_factory: pytest.TempPathFactory):
+    pipeline_state = _prepare_pipeline_state(tmp_path_factory=tmp_path_factory, modality="pyphotometry")
+    return _run_step1(pipeline_state=pipeline_state)
+
+
+@pytest.fixture(scope="session")
 def step1_output_nwb(tmp_path_factory: pytest.TempPathFactory):
     pipeline_state = _prepare_pipeline_state(tmp_path_factory=tmp_path_factory, modality="nwb")
     return _run_step1(pipeline_state=pipeline_state)
@@ -142,6 +148,11 @@ def step2_output_doric(step1_output_doric):
 
 
 @pytest.fixture(scope="session")
+def step2_output_pyphotometry(step1_output_pyphotometry):
+    return _run_step2(pipeline_state=step1_output_pyphotometry)
+
+
+@pytest.fixture(scope="session")
 def step2_output_nwb(step1_output_nwb):
     return _run_step2(pipeline_state=step1_output_nwb)
 
@@ -164,6 +175,11 @@ def step3_output_npm(step2_output_npm):
 @pytest.fixture(scope="session")
 def step3_output_doric(step2_output_doric):
     return _run_step3(pipeline_state=step2_output_doric)
+
+
+@pytest.fixture(scope="session")
+def step3_output_pyphotometry(step2_output_pyphotometry):
+    return _run_step3(pipeline_state=step2_output_pyphotometry)
 
 
 @pytest.fixture(scope="session")
@@ -232,6 +248,11 @@ def step4_output_doric(step3_output_doric):
 
 
 @pytest.fixture(scope="session")
+def step4_output_pyphotometry(step3_output_pyphotometry):
+    return _run_step4(pipeline_state=step3_output_pyphotometry)
+
+
+@pytest.fixture(scope="session")
 def step4_output_nwb(step3_output_nwb):
     return _run_step4(pipeline_state=step3_output_nwb)
 
@@ -254,6 +275,11 @@ def step5_output_npm(step4_output_npm):
 @pytest.fixture(scope="session")
 def step5_output_doric(step4_output_doric):
     return _run_step5(pipeline_state=step4_output_doric)
+
+
+@pytest.fixture(scope="session")
+def step5_output_pyphotometry(step4_output_pyphotometry):
+    return _run_step5(pipeline_state=step4_output_pyphotometry)
 
 
 @pytest.fixture(scope="session")

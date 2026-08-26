@@ -10,6 +10,7 @@ from guppy.extractors import (
     DoricRecordingExtractor,
     NpmRecordingExtractor,
     NwbRecordingExtractor,
+    PyPhotometryRecordingExtractor,
     TdtRecordingExtractor,
     detect_acquisition_formats,
     read_and_save_events_for_extractor,
@@ -97,6 +98,9 @@ def _build_event_to_extractor(*, folder_path: str, store_array: np.ndarray, inpu
         elif acquisition_format == "csv":
             extractor = CsvRecordingExtractor(folder_path=folder_path)
             format_events, _ = CsvRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+        elif acquisition_format == "pyphotometry":
+            extractor = PyPhotometryRecordingExtractor(folder_path=folder_path)
+            format_events, _ = PyPhotometryRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
         elif acquisition_format == "npm":
             extractor = NpmRecordingExtractor(
                 folder_path=folder_path,
@@ -110,7 +114,8 @@ def _build_event_to_extractor(*, folder_path: str, store_array: np.ndarray, inpu
             )
         else:
             raise ValueError(
-                f"Format not recognized: '{acquisition_format}'. Expected one of 'nwb', 'tdt', 'csv', 'doric', 'npm'."
+                f"Format not recognized: '{acquisition_format}'. Expected one of 'nwb', 'tdt', 'csv', 'doric', "
+                f"'npm', 'pyphotometry'."
             )
 
         for event in format_events:

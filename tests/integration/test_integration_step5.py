@@ -28,8 +28,9 @@ STORE_ID_TO_STORE_LABEL = {
         ("step5_output_npm", "ttl"),
         ("step5_output_doric", "ttl"),
         ("step5_output_nwb", "ttl"),
+        ("step5_output_pyphotometry", "ttl"),
     ],
-    ids=["csv_generic", "tdt_clean", "sample_npm_1", "sample_doric_1", "nwb_mock"],
+    ids=["csv_generic", "tdt_clean", "sample_npm_1", "sample_doric_1", "nwb_mock", "pyphotometry_pulsed"],
 )
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_step5(step5_fixture_name, expected_event_substring, request):

@@ -1,6 +1,7 @@
 # Adding a new acquisition format
 
-GuPPy currently reads TDT, Doric, Neurophotometrics (NPM), CSV, NWB, and DANDI-streamed NWB. Adding
+GuPPy currently reads TDT, Doric, Neurophotometrics (NPM), pyPhotometry, CSV, NWB, and
+DANDI-streamed NWB. Adding
 a new one means implementing the extractor contract and wiring it into five call sites that each own
 a different concern. This page is the full recipe; [Architecture](architecture.md) only points here.
 
