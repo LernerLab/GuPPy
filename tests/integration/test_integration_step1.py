@@ -133,6 +133,14 @@ from guppy_test_data import STUBBED_TESTING_DATA
                 "events": "ttl",
             },
         ),
+        (
+            "pyphotometry/full_pipeline_session",
+            {
+                "detector_2_excitation_2": "control_region",
+                "detector_1_excitation_1": "signal_region",
+                "digital_2": "ttl",
+            },
+        ),
     ],
     ids=[
         "csv_generic",
@@ -150,6 +158,7 @@ from guppy_test_data import STUBBED_TESTING_DATA
         "sample_npm_4",
         "sample_npm_5",
         "nwb_mock",
+        "pyphotometry_pulsed",
     ],
 )
 def test_step1(tmp_path, session_subdir, store_id_to_store_label):

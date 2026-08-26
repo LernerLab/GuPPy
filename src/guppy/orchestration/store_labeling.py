@@ -14,6 +14,7 @@ from guppy.extractors import (
     DoricRecordingExtractor,
     NpmRecordingExtractor,
     NwbRecordingExtractor,
+    PyPhotometryRecordingExtractor,
     TdtRecordingExtractor,
     detect_acquisition_formats,
 )
@@ -642,12 +643,17 @@ def read_header(
             fmt_events, fmt_flags = DoricRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
         elif format == "csv":
             fmt_events, fmt_flags = CsvRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+        elif format == "pyphotometry":
+            fmt_events, fmt_flags = PyPhotometryRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
         elif format == "npm":
             fmt_events, fmt_flags = NpmRecordingExtractor.discover_events_and_flags(
                 folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
             )
         else:
-            raise ValueError(f"Format not recognized: '{format}'. Expected one of 'nwb', 'tdt', 'csv', 'doric', 'npm'.")
+            raise ValueError(
+                f"Format not recognized: '{format}'. Expected one of 'nwb', 'tdt', 'csv', 'doric', 'npm', "
+                "'pyphotometry'."
+            )
 
         for event in fmt_events:
             if event not in existing_events:

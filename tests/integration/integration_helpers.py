@@ -54,6 +54,27 @@ REPRESENTATIVE_SESSIONS = {
         "npm_time_unit": None,
         "npm_split_events": [True, True],
     },
+    "pyphotometry": {
+        # Strobed two-input recording: the analog inputs are one tick of the 260 Hz sampling timer
+        # apart, which is what the pipeline has to carry through unchanged. This session exists
+        # only to feed the pipeline: it is three minutes long so the default -10 to +20 s PSTH
+        # window fits around its events, which none of the mode-coverage fixtures is long enough
+        # to do.
+        #
+        # Its mode reads a detector per excitation source, so the two stores are two fibers rather
+        # than a signal-plus-isosbestic pair on one. Labeling them as a pair is a convenience for
+        # the fixture: that mode has no isosbestic channel, and the pipeline needs a signal and a
+        # control to run.
+        "session_subdir": "pyphotometry/full_pipeline_session",
+        "store_id_to_store_label": {
+            "detector_2_excitation_2": "control_region",
+            "detector_1_excitation_1": "signal_region",
+            "digital_2": "ttl",
+        },
+        "npm_timestamp_column_name": None,
+        "npm_time_unit": None,
+        "npm_split_events": [True, True],
+    },
     "nwb": {
         "session_subdir": "nwb/mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_2",
         "store_id_to_store_label": {
