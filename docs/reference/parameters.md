@@ -1,6 +1,6 @@
 # Input parameter reference
 
-Every parameter the GuPPy GUI exposes, organized to match what you see on screen. The page mirrors the five cards on the homepage (**Input Folder Selection**, **Output Folder Selection**, **Individual Analysis**, **Group Analysis**, **Visualization Parameters**) and the visual sub-groupings inside each card. Each row gives the parameter as it appears in the GUI, a one-line description of what it does, the data type, the default value, and the accepted values or range. Prose paragraphs underneath cover the parameters that need more than a single line. If this is your first time using GuPPy, follow the [Your First Analysis](../tutorials/first_analysis.md) tutorial instead.
+Every parameter the GuPPy GUI exposes, organized to match what you see on screen. The page mirrors the five cards on the homepage (**Input Folder Selection**, **Output Folder Selection**, **Individual Analysis**, **Group Output Folder Selection**, **Visualization Parameters**) and the visual sub-groupings inside each card. Each row gives the parameter as it appears in the GUI, a one-line description of what it does, the data type, the default value, and the accepted values or range. Prose paragraphs underneath cover the parameters that need more than a single line. If this is your first time using GuPPy, follow the [Your First Analysis](../tutorials/first_analysis.md) tutorial instead.
 
 The pipeline-step numbering used in this page matches the steps in [Your First Analysis](../tutorials/first_analysis.md): Step 2 (Load the raw data), Step 3 (Preprocess the signal), Step 4 (Compute the PSTH), Step 5 (Visualize the results).
 
@@ -36,7 +36,7 @@ The second card on the homepage, collapsed by default. Selects which existing pe
 |-----------|-------------|------|---------|-----------------|
 | (existing-runs browser) | Existing `*_output_*` run directories the later steps act on. | list of paths | empty | one or more `*_output_*` directories, at least one per selected session |
 
-**Existing-runs browser** lists the `*_output_*` directories that already exist for the selected sessions and lets you pick which run each later step acts on. A run directory is created when you configure channels in the Label Stores GUI (Step 1); every step from loading the raw data onward then reads and writes the run you select here. Select at least one run per session that has output directories on disk, or the step raises a descriptive error before any work starts. This is a UI selector, not a saved analysis parameter, so it has no internal name in the index below. To analyze one session under two different parameter sets and compare the results, see [Comparing Two Parameter Sets](../tutorials/compare_parameters.md).
+**Existing-runs browser** lists the `*_output_*` directories that already exist for the selected sessions and lets you pick which run each later step acts on. A run directory is created when you configure channels in the Label Stores GUI (Step 1); every step from loading the raw data onward then reads and writes the run you select here. Steps 2-4 need at least one run per session that has output directories on disk, or they raise a descriptive error before any work starts. Step 5 is the exception: it can visualize groups on their own, so it accepts an empty selection here as long as a group is selected. This is a UI selector, not a saved analysis parameter, so it has no internal name in the index below. To analyze one session under two different parameter sets and compare the results, see [Comparing Two Parameter Sets](../tutorials/compare_parameters.md).
 
 ---
 
@@ -220,20 +220,17 @@ The peak / AUC widget is a small table with rows of (start, end) pairs. Each row
 
 ---
 
-## Group Analysis
+## Group Output Folder Selection
 
-Collapsed by default on the homepage. Configures cross-session averaging.
+Collapsed by default on the homepage. Picks which defined groups the pipeline works with.
 
-*Used by: Step 4 (Compute the PSTH) writes the averages when enabled.*
+*Used by: the Group Analysis step, and Step 5 (Visualize the results).*
 
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
-| (file browser) | Session folders to include in the cross-session average. | list of paths | empty | absolute paths to session directories |
-| Average Group? | Write averaged outputs to `average/`. | bool | `False` | `True`, `False` |
+| (file browser) | Group output directories to work with. | list of paths | empty | absolute paths to `<name>_group` directories |
 
-**File browser** is the list of session folders to include in the cross-session average. Distinct from the Input Folder Selection browser so you can run individual analyses and group analyses against different folder sets in the same configuration.
-
-**Average Group?** must be `True` for Step 4 to write averaged outputs into the `average/` directory. If `False`, PSTH outputs are per-session only.
+**File browser** is the group counterpart of [Output Folder Selection](#output-folder-selection), rooted at your home directory. The same selection serves both averaging and visualization, so you choose it once: the Group Analysis step averages into the selected groups, and Step 5 opens them alongside any selected session runs. Groups are created in the Label Groups GUI, whose controls are covered in [Average results across sessions](../how-to/group-analysis.md). This is a UI selector, not a saved analysis parameter, so it has no internal name in the index below.
 
 ---
 
@@ -246,11 +243,10 @@ Collapsed by default on the homepage. Configures Step 5.
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
 | z-score or ΔF/F? (for visualization) | Which metric the Visualization GUI plots. | str | `z_score` | `z_score`, `dff` |
-| Visualize Average Results? | Show cross-session averages instead of per-session. | bool | `False` | `True`, `False` |
 
 **z-score or ΔF/F? (for visualization)** picks which metric the Visualization GUI plots. Must match a metric that Step 3 actually wrote: if you ran preprocessing with the PSTH metric set to `z_score` and try to visualize `dff`, GuPPy raises a descriptive error pointing at the missing files.
 
-**Visualize Average Results?** decides whether the Visualization GUI shows individual-session results or the cross-session averages produced by Step 4 with `Average Group?` set to `True`. Single-session analyses should leave this `False`.
+Groups are visualized by selecting them in the [Group Output Folder Selection](#group-output-folder-selection) card; there is no separate mode to switch on.
 
 ---
 
@@ -270,7 +266,6 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 | `abspath` | (auto-derived; not user-set) | [Input Folder Selection](#input-folder-selection) |
 | `artifactsRemovalMethod` | (recorded provenance; set on the Select Artifact Windows page) | [Artifact removal](#artifact-removal) |
 | `auc_units` | AUC Units | [Peak and AUC Parameters](#peak-and-auc-parameters) |
-| `averageForGroup` | Average Group? | [Group Analysis](#group-analysis) |
 | `baselineCorrectionEnd` | Baseline Correction End time | [Baseline Parameters](#baseline-parameters) |
 | `baselineCorrectionStart` | Baseline Correction Start time | [Baseline Parameters](#baseline-parameters) |
 | `baselineWindowEnd` | Baseline Window End Time (s) | [Z-score Parameters](#z-score-parameters) |
@@ -287,7 +282,6 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 | `dandi_uri_map` | (DANDI selector) | [Input Folder Selection](#input-folder-selection) |
 | `filter_window` | Window for Moving Average filter | [Signal preprocessing](#signal-preprocessing) |
 | `session_folders` | (file browser, Input Folder Selection) | [Input Folder Selection](#input-folder-selection) |
-| `group_session_folders` | (file browser, Group Analysis) | [Group Analysis](#group-analysis) |
 | `highAmpFilt` | HAFT | [Transient detection](#transient-detection) |
 | `isosbestic_control` | Isosbestic Control Channel? | [Signal preprocessing](#signal-preprocessing) |
 | `mode` | Data Source | [Input Folder Selection](#input-folder-selection) |
@@ -308,5 +302,4 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 | `use_time_or_trials` | Bin PSTH trials | [PSTH Parameters](#psth-parameters) |
 | `useTransientsAsEvents` | Use Transients as Events? | [PSTH Parameters](#psth-parameters) |
 | `visualize_zscore_or_dff` | z-score or ΔF/F? (for visualization) | [Visualization Parameters](#visualization-parameters) |
-| `visualizeAverageResults` | Visualize Average Results? | [Visualization Parameters](#visualization-parameters) |
 | `zscore_method` | z-score computation Method | [Z-score Parameters](#z-score-parameters) |

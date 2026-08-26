@@ -49,7 +49,6 @@ PARAMETER_KEYS = {
     "computeBinnedMetrics",
     "binnedMetricsWidth",
     "visualize_zscore_or_dff",
-    "averageForGroup",
 }
 
 EXPECTED_KEYS = PARAMETER_KEYS | ARTIFACT_PROVENANCE_KEYS | {"guppy_version"}
@@ -62,8 +61,10 @@ ORCHESTRATION_ONLY_KEYS = {
     "mode",
     "dandi_uri_map",
     "abspath",
-    "group_session_folders",
-    "visualizeAverageResults",
+    "group_member_run_folders",
+    "group_destination_directories",
+    "group_name",
+    "selected_group_folders",
 }
 
 
@@ -106,7 +107,6 @@ def base_input_parameters(tmp_path):
         "computeBinnedMetrics": False,
         "binnedMetricsWidth": 120,
         "visualize_zscore_or_dff": "z_score",
-        "averageForGroup": False,
         # orchestration-only keys that should not be saved
         "step": 0,
         "numberOfCores": 4,
@@ -114,8 +114,10 @@ def base_input_parameters(tmp_path):
         "mode": "tdt",
         "dandi_uri_map": {},
         "abspath": "/tmp/abs",
-        "group_session_folders": [],
-        "visualizeAverageResults": False,
+        "group_member_run_folders": [],
+        "group_destination_directories": [],
+        "group_name": "",
+        "selected_group_folders": [],
     }
 
 
@@ -209,7 +211,6 @@ def test_save_parameters_single_folder(tmp_path):
         "computeBinnedMetrics": False,
         "binnedMetricsWidth": 120,
         "visualize_zscore_or_dff": "dff",
-        "averageForGroup": True,
     }
 
     save_parameters(input_parameters)

@@ -37,6 +37,8 @@ from typing import Sequence
 
 import numpy as np
 
+from .utils import _RUN_NAME_MARKER, GROUP_MEMBERS_FILENAME, is_group_folder
+
 logger = logging.getLogger(__name__)
 
 
@@ -299,6 +301,119 @@ def validate_preprocessing_outputs_present(
             message = f"No preprocessing outputs found in '{run_folder}'. Run Step 3 (Preprocess) before {action}."
             logger.error(message)
             raise ValueError(message)
+
+
+def validate_group_member_run_folders(*, member_run_folders: Sequence[str]) -> None:
+    """Validate the run folders selected as a group's members.
+
+    Parameters
+    ----------
+    member_run_folders : sequence of str
+        Output (run) directories selected to be averaged into a group.
+
+    Raises
+    ------
+    ValueError
+        If the selection is empty, or if any path is missing, is not an output
+        directory, or holds no ``storesList.csv``.
+    """
+    if not member_run_folders:
+        message = (
+            "No member runs selected for group averaging. Pick at least one "
+            "'<session>_output_<run>' directory in the Group Analysis card before running the step."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+    not_output_directories = [path for path in member_run_folders if _RUN_NAME_MARKER not in os.path.basename(path)]
+    if not_output_directories:
+        message = (
+            f"Group members must be output directories, but these are not: {not_output_directories!r}. "
+            "Select the '<session>_output_<run>' directories inside each session, not the session folders "
+            "themselves."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+    missing = [path for path in member_run_folders if not os.path.isdir(path)]
+    if missing:
+        message = f"Group member run folders do not exist: {missing!r}. Re-select the group's members."
+        logger.error(message)
+        raise ValueError(message)
+
+    missing_stores = [path for path in member_run_folders if not os.path.exists(os.path.join(path, "storesList.csv"))]
+    if missing_stores:
+        message = (
+            f"Group member run folders are missing storesList.csv: {missing_stores!r}. "
+            "Re-run Step 1 (Label Stores) for these runs before adding them to a group."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+
+def validate_group_definitions(*, group_folders: Sequence[str]) -> None:
+    """Validate a selection of group output directories as group *definitions*.
+
+    Checks only what the Label Groups step writes; a group holds no averaged results
+    until the Group Analysis step runs against it.
+
+    Parameters
+    ----------
+    group_folders : sequence of str
+        Group output directories to check.
+
+    Raises
+    ------
+    ValueError
+        If any path is missing, is not a ``<group_name>_group`` directory, or holds no
+        ``group_members.json``.
+    """
+    not_group_directories = [path for path in group_folders if not is_group_folder(path)]
+    if not_group_directories:
+        message = (
+            f"These are not group output directories: {not_group_directories!r}. "
+            "A group directory is named '<group_name>_group' and is created by the Label Groups step."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+    missing = [path for path in group_folders if not os.path.isdir(path)]
+    if missing:
+        message = f"Group output directories do not exist: {missing!r}. Re-create them with the Label Groups step."
+        logger.error(message)
+        raise ValueError(message)
+
+    undefined = [path for path in group_folders if not os.path.exists(os.path.join(path, GROUP_MEMBERS_FILENAME))]
+    if undefined:
+        message = (
+            f"Group output directories hold no {GROUP_MEMBERS_FILENAME}: {undefined!r}. "
+            "Define their members with the Label Groups step."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+
+def validate_group_folders_selected(*, group_folders: Sequence[str]) -> None:
+    """Validate that at least one usable group directory is selected.
+
+    Parameters
+    ----------
+    group_folders : sequence of str
+        Group output directories selected on the homepage.
+
+    Raises
+    ------
+    ValueError
+        If nothing is selected, or if any selection is not a usable group directory.
+    """
+    if not group_folders:
+        message = (
+            "No groups selected. Pick at least one '<name>_group' directory in the Group Output "
+            "Folder Selection panel, or define a group first with the Label Groups step."
+        )
+        logger.error(message)
+        raise ValueError(message)
+    validate_group_definitions(group_folders=group_folders)
 
 
 def validate_data_not_combined(*, combine_data: bool) -> None:

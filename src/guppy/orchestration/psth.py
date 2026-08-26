@@ -10,21 +10,17 @@ from itertools import repeat
 import numpy as np
 from scipy import signal as ss
 
-from .group_utils import gather_group_run_folders
 from .save_parameters import read_artifact_provenance, save_parameters
 from .transients import executeFindFreqAndAmp
 from ..analysis.compute_psth import compute_psth
 from ..analysis.cross_correlation import compute_cross_correlation
 from ..analysis.io_utils import (
-    is_channel_label,
     is_continuous_label,
     make_dir_for_cross_correlation,
-    makeAverageDir,
     read_hdf5,
     recording_site_from_preprocessed_label,
     write_hdf5,
 )
-from ..analysis.psth_average import averageForGroup
 from ..analysis.psth_peak_and_area import compute_psth_peak_and_area
 from ..analysis.psth_utils import (
     create_Df_for_cross_correlation,
@@ -353,56 +349,6 @@ def execute_psth_combined(inputParameters: dict[str, object]) -> None:
         progress.advance()
 
 
-def _validate_fiber_recording_sites_consistent_for_group(run_folders: np.ndarray) -> None:
-    """Check that every session shares the same fiber (control/signal) store_ids.
-
-    Group averaging buckets each session's data by its fiber recording-site basename
-    (``z_score_<recording_site>`` / ``dff_<recording_site>``) and averages each
-    behavioral event independently, skipping sessions that lack a given event.  Sessions
-    may therefore differ in their *event* store_ids — that is the intended
-    cross-condition workflow (e.g. ``novelobject`` sessions averaged alongside
-    ``novelfemale1`` sessions).  What must agree is the set of *fiber* store_ids:
-    averaging across different recording sites produces meaningless per-recording-site
-    single-session "averages".  Detect that mismatch up-front and raise a clear
-    error listing the offending sessions.
-
-    Fiber store_ids follow the codebase-wide convention that their names contain
-    ``control`` or ``signal``; every other store_id is treated as a behavioral
-    event and ignored here.
-
-    Raises
-    ------
-    ValueError
-        When the sessions disagree on the set of fiber (control/signal) store_ids.
-    """
-    per_session_fibers = {}
-    for run_folder in run_folders:
-        session_stores_list = np.genfromtxt(
-            os.path.join(run_folder, "storesList.csv"), dtype="str", delimiter=","
-        ).reshape(2, -1)
-        fiber_stores = tuple(sorted(name for name in set(session_stores_list[1, :]) if is_channel_label(name)))
-        per_session_fibers[run_folder] = fiber_stores
-
-    unique_fiber_sets = set(per_session_fibers.values())
-    if len(unique_fiber_sets) <= 1:
-        return
-
-    session_lines = "\n".join(
-        f"  - {os.path.basename(os.path.dirname(run_folder))}: "
-        f"{', '.join(stores) if stores else '(no control/signal store_ids)'}"
-        for run_folder, stores in per_session_fibers.items()
-    )
-    raise ValueError(
-        "Group averaging requires every selected session to share the same fiber "
-        "recording sites, but the selected sessions have mismatched control/signal "
-        "store_ids:\n"
-        f"{session_lines}\n"
-        "Event store_ids may differ across sessions, but the control/signal "
-        "store_ids must match. Fix the store_id labels in step 1, deselect the "
-        "mismatched sessions, or disable 'Average Group? (bool)'."
-    )
-
-
 def _validate_psth_window_parameters(inputParameters: dict[str, object]) -> None:
     """Upfront PSTH-window validation, run before any HDF5 IO.
 
@@ -433,81 +379,6 @@ def _validate_psth_window_parameters(inputParameters: dict[str, object]) -> None
     )
 
 
-def _merge_group_stores_list(run_folders: np.ndarray) -> np.ndarray:
-    """Return the union of every group session's storesList as a single store array.
-
-    Parameters
-    ----------
-    run_folders : np.ndarray
-        Output directories of every session in the group.
-
-    Returns
-    -------
-    np.ndarray
-        2-D array with rows [store_id, store_label], deduplicated column-wise.
-    """
-    store_array = np.asarray([[], []])
-    for run_folder in run_folders:
-        store_array = np.concatenate(
-            (
-                store_array,
-                np.genfromtxt(os.path.join(run_folder, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1),
-            ),
-            axis=1,
-        )
-    return np.unique(store_array, axis=1)
-
-
-def _group_event_labels(*, store_array: np.ndarray, inputParameters: dict[str, object]) -> list[str]:
-    """Return the event labels group averaging computes a PSTH average for.
-
-    Parameters
-    ----------
-    store_array : np.ndarray
-        Merged store array of every session in the group.
-    inputParameters : dict
-        Full pipeline input parameters.
-
-    Returns
-    -------
-    list of str
-        Store labels with the continuously sampled streams dropped.
-    """
-    return [
-        label
-        for label in event_labels_for_analysis(store_array=store_array, inputParameters=inputParameters)
-        if not is_continuous_label(label)
-    ]
-
-
-def execute_average_for_group(inputParameters: dict[str, object]) -> None:
-    """Average PSTH results across all selected sessions in the group.
-
-    Parameters
-    ----------
-    inputParameters : dict
-        Full pipeline input parameters; must contain a non-empty
-        ``group_session_folders`` list.
-
-    Raises
-    ------
-    ValueError
-        When ``group_session_folders`` is empty or the fiber (control/signal)
-        store_ids are inconsistent across sessions.
-    """
-    group_session_folders = inputParameters["group_session_folders"]
-    run_folders = gather_group_run_folders(inputParameters, group_session_folders)
-
-    _validate_fiber_recording_sites_consistent_for_group(run_folders)
-
-    store_array = _merge_group_stores_list(run_folders)
-    average_dir = makeAverageDir(inputParameters["abspath"])
-    np.savetxt(os.path.join(average_dir, "storesList.csv"), store_array, delimiter=",", fmt="%s")
-    for event in _group_event_labels(store_array=store_array, inputParameters=inputParameters):
-        averageForGroup(run_folders, event, inputParameters)
-        progress.advance()
-
-
 def psthForEachStore(inputParameters: dict[str, object]) -> None:
     """Entry point for step-4 PSTH computation: validates parameters and dispatches to the appropriate sub-routine.
 
@@ -521,16 +392,12 @@ def psthForEachStore(inputParameters: dict[str, object]) -> None:
 
     _validate_psth_window_parameters(inputParameters)
 
-    average = inputParameters["averageForGroup"]
     combine_data = inputParameters["combine_data"]
     numProcesses = inputParameters["numberOfCores"]
 
     # Snapshot the parameters being executed into each selected output dir so the
     # on-disk GuPPyParamtersUsed.json always reflects the last-run configuration.
-    # Group runs aggregate over the average/ dir rather than the individual
-    # selected_runs, so skip the snapshot there (steps 2-3 already wrote it per session).
-    if not average:
-        save_parameters(inputParameters=inputParameters)
+    save_parameters(inputParameters=inputParameters)
     if numProcesses == 0:
         numProcesses = mp.cpu_count()
     elif numProcesses > mp.cpu_count():
@@ -540,18 +407,10 @@ def psthForEachStore(inputParameters: dict[str, object]) -> None:
         )
         numProcesses = mp.cpu_count() - 1
 
-    logger.info(f"Average for group : {average}")
-
-    # Group-average analysis aggregates PSTHs across all sessions in the group.
-    if average == True:
-        execute_average_for_group(inputParameters)
-
-    # Otherwise each session is analyzed individually.
+    if combine_data == True:
+        execute_psth_combined(inputParameters)
     else:
-        if combine_data == True:
-            execute_psth_combined(inputParameters)
-        else:
-            orchestrate_psth(inputParameters)
+        orchestrate_psth(inputParameters)
     logger.info("PSTH, Area and Peak are computed for all events.")
 
 
@@ -567,14 +426,6 @@ def _start_step4_progress(input_parameters: dict[str, object]) -> None:
     input_parameters : dict
         Full pipeline input parameters.
     """
-    if input_parameters["averageForGroup"] == True:
-        run_folders = gather_group_run_folders(input_parameters, input_parameters["group_session_folders"])
-        store_array = _merge_group_stores_list(run_folders)
-        event_labels = _group_event_labels(store_array=store_array, inputParameters=input_parameters)
-        # One unit per event store, plus the single unit group transient analysis reports.
-        progress.start(len(event_labels) + 1)
-        return
-
     # Two units per output directory: transient analysis, then PSTH.
     run_folders = resolve_run_folders(input_parameters["session_folders"], input_parameters)
     progress.start(len(run_folders) * 2)

@@ -37,7 +37,6 @@ def base_input_parameters() -> dict[str, object]:
         "peak_endPoint": 5.0,
         "auc_units": "samples",
         "store_id_to_store_label": {},
-        "averageForGroup": False,
         "selectForTransientsComputation": "z_score",
         "moving_window": 15,
         "highAmpFilt": 3.0,

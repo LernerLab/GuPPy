@@ -51,7 +51,7 @@ A browser tab opens showing the GuPPy dashboard.
 :align: center
 ```
 
-The page is split into a **sidebar on the left** and a **main area on the right**. The sidebar lists the pipeline buttons in run order, from *Label Stores* at the top through *Visualization* at the bottom, with a progress bar directly under each step that performs background work. The main area is where you select your data folder and configure parameters; settings are grouped into three collapsible cards: *Individual Analysis* (the only one we use in this tutorial), *Group Analysis*, and *Visualization Parameters*. The five **Step N** labels in the sidebar (Label Stores through Visualization) match the numbered pipeline steps below; choosing your data and setting parameters in the main area, covered here in Step 0, is the setup that precedes them.
+The page is split into a **sidebar on the left** and a **main area on the right**. The sidebar lists the pipeline buttons in run order, from *Label Stores* at the top through *Visualization* at the bottom, with a progress bar directly under each step that performs background work. The main area is where you select your data folder and configure parameters; settings are grouped into three collapsible cards: *Individual Analysis* (the only one we use in this tutorial), *Group Analysis*, and *Visualization Parameters*. The **Step N** labels in the sidebar (Label Stores through Export to NWB) match the numbered pipeline steps below, and the unnumbered buttons between them are optional steps this tutorial does not use; choosing your data and setting parameters in the main area, covered here in Step 0, is the setup that precedes them.
 
 Before running the pipeline you pick the session folder you want to analyze, then look over (but not change) the analysis parameters that the rest of the pipeline will use.
 
@@ -218,7 +218,7 @@ The visualization step in Step 5 reads these files; you do not need to inspect t
 
 ## Step 5: Visualize the results
 
-Back on the homepage, expand the **Visualization Parameters** card. Leave both settings at their defaults: **z-score or ΔF/F?** stays at `z_score` (the metric we computed in Step 3), and **Visualize Average Results?** stays at `False`. The latter is a group-analysis feature for averaging across multiple sessions and requires `Average Group?` to have been enabled during PSTH computation; we have a single session, so it does not apply here.
+Back on the homepage, expand the **Visualization Parameters** card. Leave **z-score or ΔF/F?** at its default `z_score` — the metric we computed in Step 3.
 
 Click **Open Visualization GUI** in the sidebar. A new browser tab opens with the Visualization GUI for this session, organized into two tabs.
 

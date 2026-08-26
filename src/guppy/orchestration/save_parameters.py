@@ -71,6 +71,99 @@ def record_artifact_provenance(
     logger.info(f"Artifact provenance updated at {destination}")
 
 
+def build_analysis_parameters(*, inputParameters: dict[str, object]) -> dict[str, object]:
+    """
+    Build the analysis-parameter snapshot written to ``GuPPyParamtersUsed.json``.
+
+    The two artifact keys are placeholders here; :func:`write_analysis_parameters`
+    resolves them per destination.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters.
+
+    Returns
+    -------
+    dict
+        The analysis parameters, in the order they are written to the file.
+    """
+    return {
+        "guppy_version": version("guppy-neuro"),
+        "combine_data": inputParameters["combine_data"],
+        "isosbestic_control": inputParameters["isosbestic_control"],
+        "control_fit_method": inputParameters["control_fit_method"],
+        "controlFitWindowMode": inputParameters["controlFitWindowMode"],
+        "controlFitWindowStart": inputParameters["controlFitWindowStart"],
+        "controlFitWindowEnd": inputParameters["controlFitWindowEnd"],
+        "photobleaching_detrend": inputParameters["photobleaching_detrend"],
+        "timeForLightsTurnOn": inputParameters["timeForLightsTurnOn"],
+        "filter_window": inputParameters["filter_window"],
+        # Resolved per destination by write_analysis_parameters; listed here to fix
+        # their position in the file.
+        "removeArtifacts": None,
+        "artifactsRemovalMethod": None,
+        "noChannels": inputParameters["noChannels"],
+        "zscore_method": inputParameters["zscore_method"],
+        "baselineWindowStart": inputParameters["baselineWindowStart"],
+        "baselineWindowEnd": inputParameters["baselineWindowEnd"],
+        "nSecPrev": inputParameters["nSecPrev"],
+        "nSecPost": inputParameters["nSecPost"],
+        "computeCorr": inputParameters["computeCorr"],
+        "useTransientsAsEvents": inputParameters["useTransientsAsEvents"],
+        "timeInterval": inputParameters["timeInterval"],
+        "bin_psth_trials": inputParameters["bin_psth_trials"],
+        "use_time_or_trials": inputParameters["use_time_or_trials"],
+        "baselineCorrectionStart": inputParameters["baselineCorrectionStart"],
+        "baselineCorrectionEnd": inputParameters["baselineCorrectionEnd"],
+        "peak_startPoint": inputParameters["peak_startPoint"],
+        "peak_endPoint": inputParameters["peak_endPoint"],
+        "auc_units": inputParameters["auc_units"],
+        "selectForComputePsth": inputParameters["selectForComputePsth"],
+        "selectForTransientsComputation": inputParameters["selectForTransientsComputation"],
+        "moving_window": inputParameters["moving_window"],
+        "highAmpFilt": inputParameters["highAmpFilt"],
+        "transientsThresh": inputParameters["transientsThresh"],
+        "computeBinnedMetrics": inputParameters["computeBinnedMetrics"],
+        "binnedMetricsWidth": inputParameters["binnedMetricsWidth"],
+        "visualize_zscore_or_dff": inputParameters["visualize_zscore_or_dff"],
+    }
+
+
+def write_analysis_parameters(
+    *,
+    destination: str,
+    analysis_parameters: dict[str, object],
+    remove_artifacts: bool | None = None,
+    artifacts_removal_method: str | None = None,
+) -> None:
+    """
+    Write one ``GuPPyParamtersUsed.json`` snapshot, resolving its artifact keys.
+
+    Parameters
+    ----------
+    destination : str
+        Directory the snapshot is written into.
+    analysis_parameters : dict
+        Snapshot from :func:`build_analysis_parameters`.
+    remove_artifacts : bool, optional
+        Recorded artifact-removal state to write. When None, the destination keeps
+        whatever it already recorded.
+    artifacts_removal_method : str, optional
+        Recorded artifact-removal method to write. When None, the destination keeps
+        whatever it already recorded.
+    """
+    recorded_removal, recorded_method = read_artifact_provenance(destination=destination)
+    destinationParameters = dict(analysis_parameters)
+    destinationParameters["removeArtifacts"] = recorded_removal if remove_artifacts is None else remove_artifacts
+    destinationParameters["artifactsRemovalMethod"] = (
+        recorded_method if artifacts_removal_method is None else artifacts_removal_method
+    )
+    with open(os.path.join(destination, "GuPPyParamtersUsed.json"), "w") as parameters_file:
+        json.dump(destinationParameters, parameters_file, indent=4)
+    logger.info(f"Input Parameters file saved at {destination}")
+
+
 def save_parameters(
     inputParameters: dict[str, object],
     *,
@@ -100,46 +193,7 @@ def save_parameters(
         keeps whatever it already recorded.
     """
     logger.debug("Saving Input Parameters file.")
-    analysisParameters = {
-        "guppy_version": version("guppy-neuro"),
-        "combine_data": inputParameters["combine_data"],
-        "isosbestic_control": inputParameters["isosbestic_control"],
-        "control_fit_method": inputParameters["control_fit_method"],
-        "controlFitWindowMode": inputParameters["controlFitWindowMode"],
-        "controlFitWindowStart": inputParameters["controlFitWindowStart"],
-        "controlFitWindowEnd": inputParameters["controlFitWindowEnd"],
-        "photobleaching_detrend": inputParameters["photobleaching_detrend"],
-        "timeForLightsTurnOn": inputParameters["timeForLightsTurnOn"],
-        "filter_window": inputParameters["filter_window"],
-        # Resolved per destination below; listed here to fix their position in the file.
-        "removeArtifacts": None,
-        "artifactsRemovalMethod": None,
-        "noChannels": inputParameters["noChannels"],
-        "zscore_method": inputParameters["zscore_method"],
-        "baselineWindowStart": inputParameters["baselineWindowStart"],
-        "baselineWindowEnd": inputParameters["baselineWindowEnd"],
-        "nSecPrev": inputParameters["nSecPrev"],
-        "nSecPost": inputParameters["nSecPost"],
-        "computeCorr": inputParameters["computeCorr"],
-        "useTransientsAsEvents": inputParameters["useTransientsAsEvents"],
-        "timeInterval": inputParameters["timeInterval"],
-        "bin_psth_trials": inputParameters["bin_psth_trials"],
-        "use_time_or_trials": inputParameters["use_time_or_trials"],
-        "baselineCorrectionStart": inputParameters["baselineCorrectionStart"],
-        "baselineCorrectionEnd": inputParameters["baselineCorrectionEnd"],
-        "peak_startPoint": inputParameters["peak_startPoint"],
-        "peak_endPoint": inputParameters["peak_endPoint"],
-        "auc_units": inputParameters["auc_units"],
-        "selectForComputePsth": inputParameters["selectForComputePsth"],
-        "selectForTransientsComputation": inputParameters["selectForTransientsComputation"],
-        "moving_window": inputParameters["moving_window"],
-        "highAmpFilt": inputParameters["highAmpFilt"],
-        "transientsThresh": inputParameters["transientsThresh"],
-        "computeBinnedMetrics": inputParameters["computeBinnedMetrics"],
-        "binnedMetricsWidth": inputParameters["binnedMetricsWidth"],
-        "visualize_zscore_or_dff": inputParameters["visualize_zscore_or_dff"],
-        "averageForGroup": inputParameters["averageForGroup"],
-    }
+    analysisParameters = build_analysis_parameters(inputParameters=inputParameters)
     selected_runs = inputParameters.get("selected_runs") or {}
     for session in inputParameters["session_folders"]:
         # Fall back to the session root when no output dirs exist yet so parameter
@@ -149,17 +203,12 @@ def save_parameters(
         else:
             destinations = select_run_folders(session, selected_runs.get(session))
         for destination in destinations:
-            recorded_removal, recorded_method = read_artifact_provenance(destination=destination)
-            destinationParameters = dict(analysisParameters)
-            destinationParameters["removeArtifacts"] = (
-                recorded_removal if remove_artifacts is None else remove_artifacts
+            write_analysis_parameters(
+                destination=destination,
+                analysis_parameters=analysisParameters,
+                remove_artifacts=remove_artifacts,
+                artifacts_removal_method=artifacts_removal_method,
             )
-            destinationParameters["artifactsRemovalMethod"] = (
-                recorded_method if artifacts_removal_method is None else artifacts_removal_method
-            )
-            with open(os.path.join(destination, "GuPPyParamtersUsed.json"), "w") as parameters_file:
-                json.dump(destinationParameters, parameters_file, indent=4)
-            logger.info(f"Input Parameters file saved at {destination}")
 
     logger.info("#" * 400)
     logger.info("Input Parameters File Saved.")

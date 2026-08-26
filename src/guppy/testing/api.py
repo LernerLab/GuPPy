@@ -21,6 +21,8 @@ from guppy.analysis.standard_io import write_tonic_to_hdf5
 from guppy.analysis.tonic import compute_tonic_means
 from guppy.frontend.tonic_epochs import load_site_traces
 from guppy.orchestration.export_nwb import orchestrate_export_nwb
+from guppy.orchestration.group_analysis import run_group_analysis_step
+from guppy.orchestration.group_labeling import orchestrate_group_labeling_page
 from guppy.orchestration.home import build_homepage
 from guppy.orchestration.import_custom_events import orchestrate_custom_events_page
 from guppy.orchestration.metadata import orchestrate_metadata_page
@@ -75,25 +77,6 @@ def _normalize_selected_runs(
             "every selected session must specify at least one run name."
         )
     return normalized
-
-
-def _normalize_group_selected_runs(
-    group_selected_runs: dict[str, list[str]] | None,
-    abs_group_folders: list[str],
-) -> dict[str, list[str]]:
-    """Validate group_selected_runs, allowing empty/None only when no group folders are selected."""
-    if not abs_group_folders:
-        if group_selected_runs:
-            raise ValueError(
-                f"group_selected_runs was provided but no group_folders were selected; got {group_selected_runs!r}."
-            )
-        return {}
-    if group_selected_runs is None:
-        raise ValueError(
-            "group_selected_runs is required when group_folders is non-empty; "
-            "every group session must specify at least one run name."
-        )
-    return _normalize_selected_runs(group_selected_runs, abs_group_folders, parameter_name="group_selected_runs")
 
 
 def save_parameters_snapshot(*, base_dir: str, selected_folders: Iterable[str]) -> None:
@@ -852,8 +835,6 @@ def step4(
     combine_data: bool = False,
     compute_corr: bool = False,
     use_transients_as_events: bool = False,
-    average_for_group: bool = False,
-    group_folders: list[str] | None = None,
     select_for_compute_psth: str = "z_score",
     select_for_transients: str = "z_score",
     number_of_cores: int = 1,
@@ -864,7 +845,6 @@ def step4(
     compute_binned_metrics: bool = False,
     binned_metrics_width: int = 120,
     selected_runs: dict[str, list[str]],
-    group_selected_runs: dict[str, list[str]] | None = None,
 ) -> None:
     """
     Run pipeline Step 4 (PSTH Computation) via the Panel-backed logic, headlessly.
@@ -896,14 +876,6 @@ def step4(
     use_transients_as_events : bool
         Whether to use each recording site's detected transients as its event timestamps.
         Defaults to False.
-    average_for_group : bool
-        Whether to run group-level averaging across sessions instead of per-session PSTH
-        computation. When ``True``, individual PSTH files must already exist in each session's
-        output directory, and results are written to ``<base_dir>/average/``. Defaults to False.
-    group_folders : list[str] | None
-        Absolute paths to the session directories to include in group averaging. Only used
-        when ``average_for_group`` is ``True``. Injected as ``group_session_folders`` in
-        ``input_params``. Defaults to ``None`` (treated as empty list).
     select_for_compute_psth : str
         Signal type to use for PSTH computation. One of ``'z_score'``, ``'dff'``, or
         ``'Both'``. Defaults to ``'z_score'``.
@@ -995,14 +967,8 @@ def step4(
     # Inject the spontaneous-activity flag
     input_params["useTransientsAsEvents"] = use_transients_as_events
 
-    # Inject group analysis parameters
-    input_params["averageForGroup"] = average_for_group
-    abs_group_folders = [os.path.abspath(folder) for folder in group_folders] if group_folders else []
-    input_params["group_session_folders"] = abs_group_folders
-
-    # Per-session output-directory subset filter for individual + group analysis
+    # Per-session output-directory subset filter
     input_params["selected_runs"] = _normalize_selected_runs(selected_runs, abs_sessions)
-    input_params["group_selected_runs"] = _normalize_group_selected_runs(group_selected_runs, abs_group_folders)
 
     # Inject signal-type selection parameters
     input_params["selectForComputePsth"] = select_for_compute_psth
@@ -1028,6 +994,85 @@ def step4(
     psthForEachStore(input_params)
 
 
+def label_groups(
+    *,
+    base_dir: str,
+    member_run_folders: Iterable[str],
+    destination_directory: str,
+    group_name: str,
+) -> None:
+    """Define a group headlessly, as the Label Groups page does.
+
+    Writes only ``group_members.json`` into ``<destination_directory>/<group_name>_group/``.
+    The group holds no averaged results until :func:`group_analysis` runs against it.
+
+    Parameters
+    ----------
+    base_dir : str
+        Root directory used to initialize the FileSelector.
+    member_run_folders : iterable of str
+        Output (run) directories to record as the group's members. Each must already
+        hold Step-4 results.
+    destination_directory : str
+        Directory the group output directory is written into.
+    group_name : str
+        Name of the group. Becomes the ``<group_name>_group`` directory name.
+    """
+    os.environ["GUPPY_BASE_DIR"] = base_dir
+    orchestrate_group_labeling_page(
+        {
+            "group_name": group_name,
+            "group_destination_directory": os.path.abspath(destination_directory),
+            "group_member_run_folders": [os.path.abspath(run_folder) for run_folder in member_run_folders],
+        }
+    )
+
+
+def group_analysis(
+    *,
+    base_dir: str,
+    selected_group_folders: Iterable[str],
+    select_for_compute_psth: str = "z_score",
+    select_for_transients: str = "z_score",
+    use_transients_as_events: bool = False,
+    compute_corr: bool = False,
+) -> None:
+    """Run the Group Analysis step headlessly against already-defined groups.
+
+    Averages each group's recorded member runs into its own directory. Define the groups
+    first with :func:`label_groups`.
+
+    Parameters
+    ----------
+    base_dir : str
+        Root directory used to initialize the FileSelector.
+    selected_group_folders : iterable of str
+        Group output directories to average into.
+    select_for_compute_psth : str
+        Which PSTH metric to average: ``"z_score"``, ``"dff"`` or ``"Both"``.
+    select_for_transients : str
+        Which metric's transient results to combine.
+    use_transients_as_events : bool
+        Whether transient trains stand in for external event TTLs.
+    compute_corr : bool
+        Whether cross-correlation outputs are combined.
+    """
+    os.environ["GUPPY_BASE_DIR"] = base_dir
+    template = build_homepage()
+
+    absolute_groups = [os.path.abspath(folder) for folder in selected_group_folders]
+    template._widgets["group_folders_selector"].value = absolute_groups
+    input_params = template._hooks["getInputParameters"]()
+
+    input_params["selected_group_folders"] = absolute_groups
+    input_params["selectForComputePsth"] = select_for_compute_psth
+    input_params["selectForTransientsComputation"] = select_for_transients
+    input_params["useTransientsAsEvents"] = use_transients_as_events
+    input_params["computeCorr"] = compute_corr
+
+    run_group_analysis_step(input_params)
+
+
 def step5(
     *,
     base_dir: str,
@@ -1036,12 +1081,10 @@ def step5(
     npm_time_unit: str | None = None,
     npm_split_events: list[bool] | None = None,
     visualize_zscore_or_dff: str = "z_score",
-    visualize_average_results: bool = False,
     use_transients_as_events: bool = False,
     select_for_transients: str = "z_score",
-    group_folders: list[str] | None = None,
+    selected_group_folders: list[str] | None = None,
     selected_runs: dict[str, list[str]],
-    group_selected_runs: dict[str, list[str]] | None = None,
 ) -> None:
     """
     Run pipeline Step 5 (Visualize Results) via the Panel-backed logic, headlessly.
@@ -1070,19 +1113,15 @@ def step5(
         List of booleans indicating whether to split events for NPM files. None if not applicable.
     visualize_zscore_or_dff : str
         Signal type to visualize. One of ``'z_score'`` or ``'dff'``. Defaults to ``'z_score'``.
-    visualize_average_results : bool
-        When ``True``, visualize the group-averaged results from the ``average/``
-        directory instead of the individual sessions. Injected as
-        ``visualizeAverageResults``. Defaults to ``False``.
     use_transients_as_events : bool
         Whether step 4 used each recording site's detected transients as its event
         timestamps; must match the value step 4 ran with. Defaults to False.
     select_for_transients : str
         Metric the transient detector ran on in step 4; must match the value step 4 ran
         with. One of ``'z_score'``, ``'dff'`` or ``'Both'``. Defaults to ``'z_score'``.
-    group_folders : list[str] | None
-        Session directories whose group average is being visualized; required when
-        ``visualize_average_results`` is ``True``. Injected as ``group_session_folders``.
+    selected_group_folders : list[str] | None
+        Group output directories to visualize alongside the selected session runs.
+        Injected as ``selected_group_folders``. Defaults to ``None`` (treated as empty list).
 
     Raises
     ------
@@ -1140,14 +1179,13 @@ def step5(
     input_params["useTransientsAsEvents"] = use_transients_as_events
     input_params["selectForTransientsComputation"] = select_for_transients
 
-    # Inject group-average visualization selection
-    input_params["visualizeAverageResults"] = visualize_average_results
-    abs_group_folders = [os.path.abspath(folder) for folder in group_folders] if group_folders else []
-    input_params["group_session_folders"] = abs_group_folders
+    # Groups to visualize alongside the selected session runs
+    input_params["selected_group_folders"] = (
+        [os.path.abspath(folder) for folder in selected_group_folders] if selected_group_folders else []
+    )
 
-    # Per-session output-directory subset filter for individual + group visualization
+    # Per-session output-directory subset filter
     input_params["selected_runs"] = _normalize_selected_runs(selected_runs, abs_sessions)
-    input_params["group_selected_runs"] = _normalize_group_selected_runs(group_selected_runs, abs_group_folders)
 
     # Call the underlying Step 5 worker directly, as the GUI does
     visualizeResults(input_params)

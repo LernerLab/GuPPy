@@ -46,7 +46,6 @@ def default_parameters():
         "computeBinnedMetrics": False,
         "binnedMetricsWidth": 120,
         "visualize_zscore_or_dff": "z_score",
-        "averageForGroup": False,
     }
 
 

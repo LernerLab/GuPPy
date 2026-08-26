@@ -9,9 +9,7 @@ import pandas as pd
 
 from .io_utils import (
     make_dir_for_cross_correlation,
-    makeAverageDir,
     recording_site_from_preprocessed_label,
-    write_hdf5,
 )
 from .psth_utils import create_Df_for_psth, getCorrCombinations
 from ..utils.utils import read_Df
@@ -19,19 +17,28 @@ from ..utils.utils import read_Df
 logger = logging.getLogger(__name__)
 
 
-def averageForGroup(session_folders: list[str], event: str, inputParameters: dict[str, object]) -> None:
+def average_psth_for_group(
+    *, member_run_folders: list[str], event: str, group_folder: str, inputParameters: dict[str, object]
+) -> bool:
     """
-    Average PSTH, peak/AUC, and cross-correlation results across a group of sessions.
+    Average PSTH, peak/AUC, and cross-correlation results across a group's member runs.
 
     Parameters
     ----------
-    session_folders : list of str
-        Session directories whose output subdirectories contain precomputed PSTH files.
+    member_run_folders : list of str
+        Output (run) directories holding the precomputed PSTH files to average.
     event : str
-        Event label to average across sessions.
+        Event label to average across the member runs.
+    group_folder : str
+        Group output directory the averaged results are written into.
     inputParameters : dict
-        Analysis configuration dictionary; must include ``'abspath'`` and
-        ``'selectForComputePsth'``.
+        Analysis configuration dictionary; must include ``'selectForComputePsth'``.
+
+    Returns
+    -------
+    bool
+        Whether a PSTH average was written for ``event``. False when no member run
+        holds a PSTH for it.
     """
 
     event = event.replace("\\", "_")
@@ -39,26 +46,24 @@ def averageForGroup(session_folders: list[str], event: str, inputParameters: dic
 
     logger.debug("Averaging group of data...")
     path = []
-    abspath = inputParameters["abspath"]
     selectForComputePsth = inputParameters["selectForComputePsth"]
-    run_folder = makeAverageDir(abspath)
+    run_folder = group_folder
 
     # combining paths to all the selected folders for doing average
-    for i in range(len(session_folders)):
+    for i in range(len(member_run_folders)):
         if selectForComputePsth == "z_score":
-            matched_paths = glob.glob(os.path.join(session_folders[i], "z_score_*"))
+            matched_paths = glob.glob(os.path.join(member_run_folders[i], "z_score_*"))
         elif selectForComputePsth == "dff":
-            matched_paths = glob.glob(os.path.join(session_folders[i], "dff_*"))
+            matched_paths = glob.glob(os.path.join(member_run_folders[i], "dff_*"))
         else:
-            matched_paths = glob.glob(os.path.join(session_folders[i], "z_score_*")) + glob.glob(
-                os.path.join(session_folders[i], "dff_*")
+            matched_paths = glob.glob(os.path.join(member_run_folders[i], "z_score_*")) + glob.glob(
+                os.path.join(member_run_folders[i], "dff_*")
             )
 
         for j in range(len(matched_paths)):
             basename = (os.path.basename(matched_paths[j])).split(".")[0]
-            write_hdf5(np.array([]), basename, run_folder, "data")
             name_1 = recording_site_from_preprocessed_label(basename)
-            entry = [session_folders[i], event + "_" + name_1, basename]
+            entry = [member_run_folders[i], event + "_" + name_1, basename]
             path.append(entry)
 
     # processing of all the paths
@@ -74,7 +79,8 @@ def averageForGroup(session_folders: list[str], event: str, inputParameters: dic
         index = np.where(naming == path[i][2])[0][0]
         new_path[index].append(path[i])
 
-    # read PSTH for each event and make the average of it. Save the final output to an average folder.
+    # read PSTH for each event and make the average of it. Save the final output to the group folder.
+    wrote_psth = False
     for i in range(len(new_path)):
         psth, psth_bins = [], []
         columns = []
@@ -126,6 +132,7 @@ def averageForGroup(session_folders: list[str], event: str, inputParameters: dic
         psth = np.concatenate((psth, timestamps), axis=0)
         columns = columns + ["timestamps"]
         create_Df_for_psth(run_folder, session_entries[j][1], session_entries[j][2], psth, columns=columns)
+        wrote_psth = True
 
     # read PSTH peak and area for each event and combine them. Save the final output to an average folder
     for i in range(len(new_path)):
@@ -165,8 +172,8 @@ def averageForGroup(session_folders: list[str], event: str, inputParameters: dic
 
     # read cross-correlation files and combine them. Save the final output to an average folder
     type = []
-    for i in range(len(session_folders)):
-        _, session_types = getCorrCombinations(session_folders[i], inputParameters)
+    for i in range(len(member_run_folders)):
+        _, session_types = getCorrCombinations(member_run_folders[i], inputParameters)
         type.append(session_types)
 
     type = np.unique(np.array(type))
@@ -174,11 +181,11 @@ def averageForGroup(session_folders: list[str], event: str, inputParameters: dic
         corr = []
         columns = []
         df = None
-        for j in range(len(session_folders)):
-            corr_info, _ = getCorrCombinations(session_folders[j], inputParameters)
+        for j in range(len(member_run_folders)):
+            corr_info, _ = getCorrCombinations(member_run_folders[j], inputParameters)
             for k in range(1, len(corr_info)):
                 path = os.path.join(
-                    session_folders[j],
+                    member_run_folders[j],
                     "cross_correlation_output",
                     "corr_" + event + "_" + type[i] + "_" + corr_info[k - 1] + "_" + corr_info[k],
                 )
@@ -186,12 +193,12 @@ def averageForGroup(session_folders: list[str], event: str, inputParameters: dic
                     continue
                 else:
                     df = read_Df(
-                        os.path.join(session_folders[j], "cross_correlation_output"),
+                        os.path.join(member_run_folders[j], "cross_correlation_output"),
                         "corr_" + event,
                         type[i] + "_" + corr_info[k - 1] + "_" + corr_info[k],
                     )
                     corr.append(df["mean"])
-                    columns.append(os.path.basename(session_folders[j]))
+                    columns.append(os.path.basename(member_run_folders[j]))
 
         if not isinstance(df, pd.DataFrame):
             break
@@ -209,6 +216,8 @@ def averageForGroup(session_folders: list[str], event: str, inputParameters: dic
         )
 
     logger.info("Group of data averaged.")
+
+    return wrote_psth
 
 
 def psth_shape_check(psth: list[np.ndarray]) -> list[np.ndarray]:

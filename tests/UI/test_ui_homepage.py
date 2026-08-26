@@ -18,7 +18,7 @@ def test_individual_analysis_card_heading_visible(page, live_server_url):
 @pytest.mark.ui
 def test_group_analysis_card_heading_visible(page, live_server_url):
     page.goto(live_server_url)
-    expect(page.get_by_text("Group Analysis").first).to_be_visible()
+    expect(page.get_by_text("Group Output Folder Selection").first).to_be_visible()
 
 
 @pytest.mark.ui

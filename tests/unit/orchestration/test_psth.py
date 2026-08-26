@@ -7,9 +7,7 @@ import pandas as pd
 import pytest
 
 from guppy.orchestration.psth import (
-    _validate_fiber_recording_sites_consistent_for_group,
     _validate_psth_window_parameters,
-    execute_average_for_group,
     execute_compute_cross_correlation,
     execute_compute_psth,
     execute_compute_psth_peak_and_area,
@@ -177,12 +175,6 @@ def test_execute_compute_cross_correlation_allows_run_removed_with_nan(
     assert get_corr_calls == [str(psth_output_dir)]
 
 
-def test_execute_average_for_group_raises_for_empty_folders(base_input_parameters):
-    base_input_parameters["group_session_folders"] = []
-    with pytest.raises(ValueError, match="No folders selected for group averaging"):
-        execute_average_for_group(base_input_parameters)
-
-
 def test_execute_compute_cross_correlation_returns_early_for_control_event(
     psth_output_dir, base_input_parameters, monkeypatch
 ):
@@ -236,92 +228,6 @@ def test_execute_compute_cross_correlation_raises_for_no_recording_sites(
 # ---------------------------------------------------------------------------
 # _validate_fiber_recording_sites_consistent_for_group
 # ---------------------------------------------------------------------------
-
-
-def _write_stores_list(run_folder, store_ids):
-    """Write a minimal storesList.csv with 'raw' labels in row 0 and store_ids in row 1."""
-    run_folder.mkdir(parents=True, exist_ok=True)
-    raw_labels = [f"raw{i}" for i in range(len(store_ids))]
-    rows = [",".join(raw_labels), ",".join(store_ids)]
-    (run_folder / "storesList.csv").write_text("\n".join(rows) + "\n")
-
-
-def test_validate_fiber_recording_sites_consistent_passes_when_all_match(tmp_path):
-    output_1 = tmp_path / "session1" / "session1_output_1"
-    output_2 = tmp_path / "session2" / "session2_output_1"
-    _write_stores_list(output_1, ["control_DMS", "signal_DMS", "port_entries"])
-    _write_stores_list(output_2, ["control_DMS", "signal_DMS", "port_entries"])
-
-    # Should not raise
-    _validate_fiber_recording_sites_consistent_for_group(np.array([str(output_1), str(output_2)]))
-
-
-def test_validate_fiber_recording_sites_consistent_allows_reordered_stores(tmp_path):
-    output_1 = tmp_path / "session1" / "session1_output_1"
-    output_2 = tmp_path / "session2" / "session2_output_1"
-    _write_stores_list(output_1, ["control_DMS", "signal_DMS", "port_entries"])
-    _write_stores_list(output_2, ["signal_DMS", "port_entries", "control_DMS"])
-
-    _validate_fiber_recording_sites_consistent_for_group(np.array([str(output_1), str(output_2)]))
-
-
-def test_validate_fiber_recording_sites_allows_same_recording_site_different_event(tmp_path):
-    # Issue #368: sessions recorded from the same fiber recording site (DMS) but under
-    # different behavioral conditions must be allowed to average together.
-    output_1 = tmp_path / "session1" / "session1_output_1"
-    output_2 = tmp_path / "session2" / "session2_output_1"
-    _write_stores_list(output_1, ["control_DMS", "signal_DMS", "novelobject"])
-    _write_stores_list(output_2, ["control_DMS", "signal_DMS", "novelfemale1"])
-
-    # Fiber store_ids match; only the event differs → should not raise
-    _validate_fiber_recording_sites_consistent_for_group(np.array([str(output_1), str(output_2)]))
-
-
-def test_validate_fiber_recording_sites_raises_for_non_overlapping_fibers(tmp_path):
-    output_1 = tmp_path / "session1" / "session1_output_1"
-    output_2 = tmp_path / "session2" / "session2_output_1"
-    _write_stores_list(output_1, ["control_DMS_A", "signal_DMS_A", "port_entries_A"])
-    _write_stores_list(output_2, ["control_DMS_B", "signal_DMS_B", "port_entries_B"])
-
-    with pytest.raises(ValueError, match="mismatched control/signal store_ids"):
-        _validate_fiber_recording_sites_consistent_for_group(np.array([str(output_1), str(output_2)]))
-
-
-def test_validate_fiber_recording_sites_raises_for_mismatched_recording_site_labels(tmp_path):
-    output_1 = tmp_path / "session1" / "session1_output_1"
-    output_2 = tmp_path / "session2" / "session2_output_1"
-    _write_stores_list(output_1, ["control_region1", "signal_region1", "port_entries1"])
-    _write_stores_list(output_2, ["control_region2", "signal_region2", "port_entries2"])
-
-    with pytest.raises(ValueError, match="mismatched control/signal store_ids"):
-        _validate_fiber_recording_sites_consistent_for_group(np.array([str(output_1), str(output_2)]))
-
-
-def test_validate_fiber_recording_sites_error_message_lists_session_name_and_store_ids(tmp_path):
-    output_1 = tmp_path / "session1" / "session1_output_1"
-    output_2 = tmp_path / "session2" / "session2_output_1"
-    _write_stores_list(output_1, ["control_region1", "signal_region1"])
-    _write_stores_list(output_2, ["control_region2", "signal_region2"])
-
-    with pytest.raises(ValueError) as exc_info:
-        _validate_fiber_recording_sites_consistent_for_group(np.array([str(output_1), str(output_2)]))
-    message = str(exc_info.value)
-    # Session folder names
-    assert "session1" in message
-    assert "session2" in message
-    # Store IDs for each session
-    assert "control_region1" in message
-    assert "signal_region1" in message
-    assert "control_region2" in message
-    assert "signal_region2" in message
-
-
-def test_validate_fiber_recording_sites_single_session_does_not_raise(tmp_path):
-    output_1 = tmp_path / "session1" / "session1_output_1"
-    _write_stores_list(output_1, ["control_DMS", "signal_DMS"])
-
-    # Single session → trivially consistent
-    _validate_fiber_recording_sites_consistent_for_group(np.array([str(output_1)]))
 
 
 # ---------------------------------------------------------------------------
