@@ -61,9 +61,4 @@ member_run
   One {term}`run` belonging to a group. Each member contributes a single column
   to the group's averaged outputs, so the number of members is the group's
   statistical *n*.
-
-group_members.json
-  The file recording a group's membership, written by the Label Groups step and
-  read by the Group Analysis step. A group directory holding only this file is
-  defined but not yet averaged.
 ```
