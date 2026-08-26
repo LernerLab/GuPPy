@@ -279,13 +279,12 @@ A group directory is named `<group_name>_group` and sits in the destination dire
 | `group_members.json` | The run folders this group averaged, in averaging order |
 | `GuPPyParamtersUsed.json` | The parameters the averaging ran under |
 | `storesList.csv` | The store mapping, listing only the events the group holds a PSTH for |
-| `z_score_<site>.hdf5`, `dff_<site>.hdf5` | Empty placeholders |
 | `<event>_<site>_<metric>.h5` | Group PSTH: one column per member run |
 | `peak_AUC_<event>_<site>_<metric>.h5` and `.csv` | Every member's peak/AUC rows concatenated |
 | `freqAndAmp_<metric>.h5` and `.csv` | One row per member run |
 | `cross_correlation_output/corr_<event>_<metric-prefix>_<siteA>_<siteB>.h5` | One column per member run |
 
-The group PSTH has the same shape as a per-session PSTH, but its trial columns are replaced by one column per member run, labeled with the run folder's name, followed by the same `timestamps`, `mean` and `err` columns. Column order matches `group_members.json`, so column *n* is member *n*. The `z_score_<site>.hdf5` and `dff_<site>.hdf5` files hold an empty `data` dataset; only their filenames carry information, naming the group's recording sites.
+The group PSTH has the same shape as a per-session PSTH, but its trial columns are replaced by one column per member run, labeled with the run folder's name, followed by the same `timestamps`, `mean` and `err` columns. Column order matches `group_members.json`, so column *n* is member *n*.
 
 `group_members.json` has a single key, `member_run_folders`, holding the absolute paths of the runs the group averages. It is the group's definition: the Label Groups step writes it, and the Group Analysis step reads it to know what to average. A group directory holding only this file is a defined group with no results yet, in the same way a run folder holds `storesList.csv` before Step 2 fills it.
 
@@ -375,8 +374,6 @@ The first key is `guppy_version`, the installed version of the `guppy-neuro` pac
     group_members.json
     GuPPyParamtersUsed.json
     storesList.csv
-    z_score_<site>.hdf5                            empty placeholder
-    dff_<site>.hdf5                                empty placeholder
     <event>_<site>_<metric>.h5
     peak_AUC_<event>_<site>_<metric>.h5 and .csv
     freqAndAmp_<metric>.h5 and .csv

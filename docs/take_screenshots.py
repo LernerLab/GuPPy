@@ -16,6 +16,7 @@ public dandiset is unauthenticated (only streaming an asset's data authenticates
 
 from __future__ import annotations
 
+import math
 import os
 import socket
 import time
@@ -528,22 +529,46 @@ def screenshot_label_groups_page(page: Page) -> None:
 
 
 def screenshot_group_psth_plot(page: Page, tmp_path: Path) -> None:
-    """How-to: the Visualization dashboard's PSTH plot with one trace per session.
+    """How-to: the Visualization dashboard's PSTH plot for a group.
 
-    Mirrors screenshot_visualization, but names the data columns like session folders
-    rather than trials, matching the real shape of a group-averaged PSTH file.
+    Mirrors screenshot_visualization, but names the data columns after session folders
+    the way a group-averaged PSTH file does, and synthesizes event-evoked traces so the
+    figure shows a real response shape with its across-session error band.
     """
     events = ["RewardPort"]
     sessions = ["session_1", "session_2", "session_3"]
-    n_timepoints = 30
+    n_timepoints = 600
     timestamps = np.linspace(-10.0, 20.0, n_timepoints)
     # bin_1 / bin_err_1 keep the column count and trailing order the same shape the
     # dashboard's default-selection logic expects (mirrors screenshot_visualization);
     # they do not represent real group-average output, which has no bin_* columns.
     columns = [*sessions, "bin_1", "timestamps", "mean", "err", "bin_err_1"]
 
+    def session_trace(*, amplitude: float, latency: float, seed: int) -> np.ndarray:
+        """One session's averaged z-score: flat baseline, then an event-evoked transient."""
+        random_generator = np.random.default_rng(seed)
+        # Rise into the peak just after the event, then an exponential return to baseline.
+        response = amplitude * np.exp(-(((timestamps - latency) / 1.4) ** 2))
+        decay = 0.45 * amplitude * np.exp(-np.clip(timestamps - latency, 0.0, None) / 6.0)
+        decay[timestamps < latency] = 0.0
+        return response + decay + random_generator.normal(0.0, 0.16, n_timepoints)
+
+    traces = {
+        "session_1": session_trace(amplitude=2.6, latency=1.1, seed=0),
+        "session_2": session_trace(amplitude=1.9, latency=1.5, seed=1),
+        "session_3": session_trace(amplitude=3.1, latency=0.9, seed=2),
+    }
+    stacked = np.vstack([traces[name] for name in sessions])
+
     def make_df() -> pd.DataFrame:
-        return pd.DataFrame({col: (timestamps if col == "timestamps" else np.zeros(n_timepoints)) for col in columns})
+        data = dict(traces)
+        data["timestamps"] = timestamps
+        # The group's mean and error bar are computed across member runs, as they are on disk.
+        data["mean"] = stacked.mean(axis=0)
+        data["err"] = stacked.std(axis=0) / math.sqrt(stacked.shape[0])
+        data["bin_1"] = data["mean"]
+        data["bin_err_1"] = data["err"]
+        return pd.DataFrame({column: data[column] for column in columns})
 
     df_new = pd.concat([make_df() for _ in events], keys=events, axis=1)
 
@@ -553,7 +578,7 @@ def screenshot_group_psth_plot(page: Page, tmp_path: Path) -> None:
         selector_for_multipe_events_plot_objects=events,
         color_map_objects=["plasma", "viridis"],
         x_objects=["timestamps"],
-        y_objects=[*sessions, "mean"],
+        y_objects=["All", *sessions, "mean"],
         heatmap_y_objects=[f"1 - {sessions[0]}", "All"],
         psth_y_objects=None,
         filepath=str(tmp_path),
@@ -566,11 +591,21 @@ def screenshot_group_psth_plot(page: Page, tmp_path: Path) -> None:
     template = dashboard.build_template()
     url = _serve(template)
 
+    page.set_viewport_size({"width": 1280, "height": 1600})
     page.goto(url)
     page.get_by_text("PSTH").first.wait_for()
-    page.wait_for_timeout(1500)
-    page.screenshot(path=OUTPUT_DIR / "group_psth_plot.png", full_page=False)
+    page.wait_for_timeout(2500)
+    # Clip to the rendered trace rather than the controls above it: the point of the
+    # figure is the per-member-run curves, not the dashboard chrome.
+    plot = page.locator("canvas").first
+    plot.wait_for(timeout=15000)
+    box = plot.bounding_box()
+    page.screenshot(
+        path=OUTPUT_DIR / "group_psth_plot.png",
+        clip={"x": box["x"] - 60, "y": box["y"] - 20, "width": box["width"] + 90, "height": box["height"] + 60},
+    )
     print("Saved group_psth_plot.png")
+    page.set_viewport_size(VIEWPORT)
 
     pn.state.kill_all_servers()
 
