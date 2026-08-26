@@ -1,8 +1,11 @@
+import os
+import shutil
 import types
 
 import pytest
 
 import guppy.testing.api as testing_api
+from guppy_test_data import STUBBED_TESTING_DATA
 
 
 class FakeTemplate:
@@ -263,3 +266,81 @@ class TestNormalizeSelectedRuns:
                 [str(tmp_path)],
                 parameter_name="custom_param",
             )
+
+
+class TestParseStoreLabel:
+    @pytest.mark.parametrize(
+        "store_label, expected",
+        [
+            ("signal_DMS", ("signal", "DMS")),
+            ("control_DMS", ("control", "DMS")),
+            ("covariate_akinesia", ("behavioral covariate", "akinesia")),
+            ("ttl", ("event TTLs", "ttl")),
+            ("port_entries_dms", ("event TTLs", "port_entries_dms")),
+        ],
+    )
+    def test_grammar(self, store_label, expected):
+        assert testing_api._parse_store_label(store_label=store_label) == expected
+
+
+@pytest.fixture
+def staged_csv_session(tmp_path):
+    """Copy the csv stub session into a temporary workspace, without any prior outputs."""
+    base_directory = tmp_path / "data_root"
+    base_directory.mkdir()
+    session_copy = base_directory / "sample_data_csv_1"
+    shutil.copytree(
+        os.path.join(str(STUBBED_TESTING_DATA), "csv", "sample_data_csv_1"),
+        session_copy,
+        ignore=shutil.ignore_patterns("sample_data_csv_1_output_*", "GuPPyParamtersUsed.json"),
+    )
+    return {"base_dir": str(base_directory), "session": str(session_copy)}
+
+
+class TestStep1Driver:
+    def test_unknown_store_id_raises(self, staged_csv_session):
+        with pytest.raises(ValueError, match="not discovered"):
+            testing_api.step1(
+                base_dir=staged_csv_session["base_dir"],
+                selected_folders=[staged_csv_session["session"]],
+                store_id_to_store_label={"Nonexistent_Channel": "signal_region"},
+            )
+
+    def test_control_without_matching_signal_raises(self, staged_csv_session):
+        with pytest.raises(ValueError, match="no matching 'signal_region'"):
+            testing_api.step1(
+                base_dir=staged_csv_session["base_dir"],
+                selected_folders=[staged_csv_session["session"]],
+                store_id_to_store_label={"Sample_Control_Channel": "control_region"},
+            )
+
+    def test_npm_kwargs_on_non_npm_session_raise(self, staged_csv_session):
+        with pytest.raises(ValueError, match="contains no NPM data"):
+            testing_api.step1(
+                base_dir=staged_csv_session["base_dir"],
+                selected_folders=[staged_csv_session["session"]],
+                store_id_to_store_label={
+                    "Sample_Control_Channel": "control_region",
+                    "Sample_Signal_Channel": "signal_region",
+                },
+                npm_split_events=[False, True],
+            )
+
+    def test_signal_without_control_rejected_under_isosbestic_control(self, staged_csv_session):
+        with pytest.raises(ValueError, match="signals have no control"):
+            testing_api.step1(
+                base_dir=staged_csv_session["base_dir"],
+                selected_folders=[staged_csv_session["session"]],
+                store_id_to_store_label={"Sample_Signal_Channel": "signal_region", "Sample_TTL": "ttl"},
+            )
+
+    def test_signal_without_control_accepted_without_isosbestic_control(self, staged_csv_session):
+        testing_api.step1(
+            base_dir=staged_csv_session["base_dir"],
+            selected_folders=[staged_csv_session["session"]],
+            store_id_to_store_label={"Sample_Signal_Channel": "signal_region", "Sample_TTL": "ttl"},
+            isosbestic_control=False,
+        )
+
+        stores_list_path = os.path.join(staged_csv_session["session"], "sample_data_csv_1_output_1", "storesList.csv")
+        assert os.path.exists(stores_list_path)

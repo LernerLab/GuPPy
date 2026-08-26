@@ -36,7 +36,7 @@ def test_step1_npm_idempotent(tmp_path):
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
         store_id_to_store_label=store_id_to_store_label,
-        npm_split_events=[True, True],
+        npm_split_events=[False, True],
     )
 
     # First run: baseline, should always succeed

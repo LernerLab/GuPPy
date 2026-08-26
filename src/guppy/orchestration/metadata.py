@@ -109,13 +109,11 @@ def build_metadata_template(
     return template
 
 
-def orchestrate_metadata_page(inputParameters: dict[str, object], *, serve: bool = True) -> None:
-    """Open one metadata window per selected session that needs one.
+def build_metadata_templates(*, inputParameters: dict[str, object]) -> list[pn.template.BootstrapTemplate]:
+    """Build one metadata form template per selected session that needs one.
 
-    Each window edits that session's ``nwb_metadata.yaml`` (in its output
+    Each template edits that session's ``nwb_metadata.yaml`` (in its output
     directory), bootstrapped from the saved file when present and otherwise empty.
-    Each window is served on its own port in a new browser tab, mirroring the
-    Storenames GUI.
 
     Sessions GuPPy processed out of an NWB file are skipped: the export adds their outputs to the
     file they came from, which already carries everything this form collects.
@@ -124,9 +122,11 @@ def orchestrate_metadata_page(inputParameters: dict[str, object], *, serve: bool
     ----------
     inputParameters : dict
         Full pipeline input parameters; uses ``combine_data`` and ``selected_runs``.
-    serve : bool
-        Whether to serve each page in a browser. Scripted callers pass ``False`` to build the
-        pages without opening a window.
+
+    Returns
+    -------
+    list of pn.template.BootstrapTemplate
+        One fully configured template per session needing a metadata form.
 
     Raises
     ------
@@ -155,8 +155,9 @@ def orchestrate_metadata_page(inputParameters: dict[str, object], *, serve: bool
         logger.info(message)
         if pn.state.notifications is not None:
             pn.state.notifications.info(message, duration=0)
-        return
+        return []
 
+    templates = []
     for session_path, run_name in pairs_needing_metadata:
         guppy_folder_path = run_folder_for_run(session_path, run_name)
         metadata_yaml_path = os.path.join(guppy_folder_path, METADATA_FILENAME)
@@ -173,5 +174,26 @@ def orchestrate_metadata_page(inputParameters: dict[str, object], *, serve: bool
                 session_folder_path=session_path, acquisition_format=acquisition_format
             ),
         )
-        if serve:
-            template.show(port=scanPortsAndFind(start_port=5000, end_port=5200))
+        templates.append(template)
+    return templates
+
+
+def orchestrate_metadata_page(inputParameters: dict[str, object]) -> None:
+    """Open one metadata window per selected session that needs one.
+
+    Each window is served on its own port in a new browser tab, mirroring the
+    Label Stores GUI.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters; see :func:`build_metadata_templates`.
+
+    Raises
+    ------
+    ValueError
+        If the pipeline was run with ``combine_data`` enabled, or if a selected session's source
+        cannot be resolved.
+    """
+    for template in build_metadata_templates(inputParameters=inputParameters):
+        template.show(port=scanPortsAndFind(start_port=5000, end_port=5200))

@@ -11,44 +11,39 @@ selected on the homepage.
 import logging
 
 from ..frontend.frontend_utils import scanPortsAndFind
-from ..frontend.group_labeling import GroupLabelingPage, save_group_definition
-from ..utils.utils import group_folder_for_group, validate_group_name
-from ..utils.validation import validate_group_member_run_folders
+from ..frontend.group_labeling import GroupLabelingPage
 
 logger = logging.getLogger(__name__)
 
 
-def orchestrate_group_labeling_page(inputParameters: dict[str, object]) -> None:
-    """Open the Label Groups page, or write the definition directly when it was supplied.
-
-    Scripted callers supply ``group_name``, ``group_destination_directory`` and
-    ``group_member_run_folders``; the GUI collects the same three on the page.
+def build_group_labeling_page(*, inputParameters: dict[str, object]) -> GroupLabelingPage:
+    """Construct the Label Groups page from the pipeline input parameters.
 
     Parameters
     ----------
     inputParameters : dict
-        Full pipeline input parameters; uses ``selected_group_folders`` to populate the
-        page's edit list, and the supplied-definition keys above when present.
+        Full pipeline input parameters; uses ``abspath`` as the page's starting
+        directory and ``selected_group_folders`` to populate its edit list.
 
-    Raises
-    ------
-    ValueError
-        When the supplied group name or member selection is invalid.
+    Returns
+    -------
+    GroupLabelingPage
+        The constructed page, not yet served.
     """
-    group_name = inputParameters.get("group_name")
-    destination_directory = inputParameters.get("group_destination_directory")
-
-    if group_name and destination_directory:
-        validate_group_name(group_name)
-        member_run_folders = list(inputParameters.get("group_member_run_folders") or [])
-        validate_group_member_run_folders(member_run_folders=member_run_folders)
-        group_folder = group_folder_for_group(destination_directory=destination_directory, group_name=group_name)
-        save_group_definition(group_folder=group_folder, member_run_folders=member_run_folders)
-        return
-
-    page = GroupLabelingPage(
+    return GroupLabelingPage(
         start_path=inputParameters.get("abspath") or "",
         selected_group_folders=list(inputParameters.get("selected_group_folders") or []),
     )
+
+
+def orchestrate_group_labeling_page(inputParameters: dict[str, object]) -> None:
+    """Open the Label Groups page in a new browser window.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters; see :func:`build_group_labeling_page`.
+    """
+    page = build_group_labeling_page(inputParameters=inputParameters)
     template = page.build_template()
     template.show(port=scanPortsAndFind(start_port=5000, end_port=5200))

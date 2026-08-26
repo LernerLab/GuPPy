@@ -14,7 +14,6 @@ from guppy.orchestration.store_labeling import (
     _npm_params_to_persist,
     _save,
     build_store_labeling_template,
-    make_dir,
     read_header,
     show_dir,
 )
@@ -84,78 +83,6 @@ def test_show_dir_sequential_numbering_no_gap_filling(tmp_path):
     assert result == str(session / "session1_output_2")
 
 
-# ---------------------------------------------------------------------------
-# make_dir
-# ---------------------------------------------------------------------------
-
-
-def test_make_dir_creates_directory(tmp_path):
-    session = tmp_path / "session1"
-    session.mkdir()
-
-    result = make_dir(str(session))
-
-    assert os.path.isdir(result)
-
-
-def test_make_dir_returns_correct_path(tmp_path):
-    session = tmp_path / "session1"
-    session.mkdir()
-
-    result = make_dir(str(session))
-
-    assert result == str(session / "session1_output_1")
-
-
-def test_make_dir_increments_when_previous_exists(tmp_path):
-    session = tmp_path / "session1"
-    session.mkdir()
-    (session / "session1_output_1").mkdir()
-
-    result = make_dir(str(session))
-
-    assert result == str(session / "session1_output_2")
-    assert os.path.isdir(result)
-
-
-def test_make_dir_with_explicit_run_name_creates_named_directory(tmp_path):
-    session = tmp_path / "session1"
-    session.mkdir()
-
-    result = make_dir(str(session), run_name="baseline")
-
-    assert result == str(session / "session1_output_baseline")
-    assert os.path.isdir(result)
-
-
-def test_make_dir_create_policy_raises_on_existing_directory(tmp_path):
-    session = tmp_path / "session1"
-    session.mkdir()
-    (session / "session1_output_baseline").mkdir()
-
-    with pytest.raises(ValueError, match="already exists"):
-        make_dir(str(session), run_name="baseline", run_name_policy="create")
-
-
-def test_make_dir_overwrite_policy_replaces_existing_directory(tmp_path):
-    session = tmp_path / "session1"
-    session.mkdir()
-    existing = session / "session1_output_baseline"
-    existing.mkdir()
-    (existing / "stale.txt").write_text("stale")
-
-    result = make_dir(str(session), run_name="baseline", run_name_policy="overwrite")
-
-    assert result == str(existing)
-    assert os.path.isdir(result)
-    assert not (existing / "stale.txt").exists()
-
-
-def test_make_dir_invalid_policy_raises():
-    with pytest.raises(ValueError, match="run_name_policy"):
-        make_dir("/anywhere", run_name="x", run_name_policy="bogus")
-
-
 def test_show_dir_with_explicit_run_name_returns_named_path(tmp_path):
     session = tmp_path / "session1"
     session.mkdir()
@@ -186,7 +113,9 @@ def test_save_writes_storeslist_csv(isolated_cache):
         "store_labels": ["control_DMS", "signal_DMS", "event1"],
     }
 
-    result = _save(store_labeling_config, select_location)
+    result = _save(
+        store_labeling_config=store_labeling_config, select_location=select_location, overwrite_mode="create_new_file"
+    )
 
     assert result == "#### No alerts !!"
     assert os.path.exists(os.path.join(select_location, "storesList.csv"))
@@ -199,7 +128,9 @@ def test_save_csv_content_matches_input(isolated_cache):
         "store_labels": ["control_DMS", "signal_DMS", "event1"],
     }
 
-    _save(store_labeling_config, select_location)
+    _save(
+        store_labeling_config=store_labeling_config, select_location=select_location, overwrite_mode="create_new_file"
+    )
 
     loaded = np.loadtxt(os.path.join(select_location, "storesList.csv"), delimiter=",", dtype=str)
     np.testing.assert_array_equal(loaded[0], ["Dv1A", "Dv2A", "PulA"])
@@ -213,7 +144,9 @@ def test_save_returns_alert_when_shapes_mismatch(isolated_cache):
         "store_labels": ["control_DMS"],  # length mismatch
     }
 
-    result = _save(store_labeling_config, select_location)
+    result = _save(
+        store_labeling_config=store_labeling_config, select_location=select_location, overwrite_mode="create_new_file"
+    )
 
     assert "Alert" in result
     # Both lengths should be reported in the alert
@@ -228,7 +161,9 @@ def test_save_returns_alert_when_empty_string_in_names(isolated_cache):
         "store_labels": ["control_DMS", ""],  # empty string at index 1
     }
 
-    result = _save(store_labeling_config, select_location)
+    result = _save(
+        store_labeling_config=store_labeling_config, select_location=select_location, overwrite_mode="create_new_file"
+    )
 
     assert "Alert" in result
     # Alert should name the offending index and store_id
@@ -243,7 +178,9 @@ def test_save_returns_alert_listing_multiple_empty_indices(isolated_cache):
         "store_labels": ["", "control_DMS", ""],
     }
 
-    result = _save(store_labeling_config, select_location)
+    result = _save(
+        store_labeling_config=store_labeling_config, select_location=select_location, overwrite_mode="create_new_file"
+    )
 
     assert "Alert" in result
     # Multiple indices listed
@@ -259,7 +196,9 @@ def test_save_updates_cache_file(isolated_cache):
         "store_labels": ["control_DMS", "signal_DMS"],
     }
 
-    _save(store_labeling_config, select_location)
+    _save(
+        store_labeling_config=store_labeling_config, select_location=select_location, overwrite_mode="create_new_file"
+    )
 
     cache_path = isolated_cache / ".storesList.json"
     assert cache_path.exists()
@@ -291,7 +230,11 @@ def test_save_overwrites_clears_all_files_in_existing_dir(isolated_cache):
         "store_labels": ["signal_NAc", "control_NAc"],
     }
 
-    result = _save(store_labeling_config, str(select_location))
+    result = _save(
+        store_labeling_config=store_labeling_config,
+        select_location=str(select_location),
+        overwrite_mode="over_write_file",
+    )
 
     assert result == "#### No alerts !!"
     # Only the freshly written storesList.csv should remain.
@@ -313,7 +256,11 @@ def test_save_overwrites_removes_subdirectories(isolated_cache):
         "store_labels": ["signal_NAc", "control_NAc"],
     }
 
-    _save(store_labeling_config, str(select_location))
+    _save(
+        store_labeling_config=store_labeling_config,
+        select_location=str(select_location),
+        overwrite_mode="over_write_file",
+    )
 
     assert not subdir.exists(), "Subdirectory should have been removed on overwrite"
 
@@ -328,10 +275,36 @@ def test_save_new_dir_creates_directory(isolated_cache):
         "store_labels": ["signal_DMS"],
     }
 
-    result = _save(store_labeling_config, str(select_location))
+    result = _save(
+        store_labeling_config=store_labeling_config,
+        select_location=str(select_location),
+        overwrite_mode="create_new_file",
+    )
 
     assert result == "#### No alerts !!"
     assert select_location.is_dir()
+
+
+def test_save_create_mode_collision_returns_alert_and_preserves_directory(isolated_cache):
+    """In create-new mode an existing run folder is never silently replaced."""
+    select_location = isolated_cache / "session1_output_baseline"
+    select_location.mkdir()
+    (select_location / "precious.hdf5").write_bytes(b"precious")
+
+    store_labeling_config = {
+        "store_ids": ["Dv1A"],
+        "store_labels": ["signal_DMS"],
+    }
+
+    result = _save(
+        store_labeling_config=store_labeling_config,
+        select_location=str(select_location),
+        overwrite_mode="create_new_file",
+    )
+
+    assert "already exists" in result
+    assert (select_location / "precious.hdf5").read_bytes() == b"precious"
+    assert not (select_location / "storesList.csv").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -863,7 +836,6 @@ def test_update_values_passes_empty_cache_when_no_json_file_exists(store_labelin
 def test_save_button_writes_storeslist_and_updates_path(store_labeling_closures, tmp_path):
     selector, _ = store_labeling_closures
     run_folder = str(tmp_path / "my_session_output_1")
-    os.mkdir(run_folder)
 
     selector._literal_input_2 = {
         "store_ids": ["Dv1A", "Dv2A"],
@@ -881,7 +853,6 @@ def test_save_button_writes_storeslist_and_updates_path(store_labeling_closures,
 def test_save_button_sets_alert_on_mismatched_lengths(store_labeling_closures, tmp_path):
     selector, _ = store_labeling_closures
     run_folder = str(tmp_path / "my_session_output_1")
-    os.mkdir(run_folder)
 
     selector._literal_input_2 = {
         "store_ids": ["Dv1A"],
@@ -924,15 +895,15 @@ def test_compute_npm_channel_previews_aligns_ragged_channel_lengths():
 
 
 # ---------------------------------------------------------------------------
-# read_header: interactive NPM defers discovery
+# read_header: NPM defers discovery to the configuration form
 # ---------------------------------------------------------------------------
 
 NPM_3_FOLDER = os.path.join(STUBBED_TESTING_DATA, "npm", "sampleData_NPM_3")
 
 
-def test_read_header_interactive_npm_defers_discovery():
+def test_read_header_npm_defers_discovery():
     # sampleData_NPM_3: file0 has multiple timestamp columns; file1 has multiple event TTLs.
-    events, flags, npm_interactive = read_header({}, num_ch=2, folder_path=NPM_3_FOLDER, interactive=True)
+    events, flags, npm_interactive = read_header({}, num_ch=2, folder_path=NPM_3_FOLDER)
 
     # NPM discovery is deferred to the confirm callback, so no NPM events are returned yet.
     assert events == []
@@ -943,22 +914,14 @@ def test_read_header_interactive_npm_defers_discovery():
     }
 
 
-def test_read_header_non_interactive_npm_discovers_immediately():
-    events, flags, npm_interactive = read_header({}, num_ch=2, folder_path=NPM_3_FOLDER, interactive=False)
-
-    # Non-interactive runs use the injected params (absent here -> defaults) and discover immediately.
-    assert npm_interactive is None
-    assert "file0_chev3" in events
-
-
 # ---------------------------------------------------------------------------
-# build_store_labeling_template: interactive NPM confirm callback
+# build_store_labeling_template: NPM confirm callback
 # ---------------------------------------------------------------------------
 
 
 def test_build_template_npm_interactive_uses_npm_instructions(panel_extension):
     input_parameters = {"noChannels": 2}
-    _, _, npm_interactive = read_header(input_parameters, num_ch=2, folder_path=NPM_3_FOLDER, interactive=True)
+    _, _, npm_interactive = read_header(input_parameters, num_ch=2, folder_path=NPM_3_FOLDER)
 
     template = build_store_labeling_template(
         [], [], NPM_3_FOLDER, inputParameters=input_parameters, npm_interactive=npm_interactive
@@ -971,7 +934,7 @@ def test_build_template_npm_interactive_uses_npm_instructions(panel_extension):
 
 def test_confirm_npm_configuration_writes_params_and_populates_page(panel_extension):
     input_parameters = {"noChannels": 2}
-    _, _, npm_interactive = read_header(input_parameters, num_ch=2, folder_path=NPM_3_FOLDER, interactive=True)
+    _, _, npm_interactive = read_header(input_parameters, num_ch=2, folder_path=NPM_3_FOLDER)
 
     template = build_store_labeling_template(
         [], [], NPM_3_FOLDER, inputParameters=input_parameters, npm_interactive=npm_interactive

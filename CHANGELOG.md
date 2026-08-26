@@ -15,7 +15,7 @@
 - Added a [how-to guide for group analysis](https://guppy.readthedocs.io/en/latest/how-to/group-analysis.html): running Step 4's cross-session averaging and Step 5's averaged-results visualization. [PR #435](https://github.com/LernerLab/GuPPy/pull/435)
 
 ## Deprecations and Removals
-- Removed headless mode: the `GUPPY_BASE_DIR` environment variable and the `is_headless()` helper are gone, with the file pickers' starting directory now coming from `guppy --start-path` and each step deciding for itself whether a user is at the browser. The `base_dir` argument of `guppy.testing.api.label_groups` is removed. [PR #452](https://github.com/LernerLab/GuPPy/pull/452)
+- Removed headless mode: the `GUPPY_BASE_DIR` environment variable and the `is_headless()` helper are gone, with the file pickers' starting directory now coming from `guppy --start-path`. The scripted branches of Label Stores, Label Groups and Input Metadata are removed too — `guppy.testing.api` now drives the real Panel pages headlessly — and Step 1's create-new mode no longer silently overwrites an existing run folder. The `base_dir` argument of `guppy.testing.api.label_groups` is removed, and `api.step1` gains an `isosbestic_control` keyword. [PR #452](https://github.com/LernerLab/GuPPy/pull/452)
 
 # v2.0.0-beta1 (August 20th, 2026)
 

@@ -50,7 +50,7 @@ def test_no_isosbestic(tmp_path):
     )
     selected_runs = {str(session_copy): ["1"]}
 
-    step1(**common_kwargs, store_id_to_store_label=STORE_ID_TO_STORE_LABEL)
+    step1(**common_kwargs, store_id_to_store_label=STORE_ID_TO_STORE_LABEL, isosbestic_control=False)
     step2(**common_kwargs, selected_runs=selected_runs)
     step3(**common_kwargs, isosbestic_control=False, selected_runs=selected_runs)
     step4(**common_kwargs, selected_runs=selected_runs)

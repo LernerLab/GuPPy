@@ -51,9 +51,6 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
         base_dir=base_dir,
         selected_folders=selected_folders,
         store_id_to_store_label=store_id_to_store_label,
-        npm_timestamp_column_name=None,
-        npm_time_unit=None,
-        npm_split_events=[True, True],
     )
 
     step2(

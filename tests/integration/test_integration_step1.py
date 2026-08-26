@@ -161,22 +161,19 @@ def test_step1(tmp_path, session_subdir, store_id_to_store_label):
       - Calls step1 headlessly with an explicit, deterministic store_id_to_store_label
       - Asserts storesList.csv exists and exactly matches the provided mapping (2xN)
     """
-    if session_subdir == "npm/sampleData_NPM_1":
-        npm_timestamp_column_name = None
-        npm_time_unit = None
+    npm_timestamp_column_name = None
+    npm_time_unit = None
+    npm_split_events = None
+    if session_subdir in ("npm/sampleData_NPM_1", "npm/sampleData_NPM_4"):
+        # file1 is the only file with multiple event TTLs, so it is the only one that can split.
         npm_split_events = [False, True]
     elif session_subdir == "npm/sampleData_NPM_3":
         npm_timestamp_column_name = "ComputerTimestamp"
         npm_time_unit = "milliseconds"
         npm_split_events = [False, True]
-    else:
-        npm_timestamp_column_name = None
-        npm_time_unit = None
-        npm_split_events = [True, True]
-    if session_subdir == "npm/sampleData_NPM_5":
+    elif session_subdir == "npm/sampleData_NPM_5":
         # Header-less session: its clock is in milliseconds, which only the user can state.
         npm_time_unit = "milliseconds"
-        npm_split_events = None
     # Source sample data
     src_base_dir = str(STUBBED_TESTING_DATA)
     src_session = os.path.join(src_base_dir, session_subdir)
@@ -252,4 +249,9 @@ def test_step1(tmp_path, session_subdir, store_id_to_store_label):
         with open(npm_params_fp) as npm_params_file:
             npm_params = json.load(npm_params_file)
         assert npm_params["npm_time_unit"] == (npm_time_unit or "seconds")
-        assert npm_params["npm_timestamp_column_name"] == npm_timestamp_column_name
+        # Sessions offering more than one timestamp column persist the confirmed selection
+        # (the form default when the caller supplied none); single-column sessions persist None.
+        if session_subdir == "npm/sampleData_NPM_1":
+            assert npm_params["npm_timestamp_column_name"] == "SystemTimestamp"
+        else:
+            assert npm_params["npm_timestamp_column_name"] == npm_timestamp_column_name
