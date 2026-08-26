@@ -10,9 +10,11 @@
 ## Fixes
 
 ## Improvements
+- Made `count_samples()` a required method of the recording extractor contract, so a new acquisition format that omits it fails immediately instead of quietly mis-sizing the Read Raw Data progress bar. [PR #450](https://github.com/LernerLab/GuPPy/pull/450)
 - Refreshed the GuPPy branding: a new logo across the README and the documentation site, a fish-only mark in the docs header that stays legible in both light and dark mode, and a favicon for the documentation site, which previously had none. [PR #445](https://github.com/LernerLab/GuPPy/pull/445)
 - Reworked the documentation home page into a card-grid launch point over the Diátaxis sections, moved the installation walkthrough from the README onto its own [installation page](https://guppy.readthedocs.io/en/latest/installation.html), and trimmed the README to a quick start plus pointers to the docs. [PR #444](https://github.com/LernerLab/GuPPy/pull/444)
 - Added a [how-to guide for group analysis](https://guppy.readthedocs.io/en/latest/how-to/group-analysis.html): running Step 4's cross-session averaging and Step 5's averaged-results visualization. [PR #435](https://github.com/LernerLab/GuPPy/pull/435)
+- Removed the `progress_bar` pytest marker, which was applied to no tests and made every Windows CI run deselect nothing. [PR #449](https://github.com/LernerLab/GuPPy/pull/449)
 
 ## Deprecations and Removals
 - Removed headless mode: the `GUPPY_BASE_DIR` environment variable and the `is_headless()` helper are gone, with the file pickers' starting directory now coming from `guppy --start-path`. The scripted branches of Label Stores, Label Groups and Input Metadata are removed too — `guppy.testing.api` now drives the real Panel pages headlessly — and Step 1's create-new mode no longer silently overwrites an existing run folder. The `base_dir` argument of `guppy.testing.api.label_groups` is removed, and `api.step1` gains an `isosbestic_control` keyword. [PR #452](https://github.com/LernerLab/GuPPy/pull/452)
