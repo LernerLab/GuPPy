@@ -59,10 +59,15 @@ class TestPyPhotometryRecordingExtractor(RecordingExtractorTestMixin):
     extractor_class = PyPhotometryRecordingExtractor
     folder_path = _session("two_excitation_two_emission_pulsed")
     extractor_instance = PyPhotometryRecordingExtractor(folder_path)
-    expected_events = ["analog_1", "analog_2", "digital_1", "digital_2"]
+    expected_events = [
+        "detector_1_excitation_1",
+        "detector_2_excitation_2",
+        "digital_1",
+        "digital_2",
+    ]
     discover_kwargs = {}
-    control_event = "analog_2"
-    signal_event = "analog_1"
+    control_event = "detector_2_excitation_2"
+    signal_event = "detector_1_excitation_1"
     ttl_event = "digital_1"
     stub_ttl_test_duration_in_seconds = 8.0
 
@@ -97,18 +102,25 @@ class TestPyPhotometryRecordingExtractor(RecordingExtractorTestMixin):
 # ---------------------------------------------------------------------------
 
 
+TWO_DETECTORS = ["detector_1_excitation_1", "detector_2_excitation_2", "digital_1", "digital_2"]
+ONE_DETECTOR = ["detector_1_excitation_1", "detector_1_excitation_2", "digital_1", "digital_2"]
+
+
 @pytest.mark.parametrize(
     "session, expected_events, expected_rate",
     [
         # Modern symbolic names, header version 1.0 and later.
-        ("two_excitation_two_emission_pulsed", ["analog_1", "analog_2", "digital_1", "digital_2"], 130.0),
+        ("two_excitation_two_emission_pulsed", TWO_DETECTORS, 130.0),
         # Prose names, header versions 0.2 and 0.3.
-        ("two_colour_time_division", ["analog_1", "analog_2", "digital_1", "digital_2"], 130.0),
-        ("two_colour_continuous", ["analog_1", "analog_2", "digital_1", "digital_2"], 1000.0),
-        # Indicator names, header version 0.1.
-        ("gcamp_rfp_dif", ["analog_1", "analog_2", "digital_1", "digital_2"], 130.0),
-        # The fixed-layout header that predates the JSON one.
-        ("two_signals_200hz", ["analog_1", "analog_2", "digital_1", "digital_2"], 200.0),
+        ("two_colour_time_division", TWO_DETECTORS, 130.0),
+        ("two_colour_continuous", TWO_DETECTORS, 1000.0),
+        # One photodetector strobed under two excitation sources, which is the signal-plus-isosbestic
+        # configuration and the case the store names exist to make visible.
+        ("narrow_pulses_and_idle_line", ONE_DETECTOR, 130.0),
+        # Indicator names, used by the software that predates the first tagged release.
+        ("gcamp_rfp_dif", TWO_DETECTORS, 130.0),
+        # The fixed-layout header that predates the JSON one, whose mode byte indexes the same modes.
+        ("two_signals_200hz", TWO_DETECTORS, 200.0),
     ],
 )
 def test_discovery_and_rate_per_header_generation(session, expected_events, expected_rate):
@@ -118,38 +130,22 @@ def test_discovery_and_rate_per_header_generation(session, expected_events, expe
     assert flags == []
 
     extractor = PyPhotometryRecordingExtractor(folder_path=folder_path)
-    output_dicts = extractor.read(events=["analog_1", "analog_2"], outputPath=folder_path)
+    output_dicts = extractor.read(events=expected_events[:2], outputPath=folder_path)
     for output_dict in output_dicts:
         assert output_dict["sampling_rate"][0] == pytest.approx(expected_rate)
 
 
-def test_four_colour_fork_gives_four_traces_at_half_the_header_rate():
-    """The fork multiplexes two colours per analog input, so its traces run at half the header rate.
+def test_four_colour_fork_is_refused_with_a_message_naming_the_fork():
+    """The fork alternates two excitation sources on each analog line, at half the advertised rate.
 
-    Reading this file by the format's documented two-signal rule returns two traces that alternate
-    colours every sample. Nothing but the mode string distinguishes it, which is why the reader
-    dispatches on the mode rather than falling back to a default.
+    Its file is indistinguishable from an ordinary two-signal recording except by its mode string,
+    and the layout is stated nowhere the file or the firmware can be asked, so it is refused. The
+    message names the fork and its paper instead of calling the mode unknown, which is what tells a
+    user with such a recording to ask rather than assume the format is unsupported.
     """
     folder_path = _session("four_colour_time_division")
-    events, _ = PyPhotometryRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
-    assert events == [
-        "analog_1_color_1",
-        "analog_1_color_2",
-        "analog_2_color_1",
-        "analog_2_color_2",
-        "digital_1",
-        "digital_2",
-    ]
-
-    extractor = PyPhotometryRecordingExtractor(folder_path=folder_path)
-    output_dicts = extractor.read(events=events[:4], outputPath=folder_path)
-    # The header states 65 Hz; each analog input visits each of its two colours once per cycle.
-    for output_dict in output_dicts:
-        assert output_dict["sampling_rate"][0] == pytest.approx(32.5)
-
-    # The recording stops mid-cycle, so the last two slots are one sample short of the first two.
-    sample_counts = [output_dict["data"].size for output_dict in output_dicts]
-    assert max(sample_counts) - min(sample_counts) == 1
+    with pytest.raises(ValueError, match="Wiegert-lab fork"):
+        PyPhotometryRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
 
 
 def test_unknown_mode_is_refused_rather_than_read_with_the_default_layout(tmp_path):
@@ -199,13 +195,13 @@ def test_digital_lines_report_pulse_onsets(session, event, expected_onset_count)
     assert output_dict["timestamps"].size == expected_onset_count
 
 
-def test_digital_lines_are_staggered_like_the_analog_inputs_they_ride_on():
-    """A digital line rides in the low bit of its analog input's words, so it starts when that does."""
+def test_digital_lines_are_staggered_like_the_slots_they_ride_on():
+    """A digital line rides in the low bit of its slot's words, so it starts when that slot does."""
     folder_path = _session("wide_pulses_on_both_lines")
     extractor = PyPhotometryRecordingExtractor(folder_path=folder_path)
     first, second = (extractor._signal_for_event(event) for event in ("digital_1", "digital_2"))
 
-    # One tick of the 260 Hz sampling timer: two analog inputs at the header's 130 Hz.
+    # One tick of the 260 Hz sampling timer: two slots at the header's 130 Hz.
     expected_offset = 1.0 / (130.0 * 2)
     assert second.starting_time_in_seconds - first.starting_time_in_seconds == pytest.approx(expected_offset)
 
@@ -215,11 +211,11 @@ def test_digital_lines_are_staggered_like_the_analog_inputs_they_ride_on():
 # ---------------------------------------------------------------------------
 
 
-def test_strobed_analog_inputs_are_staggered_by_one_timer_tick():
-    """The board has no simultaneous converters; a strobed recording's inputs are one tick apart."""
+def test_strobed_slots_are_staggered_by_one_timer_tick():
+    """The board has no simultaneous converters; a strobed recording's slots are one tick apart."""
     folder_path = _session("two_colour_time_division")
     extractor = PyPhotometryRecordingExtractor(folder_path=folder_path)
-    first, second = extractor.read(events=["analog_1", "analog_2"], outputPath=folder_path)
+    first, second = extractor.read(events=TWO_DETECTORS[:2], outputPath=folder_path)
 
     expected_offset = 1.0 / (130.0 * 2)
     assert second["timestamps"][0] - first["timestamps"][0] == pytest.approx(expected_offset)
@@ -230,7 +226,7 @@ def test_continuous_mode_shares_the_headers_timebase():
     record, so no offset is claimed rather than inventing one."""
     folder_path = _session("two_colour_continuous")
     extractor = PyPhotometryRecordingExtractor(folder_path=folder_path)
-    first, second = extractor.read(events=["analog_1", "analog_2"], outputPath=folder_path)
+    first, second = extractor.read(events=TWO_DETECTORS[:2], outputPath=folder_path)
 
     assert first["timestamps"][0] == 0.0
     assert second["timestamps"][0] == 0.0
@@ -257,5 +253,5 @@ def test_folder_with_several_ppd_files_is_refused(tmp_path):
 
 def test_unknown_store_name_names_the_available_stores():
     extractor = PyPhotometryRecordingExtractor(folder_path=_session("two_colour_time_division"))
-    with pytest.raises(ValueError, match="No pyPhotometry store named 'analog_9'"):
-        extractor.read(events=["analog_9"], outputPath=_session("two_colour_time_division"))
+    with pytest.raises(ValueError, match="No pyPhotometry store named 'detector_9_excitation_9'"):
+        extractor.read(events=["detector_9_excitation_9"], outputPath=_session("two_colour_time_division"))

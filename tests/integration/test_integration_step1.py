@@ -136,8 +136,8 @@ from guppy_test_data import STUBBED_TESTING_DATA
         (
             "pyphotometry/full_pipeline_session",
             {
-                "analog_2": "control_region",
-                "analog_1": "signal_region",
+                "detector_2_excitation_2": "control_region",
+                "detector_1_excitation_1": "signal_region",
                 "digital_2": "ttl",
             },
         ),

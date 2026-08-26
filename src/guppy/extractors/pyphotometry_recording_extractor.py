@@ -28,14 +28,21 @@ class PyPhotometryRecordingExtractor(BaseRecordingExtractor):
     A session folder holds one ``.ppd`` file, which carries every signal the board recorded
     interleaved into a single stream of 16-bit words. It is separated back into stores here:
 
-    * ``analog_<n>`` — one photometry trace per analog input, in volts. On the four-colour fork,
-      where an analog input time-multiplexes two colours, the stores are named
-      ``analog_<n>_color_<m>`` and each runs at half the rate the header advertises.
+    * ``detector_<n>_excitation_<m>`` — one photometry trace per slot of the sampling cycle, in
+      volts, named for the photodetector that was read and the excitation source that was lit.
+      A shared ``detector_<n>`` prefix means a shared optical fiber, so those stores belong to one
+      recording site and should carry ``signal_``/``control_`` labels for the same site. That is the
+      decision Step 1 asks you to make, and the board's own ``analog_1``/``analog_2`` get it wrong:
+      they read as two sockets, while the strobed one-emission modes read a single photodetector
+      twice under different excitations.
     * ``digital_<n>`` — one store per digital line, holding the onset time of each pulse.
 
-    The board has no simultaneous analog-to-digital converters, so its analog inputs were never
-    sampled at the same instants. In the strobed modes the offset between them is exactly one tick
-    of the ``sampling_rate * analog_input_count`` timer, and each store's timestamps carry it.
+    The board has no simultaneous analog-to-digital converters, so its slots were never sampled at
+    the same instants. In the strobed modes the offset between them is exactly one tick of the
+    ``sampling_rate * analog_input_count`` timer, and each store's timestamps carry it.
+
+    The four-colour fork of the acquisition software is refused rather than read, since its layout
+    is stated nowhere the file or the firmware can be asked. The error names the fork.
 
     On header version 1.1 and later a strobed recording stores an LED-on sample and the LED-off
     baseline beside it. Only their difference is exposed as a store, since that is the trace every
@@ -67,11 +74,9 @@ class PyPhotometryRecordingExtractor(BaseRecordingExtractor):
         return ppd_paths[0]
 
     @staticmethod
-    def _analog_store_id(signal: PPDAnalogSignal, multiplexed: bool) -> str:
-        """Name one analog store. Colour appears in the name only when the mode multiplexes them."""
-        if multiplexed:
-            return f"analog_{signal.analog_input + 1}_color_{signal.color_index + 1}"
-        return f"analog_{signal.analog_input + 1}"
+    def _analog_store_id(detector_index: int, excitation_index: int) -> str:
+        """Name one analog store by the two devices that produced it, counting from one."""
+        return f"detector_{detector_index + 1}_excitation_{excitation_index + 1}"
 
     @staticmethod
     def _digital_store_id(signal: PPDDigitalSignal) -> str:
@@ -101,15 +106,11 @@ class PyPhotometryRecordingExtractor(BaseRecordingExtractor):
         # not de-interleaved here — discovery runs on every session folder in step 1.
         header, _payload = _read_header(Path(ppd_path).read_bytes())
         layout = _get_layout(header)
-        multiplexed = layout.colors_per_input > 1
 
-        events = []
-        for analog_input in range(layout.analog_input_count):
-            for color_index in range(layout.colors_per_input):
-                if multiplexed:
-                    events.append(f"analog_{analog_input + 1}_color_{color_index + 1}")
-                else:
-                    events.append(f"analog_{analog_input + 1}")
+        events = [
+            cls._analog_store_id(detector_index, excitation_index)
+            for detector_index, excitation_index in layout.slot_mapping
+        ]
 
         digital_count = min(int(header.get("n_digital_signals", 2)), layout.analog_input_count)
         for digital_input in range(digital_count):
@@ -131,10 +132,10 @@ class PyPhotometryRecordingExtractor(BaseRecordingExtractor):
     def _store_id_to_signal(self) -> dict[str, PPDAnalogSignal | PPDDigitalSignal]:
         """Map every store id onto the signal it names."""
         recording = self._read_recording()
-        multiplexed = any(signal.color_index > 0 for signal in recording.analog_signals)
         store_id_to_signal: dict[str, PPDAnalogSignal | PPDDigitalSignal] = {}
         for signal in recording.analog_signals:
-            store_id_to_signal[self._analog_store_id(signal, multiplexed)] = signal
+            store_id = self._analog_store_id(signal.detector_index, signal.excitation_index)
+            store_id_to_signal[store_id] = signal
         for signal in recording.digital_signals:
             store_id_to_signal[self._digital_store_id(signal)] = signal
         return store_id_to_signal
@@ -247,8 +248,8 @@ class PyPhotometryRecordingExtractor(BaseRecordingExtractor):
 
         Copies the folder, then rewrites the ``.ppd`` file keeping its header byte for byte and
         cutting the word stream at a **cycle boundary**, so every store keeps the same number of
-        samples as it would have had. Cutting anywhere else would leave the analog inputs with
-        different lengths.
+        samples as it would have had. Cutting anywhere else would leave the slots with different
+        lengths.
 
         Parameters
         ----------
@@ -274,13 +275,11 @@ class PyPhotometryRecordingExtractor(BaseRecordingExtractor):
         header, _payload = _read_header(raw)
         layout = _get_layout(header)
         recording = self._read_recording()
-        words_per_cycle = (
-            layout.analog_input_count * layout.colors_per_input * (2 if recording.has_paired_samples else 1)
-        )
+        words_per_cycle = layout.analog_input_count * (2 if recording.has_paired_samples else 1)
 
-        # A cycle carries one sample of every signal, and a signal's own rate is the header's divided
-        # by however many colours its analog line multiplexes.
-        signal_rate = float(header["sampling_rate"]) / layout.colors_per_input
+        # A cycle carries one sample of every signal, and every slot is visited once per cycle, so each
+        # signal samples at the rate the header states.
+        signal_rate = float(header["sampling_rate"])
         cycles_to_keep = max(1, int(round(duration_in_seconds * signal_rate)))
         bytes_to_keep = cycles_to_keep * words_per_cycle * 2
         destination_path.write_bytes(header_and_length + payload[:bytes_to_keep])
