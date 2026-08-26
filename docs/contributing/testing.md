@@ -20,8 +20,7 @@ command to run while iterating on it — saves you from waiting on the slow ones
 
 ## Markers
 
-Four of the five registered markers gate tests that need something beyond a plain `pytest`
-invocation:
+The registered markers gate tests that need something beyond a plain `pytest` invocation:
 
 - **`full_data`** — needs the full `testing_data/` download, not present in a normal checkout.
   Deselect with `-m "not full_data"`.
@@ -31,8 +30,6 @@ invocation:
   `-m "not ui"`.
 - **`dandi_live`** — streams from the real DANDI Archive over the network. Opt in explicitly with
   `-m dandi_live`; never run it as part of a broader selection.
-- **`progress_bar`** — exercises the progress-bar file-locking loop. Currently applied to no tests,
-  and skipped on Windows in CI when it is.
 
 Markers are declared in
 [`pyproject.toml`](https://github.com/LernerLab/GuPPy/blob/main/pyproject.toml) under
