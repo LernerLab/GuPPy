@@ -106,7 +106,6 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
     # `if len(bin_columns) > 0:` branch inside psth_average.average_psth_for_group, which
     # concatenates and aggregates bin columns across the member runs.
     label_groups(
-        base_dir=base_dir,
         member_run_folders=[
             os.path.join(folder, f"{os.path.basename(folder)}_output_1") for folder in selected_folders
         ],

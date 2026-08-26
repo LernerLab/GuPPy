@@ -12,33 +12,33 @@ import logging
 
 from ..frontend.frontend_utils import scanPortsAndFind
 from ..frontend.group_labeling import GroupLabelingPage, save_group_definition
-from ..utils.utils import group_folder_for_group, is_headless, validate_group_name
+from ..utils.utils import group_folder_for_group, validate_group_name
 from ..utils.validation import validate_group_member_run_folders
 
 logger = logging.getLogger(__name__)
 
 
 def orchestrate_group_labeling_page(inputParameters: dict[str, object]) -> None:
-    """Open the Label Groups page, or write the definition directly when headless.
+    """Open the Label Groups page, or write the definition directly when it was supplied.
 
-    Headless callers supply ``group_name``, ``group_destination_directory`` and
+    Scripted callers supply ``group_name``, ``group_destination_directory`` and
     ``group_member_run_folders``; the GUI collects the same three on the page.
 
     Parameters
     ----------
     inputParameters : dict
         Full pipeline input parameters; uses ``selected_group_folders`` to populate the
-        page's edit list, and the headless keys above when present.
+        page's edit list, and the supplied-definition keys above when present.
 
     Raises
     ------
     ValueError
-        When the headless group name or member selection is invalid.
+        When the supplied group name or member selection is invalid.
     """
     group_name = inputParameters.get("group_name")
     destination_directory = inputParameters.get("group_destination_directory")
 
-    if is_headless() and group_name and destination_directory:
+    if group_name and destination_directory:
         validate_group_name(group_name)
         member_run_folders = list(inputParameters.get("group_member_run_folders") or [])
         validate_group_member_run_folders(member_run_folders=member_run_folders)

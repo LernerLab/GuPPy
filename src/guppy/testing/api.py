@@ -85,8 +85,8 @@ def save_parameters_snapshot(*, base_dir: str, selected_folders: Iterable[str]) 
 
     In the GUI this snapshot is now written automatically by each consuming step
     (steps 1–4); this helper exposes the same ``save_parameters`` write directly
-    for tests and scripted provenance. It builds the form headlessly (using
-    ``GUPPY_BASE_DIR`` to bypass the folder dialog), sets the FileSelector to
+    for tests and scripted provenance. It builds the form headlessly (rooting the
+    file selectors at ``base_dir``), sets the FileSelector to
     ``selected_folders``, and calls ``save_parameters`` with the current
     parameters.
 
@@ -105,10 +105,8 @@ def save_parameters_snapshot(*, base_dir: str, selected_folders: Iterable[str]) 
         If the template does not expose the required testing hooks
         (``_hooks['getInputParameters']`` and ``_widgets['files_1']``).
     """
-    os.environ["GUPPY_BASE_DIR"] = base_dir
-
     # Build the template headlessly
-    template = build_homepage()
+    template = build_homepage(start_path=base_dir)
 
     # Sanity checks: ensure hooks/widgets exposed
     if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
@@ -127,7 +125,7 @@ def import_custom_events(
     """Write custom event CSVs into sessions via the actual Panel-backed logic, headlessly.
 
     Mirrors the optional "Import Custom Events" GUI step: builds the form
-    headlessly (using ``GUPPY_BASE_DIR`` to bypass the folder dialog), sets the
+    headlessly (rooting the file selectors at ``base_dir``), sets the
     FileSelector to ``selected_folders``, injects ``custom_events_map``, and calls
     ``orchestrate_custom_events_page``. Each event is written as a
     GuPPy-compatible ``<name>.csv`` into its session folder. This is an unnumbered,
@@ -149,9 +147,7 @@ def import_custom_events(
     RuntimeError
         If the template does not expose the required testing hooks/widgets.
     """
-    os.environ["GUPPY_BASE_DIR"] = base_dir
-
-    template = build_homepage()
+    template = build_homepage(start_path=base_dir)
 
     if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
         raise RuntimeError("build_homepage did not expose 'getInputParameters' hook")
@@ -179,8 +175,8 @@ def step1(
     """
     Run pipeline Step 1 (Label Stores) via the actual Panel-backed logic.
 
-    This builds the Step 1 template headlessly (using ``GUPPY_BASE_DIR`` to bypass
-    the folder dialog), sets the FileSelector to ``selected_folders``, retrieves
+    This builds the Step 1 template headlessly (rooting the file selectors at
+    ``base_dir``), sets the FileSelector to ``selected_folders``, retrieves
     the full input parameters via ``getInputParameters()``, injects the provided
     ``store_id_to_store_label``, and calls ``execute(inputParameters)`` from
     ``guppy.saveStoresList``. The execute() function is minimally augmented to
@@ -250,9 +246,8 @@ def step1(
                 "strings (the store label such as 'control_DMS' or 'signal_NAc')."
             )
 
-    # Headless build: set base_dir and construct the template
-    os.environ["GUPPY_BASE_DIR"] = base_dir
-    template = build_homepage()
+    # Headless build: construct the template rooted at base_dir
+    template = build_homepage(start_path=base_dir)
 
     # Ensure hooks/widgets exposed
     if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
@@ -301,8 +296,8 @@ def step2(
     """
     Run pipeline Step 2 (Read Raw Data) via the actual Panel-backed logic, headlessly.
 
-    This builds the template headlessly (using ``GUPPY_BASE_DIR`` to bypass
-    the folder dialog), sets the FileSelector to ``selected_folders``, retrieves
+    This builds the template headlessly (rooting the file selectors at
+    ``base_dir``), sets the FileSelector to ``selected_folders``, retrieves
     the full input parameters via ``getInputParameters()``, and calls the
     underlying worker ``guppy.readTevTsq.readRawData(input_params)`` that the
     UI invokes on its background worker thread. No GUI is spawned.
@@ -354,9 +349,8 @@ def step2(
                 f"Got parent {parent!r} for session {session!r}, expected {base_dir!r}"
             )
 
-    # Headless build: set base_dir and construct the template
-    os.environ["GUPPY_BASE_DIR"] = base_dir
-    template = build_homepage()
+    # Headless build: construct the template rooted at base_dir
+    template = build_homepage(start_path=base_dir)
 
     # Ensure hooks/widgets exposed
     if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
@@ -413,9 +407,8 @@ def _build_preprocess_input_parameters(
     """
     Build the input-parameter dict the preprocessing workers consume, headlessly.
 
-    Validates the folder arguments, builds the Panel template with
-    ``GUPPY_BASE_DIR`` set, retrieves ``getInputParameters()``, and overwrites the
-    keys the caller specified.
+    Validates the folder arguments, builds the Panel template rooted at ``base_dir``,
+    retrieves ``getInputParameters()``, and overwrites the keys the caller specified.
 
     Returns
     -------
@@ -455,9 +448,8 @@ def _build_preprocess_input_parameters(
                 f"Got parent {parent!r} for session {session!r}, expected {base_dir!r}"
             )
 
-    # Headless build: set base_dir and construct the template
-    os.environ["GUPPY_BASE_DIR"] = base_dir
-    template = build_homepage()
+    # Headless build: construct the template rooted at base_dir
+    template = build_homepage(start_path=base_dir)
 
     # Ensure hooks/widgets exposed
     if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
@@ -529,8 +521,8 @@ def step3(
     """
     Run pipeline Step 3 (Extract timestamps and signal) via the Panel-backed logic, headlessly.
 
-    This builds the template headlessly (using ``GUPPY_BASE_DIR`` to bypass
-    the folder dialog), sets the FileSelector to ``selected_folders``, retrieves
+    This builds the template headlessly (rooting the file selectors at
+    ``base_dir``), sets the FileSelector to ``selected_folders``, retrieves
     the full input parameters via ``getInputParameters()``, and calls the
     underlying worker ``guppy.preprocess.extractTsAndSignal(input_params)`` that the
     UI invokes on its background worker thread. No GUI is spawned.
@@ -849,8 +841,8 @@ def step4(
     """
     Run pipeline Step 4 (PSTH Computation) via the Panel-backed logic, headlessly.
 
-    This builds the template headlessly (using ``GUPPY_BASE_DIR`` to bypass
-    the folder dialog), sets the FileSelector to ``selected_folders``, retrieves
+    This builds the template headlessly (rooting the file selectors at
+    ``base_dir``), sets the FileSelector to ``selected_folders``, retrieves
     the full input parameters via ``getInputParameters()``, and calls the
     underlying worker ``guppy.computePsth.psthForEachStore(input_params)`` that the
     UI invokes on its background worker thread. No GUI is spawned.
@@ -935,9 +927,8 @@ def step4(
                 f"Got parent {parent!r} for session {session!r}, expected {base_dir!r}"
             )
 
-    # Headless build: set base_dir and construct the template
-    os.environ["GUPPY_BASE_DIR"] = base_dir
-    template = build_homepage()
+    # Headless build: construct the template rooted at base_dir
+    template = build_homepage(start_path=base_dir)
 
     # Ensure hooks/widgets exposed
     if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
@@ -996,7 +987,6 @@ def step4(
 
 def label_groups(
     *,
-    base_dir: str,
     member_run_folders: Iterable[str],
     destination_directory: str,
     group_name: str,
@@ -1008,8 +998,6 @@ def label_groups(
 
     Parameters
     ----------
-    base_dir : str
-        Root directory used to initialize the FileSelector.
     member_run_folders : iterable of str
         Output (run) directories to record as the group's members. Each must already
         hold Step-4 results.
@@ -1018,7 +1006,6 @@ def label_groups(
     group_name : str
         Name of the group. Becomes the ``<group_name>_group`` directory name.
     """
-    os.environ["GUPPY_BASE_DIR"] = base_dir
     orchestrate_group_labeling_page(
         {
             "group_name": group_name,
@@ -1057,8 +1044,7 @@ def group_analysis(
     compute_corr : bool
         Whether cross-correlation outputs are combined.
     """
-    os.environ["GUPPY_BASE_DIR"] = base_dir
-    template = build_homepage()
+    template = build_homepage(start_path=base_dir)
 
     absolute_groups = [os.path.abspath(folder) for folder in selected_group_folders]
     template._widgets["group_folders_selector"].value = absolute_groups
@@ -1089,8 +1075,8 @@ def step5(
     """
     Run pipeline Step 5 (Visualize Results) via the Panel-backed logic, headlessly.
 
-    This builds the template headlessly (using ``GUPPY_BASE_DIR`` to bypass
-    the folder dialog), sets the FileSelector to ``selected_folders``, retrieves
+    This builds the template headlessly (rooting the file selectors at
+    ``base_dir``), sets the FileSelector to ``selected_folders``, retrieves
     the full input parameters via ``getInputParameters()``, and calls
     ``visualizeResults(input_params)``. No GUI is spawned.
 
@@ -1152,9 +1138,8 @@ def step5(
                 f"Got parent {parent!r} for session {session!r}, expected {base_dir!r}"
             )
 
-    # Headless build: set base_dir and construct the template
-    os.environ["GUPPY_BASE_DIR"] = base_dir
-    template = build_homepage()
+    # Headless build: construct the template rooted at base_dir
+    template = build_homepage(start_path=base_dir)
 
     # Ensure hooks/widgets exposed
     if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
@@ -1196,8 +1181,8 @@ def _build_headless_input_parameters(
 ) -> tuple[dict[str, object], list[str]]:
     """Validate the folder selection and return the input parameters a headless step runs with.
 
-    Mirrors the production call chain: set ``GUPPY_BASE_DIR`` so the folder dialog is bypassed,
-    build the homepage, select the sessions, then read the parameters back off the form.
+    Mirrors the production call chain: build the homepage rooted at ``base_dir``,
+    select the sessions, then read the parameters back off the form.
 
     Parameters
     ----------
@@ -1241,8 +1226,7 @@ def _build_headless_input_parameters(
                 f"Got parent {parent!r} for session {session!r}, expected {base_dir!r}"
             )
 
-    os.environ["GUPPY_BASE_DIR"] = base_dir
-    template = build_homepage()
+    template = build_homepage(start_path=base_dir)
 
     if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
         raise RuntimeError("savingInputParameters did not expose 'getInputParameters' hook")
@@ -1264,7 +1248,7 @@ def step6(
     Run pipeline Step 6 (Input Metadata) via the Panel-backed logic, headlessly.
 
     Builds one metadata page per selected session that needs one, without serving any of them:
-    ``orchestrate_metadata_page`` skips ``template.show`` whenever ``GUPPY_BASE_DIR`` is set.
+    ``orchestrate_metadata_page`` is called with ``serve=False``.
     Sessions GuPPy processed out of an NWB file are skipped entirely, as in the GUI.
 
     Because nothing is served, this writes no ``nwb_metadata.yaml``; it exercises the page
@@ -1297,7 +1281,7 @@ def step6(
     input_params["selected_runs"] = _normalize_selected_runs(selected_runs, abs_sessions)
 
     # Call the underlying Step 6 worker directly, as the GUI does
-    orchestrate_metadata_page(input_params)
+    orchestrate_metadata_page(input_params, serve=False)
 
 
 def step7(

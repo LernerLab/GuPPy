@@ -60,6 +60,16 @@ class DandiSelector:
     Selected absolute paths are translated back to ``dandi://`` URIs via
     ``selected_uris``.
 
+    Parameters
+    ----------
+    styles : dict of {str: str} or None
+        Panel styles applied to the composed layout.
+    mirror_parent : str or None
+        Parent directory the placeholder asset tree is materialized under.
+    start_path : str or None
+        Initial directory shown in the local output-directory selector. Falls back to
+        ``default_root_path()`` when not supplied or when the path does not exist.
+
     Attributes
     ----------
     panel : panel.Column
@@ -72,7 +82,9 @@ class DandiSelector:
         ``None`` if none is selected.
     """
 
-    def __init__(self, *, styles: dict[str, str] | None = None, mirror_parent: str | None = None) -> None:
+    def __init__(
+        self, *, styles: dict[str, str] | None = None, mirror_parent: str | None = None, start_path: str | None = None
+    ) -> None:
         self.styles = styles or dict(background="WhiteSmoke")
         # Allow tests to inject a tmp_path-based parent; default to the
         # module-level stable location.
@@ -97,7 +109,7 @@ class DandiSelector:
         self._asset_file_selector_slot = pn.Column(self.asset_file_selector)
 
         self.output_root_selector = pn.widgets.FileSelector(
-            default_root_path(),
+            start_path if start_path and os.path.isdir(start_path) else default_root_path(),
             root_directory="/",
             name="Local output directory",
             width=950,

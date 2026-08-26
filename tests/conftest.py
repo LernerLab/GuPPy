@@ -6,11 +6,6 @@ import holoviews as hv
 import panel as pn
 import pytest
 
-# Set GUPPY_BASE_DIR before any guppy source modules are imported. This is
-# GuPPy's headless flag: orchestration code checks it to skip figure creation.
-# The per-test step functions will override this with the actual base_dir.
-os.environ.setdefault("GUPPY_BASE_DIR", "1")
-
 # Use "spawn" start method for all multiprocessing in tests. "fork" (the Linux
 # default) can deadlock when forking a multi-threaded pytest host, and can stall
 # coverage measurement waiting on child-process signals. "spawn" creates a clean

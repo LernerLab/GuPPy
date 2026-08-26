@@ -14,7 +14,6 @@ from guppy.utils.utils import (
     get_all_stores_for_combining_data,
     group_folder_for_group,
     is_group_folder,
-    is_headless,
     load_npm_params,
     parse_group_name,
     parse_run_name,
@@ -407,19 +406,6 @@ def test_load_npm_params_raises_for_file_written_before_the_session_wide_unit(tm
 
     with pytest.raises(ValueError, match=r"records no 'npm_time_unit'"):
         load_npm_params(str(run_folder))
-
-
-# ── is_headless ───────────────────────────────────────────────────────────────
-
-
-def test_is_headless_true_when_base_dir_set(monkeypatch):
-    monkeypatch.setenv("GUPPY_BASE_DIR", "/some/base/dir")
-    assert is_headless() is True
-
-
-def test_is_headless_false_when_base_dir_unset(monkeypatch):
-    monkeypatch.delenv("GUPPY_BASE_DIR", raising=False)
-    assert is_headless() is False
 
 
 class TestTransientEventLabels:

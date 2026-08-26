@@ -102,7 +102,6 @@ def test_group_analysis(copied_sessions):
 
     # Run group averaging pass
     label_groups(
-        base_dir=base_dir,
         member_run_folders=[
             os.path.join(folder, f"{os.path.basename(folder)}_output_1") for folder in selected_folders
         ],
@@ -173,7 +172,6 @@ def test_group_analysis_different_event_names_per_session(copied_sessions):
     step4(**common_kwargs, selected_runs=selected_runs)
     member_run_folders = [os.path.join(folder, f"{os.path.basename(folder)}_output_1") for folder in selected_folders]
     label_groups(
-        base_dir=base_dir,
         member_run_folders=member_run_folders,
         destination_directory=base_dir,
         group_name="cross_condition",
@@ -253,7 +251,6 @@ def test_group_analysis_step_writes_a_named_group_directory(copied_sessions):
 
     member_run_folders = [os.path.join(folder, f"{os.path.basename(folder)}_output_1") for folder in selected_folders]
     label_groups(
-        base_dir=base_dir,
         member_run_folders=member_run_folders,
         destination_directory=base_dir,
         group_name="saline",
@@ -295,7 +292,6 @@ def test_group_analysis_step_rebuilds_the_group_when_a_member_is_dropped(copied_
 
     member_run_folders = [os.path.join(folder, f"{os.path.basename(folder)}_output_1") for folder in selected_folders]
     label_groups(
-        base_dir=base_dir,
         member_run_folders=member_run_folders,
         destination_directory=base_dir,
         group_name="saline",
@@ -306,7 +302,6 @@ def test_group_analysis_step_rebuilds_the_group_when_a_member_is_dropped(copied_
     assert len(pd.read_hdf(psth_path, key="df").columns) == 5  # 2 members + timestamps/mean/err
 
     label_groups(
-        base_dir=base_dir,
         member_run_folders=member_run_folders[:1],
         destination_directory=base_dir,
         group_name="saline",

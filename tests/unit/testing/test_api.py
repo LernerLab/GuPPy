@@ -129,7 +129,7 @@ class TestApiRuntimeErrors:
         monkeypatch.setattr(
             testing_api,
             "build_homepage",
-            lambda: FakeTemplate(widgets={"files_1": types.SimpleNamespace(value=None)}),
+            lambda **kwargs: FakeTemplate(widgets={"files_1": types.SimpleNamespace(value=None)}),
         )
 
         step = getattr(testing_api, step_name)
@@ -150,7 +150,7 @@ class TestApiRuntimeErrors:
         monkeypatch.setattr(
             testing_api,
             "build_homepage",
-            lambda: FakeTemplate(hooks={"getInputParameters": lambda: {}}),
+            lambda **kwargs: FakeTemplate(hooks={"getInputParameters": lambda: {}}),
         )
 
         step = getattr(testing_api, step_name)
@@ -170,7 +170,7 @@ class TestApiRuntimeErrors:
         monkeypatch.setattr(
             testing_api,
             "build_homepage",
-            lambda: FakeTemplate(widgets={"files_1": types.SimpleNamespace(value=None)}),
+            lambda **kwargs: FakeTemplate(widgets={"files_1": types.SimpleNamespace(value=None)}),
         )
 
         with pytest.raises(RuntimeError, match="getInputParameters"):
@@ -183,7 +183,7 @@ class TestApiRuntimeErrors:
         monkeypatch.setattr(
             testing_api,
             "build_homepage",
-            lambda: FakeTemplate(hooks={"getInputParameters": lambda: {}}),
+            lambda **kwargs: FakeTemplate(hooks={"getInputParameters": lambda: {}}),
         )
 
         with pytest.raises(RuntimeError, match="files_1"):

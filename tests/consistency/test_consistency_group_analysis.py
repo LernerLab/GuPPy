@@ -71,7 +71,6 @@ def test_consistency_group_analysis(tmp_path):
     step4(**common_kwargs, selected_runs=selected_runs)
 
     label_groups(
-        base_dir=str(tmp_base),
         member_run_folders=[
             os.path.join(folder, f"{os.path.basename(folder)}_output_1") for folder in selected_folders
         ],

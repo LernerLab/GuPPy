@@ -109,16 +109,24 @@ def build_metadata_template(
     return template
 
 
-def orchestrate_metadata_page(inputParameters: dict[str, object]) -> None:
+def orchestrate_metadata_page(inputParameters: dict[str, object], *, serve: bool = True) -> None:
     """Open one metadata window per selected session that needs one.
 
     Each window edits that session's ``nwb_metadata.yaml`` (in its output
     directory), bootstrapped from the saved file when present and otherwise empty.
     Each window is served on its own port in a new browser tab, mirroring the
-    Storenames GUI. Skipped in headless mode (``GUPPY_BASE_DIR`` set).
+    Storenames GUI.
 
     Sessions GuPPy processed out of an NWB file are skipped: the export adds their outputs to the
     file they came from, which already carries everything this form collects.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters; uses ``combine_data`` and ``selected_runs``.
+    serve : bool
+        Whether to serve each page in a browser. Scripted callers pass ``False`` to build the
+        pages without opening a window.
 
     Raises
     ------
@@ -127,7 +135,6 @@ def orchestrate_metadata_page(inputParameters: dict[str, object]) -> None:
         cannot be resolved.
     """
     validate_data_not_combined(combine_data=inputParameters["combine_data"])
-    headless = bool(os.environ.get("GUPPY_BASE_DIR"))
 
     pairs = selected_session_runs(inputParameters=inputParameters)
     # Resolved once per session and reused below: a session already in NWB needs no form at all, and
@@ -166,5 +173,5 @@ def orchestrate_metadata_page(inputParameters: dict[str, object]) -> None:
                 session_folder_path=session_path, acquisition_format=acquisition_format
             ),
         )
-        if not headless:
+        if serve:
             template.show(port=scanPortsAndFind(start_port=5000, end_port=5200))

@@ -930,9 +930,9 @@ def test_compute_npm_channel_previews_aligns_ragged_channel_lengths():
 NPM_3_FOLDER = os.path.join(STUBBED_TESTING_DATA, "npm", "sampleData_NPM_3")
 
 
-def test_read_header_non_headless_npm_defers_discovery():
+def test_read_header_interactive_npm_defers_discovery():
     # sampleData_NPM_3: file0 has multiple timestamp columns; file1 has multiple event TTLs.
-    events, flags, npm_interactive = read_header({}, num_ch=2, folder_path=NPM_3_FOLDER, headless=False)
+    events, flags, npm_interactive = read_header({}, num_ch=2, folder_path=NPM_3_FOLDER, interactive=True)
 
     # NPM discovery is deferred to the confirm callback, so no NPM events are returned yet.
     assert events == []
@@ -943,10 +943,10 @@ def test_read_header_non_headless_npm_defers_discovery():
     }
 
 
-def test_read_header_headless_npm_discovers_immediately():
-    events, flags, npm_interactive = read_header({}, num_ch=2, folder_path=NPM_3_FOLDER, headless=True)
+def test_read_header_non_interactive_npm_discovers_immediately():
+    events, flags, npm_interactive = read_header({}, num_ch=2, folder_path=NPM_3_FOLDER, interactive=False)
 
-    # Headless mode uses the injected params (absent here -> defaults) and discovers immediately.
+    # Non-interactive runs use the injected params (absent here -> defaults) and discover immediately.
     assert npm_interactive is None
     assert "file0_chev3" in events
 
@@ -958,7 +958,7 @@ def test_read_header_headless_npm_discovers_immediately():
 
 def test_build_template_npm_interactive_uses_npm_instructions(panel_extension):
     input_parameters = {"noChannels": 2}
-    _, _, npm_interactive = read_header(input_parameters, num_ch=2, folder_path=NPM_3_FOLDER, headless=False)
+    _, _, npm_interactive = read_header(input_parameters, num_ch=2, folder_path=NPM_3_FOLDER, interactive=True)
 
     template = build_store_labeling_template(
         [], [], NPM_3_FOLDER, inputParameters=input_parameters, npm_interactive=npm_interactive
@@ -971,7 +971,7 @@ def test_build_template_npm_interactive_uses_npm_instructions(panel_extension):
 
 def test_confirm_npm_configuration_writes_params_and_populates_page(panel_extension):
     input_parameters = {"noChannels": 2}
-    _, _, npm_interactive = read_header(input_parameters, num_ch=2, folder_path=NPM_3_FOLDER, headless=False)
+    _, _, npm_interactive = read_header(input_parameters, num_ch=2, folder_path=NPM_3_FOLDER, interactive=True)
 
     template = build_store_labeling_template(
         [], [], NPM_3_FOLDER, inputParameters=input_parameters, npm_interactive=npm_interactive

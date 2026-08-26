@@ -27,7 +27,6 @@ from guppy.frontend.store_labeling_selector import StoreLabelingSelector
 from guppy.utils.utils import (
     NPM_PARAM_KEYS,
     discover_run_folders,
-    is_headless,
     run_folder_for_run,
     validate_run_name,
     write_npm_params,
@@ -472,6 +471,28 @@ def build_store_labeling_template(
     return template
 
 
+def _supplied_store_id_to_store_label(*, inputParameters: dict[str, object]) -> dict[str, str] | None:
+    """Return the caller-supplied store_id-to-store_label mapping, if there is one.
+
+    Its presence is what distinguishes a scripted run from a GUI run: a caller that
+    already knows the labels needs no page, and no interactive NPM configuration form.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters.
+
+    Returns
+    -------
+    dict of {str: str} or None
+        The mapping when a non-empty one was supplied, ``None`` otherwise.
+    """
+    mapping = inputParameters.get("store_id_to_store_label")
+    if isinstance(mapping, dict) and len(mapping) > 0:
+        return mapping
+    return None
+
+
 def build_store_labeling_page(
     inputParameters: dict[str, object],
     events: list[str],
@@ -480,17 +501,16 @@ def build_store_labeling_page(
     *,
     npm_interactive: dict[str, object] | None = None,
 ) -> None:
-    """Write storesList.csv for one session, headlessly or via the Panel GUI.
+    """Write storesList.csv for one session, from a supplied mapping or via the Panel GUI.
 
-    In headless mode (``store_id_to_store_label`` key present in ``inputParameters``)
-    the mapping is written directly.  Otherwise a Panel GUI is launched in a
-    browser so the user can assign store labels interactively.
+    When ``inputParameters`` carries a ``store_id_to_store_label`` mapping it is written
+    directly.  Otherwise a Panel GUI is launched in a browser so the user can assign store
+    labels interactively.
 
     Parameters
     ----------
     inputParameters : dict
-        Full pipeline input parameters; may contain ``store_id_to_store_label`` for
-        headless operation.
+        Full pipeline input parameters; may contain ``store_id_to_store_label``.
     events : list of str
         store_id strings discovered from the acquisition files.
     flags : list of str
@@ -498,8 +518,8 @@ def build_store_labeling_page(
     folder_path : str
         Absolute path to the session directory.
     npm_interactive : dict or None
-        NPM configuration-form probe data from :func:`read_header` (non-headless
-        NPM only); when set, the GUI renders the NPM configuration form and
+        NPM configuration-form probe data from :func:`read_header` (interactive NPM
+        only); when set, the GUI renders the NPM configuration form and
         defers NPM discovery/previews to its confirm callback.
     """
     logger.debug("Saving stores list file.")
@@ -509,9 +529,9 @@ def build_store_labeling_page(
     is_npm = "data_np_v2" in flags or "data_np" in flags or "event_np" in flags
     npm_params = _npm_params_to_persist(inputParameters) if is_npm else None
 
-    # Headless path: if store_id_to_store_label provided, write storesList.csv without building the Panel UI
-    store_id_to_store_label = inputParameters.get("store_id_to_store_label")
-    if isinstance(store_id_to_store_label, dict) and len(store_id_to_store_label) > 0:
+    # Scripted path: if store_id_to_store_label provided, write storesList.csv without building the Panel UI
+    store_id_to_store_label = _supplied_store_id_to_store_label(inputParameters=inputParameters)
+    if store_id_to_store_label is not None:
         run_name = inputParameters.get("run_name") or None
         run_name_policy = inputParameters.get("run_name_policy", "create")
         run_folder = make_dir(folder_path, run_name=run_name, run_name_policy=run_name_policy)
@@ -578,7 +598,7 @@ def _compute_npm_channel_previews(
 
 
 def read_header(
-    inputParameters: dict[str, object], num_ch: int, folder_path: str, headless: bool
+    inputParameters: dict[str, object], num_ch: int, folder_path: str, interactive: bool
 ) -> tuple[list[str], list[str], dict[str, object] | None]:
     """Discover events and feature flags for a single session folder.
 
@@ -591,8 +611,8 @@ def read_header(
         Number of photometry channels (used by NPM extractor discovery).
     folder_path : str
         Absolute path to the session directory.
-    headless : bool
-        When True, suppress the interactive NPM configuration form.
+    interactive : bool
+        When False, suppress the interactive NPM configuration form.
 
     Returns
     -------
@@ -603,7 +623,7 @@ def read_header(
     flags : list of str
         Feature flags (e.g. ``"data_np_v2"``) from the discovered formats.
     npm_interactive : dict or None
-        When NPM data is present and running non-headless, the probe outputs
+        When NPM data is present and running interactively, the probe outputs
         (``multiple_event_ttls``, ``timestamp_column_options``) needed to build
         the on-page NPM configuration form. NPM discovery is deferred to
         the form's confirm callback because event names depend on the answers.
@@ -617,11 +637,11 @@ def read_header(
 
     all_formats = detect_acquisition_formats(folder_path)
 
-    # Non-headless NPM: probe the files for the configuration form and defer NPM
+    # Interactive NPM: probe the files for the configuration form and defer NPM
     # discovery/decomposition until the user confirms their choices (the derived
     # event names change with the split-events answer).
     npm_interactive = None
-    if "npm" in all_formats and not headless:
+    if "npm" in all_formats and interactive:
         npm_interactive = {
             "multiple_event_ttls": NpmRecordingExtractor.has_multiple_event_ttls(folder_path=folder_path),
             "timestamp_column_options": NpmRecordingExtractor.timestamp_column_options(folder_path=folder_path),
@@ -673,14 +693,16 @@ def orchestrate_store_labeling_page(inputParameters: dict[str, object]) -> None:
     session_folders = inputParameters["session_folders"]
     isosbestic_control = inputParameters["isosbestic_control"]
     num_ch = inputParameters["noChannels"]
-    headless = is_headless()
+    # A caller that supplied the labels gets no page, so it must not get the NPM
+    # configuration form either — its answers would have nowhere to be confirmed.
+    interactive = _supplied_store_id_to_store_label(inputParameters=inputParameters) is None
 
     logger.info(session_folders)
 
     try:
         for i in session_folders:
             folder_path = os.path.join(inputParameters["abspath"], i)
-            events, flags, npm_interactive = read_header(inputParameters, num_ch, folder_path, headless)
+            events, flags, npm_interactive = read_header(inputParameters, num_ch, folder_path, interactive)
             build_store_labeling_page(inputParameters, events, flags, folder_path, npm_interactive=npm_interactive)
         logger.info("#" * 400)
     except Exception as e:
