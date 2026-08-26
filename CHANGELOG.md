@@ -8,6 +8,7 @@
 - Reworked group analysis into two optional steps: **Label Groups** defines a named group of output runs in its own page, and **Group Analysis** averages into the groups picked in the new **Group Output Folder Selection** card — the same selection Step 5 visualizes, so several groups can coexist and be opened alongside individual sessions. The **Average Group?** and **Visualize Average Results?** parameters are removed. [PR #446](https://github.com/LernerLab/GuPPy/pull/446)
 
 ## Fixes
+- Sessions no longer have to sit side by side to be analyzed together: the file browser now accepts session folders from different parent directories, so a run can mix sessions kept in separate data roots. [PR #451](https://github.com/LernerLab/GuPPy/pull/451)
 
 ## Improvements
 - Refreshed the GuPPy branding: a new logo across the README and the documentation site, a fish-only mark in the docs header that stays legible in both light and dark mode, and a favicon for the documentation site, which previously had none. [PR #445](https://github.com/LernerLab/GuPPy/pull/445)
