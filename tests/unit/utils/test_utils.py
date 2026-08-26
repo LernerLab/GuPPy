@@ -1,4 +1,5 @@
 import json
+import os
 
 import numpy as np
 import pandas as pd
@@ -8,6 +9,7 @@ from guppy.utils import utils
 from guppy.utils.utils import (
     GROUP_MEMBERS_FILENAME,
     NPM_PARAM_KEYS,
+    common_parent_directory,
     discover_group_folders,
     discover_run_folders,
     event_labels_for_analysis,
@@ -596,3 +598,31 @@ class TestGroupMembersManifest:
     def test_read_raises_when_manifest_absent(self, tmp_path):
         with pytest.raises(ValueError, match=GROUP_MEMBERS_FILENAME):
             read_group_members(group_folder=str(tmp_path))
+
+
+class TestCommonParentDirectory:
+    def test_single_path_returns_its_parent(self):
+        assert common_parent_directory(paths=[os.path.join("/data", "sessions", "s1")]) == os.path.join(
+            "/data", "sessions"
+        )
+
+    def test_siblings_return_the_shared_parent(self):
+        paths = [
+            os.path.join("/data", "sessions", "s1"),
+            os.path.join("/data", "sessions", "s2"),
+        ]
+        assert common_parent_directory(paths=paths) == os.path.join("/data", "sessions")
+
+    def test_different_parents_return_the_nearest_common_ancestor(self):
+        paths = [
+            os.path.join("/data", "tdt_sessions", "s1"),
+            os.path.join("/data", "csv_sessions", "s2"),
+        ]
+        assert common_parent_directory(paths=paths) == "/data"
+
+    def test_nesting_depths_return_the_shallowest_ancestor(self):
+        paths = [
+            os.path.join("/data", "s1"),
+            os.path.join("/data", "batch_a", "cohort_b", "s2"),
+        ]
+        assert common_parent_directory(paths=paths) == "/data"

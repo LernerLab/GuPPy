@@ -9,6 +9,7 @@ import panel as pn
 from .dandi_selector import DandiSelector
 from .frontend_utils import default_root_path
 from ..utils.utils import (
+    common_parent_directory,
     discover_run_folders,
     is_group_folder,
     parse_run_name,
@@ -17,31 +18,9 @@ from ..utils.validation import (
     validate_non_negative,
     validate_positive,
     validate_required_folder_selection,
-    validate_same_parent_directory,
 )
 
 logger = logging.getLogger(__name__)
-
-
-def checkSameLocation(paths: list[str], abspath: object) -> str:
-    """Check that all ``paths`` share the same parent directory.
-
-    Parameters
-    ----------
-    paths : sequence of str
-        Paths to validate.
-    abspath : object
-        Ignored; retained for backwards-compatibility with existing callers.
-
-    Returns
-    -------
-    str
-        The common parent directory of all ``paths``.
-    """
-    # abspath retained as a positional arg for backwards compatibility with existing
-    # callers; only the contents of paths are inspected.
-    del abspath
-    return validate_same_parent_directory(paths=list(paths))
 
 
 def _reject_group_folder_selected_as_run(*, path: str) -> None:
@@ -720,7 +699,7 @@ class ParameterForm:
             # card's members or existing-group picker for a group-only workflow.
             validate_required_folder_selection(file_selectors=[self.files_1, self.group_folders_selector])
             folder_names = self.files_1.value
-            abspath_value = validate_same_parent_directory(paths=list(folder_names))[0] if folder_names else None
+            abspath_value = common_parent_directory(paths=list(folder_names)) if folder_names else None
             dandi_uri_map = None
             mode = "local"
 

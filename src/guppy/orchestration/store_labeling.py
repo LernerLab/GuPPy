@@ -666,7 +666,7 @@ def orchestrate_store_labeling_page(inputParameters: dict[str, object]) -> None:
     Parameters
     ----------
     inputParameters : dict
-        Full pipeline input parameters; uses ``session_folders``, ``abspath``,
+        Full pipeline input parameters; uses ``session_folders``,
         ``isosbestic_control``, and ``noChannels``.
     """
     inputParameters = inputParameters
@@ -678,8 +678,7 @@ def orchestrate_store_labeling_page(inputParameters: dict[str, object]) -> None:
     logger.info(session_folders)
 
     try:
-        for i in session_folders:
-            folder_path = os.path.join(inputParameters["abspath"], i)
+        for folder_path in session_folders:
             events, flags, npm_interactive = read_header(inputParameters, num_ch, folder_path, headless)
             build_store_labeling_page(inputParameters, events, flags, folder_path, npm_interactive=npm_interactive)
         logger.info("#" * 400)
