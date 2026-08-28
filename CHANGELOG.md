@@ -8,6 +8,7 @@
 - Reworked group analysis into two optional steps: **Label Groups** defines a named group of output runs in its own page, and **Group Analysis** averages into the groups picked in the new **Group Output Folder Selection** card — the same selection Step 5 visualizes, so several groups can coexist and be opened alongside individual sessions. The **Average Group?** and **Visualize Average Results?** parameters are removed. [PR #446](https://github.com/LernerLab/GuPPy/pull/446)
 
 ## Fixes
+- Sessions no longer have to sit side by side to be analyzed together: the file browser now accepts session folders from different parent directories, so a run can mix sessions kept in separate data roots. [PR #451](https://github.com/LernerLab/GuPPy/pull/451)
 
 ## Improvements
 - Made `count_samples()` a required method of the recording extractor contract, so a new acquisition format that omits it fails immediately instead of quietly mis-sizing the Read Raw Data progress bar. [PR #450](https://github.com/LernerLab/GuPPy/pull/450)

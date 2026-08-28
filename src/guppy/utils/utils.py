@@ -2,6 +2,7 @@ import glob
 import json
 import logging
 import os
+from collections.abc import Sequence
 
 import numpy as np
 import pandas as pd
@@ -358,6 +359,24 @@ def parse_group_name(group_folder: str) -> str:
             f"'<group_name>_group' pattern."
         )
     return basename[: -len(_GROUP_NAME_MARKER)]
+
+
+def common_parent_directory(*, paths: Sequence[str]) -> str:
+    """Return the deepest directory that contains every one of ``paths``.
+
+    Parameters
+    ----------
+    paths : sequence of str
+        Absolute paths to selected session folders.
+
+    Returns
+    -------
+    str
+        The parent directory shared by all ``paths`` when they sit side by side,
+        or their nearest common ancestor when they do not.
+    """
+    parent_directories = {os.path.dirname(path) for path in paths}
+    return os.path.commonpath(sorted(parent_directories))
 
 
 def is_group_folder(path: str) -> bool:

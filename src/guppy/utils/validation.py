@@ -226,36 +226,6 @@ def validate_required_folder_selection(*, file_selectors: Sequence) -> None:
         raise ValueError(message)
 
 
-def validate_same_parent_directory(*, paths: Sequence[str]) -> np.ndarray:
-    """Validate that every path shares the same parent directory.
-
-    Parameters
-    ----------
-    paths : sequence of str
-        Absolute paths to selected session folders.
-
-    Returns
-    -------
-    np.ndarray
-        A length-1 array containing the shared parent directory.
-
-    Raises
-    ------
-    ValueError
-        If the paths span more than one parent directory.
-    """
-    parents = np.unique(np.asarray([os.path.dirname(path) for path in paths]))
-    if len(parents) > 1:
-        path_to_parent = "\n".join(f"  - {path} (parent: {os.path.dirname(path)})" for path in paths)
-        message = (
-            "All the folders selected should be at the same location, but the selected folders "
-            f"span {len(parents)} parent directories:\n{path_to_parent}"
-        )
-        logger.error(message)
-        raise ValueError(message)
-    return parents
-
-
 def validate_artifact_coords_present(*, run_folders: Sequence[str]) -> None:
     """Validate that artifact windows have been selected for every run folder.
 

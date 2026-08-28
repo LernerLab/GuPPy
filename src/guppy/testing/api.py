@@ -39,6 +39,34 @@ from guppy.orchestration.visualize import visualizeResults
 from guppy.utils.utils import resolve_run_folders, run_folder_for_run
 
 
+def _validate_sessions_under_base_dir(*, abs_sessions: list[str], base_dir: str) -> None:
+    """Validate that every session directory exists and lives somewhere under ``base_dir``.
+
+    Sessions need not be siblings: ``base_dir`` only has to contain them, so a run can
+    mix sessions kept in different sub-directories of a shared data root.
+
+    Parameters
+    ----------
+    abs_sessions : list of str
+        Absolute paths to the selected session directories.
+    base_dir : str
+        Absolute path to the root the FileSelector is initialized with.
+
+    Raises
+    ------
+    ValueError
+        If a session is missing, is not a directory, or lies outside ``base_dir``.
+    """
+    for session in abs_sessions:
+        if not os.path.isdir(session):
+            raise ValueError(f"Session path does not exist or is not a directory: {session}")
+        if os.path.commonpath([base_dir, session]) != base_dir:
+            raise ValueError(
+                f"All selected_folders must live under base_dir. "
+                f"Got session {session!r}, which is outside {base_dir!r}"
+            )
+
+
 def _normalize_selected_runs(
     selected_runs: dict[str, list[str]],
     abs_sessions: list[str],
@@ -97,10 +125,10 @@ def save_parameters_snapshot(*, base_dir: str, selected_folders: Iterable[str]) 
     ----------
     base_dir : str
         Root directory used to initialize the FileSelector. All ``selected_folders``
-        must reside under this path.
+        must reside somewhere under this path.
     selected_folders : Iterable[str]
-        Absolute paths to the session directories to analyze. All must share the
-        same parent directory.
+        Absolute paths to the session directories to analyze. All must reside
+        somewhere under ``base_dir``.
 
     Raises
     ------
@@ -138,7 +166,7 @@ def import_custom_events(
     ----------
     base_dir : str
         Root directory used to initialize the FileSelector. All ``selected_folders``
-        must reside under this path.
+        must reside somewhere under this path.
     selected_folders : Iterable[str]
         Absolute paths to the session directories to write events into.
     custom_events_map : dict[str, dict[str, list[float]]]
@@ -369,7 +397,7 @@ def step1(
     ----------
     base_dir : str
         Root directory used to initialize the FileSelector. All ``selected_folders``
-        must reside directly under this path.
+        must reside somewhere under this path.
     selected_folders : Iterable[str]
         Absolute paths to the session directories to process.
     store_id_to_store_label : dict[str, str]
@@ -389,8 +417,8 @@ def step1(
     Raises
     ------
     ValueError
-        If validation fails (e.g., empty mapping, invalid directories, parent
-        mismatch, or a mapping the page cannot express), or when the page
+        If validation fails (e.g., empty mapping, invalid directories, a session
+        outside base_dir, or a mapping the page cannot express), or when the page
         reports an alert while being driven.
     RuntimeError
         If the template does not expose the required testing hooks/widgets.
@@ -407,15 +435,7 @@ def step1(
     if not sessions:
         raise ValueError("selected_folders must be a non-empty iterable of session directories")
     abs_sessions = [os.path.abspath(session) for session in sessions]
-    for session in abs_sessions:
-        if not os.path.isdir(session):
-            raise ValueError(f"Session path does not exist or is not a directory: {session}")
-        parent = os.path.dirname(session)
-        if parent != base_dir:
-            raise ValueError(
-                f"All selected_folders must share the same parent equal to base_dir. "
-                f"Got parent {parent!r} for session {session!r}, expected {base_dir!r}"
-            )
+    _validate_sessions_under_base_dir(abs_sessions=abs_sessions, base_dir=base_dir)
 
     # Validate store_id_to_store_label
     if not isinstance(store_id_to_store_label, dict) or not store_id_to_store_label:
@@ -514,7 +534,7 @@ def step2(
     ----------
     base_dir : str
         Root directory used to initialize the FileSelector. All ``selected_folders``
-        must reside directly under this path.
+        must reside somewhere under this path.
     selected_folders : Iterable[str]
         Absolute paths to the session directories to process.
     npm_timestamp_column_name : str | None
@@ -531,7 +551,7 @@ def step2(
     Raises
     ------
     ValueError
-        If validation fails (e.g., empty iterable, invalid directories, or parent mismatch).
+        If validation fails (e.g., empty iterable, invalid directories, or a session outside base_dir).
     RuntimeError
         If the template does not expose the required testing hooks/widgets.
     """
@@ -547,15 +567,7 @@ def step2(
     if not sessions:
         raise ValueError("selected_folders must be a non-empty iterable of session directories")
     abs_sessions = [os.path.abspath(session) for session in sessions]
-    for session in abs_sessions:
-        if not os.path.isdir(session):
-            raise ValueError(f"Session path does not exist or is not a directory: {session}")
-        parent = os.path.dirname(session)
-        if parent != base_dir:
-            raise ValueError(
-                f"All selected_folders must share the same parent equal to base_dir. "
-                f"Got parent {parent!r} for session {session!r}, expected {base_dir!r}"
-            )
+    _validate_sessions_under_base_dir(abs_sessions=abs_sessions, base_dir=base_dir)
 
     # Headless build: construct the template rooted at base_dir
     template = build_homepage(start_path=base_dir)
@@ -630,7 +642,7 @@ def _build_preprocess_input_parameters(
     Raises
     ------
     ValueError
-        If validation fails (e.g., empty iterable, invalid directories, or parent mismatch).
+        If validation fails (e.g., empty iterable, invalid directories, or a session outside base_dir).
     RuntimeError
         If the template does not expose the required testing hooks/widgets.
     """
@@ -646,15 +658,7 @@ def _build_preprocess_input_parameters(
     if not sessions:
         raise ValueError("selected_folders must be a non-empty iterable of session directories")
     abs_sessions = [os.path.abspath(session) for session in sessions]
-    for session in abs_sessions:
-        if not os.path.isdir(session):
-            raise ValueError(f"Session path does not exist or is not a directory: {session}")
-        parent = os.path.dirname(session)
-        if parent != base_dir:
-            raise ValueError(
-                f"All selected_folders must share the same parent equal to base_dir. "
-                f"Got parent {parent!r} for session {session!r}, expected {base_dir!r}"
-            )
+    _validate_sessions_under_base_dir(abs_sessions=abs_sessions, base_dir=base_dir)
 
     # Headless build: construct the template rooted at base_dir
     template = build_homepage(start_path=base_dir)
@@ -739,7 +743,7 @@ def step3(
     ----------
     base_dir : str
         Root directory used to initialize the FileSelector. All ``selected_folders``
-        must reside directly under this path.
+        must reside somewhere under this path.
     selected_folders : Iterable[str]
         Absolute paths to the session directories to process.
     npm_timestamp_column_name : str | None
@@ -786,7 +790,7 @@ def step3(
     Raises
     ------
     ValueError
-        If validation fails (e.g., empty iterable, invalid directories, or parent mismatch).
+        If validation fails (e.g., empty iterable, invalid directories, or a session outside base_dir).
     RuntimeError
         If the template does not expose the required testing hooks/widgets.
     """
@@ -836,7 +840,7 @@ def tonic_analysis(
     ----------
     base_dir : str
         Root directory used to initialize the FileSelector. All ``selected_folders``
-        must reside directly under this path.
+        must reside somewhere under this path.
     selected_folders : Iterable[str]
         Absolute paths to the session directories to process.
     tonic_epochs : dict[str, pd.DataFrame]
@@ -848,7 +852,7 @@ def tonic_analysis(
     Raises
     ------
     ValueError
-        If validation fails (e.g., empty iterable, invalid directories, or parent mismatch),
+        If validation fails (e.g., empty iterable, invalid directories, or a session outside base_dir),
         or if an epoch window does not overlap its recording site's timespan.
     """
     input_params, abs_sessions, _ = _build_preprocess_input_parameters(
@@ -916,7 +920,7 @@ def select_artifact_windows(
     ----------
     base_dir : str
         Root directory used to initialize the FileSelector. All ``selected_folders``
-        must reside directly under this path.
+        must reside somewhere under this path.
     selected_folders : Iterable[str]
         Absolute paths to the session directories to process.
     artifact_coords : dict[str, np.ndarray]
@@ -931,7 +935,7 @@ def select_artifact_windows(
     Raises
     ------
     ValueError
-        If validation fails (e.g., empty iterable, invalid directories, or parent mismatch).
+        If validation fails (e.g., empty iterable, invalid directories, or a session outside base_dir).
     """
     input_params, abs_sessions, normalized_selected_runs = _build_preprocess_input_parameters(
         base_dir=base_dir,
@@ -991,7 +995,7 @@ def remove_artifacts(
     ----------
     base_dir : str
         Root directory used to initialize the FileSelector. All ``selected_folders``
-        must reside directly under this path.
+        must reside somewhere under this path.
     selected_folders : Iterable[str]
         Absolute paths to the session directories to process.
     selected_runs : dict[str, list[str]]
@@ -1059,7 +1063,7 @@ def step4(
     ----------
     base_dir : str
         Root directory used to initialize the FileSelector. All ``selected_folders``
-        must reside directly under this path.
+        must reside somewhere under this path.
     selected_folders : Iterable[str]
         Absolute paths to the session directories to process.
     npm_timestamp_column_name : str | None
@@ -1109,7 +1113,7 @@ def step4(
     Raises
     ------
     ValueError
-        If validation fails (e.g., empty iterable, invalid directories, or parent mismatch).
+        If validation fails (e.g., empty iterable, invalid directories, or a session outside base_dir).
     RuntimeError
         If the template does not expose the required testing hooks/widgets.
     """
@@ -1125,15 +1129,7 @@ def step4(
     if not sessions:
         raise ValueError("selected_folders must be a non-empty iterable of session directories")
     abs_sessions = [os.path.abspath(session) for session in sessions]
-    for session in abs_sessions:
-        if not os.path.isdir(session):
-            raise ValueError(f"Session path does not exist or is not a directory: {session}")
-        parent = os.path.dirname(session)
-        if parent != base_dir:
-            raise ValueError(
-                f"All selected_folders must share the same parent equal to base_dir. "
-                f"Got parent {parent!r} for session {session!r}, expected {base_dir!r}"
-            )
+    _validate_sessions_under_base_dir(abs_sessions=abs_sessions, base_dir=base_dir)
 
     # Headless build: construct the template rooted at base_dir
     template = build_homepage(start_path=base_dir)
@@ -1303,7 +1299,7 @@ def step5(
     ----------
     base_dir : str
         Root directory used to initialize the FileSelector. All ``selected_folders``
-        must reside directly under this path.
+        must reside somewhere under this path.
     selected_folders : Iterable[str]
         Absolute paths to the session directories to process.
     npm_timestamp_column_name : str | None
@@ -1328,7 +1324,7 @@ def step5(
     Raises
     ------
     ValueError
-        If validation fails (e.g., empty iterable, invalid directories, or parent mismatch).
+        If validation fails (e.g., empty iterable, invalid directories, or a session outside base_dir).
     RuntimeError
         If the template does not expose the required testing hooks/widgets.
     """
@@ -1344,15 +1340,7 @@ def step5(
     if not sessions:
         raise ValueError("selected_folders must be a non-empty iterable of session directories")
     abs_sessions = [os.path.abspath(session) for session in sessions]
-    for session in abs_sessions:
-        if not os.path.isdir(session):
-            raise ValueError(f"Session path does not exist or is not a directory: {session}")
-        parent = os.path.dirname(session)
-        if parent != base_dir:
-            raise ValueError(
-                f"All selected_folders must share the same parent equal to base_dir. "
-                f"Got parent {parent!r} for session {session!r}, expected {base_dir!r}"
-            )
+    _validate_sessions_under_base_dir(abs_sessions=abs_sessions, base_dir=base_dir)
 
     # Headless build: construct the template rooted at base_dir
     template = build_homepage(start_path=base_dir)
@@ -1404,7 +1392,7 @@ def _build_headless_input_parameters(
     ----------
     base_dir : str
         Root directory used to initialize the FileSelector. All ``selected_folders``
-        must reside directly under this path.
+        must reside somewhere under this path.
     selected_folders : Iterable[str]
         Absolute paths to the session directories to process.
 
@@ -1432,15 +1420,7 @@ def _build_headless_input_parameters(
     if not sessions:
         raise ValueError("selected_folders must be a non-empty iterable of session directories")
     abs_sessions = [os.path.abspath(session) for session in sessions]
-    for session in abs_sessions:
-        if not os.path.isdir(session):
-            raise ValueError(f"Session path does not exist or is not a directory: {session}")
-        parent = os.path.dirname(session)
-        if parent != base_dir:
-            raise ValueError(
-                f"All selected_folders must share the same parent equal to base_dir. "
-                f"Got parent {parent!r} for session {session!r}, expected {base_dir!r}"
-            )
+    _validate_sessions_under_base_dir(abs_sessions=abs_sessions, base_dir=base_dir)
 
     template = build_homepage(start_path=base_dir)
 
@@ -1475,7 +1455,7 @@ def step6(
     ----------
     base_dir : str
         Root directory used to initialize the FileSelector. All ``selected_folders``
-        must reside directly under this path.
+        must reside somewhere under this path.
     selected_folders : Iterable[str]
         Absolute paths to the session directories to process.
     combine_data : bool
@@ -1520,7 +1500,7 @@ def step7(
     ----------
     base_dir : str
         Root directory used to initialize the FileSelector. All ``selected_folders``
-        must reside directly under this path.
+        must reside somewhere under this path.
     selected_folders : Iterable[str]
         Absolute paths to the session directories to process.
     combine_data : bool

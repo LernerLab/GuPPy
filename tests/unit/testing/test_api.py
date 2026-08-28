@@ -104,7 +104,7 @@ class TestSharedApiValidation:
         if step_name in ("step2", "step3", "step4", "step5"):
             kwargs["selected_runs"] = {api_workspace["foreign_session_directory"]: ["1"]}
 
-        with pytest.raises(ValueError, match="must share the same parent equal to base_dir"):
+        with pytest.raises(ValueError, match="must live under base_dir"):
             step(**kwargs)
 
 

@@ -1,5 +1,3 @@
-import os
-
 import numpy as np
 import pytest
 
@@ -12,7 +10,6 @@ from guppy.utils.validation import (
     validate_peak_windows,
     validate_positive,
     validate_required_folder_selection,
-    validate_same_parent_directory,
     validate_window_bounds,
 )
 
@@ -200,25 +197,6 @@ class TestValidateRequiredFolderSelection:
         selector_b = FakeSelector(value=[])
         with pytest.raises(ValueError, match="No folder is selected for analysis"):
             validate_required_folder_selection(file_selectors=[selector_a, selector_b])
-
-
-class TestValidateSameParentDirectory:
-    def test_returns_single_parent_when_all_match(self):
-        paths = [
-            os.path.join("/data", "sessions", "s1"),
-            os.path.join("/data", "sessions", "s2"),
-        ]
-        result = validate_same_parent_directory(paths=paths)
-        assert result.shape == (1,)
-        assert result[0] == os.path.join("/data", "sessions")
-
-    def test_raises_when_paths_have_different_parents(self):
-        paths = [
-            os.path.join("/data", "sessions_a", "s1"),
-            os.path.join("/data", "sessions_b", "s2"),
-        ]
-        with pytest.raises(ValueError, match="folders selected should be at the same location"):
-            validate_same_parent_directory(paths=paths)
 
 
 class TestValidateDataNotCombined:

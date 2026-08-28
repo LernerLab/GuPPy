@@ -6,7 +6,7 @@ import numpy as np
 import panel as pn
 import pytest
 
-from guppy.frontend.input_parameters import ParameterForm, checkSameLocation
+from guppy.frontend.input_parameters import ParameterForm
 from guppy.utils.utils import run_folder_for_run
 
 
@@ -36,28 +36,6 @@ def parameter_form(panel_extension, frontend_base_dir, tmp_path):
     form = ParameterForm(template=template, start_path=str(frontend_base_dir))
     form.files_1.value = [str(session_dir)]
     return form
-
-
-# ── checkSameLocation ─────────────────────────────────────────────────────────
-
-
-def test_check_same_location_same_parent_returns_single_element_array(tmp_path):
-    parent = tmp_path / "parent"
-    parent.mkdir()
-    paths = [str(parent / "a"), str(parent / "b")]
-    result = checkSameLocation(paths, [])
-    assert len(result) == 1
-    assert result[0] == str(parent)
-
-
-def test_check_same_location_different_parents_raises(tmp_path):
-    dir_a = tmp_path / "dir_a"
-    dir_b = tmp_path / "dir_b"
-    dir_a.mkdir()
-    dir_b.mkdir()
-    paths = [str(dir_a / "x"), str(dir_b / "y")]
-    with pytest.raises(Exception, match="same location"):
-        checkSameLocation(paths, [])
 
 
 # ── ParameterForm ─────────────────────────────────────────────────────────────
@@ -202,6 +180,30 @@ class TestParameterForm:
             "zscore_method",
         ):
             assert key in result
+
+    def test_get_input_parameters_abspath_is_the_shared_parent(self, parameter_form, tmp_path):
+        session_a = tmp_path / "sessions" / "session_a"
+        session_b = tmp_path / "sessions" / "session_b"
+        session_a.mkdir(parents=True)
+        session_b.mkdir(parents=True)
+        parameter_form.files_1.value = [str(session_a), str(session_b)]
+
+        result = parameter_form.getInputParameters()
+
+        assert result["abspath"] == str(tmp_path / "sessions")
+        assert result["session_folders"] == [str(session_a), str(session_b)]
+
+    def test_get_input_parameters_accepts_sessions_from_different_parents(self, parameter_form, tmp_path):
+        tdt_session = tmp_path / "tdt_data" / "session_a"
+        csv_session = tmp_path / "csv_data" / "session_b"
+        tdt_session.mkdir(parents=True)
+        csv_session.mkdir(parents=True)
+        parameter_form.files_1.value = [str(tdt_session), str(csv_session)]
+
+        result = parameter_form.getInputParameters()
+
+        assert result["abspath"] == str(tmp_path)
+        assert result["session_folders"] == [str(tdt_session), str(csv_session)]
 
     def test_get_input_parameters_default_scalar_values(self, parameter_form):
         result = parameter_form.getInputParameters()

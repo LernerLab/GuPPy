@@ -114,13 +114,12 @@ def orchestrate_custom_events_page(inputParameters: dict[str, object]) -> None:
     Parameters
     ----------
     inputParameters : dict
-        Full pipeline input parameters; uses ``session_folders`` and ``abspath``,
-        and optionally ``custom_events_map`` for headless operation.
+        Full pipeline input parameters; uses ``session_folders``, and optionally
+        ``custom_events_map`` for headless operation.
     """
     session_folders = inputParameters["session_folders"]
     logger.info(session_folders)
 
-    for i in session_folders:
-        folder_path = os.path.join(inputParameters["abspath"], i)
+    for folder_path in session_folders:
         build_custom_events_page(inputParameters, folder_path)
     logger.info("#" * 400)
