@@ -5,6 +5,10 @@ import types
 import pytest
 
 import guppy.testing.api as testing_api
+from guppy.orchestration.store_labeling import (
+    build_store_labeling_template,
+    read_header,
+)
 from guppy_test_data import STUBBED_TESTING_DATA
 
 
@@ -121,6 +125,15 @@ class TestStep1Validation:
                 base_dir=api_workspace["base_directory"],
                 selected_folders=[api_workspace["session_directory"]],
                 store_id_to_store_label=store_id_to_store_label,
+            )
+
+    def test_step1_validates_run_name_policy(self, api_workspace, valid_store_id_to_store_label):
+        with pytest.raises(ValueError, match="run_name_policy must be 'create' or 'overwrite'"):
+            testing_api.step1(
+                base_dir=api_workspace["base_directory"],
+                selected_folders=[api_workspace["session_directory"]],
+                store_id_to_store_label=valid_store_id_to_store_label,
+                run_name_policy="bogus",
             )
 
 
@@ -344,3 +357,68 @@ class TestStep1Driver:
 
         stores_list_path = os.path.join(staged_csv_session["session"], "sample_data_csv_1_output_1", "storesList.csv")
         assert os.path.exists(stores_list_path)
+
+
+@pytest.fixture
+def npm_template_two_timestamp_columns(panel_extension):
+    """Label Stores template for the NPM_3 stub: two timestamp columns, split checkbox on file 1."""
+    folder_path = os.path.join(str(STUBBED_TESTING_DATA), "npm", "sampleData_NPM_3")
+    input_parameters = {"noChannels": 2}
+    _, _, npm_interactive = read_header(input_parameters, 2, folder_path)
+    return build_store_labeling_template(
+        [], [], folder_path, inputParameters=input_parameters, npm_interactive=npm_interactive
+    )
+
+
+@pytest.fixture
+def npm_template_single_timestamp_column(panel_extension):
+    """Label Stores template for the NPM_4 stub: one timestamp column, split checkbox on file 1."""
+    folder_path = os.path.join(str(STUBBED_TESTING_DATA), "npm", "sampleData_NPM_4")
+    input_parameters = {"noChannels": 2}
+    _, _, npm_interactive = read_header(input_parameters, 2, folder_path)
+    return build_store_labeling_template(
+        [], [], folder_path, inputParameters=input_parameters, npm_interactive=npm_interactive
+    )
+
+
+class TestDriveNpmConfigurationForm:
+    def test_split_events_length_mismatch_raises(self, npm_template_two_timestamp_columns):
+        with pytest.raises(ValueError, match="one boolean per file"):
+            testing_api._drive_npm_configuration_form(
+                template=npm_template_two_timestamp_columns,
+                npm_timestamp_column_name=None,
+                npm_time_unit=None,
+                npm_split_events=[True],
+            )
+
+    def test_split_true_without_checkbox_raises(self, npm_template_two_timestamp_columns):
+        # File 0 has a single event TTL, so the form renders no split checkbox for it.
+        with pytest.raises(ValueError, match="nothing to split"):
+            testing_api._drive_npm_configuration_form(
+                template=npm_template_two_timestamp_columns,
+                npm_timestamp_column_name=None,
+                npm_time_unit=None,
+                npm_split_events=[True, False],
+            )
+
+    def test_timestamp_column_on_single_column_session_raises(self, npm_template_single_timestamp_column):
+        with pytest.raises(ValueError, match="only one timestamp column"):
+            testing_api._drive_npm_configuration_form(
+                template=npm_template_single_timestamp_column,
+                npm_timestamp_column_name="Timestamp",
+                npm_time_unit=None,
+                npm_split_events=None,
+            )
+
+
+def test_step1_invalid_run_name_raises_from_the_page_alert(staged_csv_session):
+    with pytest.raises(ValueError, match="forbidden character"):
+        testing_api.step1(
+            base_dir=staged_csv_session["base_dir"],
+            selected_folders=[staged_csv_session["session"]],
+            store_id_to_store_label={
+                "Sample_Control_Channel": "control_region",
+                "Sample_Signal_Channel": "signal_region",
+            },
+            run_name="bad/name",
+        )

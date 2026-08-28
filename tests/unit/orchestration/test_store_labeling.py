@@ -14,6 +14,7 @@ from guppy.orchestration.store_labeling import (
     _npm_params_to_persist,
     _save,
     build_store_labeling_template,
+    orchestrate_store_labeling_page,
     read_header,
     show_dir,
 )
@@ -1026,3 +1027,23 @@ def test_fetchValues_returns_alert_when_whitespace_in_covariate_name():
     result = _fetchValues(text, store_ids, dropdowns, textboxes, control_refs, {})
 
     assert "Alert" in result
+
+
+# ---------------------------------------------------------------------------
+# orchestrate_store_labeling_page
+# ---------------------------------------------------------------------------
+
+
+def test_orchestrate_store_labeling_page_serves_one_page_per_session(panel_extension, monkeypatch):
+    served_ports = []
+    monkeypatch.setattr(pn.template.BootstrapTemplate, "show", lambda self, port: served_ports.append(port))
+    input_parameters = {
+        "session_folders": ["sample_data_csv_1"],
+        "abspath": os.path.join(str(STUBBED_TESTING_DATA), "csv"),
+        "isosbestic_control": True,
+        "noChannels": 2,
+    }
+
+    orchestrate_store_labeling_page(input_parameters)
+
+    assert len(served_ports) == 1

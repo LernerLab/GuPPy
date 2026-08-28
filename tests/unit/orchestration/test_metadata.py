@@ -259,6 +259,28 @@ class TestOrchestrateMetadataPage:
         # Must return without raising and without opening a server.
         build_metadata_templates(inputParameters=input_parameters)
 
+    def test_orchestrator_serves_each_built_page(self, panel_extension, monkeypatch, tmp_path):
+        session = tmp_path / "Photo_session"
+        output_dir = session / "Photo_session_output_run1"
+        output_dir.mkdir(parents=True)
+        (session / "Photo_session.tsq").write_bytes(b"\x00")
+        np.savetxt(
+            output_dir / "storesList.csv",
+            np.array([["Dv1A", "Dv2A"], ["control_dms", "signal_dms"]]),
+            delimiter=",",
+            fmt="%s",
+        )
+        input_parameters = {"selected_runs": {str(session): ["run1"]}, "combine_data": False}
+
+        served_ports = []
+        monkeypatch.setattr(
+            metadata_module.pn.template.BootstrapTemplate, "show", lambda self, port: served_ports.append(port)
+        )
+
+        orchestrate_metadata_page(input_parameters)
+
+        assert len(served_ports) == 1
+
     def test_combined_run_is_refused_before_any_page_is_built(self, panel_extension, tmp_path):
         # Step 6 edits one metadata file per session output directory, which combining collapses,
         # so the form has nothing coherent to edit. Refused the same way Step 7 refuses it.
