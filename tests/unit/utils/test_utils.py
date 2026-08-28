@@ -1,5 +1,5 @@
 import json
-import os
+import pathlib
 
 import numpy as np
 import pandas as pd
@@ -602,27 +602,26 @@ class TestGroupMembersManifest:
 
 class TestCommonParentDirectory:
     def test_single_path_returns_its_parent(self):
-        assert common_parent_directory(paths=[os.path.join("/data", "sessions", "s1")]) == os.path.join(
-            "/data", "sessions"
-        )
+        paths = [str(pathlib.Path("/data", "sessions", "s1"))]
+        assert common_parent_directory(paths=paths) == str(pathlib.Path("/data", "sessions"))
 
     def test_siblings_return_the_shared_parent(self):
         paths = [
-            os.path.join("/data", "sessions", "s1"),
-            os.path.join("/data", "sessions", "s2"),
+            str(pathlib.Path("/data", "sessions", "s1")),
+            str(pathlib.Path("/data", "sessions", "s2")),
         ]
-        assert common_parent_directory(paths=paths) == os.path.join("/data", "sessions")
+        assert common_parent_directory(paths=paths) == str(pathlib.Path("/data", "sessions"))
 
     def test_different_parents_return_the_nearest_common_ancestor(self):
         paths = [
-            os.path.join("/data", "tdt_sessions", "s1"),
-            os.path.join("/data", "csv_sessions", "s2"),
+            str(pathlib.Path("/data", "tdt_sessions", "s1")),
+            str(pathlib.Path("/data", "csv_sessions", "s2")),
         ]
-        assert common_parent_directory(paths=paths) == "/data"
+        assert common_parent_directory(paths=paths) == str(pathlib.Path("/data"))
 
     def test_nesting_depths_return_the_shallowest_ancestor(self):
         paths = [
-            os.path.join("/data", "s1"),
-            os.path.join("/data", "batch_a", "cohort_b", "s2"),
+            str(pathlib.Path("/data", "s1")),
+            str(pathlib.Path("/data", "batch_a", "cohort_b", "s2")),
         ]
-        assert common_parent_directory(paths=paths) == "/data"
+        assert common_parent_directory(paths=paths) == str(pathlib.Path("/data"))
