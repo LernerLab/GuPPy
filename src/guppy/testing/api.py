@@ -22,18 +22,21 @@ from guppy.analysis.tonic import compute_tonic_means
 from guppy.frontend.tonic_epochs import load_site_traces
 from guppy.orchestration.export_nwb import orchestrate_export_nwb
 from guppy.orchestration.group_analysis import run_group_analysis_step
-from guppy.orchestration.group_labeling import orchestrate_group_labeling_page
+from guppy.orchestration.group_labeling import build_group_labeling_page
 from guppy.orchestration.home import build_homepage
 from guppy.orchestration.import_custom_events import orchestrate_custom_events_page
-from guppy.orchestration.metadata import orchestrate_metadata_page
+from guppy.orchestration.metadata import build_metadata_templates
 from guppy.orchestration.preprocess import extractTsAndSignal, removeArtifactsFromSignal
 from guppy.orchestration.psth import psthForEachStore
 from guppy.orchestration.read_raw_data import orchestrate_read_raw_data
 from guppy.orchestration.save_parameters import save_parameters
-from guppy.orchestration.store_labeling import orchestrate_store_labeling_page
+from guppy.orchestration.store_labeling import (
+    build_store_labeling_template,
+    read_header,
+)
 from guppy.orchestration.transients import executeFindFreqAndAmp
 from guppy.orchestration.visualize import visualizeResults
-from guppy.utils.utils import resolve_run_folders
+from guppy.utils.utils import resolve_run_folders, run_folder_for_run
 
 
 def _validate_sessions_under_base_dir(*, abs_sessions: list[str], base_dir: str) -> None:
@@ -113,8 +116,8 @@ def save_parameters_snapshot(*, base_dir: str, selected_folders: Iterable[str]) 
 
     In the GUI this snapshot is now written automatically by each consuming step
     (steps 1–4); this helper exposes the same ``save_parameters`` write directly
-    for tests and scripted provenance. It builds the form headlessly (using
-    ``GUPPY_BASE_DIR`` to bypass the folder dialog), sets the FileSelector to
+    for tests and scripted provenance. It builds the form headlessly (rooting the
+    file selectors at ``base_dir``), sets the FileSelector to
     ``selected_folders``, and calls ``save_parameters`` with the current
     parameters.
 
@@ -133,10 +136,8 @@ def save_parameters_snapshot(*, base_dir: str, selected_folders: Iterable[str]) 
         If the template does not expose the required testing hooks
         (``_hooks['getInputParameters']`` and ``_widgets['files_1']``).
     """
-    os.environ["GUPPY_BASE_DIR"] = base_dir
-
     # Build the template headlessly
-    template = build_homepage()
+    template = build_homepage(start_path=base_dir)
 
     # Sanity checks: ensure hooks/widgets exposed
     if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
@@ -155,7 +156,7 @@ def import_custom_events(
     """Write custom event CSVs into sessions via the actual Panel-backed logic, headlessly.
 
     Mirrors the optional "Import Custom Events" GUI step: builds the form
-    headlessly (using ``GUPPY_BASE_DIR`` to bypass the folder dialog), sets the
+    headlessly (rooting the file selectors at ``base_dir``), sets the
     FileSelector to ``selected_folders``, injects ``custom_events_map``, and calls
     ``orchestrate_custom_events_page``. Each event is written as a
     GuPPy-compatible ``<name>.csv`` into its session folder. This is an unnumbered,
@@ -177,9 +178,7 @@ def import_custom_events(
     RuntimeError
         If the template does not expose the required testing hooks/widgets.
     """
-    os.environ["GUPPY_BASE_DIR"] = base_dir
-
-    template = build_homepage()
+    template = build_homepage(start_path=base_dir)
 
     if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
         raise RuntimeError("build_homepage did not expose 'getInputParameters' hook")
@@ -192,11 +191,192 @@ def import_custom_events(
     orchestrate_custom_events_page(input_params)
 
 
+def _parse_store_label(*, store_label: str) -> tuple[str, str]:
+    """Split a store label into the Label Stores page's row type and name.
+
+    Parameters
+    ----------
+    store_label : str
+        Store label such as ``"signal_DMS"``, ``"control_DMS"``,
+        ``"covariate_akinesia"``, or an event-TTL name.
+
+    Returns
+    -------
+    tuple of (str, str)
+        The row type (one of ``"signal"``, ``"control"``, ``"behavioral covariate"``,
+        ``"event TTLs"``) and the name entered in that row's textbox. Event-TTL
+        labels are returned verbatim as the name.
+    """
+    if store_label.startswith("signal_"):
+        return "signal", store_label[len("signal_") :]
+    if store_label.startswith("control_"):
+        return "control", store_label[len("control_") :]
+    if store_label.startswith("covariate_"):
+        return "behavioral covariate", store_label[len("covariate_") :]
+    return "event TTLs", store_label
+
+
+def _raise_on_alert(*, selector: object) -> None:
+    """Surface the Label Stores page's alert as a ValueError.
+
+    Parameters
+    ----------
+    selector : StoreLabelingSelector
+        The page's selector component; its alert pane holds ``"#### No alerts !!"``
+        when the last action succeeded.
+
+    Raises
+    ------
+    ValueError
+        With the alert text, when the page reported a problem.
+    """
+    if selector.alert.object != "#### No alerts !!":
+        raise ValueError(selector.alert.object)
+
+
+def _drive_npm_configuration_form(
+    *,
+    template: object,
+    npm_timestamp_column_name: str | None,
+    npm_time_unit: str | None,
+    npm_split_events: list[bool] | None,
+) -> None:
+    """Fill in and confirm the Label Stores page's NPM configuration form.
+
+    Parameters
+    ----------
+    template : pn.template.BootstrapTemplate
+        Template built by ``build_store_labeling_template`` for an NPM session.
+    npm_timestamp_column_name : str or None
+        Timestamp column to select; requires the session to offer more than one.
+    npm_time_unit : str or None
+        Time unit to select; ``None`` keeps the form's default.
+    npm_split_events : list of bool or None
+        Per-file split-events answers; ``None`` keeps the form's defaults.
+
+    Raises
+    ------
+    ValueError
+        When a supplied value has no form widget to receive it.
+    """
+    instructions = template._widgets["instructions"]
+    multiple_event_ttls = instructions.multiple_event_ttls
+    if npm_split_events is not None:
+        if len(npm_split_events) != len(multiple_event_ttls):
+            raise ValueError(
+                f"npm_split_events has {len(npm_split_events)} entries but the session has "
+                f"{len(multiple_event_ttls)} NPM files; provide one boolean per file."
+            )
+        for file_index, split in enumerate(npm_split_events):
+            checkbox = instructions.split_event_checkboxes.get(file_index)
+            if checkbox is not None:
+                checkbox.value = bool(split)
+            elif split:
+                raise ValueError(
+                    f"npm_split_events[{file_index}] is True but NPM file {file_index} has only one "
+                    "event TTL, so there is nothing to split."
+                )
+    if npm_timestamp_column_name is not None:
+        if instructions.timestamp_column_select is None:
+            raise ValueError(
+                f"npm_timestamp_column_name={npm_timestamp_column_name!r} was supplied but the "
+                "session's NPM files offer only one timestamp column."
+            )
+        instructions.timestamp_column_select.value = npm_timestamp_column_name
+    if npm_time_unit is not None:
+        instructions.time_unit_select.value = npm_time_unit
+    template._hooks["confirm_npm_configuration"]()
+
+
+def _drive_store_labeling_page(
+    *,
+    template: object,
+    folder_path: str,
+    store_id_to_store_label: dict[str, str],
+    run_name: str | None,
+    run_name_policy: str,
+) -> None:
+    """Drive one session's Label Stores page to save storesList.csv.
+
+    Sets the page's widgets to encode ``store_id_to_store_label``, clicks through
+    the same callbacks the GUI uses, and raises the page's alert as a
+    ``ValueError`` whenever an action fails.
+
+    Parameters
+    ----------
+    template : pn.template.BootstrapTemplate
+        Template built by ``build_store_labeling_template`` (NPM form already
+        confirmed, when present).
+    folder_path : str
+        Absolute path to the session directory.
+    store_id_to_store_label : dict of {str: str}
+        Mapping from store_ids to store labels; insertion order becomes the
+        storesList.csv column order.
+    run_name : str or None
+        Explicit run-name suffix, or ``None`` for the auto-incremented integer.
+    run_name_policy : {"create", "overwrite"}
+        Collision behavior for an explicit ``run_name``.
+    """
+    selector = template._widgets["selector"]
+
+    available_store_ids = list(selector.cross_selector.options)
+    missing = [store_id for store_id in store_id_to_store_label if store_id not in available_store_ids]
+    if missing:
+        raise ValueError(
+            f"store_id_to_store_label contains store_ids not discovered in {folder_path!r}: {missing}. "
+            f"Available store_ids: {available_store_ids}."
+        )
+    selector.cross_selector.value = list(store_id_to_store_label)
+    selector.update_options.clicks += 1
+
+    # Two passes: control rows reference their paired signal row by widget key, and those
+    # options exist only after every signal row carries its type and name.
+    signal_key_by_name: dict[str, str] = {}
+    control_rows: list[tuple[str, str, str]] = []
+    for i, (store_id, store_label) in enumerate(store_id_to_store_label.items()):
+        widget_key = f"{store_id}_{i}"
+        row_type, name = _parse_store_label(store_label=store_label)
+        selector.store_id_dropdowns[widget_key].value = row_type
+        if row_type == "control":
+            control_rows.append((widget_key, store_label, name))
+            continue
+        selector.store_id_textboxes[widget_key].value = name
+        if row_type == "signal":
+            signal_key_by_name[name] = widget_key
+    for widget_key, store_label, name in control_rows:
+        signal_key = signal_key_by_name.get(name)
+        if signal_key is None:
+            raise ValueError(
+                f"store label {store_label!r} has no matching 'signal_{name}' in store_id_to_store_label; "
+                "a control channel inherits its name from its paired signal."
+            )
+        selector.store_id_control_refs[widget_key].value = signal_key
+
+    selector.show_config_button.clicks += 1
+    _raise_on_alert(selector=selector)
+
+    target_run_folder = run_folder_for_run(folder_path, run_name) if run_name is not None else None
+    if run_name_policy == "overwrite" and target_run_folder is not None and os.path.isdir(target_run_folder):
+        selector.overwrite_button.clicked = "over_write_file"
+        selector.select_location.value = target_run_folder
+    else:
+        # "create" policy, or overwriting a run folder that does not exist yet.
+        selector.overwrite_button.clicked = "create_new_file"
+        if run_name:
+            selector.run_name.value = run_name
+            _raise_on_alert(selector=selector)
+        selector.select_location.value = selector.select_location.options[0]
+
+    template._hooks["save_button"]()
+    _raise_on_alert(selector=selector)
+
+
 def step1(
     *,
     base_dir: str,
     selected_folders: Iterable[str],
     store_id_to_store_label: dict[str, str],
+    isosbestic_control: bool = True,
     npm_timestamp_column_name: str | None = None,
     npm_time_unit: str | None = None,
     npm_split_events: list[bool] | None = None,
@@ -205,15 +385,13 @@ def step1(
     run_name_policy: Literal["create", "overwrite"] = "create",
 ) -> None:
     """
-    Run pipeline Step 1 (Label Stores) via the actual Panel-backed logic.
+    Run pipeline Step 1 (Label Stores) by driving the real Panel pages headlessly.
 
-    This builds the Step 1 template headlessly (using ``GUPPY_BASE_DIR`` to bypass
-    the folder dialog), sets the FileSelector to ``selected_folders``, retrieves
-    the full input parameters via ``getInputParameters()``, injects the provided
-    ``store_id_to_store_label``, and calls ``execute(inputParameters)`` from
-    ``guppy.saveStoresList``. The execute() function is minimally augmented to
-    support a headless branch when ``store_id_to_store_label`` is present, while leaving
-    Panel behavior unchanged.
+    Builds the homepage template rooted at ``base_dir``, sets the FileSelector to
+    ``selected_folders``, retrieves the full input parameters via
+    ``getInputParameters()``, then for each session builds the Label Stores page
+    and drives its widgets and save callback to encode ``store_id_to_store_label``
+    — the exact code path the GUI's save button exercises.
 
     Parameters
     ----------
@@ -225,6 +403,9 @@ def step1(
     store_id_to_store_label : dict[str, str]
         Mapping from raw store_ids (e.g., "Dv1A") to store labels
         (e.g., "control_DMS"). Insertion order is preserved.
+    isosbestic_control : bool
+        Whether isosbestic-control naming applies; when True every signal in the
+        mapping must have a paired control.
     npm_timestamp_column_name : str | None
         Timestamp column to use in NPM files that offer more than one. None to use the first.
     npm_time_unit : str | None
@@ -236,8 +417,9 @@ def step1(
     Raises
     ------
     ValueError
-        If validation fails (e.g., empty mapping, invalid directories, or a session
-        outside base_dir).
+        If validation fails (e.g., empty mapping, invalid directories, a session
+        outside base_dir, or a mapping the page cannot express), or when the page
+        reports an alert while being driven.
     RuntimeError
         If the template does not expose the required testing hooks/widgets.
     """
@@ -270,31 +452,23 @@ def step1(
                 "strings (the store label such as 'control_DMS' or 'signal_NAc')."
             )
 
-    # Headless build: set base_dir and construct the template
-    os.environ["GUPPY_BASE_DIR"] = base_dir
-    template = build_homepage()
+    if run_name_policy not in ("create", "overwrite"):
+        raise ValueError(f"run_name_policy must be 'create' or 'overwrite'; got {run_name_policy!r}.")
+
+    # Headless build: construct the template rooted at base_dir
+    homepage = build_homepage(start_path=base_dir)
 
     # Ensure hooks/widgets exposed
-    if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
+    if not hasattr(homepage, "_hooks") or "getInputParameters" not in homepage._hooks:
         raise RuntimeError("savingInputParameters did not expose 'getInputParameters' hook")
-    if not hasattr(template, "_widgets") or "files_1" not in template._widgets:
+    if not hasattr(homepage, "_widgets") or "files_1" not in homepage._widgets:
         raise RuntimeError("savingInputParameters did not expose 'files_1' widget")
 
     # Select folders and fetch input parameters
-    template._widgets["files_1"].value = abs_sessions
-    input_params = template._hooks["getInputParameters"]()
+    homepage._widgets["files_1"].value = abs_sessions
+    input_params = homepage._hooks["getInputParameters"]()
 
-    # Inject store_ids mapping for headless execution
-    input_params["store_id_to_store_label"] = dict(store_id_to_store_label)
-
-    # Inject run-name configuration (None falls back to legacy auto-incremented integer suffix)
-    input_params["run_name"] = run_name
-    input_params["run_name_policy"] = run_name_policy
-
-    # Add npm parameters
-    input_params["npm_timestamp_column_name"] = npm_timestamp_column_name
-    input_params["npm_time_unit"] = npm_time_unit
-    input_params["npm_split_events"] = npm_split_events
+    input_params["isosbestic_control"] = isosbestic_control
 
     # Inject DANDI mode and URI map for streaming
     if dandi_uri_map is not None:
@@ -303,8 +477,37 @@ def step1(
     else:
         input_params["mode"] = "local"
 
-    # Call the underlying Step 1 executor (now headless-aware)
-    orchestrate_store_labeling_page(input_params)
+    # Drive each session's Label Stores page exactly as the GUI does.
+    num_ch = input_params["noChannels"]
+    for session in abs_sessions:
+        events, flags, npm_interactive = read_header(input_params, num_ch, session)
+        template = build_store_labeling_template(
+            events,
+            flags,
+            session,
+            isosbestic_control=isosbestic_control,
+            inputParameters=input_params,
+            npm_interactive=npm_interactive,
+        )
+        if npm_interactive is not None:
+            _drive_npm_configuration_form(
+                template=template,
+                npm_timestamp_column_name=npm_timestamp_column_name,
+                npm_time_unit=npm_time_unit,
+                npm_split_events=npm_split_events,
+            )
+        elif not (npm_timestamp_column_name is None and npm_time_unit is None and npm_split_events is None):
+            raise ValueError(
+                f"NPM parameters were supplied but session {session!r} contains no NPM data, "
+                "so there is no NPM configuration form to receive them."
+            )
+        _drive_store_labeling_page(
+            template=template,
+            folder_path=session,
+            store_id_to_store_label=store_id_to_store_label,
+            run_name=run_name,
+            run_name_policy=run_name_policy,
+        )
 
 
 def step2(
@@ -321,8 +524,8 @@ def step2(
     """
     Run pipeline Step 2 (Read Raw Data) via the actual Panel-backed logic, headlessly.
 
-    This builds the template headlessly (using ``GUPPY_BASE_DIR`` to bypass
-    the folder dialog), sets the FileSelector to ``selected_folders``, retrieves
+    This builds the template headlessly (rooting the file selectors at
+    ``base_dir``), sets the FileSelector to ``selected_folders``, retrieves
     the full input parameters via ``getInputParameters()``, and calls the
     underlying worker ``guppy.readTevTsq.readRawData(input_params)`` that the
     UI invokes on its background worker thread. No GUI is spawned.
@@ -366,9 +569,8 @@ def step2(
     abs_sessions = [os.path.abspath(session) for session in sessions]
     _validate_sessions_under_base_dir(abs_sessions=abs_sessions, base_dir=base_dir)
 
-    # Headless build: set base_dir and construct the template
-    os.environ["GUPPY_BASE_DIR"] = base_dir
-    template = build_homepage()
+    # Headless build: construct the template rooted at base_dir
+    template = build_homepage(start_path=base_dir)
 
     # Ensure hooks/widgets exposed
     if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
@@ -425,9 +627,8 @@ def _build_preprocess_input_parameters(
     """
     Build the input-parameter dict the preprocessing workers consume, headlessly.
 
-    Validates the folder arguments, builds the Panel template with
-    ``GUPPY_BASE_DIR`` set, retrieves ``getInputParameters()``, and overwrites the
-    keys the caller specified.
+    Validates the folder arguments, builds the Panel template rooted at ``base_dir``,
+    retrieves ``getInputParameters()``, and overwrites the keys the caller specified.
 
     Returns
     -------
@@ -459,9 +660,8 @@ def _build_preprocess_input_parameters(
     abs_sessions = [os.path.abspath(session) for session in sessions]
     _validate_sessions_under_base_dir(abs_sessions=abs_sessions, base_dir=base_dir)
 
-    # Headless build: set base_dir and construct the template
-    os.environ["GUPPY_BASE_DIR"] = base_dir
-    template = build_homepage()
+    # Headless build: construct the template rooted at base_dir
+    template = build_homepage(start_path=base_dir)
 
     # Ensure hooks/widgets exposed
     if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
@@ -533,8 +733,8 @@ def step3(
     """
     Run pipeline Step 3 (Extract timestamps and signal) via the Panel-backed logic, headlessly.
 
-    This builds the template headlessly (using ``GUPPY_BASE_DIR`` to bypass
-    the folder dialog), sets the FileSelector to ``selected_folders``, retrieves
+    This builds the template headlessly (rooting the file selectors at
+    ``base_dir``), sets the FileSelector to ``selected_folders``, retrieves
     the full input parameters via ``getInputParameters()``, and calls the
     underlying worker ``guppy.preprocess.extractTsAndSignal(input_params)`` that the
     UI invokes on its background worker thread. No GUI is spawned.
@@ -853,8 +1053,8 @@ def step4(
     """
     Run pipeline Step 4 (PSTH Computation) via the Panel-backed logic, headlessly.
 
-    This builds the template headlessly (using ``GUPPY_BASE_DIR`` to bypass
-    the folder dialog), sets the FileSelector to ``selected_folders``, retrieves
+    This builds the template headlessly (rooting the file selectors at
+    ``base_dir``), sets the FileSelector to ``selected_folders``, retrieves
     the full input parameters via ``getInputParameters()``, and calls the
     underlying worker ``guppy.computePsth.psthForEachStore(input_params)`` that the
     UI invokes on its background worker thread. No GUI is spawned.
@@ -931,9 +1131,8 @@ def step4(
     abs_sessions = [os.path.abspath(session) for session in sessions]
     _validate_sessions_under_base_dir(abs_sessions=abs_sessions, base_dir=base_dir)
 
-    # Headless build: set base_dir and construct the template
-    os.environ["GUPPY_BASE_DIR"] = base_dir
-    template = build_homepage()
+    # Headless build: construct the template rooted at base_dir
+    template = build_homepage(start_path=base_dir)
 
     # Ensure hooks/widgets exposed
     if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
@@ -992,7 +1191,6 @@ def step4(
 
 def label_groups(
     *,
-    base_dir: str,
     member_run_folders: Iterable[str],
     destination_directory: str,
     group_name: str,
@@ -1004,8 +1202,6 @@ def label_groups(
 
     Parameters
     ----------
-    base_dir : str
-        Root directory used to initialize the FileSelector.
     member_run_folders : iterable of str
         Output (run) directories to record as the group's members. Each must already
         hold Step-4 results.
@@ -1013,15 +1209,22 @@ def label_groups(
         Directory the group output directory is written into.
     group_name : str
         Name of the group. Becomes the ``<group_name>_group`` directory name.
+
+    Raises
+    ------
+    ValueError
+        When the page rejects the group name or member selection (raised from
+        the page's alert).
     """
-    os.environ["GUPPY_BASE_DIR"] = base_dir
-    orchestrate_group_labeling_page(
-        {
-            "group_name": group_name,
-            "group_destination_directory": os.path.abspath(destination_directory),
-            "group_member_run_folders": [os.path.abspath(run_folder) for run_folder in member_run_folders],
-        }
-    )
+    destination = os.path.abspath(destination_directory)
+    page = build_group_labeling_page(inputParameters={"abspath": destination, "selected_group_folders": []})
+    page.group_name.value = group_name
+    page.destination_selector.value = [destination]
+    page.members_selector.value = [os.path.abspath(run_folder) for run_folder in member_run_folders]
+    page.save.clicks += 1
+    # The page reports validation failures on its alert instead of raising.
+    if page.alert.visible:
+        raise ValueError(page.alert.object)
 
 
 def group_analysis(
@@ -1053,8 +1256,7 @@ def group_analysis(
     compute_corr : bool
         Whether cross-correlation outputs are combined.
     """
-    os.environ["GUPPY_BASE_DIR"] = base_dir
-    template = build_homepage()
+    template = build_homepage(start_path=base_dir)
 
     absolute_groups = [os.path.abspath(folder) for folder in selected_group_folders]
     template._widgets["group_folders_selector"].value = absolute_groups
@@ -1085,8 +1287,8 @@ def step5(
     """
     Run pipeline Step 5 (Visualize Results) via the Panel-backed logic, headlessly.
 
-    This builds the template headlessly (using ``GUPPY_BASE_DIR`` to bypass
-    the folder dialog), sets the FileSelector to ``selected_folders``, retrieves
+    This builds the template headlessly (rooting the file selectors at
+    ``base_dir``), sets the FileSelector to ``selected_folders``, retrieves
     the full input parameters via ``getInputParameters()``, and calls
     ``visualizeResults(input_params)``. No GUI is spawned.
 
@@ -1140,9 +1342,8 @@ def step5(
     abs_sessions = [os.path.abspath(session) for session in sessions]
     _validate_sessions_under_base_dir(abs_sessions=abs_sessions, base_dir=base_dir)
 
-    # Headless build: set base_dir and construct the template
-    os.environ["GUPPY_BASE_DIR"] = base_dir
-    template = build_homepage()
+    # Headless build: construct the template rooted at base_dir
+    template = build_homepage(start_path=base_dir)
 
     # Ensure hooks/widgets exposed
     if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
@@ -1184,8 +1385,8 @@ def _build_headless_input_parameters(
 ) -> tuple[dict[str, object], list[str]]:
     """Validate the folder selection and return the input parameters a headless step runs with.
 
-    Mirrors the production call chain: set ``GUPPY_BASE_DIR`` so the folder dialog is bypassed,
-    build the homepage, select the sessions, then read the parameters back off the form.
+    Mirrors the production call chain: build the homepage rooted at ``base_dir``,
+    select the sessions, then read the parameters back off the form.
 
     Parameters
     ----------
@@ -1221,8 +1422,7 @@ def _build_headless_input_parameters(
     abs_sessions = [os.path.abspath(session) for session in sessions]
     _validate_sessions_under_base_dir(abs_sessions=abs_sessions, base_dir=base_dir)
 
-    os.environ["GUPPY_BASE_DIR"] = base_dir
-    template = build_homepage()
+    template = build_homepage(start_path=base_dir)
 
     if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
         raise RuntimeError("savingInputParameters did not expose 'getInputParameters' hook")
@@ -1243,8 +1443,7 @@ def step6(
     """
     Run pipeline Step 6 (Input Metadata) via the Panel-backed logic, headlessly.
 
-    Builds one metadata page per selected session that needs one, without serving any of them:
-    ``orchestrate_metadata_page`` skips ``template.show`` whenever ``GUPPY_BASE_DIR`` is set.
+    Builds one metadata page per selected session that needs one, without serving any of them.
     Sessions GuPPy processed out of an NWB file are skipped entirely, as in the GUI.
 
     Because nothing is served, this writes no ``nwb_metadata.yaml``; it exercises the page
@@ -1276,8 +1475,8 @@ def step6(
     input_params["combine_data"] = combine_data
     input_params["selected_runs"] = _normalize_selected_runs(selected_runs, abs_sessions)
 
-    # Call the underlying Step 6 worker directly, as the GUI does
-    orchestrate_metadata_page(input_params)
+    # Build the pages the GUI would serve, without serving them
+    build_metadata_templates(inputParameters=input_params)
 
 
 def step7(

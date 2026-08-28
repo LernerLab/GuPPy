@@ -64,7 +64,7 @@ def test_underscore_recording_site_runs_end_to_end(tmp_path, isosbestic_control,
     )
     selected_runs = {str(session_copy): ["1"]}
 
-    step1(**common_kwargs, store_id_to_store_label=store_id_to_store_label)
+    step1(**common_kwargs, store_id_to_store_label=store_id_to_store_label, isosbestic_control=isosbestic_control)
     step2(**common_kwargs, selected_runs=selected_runs)
     step3(**common_kwargs, isosbestic_control=isosbestic_control, selected_runs=selected_runs)
     step4(**common_kwargs, selected_runs=selected_runs)

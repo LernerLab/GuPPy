@@ -6,33 +6,21 @@ import numpy as np
 import panel as pn
 import pytest
 
-from guppy.frontend.frontend_utils import default_root_path
 from guppy.frontend.input_parameters import ParameterForm
 from guppy.utils.utils import run_folder_for_run
 
 
 @pytest.fixture(scope="session")
 def frontend_base_dir(tmp_path_factory):
-    """Create a real temp directory and point GUPPY_BASE_DIR at it.
-
-    Ensures FileSelector resolves to a real path. Restores the original value
-    on teardown.
-    """
-    base_dir = tmp_path_factory.mktemp("frontend_base")
-    original = os.environ.get("GUPPY_BASE_DIR")
-    os.environ["GUPPY_BASE_DIR"] = str(base_dir)
-    yield base_dir
-    if original is None:
-        del os.environ["GUPPY_BASE_DIR"]
-    else:
-        os.environ["GUPPY_BASE_DIR"] = original
+    """Create a real temp directory for the form's file selectors to start in."""
+    return tmp_path_factory.mktemp("frontend_base")
 
 
 @pytest.fixture
 def bare_parameter_form(panel_extension, frontend_base_dir):
     """Build a BootstrapTemplate + ParameterForm with no files set."""
     template = pn.template.BootstrapTemplate(title="Test")
-    return ParameterForm(template=template)
+    return ParameterForm(template=template, start_path=str(frontend_base_dir))
 
 
 @pytest.fixture
@@ -45,7 +33,7 @@ def parameter_form(panel_extension, frontend_base_dir, tmp_path):
     session_dir = tmp_path / "session1"
     session_dir.mkdir()
     template = pn.template.BootstrapTemplate(title="Test")
-    form = ParameterForm(template=template)
+    form = ParameterForm(template=template, start_path=str(frontend_base_dir))
     form.files_1.value = [str(session_dir)]
     return form
 
@@ -414,12 +402,14 @@ class TestOutputsSelector:
         assert bare_parameter_form.outputs_selector.directory == str(session)
         assert bare_parameter_form.outputs_selector.value == []
 
-    def test_retarget_falls_back_to_default_root_when_files_1_cleared(self, bare_parameter_form, tmp_path):
+    def test_retarget_falls_back_to_start_path_when_files_1_cleared(
+        self, bare_parameter_form, frontend_base_dir, tmp_path
+    ):
         session = tmp_path / "sessionA"
         session.mkdir()
         bare_parameter_form.files_1.value = [str(session)]
         bare_parameter_form.files_1.value = []
-        assert bare_parameter_form.outputs_selector.directory == default_root_path()
+        assert bare_parameter_form.outputs_selector.directory == str(frontend_base_dir)
 
     def test_retarget_multiple_sessions_uses_common_parent_as_root(self, bare_parameter_form, tmp_path):
         # Multi-session: root must be the common parent so the user can navigate between

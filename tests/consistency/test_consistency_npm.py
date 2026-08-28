@@ -16,7 +16,7 @@ CONSISTENCY_CASES = [
             "file0_chev6": "control_region",
             "file1_chev6": "signal_region",
         },
-        {"npm_split_events": [True, True]},
+        {"npm_split_events": None},
     ),
     (
         "SampleData_Neurophotometrics/sampleData_NPM_3",
@@ -40,7 +40,7 @@ CONSISTENCY_CASES = [
             "file0_chod1": "signal_region1",
             "eventTrue": "ttl_true_region1",
         },
-        {"npm_split_events": [True, True]},
+        {"npm_split_events": [False, True]},
     ),
     (
         "SampleData_Neurophotometrics/sampleData_NPM_5",

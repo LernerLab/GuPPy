@@ -18,7 +18,7 @@ REPRESENTATIVE_SESSIONS = {
         },
         "npm_timestamp_column_name": None,
         "npm_time_unit": None,
-        "npm_split_events": [True, True],
+        "npm_split_events": None,
     },
     "tdt": {
         "session_subdir": "tdt/Photo_63_207-181030-103332",
@@ -29,7 +29,7 @@ REPRESENTATIVE_SESSIONS = {
         },
         "npm_timestamp_column_name": None,
         "npm_time_unit": None,
-        "npm_split_events": [True, True],
+        "npm_split_events": None,
     },
     "npm": {
         "session_subdir": "npm/sampleData_NPM_5",
@@ -52,7 +52,7 @@ REPRESENTATIVE_SESSIONS = {
         },
         "npm_timestamp_column_name": None,
         "npm_time_unit": None,
-        "npm_split_events": [True, True],
+        "npm_split_events": None,
     },
     "nwb": {
         "session_subdir": "nwb/mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_2",
@@ -63,7 +63,7 @@ REPRESENTATIVE_SESSIONS = {
         },
         "npm_timestamp_column_name": None,
         "npm_time_unit": None,
-        "npm_split_events": [True, True],
+        "npm_split_events": None,
     },
 }
 

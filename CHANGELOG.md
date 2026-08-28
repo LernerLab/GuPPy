@@ -18,6 +18,7 @@
 - Removed the `progress_bar` pytest marker, which was applied to no tests and made every Windows CI run deselect nothing. [PR #449](https://github.com/LernerLab/GuPPy/pull/449)
 
 ## Deprecations and Removals
+- Removed headless mode: the `GUPPY_BASE_DIR` environment variable and the `is_headless()` helper are gone, with the file pickers' starting directory now coming from `guppy --start-path`. The scripted branches of Label Stores, Label Groups and Input Metadata are removed too — `guppy.testing.api` now drives the real Panel pages headlessly — and Step 1's create-new mode no longer silently overwrites an existing run folder. The `base_dir` argument of `guppy.testing.api.label_groups` is removed, and `api.step1` gains an `isosbestic_control` keyword. [PR #452](https://github.com/LernerLab/GuPPy/pull/452)
 
 # v2.0.0-beta1 (August 20th, 2026)
 

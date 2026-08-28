@@ -28,7 +28,7 @@ def test_combine_data(tmp_path):
 
     npm_timestamp_column_name = None
     npm_time_unit = None
-    npm_split_events = [True, True]
+    npm_split_events = None
 
     # Use the CSV sample session
     src_base_dir = str(STUBBED_TESTING_DATA)
