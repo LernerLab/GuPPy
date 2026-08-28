@@ -6,11 +6,6 @@ import holoviews as hv
 import panel as pn
 import pytest
 
-# Set GUPPY_BASE_DIR before any guppy source modules are imported. This is
-# GuPPy's headless flag: orchestration code checks it to skip figure creation.
-# The per-test step functions will override this with the actual base_dir.
-os.environ.setdefault("GUPPY_BASE_DIR", "1")
-
 # Use "spawn" start method for all multiprocessing in tests. "fork" (the Linux
 # default) can deadlock when forking a multi-threaded pytest host, and can stall
 # coverage measurement waiting on child-process signals. "spawn" creates a clean
@@ -35,6 +30,38 @@ def pytest_configure(config: pytest.Config) -> None:
     """
     if getattr(config.option, "cov_source", None):
         os.environ.setdefault("COVERAGE_PROCESS_START", str(PYPROJECT_PATH))
+
+
+class FakeHomePath:
+    """``pathlib.Path`` stand-in whose ``home()`` returns a test-controlled directory."""
+
+    _home: Path | None = None
+
+    @classmethod
+    def home(cls) -> Path:
+        return cls._home
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _stores_cache_home_patch(tmp_path_factory: pytest.TempPathFactory):
+    """Redirect the Step-1 store-labels cache (``~/.storesList.json``) away from the real home.
+
+    Session-scoped so it is live before the session-scoped ``step1_output_*`` integration
+    fixtures drive the store-labeling save, which writes the cache via
+    ``guppy.orchestration.store_labeling.Path.home()``.
+    """
+    FakeHomePath._home = tmp_path_factory.mktemp("stores_cache_home")
+    patcher = pytest.MonkeyPatch()
+    patcher.setattr("guppy.orchestration.store_labeling.Path", FakeHomePath)
+    yield
+    patcher.undo()
+
+
+@pytest.fixture(autouse=True)
+def isolated_stores_cache(tmp_path: Path) -> Path:
+    """Give each test its own store-labels cache directory so state never leaks across tests."""
+    FakeHomePath._home = tmp_path
+    return tmp_path
 
 
 @pytest.fixture(scope="session")

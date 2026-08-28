@@ -52,7 +52,7 @@ def test_consistency_no_isosbestic(tmp_path):
     )
 
     selected_runs = {folder: ["1"] for folder in common_kwargs["selected_folders"]}
-    step1(**common_kwargs, store_id_to_store_label=STORE_ID_TO_STORE_LABEL)
+    step1(**common_kwargs, store_id_to_store_label=STORE_ID_TO_STORE_LABEL, isosbestic_control=False)
     step2(**common_kwargs, selected_runs=selected_runs)
     step3(**common_kwargs, isosbestic_control=False, control_fit_method="OLS", selected_runs=selected_runs)
     step4(**common_kwargs, selected_runs=selected_runs)

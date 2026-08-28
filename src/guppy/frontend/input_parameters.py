@@ -129,7 +129,7 @@ class ParameterForm:
 
         self.files_1 = pn.widgets.FileSelector(self.folder_path, root_directory="/", name="session_folders", width=950)
 
-        self.dandi_selector = DandiSelector(styles=self.styles)
+        self.dandi_selector = DandiSelector(styles=self.styles, start_path=self.folder_path)
         # Hidden by default; shown when source_mode == "dandi"
         self.dandi_selector.panel.visible = False
 
@@ -495,7 +495,7 @@ class ParameterForm:
     def _retarget_outputs_selector(self, event: object) -> None:
         """Root the existing-runs FileSelector so all selected sessions' `_output_*` dirs are reachable.
 
-        - Zero sessions: fall back to ``default_root_path()``.
+        - Zero sessions: fall back to the form's starting directory.
         - One session: root and starting directory both set to that session so its `_output_*`
           children show directly (no extra click).
         - Multiple sessions: root set to their common parent so every session is navigable;
@@ -504,8 +504,8 @@ class ParameterForm:
         """
         sessions = [session for session in (event.new or []) if os.path.isdir(session)]
         if not sessions:
-            root_target = default_root_path()
-            directory_target = default_root_path()
+            root_target = self.folder_path
+            directory_target = self.folder_path
         elif len(sessions) == 1:
             root_target = sessions[0]
             directory_target = sessions[0]
