@@ -287,6 +287,10 @@ class ParameterForm:
             name="Compute Cross-correlation (bool)", options=[True, False], value=False, width=200
         )
 
+        self.computePsthSignificance = pn.widgets.Select(
+            name="Compute PSTH Significance? (bool)", options=[True, False], value=False, width=240
+        )
+
         self.useTransientsAsEvents = pn.widgets.Select(
             name="Use Transients as Events? (bool)", options=[True, False], value=False, width=200
         )
@@ -374,6 +378,33 @@ class ParameterForm:
             "### Peak and AUC Parameters", self.peak_explain, self.df_widget, self.auc_units, width=600
         )
 
+        self.significance_explain = pn.pane.Markdown(
+            """
+                        - Every event is tested against zero automatically. The table below names the
+                        pairs of events to compare against each other, for example rewarded versus
+                        unrewarded nose pokes. Leave it blank to run only the tests against zero.
+                        - Each pair is compared within every recording site and metric, using the event
+                        labels assigned in **Step 1: Label Stores**.
+                        - Comparisons run inside one output folder. In a session run folder the trials
+                        are resampled; in a group folder the session averages are.
+                        """,
+            width=580,
+        )
+
+        self.comparison_df = pd.DataFrame({"Event A": [""] * 10, "Event B": [""] * 10})
+
+        self.comparison_df_widget = pn.widgets.Tabulator(
+            self.comparison_df, name="Comparisons", show_index=False, widths=280
+        )
+
+        self.significance_param_wd = pn.WidgetBox(
+            "### PSTH Significance Parameters",
+            self.significance_explain,
+            self.computePsthSignificance,
+            self.comparison_df_widget,
+            width=600,
+        )
+
         self.individual_analysis_wd_2 = pn.Column(
             self.explain_time_artifacts,
             pn.Row(self.numberOfCores, self.combine_data),
@@ -394,7 +425,11 @@ class ParameterForm:
         )
 
         self.psth_baseline_param = pn.Column(
-            self.zscore_param_wd, self.psth_param_wd, self.baseline_param_wd, self.peak_param_wd
+            self.zscore_param_wd,
+            self.psth_param_wd,
+            self.baseline_param_wd,
+            self.peak_param_wd,
+            self.significance_param_wd,
         )
 
         self.input_folder_selection_widget = pn.Column(
@@ -733,6 +768,9 @@ class ParameterForm:
             "baselineCorrectionEnd": self.baselineCorrectionEnd.value,
             "peak_startPoint": list(self.df_widget.value["Peak Start time"]),  # startPoint.value,
             "peak_endPoint": list(self.df_widget.value["Peak End time"]),  # endPoint.value,
+            "computePsthSignificance": self.computePsthSignificance.value,
+            "psthComparisonsA": list(self.comparison_df_widget.value["Event A"]),
+            "psthComparisonsB": list(self.comparison_df_widget.value["Event B"]),
             "auc_units": self.auc_units.value,
             "selectForComputePsth": self.computePsth.value,
             "selectForTransientsComputation": self.transients.value,
@@ -776,6 +814,7 @@ class ParameterForm:
             "nSecPrev": self.nSecPrev,
             "nSecPost": self.nSecPost,
             "computeCorr": self.computeCorr,
+            "computePsthSignificance": self.computePsthSignificance,
             "useTransientsAsEvents": self.useTransientsAsEvents,
             "timeInterval": self.timeInterval,
             "bin_psth_trials": self.bin_psth_trials,
@@ -812,6 +851,11 @@ class ParameterForm:
             df["Peak Start time"] = parameters["peak_startPoint"]
             df["Peak End time"] = parameters["peak_endPoint"]
             self.df_widget.value = df
+        if "psthComparisonsA" in parameters and "psthComparisonsB" in parameters:
+            comparisons = self.comparison_df_widget.value.copy()
+            comparisons["Event A"] = parameters["psthComparisonsA"]
+            comparisons["Event B"] = parameters["psthComparisonsB"]
+            self.comparison_df_widget.value = comparisons
 
     def _load_parameters_from_selected_runs(self, event: object) -> None:
         """Reload analysis parameters from the saved JSON of the selected output run(s).

@@ -17,6 +17,9 @@ COVARIATE_PREFIX = "covariate_"
 ZSCORE_PREFIX = "z_score_"
 DFF_PREFIX = "dff_"
 
+PSTH_SIGNIFICANCE_DIRNAME = "psth_significance_output"
+PSTH_SIGNIFICANCE_PREFIX = "significance_"
+
 
 def is_channel_label(label: str) -> bool:
     """
@@ -482,4 +485,54 @@ def make_dir_for_cross_correlation(filepath: str) -> str:
     run_folder = os.path.join(filepath, "cross_correlation_output")
     if not os.path.exists(run_folder):
         os.mkdir(run_folder)
+    return run_folder
+
+
+def recording_sites_for_output_directory(filepath: str) -> list[str]:
+    """
+    Return the recording-site names an output directory holds results for.
+
+    Read from ``storesList.csv`` rather than from the preprocessed trace filenames, so a
+    directory that holds averaged results but no traces of its own (a group) needs no
+    stand-in files to name its sites.
+
+    Parameters
+    ----------
+    filepath : str
+        Path to an output directory: a session run folder or a group folder.
+
+    Returns
+    -------
+    list of str
+        Recording-site names, in the order their channels appear in ``storesList.csv``.
+    """
+    store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
+    sites = []
+    for label in store_array[1, :]:
+        if not is_channel_label(label):
+            continue
+        site = recording_site_from_channel_label(label)
+        if site not in sites:
+            sites.append(site)
+    return sites
+
+
+def make_dir_for_psth_significance(filepath: str) -> str:
+    """
+    Create and return the PSTH significance output subdirectory.
+
+    Parameters
+    ----------
+    filepath : str
+        Parent directory inside which ``psth_significance_output/`` is created.
+
+    Returns
+    -------
+    run_folder : str
+        Path to the PSTH significance output directory.
+    """
+    run_folder = os.path.join(filepath, PSTH_SIGNIFICANCE_DIRNAME)
+    # Created rather than checked-then-created: comparisons run in parallel, so two
+    # workers can otherwise both find it missing and race to make it.
+    os.makedirs(run_folder, exist_ok=True)
     return run_folder

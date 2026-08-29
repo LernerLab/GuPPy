@@ -10,6 +10,7 @@ from itertools import repeat
 import numpy as np
 from scipy import signal as ss
 
+from .psth_significance import execute_compute_psth_significance
 from .save_parameters import read_artifact_provenance, save_parameters
 from .transients import executeFindFreqAndAmp
 from ..analysis.compute_psth import compute_psth
@@ -42,7 +43,11 @@ from ..utils.utils import (
     select_run_folders,
     transient_event_labels,
 )
-from ..utils.validation import validate_peak_windows, validate_window_bounds
+from ..utils.validation import (
+    validate_peak_windows,
+    validate_psth_comparisons,
+    validate_window_bounds,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -311,6 +316,10 @@ def orchestrate_psth(inputParameters: dict[str, object]) -> None:
                 )
 
             progress.advance()
+
+            execute_compute_psth_significance(filepath, inputParameters)
+            if inputParameters["computePsthSignificance"]:
+                progress.advance()
         logger.info(f"PSTH, Area and Peak are computed for all events in {session_folders[i]}.")
 
 
@@ -347,6 +356,45 @@ def execute_psth_combined(inputParameters: dict[str, object]) -> None:
             execute_compute_psth_peak_and_area(combined_output_groups[i][0], event, inputParameters)
             execute_compute_cross_correlation(combined_output_groups[i][0], event, inputParameters)
         progress.advance()
+
+        execute_compute_psth_significance(combined_output_groups[i][0], inputParameters)
+        if inputParameters["computePsthSignificance"]:
+            progress.advance()
+
+
+def _validate_psth_significance_parameters(inputParameters: dict[str, object]) -> None:
+    """Upfront validation of the PSTH significance parameters, run before any HDF5 IO.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters.
+
+    Raises
+    ------
+    ValueError
+        If a comparison row is half-filled or self-referential, or if the moving-average
+        filter is disabled while significance testing is on.
+    """
+    if not inputParameters["computePsthSignificance"]:
+        return
+
+    validate_psth_comparisons(
+        comparisons_a=inputParameters["psthComparisonsA"],
+        comparisons_b=inputParameters["psthComparisonsB"],
+    )
+
+    # The significance run-length threshold is derived from the filter window, so with
+    # filtering disabled every isolated significant sample would survive and the
+    # multiple-comparisons control would silently vanish.
+    if inputParameters["filter_window"] == 0:
+        message = (
+            "filter_window=0 disables the moving-average filter, but PSTH significance testing "
+            "derives its minimum significant duration from it. Set a filter window, or turn off "
+            "Compute PSTH Significance."
+        )
+        logger.error(message)
+        raise ValueError(message)
 
 
 def _validate_psth_window_parameters(inputParameters: dict[str, object]) -> None:
@@ -391,6 +439,7 @@ def psthForEachStore(inputParameters: dict[str, object]) -> None:
     inputParameters = inputParameters
 
     _validate_psth_window_parameters(inputParameters)
+    _validate_psth_significance_parameters(inputParameters)
 
     combine_data = inputParameters["combine_data"]
     numProcesses = inputParameters["numberOfCores"]
@@ -426,9 +475,11 @@ def _start_step4_progress(input_parameters: dict[str, object]) -> None:
     input_parameters : dict
         Full pipeline input parameters.
     """
-    # Two units per output directory: transient analysis, then PSTH.
+    # Two units per output directory: transient analysis, then PSTH. Significance
+    # testing, when enabled, adds a third.
     run_folders = resolve_run_folders(input_parameters["session_folders"], input_parameters)
-    progress.start(len(run_folders) * 2)
+    units_per_run_folder = 3 if input_parameters["computePsthSignificance"] else 2
+    progress.start(len(run_folders) * units_per_run_folder)
 
 
 @step_error_handler
@@ -444,6 +495,7 @@ def run_psth_step(input_parameters: dict[str, object]) -> None:
         Full pipeline input parameters.
     """
     _validate_psth_window_parameters(input_parameters)
+    _validate_psth_significance_parameters(input_parameters)
     _start_step4_progress(input_parameters)
     executeFindFreqAndAmp(input_parameters)
     psthForEachStore(input_parameters)

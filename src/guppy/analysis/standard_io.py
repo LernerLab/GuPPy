@@ -6,6 +6,7 @@ import pandas as pd
 
 from .io_utils import (
     COVARIATE_PREFIX,
+    PSTH_SIGNIFICANCE_PREFIX,
     decide_naming_convention,
     fetchCoords,
     get_control_and_signal_channel_names,
@@ -15,8 +16,8 @@ from .io_utils import (
     recording_site_from_channel_path,
     write_hdf5,
 )
-from ..utils.utils import TRANSIENT_EVENT_PREFIX
 from .tonic import TONIC_EPOCH_COLUMNS
+from ..utils.utils import TRANSIENT_EVENT_PREFIX
 
 logger = logging.getLogger(__name__)
 
@@ -938,6 +939,66 @@ def read_binned_metrics_from_hdf5(filepath: str, recording_site: str) -> pd.Data
     binned_metrics = pd.read_hdf(output_path, key="df", mode="r")
 
     return binned_metrics
+
+
+def write_psth_significance_to_hdf5(*, filepath: str, significance: pd.DataFrame, name: str) -> None:
+    """
+    Save a PSTH significance comparison to an HDF5 file.
+
+    Parameters
+    ----------
+    filepath : str
+        Output directory, normally the ``psth_significance_output/`` subdirectory.
+    significance : pd.DataFrame
+        One row per timepoint, as returned by
+        :func:`guppy.orchestration.psth_significance.compute_comparison`.
+    name : str
+        Comparison name; the file is written as ``significance_<name>.h5``.
+    """
+    output_path = os.path.join(filepath, PSTH_SIGNIFICANCE_PREFIX + name + ".h5")
+
+    significance.to_hdf(output_path, key="df", mode="w")
+
+
+def write_psth_significance_to_csv(*, filepath: str, significance: pd.DataFrame, name: str) -> None:
+    """
+    Save a PSTH significance comparison to a CSV file.
+
+    Parameters
+    ----------
+    filepath : str
+        Output directory, normally the ``psth_significance_output/`` subdirectory.
+    significance : pd.DataFrame
+        One row per timepoint, as returned by
+        :func:`guppy.orchestration.psth_significance.compute_comparison`.
+    name : str
+        Comparison name; the file is written as ``significance_<name>.csv``.
+    """
+    output_path = os.path.join(filepath, PSTH_SIGNIFICANCE_PREFIX + name + ".csv")
+
+    significance.to_csv(output_path, index=False)
+
+
+def read_psth_significance_from_hdf5(*, filepath: str, name: str) -> pd.DataFrame:
+    """
+    Load a PSTH significance comparison from an HDF5 file.
+
+    Parameters
+    ----------
+    filepath : str
+        Directory containing the ``significance_<name>.h5`` file.
+    name : str
+        Comparison name (without the ``significance_`` prefix or ``.h5`` suffix).
+
+    Returns
+    -------
+    significance : pd.DataFrame
+        One row per timepoint.
+    """
+    output_path = os.path.join(filepath, PSTH_SIGNIFICANCE_PREFIX + name + ".h5")
+    significance = pd.read_hdf(output_path, key="df", mode="r")
+
+    return significance
 
 
 def write_binned_covariates_to_hdf5(*, filepath: str, binned_covariates: pd.DataFrame, recording_site: str) -> None:

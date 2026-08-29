@@ -553,6 +553,7 @@ SAVED_PARAMETERS = {
     "highAmpFilt": 5,
     "transientsThresh": 6,
     "computeBinnedMetrics": True,
+    "computePsthSignificance": True,
     "binnedMetricsWidth": 60,
     "visualize_zscore_or_dff": "dff",
 }
