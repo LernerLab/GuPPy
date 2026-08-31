@@ -16,6 +16,11 @@ on:
         required: false
         type: boolean
         default: false
+      timeout-minutes:
+        description: 'Per-job timeout. A backstop against a wedged runner; per-test timeouts catch hangs.'
+        required: false
+        type: number
+        default: 30
     secrets:
       RCLONE_CONFIG:
         required: false
@@ -38,12 +43,20 @@ on:
         required: false
         type: boolean
         default: false
+      timeout-minutes:
+        description: 'Per-job timeout. A backstop against a wedged runner; per-test timeouts catch hangs.'
+        required: false
+        type: number
+        default: 30
 
 jobs:
   run:
     name: ${{ matrix.os }} Python ${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    # Only one matrix job uploads to Codecov, so only that job pays for coverage instrumentation.
+    env:
+      COLLECT_COVERAGE: ${{ matrix.python-version == '3.10' && matrix.os == 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:
@@ -75,15 +88,15 @@ jobs:
           rclone-config: ${{ secrets.RCLONE_CONFIG }}
 
       - name: Run tests
-        run: pytest tests -vv -rsx -n auto --dist worksteal -m "not parallel and not ui and not dandi_live${{ inputs.skip-full-data-tests && ' and not full_data' || '' }}" --cov=guppy --cov-branch --cov-report=xml
+        run: pytest tests -vv -rsx -n auto --dist worksteal -m "not parallel and not ui and not dandi_live${{ inputs.skip-full-data-tests && ' and not full_data' || '' }}"${{ env.COLLECT_COVERAGE == 'true' && ' --cov=guppy --cov-branch --cov-report=xml' || '' }}
       - name: Run parallel tests
-        run: pytest tests -vv -rsx -m "parallel and not full_data and not dandi_live" --cov=guppy --cov-append --cov-report=xml
+        run: pytest tests -vv -rsx -m "parallel and not full_data and not dandi_live"${{ env.COLLECT_COVERAGE == 'true' && ' --cov=guppy --cov-append --cov-report=xml' || '' }}
       # UI tests run serially in their own process so the threaded live Panel server never shares
       # pn.state global state with the headless build_homepage() calls in the rest of the suite.
       - name: Run UI tests
-        run: pytest tests -vv -rsx -m "ui and not dandi_live" --cov=guppy --cov-append --cov-report=xml
+        run: pytest tests -vv -rsx -m "ui and not dandi_live"${{ env.COLLECT_COVERAGE == 'true' && ' --cov=guppy --cov-append --cov-report=xml' || '' }}
       - name: Upload full coverage to Codecov
-        if: ${{ matrix.python-version == '3.10' && matrix.os == 'ubuntu-latest' }}
+        if: ${{ env.COLLECT_COVERAGE == 'true' }}
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

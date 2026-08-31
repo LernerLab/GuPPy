@@ -78,6 +78,7 @@ test = [
     "pytest",
     "pytest-cov",
     "pytest-xdist",  # Runs tests on parallel
+    "pytest-timeout",  # Fails a hung test with a traceback instead of stalling the whole job
     "pytest-playwright",
     "playwright",
     # Pinned to the version the mock NWB files were written with: 0.2.x is the last release with
@@ -177,6 +178,13 @@ branch = true
 # modules like guppy_test_data are importable no matter which directory pytest is invoked from.
 # src is intentionally omitted: guppy is editable-installed, so adding src would shadow it.
 pythonpath = ["tests"]
+# Bound every test so a deadlock surfaces as a traceback rather than a silent stall that burns the
+# whole CI job. 300s is roughly six times the slowest real test, so it never fires on honest work.
+# "thread" is pinned rather than left to auto-select (which picks "signal" on POSIX and "thread"
+# only on Windows) so every platform reports the same way, and because it dumps the stack of every
+# thread: the hangs this guards against involve worker threads and pools, not just the main thread.
+timeout = 300
+timeout_method = "thread"
 markers = [
     "full_data: marks tests that require the full testing_data download (deselect with '-m not full_data')",
     "parallel: marks tests that verify GuPPy multiprocessing behavior (run separately from the main suite)",
