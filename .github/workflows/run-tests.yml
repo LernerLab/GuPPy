@@ -17,10 +17,12 @@ on:
         type: boolean
         default: false
       timeout-minutes:
+        # String, not number: workflow_dispatch delivers every input as a string, and a string
+        # reaching the job's timeout-minutes is a startup failure. fromJSON below coerces it.
         description: 'Per-job timeout. A backstop against a wedged runner; per-test timeouts catch hangs.'
         required: false
-        type: number
-        default: 30
+        type: string
+        default: '30'
     secrets:
       RCLONE_CONFIG:
         required: false
@@ -44,16 +46,18 @@ on:
         type: boolean
         default: false
       timeout-minutes:
+        # String, not number: workflow_dispatch delivers every input as a string, and a string
+        # reaching the job's timeout-minutes is a startup failure. fromJSON below coerces it.
         description: 'Per-job timeout. A backstop against a wedged runner; per-test timeouts catch hangs.'
         required: false
-        type: number
-        default: 30
+        type: string
+        default: '30'
 
 jobs:
   run:
     name: ${{ matrix.os }} Python ${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: ${{ inputs.timeout-minutes }}
+    timeout-minutes: ${{ fromJSON(inputs.timeout-minutes) }}
     # Only one matrix job uploads to Codecov, so only that job pays for coverage instrumentation.
     env:
       COLLECT_COVERAGE: ${{ matrix.python-version == '3.10' && matrix.os == 'ubuntu-latest' }}
