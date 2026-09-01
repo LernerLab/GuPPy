@@ -555,6 +555,7 @@ SAVED_PARAMETERS = {
     "computeBinnedMetrics": True,
     "computePsthSignificance": True,
     "psthSignificanceAlpha": 0.01,
+    "psthBootstrapResamples": 500,
     "binnedMetricsWidth": 60,
     "visualize_zscore_or_dff": "dff",
 }

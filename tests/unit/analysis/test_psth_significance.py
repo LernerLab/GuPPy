@@ -139,6 +139,32 @@ class TestBootstrapMeanConfidenceInterval:
         np.testing.assert_array_equal(first[0], second[0])
         np.testing.assert_array_equal(first[1], second[1])
 
+    def test_a_stricter_alpha_widens_the_interval(self):
+        samples = np.array([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0]])
+
+        wide = bootstrap_mean_confidence_interval(
+            samples=samples, rng=np.random.default_rng(BOOTSTRAP_SEED), num_resamples=400, significance_level=0.2
+        )
+        narrow = bootstrap_mean_confidence_interval(
+            samples=samples, rng=np.random.default_rng(BOOTSTRAP_SEED), num_resamples=400, significance_level=0.01
+        )
+
+        assert (narrow[1][0] - narrow[0][0]) > (wide[1][0] - wide[0][0])
+
+    def test_resample_count_changes_the_interval(self):
+        # Too few resamples cannot resolve the requested tail, so the interval comes back
+        # narrower than the alpha asked for. The parameter has to reach scipy for this.
+        samples = np.array([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0]])
+
+        coarse = bootstrap_mean_confidence_interval(
+            samples=samples, rng=np.random.default_rng(BOOTSTRAP_SEED), num_resamples=10, significance_level=0.01
+        )
+        fine = bootstrap_mean_confidence_interval(
+            samples=samples, rng=np.random.default_rng(BOOTSTRAP_SEED), num_resamples=1000, significance_level=0.01
+        )
+
+        assert (coarse[1][0] - coarse[0][0]) < (fine[1][0] - fine[0][0])
+
     def test_rejects_fewer_than_three_samples(self, rng):
         with pytest.raises(ValueError, match="at least 3 samples"):
             bootstrap_mean_confidence_interval(samples=np.array([[1.0], [2.0]]), rng=rng)

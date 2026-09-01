@@ -296,6 +296,10 @@ class ParameterForm:
             name="Significance Level (alpha) (float)", value=0.05, step=0.01, width=200
         )
 
+        self.psthBootstrapResamples = pn.widgets.IntInput(
+            name="Bootstrap Resamples (int)", value=1000, step=100, width=200
+        )
+
         self.useTransientsAsEvents = pn.widgets.Select(
             name="Use Transients as Events? (bool)", options=[True, False], value=False, width=200
         )
@@ -387,6 +391,9 @@ class ParameterForm:
             """
                         - ***Significance Level (alpha) :*** The two-sided threshold the confidence
                         interval is computed at. Default is 0.05, i.e. a 95% interval.
+                        - ***Bootstrap Resamples :*** How many times the trials are resampled to build
+                        each interval. More resamples means less run-to-run variation and a longer
+                        run. Default is 1000.
                         - Every event is tested against zero automatically. The table below names the
                         pairs of events to compare against each other, for example rewarded versus
                         unrewarded nose pokes. Leave it blank to run only the tests against zero.
@@ -407,7 +414,7 @@ class ParameterForm:
         self.significance_param_wd = pn.WidgetBox(
             "### PSTH Significance Parameters",
             self.significance_explain,
-            pn.Row(self.computePsthSignificance, self.psthSignificanceAlpha),
+            pn.Row(self.computePsthSignificance, self.psthSignificanceAlpha, self.psthBootstrapResamples),
             self.comparison_df_widget,
             width=600,
         )
@@ -713,6 +720,7 @@ class ParameterForm:
         validate_positive(value=self.transientsThresh.value, name="transientsThresh")
         validate_positive(value=self.binnedMetricsWidth.value, name="binnedMetricsWidth")
         validate_significance_level(value=self.psthSignificanceAlpha.value, name="psthSignificanceAlpha")
+        validate_positive(value=self.psthBootstrapResamples.value, name="psthBootstrapResamples")
 
         if self.nSecPrev.value >= self.nSecPost.value:
             message = (
@@ -778,6 +786,7 @@ class ParameterForm:
             "peak_endPoint": list(self.df_widget.value["Peak End time"]),  # endPoint.value,
             "computePsthSignificance": self.computePsthSignificance.value,
             "psthSignificanceAlpha": self.psthSignificanceAlpha.value,
+            "psthBootstrapResamples": self.psthBootstrapResamples.value,
             "psthComparisonsA": list(self.comparison_df_widget.value["Event A"]),
             "psthComparisonsB": list(self.comparison_df_widget.value["Event B"]),
             "auc_units": self.auc_units.value,
@@ -825,6 +834,7 @@ class ParameterForm:
             "computeCorr": self.computeCorr,
             "computePsthSignificance": self.computePsthSignificance,
             "psthSignificanceAlpha": self.psthSignificanceAlpha,
+            "psthBootstrapResamples": self.psthBootstrapResamples,
             "useTransientsAsEvents": self.useTransientsAsEvents,
             "timeInterval": self.timeInterval,
             "bin_psth_trials": self.bin_psth_trials,

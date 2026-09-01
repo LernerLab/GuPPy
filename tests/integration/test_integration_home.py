@@ -34,6 +34,7 @@ EXPECTED_JSON_KEYS = {
     "psthComparisonsA",
     "psthComparisonsB",
     "psthSignificanceAlpha",
+    "psthBootstrapResamples",
     "useTransientsAsEvents",
     "timeInterval",
     "bin_psth_trials",

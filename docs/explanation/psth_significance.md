@@ -29,7 +29,7 @@ The bootstrap estimates the sampling distribution of the mean from the data inst
 
 1. Resample *n* trials with replacement from the *n* real trials.
 2. Average them into one synthetic mean waveform.
-3. Repeat 1000 times.
+3. Repeat many times — 1000 by default, set by **Bootstrap Resamples**.
 4. Take the interval from the spread of those 1000 values at each timepoint.
 
 Whole trials are resampled, so the structure within a trial is preserved. GuPPy uses the **bias-corrected and accelerated (BCa)** interval rather than a plain percentile interval: percentile intervals are slightly too narrow at small sample sizes and are not shaped correctly when the underlying distribution is skewed, and BCa corrects for both.

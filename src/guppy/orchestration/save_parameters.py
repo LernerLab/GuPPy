@@ -122,6 +122,7 @@ def build_analysis_parameters(*, inputParameters: dict[str, object]) -> dict[str
         "psthComparisonsA": inputParameters["psthComparisonsA"],
         "psthComparisonsB": inputParameters["psthComparisonsB"],
         "psthSignificanceAlpha": inputParameters["psthSignificanceAlpha"],
+        "psthBootstrapResamples": inputParameters["psthBootstrapResamples"],
         "auc_units": inputParameters["auc_units"],
         "selectForComputePsth": inputParameters["selectForComputePsth"],
         "selectForTransientsComputation": inputParameters["selectForTransientsComputation"],

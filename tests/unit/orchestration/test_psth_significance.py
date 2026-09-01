@@ -7,6 +7,7 @@ import pytest
 from guppy.orchestration.psth_significance import (
     comparison_name,
     compute_comparison,
+    execute_compute_psth_significance,
     plan_comparisons,
     psth_metrics,
     read_psth_samples,
@@ -189,6 +190,7 @@ class TestComputeComparison:
             timestamps=np.array([0.0, 1.0]),
             minimum_consecutive_samples=1,
             significance_level=0.05,
+            num_resamples=200,
             rng=np.random.default_rng(0),
         )
 
@@ -215,6 +217,7 @@ class TestComputeComparison:
             timestamps=np.array([0.0]),
             minimum_consecutive_samples=1,
             significance_level=0.05,
+            num_resamples=200,
             rng=np.random.default_rng(0),
         )
 
@@ -235,6 +238,7 @@ class TestComputeComparison:
             timestamps=np.arange(4.0),
             minimum_consecutive_samples=4,
             significance_level=0.05,
+            num_resamples=200,
             rng=np.random.default_rng(0),
         )
         lenient = compute_comparison(
@@ -243,8 +247,30 @@ class TestComputeComparison:
             timestamps=np.arange(4.0),
             minimum_consecutive_samples=3,
             significance_level=0.05,
+            num_resamples=200,
             rng=np.random.default_rng(0),
         )
 
         assert strict["significant"].sum() == 0
         assert lenient["significant"].sum() == 4
+
+
+class TestResampleCountWarning:
+    def test_warns_when_the_resample_count_cannot_resolve_the_alpha(self, run_folder, significance_parameters, caplog):
+        significance_parameters["psthSignificanceAlpha"] = 0.01
+        significance_parameters["psthBootstrapResamples"] = 10
+
+        with caplog.at_level("WARNING"):
+            execute_compute_psth_significance(run_folder, significance_parameters)
+
+        assert "cannot resolve" in caplog.text
+        assert "at least 200 resamples" in caplog.text
+
+    def test_is_quiet_when_the_resample_count_is_sufficient(self, run_folder, significance_parameters, caplog):
+        significance_parameters["psthSignificanceAlpha"] = 0.05
+        significance_parameters["psthBootstrapResamples"] = 1000
+
+        with caplog.at_level("WARNING"):
+            execute_compute_psth_significance(run_folder, significance_parameters)
+
+        assert "cannot resolve" not in caplog.text

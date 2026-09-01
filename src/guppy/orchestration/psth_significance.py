@@ -122,6 +122,7 @@ def compute_comparison(
     timestamps: np.ndarray,
     minimum_consecutive_samples: int,
     significance_level: float,
+    num_resamples: int,
     rng: np.random.Generator,
 ) -> pd.DataFrame:
     """Bootstrap one comparison and mark its significant stretches.
@@ -139,6 +140,8 @@ def compute_comparison(
         A significant stretch is kept only if strictly longer than this.
     significance_level : float
         Two-sided alpha the interval is computed at.
+    num_resamples : int
+        Number of bootstrap resamples each interval is built from.
     rng : np.random.Generator
         Random generator driving the resampling.
 
@@ -151,12 +154,16 @@ def compute_comparison(
     if samples_b is None:
         estimate = np.nanmean(samples_a, axis=0)
         lower, upper = bootstrap_mean_confidence_interval(
-            samples=samples_a, rng=rng, significance_level=significance_level
+            samples=samples_a, rng=rng, significance_level=significance_level, num_resamples=num_resamples
         )
     else:
         estimate = np.nanmean(samples_a, axis=0) - np.nanmean(samples_b, axis=0)
         lower, upper = bootstrap_difference_confidence_interval(
-            samples_a=samples_a, samples_b=samples_b, rng=rng, significance_level=significance_level
+            samples_a=samples_a,
+            samples_b=samples_b,
+            rng=rng,
+            significance_level=significance_level,
+            num_resamples=num_resamples,
         )
 
     mask = significant_sample_mask(lower=lower, upper=upper, minimum_consecutive_samples=minimum_consecutive_samples)
@@ -214,7 +221,8 @@ def execute_one_comparison(
         ``(event_a, event_b, recording_site, basename)``; ``event_b`` is None for a test
         against zero.
     inputParameters : dict
-        Full pipeline input parameters; uses ``filter_window`` and ``psthSignificanceAlpha``.
+        Full pipeline input parameters; uses ``filter_window``, ``psthSignificanceAlpha``
+        and ``psthBootstrapResamples``.
     """
     event_a, event_b, recording_site, basename = comparison
 
@@ -251,6 +259,7 @@ def execute_one_comparison(
         timestamps=timestamps,
         minimum_consecutive_samples=minimum_consecutive_samples_for(filter_window=inputParameters["filter_window"]),
         significance_level=inputParameters["psthSignificanceAlpha"],
+        num_resamples=inputParameters["psthBootstrapResamples"],
         rng=np.random.default_rng(BOOTSTRAP_SEED),
     )
 
@@ -341,6 +350,19 @@ def execute_compute_psth_significance(filepath: str, inputParameters: dict[str, 
     if not planned:
         logger.info(f"No PSTH results to test for significance in {filepath}.")
         return
+
+    # Reported rather than refused: how many resamples to spend is the user's call, but
+    # below two per tail the requested quantile falls past the most extreme resample, so
+    # the interval comes back narrower than the alpha asked for.
+    significance_level = inputParameters["psthSignificanceAlpha"]
+    num_resamples = inputParameters["psthBootstrapResamples"]
+    resamples_per_tail = num_resamples * significance_level / 2
+    if resamples_per_tail < 1:
+        logger.warning(
+            f"psthBootstrapResamples={num_resamples} cannot resolve a {significance_level:g} "
+            f"two-sided interval: that needs at least {int(np.ceil(2 / significance_level))} resamples. "
+            f"The interval will be narrower than requested."
+        )
 
     logger.info(f"Computing significance for {len(planned)} comparison(s) in {filepath}...")
     # Pinned rather than inherited, for the same reason as the step-4 pools: forking a
