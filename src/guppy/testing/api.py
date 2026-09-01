@@ -1050,6 +1050,7 @@ def step4(
     binned_metrics_width: int = 120,
     compute_psth_significance: bool = False,
     psth_comparisons: Iterable[tuple[str, str]] = (),
+    psth_significance_alpha: float = 0.05,
     selected_runs: dict[str, list[str]],
 ) -> None:
     """
@@ -1189,6 +1190,7 @@ def step4(
     input_params["computePsthSignificance"] = compute_psth_significance
     input_params["psthComparisonsA"] = [pair[0] for pair in psth_comparisons]
     input_params["psthComparisonsB"] = [pair[1] for pair in psth_comparisons]
+    input_params["psthSignificanceAlpha"] = psth_significance_alpha
 
     # Call the underlying Step 4 workers directly, in the order the GUI runs them:
     # transients first, so their timestamps are available as events for the PSTH.
@@ -1244,6 +1246,7 @@ def group_analysis(
     compute_corr: bool = False,
     compute_psth_significance: bool = False,
     psth_comparisons: Iterable[tuple[str, str]] = (),
+    psth_significance_alpha: float = 0.05,
 ) -> None:
     """Run the Group Analysis step headlessly against already-defined groups.
 
@@ -1279,6 +1282,7 @@ def group_analysis(
     input_params["computePsthSignificance"] = compute_psth_significance
     input_params["psthComparisonsA"] = [pair[0] for pair in psth_comparisons]
     input_params["psthComparisonsB"] = [pair[1] for pair in psth_comparisons]
+    input_params["psthSignificanceAlpha"] = psth_significance_alpha
 
     run_group_analysis_step(input_params)
 

@@ -34,6 +34,7 @@ DEFAULT_ANALYSIS_PARAMETERS = {
     "computePsthSignificance": False,
     "psthComparisonsA": [],
     "psthComparisonsB": [],
+    "psthSignificanceAlpha": 0.05,
     "useTransientsAsEvents": False,
     "timeInterval": 2,
     "bin_psth_trials": 0,

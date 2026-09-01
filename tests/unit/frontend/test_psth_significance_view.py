@@ -10,11 +10,12 @@ from guppy.frontend.psth_significance_view import (
     PsthSignificanceView,
     build_psth_significance_view,
     describe_comparison,
+    metric_label_for,
     significance_comparisons,
 )
 
 
-def write_significance(filepath, name, *, significant_from=None, significant_to=None, n=12, n_b=None):
+def write_significance(filepath, name, *, significant_from=None, significant_to=None, n=12, n_b=None, alpha=0.05):
     """Write one significance table into the results subdirectory."""
     results_path = os.path.join(filepath, PSTH_SIGNIFICANCE_DIRNAME)
     os.makedirs(results_path, exist_ok=True)
@@ -31,6 +32,7 @@ def write_significance(filepath, name, *, significant_from=None, significant_to=
             "ci_lower": np.linspace(-0.5, 1.5, 11),
             "ci_upper": np.linspace(0.5, 2.5, 11),
             "significant": significant,
+            "alpha": alpha,
             "n": n,
         }
     )
@@ -61,6 +63,24 @@ class TestSignificanceComparisons:
 
     def test_is_empty_without_results(self, tmp_path):
         assert significance_comparisons(str(tmp_path)) == []
+
+
+class TestMetricLabelFor:
+    @pytest.mark.parametrize(
+        "name, expected",
+        [
+            ("rewarded_dms_z_score_dms", "z-score"),
+            ("rewarded_vs_unrewarded_dms_dff_dms", "\u0394F/F"),
+            # An event whose own label contains a metric token must not shadow the
+            # basename, which is always the rightmost one.
+            ("my_dff_event_dms_z_score_dms", "z-score"),
+        ],
+    )
+    def test_names_the_metric_the_comparison_ran_on(self, name, expected):
+        assert metric_label_for(name) == expected
+
+    def test_falls_back_when_no_metric_token_is_present(self):
+        assert metric_label_for("unrecognizable") == "signal"
 
 
 class TestDescribeComparison:
@@ -106,6 +126,34 @@ class TestPsthSignificanceView:
         # The second comparison is significant over timepoints 2..3, i.e. -0.6 to -0.4.
         bars = list(view.plot_pane.object)[-1].array()
         np.testing.assert_allclose(bars[0, 0], -0.6)
+
+    def test_axis_label_names_the_metric_rather_than_both(self, results_folder, panel_extension):
+        view = PsthSignificanceView(results_folder)
+
+        # The one-sample file is a z-score comparison, so the axis says so outright.
+        assert view.plot_pane.object.dimensions()[1].name == "z-score"
+
+        view.comparison_select.value = "rewarded_vs_unrewarded_dms_z_score_dms"
+        assert view.plot_pane.object.dimensions()[1].name == "difference in z-score"
+
+    def test_legend_names_the_band_the_estimate_and_the_significance_bar(self, results_folder, panel_extension):
+        view = PsthSignificanceView(results_folder)
+
+        labels = [element.label for element in view.plot_pane.object]
+        assert "mean PSTH" in labels
+        assert "95% confidence interval" in labels
+        assert "significant (alpha = 0.05)" in labels
+
+    def test_legend_reports_the_alpha_the_comparison_ran_at(self, tmp_path, panel_extension):
+        folder = tmp_path / "strict_output_1"
+        folder.mkdir()
+        write_significance(str(folder), "rewarded_dms_z_score_dms", significant_from=2, significant_to=6, alpha=0.01)
+
+        view = PsthSignificanceView(str(folder))
+
+        labels = [element.label for element in view.plot_pane.object]
+        assert "99% confidence interval" in labels
+        assert "significant (alpha = 0.01)" in labels
 
     def test_a_comparison_with_nothing_significant_draws_no_bars(self, tmp_path, panel_extension):
         folder = tmp_path / "quiet_output_1"

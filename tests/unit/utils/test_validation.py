@@ -10,6 +10,7 @@ from guppy.utils.validation import (
     validate_peak_windows,
     validate_positive,
     validate_required_folder_selection,
+    validate_significance_level,
     validate_window_bounds,
 )
 
@@ -292,3 +293,14 @@ class TestValidateGroupFoldersSelected:
         folder.mkdir()
         with pytest.raises(ValueError, match="hold no group_members.json"):
             validate_group_folders_selected(group_folders=[str(folder)])
+
+
+class TestValidateSignificanceLevel:
+    @pytest.mark.parametrize("value", [0.05, 0.01, 0.1, 0.5])
+    def test_accepts_a_level_between_zero_and_one(self, value):
+        validate_significance_level(value=value, name="psthSignificanceAlpha")
+
+    @pytest.mark.parametrize("value", [0, 1, -0.05, 1.5, np.nan, "0.05", None, True])
+    def test_rejects_anything_outside_the_open_unit_interval(self, value):
+        with pytest.raises(ValueError, match="not a valid significance level"):
+            validate_significance_level(value=value, name="psthSignificanceAlpha")

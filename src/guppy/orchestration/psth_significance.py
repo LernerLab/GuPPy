@@ -121,6 +121,7 @@ def compute_comparison(
     samples_b: np.ndarray | None,
     timestamps: np.ndarray,
     minimum_consecutive_samples: int,
+    significance_level: float,
     rng: np.random.Generator,
 ) -> pd.DataFrame:
     """Bootstrap one comparison and mark its significant stretches.
@@ -136,6 +137,8 @@ def compute_comparison(
         PSTH time axis.
     minimum_consecutive_samples : int
         A significant stretch is kept only if strictly longer than this.
+    significance_level : float
+        Two-sided alpha the interval is computed at.
     rng : np.random.Generator
         Random generator driving the resampling.
 
@@ -143,14 +146,18 @@ def compute_comparison(
     -------
     pd.DataFrame
         One row per timepoint, with columns ``timestamps``, ``estimate``, ``ci_lower``,
-        ``ci_upper``, ``significant`` and ``n`` (plus ``n_b`` when two-sample).
+        ``ci_upper``, ``significant``, ``alpha`` and ``n`` (plus ``n_b`` when two-sample).
     """
     if samples_b is None:
         estimate = np.nanmean(samples_a, axis=0)
-        lower, upper = bootstrap_mean_confidence_interval(samples=samples_a, rng=rng)
+        lower, upper = bootstrap_mean_confidence_interval(
+            samples=samples_a, rng=rng, significance_level=significance_level
+        )
     else:
         estimate = np.nanmean(samples_a, axis=0) - np.nanmean(samples_b, axis=0)
-        lower, upper = bootstrap_difference_confidence_interval(samples_a=samples_a, samples_b=samples_b, rng=rng)
+        lower, upper = bootstrap_difference_confidence_interval(
+            samples_a=samples_a, samples_b=samples_b, rng=rng, significance_level=significance_level
+        )
 
     mask = significant_sample_mask(lower=lower, upper=upper, minimum_consecutive_samples=minimum_consecutive_samples)
 
@@ -161,6 +168,7 @@ def compute_comparison(
             "ci_lower": lower,
             "ci_upper": upper,
             "significant": mask.astype(int),
+            "alpha": significance_level,
             "n": samples_a.shape[0],
         }
     )
@@ -206,7 +214,7 @@ def execute_one_comparison(
         ``(event_a, event_b, recording_site, basename)``; ``event_b`` is None for a test
         against zero.
     inputParameters : dict
-        Full pipeline input parameters; uses ``filter_window``.
+        Full pipeline input parameters; uses ``filter_window`` and ``psthSignificanceAlpha``.
     """
     event_a, event_b, recording_site, basename = comparison
 
@@ -242,6 +250,7 @@ def execute_one_comparison(
         samples_b=samples_b,
         timestamps=timestamps,
         minimum_consecutive_samples=minimum_consecutive_samples_for(filter_window=inputParameters["filter_window"]),
+        significance_level=inputParameters["psthSignificanceAlpha"],
         rng=np.random.default_rng(BOOTSTRAP_SEED),
     )
 
@@ -323,7 +332,7 @@ def execute_compute_psth_significance(filepath: str, inputParameters: dict[str, 
     inputParameters : dict
         Full pipeline input parameters; uses ``computePsthSignificance``,
         ``psthComparisonsA``, ``psthComparisonsB``, ``selectForComputePsth``,
-        ``filter_window`` and ``numberOfCores``.
+        ``psthSignificanceAlpha``, ``filter_window`` and ``numberOfCores``.
     """
     if not inputParameters["computePsthSignificance"]:
         return

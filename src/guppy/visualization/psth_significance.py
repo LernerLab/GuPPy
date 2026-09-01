@@ -83,6 +83,8 @@ def build_significance_panel(
     ci_upper: np.ndarray,
     significant: np.ndarray,
     value_label: str,
+    estimate_label: str,
+    significance_level: float,
     title: str,
 ) -> hv.Overlay:
     """Compose the estimate, its confidence band, and the significance bar.
@@ -99,6 +101,10 @@ def build_significance_panel(
         Per-timepoint significance flags.
     value_label : str
         Y-axis label.
+    estimate_label : str
+        Legend entry for the estimate curve.
+    significance_level : float
+        Alpha the interval was computed at, named in the legend.
     title : str
         Plot title naming the comparison.
 
@@ -121,16 +127,21 @@ def build_significance_panel(
         (timestamps, estimate, estimate - ci_lower, ci_upper - estimate),
         kdims=["Time (s)"],
         vdims=[value_label, "lower", "upper"],
-    ).opts(fill_alpha=0.3, fill_color=BAND_COLOR, line_width=0)
+        label=f"{int(round((1 - significance_level) * 100))}% confidence interval",
+    ).opts(fill_alpha=0.3, fill_color=BAND_COLOR, line_width=0, show_legend=True)
 
-    estimate_curve = hv.Curve((timestamps, estimate), kdims=["Time (s)"], vdims=[value_label]).opts(
-        color=ESTIMATE_COLOR
-    )
+    estimate_curve = hv.Curve(
+        (timestamps, estimate), kdims=["Time (s)"], vdims=[value_label], label=estimate_label
+    ).opts(color=ESTIMATE_COLOR, show_legend=True)
 
     zero_line = hv.HLine(0).opts(color="black", line_dash="dashed", line_width=1)
 
-    bar = build_significance_bar(timestamps=timestamps, significant=significant, bottom=bottom, top=top).opts(
-        color=SIGNIFICANT_COLOR, line_color=None
+    bar = (
+        build_significance_bar(timestamps=timestamps, significant=significant, bottom=bottom, top=top)
+        .relabel(f"significant (alpha = {significance_level:g})")
+        .opts(color=SIGNIFICANT_COLOR, line_color=None, show_legend=True)
     )
 
-    return (band * estimate_curve * zero_line * bar).opts(title=title, ylim=(bottom, top), responsive=True, height=400)
+    return (band * estimate_curve * zero_line * bar).opts(
+        title=title, ylim=(bottom, top), responsive=True, height=400, legend_position="top_left"
+    )

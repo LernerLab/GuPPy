@@ -188,6 +188,7 @@ class TestComputeComparison:
             samples_b=None,
             timestamps=np.array([0.0, 1.0]),
             minimum_consecutive_samples=1,
+            significance_level=0.05,
             rng=np.random.default_rng(0),
         )
 
@@ -197,10 +198,12 @@ class TestComputeComparison:
             "ci_lower",
             "ci_upper",
             "significant",
+            "alpha",
             "n",
         ]
         np.testing.assert_allclose(significance["estimate"].to_numpy(), [3.0, 3.0])
         assert significance["n"].tolist() == [5, 5]
+        assert significance["alpha"].tolist() == [0.05, 0.05]
 
     def test_two_sample_reports_the_difference_and_both_counts(self):
         samples_a = np.array([[10.0], [11.0], [12.0], [13.0]])
@@ -211,10 +214,11 @@ class TestComputeComparison:
             samples_b=samples_b,
             timestamps=np.array([0.0]),
             minimum_consecutive_samples=1,
+            significance_level=0.05,
             rng=np.random.default_rng(0),
         )
 
-        assert list(significance.columns)[-2:] == ["n", "n_b"]
+        assert list(significance.columns)[-3:] == ["alpha", "n", "n_b"]
         # Means are 11.5 and 2.0, so the difference is 9.5.
         np.testing.assert_allclose(significance["estimate"].to_numpy(), [9.5])
         assert significance["n"].tolist() == [4]
@@ -230,6 +234,7 @@ class TestComputeComparison:
             samples_b=None,
             timestamps=np.arange(4.0),
             minimum_consecutive_samples=4,
+            significance_level=0.05,
             rng=np.random.default_rng(0),
         )
         lenient = compute_comparison(
@@ -237,6 +242,7 @@ class TestComputeComparison:
             samples_b=None,
             timestamps=np.arange(4.0),
             minimum_consecutive_samples=3,
+            significance_level=0.05,
             rng=np.random.default_rng(0),
         )
 

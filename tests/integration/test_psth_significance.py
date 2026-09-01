@@ -27,7 +27,8 @@ SESSION_SUBDIR = "tdt/Photo_63_207-181030-103332"
 COMPARISON = ("port_entries", "unrewarded_nose_pokes")
 UNDERPOWERED_EVENT = "rewarded_nose_pokes"
 
-EXPECTED_ONE_SAMPLE_COLUMNS = ["timestamps", "estimate", "ci_lower", "ci_upper", "significant", "n"]
+EXPECTED_ONE_SAMPLE_COLUMNS = ["timestamps", "estimate", "ci_lower", "ci_upper", "significant", "alpha", "n"]
+ALPHA = 0.01
 EXPECTED_TWO_SAMPLE_COLUMNS = EXPECTED_ONE_SAMPLE_COLUMNS + ["n_b"]
 
 
@@ -71,6 +72,7 @@ def significance_output(preprocessed_session):
         selected_runs=preprocessed_session["selected_runs"],
         compute_psth_significance=True,
         psth_comparisons=[COMPARISON],
+        psth_significance_alpha=ALPHA,
     )
     return preprocessed_session["output_directory"]
 
@@ -171,6 +173,15 @@ class TestSessionScopeSignificance:
 
         pd.testing.assert_frame_equal(significance.reset_index(drop=True), from_csv, check_dtype=False)
 
+    def test_records_the_alpha_it_ran_at(self, significance_output):
+        significance = read_psth_significance_from_hdf5(
+            filepath=results_path(significance_output), name="port_entries_dms_z_score_dms"
+        )
+
+        # The mask is meaningless without the threshold that produced it, so alpha
+        # travels with the result rather than only living in the parameter snapshot.
+        assert significance["alpha"].iloc[0] == ALPHA
+
     def test_parameters_are_recorded_in_the_snapshot(self, significance_output):
         import json
 
@@ -180,6 +191,7 @@ class TestSessionScopeSignificance:
         assert saved["computePsthSignificance"] is True
         assert saved["psthComparisonsA"] == [COMPARISON[0]]
         assert saved["psthComparisonsB"] == [COMPARISON[1]]
+        assert saved["psthSignificanceAlpha"] == ALPHA
 
 
 class TestSignificanceIsOptional:

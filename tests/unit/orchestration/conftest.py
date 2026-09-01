@@ -35,6 +35,7 @@ def base_input_parameters() -> dict[str, object]:
         "computePsthSignificance": False,
         "psthComparisonsA": [],
         "psthComparisonsB": [],
+        "psthSignificanceAlpha": 0.05,
         "useTransientsAsEvents": False,
         "peak_startPoint": 0.0,
         "peak_endPoint": 5.0,

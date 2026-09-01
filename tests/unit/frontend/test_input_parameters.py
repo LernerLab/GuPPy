@@ -554,6 +554,7 @@ SAVED_PARAMETERS = {
     "transientsThresh": 6,
     "computeBinnedMetrics": True,
     "computePsthSignificance": True,
+    "psthSignificanceAlpha": 0.01,
     "binnedMetricsWidth": 60,
     "visualize_zscore_or_dff": "dff",
 }

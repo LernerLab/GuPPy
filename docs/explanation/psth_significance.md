@@ -15,6 +15,8 @@ The output is not a single p-value for the whole window. It is a mask over the t
 
 A 95% confidence interval and a two-sided test at α = 0.05 are the same statement. If a 95% interval on some quantity excludes zero, you would reject "that quantity is zero" at p < 0.05. So instead of computing a test statistic and a p-value, GuPPy computes an interval at each timepoint and asks whether zero is inside it.
 
+The interval's width is set by the **Significance Level (alpha)** parameter: the default `0.05` gives a 95% interval, and a stricter alpha widens it so fewer stretches clear zero.
+
 The quantity being bounded is the mean across trials at that timepoint, or — for a comparison between two events — the difference between the two means. So the two-sample test is not a different test; it is the same one applied to the difference.
 
 ![A mean PSTH with its 95% bootstrap confidence band shaded around it and a dashed line at zero. Below it, a strip marks in red every timepoint where the band clears zero, forming one long stretch across the response and a few isolated marks elsewhere.](../_static/images/psth_significance_explainer/fig1_interval_is_the_test.svg)
@@ -73,4 +75,4 @@ This is a well-documented failure mode in neuroscience rather than a quirk of th
 
 ## Reading the output
 
-Each comparison is written as its own table, giving the time axis, the estimate, both interval bounds, the significance flag, and the sample count. Keeping the bounds rather than only the flag is deliberate: it lets you see how close a non-significant stretch came, and how wide the interval is where the sample size is small. See [Outputs](../reference/outputs.md) for the file layout, and [Parameters](../reference/parameters.md) for how to name the comparisons you want.
+Each comparison is written as its own table, giving the time axis, the estimate, both interval bounds, the significance flag, the alpha it was computed at, and the sample count. Keeping the bounds rather than only the flag is deliberate: it lets you see how close a non-significant stretch came, and how wide the interval is where the sample size is small. See [Outputs](../reference/outputs.md) for the file layout, and [Parameters](../reference/parameters.md) for how to name the comparisons you want.

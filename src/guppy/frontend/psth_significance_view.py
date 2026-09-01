@@ -23,6 +23,32 @@ from ..visualization.psth_significance import build_significance_panel
 
 logger = logging.getLogger(__name__)
 
+# A comparison name ends with its basename, ``<metric>_<recording_site>``, so the metric
+# token is the last one of these it contains -- searched from the right so an event whose
+# own label contains "dff" or "z_score" cannot shadow it.
+METRIC_LABELS = {"z_score": "z-score", "dff": "\u0394F/F"}
+
+
+def metric_label_for(name: str) -> str:
+    """Return the axis label for the metric a comparison was computed on.
+
+    Parameters
+    ----------
+    name : str
+        Comparison name, as it appears in the filename.
+
+    Returns
+    -------
+    str
+        Human-readable metric name, falling back to a neutral label when the name
+        carries no recognizable metric token.
+    """
+    position_to_metric = {name.rfind(f"_{metric}_"): metric for metric in METRIC_LABELS}
+    position_to_metric.pop(-1, None)
+    if not position_to_metric:
+        return "signal"
+    return METRIC_LABELS[position_to_metric[max(position_to_metric)]]
+
 
 def significance_comparisons(filepath: str) -> list[str]:
     """Return the comparison names ``filepath`` holds significance results for, sorted.
@@ -99,7 +125,7 @@ class PsthSignificanceView:
     def _make_plot(self) -> hv.Overlay:
         significance = self._read()
         is_difference = "n_b" in significance.columns
-        value_label = "difference (z-score or ΔF/F)" if is_difference else "z-score or ΔF/F"
+        metric = metric_label_for(self.comparison_select.value)
 
         return build_significance_panel(
             timestamps=significance["timestamps"].to_numpy(),
@@ -107,7 +133,9 @@ class PsthSignificanceView:
             ci_lower=significance["ci_lower"].to_numpy(),
             ci_upper=significance["ci_upper"].to_numpy(),
             significant=significance["significant"].to_numpy(),
-            value_label=value_label,
+            value_label=f"difference in {metric}" if is_difference else metric,
+            estimate_label="difference of means" if is_difference else "mean PSTH",
+            significance_level=float(significance["alpha"].iloc[0]),
             title=self.comparison_select.value,
         )
 

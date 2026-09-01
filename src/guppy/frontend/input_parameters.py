@@ -18,6 +18,7 @@ from ..utils.validation import (
     validate_non_negative,
     validate_positive,
     validate_required_folder_selection,
+    validate_significance_level,
 )
 
 logger = logging.getLogger(__name__)
@@ -291,6 +292,10 @@ class ParameterForm:
             name="Compute PSTH Significance? (bool)", options=[True, False], value=False, width=240
         )
 
+        self.psthSignificanceAlpha = pn.widgets.FloatInput(
+            name="Significance Level (alpha) (float)", value=0.05, step=0.01, width=200
+        )
+
         self.useTransientsAsEvents = pn.widgets.Select(
             name="Use Transients as Events? (bool)", options=[True, False], value=False, width=200
         )
@@ -380,6 +385,8 @@ class ParameterForm:
 
         self.significance_explain = pn.pane.Markdown(
             """
+                        - ***Significance Level (alpha) :*** The two-sided threshold the confidence
+                        interval is computed at. Default is 0.05, i.e. a 95% interval.
                         - Every event is tested against zero automatically. The table below names the
                         pairs of events to compare against each other, for example rewarded versus
                         unrewarded nose pokes. Leave it blank to run only the tests against zero.
@@ -400,7 +407,7 @@ class ParameterForm:
         self.significance_param_wd = pn.WidgetBox(
             "### PSTH Significance Parameters",
             self.significance_explain,
-            self.computePsthSignificance,
+            pn.Row(self.computePsthSignificance, self.psthSignificanceAlpha),
             self.comparison_df_widget,
             width=600,
         )
@@ -705,6 +712,7 @@ class ParameterForm:
         validate_positive(value=self.highAmpFilt.value, name="highAmpFilt")
         validate_positive(value=self.transientsThresh.value, name="transientsThresh")
         validate_positive(value=self.binnedMetricsWidth.value, name="binnedMetricsWidth")
+        validate_significance_level(value=self.psthSignificanceAlpha.value, name="psthSignificanceAlpha")
 
         if self.nSecPrev.value >= self.nSecPost.value:
             message = (
@@ -769,6 +777,7 @@ class ParameterForm:
             "peak_startPoint": list(self.df_widget.value["Peak Start time"]),  # startPoint.value,
             "peak_endPoint": list(self.df_widget.value["Peak End time"]),  # endPoint.value,
             "computePsthSignificance": self.computePsthSignificance.value,
+            "psthSignificanceAlpha": self.psthSignificanceAlpha.value,
             "psthComparisonsA": list(self.comparison_df_widget.value["Event A"]),
             "psthComparisonsB": list(self.comparison_df_widget.value["Event B"]),
             "auc_units": self.auc_units.value,
@@ -815,6 +824,7 @@ class ParameterForm:
             "nSecPost": self.nSecPost,
             "computeCorr": self.computeCorr,
             "computePsthSignificance": self.computePsthSignificance,
+            "psthSignificanceAlpha": self.psthSignificanceAlpha,
             "useTransientsAsEvents": self.useTransientsAsEvents,
             "timeInterval": self.timeInterval,
             "bin_psth_trials": self.bin_psth_trials,

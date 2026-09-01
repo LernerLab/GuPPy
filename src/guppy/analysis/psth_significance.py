@@ -17,7 +17,7 @@ from scipy import ndimage, stats
 logger = logging.getLogger(__name__)
 
 DEFAULT_NUM_RESAMPLES = 1000
-DEFAULT_CONFIDENCE_LEVEL = 0.95
+DEFAULT_SIGNIFICANCE_LEVEL = 0.05
 
 # Fixed so that re-running an analysis reproduces its significance masks exactly.
 BOOTSTRAP_SEED = 20260828
@@ -96,7 +96,7 @@ def bootstrap_mean_confidence_interval(
     samples: np.ndarray,
     rng: np.random.Generator,
     num_resamples: int = DEFAULT_NUM_RESAMPLES,
-    confidence_level: float = DEFAULT_CONFIDENCE_LEVEL,
+    significance_level: float = DEFAULT_SIGNIFICANCE_LEVEL,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     BCa bootstrap confidence interval on the mean, at every timepoint.
@@ -110,8 +110,8 @@ def bootstrap_mean_confidence_interval(
         Random generator driving the resampling.
     num_resamples : int
         Number of bootstrap replicates.
-    confidence_level : float
-        Two-sided coverage, e.g. ``0.95``.
+    significance_level : float
+        Two-sided alpha, e.g. ``0.05`` for a 95% interval.
 
     Returns
     -------
@@ -132,7 +132,7 @@ def bootstrap_mean_confidence_interval(
         np.nanmean,
         axis=0,
         n_resamples=num_resamples,
-        confidence_level=confidence_level,
+        confidence_level=1 - significance_level,
         method="BCa",
         batch=_resample_batch_size(num_samples=num_samples, num_timepoints=num_timepoints),
         rng=rng,
@@ -147,7 +147,7 @@ def bootstrap_difference_confidence_interval(
     samples_b: np.ndarray,
     rng: np.random.Generator,
     num_resamples: int = DEFAULT_NUM_RESAMPLES,
-    confidence_level: float = DEFAULT_CONFIDENCE_LEVEL,
+    significance_level: float = DEFAULT_SIGNIFICANCE_LEVEL,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     BCa bootstrap confidence interval on the difference of two means, at every timepoint.
@@ -164,8 +164,8 @@ def bootstrap_difference_confidence_interval(
         Random generator driving the resampling.
     num_resamples : int
         Number of bootstrap replicates.
-    confidence_level : float
-        Two-sided coverage, e.g. ``0.95``.
+    significance_level : float
+        Two-sided alpha, e.g. ``0.05`` for a 95% interval.
 
     Returns
     -------
@@ -196,7 +196,7 @@ def bootstrap_difference_confidence_interval(
         axis=0,
         paired=False,
         n_resamples=num_resamples,
-        confidence_level=confidence_level,
+        confidence_level=1 - significance_level,
         method="BCa",
         batch=_resample_batch_size(num_samples=max(num_samples_a, num_samples_b), num_timepoints=num_timepoints),
         rng=rng,

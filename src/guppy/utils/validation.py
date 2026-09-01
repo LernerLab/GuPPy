@@ -154,6 +154,30 @@ def validate_non_negative(*, value: float, name: str) -> None:
         raise ValueError(message)
 
 
+def validate_significance_level(*, value: object, name: str) -> None:
+    """Validate that a significance level lies strictly between 0 and 1.
+
+    Parameters
+    ----------
+    value : object
+        The candidate alpha.
+    name : str
+        Parameter name used in the error message.
+
+    Raises
+    ------
+    ValueError
+        If ``value`` is not a finite number strictly between 0 and 1.
+    """
+    if not _is_finite_number(value) or not 0 < float(value) < 1:
+        message = (
+            f"{name}={value} is not a valid significance level. "
+            f"Choose a value strictly between 0 and 1, for example 0.05 for a 95% interval."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+
 def validate_peak_windows(*, peak_starts: Sequence[float], peak_ends: Sequence[float]) -> tuple[np.ndarray, np.ndarray]:
     """Validate paired peak-window arrays and return them with NaN padding stripped.
 
