@@ -180,11 +180,12 @@ branch = true
 pythonpath = ["tests"]
 # Bound every test so a deadlock surfaces as a traceback rather than a silent stall that burns the
 # whole CI job. 300s is roughly six times the slowest real test, so it never fires on honest work.
-# "thread" is pinned rather than left to auto-select (which picks "signal" on POSIX and "thread"
-# only on Windows) so every platform reports the same way, and because it dumps the stack of every
-# thread: the hangs this guards against involve worker threads and pools, not just the main thread.
+# The method is left to auto-select -- "signal" on POSIX, "thread" on Windows. Do not pin "thread":
+# it dumps to the worker's stderr and then calls os._exit, and xdist forwards neither, so the
+# timeout reaches the log as an opaque "node down: Not properly terminated" with the traceback
+# discarded. "signal" raises inside the test, which xdist reports as an ordinary failure with the
+# stack intact.
 timeout = 300
-timeout_method = "thread"
 markers = [
     "full_data: marks tests that require the full testing_data download (deselect with '-m not full_data')",
     "parallel: marks tests that verify GuPPy multiprocessing behavior (run separately from the main suite)",
