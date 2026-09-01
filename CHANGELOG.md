@@ -9,6 +9,7 @@
 
 ## Fixes
 - Sessions no longer have to sit side by side to be analyzed together: the file browser now accepts session folders from different parent directories, so a run can mix sessions kept in separate data roots. [PR #451](https://github.com/LernerLab/GuPPy/pull/451)
+- Fixed a deadlock that could hang Read Raw Data, PSTH computation or transient detection indefinitely: the worker pools were torn down with `terminate()`, which waits for each worker to die after signalling it, so a worker slow to exit left the run stuck with no error and no progress. The pools are now closed and joined, letting each worker finish on its own. [PR #455](https://github.com/LernerLab/GuPPy/pull/455)
 
 ## Improvements
 - Made `count_samples()` a required method of the recording extractor contract, so a new acquisition format that omits it fails immediately instead of quietly mis-sizing the Read Raw Data progress bar. [PR #450](https://github.com/LernerLab/GuPPy/pull/450)
@@ -16,7 +17,7 @@
 - Reworked the documentation home page into a card-grid launch point over the Diátaxis sections, moved the installation walkthrough from the README onto its own [installation page](https://guppy.readthedocs.io/en/latest/installation.html), and trimmed the README to a quick start plus pointers to the docs. [PR #444](https://github.com/LernerLab/GuPPy/pull/444)
 - Added a [how-to guide for group analysis](https://guppy.readthedocs.io/en/latest/how-to/group-analysis.html): running Step 4's cross-session averaging and Step 5's averaged-results visualization. [PR #435](https://github.com/LernerLab/GuPPy/pull/435)
 - Removed the `progress_bar` pytest marker, which was applied to no tests and made every Windows CI run deselect nothing. [PR #449](https://github.com/LernerLab/GuPPy/pull/449)
-- Fixed the daily test workflow, which had been failing every night: tests are now bounded by a 300-second per-test timeout so a hung test reports a traceback instead of stalling the job, the daily runs get a 60-minute budget to fit the full-data consistency suite, coverage is collected only on the one job that uploads it, and a port-scanning test that failed at random is now deterministic. [PR #455](https://github.com/LernerLab/GuPPy/pull/455)
+- Hardened the test workflow against the failures that had been turning the daily run red: tests are bounded by a 300-second per-test timeout so a hang reports a traceback instead of stalling the job, the daily runs get a 60-minute budget to fit the full-data consistency suite, coverage is collected only on the one job that uploads it, and a port-scanning test that failed at random is now deterministic. [PR #455](https://github.com/LernerLab/GuPPy/pull/455)
 
 ## Deprecations and Removals
 - Removed headless mode: the `GUPPY_BASE_DIR` environment variable and the `is_headless()` helper are gone, with the file pickers' starting directory now coming from `guppy --start-path`. The scripted branches of Label Stores, Label Groups and Input Metadata are removed too — `guppy.testing.api` now drives the real Panel pages headlessly — and Step 1's create-new mode no longer silently overwrites an existing run folder. The `base_dir` argument of `guppy.testing.api.label_groups` is removed, and `api.step1` gains an `isosbestic_control` keyword. [PR #452](https://github.com/LernerLab/GuPPy/pull/452)
