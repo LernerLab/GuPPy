@@ -293,7 +293,7 @@ class ParameterForm:
         )
 
         self.psthSignificanceAlpha = pn.widgets.FloatInput(
-            name="Significance Level (alpha) (float)", value=0.05, step=0.01, width=200
+            name="Significance Level (alpha) (float)", value=0.05, step=0.01, width=220
         )
 
         self.psthBootstrapResamples = pn.widgets.IntInput(
@@ -414,7 +414,8 @@ class ParameterForm:
         self.significance_param_wd = pn.WidgetBox(
             "### PSTH Significance Parameters",
             self.significance_explain,
-            pn.Row(self.computePsthSignificance, self.psthSignificanceAlpha, self.psthBootstrapResamples),
+            self.computePsthSignificance,
+            pn.Row(self.psthSignificanceAlpha, self.psthBootstrapResamples),
             self.comparison_df_widget,
             width=600,
         )

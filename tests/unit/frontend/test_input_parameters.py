@@ -142,6 +142,24 @@ class TestParameterForm:
         assert "z_score" in parameter_form.visualize_zscore_or_dff.options
         assert "dff" in parameter_form.visualize_zscore_or_dff.options
 
+    def test_parameter_rows_fit_inside_their_widget_box(self, parameter_form):
+        # A row of widgets wider than its box overflows the panel visually, which no
+        # other assertion here would catch.
+        boxes = [
+            parameter_form.significance_param_wd,
+            parameter_form.psth_param_wd,
+            parameter_form.peak_param_wd,
+            parameter_form.zscore_param_wd,
+        ]
+        for box in boxes:
+            for item in box:
+                if not isinstance(item, pn.Row):
+                    continue
+                widgets = [child for child in item if getattr(child, "width", None)]
+                # Panel puts a default 5px margin either side of each widget.
+                occupied = sum(child.width for child in widgets) + 10 * len(widgets)
+                assert occupied <= box.width, f"{[child.name for child in widgets]} overflows {box.width}px"
+
     def test_df_widget_initial_peak_start_values(self, parameter_form):
         df = parameter_form.df_widget.value
         assert df["Peak Start time"].iloc[0] == -5
