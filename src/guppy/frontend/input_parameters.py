@@ -47,6 +47,22 @@ def _reject_group_folder_selected_as_run(*, path: str) -> None:
         raise ValueError(message)
 
 
+def _blank_comparison_rows(count: int) -> pd.DataFrame:
+    """Build an empty PSTH comparison table of ``count`` rows.
+
+    Parameters
+    ----------
+    count : int
+        Number of blank rows.
+
+    Returns
+    -------
+    pd.DataFrame
+        Table with the ``Event A`` and ``Event B`` columns the form reads.
+    """
+    return pd.DataFrame({"Event A": [""] * count, "Event B": [""] * count})
+
+
 class ParameterForm:
     """Panel form collecting all GuPPy analysis parameters.
 
@@ -405,11 +421,24 @@ class ParameterForm:
             width=580,
         )
 
-        self.comparison_df = pd.DataFrame({"Event A": [""] * 10, "Event B": [""] * 10})
+        # One blank row to start, grown by the Add button rather than a fixed block of
+        # slots: the number of worthwhile pairs scales with the square of the event count,
+        # so any fixed size is both too many rows to look at and too few to hold.
+        self.comparison_df = _blank_comparison_rows(1)
 
         self.comparison_df_widget = pn.widgets.Tabulator(
-            self.comparison_df, name="Comparisons", show_index=False, widths=280
+            self.comparison_df,
+            name="Comparisons",
+            show_index=False,
+            widths=250,
+            buttons={"remove": '<div title="Remove this comparison">\u2715</div>'},
         )
+        self.comparison_df_widget.on_click(self._remove_comparison_row, column="remove")
+
+        self.add_comparison_button = pn.widgets.Button(
+            name="+ Add comparison", button_type="default", width=180, align="start"
+        )
+        self.add_comparison_button.on_click(self._add_comparison_row)
 
         self.significance_param_wd = pn.WidgetBox(
             "### PSTH Significance Parameters",
@@ -417,6 +446,7 @@ class ParameterForm:
             self.computePsthSignificance,
             pn.Row(self.psthSignificanceAlpha, self.psthBootstrapResamples),
             self.comparison_df_widget,
+            self.add_comparison_button,
             width=600,
         )
 
@@ -638,6 +668,17 @@ class ParameterForm:
             folder_names.append(session_directory)
             dandi_uri_map[session_directory] = uri
         return folder_names, output_root, dandi_uri_map
+
+    def _add_comparison_row(self, event: object = None) -> None:
+        """Append a blank comparison row to the table."""
+        self.comparison_df_widget.value = pd.concat(
+            [self.comparison_df_widget.value, _blank_comparison_rows(1)], ignore_index=True
+        )
+
+    def _remove_comparison_row(self, event: object) -> None:
+        """Drop the clicked comparison row, keeping one blank row when the last one goes."""
+        remaining = self.comparison_df_widget.value.drop(index=event.row).reset_index(drop=True)
+        self.comparison_df_widget.value = remaining if len(remaining) else _blank_comparison_rows(1)
 
     def setup_group_parameters(self) -> None:
         """Build the group output-folder selection card and store its widgets as attributes."""
@@ -873,10 +914,10 @@ class ParameterForm:
             df["Peak End time"] = parameters["peak_endPoint"]
             self.df_widget.value = df
         if "psthComparisonsA" in parameters and "psthComparisonsB" in parameters:
-            comparisons = self.comparison_df_widget.value.copy()
-            comparisons["Event A"] = parameters["psthComparisonsA"]
-            comparisons["Event B"] = parameters["psthComparisonsB"]
-            self.comparison_df_widget.value = comparisons
+            # Rebuilt rather than assigned into: a saved run may hold any number of
+            # comparisons, and assigning a longer list into the existing index raises.
+            saved = pd.DataFrame({"Event A": parameters["psthComparisonsA"], "Event B": parameters["psthComparisonsB"]})
+            self.comparison_df_widget.value = saved if len(saved) else _blank_comparison_rows(1)
 
     def _load_parameters_from_selected_runs(self, event: object) -> None:
         """Reload analysis parameters from the saved JSON of the selected output run(s).

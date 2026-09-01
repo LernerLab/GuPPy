@@ -137,7 +137,7 @@ If the thing measured on its own schedule was recorded as data rather than watch
 | Compute PSTH Significance? | Bootstrap which stretches of the PSTH window are significant. | bool | `False` | `True` / `False` |
 | Significance Level (alpha) | Two-sided threshold the confidence interval is computed at. | float | `0.05` | strictly between 0 and 1 |
 | Bootstrap Resamples | How many resamples each interval is built from. | int | `1000` | positive |
-| Event A / Event B | Pairs of events to compare against each other. | table | empty | event labels from Step 1 |
+| Event A / Event B | Pairs of events to compare against each other. | table | one blank row | event labels from Step 1 |
 
 **Compute PSTH Significance?** turns on bootstrap significance testing. With it on, every event is tested against zero — "is there a response at all, and when?" — for each recording site and metric. The results are written into `psth_significance_output/` and shown on the **Significance** tab in Step 5. Off by default, since the test adds several seconds per comparison. See the [explainer](../explanation/psth_significance.md) for what the test does and how to read it.
 
@@ -145,7 +145,7 @@ If the thing measured on its own schedule was recorded as data rather than watch
 
 **Bootstrap Resamples** is how many times the trials are resampled to build each interval. More resamples means less run-to-run variation and a proportionally longer run; the default of 1000 is the usual choice for confidence intervals. Note that resolving a two-sided alpha needs at least `2 / alpha` resamples — 40 at `0.05`, 200 at `0.01` — below which the interval comes back narrower than the alpha you asked for, and GuPPy logs a warning saying so.
 
-**Event A / Event B** is the table of pairs to compare against each other, using the event labels assigned in Step 1 (Label Stores). Testing against zero needs no configuration because there is only one sensible version of it; which two events are worth contrasting is a scientific judgement, so you name those. Each pair is compared within every recording site and metric present. Leave the table blank to run only the tests against zero.
+**Event A / Event B** is the table of pairs to compare against each other, using the event labels assigned in Step 1 (Label Stores). It starts with one blank row; **+ Add comparison** appends another, and the ✕ beside a row removes it. There is no limit on the number of pairs. Testing against zero needs no configuration because there is only one sensible version of it; which two events are worth contrasting is a scientific judgement, so you name those. Each pair is compared within every recording site and metric present. Leave the table blank to run only the tests against zero.
 
 Comparisons run **inside a single output folder**. Run the step on a session run folder and its trials are resampled; run Group Analysis on a group folder and that group's session averages are, which is the correct unit for a group-level claim. Comparing two different folders — one session against another, or one group against another — is not yet supported.
 

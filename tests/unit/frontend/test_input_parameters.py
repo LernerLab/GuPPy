@@ -1,8 +1,10 @@
 import json
 import math
 import os
+from types import SimpleNamespace
 
 import numpy as np
+import pandas as pd
 import panel as pn
 import pytest
 
@@ -141,6 +143,48 @@ class TestParameterForm:
         assert parameter_form.visualize_zscore_or_dff.value == "z_score"
         assert "z_score" in parameter_form.visualize_zscore_or_dff.options
         assert "dff" in parameter_form.visualize_zscore_or_dff.options
+
+    def test_comparison_table_starts_with_a_single_blank_row(self, parameter_form):
+        # A fixed block of slots is mostly blank rows for anyone running two comparisons.
+        assert parameter_form.comparison_df_widget.value.shape == (1, 2)
+        assert list(parameter_form.comparison_df_widget.value.columns) == ["Event A", "Event B"]
+
+    def test_add_button_grows_the_comparison_table_without_limit(self, parameter_form):
+        # The number of worthwhile pairs grows with the square of the event count, so six
+        # events already allow fifteen -- more than any fixed table would hold.
+        for _ in range(14):
+            parameter_form._add_comparison_row()
+
+        assert parameter_form.comparison_df_widget.value.shape == (15, 2)
+
+    def test_removing_a_row_drops_that_comparison(self, parameter_form):
+        parameter_form.comparison_df_widget.value = pd.DataFrame(
+            {"Event A": ["a", "b", "c"], "Event B": ["x", "y", "z"]}
+        )
+
+        parameter_form._remove_comparison_row(SimpleNamespace(row=1))
+
+        assert list(parameter_form.comparison_df_widget.value["Event A"]) == ["a", "c"]
+        assert list(parameter_form.comparison_df_widget.value["Event B"]) == ["x", "z"]
+
+    def test_removing_the_last_row_leaves_one_blank_row(self, parameter_form):
+        parameter_form.comparison_df_widget.value = pd.DataFrame({"Event A": ["only"], "Event B": ["pair"]})
+
+        parameter_form._remove_comparison_row(SimpleNamespace(row=0))
+
+        assert parameter_form.comparison_df_widget.value.shape == (1, 2)
+        assert list(parameter_form.comparison_df_widget.value["Event A"]) == [""]
+
+    def test_loads_a_saved_run_holding_more_comparisons_than_the_table_shows(self, parameter_form):
+        # Assigning a longer list into the table's existing index used to raise, so a run
+        # driven through the API with many comparisons could not be reopened in the form.
+        saved_a = [f"a{index}" for index in range(12)]
+        saved_b = [f"b{index}" for index in range(12)]
+
+        parameter_form.setInputParameters({"psthComparisonsA": saved_a, "psthComparisonsB": saved_b})
+
+        assert list(parameter_form.comparison_df_widget.value["Event A"]) == saved_a
+        assert list(parameter_form.comparison_df_widget.value["Event B"]) == saved_b
 
     def test_parameter_rows_fit_inside_their_widget_box(self, parameter_form):
         # A row of widgets wider than its box overflows the panel visually, which no
