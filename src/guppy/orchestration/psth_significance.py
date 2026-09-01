@@ -346,5 +346,11 @@ def execute_compute_psth_significance(filepath: str, inputParameters: dict[str, 
     # Pinned rather than inherited, for the same reason as the step-4 pools: forking a
     # process holding other live threads can leave a logging or HDF5 lock held forever.
     spawn_context = mp.get_context("spawn")
+    # Closed and joined before leaving the block, as the step-4 pools are: the context
+    # manager's __exit__ calls terminate(), which blocks in waitpid() until every worker
+    # is gone and hangs on one that is slow to exit. starmap has already returned, so
+    # there is nothing to abort -- close() lets each worker exit on its own.
     with spawn_context.Pool(inputParameters["numberOfCores"]) as significance_pool:
         significance_pool.starmap(execute_one_comparison, zip(repeat(filepath), planned, repeat(inputParameters)))
+        significance_pool.close()
+        significance_pool.join()
