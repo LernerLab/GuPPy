@@ -9,8 +9,10 @@
 """Generate SVG figures for the PSTH significance explanation page.
 
 The bootstrap and the consecutive-run filter mirror
-src/guppy/analysis/psth_significance.py. Only the input traces are synthetic and
-designed to make each point clean.
+src/guppy/analysis/psth_significance.py, and the significance bar is drawn inside the
+plot at the same height fraction the Step 5 tab uses, so the figures match what the
+visualization shows. Only the input traces are synthetic and designed to make each
+point clean.
 
 Run with:
 
@@ -51,6 +53,9 @@ COLOR_ESTIMATE = "#1f77b4"
 COLOR_SIGNIFICANT = "#d62728"
 COLOR_MUTED = "#999999"
 
+# Matches _BAR_HEIGHT_FRACTION in src/guppy/visualization/psth_significance.py.
+BAR_HEIGHT_FRACTION = 0.04
+
 
 def moving_average(trials: np.ndarray, window: int) -> np.ndarray:
     """Mirror of GuPPy's moving-average filter, applied per trial."""
@@ -85,8 +90,36 @@ def surviving_runs(excludes_zero: np.ndarray, minimum_consecutive_samples: int) 
     return mask
 
 
-def figure_1_confidence_interval_is_the_test() -> None:
-    """A CI that clears zero is the test; the shaded band is what does the work."""
+def draw_significance_bar(
+    axes: plt.Axes,
+    time: np.ndarray,
+    mask: np.ndarray,
+    *,
+    bottom: float,
+    top: float,
+    offset: float = 0.0,
+    color: str = COLOR_SIGNIFICANT,
+    label: str | None = None,
+) -> None:
+    """Draw significant stretches as a bar inside the plot, as the Step 5 tab does."""
+    height = (top - bottom) * BAR_HEIGHT_FRACTION
+    bar_top = top - offset * height * 1.4
+    boundaries = np.diff(np.concatenate(([0], mask.view(np.int8), [0])))
+    drawn = False
+    for start, end in zip(np.flatnonzero(boundaries == 1), np.flatnonzero(boundaries == -1)):
+        axes.fill_between(
+            [time[start], time[end - 1]],
+            bar_top - height,
+            bar_top,
+            color=color,
+            lw=0,
+            label=None if drawn else label,
+        )
+        drawn = True
+
+
+def figure_1_bootstrap_interval() -> None:
+    """The mean PSTH, its bootstrap interval, and the significant stretches it implies."""
     rng = np.random.default_rng(1)
     time = np.linspace(-2, 4, 400)
     response = 2.2 * np.exp(-((time - 1.0) ** 2) / (2 * 0.6**2))
@@ -94,36 +127,29 @@ def figure_1_confidence_interval_is_the_test() -> None:
 
     lower, upper = bootstrap_interval(trials, rng=np.random.default_rng(2))
     estimate = np.nanmean(trials, axis=0)
-    excludes_zero = (lower > 0) | (upper < 0)
+    mask = surviving_runs((lower > 0) | (upper < 0), 12)
 
-    figure, (top, bottom) = plt.subplots(
-        2, 1, figsize=(7.4, 4.6), sharex=True, height_ratios=[3, 0.5], constrained_layout=True
-    )
+    figure, axes = plt.subplots(figsize=(7.4, 4.2), constrained_layout=True)
+    bottom = float(np.nanmin(lower))
+    top = float(np.nanmax(upper))
+    top = top + (top - bottom) * (BAR_HEIGHT_FRACTION * 3)
 
-    top.fill_between(time, lower, upper, color=COLOR_ESTIMATE, alpha=0.25, lw=0, label="95% bootstrap CI")
-    top.plot(time, estimate, color=COLOR_ESTIMATE, lw=1.8, label="mean PSTH")
-    top.axhline(0, color="black", ls="--", lw=1, label="no change from baseline")
-    top.set_ylabel("z-score")
-    top.legend(loc="upper left", frameon=False, fontsize=9)
-    top.set_title("The interval is the test: significant where the band clears zero")
+    axes.fill_between(time, lower, upper, color=COLOR_ESTIMATE, alpha=0.25, lw=0, label="95% confidence interval")
+    axes.plot(time, estimate, color=COLOR_ESTIMATE, lw=1.8, label="mean PSTH")
+    axes.axhline(0, color="black", ls="--", lw=1)
+    draw_significance_bar(axes, time, mask, bottom=bottom, top=top, label="significant")
 
-    bottom.imshow(
-        excludes_zero.reshape(1, -1),
-        aspect="auto",
-        cmap=plt.matplotlib.colors.ListedColormap(["#00000000", COLOR_SIGNIFICANT]),
-        extent=[time[0], time[-1], 0, 1],
-        interpolation="nearest",
-    )
-    bottom.set_yticks([])
-    bottom.set_xlabel("Time from event (s)")
-    bottom.set_ylabel("CI\nexcludes 0", rotation=0, ha="right", va="center", fontsize=9)
+    axes.set_ylim(bottom, top)
+    axes.set_xlabel("Time from event (s)")
+    axes.set_ylabel("z-score")
+    axes.legend(loc="upper center", bbox_to_anchor=(0.5, -0.14), frameon=False, fontsize=9, ncols=3)
 
-    figure.savefig(OUT / "fig1_interval_is_the_test.svg", bbox_inches="tight")
+    figure.savefig(OUT / "fig1_bootstrap_interval.svg", bbox_inches="tight")
     plt.close(figure)
 
 
-def figure_2_consecutive_run_filter() -> None:
-    """Pointwise intervals scatter false positives; the run-length filter removes them."""
+def figure_2_minimum_duration() -> None:
+    """Isolated timepoints clear zero by chance; only long enough stretches are kept."""
     rng = np.random.default_rng(7)
     time = np.linspace(-2, 4, 600)
     response = 1.6 * np.exp(-((time - 1.2) ** 2) / (2 * 0.5**2))
@@ -132,113 +158,88 @@ def figure_2_consecutive_run_filter() -> None:
     lower, upper = bootstrap_interval(trials, rng=np.random.default_rng(8))
     estimate = np.nanmean(trials, axis=0)
     raw = (lower > 0) | (upper < 0)
-    minimum_consecutive_samples = 25
-    kept = surviving_runs(raw, minimum_consecutive_samples)
+    kept = surviving_runs(raw, 25)
 
-    figure, (top, middle, bottom) = plt.subplots(
-        3, 1, figsize=(7.4, 5.0), sharex=True, height_ratios=[3, 0.5, 0.5], constrained_layout=True
+    figure, axes = plt.subplots(figsize=(7.4, 4.4), constrained_layout=True)
+    bottom = float(np.nanmin(lower))
+    top = float(np.nanmax(upper))
+    top = top + (top - bottom) * (BAR_HEIGHT_FRACTION * 8)
+
+    axes.fill_between(time, lower, upper, color=COLOR_ESTIMATE, alpha=0.25, lw=0)
+    axes.plot(time, estimate, color=COLOR_ESTIMATE, lw=1.8, label="mean PSTH")
+    axes.axhline(0, color="black", ls="--", lw=1)
+    draw_significance_bar(
+        axes, time, raw, bottom=bottom, top=top, offset=0, color=COLOR_MUTED, label="interval excludes zero"
+    )
+    draw_significance_bar(
+        axes, time, kept, bottom=bottom, top=top, offset=1.6, label="kept: longer than the filter window"
     )
 
-    top.fill_between(time, lower, upper, color=COLOR_ESTIMATE, alpha=0.25, lw=0)
-    top.plot(time, estimate, color=COLOR_ESTIMATE, lw=1.8)
-    top.axhline(0, color="black", ls="--", lw=1)
-    top.set_ylabel("z-score")
-    top.set_title("Each timepoint is tested on its own, so noise alone clears zero sometimes")
+    axes.set_ylim(bottom, top)
+    axes.set_xlabel("Time from event (s)")
+    axes.set_ylabel("z-score")
+    axes.legend(loc="upper center", bbox_to_anchor=(0.5, -0.14), frameon=False, fontsize=9, ncols=3)
 
-    strip = plt.matplotlib.colors.ListedColormap(["#00000000", COLOR_MUTED])
-    kept_map = plt.matplotlib.colors.ListedColormap(["#00000000", COLOR_SIGNIFICANT])
-    middle.imshow(
-        raw.reshape(1, -1), aspect="auto", cmap=strip, extent=[time[0], time[-1], 0, 1], interpolation="nearest"
-    )
-    middle.set_yticks([])
-    middle.set_ylabel("every\ntimepoint", rotation=0, ha="right", va="center", fontsize=9)
-
-    bottom.imshow(
-        kept.reshape(1, -1),
-        aspect="auto",
-        cmap=kept_map,
-        extent=[time[0], time[-1], 0, 1],
-        interpolation="nearest",
-    )
-    bottom.set_yticks([])
-    bottom.set_ylabel("runs longer\nthan the filter", rotation=0, ha="right", va="center", fontsize=9)
-    bottom.set_xlabel("Time from event (s)")
-
-    figure.savefig(OUT / "fig2_consecutive_run_filter.svg", bbox_inches="tight")
+    figure.savefig(OUT / "fig2_minimum_duration.svg", bbox_inches="tight")
     plt.close(figure)
 
 
-def figure_3_hierarchy() -> None:
-    """Pooling trials across sessions inflates the false-positive rate; averaging does not."""
+def figure_3_resampling_unit() -> None:
+    """Which level of the hierarchy is resampled in a run folder and in a group folder."""
     rng = np.random.default_rng(11)
-    num_sessions, num_trials = 5, 50
-    between_session_sd, trial_sd = 1.0, 1.0
-    num_simulations = 300
+    num_sessions = 5
 
-    def one_group() -> np.ndarray:
-        session_effects = rng.normal(0, between_session_sd, num_sessions)
-        return np.array([rng.normal(effect, trial_sd, num_trials) for effect in session_effects])
+    figure, axes = plt.subplots(figsize=(7.6, 3.8), constrained_layout=True)
 
-    def interval_excludes_zero(sample_a: np.ndarray, sample_b: np.ndarray, num_resamples: int = 600) -> bool:
-        count_a, count_b = len(sample_a), len(sample_b)
-        differences = np.array(
-            [
-                sample_a[rng.integers(0, count_a, count_a)].mean() - sample_b[rng.integers(0, count_b, count_b)].mean()
-                for _ in range(num_resamples)
-            ]
-        )
-        low, high = np.percentile(differences, [2.5, 97.5])
-        return (low > 0) or (high < 0)
+    session_means = []
+    for index in range(num_sessions):
+        row = num_sessions - index
+        session_mean = rng.normal(0, 0.6)
+        session_means.append((session_mean, row))
+        trials = session_mean + rng.normal(0, 0.3, 14)
+        axes.scatter(trials, np.full_like(trials, row), s=16, color=COLOR_MUTED, zorder=2)
+        axes.scatter([session_mean], [row], s=80, color=COLOR_ESTIMATE, marker="D", zorder=3)
 
-    pooled_hits = averaged_hits = 0
-    for _ in range(num_simulations):
-        group_a, group_b = one_group(), one_group()
-        pooled_hits += interval_excludes_zero(group_a.ravel(), group_b.ravel())
-        averaged_hits += interval_excludes_zero(group_a.mean(axis=1), group_b.mean(axis=1))
+    axes.set_yticks(range(1, num_sessions + 1))
+    axes.set_yticklabels([f"session {index}" for index in range(num_sessions, 0, -1)], fontsize=9)
+    axes.set_xlabel("response")
+    axes.set_xlim(-1.9, 3.1)
+    axes.set_ylim(0.4, num_sessions + 0.8)
 
-    pooled_rate = 100 * pooled_hits / num_simulations
-    averaged_rate = 100 * averaged_hits / num_simulations
-
-    figure, (left, right) = plt.subplots(1, 2, figsize=(7.8, 3.4), width_ratios=[1.15, 1], constrained_layout=True)
-
-    # Left: the nesting itself.
-    for session_index in range(num_sessions):
-        offset = num_sessions - session_index
-        session_mean = rng.normal(0, 0.55)
-        trial_values = session_mean + rng.normal(0, 0.28, 12)
-        left.scatter(trial_values, np.full_like(trial_values, offset), s=14, color=COLOR_MUTED, zorder=2)
-        left.scatter([session_mean], [offset], s=70, color=COLOR_ESTIMATE, marker="D", zorder=3)
-    left.set_yticks(range(1, num_sessions + 1))
-    left.set_yticklabels([f"session {index}" for index in range(num_sessions, 0, -1)], fontsize=9)
-    left.set_xlabel("response")
-    left.set_title("Trials (grey) nest inside sessions (blue)")
-    left.scatter([], [], s=14, color=COLOR_MUTED, label="trial")
-    left.scatter([], [], s=70, color=COLOR_ESTIMATE, marker="D", label="session mean")
-    left.set_ylim(0.3, num_sessions + 0.9)
-    left.legend(loc="upper left", frameon=False, fontsize=8, ncols=2)
-
-    # Right: what each choice of unit does to the false-positive rate.
-    bars = right.bar(
-        ["pool all\ntrials", "average per\nsession"],
-        [pooled_rate, averaged_rate],
-        color=[COLOR_SIGNIFICANT, COLOR_ESTIMATE],
-        width=0.55,
+    # Point at one session's trials: the unit inside a run folder.
+    top_mean = session_means[0][0]
+    axes.annotate(
+        "a run folder resamples\nthe trials of one session",
+        xy=(top_mean + 0.55, num_sessions),
+        xytext=(top_mean + 1.15, num_sessions + 0.55),
+        fontsize=8.5,
+        color="#444444",
+        va="center",
+        arrowprops=dict(arrowstyle="->", color=COLOR_MUTED, lw=1.3),
     )
-    right.axhline(5, color="black", ls="--", lw=1)
-    right.set_xlim(-0.55, 1.85)
-    right.text(1.32, 7.0, "nominal 5%", fontsize=8, color="#444444", ha="left")
-    right.set_ylabel("false positives (%)")
-    right.set_ylim(0, max(pooled_rate, 100) * 1.05)
-    right.set_title("With no true difference between groups")
-    for bar, rate in zip(bars, [pooled_rate, averaged_rate]):
-        right.text(bar.get_x() + bar.get_width() / 2, rate + 1.5, f"{rate:.0f}%", ha="center", fontsize=10)
 
-    figure.savefig(OUT / "fig3_hierarchy.svg", bbox_inches="tight")
+    # Bracket the column of session means: the unit inside a group folder.
+    bracket_x = max(mean for mean, _ in session_means) + 1.0
+    axes.annotate(
+        "", xy=(bracket_x, 1), xytext=(bracket_x, num_sessions),
+        arrowprops=dict(arrowstyle="-", color=COLOR_ESTIMATE, lw=1.5),
+    )
+    axes.text(
+        bracket_x + 0.12, (num_sessions + 1) / 2,
+        "a group folder\nresamples the\nsession means",
+        fontsize=8.5, color=COLOR_ESTIMATE, va="center",
+    )
+
+    axes.scatter([], [], s=16, color=COLOR_MUTED, label="trial")
+    axes.scatter([], [], s=80, color=COLOR_ESTIMATE, marker="D", label="session mean")
+    axes.legend(loc="lower left", frameon=False, fontsize=8.5, ncols=2)
+
+    figure.savefig(OUT / "fig3_resampling_unit.svg", bbox_inches="tight")
     plt.close(figure)
 
 
 if __name__ == "__main__":
-    figure_1_confidence_interval_is_the_test()
-    figure_2_consecutive_run_filter()
-    figure_3_hierarchy()
+    figure_1_bootstrap_interval()
+    figure_2_minimum_duration()
+    figure_3_resampling_unit()
     print(f"Wrote figures to {OUT}")
