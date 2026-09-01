@@ -301,19 +301,30 @@ def orchestrate_psth(inputParameters: dict[str, object]) -> None:
             )
             event_labels = event_labels_for_analysis(store_array=store_array, inputParameters=inputParameters)
 
+            # Each pool is closed and joined before leaving its block. The context manager's
+            # __exit__ calls terminate(), which signals every worker and then blocks in waitpid()
+            # until it is gone; a worker that is slow to exit never gets there and the parent waits
+            # forever. starmap has already returned, so there is nothing to abort -- close() lets
+            # each worker exit on its own.
             with spawn_context.Pool(numProcesses) as psth_pool:
                 psth_pool.starmap(execute_compute_psth, zip(repeat(filepath), event_labels, repeat(inputParameters)))
+                psth_pool.close()
+                psth_pool.join()
 
             with spawn_context.Pool(numProcesses) as peak_area_pool:
                 peak_area_pool.starmap(
                     execute_compute_psth_peak_and_area,
                     zip(repeat(filepath), event_labels, repeat(inputParameters)),
                 )
+                peak_area_pool.close()
+                peak_area_pool.join()
 
             with spawn_context.Pool(numProcesses) as cross_correlation_pool:
                 cross_correlation_pool.starmap(
                     execute_compute_cross_correlation, zip(repeat(filepath), event_labels, repeat(inputParameters))
                 )
+                cross_correlation_pool.close()
+                cross_correlation_pool.join()
 
             progress.advance()
 

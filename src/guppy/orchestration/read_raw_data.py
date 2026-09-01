@@ -218,6 +218,12 @@ def orchestrate_read_raw_data(inputParameters: dict[str, object]) -> None:
     else:
         with spawn_context.Pool(numProcesses, initializer=_pool_initializer, initargs=(samples_done,)) as pool:
             pool.starmap(read_and_save_events_for_extractor, tasks)
+            # Close and join before leaving the block. The context manager's __exit__ calls
+            # terminate(), which signals every worker and then blocks in waitpid() until it is
+            # gone; a worker that is slow to exit never gets there and the parent waits forever.
+            # starmap has already returned, so there is nothing to abort.
+            pool.close()
+            pool.join()
     logger.info("### Raw data fetched for all sessions")
 
     logger.info("Raw data fetched and saved.")
