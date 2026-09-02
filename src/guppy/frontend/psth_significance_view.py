@@ -2,7 +2,7 @@
 
 Reads the ``significance_<comparison>.h5`` tables written into
 ``psth_significance_output/`` and plots the selected comparison. Output directories
-analysed without the significance parameter hold no such tables, so the tab renders a
+analyzed without the significance parameter hold no such tables, so the tab renders a
 short note instead and can be added to the dashboard unconditionally.
 
 Serves session run folders and group folders alike: they hold the same files, and only
@@ -160,7 +160,7 @@ def build_psth_significance_view(filepath: str) -> pn.Column:
     Returns
     -------
     pn.Column
-        The selector and plot, or a short note when the directory was analysed without
+        The selector and plot, or a short note when the directory was analyzed without
         significance testing.
     """
     if not significance_comparisons(filepath):
