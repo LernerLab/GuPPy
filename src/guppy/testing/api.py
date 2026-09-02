@@ -1048,6 +1048,10 @@ def step4(
     auc_units: str = "samples",
     compute_binned_metrics: bool = False,
     binned_metrics_width: int = 120,
+    compute_psth_significance: bool = False,
+    psth_comparisons: Iterable[tuple[str, str]] = (),
+    psth_significance_alpha: float = 0.05,
+    psth_bootstrap_resamples: int = 1000,
     selected_runs: dict[str, list[str]],
 ) -> None:
     """
@@ -1183,6 +1187,13 @@ def step4(
     input_params["computeBinnedMetrics"] = compute_binned_metrics
     input_params["binnedMetricsWidth"] = binned_metrics_width
 
+    # Inject the PSTH significance parameters
+    input_params["computePsthSignificance"] = compute_psth_significance
+    input_params["psthComparisonsA"] = [pair[0] for pair in psth_comparisons]
+    input_params["psthComparisonsB"] = [pair[1] for pair in psth_comparisons]
+    input_params["psthSignificanceAlpha"] = psth_significance_alpha
+    input_params["psthBootstrapResamples"] = psth_bootstrap_resamples
+
     # Call the underlying Step 4 workers directly, in the order the GUI runs them:
     # transients first, so their timestamps are available as events for the PSTH.
     executeFindFreqAndAmp(input_params)
@@ -1235,6 +1246,10 @@ def group_analysis(
     select_for_transients: str = "z_score",
     use_transients_as_events: bool = False,
     compute_corr: bool = False,
+    compute_psth_significance: bool = False,
+    psth_comparisons: Iterable[tuple[str, str]] = (),
+    psth_significance_alpha: float = 0.05,
+    psth_bootstrap_resamples: int = 1000,
 ) -> None:
     """Run the Group Analysis step headlessly against already-defined groups.
 
@@ -1267,6 +1282,11 @@ def group_analysis(
     input_params["selectForTransientsComputation"] = select_for_transients
     input_params["useTransientsAsEvents"] = use_transients_as_events
     input_params["computeCorr"] = compute_corr
+    input_params["computePsthSignificance"] = compute_psth_significance
+    input_params["psthComparisonsA"] = [pair[0] for pair in psth_comparisons]
+    input_params["psthComparisonsB"] = [pair[1] for pair in psth_comparisons]
+    input_params["psthSignificanceAlpha"] = psth_significance_alpha
+    input_params["psthBootstrapResamples"] = psth_bootstrap_resamples
 
     run_group_analysis_step(input_params)
 

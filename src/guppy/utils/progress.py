@@ -26,11 +26,15 @@ class StepProgress:
     server IOLoop. ``completed`` is guarded by a lock because steps advance it from pool
     callbacks as well as the step thread; ``total`` and ``error_message`` are single
     assignments of immutable values, which are atomic under the GIL.
+
+    ``warnings`` collects messages about work the step declined to do but that did not stop
+    it, so the poller can surface them once the step finishes.
     """
 
     def __init__(self) -> None:
         self.total = 0
         self.error_message = None
+        self.warnings = []
         self._completed = 0
         self._source = None
         self._lock = threading.Lock()
@@ -65,6 +69,11 @@ class StepProgress:
         """Record the step's failure message."""
         self.error_message = message
 
+    def warn(self, message: str) -> None:
+        """Record a message about work the step skipped without failing."""
+        with self._lock:
+            self.warnings.append(message)
+
 
 _current_step: ContextVar[StepProgress | None] = ContextVar("guppy_step_progress", default=None)
 
@@ -95,6 +104,13 @@ def fail(message: str) -> None:
     step = _current_step.get()
     if step is not None:
         step.fail(message)
+
+
+def warn(message: str) -> None:
+    """Report that the running step skipped something the user should know about."""
+    step = _current_step.get()
+    if step is not None:
+        step.warn(message)
 
 
 def step_error_handler(func: object) -> object:

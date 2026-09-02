@@ -9,10 +9,9 @@ import pandas as pd
 
 from .save_parameters import save_parameters
 from ..analysis.io_utils import (
-    is_channel_label,
     is_continuous_label,
-    recording_site_from_channel_label,
     recording_site_from_preprocessed_label,
+    recording_sites_for_output_directory,
 )
 from ..frontend.parameterized_plotter import (
     ParameterizedPlotter,
@@ -175,37 +174,9 @@ def createPlots(filepath: str, event: list[str], inputParameters: dict[str, obje
 
     event = np.delete(event, index)
 
-    names = [f"{visualize_zscore_or_dff}_{site}" for site in _recording_sites(filepath)]
+    names = [f"{visualize_zscore_or_dff}_{site}" for site in recording_sites_for_output_directory(filepath)]
 
     helper_plots(filepath, event, names, inputParameters)
-
-
-def _recording_sites(filepath: str) -> list[str]:
-    """Return the recording-site names an output directory holds results for.
-
-    Read from ``storesList.csv`` rather than from the preprocessed trace filenames, so a
-    directory that holds averaged results but no traces of its own (a group) needs no
-    stand-in files to name its sites.
-
-    Parameters
-    ----------
-    filepath : str
-        Path to an output directory: a session run folder or a group folder.
-
-    Returns
-    -------
-    list of str
-        Recording-site names, in the order their channels appear in ``storesList.csv``.
-    """
-    store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
-    sites = []
-    for label in store_array[1, :]:
-        if not is_channel_label(label):
-            continue
-        site = recording_site_from_channel_label(label)
-        if site not in sites:
-            sites.append(site)
-    return sites
 
 
 def _validate_metric_against_step4_outputs(inputParameters: dict[str, object]) -> None:

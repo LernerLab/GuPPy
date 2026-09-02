@@ -117,6 +117,8 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
             if not thread.is_alive():
                 poller["callback"].stop()
                 step_running["active"] = False
+                for warning in step.warnings:
+                    pn.state.notifications.warning(warning, duration=0)
                 if step.error_message:
                     pn.state.notifications.error(step.error_message, duration=0)
                 else:

@@ -28,6 +28,24 @@ class TestVisualizationDashboard:
         assert dashboard.plotter is plotter
         assert dashboard.basename == BASENAME
 
+    def test_build_template_exposes_every_tab_in_order(self, dashboard):
+        template = dashboard.build_template()
+        tabs = template.main[0]
+
+        assert tabs._names == [
+            "PSTH",
+            "Heat Map",
+            "Tonic",
+            "Binned",
+            "Covariates",
+            "Significance",
+        ]
+
+    def test_significance_tab_reports_an_empty_state_for_a_session_without_results(self, dashboard):
+        # The plotter fixture's directory holds no significance output, so the tab renders
+        # its note rather than failing -- which is what lets it be added unconditionally.
+        assert "No PSTH significance results" in dashboard._significance_tab[0].object
+
     def test_psth_tab_is_panel_column(self, dashboard):
         assert isinstance(dashboard._psth_tab, pn.Column)
 

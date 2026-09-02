@@ -7,6 +7,7 @@ import panel as pn
 from .binned_metrics_view import build_binned_metrics_view
 from .covariate_correlation_view import build_covariate_correlation_view
 from .frontend_utils import scanPortsAndFind
+from .psth_significance_view import build_psth_significance_view
 from .tonic_epochs import build_tonic_results_view
 
 pn.extension()
@@ -39,6 +40,7 @@ class VisualizationDashboard:
         self._tonic_tab = build_tonic_results_view(plotter.filepath)
         self._binned_tab = build_binned_metrics_view(plotter.filepath)
         self._covariate_tab = build_covariate_correlation_view(plotter.filepath)
+        self._significance_tab = build_psth_significance_view(plotter.filepath)
 
     def _range_number_inputs(self, *, name: str, label: str) -> pn.Row:
         """Return two-way-bound min/max number boxes for a plotter ``Range`` param.
@@ -380,6 +382,7 @@ class VisualizationDashboard:
             ("Tonic", self._tonic_tab),
             ("Binned", self._binned_tab),
             ("Covariates", self._covariate_tab),
+            ("Significance", self._significance_tab),
         )
         template.main.append(app)
         return template

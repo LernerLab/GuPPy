@@ -128,6 +128,29 @@ The largest card on the homepage, collapsed by default (only Input Folder Select
 
 If the thing measured on its own schedule was recorded as data rather than watched by eye, label it as a **behavioral covariate** in Step 1 and GuPPy will bin it onto the same bins and correlate it against every per-bin metric. That needs no additional parameter — labeling the store is what turns it on — but it does require **Compute Binned Metrics?** to be enabled. See [Correlate a behavioral covariate](../how-to/correlate-behavioral-covariates.md).
 
+### PSTH significance
+
+*Used by: Step 4 (Compute the PSTH), and Group Analysis.*
+
+| Parameter | Description | Type | Default | Options / range |
+|-----------|-------------|------|---------|-----------------|
+| Compute PSTH Significance? | Bootstrap which stretches of the PSTH window are significant. | bool | `False` | `True` / `False` |
+| Significance Level (alpha) | Two-sided threshold the confidence interval is computed at. | float | `0.05` | strictly between 0 and 1 |
+| Bootstrap Resamples | How many resamples each interval is built from. | int | `1000` | positive |
+| Event A / Event B | Pairs of events to compare against each other. | table | one blank row | event labels from Step 1 |
+
+**Compute PSTH Significance?** turns on bootstrap significance testing. With it on, every event is tested against zero — "is there a response at all, and when?" — for each recording site and metric. The results are written into `psth_significance_output/` and shown on the **Significance** tab in Step 5. Off by default, since the test adds several seconds per comparison. See the [explainer](../explanation/psth_significance.md) for what the test does and how to read it.
+
+**Significance Level (alpha)** is the two-sided threshold: `0.05` gives a 95% interval, `0.01` a 99% one. A stricter alpha widens the interval, so fewer stretches clear zero. The value is recorded in each result file alongside the significance flags, since the flags mean nothing without it.
+
+**Bootstrap Resamples** is how many times the trials are resampled to build each interval. More resamples means less run-to-run variation and a proportionally longer run; the default of 1000 is the usual choice for confidence intervals. Note that resolving a two-sided alpha needs at least `2 / alpha` resamples — 40 at `0.05`, 200 at `0.01` — below which the interval comes back narrower than the alpha you asked for, and GuPPy logs a warning saying so.
+
+**Event A / Event B** is the table of pairs to compare against each other, using the event labels assigned in Step 1 (Label Stores). It starts with one blank row; **+ Add comparison** appends another, and the ✕ beside a row removes it. There is no limit on the number of pairs. Testing against zero needs no configuration because there is only one sensible version of it; which two events are worth contrasting is a scientific judgement, so you name those. Each pair is compared within every recording site and metric present. Leave the table blank to run only the tests against zero.
+
+Comparisons run **inside a single output folder**. Run the step on a session run folder and its trials are resampled; run Group Analysis on a group folder and that group's session averages are, which is the correct unit for a group-level claim. Comparing two different folders — one session against another, or one group against another — is not yet supported.
+
+Requires a non-zero **Window for Moving Average filter**, since the minimum duration of a significant stretch is derived from it.
+
 ### Format-specific (Neurophotometrics)
 
 *Used by: Step 2 (Load the raw data) when the recording is an NPM CSV without `Flags` or `LedState` columns.*
@@ -275,6 +298,7 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 | `combine_data` | Combine Data? | [Compute and batching](#compute-and-batching) |
 | `computeBinnedMetrics` | Compute Binned Metrics? | [Binned metrics](#binned-metrics) |
 | `computeCorr` | Compute Cross-correlation | [PSTH Parameters](#psth-parameters) |
+| `computePsthSignificance` | Compute PSTH Significance? | [PSTH significance](#psth-significance) |
 | `control_fit_method` | Control Channel Fitting Method | [Signal preprocessing](#signal-preprocessing) |
 | `controlFitWindowEnd` | Control Fit Window End Time (s) | [Signal preprocessing](#signal-preprocessing) |
 | `controlFitWindowMode` | Control Fit Window | [Signal preprocessing](#signal-preprocessing) |
@@ -292,6 +316,10 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 | `numberOfCores` | # of cores | [Compute and batching](#compute-and-batching) |
 | `peak_endPoint` | Peak End time | [Peak and AUC Parameters](#peak-and-auc-parameters) |
 | `peak_startPoint` | Peak Start time | [Peak and AUC Parameters](#peak-and-auc-parameters) |
+| `psthComparisonsA` | Event A (comparison table) | [PSTH significance](#psth-significance) |
+| `psthComparisonsB` | Event B (comparison table) | [PSTH significance](#psth-significance) |
+| `psthBootstrapResamples` | Bootstrap Resamples | [PSTH significance](#psth-significance) |
+| `psthSignificanceAlpha` | Significance Level (alpha) | [PSTH significance](#psth-significance) |
 | `photobleaching_detrend` | Photobleaching Detrend? | [Signal preprocessing](#signal-preprocessing) |
 | `removeArtifacts` | (recorded provenance; not user-set) | [Artifact removal](#artifact-removal) |
 | `selectForComputePsth` | z_score and/or ΔF/F? (psth) | [Output metric selection](#output-metric-selection) |

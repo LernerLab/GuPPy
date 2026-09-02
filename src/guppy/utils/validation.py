@@ -154,6 +154,30 @@ def validate_non_negative(*, value: float, name: str) -> None:
         raise ValueError(message)
 
 
+def validate_significance_level(*, value: object, name: str) -> None:
+    """Validate that a significance level lies strictly between 0 and 1.
+
+    Parameters
+    ----------
+    value : object
+        The candidate alpha.
+    name : str
+        Parameter name used in the error message.
+
+    Raises
+    ------
+    ValueError
+        If ``value`` is not a finite number strictly between 0 and 1.
+    """
+    if not _is_finite_number(value) or not 0 < float(value) < 1:
+        message = (
+            f"{name}={value} is not a valid significance level. "
+            f"Choose a value strictly between 0 and 1, for example 0.05 for a 95% interval."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+
 def validate_peak_windows(*, peak_starts: Sequence[float], peak_ends: Sequence[float]) -> tuple[np.ndarray, np.ndarray]:
     """Validate paired peak-window arrays and return them with NaN padding stripped.
 
@@ -201,6 +225,89 @@ def validate_peak_windows(*, peak_starts: Sequence[float], peak_ends: Sequence[f
         raise ValueError(message)
 
     return starts, ends
+
+
+def validate_psth_comparisons(
+    *, comparisons_a: Sequence[object], comparisons_b: Sequence[object]
+) -> list[tuple[str, str]]:
+    """Validate paired PSTH comparison event names and return them with blank rows stripped.
+
+    The GUI exposes ten comparison slots, each left blank when unused, so valid input has
+    both event names filled in on every used row.
+
+    Parameters
+    ----------
+    comparisons_a, comparisons_b : sequence
+        Per-row event names naming the two sides of each comparison.
+
+    Returns
+    -------
+    comparisons : list of tuple of str
+        Cleaned ``(event_a, event_b)`` pairs, in table order.
+
+    Raises
+    ------
+    ValueError
+        If a row names only one of its two events, or names the same event twice.
+    """
+
+    def _clean(value: object) -> str:
+        if value is None or (isinstance(value, float) and np.isnan(value)):
+            return ""
+        return str(value).strip()
+
+    comparisons = []
+    for row_index, (raw_a, raw_b) in enumerate(zip(comparisons_a, comparisons_b), start=1):
+        event_a, event_b = _clean(raw_a), _clean(raw_b)
+        if not event_a and not event_b:
+            continue
+        if not event_a or not event_b:
+            filled, missing = ("Event A", "Event B") if event_a else ("Event B", "Event A")
+            message = (
+                f"PSTH comparison row {row_index} has {filled} but no {missing}. "
+                f"Each comparison needs both event names, or leave the row blank."
+            )
+            logger.error(message)
+            raise ValueError(message)
+        if event_a == event_b:
+            message = (
+                f"PSTH comparison row {row_index} compares {event_a!r} with itself. "
+                f"Name two different events, or leave the row blank."
+            )
+            logger.error(message)
+            raise ValueError(message)
+        comparisons.append((event_a, event_b))
+
+    return comparisons
+
+
+def validate_comparison_events_available(
+    *, comparisons: Sequence[tuple[str, str]], available_events: Sequence[str]
+) -> None:
+    """Check that every named PSTH comparison event has results to compare.
+
+    Parameters
+    ----------
+    comparisons : sequence of tuple of str
+        ``(event_a, event_b)`` pairs, as returned by :func:`validate_psth_comparisons`.
+    available_events : sequence of str
+        Event labels the output directory holds PSTHs for.
+
+    Raises
+    ------
+    ValueError
+        If any named event is not among ``available_events``.
+    """
+    unknown = sorted({event for pair in comparisons for event in pair if event not in available_events})
+    if not unknown:
+        return
+
+    message = (
+        f"PSTH comparison names {len(unknown)} event(s) with no results: {', '.join(unknown)}. "
+        f"Available events are: {', '.join(sorted(available_events))}."
+    )
+    logger.error(message)
+    raise ValueError(message)
 
 
 def validate_required_folder_selection(*, file_selectors: Sequence) -> None:

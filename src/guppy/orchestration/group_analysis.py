@@ -16,6 +16,7 @@ import shutil
 
 import numpy as np
 
+from .psth_significance import execute_compute_psth_significance
 from .save_parameters import build_analysis_parameters, write_analysis_parameters
 from ..analysis.io_utils import is_channel_label, is_continuous_label
 from ..analysis.psth_average import average_psth_for_group
@@ -240,6 +241,12 @@ def average_one_group(*, group_folder: str, inputParameters: dict[str, object]) 
     )
     logger.info(f"Group '{group_name}' averaged {len(averaged_events)} event(s) from {len(member_run_folders)} run(s).")
 
+    # After the filtered storesList.csv is written: comparison planning reads it to learn
+    # which events the group actually holds averaged results for.
+    execute_compute_psth_significance(group_folder, inputParameters)
+    if inputParameters["computePsthSignificance"]:
+        progress.advance()
+
 
 def orchestrate_group_analysis(inputParameters: dict[str, object]) -> None:
     """Average every selected group's member runs into its own directory.
@@ -279,6 +286,8 @@ def run_group_analysis_step(input_parameters: dict[str, object]) -> None:
         validate_group_member_run_folders(member_run_folders=member_run_folders)
         store_array = _merge_group_stores_list(member_run_folders=member_run_folders)
         total += len(_group_event_labels(store_array=store_array, inputParameters=input_parameters)) + 1
+        if input_parameters["computePsthSignificance"]:
+            total += 1
     progress.start(total)
 
     orchestrate_group_analysis(input_parameters)

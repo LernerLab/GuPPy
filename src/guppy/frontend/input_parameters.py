@@ -18,6 +18,7 @@ from ..utils.validation import (
     validate_non_negative,
     validate_positive,
     validate_required_folder_selection,
+    validate_significance_level,
 )
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,22 @@ def _reject_group_folder_selected_as_run(*, path: str) -> None:
         )
         logger.error(message)
         raise ValueError(message)
+
+
+def _blank_comparison_rows(count: int) -> pd.DataFrame:
+    """Build an empty PSTH comparison table of ``count`` rows.
+
+    Parameters
+    ----------
+    count : int
+        Number of blank rows.
+
+    Returns
+    -------
+    pd.DataFrame
+        Table with the ``Event A`` and ``Event B`` columns the form reads.
+    """
+    return pd.DataFrame({"Event A": [""] * count, "Event B": [""] * count})
 
 
 class ParameterForm:
@@ -287,6 +304,18 @@ class ParameterForm:
             name="Compute Cross-correlation (bool)", options=[True, False], value=False, width=200
         )
 
+        self.computePsthSignificance = pn.widgets.Select(
+            name="Compute PSTH Significance? (bool)", options=[True, False], value=False, width=240
+        )
+
+        self.psthSignificanceAlpha = pn.widgets.FloatInput(
+            name="Significance Level (alpha) (float)", value=0.05, step=0.01, width=220
+        )
+
+        self.psthBootstrapResamples = pn.widgets.IntInput(
+            name="Bootstrap Resamples (int)", value=1000, step=100, width=200
+        )
+
         self.useTransientsAsEvents = pn.widgets.Select(
             name="Use Transients as Events? (bool)", options=[True, False], value=False, width=200
         )
@@ -374,6 +403,53 @@ class ParameterForm:
             "### Peak and AUC Parameters", self.peak_explain, self.df_widget, self.auc_units, width=600
         )
 
+        self.significance_explain = pn.pane.Markdown(
+            """
+                        - ***Significance Level (alpha) :*** The two-sided threshold the confidence
+                        interval is computed at. Default is 0.05, i.e. a 95% interval.
+                        - ***Bootstrap Resamples :*** How many times the trials are resampled to build
+                        each interval. More resamples means less run-to-run variation and a longer
+                        run. Default is 1000.
+                        - Every event is tested against zero automatically. The table below names the
+                        pairs of events to compare against each other, for example rewarded versus
+                        unrewarded nose pokes. Leave it blank to run only the tests against zero.
+                        - Each pair is compared within every recording site and metric, using the event
+                        labels assigned in **Step 1: Label Stores**.
+                        - Comparisons run inside one output folder. In a session run folder the trials
+                        are resampled; in a group folder the session averages are.
+                        """,
+            width=580,
+        )
+
+        # One blank row to start, grown by the Add button rather than a fixed block of
+        # slots: the number of worthwhile pairs scales with the square of the event count,
+        # so any fixed size is both too many rows to look at and too few to hold.
+        self.comparison_df = _blank_comparison_rows(1)
+
+        self.comparison_df_widget = pn.widgets.Tabulator(
+            self.comparison_df,
+            name="Comparisons",
+            show_index=False,
+            widths=250,
+            buttons={"remove": '<div title="Remove this comparison">\u2715</div>'},
+        )
+        self.comparison_df_widget.on_click(self._remove_comparison_row, column="remove")
+
+        self.add_comparison_button = pn.widgets.Button(
+            name="+ Add comparison", button_type="default", width=180, align="start"
+        )
+        self.add_comparison_button.on_click(self._add_comparison_row)
+
+        self.significance_param_wd = pn.WidgetBox(
+            "### PSTH Significance Parameters",
+            self.significance_explain,
+            self.computePsthSignificance,
+            pn.Row(self.psthSignificanceAlpha, self.psthBootstrapResamples),
+            self.comparison_df_widget,
+            self.add_comparison_button,
+            width=600,
+        )
+
         self.individual_analysis_wd_2 = pn.Column(
             self.explain_time_artifacts,
             pn.Row(self.numberOfCores, self.combine_data),
@@ -394,7 +470,11 @@ class ParameterForm:
         )
 
         self.psth_baseline_param = pn.Column(
-            self.zscore_param_wd, self.psth_param_wd, self.baseline_param_wd, self.peak_param_wd
+            self.zscore_param_wd,
+            self.psth_param_wd,
+            self.baseline_param_wd,
+            self.peak_param_wd,
+            self.significance_param_wd,
         )
 
         self.input_folder_selection_widget = pn.Column(
@@ -589,6 +669,17 @@ class ParameterForm:
             dandi_uri_map[session_directory] = uri
         return folder_names, output_root, dandi_uri_map
 
+    def _add_comparison_row(self, event: object = None) -> None:
+        """Append a blank comparison row to the table."""
+        self.comparison_df_widget.value = pd.concat(
+            [self.comparison_df_widget.value, _blank_comparison_rows(1)], ignore_index=True
+        )
+
+    def _remove_comparison_row(self, event: object) -> None:
+        """Drop the clicked comparison row, keeping one blank row when the last one goes."""
+        remaining = self.comparison_df_widget.value.drop(index=event.row).reset_index(drop=True)
+        self.comparison_df_widget.value = remaining if len(remaining) else _blank_comparison_rows(1)
+
     def setup_group_parameters(self) -> None:
         """Build the group output-folder selection card and store its widgets as attributes."""
         self.mark_down_2 = pn.pane.Markdown(
@@ -670,6 +761,8 @@ class ParameterForm:
         validate_positive(value=self.highAmpFilt.value, name="highAmpFilt")
         validate_positive(value=self.transientsThresh.value, name="transientsThresh")
         validate_positive(value=self.binnedMetricsWidth.value, name="binnedMetricsWidth")
+        validate_significance_level(value=self.psthSignificanceAlpha.value, name="psthSignificanceAlpha")
+        validate_positive(value=self.psthBootstrapResamples.value, name="psthBootstrapResamples")
 
         if self.nSecPrev.value >= self.nSecPost.value:
             message = (
@@ -733,6 +826,11 @@ class ParameterForm:
             "baselineCorrectionEnd": self.baselineCorrectionEnd.value,
             "peak_startPoint": list(self.df_widget.value["Peak Start time"]),  # startPoint.value,
             "peak_endPoint": list(self.df_widget.value["Peak End time"]),  # endPoint.value,
+            "computePsthSignificance": self.computePsthSignificance.value,
+            "psthSignificanceAlpha": self.psthSignificanceAlpha.value,
+            "psthBootstrapResamples": self.psthBootstrapResamples.value,
+            "psthComparisonsA": list(self.comparison_df_widget.value["Event A"]),
+            "psthComparisonsB": list(self.comparison_df_widget.value["Event B"]),
             "auc_units": self.auc_units.value,
             "selectForComputePsth": self.computePsth.value,
             "selectForTransientsComputation": self.transients.value,
@@ -776,6 +874,9 @@ class ParameterForm:
             "nSecPrev": self.nSecPrev,
             "nSecPost": self.nSecPost,
             "computeCorr": self.computeCorr,
+            "computePsthSignificance": self.computePsthSignificance,
+            "psthSignificanceAlpha": self.psthSignificanceAlpha,
+            "psthBootstrapResamples": self.psthBootstrapResamples,
             "useTransientsAsEvents": self.useTransientsAsEvents,
             "timeInterval": self.timeInterval,
             "bin_psth_trials": self.bin_psth_trials,
@@ -812,6 +913,11 @@ class ParameterForm:
             df["Peak Start time"] = parameters["peak_startPoint"]
             df["Peak End time"] = parameters["peak_endPoint"]
             self.df_widget.value = df
+        if "psthComparisonsA" in parameters and "psthComparisonsB" in parameters:
+            # Rebuilt rather than assigned into: a saved run may hold any number of
+            # comparisons, and assigning a longer list into the existing index raises.
+            saved = pd.DataFrame({"Event A": parameters["psthComparisonsA"], "Event B": parameters["psthComparisonsB"]})
+            self.comparison_df_widget.value = saved if len(saved) else _blank_comparison_rows(1)
 
     def _load_parameters_from_selected_runs(self, event: object) -> None:
         """Reload analysis parameters from the saved JSON of the selected output run(s).
