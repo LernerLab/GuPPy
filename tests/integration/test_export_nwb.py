@@ -7,7 +7,6 @@ interfaces read the raw folder, so each format runs the same assertions against 
 """
 
 import shutil
-from datetime import datetime
 from pathlib import Path
 
 import h5py
@@ -25,18 +24,10 @@ from guppy.utils.acquisition_format import (
     resolve_session_source,
 )
 from guppy.utils.nwb_io import open_nwbfile_io
-from guppy.utils.nwb_metadata import (
-    build_metadata_dict,
-    derive_channels,
-    dump_yaml,
-    load_yaml,
-    parse_metadata_dict,
-)
 from guppy.utils.utils import parse_run_name
 from guppy_test_data import STUBBED_TESTING_DATA
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-EXAMPLE_METADATA = PROJECT_ROOT / "data" / "fiber_photometry_metadata_example.yaml"
+from .integration_helpers import SUPPLIED_SESSION_START_TIME, write_metadata_yaml
 
 MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_FILE = (
     STUBBED_TESTING_DATA
@@ -44,9 +35,6 @@ MOCK_NWB_NDX_FIBER_PHOTOMETRY_V0_1_FILE = (
     / "mock_nwbfile_ndx_fiber_photometry_v0_1_ndx_events_v0_2"
     / "mock_nwbfile_ndx_fiber_photometry_v0_1_ndx_events_v0_2.nwb"
 )
-
-# Supplied by the form for the formats whose raw files record no recording start.
-SUPPLIED_SESSION_START_TIME = datetime.fromisoformat("2020-05-04T09:00:00+00:00")
 
 # The topology each stubbed session was labeled with in REPRESENTATIVE_SESSIONS
 # (tests/integration/integration_helpers.py): one recording site, one behavioral event store.
@@ -63,56 +51,6 @@ EXPECTED_TOPOLOGY = {
     "npm": {"recording_sites": ["region1"], "event_types": {"ttl_region1"}, "raw_event_tables": {"TtlRegion1"}},
     "doric": {"recording_sites": ["region"], "event_types": {"ttl"}, "raw_event_tables": {"Ttl"}},
 }
-
-# Per-role annotations for the derived channels, using the example library's device names.
-COMMON_CHANNEL_ANNOTATIONS = {
-    "emission_wavelength_in_nm": 525.0,
-    "optical_fiber": "optical_fiber",
-    "photodetector": "photodetector",
-    "indicator": "dms_green_fluorophore",
-    "dichroic_mirror": "dichroic_mirror",
-    "emission_filter": "emission_filter",
-}
-ROLE_CHANNEL_ANNOTATIONS = {
-    "control": {  # isosbestic
-        "excitation_wavelength_in_nm": 405.0,
-        "excitation_source": "excitation_source_isosbestic_control",
-        "excitation_filter": "isosbestic_excitation_filter",
-    },
-    "signal": {  # calcium
-        "excitation_wavelength_in_nm": 465.0,
-        "excitation_source": "excitation_source_calcium_signal",
-        "excitation_filter": "excitation_filter",
-    },
-}
-
-
-def write_metadata_yaml(*, session_folder_path: str, output_directory: str, acquisition_format: str, path: Path) -> str:
-    """Write a session metadata YAML the way the form does: device library + per-channel annotations."""
-    channels = derive_channels(output_dir=output_directory)
-    # Reuse the example's hardware/biology library (recombined into merged device entries).
-    devices, _channel_rows, _scalars = parse_metadata_dict(metadata=load_yaml(EXAMPLE_METADATA), channels=channels)
-    channel_rows = [{**COMMON_CHANNEL_ANNOTATIONS, **ROLE_CHANNEL_ANNOTATIONS[channel.role]} for channel in channels]
-    scalars = {
-        "session_description": "RI30 photometry session",
-        "identifier": f"{acquisition_format}_run1",
-        "lab": "Lerner Lab",
-        "institution": "Northwestern University",
-        "subject_id": "63_207",
-        "sex": "M",
-        "species": "Mus musculus",
-    }
-    # The form only asks for a start time where the raw files carry none.
-    if not acquisition_supplies_session_start_time(
-        session_folder_path=session_folder_path, acquisition_format=acquisition_format
-    ):
-        scalars["session_start_time"] = SUPPLIED_SESSION_START_TIME.isoformat()
-
-    dump_yaml(
-        metadata=build_metadata_dict(devices=devices, channel_rows=channel_rows, scalars=scalars, channels=channels),
-        path=path,
-    )
-    return str(path)
 
 
 class TestExportSessionToNwb:

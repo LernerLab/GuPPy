@@ -3,9 +3,10 @@
 `orchestrate_export_nwb` reads each selected run's recorded artifact provenance and aborts the
 whole batch before writing anything if any run had its artifacts removed by the ``concatenate``
 method, which re-times kept samples and breaks alignment to the acquisition clock. It aborts the
-same way for combined runs, which have no single session the collapsed outputs belong to. Each
-surviving session is then routed by its resolved source: raw acquisition files through the
-converter, an NWB file through the standalone interface.
+same way for combined runs, which have no single session the collapsed outputs belong to. A run
+holding PSTH significance results is exported, but warned about, since nothing writes them to NWB
+yet. Each surviving session is then routed by its resolved source: raw acquisition files through
+the converter, an NWB file through the standalone interface.
 """
 
 import json
@@ -20,6 +21,7 @@ from guppy.orchestration import export_nwb as export_nwb_module
 from guppy.orchestration.export_nwb import (
     _adopt_orphan_device_models,
     _validate_artifact_removal_methods,
+    _warn_psth_significance_not_exported,
     orchestrate_export_nwb,
     run_export_nwb_step,
 )
@@ -109,6 +111,61 @@ def _make_session(base_dir, name, *, acquisition_files):
 # Header shapes the format detector classifies by; see tests/unit/extractors/test_detect_acquisition_formats.py.
 _DORIC_CSV = "Time,AIn-1,AIn-2\n--,--,--\n0.0,1.0,2.0\n"
 _NPM_CSV = "FrameCounter,Timestamp,LedState,Region0G,Region1G\n0,0.0,1,10.0,20.0\n"
+
+
+class TestWarnPsthSignificanceNotExported:
+    """The interface that writes significance results is unreleased, so a run holding them
+    exports every other product and drops this one. That has to be said out loud."""
+
+    @pytest.fixture
+    def session_path(self, tmp_path):
+        """A session folder whose ``run1`` output directory holds no significance results."""
+        session = tmp_path / "Photo_session"
+        (session / "Photo_session_output_run1").mkdir(parents=True)
+        return session
+
+    def test_run_with_significance_results_warns(self, session_path, bound_step):
+        (session_path / "Photo_session_output_run1" / "psth_significance_output").mkdir()
+
+        _warn_psth_significance_not_exported(pairs=[(str(session_path), "run1")])
+
+        assert len(bound_step.warnings) == 1
+        message = bound_step.warnings[0]
+        assert "Photo_session (run1)" in message
+        assert "psth_significance_output" in message
+        assert "future release" in message
+
+    def test_run_without_significance_results_is_silent(self, session_path, bound_step):
+        _warn_psth_significance_not_exported(pairs=[(str(session_path), "run1")])
+
+        assert bound_step.warnings == []
+
+    def test_only_the_runs_holding_results_are_named(self, tmp_path, bound_step):
+        tested = _make_session(tmp_path, "Photo_A", acquisition_files={})
+        (tested / "Photo_A_output_run1" / "psth_significance_output").mkdir()
+        _make_session(tmp_path, "Photo_B", acquisition_files={})
+
+        _warn_psth_significance_not_exported(pairs=[(str(tested), "run1"), (str(tmp_path / "Photo_B"), "run1")])
+
+        assert len(bound_step.warnings) == 1
+        assert "Photo_A (run1)" in bound_step.warnings[0]
+        assert "Photo_B" not in bound_step.warnings[0]
+
+    def test_orchestrate_warns_and_still_exports(self, tmp_path, bound_step, monkeypatch):
+        # The warning must not cost the user the export: every selected run is still written.
+        session = _make_session(tmp_path, "Photo_A", acquisition_files={"signal.csv": _DORIC_CSV})
+        (session / "Photo_A_output_run1" / "psth_significance_output").mkdir()
+        exported = []
+        monkeypatch.setattr(export_nwb_module, "export_session_to_nwb", lambda **kwargs: exported.append(kwargs))
+
+        orchestrate_export_nwb({"selected_runs": {str(session): ["run1"]}, "combine_data": False})
+
+        assert [call["nwbfile_path"] for call in exported] == [
+            str(session / "Photo_A_output_run1" / "Photo_A_output_run1.nwb")
+        ]
+        assert bound_step.error_message is None
+        assert len(bound_step.warnings) == 1
+        assert "Photo_A (run1)" in bound_step.warnings[0]
 
 
 class TestOrchestrateExportNwb:

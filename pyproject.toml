@@ -61,8 +61,8 @@ dependencies = [
     "dandi",
     "remfile",
     "pyyaml",
-    "neuroconv[guppy]>=0.10.0",
-    "ndx-guppy==0.1.0",
+    "neuroconv[guppy]>=0.10.1",
+    "ndx-guppy>=0.2.0",
 ]
 
 [dependency-groups]
