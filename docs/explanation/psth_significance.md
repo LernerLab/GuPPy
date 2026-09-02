@@ -91,4 +91,4 @@ See [Outputs](../reference/outputs.md) for the file layout and [Parameters](../r
 
 The bootstrap is computed by [`scipy.stats.bootstrap`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.bootstrap.html) with `method="BCa"`. Its documentation covers the method and its references in more detail.
 
-On summarizing nested data: [McNabb and Murayama (2021), *Current Research in Neurobiology*](https://pmc.ncbi.nlm.nih.gov/articles/PMC9559079/) show that analyzing nested data as though the points were independent of one another — pooling — inflates Type I error, and that summarizing each level and analyzing the summaries is sufficient in many circumstances.
+On summarizing nested data: [McNabb and Murayama (2021), *Current Research in Neurobiology*](https://pmc.ncbi.nlm.nih.gov/articles/PMC9559079/) show that analyzing nested data as though the points were independent of one another — pooling — inflates Type I error. On the other hand, summarizing each level (ex. averaging) and analyzing the summaries is reliable, robust, and sufficiently powered in most circumstances.
