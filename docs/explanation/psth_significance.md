@@ -61,7 +61,9 @@ A group asks a broader question: not what happened in one recording, but what ho
 
 ![A five-panel figure. Across the top, three sessions are shown side by side in orange, green and purple, each panel holding that session's individual trials as faint lines with the session's average drawn boldly over them; the three respond with visibly different strength, weakest on the left and strongest on the right. Bottom left: every session's average on one axis, the three highlighted ones keeping their colors and the rest in grey, with the group mean over them in black. Bottom right: that same black group mean with its 95% confidence interval shaded around it and a red bar along the top spanning the stretch found significant.](../_static/images/psth_significance_explainer/fig5_group_significance.svg)
 
-Summarizing each level of the hierarchy before moving up to the next is the standard treatment for nested data, and it is what makes the result a claim about the group rather than about the particular trials that happened to be recorded. Trials from one session are not independent observations of the wider population — they resemble each other more than they resemble trials from another session — so it is the session average that carries information about the group. See [Further reading](#further-reading) for the paper behind this.
+Summarizing each level of the hierarchy before moving up to the next is the standard treatment for nested data, and in many circumstances it is sufficient on its own. It is what makes the result a claim about the group rather than about the particular trials that happened to be recorded.
+
+Trials from one session are not independent observations of the wider population; they resemble each other more than they resemble trials from another session. Analyzing them as though they were independent — pooling every trial from every session into a single sample — inflates the rate of false positives. See [Further reading](#further-reading) for the paper behind both points.
 
 A comparison across a group tests two events against each other, or one event against zero, using the sessions in that group. Comparing one group against another is not supported yet.
 
@@ -89,4 +91,4 @@ See [Outputs](../reference/outputs.md) for the file layout and [Parameters](../r
 
 The bootstrap is computed by [`scipy.stats.bootstrap`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.bootstrap.html) with `method="BCa"`. Its documentation covers the method and its references in more detail.
 
-On summarizing nested data: [McNabb and Murayama (2021), *Current Research in Neurobiology*](https://pmc.ncbi.nlm.nih.gov/articles/PMC9559079/) show that summarizing each level of a nested dataset and analyzing the summaries gives the same answer as modeling the whole hierarchy at once, as long as every session contributes the same number of trials.
+On summarizing nested data: [McNabb and Murayama (2021), *Current Research in Neurobiology*](https://pmc.ncbi.nlm.nih.gov/articles/PMC9559079/) show that analyzing nested data as though the points were independent of one another — pooling — inflates Type I error, and that summarizing each level and analyzing the summaries is sufficient in many circumstances.
