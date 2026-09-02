@@ -26,8 +26,15 @@ For what an exported file holds and why, see
 
 Run **Step 1: Label Stores**, **Step 2: Read Raw Data** and **Step 3:
 Preprocess** on the sessions you want to export. **Step 4: PSTH Computation**
-is optional, but PSTHs, transients, peak/AUC summaries and cross-correlations
-reach the file only if it ran.
+is optional, but PSTHs, transients, peak/AUC summaries, cross-correlations and
+binned metrics reach the file only if it ran, and the same holds for **Tonic
+Analysis** and the epoch means it writes.
+
+One Step 4 output does not reach the file yet: the results of **Compute PSTH
+Significance?**. If the runs you selected have them, *Step 7* exports
+everything else and warns you that the significance results were left out. They
+stay in each run's `psth_significance_output` folder, and a future release will
+export them.
 
 Both steps read the run folder, so select the session folder(s) **and** the
 output run(s) on the homepage before clicking either.

@@ -17,6 +17,7 @@ from pynwb.device import DeviceModel
 
 from .metadata import METADATA_FILENAME
 from .save_parameters import read_artifact_provenance
+from ..analysis.io_utils import PSTH_SIGNIFICANCE_DIRNAME
 from ..extractors.dandi_nwb_recording_extractor import (
     _stream_nwb,
     is_dandi_uri,
@@ -74,6 +75,36 @@ def _validate_artifact_removal_methods(*, pairs: list[tuple[str, str]]) -> None:
             f"If you need '{_UNSUPPORTED_ARTIFACT_REMOVAL_METHOD}' support "
             f"for NWB export, please raise an issue at {RAISE_ISSUE_URL}."
         )
+
+
+def _warn_psth_significance_not_exported(*, pairs: list[tuple[str, str]]) -> None:
+    """Warn that any PSTH significance results the selected runs hold stay out of their NWB files.
+
+    The ndx-guppy type is released but the neuroconv interface that writes it is not, so a run
+    tested for significance exports every other product and silently drops this one. Reported
+    through the progress channel rather than raised, since the rest of the export is unaffected.
+
+    Parameters
+    ----------
+    pairs : list of (str, str)
+        ``(session_path, run_name)`` pairs selected for export.
+    """
+    tested = [
+        f"{os.path.basename(session_path.rstrip(os.sep))} ({run_name})"
+        for session_path, run_name in pairs
+        if os.path.isdir(os.path.join(run_folder_for_run(session_path, run_name), PSTH_SIGNIFICANCE_DIRNAME))
+    ]
+    if not tested:
+        return
+
+    message = (
+        f"PSTH significance results are not exported to NWB yet, so the file written for the "
+        f"following run(s) will not contain them: {', '.join(tested)}. Every other analysis output "
+        f"exports as usual, and the significance results remain in each run's "
+        f"'{PSTH_SIGNIFICANCE_DIRNAME}' folder. Support is coming in a future release."
+    )
+    logger.warning(message)
+    progress.warn(message)
 
 
 def _overlay_metadata_yaml(*, metadata: dict, metadata_yaml_path: str | None) -> dict:
@@ -278,6 +309,7 @@ def orchestrate_export_nwb(inputParameters: dict[str, object]) -> None:
     pairs = selected_session_runs(inputParameters=inputParameters)
     validate_data_not_combined(combine_data=inputParameters["combine_data"])
     _validate_artifact_removal_methods(pairs=pairs)
+    _warn_psth_significance_not_exported(pairs=pairs)
     progress.start(len(pairs))
 
     failures = []
