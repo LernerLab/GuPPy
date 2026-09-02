@@ -4,14 +4,17 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from guppy.analysis.io_utils import PSTH_SIGNIFICANCE_DIRNAME
 from guppy.orchestration.psth_significance import (
     comparison_name,
     compute_comparison,
     execute_compute_psth_significance,
+    execute_one_comparison,
     plan_comparisons,
     psth_metrics,
     read_psth_samples,
 )
+from guppy.utils.progress import StepProgress, _current_step
 
 
 def write_stores_list(run_folder, store_ids, store_labels):
@@ -274,3 +277,60 @@ class TestResampleCountWarning:
             execute_compute_psth_significance(run_folder, significance_parameters)
 
         assert "cannot resolve" not in caplog.text
+
+
+@pytest.fixture
+def bound_step():
+    """Bind a StepProgress for the duration of one test, as ``home.py`` does per step run."""
+    step = StepProgress()
+    token = _current_step.set(step)
+    yield step
+    _current_step.reset(token)
+
+
+@pytest.fixture
+def two_trial_run_folder(tmp_path, base_input_parameters):
+    """An output directory whose events hold too few trials to resample."""
+    folder = tmp_path / "session_output_1"
+    folder.mkdir()
+    write_stores_list(
+        str(folder),
+        ["Dv1A", "Dv2A", "LNRW", "LNnR"],
+        ["control_dms", "signal_dms", "rewarded", "unrewarded"],
+    )
+    for event in ("rewarded", "unrewarded"):
+        write_psth(str(folder), event, "dms", "z_score_dms", num_trials=2)
+    return str(folder)
+
+
+class TestSmallSampleReporting:
+    def test_a_skipped_comparison_reports_its_name_and_count(self, two_trial_run_folder, significance_parameters):
+        outcome = execute_one_comparison(
+            two_trial_run_folder, ("rewarded", None, "dms", "z_score_dms"), significance_parameters
+        )
+
+        assert outcome == "rewarded_dms_z_score_dms (found 2)"
+
+    def test_a_missing_psth_reports_nothing(self, two_trial_run_folder, significance_parameters):
+        outcome = execute_one_comparison(
+            two_trial_run_folder, ("absent", None, "dms", "z_score_dms"), significance_parameters
+        )
+
+        assert outcome is None
+
+    def test_skips_reach_the_progress_channel(self, two_trial_run_folder, significance_parameters, bound_step):
+        execute_compute_psth_significance(two_trial_run_folder, significance_parameters)
+
+        assert len(bound_step.warnings) == 1
+        assert bound_step.warnings[0] == (
+            "PSTH significance skipped 2 of 2 comparison(s) in session_output_1: the bootstrap needs "
+            "at least 3 trials or sessions to resample. Skipped: rewarded_dms_z_score_dms (found 2), "
+            "unrewarded_dms_z_score_dms (found 2)."
+        )
+        assert not os.path.exists(os.path.join(two_trial_run_folder, PSTH_SIGNIFICANCE_DIRNAME))
+
+    def test_a_usable_run_warns_about_nothing(self, run_folder, significance_parameters, bound_step):
+        significance_parameters["psthBootstrapResamples"] = 50
+        execute_compute_psth_significance(run_folder, significance_parameters)
+
+        assert bound_step.warnings == []

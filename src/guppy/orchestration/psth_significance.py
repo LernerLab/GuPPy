@@ -35,6 +35,7 @@ from ..analysis.standard_io import (
     write_psth_significance_to_csv,
     write_psth_significance_to_hdf5,
 )
+from ..utils import progress
 from ..utils.utils import event_labels_for_analysis, read_Df
 from ..utils.validation import (
     validate_comparison_events_available,
@@ -51,6 +52,9 @@ _BIN_COLUMN_PREFIX = "bin_"
 # Fraction of a window that may come back without a computable interval before the run is
 # worth flagging to the user.
 UNCOMPUTABLE_FRACTION_WARNING_THRESHOLD = 0.1
+
+# How many skipped comparisons a single warning names before deferring to the log.
+_MAXIMUM_SKIPS_NAMED = 5
 
 
 def psth_metrics(inputParameters: dict[str, object]) -> list[str]:
@@ -210,7 +214,7 @@ def comparison_name(*, event_a: str, event_b: str | None, recording_site: str, b
 
 def execute_one_comparison(
     filepath: str, comparison: tuple[str, str | None, str, str], inputParameters: dict[str, object]
-) -> None:
+) -> str | None:
     """Compute and write a single PSTH significance comparison.
 
     Parameters
@@ -223,19 +227,26 @@ def execute_one_comparison(
     inputParameters : dict
         Full pipeline input parameters; uses ``filter_window``, ``psthSignificanceAlpha``
         and ``psthBootstrapResamples``.
+
+    Returns
+    -------
+    str or None
+        The comparison name and its sample count when too few trials or sessions were
+        available to resample, or None when a result was written or this directory holds
+        no PSTH for the comparison.
     """
     event_a, event_b, recording_site, basename = comparison
 
     loaded_a = read_psth_samples(filepath=filepath, event=event_a, recording_site=recording_site, basename=basename)
     if loaded_a is None:
-        return
+        return None
     samples_a, timestamps = loaded_a
 
     samples_b = None
     if event_b is not None:
         loaded_b = read_psth_samples(filepath=filepath, event=event_b, recording_site=recording_site, basename=basename)
         if loaded_b is None:
-            return
+            return None
         samples_b, _ = loaded_b
 
     name = comparison_name(event_a=event_a, event_b=event_b, recording_site=recording_site, basename=basename)
@@ -246,7 +257,7 @@ def execute_one_comparison(
             f"Skipping significance for {name}: needs at least {MINIMUM_SAMPLES} trials or sessions "
             f"to resample, found {min(sample_counts)}."
         )
-        return
+        return f"{name} (found {min(sample_counts)})"
     if min(sample_counts) < SMALL_SAMPLE_WARNING_THRESHOLD:
         logger.warning(
             f"Significance for {name} is computed from only {min(sample_counts)} trials or sessions; "
@@ -279,6 +290,8 @@ def execute_one_comparison(
     write_psth_significance_to_hdf5(filepath=output_path, significance=significance, name=name)
     write_psth_significance_to_csv(filepath=output_path, significance=significance, name=name)
     logger.info(f"Significance for {name} computed.")
+
+    return None
 
 
 def plan_comparisons(filepath: str, inputParameters: dict[str, object]) -> list[tuple[str, str | None, str, str]]:
@@ -331,6 +344,40 @@ def plan_comparisons(filepath: str, inputParameters: dict[str, object]) -> list[
     return planned
 
 
+def _report_skipped_comparisons(*, filepath: str, outcomes: list[str | None]) -> None:
+    """Warn the user about comparisons that had too few samples to resample.
+
+    The skip is decided inside a pool worker, whose log output the user does not see while
+    a step runs. Reporting it through the progress channel puts it in front of them
+    instead, since a group of two sessions skips everything and would otherwise leave the
+    dashboard looking as though significance testing had never been switched on.
+
+    Parameters
+    ----------
+    filepath : str
+        Output directory the comparisons were run in.
+    outcomes : list of (str or None)
+        Return values of :func:`execute_one_comparison`, one per planned comparison.
+    """
+    skipped = [outcome for outcome in outcomes if outcome is not None]
+    if not skipped:
+        return
+
+    named = skipped[:_MAXIMUM_SKIPS_NAMED]
+    detail = ", ".join(named)
+    if len(skipped) > len(named):
+        detail += f", and {len(skipped) - len(named)} more"
+
+    folder = os.path.basename(os.path.normpath(filepath))
+    message = (
+        f"PSTH significance skipped {len(skipped)} of {len(outcomes)} comparison(s) in {folder}: "
+        f"the bootstrap needs at least {MINIMUM_SAMPLES} trials or sessions to resample. "
+        f"Skipped: {detail}."
+    )
+    logger.warning(message)
+    progress.warn(message)
+
+
 def execute_compute_psth_significance(filepath: str, inputParameters: dict[str, object]) -> None:
     """Run every PSTH significance comparison for one output directory.
 
@@ -373,6 +420,10 @@ def execute_compute_psth_significance(filepath: str, inputParameters: dict[str, 
     # is gone and hangs on one that is slow to exit. starmap has already returned, so
     # there is nothing to abort -- close() lets each worker exit on its own.
     with spawn_context.Pool(inputParameters["numberOfCores"]) as significance_pool:
-        significance_pool.starmap(execute_one_comparison, zip(repeat(filepath), planned, repeat(inputParameters)))
+        outcomes = significance_pool.starmap(
+            execute_one_comparison, zip(repeat(filepath), planned, repeat(inputParameters))
+        )
         significance_pool.close()
         significance_pool.join()
+
+    _report_skipped_comparisons(filepath=filepath, outcomes=outcomes)
