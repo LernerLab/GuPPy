@@ -1,8 +1,10 @@
 # v2.0.0-beta3 (Upcoming)
 
 ## Features
+- Artifact periods can now be marked by dragging horizontally across a trace on the Select Artifact Windows page, and a **Copy windows from run** control loads the periods already saved for another run of the same session. [PR #472](https://github.com/LernerLab/GuPPy/pull/472)
 
 ## Fixes
+- An artifact period that reaches the start or the end of the trace now trims that end of the recording outright, so a single session can lose more of its opening than **Eliminate first few seconds** takes from the whole batch. [PR #472](https://github.com/LernerLab/GuPPy/pull/472)
 
 ## Improvements
 
