@@ -91,6 +91,38 @@ guppy
 
 This launches the GuPPy user interface, where you can begin analyzing your fiber photometry data. The [first analysis tutorial](tutorials/first_analysis.md) walks through a complete session from there.
 
+## Checking which version you have
+
+With `guppy_env` active, ask GuPPy directly:
+
+```bash
+guppy --version
+```
+
+The same version is printed at the bottom of the sidebar in the user interface, below the **Export to NWB** progress bar, and is recorded as `guppy_version` in the `GuPPyParamtersUsed.json` that every pipeline step writes into its output folder. Quote it whenever you report a problem, since the answer often decides what a given bug means.
+
+## Upgrading to a newer version
+
+If you installed from PyPI, upgrade in place:
+
+```bash
+pip install --upgrade guppy-neuro
+```
+
+If you installed from GitHub, pull the latest source instead. From your clone of the repository:
+
+```bash
+git pull
+```
+
+An editable install (`pip install -e .`) picks up the new source immediately, but dependencies can change between releases, so re-run the install afterwards:
+
+```bash
+pip install -e .
+```
+
+Either way, confirm the upgrade landed with `guppy --version`. Upgrading does not normally require deleting and rebuilding `guppy_env`: `pip` replaces the installed package and adjusts its dependencies in place. Recreate the environment only if `pip` reports dependency conflicts it cannot resolve.
+
 ## Sample data included in the repository
 
 The first tutorial analyzes a small CSV session stored in the repository under `stubbed_testing_data/`. Those files are tracked with [Git LFS](https://git-lfs.com), so a plain clone leaves you with pointer files rather than the recordings themselves. If you installed from source and want the sample session, install Git LFS once per machine and fetch the files:
