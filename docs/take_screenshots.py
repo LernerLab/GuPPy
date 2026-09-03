@@ -206,7 +206,7 @@ def screenshot_select_artifact_windows(page: Page, tmp_path: Path) -> None:
     page.wait_for_timeout(3000)
     page.screenshot(
         path=OUTPUT_DIR / "select_artifact_windows.png",
-        clip={"x": 0, "y": 0, "width": 1280, "height": 1310},
+        clip={"x": 0, "y": 0, "width": 1280, "height": 1390},
     )
     print("Saved select_artifact_windows.png")
 

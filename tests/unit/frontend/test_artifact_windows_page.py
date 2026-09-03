@@ -36,6 +36,20 @@ def run_folder(tmp_path):
 
 
 @pytest.fixture
+def session_folder(tmp_path):
+    """A session holding two runs of the same recording, neither one marked yet."""
+    session = tmp_path / "mySession"
+    for run_name in ("1", "2"):
+        run_folder = session / f"mySession_output_{run_name}"
+        run_folder.mkdir(parents=True)
+        for site in ("DMS", "DLS"):
+            _write_site(run_folder, site)
+        with open(os.path.join(str(run_folder), "GuPPyParamtersUsed.json"), "w") as parameters_file:
+            json.dump({"removeArtifacts": False, "artifactsRemovalMethod": "replace with NaN"}, parameters_file)
+    return session
+
+
+@pytest.fixture
 def selector(panel_extension, run_folder):
     selector = ArtifactWindowSelector(str(run_folder), load_pair_traces(str(run_folder)))
     # Adding, removing, and the live preview act on the selected site; pin it so the tests
@@ -76,6 +90,29 @@ class TestArtifactWindowSelector:
 
         saved = np.load(str(run_folder / "coordsForPreProcessing_DMS.npy"))
         np.testing.assert_array_equal(saved[:, 0], np.array([-1.0, 3.0, 5.0, 11.0]))
+
+    def test_period_reaching_the_start_trims_the_opening(self, selector, run_folder):
+        """Marking from the start of the trace is how one session loses more of its opening."""
+        selector.set_windows("DMS", [(0.0, 3.0)])
+
+        selector.save()
+
+        np.testing.assert_array_equal(fetchCoords(str(run_folder), "DMS", TIMESTAMPS), np.array([[3.0, 11.0]]))
+
+    def test_period_reaching_the_end_trims_the_tail(self, selector, run_folder):
+        selector.set_windows("DMS", [(8.0, 10.0)])
+
+        selector.save()
+
+        np.testing.assert_array_equal(fetchCoords(str(run_folder), "DMS", TIMESTAMPS), np.array([[-1.0, 8.0]]))
+
+    def test_period_marked_into_the_margin_is_accepted(self, selector, run_folder):
+        """The bounds run one sample past the recording, so the edge is reachable."""
+        selector.set_windows("DMS", [(-1.0, 3.0)])
+
+        selector.save()
+
+        np.testing.assert_array_equal(fetchCoords(str(run_folder), "DMS", TIMESTAMPS), np.array([[3.0, 11.0]]))
 
     def test_save_with_nothing_marked_writes_no_file(self, selector, run_folder):
         selector.save()
@@ -150,6 +187,39 @@ class TestArtifactWindowSelector:
         assert len(selector.site_to_rows["DMS"]) == 2
         # Blank rows are not yet windows, so they do not shade or save.
         assert selector.windows_for("DMS") == []
+
+    def test_drag_marks_a_period(self, selector):
+        selector.mark_window_from_drag(3.0, 5.0)
+
+        assert selector.windows_for("DMS") == [(3.0, 5.0)]
+
+    def test_drag_shades_the_period_it_marked(self, selector):
+        selector.mark_window_from_drag(3.0, 5.0)
+
+        assert selector.spans_pipe.data == [(3.0, 5.0)]
+
+    def test_drag_bounds_are_ordered_and_rounded(self, selector):
+        """Dragging right-to-left marks the same period, to the millisecond."""
+        selector.mark_window_from_drag(5.00048, 3.00012)
+
+        assert selector.windows_for("DMS") == [(3.0, 5.0)]
+
+    def test_drag_past_the_edge_marks_up_to_the_edge(self, selector):
+        selector.mark_window_from_drag(-40.0, 5.0)
+
+        assert selector.windows_for("DMS") == [(-1.0, 5.0)]
+
+    def test_a_click_marks_nothing(self, selector):
+        """A press without a drag covers no time, so it is not a period."""
+        selector.mark_window_from_drag(4.0, 4.0)
+
+        assert selector.windows_for("DMS") == []
+        assert selector.site_to_rows["DMS"] == []
+
+    def test_drag_marks_only_the_selected_site(self, selector):
+        selector.mark_window_from_drag(3.0, 5.0)
+
+        assert selector.windows_for("DLS") == []
 
     def test_remove_period_drops_that_row(self, selector):
         selector.set_windows("DMS", [(1.0, 2.0), (6.0, 7.0)])
@@ -249,3 +319,75 @@ class TestBuildArtifactWindowPage:
         page = build_artifact_window_page(run_folders=[str(folder_a), str(folder_b)])
         run_folder_selectors = [w for w in page.select(pn.widgets.Select) if w.name == "Run folder"]
         assert len(run_folder_selectors) == 1
+
+
+class TestCopyWindowsFromAnotherRun:
+    """Artifact windows are a property of the recording, so a second run can reuse them."""
+
+    @pytest.fixture
+    def marked_run(self, session_folder):
+        """Run 1, with a different period marked for each recording site."""
+        run_folder = session_folder / "mySession_output_1"
+        for site, coords in (("DMS", [-1.0, 3.0, 5.0, 11.0]), ("DLS", [-1.0, 7.0, 9.0, 11.0])):
+            np.save(
+                str(run_folder / f"coordsForPreProcessing_{site}.npy"),
+                np.array([[bound, 0.0] for bound in coords]),
+            )
+        return run_folder
+
+    @pytest.fixture
+    def unmarked_selector(self, panel_extension, session_folder, marked_run):
+        run_folder = str(session_folder / "mySession_output_2")
+        selector = ArtifactWindowSelector(run_folder, load_pair_traces(run_folder))
+        selector.site_select.value = "DMS"
+        return selector
+
+    def test_offers_the_other_run_that_has_windows(self, unmarked_selector):
+        assert list(unmarked_selector.runs_with_windows) == ["1"]
+
+    def test_does_not_offer_a_run_with_no_windows_saved(self, panel_extension, session_folder):
+        run_folder = str(session_folder / "mySession_output_2")
+        selector = ArtifactWindowSelector(run_folder, load_pair_traces(run_folder))
+
+        assert selector.runs_with_windows == {}
+
+    def test_control_is_hidden_when_no_other_run_has_windows(self, panel_extension, session_folder):
+        run_folder = str(session_folder / "mySession_output_2")
+        selector = ArtifactWindowSelector(run_folder, load_pair_traces(run_folder))
+
+        assert selector.copy_from_select not in selector.widget.select(pn.widgets.Select)
+
+    def test_loading_fills_every_recording_site(self, unmarked_selector):
+        unmarked_selector.copy_windows_from_run("1")
+
+        assert unmarked_selector.windows_for("DMS") == [(3.0, 5.0)]
+        assert unmarked_selector.windows_for("DLS") == [(7.0, 9.0)]
+
+    def test_loading_shades_the_selected_site(self, unmarked_selector):
+        unmarked_selector.copy_windows_from_run("1")
+
+        assert unmarked_selector.spans_pipe.data == [(3.0, 5.0)]
+
+    def test_loaded_windows_are_editable_before_saving(self, unmarked_selector, session_folder):
+        """Loading fills the rows; nothing is written until Save."""
+        unmarked_selector.copy_windows_from_run("1")
+        unmarked_selector.site_to_rows["DMS"][0].end_input.value = 6.0
+
+        assert not (session_folder / "mySession_output_2" / "coordsForPreProcessing_DMS.npy").exists()
+
+        unmarked_selector.save()
+
+        coords = fetchCoords(str(session_folder / "mySession_output_2"), "DMS", TIMESTAMPS)
+        np.testing.assert_array_equal(coords, np.array([[-1.0, 3.0], [6.0, 11.0]]))
+
+    def test_loading_replaces_whatever_was_already_marked(self, unmarked_selector):
+        unmarked_selector.set_windows("DMS", [(1.0, 2.0)])
+
+        unmarked_selector.copy_windows_from_run("1")
+
+        assert unmarked_selector.windows_for("DMS") == [(3.0, 5.0)]
+
+    def test_the_button_loads_the_selected_run(self, unmarked_selector):
+        unmarked_selector.copy_from_button.clicks += 1
+
+        assert unmarked_selector.windows_for("DMS") == [(3.0, 5.0)]

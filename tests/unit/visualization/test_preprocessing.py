@@ -1,6 +1,7 @@
 import holoviews as hv
 import numpy as np
 import pytest
+from bokeh.models import BoxSelectTool, Plot
 
 from guppy.visualization.preprocessing import (
     build_control_signal_fit,
@@ -16,6 +17,32 @@ def image_extent(image):
     are what carry the extent of the trace that was drawn into it.
     """
     return tuple(float(value) for value in image.bounds.lbrt())
+
+
+def bounds_streams_created_by(build):
+    """Run ``build`` and return the layout with the ``BoundsX`` streams it registered.
+
+    Streams register themselves against their source in a process-wide registry, so the
+    ones this call added are found by differencing the registry around it.
+    """
+
+    def registered():
+        return {
+            id(stream)
+            for streams in hv.streams.Stream.registry.values()
+            for stream in streams
+            if isinstance(stream, hv.streams.BoundsX)
+        }
+
+    before = registered()
+    layout = build()
+    added = [
+        stream
+        for streams in hv.streams.Stream.registry.values()
+        for stream in streams
+        if isinstance(stream, hv.streams.BoundsX) and id(stream) not in before
+    ]
+    return layout, added
 
 
 @pytest.fixture
@@ -203,3 +230,58 @@ class TestPanelSizing:
     def test_every_panel_keeps_its_title(self, rendered_plots):
         titles = {plot.title.text for plot in rendered_plots([])}
         assert titles == {"session — control", "signal", "fit", "z_score"}
+
+
+class TestMarkingByDrag:
+    """A horizontal drag across any panel reports the time bounds it covered."""
+
+    @pytest.fixture
+    def build(self, panel_extension):
+        def build(on_x_select):
+            x = np.arange(0.0, 50.0, 0.1)
+            return build_control_signal_fit(
+                x=x,
+                control=np.sin(x),
+                signal=np.cos(x),
+                fit=np.cos(x) * 0.9,
+                titles=["control", "signal", "fit"],
+                suptitle="session",
+                spans=make_spans_pipe(windows=[]),
+                on_x_select=on_x_select,
+            )
+
+        return build
+
+    def test_each_panel_reports_its_own_drag(self, build):
+        dragged = []
+        _, streams = bounds_streams_created_by(lambda: build(lambda start, end: dragged.append((start, end))))
+
+        assert len(streams) == 3
+        for index, stream in enumerate(streams):
+            stream.event(boundsx=(float(index), float(index) + 1.0))
+
+        assert dragged == [(0.0, 1.0), (1.0, 2.0), (2.0, 3.0)]
+
+    def test_every_panel_offers_a_horizontal_select_tool(self, build):
+        plots = [model for model in hv.render(build(lambda start, end: None)).references() if isinstance(model, Plot)]
+
+        assert len(plots) == 3
+        for plot in plots:
+            select_tools = [tool for tool in plot.toolbar.tools if isinstance(tool, BoxSelectTool)]
+            assert [tool.dimensions for tool in select_tools] == ["width"]
+
+    def test_dragging_is_the_default_gesture(self, build):
+        """Marking is the page's purpose, so a drag selects instead of panning the view."""
+        plots = [model for model in hv.render(build(lambda start, end: None)).references() if isinstance(model, Plot)]
+
+        assert [type(plot.toolbar.active_drag).__name__ for plot in plots] == ["BoxSelectTool"] * 3
+
+    def test_read_only_panels_carry_no_select_tool(self, build):
+        """Panels built without a drag callback stay pannable and unmarkable."""
+        _, streams = bounds_streams_created_by(lambda: build(None))
+        plots = [model for model in hv.render(build(None)).references() if isinstance(model, Plot)]
+
+        assert streams == []
+        for plot in plots:
+            assert [tool for tool in plot.toolbar.tools if isinstance(tool, BoxSelectTool)] == []
+            assert type(plot.toolbar.active_drag).__name__ == "PanTool"

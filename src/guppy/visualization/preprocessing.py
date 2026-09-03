@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 
 import holoviews as hv
 import numpy as np
@@ -32,7 +33,9 @@ def _spans_overlay(*, curve: hv.DynamicMap, spans: hv.streams.Pipe) -> hv.Dynami
     return curve * hv.DynamicMap(lambda data: hv.VSpans(list(data)).opts(color="orange", alpha=0.2), streams=[spans])
 
 
-def _shaded_panel(*, curve: hv.DynamicMap, title: str, spans: hv.streams.Pipe | None) -> hv.DynamicMap:
+def _shaded_panel(
+    *, curve: hv.DynamicMap, title: str, spans: hv.streams.Pipe | None, markable: bool = False
+) -> hv.DynamicMap:
     """Size and title one stacked panel, shading it with the span stream when given.
 
     Options are set on the composed panel rather than the bare curve: options set on an
@@ -40,7 +43,12 @@ def _shaded_panel(*, curve: hv.DynamicMap, title: str, spans: hv.streams.Pipe | 
     fit panel at bokeh's 300x300 default while the two single-curve panels kept theirs.
     """
     shaded = curve if spans is None else _spans_overlay(curve=curve, spans=spans)
-    return shaded.opts(title=title, responsive=True, height=220)
+    panel_options = dict(title=title, responsive=True, height=220)
+    if markable:
+        # Marking is what the panel is for, so a drag selects rather than pans; panning
+        # and zooming stay one toolbar click away.
+        panel_options["active_tools"] = ["xbox_select"]
+    return shaded.opts(**panel_options)
 
 
 def build_stacked_traces(
@@ -89,6 +97,7 @@ def build_control_signal_fit(
     suptitle: str,
     spans: hv.streams.Pipe | None = None,
     extra_traces: dict[str, np.ndarray] | None = None,
+    on_x_select: Callable[[float, float], None] | None = None,
 ) -> hv.Layout:
     """Build stacked curves (control, signal, signal+fit) over a shared time axis.
 
@@ -114,27 +123,39 @@ def build_control_signal_fit(
         the traces unshaded.
     extra_traces : dict, optional
         Further traces to stack below the fit, as title → values against the same ``x``.
+    on_x_select : callable, optional
+        Called with the ``(start, end)`` time bounds of a horizontal drag on any panel.
+        Passing it arms the panels with a box-select tool and makes dragging their default
+        gesture in place of panning; omit it to leave the panels read-only.
 
     Returns
     -------
     hv.Layout
         Vertically stacked curves, one per trace.
     """
-    control_curve = shade_trace(hv.Curve((x, control), "time (s)", titles[0]))
-    signal_curve = shade_trace(hv.Curve((x, signal), "time (s)", titles[1]))
-    fit_curve = shade_trace(hv.Curve((x, signal), "time (s)", titles[2])) * shade_trace(
-        hv.Curve((x, fit), "time (s)", titles[2]), color=FIT_COLOR
-    )
+
+    def trace(values: np.ndarray, title: str) -> hv.DynamicMap:
+        """Shade one trace, arming it to report drags when the caller asked for marking."""
+        curve = shade_trace(hv.Curve((x, values), "time (s)", title))
+        if on_x_select is None:
+            return curve
+        # Both the select tool and the drag stream ride on the trace layer: bokeh builds a
+        # figure's toolbar from what its individual layers ask for, and holoviews matches a
+        # stream only to the layer named as its source.
+        curve = curve.opts(tools=["xbox_select"])
+        hv.streams.BoundsX(source=curve).add_subscriber(lambda boundsx: on_x_select(*boundsx))
+        return curve
 
     def panel(curve: hv.DynamicMap, title: str) -> hv.DynamicMap:
-        return _shaded_panel(curve=curve, title=title, spans=spans)
+        return _shaded_panel(curve=curve, title=title, spans=spans, markable=on_x_select is not None)
 
+    fit_curve = trace(signal, titles[2]) * shade_trace(hv.Curve((x, fit), "time (s)", titles[2]), color=FIT_COLOR)
     panels = [
-        panel(control_curve, f"{suptitle} — {titles[0]}"),
-        panel(signal_curve, titles[1]),
+        panel(trace(control, titles[0]), f"{suptitle} — {titles[0]}"),
+        panel(trace(signal, titles[1]), titles[1]),
         panel(fit_curve, titles[2]),
     ]
     for title, values in (extra_traces or {}).items():
-        panels.append(panel(shade_trace(hv.Curve((x, values), "time (s)", title)), title))
+        panels.append(panel(trace(values, title), title))
 
     return hv.Layout(panels).cols(1)

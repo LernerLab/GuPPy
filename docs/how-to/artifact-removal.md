@@ -38,10 +38,14 @@ produced, so both optional steps need its outputs on disk.
    ```
 
 3. Pick the recording site you want to mark with the **Recording site** selector.
-4. Click **+ Add period** and enter the start and end time of the contaminated
-   stretch, in **seconds**. The shaded spans on the traces update as you type, so you
-   can check the marking against the data — and the arrow keys nudge a bound by 0.1 s
-   at a time if you need to fine-tune an edge.
+4. Drag horizontally across a trace, over the contaminated stretch. The period appears
+   as a row of start and end bounds below the plot, in **seconds**, and is shaded on all
+   three traces. Refine it from the row: the shading follows as you type, and the arrow
+   keys nudge a bound by 0.1 s at a time. **+ Add period** adds a blank row instead, if
+   you would rather type both bounds.
+
+   Because a drag marks a period, it no longer pans the view; the toolbar above the
+   traces still offers pan and zoom.
 
    Add a period for each contaminated stretch; the trash button on a row deletes it.
 
@@ -56,6 +60,31 @@ marking nothing keeps the entire recording.
 
 Re-opening the page later shows the periods you marked, so you can widen one or add
 another without starting over.
+
+## Reusing the periods from another run
+
+Which stretches of a recording are contaminated does not depend on the analysis
+parameters, so a second run of the same session should carry the same periods as the
+first. Marking them again by hand would not reproduce them exactly, and those small
+differences would land in the very comparison the second run exists to make.
+
+When another run of the same session already has periods saved, the page offers a
+**Copy windows from run** selector. Pick the run and click **Load**: every recording
+site is filled in from it, ready to check against the traces and adjust. Nothing reaches
+disk until you click **Save**.
+
+## Trimming extra time from the start
+
+*Eliminate first few seconds* (Step 3) takes the same amount off every session in the
+batch, so it cannot cut deeper into a single recording that started before the
+patchcord had settled. Mark that opening as an artifact period instead: a period whose
+start reaches the beginning of the trace removes everything up to its end, and the rest
+of the batch keeps the trim it was analyzed with.
+
+The trace already begins where *Eliminate first few seconds* left off rather than at
+zero, so the beginning to mark from is the left edge of the plot, not 0 s. Dragging from
+that edge reaches it, as does nudging the start bound down to its minimum. The same
+holds at the other end: a period whose end reaches the right edge trims the tail.
 
 ## Choosing a removal method
 

@@ -6,6 +6,7 @@ traces. Saving writes the complementary keep-windows to
 run's ``GuPPyParamtersUsed.json``, which the Remove Artifacts step then consumes.
 """
 
+import glob
 import logging
 import os
 from collections.abc import Callable
@@ -22,6 +23,7 @@ from ..utils.artifact_windows import (
     merge_windows,
     windows_to_coords,
 )
+from ..utils.utils import discover_run_folders, parse_run_name
 from ..visualization.preprocessing import build_control_signal_fit, make_spans_pipe
 
 pn.extension(notifications=True)
@@ -35,11 +37,21 @@ _NUDGE_STEP = 0.1
 _INPUT_WIDTH = 110
 
 _INSTRUCTIONS = (
-    "Mark the periods where **artifacts occurred** for each recording site: enter the "
-    "start and end time (seconds) of each period and the shaded spans update to match. "
-    "Everything outside the marked periods is kept — mark nothing to keep the entire "
-    "recording.\n\n"
+    "Mark the periods where **artifacts occurred** for each recording site: drag "
+    "horizontally across a trace to mark a period, or type its start and end time "
+    "(seconds) into a row. Either way the period lands in an editable row below the plot "
+    "and the shaded spans update to match, so a bound dragged roughly into place can be "
+    "nudged the rest of the way with the arrow keys. Everything outside the marked "
+    "periods is kept — mark nothing to keep the entire recording.\n\n"
+    "A period that reaches the start or the end of the trace trims that end of the "
+    "recording outright. This is how a single session gets more taken off its opening "
+    "than *Eliminate first few seconds*, which trims every session in the batch alike.\n\n"
     "Click **Save** to write the windows, then run **Remove Artifacts** to apply them."
+)
+
+_COPY_HELP = (
+    "Artifact windows belong to the recording, not to the parameters, so another run of "
+    "this session can be marked once and reused here."
 )
 
 _NO_WINDOWS_HINT = "_No artifact periods marked — the entire recording will be kept._"
@@ -54,7 +66,11 @@ _METHOD_HELP = (
 
 
 def _validated_windows(windows: list[tuple[float, float]], timestamps: np.ndarray) -> list[tuple[float, float]]:
-    """Validate marked artifact windows against the recording timespan.
+    """Validate marked artifact windows and push edge-reaching bounds out to the span.
+
+    A window that reaches the first or last sample is widened to the margined span, so
+    the complement holds no leading or trailing chunk instead of one too short to
+    survive the moving-average filter.
 
     Raises
     ------
@@ -62,19 +78,22 @@ def _validated_windows(windows: list[tuple[float, float]], timestamps: np.ndarra
         If a window is inverted or falls outside the recording.
     """
     low, high = float(timestamps[0]), float(timestamps[-1])
+    span_start, span_end = _margined_span(timestamps)
+    prepared = []
     for start, end in windows:
         if start >= end:
             message = f"Artifact window start={start} must be less than end={end}."
             logger.error(message)
             raise ValueError(message)
-        if start < low or end > high:
+        if start < span_start or end > span_end:
             message = (
                 f"Artifact window [{start}, {end}] is outside the recording timespan [{low}, {high}]; "
                 "choose values within this range."
             )
             logger.error(message)
             raise ValueError(message)
-    return list(windows)
+        prepared.append((span_start if start <= low else start, span_end if end >= high else end))
+    return prepared
 
 
 def _margined_span(timestamps: np.ndarray) -> tuple[float, float]:
@@ -90,6 +109,27 @@ def _saved_artifact_windows(filepath: str, site: str, timestamps: np.ndarray) ->
     keep_windows = coords_to_windows(coords=fetchCoords(filepath, site, timestamps))
     span_start, span_end = _margined_span(timestamps)
     return complement_windows(windows=keep_windows, span_start=span_start, span_end=span_end)
+
+
+def _runs_with_saved_windows(filepath: str) -> dict[str, str]:
+    """Map run name → path for the other runs of this session that have windows saved.
+
+    Parameters
+    ----------
+    filepath : str
+        The run folder being marked; its own windows are never offered back.
+
+    Returns
+    -------
+    dict
+        Run name → run folder, ordered as the session lists its runs.
+    """
+    return {
+        parse_run_name(run_folder): run_folder
+        for run_folder in discover_run_folders(os.path.dirname(filepath))
+        if os.path.abspath(run_folder) != os.path.abspath(filepath)
+        and glob.glob(os.path.join(run_folder, "coordsForPreProcessing_*.npy"))
+    }
 
 
 class ArtifactWindowRow:
@@ -152,6 +192,11 @@ class ArtifactWindowSelector:
         }
 
         self.site_select = pn.widgets.Select(name="Recording site", options=self.sites, value=self.sites[0])
+        self.runs_with_windows = _runs_with_saved_windows(filepath)
+        self.copy_from_select = pn.widgets.Select(
+            name="Copy windows from run", options=list(self.runs_with_windows), width=200
+        )
+        self.copy_from_button = pn.widgets.Button(name="Load", button_type="default", icon="copy", align="end")
         self.add_row_button = pn.widgets.Button(name="Add period", button_type="default", icon="plus")
         self.apply_to_all_button = pn.widgets.Button(name="Apply to all recording sites", button_type="default")
         self.method_select = pn.widgets.Select(
@@ -165,13 +210,20 @@ class ArtifactWindowSelector:
         self._render_rows()
 
         self.site_select.param.watch(self._on_site_change, "value")
+        self.copy_from_button.on_click(lambda event: self.copy_windows_from_run(self.copy_from_select.value))
         self.add_row_button.on_click(lambda event: self.add_window_row())
         self.apply_to_all_button.on_click(lambda event: self.apply_windows_to_all_sites())
         self.save_button.on_click(self._on_save)
 
+        copy_from_section = (
+            [pn.pane.Markdown(_COPY_HELP), pn.Row(self.copy_from_select, self.copy_from_button)]
+            if self.runs_with_windows
+            else []
+        )
         self.widget = pn.Column(
             "# Select Artifact Windows — {}".format(os.path.basename(filepath)),
             pn.pane.Markdown(_INSTRUCTIONS),
+            *copy_from_section,
             self.site_select,
             self.marking_pane,
             self.rows_container,
@@ -221,11 +273,37 @@ class ArtifactWindowSelector:
         """Repaint the shaded spans from the current rows, leaving the traces untouched."""
         self.spans_pipe.send(self.windows_for(self.site_select.value))
 
-    def add_window_row(self) -> None:
-        """Append a blank period to the selected site."""
+    def add_window_row(self, start: float | None = None, end: float | None = None) -> None:
+        """Append a period to the selected site, blank unless bounds are given."""
         site = self.site_select.value
-        self.site_to_rows[site].append(self._build_row(site, None, None))
+        self.site_to_rows[site].append(self._build_row(site, start, end))
         self._render_rows()
+        self.refresh_spans()
+
+    def mark_window_from_drag(self, start: float, end: float) -> None:
+        """Add the period a horizontal drag across the trace covers.
+
+        The bounds are clamped to the recording and rounded to the millisecond, leaving
+        the row to carry whatever precision the drag actually needs. A drag too short to
+        cover any time — a stray click — marks nothing.
+        """
+        span_start, span_end = _margined_span(self.pair_traces[self.site_select.value]["x"])
+        low, high = sorted((float(start), float(end)))
+        low, high = round(max(span_start, low), 3), round(min(span_end, high), 3)
+        if high <= low:
+            return
+        self.add_window_row(low, high)
+
+    def copy_windows_from_run(self, run_name: str) -> None:
+        """Replace every site's periods with those saved for another run of this session.
+
+        The windows are loaded into the editable rows rather than written straight to
+        disk, so they can be reviewed and adjusted before Save.
+        """
+        run_folder = self.runs_with_windows[run_name]
+        for site in self.sites:
+            self.set_windows(site, _saved_artifact_windows(run_folder, site, self.pair_traces[site]["x"]))
+        logger.info(f"Loaded artifact windows from run {run_name}.")
 
     def remove_window_row(self, row_index: int) -> None:
         """Drop one period from the selected site."""
@@ -288,6 +366,7 @@ class ArtifactWindowSelector:
             titles=trace["plot_name"],
             suptitle=os.path.basename(self.filepath),
             spans=self.spans_pipe,
+            on_x_select=self.mark_window_from_drag,
         )
 
     def _on_save(self, event: object) -> None:
