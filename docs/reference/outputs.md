@@ -37,7 +37,9 @@ Raw HDF5 written with h5py, following GuPPy's convention of one file per store w
 
 ### `.h5`
 
-A pandas DataFrame written with `DataFrame.to_hdf`, holding exactly one DataFrame under the key `df`, and read back through pandas rather than h5py. These are the PSTH, peak/AUC, transient-summary, binned-metrics, covariate, cross-correlation and tonic tables.
+A pandas DataFrame written with `DataFrame.to_hdf`, holding exactly one DataFrame under the key `df`, and read back with `pandas.read_hdf` rather than h5py. These are the PSTH, peak/AUC, transient-summary, binned-metrics, covariate, cross-correlation and tonic tables.
+
+`to_hdf` stores the frame in pandas' fixed format, which mirrors its in-memory layout: the column labels in `axis0`, the row index in `axis1`, and the values in one or more `block<N>_values` arrays with columns grouped by dtype. None of that is hidden from h5py, but it is the frame taken apart rather than the assembled table, and `axis0` order does not follow the block grouping — putting it back together by hand means matching each block against its own `block<N>_items`.
 
 ### `.csv`
 
