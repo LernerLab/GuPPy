@@ -168,10 +168,23 @@ class TestClampingBoundsIntoTheRecording:
 
         np.testing.assert_array_equal(fetchCoords(str(run_folder), "DMS", TIMESTAMPS), np.array([[3.0, 11.0]]))
 
-    def test_saving_reports_the_bounds_it_pulled_in(self, selector):
+    def test_saving_names_the_bound_the_recording_edge_and_the_outcome(self, selector):
         selector.set_windows("DMS", [(8.0, 15.0)])
 
-        assert selector.save() == ["DMS: [8, 15] to [8, 11]"]
+        assert selector.save() == [
+            "On recording site DMS, the window ending at 15 s ran past the recording, which ends at "
+            "10 s, so its end was moved to the end of the recording."
+        ]
+
+    def test_a_window_outside_at_both_ends_reports_both_bounds_under_one_site(self, selector):
+        selector.set_windows("DMS", [(-40.0, 15.0)])
+
+        assert selector.save() == [
+            "On recording site DMS, the window starting at -40 s began before the recording, which "
+            "starts at 0 s, so its start was moved to the start of the recording; the window ending "
+            "at 15 s ran past the recording, which ends at 10 s, so its end was moved to the end of "
+            "the recording."
+        ]
 
     def test_the_pulled_in_bound_is_written_back_into_its_row(self, selector):
         """The row is the record of what was saved, so it must not still show 15."""
@@ -204,7 +217,12 @@ class TestClampingBoundsIntoTheRecording:
         selector.set_windows("DMS", [(8.0, 15.0)])
         selector.set_windows("DLS", [(-40.0, 3.0)])
 
-        assert sorted(selector.save()) == ["DLS: [-40, 3] to [-1, 3]", "DMS: [8, 15] to [8, 11]"]
+        assert sorted(selector.save()) == [
+            "On recording site DLS, the window starting at -40 s began before the recording, which "
+            "starts at 0 s, so its start was moved to the start of the recording.",
+            "On recording site DMS, the window ending at 15 s ran past the recording, which ends at "
+            "10 s, so its end was moved to the end of the recording.",
+        ]
 
     def test_save_records_removal_method_in_snapshot(self, selector, run_folder):
         selector.set_windows("DMS", [(3.0, 5.0)])
@@ -283,7 +301,16 @@ class TestClampingBoundsIntoTheRecording:
 
     def test_drag_past_the_edge_reports_the_clamp(self, selector):
         assert selector.mark_window_from_drag(-40.0, 5.0) == (
-            "The drag ran past the recording, so the period was clamped to [-1, 5]."
+            "The drag began before the recording, which starts at 0 s, so the period was marked "
+            "from the start of the recording."
+        )
+
+    def test_a_drag_past_both_edges_reports_both(self, selector):
+        assert selector.mark_window_from_drag(-40.0, 40.0) == (
+            "The drag began before the recording, which starts at 0 s, so the period was marked "
+            "from the start of the recording. "
+            "The drag ran past the recording, which ends at 10 s, so the period was marked up to "
+            "the end of the recording."
         )
 
     def test_drag_inside_the_recording_reports_nothing(self, selector):
