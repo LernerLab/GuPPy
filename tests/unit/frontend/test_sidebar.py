@@ -1,5 +1,3 @@
-from importlib.metadata import version
-
 import panel as pn
 import pytest
 
@@ -114,11 +112,3 @@ class TestSidebar:
 
     def test_save_input_parameters_button_removed(self, sidebar):
         assert not hasattr(sidebar, "save_button")
-
-    def test_version_label_closes_the_sidebar(self, panel_extension):
-        template = pn.template.BootstrapTemplate(title="Test")
-        sidebar = Sidebar(template=template)
-        sidebar.add_to_template()
-
-        assert sidebar.mark_down_version.object == f"*GuPPy {version('guppy-neuro')}*"
-        assert template.sidebar.objects[-1] is sidebar.mark_down_version

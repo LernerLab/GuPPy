@@ -1,5 +1,4 @@
 import logging
-from importlib.metadata import version
 
 import panel as pn
 
@@ -36,9 +35,6 @@ class Sidebar:
         self.mark_down_visualization = pn.pane.Markdown("""**Step 5 : Visualization**""", width=300)
         self.mark_down_metadata = pn.pane.Markdown("""**Step 6 : Input Metadata**""", width=300)
         self.mark_down_export_nwb = pn.pane.Markdown("""**Step 7 : Export to NWB**""", width=300)
-        # Sits below the last step so a user asked "which GuPPy are you running?" has an
-        # answer in the interface itself, not only from `guppy --version`.
-        self.mark_down_version = pn.pane.Markdown(f"""*GuPPy {version("guppy-neuro")}*""", width=300)
 
     def setup_buttons(self) -> None:
         """Create pipeline-step action buttons and store them as instance attributes."""
@@ -122,4 +118,3 @@ class Sidebar:
         self.template.sidebar.append(self.mark_down_export_nwb)
         self.template.sidebar.append(self.export_nwb)
         self.template.sidebar.append(self.export_progress)
-        self.template.sidebar.append(self.mark_down_version)
