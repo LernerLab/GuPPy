@@ -7,6 +7,7 @@
 - An artifact period that reaches the start or the end of the trace now trims that end of the recording outright, so a single session can lose more of its opening than **Eliminate first few seconds** takes from the whole batch. [PR #472](https://github.com/LernerLab/GuPPy/pull/472)
 
 ## Improvements
+- The documentation now explains why `.h5` and `.hdf5` outputs need different readers, rather than only warning that they do: `.h5` files are written by pandas in its fixed format, so reading one with h5py shows the table decomposed into its storage blocks instead of its columns. [PR #470](https://github.com/LernerLab/GuPPy/pull/470)
 
 ## Deprecations and Removals
 
