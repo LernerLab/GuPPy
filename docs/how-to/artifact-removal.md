@@ -95,6 +95,11 @@ zero, so the beginning to mark from is the left edge of the plot, not 0 s. Dragg
 that edge reaches it, as does nudging the start bound down to its minimum. The same
 holds at the other end: a period whose end reaches the right edge trims the tail.
 
+Typing 0 works too: a bound outside the recording is pulled in to the nearest edge
+rather than refused. GuPPy tells you which bounds it moved and to what, and rewrites the
+row to match, so the page always shows what was saved. A period that lies *entirely*
+outside the recording has nothing to pull in and is refused.
+
 ## Choosing a removal method
 
 **replace with NaN** (the default) keeps the trace at its original length and

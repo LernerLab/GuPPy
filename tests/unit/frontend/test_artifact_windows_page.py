@@ -131,10 +131,10 @@ class TestArtifactWindowSelector:
         assert not (run_folder / "coordsForPreProcessing_DMS.npy").exists()
         assert not (run_folder / "coordsForPreProcessing_DLS.npy").exists()
 
-    def test_save_raises_when_window_outside_timespan(self, selector, run_folder):
-        selector.set_windows("DMS", [(8.0, 15.0)])
+    def test_save_raises_when_window_lies_entirely_outside_the_recording(self, selector, run_folder):
+        selector.set_windows("DMS", [(20.0, 30.0)])
 
-        with pytest.raises(ValueError, match="outside the recording timespan"):
+        with pytest.raises(ValueError, match="lies entirely outside the recording timespan"):
             selector.save()
 
         assert not (run_folder / "coordsForPreProcessing_DMS.npy").exists()
@@ -144,6 +144,67 @@ class TestArtifactWindowSelector:
 
         with pytest.raises(ValueError, match="must be less than"):
             selector.save()
+
+
+class TestClampingBoundsIntoTheRecording:
+    """A bound outside the recording is pulled in rather than refused, and reported.
+
+    Bokeh clamps a typed bound against the input's limits, but only after the value has
+    reached the server once — so refusing an out-of-range bound failed on the first Save
+    and silently succeeded on the next, having quietly rewritten it.
+    """
+
+    def test_a_bound_past_the_end_is_pulled_to_the_end(self, selector, run_folder):
+        selector.set_windows("DMS", [(8.0, 15.0)])
+
+        selector.save()
+
+        np.testing.assert_array_equal(fetchCoords(str(run_folder), "DMS", TIMESTAMPS), np.array([[-1.0, 8.0]]))
+
+    def test_a_bound_before_the_start_is_pulled_to_the_start(self, selector, run_folder):
+        selector.set_windows("DMS", [(-40.0, 3.0)])
+
+        selector.save()
+
+        np.testing.assert_array_equal(fetchCoords(str(run_folder), "DMS", TIMESTAMPS), np.array([[3.0, 11.0]]))
+
+    def test_saving_reports_the_bounds_it_pulled_in(self, selector):
+        selector.set_windows("DMS", [(8.0, 15.0)])
+
+        assert selector.save() == ["DMS: [8, 15] to [8, 11]"]
+
+    def test_the_pulled_in_bound_is_written_back_into_its_row(self, selector):
+        """The row is the record of what was saved, so it must not still show 15."""
+        selector.set_windows("DMS", [(8.0, 15.0)])
+
+        selector.save()
+
+        assert selector.windows_for("DMS") == [(8.0, 11.0)]
+
+    def test_saving_again_reports_nothing_further(self, selector):
+        """Once pulled in, the same period saves unchanged — no first-time-only surprise."""
+        selector.set_windows("DMS", [(8.0, 15.0)])
+        selector.save()
+
+        assert selector.save() == []
+
+    def test_a_bound_inside_the_recording_is_left_alone(self, selector):
+        selector.set_windows("DMS", [(3.0, 5.0)])
+
+        assert selector.save() == []
+        assert selector.windows_for("DMS") == [(3.0, 5.0)]
+
+    def test_reaching_an_edge_is_not_reported_as_clamping(self, selector):
+        """A period marked to the margin already sits on the span, so nothing moves."""
+        selector.set_windows("DMS", [(-1.0, 3.0)])
+
+        assert selector.save() == []
+
+    def test_every_site_is_reported(self, selector):
+        selector.set_windows("DMS", [(8.0, 15.0)])
+        selector.set_windows("DLS", [(-40.0, 3.0)])
+
+        assert sorted(selector.save()) == ["DLS: [-40, 3] to [-1, 3]", "DMS: [8, 15] to [8, 11]"]
 
     def test_save_records_removal_method_in_snapshot(self, selector, run_folder):
         selector.set_windows("DMS", [(3.0, 5.0)])
@@ -219,6 +280,20 @@ class TestArtifactWindowSelector:
         selector.mark_window_from_drag(-40.0, 5.0)
 
         assert selector.windows_for("DMS") == [(-1.0, 5.0)]
+
+    def test_drag_past_the_edge_reports_the_clamp(self, selector):
+        assert selector.mark_window_from_drag(-40.0, 5.0) == (
+            "The drag ran past the recording, so the period was clamped to [-1, 5]."
+        )
+
+    def test_drag_inside_the_recording_reports_nothing(self, selector):
+        assert selector.mark_window_from_drag(3.0, 5.0) is None
+
+    def test_a_clamped_drag_saves_without_being_pulled_in_again(self, selector):
+        """The clamped bound lands on the span exactly, so Save has nothing left to move."""
+        selector.mark_window_from_drag(-40.0, 5.0)
+
+        assert selector.save() == []
 
     def test_a_click_marks_nothing(self, selector):
         """A press without a drag covers no time, so it is not a period."""

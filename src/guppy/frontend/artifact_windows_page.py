@@ -81,35 +81,48 @@ _METHOD_HELP = (
 )
 
 
-def _validated_windows(windows: list[tuple[float, float]], timestamps: np.ndarray) -> list[tuple[float, float]]:
-    """Validate marked artifact windows and push edge-reaching bounds out to the span.
+def _prepared_windows(
+    windows: list[tuple[float, float]], timestamps: np.ndarray
+) -> tuple[list[tuple[float, float]], list[str]]:
+    """Pull marked artifact windows into the recording, reporting the bounds that moved.
 
-    A window that reaches the first or last sample is widened to the margined span, so
-    the complement holds no leading or trailing chunk instead of one too short to
-    survive the moving-average filter.
+    A bound at or beyond the first or last sample lands on the margined span, so the
+    complement holds no leading or trailing chunk instead of one too short to survive the
+    moving-average filter. A bound further out than that lands there too.
+
+    Returns
+    -------
+    prepared : list of (float, float)
+        The windows as they will be saved.
+    moved : list of str
+        One message per window whose bounds had to be pulled in, for reporting back to
+        the user; empty when every bound was already inside the recording.
 
     Raises
     ------
     ValueError
-        If a window is inverted or falls outside the recording.
+        If a window is inverted, or lies entirely outside the recording.
     """
     low, high = float(timestamps[0]), float(timestamps[-1])
     span_start, span_end = _margined_span(timestamps)
-    prepared = []
+    prepared, moved = [], []
     for start, end in windows:
         if start >= end:
             message = f"Artifact window start={start} must be less than end={end}."
             logger.error(message)
             raise ValueError(message)
-        if start < span_start or end > span_end:
+        if end <= span_start or start >= span_end:
             message = (
-                f"Artifact window [{start}, {end}] is outside the recording timespan [{low}, {high}]; "
-                "choose values within this range."
+                f"Artifact window [{start}, {end}] lies entirely outside the recording timespan "
+                f"[{low}, {high}]; choose values within this range."
             )
             logger.error(message)
             raise ValueError(message)
-        prepared.append((span_start if start <= low else start, span_end if end >= high else end))
-    return prepared
+        bounds = (span_start if start <= low else start, span_end if end >= high else end)
+        if bounds != (start, end):
+            moved.append(f"[{start:g}, {end:g}] to [{bounds[0]:g}, {bounds[1]:g}]")
+        prepared.append(bounds)
+    return prepared, moved
 
 
 def _margined_span(timestamps: np.ndarray) -> tuple[float, float]:
@@ -322,19 +335,31 @@ class ArtifactWindowSelector:
         self._render_rows()
         self.refresh_spans()
 
-    def mark_window_from_drag(self, start: float, end: float) -> None:
+    def mark_window_from_drag(self, start: float, end: float) -> str | None:
         """Add the period a horizontal drag across the trace covers.
 
         The bounds are clamped to the recording and rounded to the millisecond, leaving
-        the row to carry whatever precision the drag actually needs. A drag too short to
-        cover any time — a stray click — marks nothing.
+        the row to carry whatever precision the drag actually needs. A bound that is
+        clamped lands on the span exactly rather than on its rounding, so the period is
+        already at the edge by the time it is saved. A drag too short to cover any time —
+        a stray click — marks nothing.
+
+        Returns
+        -------
+        str or None
+            Message naming the clamped bounds, or None when the drag stayed inside the
+            recording and nothing had to move.
         """
         span_start, span_end = _margined_span(self.pair_traces[self.site_select.value]["x"])
         low, high = sorted((float(start), float(end)))
-        low, high = round(max(span_start, low), 3), round(min(span_end, high), 3)
-        if high <= low:
-            return
-        self.add_window_row(low, high)
+        clamped_low = span_start if low <= span_start else round(low, 3)
+        clamped_high = span_end if high >= span_end else round(high, 3)
+        if clamped_high <= clamped_low:
+            return None
+        self.add_window_row(clamped_low, clamped_high)
+        if (clamped_low, clamped_high) == (round(low, 3), round(high, 3)):
+            return None
+        return f"The drag ran past the recording, so the period was clamped to " f"[{clamped_low:g}, {clamped_high:g}]."
 
     def copy_windows_from_run(self, run_name: str) -> str:
         """Replace this run's periods with those saved for another run of this session.
@@ -388,23 +413,39 @@ class ArtifactWindowSelector:
             if site != self.site_select.value:
                 self.set_windows(site, windows)
 
-    def save(self) -> None:
+    def save(self) -> list[str]:
         """Write the keep-windows for every site, then record the removal method.
 
-        All sites are validated before anything is written, so an invalid period raises
+        All sites are prepared before anything is written, so an invalid period raises
         up-front without leaving a partially-written set of coords files. A site with no
-        marked periods writes no file (keep-the-entire-recording default).
+        marked periods writes no file (keep-the-entire-recording default). A bound that
+        had to be pulled into the recording is written back into its row, so the page
+        shows what was saved.
+
+        Returns
+        -------
+        list of str
+            One message per recording site whose bounds had to be pulled in, for
+            reporting back to the user.
         """
+        site_to_prepared = {}
         site_to_keep_windows = {}
+        clamped = []
         for site in self.sites:
             timestamps = self.pair_traces[site]["x"]
-            artifact_windows = _validated_windows(self.windows_for(site), timestamps)
+            artifact_windows, moved = _prepared_windows(self.windows_for(site), timestamps)
+            site_to_prepared[site] = artifact_windows
+            clamped.extend(f"{site}: {message}" for message in moved)
             if not artifact_windows:
                 continue
             span_start, span_end = _margined_span(timestamps)
             site_to_keep_windows[site] = complement_windows(
                 windows=merge_windows(windows=artifact_windows), span_start=span_start, span_end=span_end
             )
+
+        for site, artifact_windows in site_to_prepared.items():
+            if artifact_windows != self.windows_for(site):
+                self.set_windows(site, artifact_windows)
 
         for site, keep_windows in site_to_keep_windows.items():
             np.save(
@@ -414,6 +455,9 @@ class ArtifactWindowSelector:
             logger.info(f"Saved {len(keep_windows)} keep-window(s) for recording site {site}.")
 
         record_artifact_provenance(destination=self.filepath, artifacts_removal_method=self.method_select.value)
+        for message in clamped:
+            logger.warning(f"Artifact window bound pulled into the recording — {message}.")
+        return clamped
 
     def _remove_row(self, row: ArtifactWindowRow) -> None:
         self.site_to_rows[self.site_select.value].remove(row)
@@ -454,7 +498,7 @@ class ArtifactWindowSelector:
             overlay=overlay,
             title=f"{os.path.basename(self.filepath)} — {title}",
             spans=self.spans_pipe,
-            on_x_select=self.mark_window_from_drag,
+            on_x_select=self._on_drag,
             hooks=[self._capture_figure],
         )
 
@@ -468,6 +512,13 @@ class ArtifactWindowSelector:
         if self.figure is not None:
             set_drag_gesture(figure=self.figure, marking=self.mode_toggle.value == MARK_MODE)
 
+    def _on_drag(self, start: float, end: float) -> None:
+        clamped = self.mark_window_from_drag(start, end)
+        if clamped is not None:
+            logger.warning(clamped)
+            if pn.state.notifications is not None:
+                pn.state.notifications.warning(clamped, duration=4000)
+
     def _on_copy(self, event: object) -> None:
         try:
             message = self.copy_windows_from_run(self.copy_from_select.value)
@@ -480,14 +531,21 @@ class ArtifactWindowSelector:
 
     def _on_save(self, event: object) -> None:
         try:
-            self.save()
+            clamped = self.save()
         except ValueError as error:
             logger.error(str(error))
             if pn.state.notifications is not None:
                 pn.state.notifications.error(str(error), duration=0)
             return
-        if pn.state.notifications is not None:
-            pn.state.notifications.success("Artifact windows saved.", duration=4000)
+        if pn.state.notifications is None:
+            return
+        if clamped:
+            pn.state.notifications.warning(
+                "Artifact windows saved, with bounds outside the recording pulled in — " + "; ".join(clamped) + ".",
+                duration=0,
+            )
+            return
+        pn.state.notifications.success("Artifact windows saved.", duration=4000)
 
 
 def build_artifact_window_page(*, run_folders: list[str]) -> pn.viewable.Viewable:
