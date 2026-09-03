@@ -6,6 +6,7 @@
 - Fixed the README's documentation links, which all carried an `/en/latest/` path prefix that 404s on the single-version Read the Docs project. [PR #469](https://github.com/LernerLab/GuPPy/pull/469)
 
 ## Improvements
+- GuPPy now reports its own version: `guppy --version` prints it, the user interface header shows it, and the [installation page](https://guppy.readthedocs.io/en/latest/installation.html) covers how to check it and how to upgrade an existing install. [PR #471](https://github.com/LernerLab/GuPPy/pull/471)
 - The documentation now explains why `.h5` and `.hdf5` outputs need different readers, rather than only warning that they do: `.h5` files are written by pandas in its fixed format, so reading one with h5py shows the table decomposed into its storage blocks instead of its columns. [PR #470](https://github.com/LernerLab/GuPPy/pull/470)
 
 ## Deprecations and Removals

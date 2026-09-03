@@ -1,6 +1,7 @@
 import logging
 import os
 from contextvars import copy_context
+from importlib.metadata import version
 from threading import Thread
 from typing import Callable
 
@@ -51,6 +52,14 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
     step_running = {"active": False}
 
     template = pn.template.BootstrapTemplate(title="Input Parameters GUI")
+    # Right-aligned in the header bar so the running version is visible without scrolling
+    # the long sidebar, and is not mistaken for another pipeline step.
+    template.header.append(
+        pn.pane.Markdown(
+            f"GuPPy {version('guppy-neuro')}",
+            styles={"color": "white", "margin-left": "auto", "margin-right": "1em"},
+        )
+    )
     parameter_form = ParameterForm(template=template, start_path=start_path)
     sidebar = Sidebar(template=template)
 

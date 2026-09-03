@@ -91,6 +91,23 @@ guppy
 
 This launches the GuPPy user interface, where you can begin analyzing your fiber photometry data. The [first analysis tutorial](tutorials/first_analysis.md) walks through a complete session from there.
 
+## Updating GuPPy
+
+Check which version you have with `guppy --version`. It is also shown in the user interface header and recorded as `guppy_version` in every `GuPPyParamtersUsed.json`; quote it when reporting a problem.
+
+If you installed from PyPI (Option A):
+
+```bash
+pip install --upgrade guppy-neuro
+```
+
+If you installed from GitHub (Option B), pull the latest source and reinstall from your clone:
+
+```bash
+git pull
+pip install -e .
+```
+
 ## Sample data included in the repository
 
 The first tutorial analyzes a small CSV session stored in the repository under `stubbed_testing_data/`. Those files are tracked with [Git LFS](https://git-lfs.com), so a plain clone leaves you with pointer files rather than the recordings themselves. If you installed from source and want the sample session, install Git LFS once per machine and fetch the files:
