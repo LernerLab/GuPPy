@@ -24,9 +24,8 @@ produced, so both optional steps need its outputs on disk.
 ## Marking the periods
 
 1. Select your session folder(s) and output run(s) on the homepage as usual.
-2. Click **Select Artifact Windows**. A page opens in a new browser tab showing
-   the control, signal, and fitted-control traces for one recording site. The main
-   GuPPy tab stays responsive.
+2. Click **Select Artifact Windows**. A page opens in a new browser tab showing one
+   trace of one recording site. The main GuPPy tab stays responsive.
 
    ```{image} ../_static/images/select_artifact_windows_button.png
    :alt: The sidebar with the two optional artifact steps, Select Artifact Windows and Remove Artifacts, positioned between Step 3 Preprocess and Step 4 PSTH Computation
@@ -34,26 +33,30 @@ produced, so both optional steps need its outputs on disk.
    ```
 
    ```{image} ../_static/images/select_artifact_windows.png
-   :alt: The Select Artifact Windows page: a Recording site selector above the control, signal, and fitted-control traces, with a knocked-patchcord dropout shaded orange; below them a row of start and end bounds for that period, the Add period and Apply to all recording sites buttons, the Removal method selector, and Save
+   :alt: The Select Artifact Windows page: Recording site and Trace selectors and a Mark artifacts / Navigate toggle above the signal trace, with a knocked-patchcord dropout shaded orange; below it a row of start and end bounds for that period, the Add period and Apply to all recording sites buttons, the Removal method selector, and Save
    ```
 
-3. Pick the recording site you want to mark with the **Recording site** selector.
-4. Drag horizontally across a trace, over the contaminated stretch. The period appears
-   as a row of start and end bounds below the plot, in **seconds**, and is shaded on all
-   three traces. Refine it from the row: the shading follows as you type, and the arrow
-   keys nudge a bound by 0.1 s at a time. **+ Add period** adds a blank row instead, if
-   you would rather type both bounds.
-
-   Because a drag marks a period, it no longer pans the view; the toolbar above the
-   traces still offers pan and zoom.
+3. Pick the recording site you want to mark with the **Recording site** selector, and
+   the trace to mark it on with the **Trace** selector — the control, the signal, or the
+   signal with the fitted control drawn over it. The periods belong to the recording
+   site, so it makes no difference which of the three you mark from; switch between them
+   to check a stretch against another view of the same moment.
+4. Drag horizontally across the trace, over the contaminated stretch. The period appears
+   as a row of start and end bounds below the plot, in **seconds**. Refine it from the
+   row: the shading follows as you type, and the arrow keys nudge a bound by 0.1 s at a
+   time. **+ Add period** adds a blank row instead, if you would rather type both bounds.
 
    Add a period for each contaminated stretch; the trash button on a row deletes it.
 
-5. If the same artifact appears across every recording site — a motion artifact
+5. To look around the recording rather than mark it, switch the toggle beside the
+   selectors from **Mark artifacts** to **Navigate**: dragging then pans the view
+   instead of marking a period. The scroll wheel zooms in either mode, and switching
+   back to **Mark artifacts** leaves you wherever you had zoomed to.
+6. If the same artifact appears across every recording site — a motion artifact
    usually does, since it hits all sites at the same instant — click **Apply to all
    recording sites** to copy the current site's periods to the others.
-6. Choose the **Removal method** (see below).
-7. Click **Save**.
+7. Choose the **Removal method** (see below).
+8. Click **Save**.
 
 You are marking the periods to **remove**. Everything outside them is kept, so
 marking nothing keeps the entire recording.
@@ -72,6 +75,12 @@ When another run of the same session already has periods saved, the page offers 
 **Copy windows from run** selector. Pick the run and click **Load**: every recording
 site is filled in from it, ready to check against the traces and adjust. Nothing reaches
 disk until you click **Save**.
+
+Recording sites are matched by name, so this works only where both runs gave the site
+the same label in **Step 1: Label Stores**. A site the other run has nothing saved for
+keeps whatever you have already marked, and the page tells you which sites it loaded and
+which it left alone; if the names do not line up at all — `dms` in one run against `d_ms`
+in the other — it says so rather than loading nothing in silence.
 
 ## Trimming extra time from the start
 

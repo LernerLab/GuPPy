@@ -198,7 +198,7 @@ def screenshot_select_artifact_windows(page: Page, tmp_path: Path) -> None:
     template.main.append(selector.widget)
     url = _serve(template)
 
-    # Render tall enough that every trace panel lays out (bokeh does not draw plots that
+    # Render tall enough that the trace panel lays out (bokeh does not draw plots that
     # never enter the viewport), then clip to the content instead of the padded page.
     page.set_viewport_size({"width": 1280, "height": 1700})
     page.goto(url)
@@ -206,7 +206,7 @@ def screenshot_select_artifact_windows(page: Page, tmp_path: Path) -> None:
     page.wait_for_timeout(3000)
     page.screenshot(
         path=OUTPUT_DIR / "select_artifact_windows.png",
-        clip={"x": 0, "y": 0, "width": 1280, "height": 1390},
+        clip={"x": 0, "y": 0, "width": 1280, "height": 1180},
     )
     print("Saved select_artifact_windows.png")
 

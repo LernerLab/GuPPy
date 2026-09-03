@@ -1,6 +1,7 @@
 import json
 import os
 
+import holoviews as hv
 import numpy as np
 import panel as pn
 import pytest
@@ -8,6 +9,11 @@ import pytest
 from guppy.analysis.io_utils import fetchCoords
 from guppy.frontend.artifact_removal import load_pair_traces
 from guppy.frontend.artifact_windows_page import (
+    CONTROL_TRACE,
+    FIT_TRACE,
+    MARK_MODE,
+    NAVIGATE_MODE,
+    SIGNAL_TRACE,
     ArtifactWindowSelector,
     build_artifact_window_page,
 )
@@ -47,6 +53,11 @@ def session_folder(tmp_path):
         with open(os.path.join(str(run_folder), "GuPPyParamtersUsed.json"), "w") as parameters_file:
             json.dump({"removeArtifacts": False, "artifactsRemovalMethod": "replace with NaN"}, parameters_file)
     return session
+
+
+def rendered_figure(selector):
+    """Render the marking plot, which is also what hands the selector its bokeh figure."""
+    return hv.render(selector.marking_pane.object)
 
 
 @pytest.fixture
@@ -391,3 +402,182 @@ class TestCopyWindowsFromAnotherRun:
         unmarked_selector.copy_from_button.clicks += 1
 
         assert unmarked_selector.windows_for("DMS") == [(3.0, 5.0)]
+
+    def test_loading_reports_the_sites_it_filled(self, unmarked_selector):
+        assert unmarked_selector.copy_windows_from_run("1") == "Loaded artifact windows from run 1 for DLS, DMS."
+
+
+class TestCopyWindowsAcrossMismatchedSites:
+    """Recording sites are matched by name, and a run may not label them the same way.
+
+    A site the other run saved nothing for must keep what is marked on it: silently
+    replacing it with nothing discards the user's work with no way back.
+    """
+
+    @pytest.fixture
+    def partly_marked_run(self, session_folder):
+        """Run 1, with a period saved for DMS only."""
+        run_folder = session_folder / "mySession_output_1"
+        np.save(
+            str(run_folder / "coordsForPreProcessing_DMS.npy"),
+            np.array([[bound, 0.0] for bound in (-1.0, 3.0, 5.0, 11.0)]),
+        )
+        return run_folder
+
+    @pytest.fixture
+    def differently_labeled_run(self, session_folder):
+        """Run 1, whose site was labeled ``d_ms`` where this run calls it ``DMS``."""
+        run_folder = session_folder / "mySession_output_1"
+        np.save(
+            str(run_folder / "coordsForPreProcessing_d_ms.npy"),
+            np.array([[bound, 0.0] for bound in (-1.0, 3.0, 5.0, 11.0)]),
+        )
+        return run_folder
+
+    @pytest.fixture
+    def selector_for_run_2(self, panel_extension, session_folder):
+        def build():
+            run_folder = str(session_folder / "mySession_output_2")
+            selector = ArtifactWindowSelector(run_folder, load_pair_traces(run_folder))
+            selector.site_select.value = "DMS"
+            return selector
+
+        return build
+
+    def test_an_unmatched_site_keeps_what_is_marked_on_it(self, selector_for_run_2, partly_marked_run):
+        selector = selector_for_run_2()
+        selector.set_windows("DLS", [(1.0, 2.0)])
+
+        selector.copy_windows_from_run("1")
+
+        assert selector.windows_for("DMS") == [(3.0, 5.0)]
+        assert selector.windows_for("DLS") == [(1.0, 2.0)]
+
+    def test_the_unmatched_site_is_named_in_the_report(self, selector_for_run_2, partly_marked_run):
+        message = selector_for_run_2().copy_windows_from_run("1")
+
+        assert message == ("Loaded artifact windows from run 1 for DMS. Run 1 has none saved for DLS, left as marked.")
+
+    def test_no_matching_site_raises_naming_both_sets(self, selector_for_run_2, differently_labeled_run):
+        with pytest.raises(ValueError) as error:
+            selector_for_run_2().copy_windows_from_run("1")
+
+        assert "no artifact windows saved for DLS or DMS" in str(error.value)
+        assert "it has them for d_ms" in str(error.value)
+
+    def test_no_matching_site_leaves_the_marked_periods_alone(self, selector_for_run_2, differently_labeled_run):
+        selector = selector_for_run_2()
+        selector.set_windows("DMS", [(1.0, 2.0)])
+
+        with pytest.raises(ValueError):
+            selector.copy_windows_from_run("1")
+
+        assert selector.windows_for("DMS") == [(1.0, 2.0)]
+
+    def test_the_button_surfaces_the_failure_instead_of_raising(self, selector_for_run_2, differently_labeled_run):
+        """The click handler reports through the notification path, so nothing escapes it."""
+        selector = selector_for_run_2()
+
+        selector.copy_from_button.clicks += 1
+
+        assert selector.windows_for("DMS") == []
+
+
+class TestTraceSelection:
+    """One trace is marked at a time, so there is a single plot and a single toolbar."""
+
+    def test_offers_the_three_traces_by_store_name(self, selector):
+        assert selector.trace_select.options == {
+            "control_DMS": CONTROL_TRACE,
+            "signal_DMS": SIGNAL_TRACE,
+            "cntrl_sig_fit_DMS": FIT_TRACE,
+        }
+
+    def test_starts_on_the_signal_trace(self, selector):
+        assert selector.trace_select.value == SIGNAL_TRACE
+        assert rendered_figure(selector).title.text.endswith("— signal_DMS")
+
+    def test_choosing_a_trace_redraws_the_plot_on_it(self, selector):
+        selector.trace_select.value = CONTROL_TRACE
+
+        assert rendered_figure(selector).title.text.endswith("— control_DMS")
+
+    def test_the_fit_trace_draws_the_fit_over_the_signal(self, selector):
+        selector.trace_select.value = FIT_TRACE
+        figure = rendered_figure(selector)
+
+        assert figure.title.text.endswith("— cntrl_sig_fit_DMS")
+        # The signal and the fit are separate shaded layers over the same axes.
+        assert len(figure.renderers) == 3
+
+    def test_switching_site_relabels_the_traces_and_keeps_the_choice(self, selector):
+        selector.trace_select.value = CONTROL_TRACE
+
+        selector.site_select.value = "DLS"
+
+        assert selector.trace_select.value == CONTROL_TRACE
+        assert list(selector.trace_select.options) == ["control_DLS", "signal_DLS", "cntrl_sig_fit_DLS"]
+        assert rendered_figure(selector).title.text.endswith("— control_DLS")
+
+    def test_a_drag_marks_the_same_period_whichever_trace_is_shown(self, selector):
+        """The periods belong to the recording site, not to the trace they were drawn on."""
+        selector.trace_select.value = FIT_TRACE
+
+        selector.mark_window_from_drag(3.0, 5.0)
+
+        assert selector.windows_for("DMS") == [(3.0, 5.0)]
+
+    def test_switching_trace_keeps_the_marked_periods_shaded(self, selector):
+        selector.set_windows("DMS", [(3.0, 5.0)])
+
+        selector.trace_select.value = CONTROL_TRACE
+
+        assert selector.spans_pipe.data == [(3.0, 5.0)]
+
+
+class TestInteractionMode:
+    """Marking and navigating are separate modes, because bokeh arms one drag tool at a time."""
+
+    def test_starts_in_marking_mode(self, selector):
+        assert selector.mode_toggle.value == MARK_MODE
+        assert type(rendered_figure(selector).toolbar.active_drag).__name__ == "BoxSelectTool"
+
+    def test_navigating_arms_panning(self, selector):
+        figure = rendered_figure(selector)
+
+        selector.mode_toggle.value = NAVIGATE_MODE
+
+        assert type(figure.toolbar.active_drag).__name__ == "PanTool"
+
+    def test_going_back_to_marking_rearms_the_select_tool(self, selector):
+        figure = rendered_figure(selector)
+        selector.mode_toggle.value = NAVIGATE_MODE
+
+        selector.mode_toggle.value = MARK_MODE
+
+        assert type(figure.toolbar.active_drag).__name__ == "BoxSelectTool"
+
+    def test_switching_mode_does_not_redraw_the_plot(self, selector):
+        """Redrawing would throw away the view the user navigated to."""
+        rendered_figure(selector)
+        plot = selector.marking_pane.object
+
+        selector.mode_toggle.value = NAVIGATE_MODE
+
+        assert selector.marking_pane.object is plot
+
+    def test_scrolling_zooms_in_either_mode(self, selector):
+        figure = rendered_figure(selector)
+
+        for mode in (NAVIGATE_MODE, MARK_MODE):
+            selector.mode_toggle.value = mode
+
+            assert type(figure.toolbar.active_scroll).__name__ == "WheelZoomTool"
+
+    def test_the_mode_carries_over_to_a_redrawn_plot(self, selector):
+        """A trace or site switch rebuilds the plot; it comes back in the selected mode."""
+        selector.mode_toggle.value = NAVIGATE_MODE
+
+        selector.trace_select.value = CONTROL_TRACE
+
+        assert type(rendered_figure(selector).toolbar.active_drag).__name__ == "PanTool"

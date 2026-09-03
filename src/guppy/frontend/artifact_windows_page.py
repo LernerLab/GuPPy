@@ -24,7 +24,11 @@ from ..utils.artifact_windows import (
     windows_to_coords,
 )
 from ..utils.utils import discover_run_folders, parse_run_name
-from ..visualization.preprocessing import build_control_signal_fit, make_spans_pipe
+from ..visualization.preprocessing import (
+    build_markable_trace,
+    make_spans_pipe,
+    set_drag_gesture,
+)
 
 pn.extension(notifications=True)
 
@@ -32,17 +36,29 @@ logger = logging.getLogger(__name__)
 
 ARTIFACT_REMOVAL_METHODS = ["replace with NaN", "concatenate"]
 
+MARK_MODE = "Mark artifacts"
+NAVIGATE_MODE = "Navigate"
+INTERACTION_MODES = [MARK_MODE, NAVIGATE_MODE]
+
+# Which of a recording site's three traces the plot shows, in selector order.
+CONTROL_TRACE, SIGNAL_TRACE, FIT_TRACE = "control", "signal", "fit"
+
 # Seconds per arrow-key press on a window bound, for nudging an edge into place.
 _NUDGE_STEP = 0.1
 _INPUT_WIDTH = 110
 
 _INSTRUCTIONS = (
     "Mark the periods where **artifacts occurred** for each recording site: drag "
-    "horizontally across a trace to mark a period, or type its start and end time "
+    "horizontally across the trace to mark a period, or type its start and end time "
     "(seconds) into a row. Either way the period lands in an editable row below the plot "
     "and the shaded spans update to match, so a bound dragged roughly into place can be "
     "nudged the rest of the way with the arrow keys. Everything outside the marked "
     "periods is kept — mark nothing to keep the entire recording.\n\n"
+    "Switch to **Navigate** to drag the view around instead of marking; the scroll wheel "
+    "zooms in either mode, and switching back to **Mark artifacts** keeps wherever you "
+    "have zoomed to. The **Trace** selector chooses which of the site's three traces you "
+    "mark on — the periods belong to the recording site, so it makes no difference which "
+    "one you mark from.\n\n"
     "A period that reaches the start or the end of the trace trims that end of the "
     "recording outright. This is how a single session gets more taken off its opening "
     "than *Eliminate first few seconds*, which trims every session in the batch alike.\n\n"
@@ -102,9 +118,20 @@ def _margined_span(timestamps: np.ndarray) -> tuple[float, float]:
     return float(timestamps[0]) - dt, float(timestamps[-1]) + dt
 
 
+def _has_saved_windows(filepath: str, site: str) -> bool:
+    """Whether a run folder holds a keep-windows file for one recording site."""
+    return os.path.exists(os.path.join(filepath, f"coordsForPreProcessing_{site}.npy"))
+
+
+def _sites_with_saved_windows(filepath: str) -> list[str]:
+    """The recording sites a run folder holds keep-windows for, in filename order."""
+    prefix = os.path.join(filepath, "coordsForPreProcessing_")
+    return sorted(path[len(prefix) : -len(".npy")] for path in glob.glob(prefix + "*.npy"))
+
+
 def _saved_artifact_windows(filepath: str, site: str, timestamps: np.ndarray) -> list[tuple[float, float]]:
     """Re-derive the marked artifact windows from the keep-windows saved on disk."""
-    if not os.path.exists(os.path.join(filepath, f"coordsForPreProcessing_{site}.npy")):
+    if not _has_saved_windows(filepath, site):
         return []
     keep_windows = coords_to_windows(coords=fetchCoords(filepath, site, timestamps))
     span_start, span_end = _margined_span(timestamps)
@@ -192,6 +219,18 @@ class ArtifactWindowSelector:
         }
 
         self.site_select = pn.widgets.Select(name="Recording site", options=self.sites, value=self.sites[0])
+        self.trace_select = pn.widgets.Select(
+            name="Trace", options=self._trace_options(self.sites[0]), value=SIGNAL_TRACE, width=200
+        )
+        self.mode_toggle = pn.widgets.RadioButtonGroup(
+            name="Drag gesture",
+            options=INTERACTION_MODES,
+            value=MARK_MODE,
+            button_type="primary",
+            button_style="outline",
+            width=240,
+            align="end",
+        )
         self.runs_with_windows = _runs_with_saved_windows(filepath)
         self.copy_from_select = pn.widgets.Select(
             name="Copy windows from run", options=list(self.runs_with_windows), width=200
@@ -205,12 +244,15 @@ class ArtifactWindowSelector:
         self.save_button = pn.widgets.Button(name="Save", button_type="primary")
 
         self.spans_pipe = make_spans_pipe(windows=self.windows_for(self.sites[0]))
+        self.figure = None
         self.marking_pane = pn.pane.HoloViews(self._make_marking_plot(), sizing_mode="stretch_width")
         self.rows_container = pn.Column()
         self._render_rows()
 
         self.site_select.param.watch(self._on_site_change, "value")
-        self.copy_from_button.on_click(lambda event: self.copy_windows_from_run(self.copy_from_select.value))
+        self.trace_select.param.watch(lambda event: self._rebuild_marking_plot(), "value")
+        self.mode_toggle.param.watch(lambda event: self._apply_mode(), "value")
+        self.copy_from_button.on_click(self._on_copy)
         self.add_row_button.on_click(lambda event: self.add_window_row())
         self.apply_to_all_button.on_click(lambda event: self.apply_windows_to_all_sites())
         self.save_button.on_click(self._on_save)
@@ -224,7 +266,7 @@ class ArtifactWindowSelector:
             "# Select Artifact Windows — {}".format(os.path.basename(filepath)),
             pn.pane.Markdown(_INSTRUCTIONS),
             *copy_from_section,
-            self.site_select,
+            pn.Row(self.site_select, self.trace_select, self.mode_toggle),
             self.marking_pane,
             self.rows_container,
             pn.Row(self.add_row_button, self.apply_to_all_button),
@@ -294,16 +336,46 @@ class ArtifactWindowSelector:
             return
         self.add_window_row(low, high)
 
-    def copy_windows_from_run(self, run_name: str) -> None:
-        """Replace every site's periods with those saved for another run of this session.
+    def copy_windows_from_run(self, run_name: str) -> str:
+        """Replace this run's periods with those saved for another run of this session.
+
+        Recording sites are matched by name, so only the sites the other run saved windows
+        for are replaced; the rest keep whatever is currently marked.
 
         The windows are loaded into the editable rows rather than written straight to
         disk, so they can be reviewed and adjusted before Save.
+
+        Returns
+        -------
+        str
+            Message naming the sites that were loaded, for reporting back to the user.
+
+        Raises
+        ------
+        ValueError
+            If the other run saved windows for none of this run's recording sites.
         """
         run_folder = self.runs_with_windows[run_name]
-        for site in self.sites:
+        matched = [site for site in self.sites if _has_saved_windows(run_folder, site)]
+        if not matched:
+            message = (
+                f"Run {run_name} has no artifact windows saved for {' or '.join(self.sites)} — it has "
+                f"them for {', '.join(_sites_with_saved_windows(run_folder))}. Recording sites are matched "
+                "by name, so a site labeled differently in Label Stores cannot be reused; relabel it to "
+                "match, or mark this run by hand."
+            )
+            logger.error(message)
+            raise ValueError(message)
+
+        for site in matched:
             self.set_windows(site, _saved_artifact_windows(run_folder, site, self.pair_traces[site]["x"]))
-        logger.info(f"Loaded artifact windows from run {run_name}.")
+        logger.info(f"Loaded artifact windows from run {run_name} for {', '.join(matched)}.")
+
+        message = f"Loaded artifact windows from run {run_name} for {', '.join(matched)}."
+        skipped = [site for site in self.sites if site not in matched]
+        if skipped:
+            message += f" Run {run_name} has none saved for {', '.join(skipped)}, left as marked."
+        return message
 
     def remove_window_row(self, row_index: int) -> None:
         """Drop one period from the selected site."""
@@ -350,24 +422,61 @@ class ArtifactWindowSelector:
 
     def _on_site_change(self, event: object) -> None:
         self._render_rows()
-        # A new site means new traces, so the layout is rebuilt; give it a fresh pipe
-        # so the discarded plot stops receiving updates.
+        self.trace_select.options = self._trace_options(self.site_select.value)
+        self._rebuild_marking_plot()
+
+    def _trace_options(self, site: str) -> dict[str, str]:
+        """Label each of the site's three traces by the store it came from."""
+        control_name, signal_name, fit_name = self.pair_traces[site]["plot_name"]
+        return {control_name: CONTROL_TRACE, signal_name: SIGNAL_TRACE, fit_name: FIT_TRACE}
+
+    def _rebuild_marking_plot(self) -> None:
+        """Redraw the plot for the selected site and trace, on a fresh span stream.
+
+        The plot is a new object, so the discarded one is given up along with its pipe.
+        """
         self.spans_pipe = make_spans_pipe(windows=self.windows_for(self.site_select.value))
+        self.figure = None
         self.marking_pane.object = self._make_marking_plot()
 
     def _make_marking_plot(self) -> object:
-        site = self.site_select.value
-        trace = self.pair_traces[site]
-        return build_control_signal_fit(
+        trace = self.pair_traces[self.site_select.value]
+        control_name, signal_name, fit_name = trace["plot_name"]
+        choice = self.trace_select.value
+        values, overlay, title = {
+            CONTROL_TRACE: (trace["control"], None, control_name),
+            SIGNAL_TRACE: (trace["signal"], None, signal_name),
+            FIT_TRACE: (trace["signal"], trace["fit"], fit_name),
+        }[choice]
+        return build_markable_trace(
             x=trace["x"],
-            control=trace["control"],
-            signal=trace["signal"],
-            fit=trace["fit"],
-            titles=trace["plot_name"],
-            suptitle=os.path.basename(self.filepath),
+            values=values,
+            overlay=overlay,
+            title=f"{os.path.basename(self.filepath)} — {title}",
             spans=self.spans_pipe,
             on_x_select=self.mark_window_from_drag,
+            hooks=[self._capture_figure],
         )
+
+    def _capture_figure(self, plot: object, element: object) -> None:
+        """Hold on to the rendered figure so the mode toggle can re-arm its drag tool."""
+        self.figure = plot.state
+        self._apply_mode()
+
+    def _apply_mode(self) -> None:
+        """Arm the plot's drag gesture for the selected mode, if it has been rendered."""
+        if self.figure is not None:
+            set_drag_gesture(figure=self.figure, marking=self.mode_toggle.value == MARK_MODE)
+
+    def _on_copy(self, event: object) -> None:
+        try:
+            message = self.copy_windows_from_run(self.copy_from_select.value)
+        except ValueError as error:
+            if pn.state.notifications is not None:
+                pn.state.notifications.error(str(error), duration=0)
+            return
+        if pn.state.notifications is not None:
+            pn.state.notifications.success(message, duration=4000)
 
     def _on_save(self, event: object) -> None:
         try:
