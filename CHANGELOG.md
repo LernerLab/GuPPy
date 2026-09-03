@@ -1,4 +1,14 @@
-# v2.0.0-beta2 (Upcoming)
+# v2.0.0-beta3 (Upcoming)
+
+## Features
+
+## Fixes
+
+## Improvements
+
+## Deprecations and Removals
+
+# v2.0.0-beta2 (September 3rd, 2026)
 
 ## Features
 - Added a **Compute PSTH Significance?** parameter: a bootstrap confidence interval at every timepoint marks which stretches of the PSTH window differ from baseline, and which differ between a named pair of events. Runs in Step 4 over a session's trials and in Group Analysis over a group's session averages, writing `psth_significance_output/` and a new **Significance** tab in Step 5. [PR #453](https://github.com/LernerLab/GuPPy/pull/453)
