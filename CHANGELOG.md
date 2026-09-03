@@ -3,6 +3,7 @@
 ## Features
 
 ## Fixes
+- Fixed the README's documentation links, which all carried an `/en/latest/` path prefix that 404s on the single-version Read the Docs project. [PR #469](https://github.com/LernerLab/GuPPy/pull/469)
 
 ## Improvements
 - The documentation now explains why `.h5` and `.hdf5` outputs need different readers, rather than only warning that they do: `.h5` files are written by pandas in its fixed format, so reading one with h5py shows the table decomposed into its storage blocks instead of its columns. [PR #470](https://github.com/LernerLab/GuPPy/pull/470)
