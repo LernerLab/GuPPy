@@ -61,7 +61,7 @@ import pandas as pd
 psth = pd.read_hdf(run_folder / "RewardPort_A_z_score_A.h5", key="df")
 ```
 
-Reaching for the wrong reader is worth doing once deliberately, because it does not raise. Open a `.h5` with h5py and you get the storage layout pandas uses underneath instead of your columns:
+Both extensions are HDF5; what differs is who wrote the file. GuPPy writes `.hdf5` with h5py, so every dataset sits under the name GuPPy gave it. It writes `.h5` with `DataFrame.to_hdf`, which stores the frame the way pandas holds it in memory — columns grouped by dtype into blocks, with the labels kept alongside as separate arrays. Open one with h5py and you see that decomposition:
 
 ```python
 with h5py.File(run_folder / "RewardPort_A_z_score_A.h5", "r") as psth_file:
@@ -72,7 +72,11 @@ with h5py.File(run_folder / "RewardPort_A_z_score_A.h5", "r") as psth_file:
 ['axis0', 'axis1', 'block0_items', 'block0_values']
 ```
 
-Those are PyTables internals. Use `pandas.read_hdf` on `.h5`, `h5py` on `.hdf5`. The [Output data model](../reference/outputs.md) reference lists which files are which.
+`axis0` is the column labels, `axis1` the row index, and `block0_values` the numbers. The table is all there, just taken apart; `pandas.read_hdf` is what puts it back together, which is why it is the reader to use.
+
+If you do read a `.h5` without pandas, mind the blocks. A table whose columns are not all one dtype is split across `block0_values`, `block1_values` and so on, and that grouping does not follow the column order in `axis0`. Pairing the two up positionally silently mislabels columns — match `axis0` against each block's own `block<N>_items` instead.
+
+The [Output data model](../reference/outputs.md) reference lists which files are which.
 
 ## What is in the run folder
 
@@ -257,7 +261,7 @@ The areas look large next to the peaks because the default **AUC Units** setting
 
 ## Gotchas
 
-- **`.hdf5` opens with h5py, `.h5` with `pandas.read_hdf`.** Mixing them up does not raise, it just gives you the wrong thing.
+- **`.hdf5` opens with h5py, `.h5` with `pandas.read_hdf`.** A `.h5` read with h5py does not raise — you get the table decomposed into pandas' storage blocks rather than its columns.
 - **Use the Step 3 files, not the Step 2 ones.** A run folder holds two sets: `Sample_Signal_Channel.hdf5`, named after the raw channel, holds the untrimmed data straight from the acquisition file, and on TDT recordings its `data` and `timestamps` are not even the same length. `signal_A.hdf5`, named after the label you assigned, holds the trimmed and filtered version that everything downstream is aligned to.
 - **`timestamps` means three different things.** Session time in an `.hdf5`, time relative to the event in a PSTH `.h5`, and lag in seconds in a cross-correlation `.h5`.
 - **The sampling rate lives in `timeCorrection_<site>.hdf5`.** It is not an HDF5 attribute and it is not in the tables.
