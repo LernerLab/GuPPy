@@ -1,10 +1,13 @@
 import holoviews as hv
 import numpy as np
 import pytest
+from bokeh.models import BoxSelectTool, Plot
 
 from guppy.visualization.preprocessing import (
     build_control_signal_fit,
+    build_markable_trace,
     make_spans_pipe,
+    set_drag_gesture,
 )
 from guppy_test_data import resolve_plot
 
@@ -16,6 +19,29 @@ def image_extent(image):
     are what carry the extent of the trace that was drawn into it.
     """
     return tuple(float(value) for value in image.bounds.lbrt())
+
+
+def bounds_streams_created_by(build):
+    """Run ``build`` and return the plot with the ``BoundsX`` streams it registered.
+
+    Streams register themselves against their source in a process-wide registry, so the
+    ones this call added are found by differencing the registry around it. The snapshot
+    holds the stream objects themselves rather than their ids, because a stream left by
+    an earlier test can be collected and its id handed to one of ours.
+    """
+
+    def registered():
+        return [
+            stream
+            for streams in hv.streams.Stream.registry.values()
+            for stream in streams
+            if isinstance(stream, hv.streams.BoundsX)
+        ]
+
+    before = registered()
+    plot = build()
+    added = [stream for stream in registered() if not any(stream is seen for seen in before)]
+    return plot, added
 
 
 @pytest.fixture
@@ -203,3 +229,124 @@ class TestPanelSizing:
     def test_every_panel_keeps_its_title(self, rendered_plots):
         titles = {plot.title.text for plot in rendered_plots([])}
         assert titles == {"session — control", "signal", "fit", "z_score"}
+
+
+class TestBuildMarkableTrace:
+    """The marking page draws one trace at a time, and a drag across it reports its bounds."""
+
+    @pytest.fixture
+    def build(self, panel_extension):
+        def build(on_x_select=lambda start, end: None, overlay=None, hooks=None):
+            x = np.arange(0.0, 50.0, 0.1)
+            return build_markable_trace(
+                x=x,
+                values=np.sin(x),
+                overlay=overlay,
+                title="session — signal",
+                spans=make_spans_pipe(windows=[(1.0, 2.0)]),
+                on_x_select=on_x_select,
+                hooks=hooks,
+            )
+
+        return build
+
+    @pytest.fixture
+    def rendered(self, build):
+        def rendered(**kwargs):
+            plots = [model for model in hv.render(build(**kwargs)).references() if isinstance(model, Plot)]
+            assert len(plots) == 1
+            return plots[0]
+
+        return rendered
+
+    def test_draws_a_single_panel(self, rendered):
+        plot = rendered()
+
+        assert (plot.title.text, plot.sizing_mode, plot.width, plot.height) == (
+            "session — signal",
+            "stretch_width",
+            None,
+            420,
+        )
+
+    def test_shades_the_windows_it_was_given(self, build):
+        span_element = [item for item in resolve_plot(build()).values() if isinstance(item, hv.VSpans)][0]
+
+        np.testing.assert_array_equal(span_element.dimension_values("x0"), np.array([1.0]))
+        np.testing.assert_array_equal(span_element.dimension_values("x1"), np.array([2.0]))
+
+    def test_a_drag_reports_the_bounds_it_covered(self, build):
+        dragged = []
+        _, streams = bounds_streams_created_by(lambda: build(lambda start, end: dragged.append((start, end))))
+
+        assert len(streams) == 1
+        streams[0].event(boundsx=(3.0, 7.0))
+
+        assert dragged == [(3.0, 7.0)]
+
+    def test_offers_a_horizontal_select_tool(self, rendered):
+        select_tools = [tool for tool in rendered().toolbar.tools if isinstance(tool, BoxSelectTool)]
+
+        assert [tool.dimensions for tool in select_tools] == ["width"]
+
+    def test_dragging_marks_and_scrolling_still_zooms(self, rendered):
+        """Naming the select tool must not cost the wheel zoom that comes with it."""
+        toolbar = rendered().toolbar
+
+        assert type(toolbar.active_drag).__name__ == "BoxSelectTool"
+        assert type(toolbar.active_scroll).__name__ == "WheelZoomTool"
+
+    def test_overlay_is_drawn_over_the_trace(self, build):
+        x = np.arange(0.0, 50.0, 0.1)
+        images = [item for item in resolve_plot(build(overlay=np.cos(x))).values() if isinstance(item, hv.RGB)]
+
+        assert len(images) == 2
+
+    def test_hooks_receive_the_rendered_figure(self, build):
+        captured = []
+        plot = build(hooks=[lambda plot, element: captured.append(plot.state)])
+        figure = hv.render(plot)
+
+        assert captured and all(state is figure for state in captured)
+
+
+class TestSetDragGesture:
+    """Switching modes re-arms the live figure instead of redrawing it, so zoom survives."""
+
+    @pytest.fixture
+    def figure(self, panel_extension):
+        x = np.arange(0.0, 50.0, 0.1)
+        plot = build_markable_trace(
+            x=x,
+            values=np.sin(x),
+            title="session — signal",
+            spans=make_spans_pipe(windows=[]),
+            on_x_select=lambda start, end: None,
+        )
+        return [model for model in hv.render(plot).references() if isinstance(model, Plot)][0]
+
+    def test_navigating_arms_panning(self, figure):
+        set_drag_gesture(figure=figure, marking=False)
+
+        assert type(figure.toolbar.active_drag).__name__ == "PanTool"
+
+    def test_marking_arms_the_select_tool(self, figure):
+        set_drag_gesture(figure=figure, marking=False)
+
+        set_drag_gesture(figure=figure, marking=True)
+
+        assert type(figure.toolbar.active_drag).__name__ == "BoxSelectTool"
+
+    def test_the_zoomed_range_is_left_alone(self, figure):
+        """The view the user navigated to is what a mode switch must not throw away."""
+        figure.x_range.start, figure.x_range.end = 10.0, 20.0
+
+        set_drag_gesture(figure=figure, marking=True)
+
+        assert (figure.x_range.start, figure.x_range.end) == (10.0, 20.0)
+
+    def test_scrolling_keeps_zooming_in_either_mode(self, figure):
+        for marking in (False, True):
+            set_drag_gesture(figure=figure, marking=marking)
+
+            assert type(figure.toolbar.active_scroll).__name__ == "WheelZoomTool"

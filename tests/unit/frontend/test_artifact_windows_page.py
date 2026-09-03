@@ -1,6 +1,7 @@
 import json
 import os
 
+import holoviews as hv
 import numpy as np
 import panel as pn
 import pytest
@@ -8,6 +9,11 @@ import pytest
 from guppy.analysis.io_utils import fetchCoords
 from guppy.frontend.artifact_removal import load_pair_traces
 from guppy.frontend.artifact_windows_page import (
+    CONTROL_TRACE,
+    FIT_TRACE,
+    MARK_MODE,
+    NAVIGATE_MODE,
+    SIGNAL_TRACE,
     ArtifactWindowSelector,
     build_artifact_window_page,
 )
@@ -33,6 +39,25 @@ def run_folder(tmp_path):
     with open(os.path.join(str(tmp_path), "GuPPyParamtersUsed.json"), "w") as parameters_file:
         json.dump({"removeArtifacts": False, "artifactsRemovalMethod": "replace with NaN"}, parameters_file)
     return tmp_path
+
+
+@pytest.fixture
+def session_folder(tmp_path):
+    """A session holding two runs of the same recording, neither one marked yet."""
+    session = tmp_path / "mySession"
+    for run_name in ("1", "2"):
+        run_folder = session / f"mySession_output_{run_name}"
+        run_folder.mkdir(parents=True)
+        for site in ("DMS", "DLS"):
+            _write_site(run_folder, site)
+        with open(os.path.join(str(run_folder), "GuPPyParamtersUsed.json"), "w") as parameters_file:
+            json.dump({"removeArtifacts": False, "artifactsRemovalMethod": "replace with NaN"}, parameters_file)
+    return session
+
+
+def rendered_figure(selector):
+    """Render the marking plot, which is also what hands the selector its bokeh figure."""
+    return hv.render(selector.marking_pane.object)
 
 
 @pytest.fixture
@@ -77,16 +102,39 @@ class TestArtifactWindowSelector:
         saved = np.load(str(run_folder / "coordsForPreProcessing_DMS.npy"))
         np.testing.assert_array_equal(saved[:, 0], np.array([-1.0, 3.0, 5.0, 11.0]))
 
+    def test_period_reaching_the_start_trims_the_opening(self, selector, run_folder):
+        """Marking from the start of the trace is how one session loses more of its opening."""
+        selector.set_windows("DMS", [(0.0, 3.0)])
+
+        selector.save()
+
+        np.testing.assert_array_equal(fetchCoords(str(run_folder), "DMS", TIMESTAMPS), np.array([[3.0, 11.0]]))
+
+    def test_period_reaching_the_end_trims_the_tail(self, selector, run_folder):
+        selector.set_windows("DMS", [(8.0, 10.0)])
+
+        selector.save()
+
+        np.testing.assert_array_equal(fetchCoords(str(run_folder), "DMS", TIMESTAMPS), np.array([[-1.0, 8.0]]))
+
+    def test_period_marked_into_the_margin_is_accepted(self, selector, run_folder):
+        """The bounds run one sample past the recording, so the edge is reachable."""
+        selector.set_windows("DMS", [(-1.0, 3.0)])
+
+        selector.save()
+
+        np.testing.assert_array_equal(fetchCoords(str(run_folder), "DMS", TIMESTAMPS), np.array([[3.0, 11.0]]))
+
     def test_save_with_nothing_marked_writes_no_file(self, selector, run_folder):
         selector.save()
 
         assert not (run_folder / "coordsForPreProcessing_DMS.npy").exists()
         assert not (run_folder / "coordsForPreProcessing_DLS.npy").exists()
 
-    def test_save_raises_when_window_outside_timespan(self, selector, run_folder):
-        selector.set_windows("DMS", [(8.0, 15.0)])
+    def test_save_raises_when_window_lies_entirely_outside_the_recording(self, selector, run_folder):
+        selector.set_windows("DMS", [(20.0, 30.0)])
 
-        with pytest.raises(ValueError, match="outside the recording timespan"):
+        with pytest.raises(ValueError, match="lies entirely outside the recording timespan"):
             selector.save()
 
         assert not (run_folder / "coordsForPreProcessing_DMS.npy").exists()
@@ -96,6 +144,85 @@ class TestArtifactWindowSelector:
 
         with pytest.raises(ValueError, match="must be less than"):
             selector.save()
+
+
+class TestClampingBoundsIntoTheRecording:
+    """A bound outside the recording is pulled in rather than refused, and reported.
+
+    Bokeh clamps a typed bound against the input's limits, but only after the value has
+    reached the server once — so refusing an out-of-range bound failed on the first Save
+    and silently succeeded on the next, having quietly rewritten it.
+    """
+
+    def test_a_bound_past_the_end_is_pulled_to_the_end(self, selector, run_folder):
+        selector.set_windows("DMS", [(8.0, 15.0)])
+
+        selector.save()
+
+        np.testing.assert_array_equal(fetchCoords(str(run_folder), "DMS", TIMESTAMPS), np.array([[-1.0, 8.0]]))
+
+    def test_a_bound_before_the_start_is_pulled_to_the_start(self, selector, run_folder):
+        selector.set_windows("DMS", [(-40.0, 3.0)])
+
+        selector.save()
+
+        np.testing.assert_array_equal(fetchCoords(str(run_folder), "DMS", TIMESTAMPS), np.array([[3.0, 11.0]]))
+
+    def test_saving_names_the_bound_the_recording_edge_and_the_outcome(self, selector):
+        selector.set_windows("DMS", [(8.0, 15.0)])
+
+        assert selector.save() == [
+            "On recording site DMS, the window ending at 15 s ran past the recording, which ends at "
+            "10 s, so its end was moved to the end of the recording."
+        ]
+
+    def test_a_window_outside_at_both_ends_reports_both_bounds_under_one_site(self, selector):
+        selector.set_windows("DMS", [(-40.0, 15.0)])
+
+        assert selector.save() == [
+            "On recording site DMS, the window starting at -40 s began before the recording, which "
+            "starts at 0 s, so its start was moved to the start of the recording; the window ending "
+            "at 15 s ran past the recording, which ends at 10 s, so its end was moved to the end of "
+            "the recording."
+        ]
+
+    def test_the_pulled_in_bound_is_written_back_into_its_row(self, selector):
+        """The row is the record of what was saved, so it must not still show 15."""
+        selector.set_windows("DMS", [(8.0, 15.0)])
+
+        selector.save()
+
+        assert selector.windows_for("DMS") == [(8.0, 11.0)]
+
+    def test_saving_again_reports_nothing_further(self, selector):
+        """Once pulled in, the same period saves unchanged — no first-time-only surprise."""
+        selector.set_windows("DMS", [(8.0, 15.0)])
+        selector.save()
+
+        assert selector.save() == []
+
+    def test_a_bound_inside_the_recording_is_left_alone(self, selector):
+        selector.set_windows("DMS", [(3.0, 5.0)])
+
+        assert selector.save() == []
+        assert selector.windows_for("DMS") == [(3.0, 5.0)]
+
+    def test_reaching_an_edge_is_not_reported_as_clamping(self, selector):
+        """A period marked to the margin already sits on the span, so nothing moves."""
+        selector.set_windows("DMS", [(-1.0, 3.0)])
+
+        assert selector.save() == []
+
+    def test_every_site_is_reported(self, selector):
+        selector.set_windows("DMS", [(8.0, 15.0)])
+        selector.set_windows("DLS", [(-40.0, 3.0)])
+
+        assert sorted(selector.save()) == [
+            "On recording site DLS, the window starting at -40 s began before the recording, which "
+            "starts at 0 s, so its start was moved to the start of the recording.",
+            "On recording site DMS, the window ending at 15 s ran past the recording, which ends at "
+            "10 s, so its end was moved to the end of the recording.",
+        ]
 
     def test_save_records_removal_method_in_snapshot(self, selector, run_folder):
         selector.set_windows("DMS", [(3.0, 5.0)])
@@ -150,6 +277,62 @@ class TestArtifactWindowSelector:
         assert len(selector.site_to_rows["DMS"]) == 2
         # Blank rows are not yet windows, so they do not shade or save.
         assert selector.windows_for("DMS") == []
+
+    def test_drag_marks_a_period(self, selector):
+        selector.mark_window_from_drag(3.0, 5.0)
+
+        assert selector.windows_for("DMS") == [(3.0, 5.0)]
+
+    def test_drag_shades_the_period_it_marked(self, selector):
+        selector.mark_window_from_drag(3.0, 5.0)
+
+        assert selector.spans_pipe.data == [(3.0, 5.0)]
+
+    def test_drag_bounds_are_ordered_and_rounded(self, selector):
+        """Dragging right-to-left marks the same period, to the millisecond."""
+        selector.mark_window_from_drag(5.00048, 3.00012)
+
+        assert selector.windows_for("DMS") == [(3.0, 5.0)]
+
+    def test_drag_past_the_edge_marks_up_to_the_edge(self, selector):
+        selector.mark_window_from_drag(-40.0, 5.0)
+
+        assert selector.windows_for("DMS") == [(-1.0, 5.0)]
+
+    def test_drag_past_the_edge_reports_the_clamp(self, selector):
+        assert selector.mark_window_from_drag(-40.0, 5.0) == (
+            "The drag began before the recording, which starts at 0 s, so the period was marked "
+            "from the start of the recording."
+        )
+
+    def test_a_drag_past_both_edges_reports_both(self, selector):
+        assert selector.mark_window_from_drag(-40.0, 40.0) == (
+            "The drag began before the recording, which starts at 0 s, so the period was marked "
+            "from the start of the recording. "
+            "The drag ran past the recording, which ends at 10 s, so the period was marked up to "
+            "the end of the recording."
+        )
+
+    def test_drag_inside_the_recording_reports_nothing(self, selector):
+        assert selector.mark_window_from_drag(3.0, 5.0) is None
+
+    def test_a_clamped_drag_saves_without_being_pulled_in_again(self, selector):
+        """The clamped bound lands on the span exactly, so Save has nothing left to move."""
+        selector.mark_window_from_drag(-40.0, 5.0)
+
+        assert selector.save() == []
+
+    def test_a_click_marks_nothing(self, selector):
+        """A press without a drag covers no time, so it is not a period."""
+        selector.mark_window_from_drag(4.0, 4.0)
+
+        assert selector.windows_for("DMS") == []
+        assert selector.site_to_rows["DMS"] == []
+
+    def test_drag_marks_only_the_selected_site(self, selector):
+        selector.mark_window_from_drag(3.0, 5.0)
+
+        assert selector.windows_for("DLS") == []
 
     def test_remove_period_drops_that_row(self, selector):
         selector.set_windows("DMS", [(1.0, 2.0), (6.0, 7.0)])
@@ -249,3 +432,254 @@ class TestBuildArtifactWindowPage:
         page = build_artifact_window_page(run_folders=[str(folder_a), str(folder_b)])
         run_folder_selectors = [w for w in page.select(pn.widgets.Select) if w.name == "Run folder"]
         assert len(run_folder_selectors) == 1
+
+
+class TestCopyWindowsFromAnotherRun:
+    """Artifact windows are a property of the recording, so a second run can reuse them."""
+
+    @pytest.fixture
+    def marked_run(self, session_folder):
+        """Run 1, with a different period marked for each recording site."""
+        run_folder = session_folder / "mySession_output_1"
+        for site, coords in (("DMS", [-1.0, 3.0, 5.0, 11.0]), ("DLS", [-1.0, 7.0, 9.0, 11.0])):
+            np.save(
+                str(run_folder / f"coordsForPreProcessing_{site}.npy"),
+                np.array([[bound, 0.0] for bound in coords]),
+            )
+        return run_folder
+
+    @pytest.fixture
+    def unmarked_selector(self, panel_extension, session_folder, marked_run):
+        run_folder = str(session_folder / "mySession_output_2")
+        selector = ArtifactWindowSelector(run_folder, load_pair_traces(run_folder))
+        selector.site_select.value = "DMS"
+        return selector
+
+    def test_offers_the_other_run_that_has_windows(self, unmarked_selector):
+        assert list(unmarked_selector.runs_with_windows) == ["1"]
+
+    def test_does_not_offer_a_run_with_no_windows_saved(self, panel_extension, session_folder):
+        run_folder = str(session_folder / "mySession_output_2")
+        selector = ArtifactWindowSelector(run_folder, load_pair_traces(run_folder))
+
+        assert selector.runs_with_windows == {}
+
+    def test_control_is_hidden_when_no_other_run_has_windows(self, panel_extension, session_folder):
+        run_folder = str(session_folder / "mySession_output_2")
+        selector = ArtifactWindowSelector(run_folder, load_pair_traces(run_folder))
+
+        assert selector.copy_from_select not in selector.widget.select(pn.widgets.Select)
+
+    def test_loading_fills_every_recording_site(self, unmarked_selector):
+        unmarked_selector.copy_windows_from_run("1")
+
+        assert unmarked_selector.windows_for("DMS") == [(3.0, 5.0)]
+        assert unmarked_selector.windows_for("DLS") == [(7.0, 9.0)]
+
+    def test_loading_shades_the_selected_site(self, unmarked_selector):
+        unmarked_selector.copy_windows_from_run("1")
+
+        assert unmarked_selector.spans_pipe.data == [(3.0, 5.0)]
+
+    def test_loaded_windows_are_editable_before_saving(self, unmarked_selector, session_folder):
+        """Loading fills the rows; nothing is written until Save."""
+        unmarked_selector.copy_windows_from_run("1")
+        unmarked_selector.site_to_rows["DMS"][0].end_input.value = 6.0
+
+        assert not (session_folder / "mySession_output_2" / "coordsForPreProcessing_DMS.npy").exists()
+
+        unmarked_selector.save()
+
+        coords = fetchCoords(str(session_folder / "mySession_output_2"), "DMS", TIMESTAMPS)
+        np.testing.assert_array_equal(coords, np.array([[-1.0, 3.0], [6.0, 11.0]]))
+
+    def test_loading_replaces_whatever_was_already_marked(self, unmarked_selector):
+        unmarked_selector.set_windows("DMS", [(1.0, 2.0)])
+
+        unmarked_selector.copy_windows_from_run("1")
+
+        assert unmarked_selector.windows_for("DMS") == [(3.0, 5.0)]
+
+    def test_the_button_loads_the_selected_run(self, unmarked_selector):
+        unmarked_selector.copy_from_button.clicks += 1
+
+        assert unmarked_selector.windows_for("DMS") == [(3.0, 5.0)]
+
+    def test_loading_reports_the_sites_it_filled(self, unmarked_selector):
+        assert unmarked_selector.copy_windows_from_run("1") == "Loaded artifact windows from run 1 for DLS, DMS."
+
+
+class TestCopyWindowsAcrossMismatchedSites:
+    """Recording sites are matched by name, and a run may not label them the same way.
+
+    A site the other run saved nothing for must keep what is marked on it: silently
+    replacing it with nothing discards the user's work with no way back.
+    """
+
+    @pytest.fixture
+    def partly_marked_run(self, session_folder):
+        """Run 1, with a period saved for DMS only."""
+        run_folder = session_folder / "mySession_output_1"
+        np.save(
+            str(run_folder / "coordsForPreProcessing_DMS.npy"),
+            np.array([[bound, 0.0] for bound in (-1.0, 3.0, 5.0, 11.0)]),
+        )
+        return run_folder
+
+    @pytest.fixture
+    def differently_labeled_run(self, session_folder):
+        """Run 1, whose site was labeled ``d_ms`` where this run calls it ``DMS``."""
+        run_folder = session_folder / "mySession_output_1"
+        np.save(
+            str(run_folder / "coordsForPreProcessing_d_ms.npy"),
+            np.array([[bound, 0.0] for bound in (-1.0, 3.0, 5.0, 11.0)]),
+        )
+        return run_folder
+
+    @pytest.fixture
+    def selector_for_run_2(self, panel_extension, session_folder):
+        def build():
+            run_folder = str(session_folder / "mySession_output_2")
+            selector = ArtifactWindowSelector(run_folder, load_pair_traces(run_folder))
+            selector.site_select.value = "DMS"
+            return selector
+
+        return build
+
+    def test_an_unmatched_site_keeps_what_is_marked_on_it(self, selector_for_run_2, partly_marked_run):
+        selector = selector_for_run_2()
+        selector.set_windows("DLS", [(1.0, 2.0)])
+
+        selector.copy_windows_from_run("1")
+
+        assert selector.windows_for("DMS") == [(3.0, 5.0)]
+        assert selector.windows_for("DLS") == [(1.0, 2.0)]
+
+    def test_the_unmatched_site_is_named_in_the_report(self, selector_for_run_2, partly_marked_run):
+        message = selector_for_run_2().copy_windows_from_run("1")
+
+        assert message == ("Loaded artifact windows from run 1 for DMS. Run 1 has none saved for DLS, left as marked.")
+
+    def test_no_matching_site_raises_naming_both_sets(self, selector_for_run_2, differently_labeled_run):
+        with pytest.raises(ValueError) as error:
+            selector_for_run_2().copy_windows_from_run("1")
+
+        assert "no artifact windows saved for DLS or DMS" in str(error.value)
+        assert "it has them for d_ms" in str(error.value)
+
+    def test_no_matching_site_leaves_the_marked_periods_alone(self, selector_for_run_2, differently_labeled_run):
+        selector = selector_for_run_2()
+        selector.set_windows("DMS", [(1.0, 2.0)])
+
+        with pytest.raises(ValueError):
+            selector.copy_windows_from_run("1")
+
+        assert selector.windows_for("DMS") == [(1.0, 2.0)]
+
+    def test_the_button_surfaces_the_failure_instead_of_raising(self, selector_for_run_2, differently_labeled_run):
+        """The click handler reports through the notification path, so nothing escapes it."""
+        selector = selector_for_run_2()
+
+        selector.copy_from_button.clicks += 1
+
+        assert selector.windows_for("DMS") == []
+
+
+class TestTraceSelection:
+    """One trace is marked at a time, so there is a single plot and a single toolbar."""
+
+    def test_offers_the_three_traces_by_store_name(self, selector):
+        assert selector.trace_select.options == {
+            "control_DMS": CONTROL_TRACE,
+            "signal_DMS": SIGNAL_TRACE,
+            "cntrl_sig_fit_DMS": FIT_TRACE,
+        }
+
+    def test_starts_on_the_signal_trace(self, selector):
+        assert selector.trace_select.value == SIGNAL_TRACE
+        assert rendered_figure(selector).title.text.endswith("— signal_DMS")
+
+    def test_choosing_a_trace_redraws_the_plot_on_it(self, selector):
+        selector.trace_select.value = CONTROL_TRACE
+
+        assert rendered_figure(selector).title.text.endswith("— control_DMS")
+
+    def test_the_fit_trace_draws_the_fit_over_the_signal(self, selector):
+        selector.trace_select.value = FIT_TRACE
+        figure = rendered_figure(selector)
+
+        assert figure.title.text.endswith("— cntrl_sig_fit_DMS")
+        # The signal and the fit are separate shaded layers over the same axes.
+        assert len(figure.renderers) == 3
+
+    def test_switching_site_relabels_the_traces_and_keeps_the_choice(self, selector):
+        selector.trace_select.value = CONTROL_TRACE
+
+        selector.site_select.value = "DLS"
+
+        assert selector.trace_select.value == CONTROL_TRACE
+        assert list(selector.trace_select.options) == ["control_DLS", "signal_DLS", "cntrl_sig_fit_DLS"]
+        assert rendered_figure(selector).title.text.endswith("— control_DLS")
+
+    def test_a_drag_marks_the_same_period_whichever_trace_is_shown(self, selector):
+        """The periods belong to the recording site, not to the trace they were drawn on."""
+        selector.trace_select.value = FIT_TRACE
+
+        selector.mark_window_from_drag(3.0, 5.0)
+
+        assert selector.windows_for("DMS") == [(3.0, 5.0)]
+
+    def test_switching_trace_keeps_the_marked_periods_shaded(self, selector):
+        selector.set_windows("DMS", [(3.0, 5.0)])
+
+        selector.trace_select.value = CONTROL_TRACE
+
+        assert selector.spans_pipe.data == [(3.0, 5.0)]
+
+
+class TestInteractionMode:
+    """Marking and navigating are separate modes, because bokeh arms one drag tool at a time."""
+
+    def test_starts_in_marking_mode(self, selector):
+        assert selector.mode_toggle.value == MARK_MODE
+        assert type(rendered_figure(selector).toolbar.active_drag).__name__ == "BoxSelectTool"
+
+    def test_navigating_arms_panning(self, selector):
+        figure = rendered_figure(selector)
+
+        selector.mode_toggle.value = NAVIGATE_MODE
+
+        assert type(figure.toolbar.active_drag).__name__ == "PanTool"
+
+    def test_going_back_to_marking_rearms_the_select_tool(self, selector):
+        figure = rendered_figure(selector)
+        selector.mode_toggle.value = NAVIGATE_MODE
+
+        selector.mode_toggle.value = MARK_MODE
+
+        assert type(figure.toolbar.active_drag).__name__ == "BoxSelectTool"
+
+    def test_switching_mode_does_not_redraw_the_plot(self, selector):
+        """Redrawing would throw away the view the user navigated to."""
+        rendered_figure(selector)
+        plot = selector.marking_pane.object
+
+        selector.mode_toggle.value = NAVIGATE_MODE
+
+        assert selector.marking_pane.object is plot
+
+    def test_scrolling_zooms_in_either_mode(self, selector):
+        figure = rendered_figure(selector)
+
+        for mode in (NAVIGATE_MODE, MARK_MODE):
+            selector.mode_toggle.value = mode
+
+            assert type(figure.toolbar.active_scroll).__name__ == "WheelZoomTool"
+
+    def test_the_mode_carries_over_to_a_redrawn_plot(self, selector):
+        """A trace or site switch rebuilds the plot; it comes back in the selected mode."""
+        selector.mode_toggle.value = NAVIGATE_MODE
+
+        selector.trace_select.value = CONTROL_TRACE
+
+        assert type(rendered_figure(selector).toolbar.active_drag).__name__ == "PanTool"
