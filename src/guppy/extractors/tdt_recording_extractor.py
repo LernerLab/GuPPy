@@ -15,6 +15,10 @@ from guppy.utils._hdf5_io import write_hdf5
 
 logger = logging.getLogger(__name__)
 
+# Bytes fetched per read of the .tev file. Large sequential reads keep the number of
+# round trips small when the tank lives on a network share.
+TEV_CHUNK_BYTES = 32 * 1024 * 1024
+
 
 class TdtRecordingExtractor(BaseRecordingExtractor):
     """
@@ -109,7 +113,67 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         logger.info("Data from tsq file fetched.")
         return df, flag
 
-    def _readtev(self, event: str) -> dict[str, object]:
+    @staticmethod
+    def _read_tev_blocks(
+        tev_file_path: str,
+        *,
+        block_offsets: np.ndarray,
+        samples_per_block: int,
+        dtype: type,
+        chunk_bytes: int,
+    ) -> np.ndarray:
+        """
+        Read fixed-size data blocks from a ``.tev`` file into a 2-D float64 array.
+
+        Every read starts at the next unread block and covers all of the following blocks
+        that fit in ``chunk_bytes``, so a store whose blocks are spread through the file
+        costs a handful of reads rather than one per block. Block offsets must be
+        increasing, as they are in ``.tsq`` header order.
+
+        Parameters
+        ----------
+        tev_file_path : str
+            Path to the ``.tev`` file.
+        block_offsets : np.ndarray
+            Byte offset of each block, in increasing order.
+        samples_per_block : int
+            Number of samples in every block.
+        dtype : type
+            NumPy scalar type of the samples on disk.
+        chunk_bytes : int
+            Number of bytes fetched per read.
+
+        Returns
+        -------
+        np.ndarray
+            Array of shape ``(len(block_offsets), samples_per_block)``, one row per block.
+        """
+        block_bytes = samples_per_block * np.dtype(dtype).itemsize
+        data = np.zeros((len(block_offsets), samples_per_block))
+        with open(tev_file_path, "rb") as tev_file:
+            block_index = 0
+            while block_index < len(block_offsets):
+                chunk_start = int(block_offsets[block_index])
+                tev_file.seek(chunk_start, os.SEEK_SET)
+                chunk = tev_file.read(chunk_bytes)
+                chunk_end = chunk_start + len(chunk)
+                if chunk_start + block_bytes > chunk_end:
+                    raise ValueError(
+                        f"Block {block_index} at byte {chunk_start} of '{tev_file_path}' needs {block_bytes} bytes "
+                        f"but only {len(chunk)} could be read (chunk size {chunk_bytes}); the .tev file is truncated "
+                        "or the chunk size is smaller than one block."
+                    )
+                while block_index < len(block_offsets) and int(block_offsets[block_index]) + block_bytes <= chunk_end:
+                    data[block_index, :] = np.frombuffer(
+                        chunk,
+                        dtype=dtype,
+                        count=samples_per_block,
+                        offset=int(block_offsets[block_index]) - chunk_start,
+                    )
+                    block_index += 1
+        return data
+
+    def _readtev(self, event: str, *, chunk_bytes: int = TEV_CHUNK_BYTES) -> dict[str, object]:
         header_df = self._header_df.copy()
         folder_path = self.folder_path
 
@@ -175,14 +239,13 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
 
         if formatNew != 5:
             nsample = (data_size[first_row,] - 10) * int(table[formatNew, 2])
-            event_dict["data"] = np.zeros((len(fp_loc), nsample))
-            for i in range(0, len(fp_loc)):
-                with open(tevfilepath, "rb") as tev_file:
-                    tev_file.seek(fp_loc[i], os.SEEK_SET)
-                    event_dict["data"][i, :] = np.fromfile(tev_file, dtype=table[formatNew, 3], count=nsample).reshape(
-                        1, nsample, order="F"
-                    )
-                    # event_dict['data'] = event_dict['data'].swapaxes()
+            event_dict["data"] = self._read_tev_blocks(
+                tevfilepath,
+                block_offsets=fp_loc,
+                samples_per_block=int(nsample),
+                dtype=table[formatNew, 3],
+                chunk_bytes=chunk_bytes,
+            )
             event_dict["npoints"] = nsample
         else:
             event_dict["data"] = np.asarray(header_df["strobe"][allIndexesWhereEventIsPresent[0]])
