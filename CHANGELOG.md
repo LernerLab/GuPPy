@@ -5,6 +5,7 @@
 ## Fixes
 
 ## Improvements
+- GuPPy now reports its own version: `guppy --version` prints it, the sidebar shows it below the last step, and the [installation page](https://guppy.readthedocs.io/en/latest/installation.html) covers how to check it and how to upgrade an existing install. [PR #471](https://github.com/LernerLab/GuPPy/pull/471)
 
 ## Deprecations and Removals
 
