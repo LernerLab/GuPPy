@@ -1,6 +1,5 @@
 import logging
 import multiprocessing as mp
-import os
 
 import numpy as np
 
@@ -19,6 +18,7 @@ from guppy.extractors.base_recording_extractor import _pool_initializer
 from guppy.orchestration.save_parameters import save_parameters
 from guppy.utils import progress
 from guppy.utils.progress import step_error_handler
+from guppy.utils.stores_list import read_stores_list
 from guppy.utils.utils import load_npm_params, select_run_folders
 
 logger = logging.getLogger(__name__)
@@ -236,7 +236,7 @@ def _load_stores_list(run_folder: str) -> np.ndarray:
     store_array is finalized in step 1 (including TDT split sub-events) and is no
     longer mutated during extraction, so it is read directly.
     """
-    return np.genfromtxt(os.path.join(run_folder, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
+    return read_stores_list(run_folder=run_folder)
 
 
 @step_error_handler

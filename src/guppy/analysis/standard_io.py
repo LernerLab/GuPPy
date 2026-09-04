@@ -17,6 +17,7 @@ from .io_utils import (
     write_hdf5,
 )
 from .tonic import TONIC_EPOCH_COLUMNS
+from ..utils.stores_list import read_stores_list
 from ..utils.utils import TRANSIENT_EVENT_PREFIX
 
 logger = logging.getLogger(__name__)
@@ -1137,7 +1138,7 @@ def read_covariate_series(filepath: str) -> dict[str, tuple[np.ndarray, np.ndarr
     dict of str to tuple of np.ndarray
         Covariate name (label minus its prefix) → ``(timestamps, values)``.
     """
-    store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
+    store_array = read_stores_list(run_folder=filepath)
 
     covariate_series = {}
     for store_id, store_label in zip(store_array[0, :], store_array[1, :]):

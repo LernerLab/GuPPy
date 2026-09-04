@@ -24,6 +24,7 @@ from guppy.frontend.store_labeling_instructions import (
     StoreLabelingInstructionsNPM,
 )
 from guppy.frontend.store_labeling_selector import StoreLabelingSelector
+from guppy.utils.stores_list import write_stores_list
 from guppy.utils.utils import (
     NPM_PARAM_KEYS,
     discover_run_folders,
@@ -264,7 +265,7 @@ def _save(
         logger.info(f"Cleared output directory for overwrite: {select_location}")
     os.mkdir(select_location)
 
-    np.savetxt(os.path.join(select_location, "storesList.csv"), store_array, delimiter=",", fmt="%s")
+    write_stores_list(run_folder=select_location, store_array=store_array)
     if npm_params is not None:
         write_npm_params(run_folder=select_location, npm_params=npm_params)
     logger.info(f"Storeslist file saved at {select_location}")

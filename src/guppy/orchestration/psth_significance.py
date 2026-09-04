@@ -36,6 +36,7 @@ from ..analysis.standard_io import (
     write_psth_significance_to_hdf5,
 )
 from ..utils import progress
+from ..utils.stores_list import read_stores_list
 from ..utils.utils import event_labels_for_analysis, read_Df
 from ..utils.validation import (
     validate_comparison_events_available,
@@ -319,7 +320,7 @@ def plan_comparisons(filepath: str, inputParameters: dict[str, object]) -> list[
     ValueError
         If a named comparison event has no results in this directory.
     """
-    store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
+    store_array = read_stores_list(run_folder=filepath)
     events = [
         event.replace("\\", "_").replace("/", "_")
         for event in event_labels_for_analysis(store_array=store_array, inputParameters=inputParameters)
