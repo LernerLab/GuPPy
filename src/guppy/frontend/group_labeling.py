@@ -7,7 +7,7 @@ homepage.
 """
 
 import logging
-import os
+from pathlib import Path
 
 import panel as pn
 
@@ -44,10 +44,10 @@ class GroupLabelingPage:
     """
 
     def __init__(self, *, start_path: str, selected_group_folders: list[str]) -> None:
-        self.start_path = start_path if start_path and os.path.isdir(start_path) else default_root_path()
+        self.start_path = start_path if start_path and Path(start_path).is_dir() else default_root_path()
         self.selected_group_folders = list(selected_group_folders)
         self.edit_start_path = (
-            os.path.dirname(self.selected_group_folders[0]) if self.selected_group_folders else self.start_path
+            str(Path(self.selected_group_folders[0]).parent) if self.selected_group_folders else self.start_path
         )
         self.setup_widgets()
         self.attach_callbacks()
@@ -158,7 +158,7 @@ group — run **Group Analysis** afterwards to compute the averages.
         selected = list(event.new or [])
         if len(selected) != 1 or not is_group_folder(selected[0]):
             return
-        if not os.path.exists(os.path.join(selected[0], GROUP_MEMBERS_FILENAME)):
+        if not (Path(selected[0]) / GROUP_MEMBERS_FILENAME).exists():
             return
         self._show_members(read_group_members(group_folder=selected[0]))
 
@@ -173,7 +173,7 @@ group — run **Group Analysis** afterwards to compute the averages.
         if not member_run_folders:
             self.members_selector.value = []
             return
-        self.members_selector.directory = os.path.dirname(member_run_folders[0])
+        self.members_selector.directory = str(Path(member_run_folders[0]).parent)
         self.members_selector._update_files()
         self.members_selector._selector.value = list(member_run_folders)
 
@@ -220,7 +220,7 @@ group — run **Group Analysis** afterwards to compute the averages.
         self.path.value = group_folder
         # Point the edit browser at the group just written, so switching to edit mode lands
         # on it rather than back at the starting directory.
-        self.group_to_edit_selector.directory = os.path.dirname(group_folder)
+        self.group_to_edit_selector.directory = str(Path(group_folder).parent)
         self.group_to_edit_selector._update_files()
 
     def build_template(self) -> pn.template.BootstrapTemplate:
@@ -247,6 +247,6 @@ def save_group_definition(*, group_folder: str, member_run_folders: list[str]) -
     member_run_folders : list of str
         Output (run) directories to record as the group's members.
     """
-    os.makedirs(group_folder, exist_ok=True)
+    Path(group_folder).mkdir(parents=True, exist_ok=True)
     write_group_members(group_folder=group_folder, member_run_folders=member_run_folders)
     logger.info("Group definition saved at %s with %s member run(s).", group_folder, len(member_run_folders))

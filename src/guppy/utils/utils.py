@@ -1,8 +1,8 @@
-import glob
 import json
 import logging
 import os
 from collections.abc import Sequence
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -48,7 +48,7 @@ def write_npm_params(*, run_folder: str, npm_params: dict[str, object]) -> None:
     npm_params : dict
         The NPM parameters (keys in :data:`NPM_PARAM_KEYS`) to persist.
     """
-    with open(os.path.join(run_folder, NPM_PARAMS_FILENAME), "w") as file:
+    with (Path(run_folder) / NPM_PARAMS_FILENAME).open("w") as file:
         json.dump(npm_params, file, indent=4)
 
 
@@ -71,10 +71,10 @@ def load_npm_params(run_folder: str) -> dict[str, object]:
         If the file predates the session-wide timestamp unit and so records no
         unit that can be trusted to match the one its data was read with.
     """
-    npm_params_path = os.path.join(run_folder, NPM_PARAMS_FILENAME)
-    if not os.path.exists(npm_params_path):
+    npm_params_path = Path(run_folder) / NPM_PARAMS_FILENAME
+    if not npm_params_path.exists():
         return {}
-    with open(npm_params_path) as file:
+    with npm_params_path.open() as file:
         npm_params = json.load(file)
 
     if "npm_time_unit" not in npm_params:
@@ -99,7 +99,7 @@ def write_group_members(*, group_folder: str, member_run_folders: list[str]) -> 
     member_run_folders : list of str
         Absolute paths of the member run folders, in averaging order.
     """
-    with open(os.path.join(group_folder, GROUP_MEMBERS_FILENAME), "w") as file:
+    with (Path(group_folder) / GROUP_MEMBERS_FILENAME).open("w") as file:
         json.dump({"member_run_folders": list(member_run_folders)}, file, indent=4)
 
 
@@ -121,15 +121,15 @@ def read_group_members(*, group_folder: str) -> list[str]:
     ValueError
         If the group directory holds no manifest.
     """
-    manifest_path = os.path.join(group_folder, GROUP_MEMBERS_FILENAME)
-    if not os.path.exists(manifest_path):
+    manifest_path = Path(group_folder) / GROUP_MEMBERS_FILENAME
+    if not manifest_path.exists():
         message = (
             f"{group_folder!r} holds no {GROUP_MEMBERS_FILENAME}, so it was not created by GuPPy's "
             "Group Analysis step. Re-create the group from the Group Analysis card."
         )
         logger.error(message)
         raise ValueError(message)
-    with open(manifest_path) as file:
+    with manifest_path.open() as file:
         return json.load(file)["member_run_folders"]
 
 
@@ -146,11 +146,7 @@ def takeOnlyDirs(paths: list[str]) -> list[str]:
     list of str
         Subset of ``paths`` containing only directories.
     """
-    removePaths = []
-    for path in paths:
-        if os.path.isfile(path):
-            removePaths.append(path)
-    return list(set(paths) - set(removePaths))
+    return [path for path in paths if not Path(path).is_file()]
 
 
 def parse_run_name(run_folder: str) -> str:
@@ -177,7 +173,7 @@ def parse_run_name(run_folder: str) -> str:
     """
     # Strip both separators so trailing forward slashes are tolerated on Windows
     # (where os.sep is "\\" but paths can still use "/").
-    basename = os.path.basename(run_folder.rstrip("/\\"))
+    basename = Path(run_folder.rstrip("/\\")).name
     index = basename.rfind(_RUN_NAME_MARKER)
     if index < 0:
         raise ValueError(
@@ -202,7 +198,7 @@ def discover_run_folders(session_path: str) -> list[str]:
         deterministically: numeric run names first (sorted numerically), then
         non-numeric run names (sorted case-insensitively).
     """
-    candidates = takeOnlyDirs(glob.glob(os.path.join(session_path, "*" + _RUN_NAME_MARKER + "*")))
+    candidates = [str(path) for path in Path(session_path).glob("*" + _RUN_NAME_MARKER + "*") if path.is_dir()]
     return sorted(candidates, key=_run_name_sort_key_for_path)
 
 
@@ -223,8 +219,8 @@ def run_folder_for_run(session_path: str, run_name: str) -> str:
     str
         Path of the form ``<session_path>/<basename>_output_<run_name>``.
     """
-    basename = os.path.basename(session_path.rstrip(os.sep))
-    return os.path.join(session_path, basename + _RUN_NAME_MARKER + run_name)
+    basename = Path(session_path.rstrip(os.sep)).name
+    return str(Path(session_path) / (basename + _RUN_NAME_MARKER + run_name))
 
 
 def selected_session_runs(*, inputParameters: dict[str, object]) -> list[tuple[str, str]]:
@@ -284,9 +280,7 @@ def select_run_folders(session_path: str, selected_runs: list[str]) -> list[str]
         )
 
     selected = [available_by_name[run] for run in selected_runs]
-    missing_stores = [
-        run_folder for run_folder in selected if not os.path.exists(os.path.join(run_folder, "storesList.csv"))
-    ]
+    missing_stores = [run_folder for run_folder in selected if not (Path(run_folder) / "storesList.csv").exists()]
     if missing_stores:
         raise ValueError(
             f"Selected output directories are missing storesList.csv: {missing_stores!r}. "
@@ -352,7 +346,7 @@ def parse_group_name(group_folder: str) -> str:
     ValueError
         If the basename does not match the expected pattern.
     """
-    basename = os.path.basename(group_folder.rstrip("/\\"))
+    basename = Path(group_folder.rstrip("/\\")).name
     if not basename.endswith(_GROUP_NAME_MARKER) or basename == _GROUP_NAME_MARKER:
         raise ValueError(
             f"Cannot parse group name from {group_folder!r}: basename {basename!r} does not match "
@@ -375,7 +369,7 @@ def common_parent_directory(*, paths: Sequence[str]) -> str:
         The parent directory shared by all ``paths`` when they sit side by side,
         or their nearest common ancestor when they do not.
     """
-    parent_directories = {os.path.dirname(path) for path in paths}
+    parent_directories = {str(Path(path).parent) for path in paths}
     return os.path.commonpath(sorted(parent_directories))
 
 
@@ -393,7 +387,7 @@ def is_group_folder(path: str) -> bool:
         ``True`` when the basename ends with ``_group`` and is not itself a run
         folder (a run named ``group`` would otherwise match both).
     """
-    basename = os.path.basename(path.rstrip("/\\"))
+    basename = Path(path.rstrip("/\\")).name
     if _RUN_NAME_MARKER in basename:
         return False
     return basename.endswith(_GROUP_NAME_MARKER) and basename != _GROUP_NAME_MARKER
@@ -413,7 +407,7 @@ def discover_group_folders(destination_directory: str) -> list[str]:
         Absolute paths of every ``<group_name>_group`` subdirectory, sorted
         case-insensitively by group name.
     """
-    candidates = takeOnlyDirs(glob.glob(os.path.join(destination_directory, "*" + _GROUP_NAME_MARKER)))
+    candidates = [str(path) for path in Path(destination_directory).glob("*" + _GROUP_NAME_MARKER) if path.is_dir()]
     group_folders = [path for path in candidates if is_group_folder(path)]
     return sorted(group_folders, key=lambda path: parse_group_name(path).casefold())
 
@@ -435,7 +429,7 @@ def group_folder_for_group(*, destination_directory: str, group_name: str) -> st
     str
         Path of the group output directory.
     """
-    return os.path.join(destination_directory, group_name + _GROUP_NAME_MARKER)
+    return str(Path(destination_directory) / (group_name + _GROUP_NAME_MARKER))
 
 
 def validate_group_name(group_name: str) -> None:
@@ -493,7 +487,7 @@ def _run_name_sort_key_for_path(path: str) -> tuple[int, int, str]:
     try:
         run_name = parse_run_name(path)
     except ValueError:
-        return (2, 0, os.path.basename(path).casefold())
+        return (2, 0, Path(path).name.casefold())
     return _run_name_sort_key(run_name)
 
 
@@ -598,9 +592,9 @@ def read_Df(filepath: str, event: str, name: str) -> pd.DataFrame:
     event = event.replace("\\", "_")
     event = event.replace("/", "_")
     if name:
-        hdf5_path = os.path.join(filepath, event + f"_{name}.h5")
+        hdf5_path = Path(filepath) / (event + f"_{name}.h5")
     else:
-        hdf5_path = os.path.join(filepath, event + ".h5")
+        hdf5_path = Path(filepath) / (event + ".h5")
     df = pd.read_hdf(hdf5_path, key="df", mode="r")
 
     return df

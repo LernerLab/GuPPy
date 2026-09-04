@@ -1,6 +1,6 @@
 import logging
-import os
 import socket
+from pathlib import Path
 from random import randint
 
 logger = logging.getLogger(__name__)
@@ -14,7 +14,7 @@ def default_root_path() -> str:
     str
         The user's home directory.
     """
-    return os.path.expanduser("~")
+    return str(Path.home())
 
 
 # Ports that all major browsers refuse to connect to (ERR_UNSAFE_PORT).

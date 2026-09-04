@@ -22,7 +22,7 @@ _DANDISET_ID_PATTERN = re.compile(r"^\d{6}$")
 # lets the user navigate DANDI assets with the same ``FileSelector`` they know
 # from local mode. We leave cleanup to the OS — the parent lives under the
 # system temp dir.
-_MIRROR_ROOT = os.path.join(tempfile.gettempdir(), "guppy_dandi_mirror")
+_MIRROR_ROOT = str(Path(tempfile.gettempdir()) / "guppy_dandi_mirror")
 
 
 def _build_dandiset_mirror(*, dandiset_id: str, mirror_parent: str) -> tuple[str, int]:
@@ -37,13 +37,13 @@ def _build_dandiset_mirror(*, dandiset_id: str, mirror_parent: str) -> tuple[str
     with DandiAPIClient() as client:
         dandiset = client.get_dandiset(dandiset_id)
         asset_paths = [asset.path for asset in dandiset.get_assets() if asset.path.endswith(".nwb")]
-    mirror_root = os.path.join(mirror_parent, dandiset_id)
-    os.makedirs(mirror_root, exist_ok=True)
+    mirror_root = Path(mirror_parent) / dandiset_id
+    mirror_root.mkdir(parents=True, exist_ok=True)
     for asset_path in asset_paths:
-        absolute_path = os.path.join(mirror_root, asset_path)
-        os.makedirs(os.path.dirname(absolute_path), exist_ok=True)
-        Path(absolute_path).touch(exist_ok=True)
-    return mirror_root, len(asset_paths)
+        absolute_path = mirror_root / asset_path
+        absolute_path.parent.mkdir(parents=True, exist_ok=True)
+        absolute_path.touch(exist_ok=True)
+    return str(mirror_root), len(asset_paths)
 
 
 class DandiSelector:
@@ -89,7 +89,7 @@ class DandiSelector:
         # Allow tests to inject a tmp_path-based parent; default to the
         # module-level stable location.
         self._mirror_parent = mirror_parent if mirror_parent is not None else _MIRROR_ROOT
-        os.makedirs(self._mirror_parent, exist_ok=True)
+        Path(self._mirror_parent).mkdir(parents=True, exist_ok=True)
 
         self._current_mirror_root = None
         # Re-attached to each rebuilt asset FileSelector by _make_asset_file_selector.
@@ -111,7 +111,7 @@ class DandiSelector:
         self._asset_file_selector_slot = pn.Column(self.asset_file_selector)
 
         self.output_root_selector = pn.widgets.FileSelector(
-            start_path if start_path and os.path.isdir(start_path) else default_root_path(),
+            start_path if start_path and Path(start_path).is_dir() else default_root_path(),
             root_directory="/",
             name="Local output directory",
             width=950,
