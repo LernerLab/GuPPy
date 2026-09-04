@@ -133,8 +133,8 @@ select = [
     "D101",  # Missing docstring in public class
     "D102",  # Missing docstring in public method
     "D103",  # Missing docstring in public function
-    "UP006", # non-pep585 annotation (tuple, list -> tuple, list)
-    "UP007", # non-pep604 annotation (Union[x, y] -> X | Y )
+    "UP", # All pyupgrade rules (includes UP006 non-pep585 and UP007 non-pep604 annotations)
+    "G", # All flake8-logging-format rules (lazy %-formatting in logging calls)
     "ANN", # All type hint rules
 ]
 fixable = ["ALL"]

@@ -32,7 +32,7 @@ def create_Df_for_psth(filepath: str, event: str, name: str, psth: np.ndarray, c
     event = event.replace("\\", "_")
     event = event.replace("/", "_")
     if name:
-        output_path = os.path.join(filepath, event + "_{}.h5".format(name))
+        output_path = os.path.join(filepath, event + f"_{name}.h5")
     else:
         output_path = os.path.join(filepath, event + ".h5")
 
@@ -156,7 +156,7 @@ def create_Df_for_cross_correlation(
         Column labels for the trials axis. Default is an empty list.
     """
     if name:
-        output_path = os.path.join(filepath, event + "_{}.h5".format(name))
+        output_path = os.path.join(filepath, event + f"_{name}.h5")
     else:
         output_path = os.path.join(filepath, event + ".h5")
 

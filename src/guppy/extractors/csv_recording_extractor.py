@@ -160,7 +160,7 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
         return max(0, total_lines - 1)
 
     def _read_csv(self, event: str) -> pd.DataFrame:
-        logger.debug(f"Trying to read data for {event} from csv file.")
+        logger.debug("Trying to read data for %s from csv file.", event)
         csv_path = os.path.join(self.folder_path, event + ".csv")
         if not os.path.exists(csv_path):
             message = f"No CSV file found for event '{event}' at '{csv_path}'."

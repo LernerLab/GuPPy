@@ -177,7 +177,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         header_df = self._header_df.copy()
         folder_path = self.folder_path
 
-        logger.debug("Reading data for event {} ...".format(event))
+        logger.debug("Reading data for event %s ...", event)
         tevfilepath = glob.glob(os.path.join(folder_path, "*.tev"))
         if len(tevfilepath) > 1:
             raise ValueError(

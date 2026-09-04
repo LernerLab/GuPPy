@@ -284,7 +284,7 @@ class ArtifactWindowSelector:
             else []
         )
         self.widget = pn.Column(
-            "# Select Artifact Windows — {}".format(os.path.basename(filepath)),
+            f"# Select Artifact Windows — {os.path.basename(filepath)}",
             pn.pane.Markdown(_INSTRUCTIONS),
             *copy_from_section,
             pn.Row(self.site_select, self.trace_select, self.mode_toggle),
@@ -414,7 +414,7 @@ class ArtifactWindowSelector:
 
         for site in matched:
             self.set_windows(site, _saved_artifact_windows(run_folder, site, self.pair_traces[site]["x"]))
-        logger.info(f"Loaded artifact windows from run {run_name} for {', '.join(matched)}.")
+        logger.info("Loaded artifact windows from run %s for %s.", run_name, ", ".join(matched))
 
         message = f"Loaded artifact windows from run {run_name} for {', '.join(matched)}."
         skipped = [site for site in self.sites if site not in matched]
@@ -473,7 +473,7 @@ class ArtifactWindowSelector:
                 os.path.join(self.filepath, f"coordsForPreProcessing_{site}.npy"),
                 windows_to_coords(windows=keep_windows),
             )
-            logger.info(f"Saved {len(keep_windows)} keep-window(s) for recording site {site}.")
+            logger.info("Saved %s keep-window(s) for recording site %s.", len(keep_windows), site)
 
         record_artifact_provenance(destination=self.filepath, artifacts_removal_method=self.method_select.value)
         for message in clamped:

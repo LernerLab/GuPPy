@@ -9,6 +9,7 @@
 - Fixed the README's documentation links, which all carried an `/en/latest/` path prefix that 404s on the single-version Read the Docs project. [PR #469](https://github.com/LernerLab/GuPPy/pull/469)
 
 ## Improvements
+- Logging calls now hand their arguments to the logger instead of formatting the message up front, so a filtered-out record costs nothing to build. Pre-f-string syntax (`.format()`, `typing.Callable`/`Sequence`/`Iterable`, `lru_cache(maxsize=None)`) is swept, and `ruff`'s `UP` and `G` rule sets are enabled to keep it that way. [PR #481](https://github.com/LernerLab/GuPPy/pull/481)
 - Reading and writing `storesList.csv` now goes through a single `read_stores_list()`/`write_stores_list()` pair instead of a `np.genfromtxt(...).reshape(2, -1)` incantation copy-pasted across 22 call sites. [PR #480](https://github.com/LernerLab/GuPPy/pull/480)
 - Which existing run Steps 2–5 read can now be chosen by name: a **Run name(s) for all sessions** picker above the Output Folder Selection browser selects that run in every selected session at once, and directories ticked in the browser are left alone. Changing the session selection no longer discards the run choices already made for the other sessions. [PR #474](https://github.com/LernerLab/GuPPy/pull/474)
 - Reading TDT tanks is much faster on a network share: each continuous store's `.tev` data is now fetched in large sequential chunks instead of one small read per data block, so Read Raw Data no longer pays a network round trip for every block. [PR #473](https://github.com/LernerLab/GuPPy/pull/473)

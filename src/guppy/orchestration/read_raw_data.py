@@ -142,8 +142,10 @@ def orchestrate_read_raw_data(inputParameters: dict[str, object]) -> None:
         numProcesses = mp.cpu_count()
     elif numProcesses > mp.cpu_count():
         logger.warning(
-            f"Number of cores requested ({numProcesses}) exceeds available cores "
-            f"({mp.cpu_count()}); using {mp.cpu_count() - 1}."
+            "Number of cores requested (%s) exceeds available cores (%s); using %s.",
+            numProcesses,
+            mp.cpu_count(),
+            mp.cpu_count() - 1,
         )
         numProcesses = mp.cpu_count() - 1
 
@@ -211,7 +213,7 @@ def orchestrate_read_raw_data(inputParameters: dict[str, object]) -> None:
         base_module._SAMPLES_DONE = samples_done
         try:
             for extractor, grouped_events, run_folder, event_totals in tasks:
-                logger.debug(f"### Reading raw data for {len(grouped_events)} event(s) into {run_folder}")
+                logger.debug("### Reading raw data for %s event(s) into %s", len(grouped_events), run_folder)
                 read_and_save_events_for_extractor(extractor, grouped_events, run_folder, event_totals)
         finally:
             base_module._SAMPLES_DONE = None
