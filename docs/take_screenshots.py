@@ -803,7 +803,7 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
         page.wait_for_timeout(1500)
         page.screenshot(
             path=OUTPUT_DIR / "compare_parameters_existing_runs.png",
-            clip={"x": 0, "y": 0, "width": 1060, "height": 520},
+            clip={"x": 0, "y": 0, "width": 1060, "height": 660},
         )
         print("Saved compare_parameters_existing_runs.png")
 

@@ -13,6 +13,7 @@ from ..utils.utils import (
     discover_run_folders,
     is_group_folder,
     parse_run_name,
+    run_folder_for_run,
 )
 from ..utils.validation import (
     validate_non_negative,
@@ -84,13 +85,25 @@ class ParameterForm:
         self.template = template
         self.folder_path = start_path if start_path and os.path.isdir(start_path) else default_root_path()
         self.styles = dict(background="WhiteSmoke")
+        # Sessions the run selection was last synced against, so a change can tell which
+        # sessions are new and should inherit the bulk run-name choice.
+        self._sessions_in_run_selection: list[str] = []
+        # Set while the bulk picker is written to programmatically, so a value dropped for
+        # being gone from disk is not mistaken for the user deselecting it.
+        self._suppressing_run_name_propagation = False
+        # Run selections stashed per source mode, so switching to DANDI and back does not
+        # discard the choices made for local sessions (and vice versa).
+        self._run_selection_by_source_mode: dict[str, tuple[list[str], list[str]]] = {}
 
         self.setup_individual_parameters()
         self.setup_group_parameters()
         self.setup_visualization_parameters()
         self.add_to_template()
-        self.files_1.param.watch(self._retarget_outputs_selector, "value")
+        self.files_1.param.watch(self._on_sessions_changed, "value")
+        self.run_names_for_all_sessions.param.watch(self._on_run_names_for_all_sessions_change, "value")
         self.outputs_selector.param.watch(self._load_parameters_from_selected_runs, "value")
+        self.dandi_selector.output_root_selector.param.watch(self._on_sessions_changed, "value")
+        self.dandi_selector.attach_asset_selection_watcher(callback=self._on_sessions_changed)
 
     def setup_individual_parameters(self) -> None:
         """Build all widgets for the individual-analysis card and store them as instance attributes."""
@@ -209,8 +222,17 @@ class ParameterForm:
 
         self.outputs_selector_header = pn.pane.Markdown(
             "**Existing runs (steps 2–5):** Pick at least one existing output directory per "
-            "selected session. To create a new run, use the Label Stores GUI in step 1.",
+            "selected session. Naming a run below selects it in every session that has it; the "
+            "tree underneath shows the result and can be adjusted session by session. To create "
+            "a new run, use the Label Stores GUI in step 1.",
             width=950,
+        )
+        self.run_names_for_all_sessions = pn.widgets.MultiChoice(
+            name="Run name(s) for all sessions",
+            value=[],
+            options=[],
+            placeholder="Select runs by name across all sessions",
+            width=620,
         )
         self.outputs_selector = pn.widgets.FileSelector(
             self.folder_path,
@@ -491,6 +513,7 @@ class ParameterForm:
 
         self.output_folder_selection_widget = pn.Column(
             self.outputs_selector_header,
+            self.run_names_for_all_sessions,
             self.outputs_selector,
         )
         self.output_folder_selection = pn.Card(
@@ -513,6 +536,12 @@ class ParameterForm:
         is_dandi = event.new == "dandi"
         self.files_1.visible = not is_dandi
         self.dandi_selector.panel.visible = is_dandi
+        self._run_selection_by_source_mode[event.old] = (
+            list(self.outputs_selector.value or []),
+            list(self.run_names_for_all_sessions.value),
+        )
+        run_folders, run_names = self._run_selection_by_source_mode.get(event.new, ([], []))
+        self._restore_run_selection(run_folders=run_folders, run_names=run_names)
 
     def _collect_selected_runs(self) -> dict[str, list[str]]:
         """Group the FileSelector's selected output dirs by parent session.
@@ -551,7 +580,42 @@ class ParameterForm:
                 "_output_<run> directory per selected session."
             )
 
-    def _retarget_outputs_selector(self, event: object) -> None:
+    def _sessions_for_run_selection(self) -> list[str]:
+        """Return the existing session directories whose runs steps 2-5 will read."""
+        if self.source_mode.value == "dandi":
+            candidates = self._prospective_dandi_sessions()
+        else:
+            candidates = list(self.files_1.value or [])
+        return [session for session in candidates if os.path.isdir(session)]
+
+    @staticmethod
+    def _run_names_for_sessions(sessions: list[str]) -> list[str]:
+        """Return every run name present in at least one of ``sessions``, in run-name order.
+
+        A name need not exist in every session to be offered: applying it selects the runs
+        that do exist and leaves the remaining sessions to the folder tree.
+        """
+        run_names = []
+        for session in sessions:
+            for directory in discover_run_folders(session):
+                run_name = parse_run_name(directory)
+                if run_name not in run_names:
+                    run_names.append(run_name)
+        return run_names
+
+    def _apply_selected_run_folders(self, run_folders: list[str]) -> None:
+        """Write ``run_folders`` into the outputs FileSelector as its selection.
+
+        Setting ``value`` updates the parameter but not the widget's "Selected files" pane;
+        ``_update_files`` re-enumerates so programmatic picks appear there — including runs
+        outside the directory currently shown, which it lists by their relative path.
+        """
+        deduplicated = list(dict.fromkeys(run_folders))
+        if deduplicated != list(self.outputs_selector.value or []):
+            self.outputs_selector.value = deduplicated
+        self.outputs_selector._update_files()
+
+    def _retarget_outputs_selector(self, sessions: list[str]) -> None:
         """Root the existing-runs FileSelector so all selected sessions' `_output_*` dirs are reachable.
 
         - Zero sessions: fall back to the form's starting directory.
@@ -560,9 +624,13 @@ class ParameterForm:
         - Multiple sessions: root set to their common parent so every session is navigable;
           starting directory set to the first session so the user lands on one session's
           outputs and can navigate up to switch between sessions.
+        - DANDI mode: root set to the chosen output root, which holds every mirrored session.
         """
-        sessions = [session for session in (event.new or []) if os.path.isdir(session)]
-        if not sessions:
+        dandi_output_root = self.dandi_selector.output_root if self.source_mode.value == "dandi" else None
+        if dandi_output_root:
+            root_target = dandi_output_root
+            directory_target = sessions[0] if sessions else dandi_output_root
+        elif not sessions:
             root_target = self.folder_path
             directory_target = self.folder_path
         elif len(sessions) == 1:
@@ -577,59 +645,95 @@ class ParameterForm:
         # with tmp_path or the user's session folder).
         self.outputs_selector.root_directory = root_target
         self.outputs_selector.directory = directory_target
-        # Clear any prior selection that no longer makes sense for the new root.
-        self.outputs_selector.value = []
         # Sync the FileSelector's internal _cwd and re-enumerate. Without this, _cwd remains
         # at the construction-time path; clicking a sub-dir uses the stale _cwd to compute
         # the navigated path, that path doesn't exist, and the FileSelector silently snaps
         # back to the stale _cwd — visible to the user as "selection resets the directory".
         self.outputs_selector._update_files()
 
+    def _refresh_run_name_options(self, sessions: list[str]) -> None:
+        """Re-read the run names on disk into the bulk picker, dropping any that no longer exist."""
+        run_names = self._run_names_for_sessions(sessions)
+        self.run_names_for_all_sessions.options = run_names
+        surviving = [run_name for run_name in self.run_names_for_all_sessions.value if run_name in run_names]
+        if surviving != list(self.run_names_for_all_sessions.value):
+            # A name drops out only when the sessions holding it are gone, so the paths it
+            # would deselect have already left the selection with them.
+            self._suppressing_run_name_propagation = True
+            self.run_names_for_all_sessions.value = surviving
+            self._suppressing_run_name_propagation = False
+
+    def _on_sessions_changed(self, event: object = None) -> None:
+        """Retarget the folder tree and carry the run selection across a change of sessions.
+
+        Sessions that survive the change keep the runs already picked for them, so dropping
+        one session does not discard the choices made for the others. A session new to the
+        selection starts out with the runs the bulk picker currently names.
+        """
+        sessions = self._sessions_for_run_selection()
+        new_sessions = [session for session in sessions if session not in self._sessions_in_run_selection]
+        self._sessions_in_run_selection = sessions
+        self._retarget_outputs_selector(sessions)
+
+        selected = [path for path in (self.outputs_selector.value or []) if os.path.dirname(path) in sessions]
+        selected += self._run_folders_on_disk(sessions=new_sessions, run_names=self.run_names_for_all_sessions.value)
+        self._apply_selected_run_folders(selected)
+        self._refresh_run_name_options(sessions)
+
+    def _restore_run_selection(self, *, run_folders: list[str], run_names: list[str]) -> None:
+        """Point the card at the current source mode's sessions and put back its stashed selection."""
+        sessions = self._sessions_for_run_selection()
+        self._sessions_in_run_selection = sessions
+        self._retarget_outputs_selector(sessions)
+        self._refresh_run_name_options(sessions)
+        self._suppressing_run_name_propagation = True
+        self.run_names_for_all_sessions.value = [
+            run_name for run_name in run_names if run_name in self.run_names_for_all_sessions.options
+        ]
+        self._suppressing_run_name_propagation = False
+        self._apply_selected_run_folders([path for path in run_folders if os.path.dirname(path) in sessions])
+
+    def _on_run_names_for_all_sessions_change(self, event: object) -> None:
+        """Select or deselect the runs matching the bulk choice, leaving hand-picked ones alone."""
+        if self._suppressing_run_name_propagation:
+            return
+        added = [run_name for run_name in event.new if run_name not in event.old]
+        removed = [run_name for run_name in event.old if run_name not in event.new]
+        kept = [path for path in (self.outputs_selector.value or []) if parse_run_name(path) not in removed]
+        sessions = self._sessions_for_run_selection()
+        self._apply_selected_run_folders(kept + self._run_folders_on_disk(sessions=sessions, run_names=added))
+
+    @staticmethod
+    def _run_folders_on_disk(*, sessions: list[str], run_names: list[str]) -> list[str]:
+        """Return the existing run directories named by ``run_names`` across ``sessions``."""
+        run_folders = []
+        for session in sessions:
+            for run_name in run_names:
+                run_folder = run_folder_for_run(session, run_name)
+                if os.path.isdir(run_folder):
+                    run_folders.append(run_folder)
+        return run_folders
+
     def refresh_individual_outputs(self) -> None:
         """Re-list the outputs FileSelector so newly-created run dirs (e.g. from step 1) appear."""
         self.outputs_selector._refresh()
+        self._refresh_run_name_options(self._sessions_for_run_selection())
 
-    @staticmethod
-    def _make_outputs_placeholder(scope: str) -> pn.pane.Markdown:
-        text = (
-            "**Run-name filter:** No output directories yet — run step 1 first."
-            if scope == "individual"
-            else "**Run-name filter (group):** No output directories yet — run step 1 first."
-        )
-        return pn.pane.Markdown(text, width=520)
+    def _prospective_dandi_sessions(self) -> list[str]:
+        """Return the local session directories the selected DANDI assets map to.
 
-    @classmethod
-    def _rebuild_per_session_widgets(
-        cls, sessions: list[str] | None, target_box: pn.Column, store: dict[str, pn.widgets.Select], scope: str
-    ) -> None:
-        new_objects = []
-        new_store = {}
-        for session in sessions or []:
-            run_names = [parse_run_name(directory) for directory in discover_run_folders(session)]
-            # Skip sessions with no output dirs — nothing to filter, no widget needed.
-            if not run_names:
-                continue
-            existing = store.get(session)
-            if existing is not None:
-                # Preserve the user's prior selection across rebuilds when it remains valid.
-                preserved = existing.value if existing.value in run_names else run_names[0]
-                existing.options = run_names
-                existing.value = preserved
-                widget = existing
-            else:
-                widget = pn.widgets.Select(
-                    name=f"Outputs for {os.path.basename(session)}",
-                    value=run_names[0],
-                    options=run_names,
-                    width=320,
-                )
-            new_store[session] = widget
-            new_objects.append(widget)
-        store.clear()
-        store.update(new_store)
-        # When no per-session widgets are populated, show the placeholder so the
-        # box has a stable, always-visible footprint in the layout.
-        target_box.objects = new_objects or [cls._make_outputs_placeholder(scope)]
+        The directories are not created here; ``_resolve_dandi_sessions`` does that when
+        the pipeline actually runs.
+        """
+        output_root = self.dandi_selector.output_root
+        if not output_root:
+            return []
+        sessions = []
+        for uri in self.dandi_selector.selected_uris:
+            asset_path = uri.split("/", 3)[-1]
+            session_stem = os.path.splitext(os.path.basename(asset_path))[0]
+            sessions.append(os.path.join(output_root, session_stem))
+        return sessions
 
     def _resolve_dandi_sessions(self) -> tuple[list[str], str, dict[str, str]]:
         """
@@ -658,15 +762,10 @@ class ParameterForm:
             logger.error("DANDI mode: no local output directory selected")
             raise ValueError("DANDI mode: select a local output directory before running the pipeline")
 
-        folder_names = []
-        dandi_uri_map = {}
-        for uri in selected_uris:
-            asset_path = uri.split("/", 3)[-1]
-            session_stem = os.path.splitext(os.path.basename(asset_path))[0]
-            session_directory = os.path.join(output_root, session_stem)
+        folder_names = self._prospective_dandi_sessions()
+        for session_directory in folder_names:
             os.makedirs(session_directory, exist_ok=True)
-            folder_names.append(session_directory)
-            dandi_uri_map[session_directory] = uri
+        dandi_uri_map = dict(zip(folder_names, selected_uris))
         return folder_names, output_root, dandi_uri_map
 
     def _add_comparison_row(self, event: object = None) -> None:

@@ -34,9 +34,16 @@ The second card on the homepage, collapsed by default. Selects which existing pe
 
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
+| Run name(s) for all sessions | Run names to select across every selected session at once. | list of run names | empty | run names found in any selected session |
 | (existing-runs browser) | Existing `*_output_*` run directories the later steps act on. | list of paths | empty | one or more `*_output_*` directories, at least one per selected session |
 
-**Existing-runs browser** lists the `*_output_*` directories that already exist for the selected sessions and lets you pick which run each later step acts on. A run directory is created when you configure channels in the Label Stores GUI (Step 1); every step from loading the raw data onward then reads and writes the run you select here. Steps 2-4 need at least one run per session that has output directories on disk, or they raise a descriptive error before any work starts. Step 5 is the exception: it can visualize groups on their own, so it accepts an empty selection here as long as a group is selected. This is a UI selector, not a saved analysis parameter, so it has no internal name in the index below. To analyze one session under two different parameter sets and compare the results, see [Comparing Two Parameter Sets](../tutorials/compare_parameters.md).
+**Existing-runs browser** lists the `*_output_*` directories that already exist for the selected sessions and lets you pick which run each later step acts on. A run directory is created when you configure channels in the Label Stores GUI (Step 1); every step from loading the raw data onward then reads and writes the run you select here.
+
+**Run name(s) for all sessions** reaches those same directories by name instead of by browsing to them, so one choice covers a whole batch. Step 1 names each run: the run directory `sample_data_csv_1_output_1` has the run name `1`. Naming a run selects it in every selected session that has one by that name, and removing the name deselects exactly those — directories you ticked in the browser yourself are left alone either way. The picker offers every run name found in *any* selected session, so a name only some of them have still works; the sessions without it are yours to fill in from the browser.
+
+Changing which sessions are selected does not discard these choices: sessions that stay selected keep the runs you picked for them, and a session you add picks up the run names currently named above.
+
+Steps 2-4 need at least one run per session that has output directories on disk, or they raise a descriptive error before any work starts. Step 5 is the exception: it can visualize groups on their own, so it accepts an empty selection here as long as a group is selected. This is a UI selector, not a saved analysis parameter, so it has no internal name in the index below. To analyze one session under two different parameter sets and compare the results, see [Comparing Two Parameter Sets](../tutorials/compare_parameters.md).
 
 ---
 

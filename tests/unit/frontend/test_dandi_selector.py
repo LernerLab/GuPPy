@@ -200,3 +200,27 @@ class TestDandiSelector:
         assert selector.asset_file_selector is not loaded_widget
         assert selector.asset_file_selector.root_directory == selector._mirror_parent
         assert list(selector._asset_file_selector_slot) == [selector.asset_file_selector]
+
+    def test_asset_selection_watcher_fires_on_the_rebuilt_widget(self, selector):
+        events = []
+        selector.attach_asset_selection_watcher(callback=events.append)
+        selector.dandiset_input.value = "000971"
+        mirror_root = selector._current_mirror_root
+        asset_path = os.path.join(mirror_root, "sub-01", "ses-1_behavior.nwb")
+        events.clear()
+
+        # The widget selected into here is the replacement built for this dandiset,
+        # not the one the watcher was originally attached to.
+        selector.asset_file_selector.value = [asset_path]
+
+        assert len(events) == 1
+        assert events[0].new == [asset_path]
+
+    def test_asset_selection_watcher_is_notified_of_the_widget_swap(self, selector):
+        events = []
+        selector.attach_asset_selection_watcher(callback=events.append)
+
+        selector.dandiset_input.value = "000971"
+
+        # The swap drops the previous selection without firing a value event of its own.
+        assert events == [None]
