@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 
 import numpy as np
@@ -290,7 +290,7 @@ ENUM_OPTIONS: dict[str, tuple[str, ...]] = {
 }
 
 
-@lru_cache(maxsize=None)
+@cache
 def _type_spec(type_name: str):  # noqa: ANN202  (returns an hdmf Spec)
     import ndx_fiber_photometry  # noqa: F401  (register extensions)
     import ndx_ophys_devices  # noqa: F401

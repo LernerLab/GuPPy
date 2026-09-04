@@ -207,7 +207,7 @@ def average_one_group(*, group_folder: str, inputParameters: dict[str, object]) 
     _validate_fiber_recording_sites_consistent_for_group(member_run_folders=member_run_folders)
 
     group_name = parse_group_name(group_folder)
-    logger.info(f"Averaging {len(member_run_folders)} member run(s) into '{group_folder}'...")
+    logger.info("Averaging %s member run(s) into '%s'...", len(member_run_folders), group_folder)
 
     _clear_group_results(group_folder=group_folder)
     write_analysis_parameters(
@@ -236,7 +236,9 @@ def average_one_group(*, group_folder: str, inputParameters: dict[str, object]) 
         run_folder=group_folder,
         store_array=_filter_stores_list_to_averaged_events(store_array=store_array, averaged_events=averaged_events),
     )
-    logger.info(f"Group '{group_name}' averaged {len(averaged_events)} event(s) from {len(member_run_folders)} run(s).")
+    logger.info(
+        "Group '%s' averaged %s event(s) from %s run(s).", group_name, len(averaged_events), len(member_run_folders)
+    )
 
     # After the filtered storesList.csv is written: comparison planning reads it to learn
     # which events the group actually holds averaged results for.

@@ -27,7 +27,7 @@ def build_custom_events_template(folder_path: str) -> pn.template.BootstrapTempl
     pn.template.BootstrapTemplate
         Fully configured Panel template ready to be served.
     """
-    template = pn.template.BootstrapTemplate(title="Import Custom Events - {}".format(os.path.basename(folder_path)))
+    template = pn.template.BootstrapTemplate(title=f"Import Custom Events - {os.path.basename(folder_path)}")
     config = CustomEventsConfig()
 
     def save_button(event: object = None) -> None:
@@ -100,7 +100,7 @@ def build_custom_events_page(inputParameters: dict[str, object], folder_path: st
             csv_path = write_custom_event_csv(
                 name=name, timestamps=list(timestamps), folder_path=folder_path, overwrite=True
             )
-            logger.info(f"Custom event saved at {csv_path}")
+            logger.info("Custom event saved at %s", csv_path)
         return
 
     template = build_custom_events_template(folder_path)

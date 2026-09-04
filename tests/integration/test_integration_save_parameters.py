@@ -69,7 +69,7 @@ def test_save_parameters(tmp_path, default_parameters):
     for s in sessions:
         out_fp = os.path.join(s, "GuPPyParamtersUsed.json")
         assert os.path.exists(out_fp), f"Missing file: {out_fp}"
-        with open(out_fp, "r") as f:
+        with open(out_fp) as f:
             data = json.load(f)
 
         assert data["guppy_version"] == version("guppy-neuro")

@@ -88,7 +88,7 @@ def average_psth_for_group(
         session_entries = new_path[i]
         for j in range(len(session_entries)):
             if not os.path.exists(
-                os.path.join(session_entries[j][0], session_entries[j][1] + "_{}.h5".format(session_entries[j][2]))
+                os.path.join(session_entries[j][0], session_entries[j][1] + f"_{session_entries[j][2]}.h5")
             ):
                 continue
             else:
@@ -104,9 +104,11 @@ def average_psth_for_group(
 
         if len(psth) == 0:
             logger.warning(
-                f"No PSTH files found for event {event!r} (basename {session_entries[0][2]!r}, "
-                f"selectForComputePsth={selectForComputePsth!r}) across the selected folders; "
-                "skipping average for this event."
+                "No PSTH files found for event %r (basename %r, selectForComputePsth=%r) across the selected folders; "
+                "skipping average for this event.",
+                event,
+                session_entries[0][2],
+                selectForComputePsth,
             )
             continue
 
@@ -118,7 +120,7 @@ def average_psth_for_group(
             error_rename_map = {}
             for column_name in error_column_names:
                 name_parts = column_name.split("_")
-                error_rename_map[column_name] = "{}_err_{}".format(name_parts[0], name_parts[1])
+                error_rename_map[column_name] = f"{name_parts[0]}_err_{name_parts[1]}"
             df_bins_err = df_bins_err.rename(columns=error_rename_map)
             columns = columns + list(df_bins_mean.columns) + list(df_bins_err.columns)
             df_bins_mean_err = pd.concat([df_bins_mean, df_bins_err], axis=1).T
@@ -153,18 +155,20 @@ def average_psth_for_group(
 
         if len(peak_area_frames) == 0:
             logger.warning(
-                f"No peak/AUC files found for event {event!r} (basename {session_entries[0][2]!r}) "
-                "across the selected folders; skipping peak/AUC average for this event."
+                "No peak/AUC files found for event %r (basename %r) across the selected folders; skipping peak/AUC "
+                "average for this event.",
+                event,
+                session_entries[0][2],
             )
             continue
         row_indices = list(np.concatenate(row_indices))
         new_df = pd.concat(peak_area_frames, axis=0)
         new_df.to_csv(
-            os.path.join(run_folder, "peak_AUC_{}_{}.csv".format(session_entries[j][1], session_entries[j][2])),
+            os.path.join(run_folder, f"peak_AUC_{session_entries[j][1]}_{session_entries[j][2]}.csv"),
             index=row_indices,
         )
         new_df.to_hdf(
-            os.path.join(run_folder, "peak_AUC_{}_{}.h5".format(session_entries[j][1], session_entries[j][2])),
+            os.path.join(run_folder, f"peak_AUC_{session_entries[j][1]}_{session_entries[j][2]}.h5"),
             key="df",
             mode="w",
             index=row_indices,

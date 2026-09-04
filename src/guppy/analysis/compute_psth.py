@@ -110,7 +110,7 @@ def compute_psth(
     # skip the event if there are no TTLs
     if len(event_timestamps) == 0:
         kept_timestamps = np.array([])
-        logger.info(f"Warning : No TTLs present for {event}. This will cause an error in Visualization step")
+        logger.info("Warning : No TTLs present for %s. This will cause an error in Visualization step", event)
     else:
         kept_timestamps = [event_timestamps[0]]
         for i in range(1, event_timestamps.shape[0]):

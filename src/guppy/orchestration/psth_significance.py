@@ -255,14 +255,18 @@ def execute_one_comparison(
     sample_counts = [samples_a.shape[0]] + ([samples_b.shape[0]] if samples_b is not None else [])
     if min(sample_counts) < MINIMUM_SAMPLES:
         logger.warning(
-            f"Skipping significance for {name}: needs at least {MINIMUM_SAMPLES} trials or sessions "
-            f"to resample, found {min(sample_counts)}."
+            "Skipping significance for %s: needs at least %s trials or sessions to resample, found %s.",
+            name,
+            MINIMUM_SAMPLES,
+            min(sample_counts),
         )
         return f"{name} (found {min(sample_counts)})"
     if min(sample_counts) < SMALL_SAMPLE_WARNING_THRESHOLD:
         logger.warning(
-            f"Significance for {name} is computed from only {min(sample_counts)} trials or sessions; "
-            f"the confidence interval is unreliable at this sample size."
+            "Significance for %s is computed from only %s trials or sessions; the confidence interval is unreliable at "
+            "this sample size.",
+            name,
+            min(sample_counts),
         )
 
     significance = compute_comparison(
@@ -282,15 +286,16 @@ def execute_one_comparison(
     uncomputable = float(np.mean(~np.isfinite(significance["ci_lower"].to_numpy())))
     if uncomputable > UNCOMPUTABLE_FRACTION_WARNING_THRESHOLD:
         logger.warning(
-            f"No confidence interval could be computed for {uncomputable:.0%} of the window in {name}, "
-            f"where too few trials or sessions overlap. Those timepoints are reported as "
-            f"not significant."
+            "No confidence interval could be computed for %.0f%% of the window in %s, where too few trials or sessions "
+            "overlap. Those timepoints are reported as not significant.",
+            uncomputable * 100,
+            name,
         )
 
     output_path = make_dir_for_psth_significance(filepath)
     write_psth_significance_to_hdf5(filepath=output_path, significance=significance, name=name)
     write_psth_significance_to_csv(filepath=output_path, significance=significance, name=name)
-    logger.info(f"Significance for {name} computed.")
+    logger.info("Significance for %s computed.", name)
 
     return None
 
@@ -396,7 +401,7 @@ def execute_compute_psth_significance(filepath: str, inputParameters: dict[str, 
 
     planned = plan_comparisons(filepath, inputParameters)
     if not planned:
-        logger.info(f"No PSTH results to test for significance in {filepath}.")
+        logger.info("No PSTH results to test for significance in %s.", filepath)
         return
 
     # Reported rather than refused: how many resamples to spend is the user's call, but
@@ -407,12 +412,14 @@ def execute_compute_psth_significance(filepath: str, inputParameters: dict[str, 
     resamples_per_tail = num_resamples * significance_level / 2
     if resamples_per_tail < 1:
         logger.warning(
-            f"psthBootstrapResamples={num_resamples} cannot resolve a {significance_level:g} "
-            f"two-sided interval: that needs at least {int(np.ceil(2 / significance_level))} resamples. "
-            f"The interval will be narrower than requested."
+            "psthBootstrapResamples=%s cannot resolve a %g two-sided interval: that needs at least %s resamples. The "
+            "interval will be narrower than requested.",
+            num_resamples,
+            significance_level,
+            int(np.ceil(2 / significance_level)),
         )
 
-    logger.info(f"Computing significance for {len(planned)} comparison(s) in {filepath}...")
+    logger.info("Computing significance for %s comparison(s) in %s...", len(planned), filepath)
     # Pinned rather than inherited, for the same reason as the step-4 pools: forking a
     # process holding other live threads can leave a logging or HDF5 lock held forever.
     spawn_context = mp.get_context("spawn")

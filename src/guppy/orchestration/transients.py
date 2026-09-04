@@ -233,8 +233,10 @@ def executeFindFreqAndAmp(inputParameters: dict[str, object]) -> None:
         numProcesses = mp.cpu_count()
     elif numProcesses > mp.cpu_count():
         logger.warning(
-            f"Number of cores requested ({numProcesses}) exceeds available cores "
-            f"({mp.cpu_count()}); using {mp.cpu_count() - 1}."
+            "Number of cores requested (%s) exceeds available cores (%s); using %s.",
+            numProcesses,
+            mp.cpu_count(),
+            mp.cpu_count() - 1,
         )
         numProcesses = mp.cpu_count() - 1
 
@@ -265,7 +267,7 @@ def execute_find_freq_and_amp(
     selected_runs = inputParameters.get("selected_runs") or {}
     for i in range(len(session_folders)):
         logger.debug(
-            f"Finding transients in z-score data of {session_folders[i]} and calculating frequency and amplitude."
+            "Finding transients in z-score data of %s and calculating frequency and amplitude.", session_folders[i]
         )
         filepath = session_folders[i]
         run_folders = select_run_folders(filepath, selected_runs.get(filepath))

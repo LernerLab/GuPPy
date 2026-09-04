@@ -68,7 +68,7 @@ def record_artifact_provenance(
 
     with open(parameters_path, "w") as parameters_file:
         json.dump(parameters, parameters_file, indent=4)
-    logger.info(f"Artifact provenance updated at {destination}")
+    logger.info("Artifact provenance updated at %s", destination)
 
 
 def build_analysis_parameters(*, inputParameters: dict[str, object]) -> dict[str, object]:
@@ -166,7 +166,7 @@ def write_analysis_parameters(
     )
     with open(os.path.join(destination, "GuPPyParamtersUsed.json"), "w") as parameters_file:
         json.dump(destinationParameters, parameters_file, indent=4)
-    logger.info(f"Input Parameters file saved at {destination}")
+    logger.info("Input Parameters file saved at %s", destination)
 
 
 def save_parameters(

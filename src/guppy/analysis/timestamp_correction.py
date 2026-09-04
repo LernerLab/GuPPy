@@ -121,7 +121,8 @@ def timestampCorrection(
         Store label → sliced data array.
     """
     logger.debug(
-        f"Correcting timestamps by getting rid of the first {timeForLightsTurnOn} seconds and convert timestamps to seconds"
+        "Correcting timestamps by getting rid of the first %s seconds and convert timestamps to seconds",
+        timeForLightsTurnOn,
     )
     if mode not in ["tdt", "csv"]:
         message = f"Mode {mode!r} is not supported; must be either 'tdt' or 'csv'."

@@ -110,7 +110,7 @@ def helper_plots(filepath: str, event: list[str], name: list[str], inputParamete
             bin_columns = bins[bins_keys[i]]
             if len(bin_columns) > 0:
                 for j in bin_columns:
-                    multiple_plots_options.append("{}_{}".format(bins_keys[i], j))
+                    multiple_plots_options.append(f"{bins_keys[i]}_{j}")
 
         multiple_plots_options = new_event + multiple_plots_options
     else:
@@ -127,9 +127,7 @@ def helper_plots(filepath: str, event: list[str], name: list[str], inputParamete
     x = [columns_dict[new_event[0]][-4]]
     y = overview_y_options(columns_dict[new_event[0]])
     trial_no = range(1, len(remove_cols(columns_dict[heatmap_options[0]])[:-2]) + 1)
-    trial_ts = [
-        "{} - {}".format(i, j) for i, j in zip(trial_no, remove_cols(columns_dict[heatmap_options[0]])[:-2])
-    ] + ["All"]
+    trial_ts = [f"{i} - {j}" for i, j in zip(trial_no, remove_cols(columns_dict[heatmap_options[0]])[:-2])] + ["All"]
 
     plotter = ParameterizedPlotter(
         event_selector_objects=new_event,

@@ -12,7 +12,8 @@ This module is intentionally minimal and non-invasive.
 from __future__ import annotations
 
 import os
-from typing import Iterable, Literal
+from collections.abc import Iterable
+from typing import Literal
 
 import numpy as np
 import pandas as pd

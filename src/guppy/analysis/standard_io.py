@@ -733,7 +733,7 @@ def remove_tonic_results(filepath: str, site: str) -> None:
         path = os.path.join(filepath, name)
         if os.path.exists(path):
             os.remove(path)
-            logger.info(f"Removed {name} for recording site {site}.")
+            logger.info("Removed %s for recording site %s.", name, site)
 
 
 def write_freq_and_amp_to_hdf5(

@@ -511,7 +511,7 @@ class ParameterizedPlotter(param.Parameterized):
     def _update_df(self) -> None:
         columns = self.columns_dict[self.event_selector_heatmap]
         trial_no = range(1, len(remove_cols(columns)[:-2]) + 1)
-        trial_ts = ["{} - {}".format(i, j) for i, j in zip(trial_no, remove_cols(columns)[:-2])] + ["All"]
+        trial_ts = [f"{i} - {j}" for i, j in zip(trial_no, remove_cols(columns)[:-2])] + ["All"]
         self.param["heatmap_y"].objects = trial_ts
         self.heatmap_y = [trial_ts[-1]]
 
@@ -519,7 +519,7 @@ class ParameterizedPlotter(param.Parameterized):
     def _update_psth_y(self) -> None:
         columns = self.columns_dict[self.event_selector]
         trial_no = range(1, len(remove_cols(columns)[:-2]) + 1)
-        trial_ts = ["{} - {}".format(i, j) for i, j in zip(trial_no, remove_cols(columns)[:-2])]
+        trial_ts = [f"{i} - {j}" for i, j in zip(trial_no, remove_cols(columns)[:-2])]
         self.param["psth_y"].objects = trial_ts
         self.psth_y = [trial_ts[0]]
 
@@ -570,8 +570,8 @@ class ParameterizedPlotter(param.Parameterized):
             if "bin" in selected_events[i]:
                 split = selected_events[i].rsplit("_", 2)
                 df_name = split[0]  #'{}_{}'.format(split[0], split[1])
-                col_name_mean = "{}_{}".format(split[-2], split[-1])
-                col_name_err = "{}_err_{}".format(split[-2], split[-1])
+                col_name_mean = f"{split[-2]}_{split[-1]}"
+                col_name_err = f"{split[-2]}_err_{split[-1]}"
                 data_curve.append(event_dataframes[df_name][col_name_mean])
                 columns_curve.append(selected_events[i])
                 data_spread.append(event_dataframes[df_name][col_name_err])
@@ -737,7 +737,7 @@ class ParameterizedPlotter(param.Parameterized):
                 standard_error = event_dataframe["err"]
             else:
                 split = self.y.split("_")
-                standard_error = event_dataframe["{}_err_{}".format(split[0], split[1])]
+                standard_error = event_dataframe[f"{split[0]}_err_{split[1]}"]
 
             index = np.arange(0, xpoints.shape[0], 3)
 
