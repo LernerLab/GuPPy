@@ -1,6 +1,6 @@
 import json
 import math
-import os
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -404,16 +404,16 @@ def _dandi_form_with_existing_runs(*, form, patched_dandi_client, output_root, a
     patched_dandi_client.dandisets_by_id = {"000971": _FakeDandiset(asset_paths)}
     output_root.mkdir()
     for asset_path in asset_paths:
-        session = output_root / os.path.basename(asset_path).removesuffix(".nwb")
+        session = output_root / Path(asset_path).name.removesuffix(".nwb")
         session.mkdir()
         for run_name in run_names:
-            os.mkdir(run_folder_for_run(str(session), run_name))
+            Path(run_folder_for_run(str(session), run_name)).mkdir()
 
     form.source_mode.value = "dandi"
     form.dandi_selector.dandiset_input.value = "000971"
     mirror_root = form.dandi_selector._current_mirror_root
     form.dandi_selector.asset_file_selector.value = [
-        os.path.join(mirror_root, *asset_path.split("/")) for asset_path in asset_paths
+        str(Path(mirror_root).joinpath(*asset_path.split("/"))) for asset_path in asset_paths
     ]
     form.dandi_selector.output_root_selector.value = [str(output_root)]
     return form
@@ -431,8 +431,8 @@ class TestParameterFormDandiMode:
         form.dandi_selector.dandiset_input.value = "000971"
         mirror_root = form.dandi_selector._current_mirror_root
         form.dandi_selector.asset_file_selector.value = [
-            os.path.join(mirror_root, "sub-01", "session_a.nwb"),
-            os.path.join(mirror_root, "sub-02", "session_b.nwb"),
+            str(Path(mirror_root) / "sub-01" / "session_a.nwb"),
+            str(Path(mirror_root) / "sub-02" / "session_b.nwb"),
         ]
         form.dandi_selector.output_root_selector.value = [str(output_root)]
 
@@ -448,7 +448,7 @@ class TestParameterFormDandiMode:
             session_b: "dandi://000971/sub-02/session_b.nwb",
         }
         for session_dir in (session_a, session_b):
-            assert os.path.isdir(session_dir)
+            assert Path(session_dir).is_dir()
 
     def test_dandi_mode_no_asset_raises(self, bare_parameter_form, tmp_path):
         form = bare_parameter_form
@@ -463,7 +463,7 @@ class TestParameterFormDandiMode:
         form.source_mode.value = "dandi"
         form.dandi_selector.dandiset_input.value = "000971"
         mirror_root = form.dandi_selector._current_mirror_root
-        form.dandi_selector.asset_file_selector.value = [os.path.join(mirror_root, "sub-01", "data.nwb")]
+        form.dandi_selector.asset_file_selector.value = [str(Path(mirror_root) / "sub-01" / "data.nwb")]
         with pytest.raises(Exception, match="local output directory"):
             form.getInputParameters()
 
@@ -545,7 +545,7 @@ def sessions_with_runs(tmp_path):
         session = tmp_path / name
         session.mkdir()
         for run_name in run_names:
-            os.mkdir(run_folder_for_run(str(session), run_name))
+            Path(run_folder_for_run(str(session), run_name)).mkdir()
         return str(session)
 
     return SimpleNamespace(
@@ -601,7 +601,7 @@ class TestOutputsSelector:
         run_a2 = run_folder_for_run(str(session_a), "run2")
         run_b1 = run_folder_for_run(str(session_b), "run1")
         for path in (run_a1, run_a2, run_b1):
-            os.mkdir(path)
+            Path(path).mkdir()
 
         bare_parameter_form.outputs_selector.value = [run_a1, run_a2, run_b1]
         result = bare_parameter_form._collect_selected_runs()
@@ -619,7 +619,7 @@ class TestOutputsSelector:
     ):
         session = tmp_path / "sessionA"
         session.mkdir()
-        os.mkdir(run_folder_for_run(str(session), "baseline"))
+        Path(run_folder_for_run(str(session), "baseline")).mkdir()
 
         bare_parameter_form.files_1.value = [str(session)]
         bare_parameter_form.outputs_selector.value = []
@@ -644,7 +644,7 @@ class TestOutputsSelector:
         session = tmp_path / "sessionA"
         session.mkdir()
         run_dir = run_folder_for_run(str(session), "baseline")
-        os.mkdir(run_dir)
+        Path(run_dir).mkdir()
 
         bare_parameter_form.files_1.value = [str(session)]
         bare_parameter_form.outputs_selector.value = [run_dir]
@@ -737,7 +737,7 @@ class TestRunNamePicker:
     ):
         bare_parameter_form.files_1.value = [sessions_with_runs.session_a]
         bare_parameter_form.run_names_for_all_sessions.value = ["1"]
-        os.mkdir(run_folder_for_run(sessions_with_runs.session_a, "2"))
+        Path(run_folder_for_run(sessions_with_runs.session_a, "2")).mkdir()
 
         bare_parameter_form.refresh_individual_outputs()
 
@@ -825,8 +825,8 @@ SAVED_PARAMETERS = {
 def _write_run_with_parameters(session_dir, run_name, parameters):
     """Create an ``_output_<run>`` dir under session_dir holding a GuPPyParamtersUsed.json."""
     run_dir = run_folder_for_run(str(session_dir), run_name)
-    os.mkdir(run_dir)
-    with open(os.path.join(run_dir, "GuPPyParamtersUsed.json"), "w") as parameters_file:
+    Path(run_dir).mkdir()
+    with (Path(run_dir) / "GuPPyParamtersUsed.json").open("w") as parameters_file:
         json.dump(parameters, parameters_file)
     return run_dir
 
@@ -897,7 +897,7 @@ class TestParameterAutoPopulate:
         session = tmp_path / "sessionA"
         session.mkdir()
         run_dir = run_folder_for_run(str(session), "fresh")
-        os.mkdir(run_dir)
+        Path(run_dir).mkdir()
 
         default_time = bare_parameter_form.timeForLightsTurnOn.value
         bare_parameter_form.files_1.value = [str(session)]

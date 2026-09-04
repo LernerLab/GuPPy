@@ -1,6 +1,5 @@
-import glob
-import os
 import shutil
+from pathlib import Path
 from unittest.mock import patch
 
 import h5py
@@ -32,24 +31,24 @@ def test_combine_data(tmp_path):
 
     # Use the CSV sample session
     src_base_dir = str(STUBBED_TESTING_DATA)
-    src_sessions = [os.path.join(src_base_dir, session_subdir) for session_subdir in session_subdirs]
+    src_sessions = [Path(src_base_dir) / session_subdir for session_subdir in session_subdirs]
     for src_session in src_sessions:
-        assert os.path.isdir(src_session), f"Sample data not available at expected path: {src_session}"
+        assert Path(src_session).is_dir(), f"Sample data not available at expected path: {src_session}"
 
     # Stage a clean copy of the session into a temporary workspace
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)
     session_copies = []
     for src_session in src_sessions:
-        dest_name = os.path.basename(src_session)
+        dest_name = Path(src_session).name
         session_copy = tmp_base / dest_name
         shutil.copytree(src_session, session_copy)
         session_copies.append(session_copy)
 
     for session_copy in session_copies:
         # Remove any copied artifacts in the temp session (match only this session's output dirs)
-        for d in glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")):
-            assert os.path.isdir(d), f"Expected output directory for cleanup, got non-directory: {d}"
+        for d in list(Path(session_copy).glob(f"{dest_name}_output_*")):
+            assert Path(d).is_dir(), f"Expected output directory for cleanup, got non-directory: {d}"
             shutil.rmtree(d)
         params_fp = session_copy / "GuPPyParamtersUsed.json"
         if params_fp.exists():
@@ -104,21 +103,21 @@ def test_combine_data(tmp_path):
 
     # Validate outputs exist in the temp copy
     session_copy = selected_folders[0]  # Outputs are written to the first session folder
-    basename = os.path.basename(session_copy)
-    run_folders = sorted(glob.glob(os.path.join(session_copy, f"{basename}_output_*")))
+    basename = Path(session_copy).name
+    run_folders = sorted(list(Path(session_copy).glob(f"{basename}_output_*")))
     assert run_folders, f"No output directories found in {session_copy}"
     out_dir = None
     for d in run_folders:
-        if os.path.exists(os.path.join(d, "storesList.csv")):
+        if (Path(d) / "storesList.csv").exists():
             out_dir = d
             break
     assert out_dir is not None, f"No storesList.csv found in any output directory under {session_copy}"
-    stores_fp = os.path.join(out_dir, "storesList.csv")
-    assert os.path.exists(stores_fp), "Missing storesList.csv after Step 1/2/3"
+    stores_fp = Path(out_dir) / "storesList.csv"
+    assert Path(stores_fp).exists(), "Missing storesList.csv after Step 1/2/3"
 
     # Ensure timeCorrection_<recording_site>.hdf5 exists with 'timestampNew'
-    timecorr = os.path.join(out_dir, f"timeCorrection_{expected_recording_site}.hdf5")
-    assert os.path.exists(timecorr), f"Missing {timecorr}"
+    timecorr = Path(out_dir) / (f"timeCorrection_{expected_recording_site}.hdf5")
+    assert Path(timecorr).exists(), f"Missing {timecorr}"
     with h5py.File(timecorr, "r") as f:
         assert "timestampNew" in f, f"Expected 'timestampNew' dataset in {timecorr}"
 
@@ -130,8 +129,8 @@ def test_combine_data(tmp_path):
     else:
         expected_ttls = expected_ttl
     for expected_ttl in expected_ttls:
-        ttl_fp = os.path.join(out_dir, f"{expected_ttl}_{expected_recording_site}.hdf5")
-        assert os.path.exists(ttl_fp), f"Missing TTL-aligned file {ttl_fp}"
+        ttl_fp = Path(out_dir) / (f"{expected_ttl}_{expected_recording_site}.hdf5")
+        assert Path(ttl_fp).exists(), f"Missing TTL-aligned file {ttl_fp}"
         with h5py.File(ttl_fp, "r") as f:
             assert "ts" in f, f"Expected 'ts' dataset in {ttl_fp}"
 

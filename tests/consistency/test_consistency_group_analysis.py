@@ -1,6 +1,5 @@
-import glob
-import os
 import shutil
+from pathlib import Path
 
 import pytest
 
@@ -50,7 +49,7 @@ def test_consistency_group_analysis(tmp_path):
         dest_name = src.name
         session_copy = tmp_base / dest_name
         shutil.copytree(src, session_copy)
-        for d in glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")):
+        for d in list(Path(session_copy).glob(f"{dest_name}_output_*")):
             shutil.rmtree(d)
         params_fp = session_copy / "GuPPyParamtersUsed.json"
         if params_fp.exists():
@@ -71,16 +70,14 @@ def test_consistency_group_analysis(tmp_path):
     step4(**common_kwargs, selected_runs=selected_runs)
 
     label_groups(
-        member_run_folders=[
-            os.path.join(folder, f"{os.path.basename(folder)}_output_1") for folder in selected_folders
-        ],
+        member_run_folders=[Path(folder) / (f"{Path(folder).name}_output_1") for folder in selected_folders],
         destination_directory=str(tmp_base),
         group_name="consistency",
     )
     group_analysis(base_dir=str(tmp_base), selected_group_folders=[str(tmp_base / "consistency_group")])
 
     actual_output_dir = str(tmp_base / "consistency_group")
-    assert os.path.isdir(actual_output_dir), f"No group directory found under {tmp_base}"
+    assert Path(actual_output_dir).is_dir(), f"No group directory found under {tmp_base}"
 
     compare_output_folders(
         actual_dir=actual_output_dir,

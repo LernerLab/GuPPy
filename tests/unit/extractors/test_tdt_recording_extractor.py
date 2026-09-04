@@ -1,7 +1,7 @@
 """Contract tests for TdtRecordingExtractor."""
 
-import os
 import shutil
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -91,9 +91,9 @@ def test_readtsq_returns_zeros_when_no_tsq_present(tmp_path):
 
 def test_readtev_raises_for_multiple_tev_files(tmp_path):
     """A folder with one valid tank's tsq plus an extra .tev triggers the multi-tev guard."""
-    source = os.path.join(STUBBED_TESTING_DATA, "tdt", "Photo_63_207-181030-103332")
-    for filename in os.listdir(source):
-        shutil.copy(os.path.join(source, filename), tmp_path / filename)
+    source = Path(STUBBED_TESTING_DATA) / "tdt" / "Photo_63_207-181030-103332"
+    for filename in [entry.name for entry in Path(source).iterdir()]:
+        shutil.copy(Path(source) / filename, tmp_path / filename)
     # Add a second .tev so the read path detects duplicates.
     (tmp_path / "extra.tev").write_bytes(b"")
     extractor = TdtRecordingExtractor(str(tmp_path))
@@ -103,7 +103,7 @@ def test_readtev_raises_for_multiple_tev_files(tmp_path):
 
 def test_readtev_raises_when_store_name_not_present(tmp_path):
     """A bogus store name surfaces a ValueError listing the available stores."""
-    extractor = TdtRecordingExtractor(os.path.join(STUBBED_TESTING_DATA, "tdt", "Photo_63_207-181030-103332"))
+    extractor = TdtRecordingExtractor(Path(STUBBED_TESTING_DATA) / "tdt" / "Photo_63_207-181030-103332")
     with pytest.raises(ValueError, match=r"'BOGUS' not found.*Available stores"):
         extractor._readtev("BOGUS")
 
@@ -201,7 +201,7 @@ class TestTdtRecordingExtractorChunkedRead:
     @pytest.mark.parametrize("event", ["Dv1A", "Fi1r"])
     def test_stub_read_is_independent_of_chunk_size(self, event):
         """Fi1r's 2048-byte blocks sit 2048 bytes apart, so a 4096-byte chunk straddles constantly."""
-        extractor = TdtRecordingExtractor(os.path.join(STUBBED_TESTING_DATA, "tdt", "Photo_63_207-181030-103332"))
+        extractor = TdtRecordingExtractor(Path(STUBBED_TESTING_DATA) / "tdt" / "Photo_63_207-181030-103332")
         default_chunks = extractor._readtev(event)
         small_chunks = extractor._readtev(event, chunk_bytes=4096)
         np.testing.assert_array_equal(small_chunks["data"], default_chunks["data"])
@@ -255,7 +255,7 @@ class TdtRecordingExtractorTestMixin(RecordingExtractorTestMixin):
 
 class TestTdtRecordingExtractor(TdtRecordingExtractorTestMixin):
     extractor_class = TdtRecordingExtractor
-    folder_path = os.path.join(STUBBED_TESTING_DATA, "tdt", "Photo_63_207-181030-103332")
+    folder_path = Path(STUBBED_TESTING_DATA) / "tdt" / "Photo_63_207-181030-103332"
     extractor_instance = TdtRecordingExtractor(folder_path)
     expected_events = ["Dv1A", "Dv2A", "PrtN"]
     discover_kwargs = {}
@@ -267,7 +267,7 @@ class TestTdtRecordingExtractor(TdtRecordingExtractorTestMixin):
 
 class TestTdtRecordingExtractorSample2(TdtRecordingExtractorTestMixin):
     extractor_class = TdtRecordingExtractor
-    folder_path = os.path.join(STUBBED_TESTING_DATA, "tdt", "Photo_048_392-200728-121222")
+    folder_path = Path(STUBBED_TESTING_DATA) / "tdt" / "Photo_048_392-200728-121222"
     extractor_instance = TdtRecordingExtractor(folder_path)
     expected_events = ["Dv1A", "Dv2A", "PrtN"]
     discover_kwargs = {}
@@ -307,9 +307,9 @@ class TdtRecordingExtractorSplitTestMixin(TdtRecordingExtractorTestMixin):
             assert result[0]["store_id"] == split_name
 
     def test_read_split_subevents_writes_nothing(self, tmp_path):
-        before = set(os.listdir(tmp_path))
+        before = set([entry.name for entry in Path(tmp_path).iterdir()])
         self.extractor_instance.read(events=list(self.expected_split_events), outputPath=str(tmp_path))
-        assert set(os.listdir(tmp_path)) == before
+        assert set([entry.name for entry in Path(tmp_path).iterdir()]) == before
 
     def test_count_samples_split_subevent_matches_parent_rows(self):
         split_map = self.extractor_class._compute_split_map(self.extractor_instance._header_df)
@@ -325,7 +325,7 @@ class TdtRecordingExtractorSplitTestMixin(TdtRecordingExtractorTestMixin):
 
 class TestTdtRecordingExtractorSplitEvent(TdtRecordingExtractorSplitTestMixin):
     extractor_class = TdtRecordingExtractor
-    folder_path = os.path.join(STUBBED_TESTING_DATA, "tdt", "Photometry-161823")
+    folder_path = Path(STUBBED_TESTING_DATA) / "tdt" / "Photometry-161823"
     extractor_instance = TdtRecordingExtractor(folder_path)
     # PAB/ splits into one sub-event per marker value, enumerated at discover time.
     split_parent = "PAB/"
@@ -339,7 +339,7 @@ class TestTdtRecordingExtractorSplitEvent(TdtRecordingExtractorSplitTestMixin):
 
 class TestTdtRecordingExtractorSplitFloat(TdtRecordingExtractorSplitTestMixin):
     extractor_class = TdtRecordingExtractor
-    folder_path = os.path.join(STUBBED_TESTING_DATA, "tdt", "ME112-ME113-260420-114630")
+    folder_path = Path(STUBBED_TESTING_DATA) / "tdt" / "ME112-ME113-260420-114630"
     extractor_instance = TdtRecordingExtractor(folder_path)
     # Widt carries float-valued codes (0.1, 0.2, 0.4, 0.8, 10.0); splitting must produce one
     # sub-event per unique float (regression for the int()-collapse bug), not collapse them.

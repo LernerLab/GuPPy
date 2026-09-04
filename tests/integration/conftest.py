@@ -1,6 +1,5 @@
-import glob
-import os
 import shutil
+from pathlib import Path
 from unittest.mock import patch
 
 import holoviews as hv
@@ -18,17 +17,17 @@ def _prepare_pipeline_state(
     *, tmp_path_factory: pytest.TempPathFactory, modality: str
 ) -> dict[str, str | list[bool] | None]:
     representative_config = REPRESENTATIVE_SESSIONS[modality]
-    source_session = os.path.join(str(STUBBED_TESTING_DATA), representative_config["session_subdir"])
-    assert os.path.isdir(source_session), f"Sample data not available at expected path: {source_session}"
+    source_session = Path(str(STUBBED_TESTING_DATA)) / representative_config["session_subdir"]
+    assert Path(source_session).is_dir(), f"Sample data not available at expected path: {source_session}"
 
     temporary_base_directory = tmp_path_factory.mktemp(f"integration_{modality}")
-    session_name = os.path.basename(source_session)
+    session_name = Path(source_session).name
     session_copy_path = temporary_base_directory / session_name
     shutil.copytree(source_session, session_copy_path)
 
-    for output_directory in glob.glob(os.path.join(session_copy_path, f"{session_name}_output_*")):
-        assert os.path.isdir(
-            output_directory
+    for output_directory in list(Path(session_copy_path).glob(f"{session_name}_output_*")):
+        assert (
+            output_directory.is_dir()
         ), f"Expected output directory for cleanup, got non-directory: {output_directory}"
         shutil.rmtree(output_directory)
 

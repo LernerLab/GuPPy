@@ -1,6 +1,6 @@
-import os
 import shutil
 import types
+from pathlib import Path
 
 import pytest
 
@@ -303,7 +303,7 @@ def staged_csv_session(tmp_path):
     base_directory.mkdir()
     session_copy = base_directory / "sample_data_csv_1"
     shutil.copytree(
-        os.path.join(str(STUBBED_TESTING_DATA), "csv", "sample_data_csv_1"),
+        Path(str(STUBBED_TESTING_DATA)) / "csv" / "sample_data_csv_1",
         session_copy,
         ignore=shutil.ignore_patterns("sample_data_csv_1_output_*", "GuPPyParamtersUsed.json"),
     )
@@ -355,14 +355,14 @@ class TestStep1Driver:
             isosbestic_control=False,
         )
 
-        stores_list_path = os.path.join(staged_csv_session["session"], "sample_data_csv_1_output_1", "storesList.csv")
-        assert os.path.exists(stores_list_path)
+        stores_list_path = Path(staged_csv_session["session"]) / "sample_data_csv_1_output_1" / "storesList.csv"
+        assert Path(stores_list_path).exists()
 
 
 @pytest.fixture
 def npm_template_two_timestamp_columns(panel_extension):
     """Label Stores template for the NPM_3 stub: two timestamp columns, split checkbox on file 1."""
-    folder_path = os.path.join(str(STUBBED_TESTING_DATA), "npm", "sampleData_NPM_3")
+    folder_path = Path(str(STUBBED_TESTING_DATA)) / "npm" / "sampleData_NPM_3"
     input_parameters = {"noChannels": 2}
     _, _, npm_interactive = read_header(input_parameters, 2, folder_path)
     return build_store_labeling_template(
@@ -373,7 +373,7 @@ def npm_template_two_timestamp_columns(panel_extension):
 @pytest.fixture
 def npm_template_single_timestamp_column(panel_extension):
     """Label Stores template for the NPM_4 stub: one timestamp column, split checkbox on file 1."""
-    folder_path = os.path.join(str(STUBBED_TESTING_DATA), "npm", "sampleData_NPM_4")
+    folder_path = Path(str(STUBBED_TESTING_DATA)) / "npm" / "sampleData_NPM_4"
     input_parameters = {"noChannels": 2}
     _, _, npm_interactive = read_header(input_parameters, 2, folder_path)
     return build_store_labeling_template(

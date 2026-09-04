@@ -1,5 +1,6 @@
 import json
 import pathlib
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -198,9 +199,8 @@ def test_output_dir_for_run_does_not_create_directory(tmp_path):
     session = tmp_path / "mySession"
     session.mkdir()
     result = run_folder_for_run(str(session), "x")
-    import os as _os
 
-    assert not _os.path.exists(result)
+    assert not Path(result).exists()
 
 
 # ── discover_run_folders ──────────────────────────────────────────────────────
@@ -578,7 +578,7 @@ class TestGroupMembersManifest:
 
     def test_manifest_holds_only_the_members_key(self, tmp_path):
         write_group_members(group_folder=str(tmp_path), member_run_folders=["/data/A/A_output_1"])
-        with open(tmp_path / GROUP_MEMBERS_FILENAME) as file:
+        with (tmp_path / GROUP_MEMBERS_FILENAME).open() as file:
             assert json.load(file) == {"member_run_folders": ["/data/A/A_output_1"]}
 
     def test_read_raises_when_manifest_absent(self, tmp_path):

@@ -1,6 +1,6 @@
 """Contract tests for DoricRecordingExtractor."""
 
-import os
+from pathlib import Path
 
 import h5py
 import numpy as np
@@ -141,7 +141,7 @@ _EVENT_NAME_TO_EVENT_TYPE = {
 
 class TestDoricRecordingExtractor(DoricRecordingExtractorTestMixin):
     extractor_class = DoricRecordingExtractor
-    folder_path = os.path.join(STUBBED_TESTING_DATA, "doric", "sample_doric_1")
+    folder_path = Path(STUBBED_TESTING_DATA) / "doric" / "sample_doric_1"
     extractor_instance = DoricRecordingExtractor(folder_path, _EVENT_NAME_TO_EVENT_TYPE)
     expected_events = ["AIn-1 - Raw", "AIn-2 - Raw", "DI--O-1"]
     discover_kwargs = {}
@@ -161,7 +161,7 @@ _EVENT_NAME_TO_EVENT_TYPE_SAMPLE2 = {
 
 class TestDoricRecordingExtractorSample2(DoricRecordingExtractorTestMixin):
     extractor_class = DoricRecordingExtractor
-    folder_path = os.path.join(STUBBED_TESTING_DATA, "doric", "sample_doric_2")
+    folder_path = Path(STUBBED_TESTING_DATA) / "doric" / "sample_doric_2"
     extractor_instance = DoricRecordingExtractor(folder_path, _EVENT_NAME_TO_EVENT_TYPE_SAMPLE2)
     expected_events = ["AIn-1 - Dem (ref)", "AIn-1 - Dem (da)", "DI/O-1"]
     discover_kwargs = {}
@@ -180,7 +180,7 @@ _EVENT_NAME_TO_EVENT_TYPE_SAMPLE4 = {
 
 class TestDoricRecordingExtractorSample4(DoricRecordingExtractorTestMixin):
     extractor_class = DoricRecordingExtractor
-    folder_path = os.path.join(STUBBED_TESTING_DATA, "doric", "sample_doric_4")
+    folder_path = Path(STUBBED_TESTING_DATA) / "doric" / "sample_doric_4"
     extractor_instance = DoricRecordingExtractor(folder_path, _EVENT_NAME_TO_EVENT_TYPE_SAMPLE4)
     expected_events = ["Series0001/AIN01xAOUT01-LockIn", "Series0001/AIN01xAOUT02-LockIn"]
     discover_kwargs = {}
@@ -198,7 +198,7 @@ _EVENT_NAME_TO_EVENT_TYPE_SAMPLE5 = {
 
 class TestDoricRecordingExtractorSample5(DoricRecordingExtractorTestMixin):
     extractor_class = DoricRecordingExtractor
-    folder_path = os.path.join(STUBBED_TESTING_DATA, "doric", "sample_doric_5")
+    folder_path = Path(STUBBED_TESTING_DATA) / "doric" / "sample_doric_5"
     extractor_instance = DoricRecordingExtractor(folder_path, _EVENT_NAME_TO_EVENT_TYPE_SAMPLE5)
     expected_events = ["Series0001/AIN01xAOUT01-LockIn", "Series0001/AIN01xAOUT02-LockIn"]
     discover_kwargs = {}
@@ -217,7 +217,7 @@ _EVENT_NAME_TO_EVENT_TYPE_V6 = {
 
 class TestDoricRecordingExtractorV6(DoricRecordingExtractorTestMixin):
     extractor_class = DoricRecordingExtractor
-    folder_path = os.path.join(STUBBED_TESTING_DATA, "doric", "sample_doric_3")
+    folder_path = Path(STUBBED_TESTING_DATA) / "doric" / "sample_doric_3"
     extractor_instance = DoricRecordingExtractor(folder_path, _EVENT_NAME_TO_EVENT_TYPE_V6)
     expected_events = ["CAM1_EXC1/ROI01", "CAM1_EXC2/ROI01", "DigitalIO/CAM1"]
     discover_kwargs = {}

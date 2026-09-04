@@ -1,5 +1,5 @@
-import os
 import shutil
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -8,8 +8,8 @@ from guppy.extractors.csv_recording_extractor import CsvRecordingExtractor
 from guppy.extractors.detect_acquisition_formats import detect_acquisition_formats
 from guppy.testing.api import import_custom_events
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-STUBBED_CSV_SESSION = os.path.join(PROJECT_ROOT, "stubbed_testing_data", "csv", "sample_data_csv_1")
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+STUBBED_CSV_SESSION = PROJECT_ROOT / "stubbed_testing_data" / "csv" / "sample_data_csv_1"
 
 
 @pytest.fixture
@@ -31,8 +31,8 @@ def test_pasted_event_surfaces_as_store(base_dir_with_session):
     )
 
     # The CSV is written into the session folder in GuPPy-compatible form.
-    csv_path = os.path.join(session, "movement_onset.csv")
-    assert os.path.exists(csv_path)
+    csv_path = Path(session) / "movement_onset.csv"
+    assert Path(csv_path).exists()
     df = pd.read_csv(csv_path)
     assert list(df.columns) == ["timestamps"]
     assert df["timestamps"].tolist() == [0.5, 1.5, 2.5]

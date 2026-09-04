@@ -1,6 +1,5 @@
-import glob
-import os
 import shutil
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -51,8 +50,8 @@ def test_underscore_recording_site_runs_end_to_end(tmp_path, isosbestic_control,
     session_copy = temporary_base_directory / session_name
     shutil.copytree(source_session, session_copy)
 
-    for output_directory in glob.glob(os.path.join(session_copy, f"{session_name}_output_*")):
-        assert os.path.isdir(output_directory)
+    for output_directory in list(Path(session_copy).glob(f"{session_name}_output_*")):
+        assert Path(output_directory).is_dir()
         shutil.rmtree(output_directory)
     parameters_path = session_copy / "GuPPyParamtersUsed.json"
     if parameters_path.exists():
@@ -69,31 +68,29 @@ def test_underscore_recording_site_runs_end_to_end(tmp_path, isosbestic_control,
     step3(**common_kwargs, isosbestic_control=isosbestic_control, selected_runs=selected_runs)
     step4(**common_kwargs, selected_runs=selected_runs)
 
-    output_directories = sorted(glob.glob(os.path.join(session_copy, f"{session_name}_output_*")))
+    output_directories = sorted(list(Path(session_copy).glob(f"{session_name}_output_*")))
     assert output_directories, f"No output directories found in {session_copy}"
     output_directory = None
     for candidate in output_directories:
-        if os.path.exists(os.path.join(candidate, "storesList.csv")):
+        if (Path(candidate) / "storesList.csv").exists():
             output_directory = candidate
             break
     assert output_directory is not None, f"No storesList.csv found in any output directory under {session_copy}"
 
     # The full underscore recording site must appear intact in every derived artifact name.
-    psth_file_path = os.path.join(
-        output_directory, f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.h5"
+    psth_file_path = Path(output_directory) / (
+        f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.h5"
     )
-    peak_auc_h5_file_path = os.path.join(
-        output_directory, f"peak_AUC_{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.h5"
+    peak_auc_h5_file_path = Path(output_directory) / (
+        f"peak_AUC_{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.h5"
     )
-    frequency_and_amplitude_h5_file_path = os.path.join(
-        output_directory, f"freqAndAmp_z_score_{EXPECTED_RECORDING_SITE}.h5"
-    )
+    frequency_and_amplitude_h5_file_path = Path(output_directory) / (f"freqAndAmp_z_score_{EXPECTED_RECORDING_SITE}.h5")
 
-    assert os.path.exists(psth_file_path), f"Missing PSTH HDF5: {psth_file_path}"
-    assert os.path.exists(peak_auc_h5_file_path), f"Missing peak/AUC HDF5: {peak_auc_h5_file_path}"
-    assert os.path.exists(
+    assert Path(psth_file_path).exists(), f"Missing PSTH HDF5: {psth_file_path}"
+    assert Path(peak_auc_h5_file_path).exists(), f"Missing peak/AUC HDF5: {peak_auc_h5_file_path}"
+    assert Path(
         frequency_and_amplitude_h5_file_path
-    ), f"Missing freq/amp HDF5: {frequency_and_amplitude_h5_file_path}"
+    ).exists(), f"Missing freq/amp HDF5: {frequency_and_amplitude_h5_file_path}"
 
     psth_dataframe = pd.read_hdf(psth_file_path, key="df")
     assert "timestamps" in psth_dataframe.columns, f"'timestamps' column missing in {psth_file_path}"

@@ -1,6 +1,6 @@
 import csv
-import os
 import shutil
+from pathlib import Path
 
 import h5py
 import numpy as np
@@ -28,9 +28,9 @@ def test_step2(step2_fixture_name, request):
     """Validate Step 2 outputs for the representative integration sessions."""
     pipeline_state = request.getfixturevalue(step2_fixture_name)
     output_directory = str(pipeline_state["output_directory"])
-    stores_file_path = os.path.join(output_directory, "storesList.csv")
+    stores_file_path = Path(output_directory) / "storesList.csv"
 
-    with open(stores_file_path, newline="") as stores_file:
+    with Path(stores_file_path).open(newline="") as stores_file:
         stores_rows = list(csv.reader(stores_file))
 
     assert len(stores_rows) == 2, "storesList.csv should be 2 rows (store_ids, store_labels)"
@@ -38,14 +38,14 @@ def test_step2(step2_fixture_name, request):
     assert store_ids, "Expected at least one store_id in storesList.csv"
 
     # Step 2 auto-writes the parameter snapshot into the selected output directory.
-    assert os.path.exists(
-        os.path.join(output_directory, "GuPPyParamtersUsed.json")
-    ), "step 2 should write GuPPyParamtersUsed.json into the output directory"
+    assert (
+        Path(output_directory) / "GuPPyParamtersUsed.json"
+    ).exists(), "step 2 should write GuPPyParamtersUsed.json into the output directory"
 
     for store_id in store_ids:
         safe_store_id = store_id.replace("\\", "_").replace("/", "_")
-        store_id_file_path = os.path.join(output_directory, f"{safe_store_id}.hdf5")
-        assert os.path.exists(store_id_file_path), f"Missing HDF5 for store_id {store_id!r} at {store_id_file_path}"
+        store_id_file_path = Path(output_directory) / (f"{safe_store_id}.hdf5")
+        assert Path(store_id_file_path).exists(), f"Missing HDF5 for store_id {store_id!r} at {store_id_file_path}"
 
         with h5py.File(store_id_file_path, "r") as store_id_file:
             assert "timestamps" in store_id_file, "Expected 'timestamps' dataset in HDF5"
@@ -64,10 +64,10 @@ class TestStep2ProgressAccounting:
         token = _current_step.set(step)
 
         config = REPRESENTATIVE_SESSIONS["tdt"]
-        source = os.path.join(str(STUBBED_TESTING_DATA), config["session_subdir"])
+        source = Path(str(STUBBED_TESTING_DATA)) / config["session_subdir"]
         base_directory = tmp_path / "base"
         base_directory.mkdir()
-        session_copy = base_directory / os.path.basename(source)
+        session_copy = base_directory / Path(source).name
         shutil.copytree(source, session_copy)
 
         step1(
@@ -79,9 +79,9 @@ class TestStep2ProgressAccounting:
 
         from guppy.extractors.tdt_recording_extractor import TdtRecordingExtractor
 
-        stores_list = np.genfromtxt(
-            os.path.join(output_directory, "storesList.csv"), dtype="str", delimiter=","
-        ).reshape(2, -1)
+        stores_list = np.genfromtxt(Path(output_directory) / "storesList.csv", dtype="str", delimiter=",").reshape(
+            2, -1
+        )
         extractor = TdtRecordingExtractor(str(session_copy))
         expected_total_samples = sum(extractor.count_samples(event=event) for event in np.unique(stores_list[0, :]))
 
@@ -89,7 +89,7 @@ class TestStep2ProgressAccounting:
             step2(
                 base_dir=str(base_directory),
                 selected_folders=[str(session_copy)],
-                selected_runs={str(session_copy): [os.path.basename(output_directory).rsplit("_", 1)[-1]]},
+                selected_runs={str(session_copy): [Path(output_directory).name.rsplit("_", 1)[-1]]},
             )
         finally:
             _current_step.reset(token)

@@ -1,6 +1,5 @@
 """Contract tests for CsvRecordingExtractor."""
 
-import os
 from pathlib import Path
 
 import numpy as np
@@ -36,7 +35,7 @@ from guppy_test_data import STUBBED_TESTING_DATA
 
 class TestCsvRecordingExtractor(RecordingExtractorTestMixin):
     extractor_class = CsvRecordingExtractor
-    folder_path = os.path.join(STUBBED_TESTING_DATA, "csv", "sample_data_csv_1")
+    folder_path = Path(STUBBED_TESTING_DATA) / "csv" / "sample_data_csv_1"
     extractor_instance = CsvRecordingExtractor(folder_path)
     expected_events = ["Sample_Control_Channel", "Sample_Signal_Channel", "Sample_TTL"]
     discover_kwargs = {}
@@ -47,27 +46,27 @@ class TestCsvRecordingExtractor(RecordingExtractorTestMixin):
 
     @pytest.fixture
     def expected_control_timestamps(self):
-        csv_path = os.path.join(self.folder_path, "Sample_Control_Channel.csv")
+        csv_path = Path(self.folder_path) / "Sample_Control_Channel.csv"
         return pd.read_csv(csv_path)["timestamps"].to_numpy()
 
     @pytest.fixture
     def expected_control_data(self):
-        csv_path = os.path.join(self.folder_path, "Sample_Control_Channel.csv")
+        csv_path = Path(self.folder_path) / "Sample_Control_Channel.csv"
         return pd.read_csv(csv_path)["data"].to_numpy()
 
     @pytest.fixture
     def expected_signal_timestamps(self):
-        csv_path = os.path.join(self.folder_path, "Sample_Signal_Channel.csv")
+        csv_path = Path(self.folder_path) / "Sample_Signal_Channel.csv"
         return pd.read_csv(csv_path)["timestamps"].to_numpy()
 
     @pytest.fixture
     def expected_signal_data(self):
-        csv_path = os.path.join(self.folder_path, "Sample_Signal_Channel.csv")
+        csv_path = Path(self.folder_path) / "Sample_Signal_Channel.csv"
         return pd.read_csv(csv_path)["data"].to_numpy()
 
     @pytest.fixture
     def expected_ttl_timestamps(self):
-        csv_path = os.path.join(self.folder_path, "Sample_TTL.csv")
+        csv_path = Path(self.folder_path) / "Sample_TTL.csv"
         return pd.read_csv(csv_path)["timestamps"].to_numpy()
 
 

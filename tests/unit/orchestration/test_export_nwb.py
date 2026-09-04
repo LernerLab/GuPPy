@@ -10,7 +10,7 @@ the converter, an NWB file through the standalone interface.
 """
 
 import json
-import os
+from pathlib import Path
 
 import pytest
 from pynwb import NWBFile
@@ -38,8 +38,8 @@ class TestValidateArtifactRemovalMethods:
         return session
 
     def _write_parameters(self, session_path, parameters):
-        output_dir = session_path / f"{os.path.basename(session_path)}_output_run1"
-        with open(output_dir / "GuPPyParamtersUsed.json", "w") as parameters_file:
+        output_dir = session_path / f"{Path(session_path).name}_output_run1"
+        with (output_dir / "GuPPyParamtersUsed.json").open("w") as parameters_file:
             json.dump(parameters, parameters_file)
 
     def test_concatenate_with_remove_artifacts_aborts(self, session_path):
@@ -270,7 +270,7 @@ class TestRunExportNwbStep:
         session = tmp_path / "Photo_session"
         output_dir = session / "Photo_session_output_run1"
         output_dir.mkdir(parents=True)
-        with open(output_dir / "GuPPyParamtersUsed.json", "w") as parameters_file:
+        with (output_dir / "GuPPyParamtersUsed.json").open("w") as parameters_file:
             json.dump({"removeArtifacts": True, "artifactsRemovalMethod": "concatenate"}, parameters_file)
 
         with pytest.raises(ValueError, match="does not support the 'concatenate'"):

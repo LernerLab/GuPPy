@@ -1,6 +1,6 @@
 import json
-import os
 from importlib.metadata import version
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -67,9 +67,9 @@ def test_save_parameters(tmp_path, default_parameters):
 
     # Assert: JSON written for each session with key defaults
     for s in sessions:
-        out_fp = os.path.join(s, "GuPPyParamtersUsed.json")
-        assert os.path.exists(out_fp), f"Missing file: {out_fp}"
-        with open(out_fp) as f:
+        out_fp = Path(s) / "GuPPyParamtersUsed.json"
+        assert Path(out_fp).exists(), f"Missing file: {out_fp}"
+        with Path(out_fp).open() as f:
             data = json.load(f)
 
         assert data["guppy_version"] == version("guppy-neuro")

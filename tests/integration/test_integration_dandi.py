@@ -11,7 +11,7 @@ chain in conftest.py, so it lives in its own self-contained file.
 """
 
 import csv
-import os
+from pathlib import Path
 
 import h5py
 import pytest
@@ -103,10 +103,10 @@ class TestDandiIntegration:
     """Exercises the DANDI orchestration branches for step1 and step2."""
 
     def test_step1_writes_stores_list(self, step1_dandi_output):
-        stores_file_path = os.path.join(step1_dandi_output["output_directory"], "storesList.csv")
-        assert os.path.exists(stores_file_path)
+        stores_file_path = Path(step1_dandi_output["output_directory"]) / "storesList.csv"
+        assert Path(stores_file_path).exists()
 
-        with open(stores_file_path, newline="") as stores_file:
+        with Path(stores_file_path).open(newline="") as stores_file:
             stores_rows = list(csv.reader(stores_file))
 
         assert len(stores_rows) == 2
@@ -116,8 +116,8 @@ class TestDandiIntegration:
     def test_step2_writes_hdf5_per_event(self, step2_dandi_output):
         output_directory = step2_dandi_output["output_directory"]
         for store_id in STORE_ID_TO_STORE_LABEL.keys():
-            store_id_file_path = os.path.join(output_directory, f"{store_id}.hdf5")
-            assert os.path.exists(store_id_file_path), f"Missing HDF5 for store_id {store_id!r} at {store_id_file_path}"
+            store_id_file_path = Path(output_directory) / (f"{store_id}.hdf5")
+            assert Path(store_id_file_path).exists(), f"Missing HDF5 for store_id {store_id!r} at {store_id_file_path}"
 
             with h5py.File(store_id_file_path, "r") as store_id_file:
                 assert "timestamps" in store_id_file
@@ -149,5 +149,5 @@ class TestDandiIntegrationMultiAsset:
 
         for session_directory in (session_a, session_b):
             output_directory = _locate_output_directory(session_copy=str(session_directory))
-            stores_file_path = os.path.join(output_directory, "storesList.csv")
-            assert os.path.exists(stores_file_path), f"Missing storesList.csv under {session_directory}"
+            stores_file_path = Path(output_directory) / "storesList.csv"
+            assert Path(stores_file_path).exists(), f"Missing storesList.csv under {session_directory}"

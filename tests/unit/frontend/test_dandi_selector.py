@@ -1,6 +1,6 @@
 """Unit tests for the DandiSelector Panel component."""
 
-import os
+from pathlib import Path
 
 import pytest
 from dandi.exceptions import NotFoundError
@@ -71,15 +71,15 @@ class TestDandiSelector:
         selector.dandiset_input.value = "000971"
         mirror_root = selector._current_mirror_root
         assert mirror_root is not None
-        assert os.path.isdir(os.path.join(mirror_root, "sub-01"))
-        assert os.path.isdir(os.path.join(mirror_root, "sub-02"))
-        assert os.path.isfile(os.path.join(mirror_root, "sub-01", "ses-1_behavior.nwb"))
-        assert os.path.isfile(os.path.join(mirror_root, "sub-01", "ses-2_behavior.nwb"))
-        assert os.path.isfile(os.path.join(mirror_root, "sub-02", "ses-1_behavior.nwb"))
+        assert (Path(mirror_root) / "sub-01").is_dir()
+        assert (Path(mirror_root) / "sub-02").is_dir()
+        assert (Path(mirror_root) / "sub-01" / "ses-1_behavior.nwb").is_file()
+        assert (Path(mirror_root) / "sub-01" / "ses-2_behavior.nwb").is_file()
+        assert (Path(mirror_root) / "sub-02" / "ses-1_behavior.nwb").is_file()
         # Placeholders are zero bytes.
-        assert os.path.getsize(os.path.join(mirror_root, "sub-01", "ses-1_behavior.nwb")) == 0
+        assert (Path(mirror_root) / "sub-01" / "ses-1_behavior.nwb").stat().st_size == 0
         # README.md (non-NWB) is filtered out.
-        assert not os.path.exists(os.path.join(mirror_root, "README.md"))
+        assert not (Path(mirror_root) / "README.md").exists()
         assert "3 NWB asset" in selector.status.object
 
     def test_file_selector_is_scoped_to_dandiset(self, selector):
@@ -91,8 +91,8 @@ class TestDandiSelector:
         selector.dandiset_input.value = "000971"
         mirror_root = selector._current_mirror_root
         selector.asset_file_selector.value = [
-            os.path.join(mirror_root, "sub-01", "ses-1_behavior.nwb"),
-            os.path.join(mirror_root, "sub-02", "ses-1_behavior.nwb"),
+            str(Path(mirror_root) / "sub-01" / "ses-1_behavior.nwb"),
+            str(Path(mirror_root) / "sub-02" / "ses-1_behavior.nwb"),
         ]
         assert selector.selected_uris == [
             "dandi://000971/sub-01/ses-1_behavior.nwb",
@@ -104,8 +104,8 @@ class TestDandiSelector:
         mirror_root = selector._current_mirror_root
         # A folder path sneaking into .value should be ignored.
         selector.asset_file_selector.value = [
-            os.path.join(mirror_root, "sub-01"),
-            os.path.join(mirror_root, "sub-01", "ses-1_behavior.nwb"),
+            str(Path(mirror_root) / "sub-01"),
+            str(Path(mirror_root) / "sub-01" / "ses-1_behavior.nwb"),
         ]
         assert selector.selected_uris == ["dandi://000971/sub-01/ses-1_behavior.nwb"]
 
@@ -115,7 +115,7 @@ class TestDandiSelector:
         selector.dandiset_input.value = "000001"
         second_root = selector._current_mirror_root
         assert first_root != second_root
-        assert os.path.isfile(os.path.join(second_root, "sub-a", "data.nwb"))
+        assert (Path(second_root) / "sub-a" / "data.nwb").is_file()
         assert selector.asset_file_selector.root_directory == second_root
         # Prior selection cleared on dandiset change.
         assert selector.asset_file_selector.value == []
@@ -123,7 +123,7 @@ class TestDandiSelector:
     def test_clearing_dandiset_clears_selections(self, selector):
         selector.dandiset_input.value = "000971"
         mirror_root = selector._current_mirror_root
-        selector.asset_file_selector.value = [os.path.join(mirror_root, "sub-01", "ses-1_behavior.nwb")]
+        selector.asset_file_selector.value = [str(Path(mirror_root) / "sub-01" / "ses-1_behavior.nwb")]
         selector.dandiset_input.value = ""
         assert selector._current_mirror_root is None
         assert selector.selected_uris == []
@@ -157,7 +157,7 @@ class TestDandiSelector:
         assert calls == []
         assert selector._current_mirror_root is None
         # No <id>/ folder was created.
-        assert not os.path.isdir(os.path.join(selector._mirror_parent, malformed))
+        assert not (Path(selector._mirror_parent) / malformed).is_dir()
 
     def test_not_found_shows_warning_and_no_stale_folder(self, selector, patched_client, monkeypatch):
         def raising_get_dandiset(self_inner, dandiset_id, version=None):
@@ -170,7 +170,7 @@ class TestDandiSelector:
         assert "\u26a0\ufe0f" in selector.status.object
         assert "not found" in selector.status.object
         assert selector._current_mirror_root is None
-        assert not os.path.isdir(os.path.join(selector._mirror_parent, "999999"))
+        assert not (Path(selector._mirror_parent) / "999999").is_dir()
 
     def test_recovery_after_error(self, selector, patched_client):
         selector.dandiset_input.value = "abc"
@@ -182,7 +182,7 @@ class TestDandiSelector:
         assert selector.asset_file_selector.root_directory == selector._current_mirror_root
 
         mirror_root = selector._current_mirror_root
-        selector.asset_file_selector.value = [os.path.join(mirror_root, "sub-01", "ses-1_behavior.nwb")]
+        selector.asset_file_selector.value = [str(Path(mirror_root) / "sub-01" / "ses-1_behavior.nwb")]
         assert selector.selected_uris == ["dandi://000971/sub-01/ses-1_behavior.nwb"]
 
     def test_widget_swapped_on_load(self, selector):
@@ -206,7 +206,7 @@ class TestDandiSelector:
         selector.attach_asset_selection_watcher(callback=events.append)
         selector.dandiset_input.value = "000971"
         mirror_root = selector._current_mirror_root
-        asset_path = os.path.join(mirror_root, "sub-01", "ses-1_behavior.nwb")
+        asset_path = Path(mirror_root) / "sub-01" / "ses-1_behavior.nwb"
         events.clear()
 
         # The widget selected into here is the replacement built for this dandiset,

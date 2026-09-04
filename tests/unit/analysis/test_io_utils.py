@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -81,8 +81,8 @@ def test_decide_naming_convention_pairs_recording_sites_with_underscores(tmp_pat
     (tmp_path / "signal_left_hemisphere.hdf5").touch()
     result = decide_naming_convention(str(tmp_path))
     assert result.shape == (2, 1)
-    assert os.path.basename(result[0, 0]) == "control_left_hemisphere.hdf5"
-    assert os.path.basename(result[1, 0]) == "signal_left_hemisphere.hdf5"
+    assert Path(result[0, 0]).name == "control_left_hemisphere.hdf5"
+    assert Path(result[1, 0]).name == "signal_left_hemisphere.hdf5"
 
 
 # ── read_hdf5 / write_hdf5 ────────────────────────────────────────────────────

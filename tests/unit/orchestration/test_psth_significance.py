@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -19,7 +19,7 @@ from guppy.utils.progress import StepProgress, _current_step
 
 def write_stores_list(run_folder, store_ids, store_labels):
     np.savetxt(
-        os.path.join(run_folder, "storesList.csv"),
+        Path(run_folder) / "storesList.csv",
         np.asarray([store_ids, store_labels]),
         delimiter=",",
         fmt="%s",
@@ -39,7 +39,7 @@ def write_psth(run_folder, event, recording_site, basename, *, num_trials=5, num
     data += [np.linspace(-1, 1, num_timepoints), np.zeros(num_timepoints), np.zeros(num_timepoints)]
 
     frame = pd.DataFrame(np.asarray(data).T, columns=columns, dtype="float32")
-    frame.to_hdf(os.path.join(run_folder, f"{event}_{recording_site}_{basename}.h5"), key="df", mode="w")
+    frame.to_hdf(Path(run_folder) / (f"{event}_{recording_site}_{basename}.h5"), key="df", mode="w")
 
 
 @pytest.fixture
@@ -327,7 +327,7 @@ class TestSmallSampleReporting:
             "at least 3 trials or sessions to resample. Skipped: rewarded_dms_z_score_dms (found 2), "
             "unrewarded_dms_z_score_dms (found 2)."
         )
-        assert not os.path.exists(os.path.join(two_trial_run_folder, PSTH_SIGNIFICANCE_DIRNAME))
+        assert not (Path(two_trial_run_folder) / PSTH_SIGNIFICANCE_DIRNAME).exists()
 
     def test_a_usable_run_warns_about_nothing(self, run_folder, significance_parameters, bound_step):
         significance_parameters["psthBootstrapResamples"] = 50

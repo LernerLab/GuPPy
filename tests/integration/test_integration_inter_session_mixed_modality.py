@@ -1,6 +1,5 @@
-import glob
-import os
 import shutil
+from pathlib import Path
 
 import h5py
 import pytest
@@ -37,8 +36,8 @@ def test_mixed_modality(tmp_path):
     }
 
     src_base_dir = str(STUBBED_TESTING_DATA)
-    npm_src = os.path.join(src_base_dir, npm_session_subdir)
-    doric_src = os.path.join(src_base_dir, doric_session_subdir)
+    npm_src = Path(src_base_dir) / npm_session_subdir
+    doric_src = Path(src_base_dir) / doric_session_subdir
 
     # Stage a clean copy of each session into a shared temporary workspace
     tmp_base = tmp_path / "data_root"
@@ -50,9 +49,9 @@ def test_mixed_modality(tmp_path):
     shutil.copytree(doric_src, doric_dest)
 
     for session_copy in [npm_dest, doric_dest]:
-        dest_name = os.path.basename(session_copy)
-        for d in glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")):
-            assert os.path.isdir(d), f"Expected output directory for cleanup, got non-directory: {d}"
+        dest_name = Path(session_copy).name
+        for d in list(Path(session_copy).glob(f"{dest_name}_output_*")):
+            assert Path(d).is_dir(), f"Expected output directory for cleanup, got non-directory: {d}"
             shutil.rmtree(d)
         params_fp = session_copy / "GuPPyParamtersUsed.json"
         if params_fp.exists():
@@ -107,13 +106,13 @@ def test_mixed_modality(tmp_path):
 
 def _stage_session(src_base_dir, session_subdir, tmp_base):
     """Copy a session to a temp workspace, clean output dirs and param files."""
-    src_session = os.path.join(src_base_dir, session_subdir)
-    assert os.path.isdir(src_session), f"Sample data not available at expected path: {src_session}"
-    dest_name = os.path.basename(src_session)
+    src_session = Path(src_base_dir) / session_subdir
+    assert Path(src_session).is_dir(), f"Sample data not available at expected path: {src_session}"
+    dest_name = Path(src_session).name
     session_copy = tmp_base / dest_name
     shutil.copytree(src_session, session_copy)
-    for d in glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")):
-        assert os.path.isdir(d)
+    for d in list(Path(session_copy).glob(f"{dest_name}_output_*")):
+        assert Path(d).is_dir()
         shutil.rmtree(d)
     params_fp = session_copy / "GuPPyParamtersUsed.json"
     if params_fp.exists():
@@ -444,23 +443,23 @@ def test_mixed_modality_nwb_npm(tmp_path):
 
 
 def _assert_pipeline_outputs(session_copy, expected_recording_site, expected_ttl):
-    basename = os.path.basename(session_copy)
-    run_folders = sorted(glob.glob(os.path.join(session_copy, f"{basename}_output_*")))
+    basename = Path(session_copy).name
+    run_folders = sorted(list(Path(session_copy).glob(f"{basename}_output_*")))
     assert run_folders, f"No output directories found in {session_copy}"
     out_dir = None
     for d in run_folders:
-        if os.path.exists(os.path.join(d, "storesList.csv")):
+        if (Path(d) / "storesList.csv").exists():
             out_dir = d
             break
     assert out_dir is not None, f"No storesList.csv found in any output directory under {session_copy}"
-    assert os.path.exists(os.path.join(out_dir, "storesList.csv")), "Missing storesList.csv"
+    assert (Path(out_dir) / "storesList.csv").exists(), "Missing storesList.csv"
 
-    timecorr = os.path.join(out_dir, f"timeCorrection_{expected_recording_site}.hdf5")
-    assert os.path.exists(timecorr), f"Missing {timecorr}"
+    timecorr = Path(out_dir) / (f"timeCorrection_{expected_recording_site}.hdf5")
+    assert Path(timecorr).exists(), f"Missing {timecorr}"
     with h5py.File(timecorr, "r") as f:
         assert "timestampNew" in f, f"Expected 'timestampNew' dataset in {timecorr}"
 
-    ttl_fp = os.path.join(out_dir, f"{expected_ttl}_{expected_recording_site}.hdf5")
-    assert os.path.exists(ttl_fp), f"Missing TTL-aligned file {ttl_fp}"
+    ttl_fp = Path(out_dir) / (f"{expected_ttl}_{expected_recording_site}.hdf5")
+    assert Path(ttl_fp).exists(), f"Missing TTL-aligned file {ttl_fp}"
     with h5py.File(ttl_fp, "r") as f:
         assert "ts" in f, f"Expected 'ts' dataset in {ttl_fp}"

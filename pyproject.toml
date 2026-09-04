@@ -149,11 +149,6 @@ fixable = ["ALL"]
 "**conftest.py" = ["D1", "ANN", "RUF012"] # conftest.py is test infrastructure; same exemption as test files.
 "**recording_extractor_test_mixin.py" = ["D1", "ANN", "RUF012"] # shared test mixin; test infrastructure, same exemption as test files.
 
-# The pathlib migration (#478) runs module by module. Every entry below is a module that
-# still uses os.path/glob; each migration PR deletes the entries it converts, so what is
-# left here is the remaining work rather than a permanent exemption.
-"tests/*" = ["PTH"]
-
 [tool.ruff.lint.isort]
 relative-imports-order = "closest-to-furthest"
 known-first-party = ["guppy", "guppy_test_data"]

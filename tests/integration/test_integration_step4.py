@@ -1,6 +1,5 @@
-import glob
-import os
 import shutil
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -60,8 +59,8 @@ def test_step4(step3_fixture_name, expected_recording_site, expected_ttl, reques
     )
 
     output_directory = str(pipeline_state["output_directory"])
-    stores_file_path = os.path.join(output_directory, "storesList.csv")
-    assert os.path.exists(stores_file_path), "Missing storesList.csv after Steps 2-5"
+    stores_file_path = Path(output_directory) / "storesList.csv"
+    assert Path(stores_file_path).exists(), "Missing storesList.csv after Steps 2-5"
 
     # Expected PSTH outputs (defaults compute z_score PSTH) - only for datasets with TTLs
     if expected_ttl is None:
@@ -72,30 +71,26 @@ def test_step4(step3_fixture_name, expected_recording_site, expected_ttl, reques
         expected_ttl_names = expected_ttl
 
     for expected_ttl_name in expected_ttl_names:
-        psth_file_path = os.path.join(
-            output_directory,
-            f"{expected_ttl_name}_{expected_recording_site}_z_score_{expected_recording_site}.h5",
+        psth_file_path = Path(output_directory) / (
+            f"{expected_ttl_name}_{expected_recording_site}_z_score_{expected_recording_site}.h5"
         )
-        baseline_uncorrected_psth_file_path = os.path.join(
-            output_directory,
-            f"{expected_ttl_name}_{expected_recording_site}_baselineUncorrected_z_score_{expected_recording_site}.h5",
+        baseline_uncorrected_psth_file_path = Path(output_directory) / (
+            f"{expected_ttl_name}_{expected_recording_site}_baselineUncorrected_z_score_{expected_recording_site}.h5"
         )
-        peak_auc_h5_file_path = os.path.join(
-            output_directory,
-            f"peak_AUC_{expected_ttl_name}_{expected_recording_site}_z_score_{expected_recording_site}.h5",
+        peak_auc_h5_file_path = Path(output_directory) / (
+            f"peak_AUC_{expected_ttl_name}_{expected_recording_site}_z_score_{expected_recording_site}.h5"
         )
-        peak_auc_csv_file_path = os.path.join(
-            output_directory,
-            f"peak_AUC_{expected_ttl_name}_{expected_recording_site}_z_score_{expected_recording_site}.csv",
+        peak_auc_csv_file_path = Path(output_directory) / (
+            f"peak_AUC_{expected_ttl_name}_{expected_recording_site}_z_score_{expected_recording_site}.csv"
         )
 
         # Assert file creation
-        assert os.path.exists(psth_file_path), f"Missing PSTH HDF5: {psth_file_path}"
-        assert os.path.exists(
+        assert Path(psth_file_path).exists(), f"Missing PSTH HDF5: {psth_file_path}"
+        assert Path(
             baseline_uncorrected_psth_file_path
-        ), f"Missing baseline-uncorrected PSTH HDF5: {baseline_uncorrected_psth_file_path}"
-        assert os.path.exists(peak_auc_h5_file_path), f"Missing PSTH Peak/AUC HDF5: {peak_auc_h5_file_path}"
-        assert os.path.exists(peak_auc_csv_file_path), f"Missing PSTH Peak/AUC CSV: {peak_auc_csv_file_path}"
+        ).exists(), f"Missing baseline-uncorrected PSTH HDF5: {baseline_uncorrected_psth_file_path}"
+        assert Path(peak_auc_h5_file_path).exists(), f"Missing PSTH Peak/AUC HDF5: {peak_auc_h5_file_path}"
+        assert Path(peak_auc_csv_file_path).exists(), f"Missing PSTH Peak/AUC CSV: {peak_auc_csv_file_path}"
 
         # Basic readability checks: PSTH HDF5 contains a DataFrame with expected columns
         psth_dataframe = pd.read_hdf(psth_file_path, key="df")
@@ -104,28 +99,25 @@ def test_step4(step3_fixture_name, expected_recording_site, expected_ttl, reques
         assert "mean" in psth_dataframe.columns, f"'mean' column missing in {psth_file_path}"
 
     # Additional artifacts from transients frequency/amplitude computation (Step 4 side-effect)
-    frequency_and_amplitude_h5_file_path = os.path.join(
-        output_directory, f"freqAndAmp_z_score_{expected_recording_site}.h5"
+    frequency_and_amplitude_h5_file_path = Path(output_directory) / (f"freqAndAmp_z_score_{expected_recording_site}.h5")
+    frequency_and_amplitude_csv_file_path = Path(output_directory) / (
+        f"freqAndAmp_z_score_{expected_recording_site}.csv"
     )
-    frequency_and_amplitude_csv_file_path = os.path.join(
-        output_directory, f"freqAndAmp_z_score_{expected_recording_site}.csv"
+    transients_occurrences_csv_file_path = Path(output_directory) / (
+        f"transientsOccurrences_z_score_{expected_recording_site}.csv"
     )
-    transients_occurrences_csv_file_path = os.path.join(
-        output_directory,
-        f"transientsOccurrences_z_score_{expected_recording_site}.csv",
-    )
-    assert os.path.exists(
+    assert Path(
         frequency_and_amplitude_h5_file_path
-    ), f"Missing freq/amp HDF5: {frequency_and_amplitude_h5_file_path}"
-    assert os.path.exists(
+    ).exists(), f"Missing freq/amp HDF5: {frequency_and_amplitude_h5_file_path}"
+    assert Path(
         frequency_and_amplitude_csv_file_path
-    ), f"Missing freq/amp CSV: {frequency_and_amplitude_csv_file_path}"
-    assert os.path.exists(
+    ).exists(), f"Missing freq/amp CSV: {frequency_and_amplitude_csv_file_path}"
+    assert Path(
         transients_occurrences_csv_file_path
-    ), f"Missing transients occurrences CSV: {transients_occurrences_csv_file_path}"
+    ).exists(), f"Missing transients occurrences CSV: {transients_occurrences_csv_file_path}"
 
     # Binned metrics are opt-in, so a default Step 4 must not produce them.
-    binned_metrics_file_paths = glob.glob(os.path.join(output_directory, "binned_metrics_*"))
+    binned_metrics_file_paths = list(Path(output_directory).glob("binned_metrics_*"))
     assert binned_metrics_file_paths == [], f"Unexpected binned metrics outputs: {binned_metrics_file_paths}"
 
 
@@ -140,8 +132,8 @@ def test_step4_rejects_events_that_share_no_timeline_with_the_signal(tmp_path):
     base_directory = tmp_path / "data_root"
     base_directory.mkdir()
     session_copy = base_directory / "sample_data_csv_1"
-    shutil.copytree(os.path.join(STUBBED_TESTING_DATA, "csv", "sample_data_csv_1"), session_copy)
-    for stale_output in glob.glob(os.path.join(session_copy, "sample_data_csv_1_output_*")):
+    shutil.copytree(Path(STUBBED_TESTING_DATA) / "csv" / "sample_data_csv_1", session_copy)
+    for stale_output in session_copy.glob("sample_data_csv_1_output_*"):
         shutil.rmtree(stale_output)
 
     # The session's photometry spans [0, 411]s; these sit ~50000s away, as an unconverted
@@ -170,5 +162,5 @@ def test_step4_rejects_events_that_share_no_timeline_with_the_signal(tmp_path):
     with pytest.raises(ValueError, match=r"no trial overlaps the 'region' signal"):
         step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
 
-    output_directory = glob.glob(os.path.join(session_copy, "sample_data_csv_1_output_*"))[0]
-    assert glob.glob(os.path.join(output_directory, "ttl_region_z_score_region.h5")) == []
+    output_directory = next(session_copy.glob("sample_data_csv_1_output_*"))
+    assert list(output_directory.glob("ttl_region_z_score_region.h5")) == []

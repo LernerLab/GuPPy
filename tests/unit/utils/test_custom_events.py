@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -60,7 +60,7 @@ class TestWriteCustomEventCsv:
     def test_overwrites_when_requested(self, tmp_path):
         write_custom_event_csv(name="ev", timestamps=[1.0], folder_path=str(tmp_path))
         write_custom_event_csv(name="ev", timestamps=[9.0, 8.0], folder_path=str(tmp_path), overwrite=True)
-        df = pd.read_csv(os.path.join(str(tmp_path), "ev.csv"))
+        df = pd.read_csv(Path(str(tmp_path)) / "ev.csv")
         assert df["timestamps"].tolist() == [9.0, 8.0]
 
     def test_empty_name_raises(self, tmp_path):

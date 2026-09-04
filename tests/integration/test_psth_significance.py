@@ -1,5 +1,5 @@
-import os
 import shutil
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -33,14 +33,14 @@ EXPECTED_TWO_SAMPLE_COLUMNS = EXPECTED_ONE_SAMPLE_COLUMNS + ["n_b"]
 
 
 def results_path(output_directory):
-    return os.path.join(output_directory, PSTH_SIGNIFICANCE_DIRNAME)
+    return Path(output_directory) / PSTH_SIGNIFICANCE_DIRNAME
 
 
 @pytest.fixture(scope="module")
 def preprocessed_session(tmp_path_factory):
-    source_session = os.path.join(str(STUBBED_TESTING_DATA), SESSION_SUBDIR)
+    source_session = Path(str(STUBBED_TESTING_DATA)) / SESSION_SUBDIR
     base_directory = tmp_path_factory.mktemp("integration_psth_significance")
-    session = base_directory / os.path.basename(source_session)
+    session = base_directory / Path(source_session).name
     # Output directories are gitignored, so a stale one from a previous local run
     # would otherwise seed this session.
     shutil.copytree(source_session, session, ignore=shutil.ignore_patterns("*_output_*"))
@@ -79,7 +79,7 @@ def significance_output(preprocessed_session):
 
 class TestSessionScopeSignificance:
     def test_writes_a_file_for_every_planned_comparison(self, significance_output):
-        written = sorted(os.listdir(results_path(significance_output)))
+        written = sorted([entry.name for entry in Path(results_path(significance_output)).iterdir()])
 
         assert written == [
             "significance_port_entries_dms_z_score_dms.csv",
@@ -93,7 +93,7 @@ class TestSessionScopeSignificance:
     def test_an_event_with_too_few_trials_is_skipped(self, significance_output):
         # rewarded_nose_pokes fires twice, below the three the bootstrap needs. It is
         # skipped rather than written with a meaningless interval.
-        written = os.listdir(results_path(significance_output))
+        written = [entry.name for entry in Path(results_path(significance_output)).iterdir()]
 
         assert not any(name.startswith("significance_" + UNDERPOWERED_EVENT) for name in written)
 
@@ -113,7 +113,7 @@ class TestSessionScopeSignificance:
         assert list(significance.columns) == EXPECTED_TWO_SAMPLE_COLUMNS
 
     def test_sample_counts_match_the_psth_trials(self, significance_output):
-        psth = pd.read_hdf(os.path.join(significance_output, "port_entries_dms_z_score_dms.h5"), key="df", mode="r")
+        psth = pd.read_hdf(Path(significance_output) / "port_entries_dms_z_score_dms.h5", key="df", mode="r")
         num_trials = len([column for column in psth.columns if column not in ("timestamps", "mean", "err")])
 
         significance = read_psth_significance_from_hdf5(
@@ -123,7 +123,7 @@ class TestSessionScopeSignificance:
         assert significance["n"].iloc[0] == num_trials
 
     def test_time_axis_matches_the_psth(self, significance_output):
-        psth = pd.read_hdf(os.path.join(significance_output, "port_entries_dms_z_score_dms.h5"), key="df", mode="r")
+        psth = pd.read_hdf(Path(significance_output) / "port_entries_dms_z_score_dms.h5", key="df", mode="r")
         significance = read_psth_significance_from_hdf5(
             filepath=results_path(significance_output), name="port_entries_dms_z_score_dms"
         )
@@ -168,7 +168,7 @@ class TestSessionScopeSignificance:
             filepath=results_path(significance_output), name="port_entries_dms_z_score_dms"
         )
         from_csv = pd.read_csv(
-            os.path.join(results_path(significance_output), "significance_port_entries_dms_z_score_dms.csv")
+            Path(results_path(significance_output)) / "significance_port_entries_dms_z_score_dms.csv"
         )
 
         pd.testing.assert_frame_equal(significance.reset_index(drop=True), from_csv, check_dtype=False)
@@ -185,7 +185,7 @@ class TestSessionScopeSignificance:
     def test_parameters_are_recorded_in_the_snapshot(self, significance_output):
         import json
 
-        with open(os.path.join(significance_output, "GuPPyParamtersUsed.json")) as parameters_file:
+        with (Path(significance_output) / "GuPPyParamtersUsed.json").open() as parameters_file:
             saved = json.load(parameters_file)
 
         assert saved["computePsthSignificance"] is True
@@ -196,9 +196,9 @@ class TestSessionScopeSignificance:
 
 class TestSignificanceIsOptional:
     def test_step4_without_the_flag_writes_no_results(self, tmp_path_factory):
-        source_session = os.path.join(str(STUBBED_TESTING_DATA), SESSION_SUBDIR)
+        source_session = Path(str(STUBBED_TESTING_DATA)) / SESSION_SUBDIR
         base_directory = tmp_path_factory.mktemp("integration_psth_significance_off")
-        session = base_directory / os.path.basename(source_session)
+        session = base_directory / Path(source_session).name
         shutil.copytree(source_session, session, ignore=shutil.ignore_patterns("*_output_*"))
 
         step1(
@@ -212,14 +212,14 @@ class TestSignificanceIsOptional:
         step3(base_dir=str(base_directory), selected_folders=[str(session)], selected_runs=selected_runs)
         step4(base_dir=str(base_directory), selected_folders=[str(session)], selected_runs=selected_runs)
 
-        assert not os.path.exists(results_path(output_directory))
+        assert not Path(results_path(output_directory)).exists()
 
 
 class TestGroupScopeSignificance:
     @pytest.fixture(scope="class")
     def group_folder(self, tmp_path_factory):
         """A three-member group built from repeats of the stubbed session."""
-        source_session = os.path.join(str(STUBBED_TESTING_DATA), SESSION_SUBDIR)
+        source_session = Path(str(STUBBED_TESTING_DATA)) / SESSION_SUBDIR
         base_directory = tmp_path_factory.mktemp("integration_psth_significance_group")
 
         member_run_folders = []
@@ -243,7 +243,7 @@ class TestGroupScopeSignificance:
             destination_directory=str(base_directory),
             group_name="saline",
         )
-        group_folder = os.path.join(str(base_directory), "saline_group")
+        group_folder = Path(str(base_directory)) / "saline_group"
         group_analysis(
             base_dir=str(base_directory),
             selected_group_folders=[group_folder],
@@ -255,8 +255,10 @@ class TestGroupScopeSignificance:
     def test_writes_results_into_the_group_directory(self, group_folder):
         folder, _ = group_folder
 
-        assert os.path.exists(results_path(folder))
-        assert "significance_port_entries_dms_z_score_dms.h5" in os.listdir(results_path(folder))
+        assert Path(results_path(folder)).exists()
+        assert "significance_port_entries_dms_z_score_dms.h5" in [
+            entry.name for entry in Path(results_path(folder)).iterdir()
+        ]
 
     def test_resamples_sessions_rather_than_trials(self, group_folder):
         folder, member_count = group_folder

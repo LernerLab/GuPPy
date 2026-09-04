@@ -42,7 +42,7 @@ class TestSaveGroupDefinition:
         save_group_definition(group_folder=str(group_folder), member_run_folders=[str(member_run_folder)])
 
         assert [entry.name for entry in group_folder.iterdir()] == [GROUP_MEMBERS_FILENAME]
-        with open(group_folder / GROUP_MEMBERS_FILENAME) as manifest:
+        with (group_folder / GROUP_MEMBERS_FILENAME).open() as manifest:
             assert json.load(manifest) == {"member_run_folders": [str(member_run_folder)]}
 
     def test_overwrites_the_membership_of_an_existing_group(self, tmp_path, member_run_folder):
