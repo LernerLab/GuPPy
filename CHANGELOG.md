@@ -10,6 +10,7 @@
 - Fixed the README's documentation links, which all carried an `/en/latest/` path prefix that 404s on the single-version Read the Docs project. [PR #469](https://github.com/LernerLab/GuPPy/pull/469)
 
 ## Improvements
+- The Step-5 dashboard tabs, artifact-window and tonic pages, and the plotter now build paths with `pathlib.Path`. [PR #486](https://github.com/LernerLab/GuPPy/pull/486)
 - The TDT, Doric, NPM and CSV extractors and the acquisition-format detector now build paths with `pathlib.Path`. [PR #485](https://github.com/LernerLab/GuPPy/pull/485)
 - The rest of the analysis layer and GuPPy's validation, custom-event and NWB helpers now build paths with `pathlib.Path`. [PR #484](https://github.com/LernerLab/GuPPy/pull/484)
 - GuPPy's core HDF5 and results I/O now builds paths with `pathlib.Path` rather than `os.path`, and `ruff`'s `PTH` rules are enabled with the not-yet-converted modules listed explicitly so the migration is tracked rather than open-ended. [PR #483](https://github.com/LernerLab/GuPPy/pull/483)
