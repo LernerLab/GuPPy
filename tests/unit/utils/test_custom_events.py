@@ -47,7 +47,7 @@ class TestIsSorted:
 class TestWriteCustomEventCsv:
     def test_writes_header_and_rows(self, tmp_path):
         path = write_custom_event_csv(name="movement_onset", timestamps=[0.5, 1.5, 2.5], folder_path=str(tmp_path))
-        assert path == os.path.join(str(tmp_path), "movement_onset.csv")
+        assert path == tmp_path / "movement_onset.csv"
         df = pd.read_csv(path)
         assert list(df.columns) == ["timestamps"]
         assert df["timestamps"].tolist() == [0.5, 1.5, 2.5]

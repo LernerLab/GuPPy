@@ -20,9 +20,7 @@ the container and accepts no other, so those versions are the only ones the outp
 is installed here. The extensions GuPPy adds on the way out are registered into that map first.
 """
 
-import os
 from copy import deepcopy
-from glob import glob
 from importlib import import_module
 from pathlib import Path
 
@@ -67,9 +65,10 @@ def _register_namespace(*, type_map: TypeMap, namespace: str) -> None:
     the versions already in the map.
     """
     module = import_module(namespace.replace("-", "_"))
-    specification_directory = os.path.join(os.path.dirname(module.__file__), "spec")
-    (namespace_path,) = glob(os.path.join(specification_directory, "*namespace.yaml"))
-    type_map.load_namespaces(namespace_path)
+    specification_directory = Path(module.__file__).parent / "spec"
+    (namespace_path,) = specification_directory.glob("*namespace.yaml")
+    # hdmf type-checks this argument and rejects a Path.
+    type_map.load_namespaces(str(namespace_path))
 
     installed_type_map = get_type_map()
     for source_file in type_map.namespace_catalog.get_namespace(namespace).get_source_files():

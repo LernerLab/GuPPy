@@ -12,6 +12,7 @@ are not part of the advertised pipeline API.
 
 import os
 import re
+from pathlib import Path
 
 import pandas as pd
 
@@ -70,7 +71,9 @@ def is_sorted(timestamps: list[float]) -> bool:
     return all(earlier <= later for earlier, later in zip(timestamps, timestamps[1:], strict=False))
 
 
-def write_custom_event_csv(*, name: str, timestamps: list[float], folder_path: str, overwrite: bool = False) -> str:
+def write_custom_event_csv(
+    *, name: str, timestamps: list[float], folder_path: str | Path, overwrite: bool = False
+) -> Path:
     """Write timestamps as a GuPPy-compatible event CSV named after the event.
 
     The file is written as ``<name>.csv`` into ``folder_path`` with a single
@@ -84,7 +87,7 @@ def write_custom_event_csv(*, name: str, timestamps: list[float], folder_path: s
         no path separators.
     timestamps : list of float
         Event timestamps in seconds.
-    folder_path : str
+    folder_path : str or Path
         Absolute path to the session directory the CSV is written into.
     overwrite : bool, optional
         If False (default) and a file named ``<name>.csv`` already exists, raise
@@ -92,7 +95,7 @@ def write_custom_event_csv(*, name: str, timestamps: list[float], folder_path: s
 
     Returns
     -------
-    str
+    Path
         Absolute path to the written CSV.
 
     Raises
@@ -107,8 +110,8 @@ def write_custom_event_csv(*, name: str, timestamps: list[float], folder_path: s
     if os.sep in name or (os.altsep and os.altsep in name):
         raise ValueError(f"Event name {name!r} must not contain a path separator.")
 
-    csv_path = os.path.join(folder_path, f"{name}.csv")
-    if os.path.exists(csv_path) and not overwrite:
+    csv_path = Path(folder_path) / f"{name}.csv"
+    if csv_path.exists() and not overwrite:
         raise FileExistsError(
             f"An event named {name!r} already exists at {csv_path}. Enable overwrite to replace it, "
             "or choose a different name."

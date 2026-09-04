@@ -152,15 +152,7 @@ fixable = ["ALL"]
 # The pathlib migration (#478) runs module by module. Every entry below is a module that
 # still uses os.path/glob; each migration PR deletes the entries it converts, so what is
 # left here is the remaining work rather than a permanent exemption.
-"src/guppy/analysis/control_channel.py" = ["PTH"]
-"src/guppy/analysis/psth_average.py" = ["PTH"]
-"src/guppy/analysis/psth_utils.py" = ["PTH"]
-"src/guppy/analysis/transients_average.py" = ["PTH"]
-"src/guppy/utils/custom_events.py" = ["PTH"]
-"src/guppy/utils/nwb_io.py" = ["PTH"]
-"src/guppy/utils/nwb_metadata.py" = ["PTH"]
 "src/guppy/utils/utils.py" = ["PTH"]
-"src/guppy/utils/validation.py" = ["PTH"]
 "src/guppy/extractors/*" = ["PTH"]
 "src/guppy/frontend/*" = ["PTH"]
 "src/guppy/orchestration/*" = ["PTH"]

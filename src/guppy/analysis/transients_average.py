@@ -1,6 +1,5 @@
-import glob
 import logging
-import os
+from pathlib import Path
 
 import numpy as np
 
@@ -36,16 +35,16 @@ def average_transients_for_group(
 
     for i in range(len(member_run_folders)):
         if selectForTransientsComputation == "z_score":
-            matched_paths = glob.glob(os.path.join(member_run_folders[i], "z_score_*"))
+            matched_paths = list(Path(member_run_folders[i]).glob("z_score_*"))
         elif selectForTransientsComputation == "dff":
-            matched_paths = glob.glob(os.path.join(member_run_folders[i], "dff_*"))
+            matched_paths = list(Path(member_run_folders[i]).glob("dff_*"))
         else:
-            matched_paths = glob.glob(os.path.join(member_run_folders[i], "z_score_*")) + glob.glob(
-                os.path.join(member_run_folders[i], "dff_*")
+            matched_paths = list(Path(member_run_folders[i]).glob("z_score_*")) + list(
+                Path(member_run_folders[i]).glob("dff_*")
             )
 
         for j in range(len(matched_paths)):
-            basename = (os.path.basename(matched_paths[j])).split(".")[0]
+            basename = matched_paths[j].name.split(".")[0]
             entry = [member_run_folders[i], basename]
             path.append(entry)
 
@@ -68,12 +67,12 @@ def average_transients_for_group(
         fileName = []
         session_entries = new_path[i]
         for j in range(len(session_entries)):
-            if not os.path.exists(os.path.join(session_entries[j][0], "freqAndAmp_" + session_entries[j][1] + ".h5")):
+            if not (Path(session_entries[j][0]) / ("freqAndAmp_" + session_entries[j][1] + ".h5")).exists():
                 continue
             else:
                 df = read_freq_and_amp_from_hdf5(session_entries[j][0], session_entries[j][1])
                 freq_and_amp_values.append(np.array([df["freq (events/min)"].iloc[0], df["amplitude"].iloc[0]]))
-                fileName.append(os.path.basename(session_entries[j][0]))
+                fileName.append(Path(session_entries[j][0]).name)
 
         freq_and_amp_values = np.asarray(freq_and_amp_values)
         write_freq_and_amp_to_hdf5(
