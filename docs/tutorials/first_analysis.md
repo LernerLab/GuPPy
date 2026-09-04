@@ -80,7 +80,7 @@ Each parameter is documented in the parameter reference.
 <!-- TODO: link to docs/reference/parameters.md (per-parameter reference: type, default, valid range, effect) once that page exists. -->
 
 :::{note}
-There is no separate "save parameters" action. Each pipeline step records the parameters it ran with into its output folder as `GuPPyParamtersUsed.json`, so that file always reflects the configuration that was actually applied. If you come back later, reselect that run under **Output Folder Selection**, and GuPPy reloads that run's saved parameters into the form so you can continue (for example, run Preprocess and PSTH) without accidentally overwriting them.
+There is no separate "save parameters" action. Each pipeline step records the parameters it ran with into its output folder as `GuPPyParamtersUsed.json`, so that file always reflects the configuration that was actually applied. If you come back later, reselect an existing output folder under **Output Folder Selection**, and GuPPy reloads that run's saved parameters into the form so you can continue (for example, run Preprocess and PSTH) without accidentally overwriting them.
 :::
 
 

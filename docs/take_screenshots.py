@@ -780,17 +780,18 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
         run_folder.mkdir(exist_ok=True)
 
     try:
-        # Drive the card directly rather than through the homepage: only this one card
-        # is in shot, and selecting the session in the served input browser would take
-        # several dependent clicks first. Choosing the run by name is also what moves the
-        # entry into the browser's "Selected files" pane — setting FileSelector.value
-        # alone updates the parameter without redrawing the panes.
+        # Drive the card directly rather than through the homepage: selecting a run
+        # in a served FileSelector takes several dependent clicks, and only this one
+        # card is in shot. Assigning the inner cross-selector's value is what moves
+        # an entry into the "Selected files" pane; setting FileSelector.value alone
+        # updates the parameter without redrawing the panes.
         form = ParameterForm(
             template=pn.template.MaterialTemplate(title="Input Parameters GUI"),
             start_path=str(SAMPLE_DATA_DIR.parent),
         )
-        form.files_1.value = [str(SAMPLE_DATA_DIR)]
-        form.run_names_for_all_sessions.value = ["filter_250"]
+        form.outputs_selector._directory.value = str(SAMPLE_DATA_DIR)
+        form.outputs_selector._update_files()
+        form.outputs_selector._selector.value = [str(run_folders[2])]
         form.output_folder_selection.collapsed = False
 
         template = pn.template.MaterialTemplate(title="Input Parameters GUI")
@@ -798,7 +799,7 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
         url = _serve(template)
 
         page.goto(url)
-        page.get_by_text("Run name(s) for all sessions").first.wait_for()
+        page.get_by_text("Existing runs (steps 2–5)").first.wait_for()
         page.wait_for_timeout(1500)
         page.screenshot(
             path=OUTPUT_DIR / "compare_parameters_existing_runs.png",
