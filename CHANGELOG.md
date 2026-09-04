@@ -10,6 +10,7 @@
 - Fixed the README's documentation links, which all carried an `/en/latest/` path prefix that 404s on the single-version Read the Docs project. [PR #469](https://github.com/LernerLab/GuPPy/pull/469)
 
 ## Improvements
+- The pipeline's step orchestration now builds paths with `pathlib.Path`, completing the migration across `src/`. [PR #488](https://github.com/LernerLab/GuPPy/pull/488)
 - GuPPy's run-folder and group-folder helpers and the parameter, DANDI and group-labeling selectors now build paths with `pathlib.Path`. [PR #487](https://github.com/LernerLab/GuPPy/pull/487)
 - The Step-5 dashboard tabs, artifact-window and tonic pages, and the plotter now build paths with `pathlib.Path`. [PR #486](https://github.com/LernerLab/GuPPy/pull/486)
 - The TDT, Doric, NPM and CSV extractors and the acquisition-format detector now build paths with `pathlib.Path`. [PR #485](https://github.com/LernerLab/GuPPy/pull/485)
