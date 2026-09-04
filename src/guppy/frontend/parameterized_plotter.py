@@ -1,9 +1,9 @@
 import logging
 import math
-import os
 import re
 from collections.abc import Callable
 from io import BytesIO
+from pathlib import Path
 from typing import ClassVar
 
 import datashader as ds
@@ -86,12 +86,11 @@ def make_dir(filepath: str) -> str:
 
     Returns
     -------
-    str
+    Path
         Absolute path to the ``saved_plots`` directory.
     """
-    run_folder = os.path.join(filepath, "saved_plots")
-    if not os.path.exists(run_folder):
-        os.mkdir(run_folder)
+    run_folder = Path(filepath) / "saved_plots"
+    run_folder.mkdir(exist_ok=True)
 
     return run_folder
 
@@ -650,7 +649,7 @@ class ParameterizedPlotter(param.Parameterized):
                 .opts(shared_axes=False)
             )
             run_folder = make_dir(self.filepath)
-            output_filename = os.path.join(run_folder, str(selected_events) + "_mean")
+            output_filename = Path(run_folder) / (str(selected_events) + "_mean")
 
             plot_combine = plot_combine.opts(
                 hooks=[
@@ -727,7 +726,7 @@ class ParameterizedPlotter(param.Parameterized):
                 ]
             )
             run_folder = make_dir(self.filepath)
-            output_filename = os.path.join(run_folder, self.event_selector + "_" + self.y)
+            output_filename = Path(run_folder) / (self.event_selector + "_" + self.y)
             self.results_psth["plot"] = image
             self.results_psth["op"] = output_filename
 
@@ -775,7 +774,7 @@ class ParameterizedPlotter(param.Parameterized):
                 ]
             )
             run_folder = make_dir(self.filepath)
-            output_filename = os.path.join(run_folder, self.event_selector + "_" + self.y)
+            output_filename = Path(run_folder) / (self.event_selector + "_" + self.y)
             self.results_psth["plot"] = plot
             self.results_psth["op"] = output_filename
 
@@ -804,7 +803,7 @@ class ParameterizedPlotter(param.Parameterized):
                 ]
             )
             run_folder = make_dir(self.filepath)
-            output_filename = os.path.join(run_folder, self.event_selector + "_" + self.y)
+            output_filename = Path(run_folder) / (self.event_selector + "_" + self.y)
             self.results_psth["plot"] = plot
             self.results_psth["op"] = output_filename
 
@@ -901,7 +900,7 @@ class ParameterizedPlotter(param.Parameterized):
         )
 
         run_folder = make_dir(self.filepath)
-        output_filename = os.path.join(run_folder, self.event_selector + "_selected_trials")
+        output_filename = Path(run_folder) / (self.event_selector + "_selected_trials")
         self.results_psth["trials"] = result
         self.results_psth["op_trials"] = output_filename
         return result
@@ -1026,7 +1025,7 @@ class ParameterizedPlotter(param.Parameterized):
         )
 
         run_folder = make_dir(self.filepath)
-        output_filename = os.path.join(run_folder, self.event_selector_heatmap + "_" + "heatmap")
+        output_filename = Path(run_folder) / (self.event_selector_heatmap + "_" + "heatmap")
         self.results_hm["plot"] = image
         self.results_hm["op"] = output_filename
 

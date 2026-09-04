@@ -1,4 +1,3 @@
-import os
 from io import BytesIO
 from types import SimpleNamespace
 
@@ -94,14 +93,14 @@ def test_make_dir_creates_saved_plots_directory(tmp_path):
 
 def test_make_dir_returns_correct_path(tmp_path):
     result = make_dir(str(tmp_path))
-    assert result == str(tmp_path / "saved_plots")
+    assert result == tmp_path / "saved_plots"
 
 
 def test_make_dir_is_idempotent(tmp_path):
     make_dir(str(tmp_path))
     # Second call must not raise even though directory already exists
     result = make_dir(str(tmp_path))
-    assert result == str(tmp_path / "saved_plots")
+    assert result == tmp_path / "saved_plots"
 
 
 # ---------------------------------------------------------------------------
@@ -386,7 +385,7 @@ class TestParameterizedPlotter:
         plot = plotter.update_selector()
 
         assert plot is not None
-        assert plotter.results_psth["op_combine"].endswith(os.path.join("saved_plots", "['event1_bin_1']_mean"))
+        assert plotter.results_psth["op_combine"].parts[-2:] == ("saved_plots", "['event1_bin_1']_mean")
 
     def test_cont_plot_all_trials_branch(self, plotter):
         plotter.param["y"].objects = ["trial_1", "trial_2", "trial_3", "bin_1", "mean", "All"]
@@ -395,7 +394,7 @@ class TestParameterizedPlotter:
         plot = plotter.contPlot()
 
         assert plot is not None
-        assert plotter.results_psth["op"].endswith(os.path.join("saved_plots", "event1_All"))
+        assert plotter.results_psth["op"].parts[-2:] == ("saved_plots", "event1_All")
 
     def test_plot_specific_trials_mean_branch(self, plotter):
         plotter.psth_y = ["1 - trial_1", "2 - trial_2"]
@@ -419,7 +418,7 @@ class TestParameterizedPlotter:
         image = plotter.heatmap()
 
         assert image is not None
-        assert plotter.results_hm["op"].endswith(os.path.join("saved_plots", "event1_heatmap"))
+        assert plotter.results_hm["op"].parts[-2:] == ("saved_plots", "event1_heatmap")
 
     def test_heatmap_single_trial_uses_datashaded_path(self, single_trial_plotter, plotter):
         # A single-trial heatmap used to build a raw QuadMesh spanning the full

@@ -153,7 +153,10 @@ fixable = ["ALL"]
 # still uses os.path/glob; each migration PR deletes the entries it converts, so what is
 # left here is the remaining work rather than a permanent exemption.
 "src/guppy/utils/utils.py" = ["PTH"]
-"src/guppy/frontend/*" = ["PTH"]
+"src/guppy/frontend/dandi_selector.py" = ["PTH"]
+"src/guppy/frontend/frontend_utils.py" = ["PTH"]
+"src/guppy/frontend/group_labeling.py" = ["PTH"]
+"src/guppy/frontend/input_parameters.py" = ["PTH"]
 "src/guppy/orchestration/*" = ["PTH"]
 "src/guppy/testing/*" = ["PTH"]
 "tests/*" = ["PTH"]

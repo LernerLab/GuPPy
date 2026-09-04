@@ -6,10 +6,9 @@ traces. Saving writes the complementary keep-windows to
 run's ``GuPPyParamtersUsed.json``, which the Remove Artifacts step then consumes.
 """
 
-import glob
 import logging
-import os
 from collections.abc import Callable
+from pathlib import Path
 
 import numpy as np
 import panel as pn
@@ -141,13 +140,14 @@ def _margined_span(timestamps: np.ndarray) -> tuple[float, float]:
 
 def _has_saved_windows(filepath: str, site: str) -> bool:
     """Whether a run folder holds a keep-windows file for one recording site."""
-    return os.path.exists(os.path.join(filepath, f"coordsForPreProcessing_{site}.npy"))
+    return (Path(filepath) / f"coordsForPreProcessing_{site}.npy").exists()
 
 
 def _sites_with_saved_windows(filepath: str) -> list[str]:
     """The recording sites a run folder holds keep-windows for, in filename order."""
-    prefix = os.path.join(filepath, "coordsForPreProcessing_")
-    return sorted(path[len(prefix) : -len(".npy")] for path in glob.glob(prefix + "*.npy"))
+    prefix = "coordsForPreProcessing_"
+    paths = Path(filepath).glob(prefix + "*.npy")
+    return sorted(path.name[len(prefix) : -len(".npy")] for path in paths)
 
 
 def _saved_artifact_windows(filepath: str, site: str, timestamps: np.ndarray) -> list[tuple[float, float]]:
@@ -174,9 +174,9 @@ def _runs_with_saved_windows(filepath: str) -> dict[str, str]:
     """
     return {
         parse_run_name(run_folder): run_folder
-        for run_folder in discover_run_folders(os.path.dirname(filepath))
-        if os.path.abspath(run_folder) != os.path.abspath(filepath)
-        and glob.glob(os.path.join(run_folder, "coordsForPreProcessing_*.npy"))
+        for run_folder in discover_run_folders(str(Path(filepath).parent))
+        if Path(run_folder).resolve() != Path(filepath).resolve()
+        and any(Path(run_folder).glob("coordsForPreProcessing_*.npy"))
     }
 
 
@@ -284,7 +284,7 @@ class ArtifactWindowSelector:
             else []
         )
         self.widget = pn.Column(
-            f"# Select Artifact Windows — {os.path.basename(filepath)}",
+            f"# Select Artifact Windows — {Path(filepath).name}",
             pn.pane.Markdown(_INSTRUCTIONS),
             *copy_from_section,
             pn.Row(self.site_select, self.trace_select, self.mode_toggle),
@@ -470,7 +470,7 @@ class ArtifactWindowSelector:
 
         for site, keep_windows in site_to_keep_windows.items():
             np.save(
-                os.path.join(self.filepath, f"coordsForPreProcessing_{site}.npy"),
+                Path(self.filepath) / (f"coordsForPreProcessing_{site}.npy"),
                 windows_to_coords(windows=keep_windows),
             )
             logger.info("Saved %s keep-window(s) for recording site %s.", len(keep_windows), site)
@@ -517,7 +517,7 @@ class ArtifactWindowSelector:
             x=trace["x"],
             values=values,
             overlay=overlay,
-            title=f"{os.path.basename(self.filepath)} — {title}",
+            title=f"{Path(self.filepath).name} — {title}",
             spans=self.spans_pipe,
             on_x_select=self._on_drag,
             hooks=[self._capture_figure],

@@ -10,9 +10,8 @@ the caption differs, since a group's comparison resamples session averages rathe
 trials.
 """
 
-import glob
 import logging
-import os
+from pathlib import Path
 
 import holoviews as hv
 import panel as pn
@@ -63,8 +62,9 @@ def significance_comparisons(filepath: str) -> list[str]:
     list of str
         Comparison names, empty when the directory has no significance results.
     """
-    pattern = os.path.join(filepath, PSTH_SIGNIFICANCE_DIRNAME, PSTH_SIGNIFICANCE_PREFIX + "*.h5")
-    return sorted(os.path.basename(path)[len(PSTH_SIGNIFICANCE_PREFIX) : -len(".h5")] for path in glob.glob(pattern))
+    results_folder = Path(filepath) / PSTH_SIGNIFICANCE_DIRNAME
+    paths = results_folder.glob(PSTH_SIGNIFICANCE_PREFIX + "*.h5")
+    return sorted(path.name[len(PSTH_SIGNIFICANCE_PREFIX) : -len(".h5")] for path in paths)
 
 
 def describe_comparison(*, name: str, n: int, n_b: int | None) -> str:
@@ -103,7 +103,7 @@ class PsthSignificanceView:
 
     def __init__(self, filepath: str) -> None:
         self.filepath = filepath
-        self.results_path = os.path.join(filepath, PSTH_SIGNIFICANCE_DIRNAME)
+        self.results_path = Path(filepath) / PSTH_SIGNIFICANCE_DIRNAME
         self.comparisons = significance_comparisons(filepath)
 
         self.comparison_select = pn.widgets.Select(
