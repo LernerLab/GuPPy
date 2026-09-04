@@ -1,6 +1,7 @@
 """Mock recording extractor for unit testing."""
 
 from pathlib import Path
+from typing import ClassVar
 
 import numpy as np
 
@@ -25,7 +26,7 @@ class MockRecordingExtractor(BaseRecordingExtractor):
         Ignored; present to match the constructor pattern of real extractors.
     """
 
-    _stub_folder_path_to_duration: dict[str, float] = {}
+    _stub_folder_path_to_duration: ClassVar[dict[str, float]] = {}
 
     def __init__(self, folder_path: str) -> None:
         self.folder_path = folder_path

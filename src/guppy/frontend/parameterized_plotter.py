@@ -4,6 +4,7 @@ import os
 import re
 from collections.abc import Callable
 from io import BytesIO
+from typing import ClassVar
 
 import datashader as ds
 import holoviews as hv
@@ -136,7 +137,7 @@ class ParameterizedPlotter(param.Parameterized):
     x_max = param.Number(default=None)
     select_trials_checkbox = param.ListSelector(default=["just trials"], objects=["mean", "just trials"])
     Y_Label = param.ObjectSelector(default="y", objects=["y", "z-score", "\u0394F/F"])
-    _SAVE_FORMATS = ["png", "svg"]
+    _SAVE_FORMATS: ClassVar[list[str]] = ["png", "svg"]
     # Independent save-format selector per plot so each can be exported on its own.
     save_options_cont = param.ObjectSelector(default="png", objects=_SAVE_FORMATS)
     save_options_overlay = param.ObjectSelector(default="png", objects=_SAVE_FORMATS)
@@ -189,8 +190,6 @@ class ParameterizedPlotter(param.Parameterized):
     y = param.ObjectSelector(default=None)
     heatmap_y = param.ListSelector(default=None)
     psth_y = param.ListSelector(default=None)
-    results_hm = dict()
-    results_psth = dict()
 
     def __init__(self, **params: object) -> None:
         super().__init__(**params)
@@ -235,6 +234,11 @@ class ParameterizedPlotter(param.Parameterized):
         # export figure must not be mistaken for the live one, so _range_sync_hook
         # skips recording it (see _render_download).
         self._exporting = False
+
+        # Last rendered plot and its output filename, per plot kind, read back by the
+        # "Save As…" download callbacks.
+        self.results_hm: dict[str, object] = {}
+        self.results_psth: dict[str, object] = {}
 
     _RANGE_PLOTS = (
         ("cont", "cont_X", "cont_Y"),
