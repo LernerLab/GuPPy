@@ -399,6 +399,26 @@ def patched_dandi_client(monkeypatch, tmp_path):
     return _FakeDandiAPIClient
 
 
+def _dandi_form_with_existing_runs(*, form, patched_dandi_client, output_root, asset_paths, run_names):
+    """Drive a form into DANDI mode with assets whose mirrored session dirs already hold runs."""
+    patched_dandi_client.dandisets_by_id = {"000971": _FakeDandiset(asset_paths)}
+    output_root.mkdir()
+    for asset_path in asset_paths:
+        session = output_root / os.path.basename(asset_path).removesuffix(".nwb")
+        session.mkdir()
+        for run_name in run_names:
+            os.mkdir(run_folder_for_run(str(session), run_name))
+
+    form.source_mode.value = "dandi"
+    form.dandi_selector.dandiset_input.value = "000971"
+    mirror_root = form.dandi_selector._current_mirror_root
+    form.dandi_selector.asset_file_selector.value = [
+        os.path.join(mirror_root, *asset_path.split("/")) for asset_path in asset_paths
+    ]
+    form.dandi_selector.output_root_selector.value = [str(output_root)]
+    return form
+
+
 class TestParameterFormDandiMode:
     def test_dandi_mode_builds_uri_map_and_session_dirs(self, bare_parameter_form, tmp_path, patched_dandi_client):
         output_root = tmp_path / "dandi_output"
@@ -447,13 +467,78 @@ class TestParameterFormDandiMode:
         with pytest.raises(Exception, match="local output directory"):
             form.getInputParameters()
 
+    def test_dandi_asset_selection_offers_that_session_run_names(
+        self, bare_parameter_form, tmp_path, patched_dandi_client
+    ):
+        form = _dandi_form_with_existing_runs(
+            form=bare_parameter_form,
+            patched_dandi_client=patched_dandi_client,
+            output_root=tmp_path / "dandi_output",
+            asset_paths=["sub-01/session_a.nwb"],
+            run_names=["1", "baseline"],
+        )
+        assert form.run_names_for_all_sessions.options == ["1", "baseline"]
+
+    def test_dandi_run_name_choice_selects_the_mirrored_session_run(
+        self, bare_parameter_form, tmp_path, patched_dandi_client
+    ):
+        output_root = tmp_path / "dandi_output"
+        form = _dandi_form_with_existing_runs(
+            form=bare_parameter_form,
+            patched_dandi_client=patched_dandi_client,
+            output_root=output_root,
+            asset_paths=["sub-01/session_a.nwb", "sub-02/session_b.nwb"],
+            run_names=["1"],
+        )
+
+        form.run_names_for_all_sessions.value = ["1"]
+
+        assert form._collect_selected_runs() == {
+            str(output_root / "session_a"): ["1"],
+            str(output_root / "session_b"): ["1"],
+        }
+
+    def test_dandi_outputs_selector_is_rooted_at_the_output_root(
+        self, bare_parameter_form, tmp_path, patched_dandi_client
+    ):
+        output_root = tmp_path / "dandi_output"
+        form = _dandi_form_with_existing_runs(
+            form=bare_parameter_form,
+            patched_dandi_client=patched_dandi_client,
+            output_root=output_root,
+            asset_paths=["sub-01/session_a.nwb"],
+            run_names=["1"],
+        )
+        assert form.outputs_selector.root_directory == str(output_root)
+
+    def test_switching_dandisets_drops_the_previous_run_selection(
+        self, bare_parameter_form, tmp_path, patched_dandi_client
+    ):
+        # The asset FileSelector is rebuilt on a dandiset change, which empties the asset
+        # selection without firing a value event of its own.
+        form = _dandi_form_with_existing_runs(
+            form=bare_parameter_form,
+            patched_dandi_client=patched_dandi_client,
+            output_root=tmp_path / "dandi_output",
+            asset_paths=["sub-01/session_a.nwb"],
+            run_names=["1"],
+        )
+        form.run_names_for_all_sessions.value = ["1"]
+        patched_dandi_client.dandisets_by_id["000972"] = _FakeDandiset(["sub-09/other.nwb"])
+
+        form.dandi_selector.dandiset_input.value = "000972"
+
+        assert form.run_names_for_all_sessions.options == []
+        assert form._collect_selected_runs() == {}
+
 
 @pytest.fixture
 def sessions_with_runs(tmp_path):
     """Build three sessions on disk: A has runs 1/baseline, B has 1/2, C has none.
 
-    Only ``1`` is shared by A and B, so the intersection the bulk picker offers is
-    unambiguous, and C exercises the pre-step-1 case.
+    ``1`` is shared by A and B while ``baseline`` and ``2`` belong to one session each,
+    so the union the run-name picker offers is distinguishable from an intersection.
+    C exercises the pre-step-1 case.
     """
 
     def build(name, run_names):
@@ -470,113 +555,83 @@ def sessions_with_runs(tmp_path):
     )
 
 
-class TestSessionRunSelectors:
-    def test_bulk_picker_offers_only_run_names_shared_by_every_session(self, bare_parameter_form, sessions_with_runs):
-        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
-        assert bare_parameter_form.run_names_for_all_sessions.options == ["1"]
+class TestOutputsSelector:
+    def test_outputs_selector_exists_and_is_filtered(self, parameter_form):
+        assert isinstance(parameter_form.outputs_selector, pn.widgets.FileSelector)
+        assert parameter_form.outputs_selector.file_pattern == "*_output_*"
 
-    def test_per_session_pickers_offer_that_session_own_run_names(self, bare_parameter_form, sessions_with_runs):
-        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
-        selectors = bare_parameter_form.session_run_selectors
-        assert selectors[sessions_with_runs.session_a].options == ["1", "baseline"]
-        assert selectors[sessions_with_runs.session_b].options == ["1", "2"]
+    def test_retarget_uses_first_session_as_directory(self, bare_parameter_form, tmp_path):
+        session = tmp_path / "sessionA"
+        session.mkdir()
+        bare_parameter_form.files_1.value = [str(session)]
+        # root_directory must equal directory so Panel's startswith() validation in _dir_change
+        # can't silently revert (especially on Windows where root_directory="/" resolves to a
+        # potentially different drive than tmp_path).
+        assert bare_parameter_form.outputs_selector.root_directory == str(session)
+        assert bare_parameter_form.outputs_selector.directory == str(session)
+        assert bare_parameter_form.outputs_selector.value == []
 
-    def test_session_without_run_folders_gets_no_picker_and_does_not_empty_the_intersection(
-        self, bare_parameter_form, sessions_with_runs
+    def test_retarget_falls_back_to_start_path_when_files_1_cleared(
+        self, bare_parameter_form, frontend_base_dir, tmp_path
     ):
-        bare_parameter_form.files_1.value = [
-            sessions_with_runs.session_a,
-            sessions_with_runs.session_b,
-            sessions_with_runs.session_c,
-        ]
-        assert sessions_with_runs.session_c not in bare_parameter_form.session_run_selectors
-        assert bare_parameter_form.run_names_for_all_sessions.options == ["1"]
+        session = tmp_path / "sessionA"
+        session.mkdir()
+        bare_parameter_form.files_1.value = [str(session)]
+        bare_parameter_form.files_1.value = []
+        assert bare_parameter_form.outputs_selector.directory == str(frontend_base_dir)
 
-    def test_bulk_choice_populates_every_session(self, bare_parameter_form, sessions_with_runs):
-        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
-        bare_parameter_form.run_names_for_all_sessions.value = ["1"]
-        assert bare_parameter_form._collect_selected_runs() == {
-            sessions_with_runs.session_a: ["1"],
-            sessions_with_runs.session_b: ["1"],
-        }
-
-    def test_editing_one_session_leaves_the_others_alone(self, bare_parameter_form, sessions_with_runs):
-        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
-        bare_parameter_form.run_names_for_all_sessions.value = ["1"]
-        bare_parameter_form.session_run_selectors[sessions_with_runs.session_a].value = ["baseline"]
-        assert bare_parameter_form._collect_selected_runs() == {
-            sessions_with_runs.session_a: ["baseline"],
-            sessions_with_runs.session_b: ["1"],
-        }
-
-    def test_removing_a_session_preserves_the_other_sessions_choices(self, bare_parameter_form, sessions_with_runs):
-        # Regression for #462: dropping one session used to wipe every run choice.
-        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
-        bare_parameter_form.run_names_for_all_sessions.value = ["1"]
-        bare_parameter_form.session_run_selectors[sessions_with_runs.session_a].value = ["baseline"]
-
-        bare_parameter_form.files_1.value = [sessions_with_runs.session_a]
-
-        assert bare_parameter_form._collect_selected_runs() == {sessions_with_runs.session_a: ["baseline"]}
-
-    def test_newly_added_session_starts_from_the_bulk_choice(self, bare_parameter_form, sessions_with_runs):
-        bare_parameter_form.files_1.value = [sessions_with_runs.session_a]
-        bare_parameter_form.run_names_for_all_sessions.value = ["1"]
-
-        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
-
-        assert bare_parameter_form._collect_selected_runs() == {
-            sessions_with_runs.session_a: ["1"],
-            sessions_with_runs.session_b: ["1"],
-        }
-
-    def test_no_shared_run_name_leaves_bulk_picker_empty_but_sessions_selectable(self, bare_parameter_form, tmp_path):
-        session_a = tmp_path / "onlyAlpha"
+    def test_retarget_multiple_sessions_uses_common_parent_as_root(self, bare_parameter_form, tmp_path):
+        # Multi-session: root must be the common parent so the user can navigate between
+        # sessions to reach each one's _output_* dirs. Directory starts at sessions[0] so
+        # the FileSelector lands on one session's outputs immediately.
+        session_a = tmp_path / "sessionA"
         session_a.mkdir()
-        os.mkdir(run_folder_for_run(str(session_a), "alpha"))
-        session_b = tmp_path / "onlyBeta"
+        session_b = tmp_path / "sessionB"
         session_b.mkdir()
-        os.mkdir(run_folder_for_run(str(session_b), "beta"))
-
         bare_parameter_form.files_1.value = [str(session_a), str(session_b)]
+        assert bare_parameter_form.outputs_selector.root_directory == str(tmp_path)
+        assert bare_parameter_form.outputs_selector.directory == str(session_a)
 
-        assert bare_parameter_form.run_names_for_all_sessions.options == []
-        assert bare_parameter_form.run_names_for_all_sessions_note.object == (
-            "No run name is present in all 2 selected sessions — choose runs per session below."
-        )
-        bare_parameter_form.session_run_selectors[str(session_a)].value = ["alpha"]
-        bare_parameter_form.session_run_selectors[str(session_b)].value = ["beta"]
-        assert bare_parameter_form._collect_selected_runs() == {
-            str(session_a): ["alpha"],
-            str(session_b): ["beta"],
+    def test_collect_selected_outputs_groups_by_session(self, bare_parameter_form, tmp_path):
+        session_a = tmp_path / "sessionA"
+        session_a.mkdir()
+        session_b = tmp_path / "sessionB"
+        session_b.mkdir()
+        run_a1 = run_folder_for_run(str(session_a), "run1")
+        run_a2 = run_folder_for_run(str(session_a), "run2")
+        run_b1 = run_folder_for_run(str(session_b), "run1")
+        for path in (run_a1, run_a2, run_b1):
+            os.mkdir(path)
+
+        bare_parameter_form.outputs_selector.value = [run_a1, run_a2, run_b1]
+        result = bare_parameter_form._collect_selected_runs()
+        assert result == {
+            str(session_a): ["run1", "run2"],
+            str(session_b): ["run1"],
         }
 
-    def test_collect_selected_runs_empty_returns_empty_dict(self, bare_parameter_form):
+    def test_collect_selected_outputs_empty_returns_empty_dict(self, bare_parameter_form):
+        bare_parameter_form.outputs_selector.value = []
         assert bare_parameter_form._collect_selected_runs() == {}
 
-    def test_refresh_individual_outputs_adds_new_runs_and_keeps_the_selection(
-        self, bare_parameter_form, sessions_with_runs
+    def test_validate_selected_outputs_raises_when_session_has_dirs_but_none_selected(
+        self, bare_parameter_form, tmp_path
     ):
-        bare_parameter_form.files_1.value = [sessions_with_runs.session_a]
-        bare_parameter_form.run_names_for_all_sessions.value = ["1"]
-        os.mkdir(run_folder_for_run(sessions_with_runs.session_a, "2"))
+        session = tmp_path / "sessionA"
+        session.mkdir()
+        os.mkdir(run_folder_for_run(str(session), "baseline"))
 
-        bare_parameter_form.refresh_individual_outputs()
-
-        selector = bare_parameter_form.session_run_selectors[sessions_with_runs.session_a]
-        assert selector.options == ["1", "2", "baseline"]
-        assert selector.value == ["1"]
-
-    def test_validate_selected_runs_raises_when_session_has_dirs_but_none_selected(
-        self, bare_parameter_form, sessions_with_runs
-    ):
-        bare_parameter_form.files_1.value = [sessions_with_runs.session_a]
+        bare_parameter_form.files_1.value = [str(session)]
+        bare_parameter_form.outputs_selector.value = []
 
         with pytest.raises(ValueError, match="No output directory selected"):
             bare_parameter_form.validate_selected_runs_for_consumers()
 
-    def test_validate_selected_runs_skips_sessions_without_output_dirs(self, bare_parameter_form, sessions_with_runs):
-        bare_parameter_form.files_1.value = [sessions_with_runs.session_c]
+    def test_validate_selected_outputs_skips_sessions_without_output_dirs(self, bare_parameter_form, tmp_path):
+        session = tmp_path / "sessionA"
+        session.mkdir()
+        bare_parameter_form.files_1.value = [str(session)]
+        bare_parameter_form.outputs_selector.value = []
 
         bare_parameter_form.validate_selected_runs_for_consumers()
 
@@ -585,17 +640,120 @@ class TestSessionRunSelectors:
         assert "run_name" not in result
         assert "run_name_policy" not in result
 
-    def test_get_input_parameters_selected_runs_reflects_the_pickers(self, bare_parameter_form, sessions_with_runs):
-        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
-        bare_parameter_form.run_names_for_all_sessions.value = ["1"]
-        bare_parameter_form.session_run_selectors[sessions_with_runs.session_a].value = ["1", "baseline"]
+    def test_get_input_parameters_selected_outputs_reflects_selector(self, bare_parameter_form, tmp_path):
+        session = tmp_path / "sessionA"
+        session.mkdir()
+        run_dir = run_folder_for_run(str(session), "baseline")
+        os.mkdir(run_dir)
+
+        bare_parameter_form.files_1.value = [str(session)]
+        bare_parameter_form.outputs_selector.value = [run_dir]
 
         result = bare_parameter_form.getInputParameters()
+        assert result["selected_runs"] == {str(session): ["baseline"]}
 
-        assert result["selected_runs"] == {
-            sessions_with_runs.session_a: ["1", "baseline"],
+
+class TestRunNamePicker:
+    def test_offers_every_run_name_any_selected_session_has(self, bare_parameter_form, sessions_with_runs):
+        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
+        assert bare_parameter_form.run_names_for_all_sessions.options == ["1", "baseline", "2"]
+
+    def test_session_without_run_folders_contributes_no_names(self, bare_parameter_form, sessions_with_runs):
+        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_c]
+        assert bare_parameter_form.run_names_for_all_sessions.options == ["1", "baseline"]
+
+    def test_choosing_a_name_selects_that_run_in_every_session(self, bare_parameter_form, sessions_with_runs):
+        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
+        bare_parameter_form.run_names_for_all_sessions.value = ["1"]
+        assert bare_parameter_form._collect_selected_runs() == {
+            sessions_with_runs.session_a: ["1"],
             sessions_with_runs.session_b: ["1"],
         }
+
+    def test_name_only_one_session_has_selects_only_that_session(self, bare_parameter_form, sessions_with_runs):
+        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
+        bare_parameter_form.run_names_for_all_sessions.value = ["baseline"]
+        assert bare_parameter_form._collect_selected_runs() == {sessions_with_runs.session_a: ["baseline"]}
+
+    def test_programmatic_selection_reaches_the_visible_pane(self, bare_parameter_form, sessions_with_runs):
+        # FileSelector.value alone leaves the "Selected files" pane empty; the picker has to
+        # re-enumerate the browser for a bulk choice to be visible to the user.
+        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
+        bare_parameter_form.run_names_for_all_sessions.value = ["1"]
+        assert sorted(bare_parameter_form.outputs_selector._selector.value) == [
+            run_folder_for_run(sessions_with_runs.session_a, "1"),
+            run_folder_for_run(sessions_with_runs.session_b, "1"),
+        ]
+
+    def test_dropping_a_name_deselects_only_the_runs_it_named(self, bare_parameter_form, sessions_with_runs):
+        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
+        bare_parameter_form.run_names_for_all_sessions.value = ["1", "2"]
+
+        bare_parameter_form.run_names_for_all_sessions.value = ["2"]
+
+        assert bare_parameter_form._collect_selected_runs() == {sessions_with_runs.session_b: ["2"]}
+
+    def test_runs_picked_in_the_tree_survive_a_later_bulk_choice(self, bare_parameter_form, sessions_with_runs):
+        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
+        hand_picked = run_folder_for_run(sessions_with_runs.session_a, "baseline")
+        bare_parameter_form.outputs_selector.value = [hand_picked]
+
+        bare_parameter_form.run_names_for_all_sessions.value = ["1"]
+        bare_parameter_form.run_names_for_all_sessions.value = []
+
+        assert bare_parameter_form._collect_selected_runs() == {sessions_with_runs.session_a: ["baseline"]}
+
+    def test_removing_a_session_preserves_the_other_sessions_choices(self, bare_parameter_form, sessions_with_runs):
+        # Regression for #462: dropping one session used to wipe every run choice.
+        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
+        bare_parameter_form.run_names_for_all_sessions.value = ["1"]
+
+        bare_parameter_form.files_1.value = [sessions_with_runs.session_a]
+
+        assert bare_parameter_form._collect_selected_runs() == {sessions_with_runs.session_a: ["1"]}
+
+    def test_newly_added_session_inherits_the_current_choice(self, bare_parameter_form, sessions_with_runs):
+        bare_parameter_form.files_1.value = [sessions_with_runs.session_a]
+        bare_parameter_form.run_names_for_all_sessions.value = ["1"]
+
+        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
+
+        assert bare_parameter_form._collect_selected_runs() == {
+            sessions_with_runs.session_a: ["1"],
+            sessions_with_runs.session_b: ["1"],
+        }
+
+    def test_name_gone_from_disk_leaves_the_picker_when_its_session_does(self, bare_parameter_form, sessions_with_runs):
+        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
+        bare_parameter_form.run_names_for_all_sessions.value = ["1", "2"]
+
+        bare_parameter_form.files_1.value = [sessions_with_runs.session_a]
+
+        assert bare_parameter_form.run_names_for_all_sessions.options == ["1", "baseline"]
+        assert bare_parameter_form.run_names_for_all_sessions.value == ["1"]
+
+    def test_refresh_individual_outputs_offers_new_runs_and_keeps_the_selection(
+        self, bare_parameter_form, sessions_with_runs
+    ):
+        bare_parameter_form.files_1.value = [sessions_with_runs.session_a]
+        bare_parameter_form.run_names_for_all_sessions.value = ["1"]
+        os.mkdir(run_folder_for_run(sessions_with_runs.session_a, "2"))
+
+        bare_parameter_form.refresh_individual_outputs()
+
+        assert bare_parameter_form.run_names_for_all_sessions.options == ["1", "2", "baseline"]
+        assert bare_parameter_form._collect_selected_runs() == {sessions_with_runs.session_a: ["1"]}
+
+    def test_switching_source_mode_and_back_keeps_the_local_selection(self, bare_parameter_form, sessions_with_runs):
+        bare_parameter_form.files_1.value = [sessions_with_runs.session_a]
+        bare_parameter_form.run_names_for_all_sessions.value = ["1"]
+
+        bare_parameter_form.source_mode.value = "dandi"
+        assert bare_parameter_form._collect_selected_runs() == {}
+
+        bare_parameter_form.source_mode.value = "local"
+        assert bare_parameter_form.run_names_for_all_sessions.value == ["1"]
+        assert bare_parameter_form._collect_selected_runs() == {sessions_with_runs.session_a: ["1"]}
 
 
 class TestFolderSelectionCards:
@@ -604,10 +762,10 @@ class TestFolderSelectionCards:
         assert parameter_form.input_folder_selection.title == "Input Folder Selection"
         assert parameter_form.input_folder_selection.collapsed is False
 
-    def test_output_folder_selection_card_exists_and_is_open(self, parameter_form):
+    def test_output_folder_selection_card_exists_and_is_collapsed(self, parameter_form):
         assert isinstance(parameter_form.output_folder_selection, pn.Card)
         assert parameter_form.output_folder_selection.title == "Output Folder Selection"
-        assert parameter_form.output_folder_selection.collapsed is False
+        assert parameter_form.output_folder_selection.collapsed is True
 
     def test_individual_card_starts_collapsed(self, parameter_form):
         assert parameter_form.individual.collapsed is True
@@ -699,10 +857,10 @@ class TestParameterAutoPopulate:
     def test_selecting_output_run_populates_widgets(self, bare_parameter_form, tmp_path):
         session = tmp_path / "sessionA"
         session.mkdir()
-        _write_run_with_parameters(session, "baseline", SAVED_PARAMETERS)
+        run_dir = _write_run_with_parameters(session, "baseline", SAVED_PARAMETERS)
 
         bare_parameter_form.files_1.value = [str(session)]
-        bare_parameter_form.session_run_selectors[str(session)].value = ["baseline"]
+        bare_parameter_form.outputs_selector.value = [run_dir]
 
         assert bare_parameter_form.timeForLightsTurnOn.value == 7
         assert bare_parameter_form.z_score_computation.value == "modified z-score"
@@ -713,24 +871,24 @@ class TestParameterAutoPopulate:
     def test_agreeing_runs_populate_widgets(self, bare_parameter_form, tmp_path):
         session = tmp_path / "sessionA"
         session.mkdir()
-        _write_run_with_parameters(session, "run_a", SAVED_PARAMETERS)
-        _write_run_with_parameters(session, "run_b", SAVED_PARAMETERS)
+        run_a = _write_run_with_parameters(session, "run_a", SAVED_PARAMETERS)
+        run_b = _write_run_with_parameters(session, "run_b", SAVED_PARAMETERS)
 
         bare_parameter_form.files_1.value = [str(session)]
-        bare_parameter_form.session_run_selectors[str(session)].value = ["run_a", "run_b"]
+        bare_parameter_form.outputs_selector.value = [run_a, run_b]
 
         assert bare_parameter_form.timeForLightsTurnOn.value == 7
 
     def test_conflicting_runs_leave_form_unchanged(self, bare_parameter_form, tmp_path):
         session = tmp_path / "sessionA"
         session.mkdir()
-        _write_run_with_parameters(session, "run_a", SAVED_PARAMETERS)
+        run_a = _write_run_with_parameters(session, "run_a", SAVED_PARAMETERS)
         conflicting = {**SAVED_PARAMETERS, "timeForLightsTurnOn": 99}
-        _write_run_with_parameters(session, "run_b", conflicting)
+        run_b = _write_run_with_parameters(session, "run_b", conflicting)
 
         default_time = bare_parameter_form.timeForLightsTurnOn.value
         bare_parameter_form.files_1.value = [str(session)]
-        bare_parameter_form.session_run_selectors[str(session)].value = ["run_a", "run_b"]
+        bare_parameter_form.outputs_selector.value = [run_a, run_b]
 
         # Conflicting snapshots: form must be left untouched for the user to reconcile.
         assert bare_parameter_form.timeForLightsTurnOn.value == default_time
@@ -738,15 +896,16 @@ class TestParameterAutoPopulate:
     def test_selecting_run_without_json_is_noop(self, bare_parameter_form, tmp_path):
         session = tmp_path / "sessionA"
         session.mkdir()
-        os.mkdir(run_folder_for_run(str(session), "fresh"))
+        run_dir = run_folder_for_run(str(session), "fresh")
+        os.mkdir(run_dir)
 
         default_time = bare_parameter_form.timeForLightsTurnOn.value
         bare_parameter_form.files_1.value = [str(session)]
-        bare_parameter_form.session_run_selectors[str(session)].value = ["fresh"]
+        bare_parameter_form.outputs_selector.value = [run_dir]
 
         assert bare_parameter_form.timeForLightsTurnOn.value == default_time
 
-    def test_bulk_choice_loads_parameters_once_for_all_sessions(self, bare_parameter_form, tmp_path):
+    def test_choosing_a_run_name_populates_widgets_from_every_session_it_selects(self, bare_parameter_form, tmp_path):
         sessions = []
         for name in ("sessionA", "sessionB", "sessionC"):
             session = tmp_path / name
@@ -755,9 +914,6 @@ class TestParameterAutoPopulate:
             sessions.append(str(session))
         bare_parameter_form.files_1.value = sessions
 
-        loads = []
-        bare_parameter_form._load_parameters_from_selected_runs = lambda: loads.append(1)
         bare_parameter_form.run_names_for_all_sessions.value = ["shared"]
 
-        # Writing into three per-session pickers must coalesce into a single reload.
-        assert len(loads) == 1
+        assert bare_parameter_form.timeForLightsTurnOn.value == 7

@@ -63,8 +63,9 @@ Run names may not be empty, contain path separators or `..`, or contain the subs
 
 ## Analyze it with the default filter window
 
-Back on the homepage, in **Output Folder Selection**, set **Run name(s) for all sessions**
-to `filter_100` — and only that one. Every step you run acts on the runs selected here.
+Back on the homepage, open **Output Folder Selection** and set **Run name(s) for all
+sessions** to `filter_100` — and only that one. The picker ticks the matching run folder in
+the browser below it. Every step you run acts on the runs selected there.
 
 Leave the parameters at their defaults; **Window for Moving Average filter (int)** is
 already `100`, which is the parameter set this run is named for.
@@ -92,12 +93,12 @@ which would throw away the result you just computed.
 
 ## Analyze it with a wider filter window
 
-Back on the homepage, look at **Output Folder Selection** again. Both runs are now offered
-under **Run name(s) for all sessions**. Select `filter_250`, and make sure `filter_100` is
-*not* selected.
+Back on the homepage, open **Output Folder Selection** again. Both runs are now offered
+under **Run name(s) for all sessions**. Select `filter_250` and clear `filter_100`, leaving
+only `sample_data_csv_1_output_filter_250` under **Selected files**.
 
 ```{image} ../_static/images/compare_parameters_existing_runs.png
-:alt: The Output Folder Selection card with filter_250 chosen in the Run name(s) for all sessions picker and echoed in the per-session Runs for sample_data_csv_1 picker below it
+:alt: The Output Folder Selection card with filter_250 chosen in the Run name(s) for all sessions picker and sample_data_csv_1_output_filter_250 moved into the browser's Selected files list below it
 :width: 100%
 ```
 
@@ -126,8 +127,8 @@ defeat the comparison.
 
 ## Compare the two runs
 
-Select **both** runs under **Run name(s) for all sessions**, then click **Open Visualization
-GUI**. GuPPy opens one dashboard per selected run, each in its own browser tab, so you can
+Select **both** run names under **Run name(s) for all sessions**, then click **Open
+Visualization GUI**. GuPPy opens one dashboard per selected run, each in its own browser tab, so you can
 flip between them with the same event and view selected.
 
 Selecting two runs whose saved parameters differ shows the notification "Selected output

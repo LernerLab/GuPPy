@@ -165,16 +165,18 @@ class DandiSelector:
             file_selector.param.watch(callback, "value")
         return file_selector
 
-    def attach_asset_selection_watcher(self, callback: object) -> None:
+    def attach_asset_selection_watcher(self, *, callback: object) -> None:
         """Call ``callback`` whenever the set of selected NWB assets changes.
 
         The asset ``FileSelector`` is rebuilt on every dandiset change, so watchers
-        registered here are re-attached to each replacement.
+        registered here are re-attached to each replacement and are also called
+        directly on the swap, which drops the previous selection without firing a
+        ``value`` event of its own.
 
         Parameters
         ----------
         callback : callable
-            Receives the Panel ``value`` change event.
+            Receives the Panel ``value`` change event, or ``None`` on a rebuild.
         """
         self._asset_selection_watchers.append(callback)
         self.asset_file_selector.param.watch(callback, "value")
@@ -182,6 +184,8 @@ class DandiSelector:
     def _swap_asset_file_selector(self, root_directory: str) -> None:
         self.asset_file_selector = self._make_asset_file_selector(root_directory)
         self._asset_file_selector_slot[:] = [self.asset_file_selector]
+        for callback in self._asset_selection_watchers:
+            callback(None)
 
     def _reset_to_empty(self) -> None:
         self._current_mirror_root = None

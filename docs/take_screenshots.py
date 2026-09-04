@@ -496,7 +496,7 @@ def screenshot_parameters(page: Page) -> None:
     page.wait_for_timeout(1500)
     page.screenshot(
         path=OUTPUT_DIR / "02_parameters.png",
-        clip={"x": 0, "y": 870, "width": 1280, "height": 800},
+        clip={"x": 0, "y": 600, "width": 1280, "height": 800},
     )
     print("Saved 02_parameters.png")
     page.set_viewport_size(VIEWPORT)
@@ -782,13 +782,16 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
     try:
         # Drive the card directly rather than through the homepage: only this one card
         # is in shot, and selecting the session in the served input browser would take
-        # several dependent clicks first.
+        # several dependent clicks first. Choosing the run by name is also what moves the
+        # entry into the browser's "Selected files" pane — setting FileSelector.value
+        # alone updates the parameter without redrawing the panes.
         form = ParameterForm(
             template=pn.template.MaterialTemplate(title="Input Parameters GUI"),
             start_path=str(SAMPLE_DATA_DIR.parent),
         )
         form.files_1.value = [str(SAMPLE_DATA_DIR)]
         form.run_names_for_all_sessions.value = ["filter_250"]
+        form.output_folder_selection.collapsed = False
 
         template = pn.template.MaterialTemplate(title="Input Parameters GUI")
         template.main.append(form.output_folder_selection)
@@ -799,7 +802,7 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
         page.wait_for_timeout(1500)
         page.screenshot(
             path=OUTPUT_DIR / "compare_parameters_existing_runs.png",
-            clip={"x": 0, "y": 0, "width": 1060, "height": 360},
+            clip={"x": 0, "y": 0, "width": 1060, "height": 660},
         )
         print("Saved compare_parameters_existing_runs.png")
 

@@ -51,8 +51,8 @@ halves must use the same run name.
    :width: 100%
    ```
 
-4. In **Output Folder Selection**, set **Run name(s) for all sessions** to the run
-   both sessions share (e.g. `1`, giving both sessions their `..._output_1`).
+4. Open **Output Folder Selection** and set **Run name(s) for all sessions** to the run
+   name both halves share (e.g. `1`), which selects each session's `..._output_1`.
 5. In the **Individual Analysis** card, set **Combine Data?** to `True` (next
    to **# of cores** — see the [parameters screenshot](../tutorials/first_analysis.md#set-parameters)
    in the getting-started tutorial for where this sits).
