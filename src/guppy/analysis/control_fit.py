@@ -173,7 +173,7 @@ def _fit_with_bleaching(control: np.ndarray, signal: np.ndarray, sample_index: n
         ),
     )
     intercept, slope, bleaching_amplitude, decay_constant = coefficients
-    logger.debug(f"Control fit bleaching term: decay constant {decay_constant:.4g} samples")
+    logger.debug("Control fit bleaching term: decay constant %.4g samples", decay_constant)
 
     return ControlFitModel(
         slope=float(slope),

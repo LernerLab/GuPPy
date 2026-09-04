@@ -39,6 +39,7 @@ from ..analysis.timestamp_correction import correct_timestamps
 from ..analysis.z_score import compute_z_score
 from ..utils import progress
 from ..utils.progress import step_error_handler
+from ..utils.stores_list import read_stores_list
 from ..utils.utils import (
     get_all_stores_for_combining_data,
     resolve_run_folders,
@@ -70,12 +71,10 @@ def execute_timestamp_correction(session_folders: list[str], inputParameters: di
         filepath = session_folders[i]
         run_folders = select_run_folders(filepath, selected_runs.get(filepath))
         mode = "tdt" if check_TDT(session_folders[i]) else "csv"
-        logger.debug(f"Timestamps corrections started for {filepath}")
+        logger.debug("Timestamps corrections started for %s", filepath)
         for j in range(len(run_folders)):
             filepath = run_folders[j]
-            store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(
-                2, -1
-            )
+            store_array = read_stores_list(run_folder=filepath)
 
             if isosbestic_control == False:
                 store_array = add_control_channel(filepath, store_array)
@@ -119,7 +118,7 @@ def execute_timestamp_correction(session_folders: list[str], inputParameters: di
                 create_control_channel(filepath, store_array, window=101)
 
             progress.advance()
-        logger.info(f"Timestamps corrections finished for {filepath}")
+        logger.info("Timestamps corrections finished for %s", filepath)
 
 
 def execute_zscore(session_folders: list[str], inputParameters: dict[str, object], *, remove_artifacts: bool) -> None:
@@ -184,7 +183,7 @@ def execute_zscore(session_folders: list[str], inputParameters: dict[str, object
 
     for j in range(len(run_folders)):
         filepath = run_folders[j]
-        logger.debug(f"Computing z-score for each of the data in {filepath}")
+        logger.debug("Computing z-score for each of the data in %s", filepath)
         path = decide_naming_convention(filepath)
         _, artifactsRemovalMethod = read_artifact_provenance(destination=filepath)
 
@@ -212,7 +211,7 @@ def execute_zscore(session_folders: list[str], inputParameters: dict[str, object
             )
             write_zscore(filepath, name, z_score, dff, control_fit, control_array)
 
-        logger.info(f"z-score for the data in {filepath} computed.")
+        logger.info("z-score for the data in %s computed.", filepath)
         progress.advance()
 
     logger.info("Z-score computation completed.")
@@ -246,7 +245,7 @@ def execute_artifact_removal(session_folders: list[str], inputParameters: dict[s
 
     for j in range(len(run_folders)):
         filepath = run_folders[j]
-        store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
+        store_array = read_stores_list(run_folder=filepath)
         _, artifactsRemovalMethod = read_artifact_provenance(destination=filepath)
 
         store_label_to_data = read_corrected_data_dict(filepath, store_array)
@@ -308,9 +307,6 @@ def execute_combine_data(
         session_run_folders = select_run_folders(filepath, selected_runs.get(filepath))
         for j in range(len(session_run_folders)):
             filepath = session_run_folders[j]
-            storesList_new = np.genfromtxt(
-                os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=","
-            ).reshape(2, -1)
             sampling_rate_filepaths.append(glob.glob(os.path.join(filepath, "timeCorrection_*")))
 
     # check if sampling rate is same for both data
@@ -429,8 +425,8 @@ def extractTsAndSignal(inputParameters: dict[str, object]) -> None:
     save_parameters(inputParameters=inputParameters, remove_artifacts=False)
 
     session_folders = inputParameters["session_folders"]
-    logger.info(f"Combine Data : {inputParameters['combine_data']}")
-    logger.info(f"Isosbestic Control Channel : {inputParameters['isosbestic_control']}")
+    logger.info("Combine Data : %s", inputParameters["combine_data"])
+    logger.info("Isosbestic Control Channel : %s", inputParameters["isosbestic_control"])
 
     _start_progress(inputParameters, passes_per_folder=2)
     folders = _correct_and_maybe_combine(session_folders, inputParameters)
@@ -459,8 +455,8 @@ def removeArtifactsFromSignal(inputParameters: dict[str, object]) -> None:
 
     save_parameters(inputParameters=inputParameters, remove_artifacts=True)
 
-    logger.info(f"Combine Data : {inputParameters['combine_data']}")
-    logger.info(f"Isosbestic Control Channel : {inputParameters['isosbestic_control']}")
+    logger.info("Combine Data : %s", inputParameters["combine_data"])
+    logger.info("Isosbestic Control Channel : %s", inputParameters["isosbestic_control"])
 
     _start_progress(inputParameters, passes_per_folder=3)
     folders = _correct_and_maybe_combine(session_folders, inputParameters)

@@ -212,7 +212,7 @@ def _export_session_from_nwb_source(
             added_namespaces=("ndx-guppy",),
         )
 
-    logger.info(f"Wrote NWB file to {nwbfile_path}")
+    logger.info("Wrote NWB file to %s", nwbfile_path)
     return nwbfile_path
 
 
@@ -295,7 +295,7 @@ def export_session_to_nwb(
         overwrite=True,
     )
 
-    logger.info(f"Wrote NWB file to {nwbfile_path}")
+    logger.info("Wrote NWB file to %s", nwbfile_path)
     return nwbfile_path
 
 
@@ -334,11 +334,11 @@ def orchestrate_export_nwb(inputParameters: dict[str, object]) -> None:
                 nwbfile_path=nwbfile_path,
                 nwb_source=nwb_source,
             )
-            logger.info(f"Exported {session_basename} ({run_name}) to NWB.")
+            logger.info("Exported %s (%s) to NWB.", session_basename, run_name)
         except Exception as exception:
             # logger.exception so the traceback survives: the user-facing summary below is only the
             # message, and a partial-success batch is exactly the case where the log is all there is.
-            logger.exception(f"NWB export failed for {session_basename} ({run_name})")
+            logger.exception("NWB export failed for %s (%s)", session_basename, run_name)
             failures.append(f"{session_basename} ({run_name}): {exception}")
         finally:
             progress.advance()

@@ -195,4 +195,4 @@ def read_and_save_events_for_extractor(
     for event in normalized_events:
         already_committed = int(extractor.committed_samples_for_event(event))
         add_samples_done(int(event_total_samples.get(event, 0)) - already_committed)
-        logger.info("Data for event {} fetched and stored.".format(event))
+        logger.info("Data for event %s fetched and stored.", event)

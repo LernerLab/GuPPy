@@ -249,4 +249,4 @@ def save_group_definition(*, group_folder: str, member_run_folders: list[str]) -
     """
     os.makedirs(group_folder, exist_ok=True)
     write_group_members(group_folder=group_folder, member_run_folders=member_run_folders)
-    logger.info(f"Group definition saved at {group_folder} with {len(member_run_folders)} member run(s).")
+    logger.info("Group definition saved at %s with %s member run(s).", group_folder, len(member_run_folders))

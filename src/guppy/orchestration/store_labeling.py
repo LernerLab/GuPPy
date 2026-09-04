@@ -24,6 +24,7 @@ from guppy.frontend.store_labeling_instructions import (
     StoreLabelingInstructionsNPM,
 )
 from guppy.frontend.store_labeling_selector import StoreLabelingSelector
+from guppy.utils.stores_list import write_stores_list
 from guppy.utils.utils import (
     NPM_PARAM_KEYS,
     discover_run_folders,
@@ -101,7 +102,7 @@ def _fetchValues(
                 return "####Alert !! \n One of the text box entry is empty."
             if len(name.split()) > 1:
                 return "####Alert !! \n Whitespace is not allowed in the text box entry."
-            store_labels.append("signal_{}".format(name))
+            store_labels.append(f"signal_{name}")
             signal_names.append(name)
         elif dropdown_value == "control":
             signal_key = store_id_control_refs[key].value
@@ -111,7 +112,7 @@ def _fetchValues(
                     "Select the signal each control belongs to."
                 )
             signal_name = signal_key_to_name.get(signal_key, "")
-            store_labels.append("control_{}".format(signal_name))
+            store_labels.append(f"control_{signal_name}")
             signals_with_control.add(signal_name)
         elif dropdown_value == "event TTLs":
             name = store_id_textboxes[key].value or ""
@@ -126,7 +127,7 @@ def _fetchValues(
                 return "####Alert !! \n One of the text box entry is empty."
             if len(name.split()) > 1:
                 return "####Alert !! \n Whitespace is not allowed in the text box entry."
-            store_labels.append("covariate_{}".format(name))
+            store_labels.append(f"covariate_{name}")
         else:
             store_labels.append(dropdown_value)
 
@@ -261,14 +262,14 @@ def _save(
             return f"#### Alert !! \n {detail}"
         # Overwrite mode: clear all derived data from the previous run before saving the new store_array.
         shutil.rmtree(select_location)
-        logger.info(f"Cleared output directory for overwrite: {select_location}")
+        logger.info("Cleared output directory for overwrite: %s", select_location)
     os.mkdir(select_location)
 
-    np.savetxt(os.path.join(select_location, "storesList.csv"), store_array, delimiter=",", fmt="%s")
+    write_stores_list(run_folder=select_location, store_array=store_array)
     if npm_params is not None:
         write_npm_params(run_folder=select_location, npm_params=npm_params)
-    logger.info(f"Storeslist file saved at {select_location}")
-    logger.info("Storeslist : \n" + str(store_array))
+    logger.info("Storeslist file saved at %s", select_location)
+    logger.info("Storeslist : \n%s", store_array)
     return "#### No alerts !!"
 
 
@@ -311,7 +312,7 @@ def build_store_labeling_template(
     """
     allnames = events
 
-    template = pn.template.BootstrapTemplate(title="Label Stores GUI - {}".format(os.path.basename(folder_path)))
+    template = pn.template.BootstrapTemplate(title=f"Label Stores GUI - {os.path.basename(folder_path)}")
 
     if npm_interactive is not None:
         store_labeling_instructions = StoreLabelingInstructionsNPM(
@@ -367,7 +368,7 @@ def build_store_labeling_template(
         take_widgets = store_labeling_selector.get_take_widgets()
         expanded_store_ids = []
         for i in range(len(take_widgets[1])):
-            for j in range(take_widgets[1][i]):
+            for _ in range(take_widgets[1][i]):
                 expanded_store_ids.append(take_widgets[0][i])
         if len(expanded_store_ids) > 0:
             store_ids = store_labeling_selector.get_cross_selector() + expanded_store_ids

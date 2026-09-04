@@ -49,7 +49,7 @@ def validate_tonic_epochs(epochs: pd.DataFrame, ts_min: float, ts_max: float) ->
     starts = np.asarray(epochs["start"], dtype=float)
     ends = np.asarray(epochs["end"], dtype=float)
 
-    for label, start, end in zip(labels, starts, ends):
+    for label, start, end in zip(labels, starts, ends, strict=True):
         if not (np.isfinite(start) and np.isfinite(end)):
             message = f"epoch {label!r} has a non-numeric start/end ({start}, {end}); provide numeric seconds."
             logger.error(message)
@@ -116,7 +116,7 @@ def compute_tonic_means(
 
     mean_zscore = []
     mean_dff = []
-    for start, end in zip(starts, ends):
+    for start, end in zip(starts, ends, strict=True):
         mask = (timestamps >= start) & (timestamps <= end)
         mean_zscore.append(np.nanmean(z_score[mask]))
         mean_dff.append(np.nanmean(dff[mask]))

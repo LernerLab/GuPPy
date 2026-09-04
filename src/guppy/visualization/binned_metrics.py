@@ -48,7 +48,15 @@ def build_bin_bars(
     values = np.asarray(values, dtype=float)
 
     drawable = ~np.isnan(values)
-    bars = list(zip(bin_starts[drawable], np.zeros(np.count_nonzero(drawable)), bin_ends[drawable], values[drawable]))
+    bars = list(
+        zip(
+            bin_starts[drawable],
+            np.zeros(np.count_nonzero(drawable)),
+            bin_ends[drawable],
+            values[drawable],
+            strict=True,
+        )
+    )
 
     return hv.Rectangles(
         bars,

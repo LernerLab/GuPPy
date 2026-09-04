@@ -17,6 +17,7 @@ from .io_utils import (
     write_hdf5,
 )
 from .tonic import TONIC_EPOCH_COLUMNS
+from ..utils.stores_list import read_stores_list
 from ..utils.utils import TRANSIENT_EVENT_PREFIX
 
 logger = logging.getLogger(__name__)
@@ -109,7 +110,7 @@ def read_ttl(filepath: str, store_array: np.ndarray) -> dict[str, np.ndarray]:
     store_labels = store_array[1, :]
 
     store_label_to_timestamps = {}
-    for store_id, store_label in zip(store_ids, store_labels):
+    for store_id, store_label in zip(store_ids, store_labels, strict=True):
         if store_label in control_signal_names or is_covariate_label(store_label):
             continue
         timestamps = read_hdf5(store_id, filepath, "timestamps")
@@ -363,7 +364,7 @@ def read_corrected_data_dict(
     store_labels = store_array[1, :]
     control_and_signal_names = get_control_and_signal_channel_names(store_array)
 
-    for store_id, store_label in zip(store_ids, store_labels):
+    for _store_id, store_label in zip(store_ids, store_labels, strict=True):
         if store_label not in control_and_signal_names:
             continue
         data = read_hdf5(store_label, filepath, "data").reshape(-1)
@@ -393,7 +394,7 @@ def read_corrected_ttl_timestamps(filepath: str, store_array: np.ndarray) -> dic
     store_labels = store_array[1, :]
     control_signal_names = get_control_and_signal_channel_names(store_array)
 
-    for store_id, store_label in zip(store_ids, store_labels):
+    for _store_id, store_label in zip(store_ids, store_labels, strict=True):
         if store_label in control_signal_names:
             continue
         ttl_name = store_label
@@ -633,7 +634,7 @@ def write_combined_data(
         write_hdf5(ttl_timestamps, compound_name, output_filepath, "ts")
 
 
-def write_peak_and_area_to_hdf5(filepath: str, peak_and_area_data: object, name: str, index: list[object] = []) -> None:
+def write_peak_and_area_to_hdf5(filepath: str, peak_and_area_data: object, name: str, index: list[object]) -> None:
     """
     Save peak and area-under-curve metrics to an HDF5 file.
 
@@ -645,8 +646,8 @@ def write_peak_and_area_to_hdf5(filepath: str, peak_and_area_data: object, name:
         Metrics data to store in the DataFrame.
     name : str
         Filename stem; the file is written as ``peak_AUC_<name>.h5``.
-    index : list, optional
-        Row index labels. Default is an empty list.
+    index : list
+        Row index labels.
     """
 
     output_path = os.path.join(filepath, "peak_AUC_" + name + ".h5")
@@ -657,7 +658,7 @@ def write_peak_and_area_to_hdf5(filepath: str, peak_and_area_data: object, name:
     df.to_hdf(output_path, key="df", mode="w")
 
 
-def write_peak_and_area_to_csv(filepath: str, peak_and_area_data: object, name: str, index: list[object] = []) -> None:
+def write_peak_and_area_to_csv(filepath: str, peak_and_area_data: object, name: str, index: list[object]) -> None:
     """
     Save peak and area-under-curve metrics to a CSV file.
 
@@ -669,8 +670,8 @@ def write_peak_and_area_to_csv(filepath: str, peak_and_area_data: object, name: 
         Metrics data to store in the DataFrame.
     name : str
         Filename stem; the file is written as ``peak_AUC_<name>.csv``.
-    index : list, optional
-        Row index labels. Default is an empty list.
+    index : list
+        Row index labels.
     """
     output_path = os.path.join(filepath, "peak_AUC_" + name + ".csv")
     df = pd.DataFrame(peak_and_area_data, index=index)
@@ -732,11 +733,11 @@ def remove_tonic_results(filepath: str, site: str) -> None:
         path = os.path.join(filepath, name)
         if os.path.exists(path):
             os.remove(path)
-            logger.info(f"Removed {name} for recording site {site}.")
+            logger.info("Removed %s for recording site %s.", name, site)
 
 
 def write_freq_and_amp_to_hdf5(
-    filepath: str, freq_and_amp_data: object, name: str, index: list[object] = [], columns: list[object] = []
+    filepath: str, freq_and_amp_data: object, name: str, index: list[object], columns: list[object]
 ) -> None:
     """
     Save transient frequency and amplitude metrics to an HDF5 file.
@@ -749,10 +750,10 @@ def write_freq_and_amp_to_hdf5(
         Metrics data to store in the DataFrame.
     name : str
         Filename stem; the file is written as ``freqAndAmp_<name>.h5``.
-    index : list, optional
-        Row index labels. Default is an empty list.
-    columns : list, optional
-        Column labels. Default is an empty list.
+    index : list
+        Row index labels.
+    columns : list
+        Column labels.
     """
 
     output_path = os.path.join(filepath, "freqAndAmp_" + name + ".h5")
@@ -764,7 +765,7 @@ def write_freq_and_amp_to_hdf5(
 
 
 def write_freq_and_amp_to_csv(
-    filepath: str, freq_and_amp_data: object, name: str, index: list[object] = [], columns: list[object] = []
+    filepath: str, freq_and_amp_data: object, name: str, index: list[object], columns: list[object]
 ) -> None:
     """
     Save transient frequency and amplitude metrics to a CSV file.
@@ -777,10 +778,10 @@ def write_freq_and_amp_to_csv(
         Metrics data to store in the DataFrame.
     name : str
         Output filename (written directly inside ``filepath``).
-    index : list, optional
-        Row index labels. Default is an empty list.
-    columns : list, optional
-        Column labels. Default is an empty list.
+    index : list
+        Row index labels.
+    columns : list
+        Column labels.
     """
     output_path = os.path.join(filepath, name)
     df = pd.DataFrame(freq_and_amp_data, index=index, columns=columns)
@@ -1137,10 +1138,10 @@ def read_covariate_series(filepath: str) -> dict[str, tuple[np.ndarray, np.ndarr
     dict of str to tuple of np.ndarray
         Covariate name (label minus its prefix) → ``(timestamps, values)``.
     """
-    store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
+    store_array = read_stores_list(run_folder=filepath)
 
     covariate_series = {}
-    for store_id, store_label in zip(store_array[0, :], store_array[1, :]):
+    for store_id, store_label in zip(store_array[0, :], store_array[1, :], strict=True):
         if is_covariate_label(store_label):
             name = store_label[len(COVARIATE_PREFIX) :]
             timestamps = np.asarray(read_hdf5(store_id, filepath, "timestamps")).ravel()

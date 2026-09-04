@@ -1,9 +1,9 @@
 import logging
 import os
+from collections.abc import Callable
 from contextvars import copy_context
 from importlib.metadata import version
 from threading import Thread
-from typing import Callable
 
 import panel as pn
 

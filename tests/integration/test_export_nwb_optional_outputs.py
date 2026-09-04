@@ -153,7 +153,7 @@ class TestCovariateAndWholeSessionOutputs:
         # One row per (bin, trace type), the trace types cycling fastest within each bin.
         assert list(table["trace_type"]) == TRACE_TYPES * EXPECTED_BIN_COUNT
 
-        for trace_type, mean_column in zip(TRACE_TYPES, ["mean_zscore", "mean_dff"]):
+        for trace_type, mean_column in zip(TRACE_TYPES, ["mean_zscore", "mean_dff"], strict=True):
             rows = table[table["trace_type"] == trace_type].reset_index(drop=True)
             np.testing.assert_allclose(rows["start_time"], binned["bin_start"])
             np.testing.assert_allclose(rows["stop_time"], binned["bin_end"])
@@ -190,7 +190,7 @@ class TestCovariateAndWholeSessionOutputs:
         assert len(table) == EXPECTED_CORRELATION_COUNT
         # GuPPy names the correlated quantity with one composite string; the interface splits it
         # back into the trace it was measured on and the metric taken over that trace.
-        assert set(zip(table["trace_type"], table["metric"])) == {
+        assert set(zip(table["trace_type"], table["metric"], strict=True)) == {
             ("z_score", "mean"),
             ("dff", "mean"),
             ("z_score", "transient_count"),
@@ -204,6 +204,7 @@ class TestCovariateAndWholeSessionOutputs:
                 table["metric"],
                 table["pearson_r"],
                 table["spearman_rho"],
+                strict=True,
             )
         }
         for row in correlations.itertuples(index=False):
@@ -219,7 +220,7 @@ class TestCovariateAndWholeSessionOutputs:
         np.testing.assert_allclose(table["start_time"], np.repeat(TONIC_EPOCHS["start"], len(TRACE_TYPES)))
         np.testing.assert_allclose(table["stop_time"], np.repeat(TONIC_EPOCHS["end"], len(TRACE_TYPES)))
 
-        for trace_type, mean_column in zip(TRACE_TYPES, ["mean_zscore", "mean_dff"]):
+        for trace_type, mean_column in zip(TRACE_TYPES, ["mean_zscore", "mean_dff"], strict=True):
             rows = table[table["trace_type"] == trace_type].reset_index(drop=True)
             np.testing.assert_allclose(rows["mean"], means[mean_column].to_numpy())
 

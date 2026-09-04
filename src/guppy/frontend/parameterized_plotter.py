@@ -4,6 +4,7 @@ import os
 import re
 from collections.abc import Callable
 from io import BytesIO
+from typing import ClassVar
 
 import datashader as ds
 import holoviews as hv
@@ -136,7 +137,7 @@ class ParameterizedPlotter(param.Parameterized):
     x_max = param.Number(default=None)
     select_trials_checkbox = param.ListSelector(default=["just trials"], objects=["mean", "just trials"])
     Y_Label = param.ObjectSelector(default="y", objects=["y", "z-score", "\u0394F/F"])
-    _SAVE_FORMATS = ["png", "svg"]
+    _SAVE_FORMATS: ClassVar[list[str]] = ["png", "svg"]
     # Independent save-format selector per plot so each can be exported on its own.
     save_options_cont = param.ObjectSelector(default="png", objects=_SAVE_FORMATS)
     save_options_overlay = param.ObjectSelector(default="png", objects=_SAVE_FORMATS)
@@ -189,8 +190,6 @@ class ParameterizedPlotter(param.Parameterized):
     y = param.ObjectSelector(default=None)
     heatmap_y = param.ListSelector(default=None)
     psth_y = param.ListSelector(default=None)
-    results_hm = dict()
-    results_psth = dict()
 
     def __init__(self, **params: object) -> None:
         super().__init__(**params)
@@ -236,6 +235,11 @@ class ParameterizedPlotter(param.Parameterized):
         # skips recording it (see _render_download).
         self._exporting = False
 
+        # Last rendered plot and its output filename, per plot kind, read back by the
+        # "Save As…" download callbacks.
+        self.results_hm: dict[str, object] = {}
+        self.results_psth: dict[str, object] = {}
+
     _RANGE_PLOTS = (
         ("cont", "cont_X", "cont_Y"),
         ("overlay", "overlay_X", "overlay_Y"),
@@ -268,7 +272,7 @@ class ParameterizedPlotter(param.Parameterized):
             Name of the range param that changed (e.g. ``"cont_X"``); the matching
             plot's figure is moved to its current x and y ranges.
         """
-        for plot_key, x_name, y_name in self._RANGE_PLOTS:
+        for plot_key, x_name, y_name in self._RANGE_PLOTS:  # noqa: B007  (read after the loop)
             if name in (x_name, y_name):
                 break
         else:
@@ -511,7 +515,7 @@ class ParameterizedPlotter(param.Parameterized):
     def _update_df(self) -> None:
         columns = self.columns_dict[self.event_selector_heatmap]
         trial_no = range(1, len(remove_cols(columns)[:-2]) + 1)
-        trial_ts = ["{} - {}".format(i, j) for i, j in zip(trial_no, remove_cols(columns)[:-2])] + ["All"]
+        trial_ts = [f"{i} - {j}" for i, j in zip(trial_no, remove_cols(columns)[:-2], strict=True)] + ["All"]
         self.param["heatmap_y"].objects = trial_ts
         self.heatmap_y = [trial_ts[-1]]
 
@@ -519,7 +523,7 @@ class ParameterizedPlotter(param.Parameterized):
     def _update_psth_y(self) -> None:
         columns = self.columns_dict[self.event_selector]
         trial_no = range(1, len(remove_cols(columns)[:-2]) + 1)
-        trial_ts = ["{} - {}".format(i, j) for i, j in zip(trial_no, remove_cols(columns)[:-2])]
+        trial_ts = [f"{i} - {j}" for i, j in zip(trial_no, remove_cols(columns)[:-2], strict=True)]
         self.param["psth_y"].objects = trial_ts
         self.psth_y = [trial_ts[0]]
 
@@ -570,8 +574,8 @@ class ParameterizedPlotter(param.Parameterized):
             if "bin" in selected_events[i]:
                 split = selected_events[i].rsplit("_", 2)
                 df_name = split[0]  #'{}_{}'.format(split[0], split[1])
-                col_name_mean = "{}_{}".format(split[-2], split[-1])
-                col_name_err = "{}_err_{}".format(split[-2], split[-1])
+                col_name_mean = f"{split[-2]}_{split[-1]}"
+                col_name_err = f"{split[-2]}_err_{split[-1]}"
                 data_curve.append(event_dataframes[df_name][col_name_mean])
                 columns_curve.append(selected_events[i])
                 data_spread.append(event_dataframes[df_name][col_name_err])
@@ -737,7 +741,7 @@ class ParameterizedPlotter(param.Parameterized):
                 standard_error = event_dataframe["err"]
             else:
                 split = self.y.split("_")
-                standard_error = event_dataframe["{}_err_{}".format(split[0], split[1])]
+                standard_error = event_dataframe[f"{split[0]}_err_{split[1]}"]
 
             index = np.arange(0, xpoints.shape[0], 3)
 

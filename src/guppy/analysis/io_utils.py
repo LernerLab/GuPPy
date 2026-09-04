@@ -7,6 +7,11 @@ import re
 import numpy as np
 
 from ..utils._hdf5_io import read_hdf5, write_hdf5  # noqa: F401  (re-exported)
+from ..utils.stores_list import (
+    COMBINED_STORES_LIST_FILENAME,
+    read_stores_list,
+    write_stores_list,
+)
 from ..utils.utils import takeOnlyDirs
 
 logger = logging.getLogger(__name__)
@@ -385,7 +390,7 @@ def check_storeslistfile(session_folders: list[str]) -> np.ndarray:
             store_array = np.concatenate(
                 (
                     store_array,
-                    np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1),
+                    read_stores_list(run_folder=filepath),
                 ),
                 axis=1,
             )
@@ -408,7 +413,7 @@ def write_combined_stores_list(run_folders: list[object], store_array: np.ndarra
     """
     for k in range(len(run_folders)):
         filepath = run_folders[k][0]
-        np.savetxt(os.path.join(filepath, "combine_storesList.csv"), store_array, fmt="%s", delimiter=",")
+        write_stores_list(run_folder=filepath, store_array=store_array, filename=COMBINED_STORES_LIST_FILENAME)
 
 
 def get_control_and_signal_channel_names(store_array: np.ndarray) -> np.ndarray:
@@ -506,7 +511,7 @@ def recording_sites_for_output_directory(filepath: str) -> list[str]:
     list of str
         Recording-site names, in the order their channels appear in ``storesList.csv``.
     """
-    store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
+    store_array = read_stores_list(run_folder=filepath)
     sites = []
     for label in store_array[1, :]:
         if not is_channel_label(label):

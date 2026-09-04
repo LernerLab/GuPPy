@@ -598,7 +598,7 @@ def read_Df(filepath: str, event: str, name: str) -> pd.DataFrame:
     event = event.replace("\\", "_")
     event = event.replace("/", "_")
     if name:
-        hdf5_path = os.path.join(filepath, event + "_{}.h5".format(name))
+        hdf5_path = os.path.join(filepath, event + f"_{name}.h5")
     else:
         hdf5_path = os.path.join(filepath, event + ".h5")
     df = pd.read_hdf(hdf5_path, key="df", mode="r")

@@ -20,15 +20,15 @@ This module knows nothing about Panel or neuroconv. It provides:
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 from datetime import datetime
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 
 import numpy as np
 import yaml
 
+from .stores_list import read_stores_list
 from ..analysis.io_utils import (
     CONTROL_PREFIX,
     SIGNAL_PREFIX,
@@ -74,9 +74,9 @@ def derive_channels(*, output_dir: str | Path) -> list[Channel]:
     response series' ``fiber_photometry_table_region`` against that order to recover which
     fiber recorded which site.
     """
-    stores_list = np.genfromtxt(os.path.join(output_dir, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
+    stores_list = read_stores_list(run_folder=output_dir)
     store_labels = [str(label) for label in stores_list[1, :]]
-    label_to_store_name = {label: str(store) for store, label in zip(stores_list[0, :], store_labels)}
+    label_to_store_name = {label: str(store) for store, label in zip(stores_list[0, :], store_labels, strict=True)}
 
     # Called for its validation: it raises when a signal has no matching control (or vice versa).
     # Its own output is sorted by recording site, which is why the order is re-derived below.
@@ -290,7 +290,7 @@ ENUM_OPTIONS: dict[str, tuple[str, ...]] = {
 }
 
 
-@lru_cache(maxsize=None)
+@cache
 def _type_spec(type_name: str):  # noqa: ANN202  (returns an hdmf Spec)
     import ndx_fiber_photometry  # noqa: F401  (register extensions)
     import ndx_ophys_devices  # noqa: F401

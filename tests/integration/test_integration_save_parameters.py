@@ -69,7 +69,7 @@ def test_save_parameters(tmp_path, default_parameters):
     for s in sessions:
         out_fp = os.path.join(s, "GuPPyParamtersUsed.json")
         assert os.path.exists(out_fp), f"Missing file: {out_fp}"
-        with open(out_fp, "r") as f:
+        with open(out_fp) as f:
             data = json.load(f)
 
         assert data["guppy_version"] == version("guppy-neuro")
@@ -82,7 +82,7 @@ def test_save_parameters(tmp_path, default_parameters):
                 # Handle lists with NaN values
                 actual = data[key]
                 assert len(actual) == len(expected_value)
-                for i, (a, e) in enumerate(zip(actual, expected_value)):
+                for i, (a, e) in enumerate(zip(actual, expected_value, strict=True)):
                     if np.isnan(e):
                         assert np.isnan(a) or a is None, f"Mismatch at index {i}: expected NaN, got {a}"
                     else:

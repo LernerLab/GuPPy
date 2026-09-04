@@ -23,6 +23,7 @@ from ..analysis.psth_average import average_psth_for_group
 from ..analysis.transients_average import average_transients_for_group
 from ..utils import progress
 from ..utils.progress import step_error_handler
+from ..utils.stores_list import read_stores_list, write_stores_list
 from ..utils.utils import (
     GROUP_MEMBERS_FILENAME,
     event_labels_for_analysis,
@@ -65,9 +66,7 @@ def _validate_fiber_recording_sites_consistent_for_group(*, member_run_folders: 
     """
     per_member_fibers = {}
     for run_folder in member_run_folders:
-        member_stores_list = np.genfromtxt(
-            os.path.join(run_folder, "storesList.csv"), dtype="str", delimiter=","
-        ).reshape(2, -1)
+        member_stores_list = read_stores_list(run_folder=run_folder)
         fiber_stores = tuple(sorted(name for name in set(member_stores_list[1, :]) if is_channel_label(name)))
         per_member_fibers[run_folder] = fiber_stores
 
@@ -109,7 +108,7 @@ def _merge_group_stores_list(*, member_run_folders: list[str]) -> np.ndarray:
         store_array = np.concatenate(
             (
                 store_array,
-                np.genfromtxt(os.path.join(run_folder, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1),
+                read_stores_list(run_folder=run_folder),
             ),
             axis=1,
         )
@@ -208,7 +207,7 @@ def average_one_group(*, group_folder: str, inputParameters: dict[str, object]) 
     _validate_fiber_recording_sites_consistent_for_group(member_run_folders=member_run_folders)
 
     group_name = parse_group_name(group_folder)
-    logger.info(f"Averaging {len(member_run_folders)} member run(s) into '{group_folder}'...")
+    logger.info("Averaging %s member run(s) into '%s'...", len(member_run_folders), group_folder)
 
     _clear_group_results(group_folder=group_folder)
     write_analysis_parameters(
@@ -233,13 +232,13 @@ def average_one_group(*, group_folder: str, inputParameters: dict[str, object]) 
             averaged_events.append(event)
         progress.advance()
 
-    np.savetxt(
-        os.path.join(group_folder, "storesList.csv"),
-        _filter_stores_list_to_averaged_events(store_array=store_array, averaged_events=averaged_events),
-        delimiter=",",
-        fmt="%s",
+    write_stores_list(
+        run_folder=group_folder,
+        store_array=_filter_stores_list_to_averaged_events(store_array=store_array, averaged_events=averaged_events),
     )
-    logger.info(f"Group '{group_name}' averaged {len(averaged_events)} event(s) from {len(member_run_folders)} run(s).")
+    logger.info(
+        "Group '%s' averaged %s event(s) from %s run(s).", group_name, len(averaged_events), len(member_run_folders)
+    )
 
     # After the filtered storesList.csv is written: comparison planning reads it to learn
     # which events the group actually holds averaged results for.

@@ -19,6 +19,7 @@ from ..frontend.parameterized_plotter import (
     remove_cols,
 )
 from ..frontend.visualization_dashboard import VisualizationDashboard
+from ..utils.stores_list import read_stores_list
 from ..utils.utils import (
     event_labels_for_analysis,
     get_all_stores_for_combining_data,
@@ -109,7 +110,7 @@ def helper_plots(filepath: str, event: list[str], name: list[str], inputParamete
             bin_columns = bins[bins_keys[i]]
             if len(bin_columns) > 0:
                 for j in bin_columns:
-                    multiple_plots_options.append("{}_{}".format(bins_keys[i], j))
+                    multiple_plots_options.append(f"{bins_keys[i]}_{j}")
 
         multiple_plots_options = new_event + multiple_plots_options
     else:
@@ -127,7 +128,7 @@ def helper_plots(filepath: str, event: list[str], name: list[str], inputParamete
     y = overview_y_options(columns_dict[new_event[0]])
     trial_no = range(1, len(remove_cols(columns_dict[heatmap_options[0]])[:-2]) + 1)
     trial_ts = [
-        "{} - {}".format(i, j) for i, j in zip(trial_no, remove_cols(columns_dict[heatmap_options[0]])[:-2])
+        f"{i} - {j}" for i, j in zip(trial_no, remove_cols(columns_dict[heatmap_options[0]])[:-2], strict=True)
     ] + ["All"]
 
     plotter = ParameterizedPlotter(
@@ -295,11 +296,7 @@ def visualizeResults(inputParameters: dict[str, object]) -> None:
                 store_array = np.concatenate(
                     (
                         store_array,
-                        np.genfromtxt(
-                            os.path.join(combined_output_groups[i][j], "storesList.csv"),
-                            dtype="str",
-                            delimiter=",",
-                        ).reshape(2, -1),
+                        read_stores_list(run_folder=combined_output_groups[i][j]),
                     ),
                     axis=1,
                 )
@@ -316,9 +313,7 @@ def visualizeResults(inputParameters: dict[str, object]) -> None:
             run_folders = select_run_folders(filepath, selected_runs.get(filepath))
             for j in range(len(run_folders)):
                 filepath = run_folders[j]
-                store_array = np.genfromtxt(
-                    os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=","
-                ).reshape(2, -1)
+                store_array = read_stores_list(run_folder=filepath)
 
                 createPlots(
                     filepath,
@@ -329,9 +324,7 @@ def visualizeResults(inputParameters: dict[str, object]) -> None:
     # Groups are ordinary output directories to the visualizer: one dashboard each,
     # opened alongside any selected session runs rather than instead of them.
     for group_folder in group_folders:
-        store_array = np.genfromtxt(os.path.join(group_folder, "storesList.csv"), dtype="str", delimiter=",").reshape(
-            2, -1
-        )
+        store_array = read_stores_list(run_folder=group_folder)
         createPlots(
             group_folder,
             event_labels_for_analysis(store_array=store_array, inputParameters=inputParameters),

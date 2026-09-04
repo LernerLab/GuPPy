@@ -51,7 +51,7 @@ def compute_cross_correlation(
         raise ValueError(message)
 
     cross_corr = list()
-    for trial_a, trial_b in zip(a_trials, b_trials):
+    for trial_a, trial_b in zip(a_trials, b_trials, strict=True):
         if np.isnan(trial_a).any() or np.isnan(trial_b).any():
             corr = signal.correlate(trial_a, trial_b, method="direct")
         else:

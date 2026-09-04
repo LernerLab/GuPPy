@@ -1,6 +1,5 @@
 import logging
 import multiprocessing as mp
-import os
 
 import numpy as np
 
@@ -19,6 +18,7 @@ from guppy.extractors.base_recording_extractor import _pool_initializer
 from guppy.orchestration.save_parameters import save_parameters
 from guppy.utils import progress
 from guppy.utils.progress import step_error_handler
+from guppy.utils.stores_list import read_stores_list
 from guppy.utils.utils import load_npm_params, select_run_folders
 
 logger = logging.getLogger(__name__)
@@ -142,8 +142,10 @@ def orchestrate_read_raw_data(inputParameters: dict[str, object]) -> None:
         numProcesses = mp.cpu_count()
     elif numProcesses > mp.cpu_count():
         logger.warning(
-            f"Number of cores requested ({numProcesses}) exceeds available cores "
-            f"({mp.cpu_count()}); using {mp.cpu_count() - 1}."
+            "Number of cores requested (%s) exceeds available cores (%s); using %s.",
+            numProcesses,
+            mp.cpu_count(),
+            mp.cpu_count() - 1,
         )
         numProcesses = mp.cpu_count() - 1
 
@@ -211,7 +213,7 @@ def orchestrate_read_raw_data(inputParameters: dict[str, object]) -> None:
         base_module._SAMPLES_DONE = samples_done
         try:
             for extractor, grouped_events, run_folder, event_totals in tasks:
-                logger.debug(f"### Reading raw data for {len(grouped_events)} event(s) into {run_folder}")
+                logger.debug("### Reading raw data for %s event(s) into %s", len(grouped_events), run_folder)
                 read_and_save_events_for_extractor(extractor, grouped_events, run_folder, event_totals)
         finally:
             base_module._SAMPLES_DONE = None
@@ -236,7 +238,7 @@ def _load_stores_list(run_folder: str) -> np.ndarray:
     store_array is finalized in step 1 (including TDT split sub-events) and is no
     longer mutated during extraction, so it is read directly.
     """
-    return np.genfromtxt(os.path.join(run_folder, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
+    return read_stores_list(run_folder=run_folder)
 
 
 @step_error_handler

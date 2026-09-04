@@ -160,7 +160,7 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
         return max(0, total_lines - 1)
 
     def _read_csv(self, event: str) -> pd.DataFrame:
-        logger.debug(f"Trying to read data for {event} from csv file.")
+        logger.debug("Trying to read data for %s from csv file.", event)
         csv_path = os.path.join(self.folder_path, event + ".csv")
         if not os.path.exists(csv_path):
             message = f"No CSV file found for event '{event}' at '{csv_path}'."
@@ -238,7 +238,7 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
         event_names, flags = CsvRecordingExtractor.discover_events_and_flags(self.folder_path)
 
         first_data_timestamp = None
-        for event_name, flag in zip(event_names, flags):
+        for event_name, flag in zip(event_names, flags, strict=True):
             if flag == "data_csv":
                 dataframe = pd.read_csv(Path(self.folder_path) / f"{event_name}.csv", index_col=False)
                 column_by_name = self._column_by_lowercase_name(dataframe)
@@ -247,7 +247,7 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
 
         cutoff_timestamp = first_data_timestamp + duration_in_seconds
 
-        for event_name, flag in zip(event_names, flags):
+        for event_name, _flag in zip(event_names, flags, strict=True):
             csv_path = folder_path / f"{event_name}.csv"
             dataframe = pd.read_csv(csv_path, index_col=False)
             column_by_name = self._column_by_lowercase_name(dataframe)

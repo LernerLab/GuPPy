@@ -103,7 +103,7 @@ class TestVisualizationDashboard:
         card = dashboard._per_event_color_pickers()
         pickers = list(card.select(pn.widgets.ColorPicker))
         labels = [pane.object for pane in card.select(pn.pane.Markdown)]
-        pickers_by_event = dict(zip(labels, pickers))
+        pickers_by_event = dict(zip(labels, pickers, strict=True))
 
         pickers_by_event["event2"].value = "#123456"
 

@@ -1,5 +1,3 @@
-# coding: utf-8
-
 import glob
 import logging
 import multiprocessing as mp
@@ -35,6 +33,7 @@ from ..analysis.standard_io import (
 )
 from ..utils import progress
 from ..utils.progress import step_error_handler
+from ..utils.stores_list import read_stores_list
 from ..utils.utils import (
     event_labels_for_analysis,
     get_all_stores_for_combining_data,
@@ -88,7 +87,7 @@ def execute_compute_psth(filepath: str, event: str, inputParameters: dict[str, o
     a = 1
 
     for i in range(len(path)):
-        logger.info(f"Computing PSTH for event {event}...")
+        logger.info("Computing PSTH for event %s...", event)
         basename = (os.path.basename(path[i])).split(".")[0]
         name_1 = recording_site_from_preprocessed_label(basename)
         control = read_hdf5("control_" + name_1, os.path.dirname(path[i]), "data")
@@ -136,7 +135,7 @@ def execute_compute_psth(filepath: str, event: str, inputParameters: dict[str, o
             columns=columns,
         )
         create_Df_for_psth(filepath, event + "_" + name_1, basename, psth, columns=columns)
-        logger.info(f"PSTH for event {event} computed.")
+        logger.info("PSTH for event %s computed.", event)
 
 
 def execute_compute_psth_peak_and_area(filepath: str, event: str, inputParameters: dict[str, object]) -> None:
@@ -169,7 +168,7 @@ def execute_compute_psth_peak_and_area(filepath: str, event: str, inputParameter
         path = glob.glob(os.path.join(filepath, "z_score_*")) + glob.glob(os.path.join(filepath, "dff_*"))
 
     for i in range(len(path)):
-        logger.info(f"Computing peak and area for PSTH mean signal for event {event}...")
+        logger.info("Computing peak and area for PSTH mean signal for event %s...", event)
         basename = (os.path.basename(path[i])).split(".")[0]
         name_1 = recording_site_from_preprocessed_label(basename)
         sampling_rate = read_hdf5("timeCorrection_" + name_1, filepath, "sampling_rate")[0]
@@ -189,7 +188,7 @@ def execute_compute_psth_peak_and_area(filepath: str, event: str, inputParameter
         index = [fileName[0] + "_" + name for name in psth_mean_bin_names]
         write_peak_and_area_to_hdf5(filepath, peak_area, event + "_" + name_1 + "_" + basename, index=index)
         write_peak_and_area_to_csv(filepath, peak_area, event + "_" + name_1 + "_" + basename, index=index)
-        logger.info(f"Peak and Area for PSTH mean signal for event {event} computed.")
+        logger.info("Peak and Area for PSTH mean signal for event %s computed.", event)
 
 
 def execute_compute_cross_correlation(filepath: str, event: str, inputParameters: dict[str, object]) -> None:
@@ -236,7 +235,7 @@ def execute_compute_cross_correlation(filepath: str, event: str, inputParameters
             return
         else:
             for i in range(1, len(corr_info)):
-                logger.debug(f"Computing cross-correlation for event {event}...")
+                logger.debug("Computing cross-correlation for event %s...", event)
                 for j in range(len(type)):
                     psth_a = read_Df(filepath, event + "_" + corr_info[i - 1], type[j] + "_" + corr_info[i - 1])
                     psth_b = read_Df(filepath, event + "_" + corr_info[i], type[j] + "_" + corr_info[i])
@@ -256,10 +255,15 @@ def execute_compute_cross_correlation(filepath: str, event: str, inputParameters
                         )
                     if len(matched_labels) < max(len(psth_a.columns), len(psth_b.columns)):
                         logger.warning(
-                            f"Recording sites '{corr_info[i - 1]}' and '{corr_info[i]}' have a different set of "
-                            f"surviving trials for event '{event}' (uneven artifact removal): "
-                            f"{len(psth_a.columns)} vs {len(psth_b.columns)} trials, {len(matched_labels)} matched. "
-                            f"Cross-correlating only the matched trials."
+                            "Recording sites '%s' and '%s' have a different set of surviving trials for event '%s' "
+                            "(uneven artifact removal): %s vs %s trials, %s matched. Cross-correlating only the matched "
+                            "trials.",
+                            corr_info[i - 1],
+                            corr_info[i],
+                            event,
+                            len(psth_a.columns),
+                            len(psth_b.columns),
+                            len(matched_labels),
                         )
                     psth_array_a = np.array(psth_a).T[indices_a]
                     psth_array_b = np.array(psth_b).T[indices_b]
@@ -273,7 +277,7 @@ def execute_compute_cross_correlation(filepath: str, event: str, inputParameters
                         cross_corr,
                         columns,
                     )
-                logger.info(f"Cross-correlation for event {event} computed.")
+                logger.info("Cross-correlation for event %s computed.", event)
 
 
 def orchestrate_psth(inputParameters: dict[str, object]) -> None:
@@ -292,13 +296,11 @@ def orchestrate_psth(inputParameters: dict[str, object]) -> None:
     spawn_context = mp.get_context("spawn")
     selected_runs = inputParameters.get("selected_runs") or {}
     for i in range(len(session_folders)):
-        logger.debug(f"Computing PSTH, Peak and Area for each event in {session_folders[i]}")
+        logger.debug("Computing PSTH, Peak and Area for each event in %s", session_folders[i])
         run_folders = select_run_folders(session_folders[i], selected_runs.get(session_folders[i]))
         for j in range(len(run_folders)):
             filepath = run_folders[j]
-            store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(
-                2, -1
-            )
+            store_array = read_stores_list(run_folder=filepath)
             event_labels = event_labels_for_analysis(store_array=store_array, inputParameters=inputParameters)
 
             # Each pool is closed and joined before leaving its block. The context manager's
@@ -331,7 +333,7 @@ def orchestrate_psth(inputParameters: dict[str, object]) -> None:
             execute_compute_psth_significance(filepath, inputParameters)
             if inputParameters["computePsthSignificance"]:
                 progress.advance()
-        logger.info(f"PSTH, Area and Peak are computed for all events in {session_folders[i]}.")
+        logger.info("PSTH, Area and Peak are computed for all events in %s.", session_folders[i])
 
 
 def execute_psth_combined(inputParameters: dict[str, object]) -> None:
@@ -355,9 +357,7 @@ def execute_psth_combined(inputParameters: dict[str, object]) -> None:
             store_array = np.concatenate(
                 (
                     store_array,
-                    np.genfromtxt(
-                        os.path.join(combined_output_groups[i][j], "storesList.csv"), dtype="str", delimiter=","
-                    ).reshape(2, -1),
+                    read_stores_list(run_folder=combined_output_groups[i][j]),
                 ),
                 axis=1,
             )
@@ -524,8 +524,10 @@ def psthForEachStore(inputParameters: dict[str, object]) -> None:
         numProcesses = mp.cpu_count()
     elif numProcesses > mp.cpu_count():
         logger.warning(
-            f"Number of cores requested ({numProcesses}) exceeds available cores "
-            f"({mp.cpu_count()}); using {mp.cpu_count() - 1}."
+            "Number of cores requested (%s) exceeds available cores (%s); using %s.",
+            numProcesses,
+            mp.cpu_count(),
+            mp.cpu_count() - 1,
         )
         numProcesses = mp.cpu_count() - 1
 

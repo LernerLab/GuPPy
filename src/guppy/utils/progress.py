@@ -13,8 +13,8 @@ the pipeline steps emit.
 import functools
 import logging
 import threading
+from collections.abc import Callable
 from contextvars import ContextVar
-from typing import Callable
 
 logger = logging.getLogger(__name__)
 

@@ -119,7 +119,7 @@ class PreprocessingReviewView:
 
         heading = "Artifact removal review" if artifacts_removed else "Preprocessing review"
         self.widget = pn.Column(
-            "## {} — {}".format(heading, os.path.basename(filepath)),
+            f"## {heading} — {os.path.basename(filepath)}",
             self.site_select,
             self.plot_pane,
             sizing_mode="stretch_width",

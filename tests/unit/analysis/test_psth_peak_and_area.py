@@ -89,7 +89,7 @@ def test_unrecognized_auc_units_raises():
 def test_end_point_less_than_start_point_raises():
     psth_mean = _make_psth_mean()
     timestamps = np.linspace(-5, 5, 101)
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         compute_psth_peak_and_area(
             psth_mean, timestamps, sampling_rate=10.0, peak_startPoint=[2.0], peak_endPoint=[0.0]
         )
@@ -98,7 +98,7 @@ def test_end_point_less_than_start_point_raises():
 def test_end_point_equal_to_start_point_raises():
     psth_mean = _make_psth_mean()
     timestamps = np.linspace(-5, 5, 101)
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         compute_psth_peak_and_area(
             psth_mean, timestamps, sampling_rate=10.0, peak_startPoint=[1.0], peak_endPoint=[1.0]
         )
@@ -107,7 +107,7 @@ def test_end_point_equal_to_start_point_raises():
 def test_unequal_start_and_end_point_counts_raises():
     psth_mean = _make_psth_mean()
     timestamps = np.linspace(-5, 5, 101)
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         compute_psth_peak_and_area(
             psth_mean, timestamps, sampling_rate=10.0, peak_startPoint=[0.0, 1.0], peak_endPoint=[2.0]
         )

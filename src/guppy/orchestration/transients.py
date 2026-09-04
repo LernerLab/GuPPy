@@ -233,8 +233,10 @@ def executeFindFreqAndAmp(inputParameters: dict[str, object]) -> None:
         numProcesses = mp.cpu_count()
     elif numProcesses > mp.cpu_count():
         logger.warning(
-            f"Number of cores requested ({numProcesses}) exceeds available cores "
-            f"({mp.cpu_count()}); using {mp.cpu_count() - 1}."
+            "Number of cores requested (%s) exceeds available cores (%s); using %s.",
+            numProcesses,
+            mp.cpu_count(),
+            mp.cpu_count() - 1,
         )
         numProcesses = mp.cpu_count() - 1
 
@@ -265,15 +267,12 @@ def execute_find_freq_and_amp(
     selected_runs = inputParameters.get("selected_runs") or {}
     for i in range(len(session_folders)):
         logger.debug(
-            f"Finding transients in z-score data of {session_folders[i]} and calculating frequency and amplitude."
+            "Finding transients in z-score data of %s and calculating frequency and amplitude.", session_folders[i]
         )
         filepath = session_folders[i]
         run_folders = select_run_folders(filepath, selected_runs.get(filepath))
         for j in range(len(run_folders)):
             filepath = run_folders[j]
-            store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(
-                2, -1
-            )
             findFreqAndAmp(filepath, inputParameters, window=moving_window, numProcesses=numProcesses)
             progress.advance()
         logger.info("Transients in z-score data found and frequency and amplitude are calculated.")
@@ -304,6 +303,5 @@ def execute_find_freq_and_amp_combined(
     combined_output_groups = get_all_stores_for_combining_data(run_folders)
     for i in range(len(combined_output_groups)):
         filepath = combined_output_groups[i][0]
-        store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
         findFreqAndAmp(filepath, inputParameters, window=moving_window, numProcesses=numProcesses)
         progress.advance()

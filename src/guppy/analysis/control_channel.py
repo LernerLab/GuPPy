@@ -12,6 +12,7 @@ from .io_utils import (
     recording_site_from_channel_label,
     write_hdf5,
 )
+from ..utils.stores_list import write_stores_list
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +84,7 @@ def add_control_channel(filepath: str, store_array: np.ndarray) -> np.ndarray:
                     axis=1,
                 )
 
-    np.savetxt(os.path.join(filepath, "storesList.csv"), store_array, delimiter=",", fmt="%s")
+    write_stores_list(run_folder=filepath, store_array=store_array)
 
     return store_array
 

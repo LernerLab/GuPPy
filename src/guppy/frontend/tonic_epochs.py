@@ -188,7 +188,7 @@ class TonicEpochConfig:
         self.save_button.on_click(self._on_save)
 
         self.widget = pn.Column(
-            "# Tonic Analysis — {}".format(os.path.basename(filepath)),
+            f"# Tonic Analysis — {os.path.basename(filepath)}",
             pn.pane.Markdown(_INSTRUCTIONS),
             self.site_select,
             self.plot_pane,
@@ -293,7 +293,7 @@ class TonicEpochConfig:
                 compute_tonic_means(trace["y_zscore"], trace["y_dff"], trace["x"], complete),
                 site,
             )
-            logger.info(f"Saved {len(complete)} tonic epoch(s) and means for recording site {site}.")
+            logger.info("Saved %s tonic epoch(s) and means for recording site %s.", len(complete), site)
 
     def _remove_row(self, row: TonicEpochRow) -> None:
         self.site_to_rows[self.site_select.value].remove(row)
@@ -384,7 +384,7 @@ class TonicResultsView:
         self.baseline_select.param.watch(self._refresh, "value")
 
         self.widget = pn.Column(
-            "## Tonic / basal analysis — {}".format(os.path.basename(filepath)),
+            f"## Tonic / basal analysis — {os.path.basename(filepath)}",
             pn.Row(self.site_select, self.baseline_select),
             self.bars_pane,
             pn.pane.Markdown(_BASELINE_HINT),
@@ -414,8 +414,8 @@ class TonicResultsView:
         panels = []
         for column, label in (("diff_zscore", "Δ mean z-score"), ("diff_dff", "Δ mean ΔF/F")):
             values = [float(table.loc[epoch, column]) for epoch in epochs]
-            bars = hv.Bars(list(zip(epochs, values)), "epoch", label).opts(
-                color=hv.dim("epoch").categorize(dict(zip(epochs, colors))),
+            bars = hv.Bars(list(zip(epochs, values, strict=True)), "epoch", label).opts(
+                color=hv.dim("epoch").categorize(dict(zip(epochs, colors, strict=True))),
                 title=f"{label} vs. {baseline}",
                 responsive=True,
                 height=280,
