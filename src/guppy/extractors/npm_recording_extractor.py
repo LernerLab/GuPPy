@@ -500,9 +500,6 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
 
         for event in selected_event_names:
             event_timestamps = streams[event]["timestamps"]
-            # An event store with no timestamps at all is a separate problem, reported downstream.
-            if len(event_timestamps) == 0:
-                continue
             if ((event_timestamps >= data_start) & (event_timestamps <= data_end)).any():
                 continue
 

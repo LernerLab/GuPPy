@@ -456,3 +456,13 @@ class TestValidateEventsOverlapSignal:
             lambda inputParameters: calls.append("executeFindFreqAndAmp"),
         )
         return calls
+
+    @pytest.mark.parametrize("select_for_compute_psth", ["z_score", "dff", "Both"])
+    def test_every_metric_selection_resolves_the_same_recording_site(self, step_parameters, select_for_compute_psth):
+        """Recording sites are read off whichever preprocessed metric step 4 will compute over."""
+        write_hdf5(np.zeros(3), "dff_dms", step_parameters["_run_folder"], "data")
+        write_hdf5(np.array([49956.0]), "port_entries_dms", step_parameters["_run_folder"], "ts")
+        step_parameters["selectForComputePsth"] = select_for_compute_psth
+
+        with pytest.raises(ValueError, match=r"no trial overlaps the 'dms' signal"):
+            _validate_events_overlap_signal(step_parameters)

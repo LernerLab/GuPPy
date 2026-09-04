@@ -650,3 +650,71 @@ class TestNpmEventClockValidation:
         assert list(column_spans) == ["SystemTimestamp", "ComputerTimestamp"]
         np.testing.assert_allclose(column_spans["SystemTimestamp"], (1891.312544, 2011.607936))
         np.testing.assert_allclose(column_spans["ComputerTimestamp"], (49884931.93, 50005222.1))
+
+    @pytest.fixture
+    def two_data_file_session(self, tmp_path):
+        """Two data files sharing one timestamp column name, on non-overlapping stretches."""
+        session_folder = tmp_path / "two_files"
+        session_folder.mkdir()
+        header = "FrameCounter,Timestamp,LedState,Region0G\n"
+        for name, first in (("a_signals.csv", 500.0), ("b_signals.csv", 900.0)):
+            rows = "".join(f"{i},{first + 0.5 * i},{1 if i % 2 == 0 else 2},{i}\n" for i in range(12))
+            (session_folder / name).write_text(header + rows)
+        return session_folder
+
+    def test_timestamp_column_spans_merges_a_shared_column_across_files(self, two_data_file_session):
+        column_spans = NpmRecordingExtractor._timestamp_column_spans(str(two_data_file_session))
+
+        # a_signals covers 500.0-505.5 and b_signals 900.0-905.5, reported as one span.
+        assert column_spans == {"Timestamp": (500.0, 905.5)}
+
+    @pytest.fixture
+    def events_off_every_column_session(self, tmp_path):
+        """Two timestamp columns, and an event file on neither of them."""
+        session_folder = tmp_path / "off_every_column"
+        session_folder.mkdir()
+        rows = "".join(
+            f"{i},{500.0 + 0.5 * i},{1 if i % 2 == 0 else 2},{900000.0 + 500.0 * i},{i}\n" for i in range(12)
+        )
+        (session_folder / "a_signals.csv").write_text(
+            "FrameCounter,SystemTimestamp,LedState,ComputerTimestamp,Region0G\n" + rows
+        )
+        (session_folder / "b_events.csv").write_text("5000000.0,1\n5000001.0,1\n")
+        return session_folder
+
+    def test_events_matching_no_column_report_every_column_offered(self, events_off_every_column_session, tmp_path):
+        extractor = NpmRecordingExtractor(
+            str(events_off_every_column_session),
+            num_ch=2,
+            npm_timestamp_column_name="SystemTimestamp",
+            npm_time_unit="seconds",
+            npm_split_events=[False, False],
+        )
+
+        with pytest.raises(ValueError, match=r"none of this session's timestamp columns") as excinfo:
+            extractor.read(events=["file0_chev1", "event0"], outputPath=str(tmp_path))
+
+        assert "'SystemTimestamp' [500, 505.5]" in str(excinfo.value)
+        assert "'ComputerTimestamp' [900000, 905500]" in str(excinfo.value)
+
+    @pytest.fixture
+    def headerless_off_clock_session(self, tmp_path):
+        """A headerless session, so no timestamp column has a name to recommend."""
+        session_folder = tmp_path / "headerless_off_clock"
+        session_folder.mkdir()
+        (session_folder / "a_data.csv").write_text(
+            "".join(f"{700000.0 + 500.0 * i},{i},{10 + i},{20 + i}\n" for i in range(6))
+        )
+        (session_folder / "z_events.csv").write_text("999999.0,1\n")
+        return session_folder
+
+    def test_headerless_session_advice_falls_back_to_the_time_unit(self, headerless_off_clock_session, tmp_path):
+        extractor = NpmRecordingExtractor(
+            str(headerless_off_clock_session), num_ch=2, npm_time_unit="seconds", npm_split_events=[False, False]
+        )
+
+        with pytest.raises(ValueError, match=r"Check the Time unit in the Label Stores NPM configuration") as excinfo:
+            extractor.read(events=["file0_chev1", "event0"], outputPath=str(tmp_path))
+
+        # Nothing to recommend without column names, so no column is named.
+        assert "Set Timestamp column to" not in str(excinfo.value)
