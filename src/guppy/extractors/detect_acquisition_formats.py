@@ -1,6 +1,5 @@
-import glob
 import logging
-import os
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -8,13 +7,13 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
-def _classify_csv_file(path: str) -> str:
+def _classify_csv_file(path: str | Path) -> str:
     """
     Classify a single CSV file as belonging to one of three modalities.
 
     Parameters
     ----------
-    path : str
+    path : str or Path
         Absolute path to a CSV file.
 
     Returns
@@ -84,13 +83,13 @@ def _is_float(value: object) -> bool:
         return False
 
 
-def _is_event_csv(path: str) -> bool:
+def _is_event_csv(path: str | Path) -> bool:
     """
     Return True if the CSV file is an event_csv: a single column named 'timestamps'.
 
     Parameters
     ----------
-    path : str
+    path : str or Path
         Absolute path to a CSV file.
 
     Returns
@@ -110,18 +109,19 @@ def _detect(folder_path: str) -> tuple[set[str], bool]:
     formats = set()
 
     # NWB .nwb files provide photometry channels via acquisition series
-    if glob.glob(os.path.join(folder_path, "*.nwb")):
+    session_folder = Path(folder_path)
+    if any(session_folder.glob("*.nwb")):
         formats.add("nwb")
 
     # TDT .tsq files provide both photometry stores and TTL event stores
-    if glob.glob(os.path.join(folder_path, "*.tsq")):
+    if any(session_folder.glob("*.tsq")):
         formats.add("tdt")
 
     # Doric .doric files provide both photometry channels and digital TTL channels
-    if glob.glob(os.path.join(folder_path, "*.doric")):
+    if any(session_folder.glob("*.doric")):
         formats.add("doric")
 
-    csv_paths = glob.glob(os.path.join(folder_path, "*.csv"))
+    csv_paths = list(session_folder.glob("*.csv"))
     event_csv_by_path = {csv_path: _is_event_csv(csv_path) for csv_path in csv_paths}
 
     # Multi-column CSV files can be NPM, Doric CSV exports, or 3-column data_csv files.

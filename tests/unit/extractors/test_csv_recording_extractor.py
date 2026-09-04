@@ -1,6 +1,7 @@
 """Contract tests for CsvRecordingExtractor."""
 
 import os
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -91,13 +92,10 @@ def test_read_csv_missing_event_raises_file_not_found(tmp_path):
 
 
 def test_discover_raises_for_non_csv_extension(monkeypatch, tmp_path):
-    # Bypass the *.csv glob filter by monkeypatching glob to return a .txt path
+    # Bypass the *.csv glob filter by monkeypatching Path.glob to return a .txt path
     fake_path = tmp_path / "fake.txt"
     fake_path.write_text("timestamps\n0\n")
-    monkeypatch.setattr(
-        "guppy.extractors.csv_recording_extractor.glob.glob",
-        lambda pattern: [str(fake_path)],
-    )
+    monkeypatch.setattr(Path, "glob", lambda self, pattern: [fake_path])
     _force_classify_to_csv(monkeypatch)
     with pytest.raises(ValueError, match="Only .csv files are supported"):
         CsvRecordingExtractor.discover_events_and_flags(str(tmp_path))
