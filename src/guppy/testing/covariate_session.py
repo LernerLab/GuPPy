@@ -6,8 +6,6 @@ tests and the documentation screenshot script need the same four steps run again
 with the same store labels and bin width, so that run lives here.
 """
 
-import glob
-import os
 import shutil
 from pathlib import Path
 
@@ -31,11 +29,11 @@ STORE_ID_TO_STORE_LABEL = {
 
 def locate_output_directory(*, session: str) -> str:
     """Return the run folder Step 1 created inside ``session``."""
-    candidates = sorted(glob.glob(os.path.join(session, f"{os.path.basename(session)}_output_*")))
+    candidates = sorted(Path(session).glob(f"{Path(session).name}_output_*"))
     assert candidates, f"no output directory was created in {session}"
     for candidate in candidates:
-        if os.path.exists(os.path.join(candidate, "storesList.csv")):
-            return candidate
+        if (candidate / "storesList.csv").exists():
+            return str(candidate)
     raise AssertionError(f"no output directory in {session} contains storesList.csv")
 
 

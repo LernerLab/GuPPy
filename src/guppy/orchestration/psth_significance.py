@@ -13,6 +13,7 @@ import logging
 import multiprocessing as mp
 import os
 from itertools import repeat
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -102,8 +103,8 @@ def read_psth_samples(
         ``(num_samples, num_timepoints)``, or None when the directory holds no PSTH for
         this combination.
     """
-    psth_path = os.path.join(filepath, f"{event}_{recording_site}_{basename}.h5")
-    if not os.path.exists(psth_path):
+    psth_path = Path(filepath) / (f"{event}_{recording_site}_{basename}.h5")
+    if not Path(psth_path).exists():
         return None
 
     psth = read_Df(filepath, f"{event}_{recording_site}", basename)
@@ -374,7 +375,7 @@ def _report_skipped_comparisons(*, filepath: str, outcomes: list[str | None]) ->
     if len(skipped) > len(named):
         detail += f", and {len(skipped) - len(named)} more"
 
-    folder = os.path.basename(os.path.normpath(filepath))
+    folder = Path(os.path.normpath(filepath)).name
     message = (
         f"PSTH significance skipped {len(skipped)} of {len(outcomes)} comparison(s) in {folder}: "
         f"the bootstrap needs at least {MINIMUM_SAMPLES} trials or sessions to resample. "

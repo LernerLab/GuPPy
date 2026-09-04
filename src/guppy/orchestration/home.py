@@ -1,8 +1,8 @@
 import logging
-import os
 from collections.abc import Callable
 from contextvars import copy_context
 from importlib.metadata import version
+from pathlib import Path
 from threading import Thread
 
 import panel as pn
@@ -45,7 +45,7 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
         Fully wired Panel template ready to be served or shown.
     """
     pn.extension(notifications=True)
-    current_dir = os.getcwd()
+    current_dir = str(Path.cwd())
     # Guards against launching a second pipeline step while one is still running — the
     # handlers no longer block the IOLoop, so without this a user could start overlapping
     # runs that clobber the shared progress file and output directories.

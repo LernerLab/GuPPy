@@ -1,5 +1,5 @@
 import logging
-import os
+from pathlib import Path
 
 import panel as pn
 
@@ -27,7 +27,7 @@ def build_custom_events_template(folder_path: str) -> pn.template.BootstrapTempl
     pn.template.BootstrapTemplate
         Fully configured Panel template ready to be served.
     """
-    template = pn.template.BootstrapTemplate(title=f"Import Custom Events - {os.path.basename(folder_path)}")
+    template = pn.template.BootstrapTemplate(title=f"Import Custom Events - {Path(folder_path).name}")
     config = CustomEventsConfig()
 
     def save_button(event: object = None) -> None:
@@ -58,7 +58,7 @@ def build_custom_events_template(folder_path: str) -> pn.template.BootstrapTempl
             except FileExistsError as exc:
                 config.set_alert_message(f"#### Alert !! \n {exc}")
                 return
-            written.append(os.path.basename(csv_path))
+            written.append(Path(csv_path).name)
 
         if not written:
             config.set_alert_message("#### No events to save — continue to the Label Stores GUI.")
@@ -95,7 +95,7 @@ def build_custom_events_page(inputParameters: dict[str, object], folder_path: st
     """
     custom_events_map = inputParameters.get("custom_events_map")
     if isinstance(custom_events_map, dict):
-        events_for_session = custom_events_map.get(os.path.basename(folder_path), {})
+        events_for_session = custom_events_map.get(Path(folder_path).name, {})
         for name, timestamps in events_for_session.items():
             csv_path = write_custom_event_csv(
                 name=name, timestamps=list(timestamps), folder_path=folder_path, overwrite=True

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Iterable
+from pathlib import Path
 from typing import Literal
 
 import numpy as np
@@ -59,7 +60,7 @@ def _validate_sessions_under_base_dir(*, abs_sessions: list[str], base_dir: str)
         If a session is missing, is not a directory, or lies outside ``base_dir``.
     """
     for session in abs_sessions:
-        if not os.path.isdir(session):
+        if not Path(session).is_dir():
             raise ValueError(f"Session path does not exist or is not a directory: {session}")
         if os.path.commonpath([base_dir, session]) != base_dir:
             raise ValueError(
@@ -86,7 +87,7 @@ def _normalize_selected_runs(
     normalized: dict[str, list[str]] = {}
     abs_sessions_set = set(abs_sessions)
     for session_key, run_names in selected_runs.items():
-        absolute = os.path.abspath(session_key)
+        absolute = str(Path(session_key).resolve())
         if absolute not in abs_sessions_set:
             raise ValueError(
                 f"{parameter_name} key {session_key!r} is not in selected_folders; "
@@ -357,7 +358,7 @@ def _drive_store_labeling_page(
     _raise_on_alert(selector=selector)
 
     target_run_folder = run_folder_for_run(folder_path, run_name) if run_name is not None else None
-    if run_name_policy == "overwrite" and target_run_folder is not None and os.path.isdir(target_run_folder):
+    if run_name_policy == "overwrite" and target_run_folder is not None and Path(target_run_folder).is_dir():
         selector.overwrite_button.clicked = "over_write_file"
         selector.select_location.value = target_run_folder
     else:
@@ -427,15 +428,15 @@ def step1(
     # Validate base_dir
     if not isinstance(base_dir, str) or not base_dir:
         raise ValueError("base_dir must be a non-empty string")
-    base_dir = os.path.abspath(base_dir)
-    if not os.path.isdir(base_dir):
+    base_dir = str(Path(base_dir).resolve())
+    if not Path(base_dir).is_dir():
         raise ValueError(f"base_dir does not exist or is not a directory: {base_dir}")
 
     # Validate selected_folders
     sessions = list(selected_folders or [])
     if not sessions:
         raise ValueError("selected_folders must be a non-empty iterable of session directories")
-    abs_sessions = [os.path.abspath(session) for session in sessions]
+    abs_sessions = [str(Path(session).resolve()) for session in sessions]
     _validate_sessions_under_base_dir(abs_sessions=abs_sessions, base_dir=base_dir)
 
     # Validate store_id_to_store_label
@@ -559,15 +560,15 @@ def step2(
     # Validate base_dir
     if not isinstance(base_dir, str) or not base_dir:
         raise ValueError("base_dir must be a non-empty string")
-    base_dir = os.path.abspath(base_dir)
-    if not os.path.isdir(base_dir):
+    base_dir = str(Path(base_dir).resolve())
+    if not Path(base_dir).is_dir():
         raise ValueError(f"base_dir does not exist or is not a directory: {base_dir}")
 
     # Validate selected_folders
     sessions = list(selected_folders or [])
     if not sessions:
         raise ValueError("selected_folders must be a non-empty iterable of session directories")
-    abs_sessions = [os.path.abspath(session) for session in sessions]
+    abs_sessions = [str(Path(session).resolve()) for session in sessions]
     _validate_sessions_under_base_dir(abs_sessions=abs_sessions, base_dir=base_dir)
 
     # Headless build: construct the template rooted at base_dir
@@ -650,15 +651,15 @@ def _build_preprocess_input_parameters(
     # Validate base_dir
     if not isinstance(base_dir, str) or not base_dir:
         raise ValueError("base_dir must be a non-empty string")
-    base_dir = os.path.abspath(base_dir)
-    if not os.path.isdir(base_dir):
+    base_dir = str(Path(base_dir).resolve())
+    if not Path(base_dir).is_dir():
         raise ValueError(f"base_dir does not exist or is not a directory: {base_dir}")
 
     # Validate selected_folders
     sessions = list(selected_folders or [])
     if not sessions:
         raise ValueError("selected_folders must be a non-empty iterable of session directories")
-    abs_sessions = [os.path.abspath(session) for session in sessions]
+    abs_sessions = [str(Path(session).resolve()) for session in sessions]
     _validate_sessions_under_base_dir(abs_sessions=abs_sessions, base_dir=base_dir)
 
     # Headless build: construct the template rooted at base_dir
@@ -879,7 +880,7 @@ def tonic_analysis(
     for run_folder in resolve_run_folders(abs_sessions, input_params):
         site_traces = load_site_traces(run_folder)
         for recording_site, epochs in tonic_epochs.items():
-            epochs.to_csv(os.path.join(run_folder, f"tonic_epochs_{recording_site}.csv"), index=False)
+            epochs.to_csv(Path(run_folder) / (f"tonic_epochs_{recording_site}.csv"), index=False)
             trace = site_traces[recording_site]
             write_tonic_to_hdf5(
                 run_folder,
@@ -960,7 +961,7 @@ def select_artifact_windows(
 
     for run_folder in resolve_run_folders(abs_sessions, input_params):
         for recording_site, coords in artifact_coords.items():
-            np.save(os.path.join(run_folder, f"coordsForPreProcessing_{recording_site}.npy"), coords)
+            np.save(Path(run_folder) / (f"coordsForPreProcessing_{recording_site}.npy"), coords)
 
     save_parameters(inputParameters=input_params, artifacts_removal_method=artifact_removal_method)
 
@@ -1125,15 +1126,15 @@ def step4(
     # Validate base_dir
     if not isinstance(base_dir, str) or not base_dir:
         raise ValueError("base_dir must be a non-empty string")
-    base_dir = os.path.abspath(base_dir)
-    if not os.path.isdir(base_dir):
+    base_dir = str(Path(base_dir).resolve())
+    if not Path(base_dir).is_dir():
         raise ValueError(f"base_dir does not exist or is not a directory: {base_dir}")
 
     # Validate selected_folders
     sessions = list(selected_folders or [])
     if not sessions:
         raise ValueError("selected_folders must be a non-empty iterable of session directories")
-    abs_sessions = [os.path.abspath(session) for session in sessions]
+    abs_sessions = [str(Path(session).resolve()) for session in sessions]
     _validate_sessions_under_base_dir(abs_sessions=abs_sessions, base_dir=base_dir)
 
     # Headless build: construct the template rooted at base_dir
@@ -1228,11 +1229,11 @@ def label_groups(
         When the page rejects the group name or member selection (raised from
         the page's alert).
     """
-    destination = os.path.abspath(destination_directory)
+    destination = str(Path(destination_directory).resolve())
     page = build_group_labeling_page(inputParameters={"abspath": destination, "selected_group_folders": []})
     page.group_name.value = group_name
     page.destination_selector.value = [destination]
-    page.members_selector.value = [os.path.abspath(run_folder) for run_folder in member_run_folders]
+    page.members_selector.value = [str(Path(run_folder).resolve()) for run_folder in member_run_folders]
     page.save.clicks += 1
     # The page reports validation failures on its alert instead of raising.
     if page.alert.visible:
@@ -1274,7 +1275,7 @@ def group_analysis(
     """
     template = build_homepage(start_path=base_dir)
 
-    absolute_groups = [os.path.abspath(folder) for folder in selected_group_folders]
+    absolute_groups = [str(Path(folder).resolve()) for folder in selected_group_folders]
     template._widgets["group_folders_selector"].value = absolute_groups
     input_params = template._hooks["getInputParameters"]()
 
@@ -1352,15 +1353,15 @@ def step5(
     # Validate base_dir
     if not isinstance(base_dir, str) or not base_dir:
         raise ValueError("base_dir must be a non-empty string")
-    base_dir = os.path.abspath(base_dir)
-    if not os.path.isdir(base_dir):
+    base_dir = str(Path(base_dir).resolve())
+    if not Path(base_dir).is_dir():
         raise ValueError(f"base_dir does not exist or is not a directory: {base_dir}")
 
     # Validate selected_folders
     sessions = list(selected_folders or [])
     if not sessions:
         raise ValueError("selected_folders must be a non-empty iterable of session directories")
-    abs_sessions = [os.path.abspath(session) for session in sessions]
+    abs_sessions = [str(Path(session).resolve()) for session in sessions]
     _validate_sessions_under_base_dir(abs_sessions=abs_sessions, base_dir=base_dir)
 
     # Headless build: construct the template rooted at base_dir
@@ -1391,7 +1392,7 @@ def step5(
 
     # Groups to visualize alongside the selected session runs
     input_params["selected_group_folders"] = (
-        [os.path.abspath(folder) for folder in selected_group_folders] if selected_group_folders else []
+        [str(Path(folder).resolve()) for folder in selected_group_folders] if selected_group_folders else []
     )
 
     # Per-session output-directory subset filter
@@ -1433,14 +1434,14 @@ def _build_headless_input_parameters(
     """
     if not isinstance(base_dir, str) or not base_dir:
         raise ValueError("base_dir must be a non-empty string")
-    base_dir = os.path.abspath(base_dir)
-    if not os.path.isdir(base_dir):
+    base_dir = str(Path(base_dir).resolve())
+    if not Path(base_dir).is_dir():
         raise ValueError(f"base_dir does not exist or is not a directory: {base_dir}")
 
     sessions = list(selected_folders or [])
     if not sessions:
         raise ValueError("selected_folders must be a non-empty iterable of session directories")
-    abs_sessions = [os.path.abspath(session) for session in sessions]
+    abs_sessions = [str(Path(session).resolve()) for session in sessions]
     _validate_sessions_under_base_dir(abs_sessions=abs_sessions, base_dir=base_dir)
 
     template = build_homepage(start_path=base_dir)

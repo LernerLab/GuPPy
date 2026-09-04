@@ -1,7 +1,6 @@
-import glob
 import logging
-import os
 import re
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -45,7 +44,7 @@ def helper_plots(filepath: str, event: list[str], name: list[str], inputParamete
     inputParameters : dict
         Full pipeline input parameters.
     """
-    basename = os.path.basename(filepath)
+    basename = Path(filepath).name
     visualize_zscore_or_dff = inputParameters["visualize_zscore_or_dff"]
 
     # note when there are no behavior event TTLs
@@ -53,14 +52,14 @@ def helper_plots(filepath: str, event: list[str], name: list[str], inputParamete
         logger.warning("There are no behavior event TTLs present to visualize.")
         return 0
 
-    if os.path.exists(os.path.join(filepath, "cross_correlation_output")):
+    if (Path(filepath) / "cross_correlation_output").exists():
         event_corr, frames = [], []
         if visualize_zscore_or_dff == "z_score":
-            corr_fp = glob.glob(os.path.join(filepath, "cross_correlation_output", "*_z_score_*"))
+            corr_fp = list((Path(filepath) / "cross_correlation_output").glob("*_z_score_*"))
         elif visualize_zscore_or_dff == "dff":
-            corr_fp = glob.glob(os.path.join(filepath, "cross_correlation_output", "*_dff_*"))
+            corr_fp = list((Path(filepath) / "cross_correlation_output").glob("*_dff_*"))
         for i in range(len(corr_fp)):
-            filename = os.path.basename(corr_fp[i]).split(".")[0]
+            filename = Path(corr_fp[i]).name.split(".")[0]
             event_corr.append(filename)
             df = pd.read_hdf(corr_fp[i], key="df", mode="r")
             frames.append(df)
@@ -227,7 +226,7 @@ def _validate_metric_against_step4_outputs(inputParameters: dict[str, object]) -
     else:
         pattern = "*_dff_*.h5"
 
-    missing_sessions = [run_folder for run_folder in run_folders if not glob.glob(os.path.join(run_folder, pattern))]
+    missing_sessions = [run_folder for run_folder in run_folders if not any(Path(run_folder).glob(pattern))]
 
     if missing_sessions:
         other_metric = "dff" if visualize_zscore_or_dff == "z_score" else "z_score"

@@ -30,21 +30,12 @@ def make_widget(value):
     return types.SimpleNamespace(value=value)
 
 
-class FakePath:
-    """Replaces pathlib.Path in store_ids so cache writes go to tmp_path."""
-
-    _home = None
-
-    @classmethod
-    def home(cls):
-        return cls._home
-
-
 @pytest.fixture
 def isolated_cache(tmp_path, monkeypatch):
-    """Redirect Path.home() to tmp_path so _save never touches ~/.storesList.json."""
-    FakePath._home = tmp_path
-    monkeypatch.setattr("guppy.orchestration.store_labeling.Path", FakePath)
+    """Redirect the store-label cache to tmp_path so _save never touches ~/.storesList.json."""
+    monkeypatch.setattr(
+        "guppy.orchestration.store_labeling.store_label_cache_path", lambda: tmp_path / ".storesList.json"
+    )
     return tmp_path
 
 
@@ -620,8 +611,9 @@ def store_labeling_closures(tmp_path, monkeypatch, panel_extension):
 
     selector.callbacks maps button names to their on-click closure functions.
     """
-    FakePath._home = tmp_path
-    monkeypatch.setattr("guppy.orchestration.store_labeling.Path", FakePath)
+    monkeypatch.setattr(
+        "guppy.orchestration.store_labeling.store_label_cache_path", lambda: tmp_path / ".storesList.json"
+    )
 
     folder = tmp_path / "my_session"
     folder.mkdir()

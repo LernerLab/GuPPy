@@ -1,7 +1,7 @@
 import json
 import logging
-import os
 from importlib.metadata import version
+from pathlib import Path
 
 from guppy.utils.utils import discover_run_folders, select_run_folders
 
@@ -26,11 +26,11 @@ def read_artifact_provenance(*, destination: str) -> tuple[bool, str]:
     artifacts_removal_method : str
         The method recorded for this directory.
     """
-    parameters_path = os.path.join(destination, "GuPPyParamtersUsed.json")
-    if not os.path.exists(parameters_path):
+    parameters_path = Path(destination) / "GuPPyParamtersUsed.json"
+    if not parameters_path.exists():
         return False, DEFAULT_ARTIFACTS_REMOVAL_METHOD
 
-    with open(parameters_path) as parameters_file:
+    with parameters_path.open() as parameters_file:
         parameters = json.load(parameters_file)
     return (
         parameters.get("removeArtifacts", False),
@@ -56,8 +56,8 @@ def record_artifact_provenance(
     artifacts_removal_method : str, optional
         New artifact-removal method. When None, the recorded value is kept.
     """
-    parameters_path = os.path.join(destination, "GuPPyParamtersUsed.json")
-    with open(parameters_path) as parameters_file:
+    parameters_path = Path(destination) / "GuPPyParamtersUsed.json"
+    with parameters_path.open() as parameters_file:
         parameters = json.load(parameters_file)
 
     recorded_removal, recorded_method = read_artifact_provenance(destination=destination)
@@ -66,7 +66,7 @@ def record_artifact_provenance(
         recorded_method if artifacts_removal_method is None else artifacts_removal_method
     )
 
-    with open(parameters_path, "w") as parameters_file:
+    with parameters_path.open("w") as parameters_file:
         json.dump(parameters, parameters_file, indent=4)
     logger.info("Artifact provenance updated at %s", destination)
 
@@ -164,7 +164,7 @@ def write_analysis_parameters(
     destinationParameters["artifactsRemovalMethod"] = (
         recorded_method if artifacts_removal_method is None else artifacts_removal_method
     )
-    with open(os.path.join(destination, "GuPPyParamtersUsed.json"), "w") as parameters_file:
+    with (Path(destination) / "GuPPyParamtersUsed.json").open("w") as parameters_file:
         json.dump(destinationParameters, parameters_file, indent=4)
     logger.info("Input Parameters file saved at %s", destination)
 

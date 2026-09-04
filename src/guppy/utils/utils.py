@@ -173,7 +173,7 @@ def parse_run_name(run_folder: str) -> str:
     """
     # Strip both separators so trailing forward slashes are tolerated on Windows
     # (where os.sep is "\\" but paths can still use "/").
-    basename = Path(run_folder.rstrip("/\\")).name
+    basename = Path(str(run_folder).rstrip("/\\")).name
     index = basename.rfind(_RUN_NAME_MARKER)
     if index < 0:
         raise ValueError(
@@ -219,7 +219,7 @@ def run_folder_for_run(session_path: str, run_name: str) -> str:
     str
         Path of the form ``<session_path>/<basename>_output_<run_name>``.
     """
-    basename = Path(session_path.rstrip(os.sep)).name
+    basename = Path(str(session_path).rstrip(os.sep)).name
     return str(Path(session_path) / (basename + _RUN_NAME_MARKER + run_name))
 
 
@@ -346,7 +346,7 @@ def parse_group_name(group_folder: str) -> str:
     ValueError
         If the basename does not match the expected pattern.
     """
-    basename = Path(group_folder.rstrip("/\\")).name
+    basename = Path(str(group_folder).rstrip("/\\")).name
     if not basename.endswith(_GROUP_NAME_MARKER) or basename == _GROUP_NAME_MARKER:
         raise ValueError(
             f"Cannot parse group name from {group_folder!r}: basename {basename!r} does not match "
@@ -387,7 +387,7 @@ def is_group_folder(path: str) -> bool:
         ``True`` when the basename ends with ``_group`` and is not itself a run
         folder (a run named ``group`` would otherwise match both).
     """
-    basename = Path(path.rstrip("/\\")).name
+    basename = Path(str(path).rstrip("/\\")).name
     if _RUN_NAME_MARKER in basename:
         return False
     return basename.endswith(_GROUP_NAME_MARKER) and basename != _GROUP_NAME_MARKER

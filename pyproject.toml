@@ -152,8 +152,6 @@ fixable = ["ALL"]
 # The pathlib migration (#478) runs module by module. Every entry below is a module that
 # still uses os.path/glob; each migration PR deletes the entries it converts, so what is
 # left here is the remaining work rather than a permanent exemption.
-"src/guppy/orchestration/*" = ["PTH"]
-"src/guppy/testing/*" = ["PTH"]
 "tests/*" = ["PTH"]
 
 [tool.ruff.lint.isort]

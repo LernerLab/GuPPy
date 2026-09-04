@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 import shutil
 from pathlib import Path
 
@@ -38,6 +37,15 @@ pn.extension()
 logger = logging.getLogger(__name__)
 
 
+def store_label_cache_path() -> Path:
+    """Path of the cache remembering which store labels each raw store id was given.
+
+    The Label Stores page reads it to pre-fill a store id it has seen before. Resolved
+    on each call rather than at import so ``Path.home()`` is looked up when it is used.
+    """
+    return Path.home() / ".storesList.json"
+
+
 def show_dir(filepath: str, run_name: str | None = None) -> str:
     """Return the path of an output directory without creating it.
 
@@ -63,7 +71,7 @@ def show_dir(filepath: str, run_name: str | None = None) -> str:
     i = 1
     while True:
         run_folder = run_folder_for_run(filepath, str(i))
-        if not os.path.exists(run_folder):
+        if not Path(run_folder).exists():
             break
         i += 1
     return run_folder
@@ -224,7 +232,7 @@ def _save(
         logger.error(detail)
         return alert_message
 
-    if not os.path.exists(os.path.join(Path.home(), ".storesList.json")):
+    if not store_label_cache_path().exists():
         store_id_to_store_labels = dict()
 
         for i in range(store_ids_array.shape[0]):
@@ -234,10 +242,10 @@ def _save(
             else:
                 store_id_to_store_labels[store_ids_array[i]] = [store_labels_array[i]]
 
-        with open(os.path.join(Path.home(), ".storesList.json"), "w") as cache_file:
+        with store_label_cache_path().open("w") as cache_file:
             json.dump(store_id_to_store_labels, cache_file, indent=4)
     else:
-        with open(os.path.join(Path.home(), ".storesList.json")) as cache_file:
+        with store_label_cache_path().open() as cache_file:
             store_id_to_store_labels = json.load(cache_file)
 
         for i in range(store_ids_array.shape[0]):
@@ -247,12 +255,12 @@ def _save(
             else:
                 store_id_to_store_labels[store_ids_array[i]] = [store_labels_array[i]]
 
-        with open(os.path.join(Path.home(), ".storesList.json"), "w") as cache_file:
+        with store_label_cache_path().open("w") as cache_file:
             json.dump(store_id_to_store_labels, cache_file, indent=4)
 
     store_array = np.asarray([store_ids_array, store_labels_array])
     logger.info(store_array)
-    if os.path.exists(select_location):
+    if Path(select_location).exists():
         if overwrite_mode != "over_write_file":
             detail = (
                 f"Output directory already exists: {select_location!r}. "
@@ -263,7 +271,7 @@ def _save(
         # Overwrite mode: clear all derived data from the previous run before saving the new store_array.
         shutil.rmtree(select_location)
         logger.info("Cleared output directory for overwrite: %s", select_location)
-    os.mkdir(select_location)
+    Path(select_location).mkdir()
 
     write_stores_list(run_folder=select_location, store_array=store_array)
     if npm_params is not None:
@@ -312,7 +320,7 @@ def build_store_labeling_template(
     """
     allnames = events
 
-    template = pn.template.BootstrapTemplate(title=f"Label Stores GUI - {os.path.basename(folder_path)}")
+    template = pn.template.BootstrapTemplate(title=f"Label Stores GUI - {Path(folder_path).name}")
 
     if npm_interactive is not None:
         store_labeling_instructions = StoreLabelingInstructionsNPM(
@@ -378,8 +386,8 @@ def build_store_labeling_template(
         store_labeling_selector.set_change_widgets(store_ids)
 
         store_id_to_store_labels = dict()
-        if os.path.exists(os.path.join(Path.home(), ".storesList.json")):
-            with open(os.path.join(Path.home(), ".storesList.json")) as f:
+        if store_label_cache_path().exists():
+            with store_label_cache_path().open() as f:
                 store_id_to_store_labels = json.load(f)
 
         store_labeling_selector.configure_store_ids(store_id_to_store_labels=store_id_to_store_labels)
@@ -399,7 +407,7 @@ def build_store_labeling_template(
             npm_params=npm_params,
         )
         store_labeling_selector.set_alert_message(alert_message)
-        store_labeling_selector.set_path(os.path.join(select_location, "storesList.csv"))
+        store_labeling_selector.set_path(str(Path(select_location) / "storesList.csv"))
 
     # on clicking the NPM "Confirm NPM configuration" button, following function is executed
     def confirm_npm_configuration(event: object = None) -> None:

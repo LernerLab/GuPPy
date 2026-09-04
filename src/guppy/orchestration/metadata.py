@@ -9,6 +9,7 @@ saved YAML is a reusable, hand-editable source of truth for the Step 7 export.
 
 import logging
 import os
+from pathlib import Path
 
 import panel as pn
 
@@ -99,7 +100,7 @@ def build_metadata_template(
         if errors:
             selector.set_alert_message(_format_errors(errors), is_error=True)
             return
-        os.makedirs(os.path.dirname(metadata_yaml_path), exist_ok=True)
+        Path(metadata_yaml_path).parent.mkdir(parents=True, exist_ok=True)
         dump_yaml(metadata=to_save, path=metadata_yaml_path)
         selector.set_path(metadata_yaml_path)
         selector.set_alert_message("#### No alerts !!", is_error=False)
@@ -160,10 +161,10 @@ def build_metadata_templates(*, inputParameters: dict[str, object]) -> list[pn.t
     templates = []
     for session_path, run_name in pairs_needing_metadata:
         guppy_folder_path = run_folder_for_run(session_path, run_name)
-        metadata_yaml_path = os.path.join(guppy_folder_path, METADATA_FILENAME)
-        initial_metadata = load_yaml(metadata_yaml_path) if os.path.exists(metadata_yaml_path) else {}
+        metadata_yaml_path = Path(guppy_folder_path) / METADATA_FILENAME
+        initial_metadata = load_yaml(metadata_yaml_path) if Path(metadata_yaml_path).exists() else {}
         channels = derive_channels(output_dir=guppy_folder_path)
-        session_label = f"{os.path.basename(session_path.rstrip(os.sep))} ({run_name})"
+        session_label = f"{Path(session_path.rstrip(os.sep)).name} ({run_name})"
         acquisition_format, _nwb_source = source_by_session[session_path]
         template = build_metadata_template(
             session_label=session_label,

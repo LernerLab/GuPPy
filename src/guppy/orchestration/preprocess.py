@@ -1,6 +1,5 @@
-import glob
 import logging
-import os
+from pathlib import Path
 
 import numpy as np
 
@@ -307,7 +306,7 @@ def execute_combine_data(
         session_run_folders = select_run_folders(filepath, selected_runs.get(filepath))
         for j in range(len(session_run_folders)):
             filepath = session_run_folders[j]
-            sampling_rate_filepaths.append(glob.glob(os.path.join(filepath, "timeCorrection_*")))
+            sampling_rate_filepaths.append(list(Path(filepath).glob("timeCorrection_*")))
 
     # check if sampling rate is same for both data
     sampling_rate_filepaths = np.concatenate(sampling_rate_filepaths)
