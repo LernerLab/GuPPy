@@ -228,6 +228,12 @@ def rowFormation(z_score: np.ndarray, thisIndex: int, nTsPrev: int, nTsPost: int
         signal does not exist.
     """
 
+    # The branches below size their NaN padding from the gap between the requested window and
+    # the signal. That gap is bounded only while the window still overlaps the signal, so an
+    # event landing far outside the trace is answered here rather than by allocating the gap.
+    if (thisIndex + nTsPost) <= 0 or (thisIndex - nTsPrev - 1) >= z_score.shape[0]:
+        return np.full(nTsPrev + nTsPost + 1, np.nan)
+
     if nTsPrev < thisIndex and z_score.shape[0] > (thisIndex + nTsPost):
         trial = z_score[thisIndex - nTsPrev - 1 : thisIndex + nTsPost]
     elif nTsPrev >= thisIndex and z_score.shape[0] > (thisIndex + nTsPost):

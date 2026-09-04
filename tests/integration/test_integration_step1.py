@@ -252,6 +252,9 @@ def test_step1(tmp_path, session_subdir, store_id_to_store_label):
         # Sessions offering more than one timestamp column persist the confirmed selection
         # (the form default when the caller supplied none); single-column sessions persist None.
         if session_subdir == "npm/sampleData_NPM_1":
+            # The form default, not the setting this session should be analysed with: its stimuli
+            # file rides ComputerTimestamp (see stubbed_testing_data/README.md). Step 2 is where
+            # that mismatch is caught, so step 1 still persists whatever was confirmed here.
             assert npm_params["npm_timestamp_column_name"] == "SystemTimestamp"
         else:
             assert npm_params["npm_timestamp_column_name"] == npm_timestamp_column_name

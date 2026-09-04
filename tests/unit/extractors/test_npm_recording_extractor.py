@@ -398,10 +398,14 @@ class NpmRecordingExtractorTestMixin(RecordingExtractorTestMixin):
 class TestNpmRecordingExtractor(NpmRecordingExtractorTestMixin):
     extractor_class = NpmRecordingExtractor
     folder_path = os.path.join(STUBBED_TESTING_DATA, "npm", "sampleData_NPM_1")
-    extractor_instance = NpmRecordingExtractor(folder_path, num_ch=2)
+    # This session offers two timestamp columns and its stimuli file rides ComputerTimestamp;
+    # the defaults would put the events on a different clock than the photometry. See the
+    # sampleData_NPM_1 entry in stubbed_testing_data/README.md.
+    clock_kwargs = {"npm_timestamp_column_name": "ComputerTimestamp", "npm_time_unit": "milliseconds"}
+    extractor_instance = NpmRecordingExtractor(folder_path, num_ch=2, **clock_kwargs)
     expected_events = ["file0_chev1", "file0_chod1", "event0"]
-    discover_kwargs = {"num_ch": 2, "inputParameters": {}}
-    stub_extractor_kwargs = {"num_ch": 2}
+    discover_kwargs = {"num_ch": 2, "inputParameters": clock_kwargs}
+    stub_extractor_kwargs = {"num_ch": 2, **clock_kwargs}
     control_event = "file0_chod1"
     signal_event = "file0_chev1"
     ttl_event = "event0"
@@ -423,10 +427,12 @@ class TestNpmRecordingExtractorSession2(NpmRecordingExtractorTestMixin):
 class TestNpmRecordingExtractorSession3(NpmRecordingExtractorTestMixin):
     extractor_class = NpmRecordingExtractor
     folder_path = os.path.join(STUBBED_TESTING_DATA, "npm", "sampleData_NPM_3")
-    extractor_instance = NpmRecordingExtractor(folder_path, num_ch=2)
+    # Same two-column shape as sampleData_NPM_1: ttls.csv rides ComputerTimestamp.
+    clock_kwargs = {"npm_timestamp_column_name": "ComputerTimestamp", "npm_time_unit": "milliseconds"}
+    extractor_instance = NpmRecordingExtractor(folder_path, num_ch=2, **clock_kwargs)
     expected_events = ["file0_chev1", "file0_chod1", "event0"]
-    discover_kwargs = {"num_ch": 2, "inputParameters": {}}
-    stub_extractor_kwargs = {"num_ch": 2}
+    discover_kwargs = {"num_ch": 2, "inputParameters": clock_kwargs}
+    stub_extractor_kwargs = {"num_ch": 2, **clock_kwargs}
     control_event = "file0_chod1"
     signal_event = "file0_chev1"
     ttl_event = "event0"
@@ -576,3 +582,139 @@ class TestNpmTimeUnit:
 
         with pytest.raises(ValueError, match=r"npm_time_unit='minutes' is not a recognized timestamp unit"):
             extractor.decompose()
+
+
+# ---------------------------------------------------------------------------
+# event/photometry clock agreement
+# ---------------------------------------------------------------------------
+
+
+class TestNpmEventClockValidation:
+    """A session offering several timestamp columns can only be read on the one its events ride.
+
+    ``sampleData_NPM_1`` carries both ``SystemTimestamp`` (seconds) and ``ComputerTimestamp``
+    (milliseconds); its stimuli file is on the latter.
+    """
+
+    folder_path = os.path.join(STUBBED_TESTING_DATA, "npm", "sampleData_NPM_1")
+
+    @pytest.fixture
+    def wrong_clock_extractor(self):
+        return NpmRecordingExtractor(
+            self.folder_path,
+            num_ch=2,
+            npm_timestamp_column_name="SystemTimestamp",
+            npm_time_unit="seconds",
+            npm_split_events=[False, True],
+        )
+
+    @pytest.fixture
+    def matching_clock_extractor(self):
+        return NpmRecordingExtractor(
+            self.folder_path,
+            num_ch=2,
+            npm_timestamp_column_name="ComputerTimestamp",
+            npm_time_unit="milliseconds",
+            npm_split_events=[False, True],
+        )
+
+    def test_off_clock_event_read_reports_both_spans(self, wrong_clock_extractor, tmp_path):
+        with pytest.raises(ValueError, match=r"lies entirely outside the photometry timespan"):
+            wrong_clock_extractor.read(
+                events=["file0_chev1", "file0_chod1", "eventpinknoise"], outputPath=str(tmp_path)
+            )
+
+    def test_off_clock_event_read_names_the_column_the_events_ride(self, wrong_clock_extractor, tmp_path):
+        with pytest.raises(ValueError, match=r"Set Timestamp column to 'ComputerTimestamp'"):
+            wrong_clock_extractor.read(
+                events=["file0_chev1", "file0_chod1", "eventpinknoise"], outputPath=str(tmp_path)
+            )
+
+    def test_photometry_only_read_is_not_checked(self, wrong_clock_extractor, tmp_path):
+        # A mixed-modality session takes its traces from another format and selects no NPM
+        # channel, so the NPM photometry span is not the reference for its events.
+        output_dicts = wrong_clock_extractor.read(events=["file0_chev1", "file0_chod1"], outputPath=str(tmp_path))
+
+        assert [output_dict["store_id"] for output_dict in output_dicts] == ["file0_chev1", "file0_chod1"]
+
+    def test_matching_clock_read_succeeds(self, matching_clock_extractor, tmp_path):
+        output_dicts = matching_clock_extractor.read(events=["file0_chev1", "eventpinknoise"], outputPath=str(tmp_path))
+
+        # 49956358.72 ms is the stub's single pinknoise stimulus, in seconds.
+        np.testing.assert_allclose(output_dicts[1]["timestamps"], np.array([49956.35872]))
+        assert output_dicts[1]["store_id"] == "eventpinknoise"
+
+    def test_timestamp_column_spans_reports_each_columns_raw_range(self):
+        column_spans = NpmRecordingExtractor._timestamp_column_spans(self.folder_path)
+
+        assert list(column_spans) == ["SystemTimestamp", "ComputerTimestamp"]
+        np.testing.assert_allclose(column_spans["SystemTimestamp"], (1891.312544, 2011.607936))
+        np.testing.assert_allclose(column_spans["ComputerTimestamp"], (49884931.93, 50005222.1))
+
+    @pytest.fixture
+    def two_data_file_session(self, tmp_path):
+        """Two data files sharing one timestamp column name, on non-overlapping stretches."""
+        session_folder = tmp_path / "two_files"
+        session_folder.mkdir()
+        header = "FrameCounter,Timestamp,LedState,Region0G\n"
+        for name, first in (("a_signals.csv", 500.0), ("b_signals.csv", 900.0)):
+            rows = "".join(f"{i},{first + 0.5 * i},{1 if i % 2 == 0 else 2},{i}\n" for i in range(12))
+            (session_folder / name).write_text(header + rows)
+        return session_folder
+
+    def test_timestamp_column_spans_merges_a_shared_column_across_files(self, two_data_file_session):
+        column_spans = NpmRecordingExtractor._timestamp_column_spans(str(two_data_file_session))
+
+        # a_signals covers 500.0-505.5 and b_signals 900.0-905.5, reported as one span.
+        assert column_spans == {"Timestamp": (500.0, 905.5)}
+
+    @pytest.fixture
+    def events_off_every_column_session(self, tmp_path):
+        """Two timestamp columns, and an event file on neither of them."""
+        session_folder = tmp_path / "off_every_column"
+        session_folder.mkdir()
+        rows = "".join(
+            f"{i},{500.0 + 0.5 * i},{1 if i % 2 == 0 else 2},{900000.0 + 500.0 * i},{i}\n" for i in range(12)
+        )
+        (session_folder / "a_signals.csv").write_text(
+            "FrameCounter,SystemTimestamp,LedState,ComputerTimestamp,Region0G\n" + rows
+        )
+        (session_folder / "b_events.csv").write_text("5000000.0,1\n5000001.0,1\n")
+        return session_folder
+
+    def test_events_matching_no_column_report_every_column_offered(self, events_off_every_column_session, tmp_path):
+        extractor = NpmRecordingExtractor(
+            str(events_off_every_column_session),
+            num_ch=2,
+            npm_timestamp_column_name="SystemTimestamp",
+            npm_time_unit="seconds",
+            npm_split_events=[False, False],
+        )
+
+        with pytest.raises(ValueError, match=r"none of this session's timestamp columns") as excinfo:
+            extractor.read(events=["file0_chev1", "event0"], outputPath=str(tmp_path))
+
+        assert "'SystemTimestamp' [500, 505.5]" in str(excinfo.value)
+        assert "'ComputerTimestamp' [900000, 905500]" in str(excinfo.value)
+
+    @pytest.fixture
+    def headerless_off_clock_session(self, tmp_path):
+        """A headerless session, so no timestamp column has a name to recommend."""
+        session_folder = tmp_path / "headerless_off_clock"
+        session_folder.mkdir()
+        (session_folder / "a_data.csv").write_text(
+            "".join(f"{700000.0 + 500.0 * i},{i},{10 + i},{20 + i}\n" for i in range(6))
+        )
+        (session_folder / "z_events.csv").write_text("999999.0,1\n")
+        return session_folder
+
+    def test_headerless_session_advice_falls_back_to_the_time_unit(self, headerless_off_clock_session, tmp_path):
+        extractor = NpmRecordingExtractor(
+            str(headerless_off_clock_session), num_ch=2, npm_time_unit="seconds", npm_split_events=[False, False]
+        )
+
+        with pytest.raises(ValueError, match=r"Check the Time unit in the Label Stores NPM configuration") as excinfo:
+            extractor.read(events=["file0_chev1", "event0"], outputPath=str(tmp_path))
+
+        # Nothing to recommend without column names, so no column is named.
+        assert "Set Timestamp column to" not in str(excinfo.value)

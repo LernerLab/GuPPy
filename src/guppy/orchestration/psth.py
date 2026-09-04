@@ -438,6 +438,67 @@ def _validate_psth_window_parameters(inputParameters: dict[str, object]) -> None
     )
 
 
+def _validate_events_overlap_signal(inputParameters: dict[str, object]) -> None:
+    """Upfront check that each event store shares a timeline with the signal, run before any worker.
+
+    An event whose PSTH window only partly overlaps the signal is legitimate — ``rowFormation``
+    NaN-pads it. An event whose window does not overlap at all can only ever produce an
+    all-NaN trial, and a whole store of them means the events and the signal are on different
+    clocks. That used to surface as an out-of-range index deep inside the PSTH pools.
+    """
+    nSecPrev = float(inputParameters["nSecPrev"])
+    nSecPost = float(inputParameters["nSecPost"])
+    selectForComputePsth = inputParameters["selectForComputePsth"]
+    # Transient event files are written by executeFindFreqAndAmp, which runs after this check;
+    # their timestamps are on the corrected basis by construction and cannot be off-clock.
+    transient_labels = set(transient_event_labels(inputParameters=inputParameters))
+
+    for filepath in resolve_run_folders(inputParameters["session_folders"], inputParameters):
+        store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
+        events = [
+            event.replace("\\", "_").replace("/", "_")
+            for event in event_labels_for_analysis(store_array=store_array, inputParameters=inputParameters)
+            if not is_continuous_label(event) and event not in transient_labels
+        ]
+        if not events:
+            continue
+
+        # Mirror the worker's site resolution so we validate exactly what will be computed.
+        if selectForComputePsth == "z_score":
+            preprocessed_paths = glob.glob(os.path.join(filepath, "z_score_*"))
+        elif selectForComputePsth == "dff":
+            preprocessed_paths = glob.glob(os.path.join(filepath, "dff_*"))
+        else:
+            preprocessed_paths = glob.glob(os.path.join(filepath, "z_score_*")) + glob.glob(
+                os.path.join(filepath, "dff_*")
+            )
+        recording_sites = dict.fromkeys(
+            recording_site_from_preprocessed_label(os.path.basename(path).split(".")[0]) for path in preprocessed_paths
+        )
+
+        for name_1 in recording_sites:
+            timestamps = read_hdf5("timeCorrection_" + name_1, filepath, "timestampNew")
+            signal_start, signal_end = float(timestamps[0]), float(timestamps[-1])
+            for event in events:
+                event_timestamps = read_hdf5(event + "_" + name_1, filepath, "ts")
+                # An event store with no timestamps is a separate problem, warned about downstream.
+                if len(event_timestamps) == 0:
+                    continue
+                overlaps = (event_timestamps + nSecPost >= signal_start) & (event_timestamps + nSecPrev <= signal_end)
+                if overlaps.any():
+                    continue
+                message = (
+                    f"Event store '{event}' spans [{float(event_timestamps[0]):.6g}, "
+                    f"{float(event_timestamps[-1]):.6g}]s, and with a PSTH window of "
+                    f"[{nSecPrev:g}, {nSecPost:g}]s no trial overlaps the '{name_1}' signal, which spans "
+                    f"[{signal_start:.6g}, {signal_end:.6g}]s in '{filepath}'. Every trial would be empty. "
+                    "Events and signal must come from the same acquisition clock — re-run step 1 and "
+                    "step 2 with the timestamp settings that put them on one timeline."
+                )
+                logger.error(message)
+                raise ValueError(message)
+
+
 def psthForEachStore(inputParameters: dict[str, object]) -> None:
     """Entry point for step-4 PSTH computation: validates parameters and dispatches to the appropriate sub-routine.
 
@@ -451,6 +512,7 @@ def psthForEachStore(inputParameters: dict[str, object]) -> None:
 
     _validate_psth_window_parameters(inputParameters)
     _validate_psth_significance_parameters(inputParameters)
+    _validate_events_overlap_signal(inputParameters)
 
     combine_data = inputParameters["combine_data"]
     numProcesses = inputParameters["numberOfCores"]
@@ -509,6 +571,7 @@ def run_psth_step(input_parameters: dict[str, object]) -> None:
     """
     _validate_psth_window_parameters(input_parameters)
     _validate_psth_significance_parameters(input_parameters)
+    _validate_events_overlap_signal(input_parameters)
     _start_step4_progress(input_parameters)
     executeFindFreqAndAmp(input_parameters)
     psthForEachStore(input_parameters)

@@ -139,3 +139,16 @@ def test_multiple_windows_produce_correctly_numbered_keys():
     assert "peak_pos_2" in result
     assert "peak_neg_2" in result
     assert "area_2" in result
+
+
+def test_peak_window_containing_no_samples_returns_nan():
+    # A 0.03 Hz PSTH axis puts no sample inside [-5, 0], which used to reach np.argmax with
+    # an empty slice.
+    psth_mean = np.zeros((2, 3))
+    timestamps = np.array([-10.0, 50.0])
+
+    result = compute_psth_peak_and_area(psth_mean, timestamps, 0.03, [-5.0], [0.0])
+
+    assert list(result.keys()) == ["peak_1", "area_1"]
+    assert np.isnan(result["peak_1"])
+    assert np.isnan(result["area_1"])
