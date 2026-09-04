@@ -20,7 +20,6 @@ This module knows nothing about Panel or neuroconv. It provides:
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from functools import lru_cache
@@ -29,6 +28,7 @@ from pathlib import Path
 import numpy as np
 import yaml
 
+from .stores_list import read_stores_list
 from ..analysis.io_utils import (
     CONTROL_PREFIX,
     SIGNAL_PREFIX,
@@ -74,7 +74,7 @@ def derive_channels(*, output_dir: str | Path) -> list[Channel]:
     response series' ``fiber_photometry_table_region`` against that order to recover which
     fiber recorded which site.
     """
-    stores_list = np.genfromtxt(os.path.join(output_dir, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
+    stores_list = read_stores_list(run_folder=output_dir)
     store_labels = [str(label) for label in stores_list[1, :]]
     label_to_store_name = {label: str(store) for store, label in zip(stores_list[0, :], store_labels)}
 

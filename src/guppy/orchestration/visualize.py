@@ -19,6 +19,7 @@ from ..frontend.parameterized_plotter import (
     remove_cols,
 )
 from ..frontend.visualization_dashboard import VisualizationDashboard
+from ..utils.stores_list import read_stores_list
 from ..utils.utils import (
     event_labels_for_analysis,
     get_all_stores_for_combining_data,
@@ -295,11 +296,7 @@ def visualizeResults(inputParameters: dict[str, object]) -> None:
                 store_array = np.concatenate(
                     (
                         store_array,
-                        np.genfromtxt(
-                            os.path.join(combined_output_groups[i][j], "storesList.csv"),
-                            dtype="str",
-                            delimiter=",",
-                        ).reshape(2, -1),
+                        read_stores_list(run_folder=combined_output_groups[i][j]),
                     ),
                     axis=1,
                 )
@@ -316,9 +313,7 @@ def visualizeResults(inputParameters: dict[str, object]) -> None:
             run_folders = select_run_folders(filepath, selected_runs.get(filepath))
             for j in range(len(run_folders)):
                 filepath = run_folders[j]
-                store_array = np.genfromtxt(
-                    os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=","
-                ).reshape(2, -1)
+                store_array = read_stores_list(run_folder=filepath)
 
                 createPlots(
                     filepath,
@@ -329,9 +324,7 @@ def visualizeResults(inputParameters: dict[str, object]) -> None:
     # Groups are ordinary output directories to the visualizer: one dashboard each,
     # opened alongside any selected session runs rather than instead of them.
     for group_folder in group_folders:
-        store_array = np.genfromtxt(os.path.join(group_folder, "storesList.csv"), dtype="str", delimiter=",").reshape(
-            2, -1
-        )
+        store_array = read_stores_list(run_folder=group_folder)
         createPlots(
             group_folder,
             event_labels_for_analysis(store_array=store_array, inputParameters=inputParameters),

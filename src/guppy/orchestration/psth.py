@@ -35,6 +35,7 @@ from ..analysis.standard_io import (
 )
 from ..utils import progress
 from ..utils.progress import step_error_handler
+from ..utils.stores_list import read_stores_list
 from ..utils.utils import (
     event_labels_for_analysis,
     get_all_stores_for_combining_data,
@@ -296,9 +297,7 @@ def orchestrate_psth(inputParameters: dict[str, object]) -> None:
         run_folders = select_run_folders(session_folders[i], selected_runs.get(session_folders[i]))
         for j in range(len(run_folders)):
             filepath = run_folders[j]
-            store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(
-                2, -1
-            )
+            store_array = read_stores_list(run_folder=filepath)
             event_labels = event_labels_for_analysis(store_array=store_array, inputParameters=inputParameters)
 
             # Each pool is closed and joined before leaving its block. The context manager's
@@ -355,9 +354,7 @@ def execute_psth_combined(inputParameters: dict[str, object]) -> None:
             store_array = np.concatenate(
                 (
                     store_array,
-                    np.genfromtxt(
-                        os.path.join(combined_output_groups[i][j], "storesList.csv"), dtype="str", delimiter=","
-                    ).reshape(2, -1),
+                    read_stores_list(run_folder=combined_output_groups[i][j]),
                 ),
                 axis=1,
             )

@@ -39,6 +39,7 @@ from ..analysis.timestamp_correction import correct_timestamps
 from ..analysis.z_score import compute_z_score
 from ..utils import progress
 from ..utils.progress import step_error_handler
+from ..utils.stores_list import read_stores_list
 from ..utils.utils import (
     get_all_stores_for_combining_data,
     resolve_run_folders,
@@ -73,9 +74,7 @@ def execute_timestamp_correction(session_folders: list[str], inputParameters: di
         logger.debug(f"Timestamps corrections started for {filepath}")
         for j in range(len(run_folders)):
             filepath = run_folders[j]
-            store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(
-                2, -1
-            )
+            store_array = read_stores_list(run_folder=filepath)
 
             if isosbestic_control == False:
                 store_array = add_control_channel(filepath, store_array)
@@ -246,7 +245,7 @@ def execute_artifact_removal(session_folders: list[str], inputParameters: dict[s
 
     for j in range(len(run_folders)):
         filepath = run_folders[j]
-        store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
+        store_array = read_stores_list(run_folder=filepath)
         _, artifactsRemovalMethod = read_artifact_provenance(destination=filepath)
 
         store_label_to_data = read_corrected_data_dict(filepath, store_array)
@@ -308,9 +307,6 @@ def execute_combine_data(
         session_run_folders = select_run_folders(filepath, selected_runs.get(filepath))
         for j in range(len(session_run_folders)):
             filepath = session_run_folders[j]
-            storesList_new = np.genfromtxt(
-                os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=","
-            ).reshape(2, -1)
             sampling_rate_filepaths.append(glob.glob(os.path.join(filepath, "timeCorrection_*")))
 
     # check if sampling rate is same for both data

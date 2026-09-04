@@ -271,9 +271,6 @@ def execute_find_freq_and_amp(
         run_folders = select_run_folders(filepath, selected_runs.get(filepath))
         for j in range(len(run_folders)):
             filepath = run_folders[j]
-            store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(
-                2, -1
-            )
             findFreqAndAmp(filepath, inputParameters, window=moving_window, numProcesses=numProcesses)
             progress.advance()
         logger.info("Transients in z-score data found and frequency and amplitude are calculated.")
@@ -304,6 +301,5 @@ def execute_find_freq_and_amp_combined(
     combined_output_groups = get_all_stores_for_combining_data(run_folders)
     for i in range(len(combined_output_groups)):
         filepath = combined_output_groups[i][0]
-        store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
         findFreqAndAmp(filepath, inputParameters, window=moving_window, numProcesses=numProcesses)
         progress.advance()
