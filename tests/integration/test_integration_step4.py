@@ -1,10 +1,13 @@
 import glob
 import os
+import shutil
 
+import numpy as np
 import pandas as pd
 import pytest
 
-from guppy.testing.api import step4
+from guppy.testing.api import step1, step2, step3, step4
+from guppy_test_data import STUBBED_TESTING_DATA
 
 
 @pytest.mark.parametrize(
@@ -124,3 +127,48 @@ def test_step4(step3_fixture_name, expected_recording_site, expected_ttl, reques
     # Binned metrics are opt-in, so a default Step 4 must not produce them.
     binned_metrics_file_paths = glob.glob(os.path.join(output_directory, "binned_metrics_*"))
     assert binned_metrics_file_paths == [], f"Unexpected binned metrics outputs: {binned_metrics_file_paths}"
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+def test_step4_rejects_events_that_share_no_timeline_with_the_signal(tmp_path):
+    """Step 4 refuses an event store on a different clock than the signal.
+
+    A CSV event file is read verbatim, so nothing before Step 4 can tell that its timestamps
+    belong to another clock. Steps 1-3 therefore succeed and the mismatch used to surface as an
+    out-of-range index inside the PSTH pools.
+    """
+    base_directory = tmp_path / "data_root"
+    base_directory.mkdir()
+    session_copy = base_directory / "sample_data_csv_1"
+    shutil.copytree(os.path.join(STUBBED_TESTING_DATA, "csv", "sample_data_csv_1"), session_copy)
+    for stale_output in glob.glob(os.path.join(session_copy, "sample_data_csv_1_output_*")):
+        shutil.rmtree(stale_output)
+
+    # The session's photometry spans [0, 411]s; these sit ~50000s away, as an unconverted
+    # acquisition clock would.
+    np.savetxt(
+        session_copy / "Sample_TTL.csv",
+        np.array([49956.0, 50531.0, 51107.0]),
+        header="timestamps",
+        comments="",
+        fmt="%.6f",
+    )
+
+    base_dir = str(base_directory)
+    selected_folders = [str(session_copy)]
+    store_id_to_store_label = {
+        "Sample_Control_Channel": "control_region",
+        "Sample_Signal_Channel": "signal_region",
+        "Sample_TTL": "ttl",
+    }
+    selected_runs = {str(session_copy): ["1"]}
+
+    step1(base_dir=base_dir, selected_folders=selected_folders, store_id_to_store_label=store_id_to_store_label)
+    step2(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
+    step3(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
+
+    with pytest.raises(ValueError, match=r"no trial overlaps the 'region' signal"):
+        step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
+
+    output_directory = glob.glob(os.path.join(session_copy, "sample_data_csv_1_output_*"))[0]
+    assert glob.glob(os.path.join(output_directory, "ttl_region_z_score_region.h5")) == []

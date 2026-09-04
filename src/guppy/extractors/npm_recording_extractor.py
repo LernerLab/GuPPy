@@ -433,6 +433,116 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             self._decomposed = streams
         return self._decomposed
 
+    @classmethod
+    def _timestamp_column_spans(cls, folder_path: str) -> dict[str, tuple[float, float]]:
+        """Return each named timestamp column's raw span across the session's data files.
+
+        Raw means in the file's own units, before ``npm_time_unit`` is applied. Header-less
+        sessions name no columns and yield an empty mapping.
+
+        Parameters
+        ----------
+        folder_path : str
+            Path to the session folder.
+
+        Returns
+        -------
+        dict
+            Maps timestamp column name to its ``(minimum, maximum)`` raw value.
+        """
+        column_spans: dict[str, tuple[float, float]] = {}
+        for path in cls._list_npm_files(folder_path):
+            flag, df, columns_are_strings = cls._classify_npm_file(path)
+            if flag == "event_np" or not columns_are_strings:
+                continue
+            for name in df.columns:
+                if "timestamp" not in str(name).lower():
+                    continue
+                values = np.asarray(df[name], dtype=float)
+                span = (float(np.nanmin(values)), float(np.nanmax(values)))
+                if str(name) in column_spans:
+                    previous = column_spans[str(name)]
+                    span = (min(previous[0], span[0]), max(previous[1], span[1]))
+                column_spans[str(name)] = span
+        return column_spans
+
+    def _validate_events_share_data_clock(self, *, events: list[str], streams: dict) -> None:
+        """Check that each selected event stream lies on the photometry channels' clock.
+
+        A session's photometry file may offer several timestamp columns on different clocks,
+        and ``npm_timestamp_column_name`` chooses between them for the photometry channels
+        only — an NPM event file carries a single column, always on the acquisition's absolute
+        clock. Selecting a column that is not that clock decouples the two streams, which stays
+        invisible until PSTH computation indexes far outside the trace.
+
+        Parameters
+        ----------
+        events : list of str
+            The event names being read.
+        streams : dict
+            The decomposed streams, as returned by :meth:`decompose`.
+
+        Raises
+        ------
+        ValueError
+            If a selected event stream has no timestamp inside the photometry timespan.
+        """
+        # Only the photometry being read alongside these events is a valid reference: Step 2 batches
+        # all of one extractor's stores into a single read, so a session whose traces come from
+        # another format selects no NPM channel here and has no NPM clock to be checked against.
+        data_timestamps = [streams[event]["timestamps"] for event in events if "data" in streams[event]]
+        selected_event_names = [event for event in events if "data" not in streams[event]]
+        if not data_timestamps or not selected_event_names:
+            return
+
+        data_start = min(float(timestamps[0]) for timestamps in data_timestamps)
+        data_end = max(float(timestamps[-1]) for timestamps in data_timestamps)
+
+        for event in selected_event_names:
+            event_timestamps = streams[event]["timestamps"]
+            # An event store with no timestamps at all is a separate problem, reported downstream.
+            if len(event_timestamps) == 0:
+                continue
+            if ((event_timestamps >= data_start) & (event_timestamps <= data_end)).any():
+                continue
+
+            message = (
+                f"Event store '{event}' spans [{float(event_timestamps[0]):.4g}, "
+                f"{float(event_timestamps[-1]):.4g}]s, which lies entirely outside the photometry "
+                f"timespan [{data_start:.4g}, {data_end:.4g}]s, so no PSTH trial can be built from it. "
+                f"{self._clock_advice(event_timestamps=event_timestamps)}"
+            )
+            logger.error(message)
+            raise ValueError(message)
+
+    def _clock_advice(self, *, event_timestamps: np.ndarray) -> str:
+        """Build the fix clause naming the timestamp column the events actually ride."""
+        divisor = self._time_unit_divisor(self.npm_time_unit)
+        raw_event_timestamps = np.asarray(event_timestamps, dtype=float) * divisor
+        column_spans = self._timestamp_column_spans(self.folder_path)
+
+        for column_name, (column_start, column_end) in column_spans.items():
+            if ((raw_event_timestamps >= column_start) & (raw_event_timestamps <= column_end)).any():
+                return (
+                    "NPM event files are written on the acquisition's absolute clock, which for this "
+                    f"session is the '{column_name}' column (raw span [{column_start:.6g}, {column_end:.6g}]). "
+                    f"Set Timestamp column to '{column_name}', and set Time unit to that column's own unit, "
+                    "in the Label Stores NPM configuration."
+                )
+
+        if column_spans:
+            offered = ", ".join(f"'{name}' [{start:.6g}, {end:.6g}]" for name, (start, end) in column_spans.items())
+            return (
+                "NPM event files are written on the acquisition's absolute clock, but none of this "
+                f"session's timestamp columns ({offered}, raw) contains these event times. Check the "
+                "Timestamp column and Time unit in the Label Stores NPM configuration."
+            )
+
+        return (
+            "NPM event files are written on the acquisition's absolute clock. Check the Time unit in "
+            "the Label Stores NPM configuration."
+        )
+
     def read(self, *, events: list[str], outputPath: str) -> list[dict[str, Any]]:
         """
         Read data for the specified events from the in-memory decomposition.
@@ -453,8 +563,14 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             ``store_id``, ``timestamps``, ``data``, and ``sampling_rate``;
             event streams produce dicts with keys ``store_id`` and
             ``timestamps``.
+
+        Raises
+        ------
+        ValueError
+            If a selected event stream lies entirely outside the photometry timespan.
         """
         streams = self.decompose()
+        self._validate_events_share_data_clock(events=events, streams=streams)
         output_dicts = []
         for event in events:
             output_dicts.append({"store_id": event, **streams[event]})

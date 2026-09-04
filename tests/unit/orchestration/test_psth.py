@@ -7,12 +7,14 @@ import pandas as pd
 import pytest
 
 from guppy.orchestration.psth import (
+    _validate_events_overlap_signal,
     _validate_psth_window_parameters,
     execute_compute_cross_correlation,
     execute_compute_psth,
     execute_compute_psth_peak_and_area,
     run_psth_step,
 )
+from guppy.utils._hdf5_io import write_hdf5
 from guppy.utils.progress import StepProgress, _current_step
 
 
@@ -377,3 +379,80 @@ class TestRunPsthStep:
             _current_step.reset(token)
 
         assert step.error_message == "transientsThresh=0 must be positive"
+
+
+class TestValidateEventsOverlapSignal:
+    """Step 4 refuses an event store that shares no timeline with the signal."""
+
+    @pytest.fixture
+    def step_parameters(self, tmp_path, base_input_parameters):
+        """Parameters naming one run folder holding a preprocessed site and one event store."""
+        session_folder = tmp_path / "session1"
+        run_folder = session_folder / "session1_output_1"
+        run_folder.mkdir(parents=True)
+        (run_folder / "storesList.csv").write_text("Dv1A,Dv2A,LNRW\ncontrol_dms,signal_dms,port_entries\n")
+        # The worker resolves recording sites by globbing the preprocessed metric files.
+        write_hdf5(np.zeros(3), "z_score_dms", str(run_folder), "data")
+        write_hdf5(np.linspace(0.0, 100.0, 11), "timeCorrection_dms", str(run_folder), "timestampNew")
+        base_input_parameters["session_folders"] = [str(session_folder)]
+        base_input_parameters["selected_runs"] = {str(session_folder): ["1"]}
+        base_input_parameters["nSecPrev"] = -10.0
+        base_input_parameters["nSecPost"] = 20.0
+        base_input_parameters["peak_startPoint"] = [0.0]
+        base_input_parameters["peak_endPoint"] = [5.0]
+        base_input_parameters["_run_folder"] = str(run_folder)
+        return base_input_parameters
+
+    def test_events_on_another_clock_are_rejected(self, step_parameters):
+        # Signal spans [0, 100]s; these events sit ~50000s away, as an unconverted clock would.
+        write_hdf5(np.array([49956.0, 50531.0]), "port_entries_dms", step_parameters["_run_folder"], "ts")
+
+        with pytest.raises(ValueError, match=r"no trial overlaps the 'dms' signal"):
+            _validate_events_overlap_signal(step_parameters)
+
+    def test_events_inside_the_signal_are_accepted(self, step_parameters):
+        write_hdf5(np.array([20.0, 60.0]), "port_entries_dms", step_parameters["_run_folder"], "ts")
+
+        _validate_events_overlap_signal(step_parameters)
+
+    def test_event_window_partly_overlapping_the_signal_is_accepted(self, step_parameters):
+        # 105s is past the 100s signal end, but the window's -10s side reaches back to 95s and
+        # still catches signal, which is exactly the case rowFormation NaN-pads.
+        write_hdf5(np.array([105.0]), "port_entries_dms", step_parameters["_run_folder"], "ts")
+
+        _validate_events_overlap_signal(step_parameters)
+
+    def test_empty_event_store_is_left_to_the_downstream_warning(self, step_parameters):
+        write_hdf5(np.array([]), "port_entries_dms", step_parameters["_run_folder"], "ts")
+
+        _validate_events_overlap_signal(step_parameters)
+
+    def test_transient_event_labels_are_skipped(self, step_parameters):
+        # Transients are written by executeFindFreqAndAmp, which runs after this check, so their
+        # event files do not exist yet on a first run.
+        write_hdf5(np.array([20.0]), "port_entries_dms", step_parameters["_run_folder"], "ts")
+        step_parameters["useTransientsAsEvents"] = True
+        step_parameters["selectForTransientsComputation"] = "z_score"
+
+        _validate_events_overlap_signal(step_parameters)
+
+    def test_off_clock_events_are_rejected_before_any_worker_runs(self, step_parameters, recorded_step4_calls):
+        write_hdf5(np.array([49956.0]), "port_entries_dms", step_parameters["_run_folder"], "ts")
+
+        with pytest.raises(ValueError, match=r"no trial overlaps the 'dms' signal"):
+            run_psth_step(step_parameters)
+
+        assert recorded_step4_calls == []
+
+    @pytest.fixture
+    def recorded_step4_calls(self, monkeypatch):
+        """Record any step-4 worker invocation, to prove validation precedes all of them."""
+        calls = []
+        monkeypatch.setattr(
+            "guppy.orchestration.psth.psthForEachStore", lambda inputParameters: calls.append("psthForEachStore")
+        )
+        monkeypatch.setattr(
+            "guppy.orchestration.psth.executeFindFreqAndAmp",
+            lambda inputParameters: calls.append("executeFindFreqAndAmp"),
+        )
+        return calls
