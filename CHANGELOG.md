@@ -9,6 +9,7 @@
 - Fixed the README's documentation links, which all carried an `/en/latest/` path prefix that 404s on the single-version Read the Docs project. [PR #469](https://github.com/LernerLab/GuPPy/pull/469)
 
 ## Improvements
+- Reading and writing `storesList.csv` now goes through a single `read_stores_list()`/`write_stores_list()` pair instead of a `np.genfromtxt(...).reshape(2, -1)` incantation copy-pasted across 22 call sites. [PR #480](https://github.com/LernerLab/GuPPy/pull/480)
 - Which existing run Steps 2–5 read can now be chosen by name: a **Run name(s) for all sessions** picker above the Output Folder Selection browser selects that run in every selected session at once, and directories ticked in the browser are left alone. Changing the session selection no longer discards the run choices already made for the other sessions. [PR #474](https://github.com/LernerLab/GuPPy/pull/474)
 - Reading TDT tanks is much faster on a network share: each continuous store's `.tev` data is now fetched in large sequential chunks instead of one small read per data block, so Read Raw Data no longer pays a network round trip for every block. [PR #473](https://github.com/LernerLab/GuPPy/pull/473)
 - GuPPy now reports its own version: `guppy --version` prints it, the user interface header shows it, and the [installation page](https://guppy.readthedocs.io/en/latest/installation.html) covers how to check it and how to upgrade an existing install. [PR #471](https://github.com/LernerLab/GuPPy/pull/471)
