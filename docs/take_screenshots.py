@@ -496,7 +496,7 @@ def screenshot_parameters(page: Page) -> None:
     page.wait_for_timeout(1500)
     page.screenshot(
         path=OUTPUT_DIR / "02_parameters.png",
-        clip={"x": 0, "y": 600, "width": 1280, "height": 800},
+        clip={"x": 0, "y": 870, "width": 1280, "height": 800},
     )
     print("Saved 02_parameters.png")
     page.set_viewport_size(VIEWPORT)
@@ -780,30 +780,26 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
         run_folder.mkdir(exist_ok=True)
 
     try:
-        # Drive the card directly rather than through the homepage: selecting a run
-        # in a served FileSelector takes several dependent clicks, and only this one
-        # card is in shot. Assigning the inner cross-selector's value is what moves
-        # an entry into the "Selected files" pane; setting FileSelector.value alone
-        # updates the parameter without redrawing the panes.
+        # Drive the card directly rather than through the homepage: only this one card
+        # is in shot, and selecting the session in the served input browser would take
+        # several dependent clicks first.
         form = ParameterForm(
             template=pn.template.MaterialTemplate(title="Input Parameters GUI"),
             start_path=str(SAMPLE_DATA_DIR.parent),
         )
-        form.outputs_selector._directory.value = str(SAMPLE_DATA_DIR)
-        form.outputs_selector._update_files()
-        form.outputs_selector._selector.value = [str(run_folders[2])]
-        form.output_folder_selection.collapsed = False
+        form.files_1.value = [str(SAMPLE_DATA_DIR)]
+        form.run_names_for_all_sessions.value = ["filter_250"]
 
         template = pn.template.MaterialTemplate(title="Input Parameters GUI")
         template.main.append(form.output_folder_selection)
         url = _serve(template)
 
         page.goto(url)
-        page.get_by_text("Existing runs (steps 2–5)").first.wait_for()
+        page.get_by_text("Run name(s) for all sessions").first.wait_for()
         page.wait_for_timeout(1500)
         page.screenshot(
             path=OUTPUT_DIR / "compare_parameters_existing_runs.png",
-            clip={"x": 0, "y": 0, "width": 1060, "height": 520},
+            clip={"x": 0, "y": 0, "width": 1060, "height": 360},
         )
         print("Saved compare_parameters_existing_runs.png")
 

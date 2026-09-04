@@ -28,15 +28,22 @@ The first card on the homepage, open by default. Selects the session data the pi
 
 ## Output Folder Selection
 
-The second card on the homepage, collapsed by default. Selects which existing per-session output run the later steps read and write.
+The second card on the homepage. Selects which existing per-session output run the later steps read and write.
 
 *Used by: Steps 2–5 (every step that operates on an existing output run: Load the raw data, Preprocess the signal, Compute the PSTH, Visualize the results).*
 
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
-| (existing-runs browser) | Existing `*_output_*` run directories the later steps act on. | list of paths | empty | one or more `*_output_*` directories, at least one per selected session |
+| Run name(s) for all sessions | Run name applied to every selected session at once. | list of run names | empty | run names present in all selected sessions |
+| Runs for `<session>` | Run names that one session will use. | list of run names | the bulk choice | that session's own run names |
 
-**Existing-runs browser** lists the `*_output_*` directories that already exist for the selected sessions and lets you pick which run each later step acts on. A run directory is created when you configure channels in the Label Stores GUI (Step 1); every step from loading the raw data onward then reads and writes the run you select here. Steps 2-4 need at least one run per session that has output directories on disk, or they raise a descriptive error before any work starts. Step 5 is the exception: it can visualize groups on their own, so it accepts an empty selection here as long as a group is selected. This is a UI selector, not a saved analysis parameter, so it has no internal name in the index below. To analyze one session under two different parameter sets and compare the results, see [Comparing Two Parameter Sets](../tutorials/compare_parameters.md).
+**Run name(s) for all sessions** picks a run by name rather than by browsing to it, so one choice covers a whole batch. A run is created when you configure channels in the Label Stores GUI (Step 1), which names it: the run directory `sample_data_csv_1_output_1` has the run name `1`. Because the same choice applies to every session, this picker offers only the run names that all of the selected sessions have. If they have no run name in common it stays empty and says so, and you choose per session instead.
+
+**Runs for `<session>`** appears once per selected session that has at least one run directory, and shows what that session will actually use. Setting the bulk picker fills all of them in; changing one afterwards leaves the rest alone, which is how you give a single session a different run. Sessions you have not run Step 1 on yet have no runs to choose from and get no row.
+
+Changing which sessions are selected does not discard these choices — sessions that stay selected keep the runs you picked for them, and a session you add starts from the current bulk choice.
+
+Steps 2-4 need at least one run per session that has output directories on disk, or they raise a descriptive error before any work starts. Step 5 is the exception: it can visualize groups on their own, so it accepts an empty selection here as long as a group is selected. This is a UI selector, not a saved analysis parameter, so it has no internal name in the index below. To analyze one session under two different parameter sets and compare the results, see [Comparing Two Parameter Sets](../tutorials/compare_parameters.md).
 
 ---
 
@@ -253,7 +260,7 @@ Collapsed by default on the homepage. Picks which defined groups the pipeline wo
 |-----------|-------------|------|---------|-----------------|
 | (file browser) | Group output directories to work with. | list of paths | empty | absolute paths to `<name>_group` directories |
 
-**File browser** is the group counterpart of [Output Folder Selection](#output-folder-selection), rooted at your home directory. The same selection serves both averaging and visualization, so you choose it once: the Group Analysis step averages into the selected groups, and Step 5 opens them alongside any selected session runs. Groups are created in the Label Groups GUI, whose controls are covered in [Average results across sessions](../how-to/group-analysis.md). This is a UI selector, not a saved analysis parameter, so it has no internal name in the index below.
+**File browser** selects groups by browsing to their directories, rooted at your home directory. The same selection serves both averaging and visualization, so you choose it once: the Group Analysis step averages into the selected groups, and Step 5 opens them alongside any selected session runs. Groups are created in the Label Groups GUI, whose controls are covered in [Average results across sessions](../how-to/group-analysis.md). This is a UI selector, not a saved analysis parameter, so it has no internal name in the index below.
 
 ---
 

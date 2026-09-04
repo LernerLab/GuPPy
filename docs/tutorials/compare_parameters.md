@@ -63,9 +63,8 @@ Run names may not be empty, contain path separators or `..`, or contain the subs
 
 ## Analyze it with the default filter window
 
-Back on the homepage, open **Output Folder Selection** and, under **Existing runs (steps
-2–5)**, select `sample_data_csv_1_output_filter_100` — and only that one. Every step you
-run acts on the runs selected here.
+Back on the homepage, in **Output Folder Selection**, set **Run name(s) for all sessions**
+to `filter_100` — and only that one. Every step you run acts on the runs selected here.
 
 Leave the parameters at their defaults; **Window for Moving Average filter (int)** is
 already `100`, which is the parameter set this run is named for.
@@ -93,12 +92,12 @@ which would throw away the result you just computed.
 
 ## Analyze it with a wider filter window
 
-Back on the homepage, open **Output Folder Selection** again. Both runs are now listed
-under **Existing runs (steps 2–5)**. Select `sample_data_csv_1_output_filter_250`, and
-make sure the first run is *not* selected.
+Back on the homepage, look at **Output Folder Selection** again. Both runs are now offered
+under **Run name(s) for all sessions**. Select `filter_250`, and make sure `filter_100` is
+*not* selected.
 
 ```{image} ../_static/images/compare_parameters_existing_runs.png
-:alt: The Output Folder Selection card's file browser listing the session's three run folders, sample_data_csv_1_output_1 and sample_data_csv_1_output_filter_100 on the left, with sample_data_csv_1_output_filter_250 moved into the Selected files list
+:alt: The Output Folder Selection card with filter_250 chosen in the Run name(s) for all sessions picker and echoed in the per-session Runs for sample_data_csv_1 picker below it
 :width: 100%
 ```
 
@@ -127,7 +126,7 @@ defeat the comparison.
 
 ## Compare the two runs
 
-Select **both** runs under **Existing runs (steps 2–5)**, then click **Open Visualization
+Select **both** runs under **Run name(s) for all sessions**, then click **Open Visualization
 GUI**. GuPPy opens one dashboard per selected run, each in its own browser tab, so you can
 flip between them with the same event and view selected.
 

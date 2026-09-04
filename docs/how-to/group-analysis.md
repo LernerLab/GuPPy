@@ -56,8 +56,8 @@ works whether or not anything is selected on the homepage.
 ## Selecting and averaging
 
 1. Open the **Group Output Folder Selection** card and tick the `<name>_group` directories you
-   want to work with. This card is the group counterpart of Output Folder Selection, and you
-   choose once: the same selection serves both averaging and visualization.
+   want to work with. You choose once: the same selection serves both averaging and
+   visualization.
 2. Click **Group Analysis** in the sidebar.
 
 Each selected group is averaged from its recorded members into its own directory. Re-running

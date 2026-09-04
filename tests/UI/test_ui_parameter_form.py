@@ -56,6 +56,16 @@ def test_tabulator_peak_start_time_column_header_visible(page, live_server_url):
 
 
 @pytest.mark.ui
+def test_output_folder_selection_card_shows_run_name_picker_on_load(page, live_server_url):
+    page.goto(live_server_url)
+    expect(page.get_by_text("Output Folder Selection").first).to_be_visible()
+    # The card is open on load, so the run-name picker and the empty-state message
+    # for the per-session pickers are both visible without any clicking.
+    expect(page.get_by_text("Run name(s) for all sessions").first).to_be_visible()
+    expect(page.get_by_text("No output directories yet").first).to_be_visible()
+
+
+@pytest.mark.ui
 def test_group_output_folder_selection_card_expands_on_click(page, live_server_url):
     page.goto(live_server_url)
     expect(page.get_by_text("Group Output Folder Selection").first).to_be_visible()

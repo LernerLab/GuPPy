@@ -92,6 +92,8 @@ class DandiSelector:
         os.makedirs(self._mirror_parent, exist_ok=True)
 
         self._current_mirror_root = None
+        # Re-attached to each rebuilt asset FileSelector by _make_asset_file_selector.
+        self._asset_selection_watchers = []
 
         self.dandiset_input = pn.widgets.TextInput(
             name="Dandiset ID",
@@ -159,7 +161,23 @@ class DandiSelector:
         # Hide the mirror-path TextInput at the top of the FileSelector — users
         # should never see the internal /tmp/guppy_dandi_mirror/... path.
         file_selector._directory.visible = False
+        for callback in self._asset_selection_watchers:
+            file_selector.param.watch(callback, "value")
         return file_selector
+
+    def attach_asset_selection_watcher(self, callback: object) -> None:
+        """Call ``callback`` whenever the set of selected NWB assets changes.
+
+        The asset ``FileSelector`` is rebuilt on every dandiset change, so watchers
+        registered here are re-attached to each replacement.
+
+        Parameters
+        ----------
+        callback : callable
+            Receives the Panel ``value`` change event.
+        """
+        self._asset_selection_watchers.append(callback)
+        self.asset_file_selector.param.watch(callback, "value")
 
     def _swap_asset_file_selector(self, root_directory: str) -> None:
         self.asset_file_selector = self._make_asset_file_selector(root_directory)
