@@ -10,6 +10,7 @@
 - Fixed the README's documentation links, which all carried an `/en/latest/` path prefix that 404s on the single-version Read the Docs project. [PR #469](https://github.com/LernerLab/GuPPy/pull/469)
 
 ## Improvements
+- GuPPy's core HDF5 and results I/O now builds paths with `pathlib.Path` rather than `os.path`, and `ruff`'s `PTH` rules are enabled with the not-yet-converted modules listed explicitly so the migration is tracked rather than open-ended. [PR #483](https://github.com/LernerLab/GuPPy/pull/483)
 - Every `zip()` over parallel sequences now declares `strict=`, so a pair that has silently truncated to the shorter operand raises instead. [PR #482](https://github.com/LernerLab/GuPPy/pull/482)
 - The six `write_*` helpers in `analysis/standard_io.py` no longer share a mutable list as their `index`/`columns` default, and each visualization dashboard now keeps its own render cache instead of one shared across every open dashboard. `ruff`'s `B006`, `B008`, `RUF012` and `DTZ` rules are enabled to keep both classes of shared state out. [PR #482](https://github.com/LernerLab/GuPPy/pull/482)
 - Logging calls now hand their arguments to the logger instead of formatting the message up front, so a filtered-out record costs nothing to build. Pre-f-string syntax (`.format()`, `typing.Callable`/`Sequence`/`Iterable`, `lru_cache(maxsize=None)`) is swept, and `ruff`'s `UP` and `G` rule sets are enabled to keep it that way. [PR #481](https://github.com/LernerLab/GuPPy/pull/481)
