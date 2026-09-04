@@ -440,7 +440,7 @@ def _compare_json_values(
         if len(actual) != len(expected):
             mismatches.append(f"{location}: list length mismatch: actual={len(actual)} expected={len(expected)}")
             return
-        for i, (actual_item, expected_item) in enumerate(zip(actual, expected)):
+        for i, (actual_item, expected_item) in enumerate(zip(actual, expected, strict=True)):
             _compare_json_values(actual_item, expected_item, rel_path, f"{key_path}[{i}]", mismatches)
 
     else:

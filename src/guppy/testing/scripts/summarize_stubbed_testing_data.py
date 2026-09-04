@@ -331,7 +331,7 @@ def main() -> None:
     print(header)
     print(separator)
 
-    for row, size_string in zip(rows, size_strings):
+    for row, size_string in zip(rows, size_strings, strict=True):
         line = (
             row["modality"].ljust(modality_width)
             + "  "

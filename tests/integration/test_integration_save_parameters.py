@@ -82,7 +82,7 @@ def test_save_parameters(tmp_path, default_parameters):
                 # Handle lists with NaN values
                 actual = data[key]
                 assert len(actual) == len(expected_value)
-                for i, (a, e) in enumerate(zip(actual, expected_value)):
+                for i, (a, e) in enumerate(zip(actual, expected_value, strict=True)):
                     if np.isnan(e):
                         assert np.isnan(a) or a is None, f"Mismatch at index {i}: expected NaN, got {a}"
                     else:

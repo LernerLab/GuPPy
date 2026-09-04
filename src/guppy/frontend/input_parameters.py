@@ -765,7 +765,7 @@ class ParameterForm:
         folder_names = self._prospective_dandi_sessions()
         for session_directory in folder_names:
             os.makedirs(session_directory, exist_ok=True)
-        dandi_uri_map = dict(zip(folder_names, selected_uris))
+        dandi_uri_map = dict(zip(folder_names, selected_uris, strict=True))
         return folder_names, output_root, dandi_uri_map
 
     def _add_comparison_row(self, event: object = None) -> None:

@@ -135,15 +135,18 @@ select = [
     "D103",  # Missing docstring in public function
     "UP", # All pyupgrade rules (includes UP006 non-pep585 and UP007 non-pep604 annotations)
     "G", # All flake8-logging-format rules (lazy %-formatting in logging calls)
+    "B", # All flake8-bugbear rules (mutable argument defaults, zip() without strict=, ...)
+    "RUF012", # Mutable class attribute not annotated with typing.ClassVar
+    "DTZ", # All flake8-datetimez rules (naive datetime construction)
     "ANN", # All type hint rules
 ]
 fixable = ["ALL"]
 
 [tool.ruff.lint.per-file-ignores]
 "**__init__.py" = ["F401", "I", "D1"]  # We are not enforcing import or docstring rules in __init__'s
-"test_**.py" = ["D1", "ANN"] # We are not enforcing docstring or type hint rules in test files.
-"**conftest.py" = ["D1", "ANN"] # conftest.py is test infrastructure; same exemption as test files.
-"**recording_extractor_test_mixin.py" = ["D1", "ANN"] # shared test mixin; test infrastructure, same exemption as test files.
+"test_**.py" = ["D1", "ANN", "RUF012"] # We are not enforcing docstring, type hint, or ClassVar rules in test files.
+"**conftest.py" = ["D1", "ANN", "RUF012"] # conftest.py is test infrastructure; same exemption as test files.
+"**recording_extractor_test_mixin.py" = ["D1", "ANN", "RUF012"] # shared test mixin; test infrastructure, same exemption as test files.
 
 [tool.ruff.lint.isort]
 relative-imports-order = "closest-to-furthest"

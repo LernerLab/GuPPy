@@ -127,7 +127,9 @@ def helper_plots(filepath: str, event: list[str], name: list[str], inputParamete
     x = [columns_dict[new_event[0]][-4]]
     y = overview_y_options(columns_dict[new_event[0]])
     trial_no = range(1, len(remove_cols(columns_dict[heatmap_options[0]])[:-2]) + 1)
-    trial_ts = [f"{i} - {j}" for i, j in zip(trial_no, remove_cols(columns_dict[heatmap_options[0]])[:-2])] + ["All"]
+    trial_ts = [
+        f"{i} - {j}" for i, j in zip(trial_no, remove_cols(columns_dict[heatmap_options[0]])[:-2], strict=True)
+    ] + ["All"]
 
     plotter = ParameterizedPlotter(
         event_selector_objects=new_event,

@@ -257,7 +257,7 @@ def validate_psth_comparisons(
         return str(value).strip()
 
     comparisons = []
-    for row_index, (raw_a, raw_b) in enumerate(zip(comparisons_a, comparisons_b), start=1):
+    for row_index, (raw_a, raw_b) in enumerate(zip(comparisons_a, comparisons_b, strict=True), start=1):
         event_a, event_b = _clean(raw_a), _clean(raw_b)
         if not event_a and not event_b:
             continue

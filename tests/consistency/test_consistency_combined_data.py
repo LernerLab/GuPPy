@@ -77,7 +77,7 @@ def test_consistency(tmp_path):
         selected_runs={selected_folders[1]: ["1"]},
     )
 
-    for session_copy, standard_output_dir in zip(session_copies, standard_output_dirs):
+    for session_copy, standard_output_dir in zip(session_copies, standard_output_dirs, strict=True):
         dest_name = session_copy.name
         run_folders = sorted(glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")))
         assert run_folders, f"No output directory found under {session_copy}"

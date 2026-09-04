@@ -76,7 +76,7 @@ def derive_channels(*, output_dir: str | Path) -> list[Channel]:
     """
     stores_list = read_stores_list(run_folder=output_dir)
     store_labels = [str(label) for label in stores_list[1, :]]
-    label_to_store_name = {label: str(store) for store, label in zip(stores_list[0, :], store_labels)}
+    label_to_store_name = {label: str(store) for store, label in zip(stores_list[0, :], store_labels, strict=True)}
 
     # Called for its validation: it raises when a signal has no matching control (or vice versa).
     # Its own output is sorted by recording site, which is why the order is re-derived below.

@@ -414,8 +414,8 @@ class TonicResultsView:
         panels = []
         for column, label in (("diff_zscore", "Δ mean z-score"), ("diff_dff", "Δ mean ΔF/F")):
             values = [float(table.loc[epoch, column]) for epoch in epochs]
-            bars = hv.Bars(list(zip(epochs, values)), "epoch", label).opts(
-                color=hv.dim("epoch").categorize(dict(zip(epochs, colors))),
+            bars = hv.Bars(list(zip(epochs, values, strict=True)), "epoch", label).opts(
+                color=hv.dim("epoch").categorize(dict(zip(epochs, colors, strict=True))),
                 title=f"{label} vs. {baseline}",
                 responsive=True,
                 height=280,

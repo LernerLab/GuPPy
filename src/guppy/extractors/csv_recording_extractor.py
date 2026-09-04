@@ -238,7 +238,7 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
         event_names, flags = CsvRecordingExtractor.discover_events_and_flags(self.folder_path)
 
         first_data_timestamp = None
-        for event_name, flag in zip(event_names, flags):
+        for event_name, flag in zip(event_names, flags, strict=True):
             if flag == "data_csv":
                 dataframe = pd.read_csv(Path(self.folder_path) / f"{event_name}.csv", index_col=False)
                 column_by_name = self._column_by_lowercase_name(dataframe)
@@ -247,7 +247,7 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
 
         cutoff_timestamp = first_data_timestamp + duration_in_seconds
 
-        for event_name, flag in zip(event_names, flags):
+        for event_name, _flag in zip(event_names, flags, strict=True):
             csv_path = folder_path / f"{event_name}.csv"
             dataframe = pd.read_csv(csv_path, index_col=False)
             column_by_name = self._column_by_lowercase_name(dataframe)
