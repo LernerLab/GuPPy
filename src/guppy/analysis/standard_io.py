@@ -1,5 +1,5 @@
 import logging
-import os
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -24,14 +24,14 @@ logger = logging.getLogger(__name__)
 
 
 def read_control_and_signal(
-    filepath: str, store_array: np.ndarray
+    filepath: str | Path, store_array: np.ndarray
 ) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray | None]]:
     """
     Load control and signal channel arrays from HDF5 files.
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Session output directory.
     store_array : np.ndarray
         2-D array with rows [store_id, store_label].
@@ -89,13 +89,13 @@ def read_control_and_signal(
     return store_label_to_data, store_label_to_timestamps, store_label_to_sampling_rate, store_label_to_npoints
 
 
-def read_ttl(filepath: str, store_array: np.ndarray) -> dict[str, np.ndarray]:
+def read_ttl(filepath: str | Path, store_array: np.ndarray) -> dict[str, np.ndarray]:
     """
     Load TTL event timestamps from HDF5 files, skipping control/signal channels and covariates.
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Session output directory.
     store_array : np.ndarray
         2-D array with rows [store_id, store_label].
@@ -120,7 +120,7 @@ def read_ttl(filepath: str, store_array: np.ndarray) -> dict[str, np.ndarray]:
 
 
 def write_corrected_timestamps(
-    filepath: str,
+    filepath: str | Path,
     corrected_name_to_timestamps: dict[str, np.ndarray],
     store_label_to_timestamps: dict[str, np.ndarray],
     store_label_to_sampling_rate: dict[str, np.ndarray],
@@ -132,7 +132,7 @@ def write_corrected_timestamps(
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Session output directory.
     corrected_name_to_timestamps : dict
         Store label → corrected timestamp array.
@@ -162,13 +162,13 @@ def write_corrected_timestamps(
         write_hdf5(sampling_rate, "timeCorrection_" + name_1, filepath, "sampling_rate")
 
 
-def write_corrected_data(filepath: str, store_label_to_corrected_data: dict[str, np.ndarray]) -> None:
+def write_corrected_data(filepath: str | Path, store_label_to_corrected_data: dict[str, np.ndarray]) -> None:
     """
     Write corrected data arrays to HDF5 files.
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Session output directory.
     store_label_to_corrected_data : dict
         Store label → corrected data array.
@@ -178,7 +178,7 @@ def write_corrected_data(filepath: str, store_label_to_corrected_data: dict[str,
 
 
 def write_corrected_ttl_timestamps(
-    filepath: str,
+    filepath: str | Path,
     compound_name_to_corrected_ttl_timestamps: dict[str, np.ndarray],
 ) -> None:
     """
@@ -186,7 +186,7 @@ def write_corrected_ttl_timestamps(
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Session output directory.
     compound_name_to_corrected_ttl_timestamps : dict
         Compound TTL name → corrected TTL timestamp array.
@@ -198,7 +198,7 @@ def write_corrected_ttl_timestamps(
 
 
 def read_corrected_data(
-    control_path: str, signal_path: str, filepath: str, name: str
+    control_path: str, signal_path: str, filepath: str | Path, name: str
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Load corrected control, signal, and timestamp arrays for one channel pair.
@@ -209,7 +209,7 @@ def read_corrected_data(
         Path to the control HDF5 file.
     signal_path : str
         Path to the signal HDF5 file.
-    filepath : str
+    filepath : str or Path
         Session output directory (used to find the ``timeCorrection_<name>`` file).
     name : str
         Channel pair suffix used to locate the timestamp-correction file.
@@ -231,7 +231,7 @@ def read_corrected_data(
 
 
 def write_zscore(
-    filepath: str,
+    filepath: str | Path,
     name: str,
     z_score: np.ndarray,
     dff: np.ndarray,
@@ -243,7 +243,7 @@ def write_zscore(
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Session output directory.
     name : str
         Channel pair suffix used in HDF5 key names.
@@ -264,14 +264,14 @@ def write_zscore(
 
 
 def read_corrected_timestamps_pairwise(
-    filepath: str,
+    filepath: str | Path,
 ) -> tuple[dict[str, np.ndarray], dict[str, float]]:
     """
     Load corrected timestamps and sampling rates for all channel pairs.
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Session output directory.
 
     Returns
@@ -304,13 +304,13 @@ def read_corrected_timestamps_pairwise(
     return pair_name_to_tsNew, pair_name_to_sampling_rate
 
 
-def read_coords_pairwise(filepath: str, pair_name_to_tsNew: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
+def read_coords_pairwise(filepath: str | Path, pair_name_to_tsNew: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
     """
     Load artifact-removal boundary coordinates for all channel pairs.
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Session output directory.
     pair_name_to_tsNew : dict
         Pair name → corrected timestamp array (used as fallback bounds).
@@ -342,14 +342,14 @@ def read_coords_pairwise(filepath: str, pair_name_to_tsNew: dict[str, np.ndarray
 
 
 def read_corrected_data_dict(
-    filepath: str, store_array: np.ndarray
+    filepath: str | Path, store_array: np.ndarray
 ) -> dict[str, np.ndarray]:  # TODO: coordinate with read_corrected_data
     """
     Load corrected control and signal data arrays into a flat dict.
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Session output directory.
     store_array : np.ndarray
         2-D array with rows [store_id, store_label].
@@ -373,13 +373,13 @@ def read_corrected_data_dict(
     return store_label_to_corrected_data
 
 
-def read_corrected_ttl_timestamps(filepath: str, store_array: np.ndarray) -> dict[str, np.ndarray]:
+def read_corrected_ttl_timestamps(filepath: str | Path, store_array: np.ndarray) -> dict[str, np.ndarray]:
     """
     Load corrected TTL timestamps for all non-channel stores.
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Session output directory.
     store_array : np.ndarray
         2-D array with rows [store_id, store_label].
@@ -418,7 +418,7 @@ def read_corrected_ttl_timestamps(filepath: str, store_array: np.ndarray) -> dic
 
 
 def write_artifact_corrected_timestamps(
-    filepath: str, pair_name_to_corrected_timestamps: dict[str, np.ndarray]
+    filepath: str | Path, pair_name_to_corrected_timestamps: dict[str, np.ndarray]
 ) -> None:
     """
     Write artifact-corrected timestamp arrays to the ``timeCorrection_*`` HDF5 keys.
@@ -429,7 +429,7 @@ def write_artifact_corrected_timestamps(
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Session output directory.
     pair_name_to_corrected_timestamps : dict
         Pair name → corrected timestamp array.
@@ -440,7 +440,7 @@ def write_artifact_corrected_timestamps(
 
 
 def write_artifact_removal(
-    filepath: str,
+    filepath: str | Path,
     store_label_to_corrected_data: dict[str, np.ndarray],
     pair_name_to_corrected_timestamps: dict[str, np.ndarray] | None,
     compound_name_to_corrected_ttl_timestamps: dict[str, np.ndarray] | None = None,
@@ -450,7 +450,7 @@ def write_artifact_removal(
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Session output directory.
     store_label_to_corrected_data : dict
         Store label → corrected data array.
@@ -593,7 +593,7 @@ def read_ttl_timestamps_for_combining_data(
             compound_name = store_labels[i] + "_" + pair_name
             compound_name_to_filepath_to_ttl_timestamps[compound_name] = {}
             for filepath in filepaths_to_combine:
-                if os.path.exists(os.path.join(filepath, store_labels[i] + "_" + pair_name + ".hdf5")):
+                if (Path(filepath) / (store_labels[i] + "_" + pair_name + ".hdf5")).exists():
                     ttl_timestamps = read_hdf5(store_labels[i] + "_" + pair_name, filepath, "ts").reshape(-1)
                 else:
                     ttl_timestamps = np.array([])
@@ -603,7 +603,7 @@ def read_ttl_timestamps_for_combining_data(
 
 
 def write_combined_data(
-    output_filepath: str,
+    output_filepath: str | Path,
     pair_name_to_tsNew: dict[str, np.ndarray],
     store_label_to_data: dict[str, np.ndarray],
     compound_name_to_ttl_timestamps: dict[str, np.ndarray],
@@ -616,7 +616,7 @@ def write_combined_data(
 
     Parameters
     ----------
-    output_filepath : str
+    output_filepath : str or Path
         Destination session output directory.
     pair_name_to_tsNew : dict
         Pair name → combined timestamp array.
@@ -634,13 +634,15 @@ def write_combined_data(
         write_hdf5(ttl_timestamps, compound_name, output_filepath, "ts")
 
 
-def write_peak_and_area_to_hdf5(filepath: str, peak_and_area_data: object, name: str, index: list[object]) -> None:
+def write_peak_and_area_to_hdf5(
+    filepath: str | Path, peak_and_area_data: object, name: str, index: list[object]
+) -> None:
     """
     Save peak and area-under-curve metrics to an HDF5 file.
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Output directory.
     peak_and_area_data : array-like
         Metrics data to store in the DataFrame.
@@ -650,21 +652,22 @@ def write_peak_and_area_to_hdf5(filepath: str, peak_and_area_data: object, name:
         Row index labels.
     """
 
-    output_path = os.path.join(filepath, "peak_AUC_" + name + ".h5")
-    dirname = os.path.dirname(filepath)
+    output_path = Path(filepath) / ("peak_AUC_" + name + ".h5")
 
     df = pd.DataFrame(peak_and_area_data, index=index)
 
     df.to_hdf(output_path, key="df", mode="w")
 
 
-def write_peak_and_area_to_csv(filepath: str, peak_and_area_data: object, name: str, index: list[object]) -> None:
+def write_peak_and_area_to_csv(
+    filepath: str | Path, peak_and_area_data: object, name: str, index: list[object]
+) -> None:
     """
     Save peak and area-under-curve metrics to a CSV file.
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Output directory.
     peak_and_area_data : array-like
         Metrics data to store in the DataFrame.
@@ -673,18 +676,18 @@ def write_peak_and_area_to_csv(filepath: str, peak_and_area_data: object, name: 
     index : list
         Row index labels.
     """
-    output_path = os.path.join(filepath, "peak_AUC_" + name + ".csv")
+    output_path = Path(filepath) / ("peak_AUC_" + name + ".csv")
     df = pd.DataFrame(peak_and_area_data, index=index)
 
     df.to_csv(output_path)
 
 
-def read_tonic_epochs(filepath: str, site: str) -> pd.DataFrame:
+def read_tonic_epochs(filepath: str | Path, site: str) -> pd.DataFrame:
     """Read the tonic epoch-window definitions for a single recording site.
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Session output (run) directory.
     site : str
         Recording-site name; the file is read from ``tonic_epochs_<site>.csv``.
@@ -696,18 +699,18 @@ def read_tonic_epochs(filepath: str, site: str) -> pd.DataFrame:
         frame (with those columns) is returned when the site has no epoch file,
         so a site without defined epochs is simply skipped downstream.
     """
-    input_path = os.path.join(filepath, "tonic_epochs_" + site + ".csv")
-    if not os.path.exists(input_path):
+    input_path = Path(filepath) / ("tonic_epochs_" + site + ".csv")
+    if not input_path.exists():
         return pd.DataFrame(columns=TONIC_EPOCH_COLUMNS)
     return pd.read_csv(input_path)
 
 
-def write_tonic_to_hdf5(filepath: str, tonic_data: pd.DataFrame, site: str) -> None:
+def write_tonic_to_hdf5(filepath: str | Path, tonic_data: pd.DataFrame, site: str) -> None:
     """Save per-epoch tonic means for a single recording site.
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Session output (run) directory.
     tonic_data : pd.DataFrame
         Per-epoch means (index = epoch label, columns ``mean_zscore`` /
@@ -715,36 +718,36 @@ def write_tonic_to_hdf5(filepath: str, tonic_data: pd.DataFrame, site: str) -> N
     site : str
         Recording-site name; the file is written as ``tonic_<site>.h5``.
     """
-    output_path = os.path.join(filepath, "tonic_" + site + ".h5")
+    output_path = Path(filepath) / ("tonic_" + site + ".h5")
     tonic_data.to_hdf(output_path, key="df", mode="w")
 
 
-def remove_tonic_results(filepath: str, site: str) -> None:
+def remove_tonic_results(filepath: str | Path, site: str) -> None:
     """Delete a recording site's saved epoch windows and means, if any are present.
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Session output (run) directory.
     site : str
         Recording-site name; removes ``tonic_epochs_<site>.csv`` and ``tonic_<site>.h5``.
     """
     for name in ("tonic_epochs_" + site + ".csv", "tonic_" + site + ".h5"):
-        path = os.path.join(filepath, name)
-        if os.path.exists(path):
-            os.remove(path)
+        path = Path(filepath) / name
+        if path.exists():
+            path.unlink()
             logger.info("Removed %s for recording site %s.", name, site)
 
 
 def write_freq_and_amp_to_hdf5(
-    filepath: str, freq_and_amp_data: object, name: str, index: list[object], columns: list[object]
+    filepath: str | Path, freq_and_amp_data: object, name: str, index: list[object], columns: list[object]
 ) -> None:
     """
     Save transient frequency and amplitude metrics to an HDF5 file.
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Output directory.
     freq_and_amp_data : array-like
         Metrics data to store in the DataFrame.
@@ -756,8 +759,7 @@ def write_freq_and_amp_to_hdf5(
         Column labels.
     """
 
-    output_path = os.path.join(filepath, "freqAndAmp_" + name + ".h5")
-    dirname = os.path.dirname(filepath)
+    output_path = Path(filepath) / ("freqAndAmp_" + name + ".h5")
 
     df = pd.DataFrame(freq_and_amp_data, index=index, columns=columns)
 
@@ -765,14 +767,14 @@ def write_freq_and_amp_to_hdf5(
 
 
 def write_freq_and_amp_to_csv(
-    filepath: str, freq_and_amp_data: object, name: str, index: list[object], columns: list[object]
+    filepath: str | Path, freq_and_amp_data: object, name: str, index: list[object], columns: list[object]
 ) -> None:
     """
     Save transient frequency and amplitude metrics to a CSV file.
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Output directory.
     freq_and_amp_data : array-like
         Metrics data to store in the DataFrame.
@@ -783,18 +785,18 @@ def write_freq_and_amp_to_csv(
     columns : list
         Column labels.
     """
-    output_path = os.path.join(filepath, name)
+    output_path = Path(filepath) / name
     df = pd.DataFrame(freq_and_amp_data, index=index, columns=columns)
     df.to_csv(output_path)
 
 
-def read_freq_and_amp_from_hdf5(filepath: str, name: str) -> pd.DataFrame:
+def read_freq_and_amp_from_hdf5(filepath: str | Path, name: str) -> pd.DataFrame:
     """
     Load transient frequency and amplitude metrics from an HDF5 file.
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Directory containing the ``freqAndAmp_<name>.h5`` file.
     name : str
         Filename stem (without the ``freqAndAmp_`` prefix or ``.h5`` suffix).
@@ -804,21 +806,21 @@ def read_freq_and_amp_from_hdf5(filepath: str, name: str) -> pd.DataFrame:
     df : pd.DataFrame
         DataFrame of frequency and amplitude metrics.
     """
-    output_path = os.path.join(filepath, "freqAndAmp_" + name + ".h5")
+    output_path = Path(filepath) / ("freqAndAmp_" + name + ".h5")
     df = pd.read_hdf(output_path, key="df", mode="r")
 
     return df
 
 
 def write_transients_to_hdf5(
-    filepath: str, name: str, z_score: np.ndarray, timestamps: np.ndarray, peaksInd: np.ndarray
+    filepath: str | Path, name: str, z_score: np.ndarray, timestamps: np.ndarray, peaksInd: np.ndarray
 ) -> None:
     """
     Write transient detection outputs (z-score, timestamps, peak indices) to HDF5.
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Session output directory.
     name : str
         Channel suffix used to build the HDF5 event key.
@@ -835,7 +837,7 @@ def write_transients_to_hdf5(
     write_hdf5(peaksInd, event, filepath, "peaksInd")
 
 
-def write_transients_as_event_to_hdf5(filepath: str, name: str, event_timestamps: np.ndarray) -> None:
+def write_transients_as_event_to_hdf5(filepath: str | Path, name: str, event_timestamps: np.ndarray) -> None:
     """
     Write detected transient times as an event timestamp file usable by the PSTH step.
 
@@ -845,7 +847,7 @@ def write_transients_as_event_to_hdf5(filepath: str, name: str, event_timestamps
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Session output directory.
     name : str
         Preprocessed basename the transients were detected on, e.g. ``"z_score_DMS"``.
@@ -855,13 +857,13 @@ def write_transients_as_event_to_hdf5(filepath: str, name: str, event_timestamps
     write_hdf5(event_timestamps, TRANSIENT_EVENT_PREFIX + name, filepath, "ts")
 
 
-def read_transients_from_hdf5(filepath: str, name: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def read_transients_from_hdf5(filepath: str | Path, name: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Load transient detection outputs from HDF5.
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Session output directory.
     name : str
         Channel suffix used to build the HDF5 event key.
@@ -882,13 +884,13 @@ def read_transients_from_hdf5(filepath: str, name: str) -> tuple[np.ndarray, np.
     return z_score, timestamps, peaksInd
 
 
-def write_binned_metrics_to_hdf5(filepath: str, binned_metrics: pd.DataFrame, recording_site: str) -> None:
+def write_binned_metrics_to_hdf5(filepath: str | Path, binned_metrics: pd.DataFrame, recording_site: str) -> None:
     """
     Save whole-session time-binned metrics to an HDF5 file.
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Output directory.
     binned_metrics : pd.DataFrame
         One row per time bin, as returned by
@@ -896,18 +898,18 @@ def write_binned_metrics_to_hdf5(filepath: str, binned_metrics: pd.DataFrame, re
     recording_site : str
         Recording site name; the file is written as ``binned_metrics_<recording_site>.h5``.
     """
-    output_path = os.path.join(filepath, "binned_metrics_" + recording_site + ".h5")
+    output_path = Path(filepath) / ("binned_metrics_" + recording_site + ".h5")
 
     binned_metrics.to_hdf(output_path, key="df", mode="w")
 
 
-def write_binned_metrics_to_csv(filepath: str, binned_metrics: pd.DataFrame, recording_site: str) -> None:
+def write_binned_metrics_to_csv(filepath: str | Path, binned_metrics: pd.DataFrame, recording_site: str) -> None:
     """
     Save whole-session time-binned metrics to a CSV file.
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Output directory.
     binned_metrics : pd.DataFrame
         One row per time bin, as returned by
@@ -915,18 +917,18 @@ def write_binned_metrics_to_csv(filepath: str, binned_metrics: pd.DataFrame, rec
     recording_site : str
         Recording site name; the file is written as ``binned_metrics_<recording_site>.csv``.
     """
-    output_path = os.path.join(filepath, "binned_metrics_" + recording_site + ".csv")
+    output_path = Path(filepath) / ("binned_metrics_" + recording_site + ".csv")
 
     binned_metrics.to_csv(output_path)
 
 
-def read_binned_metrics_from_hdf5(filepath: str, recording_site: str) -> pd.DataFrame:
+def read_binned_metrics_from_hdf5(filepath: str | Path, recording_site: str) -> pd.DataFrame:
     """
     Load whole-session time-binned metrics from an HDF5 file.
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Directory containing the ``binned_metrics_<recording_site>.h5`` file.
     recording_site : str
         Recording site name (without the ``binned_metrics_`` prefix or ``.h5`` suffix).
@@ -936,19 +938,19 @@ def read_binned_metrics_from_hdf5(filepath: str, recording_site: str) -> pd.Data
     binned_metrics : pd.DataFrame
         One row per time bin.
     """
-    output_path = os.path.join(filepath, "binned_metrics_" + recording_site + ".h5")
+    output_path = Path(filepath) / ("binned_metrics_" + recording_site + ".h5")
     binned_metrics = pd.read_hdf(output_path, key="df", mode="r")
 
     return binned_metrics
 
 
-def write_psth_significance_to_hdf5(*, filepath: str, significance: pd.DataFrame, name: str) -> None:
+def write_psth_significance_to_hdf5(*, filepath: str | Path, significance: pd.DataFrame, name: str) -> None:
     """
     Save a PSTH significance comparison to an HDF5 file.
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Output directory, normally the ``psth_significance_output/`` subdirectory.
     significance : pd.DataFrame
         One row per timepoint, as returned by
@@ -956,18 +958,18 @@ def write_psth_significance_to_hdf5(*, filepath: str, significance: pd.DataFrame
     name : str
         Comparison name; the file is written as ``significance_<name>.h5``.
     """
-    output_path = os.path.join(filepath, PSTH_SIGNIFICANCE_PREFIX + name + ".h5")
+    output_path = Path(filepath) / (PSTH_SIGNIFICANCE_PREFIX + name + ".h5")
 
     significance.to_hdf(output_path, key="df", mode="w")
 
 
-def write_psth_significance_to_csv(*, filepath: str, significance: pd.DataFrame, name: str) -> None:
+def write_psth_significance_to_csv(*, filepath: str | Path, significance: pd.DataFrame, name: str) -> None:
     """
     Save a PSTH significance comparison to a CSV file.
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Output directory, normally the ``psth_significance_output/`` subdirectory.
     significance : pd.DataFrame
         One row per timepoint, as returned by
@@ -975,18 +977,18 @@ def write_psth_significance_to_csv(*, filepath: str, significance: pd.DataFrame,
     name : str
         Comparison name; the file is written as ``significance_<name>.csv``.
     """
-    output_path = os.path.join(filepath, PSTH_SIGNIFICANCE_PREFIX + name + ".csv")
+    output_path = Path(filepath) / (PSTH_SIGNIFICANCE_PREFIX + name + ".csv")
 
     significance.to_csv(output_path, index=False)
 
 
-def read_psth_significance_from_hdf5(*, filepath: str, name: str) -> pd.DataFrame:
+def read_psth_significance_from_hdf5(*, filepath: str | Path, name: str) -> pd.DataFrame:
     """
     Load a PSTH significance comparison from an HDF5 file.
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Directory containing the ``significance_<name>.h5`` file.
     name : str
         Comparison name (without the ``significance_`` prefix or ``.h5`` suffix).
@@ -996,19 +998,21 @@ def read_psth_significance_from_hdf5(*, filepath: str, name: str) -> pd.DataFram
     significance : pd.DataFrame
         One row per timepoint.
     """
-    output_path = os.path.join(filepath, PSTH_SIGNIFICANCE_PREFIX + name + ".h5")
+    output_path = Path(filepath) / (PSTH_SIGNIFICANCE_PREFIX + name + ".h5")
     significance = pd.read_hdf(output_path, key="df", mode="r")
 
     return significance
 
 
-def write_binned_covariates_to_hdf5(*, filepath: str, binned_covariates: pd.DataFrame, recording_site: str) -> None:
+def write_binned_covariates_to_hdf5(
+    *, filepath: str | Path, binned_covariates: pd.DataFrame, recording_site: str
+) -> None:
     """
     Save per-bin behavioral covariate means to an HDF5 file.
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Output directory.
     binned_covariates : pd.DataFrame
         One row per time bin, as returned by
@@ -1016,18 +1020,20 @@ def write_binned_covariates_to_hdf5(*, filepath: str, binned_covariates: pd.Data
     recording_site : str
         Recording site name; the file is written as ``binned_covariates_<recording_site>.h5``.
     """
-    output_path = os.path.join(filepath, "binned_covariates_" + recording_site + ".h5")
+    output_path = Path(filepath) / ("binned_covariates_" + recording_site + ".h5")
 
     binned_covariates.to_hdf(output_path, key="df", mode="w")
 
 
-def write_binned_covariates_to_csv(*, filepath: str, binned_covariates: pd.DataFrame, recording_site: str) -> None:
+def write_binned_covariates_to_csv(
+    *, filepath: str | Path, binned_covariates: pd.DataFrame, recording_site: str
+) -> None:
     """
     Save per-bin behavioral covariate means to a CSV file.
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Output directory.
     binned_covariates : pd.DataFrame
         One row per time bin, as returned by
@@ -1035,18 +1041,18 @@ def write_binned_covariates_to_csv(*, filepath: str, binned_covariates: pd.DataF
     recording_site : str
         Recording site name; the file is written as ``binned_covariates_<recording_site>.csv``.
     """
-    output_path = os.path.join(filepath, "binned_covariates_" + recording_site + ".csv")
+    output_path = Path(filepath) / ("binned_covariates_" + recording_site + ".csv")
 
     binned_covariates.to_csv(output_path)
 
 
-def read_binned_covariates_from_hdf5(*, filepath: str, recording_site: str) -> pd.DataFrame:
+def read_binned_covariates_from_hdf5(*, filepath: str | Path, recording_site: str) -> pd.DataFrame:
     """
     Load per-bin behavioral covariate means from an HDF5 file.
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Directory containing the ``binned_covariates_<recording_site>.h5`` file.
     recording_site : str
         Recording site name (without the ``binned_covariates_`` prefix or ``.h5`` suffix).
@@ -1056,19 +1062,21 @@ def read_binned_covariates_from_hdf5(*, filepath: str, recording_site: str) -> p
     binned_covariates : pd.DataFrame
         One row per time bin.
     """
-    output_path = os.path.join(filepath, "binned_covariates_" + recording_site + ".h5")
+    output_path = Path(filepath) / ("binned_covariates_" + recording_site + ".h5")
     binned_covariates = pd.read_hdf(output_path, key="df", mode="r")
 
     return binned_covariates
 
 
-def write_covariate_correlations_to_hdf5(*, filepath: str, correlations: pd.DataFrame, recording_site: str) -> None:
+def write_covariate_correlations_to_hdf5(
+    *, filepath: str | Path, correlations: pd.DataFrame, recording_site: str
+) -> None:
     """
     Save covariate-versus-metric correlation coefficients to an HDF5 file.
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Output directory.
     correlations : pd.DataFrame
         One row per (metric, covariate) pair, as returned by
@@ -1076,18 +1084,20 @@ def write_covariate_correlations_to_hdf5(*, filepath: str, correlations: pd.Data
     recording_site : str
         Recording site name; the file is written as ``covariate_correlations_<recording_site>.h5``.
     """
-    output_path = os.path.join(filepath, "covariate_correlations_" + recording_site + ".h5")
+    output_path = Path(filepath) / ("covariate_correlations_" + recording_site + ".h5")
 
     correlations.to_hdf(output_path, key="df", mode="w")
 
 
-def write_covariate_correlations_to_csv(*, filepath: str, correlations: pd.DataFrame, recording_site: str) -> None:
+def write_covariate_correlations_to_csv(
+    *, filepath: str | Path, correlations: pd.DataFrame, recording_site: str
+) -> None:
     """
     Save covariate-versus-metric correlation coefficients to a CSV file.
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Output directory.
     correlations : pd.DataFrame
         One row per (metric, covariate) pair, as returned by
@@ -1095,18 +1105,18 @@ def write_covariate_correlations_to_csv(*, filepath: str, correlations: pd.DataF
     recording_site : str
         Recording site name; the file is written as ``covariate_correlations_<recording_site>.csv``.
     """
-    output_path = os.path.join(filepath, "covariate_correlations_" + recording_site + ".csv")
+    output_path = Path(filepath) / ("covariate_correlations_" + recording_site + ".csv")
 
     correlations.to_csv(output_path)
 
 
-def read_covariate_correlations_from_hdf5(*, filepath: str, recording_site: str) -> pd.DataFrame:
+def read_covariate_correlations_from_hdf5(*, filepath: str | Path, recording_site: str) -> pd.DataFrame:
     """
     Load covariate-versus-metric correlation coefficients from an HDF5 file.
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Directory containing the ``covariate_correlations_<recording_site>.h5`` file.
     recording_site : str
         Recording site name (without the ``covariate_correlations_`` prefix or ``.h5`` suffix).
@@ -1116,13 +1126,13 @@ def read_covariate_correlations_from_hdf5(*, filepath: str, recording_site: str)
     correlations : pd.DataFrame
         One row per (metric, covariate) pair.
     """
-    output_path = os.path.join(filepath, "covariate_correlations_" + recording_site + ".h5")
+    output_path = Path(filepath) / ("covariate_correlations_" + recording_site + ".h5")
     correlations = pd.read_hdf(output_path, key="df", mode="r")
 
     return correlations
 
 
-def read_covariate_series(filepath: str) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+def read_covariate_series(filepath: str | Path) -> dict[str, tuple[np.ndarray, np.ndarray]]:
     """Load every behavioral covariate store in a run folder.
 
     Step 2 writes each store under its raw store_id, so the covariate labels in
@@ -1130,7 +1140,7 @@ def read_covariate_series(filepath: str) -> dict[str, tuple[np.ndarray, np.ndarr
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Path to the session output directory.
 
     Returns

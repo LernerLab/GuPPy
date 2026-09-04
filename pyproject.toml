@@ -138,6 +138,7 @@ select = [
     "B", # All flake8-bugbear rules (mutable argument defaults, zip() without strict=, ...)
     "RUF012", # Mutable class attribute not annotated with typing.ClassVar
     "DTZ", # All flake8-datetimez rules (naive datetime construction)
+    "PTH", # All flake8-use-pathlib rules (os.path/glob/open -> pathlib.Path)
     "ANN", # All type hint rules
 ]
 fixable = ["ALL"]
@@ -147,6 +148,24 @@ fixable = ["ALL"]
 "test_**.py" = ["D1", "ANN", "RUF012"] # We are not enforcing docstring, type hint, or ClassVar rules in test files.
 "**conftest.py" = ["D1", "ANN", "RUF012"] # conftest.py is test infrastructure; same exemption as test files.
 "**recording_extractor_test_mixin.py" = ["D1", "ANN", "RUF012"] # shared test mixin; test infrastructure, same exemption as test files.
+
+# The pathlib migration (#478) runs module by module. Every entry below is a module that
+# still uses os.path/glob; each migration PR deletes the entries it converts, so what is
+# left here is the remaining work rather than a permanent exemption.
+"src/guppy/analysis/control_channel.py" = ["PTH"]
+"src/guppy/analysis/psth_average.py" = ["PTH"]
+"src/guppy/analysis/psth_utils.py" = ["PTH"]
+"src/guppy/analysis/transients_average.py" = ["PTH"]
+"src/guppy/utils/custom_events.py" = ["PTH"]
+"src/guppy/utils/nwb_io.py" = ["PTH"]
+"src/guppy/utils/nwb_metadata.py" = ["PTH"]
+"src/guppy/utils/utils.py" = ["PTH"]
+"src/guppy/utils/validation.py" = ["PTH"]
+"src/guppy/extractors/*" = ["PTH"]
+"src/guppy/frontend/*" = ["PTH"]
+"src/guppy/orchestration/*" = ["PTH"]
+"src/guppy/testing/*" = ["PTH"]
+"tests/*" = ["PTH"]
 
 [tool.ruff.lint.isort]
 relative-imports-order = "closest-to-furthest"
