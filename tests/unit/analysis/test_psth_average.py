@@ -7,7 +7,10 @@ from guppy.analysis.psth_average import (
     psth_shape_check,
     read_Df_area_peak,
 )
-from guppy.analysis.psth_utils import create_Df_for_psth
+from guppy.analysis.psth_utils import (
+    create_Df_for_cross_correlation,
+    create_Df_for_psth,
+)
 
 
 def test_psth_shape_check_all_same_length_returns_unchanged():
@@ -174,6 +177,104 @@ def test_average_psth_for_group_reports_false_when_no_member_has_the_event(tmp_p
 
     assert wrote_psth is False
     assert not (group_folder / "event_never_recorded_dms_z_score_dms.h5").exists()
+
+
+def test_average_psth_for_group_dff_mode_averages_the_dff_files(tmp_path, group_folder):
+    session1 = tmp_path / "session1"
+    session2 = tmp_path / "session2"
+    session1.mkdir()
+    session2.mkdir()
+
+    # A z-score trace is present but must be ignored in dff mode.
+    for session in (session1, session2):
+        (session / "z_score_dms.hdf5").touch()
+        (session / "dff_dms.hdf5").touch()
+
+    columns = ["trial1", "timestamps"]
+    create_Df_for_psth(
+        str(session1), "event_lever_dms", "dff_dms", np.array([[1.0, 2.0, 3.0], [0.0, 1.0, 2.0]]), columns=columns
+    )
+    create_Df_for_psth(
+        str(session2), "event_lever_dms", "dff_dms", np.array([[3.0, 4.0, 5.0], [0.0, 1.0, 2.0]]), columns=columns
+    )
+
+    wrote_psth = average_psth_for_group(
+        member_run_folders=[str(session1), str(session2)],
+        event="event_lever",
+        group_folder=str(group_folder),
+        inputParameters={"selectForComputePsth": "dff"},
+    )
+
+    assert wrote_psth is True
+    assert not (group_folder / "event_lever_dms_z_score_dms.h5").exists()
+    result = pd.read_hdf(group_folder / "event_lever_dms_dff_dms.h5", key="df", mode="r")
+    np.testing.assert_allclose(result["mean"].values, np.array([2.0, 3.0, 4.0]), atol=1e-6)
+
+
+def test_average_psth_for_group_both_modes_averages_z_score_and_dff(tmp_path, group_folder):
+    session = tmp_path / "session1"
+    session.mkdir()
+    (session / "z_score_dms.hdf5").touch()
+    (session / "dff_dms.hdf5").touch()
+
+    columns = ["trial1", "timestamps"]
+    create_Df_for_psth(
+        str(session), "event_lever_dms", "z_score_dms", np.array([[1.0, 2.0, 3.0], [0.0, 1.0, 2.0]]), columns=columns
+    )
+    create_Df_for_psth(
+        str(session), "event_lever_dms", "dff_dms", np.array([[7.0, 8.0, 9.0], [0.0, 1.0, 2.0]]), columns=columns
+    )
+
+    wrote_psth = average_psth_for_group(
+        member_run_folders=[str(session)],
+        event="event_lever",
+        group_folder=str(group_folder),
+        inputParameters={"selectForComputePsth": "both"},
+    )
+
+    assert wrote_psth is True
+    z_score_result = pd.read_hdf(group_folder / "event_lever_dms_z_score_dms.h5", key="df", mode="r")
+    dff_result = pd.read_hdf(group_folder / "event_lever_dms_dff_dms.h5", key="df", mode="r")
+    np.testing.assert_allclose(z_score_result["mean"].values, np.array([1.0, 2.0, 3.0]), atol=1e-6)
+    np.testing.assert_allclose(dff_result["mean"].values, np.array([7.0, 8.0, 9.0]), atol=1e-6)
+
+
+def test_average_psth_for_group_averages_the_members_cross_correlations(tmp_path, group_folder):
+    """Two recording sites give one correlated pair, whose per-member results are averaged."""
+    session1 = tmp_path / "session1"
+    session2 = tmp_path / "session2"
+    session1.mkdir()
+    session2.mkdir()
+
+    for session, first_lag_values in ((session1, [1.0, 2.0, 3.0]), (session2, [3.0, 4.0, 5.0])):
+        (session / "z_score_dms.hdf5").touch()
+        (session / "z_score_nac.hdf5").touch()
+        correlation_folder = session / "cross_correlation_output"
+        correlation_folder.mkdir()
+        create_Df_for_cross_correlation(
+            str(correlation_folder),
+            "corr_event_lever",
+            "z_score_dms_nac",
+            np.array([first_lag_values, [0.0, 1.0, 2.0]]),
+            columns=["trial1", "timestamps"],
+        )
+
+    average_psth_for_group(
+        member_run_folders=[str(session1), str(session2)],
+        event="event_lever",
+        group_folder=str(group_folder),
+        inputParameters={"selectForComputePsth": "z_score"},
+    )
+
+    averaged = pd.read_hdf(
+        group_folder / "cross_correlation_output" / "corr_event_lever_z_score_dms_nac.h5", key="df", mode="r"
+    )
+    np.testing.assert_allclose(averaged["session1"].values, np.array([1.0, 2.0, 3.0]), atol=1e-6)
+    np.testing.assert_allclose(averaged["session2"].values, np.array([3.0, 4.0, 5.0]), atol=1e-6)
+    # Across-member mean, and the SEM over the 2 members: std (ddof=0) = 1.0 -> 1.0 / sqrt(2)
+    np.testing.assert_allclose(averaged["mean"].values, np.array([2.0, 3.0, 4.0]), atol=1e-6)
+    np.testing.assert_allclose(averaged["err"].values, np.full(3, 0.7071068), atol=1e-6)
+    np.testing.assert_allclose(averaged["timestamps"].values, np.array([0.0, 1.0, 2.0]))
 
 
 def test_average_psth_for_group_handles_non_overlapping_stores_without_indexerror(tmp_path, group_folder):
