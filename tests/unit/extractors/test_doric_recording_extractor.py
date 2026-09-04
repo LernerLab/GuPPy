@@ -679,7 +679,7 @@ class TestTrailingPulseReadPaths:
     def test_csv_read_reports_trailing_onset(self, tmp_path):
         csv_path = tmp_path / "session.csv"
         times = np.linspace(0.0, 1.0, 11)
-        rows = "".join(f"{time},{int(level)},\n" for time, level in zip(times, _TRAILING_PULSE_TTL))
+        rows = "".join(f"{time},{int(level)},\n" for time, level in zip(times, _TRAILING_PULSE_TTL, strict=True))
         csv_path.write_text("---,Digital I/O | Ch.1,\n" "Time(s),DI/O-1,\n" + rows)
         extractor = DoricRecordingExtractor(str(tmp_path), {"DI/O-1": "ttl"})
         result = extractor.read(events=["DI/O-1"], outputPath="")
@@ -694,7 +694,9 @@ class TestDoricCsvAbsoluteTime:
         # A Time(s) clock that starts at 10.0 (not 0.0), so re-zeroing would be observable.
         times = np.linspace(10.0, 11.0, 11)
         signal = np.linspace(0.5, 1.5, 11)  # non-constant, finite -> passes signal validation
-        rows = "".join(f"{time},{sig},{int(level)},\n" for time, sig, level in zip(times, signal, _TRAILING_PULSE_TTL))
+        rows = "".join(
+            f"{time},{sig},{int(level)},\n" for time, sig, level in zip(times, signal, _TRAILING_PULSE_TTL, strict=True)
+        )
         csv_path.write_text("---,Analog In. | Ch.1,Digital I/O | Ch.1,\n" "Time(s),AIn-1,DI/O-1,\n" + rows)
 
     def test_ttl_onsets_are_absolute(self, tmp_path):

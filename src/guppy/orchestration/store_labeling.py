@@ -368,7 +368,7 @@ def build_store_labeling_template(
         take_widgets = store_labeling_selector.get_take_widgets()
         expanded_store_ids = []
         for i in range(len(take_widgets[1])):
-            for j in range(take_widgets[1][i]):
+            for _ in range(take_widgets[1][i]):
                 expanded_store_ids.append(take_widgets[0][i])
         if len(expanded_store_ids) > 0:
             store_ids = store_labeling_selector.get_cross_selector() + expanded_store_ids

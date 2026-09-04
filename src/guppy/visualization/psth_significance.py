@@ -41,7 +41,7 @@ def significant_intervals(*, timestamps: np.ndarray, significant: np.ndarray) ->
 
     intervals = []
     boundaries = np.diff(np.concatenate(([0], flags.view(np.int8), [0])))
-    for start, end in zip(np.flatnonzero(boundaries == 1), np.flatnonzero(boundaries == -1)):
+    for start, end in zip(np.flatnonzero(boundaries == 1), np.flatnonzero(boundaries == -1), strict=True):
         intervals.append((timestamps[start], timestamps[end - 1]))
 
     return intervals

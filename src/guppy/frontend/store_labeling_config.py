@@ -168,7 +168,7 @@ class StoreLabelingConfig:
                 desired_recording_site = self._control_desired_recording_site.get(widget_key)
                 restored = ""
                 if desired_recording_site is not None:
-                    for label, key in signal_options.items():
+                    for _label, key in signal_options.items():
                         if self.store_id_textboxes[key].value == desired_recording_site:
                             restored = key
                             break

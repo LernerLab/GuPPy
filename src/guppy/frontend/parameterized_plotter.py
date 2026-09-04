@@ -272,7 +272,7 @@ class ParameterizedPlotter(param.Parameterized):
             Name of the range param that changed (e.g. ``"cont_X"``); the matching
             plot's figure is moved to its current x and y ranges.
         """
-        for plot_key, x_name, y_name in self._RANGE_PLOTS:
+        for plot_key, x_name, y_name in self._RANGE_PLOTS:  # noqa: B007  (read after the loop)
             if name in (x_name, y_name):
                 break
         else:
@@ -515,7 +515,7 @@ class ParameterizedPlotter(param.Parameterized):
     def _update_df(self) -> None:
         columns = self.columns_dict[self.event_selector_heatmap]
         trial_no = range(1, len(remove_cols(columns)[:-2]) + 1)
-        trial_ts = [f"{i} - {j}" for i, j in zip(trial_no, remove_cols(columns)[:-2])] + ["All"]
+        trial_ts = [f"{i} - {j}" for i, j in zip(trial_no, remove_cols(columns)[:-2], strict=True)] + ["All"]
         self.param["heatmap_y"].objects = trial_ts
         self.heatmap_y = [trial_ts[-1]]
 
@@ -523,7 +523,7 @@ class ParameterizedPlotter(param.Parameterized):
     def _update_psth_y(self) -> None:
         columns = self.columns_dict[self.event_selector]
         trial_no = range(1, len(remove_cols(columns)[:-2]) + 1)
-        trial_ts = [f"{i} - {j}" for i, j in zip(trial_no, remove_cols(columns)[:-2])]
+        trial_ts = [f"{i} - {j}" for i, j in zip(trial_no, remove_cols(columns)[:-2], strict=True)]
         self.param["psth_y"].objects = trial_ts
         self.psth_y = [trial_ts[0]]
 

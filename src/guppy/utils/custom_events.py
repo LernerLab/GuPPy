@@ -50,7 +50,7 @@ def parse_pasted_timestamps(text: str) -> list[float]:
             raise ValueError(
                 f"Could not parse {token!r} as a number. Paste one timestamp (in seconds) per row, "
                 "with no header or text."
-            )
+            ) from None
     return timestamps
 
 
@@ -67,7 +67,7 @@ def is_sorted(timestamps: list[float]) -> bool:
     bool
         True if every value is greater than or equal to the previous one.
     """
-    return all(earlier <= later for earlier, later in zip(timestamps, timestamps[1:]))
+    return all(earlier <= later for earlier, later in zip(timestamps, timestamps[1:], strict=False))
 
 
 def write_custom_event_csv(*, name: str, timestamps: list[float], folder_path: str, overwrite: bool = False) -> str:

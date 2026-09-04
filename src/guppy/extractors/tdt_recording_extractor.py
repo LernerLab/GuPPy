@@ -492,7 +492,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         write_position = 0
         original_to_new_fp_loc = {}
         stream_name_to_num_written = {name.encode(): 0 for name in stream_name_to_num_segments}
-        for start, stop, stream_name_bytes in zip(all_starts, all_stops, all_stream_names):
+        for start, stop, stream_name_bytes in zip(all_starts, all_stops, all_stream_names, strict=True):
             with open(stubbed_tev_file_path, "a+b") as file:
                 gap = content[previous_stop:start]
                 file.write(gap)

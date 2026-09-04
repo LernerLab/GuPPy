@@ -159,7 +159,7 @@ def test_group_analysis_different_event_names_per_session(copied_sessions):
 
     # Step 1 is run per session so each gets a different behavioral-event store_id
     # while sharing the same control/signal (dms) fiber recording site.
-    for session_folder, subdir in zip(selected_folders, SESSION_SUBDIRS):
+    for session_folder, subdir in zip(selected_folders, SESSION_SUBDIRS, strict=True):
         step1(
             base_dir=base_dir,
             selected_folders=[session_folder],

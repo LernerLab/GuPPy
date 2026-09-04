@@ -110,7 +110,7 @@ def read_ttl(filepath: str, store_array: np.ndarray) -> dict[str, np.ndarray]:
     store_labels = store_array[1, :]
 
     store_label_to_timestamps = {}
-    for store_id, store_label in zip(store_ids, store_labels):
+    for store_id, store_label in zip(store_ids, store_labels, strict=True):
         if store_label in control_signal_names or is_covariate_label(store_label):
             continue
         timestamps = read_hdf5(store_id, filepath, "timestamps")
@@ -364,7 +364,7 @@ def read_corrected_data_dict(
     store_labels = store_array[1, :]
     control_and_signal_names = get_control_and_signal_channel_names(store_array)
 
-    for store_id, store_label in zip(store_ids, store_labels):
+    for _store_id, store_label in zip(store_ids, store_labels, strict=True):
         if store_label not in control_and_signal_names:
             continue
         data = read_hdf5(store_label, filepath, "data").reshape(-1)
@@ -394,7 +394,7 @@ def read_corrected_ttl_timestamps(filepath: str, store_array: np.ndarray) -> dic
     store_labels = store_array[1, :]
     control_signal_names = get_control_and_signal_channel_names(store_array)
 
-    for store_id, store_label in zip(store_ids, store_labels):
+    for _store_id, store_label in zip(store_ids, store_labels, strict=True):
         if store_label in control_signal_names:
             continue
         ttl_name = store_label
@@ -1141,7 +1141,7 @@ def read_covariate_series(filepath: str) -> dict[str, tuple[np.ndarray, np.ndarr
     store_array = read_stores_list(run_folder=filepath)
 
     covariate_series = {}
-    for store_id, store_label in zip(store_array[0, :], store_array[1, :]):
+    for store_id, store_label in zip(store_array[0, :], store_array[1, :], strict=True):
         if is_covariate_label(store_label):
             name = store_label[len(COVARIATE_PREFIX) :]
             timestamps = np.asarray(read_hdf5(store_id, filepath, "timestamps")).ravel()

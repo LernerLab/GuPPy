@@ -835,7 +835,7 @@ class TestParameterAutoPopulate:
     def test_set_input_parameters_round_trips_get_input_parameters(self, parameter_form):
         parameter_form.setInputParameters(SAVED_PARAMETERS)
         result = parameter_form.getInputParameters()
-        for key, widget in parameter_form._scalar_parameter_widgets().items():
+        for key in parameter_form._scalar_parameter_widgets():
             assert result[key] == SAVED_PARAMETERS[key], f"{key} did not round-trip"
         # NaN tail entries compare equal only via isnan.
         np.testing.assert_array_equal(result["peak_startPoint"], SAVED_PARAMETERS["peak_startPoint"])
