@@ -4,6 +4,7 @@
 - Artifact periods can now be marked by dragging horizontally across a trace on the Select Artifact Windows page, which shows one selectable trace at a time and toggles between **Mark artifacts** and **Navigate**; a **Copy windows from run** control loads the periods already saved for another run of the same session. [PR #472](https://github.com/LernerLab/GuPPy/pull/472)
 
 ## Fixes
+- An event store whose timestamps come from a different clock than the signal is now rejected with a message naming the mismatch — for Neurophotometrics sessions, the timestamp column the events actually ride — instead of failing with an unreadable array error during PSTH computation. [PR #489](https://github.com/LernerLab/GuPPy/pull/489)
 - A bound typed outside the recording on the Select Artifact Windows page is now pulled in to the nearest edge, with a warning naming the bound and the recording edge it moved to, instead of failing the first Save and then silently succeeding against a rewritten value. [PR #472](https://github.com/LernerLab/GuPPy/pull/472)
 - An artifact period that reaches the start or the end of the trace now trims that end of the recording outright, so a single session can lose more of its opening than **Eliminate first few seconds** takes from the whole batch. [PR #472](https://github.com/LernerLab/GuPPy/pull/472)
 - Fixed the README's documentation links, which all carried an `/en/latest/` path prefix that 404s on the single-version Read the Docs project. [PR #469](https://github.com/LernerLab/GuPPy/pull/469)
