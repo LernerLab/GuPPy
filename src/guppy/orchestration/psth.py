@@ -453,7 +453,7 @@ def _validate_events_overlap_signal(inputParameters: dict[str, object]) -> None:
     transient_labels = set(transient_event_labels(inputParameters=inputParameters))
 
     for filepath in resolve_run_folders(inputParameters["session_folders"], inputParameters):
-        store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
+        store_array = read_stores_list(run_folder=filepath)
         events = [
             event.replace("\\", "_").replace("/", "_")
             for event in event_labels_for_analysis(store_array=store_array, inputParameters=inputParameters)
@@ -464,15 +464,13 @@ def _validate_events_overlap_signal(inputParameters: dict[str, object]) -> None:
 
         # Mirror the worker's site resolution so we validate exactly what will be computed.
         if selectForComputePsth == "z_score":
-            preprocessed_paths = glob.glob(os.path.join(filepath, "z_score_*"))
+            preprocessed_paths = list(Path(filepath).glob("z_score_*"))
         elif selectForComputePsth == "dff":
-            preprocessed_paths = glob.glob(os.path.join(filepath, "dff_*"))
+            preprocessed_paths = list(Path(filepath).glob("dff_*"))
         else:
-            preprocessed_paths = glob.glob(os.path.join(filepath, "z_score_*")) + glob.glob(
-                os.path.join(filepath, "dff_*")
-            )
+            preprocessed_paths = list(Path(filepath).glob("z_score_*")) + list(Path(filepath).glob("dff_*"))
         recording_sites = dict.fromkeys(
-            recording_site_from_preprocessed_label(os.path.basename(path).split(".")[0]) for path in preprocessed_paths
+            recording_site_from_preprocessed_label(path.name.split(".")[0]) for path in preprocessed_paths
         )
 
         for name_1 in recording_sites:
