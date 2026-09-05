@@ -1,8 +1,7 @@
-import glob
 import logging
 import math
-import os
 import re
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -52,16 +51,16 @@ def average_psth_for_group(
     # combining paths to all the selected folders for doing average
     for i in range(len(member_run_folders)):
         if selectForComputePsth == "z_score":
-            matched_paths = glob.glob(os.path.join(member_run_folders[i], "z_score_*"))
+            matched_paths = list(Path(member_run_folders[i]).glob("z_score_*"))
         elif selectForComputePsth == "dff":
-            matched_paths = glob.glob(os.path.join(member_run_folders[i], "dff_*"))
+            matched_paths = list(Path(member_run_folders[i]).glob("dff_*"))
         else:
-            matched_paths = glob.glob(os.path.join(member_run_folders[i], "z_score_*")) + glob.glob(
-                os.path.join(member_run_folders[i], "dff_*")
+            matched_paths = list(Path(member_run_folders[i]).glob("z_score_*")) + list(
+                Path(member_run_folders[i]).glob("dff_*")
             )
 
         for j in range(len(matched_paths)):
-            basename = (os.path.basename(matched_paths[j])).split(".")[0]
+            basename = matched_paths[j].name.split(".")[0]
             name_1 = recording_site_from_preprocessed_label(basename)
             entry = [member_run_folders[i], event + "_" + name_1, basename]
             path.append(entry)
@@ -87,9 +86,8 @@ def average_psth_for_group(
         bin_columns = []
         session_entries = new_path[i]
         for j in range(len(session_entries)):
-            if not os.path.exists(
-                os.path.join(session_entries[j][0], session_entries[j][1] + f"_{session_entries[j][2]}.h5")
-            ):
+            psth_path = Path(session_entries[j][0]) / (session_entries[j][1] + f"_{session_entries[j][2]}.h5")
+            if not psth_path.exists():
                 continue
             else:
                 # read_Df arguments are filepath, event, name
@@ -98,7 +96,7 @@ def average_psth_for_group(
                 regex = re.compile("bin_[(]")
                 bin_columns = [column_names[i] for i in range(len(column_names)) if regex.match(column_names[i])]
                 psth.append(np.asarray(df["mean"]))
-                columns.append(os.path.basename(session_entries[j][0]))
+                columns.append(Path(session_entries[j][0]).name)
                 if len(bin_columns) > 0:
                     psth_bins.append(df[bin_columns])
 
@@ -142,11 +140,10 @@ def average_psth_for_group(
         row_indices = []
         session_entries = new_path[i]
         for j in range(len(session_entries)):
-            if not os.path.exists(
-                os.path.join(
-                    session_entries[j][0], "peak_AUC_" + session_entries[j][1] + "_" + session_entries[j][2] + ".h5"
-                )
-            ):
+            peak_auc_path = Path(session_entries[j][0]) / (
+                "peak_AUC_" + session_entries[j][1] + "_" + session_entries[j][2] + ".h5"
+            )
+            if not peak_auc_path.exists():
                 continue
             else:
                 df = read_Df_area_peak(session_entries[j][0], session_entries[j][1] + "_" + session_entries[j][2])
@@ -164,11 +161,11 @@ def average_psth_for_group(
         row_indices = list(np.concatenate(row_indices))
         new_df = pd.concat(peak_area_frames, axis=0)
         new_df.to_csv(
-            os.path.join(run_folder, f"peak_AUC_{session_entries[j][1]}_{session_entries[j][2]}.csv"),
+            Path(run_folder) / f"peak_AUC_{session_entries[j][1]}_{session_entries[j][2]}.csv",
             index=row_indices,
         )
         new_df.to_hdf(
-            os.path.join(run_folder, f"peak_AUC_{session_entries[j][1]}_{session_entries[j][2]}.h5"),
+            Path(run_folder) / f"peak_AUC_{session_entries[j][1]}_{session_entries[j][2]}.h5",
             key="df",
             mode="w",
             index=row_indices,
@@ -188,21 +185,14 @@ def average_psth_for_group(
         for j in range(len(member_run_folders)):
             corr_info, _ = getCorrCombinations(member_run_folders[j], inputParameters)
             for k in range(1, len(corr_info)):
-                path = os.path.join(
-                    member_run_folders[j],
-                    "cross_correlation_output",
-                    "corr_" + event + "_" + type[i] + "_" + corr_info[k - 1] + "_" + corr_info[k],
-                )
-                if not os.path.exists(path + ".h5"):
+                correlation_folder = Path(member_run_folders[j]) / "cross_correlation_output"
+                name = type[i] + "_" + corr_info[k - 1] + "_" + corr_info[k]
+                if not (correlation_folder / ("corr_" + event + "_" + name + ".h5")).exists():
                     continue
                 else:
-                    df = read_Df(
-                        os.path.join(member_run_folders[j], "cross_correlation_output"),
-                        "corr_" + event,
-                        type[i] + "_" + corr_info[k - 1] + "_" + corr_info[k],
-                    )
+                    df = read_Df(correlation_folder, "corr_" + event, name)
                     corr.append(df["mean"])
-                    columns.append(os.path.basename(member_run_folders[j]))
+                    columns.append(Path(member_run_folders[j]).name)
 
         if not isinstance(df, pd.DataFrame):
             break
@@ -273,7 +263,7 @@ def read_Df_area_peak(filepath: str, name: str) -> pd.DataFrame:
     df : pd.DataFrame
         DataFrame of peak and area-under-curve metrics.
     """
-    output_path = os.path.join(filepath, "peak_AUC_" + name + ".h5")
+    output_path = Path(filepath) / ("peak_AUC_" + name + ".h5")
     df = pd.read_hdf(output_path, key="df", mode="r")
 
     return df

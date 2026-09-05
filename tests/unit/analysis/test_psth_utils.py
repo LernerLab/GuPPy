@@ -40,6 +40,19 @@ def test_create_df_for_psth_timestamps_column_excluded_from_mean(tmp_path):
     np.testing.assert_allclose(df["mean"].iloc[0], 10.0, atol=1e-4)
 
 
+def test_create_df_for_psth_without_a_name_writes_the_event_only_filename(tmp_path):
+    psth = np.array([[1.0, 2.0, 3.0], [3.0, 4.0, 5.0], [0.0, 1.0, 2.0]])
+    columns = ["trial1", "trial2", "timestamps"]
+
+    create_Df_for_psth(str(tmp_path), "event_lever", "", psth, columns=columns)
+
+    assert (tmp_path / "event_lever.h5").exists()
+    assert not (tmp_path / "event_lever_.h5").exists()
+    df = pd.read_hdf(tmp_path / "event_lever.h5", key="df")
+    # mean over the two trial columns at each timepoint: [(1+3)/2, (2+4)/2, (3+5)/2]
+    np.testing.assert_allclose(df["mean"].values, np.array([2.0, 3.0, 4.0]), atol=1e-4)
+
+
 # ── create_Df_for_cross_correlation ───────────────────────────────────────────
 
 
@@ -53,6 +66,19 @@ def test_create_df_for_cross_correlation_creates_hdf5_file_with_mean_column(tmp_
     assert (tmp_path / "corr_lever_z_score_dms_nac.h5").exists()
     df = pd.read_hdf(tmp_path / "corr_lever_z_score_dms_nac.h5", key="df")
     assert "mean" in df.columns
+    # mean at timepoint 0: mean([0.1, 0.2]) = 0.15
+    np.testing.assert_allclose(df["mean"].iloc[0], 0.15, atol=1e-4)
+
+
+def test_create_df_for_cross_correlation_without_a_name_writes_the_event_only_filename(tmp_path):
+    psth = np.array([[0.1, 0.3, 0.5], [0.2, 0.4, 0.6], [0.0, 1.0, 2.0]])
+    columns = ["sess1", "sess2", "timestamps"]
+
+    create_Df_for_cross_correlation(str(tmp_path), "corr_lever", "", psth, columns=columns)
+
+    assert (tmp_path / "corr_lever.h5").exists()
+    assert not (tmp_path / "corr_lever_.h5").exists()
+    df = pd.read_hdf(tmp_path / "corr_lever.h5", key="df")
     # mean at timepoint 0: mean([0.1, 0.2]) = 0.15
     np.testing.assert_allclose(df["mean"].iloc[0], 0.15, atol=1e-4)
 
@@ -93,6 +119,27 @@ def test_get_corr_combinations_one_signal_returns_single_name(tmp_path):
     corr_info, _ = getCorrCombinations(str(tmp_path), input_parameters)
 
     assert corr_info == ["dms"]
+
+
+def test_get_corr_combinations_dff_mode_reads_the_dff_files(tmp_path):
+    (tmp_path / "z_score_dms.hdf5").touch()
+    (tmp_path / "dff_dms.hdf5").touch()
+    (tmp_path / "dff_nac.hdf5").touch()
+
+    corr_info, signal_type = getCorrCombinations(str(tmp_path), {"selectForComputePsth": "dff"})
+
+    assert set(corr_info) == {"dms", "nac"}
+    assert signal_type == ["dff"]
+
+
+def test_get_corr_combinations_both_modes_reads_z_score_and_dff(tmp_path):
+    (tmp_path / "z_score_dms.hdf5").touch()
+    (tmp_path / "dff_nac.hdf5").touch()
+
+    corr_info, signal_type = getCorrCombinations(str(tmp_path), {"selectForComputePsth": "both"})
+
+    assert set(corr_info) == {"dms", "nac"}
+    assert signal_type == ["dff", "z_score"]
 
 
 # ── match_trials_by_timestamp ─────────────────────────────────────────────────

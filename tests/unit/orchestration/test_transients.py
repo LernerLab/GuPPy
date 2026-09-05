@@ -1,5 +1,5 @@
 import json
-import os
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -75,7 +75,7 @@ class TestFindBinnedMetrics:
         np.testing.assert_allclose(binned["mean_zscore"].to_numpy(), [2.0, 7.5])
         np.testing.assert_allclose(binned["mean_dff"].to_numpy(), [0.2, 0.75])
         np.testing.assert_array_equal(binned["transient_count_z_score"].to_numpy(), [1, 2])
-        assert os.path.exists(os.path.join(run_folder, "binned_metrics_dms.csv"))
+        assert (Path(run_folder) / "binned_metrics_dms.csv").exists()
 
     def test_bins_span_the_uncompressed_time_axis(self, run_folder, base_input_parameters):
         # Regression guard: binning must use timestampNew, not the NaN-stripped
@@ -105,7 +105,7 @@ class TestFindCovariateCorrelations:
     def run_folder(self, tmp_path):
         """A run folder with one binned-metrics table and one covariate store."""
         np.savetxt(
-            os.path.join(str(tmp_path), "storesList.csv"),
+            Path(str(tmp_path)) / "storesList.csv",
             np.array([["akinesia", "Dv2A"], ["covariate_akinesia", "signal_dms"]]),
             delimiter=",",
             fmt="%s",
@@ -155,12 +155,12 @@ class TestFindCovariateCorrelations:
     def test_writes_csv_twins(self, run_folder, base_input_parameters):
         findCovariateCorrelations(run_folder, base_input_parameters, ["dms"])
 
-        assert os.path.exists(os.path.join(run_folder, "binned_covariates_dms.csv"))
-        assert os.path.exists(os.path.join(run_folder, "covariate_correlations_dms.csv"))
+        assert (Path(run_folder) / "binned_covariates_dms.csv").exists()
+        assert (Path(run_folder) / "covariate_correlations_dms.csv").exists()
 
     def test_no_covariate_store_writes_nothing(self, tmp_path, base_input_parameters):
         np.savetxt(
-            os.path.join(str(tmp_path), "storesList.csv"),
+            Path(str(tmp_path)) / "storesList.csv",
             np.array([["Dv2A", "PrtN"], ["signal_dms", "port_entries"]]),
             delimiter=",",
             fmt="%s",
@@ -168,10 +168,10 @@ class TestFindCovariateCorrelations:
 
         findCovariateCorrelations(str(tmp_path), base_input_parameters, ["dms"])
 
-        assert not os.path.exists(os.path.join(str(tmp_path), "covariate_correlations_dms.h5"))
+        assert not (Path(str(tmp_path)) / "covariate_correlations_dms.h5").exists()
 
     def test_concatenated_outputs_raise(self, run_folder, base_input_parameters):
-        with open(os.path.join(run_folder, "GuPPyParamtersUsed.json"), "w") as parameters_file:
+        with (Path(run_folder) / "GuPPyParamtersUsed.json").open("w") as parameters_file:
             json.dump({"removeArtifacts": True, "artifactsRemovalMethod": "concatenate"}, parameters_file)
 
         with pytest.raises(ValueError, match="concatenate"):

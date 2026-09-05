@@ -11,6 +11,7 @@ to the standalone :class:`GuppyInterface`, which adds the GuPPy outputs to the f
 import logging
 import os
 from contextlib import closing
+from pathlib import Path
 
 from pynwb import NWBFile
 from pynwb.device import DeviceModel
@@ -62,7 +63,7 @@ def _validate_artifact_removal_methods(*, pairs: list[tuple[str, str]]) -> None:
         guppy_folder_path = run_folder_for_run(session_path, run_name)
         artifacts_removed, removal_method = read_artifact_provenance(destination=guppy_folder_path)
         if artifacts_removed and removal_method == _UNSUPPORTED_ARTIFACT_REMOVAL_METHOD:
-            offending.append(f"{os.path.basename(session_path.rstrip(os.sep))} ({run_name})")
+            offending.append(f"{Path(session_path.rstrip(os.sep)).name} ({run_name})")
 
     if offending:
         raise ValueError(
@@ -90,9 +91,9 @@ def _warn_psth_significance_not_exported(*, pairs: list[tuple[str, str]]) -> Non
         ``(session_path, run_name)`` pairs selected for export.
     """
     tested = [
-        f"{os.path.basename(session_path.rstrip(os.sep))} ({run_name})"
+        f"{Path(session_path.rstrip(os.sep)).name} ({run_name})"
         for session_path, run_name in pairs
-        if os.path.isdir(os.path.join(run_folder_for_run(session_path, run_name), PSTH_SIGNIFICANCE_DIRNAME))
+        if (Path(run_folder_for_run(session_path, run_name)) / PSTH_SIGNIFICANCE_DIRNAME).is_dir()
     ]
     if not tested:
         return
@@ -111,7 +112,7 @@ def _overlay_metadata_yaml(*, metadata: dict, metadata_yaml_path: str | None) ->
     """Apply the session's ``nwb_metadata.yaml`` on top of auto-filled metadata, when it exists."""
     from neuroconv.utils import dict_deep_update, load_dict_from_file
 
-    if metadata_yaml_path and os.path.exists(metadata_yaml_path):
+    if metadata_yaml_path and Path(metadata_yaml_path).exists():
         return dict_deep_update(metadata, load_dict_from_file(metadata_yaml_path))
     return metadata
 
@@ -174,7 +175,7 @@ def _export_session_from_nwb_source(
     nwb_source: str,
     guppy_folder_path: str,
     metadata_yaml_path: str | None,
-    nwbfile_path: str,
+    nwbfile_path: str | Path,
 ) -> str:
     """Add one GuPPy session/run's outputs to the NWB file it was processed out of.
 
@@ -222,7 +223,7 @@ def export_session_to_nwb(
     acquisition_format: str,
     guppy_folder_path: str,
     metadata_yaml_path: str | None,
-    nwbfile_path: str,
+    nwbfile_path: str | Path,
     nwb_source: str | None = None,
 ) -> str:
     """Convert one GuPPy session/run to NWB.
@@ -241,7 +242,7 @@ def export_session_to_nwb(
     metadata_yaml_path : str or None
         The session's metadata overlay (``nwb_metadata.yaml``). Applied, when
         present, on top of the auto-filled metadata.
-    nwbfile_path : str
+    nwbfile_path : str or Path
         Output path for the written ``.nwb`` file.
     nwb_source : str or None, optional
         The NWB file this session was processed out of — a local path or a ``dandi://`` URI. When
@@ -315,12 +316,12 @@ def orchestrate_export_nwb(inputParameters: dict[str, object]) -> None:
     failures = []
     for session_path, run_name in pairs:
         guppy_folder_path = run_folder_for_run(session_path, run_name)
-        session_basename = os.path.basename(session_path.rstrip(os.sep))
-        output_dir_name = os.path.basename(guppy_folder_path.rstrip(os.sep))
-        metadata_yaml_path = os.path.join(guppy_folder_path, METADATA_FILENAME)
+        session_basename = Path(session_path.rstrip(os.sep)).name
+        output_dir_name = Path(guppy_folder_path.rstrip(os.sep)).name
+        metadata_yaml_path = Path(guppy_folder_path) / METADATA_FILENAME
         # Name the file after the full output directory so exports from multiple runs/sessions
         # stay distinct and can be aggregated into one folder without renaming.
-        nwbfile_path = os.path.join(guppy_folder_path, f"{output_dir_name}.nwb")
+        nwbfile_path = Path(guppy_folder_path) / f"{output_dir_name}.nwb"
 
         try:
             acquisition_format, nwb_source = resolve_session_source(

@@ -96,8 +96,8 @@ def compare_output_folders(
         of a shared file does not match. The error message lists every
         discrepancy found.
     """
-    actual_dir = os.path.abspath(actual_dir)
-    expected_dir = os.path.abspath(expected_dir)
+    actual_dir = str(Path(actual_dir).resolve())
+    expected_dir = str(Path(expected_dir).resolve())
     name_map = name_map or {}
 
     expected_files = _collect_relative_paths(expected_dir)
@@ -109,17 +109,17 @@ def compare_output_folders(
             mapped = name_map[rel_path]
             if mapped is None:
                 # Intentionally not reproduced by the current code; its absence is required.
-                if os.path.exists(os.path.join(actual_dir, rel_path)):
+                if (Path(actual_dir) / rel_path).exists():
                     mismatches.append(f"UNEXPECTEDLY PRESENT (mapped to None): {rel_path}")
                 continue
             actual_rel = mapped
         else:
             actual_rel = rel_path
 
-        actual_path = os.path.join(actual_dir, actual_rel)
-        expected_path = os.path.join(expected_dir, rel_path)
+        actual_path = Path(actual_dir) / actual_rel
+        expected_path = Path(expected_dir) / rel_path
 
-        if not os.path.exists(actual_path):
+        if not Path(actual_path).exists():
             detail = actual_rel if actual_rel == rel_path else f"{actual_rel} (mapped from {rel_path})"
             mismatches.append(f"MISSING in actual: {detail}")
             continue
@@ -212,7 +212,7 @@ def _collect_relative_paths(root: str) -> list[str]:
         # Prune skipped directories in-place so os.walk does not descend into them.
         dirnames[:] = [dirname for dirname in dirnames if dirname not in _SKIP_DIRS]
         for filename in filenames:
-            full_path = os.path.join(dirpath, filename)
+            full_path = Path(dirpath) / filename
             result.append(os.path.relpath(full_path, root))
     return result
 
@@ -401,9 +401,9 @@ def _compare_json(
     mismatches: list[str],
 ) -> None:
     """Compare two JSON files with NaN-safe value comparison."""
-    with open(actual_path) as actual_file:
+    with Path(actual_path).open() as actual_file:
         actual_data = json.load(actual_file)
-    with open(expected_path) as expected_file:
+    with Path(expected_path).open() as expected_file:
         expected_data = json.load(expected_file)
 
     json_mismatches: list[str] = []

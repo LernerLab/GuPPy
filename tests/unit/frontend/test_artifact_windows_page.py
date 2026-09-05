@@ -1,5 +1,5 @@
 import json
-import os
+from pathlib import Path
 
 import holoviews as hv
 import numpy as np
@@ -36,7 +36,7 @@ def run_folder(tmp_path):
     for site in ("DMS", "DLS"):
         _write_site(tmp_path, site)
     # Step 3 always leaves a snapshot behind; the page updates its artifact keys on save.
-    with open(os.path.join(str(tmp_path), "GuPPyParamtersUsed.json"), "w") as parameters_file:
+    with (Path(str(tmp_path)) / "GuPPyParamtersUsed.json").open("w") as parameters_file:
         json.dump({"removeArtifacts": False, "artifactsRemovalMethod": "replace with NaN"}, parameters_file)
     return tmp_path
 
@@ -50,7 +50,7 @@ def session_folder(tmp_path):
         run_folder.mkdir(parents=True)
         for site in ("DMS", "DLS"):
             _write_site(run_folder, site)
-        with open(os.path.join(str(run_folder), "GuPPyParamtersUsed.json"), "w") as parameters_file:
+        with (Path(str(run_folder)) / "GuPPyParamtersUsed.json").open("w") as parameters_file:
             json.dump({"removeArtifacts": False, "artifactsRemovalMethod": "replace with NaN"}, parameters_file)
     return session
 
@@ -230,7 +230,7 @@ class TestClampingBoundsIntoTheRecording:
 
         selector.save()
 
-        with open(os.path.join(str(run_folder), "GuPPyParamtersUsed.json")) as parameters_file:
+        with (Path(str(run_folder)) / "GuPPyParamtersUsed.json").open() as parameters_file:
             saved = json.load(parameters_file)
         assert saved["artifactsRemovalMethod"] == "concatenate"
         # Selecting windows does not itself remove anything.

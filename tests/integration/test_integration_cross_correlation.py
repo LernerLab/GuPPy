@@ -1,6 +1,5 @@
-import glob
-import os
 import shutil
+from pathlib import Path
 from unittest.mock import patch
 
 import holoviews as hv
@@ -40,19 +39,19 @@ def test_cross_correlation(tmp_path):
         "PrtN": "port_entries",
     }
     src_base_dir = str(STUBBED_TESTING_DATA)
-    src_session = os.path.join(src_base_dir, session_subdir)
-    assert os.path.isdir(src_session), f"Sample data not available at expected path: {src_session}"
+    src_session = Path(src_base_dir) / session_subdir
+    assert Path(src_session).is_dir(), f"Sample data not available at expected path: {src_session}"
 
     # Stage a clean copy of the session into a temporary workspace
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)
-    dest_name = os.path.basename(src_session)
+    dest_name = Path(src_session).name
     session_copy = tmp_base / dest_name
     shutil.copytree(src_session, session_copy)
 
     # Remove any copied artifacts in the temp session
-    for d in glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")):
-        assert os.path.isdir(d), f"Expected output directory for cleanup, got non-directory: {d}"
+    for d in list(Path(session_copy).glob(f"{dest_name}_output_*")):
+        assert Path(d).is_dir(), f"Expected output directory for cleanup, got non-directory: {d}"
         shutil.rmtree(d)
     params_fp = session_copy / "GuPPyParamtersUsed.json"
     if params_fp.exists():
@@ -82,30 +81,30 @@ def test_cross_correlation(tmp_path):
     )
 
     # Locate output directory
-    basename = os.path.basename(session_copy)
-    run_folders = sorted(glob.glob(os.path.join(session_copy, f"{basename}_output_*")))
+    basename = Path(session_copy).name
+    run_folders = sorted(list(Path(session_copy).glob(f"{basename}_output_*")))
     assert run_folders, f"No output directories found in {session_copy}"
     out_dir = None
     for d in run_folders:
-        if os.path.exists(os.path.join(d, "storesList.csv")):
+        if (Path(d) / "storesList.csv").exists():
             out_dir = d
             break
     assert out_dir is not None, f"No storesList.csv found in any output directory under {session_copy}"
 
     # Standard PSTH outputs for both recording sites
     for recording_site in ("dms", "dls"):
-        freq_amp_h5 = os.path.join(out_dir, f"freqAndAmp_z_score_{recording_site}.h5")
-        freq_amp_csv = os.path.join(out_dir, f"freqAndAmp_z_score_{recording_site}.csv")
-        trans_occ_csv = os.path.join(out_dir, f"transientsOccurrences_z_score_{recording_site}.csv")
-        assert os.path.exists(freq_amp_h5), f"Missing freq/amp HDF5: {freq_amp_h5}"
-        assert os.path.exists(freq_amp_csv), f"Missing freq/amp CSV: {freq_amp_csv}"
-        assert os.path.exists(trans_occ_csv), f"Missing transients occurrences CSV: {trans_occ_csv}"
+        freq_amp_h5 = Path(out_dir) / (f"freqAndAmp_z_score_{recording_site}.h5")
+        freq_amp_csv = Path(out_dir) / (f"freqAndAmp_z_score_{recording_site}.csv")
+        trans_occ_csv = Path(out_dir) / (f"transientsOccurrences_z_score_{recording_site}.csv")
+        assert Path(freq_amp_h5).exists(), f"Missing freq/amp HDF5: {freq_amp_h5}"
+        assert Path(freq_amp_csv).exists(), f"Missing freq/amp CSV: {freq_amp_csv}"
+        assert Path(trans_occ_csv).exists(), f"Missing transients occurrences CSV: {trans_occ_csv}"
 
     # Cross-correlation outputs
-    corr_dir = os.path.join(out_dir, "cross_correlation_output")
-    assert os.path.isdir(corr_dir), f"Missing cross_correlation_output directory: {corr_dir}"
-    corr_h5 = os.path.join(corr_dir, "corr_port_entries_z_score_dls_dms.h5")
-    assert os.path.exists(corr_h5), f"Missing cross-correlation HDF5: {corr_h5}"
+    corr_dir = Path(out_dir) / "cross_correlation_output"
+    assert Path(corr_dir).is_dir(), f"Missing cross_correlation_output directory: {corr_dir}"
+    corr_h5 = Path(corr_dir) / "corr_port_entries_z_score_dls_dms.h5"
+    assert Path(corr_h5).exists(), f"Missing cross-correlation HDF5: {corr_h5}"
     df = pd.read_hdf(corr_h5, key="df")
     assert "timestamps" in df.columns, f"'timestamps' column missing in {corr_h5}"
     assert "mean" in df.columns, f"'mean' column missing in {corr_h5}"

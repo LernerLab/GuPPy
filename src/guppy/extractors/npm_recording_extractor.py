@@ -1,6 +1,4 @@
-import glob
 import logging
-import os
 import shutil
 from pathlib import Path
 from typing import Any
@@ -115,7 +113,7 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         return list(streams.keys()), flags
 
     @staticmethod
-    def _list_npm_files(folder_path: str) -> list[str]:
+    def _list_npm_files(folder_path: str | Path) -> list[Path]:
         """List the raw NPM source files in a session folder, in processing order.
 
         Excludes the derived per-channel/per-event filenames and the
@@ -129,30 +127,29 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
 
         Returns
         -------
-        list of str
+        list of Path
             Sorted paths of the raw NPM files. The index of a path in this list
             is the ``file{i}_`` prefix its channels are named with, and the
             index its ``npm_split_events`` entry is read from.
         """
-        path = sorted(glob.glob(os.path.join(folder_path, "*.csv"))) + sorted(
-            glob.glob(os.path.join(folder_path, "*.doric"))
-        )
-        path_chev = glob.glob(os.path.join(folder_path, "*chev*"))
-        path_chod = glob.glob(os.path.join(folder_path, "*chod*"))
-        path_chpr = glob.glob(os.path.join(folder_path, "*chpr*"))
-        path_event = glob.glob(os.path.join(folder_path, "event*"))
+        session_folder = Path(folder_path)
+        path = sorted(session_folder.glob("*.csv")) + sorted(session_folder.glob("*.doric"))
+        path_chev = list(session_folder.glob("*chev*"))
+        path_chod = list(session_folder.glob("*chod*"))
+        path_chpr = list(session_folder.glob("*chpr*"))
+        path_event = list(session_folder.glob("event*"))
         path_chev_chod_event = path_chev + path_chod + path_event + path_chpr
 
-        path = sorted(list(set(path) - set(path_chev_chod_event)))
-        return [csv_path for csv_path in path if not (csv_path.endswith(".csv") and _is_event_csv(csv_path))]
+        path = sorted(set(path) - set(path_chev_chod_event))
+        return [csv_path for csv_path in path if not (csv_path.suffix == ".csv" and _is_event_csv(csv_path))]
 
     @classmethod
-    def _classify_npm_file(cls, path: str) -> tuple[str, pd.DataFrame, bool]:
+    def _classify_npm_file(cls, path: str | Path) -> tuple[str, pd.DataFrame, bool]:
         """Read one raw NPM file and determine which NPM layout it uses.
 
         Parameters
         ----------
-        path : str
+        path : str or Path
             Path to a raw NPM file, as returned by :meth:`_list_npm_files`.
 
         Returns
@@ -168,7 +165,7 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         columns_are_strings : bool
             Whether the file carries a text header row.
         """
-        extension = os.path.basename(path).split(".")[-1]
+        extension = Path(path).name.split(".")[-1]
         if extension == "doric":
             raise ValueError(f"Doric files are not supported by NpmRecordingExtractor; got '{path}'.")
         df = pd.read_csv(path, header=None, nrows=2, index_col=False, dtype=str)

@@ -28,30 +28,22 @@ def test_execute_zscore_raises_for_mismatched_recording_sites(tmp_path, base_inp
     assert "vms" in message
 
 
-def test_execute_combine_data_raises_for_mismatched_sampling_rates(monkeypatch, base_input_parameters):
+def test_execute_combine_data_raises_for_mismatched_sampling_rates(tmp_path, monkeypatch, base_input_parameters):
     """When timeCorrection_*.hdf5 files report different sampling rates, the message
     lists both rates and the offending paths."""
-    folder_names = ["/tmp/session_a", "/tmp/session_b"]
     store_array = np.array([["ctrl0", "sig0"], ["control_dms", "signal_dms"]])
 
-    monkeypatch.setattr(
-        "guppy.orchestration.preprocess.select_run_folders",
-        lambda session, selected: (
-            [folder_names[0] + "/run_folder"] if "session_a" in session else [folder_names[1] + "/run_folder"]
-        ),
-    )
-    monkeypatch.setattr(
-        "guppy.orchestration.preprocess.glob.glob",
-        lambda pattern: (
-            [f"{folder_names[0]}/run_folder/timeCorrection_dms.hdf5"]
-            if "session_a" in pattern
-            else [f"{folder_names[1]}/run_folder/timeCorrection_dms.hdf5"] if "session_b" in pattern else []
-        ),
-    )
+    folder_names = []
+    for session_name in ("session_a", "session_b"):
+        run_folder = tmp_path / session_name / f"{session_name}_output_1"
+        run_folder.mkdir(parents=True)
+        (run_folder / "timeCorrection_dms.hdf5").touch()
+        (run_folder / "storesList.csv").write_text("ctrl0,sig0\ncontrol_dms,signal_dms\n")
+        folder_names.append(str(tmp_path / session_name))
+    base_input_parameters["selected_runs"] = {session: ["1"] for session in folder_names}
 
     rates = iter([np.array([100.0]), np.array([250.0])])
     monkeypatch.setattr("guppy.orchestration.preprocess.read_hdf5", lambda *a, **k: next(rates))
-    monkeypatch.setattr("guppy.orchestration.preprocess.np.genfromtxt", lambda *a, **k: store_array)
 
     with pytest.raises(ValueError, match="sampling rates differ"):
         execute_combine_data(folder_names, base_input_parameters, store_array)

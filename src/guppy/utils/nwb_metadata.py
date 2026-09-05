@@ -651,13 +651,13 @@ def validate_metadata_dict(
 # ----------------------------------------------------------------------------------------------------------------------
 def load_yaml(path: str | Path) -> dict:
     """Load a YAML file into a dict."""
-    with open(path) as yaml_file:
+    with Path(path).open() as yaml_file:
         return yaml.safe_load(yaml_file) or {}
 
 
 def dump_yaml(*, metadata: dict, path: str | Path) -> None:
     """Write ``metadata`` to ``path`` as human-editable YAML (insertion order preserved)."""
-    with open(path, "w") as yaml_file:
+    with Path(path).open("w") as yaml_file:
         yaml.dump(metadata, yaml_file, Dumper=_RobustDumper, sort_keys=False, default_flow_style=False)
 
 

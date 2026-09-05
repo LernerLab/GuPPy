@@ -5,8 +5,6 @@ at import time (``test_integration_step2.py``, ``test_integration_dandi.py``) ca
 directly via a package-relative import, instead of relying on the ambiguous bare ``conftest`` name.
 """
 
-import glob
-import os
 from datetime import datetime
 from pathlib import Path
 
@@ -108,12 +106,12 @@ REPRESENTATIVE_SESSIONS = {
 
 
 def _locate_output_directory(*, session_copy: str) -> str:
-    session_name = os.path.basename(session_copy)
-    output_directories = sorted(glob.glob(os.path.join(session_copy, f"{session_name}_output_*")))
+    session_name = Path(session_copy).name
+    output_directories = sorted(list(Path(session_copy).glob(f"{session_name}_output_*")))
     assert output_directories, f"No output directories found in {session_copy}"
 
     for output_directory in output_directories:
-        if os.path.exists(os.path.join(output_directory, "storesList.csv")):
+        if (Path(output_directory) / "storesList.csv").exists():
             return output_directory
 
     raise AssertionError(f"No storesList.csv found in any output directory under {session_copy}")

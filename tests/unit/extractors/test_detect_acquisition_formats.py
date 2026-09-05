@@ -1,7 +1,7 @@
 """Unit tests for pure helper functions in detect_acquisition_formats."""
 
-import os
 import shutil
+from pathlib import Path
 
 import pytest
 
@@ -132,7 +132,7 @@ def test_classify_csv_file_raises_for_headerless_single_numeric_column(tmp_path)
     ids=["tdt", "doric", "csv", "npm"],
 )
 def test_detect_acquisition_formats(session_subdir, expected_formats):
-    folder_path = os.path.join(STUBBED_TESTING_DATA, session_subdir)
+    folder_path = Path(STUBBED_TESTING_DATA) / session_subdir
     assert detect_acquisition_formats(folder_path) == expected_formats
 
 
@@ -149,8 +149,8 @@ def test_detect_acquisition_formats(session_subdir, expected_formats):
     ids=["tdt_csv", "doric_csv", "npm_csv", "csv_csv"],
 )
 def test_detect_acquisition_formats_with_external_csv_events(tmp_path, session_subdir, expected_formats):
-    src = os.path.join(STUBBED_TESTING_DATA, session_subdir)
-    session_copy = tmp_path / os.path.basename(session_subdir)
+    src = Path(STUBBED_TESTING_DATA) / session_subdir
+    session_copy = tmp_path / Path(session_subdir).name
     shutil.copytree(src, session_copy)
     (session_copy / "port_entries.csv").write_text("timestamps\n0.1\n0.2\n0.3\n")
     assert detect_acquisition_formats(str(session_copy)) == expected_formats
@@ -161,7 +161,7 @@ def test_detect_acquisition_formats_after_npm_split_events(tmp_path):
     # session with split-event TTLs is detected as "npm" only — even after running discover.
     # NPM owns its event streams end-to-end; only a genuine external single-column TTL file
     # would add "csv" (covered by test_detect_acquisition_formats_with_external_csv_events).
-    src = os.path.join(STUBBED_TESTING_DATA, "npm/sampleData_NPM_4")
+    src = Path(STUBBED_TESTING_DATA) / "npm/sampleData_NPM_4"
     session_copy = tmp_path / "sampleData_NPM_4"
     shutil.copytree(src, session_copy)
 
@@ -195,7 +195,7 @@ def test_detect_acquisition_formats_after_npm_split_events(tmp_path):
     ids=["tdt", "doric", "csv", "npm"],
 )
 def test_detect_trace_formats(session_subdir, expected_formats):
-    folder_path = os.path.join(STUBBED_TESTING_DATA, session_subdir)
+    folder_path = Path(STUBBED_TESTING_DATA) / session_subdir
     assert detect_trace_formats(folder_path) == expected_formats
 
 
@@ -212,8 +212,8 @@ def test_detect_trace_formats(session_subdir, expected_formats):
 def test_detect_trace_formats_ignores_external_csv_events(tmp_path, session_subdir, expected_formats):
     # A single-column timestamps CSV carries event onsets and no photometry channel, so it must not
     # make the folder a "csv" trace source the way detect_acquisition_formats reports it.
-    src = os.path.join(STUBBED_TESTING_DATA, session_subdir)
-    session_copy = tmp_path / os.path.basename(session_subdir)
+    src = Path(STUBBED_TESTING_DATA) / session_subdir
+    session_copy = tmp_path / Path(session_subdir).name
     shutil.copytree(src, session_copy)
     (session_copy / "port_entries.csv").write_text("timestamps\n0.1\n0.2\n0.3\n")
 

@@ -61,6 +61,100 @@ def test_average_transients_for_group_stacks_the_members_freq_and_amp(tmp_path, 
     np.testing.assert_allclose(df["amplitude"].values, np.array([1.5, 2.5]))
 
 
+def test_average_transients_for_group_dff_mode_reads_the_dff_results(tmp_path, group_folder):
+    session1 = tmp_path / "session1"
+    session2 = tmp_path / "session2"
+    session1.mkdir()
+    session2.mkdir()
+
+    # A z-score trace is present but must be ignored in dff mode.
+    for session, values in ((session1, [[2.0, 1.5]]), (session2, [[3.0, 2.5]])):
+        (session / "z_score_dms.hdf5").touch()
+        (session / "dff_dms.hdf5").touch()
+        write_freq_and_amp_to_hdf5(
+            str(session),
+            np.array(values),
+            "dff_dms",
+            index=[session.name],
+            columns=["freq (events/min)", "amplitude"],
+        )
+
+    average_transients_for_group(
+        member_run_folders=[str(session1), str(session2)],
+        group_folder=str(group_folder),
+        inputParameters={"selectForTransientsComputation": "dff"},
+    )
+
+    assert not (group_folder / "freqAndAmp_z_score_dms.h5").exists()
+    df = read_freq_and_amp_from_hdf5(str(group_folder), "dff_dms")
+    np.testing.assert_allclose(df["freq (events/min)"].values, np.array([2.0, 3.0]))
+    np.testing.assert_allclose(df["amplitude"].values, np.array([1.5, 2.5]))
+
+
+def test_average_transients_for_group_both_modes_reads_z_score_and_dff(tmp_path, group_folder):
+    session = tmp_path / "session1"
+    session.mkdir()
+    (session / "z_score_dms.hdf5").touch()
+    (session / "dff_dms.hdf5").touch()
+
+    write_freq_and_amp_to_hdf5(
+        str(session),
+        np.array([[2.0, 1.5]]),
+        "z_score_dms",
+        index=["session1"],
+        columns=["freq (events/min)", "amplitude"],
+    )
+    write_freq_and_amp_to_hdf5(
+        str(session),
+        np.array([[8.0, 6.5]]),
+        "dff_dms",
+        index=["session1"],
+        columns=["freq (events/min)", "amplitude"],
+    )
+
+    average_transients_for_group(
+        member_run_folders=[str(session)],
+        group_folder=str(group_folder),
+        inputParameters={"selectForTransientsComputation": "both"},
+    )
+
+    z_score_df = read_freq_and_amp_from_hdf5(str(group_folder), "z_score_dms")
+    dff_df = read_freq_and_amp_from_hdf5(str(group_folder), "dff_dms")
+    np.testing.assert_allclose(z_score_df["freq (events/min)"].values, np.array([2.0]))
+    np.testing.assert_allclose(dff_df["freq (events/min)"].values, np.array([8.0]))
+
+
+def test_average_transients_for_group_skips_a_member_with_no_freq_and_amp_results(tmp_path, group_folder):
+    """A member whose transients were never computed is left out rather than failing the group."""
+    session1 = tmp_path / "session1"
+    session2 = tmp_path / "session2"
+    session1.mkdir()
+    session2.mkdir()
+
+    (session1 / "z_score_dms.hdf5").touch()
+    (session2 / "z_score_dms.hdf5").touch()
+
+    # Only session1 has freqAndAmp results; session2's were never written.
+    write_freq_and_amp_to_hdf5(
+        str(session1),
+        np.array([[2.0, 1.5]]),
+        "z_score_dms",
+        index=["session1"],
+        columns=["freq (events/min)", "amplitude"],
+    )
+
+    average_transients_for_group(
+        member_run_folders=[str(session1), str(session2)],
+        group_folder=str(group_folder),
+        inputParameters={"selectForTransientsComputation": "z_score"},
+    )
+
+    df = read_freq_and_amp_from_hdf5(str(group_folder), "z_score_dms")
+    assert list(df.index) == ["session1"]
+    np.testing.assert_allclose(df["freq (events/min)"].values, np.array([2.0]))
+    np.testing.assert_allclose(df["amplitude"].values, np.array([1.5]))
+
+
 def test_average_transients_for_group_handles_non_overlapping_stores_without_indexerror(tmp_path, group_folder):
     """Non-overlapping store_ids across sessions must not cause an IndexError.
 

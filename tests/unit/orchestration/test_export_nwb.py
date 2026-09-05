@@ -10,7 +10,7 @@ the converter, an NWB file through the standalone interface.
 """
 
 import json
-import os
+from pathlib import Path
 
 import pytest
 from pynwb import NWBFile
@@ -38,8 +38,8 @@ class TestValidateArtifactRemovalMethods:
         return session
 
     def _write_parameters(self, session_path, parameters):
-        output_dir = session_path / f"{os.path.basename(session_path)}_output_run1"
-        with open(output_dir / "GuPPyParamtersUsed.json", "w") as parameters_file:
+        output_dir = session_path / f"{Path(session_path).name}_output_run1"
+        with (output_dir / "GuPPyParamtersUsed.json").open("w") as parameters_file:
             json.dump(parameters, parameters_file)
 
     def test_concatenate_with_remove_artifacts_aborts(self, session_path):
@@ -161,7 +161,7 @@ class TestWarnPsthSignificanceNotExported:
         orchestrate_export_nwb({"selected_runs": {str(session): ["run1"]}, "combine_data": False})
 
         assert [call["nwbfile_path"] for call in exported] == [
-            str(session / "Photo_A_output_run1" / "Photo_A_output_run1.nwb")
+            session / "Photo_A_output_run1" / "Photo_A_output_run1.nwb"
         ]
         assert bound_step.error_message is None
         assert len(bound_step.warnings) == 1
@@ -227,8 +227,8 @@ class TestOrchestrateExportNwb:
         orchestrate_export_nwb(two_sessions)
 
         assert [call["nwbfile_path"] for call in exported] == [
-            str(tmp_path / "Photo_A" / "Photo_A_output_run1" / "Photo_A_output_run1.nwb"),
-            str(tmp_path / "Photo_B" / "Photo_B_output_run1" / "Photo_B_output_run1.nwb"),
+            tmp_path / "Photo_A" / "Photo_A_output_run1" / "Photo_A_output_run1.nwb",
+            tmp_path / "Photo_B" / "Photo_B_output_run1" / "Photo_B_output_run1.nwb",
         ]
         assert bound_step.total == 2
         assert bound_step.value == 2
@@ -238,7 +238,7 @@ class TestOrchestrateExportNwb:
         exported = []
 
         def export(**kwargs):
-            if "Photo_B" in kwargs["nwbfile_path"]:
+            if "Photo_B" in str(kwargs["nwbfile_path"]):
                 raise RuntimeError("converter blew up")
             exported.append(kwargs["nwbfile_path"])
 
@@ -247,7 +247,7 @@ class TestOrchestrateExportNwb:
         # One failure must not abort the batch.
         orchestrate_export_nwb(two_sessions)
 
-        assert exported == [str(tmp_path / "Photo_A" / "Photo_A_output_run1" / "Photo_A_output_run1.nwb")]
+        assert exported == [tmp_path / "Photo_A" / "Photo_A_output_run1" / "Photo_A_output_run1.nwb"]
         # Progress still advances past the failed session, so the bar reaches its total.
         assert bound_step.value == 2
         assert bound_step.error_message == "NWB export failed for 1 of 2 session(s): Photo_B (run1): converter blew up"
@@ -258,8 +258,8 @@ class TestOrchestrateExportNwb:
         orchestrate_export_nwb(two_sessions)
 
         assert [call["nwbfile_path"] for call in exported] == [
-            str(tmp_path / "Photo_A" / "Photo_A_output_run1" / "Photo_A_output_run1.nwb"),
-            str(tmp_path / "Photo_B" / "Photo_B_output_run1" / "Photo_B_output_run1.nwb"),
+            tmp_path / "Photo_A" / "Photo_A_output_run1" / "Photo_A_output_run1.nwb",
+            tmp_path / "Photo_B" / "Photo_B_output_run1" / "Photo_B_output_run1.nwb",
         ]
 
 
@@ -270,7 +270,7 @@ class TestRunExportNwbStep:
         session = tmp_path / "Photo_session"
         output_dir = session / "Photo_session_output_run1"
         output_dir.mkdir(parents=True)
-        with open(output_dir / "GuPPyParamtersUsed.json", "w") as parameters_file:
+        with (output_dir / "GuPPyParamtersUsed.json").open("w") as parameters_file:
             json.dump({"removeArtifacts": True, "artifactsRemovalMethod": "concatenate"}, parameters_file)
 
         with pytest.raises(ValueError, match="does not support the 'concatenate'"):

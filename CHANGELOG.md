@@ -10,6 +10,13 @@
 - Fixed the README's documentation links, which all carried an `/en/latest/` path prefix that 404s on the single-version Read the Docs project. [PR #469](https://github.com/LernerLab/GuPPy/pull/469)
 
 ## Improvements
+- The test suite now builds paths with `pathlib.Path`, completing the `os.path`/`glob` migration and leaving `ruff`'s `PTH` rules enforced everywhere with no exemptions. [PR #490](https://github.com/LernerLab/GuPPy/pull/490)
+- The pipeline's step orchestration now builds paths with `pathlib.Path`, completing the migration across `src/`. [PR #488](https://github.com/LernerLab/GuPPy/pull/488)
+- GuPPy's run-folder and group-folder helpers and the parameter, DANDI and group-labeling selectors now build paths with `pathlib.Path`. [PR #487](https://github.com/LernerLab/GuPPy/pull/487)
+- The Step-5 dashboard tabs, artifact-window and tonic pages, and the plotter now build paths with `pathlib.Path`. [PR #486](https://github.com/LernerLab/GuPPy/pull/486)
+- The TDT, Doric, NPM and CSV extractors and the acquisition-format detector now build paths with `pathlib.Path`. [PR #485](https://github.com/LernerLab/GuPPy/pull/485)
+- The rest of the analysis layer and GuPPy's validation, custom-event and NWB helpers now build paths with `pathlib.Path`. [PR #484](https://github.com/LernerLab/GuPPy/pull/484)
+- GuPPy's core HDF5 and results I/O now builds paths with `pathlib.Path` rather than `os.path`, and `ruff`'s `PTH` rules are enabled with the not-yet-converted modules listed explicitly so the migration is tracked rather than open-ended. [PR #483](https://github.com/LernerLab/GuPPy/pull/483)
 - Every `zip()` over parallel sequences now declares `strict=`, so a pair that has silently truncated to the shorter operand raises instead. [PR #482](https://github.com/LernerLab/GuPPy/pull/482)
 - The six `write_*` helpers in `analysis/standard_io.py` no longer share a mutable list as their `index`/`columns` default, and each visualization dashboard now keeps its own render cache instead of one shared across every open dashboard. `ruff`'s `B006`, `B008`, `RUF012` and `DTZ` rules are enabled to keep both classes of shared state out. [PR #482](https://github.com/LernerLab/GuPPy/pull/482)
 - Logging calls now hand their arguments to the logger instead of formatting the message up front, so a filtered-out record costs nothing to build. Pre-f-string syntax (`.format()`, `typing.Callable`/`Sequence`/`Iterable`, `lru_cache(maxsize=None)`) is swept, and `ruff`'s `UP` and `G` rule sets are enabled to keep it that way. [PR #481](https://github.com/LernerLab/GuPPy/pull/481)

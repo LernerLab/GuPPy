@@ -1,5 +1,5 @@
 import logging
-import os
+from pathlib import Path
 
 import holoviews as hv
 import numpy as np
@@ -55,7 +55,7 @@ class StoreLabelingInstructions:
             width=550,
         )
 
-        self.widget = pn.Column("# " + os.path.basename(folder_path), self.mark_down)
+        self.widget = pn.Column("# " + Path(folder_path).name, self.mark_down)
 
 
 class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
@@ -168,7 +168,7 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
         self.plot_area = pn.Column()
 
         self.widget = pn.Column(
-            "# " + os.path.basename(folder_path),
+            "# " + Path(folder_path).name,
             self.mark_down,
             self.mark_down_np,
             config_form,

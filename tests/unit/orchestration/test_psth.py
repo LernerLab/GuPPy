@@ -1,5 +1,5 @@
 import json
-import os
+from pathlib import Path
 
 import h5py
 import numpy as np
@@ -143,7 +143,7 @@ def test_execute_compute_cross_correlation_no_op_for_transient_events(
 
 def _record_artifact_provenance(run_folder, *, remove_artifacts, artifacts_removal_method):
     """Write the artifact provenance the Remove Artifacts step would have left behind."""
-    with open(os.path.join(str(run_folder), "GuPPyParamtersUsed.json"), "w") as parameters_file:
+    with (Path(str(run_folder)) / "GuPPyParamtersUsed.json").open("w") as parameters_file:
         json.dump(
             {"removeArtifacts": remove_artifacts, "artifactsRemovalMethod": artifacts_removal_method},
             parameters_file,

@@ -1,8 +1,7 @@
 import csv
-import glob
 import json
-import os
 import shutil
+from pathlib import Path
 
 import pytest
 
@@ -176,19 +175,19 @@ def test_step1(tmp_path, session_subdir, store_id_to_store_label):
         npm_time_unit = "milliseconds"
     # Source sample data
     src_base_dir = str(STUBBED_TESTING_DATA)
-    src_session = os.path.join(src_base_dir, session_subdir)
-    assert os.path.isdir(src_session), f"Sample data not available at expected path: {src_session}"
+    src_session = Path(src_base_dir) / session_subdir
+    assert Path(src_session).is_dir(), f"Sample data not available at expected path: {src_session}"
 
     # Stage a clean copy of the session into a temporary workspace
     tmp_base = tmp_path / "data_root"
     tmp_base.mkdir(parents=True, exist_ok=True)
-    dest_name = os.path.basename(src_session)
+    dest_name = Path(src_session).name
     session_copy = tmp_base / dest_name
     shutil.copytree(src_session, session_copy)
 
     # Remove any copied artifacts in the temp session; match only this session's output directory(ies)
-    for d in glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")):
-        assert os.path.isdir(d), f"Expected output directory for cleanup, got non-directory: {d}"
+    for d in list(Path(session_copy).glob(f"{dest_name}_output_*")):
+        assert Path(d).is_dir(), f"Expected output directory for cleanup, got non-directory: {d}"
         shutil.rmtree(d)
 
     # Remove any copied GuPPyParamtersUsed.json to ensure a fresh run
@@ -207,21 +206,21 @@ def test_step1(tmp_path, session_subdir, store_id_to_store_label):
     )
 
     # Validate storesList.csv exists and matches the mapping exactly (order-preserved)
-    basename = os.path.basename(session_copy)
-    run_folders = sorted(glob.glob(os.path.join(session_copy, f"{basename}_output_*")))
+    basename = Path(session_copy).name
+    run_folders = sorted(list(Path(session_copy).glob(f"{basename}_output_*")))
     assert run_folders, f"No output directories found in {session_copy}"
 
     out_dir = None
     for d in run_folders:
-        if os.path.exists(os.path.join(d, "storesList.csv")):
+        if (Path(d) / "storesList.csv").exists():
             out_dir = d
             break
     assert out_dir is not None, f"No storesList.csv found in any output directory under {session_copy}"
 
-    out_fp = os.path.join(out_dir, "storesList.csv")
-    assert os.path.exists(out_fp), f"Missing storesList.csv: {out_fp}"
+    out_fp = Path(out_dir) / "storesList.csv"
+    assert Path(out_fp).exists(), f"Missing storesList.csv: {out_fp}"
 
-    with open(out_fp, newline="") as f:
+    with Path(out_fp).open(newline="") as f:
         reader = csv.reader(f)
         rows = list(reader)
 
@@ -233,20 +232,20 @@ def test_step1(tmp_path, session_subdir, store_id_to_store_label):
     # source session folder, and must persist the decomposition params next to storesList.csv.
     if session_subdir.startswith("npm/"):
         intermediates = (
-            glob.glob(os.path.join(session_copy, "file*_chev*.csv"))
-            + glob.glob(os.path.join(session_copy, "file*_chod*.csv"))
-            + glob.glob(os.path.join(session_copy, "file*_chpr*.csv"))
-            + glob.glob(os.path.join(session_copy, "event*.csv"))
+            list(Path(session_copy).glob("file*_chev*.csv"))
+            + list(Path(session_copy).glob("file*_chod*.csv"))
+            + list(Path(session_copy).glob("file*_chpr*.csv"))
+            + list(Path(session_copy).glob("event*.csv"))
         )
         assert intermediates == [], f"NPM Step 1 wrote intermediate CSVs into the source folder: {intermediates}"
 
-        npm_params_fp = os.path.join(out_dir, ".npm_params.json")
-        assert os.path.exists(npm_params_fp), f"Missing persisted NPM params at Step 1: {npm_params_fp}"
+        npm_params_fp = Path(out_dir) / ".npm_params.json"
+        assert Path(npm_params_fp).exists(), f"Missing persisted NPM params at Step 1: {npm_params_fp}"
 
         # The persisted unit is the only record of the clock a run was read with, so it must
         # state the unit that was actually applied — not a default the extractor overrode
         # (issue #411). "seconds" is what an unset unit resolves to.
-        with open(npm_params_fp) as npm_params_file:
+        with Path(npm_params_fp).open() as npm_params_file:
             npm_params = json.load(npm_params_file)
         assert npm_params["npm_time_unit"] == (npm_time_unit or "seconds")
         # Sessions offering more than one timestamp column persist the confirmed selection

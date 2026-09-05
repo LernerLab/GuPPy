@@ -1,9 +1,8 @@
-import glob
 import logging
 import multiprocessing as mp
-import os
 import re
 from itertools import repeat
+from pathlib import Path
 
 import numpy as np
 from scipy import signal as ss
@@ -77,22 +76,22 @@ def execute_compute_psth(filepath: str, event: str, inputParameters: dict[str, o
     timeForLightsTurnOn = inputParameters["timeForLightsTurnOn"]
 
     if selectForComputePsth == "z_score":
-        path = glob.glob(os.path.join(filepath, "z_score_*"))
+        path = list(Path(filepath).glob("z_score_*"))
     elif selectForComputePsth == "dff":
-        path = glob.glob(os.path.join(filepath, "dff_*"))
+        path = list(Path(filepath).glob("dff_*"))
     else:
-        path = glob.glob(os.path.join(filepath, "z_score_*")) + glob.glob(os.path.join(filepath, "dff_*"))
+        path = list(Path(filepath).glob("z_score_*")) + list(Path(filepath).glob("dff_*"))
 
     b = np.divide(np.ones((100,)), 100)
     a = 1
 
     for i in range(len(path)):
         logger.info("Computing PSTH for event %s...", event)
-        basename = (os.path.basename(path[i])).split(".")[0]
+        basename = (Path(path[i]).name).split(".")[0]
         name_1 = recording_site_from_preprocessed_label(basename)
-        control = read_hdf5("control_" + name_1, os.path.dirname(path[i]), "data")
+        control = read_hdf5("control_" + name_1, Path(path[i]).parent, "data")
         if (control == 0).all() == True:
-            signal = read_hdf5("signal_" + name_1, os.path.dirname(path[i]), "data")
+            signal = read_hdf5("signal_" + name_1, Path(path[i]).parent, "data")
             z_score = ss.filtfilt(b, a, signal)
             just_use_signal = True
         else:
@@ -161,15 +160,15 @@ def execute_compute_psth_peak_and_area(filepath: str, event: str, inputParameter
     selectForComputePsth = inputParameters["selectForComputePsth"]
 
     if selectForComputePsth == "z_score":
-        path = glob.glob(os.path.join(filepath, "z_score_*"))
+        path = list(Path(filepath).glob("z_score_*"))
     elif selectForComputePsth == "dff":
-        path = glob.glob(os.path.join(filepath, "dff_*"))
+        path = list(Path(filepath).glob("dff_*"))
     else:
-        path = glob.glob(os.path.join(filepath, "z_score_*")) + glob.glob(os.path.join(filepath, "dff_*"))
+        path = list(Path(filepath).glob("z_score_*")) + list(Path(filepath).glob("dff_*"))
 
     for i in range(len(path)):
         logger.info("Computing peak and area for PSTH mean signal for event %s...", event)
-        basename = (os.path.basename(path[i])).split(".")[0]
+        basename = (Path(path[i]).name).split(".")[0]
         name_1 = recording_site_from_preprocessed_label(basename)
         sampling_rate = read_hdf5("timeCorrection_" + name_1, filepath, "sampling_rate")[0]
         psth = read_Df(filepath, event + "_" + name_1, basename)
@@ -184,7 +183,7 @@ def execute_compute_psth_peak_and_area(filepath: str, event: str, inputParameter
         peak_area = compute_psth_peak_and_area(
             psth_mean_bin_mean, timestamps, sampling_rate, peak_startPoint, peak_endPoint, auc_units=auc_units
         )
-        fileName = [os.path.basename(os.path.dirname(filepath))]
+        fileName = [Path(filepath).parent.name]
         index = [fileName[0] + "_" + name for name in psth_mean_bin_names]
         write_peak_and_area_to_hdf5(filepath, peak_area, event + "_" + name_1 + "_" + basename, index=index)
         write_peak_and_area_to_csv(filepath, peak_area, event + "_" + name_1 + "_" + basename, index=index)
@@ -454,7 +453,7 @@ def _validate_events_overlap_signal(inputParameters: dict[str, object]) -> None:
     transient_labels = set(transient_event_labels(inputParameters=inputParameters))
 
     for filepath in resolve_run_folders(inputParameters["session_folders"], inputParameters):
-        store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
+        store_array = read_stores_list(run_folder=filepath)
         events = [
             event.replace("\\", "_").replace("/", "_")
             for event in event_labels_for_analysis(store_array=store_array, inputParameters=inputParameters)
@@ -465,15 +464,13 @@ def _validate_events_overlap_signal(inputParameters: dict[str, object]) -> None:
 
         # Mirror the worker's site resolution so we validate exactly what will be computed.
         if selectForComputePsth == "z_score":
-            preprocessed_paths = glob.glob(os.path.join(filepath, "z_score_*"))
+            preprocessed_paths = list(Path(filepath).glob("z_score_*"))
         elif selectForComputePsth == "dff":
-            preprocessed_paths = glob.glob(os.path.join(filepath, "dff_*"))
+            preprocessed_paths = list(Path(filepath).glob("dff_*"))
         else:
-            preprocessed_paths = glob.glob(os.path.join(filepath, "z_score_*")) + glob.glob(
-                os.path.join(filepath, "dff_*")
-            )
+            preprocessed_paths = list(Path(filepath).glob("z_score_*")) + list(Path(filepath).glob("dff_*"))
         recording_sites = dict.fromkeys(
-            recording_site_from_preprocessed_label(os.path.basename(path).split(".")[0]) for path in preprocessed_paths
+            recording_site_from_preprocessed_label(path.name.split(".")[0]) for path in preprocessed_paths
         )
 
         for name_1 in recording_sites:

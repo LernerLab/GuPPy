@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -22,7 +22,7 @@ def write_covariate_stores(filepath, covariates=("akinesia", "tremor")):
     """Write the Step-2 store list and raw covariate series a session carries."""
     store_ids = ["Cov" + str(index) for index in range(len(covariates))]
     store_array = np.array([store_ids, ["covariate_" + covariate for covariate in covariates]])
-    np.savetxt(os.path.join(filepath, "storesList.csv"), store_array, delimiter=",", fmt="%s")
+    np.savetxt(Path(filepath) / "storesList.csv", store_array, delimiter=",", fmt="%s")
 
     for index, store_id in enumerate(store_ids):
         write_hdf5(np.array([0.0, 5.0, 9.0]), store_id, filepath, "timestamps")

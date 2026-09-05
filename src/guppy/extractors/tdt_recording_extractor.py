@@ -1,4 +1,3 @@
-import glob
 import logging
 import math
 import os
@@ -89,7 +88,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         formats = (int32, int32, "S4", uint16, uint16, float64, int64, float64, int32, float32)
         offsets = 0, 4, 8, 12, 14, 16, 24, 24, 32, 36
         tsq_dtype = np.dtype({"names": names, "formats": formats, "offsets": offsets}, align=True)
-        path = glob.glob(os.path.join(folder_path, "*.tsq"))
+        path = list(Path(folder_path).glob("*.tsq"))
         if len(path) > 1:
             message = (
                 f"Multiple .tsq files found in '{folder_path}': {sorted(path)}. "
@@ -150,7 +149,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         """
         block_bytes = samples_per_block * np.dtype(dtype).itemsize
         data = np.zeros((len(block_offsets), samples_per_block))
-        with open(tev_file_path, "rb") as tev_file:
+        with Path(tev_file_path).open("rb") as tev_file:
             block_index = 0
             while block_index < len(block_offsets):
                 chunk_start = int(block_offsets[block_index])
@@ -178,7 +177,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         folder_path = self.folder_path
 
         logger.debug("Reading data for event %s ...", event)
-        tevfilepath = glob.glob(os.path.join(folder_path, "*.tev"))
+        tevfilepath = list(Path(folder_path).glob("*.tev"))
         if len(tevfilepath) > 1:
             raise ValueError(
                 f"Multiple .tev files found in '{folder_path}': {sorted(tevfilepath)}. "
@@ -466,10 +465,11 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
             Mapping from original file-pointer positions to their new positions in the stubbed TEV.
         """
         stream_names_bytes = {name.encode() for name in stream_name_to_num_segments}
-        with open(tev_file_path, "r+b") as file:
+        with Path(tev_file_path).open("r+b") as file:
             content = file.read()
-        if os.path.exists(stubbed_tev_file_path):
-            os.remove(stubbed_tev_file_path)
+        stubbed_tev_file_path = Path(stubbed_tev_file_path)
+        if stubbed_tev_file_path.exists():
+            stubbed_tev_file_path.unlink()
 
         all_starts, all_stops, all_stream_names = [], [], []
         for stream_name_bytes in stream_names_bytes:
@@ -493,7 +493,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
         original_to_new_fp_loc = {}
         stream_name_to_num_written = {name.encode(): 0 for name in stream_name_to_num_segments}
         for start, stop, stream_name_bytes in zip(all_starts, all_stops, all_stream_names, strict=True):
-            with open(stubbed_tev_file_path, "a+b") as file:
+            with stubbed_tev_file_path.open("a+b") as file:
                 gap = content[previous_stop:start]
                 file.write(gap)
                 write_position += len(gap)
@@ -506,7 +506,7 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
                     write_position += len(segment)
                     stream_name_to_num_written[stream_name_bytes] += 1
             previous_stop = stop
-        with open(stubbed_tev_file_path, "a+b") as file:
+        with stubbed_tev_file_path.open("a+b") as file:
             file.write(content[previous_stop:])
         return original_to_new_fp_loc
 
@@ -650,15 +650,15 @@ class TdtRecordingExtractor(BaseRecordingExtractor):
             shutil.rmtree(folder_path)
         shutil.copytree(source_folder_path, folder_path)
 
-        tev_file_path = glob.glob(os.path.join(self.folder_path, "*.tev"))[0]
-        tsq_file_path = glob.glob(os.path.join(self.folder_path, "*.tsq"))[0]
+        tev_file_path = next(source_folder_path.glob("*.tev"))
+        tsq_file_path = next(source_folder_path.glob("*.tsq"))
 
-        stubbed_tev_file_path = folder_path / Path(tev_file_path).name
-        stubbed_tsq_file_path = folder_path / Path(tsq_file_path).name
+        stubbed_tev_file_path = folder_path / tev_file_path.name
+        stubbed_tsq_file_path = folder_path / tsq_file_path.name
 
         # Remove originals from stub folder so we can write the truncated replacements
-        os.remove(stubbed_tev_file_path)
-        os.remove(stubbed_tsq_file_path)
+        stubbed_tev_file_path.unlink()
+        stubbed_tsq_file_path.unlink()
 
         original_to_new_fp_loc = self._stub_tev_file(
             tev_file_path=tev_file_path,

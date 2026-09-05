@@ -1,7 +1,6 @@
-import glob
 import json
-import os
 import shutil
+from pathlib import Path
 from unittest.mock import patch
 
 import holoviews as hv
@@ -44,7 +43,7 @@ def run_pipeline(tmp_path):
         session_copy = temporary_base_directory / session_name
         shutil.copytree(source_session, session_copy)
 
-        for output_directory in glob.glob(os.path.join(session_copy, f"{session_name}_output_*")):
+        for output_directory in list(Path(session_copy).glob(f"{session_name}_output_*")):
             shutil.rmtree(output_directory)
         parameters_path = session_copy / "GuPPyParamtersUsed.json"
         if parameters_path.exists():
@@ -59,7 +58,7 @@ def run_pipeline(tmp_path):
         step4(**common_kwargs, selected_runs=selected_runs, **step4_kwargs)
 
         return {
-            "output_directory": os.path.join(session_copy, f"{session_name}_output_1"),
+            "output_directory": Path(session_copy) / (f"{session_name}_output_1"),
             "common_kwargs": common_kwargs,
             "selected_runs": selected_runs,
         }
@@ -113,17 +112,17 @@ def test_transient_event_train_is_written_and_drives_the_psth(run_pipeline):
     trial_labels = [column for column in psth.columns if column not in ("timestamps", "mean", "err")]
     np.testing.assert_allclose(np.asarray(trial_labels, dtype=float), event_timestamps, atol=1e-6)
 
-    assert os.path.exists(os.path.join(output_directory, f"peak_AUC_{TRANSIENT_EVENT}_{METRIC_BASENAME}.csv"))
+    assert (Path(output_directory) / (f"peak_AUC_{TRANSIENT_EVENT}_{METRIC_BASENAME}.csv")).exists()
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_no_transient_event_train_when_the_toggle_is_off(run_pipeline):
     output_directory = run_pipeline("ttl_only")["output_directory"]
 
-    assert not os.path.exists(os.path.join(output_directory, f"{TRANSIENT_EVENT}.hdf5"))
-    assert not os.path.exists(os.path.join(output_directory, f"{TRANSIENT_EVENT}_{METRIC_BASENAME}.h5"))
+    assert not (Path(output_directory) / (f"{TRANSIENT_EVENT}.hdf5")).exists()
+    assert not (Path(output_directory) / (f"{TRANSIENT_EVENT}_{METRIC_BASENAME}.h5")).exists()
     # The external TTL event is unaffected.
-    assert os.path.exists(os.path.join(output_directory, f"ttl_{EXPECTED_RECORDING_SITE}.hdf5"))
+    assert (Path(output_directory) / (f"ttl_{EXPECTED_RECORDING_SITE}.hdf5")).exists()
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
@@ -139,14 +138,14 @@ def test_both_metrics_produce_two_independent_event_trains(run_pipeline):
     assert from_z_score.size > 0
     assert from_dff.size > 0
     for event in (TRANSIENT_EVENT, f"transients_dff_{EXPECTED_RECORDING_SITE}"):
-        assert os.path.exists(os.path.join(output_directory, f"{event}_{METRIC_BASENAME}.h5"))
+        assert (Path(output_directory) / (f"{event}_{METRIC_BASENAME}.h5")).exists()
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_spontaneous_mode_choice_is_recorded_in_the_parameter_snapshot(run_pipeline):
     output_directory = run_pipeline("recorded", use_transients_as_events=True)["output_directory"]
 
-    with open(os.path.join(output_directory, "GuPPyParamtersUsed.json")) as parameters_file:
+    with (Path(output_directory) / "GuPPyParamtersUsed.json").open() as parameters_file:
         parameters = json.load(parameters_file)
     assert parameters["useTransientsAsEvents"] is True
 

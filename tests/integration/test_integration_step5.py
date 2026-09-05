@@ -1,6 +1,5 @@
-import glob
-import os
 import shutil
+from pathlib import Path
 from unittest.mock import patch
 
 import holoviews as hv
@@ -90,8 +89,8 @@ def test_step5_raises_when_visualization_metric_not_computed_in_step4(tmp_path):
     session_copy = temporary_base_directory / session_name
     shutil.copytree(source_session, session_copy)
 
-    for output_directory in glob.glob(os.path.join(session_copy, f"{session_name}_output_*")):
-        assert os.path.isdir(output_directory)
+    for output_directory in list(Path(session_copy).glob(f"{session_name}_output_*")):
+        assert Path(output_directory).is_dir()
         shutil.rmtree(output_directory)
     parameters_path = session_copy / "GuPPyParamtersUsed.json"
     if parameters_path.exists():

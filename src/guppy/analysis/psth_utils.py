@@ -1,8 +1,7 @@
-import glob
 import logging
 import math
-import os
 import re
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -32,9 +31,9 @@ def create_Df_for_psth(filepath: str, event: str, name: str, psth: np.ndarray, c
     event = event.replace("\\", "_")
     event = event.replace("/", "_")
     if name:
-        output_path = os.path.join(filepath, event + f"_{name}.h5")
+        output_path = Path(filepath) / (event + f"_{name}.h5")
     else:
-        output_path = os.path.join(filepath, event + ".h5")
+        output_path = Path(filepath) / (event + ".h5")
 
     # removing psth binned trials
     columns = np.array(columns, dtype="str")
@@ -156,9 +155,9 @@ def create_Df_for_cross_correlation(
         Column labels for the trials axis. Default is an empty list.
     """
     if name:
-        output_path = os.path.join(filepath, event + f"_{name}.h5")
+        output_path = Path(filepath) / (event + f"_{name}.h5")
     else:
-        output_path = os.path.join(filepath, event + ".h5")
+        output_path = Path(filepath) / (event + ".h5")
 
     # removing psth binned trials
     columns = list(np.array(columns, dtype="str"))
@@ -203,18 +202,18 @@ def getCorrCombinations(filepath: str, inputParameters: dict[str, object]) -> tu
     """
     selectForComputePsth = inputParameters["selectForComputePsth"]
     if selectForComputePsth == "z_score":
-        path = glob.glob(os.path.join(filepath, "z_score_*"))
+        path = list(Path(filepath).glob("z_score_*"))
     elif selectForComputePsth == "dff":
-        path = glob.glob(os.path.join(filepath, "dff_*"))
+        path = list(Path(filepath).glob("dff_*"))
     else:
-        path = glob.glob(os.path.join(filepath, "z_score_*")) + glob.glob(os.path.join(filepath, "dff_*"))
+        path = list(Path(filepath).glob("z_score_*")) + list(Path(filepath).glob("dff_*"))
 
     names = list()
     type = list()
     for i in range(len(path)):
-        basename = (os.path.basename(path[i])).split(".")[0]
+        basename = path[i].name.split(".")[0]
         names.append(recording_site_from_preprocessed_label(basename))
-        type.append((os.path.basename(path[i])).split(".")[0].split("_" + names[-1], 1)[0])
+        type.append(path[i].name.split(".")[0].split("_" + names[-1], 1)[0])
 
     names = list(np.unique(np.array(names)))
     type = list(np.unique(np.array(type)))

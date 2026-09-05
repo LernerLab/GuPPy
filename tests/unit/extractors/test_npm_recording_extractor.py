@@ -1,7 +1,7 @@
 """Contract tests for NpmRecordingExtractor."""
 
-import os
 import shutil
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -397,7 +397,7 @@ class NpmRecordingExtractorTestMixin(RecordingExtractorTestMixin):
 
 class TestNpmRecordingExtractor(NpmRecordingExtractorTestMixin):
     extractor_class = NpmRecordingExtractor
-    folder_path = os.path.join(STUBBED_TESTING_DATA, "npm", "sampleData_NPM_1")
+    folder_path = Path(STUBBED_TESTING_DATA) / "npm" / "sampleData_NPM_1"
     # This session offers two timestamp columns and its stimuli file rides ComputerTimestamp;
     # the defaults would put the events on a different clock than the photometry. See the
     # sampleData_NPM_1 entry in stubbed_testing_data/README.md.
@@ -414,7 +414,7 @@ class TestNpmRecordingExtractor(NpmRecordingExtractorTestMixin):
 
 class TestNpmRecordingExtractorSession2(NpmRecordingExtractorTestMixin):
     extractor_class = NpmRecordingExtractor
-    folder_path = os.path.join(STUBBED_TESTING_DATA, "npm", "sampleData_NPM_2")
+    folder_path = Path(STUBBED_TESTING_DATA) / "npm" / "sampleData_NPM_2"
     extractor_instance = NpmRecordingExtractor(folder_path, num_ch=2)
     expected_events = ["file0_chev6", "file1_chev6"]
     discover_kwargs = {"num_ch": 2, "inputParameters": {}}
@@ -426,7 +426,7 @@ class TestNpmRecordingExtractorSession2(NpmRecordingExtractorTestMixin):
 
 class TestNpmRecordingExtractorSession3(NpmRecordingExtractorTestMixin):
     extractor_class = NpmRecordingExtractor
-    folder_path = os.path.join(STUBBED_TESTING_DATA, "npm", "sampleData_NPM_3")
+    folder_path = Path(STUBBED_TESTING_DATA) / "npm" / "sampleData_NPM_3"
     # Same two-column shape as sampleData_NPM_1: ttls.csv rides ComputerTimestamp.
     clock_kwargs = {"npm_timestamp_column_name": "ComputerTimestamp", "npm_time_unit": "milliseconds"}
     extractor_instance = NpmRecordingExtractor(folder_path, num_ch=2, **clock_kwargs)
@@ -441,7 +441,7 @@ class TestNpmRecordingExtractorSession3(NpmRecordingExtractorTestMixin):
 
 class TestNpmRecordingExtractorSession4(NpmRecordingExtractorTestMixin):
     extractor_class = NpmRecordingExtractor
-    folder_path = os.path.join(STUBBED_TESTING_DATA, "npm", "sampleData_NPM_4")
+    folder_path = Path(STUBBED_TESTING_DATA) / "npm" / "sampleData_NPM_4"
     extractor_instance = NpmRecordingExtractor(folder_path, num_ch=2, npm_split_events=[True, True])
     expected_events = ["file0_chev1", "file0_chod1", "eventTrue"]
     # npm_split_events=[True, True] splits the boolean event stream into eventTrue/eventFalse.
@@ -455,7 +455,7 @@ class TestNpmRecordingExtractorSession4(NpmRecordingExtractorTestMixin):
 
 class TestNpmRecordingExtractorSession5(NpmRecordingExtractorTestMixin):
     extractor_class = NpmRecordingExtractor
-    folder_path = os.path.join(STUBBED_TESTING_DATA, "npm", "sampleData_NPM_5")
+    folder_path = Path(STUBBED_TESTING_DATA) / "npm" / "sampleData_NPM_5"
     extractor_instance = NpmRecordingExtractor(folder_path, num_ch=2, npm_time_unit="milliseconds")
     expected_events = ["file0_chev1", "file0_chod1", "event0"]
     # npm_split_events=None means no splitting: the event stream becomes event0.
@@ -596,7 +596,7 @@ class TestNpmEventClockValidation:
     (milliseconds); its stimuli file is on the latter.
     """
 
-    folder_path = os.path.join(STUBBED_TESTING_DATA, "npm", "sampleData_NPM_1")
+    folder_path = Path(STUBBED_TESTING_DATA) / "npm" / "sampleData_NPM_1"
 
     @pytest.fixture
     def wrong_clock_extractor(self):

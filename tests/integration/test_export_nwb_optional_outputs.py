@@ -14,8 +14,8 @@ Every assertion compares the NWB objects against the GuPPy files on disk they we
 so a version of the export that silently omits one of them fails here.
 """
 
-import os
 import shutil
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -84,15 +84,15 @@ def export_run(*, session: str, output_directory: str, acquisition_format: str) 
         session_folder_path=session,
         output_directory=output_directory,
         acquisition_format=acquisition_format,
-        path=os.path.join(output_directory, METADATA_FILENAME),
+        path=Path(output_directory) / METADATA_FILENAME,
     )
-    base_dir = os.path.dirname(session)
+    base_dir = str(Path(session).parent)
     step7(
         base_dir=base_dir,
         selected_folders=[session],
         selected_runs={session: [parse_run_name(output_directory)]},
     )
-    return os.path.join(output_directory, f"{os.path.basename(output_directory)}.nwb")
+    return Path(output_directory) / (f"{Path(output_directory).name}.nwb")
 
 
 class TestCovariateAndWholeSessionOutputs:
@@ -105,7 +105,7 @@ class TestCovariateAndWholeSessionOutputs:
             session_path=STUBBED_TESTING_DATA / "csv" / SESSION_NAME,
             base_directory=base_directory,
         )
-        session = os.path.dirname(output_directory)
+        session = Path(output_directory).parent
         tonic_analysis(
             base_dir=str(base_directory),
             selected_folders=[session],
@@ -137,7 +137,7 @@ class TestCovariateAndWholeSessionOutputs:
     def test_covariate_series_carry_the_scored_values(self, guppy_module, exported):
         for covariate_name in COVARIATE_NAMES:
             series = guppy_module[covariate_name]
-            scored = pd.read_csv(os.path.join(os.path.dirname(exported["output_directory"]), f"{covariate_name}.csv"))
+            scored = pd.read_csv(Path(Path(exported["output_directory"]).parent) / (f"{covariate_name}.csv"))
 
             np.testing.assert_allclose(series.data[:], scored["data"].to_numpy())
             np.testing.assert_allclose(series.timestamps[:], scored["timestamps"].to_numpy())
@@ -212,7 +212,7 @@ class TestCovariateAndWholeSessionOutputs:
             assert exported_coefficients[key] == pytest.approx((row.pearson_r, row.spearman_rho))
 
     def test_tonic_epochs_match_the_hdf5(self, guppy_module, exported):
-        means = pd.read_hdf(os.path.join(exported["output_directory"], f"tonic_{RECORDING_SITE}.h5"), key="df")
+        means = pd.read_hdf(Path(exported["output_directory"]) / (f"tonic_{RECORDING_SITE}.h5"), key="df")
         table = guppy_module["tonic_epochs"].to_dataframe()
 
         assert len(table) == len(TONIC_EPOCHS) * len(TRACE_TYPES)
@@ -240,7 +240,7 @@ class TestSpontaneousModeOutputs:
 
         common = dict(base_dir=str(base_directory), selected_folders=[session])
         step1(**common, store_id_to_store_label=SPONTANEOUS_STORE_ID_TO_STORE_LABEL)
-        output_directory = os.path.join(session, f"{SPONTANEOUS_SESSION_NAME}_output_1")
+        output_directory = Path(session) / (f"{SPONTANEOUS_SESSION_NAME}_output_1")
         selected_runs = {session: ["1"]}
         step2(**common, selected_runs=selected_runs)
         step3(**common, selected_runs=selected_runs)
@@ -272,5 +272,5 @@ class TestSpontaneousModeOutputs:
 
         # Against the event train Step 4 actually aligned to, which is the subset of detected
         # transients it kept after dropping the ones too close to the recording start or each other.
-        event_timestamps = np.asarray(read_hdf5(TRANSIENT_EVENT, os.path.dirname(exported), "ts")).ravel()
+        event_timestamps = np.asarray(read_hdf5(TRANSIENT_EVENT, Path(exported).parent, "ts")).ravel()
         np.testing.assert_allclose(np.sort(occurrences["timestamp"].to_numpy()), np.sort(event_timestamps))

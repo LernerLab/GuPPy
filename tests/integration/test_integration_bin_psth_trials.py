@@ -1,6 +1,5 @@
-import glob
-import os
 import shutil
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -27,17 +26,17 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
     expected_recording_site = "region"
     expected_ttl = "ttl"
 
-    source_session = os.path.join(str(STUBBED_TESTING_DATA), session_subdir)
-    assert os.path.isdir(source_session), f"Sample data not available at expected path: {source_session}"
+    source_session = Path(str(STUBBED_TESTING_DATA)) / session_subdir
+    assert Path(source_session).is_dir(), f"Sample data not available at expected path: {source_session}"
 
     temporary_base = tmp_path / "data_root"
     temporary_base.mkdir(parents=True, exist_ok=True)
-    session_name = os.path.basename(source_session)
+    session_name = Path(source_session).name
     session_copy = temporary_base / session_name
     shutil.copytree(source_session, session_copy)
 
-    for output_directory in glob.glob(os.path.join(session_copy, f"{session_name}_output_*")):
-        assert os.path.isdir(output_directory)
+    for output_directory in list(Path(session_copy).glob(f"{session_name}_output_*")):
+        assert Path(output_directory).is_dir()
         shutil.rmtree(output_directory)
     parameters_path = session_copy / "GuPPyParamtersUsed.json"
     if parameters_path.exists():
@@ -82,15 +81,14 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
         selected_runs=selected_runs,
     )
 
-    output_directories = sorted(glob.glob(os.path.join(str(session_copy), f"{session_name}_output_*")))
+    output_directories = sorted(Path(session_copy).glob(f"{session_name}_output_*"))
     assert output_directories, f"No output directories found in {session_copy}"
     output_directory = output_directories[0]
 
-    psth_file_path = os.path.join(
-        output_directory,
-        f"{expected_ttl}_{expected_recording_site}_z_score_{expected_recording_site}.h5",
+    psth_file_path = Path(output_directory) / (
+        f"{expected_ttl}_{expected_recording_site}_z_score_{expected_recording_site}.h5"
     )
-    assert os.path.exists(psth_file_path), f"Missing PSTH HDF5: {psth_file_path}"
+    assert Path(psth_file_path).exists(), f"Missing PSTH HDF5: {psth_file_path}"
 
     psth_dataframe = pd.read_hdf(psth_file_path, key="df")
     bin_columns = [column for column in psth_dataframe.columns if column.startswith("bin_(")]
@@ -103,22 +101,19 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
     # `if len(bin_columns) > 0:` branch inside psth_average.average_psth_for_group, which
     # concatenates and aggregates bin columns across the member runs.
     label_groups(
-        member_run_folders=[
-            os.path.join(folder, f"{os.path.basename(folder)}_output_1") for folder in selected_folders
-        ],
+        member_run_folders=[Path(folder) / (f"{Path(folder).name}_output_1") for folder in selected_folders],
         destination_directory=base_dir,
         group_name="binned",
     )
-    group_analysis(base_dir=base_dir, selected_group_folders=[os.path.join(base_dir, "binned_group")])
+    group_analysis(base_dir=base_dir, selected_group_folders=[Path(base_dir) / "binned_group"])
 
-    average_directory = os.path.join(base_dir, "binned_group")
-    assert os.path.isdir(average_directory), f"No group directory found under {base_dir}"
+    average_directory = Path(base_dir) / "binned_group"
+    assert Path(average_directory).is_dir(), f"No group directory found under {base_dir}"
 
-    average_psth_file_path = os.path.join(
-        average_directory,
-        f"{expected_ttl}_{expected_recording_site}_z_score_{expected_recording_site}.h5",
+    average_psth_file_path = Path(average_directory) / (
+        f"{expected_ttl}_{expected_recording_site}_z_score_{expected_recording_site}.h5"
     )
-    assert os.path.exists(average_psth_file_path), f"Missing averaged PSTH HDF5: {average_psth_file_path}"
+    assert Path(average_psth_file_path).exists(), f"Missing averaged PSTH HDF5: {average_psth_file_path}"
 
     average_psth_dataframe = pd.read_hdf(average_psth_file_path, key="df")
     average_bin_columns = [column for column in average_psth_dataframe.columns if column.startswith("bin_(")]

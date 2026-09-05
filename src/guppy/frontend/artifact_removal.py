@@ -12,10 +12,9 @@ server teardown):
 The interactive marking page lives in ``frontend/artifact_windows_page.py``.
 """
 
-import glob
 import logging
-import os
 from collections.abc import Callable
+from pathlib import Path
 
 import holoviews as hv
 import numpy as np
@@ -60,8 +59,8 @@ def load_pair_traces(filepath: str) -> dict[str, dict[str, object]]:
             "signal": np.asarray(read_hdf5("", path[1, i], "data")).ravel(),
             "fit": np.asarray(read_hdf5("cntrl_sig_fit_" + site, filepath, "data")).ravel(),
             "plot_name": [
-                os.path.basename(path[0, i]).split(".")[0],
-                os.path.basename(path[1, i]).split(".")[0],
+                Path(path[0, i]).name.split(".")[0],
+                Path(path[1, i]).name.split(".")[0],
                 "cntrl_sig_fit_" + site,
             ],
         }
@@ -82,8 +81,8 @@ def load_preprocessed_traces(filepath: str) -> dict[str, dict[str, np.ndarray]]:
         Mapping recording-site name → ``{"x", "y_zscore", "y_dff"}``.
     """
     traces: dict[str, dict[str, np.ndarray]] = {}
-    for path in sorted(glob.glob(os.path.join(filepath, "z_score_*"))):
-        site = recording_site_from_preprocessed_label(os.path.basename(path).split(".")[0])
+    for path in sorted(Path(filepath).glob("z_score_*")):
+        site = recording_site_from_preprocessed_label(path.name.split(".")[0])
         traces[site] = {
             "x": np.asarray(read_hdf5("timeCorrection_" + site, filepath, "timestampNew")).ravel(),
             "y_zscore": np.asarray(read_hdf5("", path, "data")).ravel(),
@@ -119,7 +118,7 @@ class PreprocessingReviewView:
 
         heading = "Artifact removal review" if artifacts_removed else "Preprocessing review"
         self.widget = pn.Column(
-            f"## {heading} — {os.path.basename(filepath)}",
+            f"## {heading} — {Path(filepath).name}",
             self.site_select,
             self.plot_pane,
             sizing_mode="stretch_width",
@@ -135,7 +134,7 @@ class PreprocessingReviewView:
             signal=trace["signal"],
             fit=trace["fit"],
             titles=trace["plot_name"],
-            suptitle=os.path.basename(self.filepath),
+            suptitle=Path(self.filepath).name,
             extra_traces={
                 f"z_score_{site}": preprocessed["y_zscore"],
                 f"dff_{site}": preprocessed["y_dff"],
@@ -169,7 +168,7 @@ def build_run_folder_page(
     if len(run_folders) == 1:
         return content
 
-    options = {f"{os.path.basename(os.path.dirname(f))}/{os.path.basename(f)}": f for f in run_folders}
+    options = {f"{Path(f).parent.name}/{Path(f).name}": f for f in run_folders}
     folder_select = pn.widgets.Select(name="Run folder", options=options, value=run_folders[0])
 
     def _on_folder_change(event: object) -> None:

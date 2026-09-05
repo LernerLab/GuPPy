@@ -1,6 +1,6 @@
 import json
-import os
 import types
+from pathlib import Path
 
 import numpy as np
 import panel as pn
@@ -30,21 +30,12 @@ def make_widget(value):
     return types.SimpleNamespace(value=value)
 
 
-class FakePath:
-    """Replaces pathlib.Path in store_ids so cache writes go to tmp_path."""
-
-    _home = None
-
-    @classmethod
-    def home(cls):
-        return cls._home
-
-
 @pytest.fixture
 def isolated_cache(tmp_path, monkeypatch):
-    """Redirect Path.home() to tmp_path so _save never touches ~/.storesList.json."""
-    FakePath._home = tmp_path
-    monkeypatch.setattr("guppy.orchestration.store_labeling.Path", FakePath)
+    """Redirect the store-label cache to tmp_path so _save never touches ~/.storesList.json."""
+    monkeypatch.setattr(
+        "guppy.orchestration.store_labeling.store_label_cache_path", lambda: tmp_path / ".storesList.json"
+    )
     return tmp_path
 
 
@@ -91,7 +82,7 @@ def test_show_dir_with_explicit_run_name_returns_named_path(tmp_path):
     result = show_dir(str(session), run_name="strict")
 
     assert result == str(session / "session1_output_strict")
-    assert not os.path.exists(result)
+    assert not Path(result).exists()
 
 
 def test_show_dir_invalid_run_name_raises(tmp_path):
@@ -119,7 +110,7 @@ def test_save_writes_storeslist_csv(isolated_cache):
     )
 
     assert result == "#### No alerts !!"
-    assert os.path.exists(os.path.join(select_location, "storesList.csv"))
+    assert (Path(select_location) / "storesList.csv").exists()
 
 
 def test_save_csv_content_matches_input(isolated_cache):
@@ -133,7 +124,7 @@ def test_save_csv_content_matches_input(isolated_cache):
         store_labeling_config=store_labeling_config, select_location=select_location, overwrite_mode="create_new_file"
     )
 
-    loaded = np.loadtxt(os.path.join(select_location, "storesList.csv"), delimiter=",", dtype=str)
+    loaded = np.loadtxt(Path(select_location) / "storesList.csv", delimiter=",", dtype=str)
     np.testing.assert_array_equal(loaded[0], ["Dv1A", "Dv2A", "PulA"])
     np.testing.assert_array_equal(loaded[1], ["control_DMS", "signal_DMS", "event1"])
 
@@ -203,7 +194,7 @@ def test_save_updates_cache_file(isolated_cache):
 
     cache_path = isolated_cache / ".storesList.json"
     assert cache_path.exists()
-    with open(cache_path) as file:
+    with Path(cache_path).open() as file:
         cache = json.load(file)
     assert "Dv1A" in cache
     assert "control_DMS" in cache["Dv1A"]
@@ -239,7 +230,7 @@ def test_save_overwrites_clears_all_files_in_existing_dir(isolated_cache):
 
     assert result == "#### No alerts !!"
     # Only the freshly written storesList.csv should remain.
-    remaining = set(os.listdir(str(select_location)))
+    remaining = set([entry.name for entry in Path(str(select_location)).iterdir()])
     assert remaining == {"storesList.csv"}, f"Expected only storesList.csv, found: {remaining}"
 
 
@@ -620,8 +611,9 @@ def store_labeling_closures(tmp_path, monkeypatch, panel_extension):
 
     selector.callbacks maps button names to their on-click closure functions.
     """
-    FakePath._home = tmp_path
-    monkeypatch.setattr("guppy.orchestration.store_labeling.Path", FakePath)
+    monkeypatch.setattr(
+        "guppy.orchestration.store_labeling.store_label_cache_path", lambda: tmp_path / ".storesList.json"
+    )
 
     folder = tmp_path / "my_session"
     folder.mkdir()
@@ -655,7 +647,7 @@ def test_overwrite_button_actions_create_new_file_sets_next_output_dir(store_lab
 
     overwrite_button_actions(types.SimpleNamespace(new="create_new_file"))
 
-    expected = os.path.join(folder_path, "my_session_output_1")
+    expected = str(Path(folder_path) / "my_session_output_1")
     assert selector.select_location_options == [expected]
 
 
@@ -663,12 +655,12 @@ def test_overwrite_button_actions_over_write_file_returns_existing_output_dirs(s
     selector, folder_path = store_labeling_closures
     overwrite_button_actions = selector.callbacks["overwrite_button"]
 
-    run_folder = os.path.join(folder_path, "my_session_output_1")
-    os.mkdir(run_folder)
+    run_folder = Path(folder_path) / "my_session_output_1"
+    run_folder.mkdir()
 
     overwrite_button_actions(types.SimpleNamespace(new="over_write_file"))
 
-    assert selector.select_location_options == [run_folder]
+    assert selector.select_location_options == [str(run_folder)]
 
 
 # ---------------------------------------------------------------------------
@@ -693,7 +685,7 @@ def test_run_name_input_changed_updates_select_location_options(store_labeling_c
 
     selector.run_name_callback(types.SimpleNamespace(new="myrun"))
 
-    expected = os.path.join(folder_path, "my_session_output_myrun")
+    expected = str(Path(folder_path) / "my_session_output_myrun")
     assert selector.select_location_options == [expected]
     assert selector.alert_message == "#### No alerts !!"
 
@@ -704,7 +696,7 @@ def test_run_name_input_changed_empty_string_falls_back_to_numeric(store_labelin
 
     selector.run_name_callback(types.SimpleNamespace(new=""))
 
-    expected = os.path.join(folder_path, "my_session_output_1")
+    expected = str(Path(folder_path) / "my_session_output_1")
     assert selector.select_location_options == [expected]
 
 
@@ -808,7 +800,7 @@ def test_update_values_loads_store_ids_cache_when_json_file_exists(store_labelin
 
     cache = {"Dv1A": ["control_DMS"]}
     cache_file = tmp_path / ".storesList.json"
-    with open(cache_file, "w") as f:
+    with Path(cache_file).open("w") as f:
         json.dump(cache, f)
 
     selector.callbacks["update_options"](types.SimpleNamespace())
@@ -847,8 +839,8 @@ def test_save_button_writes_storeslist_and_updates_path(store_labeling_closures,
     selector.callbacks["save"](None)
 
     assert selector.alert_message == "#### No alerts !!"
-    assert selector.path_value == os.path.join(run_folder, "storesList.csv")
-    assert os.path.exists(os.path.join(run_folder, "storesList.csv"))
+    assert selector.path_value == str(Path(run_folder) / "storesList.csv")
+    assert (Path(run_folder) / "storesList.csv").exists()
 
 
 def test_save_button_sets_alert_on_mismatched_lengths(store_labeling_closures, tmp_path):
@@ -875,7 +867,7 @@ def test_compute_npm_channel_previews_aligns_ragged_channel_lengths():
     # sampleData_NPM_4 interleaves unevenly: chod has one more sample than chev, so chod
     # borrows chev's (shorter) timestamps. The preview must align x/y to equal length,
     # otherwise hv.Curve raises a DataError in the Step-1 GUI.
-    folder_path = os.path.join(STUBBED_TESTING_DATA, "npm", "sampleData_NPM_4")
+    folder_path = Path(STUBBED_TESTING_DATA) / "npm" / "sampleData_NPM_4"
     input_parameters = {"noChannels": 2}
 
     # Confirm the ragged scenario is real: at least one channel stream has unequal
@@ -899,7 +891,7 @@ def test_compute_npm_channel_previews_aligns_ragged_channel_lengths():
 # read_header: NPM defers discovery to the configuration form
 # ---------------------------------------------------------------------------
 
-NPM_3_FOLDER = os.path.join(STUBBED_TESTING_DATA, "npm", "sampleData_NPM_3")
+NPM_3_FOLDER = Path(STUBBED_TESTING_DATA) / "npm" / "sampleData_NPM_3"
 
 
 def test_read_header_npm_defers_discovery():
@@ -1039,7 +1031,7 @@ def test_orchestrate_store_labeling_page_serves_one_page_per_session(panel_exten
     monkeypatch.setattr(pn.template.BootstrapTemplate, "show", lambda self, port: served_ports.append(port))
     input_parameters = {
         "session_folders": ["sample_data_csv_1"],
-        "abspath": os.path.join(str(STUBBED_TESTING_DATA), "csv"),
+        "abspath": Path(str(STUBBED_TESTING_DATA)) / "csv",
         "isosbestic_control": True,
         "noChannels": 2,
     }

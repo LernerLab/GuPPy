@@ -9,10 +9,9 @@ Saving averages the traces over the windows and writes both the definitions
 (``tonic_epochs_<site>.csv``) and the per-epoch means (``tonic_<site>.h5``).
 """
 
-import glob
 import logging
-import os
 from collections.abc import Callable
+from pathlib import Path
 
 import holoviews as hv
 import numpy as np
@@ -80,13 +79,13 @@ def load_site_traces(filepath: str) -> dict[str, dict[str, np.ndarray]]:
         Mapping recording-site name → ``{"x", "y_zscore", "y_dff"}`` arrays.
     """
     site_traces: dict[str, dict[str, np.ndarray]] = {}
-    for path in sorted(glob.glob(os.path.join(filepath, "z_score_*"))):
-        basename = os.path.basename(path).split(".")[0]
+    for path in sorted(Path(filepath).glob("z_score_*")):
+        basename = path.name.split(".")[0]
         site = recording_site_from_preprocessed_label(basename)
         site_traces[site] = {
             "x": np.asarray(read_hdf5("timeCorrection_" + site, filepath, "timestampNew")).ravel(),
             "y_zscore": np.asarray(read_hdf5("", path, "data")).ravel(),
-            "y_dff": np.asarray(read_hdf5("", os.path.join(filepath, "dff_" + site + ".hdf5"), "data")).ravel(),
+            "y_dff": np.asarray(read_hdf5("", Path(filepath) / ("dff_" + site + ".hdf5"), "data")).ravel(),
         }
     return site_traces
 
@@ -188,7 +187,7 @@ class TonicEpochConfig:
         self.save_button.on_click(self._on_save)
 
         self.widget = pn.Column(
-            f"# Tonic Analysis — {os.path.basename(filepath)}",
+            f"# Tonic Analysis — {Path(filepath).name}",
             pn.pane.Markdown(_INSTRUCTIONS),
             self.site_select,
             self.plot_pane,
@@ -286,7 +285,7 @@ class TonicEpochConfig:
                 remove_tonic_results(self.filepath, site)
 
         for site, complete in to_write.items():
-            complete.to_csv(os.path.join(self.filepath, "tonic_epochs_" + site + ".csv"), index=False)
+            complete.to_csv(Path(self.filepath) / ("tonic_epochs_" + site + ".csv"), index=False)
             trace = self.site_traces[site]
             write_tonic_to_hdf5(
                 self.filepath,
@@ -313,7 +312,7 @@ class TonicEpochConfig:
         return build_stacked_traces(
             x=trace["x"],
             traces={"z-score": trace["y_zscore"], "ΔF/F": trace["y_dff"]},
-            suptitle=os.path.basename(self.filepath),
+            suptitle=Path(self.filepath).name,
             spans=self.spans_pipe,
         )
 
@@ -351,8 +350,8 @@ def build_tonic_epoch_page(*, run_folders: list[str]) -> pn.viewable.Viewable:
 
 def _tonic_result_sites(filepath: str) -> list[str]:
     sites = []
-    for path in sorted(glob.glob(os.path.join(filepath, "tonic_*.h5"))):
-        basename = os.path.basename(path)
+    for path in sorted(Path(filepath).glob("tonic_*.h5")):
+        basename = path.name
         sites.append(basename[len("tonic_") : -len(".h5")])
     return sites
 
@@ -384,7 +383,7 @@ class TonicResultsView:
         self.baseline_select.param.watch(self._refresh, "value")
 
         self.widget = pn.Column(
-            f"## Tonic / basal analysis — {os.path.basename(filepath)}",
+            f"## Tonic / basal analysis — {Path(filepath).name}",
             pn.Row(self.site_select, self.baseline_select),
             self.bars_pane,
             pn.pane.Markdown(_BASELINE_HINT),
@@ -394,7 +393,7 @@ class TonicResultsView:
         )
 
     def _means(self, site: str) -> pd.DataFrame:
-        return pd.read_hdf(os.path.join(self.filepath, "tonic_" + site + ".h5"), key="df")
+        return pd.read_hdf(Path(self.filepath) / ("tonic_" + site + ".h5"), key="df")
 
     def _make_bars(self) -> hv.Layout:
         """Each epoch's change from the baseline epoch, as bars, one panel per signal.
@@ -445,10 +444,8 @@ class TonicResultsView:
         site = self.site_select.value
         timestamps = np.asarray(read_hdf5("timeCorrection_" + site, self.filepath, "timestampNew")).ravel()
         traces = {
-            "z-score": np.asarray(
-                read_hdf5("", os.path.join(self.filepath, "z_score_" + site + ".hdf5"), "data")
-            ).ravel(),
-            "ΔF/F": np.asarray(read_hdf5("", os.path.join(self.filepath, "dff_" + site + ".hdf5"), "data")).ravel(),
+            "z-score": np.asarray(read_hdf5("", Path(self.filepath) / ("z_score_" + site + ".hdf5"), "data")).ravel(),
+            "ΔF/F": np.asarray(read_hdf5("", Path(self.filepath) / ("dff_" + site + ".hdf5"), "data")).ravel(),
         }
         # The analysed windows are fixed on disk, so the pipe is seeded once per rebuild
         # rather than driven by edits; it is retained so the spans layer keeps its source.
@@ -459,7 +456,7 @@ class TonicResultsView:
         return build_stacked_traces(
             x=timestamps,
             traces=traces,
-            suptitle=os.path.basename(self.filepath),
+            suptitle=Path(self.filepath).name,
             spans=self.spans_pipe,
         )
 

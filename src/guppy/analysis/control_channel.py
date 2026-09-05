@@ -1,6 +1,6 @@
 import logging
-import os
 import shutil
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -72,9 +72,8 @@ def add_control_channel(filepath: str, store_array: np.ndarray) -> np.ndarray:
             expected_control_name = "control_" + str(name).lower()
             find_signal = [True for i in store_labels_lower if i == expected_control_name]
             if len(find_signal) == 0:
-                source_path, destination_path = os.path.join(filepath, store_array[0, i] + ".hdf5"), os.path.join(
-                    filepath, "cntrl" + str(i) + ".hdf5"
-                )
+                source_path = Path(filepath) / (store_array[0, i] + ".hdf5")
+                destination_path = Path(filepath) / ("cntrl" + str(i) + ".hdf5")
                 shutil.copyfile(source_path, destination_path)
                 store_array = np.concatenate(
                     (
@@ -121,7 +120,7 @@ def create_control_channel(filepath: str, store_array: np.ndarray, window: int =
             write_hdf5(control, event_name, filepath, "data")
             data_dict = {"timestamps": timestampNew, "data": control, "sampling_rate": sampling_rate}
             df = pd.DataFrame(data_dict)
-            df.to_csv(os.path.join(os.path.dirname(filepath), event.lower() + ".csv"), index=False)
+            df.to_csv(Path(filepath).parent / (event.lower() + ".csv"), index=False)
             logger.info("Control channel from signal channel created using curve-fitting")
 
 

@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -83,7 +84,7 @@ class ParameterForm:
 
     def __init__(self, *, template: object, start_path: str | None = None) -> None:
         self.template = template
-        self.folder_path = start_path if start_path and os.path.isdir(start_path) else default_root_path()
+        self.folder_path = start_path if start_path and Path(start_path).is_dir() else default_root_path()
         self.styles = dict(background="WhiteSmoke")
         # Sessions the run selection was last synced against, so a change can tell which
         # sessions are new and should inherit the bulk run-name choice.
@@ -554,7 +555,7 @@ class ParameterForm:
         grouped: dict[str, list[str]] = {}
         for path in self.outputs_selector.value or []:
             _reject_group_folder_selected_as_run(path=path)
-            session = os.path.dirname(path)
+            session = str(Path(path).parent)
             grouped.setdefault(session, []).append(parse_run_name(path))
         return grouped
 
@@ -586,7 +587,7 @@ class ParameterForm:
             candidates = self._prospective_dandi_sessions()
         else:
             candidates = list(self.files_1.value or [])
-        return [session for session in candidates if os.path.isdir(session)]
+        return [session for session in candidates if Path(session).is_dir()]
 
     @staticmethod
     def _run_names_for_sessions(sessions: list[str]) -> list[str]:
@@ -675,7 +676,7 @@ class ParameterForm:
         self._sessions_in_run_selection = sessions
         self._retarget_outputs_selector(sessions)
 
-        selected = [path for path in (self.outputs_selector.value or []) if os.path.dirname(path) in sessions]
+        selected = [path for path in (self.outputs_selector.value or []) if str(Path(path).parent) in sessions]
         selected += self._run_folders_on_disk(sessions=new_sessions, run_names=self.run_names_for_all_sessions.value)
         self._apply_selected_run_folders(selected)
         self._refresh_run_name_options(sessions)
@@ -691,7 +692,7 @@ class ParameterForm:
             run_name for run_name in run_names if run_name in self.run_names_for_all_sessions.options
         ]
         self._suppressing_run_name_propagation = False
-        self._apply_selected_run_folders([path for path in run_folders if os.path.dirname(path) in sessions])
+        self._apply_selected_run_folders([path for path in run_folders if str(Path(path).parent) in sessions])
 
     def _on_run_names_for_all_sessions_change(self, event: object) -> None:
         """Select or deselect the runs matching the bulk choice, leaving hand-picked ones alone."""
@@ -710,7 +711,7 @@ class ParameterForm:
         for session in sessions:
             for run_name in run_names:
                 run_folder = run_folder_for_run(session, run_name)
-                if os.path.isdir(run_folder):
+                if Path(run_folder).is_dir():
                     run_folders.append(run_folder)
         return run_folders
 
@@ -731,8 +732,8 @@ class ParameterForm:
         sessions = []
         for uri in self.dandi_selector.selected_uris:
             asset_path = uri.split("/", 3)[-1]
-            session_stem = os.path.splitext(os.path.basename(asset_path))[0]
-            sessions.append(os.path.join(output_root, session_stem))
+            session_stem = Path(asset_path).stem
+            sessions.append(str(Path(output_root) / session_stem))
         return sessions
 
     def _resolve_dandi_sessions(self) -> tuple[list[str], str, dict[str, str]]:
@@ -764,7 +765,7 @@ class ParameterForm:
 
         folder_names = self._prospective_dandi_sessions()
         for session_directory in folder_names:
-            os.makedirs(session_directory, exist_ok=True)
+            Path(session_directory).mkdir(parents=True, exist_ok=True)
         dandi_uri_map = dict(zip(folder_names, selected_uris, strict=True))
         return folder_names, output_root, dandi_uri_map
 
@@ -1030,9 +1031,9 @@ class ParameterForm:
         """
         saved = []
         for run_folder in event.new or []:
-            json_path = os.path.join(run_folder, "GuPPyParamtersUsed.json")
-            if os.path.exists(json_path):
-                with open(json_path) as parameters_file:
+            json_path = Path(run_folder) / "GuPPyParamtersUsed.json"
+            if json_path.exists():
+                with json_path.open() as parameters_file:
                     saved.append(json.load(parameters_file))
         if not saved:
             return

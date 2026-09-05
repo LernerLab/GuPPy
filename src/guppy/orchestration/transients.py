@@ -1,7 +1,6 @@
-import glob
 import logging
 import multiprocessing as mp
-import os
+from pathlib import Path
 
 import numpy as np
 
@@ -64,11 +63,11 @@ def findFreqAndAmp(
     useTransientsAsEvents = inputParameters["useTransientsAsEvents"]
 
     if selectForTransientsComputation == "z_score":
-        path = glob.glob(os.path.join(filepath, "z_score_*"))
+        path = list(Path(filepath).glob("z_score_*"))
     elif selectForTransientsComputation == "dff":
-        path = glob.glob(os.path.join(filepath, "dff_*"))
+        path = list(Path(filepath).glob("dff_*"))
     else:
-        path = glob.glob(os.path.join(filepath, "z_score_*")) + glob.glob(os.path.join(filepath, "dff_*"))
+        path = list(Path(filepath).glob("z_score_*")) + list(Path(filepath).glob("dff_*"))
 
     # Occurrence times per recording site per metric, kept for the binned metrics
     # below; with "Both" selected each site is visited twice, so they are
@@ -76,7 +75,7 @@ def findFreqAndAmp(
     site_to_transient_timestamps = {}
 
     for i in range(len(path)):
-        basename = (os.path.basename(path[i])).split(".")[0]
+        basename = (Path(path[i]).name).split(".")[0]
         name_1 = recording_site_from_preprocessed_label(basename)
         sampling_rate = read_hdf5("timeCorrection_" + name_1, filepath, "sampling_rate")[0]
         z_score = read_hdf5("", path[i], "data")
@@ -84,7 +83,7 @@ def findFreqAndAmp(
         z_score, timestamps, peaksInd, peaks_occurrences, freq_and_amp = analyze_transients(
             timestamps, window, numProcesses, highAmpFilt, transientsThresh, sampling_rate, z_score
         )
-        fileName = [os.path.basename(os.path.dirname(filepath))]
+        fileName = [Path(filepath).parent.name]
         write_freq_and_amp_to_hdf5(
             filepath, freq_and_amp, basename, index=fileName, columns=["freq (events/min)", "amplitude"]
         )

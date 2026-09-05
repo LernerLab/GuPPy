@@ -30,10 +30,9 @@ Conventions
   the user the valid range or fix. See PR #283 for the established template.
 """
 
-import glob
 import logging
-import os
 from collections.abc import Sequence
+from pathlib import Path
 
 import numpy as np
 
@@ -347,7 +346,7 @@ def validate_artifact_coords_present(*, run_folders: Sequence[str]) -> None:
         If any run folder has no ``coordsForPreProcessing_<recording_site>.npy`` file.
     """
     for run_folder in run_folders:
-        if not glob.glob(os.path.join(run_folder, "coordsForPreProcessing_*.npy")):
+        if not any(Path(run_folder).glob("coordsForPreProcessing_*.npy")):
             message = (
                 f"No artifact windows have been selected for '{run_folder}'. Run Select Artifact Windows "
                 "and save at least one window before running Remove Artifacts."
@@ -374,7 +373,7 @@ def validate_preprocessing_outputs_present(
         If any run folder is missing its ``cntrl_sig_fit_<recording_site>.hdf5`` files.
     """
     for run_folder in run_folders:
-        if not glob.glob(os.path.join(run_folder, "cntrl_sig_fit_*.hdf5")):
+        if not any(Path(run_folder).glob("cntrl_sig_fit_*.hdf5")):
             message = f"No preprocessing outputs found in '{run_folder}'. Run Step 3 (Preprocess) before {action}."
             logger.error(message)
             raise ValueError(message)
@@ -402,7 +401,7 @@ def validate_group_member_run_folders(*, member_run_folders: Sequence[str]) -> N
         logger.error(message)
         raise ValueError(message)
 
-    not_output_directories = [path for path in member_run_folders if _RUN_NAME_MARKER not in os.path.basename(path)]
+    not_output_directories = [path for path in member_run_folders if _RUN_NAME_MARKER not in Path(path).name]
     if not_output_directories:
         message = (
             f"Group members must be output directories, but these are not: {not_output_directories!r}. "
@@ -412,13 +411,13 @@ def validate_group_member_run_folders(*, member_run_folders: Sequence[str]) -> N
         logger.error(message)
         raise ValueError(message)
 
-    missing = [path for path in member_run_folders if not os.path.isdir(path)]
+    missing = [path for path in member_run_folders if not Path(path).is_dir()]
     if missing:
         message = f"Group member run folders do not exist: {missing!r}. Re-select the group's members."
         logger.error(message)
         raise ValueError(message)
 
-    missing_stores = [path for path in member_run_folders if not os.path.exists(os.path.join(path, "storesList.csv"))]
+    missing_stores = [path for path in member_run_folders if not (Path(path) / "storesList.csv").exists()]
     if missing_stores:
         message = (
             f"Group member run folders are missing storesList.csv: {missing_stores!r}. "
@@ -454,13 +453,13 @@ def validate_group_definitions(*, group_folders: Sequence[str]) -> None:
         logger.error(message)
         raise ValueError(message)
 
-    missing = [path for path in group_folders if not os.path.isdir(path)]
+    missing = [path for path in group_folders if not Path(path).is_dir()]
     if missing:
         message = f"Group output directories do not exist: {missing!r}. Re-create them with the Label Groups step."
         logger.error(message)
         raise ValueError(message)
 
-    undefined = [path for path in group_folders if not os.path.exists(os.path.join(path, GROUP_MEMBERS_FILENAME))]
+    undefined = [path for path in group_folders if not (Path(path) / GROUP_MEMBERS_FILENAME).exists()]
     if undefined:
         message = (
             f"Group output directories hold no {GROUP_MEMBERS_FILENAME}: {undefined!r}. "

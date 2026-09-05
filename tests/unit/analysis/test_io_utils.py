@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -32,8 +32,7 @@ def test_find_files_matches_glob_pattern(tmp_path):
     (tmp_path / "signal_data.hdf5").touch()
     (tmp_path / "other.txt").touch()
     result = find_files(str(tmp_path), "control_*")
-    assert len(result) == 1
-    assert "control_signal.hdf5" in result[0]
+    assert result == [tmp_path / "control_signal.hdf5"]
 
 
 def test_find_files_ignore_case_matches_regardless_of_case(tmp_path):
@@ -82,8 +81,8 @@ def test_decide_naming_convention_pairs_recording_sites_with_underscores(tmp_pat
     (tmp_path / "signal_left_hemisphere.hdf5").touch()
     result = decide_naming_convention(str(tmp_path))
     assert result.shape == (2, 1)
-    assert os.path.basename(result[0, 0]) == "control_left_hemisphere.hdf5"
-    assert os.path.basename(result[1, 0]) == "signal_left_hemisphere.hdf5"
+    assert Path(result[0, 0]).name == "control_left_hemisphere.hdf5"
+    assert Path(result[1, 0]).name == "signal_left_hemisphere.hdf5"
 
 
 # ── read_hdf5 / write_hdf5 ────────────────────────────────────────────────────
@@ -373,11 +372,11 @@ def test_metric_from_preprocessed_label_without_a_known_prefix_raises():
 
 def test_make_dir_for_cross_correlation_creates_directory_and_returns_path(tmp_path):
     result = make_dir_for_cross_correlation(str(tmp_path))
-    assert result == str(tmp_path / "cross_correlation_output")
+    assert result == tmp_path / "cross_correlation_output"
     assert (tmp_path / "cross_correlation_output").is_dir()
 
 
 def test_make_dir_for_cross_correlation_is_idempotent(tmp_path):
     make_dir_for_cross_correlation(str(tmp_path))
     result = make_dir_for_cross_correlation(str(tmp_path))
-    assert result == str(tmp_path / "cross_correlation_output")
+    assert result == tmp_path / "cross_correlation_output"

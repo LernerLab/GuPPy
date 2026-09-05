@@ -9,7 +9,7 @@ labels the user assigned to them (``control_DMS``, ``signal_DMS``, ...). Column
 itself meaningful — the NWB converter walks recording sites in it.
 """
 
-import os
+from pathlib import Path
 
 import numpy as np
 
@@ -17,12 +17,12 @@ STORES_LIST_FILENAME = "storesList.csv"
 COMBINED_STORES_LIST_FILENAME = "combine_storesList.csv"
 
 
-def read_stores_list(*, run_folder: str, filename: str = STORES_LIST_FILENAME) -> np.ndarray:
+def read_stores_list(*, run_folder: str | Path, filename: str = STORES_LIST_FILENAME) -> np.ndarray:
     """Read a run folder's store mapping.
 
     Parameters
     ----------
-    run_folder : str
+    run_folder : str or Path
         Directory holding the store-mapping CSV.
     filename : str, optional
         Name of the CSV within ``run_folder``. Defaults to ``storesList.csv``.
@@ -33,15 +33,15 @@ def read_stores_list(*, run_folder: str, filename: str = STORES_LIST_FILENAME) -
         String array of shape ``(2, n_stores)``: row 0 store ids, row 1 store
         labels. A single-store file still comes back 2-D.
     """
-    return np.genfromtxt(os.path.join(run_folder, filename), dtype="str", delimiter=",").reshape(2, -1)
+    return np.genfromtxt(Path(run_folder) / filename, dtype="str", delimiter=",").reshape(2, -1)
 
 
-def write_stores_list(*, run_folder: str, store_array: np.ndarray, filename: str = STORES_LIST_FILENAME) -> None:
+def write_stores_list(*, run_folder: str | Path, store_array: np.ndarray, filename: str = STORES_LIST_FILENAME) -> None:
     """Write a store mapping into a run folder.
 
     Parameters
     ----------
-    run_folder : str
+    run_folder : str or Path
         Directory to write the store-mapping CSV into.
     store_array : np.ndarray
         String array of shape ``(2, n_stores)``: row 0 store ids, row 1 store
@@ -49,4 +49,4 @@ def write_stores_list(*, run_folder: str, store_array: np.ndarray, filename: str
     filename : str, optional
         Name of the CSV within ``run_folder``. Defaults to ``storesList.csv``.
     """
-    np.savetxt(os.path.join(run_folder, filename), store_array, delimiter=",", fmt="%s")
+    np.savetxt(Path(run_folder) / filename, store_array, delimiter=",", fmt="%s")

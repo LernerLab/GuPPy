@@ -11,8 +11,8 @@ The group directory is run-folder-shaped for the consumers that read PSTH output
 """
 
 import logging
-import os
 import shutil
+from pathlib import Path
 
 import numpy as np
 
@@ -75,8 +75,7 @@ def _validate_fiber_recording_sites_consistent_for_group(*, member_run_folders: 
         return
 
     member_lines = "\n".join(
-        f"  - {os.path.basename(os.path.dirname(run_folder))}: "
-        f"{', '.join(stores) if stores else '(no control/signal store_ids)'}"
+        f"  - {Path(run_folder).parent.name}: " f"{', '.join(stores) if stores else '(no control/signal store_ids)'}"
         for run_folder, stores in per_member_fibers.items()
     )
     raise ValueError(
@@ -150,14 +149,13 @@ def _clear_group_results(*, group_folder: str) -> None:
     group_folder : str
         Group output directory to clear.
     """
-    for entry in os.listdir(group_folder):
-        if entry == GROUP_MEMBERS_FILENAME:
+    for path in Path(group_folder).iterdir():
+        if path.name == GROUP_MEMBERS_FILENAME:
             continue
-        path = os.path.join(group_folder, entry)
-        if os.path.isdir(path):
+        if path.is_dir():
             shutil.rmtree(path)
         else:
-            os.remove(path)
+            path.unlink()
 
 
 def _filter_stores_list_to_averaged_events(*, store_array: np.ndarray, averaged_events: list[str]) -> np.ndarray:

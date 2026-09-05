@@ -138,6 +138,7 @@ select = [
     "B", # All flake8-bugbear rules (mutable argument defaults, zip() without strict=, ...)
     "RUF012", # Mutable class attribute not annotated with typing.ClassVar
     "DTZ", # All flake8-datetimez rules (naive datetime construction)
+    "PTH", # All flake8-use-pathlib rules (os.path/glob/open -> pathlib.Path)
     "ANN", # All type hint rules
 ]
 fixable = ["ALL"]

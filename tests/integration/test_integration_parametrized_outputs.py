@@ -5,9 +5,8 @@ steps respect ``selected_runs`` so multiple parameter sets can coexist for the
 same session without overwriting each other.
 """
 
-import glob
-import os
 import shutil
+from pathlib import Path
 
 import pytest
 
@@ -32,7 +31,7 @@ def csv_session_copy(tmp_path):
     shutil.copytree(source, destination)
 
     session_name = destination.name
-    for stale in glob.glob(os.path.join(destination, f"{session_name}_output_*")):
+    for stale in list(Path(destination).glob(f"{session_name}_output_*")):
         shutil.rmtree(stale)
     parameters = destination / "GuPPyParamtersUsed.json"
     if parameters.exists():
@@ -50,9 +49,9 @@ class TestStep1RunName:
             store_id_to_store_label=CSV_STORE_ID_TO_STORE_LABEL,
             run_name="baseline",
         )
-        expected = os.path.join(session, f"{os.path.basename(session)}_output_baseline")
-        assert os.path.isdir(expected)
-        assert os.path.exists(os.path.join(expected, "storesList.csv"))
+        expected = Path(session) / (f"{Path(session).name}_output_baseline")
+        assert Path(expected).is_dir()
+        assert (Path(expected) / "storesList.csv").exists()
 
     def test_two_run_names_coexist(self, csv_session_copy):
         base, session = csv_session_copy
@@ -68,9 +67,9 @@ class TestStep1RunName:
             store_id_to_store_label=CSV_STORE_ID_TO_STORE_LABEL,
             run_name="strict",
         )
-        session_basename = os.path.basename(session)
-        assert os.path.isdir(os.path.join(session, f"{session_basename}_output_baseline"))
-        assert os.path.isdir(os.path.join(session, f"{session_basename}_output_strict"))
+        session_basename = Path(session).name
+        assert (Path(session) / (f"{session_basename}_output_baseline")).is_dir()
+        assert (Path(session) / (f"{session_basename}_output_strict")).is_dir()
 
     def test_create_policy_raises_on_existing_run_name(self, csv_session_copy):
         base, session = csv_session_copy
@@ -97,9 +96,9 @@ class TestStep1RunName:
             store_id_to_store_label=CSV_STORE_ID_TO_STORE_LABEL,
             run_name="baseline",
         )
-        existing = os.path.join(session, f"{os.path.basename(session)}_output_baseline")
-        marker = os.path.join(existing, "stale_marker.txt")
-        with open(marker, "w") as marker_file:
+        existing = Path(session) / (f"{Path(session).name}_output_baseline")
+        marker = Path(existing) / "stale_marker.txt"
+        with Path(marker).open("w") as marker_file:
             marker_file.write("stale")
 
         step1(
@@ -110,14 +109,14 @@ class TestStep1RunName:
             run_name_policy="overwrite",
         )
 
-        assert os.path.isdir(existing)
-        assert not os.path.exists(marker)
+        assert Path(existing).is_dir()
+        assert not Path(marker).exists()
 
     def test_legacy_unspecified_run_name_uses_integer_suffix(self, csv_session_copy):
         base, session = csv_session_copy
         step1(base_dir=base, selected_folders=[session], store_id_to_store_label=CSV_STORE_ID_TO_STORE_LABEL)
-        expected = os.path.join(session, f"{os.path.basename(session)}_output_1")
-        assert os.path.isdir(expected)
+        expected = Path(session) / (f"{Path(session).name}_output_1")
+        assert Path(expected).is_dir()
 
 
 class TestStep2SelectedRuns:
@@ -137,12 +136,12 @@ class TestStep2SelectedRuns:
             selected_runs={session: ["baseline"]},
         )
 
-        baseline_dir = os.path.join(session, f"{os.path.basename(session)}_output_baseline")
-        strict_dir = os.path.join(session, f"{os.path.basename(session)}_output_strict")
+        baseline_dir = Path(session) / (f"{Path(session).name}_output_baseline")
+        strict_dir = Path(session) / (f"{Path(session).name}_output_strict")
         # Step 2 writes raw store HDF5 files alongside storesList.csv. The selected
         # baseline dir should have those files; the unselected strict dir should not.
-        baseline_hdf5_files = glob.glob(os.path.join(baseline_dir, "*.hdf5"))
-        strict_hdf5_files = glob.glob(os.path.join(strict_dir, "*.hdf5"))
+        baseline_hdf5_files = list(Path(baseline_dir).glob("*.hdf5"))
+        strict_hdf5_files = list(Path(strict_dir).glob("*.hdf5"))
         assert baseline_hdf5_files, "Step 2 produced no HDF5 outputs in the selected run"
         assert not strict_hdf5_files, "Step 2 wrote into the unselected run directory"
 
@@ -185,9 +184,9 @@ class TestStep3SelectedRuns:
             selected_runs={session: ["baseline"]},
         )
 
-        baseline_dir = os.path.join(session, f"{os.path.basename(session)}_output_baseline")
-        strict_dir = os.path.join(session, f"{os.path.basename(session)}_output_strict")
-        baseline_zscore = glob.glob(os.path.join(baseline_dir, "z_score_*.hdf5"))
-        strict_zscore = glob.glob(os.path.join(strict_dir, "z_score_*.hdf5"))
+        baseline_dir = Path(session) / (f"{Path(session).name}_output_baseline")
+        strict_dir = Path(session) / (f"{Path(session).name}_output_strict")
+        baseline_zscore = list(Path(baseline_dir).glob("z_score_*.hdf5"))
+        strict_zscore = list(Path(strict_dir).glob("z_score_*.hdf5"))
         assert baseline_zscore, "Step 3 produced no z-score outputs in the selected run"
         assert not strict_zscore, "Step 3 wrote z-score outputs to the unselected run directory"

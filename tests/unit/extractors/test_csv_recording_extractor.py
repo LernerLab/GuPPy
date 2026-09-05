@@ -1,6 +1,6 @@
 """Contract tests for CsvRecordingExtractor."""
 
-import os
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -35,7 +35,7 @@ from guppy_test_data import STUBBED_TESTING_DATA
 
 class TestCsvRecordingExtractor(RecordingExtractorTestMixin):
     extractor_class = CsvRecordingExtractor
-    folder_path = os.path.join(STUBBED_TESTING_DATA, "csv", "sample_data_csv_1")
+    folder_path = Path(STUBBED_TESTING_DATA) / "csv" / "sample_data_csv_1"
     extractor_instance = CsvRecordingExtractor(folder_path)
     expected_events = ["Sample_Control_Channel", "Sample_Signal_Channel", "Sample_TTL"]
     discover_kwargs = {}
@@ -46,27 +46,27 @@ class TestCsvRecordingExtractor(RecordingExtractorTestMixin):
 
     @pytest.fixture
     def expected_control_timestamps(self):
-        csv_path = os.path.join(self.folder_path, "Sample_Control_Channel.csv")
+        csv_path = Path(self.folder_path) / "Sample_Control_Channel.csv"
         return pd.read_csv(csv_path)["timestamps"].to_numpy()
 
     @pytest.fixture
     def expected_control_data(self):
-        csv_path = os.path.join(self.folder_path, "Sample_Control_Channel.csv")
+        csv_path = Path(self.folder_path) / "Sample_Control_Channel.csv"
         return pd.read_csv(csv_path)["data"].to_numpy()
 
     @pytest.fixture
     def expected_signal_timestamps(self):
-        csv_path = os.path.join(self.folder_path, "Sample_Signal_Channel.csv")
+        csv_path = Path(self.folder_path) / "Sample_Signal_Channel.csv"
         return pd.read_csv(csv_path)["timestamps"].to_numpy()
 
     @pytest.fixture
     def expected_signal_data(self):
-        csv_path = os.path.join(self.folder_path, "Sample_Signal_Channel.csv")
+        csv_path = Path(self.folder_path) / "Sample_Signal_Channel.csv"
         return pd.read_csv(csv_path)["data"].to_numpy()
 
     @pytest.fixture
     def expected_ttl_timestamps(self):
-        csv_path = os.path.join(self.folder_path, "Sample_TTL.csv")
+        csv_path = Path(self.folder_path) / "Sample_TTL.csv"
         return pd.read_csv(csv_path)["timestamps"].to_numpy()
 
 
@@ -91,13 +91,10 @@ def test_read_csv_missing_event_raises_file_not_found(tmp_path):
 
 
 def test_discover_raises_for_non_csv_extension(monkeypatch, tmp_path):
-    # Bypass the *.csv glob filter by monkeypatching glob to return a .txt path
+    # Bypass the *.csv glob filter by monkeypatching Path.glob to return a .txt path
     fake_path = tmp_path / "fake.txt"
     fake_path.write_text("timestamps\n0\n")
-    monkeypatch.setattr(
-        "guppy.extractors.csv_recording_extractor.glob.glob",
-        lambda pattern: [str(fake_path)],
-    )
+    monkeypatch.setattr(Path, "glob", lambda self, pattern: [fake_path])
     _force_classify_to_csv(monkeypatch)
     with pytest.raises(ValueError, match="Only .csv files are supported"):
         CsvRecordingExtractor.discover_events_and_flags(str(tmp_path))

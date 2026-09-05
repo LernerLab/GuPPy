@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -17,8 +17,8 @@ from guppy.frontend.psth_significance_view import (
 
 def write_significance(filepath, name, *, significant_from=None, significant_to=None, n=12, n_b=None, alpha=0.05):
     """Write one significance table into the results subdirectory."""
-    results_path = os.path.join(filepath, PSTH_SIGNIFICANCE_DIRNAME)
-    os.makedirs(results_path, exist_ok=True)
+    results_path = Path(filepath) / PSTH_SIGNIFICANCE_DIRNAME
+    Path(results_path).mkdir(parents=True, exist_ok=True)
 
     timestamps = np.linspace(-1.0, 1.0, 11)
     significant = np.zeros(11, dtype=int)
@@ -39,7 +39,7 @@ def write_significance(filepath, name, *, significant_from=None, significant_to=
     if n_b is not None:
         table["n_b"] = n_b
 
-    table.to_hdf(os.path.join(results_path, "significance_" + name + ".h5"), key="df", mode="w")
+    table.to_hdf(Path(results_path) / ("significance_" + name + ".h5"), key="df", mode="w")
 
 
 @pytest.fixture

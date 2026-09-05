@@ -1,6 +1,4 @@
-import glob
 import logging
-import os
 import shutil
 from pathlib import Path
 from typing import Any
@@ -48,7 +46,7 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
             Format indicators or file type flags.
         """
         logger.debug("If it exists, importing either NPM or Doric or csv file based on the structure of file")
-        path = sorted(glob.glob(os.path.join(folder_path, "*.csv")))
+        path = sorted(Path(folder_path).glob("*.csv"))
         # Only process files classified as standard CSV (event_csv or data_csv).
         # Skips NPM multi-column files and Doric CSV files when coexisting in the same folder.
         path = [p for p in path if _classify_csv_file(p) == "csv"]
@@ -57,7 +55,7 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
         event_from_filename = []
         flags = []
         for i in range(len(path)):
-            extension = os.path.basename(path[i]).split(".")[-1]
+            extension = path[i].name.split(".")[-1]
             if extension != "csv":
                 raise ValueError(f"Only .csv files are supported by CsvRecordingExtractor; got '{path[i]}'.")
             df = pd.read_csv(path[i], header=None, nrows=2, index_col=False, dtype=str)
@@ -119,7 +117,7 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
 
             flags.append(flag)
             logger.info(flag)
-            name = os.path.basename(path[i]).split(".")[0]
+            name = path[i].name.split(".")[0]
             event_from_filename.append(name)
 
         logger.info("Importing of csv file is done.")
@@ -152,17 +150,17 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
 
     def count_samples(self, *, event: str) -> int:
         """Return the number of data rows in ``<event>.csv`` (excludes header)."""
-        csv_path = os.path.join(self.folder_path, event + ".csv")
-        if not os.path.exists(csv_path):
+        csv_path = Path(self.folder_path) / (event + ".csv")
+        if not csv_path.exists():
             return 0
-        with open(csv_path, "rb") as file:
+        with csv_path.open("rb") as file:
             total_lines = sum(1 for _ in file)
         return max(0, total_lines - 1)
 
     def _read_csv(self, event: str) -> pd.DataFrame:
         logger.debug("Trying to read data for %s from csv file.", event)
-        csv_path = os.path.join(self.folder_path, event + ".csv")
-        if not os.path.exists(csv_path):
+        csv_path = Path(self.folder_path) / (event + ".csv")
+        if not csv_path.exists():
             message = f"No CSV file found for event '{event}' at '{csv_path}'."
             logger.error(message)
             raise FileNotFoundError(message)
