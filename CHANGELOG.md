@@ -10,6 +10,8 @@
 - Fixed the README's documentation links, which all carried an `/en/latest/` path prefix that 404s on the single-version Read the Docs project. [PR #469](https://github.com/LernerLab/GuPPy/pull/469)
 
 ## Improvements
+- The Individual Analysis card is now divided into titled sections that name the steps reading each one, so the parameters Group Analysis shares with Step 4 are no longer filed as individual-only. [PR #495](https://github.com/LernerLab/GuPPy/pull/495)
+- The metric plotted by the visualization dashboard is now chosen in the dashboard itself and can be switched between the metrics Step 4 computed without re-running the step, instead of being fixed on the homepage before Step 5 starts. [PR #495](https://github.com/LernerLab/GuPPy/pull/495)
 - The test suite now builds paths with `pathlib.Path`, completing the `os.path`/`glob` migration and leaving `ruff`'s `PTH` rules enforced everywhere with no exemptions. [PR #490](https://github.com/LernerLab/GuPPy/pull/490)
 - The pipeline's step orchestration now builds paths with `pathlib.Path`, completing the migration across `src/`. [PR #488](https://github.com/LernerLab/GuPPy/pull/488)
 - GuPPy's run-folder and group-folder helpers and the parameter, DANDI and group-labeling selectors now build paths with `pathlib.Path`. [PR #487](https://github.com/LernerLab/GuPPy/pull/487)
