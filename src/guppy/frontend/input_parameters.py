@@ -180,11 +180,23 @@ class ParameterForm:
             """
                                 - ***Isosbestic Control Channel? :*** Make this parameter ``` False ``` if user
                                 does not want to use isosbestic control channel in the analysis.<br>
+                                - ***Control Channel Fitting Method :*** How the control channel is rescaled
+                                onto the signal before subtraction. ``` IRWLS ``` down-weights outlier samples
+                                so transients do not distort the fit; ``` OLS ``` is a plain least-squares fit.
+                                Default is ``` IRWLS ```.<br>
                                 - ***Photobleaching Detrend? :*** Make this parameter ``` True ``` to fit an
                                 exponential decay to the corrected &#916;F/F and subtract it, removing the
                                 residual photobleaching drift that remains after the control channel is
                                 subtracted. Useful for long (multi-hour) recordings. Requires an isosbestic
-                                control channel. Default is ``` False ```.<br>
+                                control channel and ``` OLS ```. Default is ``` False ```.<br>
+                                - ***Control Fit Window :*** Which part of the recording the fit is estimated
+                                from. ``` full trace ``` uses the whole recording; ``` baseline epoch ``` uses
+                                only the window set below and applies those coefficients throughout, for
+                                sessions where a sustained step change such as a drug injection would
+                                otherwise distort the fit. Requires an isosbestic control channel.<br>
+                                - ***Control Fit Window Start / End Time :*** Bounds of that epoch, in seconds.
+                                Start must be less than End and both must fall inside the recording. Ignored
+                                when the window is ``` full trace ```.<br>
                                 """,
             width=940,
         )
@@ -202,6 +214,10 @@ class ParameterForm:
 
         self.explain_event_metric = pn.pane.Markdown(
             """
+                                - ***z_score and/or &#916;F/F? (psth) :*** Which metric Step 4 aligns events on.
+                                ``` Both ``` writes a complete set of PSTH outputs for each metric.<br>
+                                - ***z_score and/or &#916;F/F? (transients) :*** Which metric the transient
+                                detector runs on. Same ``` Both ``` semantics.<br>
                                 - ***Use Transients as Events :*** Make this parameter ``` True ```, when user
                                 studies spontaneous activity and has no external event TTLs. The transients
                                 detected in each recording site are then used as that recording site's event
@@ -354,12 +370,18 @@ class ParameterForm:
 
         self.explain_nsec = pn.pane.Markdown(
             """
+                        - ***Seconds before / after 0 :*** Edges of the peri-event window, in seconds
+                        relative to each event timestamp. Defaults give a 30 second window running from
+                        10 seconds before to 20 seconds after.
                         - ***Time Interval :*** To omit bursts of event timestamps, user defined time interval
                         is set so that if the time difference between two timestamps is less than this defined time
                         interval, it will be deleted for the calculation of PSTH.
                         - ***Compute Cross-correlation :*** Make this parameter ```True```, when user wants
                         to compute cross-correlation between PSTHs of two different signals or signals
                         recorded from different recording sites.
+                        - ***Bin PSTH trials / Time(min) / # of trials for binning :*** Whether trials are
+                        binned by elapsed time or by trial count, and the size of each bin. Set the size to
+                        0 to leave the trials unbinned.
                         - ***Baseline Correction Start / End time :*** The window each trial is
                         baselined against, in seconds relative to the event. Set both to 0 to skip
                         baseline correction. A trial whose first event timestamp falls less than one
