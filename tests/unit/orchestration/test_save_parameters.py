@@ -4,10 +4,12 @@ from pathlib import Path
 
 import pytest
 
+from guppy.extractors.npm_recording_extractor import DEFAULT_NUM_CHANNELS
 from guppy.orchestration.save_parameters import (
     read_artifact_provenance,
     save_parameters,
 )
+from guppy.utils.utils import write_npm_params
 
 # Derived provenance, recorded by the preprocessing steps rather than taken from the form.
 ARTIFACT_PROVENANCE_KEYS = {
@@ -150,6 +152,39 @@ def test_save_parameters_saves_exactly_expected_keys(base_input_parameters):
     assert set(saved.keys()) == EXPECTED_KEYS
 
 
+class TestRecordedChannelCount:
+    """NWB export reads the channel count back out of the run's snapshot."""
+
+    def test_the_form_default_is_recorded_when_the_run_named_no_count(self, base_input_parameters):
+        save_parameters(base_input_parameters)
+
+        folder = base_input_parameters["session_folders"][0]
+        with (Path(folder) / "GuPPyParamtersUsed.json").open() as file:
+            saved = json.load(file)
+
+        assert saved["noChannels"] == DEFAULT_NUM_CHANNELS
+
+    def test_the_run_own_count_wins_over_the_form_default(self, base_input_parameters):
+        # The Label Stores page asks per run, so a run that recorded 3 keeps 3.
+        folder = Path(base_input_parameters["session_folders"][0])
+        write_npm_params(
+            run_folder=str(folder),
+            npm_params={
+                "npm_split_events": None,
+                "npm_time_unit": "seconds",
+                "npm_timestamp_column_name": None,
+                "noChannels": 3,
+            },
+        )
+
+        save_parameters(base_input_parameters)
+
+        with (folder / "GuPPyParamtersUsed.json").open() as file:
+            saved = json.load(file)
+
+        assert saved["noChannels"] == 3
+
+
 def test_save_parameters_excludes_orchestration_keys(base_input_parameters):
     save_parameters(base_input_parameters)
 
@@ -195,7 +230,6 @@ def test_save_parameters_single_folder(tmp_path):
         "photobleaching_detrend": False,
         "timeForLightsTurnOn": 0.0,
         "filter_window": 200,
-        "noChannels": 1,
         "zscore_method": "baseline",
         "baselineWindowStart": 1.0,
         "baselineWindowEnd": 3.0,

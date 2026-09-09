@@ -3,7 +3,8 @@ import logging
 from importlib.metadata import version
 from pathlib import Path
 
-from guppy.utils.utils import discover_run_folders, select_run_folders
+from guppy.extractors.npm_recording_extractor import DEFAULT_NUM_CHANNELS
+from guppy.utils.utils import discover_run_folders, load_npm_params, select_run_folders
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +72,26 @@ def record_artifact_provenance(
     logger.info("Artifact provenance updated at %s", destination)
 
 
+def _recorded_channel_count(destination: str) -> dict[str, int]:
+    """Return the channel count a run was read with, when that run recorded one.
+
+    Parameters
+    ----------
+    destination : str
+        Output directory the snapshot is being written into.
+
+    Returns
+    -------
+    dict
+        ``{"noChannels": count}`` when the run's ``.npm_params.json`` names one,
+        otherwise an empty dict so the form's value stands.
+    """
+    npm_params = load_npm_params(destination)
+    if "noChannels" in npm_params:
+        return {"noChannels": npm_params["noChannels"]}
+    return {}
+
+
 def build_analysis_parameters(*, inputParameters: dict[str, object]) -> dict[str, object]:
     """
     Build the analysis-parameter snapshot written to ``GuPPyParamtersUsed.json``.
@@ -99,6 +120,7 @@ def build_analysis_parameters(*, inputParameters: dict[str, object]) -> dict[str
         "photobleaching_detrend": inputParameters["photobleaching_detrend"],
         "timeForLightsTurnOn": inputParameters["timeForLightsTurnOn"],
         "filter_window": inputParameters["filter_window"],
+        "noChannels": inputParameters.get("noChannels", DEFAULT_NUM_CHANNELS),
         # Resolved per destination by write_analysis_parameters; listed here to fix
         # their position in the file.
         "removeArtifacts": None,
@@ -206,9 +228,12 @@ def save_parameters(
         else:
             destinations = select_run_folders(session, selected_runs.get(session))
         for destination in destinations:
+            # The channel count is chosen per run on the Label Stores page, so each
+            # destination records its own rather than the form's default.
+            destination_parameters = {**analysisParameters, **_recorded_channel_count(destination)}
             write_analysis_parameters(
                 destination=destination,
-                analysis_parameters=analysisParameters,
+                analysis_parameters=destination_parameters,
                 remove_artifacts=remove_artifacts,
                 artifacts_removal_method=artifacts_removal_method,
             )

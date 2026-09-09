@@ -8,7 +8,7 @@ import pandas as pd
 import panel as pn
 import pytest
 
-from guppy.frontend.input_parameters import ParameterForm
+from guppy.frontend.input_parameters import ParameterForm, _table_heading, _titled_box
 from guppy.utils.utils import run_folder_for_run
 
 
@@ -40,12 +40,25 @@ def parameter_form(panel_extension, frontend_base_dir, tmp_path):
     return form
 
 
-# The five cards ParameterForm appends to the template, in display order.
+# The cards ParameterForm appends to the template, in display order.
 _CARD_ATTRIBUTES = (
     "input_folder_selection",
     "output_folder_selection",
     "individual",
     "group",
+)
+
+# The titled sections stacked inside the Parameter Selection card, in display order.
+_SECTION_ATTRIBUTES = (
+    "execution_param_wd",
+    "control_fit_param_wd",
+    "filtering_param_wd",
+    "zscore_param_wd",
+    "psth_param_wd",
+    "peak_param_wd",
+    "transients_param_wd",
+    "binned_metrics_param_wd",
+    "significance_param_wd",
 )
 
 # Panel puts a default 5px margin either side of every object, so each member of a
@@ -73,6 +86,11 @@ def _content_width(node) -> int:
     if isinstance(node, pn.Row):
         return sum(extents) + _SIBLING_MARGIN * len(extents)
     return max(extents)
+
+
+def _label_width(name: str) -> int:
+    """Approximate the rendered width of a widget label plus its help icon, in pixels."""
+    return int(len(name) * 7.1) + 26
 
 
 def _width_bearing_containers(node) -> list:
@@ -112,9 +130,6 @@ class TestParameterForm:
 
     def test_binned_metrics_width_default(self, parameter_form):
         assert parameter_form.binnedMetricsWidth.value == 120
-
-    def test_no_channels_np_default(self, parameter_form):
-        assert parameter_form.no_channels_np.value == 2
 
     def test_n_sec_prev_default(self, parameter_form):
         assert parameter_form.nSecPrev.value == -10
@@ -246,13 +261,7 @@ class TestParameterForm:
             for card_name in _CARD_ATTRIBUTES
             for container in _width_bearing_containers(getattr(parameter_form, card_name))
         }
-        for box_name in (
-            "zscore_param_wd",
-            "psth_param_wd",
-            "baseline_param_wd",
-            "peak_param_wd",
-            "significance_param_wd",
-        ):
+        for box_name in _SECTION_ATTRIBUTES:
             assert id(getattr(parameter_form, box_name)) in swept, f"{box_name} was not reached by the sweep"
 
     def test_df_widget_initial_peak_start_values(self, parameter_form):
@@ -830,6 +839,114 @@ class TestFolderSelectionCards:
         assert len(main) == 4
 
 
+class TestTitledBox:
+    def test_heading_carries_the_title(self, panel_extension):
+        box = _titled_box(title="Signal Filtering", read_by="Step 3", contents=[], width=960)
+
+        assert box.objects[0].object == "### Signal Filtering"
+
+    def test_second_pane_names_the_consuming_steps(self, panel_extension):
+        box = _titled_box(title="Signal Filtering", read_by="Step 3 and Group Analysis", contents=[], width=960)
+
+        assert box.objects[1].object == "*Read by Step 3 and Group Analysis*"
+
+    def test_contents_follow_the_heading(self, panel_extension):
+        widget = pn.widgets.IntInput(name="Cores", value=2, width=150)
+
+        box = _titled_box(title="Parallel Execution", read_by="Step 2", contents=[widget], width=960)
+
+        assert box.objects[2] is widget
+
+    def test_panes_sit_inside_the_declared_width(self, panel_extension):
+        box = _titled_box(title="Metric Binning", read_by="Step 4", contents=[], width=960)
+
+        assert box.width == 960
+        assert [pane.width for pane in box.objects] == [920, 920]
+
+
+class TestTableHeading:
+    def test_label_is_rendered_bold(self, panel_extension):
+        heading = _table_heading(label="Event comparisons", description="Pairs to compare.", width=200)
+
+        assert heading.objects[0].object == "**Event comparisons**"
+
+    def test_help_icon_carries_the_description(self, panel_extension):
+        heading = _table_heading(label="Event comparisons", description="Pairs to compare.", width=200)
+
+        assert isinstance(heading.objects[1], pn.widgets.TooltipIcon)
+        assert heading.objects[1].value == "Pairs to compare."
+
+
+class TestParameterHelp:
+    """Every control explains itself, since the form carries no prose of its own."""
+
+    def test_every_parameter_widget_has_a_description(self, parameter_form):
+        undocumented = [
+            widget.name
+            for section in parameter_form.individual_parameters.objects
+            for item in section
+            for widget in (list(item) if isinstance(item, pn.Row) else [item])
+            if isinstance(widget, pn.widgets.Widget)
+            and not isinstance(widget, (pn.widgets.Tabulator, pn.widgets.Button, pn.widgets.TooltipIcon))
+            and not widget.description
+        ]
+
+        assert undocumented == []
+
+    def test_combine_data_explains_itself_in_the_input_card(self, parameter_form):
+        assert "two separate data files" in parameter_form.combine_data.description
+
+    def test_each_label_fits_beside_its_help_icon(self, parameter_form):
+        # Panel renders the description as an icon after the label, so a widget narrower
+        # than its own label pushes the icon over the control beside it.
+        crowded = [
+            (widget.name, widget.width)
+            for section in parameter_form.individual_parameters.objects
+            for item in section
+            for widget in (list(item) if isinstance(item, pn.Row) else [item])
+            if isinstance(widget, pn.widgets.Widget)
+            and getattr(widget, "description", None)
+            and widget.width
+            and _label_width(widget.name) > widget.width
+        ]
+
+        assert crowded == []
+
+
+class TestParameterSections:
+    def test_sections_appear_in_pipeline_order(self, parameter_form):
+        titles = [section.objects[0].object for section in parameter_form.individual_parameters.objects]
+
+        assert titles == [
+            "### Parallel Execution",
+            "### Control Channel Fitting",
+            "### Signal Filtering",
+            "### Z-score Normalization",
+            "### PSTH Computation",
+            "### Peak and AUC Measurement",
+            "### Transient Detection",
+            "### Metric Binning",
+            "### Significance Testing",
+        ]
+
+    def test_the_card_does_not_claim_a_single_analysis_level(self, parameter_form):
+        assert parameter_form.individual.title == "Parameter Selection"
+
+    def test_the_shared_transient_controls_sit_with_the_detector(self, parameter_form):
+        section = parameter_form.transients_param_wd
+        widgets = [widget for item in section for widget in (list(item) if isinstance(item, pn.Row) else [item])]
+
+        assert parameter_form.transients in widgets
+        assert parameter_form.useTransientsAsEvents in widgets
+
+    def test_the_psth_metric_sits_with_the_psth_window(self, parameter_form):
+        section = parameter_form.psth_param_wd
+        widgets = [widget for item in section for widget in (list(item) if isinstance(item, pn.Row) else [item])]
+
+        assert parameter_form.computePsth in widgets
+        assert parameter_form.baselineCorrectionStart in widgets
+
+
 # Distinctive non-default snapshot so a successful load is unambiguous. peak_*Point
 # carry NaN tail entries exactly as save_parameters serializes them.
 SAVED_PARAMETERS = {
@@ -843,7 +960,6 @@ SAVED_PARAMETERS = {
     "photobleaching_detrend": True,
     "timeForLightsTurnOn": 7,
     "filter_window": 42,
-    "noChannels": 3,
     "zscore_method": "modified z-score",
     "baselineWindowStart": 2,
     "baselineWindowEnd": 9,

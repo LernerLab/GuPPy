@@ -2,6 +2,7 @@ import holoviews as hv
 import numpy as np
 import pytest
 
+from guppy.extractors.npm_recording_extractor import DEFAULT_NUM_CHANNELS
 from guppy.frontend.store_labeling_instructions import (
     StoreLabelingInstructions,
     StoreLabelingInstructionsNPM,
@@ -124,6 +125,23 @@ class TestStoreLabelingInstructionsNPMConfigForm:
         config_form.timestamp_column_select.value = "ComputerTimestamp"
         config_form.time_unit_select.value = "milliseconds"
         assert config_form.get_timestamp_configuration() == ("milliseconds", "ComputerTimestamp")
+
+    def test_channel_count_defaults_to_the_extractor_default(self, config_form):
+        assert config_form.get_number_of_channels() == DEFAULT_NUM_CHANNELS
+
+    def test_channel_count_reflects_the_input(self, config_form):
+        config_form.num_channels_input.value = 3
+
+        assert config_form.get_number_of_channels() == 3
+
+    def test_channel_count_input_is_absent_outside_interactive_mode(self, tmp_path, panel_extension):
+        # Without multiple_event_ttls there is no configuration form to put it in.
+        instructions = StoreLabelingInstructionsNPM(
+            folder_path=str(tmp_path / "npm_session"),
+            channel_previews={},
+        )
+
+        assert instructions.num_channels_input is None
 
     def test_get_timestamp_configuration_without_column_select(self, single_column_config_form):
         single_column_config_form.time_unit_select.value = "milliseconds"

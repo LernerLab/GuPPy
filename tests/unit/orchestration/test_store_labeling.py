@@ -970,18 +970,25 @@ def test_npm_params_to_persist_records_the_unit_that_will_be_applied():
         "npm_split_events": [True, False],
         "npm_time_unit": "seconds",
         "npm_timestamp_column_name": None,
+        "noChannels": 2,
     }
 
 
 def test_npm_params_to_persist_keeps_an_explicit_unit():
     npm_params = _npm_params_to_persist(
-        {"npm_split_events": None, "npm_time_unit": "milliseconds", "npm_timestamp_column_name": "ComputerTimestamp"}
+        {
+            "npm_split_events": None,
+            "npm_time_unit": "milliseconds",
+            "npm_timestamp_column_name": "ComputerTimestamp",
+            "noChannels": 3,
+        }
     )
 
     assert npm_params == {
         "npm_split_events": None,
         "npm_time_unit": "milliseconds",
         "npm_timestamp_column_name": "ComputerTimestamp",
+        "noChannels": 3,
     }
 
 
