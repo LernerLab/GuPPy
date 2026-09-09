@@ -212,7 +212,7 @@ class ParameterForm:
             name="Isosbestic Control Channel? (bool)",
             value=True,
             options=[True, False],
-            width=300,
+            width=310,
             description="Whether the recording includes an isosbestic control channel. When False, GuPPy fits an exponential decay to the signal itself and uses that as a stand-in control, which removes the photobleaching trend but not motion artifacts.",
         )
 
@@ -220,7 +220,7 @@ class ParameterForm:
             name="Control Channel Fitting Method",
             options=["IRWLS", "OLS"],
             value="IRWLS",
-            width=300,
+            width=310,
             description="How the control channel is rescaled onto the signal before subtraction. IRWLS down-weights outlier samples so transients do not distort the fit; OLS is a plain least-squares fit.",
         )
 
@@ -228,19 +228,19 @@ class ParameterForm:
             name="Control Fit Window",
             options=["full trace", "baseline epoch"],
             value="full trace",
-            width=300,
+            width=310,
             description="Which part of the recording the fit is estimated from. 'full trace' uses the whole recording; 'baseline epoch' uses only the window set beside it and applies those coefficients throughout, for sessions where a sustained step change such as a drug injection would otherwise distort the fit.",
         )
         self.control_fit_window_strt = pn.widgets.IntInput(
             name="Control Fit Window Start Time (s) (int)",
             value=0,
-            width=300,
+            width=310,
             description="Start of the baseline epoch the fit is estimated from, in seconds. Must be less than the end and fall inside the recording. Ignored when the fit window is 'full trace'.",
         )
         self.control_fit_window_end = pn.widgets.IntInput(
             name="Control Fit Window End Time (s) (int)",
             value=0,
-            width=300,
+            width=310,
             description="End of the baseline epoch the fit is estimated from, in seconds. Must be greater than the start and fall inside the recording. Ignored when the fit window is 'full trace'.",
         )
 
@@ -248,7 +248,7 @@ class ParameterForm:
             name="Photobleaching Detrend? (bool)",
             value=False,
             options=[True, False],
-            width=300,
+            width=310,
             description="Adds an exponential decay term to the control fit, removing the residual photobleaching the control channel does not see. Useful for long recordings. Requires an isosbestic control channel and the OLS fitting method.",
         )
 
@@ -306,7 +306,7 @@ class ParameterForm:
         self.moving_wd = pn.widgets.IntInput(
             name="Moving Window for transients detection (s) (int)",
             value=15,
-            width=320,
+            width=380,
             description="Width of the moving window transients are detected in, in seconds.",
         )
 
@@ -320,7 +320,7 @@ class ParameterForm:
         self.transientsThresh = pn.widgets.IntInput(
             name="TD Thresh (int)",
             value=3,
-            width=150,
+            width=160,
             description="Transient detection threshold. Peaks with local maxima greater than this many MADs above the median of the filtered trace are detected as transients.",
         )
 
@@ -328,14 +328,14 @@ class ParameterForm:
             name="Compute Binned Metrics? (bool)",
             options=[True, False],
             value=False,
-            width=190,
+            width=250,
             description="Divides the session into equal time bins and reports the mean z-score, mean dF/F and transient count in each. Useful for correlating the signal against a behavioral measure scored at a fixed cadence.",
         )
 
         self.binnedMetricsWidth = pn.widgets.IntInput(
             name="Bin Width (s) (int)",
             value=120,
-            width=150,
+            width=170,
             description="Width of those bins in seconds. The last bin is kept even when the session does not divide evenly, so it may be shorter than the rest.",
         )
 
@@ -357,27 +357,27 @@ class ParameterForm:
         self.baseline_wd_strt = pn.widgets.IntInput(
             name="Baseline Window Start Time (s) (int)",
             value=0,
-            width=260,
+            width=290,
             description="Start of the epoch the baseline z-score method normalizes against, in seconds. Leave at 0 for the other two methods. Must be less than the end and fall inside the recording.",
         )
         self.baseline_wd_end = pn.widgets.IntInput(
             name="Baseline Window End Time (s) (int)",
             value=0,
-            width=260,
+            width=280,
             description="End of the epoch the baseline z-score method normalizes against, in seconds. Leave at 0 for the other two methods. Must be greater than the start and fall inside the recording.",
         )
 
         self.nSecPrev = pn.widgets.IntInput(
             name="Seconds before 0 (int)",
             value=-10,
-            width=120,
+            width=190,
             description="Start of the peri-event window, in seconds relative to each event timestamp. Normally negative.",
         )
 
         self.nSecPost = pn.widgets.IntInput(
             name="Seconds after 0 (int)",
             value=20,
-            width=120,
+            width=180,
             description="End of the peri-event window, in seconds relative to each event timestamp.",
         )
 
@@ -385,7 +385,7 @@ class ParameterForm:
             name="Compute Cross-correlation (bool)",
             options=[True, False],
             value=False,
-            width=200,
+            width=260,
             description="Cross-correlates the PSTHs of two distinct signal recording sites, for detecting coordinated activity between areas. Requires at least two signal recording sites.",
         )
 
@@ -393,7 +393,7 @@ class ParameterForm:
             name="Compute PSTH Significance? (bool)",
             options=[True, False],
             value=False,
-            width=240,
+            width=270,
             description="Whether bootstrap confidence intervals and the comparison tests below are computed for each PSTH.",
         )
 
@@ -401,7 +401,7 @@ class ParameterForm:
             name="Significance Level (alpha) (float)",
             value=0.05,
             step=0.01,
-            width=220,
+            width=280,
             description="The two-sided threshold the confidence interval is computed at. 0.05 gives a 95% interval.",
         )
 
@@ -409,7 +409,7 @@ class ParameterForm:
             name="Bootstrap Resamples (int)",
             value=1000,
             step=100,
-            width=200,
+            width=210,
             description="How many times the trials are resampled to build each interval. More resamples means less run-to-run variation and a longer run.",
         )
 
@@ -417,14 +417,14 @@ class ParameterForm:
             name="Use Transients as Events? (bool)",
             options=[True, False],
             value=False,
-            width=200,
+            width=260,
             description="Uses each recording site's detected transients as its own event timestamps, for spontaneous activity with no external event TTLs. The PSTH, peak and area are then computed against them exactly as against a TTL train.",
         )
 
         self.timeInterval = pn.widgets.IntInput(
             name="Time Interval (s)",
             value=2,
-            width=120,
+            width=150,
             description="Minimum spacing between accepted event timestamps, in seconds. When two timestamps fall closer than this the second is dropped, so bursts do not produce double-counted overlapping windows.",
         )
 
@@ -432,28 +432,28 @@ class ParameterForm:
             name="Bin PSTH trials (str)",
             options=["Time (min)", "# of trials"],
             value="Time (min)",
-            width=120,
+            width=180,
             description="Whether PSTH trials are binned by elapsed time or by trial count.",
         )
 
         self.bin_psth_trials = pn.widgets.IntInput(
-            name="Time(min) / # of trials \n for binning? (int)",
+            name="Time(min) / # of trials for binning? (int)",
             value=0,
-            width=260,
+            width=330,
             description="Size of each bin, in the unit chosen beside it. Set to 0 to leave the trials unbinned.",
         )
 
         self.baselineCorrectionStart = pn.widgets.IntInput(
             name="Baseline Correction Start time(int)",
             value=-5,
-            width=260,
+            width=280,
             description="Start of the window each trial is baselined against, in seconds relative to the event. Set both bounds to 0 to skip baseline correction. Must lie inside the PSTH window.",
         )
 
         self.baselineCorrectionEnd = pn.widgets.IntInput(
             name="Baseline Correction End time(int)",
             value=0,
-            width=260,
+            width=280,
             description="End of the window each trial is baselined against, in seconds relative to the event. Set both bounds to 0 to skip baseline correction. Must lie inside the PSTH window.",
         )
 
@@ -567,8 +567,9 @@ class ParameterForm:
             title="Control Channel Fitting",
             read_by="Step 3",
             contents=[
-                pn.Row(self.isosbestic_control, self.control_fit_method, self.photobleaching_detrend),
-                pn.Row(self.control_fit_window_mode, self.control_fit_window_strt, self.control_fit_window_end),
+                pn.Row(self.isosbestic_control, self.control_fit_method),
+                pn.Row(self.photobleaching_detrend, self.control_fit_window_mode),
+                pn.Row(self.control_fit_window_strt, self.control_fit_window_end),
             ],
             width=SECTION_WIDTH,
         )
@@ -584,8 +585,8 @@ class ParameterForm:
             title="Transient Detection",
             read_by="Steps 4 and 5 and Group Analysis",
             contents=[
-                pn.Row(self.transients, self.moving_wd, self.useTransientsAsEvents),
-                pn.Row(self.highAmpFilt, self.transientsThresh),
+                pn.Row(self.transients, self.useTransientsAsEvents),
+                pn.Row(self.moving_wd, self.highAmpFilt, self.transientsThresh),
             ],
             width=SECTION_WIDTH,
         )
@@ -641,7 +642,7 @@ class ParameterForm:
 
         self.widget = pn.Column(self.individual_parameters)
         self.individual = pn.Card(
-            self.widget, title="Individual Analysis", styles=self.styles, width=1000, collapsed=True
+            self.widget, title="Parameter Selection", styles=self.styles, width=1000, collapsed=True
         )
 
     def _on_source_mode_change(self, event: object) -> None:
