@@ -227,22 +227,10 @@ class ParameterForm:
             width=940,
         )
 
-        self.explain_event_metric = pn.pane.Markdown(
-            """
-                                - ***z_score and/or &#916;F/F? (psth) :*** Which metric Step 4 aligns events on.
-                                ``` Both ``` writes a complete set of PSTH outputs for each metric.<br>
-                                - ***z_score and/or &#916;F/F? (transients) :*** Which metric the transient
-                                detector runs on. Same ``` Both ``` semantics.<br>
-                                - ***Use Transients as Events :*** Make this parameter ``` True ```, when user
-                                studies spontaneous activity and has no external event TTLs. The transients
-                                detected in each recording site are then used as that recording site's event
-                                timestamps for the PSTH and peak/area computation.
-                                """,
-            width=940,
-        )
-
         self.explain_transients = pn.pane.Markdown(
             """
+                                - ***z_score and/or &#916;F/F? (transients) :*** Which metric the transient
+                                detector runs on. ``` Both ``` runs it on each metric in turn.<br>
                                 - ***Moving Window (transients detection) :*** Transients in the z-score
                                 and/or \u0394F/F are detected using this moving window.
                                 Default is 15 seconds. Change it based on the requirement.<br>
@@ -252,6 +240,10 @@ class ParameterForm:
                                 - ***Transients detection threshold (TD Thresh):*** Peaks with local maxima greater than x times
                                 the MAD above the median of the trace (after filtering high amplitude events) are detected
                                 as transients. Here, x is transients detection threshold. Default is 3.
+                                - ***Use Transients as Events :*** Make this parameter ``` True ```, when user
+                                studies spontaneous activity and has no external event TTLs. The transients
+                                detected in each recording site are then used as that recording site's event
+                                timestamps for the PSTH and peak/area computation.
                                 """,
             width=940,
         )
@@ -385,6 +377,8 @@ class ParameterForm:
 
         self.explain_nsec = pn.pane.Markdown(
             """
+                        - ***z_score and/or &#916;F/F? (psth) :*** Which metric Step 4 aligns events on.
+                        ``` Both ``` writes a complete set of PSTH outputs for each metric.
                         - ***Seconds before / after 0 :*** Edges of the peri-event window, in seconds
                         relative to each event timestamp. Defaults give a 30 second window running from
                         10 seconds before to 20 seconds after.
@@ -458,10 +452,11 @@ class ParameterForm:
 
         self.psth_param_wd = _titled_box(
             title="PSTH Parameters",
-            read_by="Step 4",
+            read_by="Step 4 and Group Analysis",
             contents=[
                 self.explain_nsec,
-                pn.Row(self.nSecPrev, self.nSecPost, self.computeCorr),
+                pn.Row(self.computePsth, self.nSecPrev, self.nSecPost),
+                pn.Row(self.computeCorr),
                 pn.Row(self.timeInterval, self.use_time_or_trials, self.bin_psth_trials),
                 pn.Row(self.baselineCorrectionStart, self.baselineCorrectionEnd),
             ],
@@ -576,22 +571,13 @@ class ParameterForm:
             width=SECTION_WIDTH,
         )
 
-        self.event_metric_param_wd = _titled_box(
-            title="Event and Metric Selection",
-            read_by="Steps 4 and 5 and Group Analysis",
-            contents=[
-                self.explain_event_metric,
-                pn.Row(self.computePsth, self.transients, self.useTransientsAsEvents),
-            ],
-            width=SECTION_WIDTH,
-        )
-
         self.transients_param_wd = _titled_box(
             title="Transient Detection",
-            read_by="Step 4",
+            read_by="Steps 4 and 5 and Group Analysis",
             contents=[
                 self.explain_transients,
-                pn.Row(self.moving_wd, self.highAmpFilt, self.transientsThresh),
+                pn.Row(self.transients, self.moving_wd, self.useTransientsAsEvents),
+                pn.Row(self.highAmpFilt, self.transientsThresh),
             ],
             width=SECTION_WIDTH,
         )
@@ -613,7 +599,6 @@ class ParameterForm:
             self.control_fit_param_wd,
             self.filtering_param_wd,
             self.zscore_param_wd,
-            self.event_metric_param_wd,
             self.psth_param_wd,
             self.peak_param_wd,
             self.transients_param_wd,
