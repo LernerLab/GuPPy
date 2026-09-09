@@ -1247,7 +1247,6 @@ def group_analysis(
     select_for_compute_psth: str = "z_score",
     select_for_transients: str = "z_score",
     use_transients_as_events: bool = False,
-    compute_corr: bool = False,
     compute_psth_significance: bool = False,
     psth_comparisons: Iterable[tuple[str, str]] = (),
     psth_significance_alpha: float = 0.05,
@@ -1270,8 +1269,6 @@ def group_analysis(
         Which metric's transient results to combine.
     use_transients_as_events : bool
         Whether transient trains stand in for external event TTLs.
-    compute_corr : bool
-        Whether cross-correlation outputs are combined.
     """
     template = build_homepage(start_path=base_dir)
 
@@ -1283,7 +1280,6 @@ def group_analysis(
     input_params["selectForComputePsth"] = select_for_compute_psth
     input_params["selectForTransientsComputation"] = select_for_transients
     input_params["useTransientsAsEvents"] = use_transients_as_events
-    input_params["computeCorr"] = compute_corr
     input_params["computePsthSignificance"] = compute_psth_significance
     input_params["psthComparisonsA"] = [pair[0] for pair in psth_comparisons]
     input_params["psthComparisonsB"] = [pair[1] for pair in psth_comparisons]
