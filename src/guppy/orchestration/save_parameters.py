@@ -75,6 +75,9 @@ def record_artifact_provenance(
 def _recorded_channel_count(destination: str) -> dict[str, int]:
     """Return the channel count a run was read with, when that run recorded one.
 
+    Feeds the deprecated ``noChannels`` copy in the snapshot; see
+    :func:`build_analysis_parameters`.
+
     Parameters
     ----------
     destination : str
@@ -124,6 +127,10 @@ def build_analysis_parameters(*, inputParameters: dict[str, object]) -> dict[str
         # their position in the file.
         "removeArtifacts": None,
         "artifactsRemovalMethod": None,
+        # Deprecated copy: the channel count belongs to .npm_params.json, which is where
+        # Step 1 records it. neuroconv's GuPPy interface still reads it from here, so the
+        # snapshot carries it until the release containing catalystneuro/neuroconv#2046,
+        # which reads .npm_params.json first. Drop this key once GuPPy requires that release.
         "noChannels": inputParameters.get("noChannels", DEFAULT_NUM_CHANNELS),
         "zscore_method": inputParameters["zscore_method"],
         "baselineWindowStart": inputParameters["baselineWindowStart"],
@@ -230,7 +237,7 @@ def save_parameters(
             destinations = select_run_folders(session, selected_runs.get(session))
         for destination in destinations:
             # The channel count is chosen per run on the Label Stores page, so each
-            # destination records its own rather than the form's default.
+            # destination's deprecated copy takes that run's own rather than the form's default.
             destination_parameters = {**analysisParameters, **_recorded_channel_count(destination)}
             write_analysis_parameters(
                 destination=destination,
