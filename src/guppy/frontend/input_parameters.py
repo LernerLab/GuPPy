@@ -27,17 +27,6 @@ logger = logging.getLogger(__name__)
 
 # Width of each parameter section inside the 1000px Individual Analysis card.
 SECTION_WIDTH = 960
-# Lighter than the card's own WhiteSmoke so nested sections read as one level down.
-SECTION_STYLES = dict(background="White")
-# Ten stacked sections carrying Panel's default card shadow read as noise, so they are
-# separated by a hairline instead.
-SECTION_STYLESHEET = """
-.card {
-    box-shadow: none;
-    border: 1px solid #E0E0E0;
-    border-radius: 4px;
-}
-"""
 
 
 def _reject_group_folder_selected_as_run(*, path: str) -> None:
@@ -79,8 +68,8 @@ def _blank_comparison_rows(count: int) -> pd.DataFrame:
     return pd.DataFrame({"Event A": [""] * count, "Event B": [""] * count})
 
 
-def _titled_box(*, title: str, read_by: str, contents: list, width: int, collapsed: bool = True) -> pn.Card:
-    """Build one collapsible parameter section, titled with the steps that consume it.
+def _titled_box(*, title: str, read_by: str, contents: list, width: int) -> pn.WidgetBox:
+    """Build one parameter section, headed by its title and the steps that consume it.
 
     Parameters
     ----------
@@ -92,28 +81,20 @@ def _titled_box(*, title: str, read_by: str, contents: list, width: int, collaps
     contents : list
         Panel objects to lay out under the heading.
     width : int
-        Fixed width of the returned card, in pixels.
-    collapsed : bool
-        Whether the section starts closed.
+        Fixed width of the returned box, in pixels.
 
     Returns
     -------
-    panel.Card
+    panel.WidgetBox
         The assembled section.
     """
+    heading = pn.pane.Markdown(f"### {title}", width=width - 40, styles={"margin-bottom": "0"})
     read_by_note = pn.pane.Markdown(
         f"*Read by {read_by}*",
         width=width - 40,
-        styles={"color": "#6C757D", "font-size": "0.85em", "margin-bottom": "0"},
+        styles={"color": "#6C757D", "font-size": "0.85em", "margin-top": "0"},
     )
-    return pn.Card(
-        pn.Column(read_by_note, *contents),
-        title=title,
-        width=width,
-        collapsed=collapsed,
-        styles=SECTION_STYLES,
-        stylesheets=[SECTION_STYLESHEET],
-    )
+    return pn.WidgetBox(heading, read_by_note, *contents, width=width)
 
 
 class ParameterForm:
@@ -146,6 +127,9 @@ class ParameterForm:
         # Run selections stashed per source mode, so switching to DANDI and back does not
         # discard the choices made for local sessions (and vice versa).
         self._run_selection_by_source_mode: dict[str, tuple[list[str], list[str]]] = {}
+
+        self.show_help = pn.widgets.Checkbox(name="Show parameter help", value=False, width=200)
+        self.show_help.param.watch(self._on_show_help_change, "value")
 
         self.setup_individual_parameters()
         self.setup_group_parameters()
@@ -637,10 +621,38 @@ class ParameterForm:
             collapsed=True,
         )
 
-        self.widget = pn.Column(self.individual_parameters)
+        for pane in self._help_panes():
+            pane.visible = False
+
+        self.widget = pn.Column(self.show_help, self.individual_parameters)
         self.individual = pn.Card(
             self.widget, title="Individual Analysis", styles=self.styles, width=1000, collapsed=True
         )
+
+    def _help_panes(self) -> list[pn.pane.Markdown]:
+        """Return every per-parameter explanation the help toggle shows and hides.
+
+        Returns
+        -------
+        list of panel.pane.Markdown
+            The explanation panes, one per parameter section.
+        """
+        return [
+            self.explain_combine_data,
+            self.explain_compute,
+            self.explain_control_fit,
+            self.explain_filtering,
+            self.explain_z_score,
+            self.explain_nsec,
+            self.peak_explain,
+            self.explain_transients,
+            self.explain_binned_metrics,
+            self.significance_explain,
+        ]
+
+    def _on_show_help_change(self, event: object) -> None:
+        for pane in self._help_panes():
+            pane.visible = event.new
 
     def _on_source_mode_change(self, event: object) -> None:
         is_dandi = event.new == "dandi"
