@@ -370,20 +370,13 @@ class ParameterForm:
 
         self.explain_z_score = pn.pane.Markdown(
             """
-                        ***Note :***<br>
-                        - Details about z-score computation methods are explained in Github wiki.<br>
-                        - The details will make user understand what computation method to use for
-                        their data.<br>
-                        - **Baseline Window Parameters** are only used with the *baseline z-score*
-                        method; keep both at 0 for other methods.<br>
-                        - Both values are in **seconds** and must be within the signal's recorded
-                        timespan. **Start** must be strictly less than **End**
-                        (e.g. Start=0, End=60 for a 0–60 s baseline window).<br>
-                        - If either value falls outside the available signal timespan you will
-                        receive an error indicating the offending parameter, the value supplied,
-                        and the valid range (e.g.
-                        "baselineWindowEnd=120 exceeds signal duration 90.5s;
-                        signal timespan is [0, 90.5]s — choose values within this range.").
+                        - ***z-score computation Method :*** How each trace is normalized. The
+                        z-score explainer in the documentation covers what the three methods do
+                        and which one suits which recording.
+                        - ***Baseline Window Start / End Time :*** The epoch the *baseline z-score*
+                        method normalizes against, in seconds. Leave both at 0 for the other two
+                        methods. Start must be less than End and both must fall inside the
+                        recording.
                         """,
             width=940,
         )
@@ -478,11 +471,9 @@ class ParameterForm:
 
         self.peak_explain = pn.pane.Markdown(
             """
-                        ***Note :***<br>
-                        - Peak and area are computed between the window set below.<br>
-                        - Peak and AUC parameters must be within the PSTH parameters set in the PSTH parameters section.<br>
-                        - Please make sure when user changes the parameters in the table below, click on any other cell after
-                        changing a value in a particular cell.
+                        - ***Peak Start / End time :*** The window each peak and area is measured
+                        over, in seconds relative to the event. Every window must lie inside the PSTH
+                        window set above. The table commits an edit only once you click another cell.
                         - ***AUC Units :*** ```seconds``` reports the area in z-score (or ΔF/F) × seconds, the unit
                         commonly reported in the literature. ```samples``` integrates with one-sample spacing instead,
                         so the area also scales with the recording's sampling rate.
