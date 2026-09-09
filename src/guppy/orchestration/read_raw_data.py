@@ -15,6 +15,7 @@ from guppy.extractors import (
 )
 from guppy.extractors import base_recording_extractor as base_module
 from guppy.extractors.base_recording_extractor import _pool_initializer
+from guppy.extractors.npm_recording_extractor import DEFAULT_NUM_CHANNELS
 from guppy.orchestration.save_parameters import save_parameters
 from guppy.utils import progress
 from guppy.utils.progress import step_error_handler
@@ -75,7 +76,7 @@ def _build_event_to_extractor(*, folder_path: str, store_array: np.ndarray, inpu
             event_to_extractor[event] = extractor
         return event_to_extractor
 
-    num_ch = inputParameters["noChannels"]
+    num_ch = inputParameters.get("noChannels", DEFAULT_NUM_CHANNELS)
     all_formats = detect_acquisition_formats(folder_path)
     # Doric extractor requires a store-name→event-type mapping built from store_array
     event_name_to_event_type = {

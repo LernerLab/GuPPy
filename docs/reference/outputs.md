@@ -96,7 +96,7 @@ Dv1A,Dv2A,PrtN
 control_DMS,signal_DMS,port_entries
 ```
 
-**`.npm_params.json`** is written only for Neurophotometrics sessions and holds the settings Step 2 uses to demultiplex the interleaved channels: `npm_split_events`, `npm_time_unit` (always stored resolved, never null) and `npm_timestamp_column_name`.
+**`.npm_params.json`** is written only for Neurophotometrics sessions and holds the settings Step 2 uses to demultiplex the interleaved channels: `npm_split_events`, `npm_time_unit` (always stored resolved, never null), `npm_timestamp_column_name` and `noChannels`.
 
 ---
 

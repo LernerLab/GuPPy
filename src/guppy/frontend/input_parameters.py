@@ -178,9 +178,6 @@ class ParameterForm:
                                 - ***Bin Width :*** Width of those bins in seconds. The last bin is kept even
                                 when the session does not divide evenly, so it may be shorter than the rest.
                                 Default is 120 seconds.<br>
-                                - ***Number of channels (Neurophotometrics only) :*** Number of
-                                channels used while recording, when data files has no column names mentioning "Flags"
-                                or "LedState".
                                 """,
             width=350,
         )
@@ -267,10 +264,6 @@ class ParameterForm:
 
         self.moving_avg_filter = pn.widgets.IntInput(
             name="Window for Moving Average filter (int)", value=100, width=320
-        )
-
-        self.no_channels_np = pn.widgets.IntInput(
-            name="Number of channels (Neurophotometrics only)", value=2, width=320
         )
 
         self.z_score_computation = pn.widgets.Select(
@@ -489,7 +482,6 @@ class ParameterForm:
             self.moving_wd,
             pn.Row(self.highAmpFilt, self.transientsThresh),
             pn.Row(self.computeBinnedMetrics, self.binnedMetricsWidth),
-            self.no_channels_np,
         )
 
         self.psth_baseline_param = pn.Column(
@@ -911,7 +903,6 @@ class ParameterForm:
             "photobleaching_detrend": self.photobleaching_detrend.value,
             "timeForLightsTurnOn": self.timeForLightsTurnOn.value,
             "filter_window": self.moving_avg_filter.value,
-            "noChannels": self.no_channels_np.value,
             "zscore_method": self.z_score_computation.value,
             "baselineWindowStart": self.baseline_wd_strt.value,
             "baselineWindowEnd": self.baseline_wd_end.value,
@@ -967,7 +958,6 @@ class ParameterForm:
             "photobleaching_detrend": self.photobleaching_detrend,
             "timeForLightsTurnOn": self.timeForLightsTurnOn,
             "filter_window": self.moving_avg_filter,
-            "noChannels": self.no_channels_np,
             "zscore_method": self.z_score_computation,
             "baselineWindowStart": self.baseline_wd_strt,
             "baselineWindowEnd": self.baseline_wd_end,

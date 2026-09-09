@@ -6,6 +6,7 @@ import numpy as np
 import panel as pn
 
 from guppy.extractors.npm_recording_extractor import (
+    DEFAULT_NUM_CHANNELS,
     DEFAULT_TIME_UNIT,
     TIME_UNIT_DIVISORS,
 )
@@ -124,6 +125,7 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
         self.split_event_checkboxes: dict[int, pn.widgets.Checkbox] = {}
         self.timestamp_column_select: pn.widgets.Select | None = None
         self.time_unit_select: pn.widgets.Select | None = None
+        self.num_channels_input: pn.widgets.IntInput | None = None
         self.confirm_button: pn.widgets.Button | None = None
         config_form = pn.Column()
 
@@ -156,6 +158,13 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
                 width=550,
             )
             config_form.append(self.time_unit_select)
+
+            self.num_channels_input = pn.widgets.IntInput(
+                name="Number of channels used while recording",
+                value=DEFAULT_NUM_CHANNELS,
+                width=550,
+            )
+            config_form.append(self.num_channels_input)
 
             self.confirm_button = pn.widgets.Button(name="Confirm NPM configuration", width=550)
             config_form.append(self.confirm_button)
@@ -193,6 +202,16 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
             bool(self.split_event_checkboxes[file_index].value) if has_multiple else False
             for file_index, has_multiple in enumerate(self.multiple_event_ttls)
         ]
+
+    def get_number_of_channels(self) -> int:
+        """Return the channel count to decompose the session's data files with.
+
+        Returns
+        -------
+        int
+            Number of channels the session was recorded on.
+        """
+        return int(self.num_channels_input.value)
 
     def get_timestamp_configuration(self) -> tuple[str, str | None]:
         """Return the session's timestamp unit and column.

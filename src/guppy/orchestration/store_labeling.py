@@ -16,7 +16,10 @@ from guppy.extractors import (
     TdtRecordingExtractor,
     detect_acquisition_formats,
 )
-from guppy.extractors.npm_recording_extractor import DEFAULT_TIME_UNIT
+from guppy.extractors.npm_recording_extractor import (
+    DEFAULT_NUM_CHANNELS,
+    DEFAULT_TIME_UNIT,
+)
 from guppy.frontend.frontend_utils import scanPortsAndFind
 from guppy.frontend.store_labeling_instructions import (
     StoreLabelingInstructions,
@@ -417,6 +420,8 @@ def build_store_labeling_template(
         inputParameters["npm_time_unit"] = npm_time_unit
         inputParameters["npm_timestamp_column_name"] = npm_timestamp_column_name
 
+        inputParameters["noChannels"] = store_labeling_instructions.get_number_of_channels()
+
         num_ch = inputParameters["noChannels"]
         events, _ = NpmRecordingExtractor.discover_events_and_flags(
             folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
@@ -473,7 +478,7 @@ def _compute_npm_channel_previews(
     """
     extractor = NpmRecordingExtractor(
         folder_path=folder_path,
-        num_ch=inputParameters["noChannels"],
+        num_ch=inputParameters.get("noChannels", DEFAULT_NUM_CHANNELS),
         npm_timestamp_column_name=inputParameters.get("npm_timestamp_column_name"),
         npm_time_unit=inputParameters.get("npm_time_unit"),
         npm_split_events=inputParameters.get("npm_split_events"),
@@ -578,7 +583,7 @@ def orchestrate_store_labeling_page(inputParameters: dict[str, object]) -> None:
     """
     session_folders = inputParameters["session_folders"]
     isosbestic_control = inputParameters["isosbestic_control"]
-    num_ch = inputParameters["noChannels"]
+    num_ch = inputParameters.get("noChannels", DEFAULT_NUM_CHANNELS)
 
     logger.info(session_folders)
 
