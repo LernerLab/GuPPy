@@ -458,7 +458,7 @@ class ParameterForm:
         )
 
         self.zscore_param_wd = _titled_box(
-            title="Z-score Parameters",
+            title="Z-score Normalization",
             read_by="Step 3",
             contents=[
                 pn.Row(self.z_score_computation, self.baseline_wd_strt, self.baseline_wd_end),
@@ -467,7 +467,7 @@ class ParameterForm:
         )
 
         self.psth_param_wd = _titled_box(
-            title="PSTH Parameters",
+            title="PSTH Computation",
             read_by="Step 4 and Group Analysis",
             contents=[
                 pn.Row(self.computePsth, self.nSecPrev, self.nSecPost),
@@ -496,7 +496,7 @@ class ParameterForm:
         )
 
         self.peak_param_wd = _titled_box(
-            title="Peak and AUC Parameters",
+            title="Peak and AUC Measurement",
             read_by="Step 4",
             contents=[
                 _table_heading(
@@ -534,7 +534,7 @@ class ParameterForm:
         self.add_comparison_button.on_click(self._add_comparison_row)
 
         self.significance_param_wd = _titled_box(
-            title="PSTH Significance Parameters",
+            title="Significance Testing",
             read_by="Step 4 and Group Analysis",
             contents=[
                 pn.Row(self.computePsthSignificance, self.psthSignificanceAlpha, self.psthBootstrapResamples),
@@ -557,7 +557,7 @@ class ParameterForm:
         )
 
         self.execution_param_wd = _titled_box(
-            title="Compute",
+            title="Parallel Execution",
             read_by="Steps 2 and 4 and Group Analysis",
             contents=[self.numberOfCores],
             width=SECTION_WIDTH,
@@ -592,7 +592,7 @@ class ParameterForm:
         )
 
         self.binned_metrics_param_wd = _titled_box(
-            title="Binned Metrics",
+            title="Metric Binning",
             read_by="Step 4",
             contents=[
                 pn.Row(self.computeBinnedMetrics, self.binnedMetricsWidth),
