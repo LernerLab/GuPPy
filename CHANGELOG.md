@@ -10,6 +10,7 @@
 - Fixed the README's documentation links, which all carried an `/en/latest/` path prefix that 404s on the single-version Read the Docs project. [PR #469](https://github.com/LernerLab/GuPPy/pull/469)
 
 ## Improvements
+- The Individual Analysis card is now **Parameter Selection**, a single column of titled sections each named for the operation it configures and each stating which steps read it, with a **?** beside every parameter that pops up help for that one parameter. [PR #499](https://github.com/LernerLab/GuPPy/pull/499)
 - The metric plotted by the visualization dashboard is now chosen in the dashboard itself and can be switched between the metrics Step 4 computed without re-running the step, instead of being fixed on the homepage before Step 5 starts. [PR #498](https://github.com/LernerLab/GuPPy/pull/498)
 - The Neurophotometrics channel count is now asked on the Label Stores page beside the other NPM controls, and recorded in each run's `.npm_params.json`, rather than sitting among the analysis parameters. [PR #497](https://github.com/LernerLab/GuPPy/pull/497)
 - The test suite now builds paths with `pathlib.Path`, completing the `os.path`/`glob` migration and leaving `ruff`'s `PTH` rules enforced everywhere with no exemptions. [PR #490](https://github.com/LernerLab/GuPPy/pull/490)
