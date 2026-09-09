@@ -136,11 +136,6 @@ class TestParameterForm:
         assert "Time (min)" in parameter_form.use_time_or_trials.options
         assert "# of trials" in parameter_form.use_time_or_trials.options
 
-    def test_visualize_zscore_or_dff_default(self, parameter_form):
-        assert parameter_form.visualize_zscore_or_dff.value == "z_score"
-        assert "z_score" in parameter_form.visualize_zscore_or_dff.options
-        assert "dff" in parameter_form.visualize_zscore_or_dff.options
-
     def test_comparison_table_starts_with_a_single_blank_row(self, parameter_form):
         # A fixed block of slots is mostly blank rows for anyone running two comparisons.
         assert parameter_form.comparison_df_widget.value.shape == (1, 2)
@@ -773,7 +768,7 @@ class TestFolderSelectionCards:
         assert main[1] is parameter_form.output_folder_selection
         assert main[2] is parameter_form.individual
         assert main[3] is parameter_form.group
-        assert main[4] is parameter_form.visualize
+        assert len(main) == 4
 
 
 # Distinctive non-default snapshot so a successful load is unambiguous. peak_*Point
@@ -814,7 +809,6 @@ SAVED_PARAMETERS = {
     "psthSignificanceAlpha": 0.01,
     "psthBootstrapResamples": 500,
     "binnedMetricsWidth": 60,
-    "visualize_zscore_or_dff": "dff",
 }
 
 

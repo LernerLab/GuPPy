@@ -98,7 +98,6 @@ class ParameterForm:
 
         self.setup_individual_parameters()
         self.setup_group_parameters()
-        self.setup_visualization_parameters()
         self.add_to_template()
         self.files_1.param.watch(self._on_sessions_changed, "value")
         self.run_names_for_all_sessions.param.watch(self._on_run_names_for_all_sessions_change, "value")
@@ -801,24 +800,12 @@ class ParameterForm:
         """Re-list the group selector so groups created since the last interaction appear."""
         self.group_folders_selector._refresh()
 
-    def setup_visualization_parameters(self) -> None:
-        """Build all widgets for the visualization-parameters card and store them as instance attributes."""
-        self.visualize_zscore_or_dff = pn.widgets.Select(
-            name="z-score or \u0394F/F? (for visualization)", options=["z_score", "dff"], width=435
-        )
-
-        self.visualization_wd = pn.Row(self.visualize_zscore_or_dff)
-        self.visualize = pn.Card(
-            self.visualization_wd, title="Visualization Parameters", styles=self.styles, width=1000, collapsed=True
-        )
-
     def add_to_template(self) -> None:
-        """Append the input/output folder, individual, group, and visualization cards to the template's main area."""
+        """Append the input/output folder, individual, and group cards to the template's main area."""
         self.template.main.append(self.input_folder_selection)
         self.template.main.append(self.output_folder_selection)
         self.template.main.append(self.individual)
         self.template.main.append(self.group)
-        self.template.main.append(self.visualize)
 
     def _validate_numeric_parameters(self) -> None:
         """Validate the scalar numeric parameters at config time.
@@ -930,7 +917,6 @@ class ParameterForm:
             "transientsThresh": self.transientsThresh.value,
             "computeBinnedMetrics": self.computeBinnedMetrics.value,
             "binnedMetricsWidth": self.binnedMetricsWidth.value,
-            "visualize_zscore_or_dff": self.visualize_zscore_or_dff.value,
             "selected_group_folders": list(self.group_folders_selector.value or []),
             "selected_runs": self._collect_selected_runs(),
         }
@@ -981,7 +967,6 @@ class ParameterForm:
             "transientsThresh": self.transientsThresh,
             "computeBinnedMetrics": self.computeBinnedMetrics,
             "binnedMetricsWidth": self.binnedMetricsWidth,
-            "visualize_zscore_or_dff": self.visualize_zscore_or_dff,
         }
 
     def setInputParameters(self, parameters: dict[str, object]) -> None:

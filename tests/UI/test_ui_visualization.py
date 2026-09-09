@@ -50,7 +50,13 @@ def visualization_server_url(panel_extension, tmp_path_factory):
         x_min=-5.0,
         x_max=10.0,
     )
-    dashboard = VisualizationDashboard(plotter=plotter, basename="test_session")
+    dashboard = VisualizationDashboard(
+        plotter=plotter,
+        basename="test_session",
+        events=_EVENTS,
+        metric="z_score",
+        available_metrics=["z_score", "dff"],
+    )
     template = dashboard.build_template()
 
     port = scanPortsAndFind()

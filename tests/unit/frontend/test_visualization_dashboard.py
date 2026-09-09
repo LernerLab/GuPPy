@@ -4,6 +4,7 @@ import pytest
 from guppy.frontend.visualization_dashboard import VisualizationDashboard
 
 BASENAME = "test_session"
+EVENTS = ["event1", "event2"]
 
 
 class _FakeRange:
@@ -20,7 +21,25 @@ class _FakeFigure:
 
 @pytest.fixture
 def dashboard(plotter, panel_extension):
-    return VisualizationDashboard(plotter=plotter, basename=BASENAME)
+    return VisualizationDashboard(
+        plotter=plotter,
+        basename=BASENAME,
+        events=EVENTS,
+        metric="z_score",
+        available_metrics=["z_score", "dff"],
+    )
+
+
+@pytest.fixture
+def single_metric_dashboard(plotter, panel_extension):
+    """A dashboard for an output directory where step 4 only computed the z-score."""
+    return VisualizationDashboard(
+        plotter=plotter,
+        basename=BASENAME,
+        events=EVENTS,
+        metric="z_score",
+        available_metrics=["z_score"],
+    )
 
 
 class TestVisualizationDashboard:
@@ -28,11 +47,67 @@ class TestVisualizationDashboard:
         assert dashboard.plotter is plotter
         assert dashboard.basename == BASENAME
 
-    def test_build_template_exposes_every_tab_in_order(self, dashboard):
-        template = dashboard.build_template()
-        tabs = template.main[0]
+    def test_metric_selector_offers_every_available_metric(self, dashboard):
+        assert dashboard.metric_select.options == {"z-score": "z_score", "\u0394F/F": "dff"}
+        assert dashboard.metric_select.value == "z_score"
 
-        assert tabs._names == [
+    def test_metric_selector_is_enabled_when_both_metrics_exist(self, dashboard):
+        assert dashboard.metric_select.disabled is False
+
+    def test_metric_selector_names_the_psth_tabs_it_drives(self, dashboard):
+        caption = dashboard._metric_row[1].object
+
+        assert "PSTH and Heat Map tabs" in caption
+        assert "Binned and Covariates tabs have their own metric menus" in caption
+
+    def test_metric_selector_is_disabled_when_only_one_metric_was_computed(self, single_metric_dashboard):
+        assert single_metric_dashboard.metric_select.disabled is True
+        assert single_metric_dashboard.metric_select.options == {"z-score": "z_score"}
+
+    def test_single_metric_caption_says_how_to_get_the_other_one(self, single_metric_dashboard):
+        caption = single_metric_dashboard._metric_row[1].object
+
+        assert "Only z-score was computed for this output directory" in caption
+        assert "re-run Step 4" in caption
+
+    def test_metric_selector_sits_above_the_tabs(self, dashboard):
+        template = dashboard.build_template()
+        column = template.main[0]
+
+        assert list(column.objects) == [dashboard._metric_row, dashboard._tabs]
+
+    def test_changing_the_metric_rebuilds_only_the_psth_and_heatmap_tabs(self, dashboard, plotter, monkeypatch):
+        requested = {}
+        monkeypatch.setattr(
+            "guppy.frontend.visualization_dashboard.build_plotter",
+            lambda **kwargs: requested.update(kwargs) or plotter,
+        )
+        unchanged_tabs = list(dashboard._tabs.objects[2:])
+
+        dashboard.metric_select.value = "dff"
+
+        assert requested["metric"] == "dff"
+        assert requested["events"] == EVENTS
+        assert requested["filepath"] == plotter.filepath
+        assert dashboard._tabs._names == ["PSTH", "Heat Map", "Tonic", "Binned", "Covariates", "Significance"]
+        assert list(dashboard._tabs.objects[2:]) == unchanged_tabs
+
+    def test_changing_the_metric_keeps_the_axis_bounds(self, dashboard, plotter, monkeypatch):
+        requested = {}
+        monkeypatch.setattr(
+            "guppy.frontend.visualization_dashboard.build_plotter",
+            lambda **kwargs: requested.update(kwargs) or plotter,
+        )
+
+        dashboard.metric_select.value = "dff"
+
+        assert requested["x_min"] == -5.0
+        assert requested["x_max"] == 10.0
+
+    def test_build_template_exposes_every_tab_in_order(self, dashboard):
+        dashboard.build_template()
+
+        assert dashboard._tabs._names == [
             "PSTH",
             "Heat Map",
             "Tonic",

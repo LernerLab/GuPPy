@@ -1,6 +1,6 @@
 # Input parameter reference
 
-Every parameter the GuPPy GUI exposes, organized to match what you see on screen. The page mirrors the five cards on the homepage (**Input Folder Selection**, **Output Folder Selection**, **Individual Analysis**, **Group Output Folder Selection**, **Visualization Parameters**) and the visual sub-groupings inside each card. Each row gives the parameter as it appears in the GUI, a one-line description of what it does, the data type, the default value, and the accepted values or range. Prose paragraphs underneath cover the parameters that need more than a single line. If this is your first time using GuPPy, follow the [Your First Analysis](../tutorials/first_analysis.md) tutorial instead.
+Every parameter the GuPPy GUI exposes, organized to match what you see on screen. The page mirrors the four cards on the homepage (**Input Folder Selection**, **Output Folder Selection**, **Individual Analysis**, **Group Output Folder Selection**) and the visual sub-groupings inside each card. Each row gives the parameter as it appears in the GUI, a one-line description of what it does, the data type, the default value, and the accepted values or range. Prose paragraphs underneath cover the parameters that need more than a single line. If this is your first time using GuPPy, follow the [Your First Analysis](../tutorials/first_analysis.md) tutorial instead.
 
 The pipeline-step numbering used in this page matches the steps in [Your First Analysis](../tutorials/first_analysis.md): Step 2 (Load the raw data), Step 3 (Preprocess the signal), Step 4 (Compute the PSTH), Step 5 (Visualize the results).
 
@@ -256,21 +256,7 @@ Collapsed by default on the homepage. Picks which defined groups the pipeline wo
 
 **File browser** is the group counterpart of [Output Folder Selection](#output-folder-selection), rooted at your home directory. The same selection serves both averaging and visualization, so you choose it once: the Group Analysis step averages into the selected groups, and Step 5 opens them alongside any selected session runs. Groups are created in the Label Groups GUI, whose controls are covered in [Average results across sessions](../how-to/group-analysis.md). This is a UI selector, not a saved analysis parameter, so it has no internal name in the index below.
 
----
-
-## Visualization Parameters
-
-Collapsed by default on the homepage. Configures Step 5.
-
-*Used by: Step 5 (Visualize the results).*
-
-| Parameter | Description | Type | Default | Options / range |
-|-----------|-------------|------|---------|-----------------|
-| z-score or ΔF/F? (for visualization) | Which metric the Visualization GUI plots. | str | `z_score` | `z_score`, `dff` |
-
-**z-score or ΔF/F? (for visualization)** picks which metric the Visualization GUI plots. Must match a metric that Step 3 actually wrote: if you ran preprocessing with the PSTH metric set to `z_score` and try to visualize `dff`, GuPPy raises a descriptive error pointing at the missing files.
-
-Groups are visualized by selecting them in the [Group Output Folder Selection](#group-output-folder-selection) card; there is no separate mode to switch on.
+Groups are visualized by selecting them here; there is no separate mode to switch on.
 
 ---
 
@@ -330,5 +316,4 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 | `transientsThresh` | TD Thresh | [Transient detection](#transient-detection) |
 | `use_time_or_trials` | Bin PSTH trials | [PSTH Parameters](#psth-parameters) |
 | `useTransientsAsEvents` | Use Transients as Events? | [PSTH Parameters](#psth-parameters) |
-| `visualize_zscore_or_dff` | z-score or ΔF/F? (for visualization) | [Visualization Parameters](#visualization-parameters) |
 | `zscore_method` | z-score computation Method | [Z-score Parameters](#z-score-parameters) |

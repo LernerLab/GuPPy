@@ -1,36 +1,27 @@
 import logging
-import re
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 
 from .save_parameters import save_parameters
-from ..analysis.io_utils import (
-    is_continuous_label,
-    recording_site_from_preprocessed_label,
-    recording_sites_for_output_directory,
-)
-from ..frontend.parameterized_plotter import (
-    ParameterizedPlotter,
-    overview_y_options,
-    remove_cols,
-)
+from ..analysis.io_utils import is_continuous_label
+from ..frontend.parameterized_plotter import available_psth_metrics, build_plotter
 from ..frontend.visualization_dashboard import VisualizationDashboard
 from ..utils.stores_list import read_stores_list
 from ..utils.utils import (
     event_labels_for_analysis,
     get_all_stores_for_combining_data,
-    read_Df,
     select_run_folders,
 )
 from ..utils.validation import validate_group_definitions
 
 logger = logging.getLogger(__name__)
 
+# Glob patterns matching the PSTH result files step 4 writes, one per metric.
+PSTH_FILE_PATTERNS = ("*_z_score_*.h5", "*_dff_*.h5")
 
-def helper_plots(filepath: str, event: list[str], name: list[str], inputParameters: dict[str, object]) -> None:
+
+def helper_plots(filepath: str, event: list[str], inputParameters: dict[str, object]) -> None:
     """Build and display the interactive PSTH visualization dashboard for one output directory.
 
     Parameters
@@ -39,113 +30,40 @@ def helper_plots(filepath: str, event: list[str], name: list[str], inputParamete
         Path to the session output directory.
     event : list of str
         Event names.
-    name : list of str
-        z-score/dff file basenames paired with ``event``.
     inputParameters : dict
         Full pipeline input parameters.
     """
-    basename = Path(filepath).name
-    visualize_zscore_or_dff = inputParameters["visualize_zscore_or_dff"]
-
     # note when there are no behavior event TTLs
     if len(event) == 0:
         logger.warning("There are no behavior event TTLs present to visualize.")
         return 0
 
-    if (Path(filepath) / "cross_correlation_output").exists():
-        event_corr, frames = [], []
-        if visualize_zscore_or_dff == "z_score":
-            corr_fp = list((Path(filepath) / "cross_correlation_output").glob("*_z_score_*"))
-        elif visualize_zscore_or_dff == "dff":
-            corr_fp = list((Path(filepath) / "cross_correlation_output").glob("*_dff_*"))
-        for i in range(len(corr_fp)):
-            filename = Path(corr_fp[i]).name.split(".")[0]
-            event_corr.append(filename)
-            df = pd.read_hdf(corr_fp[i], key="df", mode="r")
-            frames.append(df)
-        if len(frames) > 0:
-            df_corr = pd.concat(frames, keys=event_corr, axis=1)
-        else:
-            event_corr = []
-            df_corr = []
-    else:
-        event_corr = []
-        df_corr = None
+    available_metrics = available_psth_metrics(filepath=filepath, events=list(event))
+    if not available_metrics:
+        logger.warning(
+            "No PSTH results were found in %s, so no dashboard is opened for it. Run step 4 "
+            "(or, for a '_group' directory, the Group Analysis step) first.",
+            filepath,
+        )
+        return 0
 
-    # combine all the event PSTH so that it can be viewed together
-    event_name = event
-    new_event, frames, bins = [], [], {}
-    for i in range(len(event_name)):
-
-        for j in range(len(name)):
-            new_event.append(event_name[i] + "_" + recording_site_from_preprocessed_label(name[j]))
-            new_name = name[j]
-            event_df = read_Df(filepath, new_event[-1], new_name)
-            columns = list(event_df.columns)
-            regex = re.compile("bin_[(]")
-            bins[new_event[-1]] = [columns[i] for i in range(len(columns)) if regex.match(columns[i])]
-            frames.append(event_df)
-
-    df = pd.concat(frames, keys=new_event, axis=1)
-
-    if isinstance(df_corr, pd.DataFrame):
-        new_event.extend(event_corr)
-        df = pd.concat([df, df_corr], axis=1, sort=False).reset_index()
-
-    columns_dict = dict()
-    for i in range(len(new_event)):
-        df_1 = df[new_event[i]]
-        columns = list(df_1.columns)
-        columns.append("All")
-        columns_dict[new_event[i]] = columns
-
-    # make options array for different selectors
-    multiple_plots_options = []
-    heatmap_options = new_event
-    bins_keys = list(bins.keys())
-    if len(bins_keys) > 0:
-        bins_new = bins
-        for i in range(len(bins_keys)):
-            bin_columns = bins[bins_keys[i]]
-            if len(bin_columns) > 0:
-                for j in bin_columns:
-                    multiple_plots_options.append(f"{bins_keys[i]}_{j}")
-
-        multiple_plots_options = new_event + multiple_plots_options
-    else:
-        multiple_plots_options = new_event
-    # Default the x-axis to the actual PSTH window (nSecPrev is negative by
-    # convention) so the traces fill the plot; users can still type/zoom beyond it.
-    x_min = float(inputParameters["nSecPrev"])
-    x_max = float(inputParameters["nSecPost"])
-    colormaps = plt.colormaps()
-    new_colormaps = ["plasma", "plasma_r", "magma", "magma_r", "inferno", "inferno_r", "viridis", "viridis_r"]
-    all_colormaps_set = set(colormaps)
-    preferred_colormaps_set = set(new_colormaps)
-    colormaps = new_colormaps + list(all_colormaps_set.difference(preferred_colormaps_set))
-    x = [columns_dict[new_event[0]][-4]]
-    y = overview_y_options(columns_dict[new_event[0]])
-    trial_no = range(1, len(remove_cols(columns_dict[heatmap_options[0]])[:-2]) + 1)
-    trial_ts = [
-        f"{i} - {j}" for i, j in zip(trial_no, remove_cols(columns_dict[heatmap_options[0]])[:-2], strict=True)
-    ] + ["All"]
-
-    plotter = ParameterizedPlotter(
-        event_selector_objects=new_event,
-        event_selector_heatmap_objects=heatmap_options,
-        selector_for_multipe_events_plot_objects=multiple_plots_options,
-        columns_dict=columns_dict,
-        df_new=df,
-        x_min=x_min,
-        x_max=x_max,
-        color_map_objects=colormaps,
+    metric = available_metrics[0]
+    plotter = build_plotter(
         filepath=filepath,
-        x_objects=x,
-        y_objects=y,
-        heatmap_y_objects=trial_ts,
-        psth_y_objects=trial_ts[:-1],
+        events=event,
+        metric=metric,
+        # Default the x-axis to the actual PSTH window (nSecPrev is negative by
+        # convention) so the traces fill the plot; users can still type/zoom beyond it.
+        x_min=float(inputParameters["nSecPrev"]),
+        x_max=float(inputParameters["nSecPost"]),
     )
-    dashboard = VisualizationDashboard(plotter=plotter, basename=basename)
+    dashboard = VisualizationDashboard(
+        plotter=plotter,
+        basename=Path(filepath).name,
+        events=list(event),
+        metric=metric,
+        available_metrics=available_metrics,
+    )
     dashboard.show()
 
 
@@ -165,8 +83,6 @@ def createPlots(filepath: str, event: list[str], inputParameters: dict[str, obje
         event[i] = event[i].replace("\\", "_")
         event[i] = event[i].replace("/", "_")
 
-    visualize_zscore_or_dff = inputParameters["visualize_zscore_or_dff"]
-
     index = []
     for i in range(len(event)):
         if is_continuous_label(event[i]):
@@ -174,20 +90,11 @@ def createPlots(filepath: str, event: list[str], inputParameters: dict[str, obje
 
     event = np.delete(event, index)
 
-    names = [f"{visualize_zscore_or_dff}_{site}" for site in recording_sites_for_output_directory(filepath)]
-
-    helper_plots(filepath, event, names, inputParameters)
+    helper_plots(filepath, event, inputParameters)
 
 
-def _validate_metric_against_step4_outputs(inputParameters: dict[str, object]) -> None:
-    """Cross-check the visualization metric selection against step-4 PSTH outputs on disk.
-
-    Step 4 only writes PSTH ``.h5`` files for the metric(s) selected via
-    ``selectForComputePsth``.  If the user later requests a different metric in
-    step 5 the downstream ``read_Df`` call will fail with an opaque
-    ``FileNotFoundError``.  This function detects that mismatch early and raises
-    a :class:`ValueError` that names the offending sessions and tells the user
-    exactly how to fix the problem.
+def _validate_psth_outputs_exist(inputParameters: dict[str, object]) -> None:
+    """Check that at least one selected output directory holds step-4 PSTH results.
 
     Parameters
     ----------
@@ -197,10 +104,8 @@ def _validate_metric_against_step4_outputs(inputParameters: dict[str, object]) -
     Raises
     ------
     ValueError
-        When one or more output directories are missing PSTH ``.h5`` files for
-        the requested visualization metric.
+        When none of the selected output directories contain PSTH ``.h5`` files.
     """
-    visualize_zscore_or_dff = inputParameters["visualize_zscore_or_dff"]
     session_folders = inputParameters["session_folders"]
 
     # Collect every output directory that will be visualised: the selected session runs
@@ -218,28 +123,19 @@ def _validate_metric_against_step4_outputs(inputParameters: dict[str, object]) -
     if not run_folders:
         return  # Nothing to check; the main function will handle the empty case.
 
-    # PSTH output files use the ".h5" extension (pandas HDF5) and embed the
-    # metric name, e.g. "<event>_z_score_<recording_site>.h5" or "<event>_dff_<recording_site>.h5".
-    # Step-3 z-score/dff files use ".hdf5" and are therefore never false-positives.
-    if visualize_zscore_or_dff == "z_score":
-        pattern = "*_z_score_*.h5"
-    else:
-        pattern = "*_dff_*.h5"
+    # PSTH output files use the ".h5" extension (pandas HDF5) and embed the metric name,
+    # e.g. "<event>_<site>_z_score_<site>.h5". Step-3 z-score/dff files use ".hdf5" and
+    # are therefore never false-positives.
+    if any(any(Path(run_folder).glob(pattern)) for run_folder in run_folders for pattern in PSTH_FILE_PATTERNS):
+        return
 
-    missing_sessions = [run_folder for run_folder in run_folders if not any(Path(run_folder).glob(pattern))]
-
-    if missing_sessions:
-        other_metric = "dff" if visualize_zscore_or_dff == "z_score" else "z_score"
-        session_lines = "\n  - ".join(missing_sessions)
-        raise ValueError(
-            f"The visualization metric '{visualize_zscore_or_dff}' was not computed "
-            f"for {len(missing_sessions)} output director(ies):\n"
-            f"  - {session_lines}\n\n"
-            f"To fix this, either:\n"
-            f"  1. Change the visualization selection to '{other_metric}', or\n"
-            f"  2. Re-run step 4 (or, for a '_group' directory, the Group Analysis step) "
-            f"with '{visualize_zscore_or_dff}' (or 'Both') enabled."
-        )
+    directory_lines = "\n  - ".join(run_folders)
+    raise ValueError(
+        f"No PSTH results were found in any of the {len(run_folders)} selected output "
+        f"director(ies):\n"
+        f"  - {directory_lines}\n\n"
+        f"Run step 4 (or, for a '_group' directory, the Group Analysis step) before visualizing."
+    )
 
 
 def visualizeResults(inputParameters: dict[str, object]) -> None:
@@ -253,12 +149,12 @@ def visualizeResults(inputParameters: dict[str, object]) -> None:
     Raises
     ------
     ValueError
-        When a selected group directory is not usable, or when the visualization
-        metric was not computed in step 4.
+        When a selected group directory is not usable, or when no selected output
+        directory holds step-4 PSTH results.
     """
     inputParameters = inputParameters
 
-    _validate_metric_against_step4_outputs(inputParameters)
+    _validate_psth_outputs_exist(inputParameters)
     group_folders = list(inputParameters.get("selected_group_folders") or [])
     validate_group_definitions(group_folders=group_folders)
 

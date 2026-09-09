@@ -8,6 +8,7 @@ from typing import ClassVar
 
 import datashader as ds
 import holoviews as hv
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import panel as pn
@@ -18,6 +19,12 @@ from holoviews import opts
 from holoviews.operation.datashader import datashade
 from holoviews.plotting.util import process_cmap
 from selenium.webdriver.chrome.options import Options
+
+from ..analysis.io_utils import (
+    recording_site_from_preprocessed_label,
+    recording_sites_for_output_directory,
+)
+from ..utils.utils import read_Df
 
 pn.extension()
 
@@ -1030,3 +1037,152 @@ class ParameterizedPlotter(param.Parameterized):
         self.results_hm["op"] = output_filename
 
         return image
+
+
+# The metrics step 4 can write PSTH results for, in the order the dashboard offers them.
+PSTH_METRICS = ("z_score", "dff")
+
+
+def _sanitize_event(event: str) -> str:
+    """Return an event label with the path separators ``read_Df`` replaces already applied."""
+    return event.replace("\\", "_").replace("/", "_")
+
+
+def psth_result_paths(*, filepath: str, events: list[str], metric: str) -> list[Path]:
+    """Return every PSTH result file the plotter reads for one output directory and metric.
+
+    Parameters
+    ----------
+    filepath : str
+        Path to an output directory: a session run folder or a group folder.
+    events : list of str
+        Event labels to plot.
+    metric : str
+        Which metric's results to name: ``"z_score"`` or ``"dff"``.
+
+    Returns
+    -------
+    list of pathlib.Path
+        One path per (event, recording site) pair.
+    """
+    directory = Path(filepath)
+    sites = recording_sites_for_output_directory(filepath)
+    return [directory / f"{_sanitize_event(event)}_{site}_{metric}_{site}.h5" for event in events for site in sites]
+
+
+def available_psth_metrics(*, filepath: str, events: list[str]) -> list[str]:
+    """Return the metrics whose PSTH results are complete in an output directory.
+
+    Parameters
+    ----------
+    filepath : str
+        Path to an output directory: a session run folder or a group folder.
+    events : list of str
+        Event labels to plot.
+
+    Returns
+    -------
+    list of str
+        A subset of :data:`PSTH_METRICS`, in that order. Empty when step 4 wrote no
+        usable results for ``events``.
+    """
+    available = []
+    for metric in PSTH_METRICS:
+        paths = psth_result_paths(filepath=filepath, events=events, metric=metric)
+        if paths and all(path.exists() for path in paths):
+            available.append(metric)
+    return available
+
+
+def build_plotter(*, filepath: str, events: list[str], metric: str, x_min: float, x_max: float) -> ParameterizedPlotter:
+    """Load one output directory's PSTH results for a metric and wire up a plotter.
+
+    Parameters
+    ----------
+    filepath : str
+        Path to an output directory: a session run folder or a group folder.
+    events : list of str
+        Event labels to plot. Must be non-empty.
+    metric : str
+        Which metric's results to load: ``"z_score"`` or ``"dff"``.
+    x_min, x_max : float
+        Initial x-axis bounds, normally the PSTH window.
+
+    Returns
+    -------
+    ParameterizedPlotter
+        Plotter holding the loaded data and every selector's option list.
+    """
+    names = [f"{metric}_{site}" for site in recording_sites_for_output_directory(filepath)]
+
+    correlation_folder = Path(filepath) / "cross_correlation_output"
+    if correlation_folder.exists():
+        event_corr, frames = [], []
+        correlation_paths = list(correlation_folder.glob(f"*_{metric}_*"))
+        for correlation_path in correlation_paths:
+            event_corr.append(Path(correlation_path).name.split(".")[0])
+            frames.append(pd.read_hdf(correlation_path, key="df", mode="r"))
+        if len(frames) > 0:
+            df_corr = pd.concat(frames, keys=event_corr, axis=1)
+        else:
+            event_corr = []
+            df_corr = []
+    else:
+        event_corr = []
+        df_corr = None
+
+    # combine all the event PSTH so that it can be viewed together
+    new_event, frames, bins = [], [], {}
+    for event in events:
+        for name in names:
+            new_event.append(event + "_" + recording_site_from_preprocessed_label(name))
+            event_df = read_Df(filepath, new_event[-1], name)
+            columns = list(event_df.columns)
+            regex = re.compile("bin_[(]")
+            bins[new_event[-1]] = [column for column in columns if regex.match(column)]
+            frames.append(event_df)
+
+    df = pd.concat(frames, keys=new_event, axis=1)
+
+    if isinstance(df_corr, pd.DataFrame):
+        new_event.extend(event_corr)
+        df = pd.concat([df, df_corr], axis=1, sort=False).reset_index()
+
+    columns_dict = dict()
+    for event in new_event:
+        columns = list(df[event].columns)
+        columns.append("All")
+        columns_dict[event] = columns
+
+    # make options array for different selectors
+    heatmap_options = new_event
+    multiple_plots_options = list(new_event)
+    for event, bin_columns in bins.items():
+        for bin_column in bin_columns:
+            multiple_plots_options.append(f"{event}_{bin_column}")
+
+    colormaps = plt.colormaps()
+    new_colormaps = ["plasma", "plasma_r", "magma", "magma_r", "inferno", "inferno_r", "viridis", "viridis_r"]
+    colormaps = new_colormaps + list(set(colormaps).difference(set(new_colormaps)))
+    x = [columns_dict[new_event[0]][-4]]
+    y = overview_y_options(columns_dict[new_event[0]])
+    trial_no = range(1, len(remove_cols(columns_dict[heatmap_options[0]])[:-2]) + 1)
+    trial_ts = [
+        f"{i} - {j}" for i, j in zip(trial_no, remove_cols(columns_dict[heatmap_options[0]])[:-2], strict=True)
+    ] + ["All"]
+
+    return ParameterizedPlotter(
+        event_selector_objects=new_event,
+        event_selector_heatmap_objects=heatmap_options,
+        selector_for_multipe_events_plot_objects=multiple_plots_options,
+        columns_dict=columns_dict,
+        df_new=df,
+        x_min=x_min,
+        x_max=x_max,
+        color_map_objects=colormaps,
+        filepath=filepath,
+        x_objects=x,
+        y_objects=y,
+        heatmap_y_objects=trial_ts,
+        psth_y_objects=trial_ts[:-1],
+    )

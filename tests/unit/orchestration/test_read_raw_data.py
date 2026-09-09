@@ -52,7 +52,6 @@ DEFAULT_ANALYSIS_PARAMETERS = {
     "transientsThresh": 3,
     "computeBinnedMetrics": False,
     "binnedMetricsWidth": 120,
-    "visualize_zscore_or_dff": "z_score",
     "averageForGroup": False,
 }
 

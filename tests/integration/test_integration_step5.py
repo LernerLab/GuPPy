@@ -69,16 +69,10 @@ def test_step5(step5_fixture_name, expected_event_substring, request):
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_step5_raises_when_visualization_metric_not_computed_in_step4(tmp_path):
+def test_step5_offers_only_the_metric_step4_computed(tmp_path):
     """
-    Step 5 must raise a ValueError with an actionable message when the requested
-    visualization metric ('z_score') was not computed in step 4 (which only
-    produced 'dff' outputs).
-
-    The error message should:
-    - Name the missing metric.
-    - Name the session(s) it is missing in.
-    - Tell the user to either change the visualization selection or re-run step 4.
+    When step 4 computed only one metric, the dashboard's PSTH metric selector offers
+    that metric alone and is disabled, rather than the step failing up front.
     """
     source_session = STUBBED_TESTING_DATA / SESSION_SUBDIR
     assert source_session.is_dir(), f"Sample data not available at expected path: {source_session}"
@@ -115,19 +109,19 @@ def test_step5_raises_when_visualization_metric_not_computed_in_step4(tmp_path):
 
     hv.extension("bokeh")
 
-    # Step 5: request z_score visualization — must raise an actionable ValueError
-    with patch.object(VisualizationDashboard, "show", lambda self: None):
-        with pytest.raises(ValueError) as exc_info:
-            step5(
-                **common_kwargs,
-                visualize_zscore_or_dff="z_score",
-                selected_runs=selected_runs,
-            )
+    captured_dashboards: list[VisualizationDashboard] = []
+    original_init = VisualizationDashboard.__init__
 
-    message = str(exc_info.value)
-    assert "z_score" in message, f"Error message should mention the missing metric. Got: {message}"
-    assert (
-        str(session_copy) in message or session_name in message
-    ), f"Error message should name the session. Got: {message}"
-    assert "dff" in message, f"Error message should suggest the available alternative. Got: {message}"
-    assert "step 4" in message.lower(), f"Error message should mention step 4. Got: {message}"
+    def capturing_init(self, **kwargs):
+        original_init(self, **kwargs)
+        captured_dashboards.append(self)
+
+    with patch.object(VisualizationDashboard, "__init__", capturing_init):
+        with patch.object(VisualizationDashboard, "show", lambda self: None):
+            step5(**common_kwargs, selected_runs=selected_runs)
+
+    assert len(captured_dashboards) == 1
+    dashboard = captured_dashboards[0]
+    assert dashboard.available_metrics == ["dff"]
+    assert dashboard.metric_select.value == "dff"
+    assert dashboard.metric_select.disabled is True

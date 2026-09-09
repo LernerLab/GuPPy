@@ -17,7 +17,6 @@ public dandiset is unauthenticated (only streaming an asset's data authenticates
 from __future__ import annotations
 
 import math
-import os
 import socket
 import time
 from pathlib import Path
@@ -580,7 +579,13 @@ def screenshot_group_psth_plot(page: Page, tmp_path: Path) -> None:
         x_min=-10.0,
         x_max=20.0,
     )
-    dashboard = VisualizationDashboard(plotter=plotter, basename="average")
+    dashboard = VisualizationDashboard(
+        plotter=plotter,
+        basename="average",
+        events=events,
+        metric="z_score",
+        available_metrics=["z_score", "dff"],
+    )
     template = dashboard.build_template()
     url = _serve(template)
 
@@ -704,7 +709,14 @@ def screenshot_visualization(page: Page, tmp_path: Path) -> None:
         x_min=-10.0,
         x_max=20.0,
     )
-    dashboard = VisualizationDashboard(plotter=plotter, basename="sample_data_csv_1")
+    dashboard = VisualizationDashboard(
+        plotter=plotter,
+        basename="sample_data_csv_1",
+        events=events,
+        metric="z_score",
+        # The tutorial run computes only the z-score, so the metric selector is disabled.
+        available_metrics=["z_score"],
+    )
     template = dashboard.build_template()
     url = _serve(template)
 
@@ -823,13 +835,13 @@ def screenshot_dandi_asset_browser(page: Page) -> None:
     """
     selector = DandiSelector()
     selector.dandiset_input.value = DANDI_DEMO_DANDISET_ID
-    subject_directory = os.path.join(selector._current_mirror_root, DANDI_DEMO_SUBJECT)
+    subject_directory = str(Path(selector._current_mirror_root) / DANDI_DEMO_SUBJECT)
     file_selector = pn.widgets.FileSelector(
         subject_directory,
         root_directory=selector._current_mirror_root,
         file_pattern="*.nwb",
         name="NWB assets",
-        value=[os.path.join(subject_directory, DANDI_DEMO_ASSET)],
+        value=[str(Path(subject_directory) / DANDI_DEMO_ASSET)],
         width=950,
     )
     file_selector._directory.visible = False
@@ -849,6 +861,7 @@ def screenshot_dandi_asset_browser(page: Page) -> None:
     )
     print("Saved dandi_asset_browser.png")
     page.set_viewport_size(VIEWPORT)
+
 
 def screenshot_export_to_nwb_button(page: Page) -> None:
     """How-to: the sidebar bottom showing the two optional NWB steps below Step 5."""
@@ -910,9 +923,7 @@ def _metadata_template() -> BasicTemplate:
     return build_metadata_template(
         session_label="Photo_63_207 (1)",
         channels=channels,
-        metadata=build_metadata_dict(
-            devices=devices, channel_rows=channel_rows, scalars=scalars, channels=channels
-        ),
+        metadata=build_metadata_dict(devices=devices, channel_rows=channel_rows, scalars=scalars, channels=channels),
         metadata_yaml_path=str(SAMPLE_DATA_DIR / "nwb_metadata.yaml"),
     )
 
