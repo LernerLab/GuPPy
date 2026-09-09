@@ -29,6 +29,15 @@ logger = logging.getLogger(__name__)
 SECTION_WIDTH = 960
 # Lighter than the card's own WhiteSmoke so nested sections read as one level down.
 SECTION_STYLES = dict(background="White")
+# Ten stacked sections carrying Panel's default card shadow read as noise, so they are
+# separated by a hairline instead.
+SECTION_STYLESHEET = """
+.card {
+    box-shadow: none;
+    border: 1px solid #E0E0E0;
+    border-radius: 4px;
+}
+"""
 
 
 def _reject_group_folder_selected_as_run(*, path: str) -> None:
@@ -92,14 +101,18 @@ def _titled_box(*, title: str, read_by: str, contents: list, width: int, collaps
     panel.Card
         The assembled section.
     """
-    # The consuming steps ride in the title rather than the body so the collapsed
-    # stack still says which step reads what.
+    read_by_note = pn.pane.Markdown(
+        f"*Read by {read_by}*",
+        width=width - 40,
+        styles={"color": "#6C757D", "font-size": "0.85em", "margin-bottom": "0"},
+    )
     return pn.Card(
-        pn.Column(*contents),
-        title=f"{title}  \u2014  Read by {read_by}",
+        pn.Column(read_by_note, *contents),
+        title=title,
         width=width,
         collapsed=collapsed,
         styles=SECTION_STYLES,
+        stylesheets=[SECTION_STYLESHEET],
     )
 
 
