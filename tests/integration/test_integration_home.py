@@ -8,7 +8,7 @@ from guppy.orchestration.save_parameters import save_parameters
 
 # Written into the snapshot but not produced by the parameter form: the version stamp and
 # the artifact-removal provenance recorded by the preprocessing steps.
-NON_FORM_JSON_KEYS = {"guppy_version", "removeArtifacts", "artifactsRemovalMethod", "noChannels"}
+NON_FORM_JSON_KEYS = {"guppy_version", "removeArtifacts", "artifactsRemovalMethod"}
 
 EXPECTED_JSON_KEYS = {
     "guppy_version",
@@ -23,7 +23,6 @@ EXPECTED_JSON_KEYS = {
     "filter_window",
     "removeArtifacts",
     "artifactsRemovalMethod",
-    "noChannels",
     "zscore_method",
     "baselineWindowStart",
     "baselineWindowEnd",
@@ -98,11 +97,7 @@ def test_get_input_parameters_keys_include_saved_keys(homepage, tmp_path):
 
 
 def test_derived_keys_are_recorded_but_absent_from_the_form(homepage, tmp_path):
-    """Keys recorded as provenance rather than collected from this form.
-
-    The artifact keys are written by the preprocessing steps; the channel count is asked
-    on the Label Stores page and recorded here for NWB export to read back.
-    """
+    """The artifact keys are provenance written by the preprocessing steps, not form inputs."""
     session_directory = tmp_path / "session1"
     session_directory.mkdir()
     homepage._widgets["files_1"].value = [str(session_directory)]
@@ -111,6 +106,6 @@ def test_derived_keys_are_recorded_but_absent_from_the_form(homepage, tmp_path):
         saved_parameters = json.load(json_file)
 
     in_memory_parameters = homepage._hooks["getInputParameters"]()
-    for key in ("removeArtifacts", "artifactsRemovalMethod", "noChannels"):
+    for key in ("removeArtifacts", "artifactsRemovalMethod"):
         assert key in saved_parameters
         assert key not in in_memory_parameters
