@@ -27,7 +27,7 @@ By the end you will have:
   first tutorial. You need the same setup: GuPPy installed from source, and the sample
   session at `stubbed_testing_data/csv/sample_data_csv_1/` pulled down with Git LFS.
 
-Launch GuPPy, and in the **Individual Analysis** card select
+Launch GuPPy, and in the **Parameter Selection** card select
 `stubbed_testing_data/csv/sample_data_csv_1/` as before:
 
 ```bash
@@ -105,7 +105,7 @@ make sure the first run is *not* selected.
 Selecting a run loads the parameters saved in it back into the form, which is why you
 start from the new run rather than editing the form first.
 
-In the **Individual Analysis** card, change the one parameter you are testing:
+In the **Parameter Selection** card, change the one parameter you are testing:
 
 - **Window for Moving Average filter (int)** → `250`
 
