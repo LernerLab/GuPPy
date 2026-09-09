@@ -176,15 +176,19 @@ class ParameterForm:
         # Hidden by default; shown when source_mode == "dandi"
         self.dandi_selector.panel.visible = False
 
-        self.explain_execution = pn.pane.Markdown(
+        self.explain_compute = pn.pane.Markdown(
             """
                                 - ***Number of cores :*** Number of cores used for analysis. Try to
                                 keep it less than the number of cores in your machine.
-                                - ***Combine Data? :*** Make this parameter ``` True ``` if user wants to combine
-                                the data, especially when there is two different
-                                data files for the same recording session.<br>
                                 """,
             width=940,
+        )
+
+        self.explain_combine_data = pn.pane.Markdown(
+            "**Combine Data?** Set this to `True` when one recording session was written as two "
+            "separate data files; the matching channels are concatenated into a single trace "
+            "before preprocessing.",
+            width=950,
         )
 
         self.explain_control_fit = pn.pane.Markdown(
@@ -548,9 +552,9 @@ class ParameterForm:
         )
 
         self.execution_param_wd = _titled_box(
-            title="Execution",
-            read_by="Steps 2-7 and Group Analysis",
-            contents=[self.explain_execution, pn.Row(self.numberOfCores, self.combine_data)],
+            title="Compute",
+            read_by="Steps 2 and 4 and Group Analysis",
+            contents=[self.explain_compute, self.numberOfCores],
             width=SECTION_WIDTH,
         )
 
@@ -621,6 +625,8 @@ class ParameterForm:
             pn.Row(pn.pane.Markdown("**Data Source:**"), self.source_mode),
             self.files_1,
             self.dandi_selector.panel,
+            self.explain_combine_data,
+            self.combine_data,
         )
         self.input_folder_selection = pn.Card(
             self.input_folder_selection_widget,
