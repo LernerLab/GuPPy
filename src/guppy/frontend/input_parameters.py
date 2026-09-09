@@ -27,6 +27,14 @@ logger = logging.getLogger(__name__)
 
 # Width of each parameter section inside the 1000px Individual Analysis card.
 SECTION_WIDTH = 960
+# White against the card's WhiteSmoke, with a border, so the sections read as
+# distinct blocks rather than merging into the card behind them.
+SECTION_STYLES = {
+    "background": "White",
+    "border": "1px solid #C8CCD0",
+    "border-radius": "6px",
+    "margin-bottom": "12px",
+}
 
 
 def _reject_group_folder_selected_as_run(*, path: str) -> None:
@@ -68,8 +76,11 @@ def _blank_comparison_rows(count: int) -> pd.DataFrame:
     return pd.DataFrame({"Event A": [""] * count, "Event B": [""] * count})
 
 
-def _titled_box(*, title: str, read_by: str, contents: list, width: int) -> pn.WidgetBox:
+def _titled_box(*, title: str, read_by: str, help_pane: pn.pane.Markdown, contents: list, width: int) -> pn.WidgetBox:
     """Build one parameter section, headed by its title and the steps that consume it.
+
+    The section's explanations start hidden behind a "?" toggle beside the title, so
+    the form reads as a list of controls until help is asked for.
 
     Parameters
     ----------
@@ -78,6 +89,8 @@ def _titled_box(*, title: str, read_by: str, contents: list, width: int) -> pn.W
     read_by : str
         The pipeline steps whose workers read the section's parameters, phrased to
         follow "Read by" (e.g. ``"Step 3"``).
+    help_pane : panel.pane.Markdown
+        The section's per-parameter explanations.
     contents : list
         Panel objects to lay out under the heading.
     width : int
@@ -88,13 +101,24 @@ def _titled_box(*, title: str, read_by: str, contents: list, width: int) -> pn.W
     panel.WidgetBox
         The assembled section.
     """
-    heading = pn.pane.Markdown(f"### {title}", width=width - 40, styles={"margin-bottom": "0"})
+    help_pane.visible = False
+    help_toggle = pn.widgets.Toggle(name="?", value=False, width=32, height=32, button_type="light")
+    help_toggle.link(help_pane, value="visible")
+
+    heading = pn.pane.Markdown(f"### {title}", width=width - 120, styles={"margin-bottom": "0"})
     read_by_note = pn.pane.Markdown(
         f"*Read by {read_by}*",
         width=width - 40,
         styles={"color": "#6C757D", "font-size": "0.85em", "margin-top": "0"},
     )
-    return pn.WidgetBox(heading, read_by_note, *contents, width=width)
+    return pn.WidgetBox(
+        pn.Row(heading, help_toggle),
+        read_by_note,
+        help_pane,
+        *contents,
+        width=width,
+        styles=SECTION_STYLES,
+    )
 
 
 class ParameterForm:
@@ -127,9 +151,6 @@ class ParameterForm:
         # Run selections stashed per source mode, so switching to DANDI and back does not
         # discard the choices made for local sessions (and vice versa).
         self._run_selection_by_source_mode: dict[str, tuple[list[str], list[str]]] = {}
-
-        self.show_help = pn.widgets.Checkbox(name="Show parameter help", value=False, width=200)
-        self.show_help.param.watch(self._on_show_help_change, "value")
 
         self.setup_individual_parameters()
         self.setup_group_parameters()
@@ -433,8 +454,8 @@ class ParameterForm:
         self.zscore_param_wd = _titled_box(
             title="Z-score Parameters",
             read_by="Step 3",
+            help_pane=self.explain_z_score,
             contents=[
-                self.explain_z_score,
                 pn.Row(self.z_score_computation, self.baseline_wd_strt, self.baseline_wd_end),
             ],
             width=SECTION_WIDTH,
@@ -443,8 +464,8 @@ class ParameterForm:
         self.psth_param_wd = _titled_box(
             title="PSTH Parameters",
             read_by="Step 4 and Group Analysis",
+            help_pane=self.explain_nsec,
             contents=[
-                self.explain_nsec,
                 pn.Row(self.computePsth, self.nSecPrev, self.nSecPost),
                 pn.Row(self.computeCorr),
                 pn.Row(self.timeInterval, self.use_time_or_trials, self.bin_psth_trials),
@@ -481,7 +502,8 @@ class ParameterForm:
         self.peak_param_wd = _titled_box(
             title="Peak and AUC Parameters",
             read_by="Step 4",
-            contents=[self.peak_explain, self.df_widget, self.auc_units],
+            help_pane=self.peak_explain,
+            contents=[self.df_widget, self.auc_units],
             width=SECTION_WIDTH,
         )
 
@@ -525,8 +547,8 @@ class ParameterForm:
         self.significance_param_wd = _titled_box(
             title="PSTH Significance Parameters",
             read_by="Step 4 and Group Analysis",
+            help_pane=self.significance_explain,
             contents=[
-                self.significance_explain,
                 pn.Row(self.computePsthSignificance, self.psthSignificanceAlpha, self.psthBootstrapResamples),
                 self.comparison_df_widget,
                 self.add_comparison_button,
@@ -537,15 +559,16 @@ class ParameterForm:
         self.execution_param_wd = _titled_box(
             title="Compute",
             read_by="Steps 2 and 4 and Group Analysis",
-            contents=[self.explain_compute, self.numberOfCores],
+            help_pane=self.explain_compute,
+            contents=[self.numberOfCores],
             width=SECTION_WIDTH,
         )
 
         self.control_fit_param_wd = _titled_box(
             title="Control Channel Fitting",
             read_by="Step 3",
+            help_pane=self.explain_control_fit,
             contents=[
-                self.explain_control_fit,
                 pn.Row(self.isosbestic_control, self.control_fit_method, self.photobleaching_detrend),
                 pn.Row(self.control_fit_window_mode, self.control_fit_window_strt, self.control_fit_window_end),
             ],
@@ -555,15 +578,16 @@ class ParameterForm:
         self.filtering_param_wd = _titled_box(
             title="Signal Filtering",
             read_by="Step 3 and Group Analysis",
-            contents=[self.explain_filtering, pn.Row(self.timeForLightsTurnOn, self.moving_avg_filter)],
+            help_pane=self.explain_filtering,
+            contents=[pn.Row(self.timeForLightsTurnOn, self.moving_avg_filter)],
             width=SECTION_WIDTH,
         )
 
         self.transients_param_wd = _titled_box(
             title="Transient Detection",
             read_by="Steps 4 and 5 and Group Analysis",
+            help_pane=self.explain_transients,
             contents=[
-                self.explain_transients,
                 pn.Row(self.transients, self.moving_wd, self.useTransientsAsEvents),
                 pn.Row(self.highAmpFilt, self.transientsThresh),
             ],
@@ -573,8 +597,8 @@ class ParameterForm:
         self.binned_metrics_param_wd = _titled_box(
             title="Binned Metrics",
             read_by="Step 4",
+            help_pane=self.explain_binned_metrics,
             contents=[
-                self.explain_binned_metrics,
                 pn.Row(self.computeBinnedMetrics, self.binnedMetricsWidth),
             ],
             width=SECTION_WIDTH,
@@ -621,38 +645,10 @@ class ParameterForm:
             collapsed=True,
         )
 
-        for pane in self._help_panes():
-            pane.visible = False
-
-        self.widget = pn.Column(self.show_help, self.individual_parameters)
+        self.widget = pn.Column(self.individual_parameters)
         self.individual = pn.Card(
             self.widget, title="Individual Analysis", styles=self.styles, width=1000, collapsed=True
         )
-
-    def _help_panes(self) -> list[pn.pane.Markdown]:
-        """Return every per-parameter explanation the help toggle shows and hides.
-
-        Returns
-        -------
-        list of panel.pane.Markdown
-            The explanation panes, one per parameter section.
-        """
-        return [
-            self.explain_combine_data,
-            self.explain_compute,
-            self.explain_control_fit,
-            self.explain_filtering,
-            self.explain_z_score,
-            self.explain_nsec,
-            self.peak_explain,
-            self.explain_transients,
-            self.explain_binned_metrics,
-            self.significance_explain,
-        ]
-
-    def _on_show_help_change(self, event: object) -> None:
-        for pane in self._help_panes():
-            pane.visible = event.new
 
     def _on_source_mode_change(self, event: object) -> None:
         is_dandi = event.new == "dandi"
