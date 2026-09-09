@@ -25,6 +25,9 @@ from ..utils.validation import (
 
 logger = logging.getLogger(__name__)
 
+# Width of each parameter section inside the 1000px Individual Analysis card.
+SECTION_WIDTH = 960
+
 
 def _reject_group_folder_selected_as_run(*, path: str) -> None:
     """Raise when a group output directory is selected where a session run is expected.
@@ -170,7 +173,7 @@ class ParameterForm:
                                 the data, especially when there is two different
                                 data files for the same recording session.<br>
                                 """,
-            width=350,
+            width=940,
         )
 
         self.explain_control_fit = pn.pane.Markdown(
@@ -183,7 +186,7 @@ class ParameterForm:
                                 subtracted. Useful for long (multi-hour) recordings. Requires an isosbestic
                                 control channel. Default is ``` False ```.<br>
                                 """,
-            width=350,
+            width=940,
         )
 
         self.explain_filtering = pn.pane.Markdown(
@@ -194,7 +197,7 @@ class ParameterForm:
                                 is done using moving average filter. Default window used for moving
                                 average filter is 100 datapoints. Change it based on the requirement.<br>
                                 """,
-            width=350,
+            width=940,
         )
 
         self.explain_event_metric = pn.pane.Markdown(
@@ -204,7 +207,7 @@ class ParameterForm:
                                 detected in each recording site are then used as that recording site's event
                                 timestamps for the PSTH and peak/area computation.
                                 """,
-            width=350,
+            width=940,
         )
 
         self.explain_transients = pn.pane.Markdown(
@@ -219,7 +222,7 @@ class ParameterForm:
                                 the MAD above the median of the trace (after filtering high amplitude events) are detected
                                 as transients. Here, x is transients detection threshold. Default is 3.
                                 """,
-            width=350,
+            width=940,
         )
 
         self.explain_binned_metrics = pn.pane.Markdown(
@@ -232,7 +235,7 @@ class ParameterForm:
                                 when the session does not divide evenly, so it may be shorter than the rest.
                                 Default is 120 seconds.<br>
                                 """,
-            width=350,
+            width=940,
         )
 
         self.explain_acquisition = pn.pane.Markdown(
@@ -241,37 +244,37 @@ class ParameterForm:
                                 channels used while recording, when data files has no column names mentioning "Flags"
                                 or "LedState".
                                 """,
-            width=350,
+            width=940,
         )
 
         self.timeForLightsTurnOn = pn.widgets.IntInput(name="Eliminate first few seconds (int)", value=1, width=320)
 
         self.isosbestic_control = pn.widgets.Select(
-            name="Isosbestic Control Channel? (bool)", value=True, options=[True, False], width=320
+            name="Isosbestic Control Channel? (bool)", value=True, options=[True, False], width=300
         )
 
         self.control_fit_method = pn.widgets.Select(
             name="Control Channel Fitting Method",
             options=["IRWLS", "OLS"],
             value="IRWLS",
-            width=320,
+            width=300,
         )
 
         self.control_fit_window_mode = pn.widgets.Select(
             name="Control Fit Window",
             options=["full trace", "baseline epoch"],
             value="full trace",
-            width=320,
+            width=300,
         )
         self.control_fit_window_strt = pn.widgets.IntInput(
-            name="Control Fit Window Start Time (s) (int)", value=0, width=320
+            name="Control Fit Window Start Time (s) (int)", value=0, width=300
         )
         self.control_fit_window_end = pn.widgets.IntInput(
-            name="Control Fit Window End Time (s) (int)", value=0, width=320
+            name="Control Fit Window End Time (s) (int)", value=0, width=300
         )
 
         self.photobleaching_detrend = pn.widgets.Select(
-            name="Photobleaching Detrend? (bool)", value=False, options=[True, False], width=320
+            name="Photobleaching Detrend? (bool)", value=False, options=[True, False], width=300
         )
 
         self.numberOfCores = pn.widgets.IntInput(name="# of cores (int)", value=2, width=150)
@@ -359,7 +362,7 @@ class ParameterForm:
                         "baselineWindowEnd=120 exceeds signal duration 90.5s;
                         signal timespan is [0, 90.5]s — choose values within this range.").
                         """,
-            width=580,
+            width=940,
         )
 
         self.explain_nsec = pn.pane.Markdown(
@@ -371,7 +374,7 @@ class ParameterForm:
                         to compute cross-correlation between PSTHs of two different signals or signals
                         recorded from different recording sites.
                         """,
-            width=580,
+            width=940,
         )
 
         self.nSecPrev = pn.widgets.IntInput(name="Seconds before 0 (int)", value=-10, width=120)
@@ -418,7 +421,7 @@ class ParameterForm:
                             - Baseline parameters must be within the PSTH parameters
                             set in the PSTH parameters section.
                             """,
-            width=580,
+            width=940,
         )
 
         self.baselineCorrectionStart = pn.widgets.IntInput(
@@ -432,10 +435,9 @@ class ParameterForm:
             read_by="Step 3",
             contents=[
                 self.explain_z_score,
-                self.z_score_computation,
-                pn.Row(self.baseline_wd_strt, self.baseline_wd_end),
+                pn.Row(self.z_score_computation, self.baseline_wd_strt, self.baseline_wd_end),
             ],
-            width=600,
+            width=SECTION_WIDTH,
         )
 
         self.psth_param_wd = _titled_box(
@@ -446,7 +448,7 @@ class ParameterForm:
                 pn.Row(self.nSecPrev, self.nSecPost, self.computeCorr),
                 pn.Row(self.timeInterval, self.use_time_or_trials, self.bin_psth_trials),
             ],
-            width=600,
+            width=SECTION_WIDTH,
         )
 
         self.baseline_param_wd = _titled_box(
@@ -456,7 +458,7 @@ class ParameterForm:
                 self.explain_baseline,
                 pn.Row(self.baselineCorrectionStart, self.baselineCorrectionEnd),
             ],
-            width=600,
+            width=SECTION_WIDTH,
         )
         self.peak_explain = pn.pane.Markdown(
             """
@@ -469,7 +471,7 @@ class ParameterForm:
                         commonly reported in the literature. ```samples``` integrates with one-sample spacing instead,
                         so the area also scales with the recording's sampling rate.
                         """,
-            width=580,
+            width=940,
         )
 
         self.start_end_point_df = pd.DataFrame(
@@ -489,7 +491,7 @@ class ParameterForm:
             title="Peak and AUC Parameters",
             read_by="Step 4",
             contents=[self.peak_explain, self.df_widget, self.auc_units],
-            width=600,
+            width=SECTION_WIDTH,
         )
 
         self.significance_explain = pn.pane.Markdown(
@@ -507,7 +509,7 @@ class ParameterForm:
                         - Comparisons run inside one output folder. In a session run folder the trials
                         are resampled; in a group folder the session averages are.
                         """,
-            width=580,
+            width=940,
         )
 
         # One blank row to start, grown by the Add button rather than a fixed block of
@@ -534,21 +536,25 @@ class ParameterForm:
             read_by="Step 4 and Group Analysis",
             contents=[
                 self.significance_explain,
-                self.computePsthSignificance,
-                pn.Row(self.psthSignificanceAlpha, self.psthBootstrapResamples),
+                pn.Row(self.computePsthSignificance, self.psthSignificanceAlpha, self.psthBootstrapResamples),
                 self.comparison_df_widget,
                 self.add_comparison_button,
             ],
-            width=600,
+            width=SECTION_WIDTH,
         )
 
-        # The left column is capped at 370px so it sits beside the 600px boxes without
-        # overflowing the 1000px card.
         self.execution_param_wd = _titled_box(
             title="Execution",
             read_by="Steps 2-7 and Group Analysis",
             contents=[self.explain_execution, pn.Row(self.numberOfCores, self.combine_data)],
-            width=370,
+            width=SECTION_WIDTH,
+        )
+
+        self.acquisition_param_wd = _titled_box(
+            title="Acquisition",
+            read_by="Steps 1 and 2",
+            contents=[self.explain_acquisition, self.no_channels_np],
+            width=SECTION_WIDTH,
         )
 
         self.control_fit_param_wd = _titled_box(
@@ -556,35 +562,37 @@ class ParameterForm:
             read_by="Step 3",
             contents=[
                 self.explain_control_fit,
-                self.isosbestic_control,
-                self.control_fit_method,
-                self.control_fit_window_mode,
-                self.control_fit_window_strt,
-                self.control_fit_window_end,
-                self.photobleaching_detrend,
+                pn.Row(self.isosbestic_control, self.control_fit_method, self.photobleaching_detrend),
+                pn.Row(self.control_fit_window_mode, self.control_fit_window_strt, self.control_fit_window_end),
             ],
-            width=370,
+            width=SECTION_WIDTH,
         )
 
         self.filtering_param_wd = _titled_box(
             title="Signal Filtering",
             read_by="Step 3 and Group Analysis",
-            contents=[self.explain_filtering, self.timeForLightsTurnOn, self.moving_avg_filter],
-            width=370,
+            contents=[self.explain_filtering, pn.Row(self.timeForLightsTurnOn, self.moving_avg_filter)],
+            width=SECTION_WIDTH,
         )
 
         self.event_metric_param_wd = _titled_box(
             title="Event and Metric Selection",
             read_by="Steps 4 and 5 and Group Analysis",
-            contents=[self.explain_event_metric, self.computePsth, self.transients, self.useTransientsAsEvents],
-            width=370,
+            contents=[
+                self.explain_event_metric,
+                pn.Row(self.computePsth, self.transients, self.useTransientsAsEvents),
+            ],
+            width=SECTION_WIDTH,
         )
 
         self.transients_param_wd = _titled_box(
             title="Transient Detection",
             read_by="Step 4",
-            contents=[self.explain_transients, self.moving_wd, pn.Row(self.highAmpFilt, self.transientsThresh)],
-            width=370,
+            contents=[
+                self.explain_transients,
+                pn.Row(self.moving_wd, self.highAmpFilt, self.transientsThresh),
+            ],
+            width=SECTION_WIDTH,
         )
 
         self.binned_metrics_param_wd = _titled_box(
@@ -594,31 +602,23 @@ class ParameterForm:
                 self.explain_binned_metrics,
                 pn.Row(self.computeBinnedMetrics, self.binnedMetricsWidth),
             ],
-            width=370,
+            width=SECTION_WIDTH,
         )
 
-        self.acquisition_param_wd = _titled_box(
-            title="Acquisition",
-            read_by="Steps 1 and 2",
-            contents=[self.explain_acquisition, self.no_channels_np],
-            width=370,
-        )
-
-        self.individual_analysis_wd_2 = pn.Column(
+        # One column, ordered by the step that reads each section, so the card reads
+        # straight down rather than leaving the reader to guess a column order.
+        self.individual_parameters = pn.Column(
             self.execution_param_wd,
+            self.acquisition_param_wd,
             self.control_fit_param_wd,
             self.filtering_param_wd,
-            self.event_metric_param_wd,
-            self.transients_param_wd,
-            self.binned_metrics_param_wd,
-            self.acquisition_param_wd,
-        )
-
-        self.psth_baseline_param = pn.Column(
             self.zscore_param_wd,
+            self.event_metric_param_wd,
             self.psth_param_wd,
             self.baseline_param_wd,
             self.peak_param_wd,
+            self.transients_param_wd,
+            self.binned_metrics_param_wd,
             self.significance_param_wd,
         )
 
@@ -647,7 +647,7 @@ class ParameterForm:
             collapsed=True,
         )
 
-        self.widget = pn.Column(pn.Row(self.individual_analysis_wd_2, self.psth_baseline_param))
+        self.widget = pn.Column(self.individual_parameters)
         self.individual = pn.Card(
             self.widget, title="Individual Analysis", styles=self.styles, width=1000, collapsed=True
         )
