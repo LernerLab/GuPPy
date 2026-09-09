@@ -7,12 +7,15 @@ import panel as pn
 from .binned_metrics_view import build_binned_metrics_view
 from .covariate_correlation_view import build_covariate_correlation_view
 from .frontend_utils import scanPortsAndFind
+from .parameterized_plotter import build_plotter
 from .psth_significance_view import build_psth_significance_view
 from .tonic_epochs import build_tonic_results_view
 
 pn.extension()
 
 logger = logging.getLogger(__name__)
+
+METRIC_LABELS = {"z_score": "z-score", "dff": "\u0394F/F"}
 
 
 class VisualizationDashboard:
@@ -30,17 +33,100 @@ class VisualizationDashboard:
         methods and param-based controls.
     basename : str
         Session name displayed as the tab title.
+    events : list of str
+        Event labels the plotter was built over, used to rebuild it for another metric.
+    metric : str
+        The metric ``plotter`` holds results for: ``"z_score"`` or ``"dff"``.
+    available_metrics : list of str
+        Metrics step 4 wrote complete results for in this output directory. Offered in
+        the PSTH metric selector; a single entry disables it.
     """
 
-    def __init__(self, *, plotter: object, basename: str) -> None:
+    def __init__(
+        self,
+        *,
+        plotter: object,
+        basename: str,
+        events: list[str],
+        metric: str,
+        available_metrics: list[str],
+    ) -> None:
         self.plotter = plotter
         self.basename = basename
+        self.events = events
+        self.available_metrics = available_metrics
         self._psth_tab = self._build_psth_tab()
         self._heatmap_tab = self._build_heatmap_tab()
         self._tonic_tab = build_tonic_results_view(plotter.filepath)
         self._binned_tab = build_binned_metrics_view(plotter.filepath)
         self._covariate_tab = build_covariate_correlation_view(plotter.filepath)
         self._significance_tab = build_psth_significance_view(plotter.filepath)
+        self._tabs = pn.Tabs(
+            ("PSTH", self._psth_tab),
+            ("Heat Map", self._heatmap_tab),
+            ("Tonic", self._tonic_tab),
+            ("Binned", self._binned_tab),
+            ("Covariates", self._covariate_tab),
+            ("Significance", self._significance_tab),
+        )
+        self._metric_row = self._build_metric_selector(metric=metric)
+
+    def _build_metric_selector(self, *, metric: str) -> pn.Row:
+        """Build the PSTH metric selector and the caption explaining its reach.
+
+        Named "PSTH metric" rather than "Metric" because the Binned and Covariates
+        tabs carry their own metric menus, which this control does not drive.
+
+        Parameters
+        ----------
+        metric : str
+            The metric currently loaded.
+
+        Returns
+        -------
+        panel.Row
+            The selector beside its caption.
+        """
+        only_one = len(self.available_metrics) == 1
+        self.metric_select = pn.widgets.Select(
+            name="PSTH metric",
+            options={METRIC_LABELS[name]: name for name in self.available_metrics},
+            value=metric,
+            disabled=only_one,
+            width=180,
+        )
+        self.metric_select.param.watch(self._on_metric_change, "value")
+
+        caption = "Applies to the PSTH and Heat Map tabs; the Binned and Covariates tabs have their own metric menus."
+        if only_one:
+            other = "dff" if metric == "z_score" else "z_score"
+            caption += (
+                f" Only {METRIC_LABELS[metric]} was computed for this output directory \u2014 re-run Step 4 "
+                f"(or, for a `_group` directory, the Group Analysis step) with '{other}' or 'Both' "
+                f"to compare the two."
+            )
+        return pn.Row(self.metric_select, pn.pane.Markdown(caption, width=600))
+
+    def _on_metric_change(self, event: object) -> None:
+        """Reload the PSTH and Heat Map tabs against the newly selected metric.
+
+        The plotter sets every selector's option list in its constructor and has no
+        reload path, so a metric switch builds a new one. The remaining four tabs read
+        their own files from the output directory and are left untouched.
+        """
+        self._tabs.loading = True
+        self.plotter = build_plotter(
+            filepath=self.plotter.filepath,
+            events=self.events,
+            metric=event.new,
+            x_min=self.plotter.x_min,
+            x_max=self.plotter.x_max,
+        )
+        self._psth_tab = self._build_psth_tab()
+        self._heatmap_tab = self._build_heatmap_tab()
+        self._tabs[0] = ("PSTH", self._psth_tab)
+        self._tabs[1] = ("Heat Map", self._heatmap_tab)
+        self._tabs.loading = False
 
     def _range_number_inputs(self, *, name: str, label: str) -> pn.Row:
         """Return two-way-bound min/max number boxes for a plotter ``Range`` param.
@@ -376,15 +462,7 @@ class VisualizationDashboard:
     def build_template(self) -> pn.template.MaterialTemplate:
         """Build and return the Panel template without serving it."""
         template = pn.template.MaterialTemplate(title="Visualization GUI")
-        app = pn.Tabs(
-            ("PSTH", self._psth_tab),
-            ("Heat Map", self._heatmap_tab),
-            ("Tonic", self._tonic_tab),
-            ("Binned", self._binned_tab),
-            ("Covariates", self._covariate_tab),
-            ("Significance", self._significance_tab),
-        )
-        template.main.append(app)
+        template.main.append(pn.Column(self._metric_row, self._tabs))
         return template
 
     def show(self) -> None:

@@ -138,8 +138,8 @@ def test_combine_data(tmp_path):
     captured_dashboards: list[VisualizationDashboard] = []
     original_init = VisualizationDashboard.__init__
 
-    def capturing_init(self, *, plotter, basename):
-        original_init(self, plotter=plotter, basename=basename)
+    def capturing_init(self, **kwargs):
+        original_init(self, **kwargs)
         captured_dashboards.append(self)
 
     with patch.object(VisualizationDashboard, "__init__", capturing_init):

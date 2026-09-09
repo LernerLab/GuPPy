@@ -22,12 +22,6 @@ def test_group_analysis_card_heading_visible(page, live_server_url):
 
 
 @pytest.mark.ui
-def test_visualization_parameters_card_heading_visible(page, live_server_url):
-    page.goto(live_server_url)
-    expect(page.get_by_text("Visualization Parameters").first).to_be_visible()
-
-
-@pytest.mark.ui
 def test_no_javascript_errors_on_load(page, live_server_url):
     errors = []
     page.on("pageerror", lambda error: errors.append(error))

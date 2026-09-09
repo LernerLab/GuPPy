@@ -131,7 +131,6 @@ def build_analysis_parameters(*, inputParameters: dict[str, object]) -> dict[str
         "transientsThresh": inputParameters["transientsThresh"],
         "computeBinnedMetrics": inputParameters["computeBinnedMetrics"],
         "binnedMetricsWidth": inputParameters["binnedMetricsWidth"],
-        "visualize_zscore_or_dff": inputParameters["visualize_zscore_or_dff"],
     }
 
 

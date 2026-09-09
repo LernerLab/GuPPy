@@ -40,6 +40,51 @@ def parameter_form(panel_extension, frontend_base_dir, tmp_path):
     return form
 
 
+# The five cards ParameterForm appends to the template, in display order.
+_CARD_ATTRIBUTES = (
+    "input_folder_selection",
+    "output_folder_selection",
+    "individual",
+    "group",
+)
+
+# Panel puts a default 5px margin either side of every object, so each member of a
+# row of siblings occupies its own width plus 10px.
+_SIBLING_MARGIN = 10
+
+
+def _occupied_width(node) -> int:
+    """Return the horizontal extent ``node`` takes up inside its parent, in pixels."""
+    declared = getattr(node, "width", None)
+    if declared:
+        return declared
+    return _content_width(node)
+
+
+def _content_width(node) -> int:
+    """Return the horizontal extent a layout's children need, ignoring its own declared width."""
+    # pn.WidgetBox is not a pn.Column subclass; ListPanel is the common base that
+    # also covers Column, Row and Card.
+    if not isinstance(node, pn.layout.ListPanel):
+        return 0
+    extents = [extent for extent in (_occupied_width(child) for child in node.objects) if extent]
+    if not extents:
+        return 0
+    if isinstance(node, pn.Row):
+        return sum(extents) + _SIBLING_MARGIN * len(extents)
+    return max(extents)
+
+
+def _width_bearing_containers(node) -> list:
+    """Return every layout at or below ``node`` that pins its own width."""
+    if not isinstance(node, pn.layout.ListPanel):
+        return []
+    found = [node] if getattr(node, "width", None) else []
+    for child in node.objects:
+        found.extend(_width_bearing_containers(child))
+    return found
+
+
 # ── ParameterForm ─────────────────────────────────────────────────────────────
 
 
@@ -139,11 +184,6 @@ class TestParameterForm:
         assert "Time (min)" in parameter_form.use_time_or_trials.options
         assert "# of trials" in parameter_form.use_time_or_trials.options
 
-    def test_visualize_zscore_or_dff_default(self, parameter_form):
-        assert parameter_form.visualize_zscore_or_dff.value == "z_score"
-        assert "z_score" in parameter_form.visualize_zscore_or_dff.options
-        assert "dff" in parameter_form.visualize_zscore_or_dff.options
-
     def test_comparison_table_starts_with_a_single_blank_row(self, parameter_form):
         # A fixed block of slots is mostly blank rows for anyone running two comparisons.
         assert parameter_form.comparison_df_widget.value.shape == (1, 2)
@@ -186,23 +226,34 @@ class TestParameterForm:
         assert list(parameter_form.comparison_df_widget.value["Event A"]) == saved_a
         assert list(parameter_form.comparison_df_widget.value["Event B"]) == saved_b
 
-    def test_parameter_rows_fit_inside_their_widget_box(self, parameter_form):
-        # A row of widgets wider than its box overflows the panel visually, which no
-        # other assertion here would catch.
-        boxes = [
-            parameter_form.significance_param_wd,
-            parameter_form.psth_param_wd,
-            parameter_form.peak_param_wd,
-            parameter_form.zscore_param_wd,
-        ]
-        for box in boxes:
-            for item in box:
-                if not isinstance(item, pn.Row):
-                    continue
-                widgets = [child for child in item if getattr(child, "width", None)]
-                # Panel puts a default 5px margin either side of each widget.
-                occupied = sum(child.width for child in widgets) + 10 * len(widgets)
-                assert occupied <= box.width, f"{[child.name for child in widgets]} overflows {box.width}px"
+    def test_no_layout_overflows_its_declared_width(self, parameter_form):
+        # Contents wider than their container overflow the panel visually, which no other
+        # assertion here would catch. Sweeping every card rather than a hardcoded list of
+        # boxes means a newly added parameter cannot slip past the check.
+        for card_name in _CARD_ATTRIBUTES:
+            for container in _width_bearing_containers(getattr(parameter_form, card_name)):
+                occupied = _content_width(container)
+                assert occupied <= container.width, (
+                    f"{card_name}: {type(container).__name__} contents occupy {occupied}px "
+                    f"inside a {container.width}px container"
+                )
+
+    def test_width_sweep_reaches_every_parameter_box(self, parameter_form):
+        # Guards the sweep itself: a refactor that drops a box out of the card tree would
+        # otherwise leave the overflow test passing because it found nothing to check.
+        swept = {
+            id(container)
+            for card_name in _CARD_ATTRIBUTES
+            for container in _width_bearing_containers(getattr(parameter_form, card_name))
+        }
+        for box_name in (
+            "zscore_param_wd",
+            "psth_param_wd",
+            "baseline_param_wd",
+            "peak_param_wd",
+            "significance_param_wd",
+        ):
+            assert id(getattr(parameter_form, box_name)) in swept, f"{box_name} was not reached by the sweep"
 
     def test_df_widget_initial_peak_start_values(self, parameter_form):
         df = parameter_form.df_widget.value
@@ -776,7 +827,7 @@ class TestFolderSelectionCards:
         assert main[1] is parameter_form.output_folder_selection
         assert main[2] is parameter_form.individual
         assert main[3] is parameter_form.group
-        assert main[4] is parameter_form.visualize
+        assert len(main) == 4
 
 
 # Distinctive non-default snapshot so a successful load is unambiguous. peak_*Point
@@ -818,7 +869,6 @@ SAVED_PARAMETERS = {
     "psthSignificanceAlpha": 0.01,
     "psthBootstrapResamples": 500,
     "binnedMetricsWidth": 60,
-    "visualize_zscore_or_dff": "dff",
 }
 
 

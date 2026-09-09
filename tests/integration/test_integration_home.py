@@ -51,7 +51,6 @@ EXPECTED_JSON_KEYS = {
     "transientsThresh",
     "computeBinnedMetrics",
     "binnedMetricsWidth",
-    "visualize_zscore_or_dff",
 }
 
 

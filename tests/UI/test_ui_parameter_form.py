@@ -70,11 +70,3 @@ def test_group_output_folder_selection_card_expands_on_click(page, live_server_u
     expect(page.get_by_text("Group Output Folder Selection").first).to_be_visible()
     page.get_by_text("Group Output Folder Selection").first.click()
     expect(page.get_by_text("Existing groups:").first).to_be_visible()
-
-
-@pytest.mark.ui
-def test_visualization_parameters_card_expands_on_click(page, live_server_url):
-    page.goto(live_server_url)
-    expect(page.get_by_text("Visualization Parameters").first).to_be_visible()
-    page.get_by_text("Visualization Parameters").first.click()
-    expect(page.get_by_text("z-score or").first).to_be_visible()

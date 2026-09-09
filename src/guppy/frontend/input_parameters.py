@@ -65,6 +65,30 @@ def _blank_comparison_rows(count: int) -> pd.DataFrame:
     return pd.DataFrame({"Event A": [""] * count, "Event B": [""] * count})
 
 
+def _titled_box(*, title: str, read_by: str, contents: list, width: int) -> pn.WidgetBox:
+    """Build one parameter section, headed by its title and the steps that consume it.
+
+    Parameters
+    ----------
+    title : str
+        Heading for the section.
+    read_by : str
+        The pipeline steps whose workers read the section's parameters, phrased to
+        follow "Read by" (e.g. ``"Step 3"``).
+    contents : list
+        Panel objects to lay out under the heading.
+    width : int
+        Fixed width of the returned box, in pixels.
+
+    Returns
+    -------
+    panel.WidgetBox
+        The assembled section.
+    """
+    heading = pn.pane.Markdown(f"### {title}\n*Read by {read_by}*", width=width - 20)
+    return pn.WidgetBox(heading, *contents, width=width)
+
+
 class ParameterForm:
     """Panel form collecting all GuPPy analysis parameters.
 
@@ -98,7 +122,6 @@ class ParameterForm:
 
         self.setup_individual_parameters()
         self.setup_group_parameters()
-        self.setup_visualization_parameters()
         self.add_to_template()
         self.files_1.param.watch(self._on_sessions_changed, "value")
         self.run_names_for_all_sessions.param.watch(self._on_run_names_for_all_sessions_change, "value")
@@ -109,10 +132,6 @@ class ParameterForm:
     def setup_individual_parameters(self) -> None:
         """Build all widgets for the individual-analysis card and store them as instance attributes."""
         # Individual analysis components
-        self.mark_down_1 = pn.pane.Markdown(
-            """**Select folders for the analysis from the file selector below**""", width=600
-        )
-
         # Color the "dandi" button muted pink (matches the DANDI brain-logo palette) so
         # the two options are visually distinguishable at a glance.
         dandi_button_stylesheet = """
@@ -143,13 +162,19 @@ class ParameterForm:
         # Hidden by default; shown when source_mode == "dandi"
         self.dandi_selector.panel.visible = False
 
-        self.explain_time_artifacts = pn.pane.Markdown(
+        self.explain_execution = pn.pane.Markdown(
             """
                                 - ***Number of cores :*** Number of cores used for analysis. Try to
                                 keep it less than the number of cores in your machine.
                                 - ***Combine Data? :*** Make this parameter ``` True ``` if user wants to combine
                                 the data, especially when there is two different
                                 data files for the same recording session.<br>
+                                """,
+            width=350,
+        )
+
+        self.explain_control_fit = pn.pane.Markdown(
+            """
                                 - ***Isosbestic Control Channel? :*** Make this parameter ``` False ``` if user
                                 does not want to use isosbestic control channel in the analysis.<br>
                                 - ***Photobleaching Detrend? :*** Make this parameter ``` True ``` to fit an
@@ -157,11 +182,33 @@ class ParameterForm:
                                 residual photobleaching drift that remains after the control channel is
                                 subtracted. Useful for long (multi-hour) recordings. Requires an isosbestic
                                 control channel. Default is ``` False ```.<br>
+                                """,
+            width=350,
+        )
+
+        self.explain_filtering = pn.pane.Markdown(
+            """
                                 - ***Eliminate first few seconds :*** It is the parameter to cut out first x seconds
                                 from the data. Default is 1 seconds.<br>
                                 - ***Window for Moving Average filter :*** The filtering of signals
                                 is done using moving average filter. Default window used for moving
                                 average filter is 100 datapoints. Change it based on the requirement.<br>
+                                """,
+            width=350,
+        )
+
+        self.explain_event_metric = pn.pane.Markdown(
+            """
+                                - ***Use Transients as Events :*** Make this parameter ``` True ```, when user
+                                studies spontaneous activity and has no external event TTLs. The transients
+                                detected in each recording site are then used as that recording site's event
+                                timestamps for the PSTH and peak/area computation.
+                                """,
+            width=350,
+        )
+
+        self.explain_transients = pn.pane.Markdown(
+            """
                                 - ***Moving Window (transients detection) :*** Transients in the z-score
                                 and/or \u0394F/F are detected using this moving window.
                                 Default is 15 seconds. Change it based on the requirement.<br>
@@ -171,6 +218,12 @@ class ParameterForm:
                                 - ***Transients detection threshold (TD Thresh):*** Peaks with local maxima greater than x times
                                 the MAD above the median of the trace (after filtering high amplitude events) are detected
                                 as transients. Here, x is transients detection threshold. Default is 3.
+                                """,
+            width=350,
+        )
+
+        self.explain_binned_metrics = pn.pane.Markdown(
+            """
                                 - ***Compute Binned Metrics? :*** Make this parameter ``` True ``` to divide the
                                 whole session into equal time bins and report the mean z-score, mean &#916;F/F and
                                 number of transients in each one. Useful for correlating the signal against a
@@ -178,6 +231,12 @@ class ParameterForm:
                                 - ***Bin Width :*** Width of those bins in seconds. The last bin is kept even
                                 when the session does not divide evenly, so it may be shorter than the rest.
                                 Default is 120 seconds.<br>
+                                """,
+            width=350,
+        )
+
+        self.explain_acquisition = pn.pane.Markdown(
+            """
                                 - ***Number of channels (Neurophotometrics only) :*** Number of
                                 channels used while recording, when data files has no column names mentioning "Flags"
                                 or "LedState".
@@ -260,7 +319,7 @@ class ParameterForm:
         self.transientsThresh = pn.widgets.IntInput(name="TD Thresh (int)", value=3, width=150)
 
         self.computeBinnedMetrics = pn.widgets.Select(
-            name="Compute Binned Metrics? (bool)", options=[True, False], value=False, width=200
+            name="Compute Binned Metrics? (bool)", options=[True, False], value=False, width=190
         )
 
         self.binnedMetricsWidth = pn.widgets.IntInput(name="Bin Width (s) (int)", value=120, width=150)
@@ -311,10 +370,6 @@ class ParameterForm:
                         - ***Compute Cross-correlation :*** Make this parameter ```True```, when user wants
                         to compute cross-correlation between PSTHs of two different signals or signals
                         recorded from different recording sites.
-                        - ***Use Transients as Events :*** Make this parameter ```True```, when user studies
-                        spontaneous activity and has no external event TTLs. The transients detected in each
-                        recording site are then used as that recording site's event timestamps for the PSTH
-                        and peak/area computation.
                         """,
             width=580,
         )
@@ -372,27 +427,35 @@ class ParameterForm:
 
         self.baselineCorrectionEnd = pn.widgets.IntInput(name="Baseline Correction End time(int)", value=0, width=200)
 
-        self.zscore_param_wd = pn.WidgetBox(
-            "### Z-score Parameters",
-            self.explain_z_score,
-            self.z_score_computation,
-            pn.Row(self.baseline_wd_strt, self.baseline_wd_end),
+        self.zscore_param_wd = _titled_box(
+            title="Z-score Parameters",
+            read_by="Step 3",
+            contents=[
+                self.explain_z_score,
+                self.z_score_computation,
+                pn.Row(self.baseline_wd_strt, self.baseline_wd_end),
+            ],
             width=600,
         )
 
-        self.psth_param_wd = pn.WidgetBox(
-            "### PSTH Parameters",
-            self.explain_nsec,
-            pn.Row(self.nSecPrev, self.nSecPost, self.computeCorr),
-            pn.Row(self.timeInterval, self.use_time_or_trials, self.bin_psth_trials),
-            pn.Row(self.useTransientsAsEvents),
+        self.psth_param_wd = _titled_box(
+            title="PSTH Parameters",
+            read_by="Step 4",
+            contents=[
+                self.explain_nsec,
+                pn.Row(self.nSecPrev, self.nSecPost, self.computeCorr),
+                pn.Row(self.timeInterval, self.use_time_or_trials, self.bin_psth_trials),
+            ],
             width=600,
         )
 
-        self.baseline_param_wd = pn.WidgetBox(
-            "### Baseline Parameters",
-            self.explain_baseline,
-            pn.Row(self.baselineCorrectionStart, self.baselineCorrectionEnd),
+        self.baseline_param_wd = _titled_box(
+            title="Baseline Parameters",
+            read_by="Step 4",
+            contents=[
+                self.explain_baseline,
+                pn.Row(self.baselineCorrectionStart, self.baselineCorrectionEnd),
+            ],
             width=600,
         )
         self.peak_explain = pn.pane.Markdown(
@@ -422,8 +485,11 @@ class ParameterForm:
             name="AUC Units (str)", options=["samples", "seconds"], value="samples", width=200
         )
 
-        self.peak_param_wd = pn.WidgetBox(
-            "### Peak and AUC Parameters", self.peak_explain, self.df_widget, self.auc_units, width=600
+        self.peak_param_wd = _titled_box(
+            title="Peak and AUC Parameters",
+            read_by="Step 4",
+            contents=[self.peak_explain, self.df_widget, self.auc_units],
+            width=600,
         )
 
         self.significance_explain = pn.pane.Markdown(
@@ -463,33 +529,89 @@ class ParameterForm:
         )
         self.add_comparison_button.on_click(self._add_comparison_row)
 
-        self.significance_param_wd = pn.WidgetBox(
-            "### PSTH Significance Parameters",
-            self.significance_explain,
-            self.computePsthSignificance,
-            pn.Row(self.psthSignificanceAlpha, self.psthBootstrapResamples),
-            self.comparison_df_widget,
-            self.add_comparison_button,
+        self.significance_param_wd = _titled_box(
+            title="PSTH Significance Parameters",
+            read_by="Step 4 and Group Analysis",
+            contents=[
+                self.significance_explain,
+                self.computePsthSignificance,
+                pn.Row(self.psthSignificanceAlpha, self.psthBootstrapResamples),
+                self.comparison_df_widget,
+                self.add_comparison_button,
+            ],
             width=600,
         )
 
+        # The left column is capped at 370px so it sits beside the 600px boxes without
+        # overflowing the 1000px card.
+        self.execution_param_wd = _titled_box(
+            title="Execution",
+            read_by="Steps 2-7 and Group Analysis",
+            contents=[self.explain_execution, pn.Row(self.numberOfCores, self.combine_data)],
+            width=370,
+        )
+
+        self.control_fit_param_wd = _titled_box(
+            title="Control Channel Fitting",
+            read_by="Step 3",
+            contents=[
+                self.explain_control_fit,
+                self.isosbestic_control,
+                self.control_fit_method,
+                self.control_fit_window_mode,
+                self.control_fit_window_strt,
+                self.control_fit_window_end,
+                self.photobleaching_detrend,
+            ],
+            width=370,
+        )
+
+        self.filtering_param_wd = _titled_box(
+            title="Signal Filtering",
+            read_by="Step 3 and Group Analysis",
+            contents=[self.explain_filtering, self.timeForLightsTurnOn, self.moving_avg_filter],
+            width=370,
+        )
+
+        self.event_metric_param_wd = _titled_box(
+            title="Event and Metric Selection",
+            read_by="Steps 4 and 5 and Group Analysis",
+            contents=[self.explain_event_metric, self.computePsth, self.transients, self.useTransientsAsEvents],
+            width=370,
+        )
+
+        self.transients_param_wd = _titled_box(
+            title="Transient Detection",
+            read_by="Step 4",
+            contents=[self.explain_transients, self.moving_wd, pn.Row(self.highAmpFilt, self.transientsThresh)],
+            width=370,
+        )
+
+        self.binned_metrics_param_wd = _titled_box(
+            title="Binned Metrics",
+            read_by="Step 4",
+            contents=[
+                self.explain_binned_metrics,
+                pn.Row(self.computeBinnedMetrics, self.binnedMetricsWidth),
+            ],
+            width=370,
+        )
+
+        self.acquisition_param_wd = _titled_box(
+            title="Acquisition",
+            read_by="Steps 1 and 2",
+            contents=[self.explain_acquisition, self.no_channels_np],
+            width=370,
+        )
+
         self.individual_analysis_wd_2 = pn.Column(
-            self.explain_time_artifacts,
-            pn.Row(self.numberOfCores, self.combine_data),
-            self.isosbestic_control,
-            self.control_fit_method,
-            self.control_fit_window_mode,
-            self.control_fit_window_strt,
-            self.control_fit_window_end,
-            self.photobleaching_detrend,
-            self.timeForLightsTurnOn,
-            self.moving_avg_filter,
-            self.computePsth,
-            self.transients,
-            self.moving_wd,
-            pn.Row(self.highAmpFilt, self.transientsThresh),
-            pn.Row(self.computeBinnedMetrics, self.binnedMetricsWidth),
-            self.no_channels_np,
+            self.execution_param_wd,
+            self.control_fit_param_wd,
+            self.filtering_param_wd,
+            self.event_metric_param_wd,
+            self.transients_param_wd,
+            self.binned_metrics_param_wd,
+            self.acquisition_param_wd,
         )
 
         self.psth_baseline_param = pn.Column(
@@ -525,10 +647,7 @@ class ParameterForm:
             collapsed=True,
         )
 
-        self.widget = pn.Column(
-            self.mark_down_1,
-            pn.Row(self.individual_analysis_wd_2, self.psth_baseline_param),
-        )
+        self.widget = pn.Column(pn.Row(self.individual_analysis_wd_2, self.psth_baseline_param))
         self.individual = pn.Card(
             self.widget, title="Individual Analysis", styles=self.styles, width=1000, collapsed=True
         )
@@ -809,24 +928,12 @@ class ParameterForm:
         """Re-list the group selector so groups created since the last interaction appear."""
         self.group_folders_selector._refresh()
 
-    def setup_visualization_parameters(self) -> None:
-        """Build all widgets for the visualization-parameters card and store them as instance attributes."""
-        self.visualize_zscore_or_dff = pn.widgets.Select(
-            name="z-score or \u0394F/F? (for visualization)", options=["z_score", "dff"], width=435
-        )
-
-        self.visualization_wd = pn.Row(self.visualize_zscore_or_dff)
-        self.visualize = pn.Card(
-            self.visualization_wd, title="Visualization Parameters", styles=self.styles, width=1000, collapsed=True
-        )
-
     def add_to_template(self) -> None:
-        """Append the input/output folder, individual, group, and visualization cards to the template's main area."""
+        """Append the input/output folder, individual, and group cards to the template's main area."""
         self.template.main.append(self.input_folder_selection)
         self.template.main.append(self.output_folder_selection)
         self.template.main.append(self.individual)
         self.template.main.append(self.group)
-        self.template.main.append(self.visualize)
 
     def _validate_numeric_parameters(self) -> None:
         """Validate the scalar numeric parameters at config time.
@@ -939,7 +1046,6 @@ class ParameterForm:
             "transientsThresh": self.transientsThresh.value,
             "computeBinnedMetrics": self.computeBinnedMetrics.value,
             "binnedMetricsWidth": self.binnedMetricsWidth.value,
-            "visualize_zscore_or_dff": self.visualize_zscore_or_dff.value,
             "selected_group_folders": list(self.group_folders_selector.value or []),
             "selected_runs": self._collect_selected_runs(),
         }
@@ -991,7 +1097,6 @@ class ParameterForm:
             "transientsThresh": self.transientsThresh,
             "computeBinnedMetrics": self.computeBinnedMetrics,
             "binnedMetricsWidth": self.binnedMetricsWidth,
-            "visualize_zscore_or_dff": self.visualize_zscore_or_dff,
         }
 
     def setInputParameters(self, parameters: dict[str, object]) -> None:
