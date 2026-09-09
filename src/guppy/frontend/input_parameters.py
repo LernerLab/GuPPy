@@ -27,6 +27,8 @@ logger = logging.getLogger(__name__)
 
 # Width of each parameter section inside the 1000px Individual Analysis card.
 SECTION_WIDTH = 960
+# Lighter than the card's own WhiteSmoke so nested sections read as one level down.
+SECTION_STYLES = dict(background="White")
 
 
 def _reject_group_folder_selected_as_run(*, path: str) -> None:
@@ -68,8 +70,8 @@ def _blank_comparison_rows(count: int) -> pd.DataFrame:
     return pd.DataFrame({"Event A": [""] * count, "Event B": [""] * count})
 
 
-def _titled_box(*, title: str, read_by: str, contents: list, width: int) -> pn.WidgetBox:
-    """Build one parameter section, headed by its title and the steps that consume it.
+def _titled_box(*, title: str, read_by: str, contents: list, width: int, collapsed: bool = True) -> pn.Card:
+    """Build one collapsible parameter section, titled with the steps that consume it.
 
     Parameters
     ----------
@@ -81,15 +83,24 @@ def _titled_box(*, title: str, read_by: str, contents: list, width: int) -> pn.W
     contents : list
         Panel objects to lay out under the heading.
     width : int
-        Fixed width of the returned box, in pixels.
+        Fixed width of the returned card, in pixels.
+    collapsed : bool
+        Whether the section starts closed.
 
     Returns
     -------
-    panel.WidgetBox
+    panel.Card
         The assembled section.
     """
-    heading = pn.pane.Markdown(f"### {title}\n*Read by {read_by}*", width=width - 20)
-    return pn.WidgetBox(heading, *contents, width=width)
+    # The consuming steps ride in the title rather than the body so the collapsed
+    # stack still says which step reads what.
+    return pn.Card(
+        pn.Column(*contents),
+        title=f"{title}  \u2014  Read by {read_by}",
+        width=width,
+        collapsed=collapsed,
+        styles=SECTION_STYLES,
+    )
 
 
 class ParameterForm:
