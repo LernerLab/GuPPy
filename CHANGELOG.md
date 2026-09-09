@@ -10,7 +10,9 @@
 - Fixed the README's documentation links, which all carried an `/en/latest/` path prefix that 404s on the single-version Read the Docs project. [PR #469](https://github.com/LernerLab/GuPPy/pull/469)
 
 ## Improvements
-- The Individual Analysis card is now divided into titled sections that name the steps reading each one, so the parameters Group Analysis shares with Step 4 are no longer filed as individual-only. [PR #495](https://github.com/LernerLab/GuPPy/pull/495)
+- The Individual Analysis card is now **Parameter Selection**, a single column of titled sections each named for the operation it configures and each stating which steps read it, so the parameters Group Analysis shares with Step 4 are no longer filed as individual-only. [PR #495](https://github.com/LernerLab/GuPPy/pull/495)
+- Every parameter in that card now carries a **?** beside its label that pops up help for that one parameter, replacing the block of bullet points each section used to sit under. [PR #495](https://github.com/LernerLab/GuPPy/pull/495)
+- The Neurophotometrics channel count is now asked on the Label Stores page beside the other NPM controls, rather than among the analysis parameters. [PR #495](https://github.com/LernerLab/GuPPy/pull/495)
 - The metric plotted by the visualization dashboard is now chosen in the dashboard itself and can be switched between the metrics Step 4 computed without re-running the step, instead of being fixed on the homepage before Step 5 starts. [PR #495](https://github.com/LernerLab/GuPPy/pull/495)
 - The test suite now builds paths with `pathlib.Path`, completing the `os.path`/`glob` migration and leaving `ruff`'s `PTH` rules enforced everywhere with no exemptions. [PR #490](https://github.com/LernerLab/GuPPy/pull/490)
 - The pipeline's step orchestration now builds paths with `pathlib.Path`, completing the migration across `src/`. [PR #488](https://github.com/LernerLab/GuPPy/pull/488)
