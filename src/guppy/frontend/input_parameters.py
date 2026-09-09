@@ -238,15 +238,6 @@ class ParameterForm:
             width=940,
         )
 
-        self.explain_acquisition = pn.pane.Markdown(
-            """
-                                - ***Number of channels (Neurophotometrics only) :*** Number of
-                                channels used while recording, when data files has no column names mentioning "Flags"
-                                or "LedState".
-                                """,
-            width=940,
-        )
-
         self.timeForLightsTurnOn = pn.widgets.IntInput(name="Eliminate first few seconds (int)", value=1, width=320)
 
         self.isosbestic_control = pn.widgets.Select(
@@ -329,10 +320,6 @@ class ParameterForm:
 
         self.moving_avg_filter = pn.widgets.IntInput(
             name="Window for Moving Average filter (int)", value=100, width=320
-        )
-
-        self.no_channels_np = pn.widgets.IntInput(
-            name="Number of channels (Neurophotometrics only)", value=2, width=320
         )
 
         self.z_score_computation = pn.widgets.Select(
@@ -534,13 +521,6 @@ class ParameterForm:
             width=SECTION_WIDTH,
         )
 
-        self.acquisition_param_wd = _titled_box(
-            title="Acquisition",
-            read_by="Steps 1 and 2",
-            contents=[self.explain_acquisition, self.no_channels_np],
-            width=SECTION_WIDTH,
-        )
-
         self.control_fit_param_wd = _titled_box(
             title="Control Channel Fitting",
             read_by="Step 3",
@@ -593,7 +573,6 @@ class ParameterForm:
         # straight down rather than leaving the reader to guess a column order.
         self.individual_parameters = pn.Column(
             self.execution_param_wd,
-            self.acquisition_param_wd,
             self.control_fit_param_wd,
             self.filtering_param_wd,
             self.zscore_param_wd,
@@ -1001,7 +980,6 @@ class ParameterForm:
             "photobleaching_detrend": self.photobleaching_detrend.value,
             "timeForLightsTurnOn": self.timeForLightsTurnOn.value,
             "filter_window": self.moving_avg_filter.value,
-            "noChannels": self.no_channels_np.value,
             "zscore_method": self.z_score_computation.value,
             "baselineWindowStart": self.baseline_wd_strt.value,
             "baselineWindowEnd": self.baseline_wd_end.value,
@@ -1056,7 +1034,6 @@ class ParameterForm:
             "photobleaching_detrend": self.photobleaching_detrend,
             "timeForLightsTurnOn": self.timeForLightsTurnOn,
             "filter_window": self.moving_avg_filter,
-            "noChannels": self.no_channels_np,
             "zscore_method": self.z_score_computation,
             "baselineWindowStart": self.baseline_wd_strt,
             "baselineWindowEnd": self.baseline_wd_end,

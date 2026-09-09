@@ -25,7 +25,7 @@ GROUP_MEMBERS_FILENAME = "group_members.json"
 # NPM decomposition parameters chosen interactively in Step 1 are not part of the
 # saved analysis parameters, so they are persisted next to storesList.csv for Step 2.
 NPM_PARAMS_FILENAME = ".npm_params.json"
-NPM_PARAM_KEYS = ("npm_split_events", "npm_time_unit", "npm_timestamp_column_name")
+NPM_PARAM_KEYS = ("npm_split_events", "npm_time_unit", "npm_timestamp_column_name", "noChannels")
 
 # Event-label prefix for the transient trains that stand in for external TTLs when
 # useTransientsAsEvents is on. Prepended to a preprocessed basename it yields the

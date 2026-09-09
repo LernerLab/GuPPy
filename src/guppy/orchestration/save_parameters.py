@@ -103,7 +103,6 @@ def build_analysis_parameters(*, inputParameters: dict[str, object]) -> dict[str
         # their position in the file.
         "removeArtifacts": None,
         "artifactsRemovalMethod": None,
-        "noChannels": inputParameters["noChannels"],
         "zscore_method": inputParameters["zscore_method"],
         "baselineWindowStart": inputParameters["baselineWindowStart"],
         "baselineWindowEnd": inputParameters["baselineWindowEnd"],
