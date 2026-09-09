@@ -373,6 +373,11 @@ class ParameterForm:
                         - ***Compute Cross-correlation :*** Make this parameter ```True```, when user wants
                         to compute cross-correlation between PSTHs of two different signals or signals
                         recorded from different recording sites.
+                        - ***Baseline Correction Start / End time :*** The window each trial is
+                        baselined against, in seconds relative to the event. Set both to 0 to skip
+                        baseline correction. A trial whose first event timestamp falls less than one
+                        baseline window from the recording start is rejected during PSTH computation.
+                        Both bounds must lie inside the PSTH window set above.
                         """,
             width=940,
         )
@@ -411,19 +416,6 @@ class ParameterForm:
             name="Time(min) / # of trials \n for binning? (int)", value=0, width=200
         )
 
-        self.explain_baseline = pn.pane.Markdown(
-            """
-                            ***Note :***<br>
-                            - If user does not want to do baseline correction,
-                            put both parameters 0.<br>
-                            - If the first event timestamp is less than the length of baseline
-                            window, it will be rejected in the PSTH computation step.<br>
-                            - Baseline parameters must be within the PSTH parameters
-                            set in the PSTH parameters section.
-                            """,
-            width=940,
-        )
-
         self.baselineCorrectionStart = pn.widgets.IntInput(
             name="Baseline Correction Start time(int)", value=-5, width=200
         )
@@ -447,19 +439,11 @@ class ParameterForm:
                 self.explain_nsec,
                 pn.Row(self.nSecPrev, self.nSecPost, self.computeCorr),
                 pn.Row(self.timeInterval, self.use_time_or_trials, self.bin_psth_trials),
-            ],
-            width=SECTION_WIDTH,
-        )
-
-        self.baseline_param_wd = _titled_box(
-            title="Baseline Parameters",
-            read_by="Step 4",
-            contents=[
-                self.explain_baseline,
                 pn.Row(self.baselineCorrectionStart, self.baselineCorrectionEnd),
             ],
             width=SECTION_WIDTH,
         )
+
         self.peak_explain = pn.pane.Markdown(
             """
                         ***Note :***<br>
@@ -615,7 +599,6 @@ class ParameterForm:
             self.zscore_param_wd,
             self.event_metric_param_wd,
             self.psth_param_wd,
-            self.baseline_param_wd,
             self.peak_param_wd,
             self.transients_param_wd,
             self.binned_metrics_param_wd,
