@@ -51,16 +51,16 @@ A browser tab opens showing the GuPPy dashboard.
 :align: center
 ```
 
-The page is split into a **sidebar on the left** and a **main area on the right**. The sidebar lists the pipeline buttons in run order, from *Label Stores* at the top through *Visualization* at the bottom, with a progress bar directly under each step that performs background work. The main area is where you select your data folder and configure parameters; settings are grouped into collapsible cards, of which this tutorial uses *Individual Analysis*. The **Step N** labels in the sidebar (Label Stores through Export to NWB) match the numbered pipeline steps below, and the unnumbered buttons between them are optional steps this tutorial does not use; choosing your data and setting parameters in the main area, covered here in Step 0, is the setup that precedes them.
+The page is split into a **sidebar on the left** and a **main area on the right**. The sidebar lists the pipeline buttons in run order, from *Label Stores* at the top through *Visualization* at the bottom, with a progress bar directly under each step that performs background work. The main area is where you select your data folder and configure parameters; settings are grouped into collapsible cards, of which this tutorial uses *Input Folder Selection* and *Parameter Selection*. The **Step N** labels in the sidebar (Label Stores through Export to NWB) match the numbered pipeline steps below, and the unnumbered buttons between them are optional steps this tutorial does not use; choosing your data and setting parameters in the main area, covered here in Step 0, is the setup that precedes them.
 
 Before running the pipeline you pick the session folder you want to analyze, then look over (but not change) the analysis parameters that the rest of the pipeline will use.
 
 ### Select your data
 
-Inside the **Individual Analysis** card, use the file browser at the top of the card to navigate to `stubbed_testing_data/csv/sample_data_csv_1/`. Click **`>>`** to move that folder into the **Selected files** pane on the right. The card supports selecting multiple session folders at once for batch analysis; for this tutorial we are running a single session.
+Inside the **Input Folder Selection** card, use the file browser to navigate to `stubbed_testing_data/csv/sample_data_csv_1/`. Click **`>>`** to move that folder into the **Selected files** pane on the right. The card supports selecting multiple session folders at once for batch analysis; for this tutorial we are running a single session.
 
 ```{image} ../_static/images/02_data_selection.png
-:alt: GuPPy homepage Individual Analysis card showing the file browser with the sample_data_csv_1 folder available for selection
+:alt: GuPPy homepage Input Folder Selection card showing the file browser with the sample_data_csv_1 folder available for selection
 :align: center
 ```
 
@@ -68,10 +68,10 @@ The **Data Source** toggle at the top lets you switch between `local` (the defau
 
 ### Set parameters
 
-Below the file browser, the same Individual Analysis card lists the parameters that drive the rest of the pipeline. **For this tutorial the defaults are fine**, so you do not need to change anything; the screenshot below is for orientation, not for hunting and clicking.
+The **Parameter Selection** card below lists the parameters that drive the rest of the pipeline, grouped into titled sections named for the operation each one configures. Every parameter carries a **?** beside its label that explains what it does. **For this tutorial the defaults are fine**, so you do not need to change anything; the screenshot below is for orientation, not for hunting and clicking.
 
 ```{image} ../_static/images/02_parameters.png
-:alt: GuPPy Individual Analysis card showing the parameter widgets: number of cores, combine data, isosbestic control, z-score method, baseline window, and PSTH window
+:alt: GuPPy Parameter Selection card showing the Parallel Execution, Control Channel Fitting, Signal Filtering and Z-score Normalization sections
 :align: center
 ```
 

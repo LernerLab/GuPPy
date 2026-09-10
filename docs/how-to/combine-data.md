@@ -53,9 +53,8 @@ halves must use the same run name.
 
 4. Open **Output Folder Selection** and, in **Existing runs (steps 2–5)**,
    pick each session's matching output run (e.g. both `..._output_1`).
-5. In the **Individual Analysis** card, set **Combine Data?** to `True` (next
-   to **# of cores** — see the [parameters screenshot](../tutorials/first_analysis.md#set-parameters)
-   in the getting-started tutorial for where this sits).
+5. In the **Input Folder Selection** card, set **Combine Data?** to `True`
+   (below the file browser, where it qualifies the sessions you just picked).
 
 ## Running the pipeline
 

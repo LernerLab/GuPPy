@@ -25,6 +25,17 @@ from ..utils.validation import (
 
 logger = logging.getLogger(__name__)
 
+# Width of each parameter section inside the 1000px Individual Analysis card.
+SECTION_WIDTH = 960
+# White against the card's WhiteSmoke, with a border, so the sections read as
+# distinct blocks rather than merging into the card behind them.
+SECTION_STYLES = {
+    "background": "White",
+    "border": "1px solid #C8CCD0",
+    "border-radius": "6px",
+    "margin-bottom": "12px",
+}
+
 
 def _reject_group_folder_selected_as_run(*, path: str) -> None:
     """Raise when a group output directory is selected where a session run is expected.
@@ -63,6 +74,58 @@ def _blank_comparison_rows(count: int) -> pd.DataFrame:
         Table with the ``Event A`` and ``Event B`` columns the form reads.
     """
     return pd.DataFrame({"Event A": [""] * count, "Event B": [""] * count})
+
+
+def _titled_box(*, title: str, read_by: str, contents: list, width: int) -> pn.WidgetBox:
+    """Build one parameter section, headed by its title and the steps that consume it.
+
+    Parameters
+    ----------
+    title : str
+        Heading for the section.
+    read_by : str
+        The pipeline steps whose workers read the section's parameters, phrased to
+        follow "Read by" (e.g. ``"Step 3"``).
+    contents : list
+        Panel objects to lay out under the heading.
+    width : int
+        Fixed width of the returned box, in pixels.
+
+    Returns
+    -------
+    panel.WidgetBox
+        The assembled section.
+    """
+    heading = pn.pane.Markdown(f"### {title}", width=width - 40, styles={"margin-bottom": "0"})
+    read_by_note = pn.pane.Markdown(
+        f"*Read by {read_by}*",
+        width=width - 40,
+        styles={"color": "#6C757D", "font-size": "0.85em", "margin-top": "0"},
+    )
+    return pn.WidgetBox(heading, read_by_note, *contents, width=width, styles=SECTION_STYLES)
+
+
+def _table_heading(*, label: str, description: str, width: int) -> pn.Row:
+    """Label a Tabulator and give it the help icon Tabulator itself cannot carry.
+
+    Parameters
+    ----------
+    label : str
+        Name shown above the table.
+    description : str
+        Help text the icon reveals.
+    width : int
+        Width of the label pane, in pixels.
+
+    Returns
+    -------
+    panel.Row
+        The label beside its help icon.
+    """
+    return pn.Row(
+        pn.pane.Markdown(f"**{label}**", width=width, styles={"margin-bottom": "0"}),
+        pn.widgets.TooltipIcon(value=description),
+    )
 
 
 class ParameterForm:
@@ -108,10 +171,6 @@ class ParameterForm:
     def setup_individual_parameters(self) -> None:
         """Build all widgets for the individual-analysis card and store them as instance attributes."""
         # Individual analysis components
-        self.mark_down_1 = pn.pane.Markdown(
-            """**Select folders for the analysis from the file selector below**""", width=600
-        )
-
         # Color the "dandi" button muted pink (matches the DANDI brain-logo palette) so
         # the two options are visually distinguishable at a glance.
         dandi_button_stylesheet = """
@@ -142,79 +201,70 @@ class ParameterForm:
         # Hidden by default; shown when source_mode == "dandi"
         self.dandi_selector.panel.visible = False
 
-        self.explain_time_artifacts = pn.pane.Markdown(
-            """
-                                - ***Number of cores :*** Number of cores used for analysis. Try to
-                                keep it less than the number of cores in your machine.
-                                - ***Combine Data? :*** Make this parameter ``` True ``` if user wants to combine
-                                the data, especially when there is two different
-                                data files for the same recording session.<br>
-                                - ***Isosbestic Control Channel? :*** Make this parameter ``` False ``` if user
-                                does not want to use isosbestic control channel in the analysis.<br>
-                                - ***Photobleaching Detrend? :*** Make this parameter ``` True ``` to fit an
-                                exponential decay to the corrected &#916;F/F and subtract it, removing the
-                                residual photobleaching drift that remains after the control channel is
-                                subtracted. Useful for long (multi-hour) recordings. Requires an isosbestic
-                                control channel. Default is ``` False ```.<br>
-                                - ***Eliminate first few seconds :*** It is the parameter to cut out first x seconds
-                                from the data. Default is 1 seconds.<br>
-                                - ***Window for Moving Average filter :*** The filtering of signals
-                                is done using moving average filter. Default window used for moving
-                                average filter is 100 datapoints. Change it based on the requirement.<br>
-                                - ***Moving Window (transients detection) :*** Transients in the z-score
-                                and/or \u0394F/F are detected using this moving window.
-                                Default is 15 seconds. Change it based on the requirement.<br>
-                                - ***High Amplitude filtering threshold (HAFT) (transients detection) :*** High amplitude
-                                events greater than x times the MAD above the median are filtered out. Here, x is
-                                high amplitude filtering threshold. Default is 2.
-                                - ***Transients detection threshold (TD Thresh):*** Peaks with local maxima greater than x times
-                                the MAD above the median of the trace (after filtering high amplitude events) are detected
-                                as transients. Here, x is transients detection threshold. Default is 3.
-                                - ***Compute Binned Metrics? :*** Make this parameter ``` True ``` to divide the
-                                whole session into equal time bins and report the mean z-score, mean &#916;F/F and
-                                number of transients in each one. Useful for correlating the signal against a
-                                behavioral measure scored at a fixed cadence. Default is ``` False ```.<br>
-                                - ***Bin Width :*** Width of those bins in seconds. The last bin is kept even
-                                when the session does not divide evenly, so it may be shorter than the rest.
-                                Default is 120 seconds.<br>
-                                """,
-            width=350,
+        self.timeForLightsTurnOn = pn.widgets.IntInput(
+            name="Eliminate first few seconds (int)",
+            value=1,
+            width=320,
+            description="Seconds dropped from the start of every recording, discarding the bright transient from when the LED first turns on. Applies to every session in the batch; to cut deeper into one recording, mark its opening as an artifact period instead.",
         )
 
-        self.timeForLightsTurnOn = pn.widgets.IntInput(name="Eliminate first few seconds (int)", value=1, width=320)
-
         self.isosbestic_control = pn.widgets.Select(
-            name="Isosbestic Control Channel? (bool)", value=True, options=[True, False], width=320
+            name="Isosbestic Control Channel? (bool)",
+            value=True,
+            options=[True, False],
+            width=310,
+            description="Whether the recording includes an isosbestic control channel. When False, GuPPy fits an exponential decay to the signal itself and uses that as a stand-in control, which removes the photobleaching trend but not motion artifacts.",
         )
 
         self.control_fit_method = pn.widgets.Select(
             name="Control Channel Fitting Method",
             options=["IRWLS", "OLS"],
             value="IRWLS",
-            width=320,
+            width=310,
+            description="How the control channel is rescaled onto the signal before subtraction. IRWLS down-weights outlier samples so transients do not distort the fit; OLS is a plain least-squares fit.",
         )
 
         self.control_fit_window_mode = pn.widgets.Select(
             name="Control Fit Window",
             options=["full trace", "baseline epoch"],
             value="full trace",
-            width=320,
+            width=310,
+            description="Which part of the recording the fit is estimated from. 'full trace' uses the whole recording; 'baseline epoch' uses only the window set beside it and applies those coefficients throughout, for sessions where a sustained step change such as a drug injection would otherwise distort the fit.",
         )
         self.control_fit_window_strt = pn.widgets.IntInput(
-            name="Control Fit Window Start Time (s) (int)", value=0, width=320
+            name="Control Fit Window Start Time (s) (int)",
+            value=0,
+            width=310,
+            description="Start of the baseline epoch the fit is estimated from, in seconds. Must be less than the end and fall inside the recording. Ignored when the fit window is 'full trace'.",
         )
         self.control_fit_window_end = pn.widgets.IntInput(
-            name="Control Fit Window End Time (s) (int)", value=0, width=320
+            name="Control Fit Window End Time (s) (int)",
+            value=0,
+            width=310,
+            description="End of the baseline epoch the fit is estimated from, in seconds. Must be greater than the start and fall inside the recording. Ignored when the fit window is 'full trace'.",
         )
 
         self.photobleaching_detrend = pn.widgets.Select(
-            name="Photobleaching Detrend? (bool)", value=False, options=[True, False], width=320
+            name="Photobleaching Detrend? (bool)",
+            value=False,
+            options=[True, False],
+            width=310,
+            description="Adds an exponential decay term to the control fit, removing the residual photobleaching the control channel does not see. Useful for long recordings. Requires an isosbestic control channel and the OLS fitting method.",
         )
 
-        self.numberOfCores = pn.widgets.IntInput(name="# of cores (int)", value=2, width=150)
+        self.numberOfCores = pn.widgets.IntInput(
+            name="# of cores (int)",
+            value=2,
+            width=150,
+            description="Number of CPU workers used for the per-channel steps. Keep it at or below the number of cores in your machine; setting it higher does not help.",
+        )
 
         self.combine_data = pn.widgets.Select(
-            name="Combine Data? (bool)", value=False, options=[True, False], width=150
+            name="Combine Data? (bool)",
+            value=False,
+            options=[True, False],
+            width=150,
+            description="Set to True when one recording session was written as two separate data files; the matching channels are concatenated into a single trace before preprocessing.",
         )
 
         self.outputs_selector_header = pn.pane.Markdown(
@@ -240,165 +290,192 @@ class ParameterForm:
         )
 
         self.computePsth = pn.widgets.Select(
-            name="z_score and/or \u0394F/F? (psth)", options=["z_score", "dff", "Both"], width=320
+            name="z_score and/or \u0394F/F? (psth)",
+            options=["z_score", "dff", "Both"],
+            width=320,
+            description="Which metric Step 4 aligns events on. 'Both' writes a complete set of PSTH outputs for each metric.",
         )
 
         self.transients = pn.widgets.Select(
-            name="z_score and/or \u0394F/F? (transients)", options=["z_score", "dff", "Both"], width=320
+            name="z_score and/or \u0394F/F? (transients)",
+            options=["z_score", "dff", "Both"],
+            width=320,
+            description="Which metric the transient detector runs on. 'Both' runs it on each metric in turn.",
         )
 
         self.moving_wd = pn.widgets.IntInput(
-            name="Moving Window for transients detection (s) (int)", value=15, width=320
+            name="Moving Window for transients detection (s) (int)",
+            value=15,
+            width=380,
+            description="Width of the moving window transients are detected in, in seconds.",
         )
 
-        self.highAmpFilt = pn.widgets.IntInput(name="HAFT (int)", value=2, width=150)
+        self.highAmpFilt = pn.widgets.IntInput(
+            name="HAFT (int)",
+            value=2,
+            width=150,
+            description="High-amplitude filtering threshold. Events greater than this many MADs above the median are filtered out before transients are detected.",
+        )
 
-        self.transientsThresh = pn.widgets.IntInput(name="TD Thresh (int)", value=3, width=150)
+        self.transientsThresh = pn.widgets.IntInput(
+            name="TD Thresh (int)",
+            value=3,
+            width=160,
+            description="Transient detection threshold. Peaks with local maxima greater than this many MADs above the median of the filtered trace are detected as transients.",
+        )
 
         self.computeBinnedMetrics = pn.widgets.Select(
-            name="Compute Binned Metrics? (bool)", options=[True, False], value=False, width=200
+            name="Compute Binned Metrics? (bool)",
+            options=[True, False],
+            value=False,
+            width=250,
+            description="Divides the session into equal time bins and reports the mean z-score, mean dF/F and transient count in each. Useful for correlating the signal against a behavioral measure scored at a fixed cadence.",
         )
 
-        self.binnedMetricsWidth = pn.widgets.IntInput(name="Bin Width (s) (int)", value=120, width=150)
+        self.binnedMetricsWidth = pn.widgets.IntInput(
+            name="Bin Width (s) (int)",
+            value=120,
+            width=170,
+            description="Width of those bins in seconds. The last bin is kept even when the session does not divide evenly, so it may be shorter than the rest.",
+        )
 
         self.moving_avg_filter = pn.widgets.IntInput(
-            name="Window for Moving Average filter (int)", value=100, width=320
+            name="Window for Moving Average filter (int)",
+            value=100,
+            width=320,
+            description="Width of the moving-average smoothing kernel applied to the control and signal traces, in samples rather than seconds. The default suits recordings around 1 kHz; lower it proportionally for slower acquisition rates.",
         )
 
         self.z_score_computation = pn.widgets.Select(
             name="z-score computation Method",
             options=["standard z-score", "baseline z-score", "modified z-score"],
             value="standard z-score",
-            width=200,
+            width=260,
+            description="How each trace is normalized. The z-score explainer in the documentation covers what the three methods do and which one suits which recording.",
         )
 
-        self.baseline_wd_strt = pn.widgets.IntInput(name="Baseline Window Start Time (s) (int)", value=0, width=200)
-        self.baseline_wd_end = pn.widgets.IntInput(name="Baseline Window End Time (s) (int)", value=0, width=200)
-
-        self.explain_z_score = pn.pane.Markdown(
-            """
-                        ***Note :***<br>
-                        - Details about z-score computation methods are explained in Github wiki.<br>
-                        - The details will make user understand what computation method to use for
-                        their data.<br>
-                        - **Baseline Window Parameters** are only used with the *baseline z-score*
-                        method; keep both at 0 for other methods.<br>
-                        - Both values are in **seconds** and must be within the signal's recorded
-                        timespan. **Start** must be strictly less than **End**
-                        (e.g. Start=0, End=60 for a 0–60 s baseline window).<br>
-                        - If either value falls outside the available signal timespan you will
-                        receive an error indicating the offending parameter, the value supplied,
-                        and the valid range (e.g.
-                        "baselineWindowEnd=120 exceeds signal duration 90.5s;
-                        signal timespan is [0, 90.5]s — choose values within this range.").
-                        """,
-            width=580,
+        self.baseline_wd_strt = pn.widgets.IntInput(
+            name="Baseline Window Start Time (s) (int)",
+            value=0,
+            width=290,
+            description="Start of the epoch the baseline z-score method normalizes against, in seconds. Leave at 0 for the other two methods. Must be less than the end and fall inside the recording.",
+        )
+        self.baseline_wd_end = pn.widgets.IntInput(
+            name="Baseline Window End Time (s) (int)",
+            value=0,
+            width=280,
+            description="End of the epoch the baseline z-score method normalizes against, in seconds. Leave at 0 for the other two methods. Must be greater than the start and fall inside the recording.",
         )
 
-        self.explain_nsec = pn.pane.Markdown(
-            """
-                        - ***Time Interval :*** To omit bursts of event timestamps, user defined time interval
-                        is set so that if the time difference between two timestamps is less than this defined time
-                        interval, it will be deleted for the calculation of PSTH.
-                        - ***Compute Cross-correlation :*** Make this parameter ```True```, when user wants
-                        to compute cross-correlation between PSTHs of two different signals or signals
-                        recorded from different recording sites.
-                        - ***Use Transients as Events :*** Make this parameter ```True```, when user studies
-                        spontaneous activity and has no external event TTLs. The transients detected in each
-                        recording site are then used as that recording site's event timestamps for the PSTH
-                        and peak/area computation.
-                        """,
-            width=580,
+        self.nSecPrev = pn.widgets.IntInput(
+            name="Seconds before 0 (int)",
+            value=-10,
+            width=190,
+            description="Start of the peri-event window, in seconds relative to each event timestamp. Negative values reach back before the event, so the default of -10 opens the window 10 seconds before it; a positive value would start the window after the event instead.",
         )
 
-        self.nSecPrev = pn.widgets.IntInput(name="Seconds before 0 (int)", value=-10, width=120)
-
-        self.nSecPost = pn.widgets.IntInput(name="Seconds after 0 (int)", value=20, width=120)
+        self.nSecPost = pn.widgets.IntInput(
+            name="Seconds after 0 (int)",
+            value=20,
+            width=180,
+            description="End of the peri-event window, in seconds relative to each event timestamp.",
+        )
 
         self.computeCorr = pn.widgets.Select(
-            name="Compute Cross-correlation (bool)", options=[True, False], value=False, width=200
+            name="Compute Cross-correlation (bool)",
+            options=[True, False],
+            value=False,
+            width=260,
+            description="Cross-correlates the PSTHs of two distinct signal recording sites, for detecting coordinated activity between areas. Requires at least two signal recording sites.",
         )
 
         self.computePsthSignificance = pn.widgets.Select(
-            name="Compute PSTH Significance? (bool)", options=[True, False], value=False, width=240
+            name="Compute PSTH Significance? (bool)",
+            options=[True, False],
+            value=False,
+            width=270,
+            description="Whether bootstrap confidence intervals and the comparison tests below are computed for each PSTH.",
         )
 
         self.psthSignificanceAlpha = pn.widgets.FloatInput(
-            name="Significance Level (alpha) (float)", value=0.05, step=0.01, width=220
+            name="Significance Level (alpha) (float)",
+            value=0.05,
+            step=0.01,
+            width=280,
+            description="The two-sided threshold the confidence interval is computed at. 0.05 gives a 95% interval.",
         )
 
         self.psthBootstrapResamples = pn.widgets.IntInput(
-            name="Bootstrap Resamples (int)", value=1000, step=100, width=200
+            name="Bootstrap Resamples (int)",
+            value=1000,
+            step=100,
+            width=210,
+            description="How many times the trials are resampled to build each interval. More resamples means less run-to-run variation and a longer run.",
         )
 
         self.useTransientsAsEvents = pn.widgets.Select(
-            name="Use Transients as Events? (bool)", options=[True, False], value=False, width=200
+            name="Use Transients as Events? (bool)",
+            options=[True, False],
+            value=False,
+            width=260,
+            description="Uses each recording site's detected transients as its own event timestamps, for spontaneous activity with no external event TTLs. The PSTH, peak and area are then computed against them exactly as against a TTL train.",
         )
 
-        self.timeInterval = pn.widgets.IntInput(name="Time Interval (s)", value=2, width=120)
+        self.timeInterval = pn.widgets.IntInput(
+            name="Time Interval (s)",
+            value=2,
+            width=150,
+            description="Minimum spacing between accepted event timestamps, in seconds. When two timestamps fall closer than this the second is dropped, so bursts do not produce double-counted overlapping windows.",
+        )
 
         self.use_time_or_trials = pn.widgets.Select(
-            name="Bin PSTH trials (str)", options=["Time (min)", "# of trials"], value="Time (min)", width=120
+            name="Bin PSTH trials (str)",
+            options=["Time (min)", "# of trials"],
+            value="Time (min)",
+            width=180,
+            description="Whether PSTH trials are binned by elapsed time or by trial count.",
         )
 
         self.bin_psth_trials = pn.widgets.IntInput(
-            name="Time(min) / # of trials \n for binning? (int)", value=0, width=200
-        )
-
-        self.explain_baseline = pn.pane.Markdown(
-            """
-                            ***Note :***<br>
-                            - If user does not want to do baseline correction,
-                            put both parameters 0.<br>
-                            - If the first event timestamp is less than the length of baseline
-                            window, it will be rejected in the PSTH computation step.<br>
-                            - Baseline parameters must be within the PSTH parameters
-                            set in the PSTH parameters section.
-                            """,
-            width=580,
+            name="Time(min) / # of trials for binning? (int)",
+            value=0,
+            width=330,
+            description="Size of each bin, in the unit chosen beside it. Set to 0 to leave the trials unbinned.",
         )
 
         self.baselineCorrectionStart = pn.widgets.IntInput(
-            name="Baseline Correction Start time(int)", value=-5, width=200
+            name="Baseline Correction Start time(int)",
+            value=-5,
+            width=280,
+            description="Start of the window each trial is baselined against, in seconds relative to the event. Set both bounds to 0 to skip baseline correction. Must lie inside the PSTH window.",
         )
 
-        self.baselineCorrectionEnd = pn.widgets.IntInput(name="Baseline Correction End time(int)", value=0, width=200)
-
-        self.zscore_param_wd = pn.WidgetBox(
-            "### Z-score Parameters",
-            self.explain_z_score,
-            self.z_score_computation,
-            pn.Row(self.baseline_wd_strt, self.baseline_wd_end),
-            width=600,
+        self.baselineCorrectionEnd = pn.widgets.IntInput(
+            name="Baseline Correction End time(int)",
+            value=0,
+            width=280,
+            description="End of the window each trial is baselined against, in seconds relative to the event. Set both bounds to 0 to skip baseline correction. Must lie inside the PSTH window.",
         )
 
-        self.psth_param_wd = pn.WidgetBox(
-            "### PSTH Parameters",
-            self.explain_nsec,
-            pn.Row(self.nSecPrev, self.nSecPost, self.computeCorr),
-            pn.Row(self.timeInterval, self.use_time_or_trials, self.bin_psth_trials),
-            pn.Row(self.useTransientsAsEvents),
-            width=600,
+        self.zscore_param_wd = _titled_box(
+            title="Z-score Normalization",
+            read_by="Step 3",
+            contents=[
+                pn.Row(self.z_score_computation, self.baseline_wd_strt, self.baseline_wd_end),
+            ],
+            width=SECTION_WIDTH,
         )
 
-        self.baseline_param_wd = pn.WidgetBox(
-            "### Baseline Parameters",
-            self.explain_baseline,
-            pn.Row(self.baselineCorrectionStart, self.baselineCorrectionEnd),
-            width=600,
-        )
-        self.peak_explain = pn.pane.Markdown(
-            """
-                        ***Note :***<br>
-                        - Peak and area are computed between the window set below.<br>
-                        - Peak and AUC parameters must be within the PSTH parameters set in the PSTH parameters section.<br>
-                        - Please make sure when user changes the parameters in the table below, click on any other cell after
-                        changing a value in a particular cell.
-                        - ***AUC Units :*** ```seconds``` reports the area in z-score (or ΔF/F) × seconds, the unit
-                        commonly reported in the literature. ```samples``` integrates with one-sample spacing instead,
-                        so the area also scales with the recording's sampling rate.
-                        """,
-            width=580,
+        self.psth_param_wd = _titled_box(
+            title="PSTH Computation",
+            read_by="Step 4 and Group Analysis",
+            contents=[
+                pn.Row(self.computePsth, self.nSecPrev, self.nSecPost),
+                pn.Row(self.computeCorr),
+                pn.Row(self.timeInterval, self.use_time_or_trials, self.bin_psth_trials),
+                pn.Row(self.baselineCorrectionStart, self.baselineCorrectionEnd),
+            ],
+            width=SECTION_WIDTH,
         )
 
         self.start_end_point_df = pd.DataFrame(
@@ -411,29 +488,30 @@ class ParameterForm:
         self.df_widget = pn.widgets.Tabulator(self.start_end_point_df, name="DataFrame", show_index=False, widths=280)
 
         self.auc_units = pn.widgets.Select(
-            name="AUC Units (str)", options=["samples", "seconds"], value="samples", width=200
+            name="AUC Units (str)",
+            options=["samples", "seconds"],
+            value="samples",
+            width=260,
+            description="'seconds' reports the area in z-score (or dF/F) times seconds, the unit commonly reported in the literature. 'samples' integrates with one-sample spacing instead, so the area also scales with the recording's sampling rate.",
         )
 
-        self.peak_param_wd = pn.WidgetBox(
-            "### Peak and AUC Parameters", self.peak_explain, self.df_widget, self.auc_units, width=600
-        )
-
-        self.significance_explain = pn.pane.Markdown(
-            """
-                        - ***Significance Level (alpha) :*** The two-sided threshold the confidence
-                        interval is computed at. Default is 0.05, i.e. a 95% interval.
-                        - ***Bootstrap Resamples :*** How many times the trials are resampled to build
-                        each interval. More resamples means less run-to-run variation and a longer
-                        run. Default is 1000.
-                        - Every event is tested against zero automatically. The table below names the
-                        pairs of events to compare against each other, for example rewarded versus
-                        unrewarded nose pokes. Leave it blank to run only the tests against zero.
-                        - Each pair is compared within every recording site and metric, using the event
-                        labels assigned in **Step 1: Label Stores**.
-                        - Comparisons run inside one output folder. In a session run folder the trials
-                        are resampled; in a group folder the session averages are.
-                        """,
-            width=580,
+        self.peak_param_wd = _titled_box(
+            title="Peak and AUC Measurement",
+            read_by="Step 4",
+            contents=[
+                _table_heading(
+                    label="Peak and area windows",
+                    description=(
+                        "Each row is one window that peak amplitude and area are measured over, in "
+                        "seconds relative to the event. Every window must lie inside the PSTH window. "
+                        "The table commits an edit only once you click another cell."
+                    ),
+                    width=260,
+                ),
+                self.df_widget,
+                self.auc_units,
+            ],
+            width=SECTION_WIDTH,
         )
 
         # One blank row to start, grown by the Add button rather than a fixed block of
@@ -455,39 +533,84 @@ class ParameterForm:
         )
         self.add_comparison_button.on_click(self._add_comparison_row)
 
-        self.significance_param_wd = pn.WidgetBox(
-            "### PSTH Significance Parameters",
-            self.significance_explain,
-            self.computePsthSignificance,
-            pn.Row(self.psthSignificanceAlpha, self.psthBootstrapResamples),
-            self.comparison_df_widget,
-            self.add_comparison_button,
-            width=600,
+        self.significance_param_wd = _titled_box(
+            title="Significance Testing",
+            read_by="Step 4 and Group Analysis",
+            contents=[
+                pn.Row(self.computePsthSignificance, self.psthSignificanceAlpha, self.psthBootstrapResamples),
+                _table_heading(
+                    label="Event comparisons",
+                    description=(
+                        "Each row names a pair of events to compare against each other, for example "
+                        "rewarded versus unrewarded nose pokes. Every event is tested against zero "
+                        "automatically, so leave this blank to run only those tests. Each pair is "
+                        "compared within every recording site and metric, using the labels assigned in "
+                        "Step 1. Comparisons run inside one output folder: in a session run folder the "
+                        "trials are resampled, in a group folder the session averages are."
+                    ),
+                    width=200,
+                ),
+                self.comparison_df_widget,
+                self.add_comparison_button,
+            ],
+            width=SECTION_WIDTH,
         )
 
-        self.individual_analysis_wd_2 = pn.Column(
-            self.explain_time_artifacts,
-            pn.Row(self.numberOfCores, self.combine_data),
-            self.isosbestic_control,
-            self.control_fit_method,
-            self.control_fit_window_mode,
-            self.control_fit_window_strt,
-            self.control_fit_window_end,
-            self.photobleaching_detrend,
-            self.timeForLightsTurnOn,
-            self.moving_avg_filter,
-            self.computePsth,
-            self.transients,
-            self.moving_wd,
-            pn.Row(self.highAmpFilt, self.transientsThresh),
-            pn.Row(self.computeBinnedMetrics, self.binnedMetricsWidth),
+        self.execution_param_wd = _titled_box(
+            title="Parallel Execution",
+            read_by="Steps 2 and 4 and Group Analysis",
+            contents=[self.numberOfCores],
+            width=SECTION_WIDTH,
         )
 
-        self.psth_baseline_param = pn.Column(
+        self.control_fit_param_wd = _titled_box(
+            title="Control Channel Fitting",
+            read_by="Step 3",
+            contents=[
+                pn.Row(self.isosbestic_control, self.control_fit_method),
+                pn.Row(self.photobleaching_detrend, self.control_fit_window_mode),
+                pn.Row(self.control_fit_window_strt, self.control_fit_window_end),
+            ],
+            width=SECTION_WIDTH,
+        )
+
+        self.filtering_param_wd = _titled_box(
+            title="Signal Filtering",
+            read_by="Step 3 and Group Analysis",
+            contents=[pn.Row(self.timeForLightsTurnOn, self.moving_avg_filter)],
+            width=SECTION_WIDTH,
+        )
+
+        self.transients_param_wd = _titled_box(
+            title="Transient Detection",
+            read_by="Steps 4 and 5 and Group Analysis",
+            contents=[
+                pn.Row(self.transients, self.useTransientsAsEvents),
+                pn.Row(self.moving_wd, self.highAmpFilt, self.transientsThresh),
+            ],
+            width=SECTION_WIDTH,
+        )
+
+        self.binned_metrics_param_wd = _titled_box(
+            title="Metric Binning",
+            read_by="Step 4",
+            contents=[
+                pn.Row(self.computeBinnedMetrics, self.binnedMetricsWidth),
+            ],
+            width=SECTION_WIDTH,
+        )
+
+        # One column, ordered by the step that reads each section, so the card reads
+        # straight down rather than leaving the reader to guess a column order.
+        self.individual_parameters = pn.Column(
+            self.execution_param_wd,
+            self.control_fit_param_wd,
+            self.filtering_param_wd,
             self.zscore_param_wd,
             self.psth_param_wd,
-            self.baseline_param_wd,
             self.peak_param_wd,
+            self.transients_param_wd,
+            self.binned_metrics_param_wd,
             self.significance_param_wd,
         )
 
@@ -495,6 +618,7 @@ class ParameterForm:
             pn.Row(pn.pane.Markdown("**Data Source:**"), self.source_mode),
             self.files_1,
             self.dandi_selector.panel,
+            self.combine_data,
         )
         self.input_folder_selection = pn.Card(
             self.input_folder_selection_widget,
@@ -516,12 +640,9 @@ class ParameterForm:
             collapsed=True,
         )
 
-        self.widget = pn.Column(
-            self.mark_down_1,
-            pn.Row(self.individual_analysis_wd_2, self.psth_baseline_param),
-        )
+        self.widget = pn.Column(self.individual_parameters)
         self.individual = pn.Card(
-            self.widget, title="Individual Analysis", styles=self.styles, width=1000, collapsed=True
+            self.widget, title="Parameter Selection", styles=self.styles, width=1000, collapsed=True
         )
 
     def _on_source_mode_change(self, event: object) -> None:
