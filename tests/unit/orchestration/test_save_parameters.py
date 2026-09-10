@@ -153,7 +153,7 @@ def test_save_parameters_saves_exactly_expected_keys(base_input_parameters):
 
 
 class TestRecordedChannelCount:
-    """NWB export reads the channel count back out of the run's snapshot."""
+    """The snapshot keeps a deprecated copy of the channel count for neuroconv to read."""
 
     def test_the_form_default_is_recorded_when_the_run_named_no_count(self, base_input_parameters):
         save_parameters(base_input_parameters)
