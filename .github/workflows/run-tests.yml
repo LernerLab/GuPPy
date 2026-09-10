@@ -54,8 +54,22 @@ on:
         default: '30'
 
 jobs:
+  # Warming the cache once per run keeps the cost of a data change independent of the matrix width,
+  # and banks the download even when the tests that follow it fail.
+  prepare-stubbed-data:
+    name: Prepare stubbed data
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Load stubbed data for tests
+        uses: ./.github/actions/load-stubbed-data
+        with:
+          save-cache: 'true'
+
   run:
     name: ${{ matrix.os }} Python ${{ matrix.python-version }}
+    needs: prepare-stubbed-data
     runs-on: ${{ matrix.os }}
     timeout-minutes: ${{ fromJSON(inputs.timeout-minutes) }}
     # Only one matrix job uploads to Codecov, so only that job pays for coverage instrumentation.
