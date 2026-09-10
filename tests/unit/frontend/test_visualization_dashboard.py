@@ -19,6 +19,11 @@ class _FakeFigure:
         self.y_range = _FakeRange(-1.0, 1.0)
 
 
+def metric_selectors(tab):
+    """Return the "Metric" selectors rendered inside one dashboard tab."""
+    return [widget for widget in tab.select(pn.widgets.Select) if widget.name == "Metric"]
+
+
 @pytest.fixture
 def dashboard(plotter, panel_extension):
     return VisualizationDashboard(
@@ -48,33 +53,40 @@ class TestVisualizationDashboard:
         assert dashboard.basename == BASENAME
 
     def test_metric_selector_offers_every_available_metric(self, dashboard):
-        assert dashboard.metric_select.options == {"z-score": "z_score", "\u0394F/F": "dff"}
-        assert dashboard.metric_select.value == "z_score"
+        for tab in (dashboard._psth_tab, dashboard._heatmap_tab):
+            (selector,) = metric_selectors(tab)
+            assert selector.options == {"z-score": "z_score", "\u0394F/F": "dff"}
+            assert selector.value == "z_score"
 
-    def test_metric_selector_is_enabled_when_both_metrics_exist(self, dashboard):
-        assert dashboard.metric_select.disabled is False
+    def test_metric_selector_offers_the_one_metric_that_was_computed(self, single_metric_dashboard):
+        for tab in (single_metric_dashboard._psth_tab, single_metric_dashboard._heatmap_tab):
+            (selector,) = metric_selectors(tab)
+            assert selector.options == {"z-score": "z_score"}
+            assert selector.value == "z_score"
+            assert selector.disabled is False
 
-    def test_metric_selector_names_the_psth_tabs_it_drives(self, dashboard):
-        caption = dashboard._metric_row[1].object
+    def test_metric_selector_leads_the_psth_display_settings(self, dashboard):
+        display_settings = dashboard._psth_tab[1]
 
-        assert "PSTH and Heat Map tabs" in caption
-        assert "Binned and Covariates tabs have their own metric menus" in caption
+        assert display_settings.title == "Display settings (all plots)"
+        assert display_settings[0][0] is metric_selectors(dashboard._psth_tab)[0]
 
-    def test_metric_selector_is_disabled_when_only_one_metric_was_computed(self, single_metric_dashboard):
-        assert single_metric_dashboard.metric_select.disabled is True
-        assert single_metric_dashboard.metric_select.options == {"z-score": "z_score"}
+    def test_metric_selector_follows_the_heatmap_event_selector(self, dashboard):
+        heatmap_card = dashboard._heatmap_tab[1]
 
-    def test_single_metric_caption_says_how_to_get_the_other_one(self, single_metric_dashboard):
-        caption = single_metric_dashboard._metric_row[1].object
+        assert heatmap_card.title == "Trial heatmap"
+        assert heatmap_card[0][1] is metric_selectors(dashboard._heatmap_tab)[0]
 
-        assert "Only z-score was computed for this output directory" in caption
-        assert "re-run Step 4" in caption
+    def test_the_y_axis_label_is_not_a_display_setting(self, dashboard):
+        """The label follows the metric, so no widget offers to change it."""
+        widget_names = [widget.name for widget in dashboard._psth_tab.select(pn.widgets.Select)]
 
-    def test_metric_selector_sits_above_the_tabs(self, dashboard):
+        assert "Y Label" not in widget_names
+
+    def test_the_tabs_are_the_whole_template(self, dashboard):
         template = dashboard.build_template()
-        column = template.main[0]
 
-        assert list(column.objects) == [dashboard._metric_row, dashboard._tabs]
+        assert list(template.main.objects) == [dashboard._tabs]
 
     def test_changing_the_metric_rebuilds_only_the_psth_and_heatmap_tabs(self, dashboard, plotter, monkeypatch):
         requested = {}
@@ -84,13 +96,22 @@ class TestVisualizationDashboard:
         )
         unchanged_tabs = list(dashboard._tabs.objects[2:])
 
-        dashboard.metric_select.value = "dff"
+        metric_selectors(dashboard._psth_tab)[0].value = "dff"
 
         assert requested["metric"] == "dff"
         assert requested["events"] == EVENTS
         assert requested["filepath"] == plotter.filepath
+        assert dashboard.metric == "dff"
         assert dashboard._tabs._names == ["PSTH", "Heat Map", "Tonic", "Binned", "Covariates", "Significance"]
         assert list(dashboard._tabs.objects[2:]) == unchanged_tabs
+
+    def test_changing_the_metric_in_one_tab_moves_the_other_tab_selector(self, dashboard, plotter, monkeypatch):
+        monkeypatch.setattr("guppy.frontend.visualization_dashboard.build_plotter", lambda **kwargs: plotter)
+
+        metric_selectors(dashboard._heatmap_tab)[0].value = "dff"
+
+        assert metric_selectors(dashboard._psth_tab)[0].value == "dff"
+        assert metric_selectors(dashboard._heatmap_tab)[0].value == "dff"
 
     def test_changing_the_metric_keeps_the_axis_bounds(self, dashboard, plotter, monkeypatch):
         requested = {}
@@ -99,7 +120,7 @@ class TestVisualizationDashboard:
             lambda **kwargs: requested.update(kwargs) or plotter,
         )
 
-        dashboard.metric_select.value = "dff"
+        metric_selectors(dashboard._psth_tab)[0].value = "dff"
 
         assert requested["x_min"] == -5.0
         assert requested["x_max"] == 10.0

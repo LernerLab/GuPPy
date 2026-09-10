@@ -716,7 +716,7 @@ def screenshot_visualization(page: Page, tmp_path: Path) -> None:
         basename="sample_data_csv_1",
         events=events,
         metric="z_score",
-        # The tutorial run computes only the z-score, so the metric selector is disabled.
+        # The tutorial run computes only the z-score, so the metric selector offers it alone.
         available_metrics=["z_score"],
     )
     template = dashboard.build_template()

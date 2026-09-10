@@ -1,25 +1,46 @@
 name: 'Load Stubbed Data'
-description: 'Restores stubbed testing data from cache or downloads it from Git LFS.'
+description: 'Restores the Git LFS object store from cache, fetches whatever it is missing, and checks out stubbed_testing_data.'
+inputs:
+  save-cache:
+    description: 'Whether this job writes the object store back to the cache. Only the job that warms the cache should.'
+    required: false
+    default: 'false'
 runs:
   using: 'composite'
   steps:
+    # git-hash-object rather than sha256sum, which is not reliably present on the macOS runners.
     - name: Get stubbed data version hash
       id: hash
       shell: bash
       run: |
-        HASH=$(git ls-tree -r HEAD -- stubbed_testing_data | sha256sum | cut -d' ' -f1)
+        HASH=$(git ls-tree -r HEAD -- stubbed_testing_data .gitattributes | git hash-object --stdin)
         echo "STUBBED_DATA_HASH=$HASH" >> $GITHUB_OUTPUT
 
-    - name: Cache stubbed datasets
-      uses: actions/cache@v4
-      id: cache-stubbed-datasets
+    # The object store is cached rather than the checked-out directory so that a data change falls
+    # back to the previous entry through restore-keys and only the changed objects are fetched.
+    - name: Restore the Git LFS object store
+      id: restore
+      uses: actions/cache/restore@v4
       with:
-        path: ./stubbed_testing_data
-        key: ${{ steps.hash.outputs.STUBBED_DATA_HASH }}
+        path: .git/lfs/objects
+        key: stubbed-data-v1-${{ steps.hash.outputs.STUBBED_DATA_HASH }}
+        restore-keys: stubbed-data-v1-
         enableCrossOsArchive: true
 
-    - if: ${{ steps.cache-stubbed-datasets.outputs.cache-hit != 'true' }}
-      name: Download stubbed datasets from Git LFS
+    - if: ${{ steps.restore.outputs.cache-hit == 'true' }}
+      name: Check out stubbed datasets from the restored object store
       shell: bash
-      run: |
-        git lfs pull -- stubbed_testing_data
+      run: git lfs checkout 'stubbed_testing_data/**'
+
+    - if: ${{ steps.restore.outputs.cache-hit != 'true' }}
+      name: Fetch the missing stubbed datasets from Git LFS
+      shell: bash
+      run: git lfs pull -I 'stubbed_testing_data/**'
+
+    - if: ${{ inputs.save-cache == 'true' && steps.restore.outputs.cache-hit != 'true' }}
+      name: Save the Git LFS object store
+      uses: actions/cache/save@v4
+      with:
+        path: .git/lfs/objects
+        key: stubbed-data-v1-${{ steps.hash.outputs.STUBBED_DATA_HASH }}
+        enableCrossOsArchive: true
