@@ -220,7 +220,7 @@ Comparisons run **inside a single output folder**. Run the step on a session run
 
 Requires a non-zero **Window for Moving Average filter**, since the minimum duration of a significant stretch is derived from it.
 
-### Artifact removal
+### Artifact Removal
 
 Artifact removal is not configured from this form. It is handled by two optional steps that run after Step 3 — **Select Artifact Windows** and **Remove Artifacts** — and the removal method is chosen on the Select Artifact Windows page. See [Remove artifacts from a recording](../how-to/artifact-removal.md).
 
@@ -288,7 +288,6 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 | `moving_window` | Moving Window for transients detection (s) | [Transient Detection](#transient-detection) |
 | `nSecPost` | Seconds after 0 | [PSTH Computation](#psth-computation) |
 | `nSecPrev` | Seconds before 0 | [PSTH Computation](#psth-computation) |
-| `noChannels` | Number of channels (Neurophotometrics only) | [Acquisition](#acquisition) |
 | `numberOfCores` | # of cores | [Parallel Execution](#parallel-execution) |
 | `peak_endPoint` | Peak End time | [Peak and AUC Measurement](#peak-and-auc-measurement) |
 | `peak_startPoint` | Peak Start time | [Peak and AUC Measurement](#peak-and-auc-measurement) |
@@ -306,23 +305,3 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 | `use_time_or_trials` | Bin PSTH trials | [PSTH Computation](#psth-computation) |
 | `useTransientsAsEvents` | Use Transients as Events? | [Transient Detection](#transient-detection) |
 | `zscore_method` | z-score computation Method | [Z-score Normalization](#z-score-normalization) |
-| `moving_window` | Moving Window for transients detection (s) | [Transient detection](#transient-detection) |
-| `nSecPost` | Seconds after 0 | [PSTH Parameters](#psth-parameters) |
-| `nSecPrev` | Seconds before 0 | [PSTH Parameters](#psth-parameters) |
-| `numberOfCores` | # of cores | [Compute and batching](#compute-and-batching) |
-| `peak_endPoint` | Peak End time | [Peak and AUC Parameters](#peak-and-auc-parameters) |
-| `peak_startPoint` | Peak Start time | [Peak and AUC Parameters](#peak-and-auc-parameters) |
-| `psthComparisonsA` | Event A (comparison table) | [PSTH significance](#psth-significance) |
-| `psthComparisonsB` | Event B (comparison table) | [PSTH significance](#psth-significance) |
-| `psthBootstrapResamples` | Bootstrap Resamples | [PSTH significance](#psth-significance) |
-| `psthSignificanceAlpha` | Significance Level (alpha) | [PSTH significance](#psth-significance) |
-| `photobleaching_detrend` | Photobleaching Detrend? | [Signal preprocessing](#signal-preprocessing) |
-| `removeArtifacts` | (recorded provenance; not user-set) | [Artifact removal](#artifact-removal) |
-| `selectForComputePsth` | z_score and/or ΔF/F? (psth) | [Output metric selection](#output-metric-selection) |
-| `selectForTransientsComputation` | z_score and/or ΔF/F? (transients) | [Output metric selection](#output-metric-selection) |
-| `timeForLightsTurnOn` | Eliminate first few seconds | [Signal preprocessing](#signal-preprocessing) |
-| `timeInterval` | Time Interval (s) | [PSTH Parameters](#psth-parameters) |
-| `transientsThresh` | TD Thresh | [Transient detection](#transient-detection) |
-| `use_time_or_trials` | Bin PSTH trials | [PSTH Parameters](#psth-parameters) |
-| `useTransientsAsEvents` | Use Transients as Events? | [PSTH Parameters](#psth-parameters) |
-| `zscore_method` | z-score computation Method | [Z-score Parameters](#z-score-parameters) |
