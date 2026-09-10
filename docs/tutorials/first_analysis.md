@@ -51,7 +51,7 @@ A browser tab opens showing the GuPPy dashboard.
 :align: center
 ```
 
-The page is split into a **sidebar on the left** and a **main area on the right**. The sidebar lists the pipeline buttons in run order, from *Label Stores* at the top through *Visualization* at the bottom, with a progress bar directly under each step that performs background work. The main area is where you select your data folder and configure parameters; settings are grouped into three collapsible cards: *Individual Analysis* (the only one we use in this tutorial), *Group Analysis*, and *Visualization Parameters*. The **Step N** labels in the sidebar (Label Stores through Export to NWB) match the numbered pipeline steps below, and the unnumbered buttons between them are optional steps this tutorial does not use; choosing your data and setting parameters in the main area, covered here in Step 0, is the setup that precedes them.
+The page is split into a **sidebar on the left** and a **main area on the right**. The sidebar lists the pipeline buttons in run order, from *Label Stores* at the top through *Visualization* at the bottom, with a progress bar directly under each step that performs background work. The main area is where you select your data folder and configure parameters; settings are grouped into collapsible cards, of which this tutorial uses *Individual Analysis*. The **Step N** labels in the sidebar (Label Stores through Export to NWB) match the numbered pipeline steps below, and the unnumbered buttons between them are optional steps this tutorial does not use; choosing your data and setting parameters in the main area, covered here in Step 0, is the setup that precedes them.
 
 Before running the pipeline you pick the session folder you want to analyze, then look over (but not change) the analysis parameters that the rest of the pipeline will use.
 
@@ -218,9 +218,9 @@ The visualization step in Step 5 reads these files; you do not need to inspect t
 
 ## Step 5: Visualize the results
 
-Back on the homepage, expand the **Visualization Parameters** card. Leave **z-score or ΔF/F?** at its default `z_score` — the metric we computed in Step 3.
-
 Click **Open Visualization GUI** in the sidebar. A new browser tab opens with the Visualization GUI for this session, organized into two tabs.
+
+A **Metric** selector sits with the display settings on the PSTH tab, and beside the event selector on the Heat Map tab. It lists the metrics Step 4 actually computed for this run, so here it offers only `z-score`; had you run Step 4 with `Both`, you could switch both tabs between the two without re-running the step. Whichever metric is selected also labels the y axis of every PSTH plot.
 
 ```{image} ../_static/images/03_visualization.png
 :alt: GuPPy Visualization GUI showing the PSTH tab with the RewardPort event selected
@@ -232,7 +232,7 @@ The **PSTH** tab is the default view. It shows the trial-aligned trace for one e
 - *Event selector*: which TTL channel to align to (here `RewardPort`).
 - *X* and *Y* dropdowns: what to plot on each axis. X is typically `timestamps`, Y can be `mean` (the trial average) or an individual trial like `trial_1`.
 - *X Limit* and *Y Limit* range sliders: restrict the displayed window.
-- *Width Plot*, *Height Plot*, *Y Label*, *Save options* dropdowns and a *Save PSTH* button: figure dimensions and export.
+- *Width Plot*, *Height Plot*, *Save options* dropdowns and a *Save PSTH* button: figure dimensions and export.
 
 On the right is a trial multi-select (*Trial # - Timestamps*) and a *Select mean and/or just trials* checkbox group, which together let you overlay any combination of individual trials and the mean. With a TTL file containing only a handful of timestamps, the average will be noisy; this is expected for the minimal sample dataset.
 

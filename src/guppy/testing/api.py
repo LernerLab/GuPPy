@@ -1297,7 +1297,6 @@ def step5(
     npm_timestamp_column_name: str | None = None,
     npm_time_unit: str | None = None,
     npm_split_events: list[bool] | None = None,
-    visualize_zscore_or_dff: str = "z_score",
     use_transients_as_events: bool = False,
     select_for_transients: str = "z_score",
     selected_group_folders: list[str] | None = None,
@@ -1328,8 +1327,6 @@ def step5(
         file in the folder. None defaults to seconds.
     npm_split_events : list[bool] | None
         List of booleans indicating whether to split events for NPM files. None if not applicable.
-    visualize_zscore_or_dff : str
-        Signal type to visualize. One of ``'z_score'`` or ``'dff'``. Defaults to ``'z_score'``.
     use_transients_as_events : bool
         Whether step 4 used each recording site's detected transients as its event
         timestamps; must match the value step 4 ran with. Defaults to False.
@@ -1380,7 +1377,6 @@ def step5(
     input_params["npm_split_events"] = npm_split_events
 
     # Inject visualization signal-type selection
-    input_params["visualize_zscore_or_dff"] = visualize_zscore_or_dff
 
     # Inject the spontaneous-activity flag, which decides whether the transient event
     # PSTHs step 4 computed are offered in the dashboard

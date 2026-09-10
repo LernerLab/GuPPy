@@ -10,6 +10,7 @@
 - Fixed the README's documentation links, which all carried an `/en/latest/` path prefix that 404s on the single-version Read the Docs project. [PR #469](https://github.com/LernerLab/GuPPy/pull/469)
 
 ## Improvements
+- The metric plotted by the visualization dashboard is now chosen in the dashboard itself and can be switched between the metrics Step 4 computed without re-running the step, instead of being fixed on the homepage before Step 5 starts. [PR #498](https://github.com/LernerLab/GuPPy/pull/498)
 - The Neurophotometrics channel count is now asked on the Label Stores page beside the other NPM controls, and recorded in each run's `.npm_params.json`, rather than sitting among the analysis parameters. [PR #497](https://github.com/LernerLab/GuPPy/pull/497)
 - CI now caches the Git LFS object store and warms it once per run, so changing a file under `stubbed_testing_data/` costs roughly that file's bytes instead of re-downloading the whole tree in every matrix job. [PR #501](https://github.com/LernerLab/GuPPy/pull/501)
 - The test suite now builds paths with `pathlib.Path`, completing the `os.path`/`glob` migration and leaving `ruff`'s `PTH` rules enforced everywhere with no exemptions. [PR #490](https://github.com/LernerLab/GuPPy/pull/490)

@@ -9,10 +9,124 @@ import pytest
 
 from guppy.frontend.parameterized_plotter import (
     ParameterizedPlotter,
+    available_psth_metrics,
+    build_plotter,
     make_dir,
     overview_y_options,
+    psth_result_paths,
     remove_cols,
 )
+
+
+@pytest.fixture
+def two_site_output_directory(tmp_path):
+    """An output directory whose storesList names two recording sites and one event."""
+    (tmp_path / "storesList.csv").write_text(
+        "Dv1A,Dv2A,Dv1B,Dv2B,PrtN\ncontrol_DMS,signal_DMS,control_DLS,signal_DLS,RewardPort\n"
+    )
+    return tmp_path
+
+
+@pytest.fixture
+def one_site_output_directory(tmp_path):
+    """An output directory holding step-4 PSTH results for one recording site and both metrics.
+
+    Each metric's file carries a different constant value (1.0 for the z-score, 2.0 for
+    dF/F) so a test can tell which of the two was read.
+    """
+    (tmp_path / "storesList.csv").write_text("Dv1A,Dv2A,PrtN\ncontrol_DMS,signal_DMS,RewardPort\n")
+    columns = ["trial_1", "trial_2", "trial_3", "bin_1", "timestamps", "mean", "err", "bin_err_1"]
+    timestamps = np.linspace(-5.0, 10.0, 30)
+    for metric, value in (("z_score", 1.0), ("dff", 2.0)):
+        frame = pd.DataFrame(
+            {column: (timestamps if column == "timestamps" else np.full(30, value)) for column in columns}
+        )
+        frame.to_hdf(tmp_path / f"RewardPort_DMS_{metric}_DMS.h5", key="df", mode="w")
+    return tmp_path
+
+
+class TestBuildPlotter:
+    def test_z_score_results_are_loaded_and_label_the_y_axis(self, one_site_output_directory, panel_extension):
+        plotter = build_plotter(
+            filepath=str(one_site_output_directory), events=["RewardPort"], metric="z_score", x_min=-5.0, x_max=10.0
+        )
+
+        assert plotter.Y_Label == "z-score"
+        np.testing.assert_allclose(plotter.df_new["RewardPort_DMS"]["mean"].to_numpy(), np.full(30, 1.0))
+
+    def test_dff_results_are_loaded_and_label_the_y_axis(self, one_site_output_directory, panel_extension):
+        plotter = build_plotter(
+            filepath=str(one_site_output_directory), events=["RewardPort"], metric="dff", x_min=-5.0, x_max=10.0
+        )
+
+        assert plotter.Y_Label == "\u0394F/F"
+        np.testing.assert_allclose(plotter.df_new["RewardPort_DMS"]["mean"].to_numpy(), np.full(30, 2.0))
+
+
+class TestPsthResultPaths:
+    def test_names_one_file_per_event_and_site(self, two_site_output_directory):
+        paths = psth_result_paths(filepath=str(two_site_output_directory), events=["RewardPort"], metric="z_score")
+
+        assert [path.name for path in paths] == [
+            "RewardPort_DMS_z_score_DMS.h5",
+            "RewardPort_DLS_z_score_DLS.h5",
+        ]
+
+    def test_dff_metric_names_dff_files(self, two_site_output_directory):
+        paths = psth_result_paths(filepath=str(two_site_output_directory), events=["RewardPort"], metric="dff")
+
+        assert [path.name for path in paths] == [
+            "RewardPort_DMS_dff_DMS.h5",
+            "RewardPort_DLS_dff_DLS.h5",
+        ]
+
+    def test_path_separators_in_an_event_label_are_replaced(self, two_site_output_directory):
+        # read_Df applies the same substitution, so the enumerated names must match it.
+        paths = psth_result_paths(filepath=str(two_site_output_directory), events=["Reward/Port"], metric="z_score")
+
+        assert [path.name for path in paths] == [
+            "Reward_Port_DMS_z_score_DMS.h5",
+            "Reward_Port_DLS_z_score_DLS.h5",
+        ]
+
+
+class TestAvailablePsthMetrics:
+    def test_empty_when_step4_wrote_nothing(self, two_site_output_directory):
+        assert available_psth_metrics(filepath=str(two_site_output_directory), events=["RewardPort"]) == []
+
+    def test_reports_only_the_complete_metric(self, two_site_output_directory):
+        for site in ("DMS", "DLS"):
+            (two_site_output_directory / f"RewardPort_{site}_z_score_{site}.h5").write_bytes(b"")
+
+        assert available_psth_metrics(filepath=str(two_site_output_directory), events=["RewardPort"]) == ["z_score"]
+
+    def test_a_partially_written_metric_is_not_offered(self, two_site_output_directory):
+        # Only one of the two sites has a dff result, so loading dff would fail.
+        (two_site_output_directory / "RewardPort_DMS_dff_DMS.h5").write_bytes(b"")
+
+        assert available_psth_metrics(filepath=str(two_site_output_directory), events=["RewardPort"]) == []
+
+    def test_both_metrics_are_reported_z_score_first(self, two_site_output_directory):
+        for metric in ("z_score", "dff"):
+            for site in ("DMS", "DLS"):
+                (two_site_output_directory / f"RewardPort_{site}_{metric}_{site}.h5").write_bytes(b"")
+
+        assert available_psth_metrics(filepath=str(two_site_output_directory), events=["RewardPort"]) == [
+            "z_score",
+            "dff",
+        ]
+
+    def test_every_event_must_be_present(self, two_site_output_directory):
+        for site in ("DMS", "DLS"):
+            (two_site_output_directory / f"RewardPort_{site}_z_score_{site}.h5").write_bytes(b"")
+
+        assert (
+            available_psth_metrics(filepath=str(two_site_output_directory), events=["RewardPort", "transients_z_score"])
+            == []
+        )
+
+    def test_empty_when_there_are_no_events(self, two_site_output_directory):
+        assert available_psth_metrics(filepath=str(two_site_output_directory), events=[]) == []
 
 
 class _FakeRange:
@@ -243,7 +357,7 @@ class TestParameterizedPlotter:
         assert plotter.select_trials_checkbox == ["just trials"]
 
     def test_default_y_label(self, plotter):
-        assert plotter.Y_Label == "y"
+        assert plotter.Y_Label == "z-score"
 
     def test_default_save_options(self, plotter):
         assert plotter.save_options_cont == "png"

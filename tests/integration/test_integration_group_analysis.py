@@ -122,8 +122,8 @@ def test_group_analysis(copied_sessions):
     captured_dashboards: list[VisualizationDashboard] = []
     original_init = VisualizationDashboard.__init__
 
-    def capturing_init(self, *, plotter, basename):
-        original_init(self, plotter=plotter, basename=basename)
+    def capturing_init(self, **kwargs):
+        original_init(self, **kwargs)
         captured_dashboards.append(self)
 
     with patch.object(VisualizationDashboard, "__init__", capturing_init):
@@ -197,8 +197,8 @@ def test_group_analysis_different_event_names_per_session(copied_sessions):
     captured_dashboards: list[VisualizationDashboard] = []
     original_init = VisualizationDashboard.__init__
 
-    def capturing_init(self, *, plotter, basename):
-        original_init(self, plotter=plotter, basename=basename)
+    def capturing_init(self, **kwargs):
+        original_init(self, **kwargs)
         captured_dashboards.append(self)
 
     with patch.object(VisualizationDashboard, "__init__", capturing_init):

@@ -55,7 +55,6 @@ PARAMETER_KEYS = {
     "transientsThresh",
     "computeBinnedMetrics",
     "binnedMetricsWidth",
-    "visualize_zscore_or_dff",
 }
 
 EXPECTED_KEYS = PARAMETER_KEYS | ARTIFACT_PROVENANCE_KEYS | {"guppy_version"}
@@ -118,7 +117,6 @@ def base_input_parameters(tmp_path):
         "transientsThresh": 2.0,
         "computeBinnedMetrics": False,
         "binnedMetricsWidth": 120,
-        "visualize_zscore_or_dff": "z_score",
         # orchestration-only keys that should not be saved
         "step": 0,
         "numberOfCores": 4,
@@ -260,7 +258,6 @@ def test_save_parameters_single_folder(tmp_path):
         "transientsThresh": 3.0,
         "computeBinnedMetrics": False,
         "binnedMetricsWidth": 120,
-        "visualize_zscore_or_dff": "dff",
     }
 
     save_parameters(input_parameters)
