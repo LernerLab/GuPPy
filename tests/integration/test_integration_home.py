@@ -97,10 +97,10 @@ def test_get_input_parameters_keys_include_saved_keys(homepage, tmp_path):
 
 
 def test_derived_keys_are_recorded_but_absent_from_the_form(homepage, tmp_path):
-    """Keys recorded as provenance rather than collected from this form.
+    """Keys recorded in the snapshot rather than collected from this form.
 
-    The artifact keys are written by the preprocessing steps; the channel count is asked
-    on the Label Stores page and recorded here for NWB export to read back.
+    The artifact keys are written by the preprocessing steps; the channel count is asked on
+    the Label Stores page and copied here for neuroconv, which still reads it from the snapshot.
     """
     session_directory = tmp_path / "session1"
     session_directory.mkdir()

@@ -72,6 +72,16 @@ the full OS-by-Python-version matrix overnight, including `full_data` tests. `da
 excluded from every pytest invocation in both workflows, so they never run automatically — only a
 contributor running `-m dandi_live` locally exercises them.
 
+Neither workflow downloads `stubbed_testing_data/` in every job. Each run starts with a
+`Prepare stubbed data` job that restores the Git LFS object store from the Actions cache, fetches
+whatever that store is missing, and saves it back; the matrix jobs then restore the same cache and
+check their files out of it without touching the network. Because the cache holds LFS objects
+rather than the checked-out files, and because it falls back to the previous entry when the data
+changes, adding a session under `stubbed_testing_data/` costs CI roughly that session's own bytes
+instead of the whole tree. A companion `warm-stubbed-data-cache.yml` repeats the same warm-up on
+every push to `main` that touches the data, so pull requests opened afterwards inherit a current
+cache.
+
 ## The headless testing pattern
 
 Most integration and orchestration tests never touch a browser. They call
