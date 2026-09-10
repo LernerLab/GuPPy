@@ -371,7 +371,7 @@ class ParameterForm:
             name="Seconds before 0 (int)",
             value=-10,
             width=190,
-            description="Start of the peri-event window, in seconds relative to each event timestamp. Normally negative.",
+            description="Start of the peri-event window, in seconds relative to each event timestamp. Negative values reach back before the event, so the default of -10 opens the window 10 seconds before it; a positive value would start the window after the event instead.",
         )
 
         self.nSecPost = pn.widgets.IntInput(
