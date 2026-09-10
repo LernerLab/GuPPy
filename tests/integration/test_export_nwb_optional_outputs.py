@@ -1,14 +1,17 @@
 """End-to-end test that GuPPy's optional analysis outputs reach the exported NWB file.
 
-The four products added after the first export landed -- tonic epoch means, binned metrics,
-behavioral covariates and spontaneous mode -- are discovered by ``GuppyInterface`` from the files
-a run happens to hold, so a run that skipped one simply exports without it. That discovery is
-what these tests exercise, against two stubbed sessions run through the real pipeline:
+The products added after the first export landed -- tonic epoch means, binned metrics,
+behavioral covariates, spontaneous mode and PSTH significance -- are discovered by
+``GuppyInterface`` from the files a run happens to hold, so a run that skipped one simply exports
+without it. That discovery is what these tests exercise, against three stubbed sessions run
+through the real pipeline:
 
 * the behavioral-covariate session, run with **Compute Binned Metrics?** on and then through
   **Tonic Analysis**, which produces all four of the whole-session tables at once;
 * the plain CSV session run with **Use Transients as Events?** on, whose detected transients
-  stand in for external TTLs.
+  stand in for external TTLs;
+* the TDT session run with **Compute PSTH Significance?** on, which produces both comparison
+  kinds -- each event against zero, and one event against another.
 
 Every assertion compares the NWB objects against the GuPPy files on disk they were built from,
 so a version of the export that silently omits one of them fails here.
@@ -22,11 +25,12 @@ import pandas as pd
 import pytest
 from pynwb import NWBHDF5IO
 
-from guppy.analysis.io_utils import read_hdf5
+from guppy.analysis.io_utils import PSTH_SIGNIFICANCE_DIRNAME, read_hdf5
 from guppy.analysis.standard_io import (
     read_binned_covariates_from_hdf5,
     read_binned_metrics_from_hdf5,
     read_covariate_correlations_from_hdf5,
+    read_psth_significance_from_hdf5,
 )
 from guppy.orchestration.metadata import METADATA_FILENAME
 from guppy.testing.api import step1, step2, step3, step4, step7, tonic_analysis
@@ -39,7 +43,7 @@ from guppy.testing.covariate_session import (
 from guppy.utils.utils import parse_run_name
 from guppy_test_data import STUBBED_TESTING_DATA
 
-from .integration_helpers import write_metadata_yaml
+from .integration_helpers import _locate_output_directory, write_metadata_yaml
 
 # Both trace types the interface writes a row per, in the order it emits them.
 TRACE_TYPES = ["z_score", "dff"]
@@ -76,6 +80,26 @@ SPONTANEOUS_RECORDING_SITE = "region"
 # metric and the site structured instead, so its row is named for the metric alone.
 TRANSIENT_EVENT = f"transients_z_score_{SPONTANEOUS_RECORDING_SITE}"
 TRANSIENT_REGISTRY_NAME = "transients_z_score"
+
+# The TDT stub fires port_entries 4 times, unrewarded_nose_pokes 18 and rewarded_nose_pokes only
+# twice, so labeling all three gets both comparison kinds and the too-few-trials skip out of one
+# session; see tests/integration/test_psth_significance.py.
+SIGNIFICANCE_SESSION_SUBDIR = "tdt/Photo_63_207-181030-103332"
+SIGNIFICANCE_STORE_ID_TO_STORE_LABEL = {
+    "Dv1A": "control_dms",
+    "Dv2A": "signal_dms",
+    "PrtN": "port_entries",
+    "LNnR": "unrewarded_nose_pokes",
+    "LNRW": "rewarded_nose_pokes",
+}
+SIGNIFICANCE_RECORDING_SITE = "dms"
+SIGNIFICANCE_COMPARISON = ("port_entries", "unrewarded_nose_pokes")
+# rewarded_nose_pokes had too few trials to resample, so Step 4 wrote no file for it.
+SIGNIFICANCE_ONE_SAMPLE_EVENTS = ["port_entries", "unrewarded_nose_pokes"]
+# One GuppyPSTHSignificance per (recording site, trace type, comparison kind); the session only
+# ran the z-score trace through the test.
+ONE_SAMPLE_OBJECT = f"psth_significance_{SIGNIFICANCE_RECORDING_SITE}_z_score"
+PAIRED_OBJECT = f"psth_significance_paired_{SIGNIFICANCE_RECORDING_SITE}_z_score"
 
 
 def export_run(*, session: str, output_directory: str, acquisition_format: str) -> str:
@@ -274,3 +298,86 @@ class TestSpontaneousModeOutputs:
         # transients it kept after dropping the ones too close to the recording start or each other.
         event_timestamps = np.asarray(read_hdf5(TRANSIENT_EVENT, Path(exported).parent, "ts")).ravel()
         np.testing.assert_allclose(np.sort(occurrences["timestamp"].to_numpy()), np.sort(event_timestamps))
+
+
+class TestPSTHSignificanceOutputs:
+    """A run that tested its PSTHs for significance must carry those results into the file."""
+
+    @pytest.fixture(scope="class")
+    def exported(self, tmp_path_factory) -> dict:
+        base_directory = tmp_path_factory.mktemp("export_psth_significance")
+        session = str(base_directory / Path(SIGNIFICANCE_SESSION_SUBDIR).name)
+        source = STUBBED_TESTING_DATA / SIGNIFICANCE_SESSION_SUBDIR
+        shutil.copytree(source, session, ignore=shutil.ignore_patterns("*_output_*"))
+
+        common = dict(base_dir=str(base_directory), selected_folders=[session])
+        step1(**common, store_id_to_store_label=SIGNIFICANCE_STORE_ID_TO_STORE_LABEL)
+        output_directory = _locate_output_directory(session_copy=session)
+        selected_runs = {session: [parse_run_name(output_directory)]}
+        step2(**common, selected_runs=selected_runs)
+        step3(**common, selected_runs=selected_runs)
+        step4(
+            **common,
+            selected_runs=selected_runs,
+            compute_psth_significance=True,
+            psth_comparisons=[SIGNIFICANCE_COMPARISON],
+        )
+
+        nwbfile_path = export_run(session=session, output_directory=output_directory, acquisition_format="tdt")
+        return {"output_directory": output_directory, "nwbfile_path": nwbfile_path}
+
+    @pytest.fixture(scope="class")
+    def nwbfile(self, exported):
+        with NWBHDF5IO(exported["nwbfile_path"], "r") as io:
+            yield io.read()
+
+    @pytest.fixture(scope="class")
+    def guppy_module(self, nwbfile):
+        return nwbfile.processing["guppy"]
+
+    def test_both_comparison_kinds_reach_the_file(self, guppy_module):
+        assert {ONE_SAMPLE_OBJECT, PAIRED_OBJECT} <= set(guppy_module.data_interfaces)
+
+    def test_the_tests_against_zero_carry_every_event_that_was_tested(self, guppy_module, exported):
+        significance = guppy_module[ONE_SAMPLE_OBJECT]
+
+        # One column per comparison, in the order the interface discovered them. The event with
+        # only two trials is skipped by Step 4, so it has no column here either.
+        # The registry names an event on its own; the recording site it was analyzed on is a
+        # column of the same row rather than part of the name.
+        assert list(significance.event.table["event_name"][significance.event.data]) == SIGNIFICANCE_ONE_SAMPLE_EVENTS
+        assert significance.trace_type == "z_score"
+
+        for index, event in enumerate(SIGNIFICANCE_ONE_SAMPLE_EVENTS):
+            on_disk = read_psth_significance_from_hdf5(
+                filepath=Path(exported["output_directory"]) / PSTH_SIGNIFICANCE_DIRNAME,
+                name=f"{event}_{SIGNIFICANCE_RECORDING_SITE}_z_score_{SIGNIFICANCE_RECORDING_SITE}",
+            )
+
+            np.testing.assert_allclose(significance.peri_event_time[:], on_disk["timestamps"].to_numpy())
+            np.testing.assert_allclose(significance.estimate[:, index], on_disk["estimate"].to_numpy())
+            np.testing.assert_allclose(significance.confidence_interval_lower[:, index], on_disk["ci_lower"].to_numpy())
+            np.testing.assert_allclose(significance.confidence_interval_upper[:, index], on_disk["ci_upper"].to_numpy())
+            np.testing.assert_array_equal(
+                significance.significant[:, index], on_disk["significant"].to_numpy().astype(bool)
+            )
+            assert significance.num_trials[index] == on_disk["n"].iloc[0]
+
+    def test_the_event_versus_event_test_names_both_of_its_events(self, guppy_module, exported):
+        significance = guppy_module[PAIRED_OBJECT]
+        event_a, event_b = SIGNIFICANCE_COMPARISON
+
+        assert list(significance.event.table["event_name"][significance.event.data]) == [event_a]
+        assert list(significance.event_b.table["event_name"][significance.event_b.data]) == [event_b]
+
+        on_disk = read_psth_significance_from_hdf5(
+            filepath=Path(exported["output_directory"]) / PSTH_SIGNIFICANCE_DIRNAME,
+            name=(f"{event_a}_vs_{event_b}_{SIGNIFICANCE_RECORDING_SITE}" f"_z_score_{SIGNIFICANCE_RECORDING_SITE}"),
+        )
+        np.testing.assert_allclose(significance.estimate[:, 0], on_disk["estimate"].to_numpy())
+        np.testing.assert_array_equal(significance.significant[:, 0], on_disk["significant"].to_numpy().astype(bool))
+        assert significance.num_trials[0] == on_disk["n"].iloc[0]
+        assert significance.num_trials_b[0] == on_disk["n_b"].iloc[0]
+
+    def test_the_run_records_that_significance_was_computed(self, nwbfile):
+        assert nwbfile.lab_meta_data["guppy_parameters"].compute_psth_significance

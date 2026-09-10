@@ -54,6 +54,7 @@ The core NWB schema and the fiber-photometry extension cover the raw side. GuPPy
 | `GuppyTransientSummaryTable` | Per-session transient frequency and mean amplitude |
 | `GuppyPSTH` | A peri-event PSTH for one recording site and trace type |
 | `GuppyPeakAUC` | The peak and area-under-curve summary of a PSTH |
+| `GuppyPSTHSignificance` | The bootstrap confidence interval and significance flags over a PSTH |
 | `GuppyCrossCorrelation` | A peri-event cross-correlation between two recording sites |
 | `GuppyTonicEpochs` | The tonic signal mean over each epoch of the tonic analysis |
 | `GuppyBinnedMetrics` | Whole-session metrics over the time bins a recording site was tiled into |
@@ -73,14 +74,6 @@ The two registry tables are what hold this together. A GuPPy **recording site** 
 An analysis output describes signals, not the apparatus that produced them. GuPPy can read your `storesList.csv` and tell that a session has two recording sites, each with a signal and a control channel — but not which fiber, which LED wavelength, which virus, or which animal. NWB requires that chain, and no converter can invent it.
 
 That is what *Step 6: Input Metadata* exists to collect, and why it is a form rather than something derived. It is also why the same information is often identical across an entire cohort: it describes your rig and your preparation, so it is written once and reused.
-
-## Where the export currently stops
-
-One analysis output does not reach the file yet: the bootstrap confidence intervals and
-significance masks written by **Compute PSTH Significance?**. Everything else in the run
-exports as usual, the significance results stay in the run's `psth_significance_output`
-folder, and *Step 7* warns you when the runs you selected have them. Support is coming in a
-future release.
 
 ## When GuPPy is not the whole experiment
 
