@@ -220,7 +220,7 @@ The visualization step in Step 5 reads these files; you do not need to inspect t
 
 Click **Open Visualization GUI** in the sidebar. A new browser tab opens with the Visualization GUI for this session, organized into two tabs.
 
-A **PSTH metric** selector sits above the tabs. It lists the metrics Step 4 actually computed for this run, so here it offers only `z-score` and is greyed out; had you run Step 4 with `Both`, you could switch the PSTH and Heat Map tabs between the two without re-running the step.
+A **Metric** selector sits with the display settings on the PSTH tab, and beside the event selector on the Heat Map tab. It lists the metrics Step 4 actually computed for this run, so here it offers only `z-score`; had you run Step 4 with `Both`, you could switch both tabs between the two without re-running the step. Whichever metric is selected also labels the y axis of every PSTH plot.
 
 ```{image} ../_static/images/03_visualization.png
 :alt: GuPPy Visualization GUI showing the PSTH tab with the RewardPort event selected
@@ -232,7 +232,7 @@ The **PSTH** tab is the default view. It shows the trial-aligned trace for one e
 - *Event selector*: which TTL channel to align to (here `RewardPort`).
 - *X* and *Y* dropdowns: what to plot on each axis. X is typically `timestamps`, Y can be `mean` (the trial average) or an individual trial like `trial_1`.
 - *X Limit* and *Y Limit* range sliders: restrict the displayed window.
-- *Width Plot*, *Height Plot*, *Y Label*, *Save options* dropdowns and a *Save PSTH* button: figure dimensions and export.
+- *Width Plot*, *Height Plot*, *Save options* dropdowns and a *Save PSTH* button: figure dimensions and export.
 
 On the right is a trial multi-select (*Trial # - Timestamps*) and a *Select mean and/or just trials* checkbox group, which together let you overlay any combination of individual trials and the mean. With a TTL file containing only a handful of timestamps, the average will be noisy; this is expected for the minimal sample dataset.
 

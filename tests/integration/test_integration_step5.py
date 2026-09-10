@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import holoviews as hv
 import pandas as pd
+import panel as pn
 import pytest
 
 from guppy.frontend.parameterized_plotter import ParameterizedPlotter
@@ -17,6 +18,11 @@ STORE_ID_TO_STORE_LABEL = {
     "Sample_Signal_Channel": "signal_region",
     "Sample_TTL": "ttl",
 }
+
+
+def metric_selectors(tab):
+    """Return the "Metric" selectors rendered inside one dashboard tab."""
+    return [widget for widget in tab.select(pn.widgets.Select) if widget.name == "Metric"]
 
 
 @pytest.mark.parametrize(
@@ -62,6 +68,11 @@ def test_step5(step5_fixture_name, expected_event_substring, request):
         assert isinstance(dataframe, pd.DataFrame)
         assert not dataframe.empty, "ParameterizedPlotter df_new is empty — PSTH data was not read"
 
+        # The fixtures run step 4 with its default metric, so the z-score is the only
+        # one on disk: it is what the plotter loaded and what labels the y axis.
+        assert dashboard.available_metrics == ["z_score"]
+        assert dashboard.plotter.Y_Label == "z-score"
+
     # Confirm at least one dashboard has an event matching the expected TTL store_id
     all_events = [event for dashboard in captured_dashboards for event in dashboard.plotter.event_selector_objects]
     matching_events = [event for event in all_events if expected_event_substring in event]
@@ -71,8 +82,8 @@ def test_step5(step5_fixture_name, expected_event_substring, request):
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_step5_offers_only_the_metric_step4_computed(tmp_path):
     """
-    When step 4 computed only one metric, the dashboard's PSTH metric selector offers
-    that metric alone and is disabled, rather than the step failing up front.
+    When step 4 computed only one metric, the dashboard's metric selector offers that
+    metric alone, rather than the step failing up front.
     """
     source_session = STUBBED_TESTING_DATA / SESSION_SUBDIR
     assert source_session.is_dir(), f"Sample data not available at expected path: {source_session}"
@@ -123,5 +134,10 @@ def test_step5_offers_only_the_metric_step4_computed(tmp_path):
     assert len(captured_dashboards) == 1
     dashboard = captured_dashboards[0]
     assert dashboard.available_metrics == ["dff"]
-    assert dashboard.metric_select.value == "dff"
-    assert dashboard.metric_select.disabled is True
+    assert dashboard.plotter.Y_Label == "\u0394F/F"
+
+    for tab in (dashboard._psth_tab, dashboard._heatmap_tab):
+        (selector,) = metric_selectors(tab)
+        assert selector.options == {"\u0394F/F": "dff"}
+        assert selector.value == "dff"
+        assert selector.disabled is False

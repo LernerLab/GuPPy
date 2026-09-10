@@ -35,6 +35,12 @@ logger = logging.getLogger(__name__)
 # export correctly regardless, so we suppress these harmless warnings here.
 logging.getLogger("bokeh.io.export").setLevel(logging.ERROR)
 
+# The metrics step 4 can write PSTH results for, in the order the dashboard offers them.
+PSTH_METRICS = ("z_score", "dff")
+
+# Metric name on disk -> how it is written in menus and on plot axes.
+METRIC_LABELS = {"z_score": "z-score", "dff": "\u0394F/F"}
+
 
 # remove unnecessary column names
 def remove_cols(columns: list[str]) -> list[str]:
@@ -142,7 +148,9 @@ class ParameterizedPlotter(param.Parameterized):
     x_min = param.Number(default=None)
     x_max = param.Number(default=None)
     select_trials_checkbox = param.ListSelector(default=["just trials"], objects=["mean", "just trials"])
-    Y_Label = param.ObjectSelector(default="y", objects=["y", "z-score", "\u0394F/F"])
+    # Y-axis label for the PSTH plots: the metric whose results were loaded, not a
+    # user choice. build_plotter sets it from the metric it read.
+    Y_Label = param.String(default="z-score")
     _SAVE_FORMATS: ClassVar[list[str]] = ["png", "svg"]
     # Independent save-format selector per plot so each can be exported on its own.
     save_options_cont = param.ObjectSelector(default="png", objects=_SAVE_FORMATS)
@@ -1039,10 +1047,6 @@ class ParameterizedPlotter(param.Parameterized):
         return image
 
 
-# The metrics step 4 can write PSTH results for, in the order the dashboard offers them.
-PSTH_METRICS = ("z_score", "dff")
-
-
 def _sanitize_event(event: str) -> str:
     """Return an event label with the path separators ``read_Df`` replaces already applied."""
     return event.replace("\\", "_").replace("/", "_")
@@ -1172,6 +1176,7 @@ def build_plotter(*, filepath: str, events: list[str], metric: str, x_min: float
     ] + ["All"]
 
     return ParameterizedPlotter(
+        Y_Label=METRIC_LABELS[metric],
         event_selector_objects=new_event,
         event_selector_heatmap_objects=heatmap_options,
         selector_for_multipe_events_plot_objects=multiple_plots_options,

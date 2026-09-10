@@ -7,15 +7,13 @@ import panel as pn
 from .binned_metrics_view import build_binned_metrics_view
 from .covariate_correlation_view import build_covariate_correlation_view
 from .frontend_utils import scanPortsAndFind
-from .parameterized_plotter import build_plotter
+from .parameterized_plotter import METRIC_LABELS, build_plotter
 from .psth_significance_view import build_psth_significance_view
 from .tonic_epochs import build_tonic_results_view
 
 pn.extension()
 
 logger = logging.getLogger(__name__)
-
-METRIC_LABELS = {"z_score": "z-score", "dff": "\u0394F/F"}
 
 
 class VisualizationDashboard:
@@ -38,8 +36,8 @@ class VisualizationDashboard:
     metric : str
         The metric ``plotter`` holds results for: ``"z_score"`` or ``"dff"``.
     available_metrics : list of str
-        Metrics step 4 wrote complete results for in this output directory. Offered in
-        the PSTH metric selector; a single entry disables it.
+        Metrics step 4 wrote complete results for in this output directory. The options
+        of the metric selector the PSTH and Heat Map tabs each carry.
     """
 
     def __init__(
@@ -54,6 +52,7 @@ class VisualizationDashboard:
         self.plotter = plotter
         self.basename = basename
         self.events = events
+        self.metric = metric
         self.available_metrics = available_metrics
         self._psth_tab = self._build_psth_tab()
         self._heatmap_tab = self._build_heatmap_tab()
@@ -69,43 +68,21 @@ class VisualizationDashboard:
             ("Covariates", self._covariate_tab),
             ("Significance", self._significance_tab),
         )
-        self._metric_row = self._build_metric_selector(metric=metric)
 
-    def _build_metric_selector(self, *, metric: str) -> pn.Row:
-        """Build the PSTH metric selector and the caption explaining its reach.
+    def _metric_control(self) -> pn.widgets.Select:
+        """Return one tab's metric chooser, placed among the controls it drives.
 
-        Named "PSTH metric" rather than "Metric" because the Binned and Covariates
-        tabs carry their own metric menus, which this control does not drive.
-
-        Parameters
-        ----------
-        metric : str
-            The metric currently loaded.
-
-        Returns
-        -------
-        panel.Row
-            The selector beside its caption.
+        The PSTH and Heat Map tabs each get their own instance. Both tabs are rebuilt on
+        every change, so the two stay in step without being linked.
         """
-        only_one = len(self.available_metrics) == 1
-        self.metric_select = pn.widgets.Select(
-            name="PSTH metric",
+        select = pn.widgets.Select(
+            name="Metric",
             options={METRIC_LABELS[name]: name for name in self.available_metrics},
-            value=metric,
-            disabled=only_one,
-            width=180,
+            value=self.metric,
+            width=140,
         )
-        self.metric_select.param.watch(self._on_metric_change, "value")
-
-        caption = "Applies to the PSTH and Heat Map tabs; the Binned and Covariates tabs have their own metric menus."
-        if only_one:
-            other = "dff" if metric == "z_score" else "z_score"
-            caption += (
-                f" Only {METRIC_LABELS[metric]} was computed for this output directory \u2014 re-run Step 4 "
-                f"(or, for a `_group` directory, the Group Analysis step) with '{other}' or 'Both' "
-                f"to compare the two."
-            )
-        return pn.Row(self.metric_select, pn.pane.Markdown(caption, width=600))
+        select.param.watch(self._on_metric_change, "value")
+        return select
 
     def _on_metric_change(self, event: object) -> None:
         """Reload the PSTH and Heat Map tabs against the newly selected metric.
@@ -115,6 +92,7 @@ class VisualizationDashboard:
         their own files from the output directory and are left untouched.
         """
         self._tabs.loading = True
+        self.metric = event.new
         self.plotter = build_plotter(
             filepath=self.plotter.filepath,
             events=self.events,
@@ -294,7 +272,6 @@ class VisualizationDashboard:
         height_plot = pn.Param(
             self.plotter.param.Height_Plot, widgets={"Height_Plot": {"type": pn.widgets.Select, "width": 70}}
         )
-        ylabel = pn.Param(self.plotter.param.Y_Label, widgets={"Y_Label": {"type": pn.widgets.Select, "width": 70}})
         hide_minor_ticks = pn.Param(
             self.plotter.param.hide_minor_ticks,
             widgets={"hide_minor_ticks": {"type": pn.widgets.Checkbox, "name": "Hide minor tick marks"}},
@@ -340,7 +317,7 @@ class VisualizationDashboard:
         # gets its own card holding only the controls that drive it, so it is
         # always clear which control belongs to which plot.
         shared_settings = pn.Card(
-            pn.Row(width_plot, height_plot, ylabel),
+            pn.Row(self._metric_control(), width_plot, height_plot),
             hide_minor_ticks,
             title="Display settings (all plots)",
             collapsed=False,
@@ -445,7 +422,7 @@ class VisualizationDashboard:
         color_limits = self._range_number_inputs(name="heatmap_clim", label="Color scale")
 
         heatmap_card = pn.Card(
-            pn.Row(event_selector_heatmap, color_map, width_heatmap, height_heatmap),
+            pn.Row(event_selector_heatmap, self._metric_control(), color_map, width_heatmap, height_heatmap),
             pn.Row(hide_minor_ticks_heatmap, ticks_inside_heatmap, hide_outer_border_heatmap),
             pn.pane.Markdown("**Axis limits**"),
             axis_limits,
@@ -462,7 +439,7 @@ class VisualizationDashboard:
     def build_template(self) -> pn.template.MaterialTemplate:
         """Build and return the Panel template without serving it."""
         template = pn.template.MaterialTemplate(title="Visualization GUI")
-        template.main.append(pn.Column(self._metric_row, self._tabs))
+        template.main.append(self._tabs)
         return template
 
     def show(self) -> None:
