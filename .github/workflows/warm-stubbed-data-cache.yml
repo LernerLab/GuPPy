@@ -12,7 +12,8 @@ on:
       - '.github/workflows/warm-stubbed-data-cache.yml'
   workflow_dispatch:
 
-# Cancelling this mid-save would leave the key reserved but unpopulated.
+# Serialized so that two data changes landing close together warm the cache in order: the second
+# run restores what the first saved and fetches only its own delta.
 concurrency:
   group: warm-stubbed-data-cache
   cancel-in-progress: false
