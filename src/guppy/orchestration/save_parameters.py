@@ -3,7 +3,8 @@ import logging
 from importlib.metadata import version
 from pathlib import Path
 
-from guppy.utils.utils import discover_run_folders, select_run_folders
+from guppy.extractors.npm_recording_extractor import DEFAULT_NUM_CHANNELS
+from guppy.utils.utils import discover_run_folders, load_npm_params, select_run_folders
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +72,29 @@ def record_artifact_provenance(
     logger.info("Artifact provenance updated at %s", destination)
 
 
+def _recorded_channel_count(destination: str) -> dict[str, int]:
+    """Return the channel count a run was read with, when that run recorded one.
+
+    Feeds the deprecated ``noChannels`` copy in the snapshot; see
+    :func:`build_analysis_parameters`.
+
+    Parameters
+    ----------
+    destination : str
+        Output directory the snapshot is being written into.
+
+    Returns
+    -------
+    dict
+        ``{"noChannels": count}`` when the run's ``.npm_params.json`` names one,
+        otherwise an empty dict so the form's value stands.
+    """
+    npm_params = load_npm_params(destination)
+    if "noChannels" in npm_params:
+        return {"noChannels": npm_params["noChannels"]}
+    return {}
+
+
 def build_analysis_parameters(*, inputParameters: dict[str, object]) -> dict[str, object]:
     """
     Build the analysis-parameter snapshot written to ``GuPPyParamtersUsed.json``.
@@ -103,7 +127,11 @@ def build_analysis_parameters(*, inputParameters: dict[str, object]) -> dict[str
         # their position in the file.
         "removeArtifacts": None,
         "artifactsRemovalMethod": None,
-        "noChannels": inputParameters["noChannels"],
+        # Deprecated copy: the channel count belongs to .npm_params.json, which is where
+        # Step 1 records it. neuroconv's GuPPy interface still reads it from here, so the
+        # snapshot carries it until the release containing catalystneuro/neuroconv#2046,
+        # which reads .npm_params.json first. Drop this key once GuPPy requires that release.
+        "noChannels": inputParameters.get("noChannels", DEFAULT_NUM_CHANNELS),
         "zscore_method": inputParameters["zscore_method"],
         "baselineWindowStart": inputParameters["baselineWindowStart"],
         "baselineWindowEnd": inputParameters["baselineWindowEnd"],
@@ -208,9 +236,12 @@ def save_parameters(
         else:
             destinations = select_run_folders(session, selected_runs.get(session))
         for destination in destinations:
+            # The channel count is chosen per run on the Label Stores page, so each
+            # destination's deprecated copy takes that run's own rather than the form's default.
+            destination_parameters = {**analysisParameters, **_recorded_channel_count(destination)}
             write_analysis_parameters(
                 destination=destination,
-                analysis_parameters=analysisParameters,
+                analysis_parameters=destination_parameters,
                 remove_artifacts=remove_artifacts,
                 artifacts_removal_method=artifacts_removal_method,
             )

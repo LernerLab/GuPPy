@@ -21,6 +21,7 @@ import pandas as pd
 
 from guppy.analysis.standard_io import write_tonic_to_hdf5
 from guppy.analysis.tonic import compute_tonic_means
+from guppy.extractors.npm_recording_extractor import DEFAULT_NUM_CHANNELS
 from guppy.frontend.tonic_epochs import load_site_traces
 from guppy.orchestration.export_nwb import orchestrate_export_nwb
 from guppy.orchestration.group_analysis import run_group_analysis_step
@@ -480,7 +481,7 @@ def step1(
         input_params["mode"] = "local"
 
     # Drive each session's Label Stores page exactly as the GUI does.
-    num_ch = input_params["noChannels"]
+    num_ch = input_params.get("noChannels", DEFAULT_NUM_CHANNELS)
     for session in abs_sessions:
         events, flags, npm_interactive = read_header(input_params, num_ch, session)
         template = build_store_labeling_template(

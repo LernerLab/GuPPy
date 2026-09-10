@@ -376,6 +376,7 @@ def test_write_then_load_npm_params_round_trips(tmp_path):
         "npm_split_events": [True, False],
         "npm_time_unit": "milliseconds",
         "npm_timestamp_column_name": "ComputerTimestamp",
+        "noChannels": 3,
         "unrelated_key": "ignored",
     }
 
@@ -388,6 +389,7 @@ def test_write_then_load_npm_params_round_trips(tmp_path):
         "npm_split_events": [True, False],
         "npm_time_unit": "milliseconds",
         "npm_timestamp_column_name": "ComputerTimestamp",
+        "noChannels": 3,
     }
 
 

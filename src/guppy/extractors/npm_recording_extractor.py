@@ -21,6 +21,8 @@ logger = logging.getLogger(__name__)
 # to seconds. Nothing in the raw files states which one applies, so it is a parameter.
 TIME_UNIT_DIVISORS = {"seconds": 1.0, "milliseconds": 1e3, "microseconds": 1e6}
 DEFAULT_TIME_UNIT = "seconds"
+# Channel count assumed until the Label Stores page asks for one.
+DEFAULT_NUM_CHANNELS = 2
 
 
 class NpmRecordingExtractor(CsvRecordingExtractor):

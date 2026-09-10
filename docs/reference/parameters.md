@@ -158,16 +158,6 @@ Comparisons run **inside a single output folder**. Run the step on a session run
 
 Requires a non-zero **Window for Moving Average filter**, since the minimum duration of a significant stretch is derived from it.
 
-### Format-specific (Neurophotometrics)
-
-*Used by: Step 2 (Load the raw data) when the recording is an NPM CSV without `Flags` or `LedState` columns.*
-
-| Parameter | Description | Type | Default | Options / range |
-|-----------|-------------|------|---------|-----------------|
-| Number of channels (Neurophotometrics only) | Manual fallback for stripped NPM CSVs. | int | `2` | positive integer |
-
-**Number of channels (Neurophotometrics only)** is read only when the data is a Neurophotometrics recording whose CSV does not include the `Flags` or `LedState` column. Modern NPM recordings include those columns and GuPPy can infer channel structure automatically; this parameter is the manual fallback for older or stripped-down NPM CSVs. Other format-specific behavior (TDT epoc handling, Doric channel selection, NWB recording-extractor selection) is handled by the recording extractors at read time and does not require user-set parameters.
-
 ### Artifact removal
 
 Artifact removal is not configured from this form. It is handled by two optional steps that run after Step 3 — **Select Artifact Windows** and **Remove Artifacts** — and the removal method is chosen on the Select Artifact Windows page. See [Remove artifacts from a recording](../how-to/artifact-removal.md).
@@ -319,7 +309,6 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 | `moving_window` | Moving Window for transients detection (s) | [Transient detection](#transient-detection) |
 | `nSecPost` | Seconds after 0 | [PSTH Parameters](#psth-parameters) |
 | `nSecPrev` | Seconds before 0 | [PSTH Parameters](#psth-parameters) |
-| `noChannels` | Number of channels (Neurophotometrics only) | [Format-specific (Neurophotometrics)](#format-specific-neurophotometrics) |
 | `numberOfCores` | # of cores | [Compute and batching](#compute-and-batching) |
 | `peak_endPoint` | Peak End time | [Peak and AUC Parameters](#peak-and-auc-parameters) |
 | `peak_startPoint` | Peak Start time | [Peak and AUC Parameters](#peak-and-auc-parameters) |

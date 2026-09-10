@@ -68,9 +68,6 @@ class TestParameterForm:
     def test_binned_metrics_width_default(self, parameter_form):
         assert parameter_form.binnedMetricsWidth.value == 120
 
-    def test_no_channels_np_default(self, parameter_form):
-        assert parameter_form.no_channels_np.value == 2
-
     def test_n_sec_prev_default(self, parameter_form):
         assert parameter_form.nSecPrev.value == -10
 
@@ -792,7 +789,6 @@ SAVED_PARAMETERS = {
     "photobleaching_detrend": True,
     "timeForLightsTurnOn": 7,
     "filter_window": 42,
-    "noChannels": 3,
     "zscore_method": "modified z-score",
     "baselineWindowStart": 2,
     "baselineWindowEnd": 9,
