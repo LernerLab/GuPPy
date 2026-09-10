@@ -1,6 +1,7 @@
 # v2.0.0-beta3 (Upcoming)
 
 ## Features
+- PSTH significance results now reach the exported NWB file, as one `GuppyPSTHSignificance` object per recording site, trace type and comparison kind. [PR #502](https://github.com/LernerLab/GuPPy/pull/502)
 - Artifact periods can now be marked by dragging horizontally across a trace on the Select Artifact Windows page, which shows one selectable trace at a time and toggles between **Mark artifacts** and **Navigate**; a **Copy windows from run** control loads the periods already saved for another run of the same session. [PR #472](https://github.com/LernerLab/GuPPy/pull/472)
 
 ## Fixes
@@ -10,6 +11,7 @@
 - Fixed the README's documentation links, which all carried an `/en/latest/` path prefix that 404s on the single-version Read the Docs project. [PR #469](https://github.com/LernerLab/GuPPy/pull/469)
 
 ## Improvements
+- `GuPPyParamtersUsed.json` no longer carries a `noChannels` copy of the Neurophotometrics channel count, which now lives only in each run's `.npm_params.json`. [PR #502](https://github.com/LernerLab/GuPPy/pull/502)
 - The Individual Analysis card is now **Parameter Selection**, a single column of titled sections each named for the operation it configures and each stating which steps read it, with a **?** beside every parameter that pops up help for that one parameter. [PR #499](https://github.com/LernerLab/GuPPy/pull/499)
 - The metric plotted by the visualization dashboard is now chosen in the dashboard itself and can be switched between the metrics Step 4 computed without re-running the step, instead of being fixed on the homepage before Step 5 starts. [PR #498](https://github.com/LernerLab/GuPPy/pull/498)
 - The Neurophotometrics channel count is now asked on the Label Stores page beside the other NPM controls, and recorded in each run's `.npm_params.json`, rather than sitting among the analysis parameters. [PR #497](https://github.com/LernerLab/GuPPy/pull/497)
