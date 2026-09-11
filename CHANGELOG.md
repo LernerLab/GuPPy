@@ -1,4 +1,14 @@
-# v2.0.0-beta3 (Upcoming)
+# v2.0.0-beta4 (Upcoming)
+
+## Features
+
+## Fixes
+
+## Improvements
+
+## Deprecations and Removals
+
+# v2.0.0-beta3 (September 10th, 2026)
 
 ## Features
 - PSTH significance results now reach the exported NWB file, as one `GuppyPSTHSignificance` object per recording site, trace type and comparison kind. [PR #502](https://github.com/LernerLab/GuPPy/pull/502)
