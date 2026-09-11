@@ -4,16 +4,16 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from neuroconv.datainterfaces.fiber_photometry.pyphotometry._file_reader import (
+    _get_layout,
+    _PPDAnalogSignal,
+    _PPDDigitalSignal,
+    _PPDRecording,
+    _read_header,
+    _read_ppd,
+)
 
 from guppy.extractors import BaseRecordingExtractor
-from guppy.extractors._ppd_file_reader import (
-    PPDAnalogSignal,
-    PPDDigitalSignal,
-    PPDRecording,
-    _get_layout,
-    _read_header,
-    read_ppd,
-)
 from guppy.utils._hdf5_io import write_hdf5
 
 logger = logging.getLogger(__name__)
@@ -77,7 +77,7 @@ class PyPhotometryRecordingExtractor(BaseRecordingExtractor):
         return f"detector_{detector_index + 1}_excitation_{excitation_index + 1}"
 
     @staticmethod
-    def _digital_store_id(signal: PPDDigitalSignal) -> str:
+    def _digital_store_id(signal: _PPDDigitalSignal) -> str:
         return f"digital_{signal.digital_input + 1}"
 
     @classmethod
@@ -121,16 +121,16 @@ class PyPhotometryRecordingExtractor(BaseRecordingExtractor):
         self.folder_path = folder_path
         self._recording = None
 
-    def _read_recording(self) -> PPDRecording:
+    def _read_recording(self) -> _PPDRecording:
         """Read and cache the file. One recording is a few megabytes at most, so it is read once."""
         if self._recording is None:
-            self._recording = read_ppd(self._find_ppd_file(self.folder_path))
+            self._recording = _read_ppd(self._find_ppd_file(self.folder_path))
         return self._recording
 
-    def _store_id_to_signal(self) -> dict[str, PPDAnalogSignal | PPDDigitalSignal]:
+    def _store_id_to_signal(self) -> dict[str, _PPDAnalogSignal | _PPDDigitalSignal]:
         """Map every store id onto the signal it names."""
         recording = self._read_recording()
-        store_id_to_signal: dict[str, PPDAnalogSignal | PPDDigitalSignal] = {}
+        store_id_to_signal: dict[str, _PPDAnalogSignal | _PPDDigitalSignal] = {}
         for signal in recording.analog_signals:
             store_id = self._analog_store_id(signal.detector_index, signal.excitation_index)
             store_id_to_signal[store_id] = signal
@@ -138,7 +138,7 @@ class PyPhotometryRecordingExtractor(BaseRecordingExtractor):
             store_id_to_signal[self._digital_store_id(signal)] = signal
         return store_id_to_signal
 
-    def _signal_for_event(self, event: str) -> PPDAnalogSignal | PPDDigitalSignal:
+    def _signal_for_event(self, event: str) -> _PPDAnalogSignal | _PPDDigitalSignal:
         store_id_to_signal = self._store_id_to_signal()
         if event not in store_id_to_signal:
             message = (
@@ -150,7 +150,7 @@ class PyPhotometryRecordingExtractor(BaseRecordingExtractor):
         return store_id_to_signal[event]
 
     @staticmethod
-    def _sample_timestamps(signal: PPDAnalogSignal | PPDDigitalSignal, sample_count: int) -> np.ndarray:
+    def _sample_timestamps(signal: _PPDAnalogSignal | _PPDDigitalSignal, sample_count: int) -> np.ndarray:
         """Build a store's sample times from its own start and rate.
 
         Every signal is regular, so its times follow from the start instant rather than being stored.
@@ -176,7 +176,7 @@ class PyPhotometryRecordingExtractor(BaseRecordingExtractor):
     def count_samples(self, *, event: str) -> int:
         """Return the number of samples the store holds, for the step-2 progress bar."""
         signal = self._signal_for_event(event)
-        if isinstance(signal, PPDAnalogSignal):
+        if isinstance(signal, _PPDAnalogSignal):
             return int(signal.data_in_volts.size)
         return int(signal.data.size)
 
@@ -202,7 +202,7 @@ class PyPhotometryRecordingExtractor(BaseRecordingExtractor):
         output_dicts = []
         for event in events:
             signal = self._signal_for_event(event)
-            if isinstance(signal, PPDAnalogSignal):
+            if isinstance(signal, _PPDAnalogSignal):
                 timestamps = self._sample_timestamps(signal, signal.data_in_volts.size)
                 output_dicts.append(
                     {

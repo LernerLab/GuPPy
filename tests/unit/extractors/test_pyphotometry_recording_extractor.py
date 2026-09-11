@@ -24,7 +24,7 @@ def _deinterleave_two_signal_file(folder_path: str) -> dict:
     """Separate a two-analog-input ``.ppd`` file without going through the reader under test.
 
     Written out longhand from the format description rather than reused from
-    ``_ppd_file_reader``, so the expected arrays below are an independent computation and the
+    NeuroConv's ``.ppd`` reader, so the expected arrays below are an independent computation and the
     round-trip tests are not comparing the reader against itself.
     """
     ppd_path = next(Path(folder_path).glob("*.ppd"))
