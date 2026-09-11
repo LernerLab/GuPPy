@@ -56,20 +56,16 @@ def test_tabulator_peak_start_time_column_header_visible(page, live_server_url):
 
 
 @pytest.mark.ui
-def test_output_folder_selection_card_shows_run_name_picker_above_the_browser(page, live_server_url):
+def test_output_folder_selection_card_shows_its_contents(page, live_server_url):
+    # The card's collapsed state lives on the server and outlives a page load, so it is
+    # expanded once here and everything it holds is asserted in the one test.
     page.goto(live_server_url)
     expect(page.get_by_text("Output Folder Selection").first).to_be_visible()
     page.get_by_text("Output Folder Selection").first.click()
-    expect(page.get_by_text("Run name(s) for all sessions").first).to_be_visible()
-    expect(page.get_by_text("Selected files").first).to_be_visible()
-
-
-@pytest.mark.ui
-def test_output_folder_selection_card_shows_the_output_location_choice(page, live_server_url):
-    page.goto(live_server_url)
-    page.get_by_text("Output Folder Selection").first.click()
     expect(page.get_by_text("Where analysis outputs are written.").first).to_be_visible()
     expect(page.get_by_text("inside each session folder").first).to_be_visible()
+    expect(page.get_by_text("Run name(s) for all sessions").first).to_be_visible()
+    expect(page.get_by_text("Selected files").first).to_be_visible()
 
 
 @pytest.mark.ui
