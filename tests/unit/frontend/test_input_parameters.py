@@ -1,5 +1,6 @@
 import json
 import math
+from fnmatch import fnmatch
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -425,15 +426,17 @@ class TestNumericParameterValidation:
 
 class _FakeAsset:
     def __init__(self, path):
+        self.identifier = f"asset-{path}"
         self.path = path
+        self.size = 1_000
 
 
 class _FakeDandiset:
     def __init__(self, asset_paths):
         self._asset_paths = asset_paths
 
-    def get_assets(self):
-        return [_FakeAsset(path) for path in self._asset_paths]
+    def get_assets_by_glob(self, pattern, order=None):
+        return [_FakeAsset(path) for path in self._asset_paths if fnmatch(path, pattern)]
 
 
 class _FakeDandiAPIClient:
@@ -452,8 +455,11 @@ class _FakeDandiAPIClient:
 @pytest.fixture
 def patched_dandi_client(monkeypatch, tmp_path):
     from guppy.frontend import dandi_selector as dandi_selector_module
+    from guppy.utils import dandi_catalog
 
-    monkeypatch.setattr(dandi_selector_module, "DandiAPIClient", _FakeDandiAPIClient)
+    # The form builds its own DandiSelector, so the archive is replaced under the asset
+    # listing rather than injected into the selector.
+    monkeypatch.setattr(dandi_catalog, "DandiAPIClient", _FakeDandiAPIClient)
     # Point the mirror parent at tmp_path so tests don't pollute the real temp dir.
     monkeypatch.setattr(dandi_selector_module, "_MIRROR_ROOT", str(tmp_path / "dandi_mirror"))
     return _FakeDandiAPIClient
