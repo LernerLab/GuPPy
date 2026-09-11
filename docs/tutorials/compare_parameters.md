@@ -48,15 +48,14 @@ the first tutorial:
 Click **Select Label Stores**, fill in the rows, and click **Show Selected
 Configuration**.
 
-Now the part that is new. Set **over-write storeslist file or create a new one?** to
-`create_new_file`, and instead of leaving **Run name** blank, type `filter_100` into it.
-Click **Save**.
+Now the part that is new. Leave **Create new run** selected, and instead of keeping the
+**Run name** GuPPy filled in, replace it with `filter_100`. Click **Save**.
 
-A run's name is the suffix on its run folder, `<session>_output_<run name>`, so this
-one creates `sample_data_csv_1_output_filter_100/` in the output base directory. Left blank, it defaults to the next
-free integer — `1`, then `2` — which is what the first tutorial got. Naming the run for
-the parameter you are varying carries that name into the folder name and into the heading
-on the run's visualization dashboard.
+A run's name is the suffix on its run folder, `<session>_output_<run name>`, so this one
+creates `sample_data_csv_1_output_filter_100/` in the output base directory. The name
+GuPPy fills in is the next free integer — `1`, then `2` — which is what the first tutorial
+got. Naming the run for the parameter you are varying carries that name into the folder
+name and into the heading on the run's visualization dashboard.
 
 Run names may not be empty, contain path separators or `..`, or contain the substring
 `_output_`.
@@ -80,16 +79,16 @@ Click **Label Stores** again and label the channels a second time, with exactly 
 names as before — `control_A`, `signal_A`, `RewardPort`. The stores must match for the
 comparison to mean anything; only the analysis parameters should differ.
 
-Set **over-write storeslist file or create a new one?** to `create_new_file` again, type
-`filter_250` into **Run name**, and click **Save**.
+Leave **Create new run** selected again, replace the **Run name** with `filter_250`, and
+click **Save**.
 
 ```{image} ../_static/images/compare_parameters_run_name.png
-:alt: The Label Stores GUI's "Choose how to save this store_array" section, with the save menu button below it and the Run name field filled in with filter_250
+:alt: The Label Stores GUI's "Choose where to save these store labels" section, with Create new run selected and the Run name field filled in with filter_250
 :width: 70%
 ```
 
-Leave `over_write_file` alone here. It deletes the contents of an existing run folder,
-which would throw away the result you just computed.
+Leave **Overwrite existing run** alone here. It deletes the contents of an existing run
+folder, which would throw away the result you just computed.
 
 ## Analyze it with a wider filter window
 

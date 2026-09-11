@@ -49,7 +49,8 @@ class StoreLabelingInstructions:
                         names consistent across sessions for later group analysis.<br>
                     - If user has saved stores before, clicking "Select Stores" pre-fills each store with its
                     previously used Type and label.
-                    - Select “create new” or “overwrite” to generate a new store_ids list or replace a previous one
+                    - Choose **Create new run** or **Overwrite existing run** to save into a new output folder or
+                    replace an existing one
                     - Click Save
 
                     """,

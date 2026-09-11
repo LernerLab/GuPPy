@@ -148,10 +148,8 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
         inputParameters = _getInputParametersOrNotify()
         if inputParameters is None:
             return
-        orchestrate_store_labeling_page(inputParameters)
-        # Newly-created output dirs become available for filtering on the next
-        # step without requiring the user to deselect/reselect their session.
-        parameter_form.refresh_individual_outputs()
+        # Each Save on a Label Stores page creates a run folder; re-list the runs so it appears here.
+        orchestrate_store_labeling_page(inputParameters, on_saved=parameter_form.refresh_individual_outputs)
 
     def onclickVisualization(event: object = None) -> None:
         # Unlike steps 2-4, visualization can run on groups alone, so it does not require
