@@ -360,15 +360,15 @@ def _drive_store_labeling_page(
 
     target_run_folder = run_folder_for_run(folder_path, run_name) if run_name is not None else None
     if run_name_policy == "overwrite" and target_run_folder is not None and Path(target_run_folder).is_dir():
-        selector.overwrite_button.clicked = "over_write_file"
+        selector.overwrite_mode.value = "over_write_file"
         selector.select_location.value = target_run_folder
     else:
-        # "create" policy, or overwriting a run folder that does not exist yet.
-        selector.overwrite_button.clicked = "create_new_file"
+        # "create" policy, or overwriting a run folder that does not exist yet. The page opens with
+        # the next free integer as its run name, which stands when no run_name is given.
+        selector.overwrite_mode.value = "create_new_file"
         if run_name:
             selector.run_name.value = run_name
             _raise_on_alert(selector=selector)
-        selector.select_location.value = selector.select_location.options[0]
 
     template._hooks["save_button"]()
     _raise_on_alert(selector=selector)
