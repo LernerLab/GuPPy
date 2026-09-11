@@ -49,7 +49,7 @@ def store_label_cache_path() -> Path:
     return Path.home() / ".storesList.json"
 
 
-def show_dir(filepath: str, run_name: str | None = None) -> str:
+def show_dir(filepath: str, run_name: str | None = None, *, output_base_directory: str | None = None) -> str:
     """Return the path of an output directory without creating it.
 
     Parameters
@@ -59,21 +59,24 @@ def show_dir(filepath: str, run_name: str | None = None) -> str:
     run_name : str or None, optional
         Explicit run-name suffix.  When ``None`` (the default) the legacy
         next-available-integer behaviour is used.
+    output_base_directory : str or None, optional
+        Directory the output directory is written into.  ``None`` (the default)
+        writes it inside the session folder.
 
     Returns
     -------
     str
-        Path of the form ``<filepath>/<basename>_output_<run_name>``.  When
+        Path of the form ``<root>/<basename>_output_<run_name>``.  When
         ``run_name`` is ``None`` the suffix is the lowest integer for which
         the directory does not yet exist.
     """
     if run_name is not None:
         validate_run_name(run_name)
-        return run_folder_for_run(filepath, run_name)
+        return run_folder_for_run(filepath, run_name, output_base_directory=output_base_directory)
 
     i = 1
     while True:
-        run_folder = run_folder_for_run(filepath, str(i))
+        run_folder = run_folder_for_run(filepath, str(i), output_base_directory=output_base_directory)
         if not Path(run_folder).exists():
             break
         i += 1
@@ -274,7 +277,7 @@ def _save(
         # Overwrite mode: clear all derived data from the previous run before saving the new store_array.
         shutil.rmtree(select_location)
         logger.info("Cleared output directory for overwrite: %s", select_location)
-    Path(select_location).mkdir()
+    Path(select_location).mkdir(parents=True)
 
     write_stores_list(run_folder=select_location, store_array=store_array)
     if npm_params is not None:
@@ -308,8 +311,9 @@ def build_store_labeling_template(
     isosbestic_control : bool, optional
         Whether isosbestic-control naming applies. Default is False.
     inputParameters : dict, optional
-        Full pipeline input parameters. Required for interactive NPM sessions so
-        the confirm callback can decompose the session and persist the choices.
+        Full pipeline input parameters. Supplies ``output_base_directory``, and is
+        required for interactive NPM sessions so the confirm callback can decompose
+        the session and persist the choices.
     npm_interactive : dict, optional
         NPM configuration-form probe data (``multiple_event_ttls``,
         ``timestamp_column_options``). When set, the NPM configuration form is
@@ -322,6 +326,7 @@ def build_store_labeling_template(
         Fully configured Panel template ready to be served.
     """
     allnames = events
+    output_base_directory = (inputParameters or {}).get("output_base_directory")
 
     template = pn.template.BootstrapTemplate(title=f"Label Stores GUI - {Path(folder_path).name}")
 
@@ -341,11 +346,11 @@ def build_store_labeling_template(
     # on clicking overwrite_button, following function is executed
     def overwrite_button_actions(event: object) -> None:
         if event.new == "over_write_file":
-            options = discover_run_folders(folder_path)
+            options = discover_run_folders(folder_path, output_base_directory=output_base_directory)
             store_labeling_selector.set_select_location_options(options=options)
         else:
             run_name = store_labeling_selector.get_run_name()
-            options = [show_dir(folder_path, run_name=run_name or None)]
+            options = [show_dir(folder_path, run_name=run_name or None, output_base_directory=output_base_directory)]
             store_labeling_selector.set_select_location_options(options=options)
 
     def run_name_input_changed(event: object) -> None:
@@ -353,7 +358,7 @@ def build_store_labeling_template(
             return
         run_name = event.new or None
         try:
-            options = [show_dir(folder_path, run_name=run_name)]
+            options = [show_dir(folder_path, run_name=run_name, output_base_directory=output_base_directory)]
         except ValueError as exc:
             store_labeling_selector.set_alert_message(f"####Alert !! \n {exc}")
             return

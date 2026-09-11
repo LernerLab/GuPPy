@@ -51,6 +51,7 @@ from guppy.utils.nwb_metadata import (
     load_yaml,
     parse_metadata_dict,
 )
+from guppy.utils.utils import DEFAULT_OUTPUT_BASE_DIRECTORY_NAME
 
 if TYPE_CHECKING:
     from panel.template.base import BasicTemplate
@@ -785,11 +786,13 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
 
     The three runs match what a reader following the tutorial sees: the unnamed run left
     by the first-analysis tutorial, plus the two named ones this tutorial builds. The run
-    folders are created inside the real sample-data directory, and removed afterwards, so
-    the Directory field shows a normal session path rather than a temp-dir basename.
+    folders are created in a real output base directory beside the sample data, and removed
+    afterwards, so the Directory field shows a normal path rather than a temp-dir basename.
     """
     run_names = ("1", "filter_100", "filter_250")
-    run_folders = [SAMPLE_DATA_DIR / f"sample_data_csv_1_output_{name}" for name in run_names]
+    output_base_directory = SAMPLE_DATA_DIR.parent / DEFAULT_OUTPUT_BASE_DIRECTORY_NAME
+    output_base_directory.mkdir(exist_ok=True)
+    run_folders = [output_base_directory / f"sample_data_csv_1_output_{name}" for name in run_names]
     for run_folder in run_folders:
         run_folder.mkdir(exist_ok=True)
 
@@ -803,7 +806,7 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
             template=pn.template.MaterialTemplate(title="Input Parameters GUI"),
             start_path=str(SAMPLE_DATA_DIR.parent),
         )
-        form.outputs_selector._directory.value = str(SAMPLE_DATA_DIR)
+        form.outputs_selector._directory.value = str(output_base_directory)
         form.outputs_selector._update_files()
         form.outputs_selector._selector.value = [str(run_folders[2])]
         form.output_folder_selection.collapsed = False
@@ -825,6 +828,7 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
     finally:
         for run_folder in run_folders:
             run_folder.rmdir()
+        output_base_directory.rmdir()
 
 
 def screenshot_dandi_asset_browser(page: Page) -> None:

@@ -12,6 +12,7 @@ from guppy.frontend.visualization_dashboard import VisualizationDashboard
 from guppy.testing.api import (
     group_analysis,
     label_groups,
+    locate_run_folder,
     step1,
     step2,
     step3,
@@ -100,7 +101,7 @@ def test_group_analysis(copied_sessions):
 
     # Run group averaging pass
     label_groups(
-        member_run_folders=[str(Path(folder) / f"{Path(folder).name}_output_1") for folder in selected_folders],
+        member_run_folders=[locate_run_folder(session=folder) for folder in selected_folders],
         destination_directory=base_dir,
         group_name="saline",
     )
@@ -165,7 +166,7 @@ def test_group_analysis_different_event_names_per_session(copied_sessions):
     step2(**common_kwargs, selected_runs=selected_runs)
     step3(**common_kwargs, selected_runs=selected_runs)
     step4(**common_kwargs, selected_runs=selected_runs)
-    member_run_folders = [str(Path(folder) / f"{Path(folder).name}_output_1") for folder in selected_folders]
+    member_run_folders = [locate_run_folder(session=folder) for folder in selected_folders]
     label_groups(
         member_run_folders=member_run_folders,
         destination_directory=base_dir,
@@ -244,7 +245,7 @@ def test_group_analysis_step_writes_a_named_group_directory(copied_sessions):
     step3(**common_kwargs, selected_runs=selected_runs)
     step4(**common_kwargs, selected_runs=selected_runs)
 
-    member_run_folders = [str(Path(folder) / f"{Path(folder).name}_output_1") for folder in selected_folders]
+    member_run_folders = [locate_run_folder(session=folder) for folder in selected_folders]
     label_groups(
         member_run_folders=member_run_folders,
         destination_directory=base_dir,
@@ -285,7 +286,7 @@ def test_group_analysis_step_rebuilds_the_group_when_a_member_is_dropped(copied_
     step3(**common_kwargs, selected_runs=selected_runs)
     step4(**common_kwargs, selected_runs=selected_runs)
 
-    member_run_folders = [str(Path(folder) / f"{Path(folder).name}_output_1") for folder in selected_folders]
+    member_run_folders = [locate_run_folder(session=folder) for folder in selected_folders]
     label_groups(
         member_run_folders=member_run_folders,
         destination_directory=base_dir,

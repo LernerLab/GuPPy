@@ -36,7 +36,12 @@ from pathlib import Path
 
 import numpy as np
 
-from .utils import _RUN_NAME_MARKER, GROUP_MEMBERS_FILENAME, is_group_folder
+from .utils import (
+    _RUN_NAME_MARKER,
+    GROUP_MEMBERS_FILENAME,
+    is_group_folder,
+    run_directory_root,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -327,6 +332,62 @@ def validate_required_folder_selection(*, file_selectors: Sequence) -> None:
         message = (
             "No folder is selected for analysis. Pick at least one session folder in the "
             "file selector(s) before running this step."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+
+def validate_output_base_directory(*, session_folders: Sequence[str], output_base_directory: str) -> None:
+    """Validate that the output base directory can hold every selected session's runs.
+
+    A session's output directories are named after the session folder, so two sessions
+    with the same folder name writing into the same base directory would claim the same
+    paths.
+
+    Parameters
+    ----------
+    session_folders : sequence of str
+        The session folders whose runs the base directory will hold.
+    output_base_directory : str
+        The directory the output directories are written into, or
+        :data:`~guppy.utils.utils.OUTPUT_BASE_BESIDE_SESSIONS` for one beside each session.
+
+    Raises
+    ------
+    ValueError
+        If two selected sessions would write to the same base directory under the same
+        folder name, or if a base directory is itself one of the selected sessions.
+    """
+    root_and_basename_to_sessions: dict[tuple[str, str], list[str]] = {}
+    for session in session_folders:
+        root = run_directory_root(session_path=str(session), output_base_directory=output_base_directory)
+        basename = Path(str(session).rstrip("/\\")).name
+        root_and_basename_to_sessions.setdefault((root, basename), []).append(str(session))
+
+    colliding = {
+        f"{basename} in {root}": sessions
+        for (root, basename), sessions in root_and_basename_to_sessions.items()
+        if len(sessions) > 1
+    }
+    if colliding:
+        message = (
+            "Sessions writing into the same output base directory must have distinct folder names, "
+            "because their output directories are named '<session folder name>_output_<run>'. "
+            f"Colliding names: {colliding!r}. Rename the session folders, analyse them separately, "
+            "or write outputs inside each session folder."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+    session_paths = {Path(session).resolve() for session in session_folders}
+    overlapping = sorted(
+        {root for (root, _basename) in root_and_basename_to_sessions if Path(root).resolve() in session_paths}
+    )
+    if overlapping:
+        message = (
+            f"The output base directory would be a selected session folder ({overlapping!r}), which "
+            "would write analysis outputs into the raw data it reads. Choose a directory outside the "
+            "selected sessions."
         )
         logger.error(message)
         raise ValueError(message)

@@ -15,7 +15,7 @@ import h5py
 import pandas as pd
 import pytest
 
-from guppy.testing.api import step1, step2, step3, step4
+from guppy.testing.api import locate_run_folder, step1, step2, step3, step4
 from guppy_test_data import STUBBED_TESTING_DATA
 
 # Use the CSV sample as it is the simplest format — no binary TDT dependencies.
@@ -74,11 +74,7 @@ def test_parallel_step3(tmp_path):
     )
 
     # Locate the output directory
-    basename = Path(session_copy).name
-    run_folders = sorted(list(Path(session_copy).glob(f"{basename}_output_*")))
-    assert run_folders, f"No output directories found under {session_copy}"
-    out_dir = next((d for d in run_folders if (Path(d) / "storesList.csv").exists()), None)
-    assert out_dir is not None, "No storesList.csv found in any output directory"
+    out_dir = locate_run_folder(session=str(session_copy))
 
     # Verify that per-store_id HDF5 files were written for each raw store_id
     stores_filepath = Path(out_dir) / "storesList.csv"
@@ -132,11 +128,7 @@ def test_parallel_step5(tmp_path):
     )
 
     # Locate output directory
-    basename = Path(session_copy).name
-    run_folders = sorted(list(Path(session_copy).glob(f"{basename}_output_*")))
-    assert run_folders, f"No output directories found under {session_copy}"
-    out_dir = next((d for d in run_folders if (Path(d) / "storesList.csv").exists()), None)
-    assert out_dir is not None, "No storesList.csv found in any output directory"
+    out_dir = locate_run_folder(session=str(session_copy))
 
     # PSTH and peak/AUC outputs
     psth_h5 = Path(out_dir) / (f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.h5")

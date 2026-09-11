@@ -85,6 +85,30 @@ def test_show_dir_with_explicit_run_name_returns_named_path(tmp_path):
     assert not Path(result).exists()
 
 
+def test_show_dir_numbers_runs_in_the_output_base_directory(tmp_path):
+    session = tmp_path / "session1"
+    session.mkdir()
+    output_base = tmp_path / "guppy_output"
+    output_base.mkdir()
+    (output_base / "session1_output_1").mkdir()
+    # Another session's run in the same base directory must not shift this session's numbering.
+    (output_base / "otherSession_output_2").mkdir()
+
+    result = show_dir(str(session), output_base_directory=str(output_base))
+
+    assert result == str(output_base / "session1_output_2")
+
+
+def test_show_dir_with_explicit_run_name_in_the_output_base_directory(tmp_path):
+    session = tmp_path / "session1"
+    session.mkdir()
+    output_base = tmp_path / "guppy_output"
+
+    result = show_dir(str(session), run_name="strict", output_base_directory=str(output_base))
+
+    assert result == str(output_base / "session1_output_strict")
+
+
 def test_show_dir_invalid_run_name_raises(tmp_path):
     session = tmp_path / "session1"
     session.mkdir()

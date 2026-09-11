@@ -168,7 +168,8 @@ def build_run_folder_page(
     if len(run_folders) == 1:
         return content
 
-    options = {f"{Path(f).parent.name}/{Path(f).name}": f for f in run_folders}
+    # The run folder's own name carries its session, so it identifies the run on its own.
+    options = {Path(f).name: f for f in run_folders}
     folder_select = pn.widgets.Select(name="Run folder", options=options, value=run_folders[0])
 
     def _on_folder_change(event: object) -> None:

@@ -1,12 +1,14 @@
 import numpy as np
 import pytest
 
+from guppy.utils.utils import OUTPUT_BASE_BESIDE_SESSIONS
 from guppy.utils.validation import (
     validate_data_not_combined,
     validate_group_definitions,
     validate_group_folders_selected,
     validate_group_member_run_folders,
     validate_non_negative,
+    validate_output_base_directory,
     validate_peak_windows,
     validate_positive,
     validate_required_folder_selection,
@@ -293,6 +295,29 @@ class TestValidateGroupFoldersSelected:
         folder.mkdir()
         with pytest.raises(ValueError, match="hold no group_members.json"):
             validate_group_folders_selected(group_folders=[str(folder)])
+
+
+class TestValidateOutputBaseDirectory:
+    def test_distinct_session_names_pass(self, tmp_path):
+        sessions = [str(tmp_path / "sessionA"), str(tmp_path / "sessionB")]
+        validate_output_base_directory(session_folders=sessions, output_base_directory=str(tmp_path / "guppy_output"))
+
+    def test_sessions_sharing_a_folder_name_are_rejected(self, tmp_path):
+        sessions = [str(tmp_path / "mouse1" / "day1"), str(tmp_path / "mouse2" / "day1")]
+        with pytest.raises(ValueError, match="distinct folder names"):
+            validate_output_base_directory(
+                session_folders=sessions, output_base_directory=str(tmp_path / "guppy_output")
+            )
+
+    def test_the_base_directory_may_not_be_a_selected_session(self, tmp_path):
+        session = tmp_path / "sessionA"
+        session.mkdir()
+        with pytest.raises(ValueError, match="would be a selected session folder"):
+            validate_output_base_directory(session_folders=[str(session)], output_base_directory=str(session))
+
+    def test_sessions_sharing_a_folder_name_pass_when_each_writes_beside_itself(self, tmp_path):
+        sessions = [str(tmp_path / "mouse1" / "day1"), str(tmp_path / "mouse2" / "day1")]
+        validate_output_base_directory(session_folders=sessions, output_base_directory=OUTPUT_BASE_BESIDE_SESSIONS)
 
 
 class TestValidateSignificanceLevel:

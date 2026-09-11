@@ -39,7 +39,57 @@ from guppy.orchestration.store_labeling import (
 )
 from guppy.orchestration.transients import executeFindFreqAndAmp
 from guppy.orchestration.visualize import visualizeResults
-from guppy.utils.utils import resolve_run_folders, run_folder_for_run
+from guppy.utils.utils import (
+    DEFAULT_OUTPUT_BASE_DIRECTORY_NAME,
+    discover_run_folders,
+    resolve_run_folders,
+    run_folder_for_run,
+)
+
+
+def default_output_base_directory(*, base_dir: str) -> str:
+    """Return the output base directory the homepage defaults to for sessions under ``base_dir``.
+
+    The steps here select sessions that sit directly under ``base_dir``, so the form's
+    default — a ``guppy_output`` directory beside each session — resolves there.
+
+    Parameters
+    ----------
+    base_dir : str
+        Directory the session folders sit directly under.
+
+    Returns
+    -------
+    str
+        Path of the default output base directory.
+    """
+    return str(Path(base_dir) / DEFAULT_OUTPUT_BASE_DIRECTORY_NAME)
+
+
+def locate_run_folder(*, session: str, output_base_directory: str | None = None) -> str:
+    """Return the run folder Step 1 wrote for ``session``.
+
+    Parameters
+    ----------
+    session : str
+        Session folder the run was created for.
+    output_base_directory : str or None, optional
+        Directory the run folders were written into. ``None`` (the default) uses the
+        homepage's default for a session sitting directly under its base directory.
+
+    Returns
+    -------
+    str
+        Path of the session's first run folder holding a ``storesList.csv``.
+    """
+    if output_base_directory is None:
+        output_base_directory = default_output_base_directory(base_dir=str(Path(session).parent))
+    run_folders = discover_run_folders(str(session), output_base_directory=output_base_directory)
+    assert run_folders, f"no output directory was created for {session} in {output_base_directory}"
+    for run_folder in run_folders:
+        if (Path(run_folder) / "storesList.csv").exists():
+            return run_folder
+    raise AssertionError(f"no output directory for {session} in {output_base_directory} contains storesList.csv")
 
 
 def _validate_sessions_under_base_dir(*, abs_sessions: list[str], base_dir: str) -> None:
@@ -298,6 +348,7 @@ def _drive_store_labeling_page(
     store_id_to_store_label: dict[str, str],
     run_name: str | None,
     run_name_policy: str,
+    output_base_directory: str | None,
 ) -> None:
     """Drive one session's Label Stores page to save storesList.csv.
 
@@ -319,6 +370,8 @@ def _drive_store_labeling_page(
         Explicit run-name suffix, or ``None`` for the auto-incremented integer.
     run_name_policy : {"create", "overwrite"}
         Collision behavior for an explicit ``run_name``.
+    output_base_directory : str or None
+        Directory the run folder is written into, as the page resolves it.
     """
     selector = template._widgets["selector"]
 
@@ -358,7 +411,11 @@ def _drive_store_labeling_page(
     selector.show_config_button.clicks += 1
     _raise_on_alert(selector=selector)
 
-    target_run_folder = run_folder_for_run(folder_path, run_name) if run_name is not None else None
+    target_run_folder = (
+        run_folder_for_run(folder_path, run_name, output_base_directory=output_base_directory)
+        if run_name is not None
+        else None
+    )
     if run_name_policy == "overwrite" and target_run_folder is not None and Path(target_run_folder).is_dir():
         selector.overwrite_button.clicked = "over_write_file"
         selector.select_location.value = target_run_folder
@@ -510,6 +567,7 @@ def step1(
             store_id_to_store_label=store_id_to_store_label,
             run_name=run_name,
             run_name_policy=run_name_policy,
+            output_base_directory=input_params["output_base_directory"],
         )
 
 

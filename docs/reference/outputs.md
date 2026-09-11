@@ -6,13 +6,17 @@ Every file GuPPy writes to disk: where it lands, what its name means, and what i
 
 ## Where outputs go
 
-Every output of a run lives in a single directory, the run folder, created as a subdirectory of the session folder:
+Every output of a run lives in a single directory, the run folder, created inside the output base directory:
 
 ```
-<session_folder>/<session_name>_output_<run_name>/
+<output_base_directory>/<session_name>_output_<run_name>/
 ```
 
-`<session_name>` is the session folder's own name, so a session at `/data/Photo_63_207` gets run folders at `/data/Photo_63_207/Photo_63_207_output_1`. `<run_name>` is either the name you type in the Label Stores GUI or, when you leave it to GuPPy, the lowest integer for which no such directory exists yet — `_output_1` on the first run, `_output_2` on the second. Re-running Step 1 over an existing run folder with the overwrite option deletes its entire contents first. Because each run folder is self-contained, one session can hold several runs analyzed under different parameters — see [Comparing Two Parameter Sets](../tutorials/compare_parameters.md).
+The output base directory is chosen in the **Output Folder Selection** card. No analysis output is written into a session folder, so the raw data stays as your acquisition system left it — the one thing GuPPy adds to a session folder is a custom event you explicitly import, which has to sit beside the acquisition files for Step 1 to discover it. Leave the selector empty and each session's runs go into a `guppy_output` directory beside that session, so a session at `/data/Photo_63_207` gets run folders at `/data/guppy_output/Photo_63_207_output_1`. That is resolved per session, so a session's runs stay in the same place no matter which other sessions you have selected alongside it. Picking a directory in the selector instead sends every selected session's runs to that one directory.
+
+`<session_name>` is the session folder's own name, which is what keeps one session's runs apart from another's inside a shared base directory. Sessions writing into the same base directory therefore have to have distinct folder names — with the default they only share one when they sit side by side, in which case they already do. `<run_name>` is either the name you type in the Label Stores GUI or, when you leave it to GuPPy, the lowest integer for which no such directory exists yet — `_output_1` on the first run, `_output_2` on the second. Re-running Step 1 over an existing run folder with the overwrite option deletes its entire contents first. Because each run folder is self-contained, one session can have several runs analyzed under different parameters — see [Comparing Two Parameter Sets](../tutorials/compare_parameters.md).
+
+Setting **Output Location** to *inside each session folder* puts the run folders back where GuPPy wrote them before version 2.0.0-beta4, at `<session_folder>/<session_name>_output_<run_name>/`. Analyses made with an earlier version are only visible with that setting, since the shared base directory does not look inside the session folders.
 
 Three further directories can appear:
 
@@ -43,7 +47,7 @@ A pandas DataFrame written with `DataFrame.to_hdf`, holding exactly one DataFram
 
 ### `.csv`
 
-Flat text. Inside a run folder: the store mappings (`storesList.csv`, `combine_storesList.csv`), tables that also exist as an `.h5` (peak/AUC, transient frequency and amplitude, binned metrics, binned covariates and covariate correlations), and the two tables written as CSV only — `transientsOccurrences_<metric>.csv` and `tonic_epochs_<site>.csv`. The channel exports written outside the run folder are CSV too.
+Flat text. Inside a run folder: the store mappings (`storesList.csv`, `combine_storesList.csv`), the synthetic control trace `cntrl<i>.csv`, tables that also exist as an `.h5` (peak/AUC, transient frequency and amplitude, binned metrics, binned covariates and covariate correlations), and the two tables written as CSV only — `transientsOccurrences_<metric>.csv` and `tonic_epochs_<site>.csv`. Imported custom events are CSV too.
 
 ### `.npy`
 
@@ -325,13 +329,10 @@ The first key is `guppy_version`, the installed version of the `guppy-neuro` pac
 | File | Location | Contents |
 |------|----------|----------|
 | `<name>.csv` | session folder | An imported custom event: one column, header `timestamps` |
-| `cntrl<i>.csv` | session folder | The synthetic control trace, non-isosbestic runs only |
 | `.storesList.json` | your home directory | Cache of previously used store labels |
 | `guppy.log` | platform log directory | Application log |
 
 **Custom events** imported through the Import Custom Events step are written into the session folder as a single-column CSV, where Step 1 discovers them alongside the acquisition system's own stores. See [Import custom events](../how-to/import-custom-events.md).
-
-**`cntrl<i>.csv`** is written by the synthetic-control path in Step 3, alongside the `cntrl<i>.hdf5` placeholder, with columns `timestamps`, `data` and `sampling_rate`. It lands in the session folder rather than the run folder, which means a later Step 1 on the same session will discover it as an available store.
 
 **`.storesList.json`** in your home directory maps each `store_id` you have ever labeled to the labels you gave it, and is used to pre-populate the Label Stores dropdowns. It is shared across all sessions and projects, and is not part of any run's output.
 
@@ -344,7 +345,8 @@ The first key is `guppy_version`, the installed version of the `guppy-neuro` pac
 ```
 <session_folder>/
   <name>.csv                                       imported custom event
-  cntrl<i>.csv                                     step 3, non-isosbestic only
+
+<output_base_directory>/
   <session_name>_output_<run_name>/
     storesList.csv                                 step 1
     .npm_params.json                               step 1, NPM only
@@ -357,6 +359,7 @@ The first key is `guppy_version`, the installed version of the `guppy-neuro` pac
     signal_<site>.hdf5                             step 3   data
     control_<site>.hdf5                            step 3   data
     cntrl<i>.hdf5                                  step 3   non-isosbestic placeholder
+    cntrl<i>.csv                                   step 3   non-isosbestic only
     <event>_<site>.hdf5                            step 3   ts   (rewritten by step 4)
     z_score_<site>.hdf5                            step 3   data
     dff_<site>.hdf5                                step 3   data

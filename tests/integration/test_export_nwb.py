@@ -24,7 +24,7 @@ from guppy.utils.acquisition_format import (
     resolve_session_source,
 )
 from guppy.utils.nwb_io import open_nwbfile_io
-from guppy.utils.utils import parse_run_name
+from guppy.utils.utils import DEFAULT_OUTPUT_BASE_DIRECTORY_NAME, parse_run_name
 from guppy_test_data import STUBBED_TESTING_DATA
 
 from .integration_helpers import SUPPLIED_SESSION_START_TIME, write_metadata_yaml
@@ -341,8 +341,11 @@ class TestExportMixedFormatSession:
         return session_copy
 
     @pytest.fixture
-    def output_directory(self, mixed_session, step5_output_tdt) -> Path:
-        return mixed_session / Path(step5_output_tdt["output_directory"]).name
+    def output_directory(self, step5_output_tdt, tmp_path) -> Path:
+        """The run's outputs, copied beside the mixed session the way GuPPy writes them."""
+        destination = tmp_path / DEFAULT_OUTPUT_BASE_DIRECTORY_NAME / Path(step5_output_tdt["output_directory"]).name
+        shutil.copytree(step5_output_tdt["output_directory"], destination)
+        return destination
 
     def test_the_traces_still_resolve_to_the_acquisition_format(self, mixed_session):
         assert resolve_acquisition_format(str(mixed_session)) == "tdt"

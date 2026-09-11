@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from guppy.testing.api import save_parameters_snapshot
+from guppy.testing.api import default_output_base_directory, save_parameters_snapshot
 
 
 @pytest.fixture(scope="function")
@@ -63,27 +63,30 @@ def test_save_parameters(tmp_path, default_parameters):
     # Act: write the parameter snapshot via the API helper (headless)
     save_parameters_snapshot(base_dir=base_dir, selected_folders=sessions)
 
-    # Assert: JSON written for each session with key defaults
-    for s in sessions:
-        out_fp = Path(s) / "GuPPyParamtersUsed.json"
-        assert Path(out_fp).exists(), f"Missing file: {out_fp}"
-        with Path(out_fp).open() as f:
-            data = json.load(f)
+    # Assert: with no run folders created yet, the snapshot lands in the directory the run
+    # folders will be created in — one beside the sessions, shared because they sit together.
+    out_fp = Path(default_output_base_directory(base_dir=base_dir)) / "GuPPyParamtersUsed.json"
+    assert Path(out_fp).exists(), f"Missing file: {out_fp}"
+    for session in sessions:
+        assert not (Path(session) / "GuPPyParamtersUsed.json").exists(), f"Wrote into the session {session}"
 
-        assert data["guppy_version"] == version("guppy-neuro")
+    with Path(out_fp).open() as f:
+        data = json.load(f)
 
-        # Check that JSON data matches default parameters
-        for key, expected_value in default_parameters.items():
-            if isinstance(expected_value, np.ndarray):
-                np.testing.assert_array_equal(data[key], expected_value)
-            elif isinstance(expected_value, list) and any(isinstance(x, float) and np.isnan(x) for x in expected_value):
-                # Handle lists with NaN values
-                actual = data[key]
-                assert len(actual) == len(expected_value)
-                for i, (a, e) in enumerate(zip(actual, expected_value, strict=True)):
-                    if np.isnan(e):
-                        assert np.isnan(a) or a is None, f"Mismatch at index {i}: expected NaN, got {a}"
-                    else:
-                        assert a == e, f"Mismatch at index {i}: expected {e}, got {a}"
-            else:
-                assert data[key] == expected_value, f"Mismatch for {key}: expected {expected_value}, got {data[key]}"
+    assert data["guppy_version"] == version("guppy-neuro")
+
+    # Check that JSON data matches default parameters
+    for key, expected_value in default_parameters.items():
+        if isinstance(expected_value, np.ndarray):
+            np.testing.assert_array_equal(data[key], expected_value)
+        elif isinstance(expected_value, list) and any(isinstance(x, float) and np.isnan(x) for x in expected_value):
+            # Handle lists with NaN values
+            actual = data[key]
+            assert len(actual) == len(expected_value)
+            for i, (a, e) in enumerate(zip(actual, expected_value, strict=True)):
+                if np.isnan(e):
+                    assert np.isnan(a) or a is None, f"Mismatch at index {i}: expected NaN, got {a}"
+                else:
+                    assert a == e, f"Mismatch at index {i}: expected {e}, got {a}"
+        else:
+            assert data[key] == expected_value, f"Mismatch for {key}: expected {expected_value}, got {data[key]}"

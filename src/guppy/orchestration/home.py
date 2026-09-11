@@ -293,6 +293,8 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
         "psth_progress": sidebar.psth_progress,
         "group_progress": sidebar.group_progress,
         "group_folders_selector": parameter_form.group_folders_selector,
+        "output_location_mode": parameter_form.output_location_mode,
+        "output_base_selector": parameter_form.output_base_selector,
         "remove_artifacts_progress": sidebar.remove_artifacts_progress,
     }
 

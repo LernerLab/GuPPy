@@ -33,7 +33,7 @@ step that touches them.
 1. Click **Label Groups** in the sidebar. A new browser tab opens with the Label Groups page.
 2. Leave the mode at **create_new_group**.
 3. Under **1 · What goes into the group?**, pick the member runs. These are the
-   `<session>_output_<run>` directories found inside each session. They may live under different
+   `<session>_output_<run>` directories in the output base directory. They may live under different
    parent directories.
 4. Under **2 · Where does the group go?**, type a **Group name** and pick the destination
    directory. The name may not contain path separators, `..`, `_output_`, or `_group`.

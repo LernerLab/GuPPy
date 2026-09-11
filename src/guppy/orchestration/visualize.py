@@ -118,7 +118,7 @@ def _validate_psth_outputs_exist(inputParameters: dict[str, object]) -> None:
             # Session not in selected_runs (e.g. it has no _output_* dirs yet, which the
             # homepage gate `validate_selected_runs_for_consumers` skips). Nothing to validate.
             continue
-        run_folders.extend(select_run_folders(filepath, runs))
+        run_folders.extend(select_run_folders(filepath, inputParameters=inputParameters))
 
     if not run_folders:
         return  # Nothing to check; the main function will handle the empty case.
@@ -182,7 +182,7 @@ def visualizeResults(inputParameters: dict[str, object]) -> None:
         run_folders = []
         for i in range(len(session_folders)):
             filepath = session_folders[i]
-            run_folders.append(select_run_folders(filepath, selected_runs.get(filepath)))
+            run_folders.append(select_run_folders(filepath, inputParameters=inputParameters))
         run_folders = list(np.concatenate(run_folders).flatten())
         combined_output_groups = get_all_stores_for_combining_data(run_folders)
         for i in range(len(combined_output_groups)):
@@ -205,7 +205,7 @@ def visualizeResults(inputParameters: dict[str, object]) -> None:
     else:
         for i in range(len(session_folders)):
             filepath = session_folders[i]
-            run_folders = select_run_folders(filepath, selected_runs.get(filepath))
+            run_folders = select_run_folders(filepath, inputParameters=inputParameters)
             for j in range(len(run_folders)):
                 filepath = run_folders[j]
                 store_array = read_stores_list(run_folder=filepath)

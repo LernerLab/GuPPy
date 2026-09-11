@@ -52,8 +52,8 @@ Now the part that is new. Set **over-write storeslist file or create a new one?*
 `create_new_file`, and instead of leaving **Run name** blank, type `filter_100` into it.
 Click **Save**.
 
-A run's name is the suffix on its output folder, `<session>_output_<run name>`, so this
-one creates `sample_data_csv_1_output_filter_100/`. Left blank, it defaults to the next
+A run's name is the suffix on its run folder, `<session>_output_<run name>`, so this
+one creates `sample_data_csv_1_output_filter_100/` in the output base directory. Left blank, it defaults to the next
 free integer — `1`, then `2` — which is what the first tutorial got. Naming the run for
 the parameter you are varying carries that name into the folder name and into the heading
 on the run's visualization dashboard.
@@ -146,14 +146,16 @@ browser's downloads.
 
 ## What landed on disk
 
-The session folder now holds three run folders, the two from this tutorial beside the one
-from the first:
+The output base directory now holds three run folders, the two from this tutorial beside the
+one from the first, with the session folder itself untouched:
 
 ```text
-stubbed_testing_data/csv/sample_data_csv_1/
-├── sample_data_csv_1_output_1/
-├── sample_data_csv_1_output_filter_100/
-└── sample_data_csv_1_output_filter_250/
+stubbed_testing_data/csv/
+├── sample_data_csv_1/
+└── guppy_output/
+    ├── sample_data_csv_1_output_1/
+    ├── sample_data_csv_1_output_filter_100/
+    └── sample_data_csv_1_output_filter_250/
 ```
 
 Each is a complete, independent result — its own raw HDF5 copies, preprocessed traces,

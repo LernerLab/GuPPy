@@ -31,14 +31,20 @@ The first card on the homepage, open by default. Selects the session data the pi
 
 ## Output Folder Selection
 
-The second card on the homepage, collapsed by default. Selects which existing per-session output run the later steps read and write.
+The second card on the homepage, collapsed by default. Says where GuPPy writes its run folders, and selects which existing per-session output run the later steps read and write.
 
-*Used by: Steps 2–5 (every step that operates on an existing output run: Load the raw data, Preprocess the signal, Compute the PSTH, Visualize the results).*
+*Used by: Step 1 (which creates the run folder) and Steps 2–5 (every step that operates on an existing output run: Load the raw data, Preprocess the signal, Compute the PSTH, Visualize the results).*
 
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
+| Output Location | Whether run folders are collected in one base directory or written inside each session folder. | choice | separate output directory | `separate output directory`, `inside each session folder` |
+| (output base directory browser) | The directory the run folders are written into. | path | empty | any directory that is not itself a selected session |
 | Run name(s) for all sessions | Run names to select across every selected session at once. | list of run names | empty | run names found in any selected session |
 | (existing-runs browser) | Existing `*_output_*` run directories the later steps act on. | list of paths | empty | one or more `*_output_*` directories, at least one per selected session |
+
+**Output Location** decides where every run folder goes. On *separate output directory* — the default — no analysis output is written into your session folders, which keeps raw data immutable and lets it live on a read-only volume, be archived, or be checksummed as a unit. Leave the browser under it empty and each session's runs go into a `guppy_output` directory beside that session; because that is worked out one session at a time, a session's runs stay put however you change the selection between steps. Pick a directory in the browser instead and every selected session's runs go there together. Since a run folder is named `<session folder name>_output_<run name>`, sessions writing into the same base directory need distinct folder names, and GuPPy refuses the run rather than letting two sessions write over each other.
+
+*inside each session folder* restores the pre-2.0.0-beta4 layout, where each run folder is created inside the session folder it was analyzed from. Analyses made with an earlier version of GuPPy are only reachable under this setting.
 
 **Existing-runs browser** lists the `*_output_*` directories that already exist for the selected sessions and lets you pick which run each later step acts on. A run directory is created when you configure channels in the Label Stores GUI (Step 1); every step from loading the raw data onward then reads and writes the run you select here.
 

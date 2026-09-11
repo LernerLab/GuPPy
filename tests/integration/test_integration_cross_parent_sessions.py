@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from guppy.testing.api import step1, step2, step3, step4
+from guppy.testing.api import locate_run_folder, step1, step2, step3, step4
 from guppy_test_data import STUBBED_TESTING_DATA
 
 
@@ -28,10 +28,7 @@ def _stage_session(*, session_subdir: str, destination_parent) -> str:
 
 
 def _assert_psth_outputs(*, session_copy: str, recording_site: str, ttl: str) -> None:
-    session_name = Path(session_copy).name
-    output_directories = sorted(list(Path(session_copy).glob(f"{session_name}_output_*")))
-    assert output_directories, f"No output directories found in {session_copy}"
-    output_directory = output_directories[0]
+    output_directory = locate_run_folder(session=str(session_copy))
 
     assert (Path(output_directory) / "storesList.csv").exists(), "Missing storesList.csv"
 

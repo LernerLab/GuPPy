@@ -41,7 +41,15 @@ run_name
   The user-supplied label for a run.
 
 run_folder
-  The directory on disk holding one run's outputs.
+  The directory on disk holding one run's outputs, named
+  `<session folder name>_output_<run_name>` and written into the
+  {term}`output_base_directory`.
+
+output_base_directory
+  The directory a session's run folders are written into, chosen in the Output
+  Folder Selection card. It sits outside the session folder, so analysis output
+  is never written into raw data. By default it is a `guppy_output` directory
+  beside each session; one directory can also be named for every session at once.
 
 group
   A named set of runs whose results are averaged together, giving a cohort- or

@@ -33,12 +33,14 @@ def _write_site(filepath, site):
 
 @pytest.fixture
 def run_folder(tmp_path):
+    run_folder = tmp_path / "mySession_output_1"
+    run_folder.mkdir()
     for site in ("DMS", "DLS"):
-        _write_site(tmp_path, site)
+        _write_site(run_folder, site)
     # Step 3 always leaves a snapshot behind; the page updates its artifact keys on save.
-    with (Path(str(tmp_path)) / "GuPPyParamtersUsed.json").open("w") as parameters_file:
+    with (run_folder / "GuPPyParamtersUsed.json").open("w") as parameters_file:
         json.dump({"removeArtifacts": False, "artifactsRemovalMethod": "replace with NaN"}, parameters_file)
-    return tmp_path
+    return run_folder
 
 
 @pytest.fixture

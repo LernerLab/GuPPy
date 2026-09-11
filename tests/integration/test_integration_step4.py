@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from guppy.testing.api import step1, step2, step3, step4
+from guppy.testing.api import locate_run_folder, step1, step2, step3, step4
 from guppy_test_data import STUBBED_TESTING_DATA
 
 
@@ -162,5 +162,5 @@ def test_step4_rejects_events_that_share_no_timeline_with_the_signal(tmp_path):
     with pytest.raises(ValueError, match=r"no trial overlaps the 'region' signal"):
         step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
 
-    output_directory = next(session_copy.glob("sample_data_csv_1_output_*"))
+    output_directory = Path(locate_run_folder(session=str(session_copy)))
     assert list(output_directory.glob("ttl_region_z_score_region.h5")) == []

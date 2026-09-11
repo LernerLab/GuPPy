@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from guppy.utils import utils
 from guppy.utils.utils import (
     GROUP_MEMBERS_FILENAME,
     NPM_PARAM_KEYS,
@@ -20,12 +19,14 @@ from guppy.utils.utils import (
     load_npm_params,
     parse_group_name,
     parse_run_name,
+    parse_session_basename,
     read_Df,
     read_group_members,
     resolve_run_folders,
     run_folder_for_run,
     select_run_folders,
     selected_session_runs,
+    sibling_run_folders,
     takeOnlyDirs,
     transient_event_labels,
     validate_group_name,
@@ -203,6 +204,16 @@ def test_output_dir_for_run_does_not_create_directory(tmp_path):
     assert not Path(result).exists()
 
 
+def test_output_dir_for_run_places_the_run_in_the_output_base_directory(tmp_path):
+    session = tmp_path / "mySession"
+    session.mkdir()
+    output_base = tmp_path / "guppy_output"
+
+    result = run_folder_for_run(str(session), "baseline", output_base_directory=str(output_base))
+
+    assert result == str(output_base / "mySession_output_baseline")
+
+
 # ── discover_run_folders ──────────────────────────────────────────────────────
 
 
@@ -242,6 +253,77 @@ def test_discover_output_dirs_empty_when_no_outputs(tmp_path):
     assert discover_run_folders(str(session)) == []
 
 
+def test_discover_output_dirs_in_base_returns_only_this_sessions_runs(tmp_path):
+    session = tmp_path / "mySession"
+    session.mkdir()
+    output_base = tmp_path / "guppy_output"
+    output_base.mkdir()
+    (output_base / "mySession_output_1").mkdir()
+    (output_base / "mySession_output_baseline").mkdir()
+    (output_base / "otherSession_output_1").mkdir()
+
+    result = discover_run_folders(str(session), output_base_directory=str(output_base))
+
+    assert result == [
+        str(output_base / "mySession_output_1"),
+        str(output_base / "mySession_output_baseline"),
+    ]
+
+
+def test_discover_output_dirs_empty_when_the_output_base_directory_is_absent(tmp_path):
+    session = tmp_path / "mySession"
+    session.mkdir()
+
+    assert discover_run_folders(str(session), output_base_directory=str(tmp_path / "not_created_yet")) == []
+
+
+# ── parse_session_basename ────────────────────────────────────────────────────
+
+
+def test_parse_session_basename_returns_the_prefix(tmp_path):
+    assert parse_session_basename(str(tmp_path / "guppy_output" / "mySession_output_baseline")) == "mySession"
+
+
+def test_parse_session_basename_splits_on_the_last_marker():
+    assert parse_session_basename("/base/a_output_b_output_2") == "a_output_b"
+
+
+def test_parse_session_basename_raises_for_a_non_run_folder():
+    with pytest.raises(ValueError, match="does not match"):
+        parse_session_basename("/base/mySession")
+
+
+# ── sibling_run_folders ───────────────────────────────────────────────────────
+
+
+def test_sibling_run_folders_finds_the_sessions_other_runs_in_a_shared_base(tmp_path):
+    output_base = tmp_path / "guppy_output"
+    output_base.mkdir()
+    for name in ("mySession_output_1", "mySession_output_2", "otherSession_output_1"):
+        (output_base / name).mkdir()
+
+    result = sibling_run_folders(str(output_base / "mySession_output_1"))
+
+    assert result == [
+        str(output_base / "mySession_output_1"),
+        str(output_base / "mySession_output_2"),
+    ]
+
+
+def test_sibling_run_folders_finds_runs_inside_the_session_folder(tmp_path):
+    session = tmp_path / "mySession"
+    session.mkdir()
+    (session / "mySession_output_1").mkdir()
+    (session / "mySession_output_2").mkdir()
+
+    result = sibling_run_folders(str(session / "mySession_output_2"))
+
+    assert result == [
+        str(session / "mySession_output_1"),
+        str(session / "mySession_output_2"),
+    ]
+
+
 # ── select_run_folders ────────────────────────────────────────────────────────
 
 
@@ -251,7 +333,7 @@ def test_select_output_dirs_none_raises(tmp_path):
     (session / "mySession_output_1").mkdir()
 
     with pytest.raises(ValueError, match="explicit non-empty list"):
-        select_run_folders(str(session), None)
+        select_run_folders(str(session), inputParameters={"selected_runs": {str(session): None}})
 
 
 def test_select_output_dirs_filters_to_requested_runs(tmp_path):
@@ -262,9 +344,27 @@ def test_select_output_dirs_filters_to_requested_runs(tmp_path):
         directory.mkdir()
         (directory / "storesList.csv").touch()
 
-    result = select_run_folders(str(session), ["baseline"])
+    result = select_run_folders(str(session), inputParameters={"selected_runs": {str(session): ["baseline"]}})
 
     assert result == [str(session / "mySession_output_baseline")]
+
+
+def test_select_output_dirs_reads_the_output_base_directory(tmp_path):
+    session = tmp_path / "mySession"
+    session.mkdir()
+    output_base = tmp_path / "guppy_output"
+    output_base.mkdir()
+    for run_name in ("1", "baseline"):
+        directory = output_base / f"mySession_output_{run_name}"
+        directory.mkdir()
+        (directory / "storesList.csv").touch()
+
+    result = select_run_folders(
+        str(session),
+        inputParameters={"selected_runs": {str(session): ["baseline"]}, "output_base_directory": str(output_base)},
+    )
+
+    assert result == [str(output_base / "mySession_output_baseline")]
 
 
 def test_select_output_dirs_raises_for_missing_run_name(tmp_path):
@@ -274,7 +374,7 @@ def test_select_output_dirs_raises_for_missing_run_name(tmp_path):
     (session / "mySession_output_1" / "storesList.csv").touch()
 
     with pytest.raises(ValueError, match="Output directory not found"):
-        select_run_folders(str(session), ["nonexistent"])
+        select_run_folders(str(session), inputParameters={"selected_runs": {str(session): ["nonexistent"]}})
 
 
 def test_select_output_dirs_raises_when_storeslist_missing(tmp_path):
@@ -283,7 +383,7 @@ def test_select_output_dirs_raises_when_storeslist_missing(tmp_path):
     (session / "mySession_output_baseline").mkdir()  # no storesList.csv
 
     with pytest.raises(ValueError, match="storesList.csv"):
-        select_run_folders(str(session), ["baseline"])
+        select_run_folders(str(session), inputParameters={"selected_runs": {str(session): ["baseline"]}})
 
 
 def test_select_output_dirs_empty_list_raises(tmp_path):
@@ -292,7 +392,7 @@ def test_select_output_dirs_empty_list_raises(tmp_path):
     (session / "mySession_output_1").mkdir()
 
     with pytest.raises(ValueError, match="explicit non-empty list"):
-        select_run_folders(str(session), [])
+        select_run_folders(str(session), inputParameters={"selected_runs": {str(session): []}})
 
 
 # ── validate_run_name ─────────────────────────────────────────────────────────
@@ -452,16 +552,49 @@ class TestEventLabelsForAnalysis:
 
 
 class TestResolveRunFolders:
-    def test_non_combine_returns_per_session_run_folders(self, monkeypatch):
-        monkeypatch.setattr(utils, "select_run_folders", lambda session, runs: [session + "/output_1"])
-        result = resolve_run_folders(["/a", "/b"], {"combine_data": False, "selected_runs": {}})
-        assert result == ["/a/output_1", "/b/output_1"]
+    @pytest.fixture
+    def sessions_with_one_run_each(self, tmp_path):
+        """Two sessions, each with a run named "1" written into a shared output base."""
+        output_base = tmp_path / "guppy_output"
+        output_base.mkdir()
+        sessions = []
+        for session_name in ("session_a", "session_b"):
+            session = tmp_path / session_name
+            session.mkdir()
+            run_folder = output_base / f"{session_name}_output_1"
+            run_folder.mkdir()
+            (run_folder / "storesList.csv").touch()
+            sessions.append(str(session))
+        return sessions, str(output_base)
 
-    def test_combine_returns_first_folder_of_each_group(self, monkeypatch):
-        monkeypatch.setattr(utils, "select_run_folders", lambda session, runs: [session + "/output_1"])
-        monkeypatch.setattr(utils, "get_all_stores_for_combining_data", lambda folders: [[folders[0], folders[1]]])
-        result = resolve_run_folders(["/a", "/b"], {"combine_data": True, "selected_runs": {}})
-        assert result == ["/a/output_1"]
+    def test_non_combine_returns_per_session_run_folders(self, sessions_with_one_run_each):
+        sessions, output_base = sessions_with_one_run_each
+        result = resolve_run_folders(
+            sessions,
+            {
+                "combine_data": False,
+                "output_base_directory": output_base,
+                "selected_runs": {session: ["1"] for session in sessions},
+            },
+        )
+        assert result == [
+            str(Path(output_base) / "session_a_output_1"),
+            str(Path(output_base) / "session_b_output_1"),
+        ]
+
+    def test_combine_returns_first_folder_of_each_group(self, sessions_with_one_run_each):
+        sessions, output_base = sessions_with_one_run_each
+        result = resolve_run_folders(
+            sessions,
+            {
+                "combine_data": True,
+                "output_base_directory": output_base,
+                "selected_runs": {session: ["1"] for session in sessions},
+            },
+        )
+        # Both runs share the run name "1", so they combine into one group whose first
+        # folder (alphabetical by path) represents it.
+        assert result == [str(Path(output_base) / "session_a_output_1")]
 
 
 class TestSelectedSessionRuns:

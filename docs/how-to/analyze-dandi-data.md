@@ -96,7 +96,7 @@ Nothing from the archive is cached. Under the output directory you chose:
 | Path | Contents |
 |------|----------|
 | `<asset name>/` | Session folder, one per selected asset |
-| `<asset name>/<asset name>_output_1/` | Run folder |
+| `guppy_output/<asset name>_output_1/` | Run folder, in the output base directory beside the session folders |
 | `.../storesList.csv` | Store-to-label mapping from Step 1 |
 | `.../<store id>.hdf5` | One raw stream per store from Step 2, named by store id (e.g. `fiber_photometry_response_series_0.hdf5`) |
 

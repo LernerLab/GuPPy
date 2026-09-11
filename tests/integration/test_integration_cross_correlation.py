@@ -7,7 +7,7 @@ import pandas as pd
 import pytest
 
 from guppy.frontend.visualization_dashboard import VisualizationDashboard
-from guppy.testing.api import step1, step2, step3, step4, step5
+from guppy.testing.api import locate_run_folder, step1, step2, step3, step4, step5
 from guppy_test_data import STUBBED_TESTING_DATA
 
 
@@ -81,15 +81,7 @@ def test_cross_correlation(tmp_path):
     )
 
     # Locate output directory
-    basename = Path(session_copy).name
-    run_folders = sorted(list(Path(session_copy).glob(f"{basename}_output_*")))
-    assert run_folders, f"No output directories found in {session_copy}"
-    out_dir = None
-    for d in run_folders:
-        if (Path(d) / "storesList.csv").exists():
-            out_dir = d
-            break
-    assert out_dir is not None, f"No storesList.csv found in any output directory under {session_copy}"
+    out_dir = locate_run_folder(session=str(session_copy))
 
     # Standard PSTH outputs for both recording sites
     for recording_site in ("dms", "dls"):

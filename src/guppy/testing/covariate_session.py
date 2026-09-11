@@ -9,7 +9,7 @@ with the same store labels and bin width, so that run lives here.
 import shutil
 from pathlib import Path
 
-from guppy.testing.api import step1, step2, step3, step4
+from guppy.testing.api import locate_run_folder, step1, step2, step3, step4
 from guppy.utils.utils import parse_run_name
 
 SESSION_NAME = "sample_data_csv_covariate_1"
@@ -25,16 +25,6 @@ STORE_ID_TO_STORE_LABEL = {
     "akinesia": "covariate_akinesia",
     "grooming": "covariate_grooming",
 }
-
-
-def locate_output_directory(*, session: str) -> str:
-    """Return the run folder Step 1 created inside ``session``."""
-    candidates = sorted(Path(session).glob(f"{Path(session).name}_output_*"))
-    assert candidates, f"no output directory was created in {session}"
-    for candidate in candidates:
-        if (candidate / "storesList.csv").exists():
-            return str(candidate)
-    raise AssertionError(f"no output directory in {session} contains storesList.csv")
 
 
 def run_covariate_session(*, session_path: str | Path, base_directory: str | Path) -> str:
@@ -55,7 +45,7 @@ def run_covariate_session(*, session_path: str | Path, base_directory: str | Pat
         store_id_to_store_label=STORE_ID_TO_STORE_LABEL,
     )
 
-    output_directory = locate_output_directory(session=str(session))
+    output_directory = locate_run_folder(session=str(session))
     selected_runs = {str(session): [parse_run_name(output_directory)]}
     step2(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step3(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)

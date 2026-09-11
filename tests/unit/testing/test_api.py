@@ -311,6 +311,24 @@ def staged_csv_session(tmp_path):
 
 
 class TestStep1Driver:
+    def test_the_run_folder_lands_beside_the_session_and_leaves_it_untouched(self, staged_csv_session):
+        session = Path(staged_csv_session["session"])
+        before = sorted(path.name for path in session.iterdir())
+
+        testing_api.step1(
+            base_dir=staged_csv_session["base_dir"],
+            selected_folders=[str(session)],
+            store_id_to_store_label={
+                "Sample_Control_Channel": "control_region",
+                "Sample_Signal_Channel": "signal_region",
+                "Sample_TTL": "ttl",
+            },
+        )
+
+        expected_base = Path(testing_api.default_output_base_directory(base_dir=staged_csv_session["base_dir"]))
+        assert (expected_base / "sample_data_csv_1_output_1" / "storesList.csv").exists()
+        assert sorted(path.name for path in session.iterdir()) == before
+
     def test_unknown_store_id_raises(self, staged_csv_session):
         with pytest.raises(ValueError, match="not discovered"):
             testing_api.step1(
@@ -355,8 +373,8 @@ class TestStep1Driver:
             isosbestic_control=False,
         )
 
-        stores_list_path = Path(staged_csv_session["session"]) / "sample_data_csv_1_output_1" / "storesList.csv"
-        assert Path(stores_list_path).exists()
+        run_folder = testing_api.locate_run_folder(session=staged_csv_session["session"])
+        assert (Path(run_folder) / "storesList.csv").exists()
 
 
 @pytest.fixture

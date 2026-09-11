@@ -38,7 +38,9 @@ logger = logging.getLogger(__name__)
 _UNSUPPORTED_ARTIFACT_REMOVAL_METHOD = "concatenate"
 
 
-def _validate_artifact_removal_methods(*, pairs: list[tuple[str, str]]) -> None:
+def _validate_artifact_removal_methods(
+    *, pairs: list[tuple[str, str]], output_base_directory: str | None = None
+) -> None:
     """Abort the NWB export batch if any selected run had its artifacts removed by ``concatenate``.
 
     ``concatenate`` re-times the kept samples onto a fresh timeline (see GuPPy issue #354),
@@ -50,6 +52,8 @@ def _validate_artifact_removal_methods(*, pairs: list[tuple[str, str]]) -> None:
     ----------
     pairs : list of (str, str)
         ``(session_path, run_name)`` pairs selected for export.
+    output_base_directory : str or None, optional
+        Directory holding the run folders; ``None`` looks inside each session folder.
 
     Raises
     ------
@@ -59,7 +63,7 @@ def _validate_artifact_removal_methods(*, pairs: list[tuple[str, str]]) -> None:
     """
     offending = []
     for session_path, run_name in pairs:
-        guppy_folder_path = run_folder_for_run(session_path, run_name)
+        guppy_folder_path = run_folder_for_run(session_path, run_name, output_base_directory=output_base_directory)
         artifacts_removed, removal_method = read_artifact_provenance(destination=guppy_folder_path)
         if artifacts_removed and removal_method == _UNSUPPORTED_ARTIFACT_REMOVAL_METHOD:
             offending.append(f"{Path(session_path.rstrip(os.sep)).name} ({run_name})")
@@ -277,13 +281,14 @@ def orchestrate_export_nwb(inputParameters: dict[str, object]) -> None:
     ends.
     """
     pairs = selected_session_runs(inputParameters=inputParameters)
+    output_base_directory = inputParameters.get("output_base_directory")
     validate_data_not_combined(combine_data=inputParameters["combine_data"])
-    _validate_artifact_removal_methods(pairs=pairs)
+    _validate_artifact_removal_methods(pairs=pairs, output_base_directory=output_base_directory)
     progress.start(len(pairs))
 
     failures = []
     for session_path, run_name in pairs:
-        guppy_folder_path = run_folder_for_run(session_path, run_name)
+        guppy_folder_path = run_folder_for_run(session_path, run_name, output_base_directory=output_base_directory)
         session_basename = Path(session_path.rstrip(os.sep)).name
         output_dir_name = Path(guppy_folder_path.rstrip(os.sep)).name
         metadata_yaml_path = Path(guppy_folder_path) / METADATA_FILENAME

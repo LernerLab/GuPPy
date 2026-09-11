@@ -3,7 +3,11 @@ import logging
 from importlib.metadata import version
 from pathlib import Path
 
-from guppy.utils.utils import discover_run_folders, select_run_folders
+from guppy.utils.utils import (
+    discover_run_folders,
+    run_directory_root,
+    select_run_folders,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -180,8 +184,8 @@ def save_parameters(
     configuration is written into each output directory selected by the
     ``selected_runs`` filter. When a session has no output directories yet
     (e.g. parameters are saved before Label Stores (Step 1) creates any output
-    directories), the file is written at the session root as a fallback so the
-    legacy ordering still works.
+    directories), the file is written into the output base directory instead —
+    or, under the inside-the-session layout, at the session root.
 
     Parameters
     ----------
@@ -197,14 +201,14 @@ def save_parameters(
     """
     logger.debug("Saving Input Parameters file.")
     analysisParameters = build_analysis_parameters(inputParameters=inputParameters)
-    selected_runs = inputParameters.get("selected_runs") or {}
+    output_base_directory = inputParameters.get("output_base_directory")
     for session in inputParameters["session_folders"]:
-        # Fall back to the session root when no output dirs exist yet so parameter
-        # saving can still run before Label Stores (Step 1) creates output dirs.
-        if not discover_run_folders(session):
-            destinations = [session]
+        # Fall back to the directory the run folders will be created in when none exist
+        # yet, so parameter saving can still run before Label Stores (Step 1) creates them.
+        if not discover_run_folders(session, output_base_directory=output_base_directory):
+            destinations = [run_directory_root(session_path=session, output_base_directory=output_base_directory)]
         else:
-            destinations = select_run_folders(session, selected_runs.get(session))
+            destinations = select_run_folders(session, inputParameters=inputParameters)
         for destination in destinations:
             write_analysis_parameters(
                 destination=destination,
