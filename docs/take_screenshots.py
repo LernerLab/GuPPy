@@ -734,9 +734,7 @@ def screenshot_visualization(page: Page, tmp_path: Path) -> None:
 def screenshot_run_name_section(page: Page, *, run_name: str, filename: str) -> None:
     """Screenshot the Label Stores save section with **Create new run** selected.
 
-    Only the save block is in shot, with **Run name** holding ``run_name``: the
-    compare-parameters tutorial names a run after the parameter it varies, and the
-    combine-data guide keeps the integer GuPPy fills in.
+    Only the save block is in shot, with **Run name** holding ``run_name``.
     """
     selector = StoreLabelingSelector(allnames=["Sample_Control_Channel"])
     selector.run_name.value = run_name
