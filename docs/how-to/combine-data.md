@@ -33,11 +33,11 @@ GuPPy groups sessions to combine by their **run name** — the suffix on the
 halves must use the same run name.
 
 1. Run **Step 1: Label Stores** on the first half, labeling its recording
-   sites as usual. Leave **Run name** blank so it defaults to `1` (or set an
+   sites as usual. Leave **Run name** at the `1` GuPPy fills in (or set an
    explicit name if you prefer — the second half just needs to match it).
 
    ```{image} ../_static/images/combine_data_run_name.png
-   :alt: The Label Stores GUI's "Choose how to save this store_array" section, showing the over-write-or-create-new selector set to create a new file and an empty Run name field with placeholder text "optional — defaults to next available integer"
+   :alt: The Label Stores GUI's "Choose where to save these store labels" section, with Create new run selected and the Run name field holding the default 1
    :width: 70%
    ```
 

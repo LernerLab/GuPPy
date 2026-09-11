@@ -129,15 +129,15 @@ The three CSV filenames appear in the left list (**Filter available options**) o
    }
    ```
 
-5. **Choose the output directory.** Use the **over-write storeslist file or create a new one?** menu button and select `create_new_file`.
+5. **Choose the output directory.** Leave **Create new run** selected, and leave the **Run name** GuPPy fills in, `1`.
 
-   Despite the menu's name, this choice does more than name a file. It picks the **output directory** for the entire analysis pipeline. From this point on, every downstream step (Read Raw Data, Preprocess, PSTH Computation, Visualization) writes its outputs (HDF5 files, PSTH results, plots) into that directory and reads `storesList.csv` from it to know which raw channel maps to which store. `create_new_file` makes a fresh subdirectory inside the session folder, named `<session>_output_<N>/` with `<N>` auto-incremented (`_output_1` on the first run, `_output_2` on the second, and so on).
+   This choice picks the **output directory** for the entire analysis pipeline. From this point on, every downstream step (Read Raw Data, Preprocess, PSTH Computation, Visualization) writes its outputs (HDF5 files, PSTH results, plots) into that directory and reads `storesList.csv` from it to know which raw channel maps to which store. **Create new run** makes a fresh subdirectory inside the session folder, named `<session>_output_<run name>/`. The run name GuPPy fills in is the next free integer, so the first run gets `_output_1`, the second `_output_2`, and so on.
 
    :::{note}
-   The other menu option, `over_write_file`, is for re-running on a session that already has an output subdirectory. It lets you point at an existing `<session>_output_<N>/`, deletes everything inside it (the previous `storesList.csv` plus any HDF5 and PSTH results from the previous run), and starts that subdirectory over fresh. Pick `over_write_file` only when you genuinely want that destructive behavior. For the tutorial, ignore it.
+   The other option, **Overwrite existing run**, is for re-running on a session that already has an output subdirectory. It swaps the run name for a **Run to overwrite** picker listing the existing `<session>_output_<run name>/` folders, deletes everything inside the one you pick (the previous `storesList.csv` plus any HDF5 and PSTH results from the previous run), and starts that subdirectory over fresh. Pick it only when you genuinely want that destructive behavior. For the tutorial, ignore it.
    :::
 
-6. **Click Save.** GuPPy creates the output subdirectory (e.g. `sample_data_csv_1_output_1/`) and writes `storesList.csv` into it, and a green **Stores saved** message appears below the button naming that folder. The downstream steps will read and write inside this folder.
+6. **Click Save.** GuPPy creates the output subdirectory (e.g. `sample_data_csv_1_output_1/`) and writes `storesList.csv` into it, and a notification in the corner of the page confirms the folder the store labels were saved to. The downstream steps will read and write inside this folder.
 
 You can close this Label Stores tab and return to the original homepage tab. Open **Output Folder Selection** and, under **Existing runs (steps 2–5)**, select `sample_data_csv_1_output_1`. Every step from here on acts on the runs selected there.
 

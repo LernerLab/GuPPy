@@ -1,11 +1,13 @@
 import json
 import logging
+from pathlib import Path
 
 import panel as pn
 
+from . import nwb_form_style as style
 from .store_labeling_config import StoreLabelingConfig
 
-pn.extension()
+pn.extension(notifications=True)
 
 logger = logging.getLogger(__name__)
 
@@ -21,9 +23,9 @@ class StoreLabelingSelector:
     """
 
     def __init__(self, allnames: list[str]) -> None:
-        self.alert = pn.pane.Alert("#### No alerts !!", alert_type="danger", height=80, width=600)
+        self.alert = pn.pane.Alert("#### No alerts !!", alert_type="danger", width=600, visible=False)
         if len(allnames) == 0:
-            self.alert.object = (
+            self.set_alert_message(
                 "####Alert !! \n No store_ids found. There are not any TDT files or csv files to look for store_ids."
             )
 
@@ -49,37 +51,31 @@ class StoreLabelingSelector:
 
         self.text = pn.widgets.LiteralInput(value=[], name="Selected Stores", type=list, width=600)
 
-        self.saved_message = pn.pane.Alert("", alert_type="success", width=600, visible=False)
+        self._saved_notification = None
 
         self.mark_down_for_overwrite = pn.pane.Markdown(
             """
-**Choose how to save this store_array:**
+**Choose where to save these store labels:**
 
-- **create_new_file** — create a new output folder. Optionally set **Run name** below; leave blank to use the next available integer.
-- **over_write_file** — replace an existing output folder. Pick which one in **Select location of the file to over-write**.
+- **Create new run** — save into a new output folder named after **Run name**.
+- **Overwrite existing run** — replace the output folder picked in **Run to overwrite**.
             """,
             width=600,
         )
 
-        self.run_name = pn.widgets.TextInput(
-            name="Run name",
-            value="",
-            placeholder="optional — defaults to next available integer",
-            width=600,
-        )
+        self.run_name = pn.widgets.TextInput(name="Run name", value="", width=600)
 
-        self.select_location = pn.widgets.Select(
-            name="Select location of the file to over-write", value="None", options=["None"], width=600
-        )
+        self.select_location = pn.widgets.Select(name="Run to overwrite", options=[], width=600, visible=False)
 
-        self.overwrite_button = pn.widgets.MenuButton(
-            name="over-write storeslist file or create a new one?  ",
-            items=["over_write_file", "create_new_file"],
-            button_type="default",
-            split=True,
-            width=600,
+        self.overwrite_mode = pn.widgets.RadioBoxGroup(
+            options={"Create new run": "create_new_file", "Overwrite existing run": "over_write_file"},
+            value="create_new_file",
+            inline=True,
+            stylesheets=[
+                f":host label {{ color: {style.INK}; font-size: 13px; }} "
+                f':host input[type="radio"] {{ accent-color: {style.ACCENT}; }}'
+            ],
         )
-        self._current_overwrite_mode = "create_new_file"
 
         self.literal_input_2 = pn.widgets.CodeEditor(
             value="""{}""", theme="tomorrow", language="json", height=250, width=600
@@ -115,11 +111,10 @@ class StoreLabelingSelector:
             self.literal_input_2,
             self.alert,
             self.mark_down_for_overwrite,
-            self.overwrite_button,
+            self.overwrite_mode,
             self.run_name,
             self.select_location,
             self.save,
-            self.saved_message,
         )
 
     def callback(self, target: pn.WidgetBox, event: object) -> None:
@@ -154,19 +149,23 @@ class StoreLabelingSelector:
         Parameters
         ----------
         options : list of str
-            New list of location options to display.
+            Run folder paths to offer, each labelled by its folder name.
         """
-        self.select_location.options = options
+        # Pick the value alongside the options: when Panel picks it on its own, the pick never reaches the
+        # browser and the dropdown renders blank.
+        value = self.select_location.value if self.select_location.value in options else next(iter(options), None)
+        self.select_location.param.update(options={Path(option).name: option for option in options}, value=value)
 
     def set_alert_message(self, message: str) -> None:
-        """Set the text shown in the alert pane.
+        """Set the text shown in the alert pane, hiding the pane when there is nothing to report.
 
         Parameters
         ----------
         message : str
-            Markdown-formatted alert message.
+            Markdown-formatted alert message; ``"#### No alerts !!"`` hides the pane.
         """
         self.alert.object = message
+        self.alert.visible = message != "#### No alerts !!"
 
     def get_literal_input_2(self) -> dict[str, object]:  # TODO: come up with a better name for this method.
         """Parse and return the JSON store_ids mapping from the code editor widget.
@@ -239,19 +238,22 @@ class StoreLabelingSelector:
         return self.cross_selector.value
 
     def show_saved_message(self, message: str) -> None:
-        """Show the confirmation beneath the Save button.
+        """Pop up a confirmation that stays until dismissed, replacing any earlier one.
 
         Parameters
         ----------
         message : str
-            Markdown-formatted confirmation message.
+            HTML-formatted confirmation message.
         """
-        self.saved_message.object = message
-        self.saved_message.visible = True
+        self.hide_saved_message()
+        if pn.state.notifications is not None:
+            self._saved_notification = pn.state.notifications.success(message, duration=0)
 
     def hide_saved_message(self) -> None:
-        """Hide the confirmation beneath the Save button."""
-        self.saved_message.visible = False
+        """Dismiss the save confirmation, if one is showing."""
+        if self._saved_notification is not None:
+            self._saved_notification.destroy()
+            self._saved_notification = None
 
     def attach_callbacks(self, button_name_to_onclick_fn: dict[str, object]) -> None:
         """Register click-handler callbacks on selector buttons.
@@ -263,19 +265,37 @@ class StoreLabelingSelector:
             that should be invoked when that button is clicked.
         """
         for button_name, onclick_fn in button_name_to_onclick_fn.items():
-            button = getattr(self, button_name)
-            if button_name == "overwrite_button":
-                # Wrap the user callback so we can also remember the current
-                # mode (for get_overwrite_mode) and hide the run-name field in
-                # overwrite mode where it has no effect.
-                def remember_then_call(event: object, _user_callback: object = onclick_fn) -> None:
-                    self._current_overwrite_mode = event.new
-                    self.run_name.visible = event.new == "create_new_file"
-                    _user_callback(event)
+            getattr(self, button_name).on_click(onclick_fn)
 
-                button.on_click(remember_then_call)
-            else:
-                button.on_click(onclick_fn)
+    def attach_overwrite_mode_watcher(self, callback: object) -> None:
+        """Attach a watcher that fires when the create-new / overwrite choice changes.
+
+        Creating a new run shows the run-name field; overwriting shows the run picker instead.
+
+        Parameters
+        ----------
+        callback : callable
+            Function with signature ``callback(event)`` where ``event.new`` is
+            ``"create_new_file"`` or ``"over_write_file"``.
+        """
+
+        def show_mode_widgets_then_call(event: object) -> None:
+            creating = event.new == "create_new_file"
+            self.run_name.visible = creating
+            self.select_location.visible = not creating
+            callback(event)
+
+        self.overwrite_mode.param.watch(show_mode_widgets_then_call, "value")
+
+    def set_run_name(self, value: str) -> None:
+        """Set the run-name TextInput value.
+
+        Parameters
+        ----------
+        value : str
+            Run name to display.
+        """
+        self.run_name.value = value
 
     def attach_run_name_watcher(self, callback: object) -> None:
         """Attach a watcher that fires when the run-name TextInput value changes.
@@ -306,7 +326,7 @@ class StoreLabelingSelector:
         str
             ``"over_write_file"`` or ``"create_new_file"``.
         """
-        return self._current_overwrite_mode
+        return self.overwrite_mode.value
 
     def configure_store_ids(self, store_id_to_store_labels: dict[str, list[str]]) -> None:
         """Build the store_id-configuration panel for ``self.store_ids`` and make it visible.

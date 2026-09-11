@@ -31,6 +31,7 @@ from guppy.utils.stores_list import write_stores_list
 from guppy.utils.utils import (
     NPM_PARAM_KEYS,
     discover_run_folders,
+    parse_run_name,
     run_folder_for_run,
     validate_run_name,
     write_npm_params,
@@ -342,7 +343,7 @@ def build_store_labeling_template(
 
     # ------------------------------------------------------------------------------------------------------------------
     # onclick closure functions
-    # on clicking overwrite_button, following function is executed
+    # on switching between creating a new run and overwriting one, following function is executed
     def overwrite_button_actions(event: object) -> None:
         if event.new == "over_write_file":
             options = discover_run_folders(folder_path)
@@ -418,9 +419,7 @@ def build_store_labeling_template(
             store_labeling_selector.hide_saved_message()
             return
         store_labeling_selector.show_saved_message(
-            f"#### Stores saved\n`storesList.csv` is saved in `{select_location}`. You can close this tab.\n\n"
-            f"Back on the GuPPy homepage, select `{Path(select_location).name}` under **Output Folder Selection**, "
-            "then click **Read Raw Data**."
+            f"Saved the store labels to <b>{select_location}</b>. You may now close this tab."
         )
         if on_saved is not None:
             on_saved()
@@ -453,11 +452,14 @@ def build_store_labeling_template(
     button_name_to_onclick_fn = {
         "update_options": update_values,
         "save": save_button,
-        "overwrite_button": overwrite_button_actions,
         "show_config_button": fetchValues,
     }
     store_labeling_selector.attach_callbacks(button_name_to_onclick_fn)
+    store_labeling_selector.attach_overwrite_mode_watcher(overwrite_button_actions)
     store_labeling_selector.attach_run_name_watcher(run_name_input_changed)
+    # The page opens in create-new-run mode, so fill the run name with the next free integer;
+    # the run-name watcher resolves it to the run folder Save will create.
+    store_labeling_selector.set_run_name(parse_run_name(show_dir(folder_path)))
 
     if npm_interactive is not None:
         store_labeling_instructions.confirm_button.on_click(confirm_npm_configuration)
