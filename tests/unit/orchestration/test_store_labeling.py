@@ -538,7 +538,8 @@ class CapturingStoreLabelingSelector:
         self.alert_message = None
         self.select_location_options = None
         self.change_widgets_value = None
-        self.path_value = None
+        self.saved_message = None
+        self.on_saved_calls = []
         self._literal_input_2 = {}
         self._cross_selector_value = []
         self._take_widgets = [[], []]
@@ -574,8 +575,11 @@ class CapturingStoreLabelingSelector:
     def get_select_location(self):
         return self._select_location_value
 
-    def set_path(self, value):
-        self.path_value = value
+    def show_saved_message(self, message):
+        self.saved_message = message
+
+    def hide_saved_message(self):
+        self.saved_message = None
 
     def attach_callbacks(self, button_name_to_onclick_fn):
         self.callbacks = button_name_to_onclick_fn
@@ -631,7 +635,12 @@ def store_labeling_closures(tmp_path, monkeypatch, panel_extension):
     monkeypatch.setattr(pn.template, "BootstrapTemplate", FakeBootstrapTemplate)
     monkeypatch.setattr(pn, "Row", lambda *args, **kwargs: None)
 
-    build_store_labeling_template(["Dv1A", "Dv2A", "PulA"], [], str(folder))
+    build_store_labeling_template(
+        ["Dv1A", "Dv2A", "PulA"],
+        [],
+        str(folder),
+        on_saved=lambda: captured_selector.on_saved_calls.append(None),
+    )
 
     return captured_selector, str(folder)
 
@@ -826,7 +835,7 @@ def test_update_values_passes_empty_cache_when_no_json_file_exists(store_labelin
 # ---------------------------------------------------------------------------
 
 
-def test_save_button_writes_storeslist_and_updates_path(store_labeling_closures, tmp_path):
+def test_save_button_writes_storeslist_and_shows_saved_message(store_labeling_closures, tmp_path):
     selector, _ = store_labeling_closures
     run_folder = str(tmp_path / "my_session_output_1")
 
@@ -839,7 +848,12 @@ def test_save_button_writes_storeslist_and_updates_path(store_labeling_closures,
     selector.callbacks["save"](None)
 
     assert selector.alert_message == "#### No alerts !!"
-    assert selector.path_value == str(Path(run_folder) / "storesList.csv")
+    assert selector.saved_message == (
+        f"#### Stores saved\n`storesList.csv` is saved in `{run_folder}`. You can close this tab.\n\n"
+        "Back on the GuPPy homepage, select `my_session_output_1` under **Output Folder Selection**, "
+        "then click **Read Raw Data**."
+    )
+    assert selector.on_saved_calls == [None]
     assert (Path(run_folder) / "storesList.csv").exists()
 
 
@@ -856,6 +870,27 @@ def test_save_button_sets_alert_on_mismatched_lengths(store_labeling_closures, t
     selector.callbacks["save"](None)
 
     assert "Alert" in selector.alert_message
+    assert selector.saved_message is None
+    assert selector.on_saved_calls == []
+
+
+def test_save_button_failed_resave_hides_saved_message(store_labeling_closures, tmp_path):
+    selector, _ = store_labeling_closures
+    run_folder = str(tmp_path / "my_session_output_1")
+
+    selector._literal_input_2 = {
+        "store_ids": ["Dv1A", "Dv2A"],
+        "store_labels": ["control_DMS", "signal_DMS"],
+    }
+    selector._select_location_value = run_folder
+
+    selector.callbacks["save"](None)
+    # Saving again in create mode collides with the run folder the first save made.
+    selector.callbacks["save"](None)
+
+    assert "Output directory already exists" in selector.alert_message
+    assert selector.saved_message is None
+    assert selector.on_saved_calls == [None]
 
 
 # ---------------------------------------------------------------------------

@@ -1,6 +1,7 @@
 import json
 import logging
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 
 import holoviews as hv  # noqa: F401
@@ -292,6 +293,7 @@ def build_store_labeling_template(
     *,
     inputParameters: dict[str, object] | None = None,
     npm_interactive: dict[str, object] | None = None,
+    on_saved: Callable[[], None] | None = None,
 ) -> pn.template.BootstrapTemplate:
     """Build and return the Label Stores GUI Panel template without serving it.
 
@@ -315,6 +317,8 @@ def build_store_labeling_template(
         ``timestamp_column_options``). When set, the NPM configuration form is
         rendered and NPM discovery/previews are deferred to its confirm
         callback.
+    on_saved : callable, optional
+        Called with no arguments after each successful Save.
 
     Returns
     -------
@@ -410,7 +414,16 @@ def build_store_labeling_template(
             npm_params=npm_params,
         )
         store_labeling_selector.set_alert_message(alert_message)
-        store_labeling_selector.set_path(str(Path(select_location) / "storesList.csv"))
+        if alert_message != "#### No alerts !!":
+            store_labeling_selector.hide_saved_message()
+            return
+        store_labeling_selector.show_saved_message(
+            f"#### Stores saved\n`storesList.csv` is saved in `{select_location}`. You can close this tab.\n\n"
+            f"Back on the GuPPy homepage, select `{Path(select_location).name}` under **Output Folder Selection**, "
+            "then click **Read Raw Data**."
+        )
+        if on_saved is not None:
+            on_saved()
 
     # on clicking the NPM "Confirm NPM configuration" button, following function is executed
     def confirm_npm_configuration(event: object = None) -> None:
@@ -572,7 +585,9 @@ def read_header(
     return events, flags, npm_interactive
 
 
-def orchestrate_store_labeling_page(inputParameters: dict[str, object]) -> None:
+def orchestrate_store_labeling_page(
+    inputParameters: dict[str, object], *, on_saved: Callable[[], None] | None = None
+) -> None:
     """Open the Label Stores page for every selected session folder.
 
     Parameters
@@ -580,6 +595,8 @@ def orchestrate_store_labeling_page(inputParameters: dict[str, object]) -> None:
     inputParameters : dict
         Full pipeline input parameters; uses ``session_folders``,
         ``isosbestic_control``, and ``noChannels``.
+    on_saved : callable, optional
+        Called with no arguments after each successful Save on any of the pages.
     """
     session_folders = inputParameters["session_folders"]
     isosbestic_control = inputParameters["isosbestic_control"]
@@ -596,6 +613,7 @@ def orchestrate_store_labeling_page(inputParameters: dict[str, object]) -> None:
             isosbestic_control=bool(isosbestic_control),
             inputParameters=inputParameters,
             npm_interactive=npm_interactive,
+            on_saved=on_saved,
         )
         template.show(port=scanPortsAndFind(start_port=5000, end_port=5200))
     logger.info("#" * 400)

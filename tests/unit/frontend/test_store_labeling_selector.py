@@ -53,10 +53,21 @@ class TestStoreLabelingSelector:
         result = selector.get_literal_input_2()
         assert result == {"key": "val"}
 
-    def test_set_path(self, panel_extension):
+    def test_saved_message_hidden_before_save(self, panel_extension):
         selector = StoreLabelingSelector(allnames=["Dv1A"])
-        selector.set_path("/some/path")
-        assert selector.path.value == "/some/path"
+        assert selector.saved_message.visible is False
+
+    def test_show_saved_message(self, panel_extension):
+        selector = StoreLabelingSelector(allnames=["Dv1A"])
+        selector.show_saved_message("#### Stores saved")
+        assert selector.saved_message.object == "#### Stores saved"
+        assert selector.saved_message.visible is True
+
+    def test_hide_saved_message(self, panel_extension):
+        selector = StoreLabelingSelector(allnames=["Dv1A"])
+        selector.show_saved_message("#### Stores saved")
+        selector.hide_saved_message()
+        assert selector.saved_message.visible is False
 
     def test_get_take_widgets_returns_values(self, panel_extension):
         selector = StoreLabelingSelector(allnames=["Dv1A", "Dv2A"])

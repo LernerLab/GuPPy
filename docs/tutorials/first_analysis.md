@@ -137,9 +137,9 @@ The three CSV filenames appear in the left list (**Filter available options**) o
    The other menu option, `over_write_file`, is for re-running on a session that already has an output subdirectory. It lets you point at an existing `<session>_output_<N>/`, deletes everything inside it (the previous `storesList.csv` plus any HDF5 and PSTH results from the previous run), and starts that subdirectory over fresh. Pick `over_write_file` only when you genuinely want that destructive behavior. For the tutorial, ignore it.
    :::
 
-6. **Click Save.** GuPPy creates the output subdirectory (e.g. `sample_data_csv_1_output_1/`) and writes `storesList.csv` into it. The downstream steps will read and write inside this folder.
+6. **Click Save.** GuPPy creates the output subdirectory (e.g. `sample_data_csv_1_output_1/`) and writes `storesList.csv` into it, and a green **Stores saved** message appears below the button naming that folder. The downstream steps will read and write inside this folder.
 
-You can close this Label Stores tab and return to the original homepage tab to continue.
+You can close this Label Stores tab and return to the original homepage tab. Open **Output Folder Selection** and, under **Existing runs (steps 2–5)**, select `sample_data_csv_1_output_1`. Every step from here on acts on the runs selected there.
 
 ## Step 2: Load the raw data
 

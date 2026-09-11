@@ -49,7 +49,7 @@ class StoreLabelingSelector:
 
         self.text = pn.widgets.LiteralInput(value=[], name="Selected Stores", type=list, width=600)
 
-        self.path = pn.widgets.TextInput(name="Location to storesList file", width=600)
+        self.saved_message = pn.pane.Alert("", alert_type="success", width=600, visible=False)
 
         self.mark_down_for_overwrite = pn.pane.Markdown(
             """
@@ -119,7 +119,7 @@ class StoreLabelingSelector:
             self.run_name,
             self.select_location,
             self.save,
-            self.path,
+            self.saved_message,
         )
 
     def callback(self, target: pn.WidgetBox, event: object) -> None:
@@ -238,15 +238,20 @@ class StoreLabelingSelector:
         """
         return self.cross_selector.value
 
-    def set_path(self, value: str) -> None:
-        """Set the displayed path in the location text input.
+    def show_saved_message(self, message: str) -> None:
+        """Show the confirmation beneath the Save button.
 
         Parameters
         ----------
-        value : str
-            Path string to display in the ``path`` widget.
+        message : str
+            Markdown-formatted confirmation message.
         """
-        self.path.value = value
+        self.saved_message.object = message
+        self.saved_message.visible = True
+
+    def hide_saved_message(self) -> None:
+        """Hide the confirmation beneath the Save button."""
+        self.saved_message.visible = False
 
     def attach_callbacks(self, button_name_to_onclick_fn: dict[str, object]) -> None:
         """Register click-handler callbacks on selector buttons.
