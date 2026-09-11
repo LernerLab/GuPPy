@@ -225,6 +225,16 @@ def _sessions() -> list[_SessionConfig]:
             "ttl_event": "event0",
             "discover_kwargs": {"num_ch": 2, "inputParameters": {}},
         },
+        {
+            "modality": "NPM",
+            "name": "sampleData_NPM_6",
+            "folder_path": npm / "sampleData_NPM_6",
+            "extractor_class": NpmRecordingExtractor,
+            "constructor_kwargs": {},
+            "control_event": "file0_chev2",
+            "ttl_event": None,
+            "discover_kwargs": {"num_ch": 2, "inputParameters": {}},
+        },
     ]
 
 

@@ -381,6 +381,32 @@ def npm_template_single_timestamp_column(panel_extension):
     )
 
 
+@pytest.fixture
+def npm_template_mismatched_channel_groups(panel_extension, tmp_path):
+    """Label Stores template for a session whose two files carry 2 and 3 LED states.
+
+    Decomposition rejects the unequal per-channel-group counts, which is how the page
+    reports a genuine NPM configuration failure.
+    """
+    two_channel_csv = (
+        "FrameCounter,LedState,Timestamp,Signal\n"
+        "0,0,0.00,0.0\n1,0,0.01,0.0\n2,1,0.02,1.0\n3,2,0.03,2.0\n4,1,0.04,3.0\n5,2,0.05,4.0\n"
+        "6,1,0.06,5.0\n7,2,0.07,6.0\n8,1,0.08,7.0\n9,2,0.09,8.0\n10,1,0.10,9.0\n11,2,0.11,10.0\n"
+    )
+    three_channel_csv = (
+        "FrameCounter,LedState,Timestamp,Signal\n"
+        "0,0,0.00,0.0\n1,0,0.01,0.0\n2,1,0.02,1.0\n3,2,0.03,2.0\n4,4,0.04,3.0\n5,1,0.05,4.0\n"
+        "6,2,0.06,5.0\n7,4,0.07,6.0\n8,1,0.08,7.0\n9,2,0.09,8.0\n10,4,0.10,9.0\n11,1,0.11,10.0\n"
+    )
+    (tmp_path / "a_data.csv").write_text(two_channel_csv)
+    (tmp_path / "b_data.csv").write_text(three_channel_csv)
+    input_parameters = {"noChannels": 2}
+    _, _, npm_interactive = read_header(input_parameters, 2, tmp_path)
+    return build_store_labeling_template(
+        [], [], tmp_path, inputParameters=input_parameters, npm_interactive=npm_interactive
+    )
+
+
 class TestDriveNpmConfigurationForm:
     def test_split_events_length_mismatch_raises(self, npm_template_two_timestamp_columns):
         with pytest.raises(ValueError, match="one boolean per file"):
@@ -406,6 +432,18 @@ class TestDriveNpmConfigurationForm:
             testing_api._drive_npm_configuration_form(
                 template=npm_template_single_timestamp_column,
                 npm_timestamp_column_name="Timestamp",
+                npm_time_unit=None,
+                npm_split_events=None,
+            )
+
+    def test_confirm_failure_surfaces_as_a_value_error(self, npm_template_mismatched_channel_groups):
+        # The page reports a failed confirm as an alert rather than raising (issue #337), so
+        # the headless driver has to read that alert back out; otherwise a scripted step1()
+        # would sail past the problem and fail much later with an unrelated message.
+        with pytest.raises(ValueError, match="Number of channel files must match across channel groups"):
+            testing_api._drive_npm_configuration_form(
+                template=npm_template_mismatched_channel_groups,
+                npm_timestamp_column_name=None,
                 npm_time_unit=None,
                 npm_split_events=None,
             )

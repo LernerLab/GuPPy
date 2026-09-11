@@ -423,14 +423,20 @@ def build_store_labeling_template(
         inputParameters["noChannels"] = store_labeling_instructions.get_number_of_channels()
 
         num_ch = inputParameters["noChannels"]
-        events, _ = NpmRecordingExtractor.discover_events_and_flags(
-            folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
-        )
+        # A raise out of a Panel on_click reaches only the terminal running the server, so
+        # report what went wrong on the page instead (issue #337).
+        try:
+            events, _ = NpmRecordingExtractor.discover_events_and_flags(
+                folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
+            )
+            channel_previews = _compute_npm_channel_previews(inputParameters, folder_path)
+        except ValueError as exc:
+            store_labeling_selector.set_alert_message(f"####Alert !! \n {exc}")
+            return
         # Keep the non-NPM events discovered at build time selectable alongside the
         # freshly discovered NPM events (mixed-modality sessions).
         merged_events = [*events, *(name for name in allnames if name not in events)]
         store_labeling_selector.set_events(events=merged_events)
-        channel_previews = _compute_npm_channel_previews(inputParameters, folder_path)
         store_labeling_instructions.set_channel_previews(channel_previews=channel_previews)
         store_labeling_selector.set_alert_message("#### No alerts !!")
 

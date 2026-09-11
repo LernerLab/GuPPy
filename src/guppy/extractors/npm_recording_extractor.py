@@ -1,4 +1,5 @@
 import logging
+import re
 import shutil
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,9 @@ TIME_UNIT_DIVISORS = {"seconds": 1.0, "milliseconds": 1e3, "microseconds": 1e6}
 DEFAULT_TIME_UNIT = "seconds"
 # Channel count assumed until the Label Stores page asks for one.
 DEFAULT_NUM_CHANNELS = 2
+# pandas names a column whose header cell is blank ``Unnamed: {position}``. Such a column
+# states no channel name, so it is not one of the file's data channels.
+_UNNAMED_COLUMN_PATTERN = re.compile(r"Unnamed: \d+")
 
 
 class NpmRecordingExtractor(CsvRecordingExtractor):
@@ -320,7 +324,7 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
                     streams[name] = {"timestamps": np.asarray(timestamps, dtype=float)}
             else:
                 file_prefix = f"file{str(i)}_"
-                df = cls._update_df_with_timestamp_columns(df, timestamp_column_name=npm_timestamp_column_name)
+                df = cls._canonicalize_columns(df, timestamp_column_name=npm_timestamp_column_name, source_path=path[i])
                 df, indices_dict, _ = cls.decide_indices(file_prefix, df, flag)
                 keys = list(indices_dict.keys())
                 for k in range(len(keys)):
@@ -687,8 +691,10 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         Returns
         -------
         df : pd.DataFrame
-            The input DataFrame with flag columns (``Flags`` / ``LedState``)
-            dropped for ``data_np_v2`` layouts.
+            The input DataFrame with the state column (``Flags`` / ``LedState``),
+            and ``FrameCounter`` when present, dropped for ``data_np_v2`` layouts.
+            Callers are expected to have run the frame through
+            :meth:`_canonicalize_columns` first.
         indices_dict : dict
             Mapping from channel key (e.g. ``"file0_chev"``) to a NumPy array
             of row indices belonging to that channel.
@@ -714,12 +720,13 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             # Detection matches these columns case-insensitively, so resolve the
             # actual (possibly mixed-case) column names before indexing.
             column_by_name = cls._column_by_lowercase_name(df)
-            if "flags" in column_by_name:
-                columns_to_drop = [column_by_name["framecounter"], column_by_name["flags"]]
-                state = np.array(df[column_by_name["flags"]])
-            elif "ledstate" in column_by_name:
-                columns_to_drop = [column_by_name["framecounter"], column_by_name["ledstate"]]
-                state = np.array(df[column_by_name["ledstate"]])
+            if "flags" in column_by_name or "ledstate" in column_by_name:
+                state_key = "flags" if "flags" in column_by_name else "ledstate"
+                # Not every NPM export carries a FrameCounter column; the caller has already
+                # put the timestamps in column 0, so dropping whichever of these exist leaves
+                # the frame in the layout _decompose_streams reads.
+                columns_to_drop = [column_by_name[key] for key in ("framecounter", state_key) if key in column_by_name]
+                state = np.array(df[column_by_name[state_key]])
             else:
                 message = (
                     "File type indicates Neurophotometrics newer version data but the columns do not "
@@ -803,12 +810,20 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         return column_options
 
     @staticmethod
-    def _update_df_with_timestamp_columns(df: pd.DataFrame, timestamp_column_name: str | None) -> pd.DataFrame:
-        """Reduce multiple timestamp columns to a single ``Timestamp`` column.
+    def _canonicalize_columns(
+        df: pd.DataFrame, *, timestamp_column_name: str | None, source_path: str | Path
+    ) -> pd.DataFrame:
+        """Rebuild a headered NPM data file's columns into the layout decomposition expects.
 
-        Files offering only one timestamp column are returned unchanged, so a
-        session-wide ``timestamp_column_name`` may name a column that some of
-        the session's files do not have.
+        The returned frame leads with ``Timestamp`` — the chosen timestamp column, renamed —
+        followed by the file's named non-timestamp columns in their original order. The
+        unchosen timestamp columns and any blank-header columns are dropped.
+        :meth:`_decompose_streams` takes the timestamps from column 0 once
+        :meth:`decide_indices` has dropped the state column and ``FrameCounter``, so putting
+        them there here is what lets those two columns be absent.
+
+        A file offering a single timestamp column ignores ``timestamp_column_name``, so a
+        session-wide choice may name a column that some of the session's files do not have.
 
         Parameters
         ----------
@@ -816,24 +831,43 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             NPM data file contents, with a text header.
         timestamp_column_name : str or None
             Timestamp column to keep; ``None`` keeps the first one.
+        source_path : str or Path
+            Path the frame was read from, used to name the file in log messages.
 
         Returns
         -------
         pd.DataFrame
-            The DataFrame with the chosen column inserted as ``Timestamp`` and
-            the original timestamp columns dropped.
+            A new frame in the canonical layout. A file carrying no timestamp column at all
+            is returned unchanged.
         """
-        timestamp_column_names = [name for name in df.columns if "timestamp" in name.lower()]
-        if len(timestamp_column_names) <= 1:
+        timestamp_column_names = [name for name in df.columns if "timestamp" in str(name).lower()]
+        if not timestamp_column_names:
             return df
 
-        timestamp_column_name = (
-            timestamp_column_name if timestamp_column_name is not None else timestamp_column_names[0]
-        )
-        if timestamp_column_name not in timestamp_column_names:
-            raise ValueError(
-                f"Provided timestamp_column_name '{timestamp_column_name}' not found in columns {timestamp_column_names}."
+        if (
+            len(timestamp_column_names) > 1
+            and timestamp_column_name is not None
+            and timestamp_column_name not in timestamp_column_names
+        ):
+            message = (
+                f"Provided timestamp_column_name '{timestamp_column_name}' not found in "
+                f"columns {timestamp_column_names}."
             )
-        df.insert(1, "Timestamp", df[timestamp_column_name])
-        df = df.drop(timestamp_column_names, axis=1)
-        return df
+            logger.error(message)
+            raise ValueError(message)
+
+        chosen_column_name = (
+            timestamp_column_name if timestamp_column_name in timestamp_column_names else timestamp_column_names[0]
+        )
+        blank_header_column_names = [name for name in df.columns if _UNNAMED_COLUMN_PATTERN.fullmatch(str(name))]
+        if blank_header_column_names:
+            logger.warning(
+                "NPM file '%s' has blank-header columns %s; they name no channel and are excluded "
+                "from the derived streams.",
+                source_path,
+                blank_header_column_names,
+            )
+        kept_column_names = [
+            name for name in df.columns if name not in timestamp_column_names and name not in blank_header_column_names
+        ]
+        return pd.concat([df[chosen_column_name].rename("Timestamp"), df[kept_column_names]], axis=1)

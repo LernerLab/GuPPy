@@ -892,6 +892,7 @@ def test_compute_npm_channel_previews_aligns_ragged_channel_lengths():
 # ---------------------------------------------------------------------------
 
 NPM_3_FOLDER = Path(STUBBED_TESTING_DATA) / "npm" / "sampleData_NPM_3"
+NPM_6_FOLDER = Path(STUBBED_TESTING_DATA) / "npm" / "sampleData_NPM_6"
 
 
 def test_read_header_npm_defers_discovery():
@@ -954,6 +955,61 @@ def test_confirm_npm_configuration_writes_params_and_populates_page(panel_extens
     # Preview plot is rendered after confirmation.
     assert instructions.plot_select is not None
     assert instructions.plot_select.options
+
+
+def test_confirm_npm_configuration_succeeds_for_a_blank_header_session(panel_extension):
+    # Issue #337: this session's header carries blank cells and a second timestamp column
+    # named exactly "Timestamp". Confirming used to leave the page blank, with a pandas
+    # traceback visible only in the terminal running the server.
+    input_parameters = {"noChannels": 2}
+    _, _, npm_interactive = read_header(input_parameters, num_ch=2, folder_path=NPM_6_FOLDER)
+
+    template = build_store_labeling_template(
+        [], [], NPM_6_FOLDER, inputParameters=input_parameters, npm_interactive=npm_interactive
+    )
+    instructions = template._widgets["instructions"]
+    selector = template._widgets["selector"]
+    instructions.timestamp_column_select.value = "Timestamp"
+    instructions.time_unit_select.value = "seconds"
+
+    template._hooks["confirm_npm_configuration"]()
+
+    assert selector.alert.object == "#### No alerts !!"
+    assert "file0_chev1" in selector.cross_selector.options
+    assert "file0_chpr2" in selector.cross_selector.options
+    # The blank-header columns are not offered as stores.
+    assert len(selector.cross_selector.options) == 6
+
+
+def test_confirm_npm_configuration_reports_a_failure_as_a_page_alert(panel_extension, tmp_path):
+    # A raise out of the Panel on_click reaches only the server terminal, so the page has to
+    # say what went wrong (issue #337). Two v2 files with 2 and 3 LED states decompose into
+    # unequal per-channel-group counts, which discovery rejects.
+    two_channel_csv = (
+        "FrameCounter,LedState,Timestamp,Signal\n"
+        "0,0,0.00,0.0\n1,0,0.01,0.0\n2,1,0.02,1.0\n3,2,0.03,2.0\n4,1,0.04,3.0\n5,2,0.05,4.0\n"
+        "6,1,0.06,5.0\n7,2,0.07,6.0\n8,1,0.08,7.0\n9,2,0.09,8.0\n10,1,0.10,9.0\n11,2,0.11,10.0\n"
+    )
+    three_channel_csv = (
+        "FrameCounter,LedState,Timestamp,Signal\n"
+        "0,0,0.00,0.0\n1,0,0.01,0.0\n2,1,0.02,1.0\n3,2,0.03,2.0\n4,4,0.04,3.0\n5,1,0.05,4.0\n"
+        "6,2,0.06,5.0\n7,4,0.07,6.0\n8,1,0.08,7.0\n9,2,0.09,8.0\n10,4,0.10,9.0\n11,1,0.11,10.0\n"
+    )
+    (tmp_path / "a_data.csv").write_text(two_channel_csv)
+    (tmp_path / "b_data.csv").write_text(three_channel_csv)
+
+    input_parameters = {"noChannels": 2}
+    _, _, npm_interactive = read_header(input_parameters, num_ch=2, folder_path=tmp_path)
+
+    template = build_store_labeling_template(
+        [], [], tmp_path, inputParameters=input_parameters, npm_interactive=npm_interactive
+    )
+    selector = template._widgets["selector"]
+
+    template._hooks["confirm_npm_configuration"]()
+
+    assert selector.alert.object.startswith("####Alert !!")
+    assert "Number of channel files must match across channel groups" in selector.alert.object
 
 
 # ---------------------------------------------------------------------------

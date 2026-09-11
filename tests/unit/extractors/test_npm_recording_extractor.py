@@ -1,5 +1,7 @@
 """Contract tests for NpmRecordingExtractor."""
 
+import io
+import logging
 import shutil
 from pathlib import Path
 
@@ -89,60 +91,131 @@ def test_decide_indices_v2_resolves_flag_columns_case_insensitively(state_column
     assert list(result_df.columns) == ["Timestamp", "Signal"]
 
 
-# ---------------------------------------------------------------------------
-# _update_df_with_timestamp_columns
-# ---------------------------------------------------------------------------
+def test_decide_indices_v2_drops_the_state_column_when_there_is_no_framecounter():
+    # Not every NPM export carries a FrameCounter column (issue #337). _canonicalize_columns
+    # has already put the timestamps in column 0, so only the state column has to go.
+    dataframe = pd.DataFrame(
+        {
+            "Timestamp": np.arange(12) * 0.01,
+            "LedState": [0, 4, 1, 2, 4, 1, 2, 4, 1, 2, 4, 1],
+            "Region0R": np.arange(12, dtype=float),
+            "Region1G": np.arange(100, 112, dtype=float),
+        }
+    )
+    result_df, indices_dict, num_channels = NpmRecordingExtractor.decide_indices("file0_", dataframe, "data_np_v2")
+    assert list(result_df.columns) == ["Timestamp", "Region0R", "Region1G"]
+    assert num_channels == 3
+    # unique_states sorted is [1, 2, 4], first seen at rows 2, 3 and 1 respectively.
+    np.testing.assert_array_equal(indices_dict["file0_chev"], [2, 5, 8, 11])
+    np.testing.assert_array_equal(indices_dict["file0_chod"], [3, 6, 9])
+    np.testing.assert_array_equal(indices_dict["file0_chpr"], [1, 4, 7, 10])
 
 
-def test_update_df_with_timestamp_columns_single_timestamp_column_unchanged():
-    # Only one timestamp column → function returns df unchanged (no insertion)
+# ---------------------------------------------------------------------------
+# _canonicalize_columns
+# ---------------------------------------------------------------------------
+
+# The literal header of the issue #337 reproducer, PhAT's Sample2_NPM_1fiber.csv: four blank
+# header cells and two timestamp columns, one of them named exactly "Timestamp". Read through
+# pandas so the tests pin the real "Unnamed: N" names rather than hand-typed ones.
+BLANK_HEADER_CSV = (
+    ",Timestamp,msTimestamp,,Region0R,Region1G,,,LedState\n"
+    ",57932.73362,57932733.62,182798927,2607.950814,2108.730754,0,,0\n"
+    "0,57932.75772,57932757.72,183620416,3630.180108,1425.609443,2,0,4\n"
+)
+
+
+@pytest.fixture
+def two_timestamp_column_frame():
+    return pd.DataFrame(
+        {
+            "FrameCounter": [1, 2],
+            "Timestamp_ms": [0.1, 0.2],
+            "Timestamp_s": [0.0001, 0.0002],
+            "Values": [10, 20],
+        }
+    )
+
+
+def test_canonicalize_columns_single_timestamp_column_is_renamed_and_hoisted():
     dataframe = pd.DataFrame({"FrameCounter": [1, 2], "Timestamp_ms": [0.1, 0.2], "Values": [10, 20]})
-    result = NpmRecordingExtractor._update_df_with_timestamp_columns(dataframe, None)
-    assert list(result.columns) == ["FrameCounter", "Timestamp_ms", "Values"]
-
-
-def test_update_df_with_timestamp_columns_multiple_timestamps_uses_first_by_default():
-    # Multiple timestamp columns → function inserts canonical "Timestamp" from the first one and drops both originals
-    dataframe = pd.DataFrame(
-        {
-            "FrameCounter": [1, 2],
-            "Timestamp_ms": [0.1, 0.2],
-            "Timestamp_s": [0.0001, 0.0002],
-            "Values": [10, 20],
-        }
+    result = NpmRecordingExtractor._canonicalize_columns(
+        dataframe, timestamp_column_name=None, source_path="a_data.csv"
     )
-    result = NpmRecordingExtractor._update_df_with_timestamp_columns(dataframe, None)
-    assert "Timestamp" in result.columns
-    assert "Timestamp_ms" not in result.columns
-    assert "Timestamp_s" not in result.columns
+    assert list(result.columns) == ["Timestamp", "FrameCounter", "Values"]
+    np.testing.assert_array_equal(result["Timestamp"].to_numpy(), [0.1, 0.2])
 
 
-def test_update_df_with_timestamp_columns_explicit_column_name_used():
-    dataframe = pd.DataFrame(
-        {
-            "FrameCounter": [1, 2],
-            "Timestamp_ms": [0.1, 0.2],
-            "Timestamp_s": [0.0001, 0.0002],
-            "Values": [10, 20],
-        }
+def test_canonicalize_columns_multiple_timestamps_uses_first_by_default(two_timestamp_column_frame):
+    result = NpmRecordingExtractor._canonicalize_columns(
+        two_timestamp_column_frame, timestamp_column_name=None, source_path="a_data.csv"
     )
-    result = NpmRecordingExtractor._update_df_with_timestamp_columns(dataframe, "Timestamp_s")
-    assert "Timestamp" in result.columns
-    assert "Timestamp_s" not in result.columns
+    assert list(result.columns) == ["Timestamp", "FrameCounter", "Values"]
+    np.testing.assert_array_equal(result["Timestamp"].to_numpy(), [0.1, 0.2])
+
+
+def test_canonicalize_columns_explicit_column_name_used(two_timestamp_column_frame):
+    result = NpmRecordingExtractor._canonicalize_columns(
+        two_timestamp_column_frame, timestamp_column_name="Timestamp_s", source_path="a_data.csv"
+    )
+    assert list(result.columns) == ["Timestamp", "FrameCounter", "Values"]
     np.testing.assert_array_equal(result["Timestamp"].to_numpy(), [0.0001, 0.0002])
 
 
-def test_update_df_with_timestamp_columns_raises_for_missing_name():
-    dataframe = pd.DataFrame(
-        {
-            "FrameCounter": [1, 2],
-            "Timestamp_ms": [0.1, 0.2],
-            "Timestamp_s": [0.0001, 0.0002],
-            "Values": [10, 20],
-        }
-    )
+def test_canonicalize_columns_raises_for_missing_name(two_timestamp_column_frame):
     with pytest.raises(ValueError, match=r"'BogusTimestamp' not found in columns"):
-        NpmRecordingExtractor._update_df_with_timestamp_columns(dataframe, "BogusTimestamp")
+        NpmRecordingExtractor._canonicalize_columns(
+            two_timestamp_column_frame, timestamp_column_name="BogusTimestamp", source_path="a_data.csv"
+        )
+
+
+def test_canonicalize_columns_requested_name_is_ignored_when_the_file_offers_one_column():
+    # The timestamp column is chosen once for the whole session, so a file offering only one
+    # column takes it regardless of the name the session settled on.
+    dataframe = pd.DataFrame({"FrameCounter": [1, 2], "Timestamp": [0.1, 0.2], "Values": [10, 20]})
+    result = NpmRecordingExtractor._canonicalize_columns(
+        dataframe, timestamp_column_name="ComputerTimestamp", source_path="a_data.csv"
+    )
+    assert list(result.columns) == ["Timestamp", "FrameCounter", "Values"]
+    np.testing.assert_array_equal(result["Timestamp"].to_numpy(), [0.1, 0.2])
+
+
+def test_canonicalize_columns_drops_blank_header_columns():
+    # Issue #337: the file's own "Timestamp" column used to collide with the canonical one,
+    # and its blank-header columns would otherwise have become data channels.
+    dataframe = pd.read_csv(io.StringIO(BLANK_HEADER_CSV), index_col=False)
+    result = NpmRecordingExtractor._canonicalize_columns(
+        dataframe, timestamp_column_name="Timestamp", source_path="Sample2_NPM_1fiber.csv"
+    )
+    assert list(result.columns) == ["Timestamp", "Region0R", "Region1G", "LedState"]
+    np.testing.assert_allclose(result["Timestamp"].to_numpy(), [57932.73362, 57932.75772])
+
+
+def test_canonicalize_columns_warns_naming_the_dropped_columns(caplog):
+    dataframe = pd.read_csv(io.StringIO(BLANK_HEADER_CSV), index_col=False)
+    with caplog.at_level(logging.WARNING, logger="guppy.extractors.npm_recording_extractor"):
+        NpmRecordingExtractor._canonicalize_columns(
+            dataframe, timestamp_column_name=None, source_path="Sample2_NPM_1fiber.csv"
+        )
+    assert "Sample2_NPM_1fiber.csv" in caplog.text
+    for dropped_column_name in ["Unnamed: 0", "Unnamed: 3", "Unnamed: 6", "Unnamed: 7"]:
+        assert dropped_column_name in caplog.text
+
+
+def test_canonicalize_columns_leaves_a_file_without_a_timestamp_column_alone():
+    # Nothing to hoist, so the frame keeps whatever positional layout it arrived with.
+    dataframe = pd.DataFrame({"FrameCounter": [1, 2], "LedState": [1, 2], "Region0G": [10, 20]})
+    result = NpmRecordingExtractor._canonicalize_columns(
+        dataframe, timestamp_column_name=None, source_path="a_data.csv"
+    )
+    assert list(result.columns) == ["FrameCounter", "LedState", "Region0G"]
+
+
+def test_canonicalize_columns_does_not_modify_the_callers_frame(two_timestamp_column_frame):
+    NpmRecordingExtractor._canonicalize_columns(
+        two_timestamp_column_frame, timestamp_column_name=None, source_path="a_data.csv"
+    )
+    assert list(two_timestamp_column_frame.columns) == ["FrameCounter", "Timestamp_ms", "Timestamp_s", "Values"]
 
 
 # ---------------------------------------------------------------------------
@@ -465,6 +538,81 @@ class TestNpmRecordingExtractorSession5(NpmRecordingExtractorTestMixin):
     signal_event = "file0_chod1"
     ttl_event = "event0"
     stub_ttl_test_duration_in_seconds = 100.0
+
+
+class TestNpmRecordingExtractorSession6(NpmRecordingExtractorTestMixin):
+    """PhAT's Sample2_NPM_1fiber session: blank header cells and two timestamp columns,
+    one of them named exactly ``Timestamp`` (issue #337). Photometry only, no TTL file.
+
+    LedState cycles 1/2/4, so chev is 415 nm, chod 470 nm and chpr 560 nm, each crossed
+    with Region0R and Region1G. See the sampleData_NPM_6 entry in
+    stubbed_testing_data/README.md.
+    """
+
+    extractor_class = NpmRecordingExtractor
+    folder_path = Path(STUBBED_TESTING_DATA) / "npm" / "sampleData_NPM_6"
+    extractor_instance = NpmRecordingExtractor(folder_path, num_ch=2)
+    expected_events = ["file0_chev2", "file0_chod2", "file0_chpr1"]
+    discover_kwargs = {"num_ch": 2, "inputParameters": {}}
+    stub_extractor_kwargs = {"num_ch": 2}
+    control_event = "file0_chev2"  # Region1G at 415 nm
+    signal_event = "file0_chod2"  # Region1G at 470 nm
+    ttl_event = None
+
+
+class TestNpmBlankHeaderSession:
+    """A session whose photometry file carries blank header cells (issue #337).
+
+    The contract class above compares ``read()`` against ``read()``, so it holds whatever
+    columns the extractor decides are channels. These tests pin which ones they are.
+    """
+
+    folder_path = str(Path(STUBBED_TESTING_DATA) / "npm" / "sampleData_NPM_6")
+
+    def test_timestamp_column_options_offers_both_named_columns(self):
+        assert NpmRecordingExtractor.timestamp_column_options(self.folder_path) == ["Timestamp", "msTimestamp"]
+
+    def test_blank_header_columns_do_not_become_channels(self):
+        # The file has 9 columns, 4 of them blank-headered. Only Region0R and Region1G are
+        # channels, crossed with the three LED states — not the ten streams the blank
+        # columns would otherwise add.
+        streams = NpmRecordingExtractor(self.folder_path, num_ch=2).decompose()
+        assert sorted(streams) == [
+            "file0_chev1",
+            "file0_chev2",
+            "file0_chod1",
+            "file0_chod2",
+            "file0_chpr1",
+            "file0_chpr2",
+        ]
+
+    def test_channel_data_comes_from_the_named_regions(self):
+        # Row 0 is LedState 0 and is skipped. Rows 1/2/3 are LedState 4/1/2, so the first
+        # sample of each group comes from those rows of Region0R and Region1G.
+        streams = NpmRecordingExtractor(self.folder_path, num_ch=2).decompose()
+        assert streams["file0_chev1"]["data"][0] == pytest.approx(1989.005425)  # Region0R, row 2
+        assert streams["file0_chev2"]["data"][0] == pytest.approx(1959.94859)  # Region1G, row 2
+        assert streams["file0_chod1"]["data"][0] == pytest.approx(2607.829295)  # Region0R, row 3
+        assert streams["file0_chpr1"]["data"][0] == pytest.approx(3630.180108)  # Region0R, row 1
+
+    def test_selecting_the_millisecond_column_switches_the_clock(self):
+        # msTimestamp is the same clock as Timestamp at 1000x, so picking it with the
+        # matching unit has to land on the same seconds. This is the popup's own choice
+        # reaching the data.
+        default_streams = NpmRecordingExtractor(self.folder_path, num_ch=2).decompose()
+        millisecond_streams = NpmRecordingExtractor(
+            self.folder_path,
+            num_ch=2,
+            npm_timestamp_column_name="msTimestamp",
+            npm_time_unit="milliseconds",
+        ).decompose()
+        np.testing.assert_allclose(
+            millisecond_streams["file0_chev1"]["timestamps"],
+            default_streams["file0_chev1"]["timestamps"],
+            atol=1e-6,
+        )
+        # And the clock itself is the acquisition's, not a re-zeroed one.
+        assert default_streams["file0_chev1"]["timestamps"][0] == pytest.approx(57932.78284)
 
 
 # ---------------------------------------------------------------------------
