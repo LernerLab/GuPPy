@@ -1,4 +1,17 @@
-# v2.0.0-beta3 (Upcoming)
+# v2.0.0-beta4 (Upcoming)
+
+## Features
+
+## Fixes
+
+## Improvements
+- The cross-correlation lag axis is now named and documented in seconds, the unit it has always held, rather than milliseconds. [PR #503](https://github.com/LernerLab/GuPPy/pull/503)
+- Saving on the Label Stores page now pops up a confirmation naming the output folder, and the homepage lists the new run under **Output Folder Selection** as soon as it is saved. [PR #504](https://github.com/LernerLab/GuPPy/pull/504)
+- The Label Stores page's save controls are now a **Create new run** / **Overwrite existing run** choice, with **Run name** pre-filled with the next free integer and a **Run to overwrite** picker, listing runs by folder name, shown only when overwriting; the alert pane appears only when there is something to report. [PR #504](https://github.com/LernerLab/GuPPy/pull/504)
+
+## Deprecations and Removals
+
+# v2.0.0-beta3 (September 10th, 2026)
 
 ## Features
 - PSTH significance results now reach the exported NWB file, as one `GuppyPSTHSignificance` object per recording site, trace type and comparison kind. [PR #502](https://github.com/LernerLab/GuPPy/pull/502)
@@ -11,9 +24,6 @@
 - Fixed the README's documentation links, which all carried an `/en/latest/` path prefix that 404s on the single-version Read the Docs project. [PR #469](https://github.com/LernerLab/GuPPy/pull/469)
 
 ## Improvements
-- Saving on the Label Stores page now pops up a confirmation naming the output folder, and the homepage lists the new run under **Output Folder Selection** as soon as it is saved. [PR #504](https://github.com/LernerLab/GuPPy/pull/504)
-- The Label Stores page's save controls are now a **Create new run** / **Overwrite existing run** choice, with **Run name** pre-filled with the next free integer and a **Run to overwrite** picker, listing runs by folder name, shown only when overwriting; the alert pane appears only when there is something to report. [PR #504](https://github.com/LernerLab/GuPPy/pull/504)
-- The cross-correlation lag axis is now named and documented in seconds, the unit it has always held, rather than milliseconds. [PR #503](https://github.com/LernerLab/GuPPy/pull/503)
 - `GuPPyParamtersUsed.json` no longer carries a `noChannels` copy of the Neurophotometrics channel count, which now lives only in each run's `.npm_params.json`. [PR #502](https://github.com/LernerLab/GuPPy/pull/502)
 - The Individual Analysis card is now **Parameter Selection**, a single column of titled sections each named for the operation it configures and each stating which steps read it, with a **?** beside every parameter that pops up help for that one parameter. [PR #499](https://github.com/LernerLab/GuPPy/pull/499)
 - The metric plotted by the visualization dashboard is now chosen in the dashboard itself and can be switched between the metrics Step 4 computed without re-running the step, instead of being fixed on the homepage before Step 5 starts. [PR #498](https://github.com/LernerLab/GuPPy/pull/498)
