@@ -5,6 +5,7 @@
 ## Fixes
 
 ## Improvements
+- Neurophotometrics channels are now named after the excitation wavelength their `LedState`/`Flags` column reports, so the Label Stores page offers `file0_415nm_column1` rather than the positional `file0_chev1`. Files without a state column keep the positional names. [PR #509](https://github.com/LernerLab/GuPPy/pull/509)
 - The cross-correlation lag axis is now named and documented in seconds, the unit it has always held, rather than milliseconds. [PR #503](https://github.com/LernerLab/GuPPy/pull/503)
 
 ## Deprecations and Removals
