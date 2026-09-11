@@ -211,8 +211,12 @@ def compute_covariate_correlations(*, binned_metrics: pd.DataFrame, binned_covar
 
             if n_bins < _MINIMUM_PAIRS:
                 logger.warning(
-                    f"Only {n_bins} bin(s) pair '{covariate}' with '{metric}'; reporting no coefficients "
-                    f"for this pair, which needs at least {_MINIMUM_PAIRS}."
+                    "Only %s bin(s) pair '%s' with '%s'; reporting no coefficients for this pair, which needs at least "
+                    "%s.",
+                    n_bins,
+                    covariate,
+                    metric,
+                    _MINIMUM_PAIRS,
                 )
                 pearson = float("nan")
                 spearman = float("nan")
@@ -221,8 +225,10 @@ def compute_covariate_correlations(*, binned_metrics: pd.DataFrame, binned_covar
                 spearman = _spearman_rho(x=covariate_values[usable], y=metric_values[usable])
                 if np.isnan(pearson):
                     logger.warning(
-                        f"'{covariate}' or '{metric}' is constant across the {n_bins} paired bins, "
-                        "so their correlation is undefined."
+                        "'%s' or '%s' is constant across the %s paired bins, so their correlation is undefined.",
+                        covariate,
+                        metric,
+                        n_bins,
                     )
 
             rows.append(

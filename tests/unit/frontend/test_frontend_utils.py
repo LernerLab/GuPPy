@@ -11,23 +11,21 @@ def test_scan_ports_and_find_returns_integer_in_range():
 
 
 def test_scan_ports_and_find_retries_occupied_port():
-    """When the first drawn port is occupied (connect_ex returns 0), the
-    function should keep trying and return a different port."""
-    call_count = 0
-    first_port = None
-
-    original_connect_ex = socket.socket.connect_ex
+    """A drawn port that is already bound is rejected, and the search draws again."""
+    # The draw is patched rather than left random: the function redraws uniformly from the whole
+    # range, so a real retry may legitimately land on the port it just rejected. Fixing the
+    # sequence is what makes "it kept going" assertable at all.
+    drawn_ports = iter([5000, 5000, 5001])
+    occupied_ports = {5000}
 
     def mock_connect_ex(self, address):
-        nonlocal call_count, first_port
-        call_count += 1
-        if call_count == 1:
-            first_port = address[1]
-            return 0  # Simulate occupied port
-        return 1  # Simulate free port
+        return 0 if address[1] in occupied_ports else 1  # 0 means the port answered, so it is taken
 
-    with patch.object(socket.socket, "connect_ex", mock_connect_ex):
+    with (
+        patch("guppy.frontend.frontend_utils.randint", lambda start, end: next(drawn_ports)),
+        patch.object(socket.socket, "connect_ex", mock_connect_ex),
+    ):
         result = scanPortsAndFind()
 
-    assert call_count >= 2
-    assert result != first_port
+    assert result == 5001
+    assert next(drawn_ports, None) is None, "expected all three draws to be consumed"

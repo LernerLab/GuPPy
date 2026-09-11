@@ -1,4 +1,3 @@
-import os
 import socket
 import time
 
@@ -11,18 +10,8 @@ from guppy.orchestration.home import build_homepage
 
 @pytest.fixture(scope="session")
 def ui_base_dir(tmp_path_factory):
-    """Provide a real temp directory as GUPPY_BASE_DIR.
-
-    Points the FileSelector widgets at a real path when they initialize.
-    """
-    base_dir = tmp_path_factory.mktemp("ui_base")
-    original = os.environ.get("GUPPY_BASE_DIR")
-    os.environ["GUPPY_BASE_DIR"] = str(base_dir)
-    yield base_dir
-    if original is None:
-        del os.environ["GUPPY_BASE_DIR"]
-    else:
-        os.environ["GUPPY_BASE_DIR"] = original
+    """Provide a real temp directory to root the homepage's file selectors at."""
+    return tmp_path_factory.mktemp("ui_base")
 
 
 @pytest.fixture(scope="session")
@@ -33,7 +22,7 @@ def live_server(panel_extension, ui_base_dir):
     teardown.
     """
     port = scanPortsAndFind()
-    template = build_homepage()
+    template = build_homepage(start_path=str(ui_base_dir))
     pn.serve(template, port=port, show=False, threaded=True)
 
     base_url = f"http://localhost:{port}"

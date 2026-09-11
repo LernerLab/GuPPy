@@ -8,8 +8,7 @@ relationship and preserves the step in dF/F. One test also enables artifact remo
 chunking x baseline-epoch interaction is exercised through the real pipeline.
 """
 
-import glob
-import os
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -36,11 +35,11 @@ FIT_WINDOW = (2, 55)  # pre-injection; starts after timeForLightsTurnOn trims t 
 
 
 def _stubbed_data_root():
-    return os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "stubbed_testing_data")
+    return Path((Path(__file__).parent).parent.parent) / "stubbed_testing_data"
 
 
 def _output_directory(session):
-    return sorted(glob.glob(os.path.join(session, f"{SESSION_NAME}_output_*")))[0]
+    return sorted(list(Path(session).glob(f"{SESSION_NAME}_output_*")))[0]
 
 
 @pytest.fixture
@@ -48,9 +47,9 @@ def injection_session(tmp_path):
     """Copy the injection session and run step1 + step2; return locators for step3."""
     import shutil
 
-    source = os.path.join(_stubbed_data_root(), SESSION_SUBDIR)
+    source = Path(_stubbed_data_root()) / SESSION_SUBDIR
     base_dir = str(tmp_path)
-    session = os.path.join(base_dir, SESSION_NAME)
+    session = Path(base_dir) / SESSION_NAME
     shutil.copytree(source, session)
 
     step1(base_dir=base_dir, selected_folders=[session], store_id_to_store_label=STORE_ID_TO_STORE_LABEL)

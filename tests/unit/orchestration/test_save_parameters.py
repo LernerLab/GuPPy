@@ -1,6 +1,6 @@
 import json
-import os
 from importlib.metadata import version
+from pathlib import Path
 
 import pytest
 
@@ -25,13 +25,17 @@ PARAMETER_KEYS = {
     "photobleaching_detrend",
     "timeForLightsTurnOn",
     "filter_window",
-    "noChannels",
     "zscore_method",
     "baselineWindowStart",
     "baselineWindowEnd",
     "nSecPrev",
     "nSecPost",
     "computeCorr",
+    "computePsthSignificance",
+    "psthComparisonsA",
+    "psthComparisonsB",
+    "psthSignificanceAlpha",
+    "psthBootstrapResamples",
     "useTransientsAsEvents",
     "timeInterval",
     "bin_psth_trials",
@@ -48,8 +52,6 @@ PARAMETER_KEYS = {
     "transientsThresh",
     "computeBinnedMetrics",
     "binnedMetricsWidth",
-    "visualize_zscore_or_dff",
-    "averageForGroup",
 }
 
 EXPECTED_KEYS = PARAMETER_KEYS | ARTIFACT_PROVENANCE_KEYS | {"guppy_version"}
@@ -62,8 +64,10 @@ ORCHESTRATION_ONLY_KEYS = {
     "mode",
     "dandi_uri_map",
     "abspath",
-    "group_session_folders",
-    "visualizeAverageResults",
+    "group_member_run_folders",
+    "group_destination_directories",
+    "group_name",
+    "selected_group_folders",
 }
 
 
@@ -82,13 +86,17 @@ def base_input_parameters(tmp_path):
         "photobleaching_detrend": False,
         "timeForLightsTurnOn": 5.0,
         "filter_window": 100,
-        "noChannels": 2,
         "zscore_method": "standard",
         "baselineWindowStart": 0.0,
         "baselineWindowEnd": 2.0,
         "nSecPrev": 5,
         "nSecPost": 10,
         "computeCorr": False,
+        "computePsthSignificance": False,
+        "psthComparisonsA": [],
+        "psthComparisonsB": [],
+        "psthSignificanceAlpha": 0.05,
+        "psthBootstrapResamples": 1000,
         "useTransientsAsEvents": False,
         "timeInterval": 0.5,
         "bin_psth_trials": 10,
@@ -105,8 +113,6 @@ def base_input_parameters(tmp_path):
         "transientsThresh": 2.0,
         "computeBinnedMetrics": False,
         "binnedMetricsWidth": 120,
-        "visualize_zscore_or_dff": "z_score",
-        "averageForGroup": False,
         # orchestration-only keys that should not be saved
         "step": 0,
         "numberOfCores": 4,
@@ -114,8 +120,10 @@ def base_input_parameters(tmp_path):
         "mode": "tdt",
         "dandi_uri_map": {},
         "abspath": "/tmp/abs",
-        "group_session_folders": [],
-        "visualizeAverageResults": False,
+        "group_member_run_folders": [],
+        "group_destination_directories": [],
+        "group_name": "",
+        "selected_group_folders": [],
     }
 
 
@@ -127,14 +135,14 @@ def test_save_parameters_writes_json_to_each_folder(tmp_path, base_input_paramet
     save_parameters(base_input_parameters)
 
     for folder in base_input_parameters["session_folders"]:
-        assert os.path.exists(os.path.join(folder, "GuPPyParamtersUsed.json"))
+        assert (Path(folder) / "GuPPyParamtersUsed.json").exists()
 
 
 def test_save_parameters_saves_exactly_expected_keys(base_input_parameters):
     save_parameters(base_input_parameters)
 
     folder = base_input_parameters["session_folders"][0]
-    with open(os.path.join(folder, "GuPPyParamtersUsed.json")) as file:
+    with (Path(folder) / "GuPPyParamtersUsed.json").open() as file:
         saved = json.load(file)
 
     assert set(saved.keys()) == EXPECTED_KEYS
@@ -144,7 +152,7 @@ def test_save_parameters_excludes_orchestration_keys(base_input_parameters):
     save_parameters(base_input_parameters)
 
     folder = base_input_parameters["session_folders"][0]
-    with open(os.path.join(folder, "GuPPyParamtersUsed.json")) as file:
+    with (Path(folder) / "GuPPyParamtersUsed.json").open() as file:
         saved = json.load(file)
 
     assert ORCHESTRATION_ONLY_KEYS.isdisjoint(saved.keys())
@@ -154,7 +162,7 @@ def test_save_parameters_preserves_values(base_input_parameters):
     save_parameters(base_input_parameters)
 
     folder = base_input_parameters["session_folders"][0]
-    with open(os.path.join(folder, "GuPPyParamtersUsed.json")) as file:
+    with (Path(folder) / "GuPPyParamtersUsed.json").open() as file:
         saved = json.load(file)
 
     for key in PARAMETER_KEYS:
@@ -165,7 +173,7 @@ def test_save_parameters_writes_guppy_version(base_input_parameters):
     save_parameters(base_input_parameters)
 
     folder = base_input_parameters["session_folders"][0]
-    with open(os.path.join(folder, "GuPPyParamtersUsed.json")) as file:
+    with (Path(folder) / "GuPPyParamtersUsed.json").open() as file:
         saved = json.load(file)
 
     assert saved["guppy_version"] == version("guppy-neuro")
@@ -185,13 +193,17 @@ def test_save_parameters_single_folder(tmp_path):
         "photobleaching_detrend": False,
         "timeForLightsTurnOn": 0.0,
         "filter_window": 200,
-        "noChannels": 1,
         "zscore_method": "baseline",
         "baselineWindowStart": 1.0,
         "baselineWindowEnd": 3.0,
         "nSecPrev": 2,
         "nSecPost": 8,
         "computeCorr": True,
+        "computePsthSignificance": False,
+        "psthComparisonsA": [],
+        "psthComparisonsB": [],
+        "psthSignificanceAlpha": 0.05,
+        "psthBootstrapResamples": 1000,
         "useTransientsAsEvents": True,
         "timeInterval": 1.0,
         "bin_psth_trials": 5,
@@ -208,25 +220,23 @@ def test_save_parameters_single_folder(tmp_path):
         "transientsThresh": 3.0,
         "computeBinnedMetrics": False,
         "binnedMetricsWidth": 120,
-        "visualize_zscore_or_dff": "dff",
-        "averageForGroup": True,
     }
 
     save_parameters(input_parameters)
 
-    json_path = os.path.join(str(folder), "GuPPyParamtersUsed.json")
-    assert os.path.exists(json_path)
-    with open(json_path) as file:
+    json_path = Path(str(folder)) / "GuPPyParamtersUsed.json"
+    assert Path(json_path).exists()
+    with Path(json_path).open() as file:
         saved = json.load(file)
     assert saved["zscore_method"] == "baseline"
     assert saved["combine_data"] is True
 
 
 def _make_output_dir(session_path, run_name):
-    run_folder = os.path.join(session_path, f"{os.path.basename(session_path)}_output_{run_name}")
-    os.mkdir(run_folder)
+    run_folder = Path(session_path) / (f"{Path(session_path).name}_output_{run_name}")
+    Path(run_folder).mkdir()
     # storesList.csv must exist so select_run_folders accepts the run name.
-    open(os.path.join(run_folder, "storesList.csv"), "w").close()
+    (Path(run_folder) / "storesList.csv").open("w").close()
     return run_folder
 
 
@@ -246,8 +256,8 @@ def test_save_parameters_filters_to_selected_run_name(base_input_parameters):
 
     save_parameters(base_input_parameters)
 
-    assert os.path.exists(os.path.join(baseline_dir, "GuPPyParamtersUsed.json"))
-    assert not os.path.exists(os.path.join(strict_dir, "GuPPyParamtersUsed.json"))
+    assert (Path(baseline_dir) / "GuPPyParamtersUsed.json").exists()
+    assert not (Path(strict_dir) / "GuPPyParamtersUsed.json").exists()
 
 
 def test_save_parameters_falls_back_to_session_root_when_no_output_dirs(base_input_parameters):
@@ -256,7 +266,7 @@ def test_save_parameters_falls_back_to_session_root_when_no_output_dirs(base_inp
 
     save_parameters(base_input_parameters)
 
-    assert os.path.exists(os.path.join(session, "GuPPyParamtersUsed.json"))
+    assert (Path(session) / "GuPPyParamtersUsed.json").exists()
 
 
 def test_save_parameters_raises_for_unknown_selected_run(base_input_parameters):

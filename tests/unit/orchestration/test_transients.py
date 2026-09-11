@@ -1,5 +1,5 @@
 import json
-import os
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -13,7 +13,6 @@ from guppy.analysis.standard_io import (
     write_binned_metrics_to_hdf5,
 )
 from guppy.orchestration.transients import (
-    execute_average_for_group,
     executeFindFreqAndAmp,
     findBinnedMetrics,
     findCovariateCorrelations,
@@ -24,7 +23,6 @@ from guppy.orchestration.transients import (
 def transient_params(base_input_parameters):
     base_input_parameters["numberOfCores"] = 1
     base_input_parameters["moving_window"] = 15
-    base_input_parameters["group_session_folders"] = ["/group_1"]
     base_input_parameters["session_folders"] = ["/session_1"]
     return base_input_parameters
 
@@ -41,39 +39,21 @@ def capture_dispatch(monkeypatch):
         "guppy.orchestration.transients.execute_find_freq_and_amp_combined",
         lambda ip, sf, mw, procs: calls.setdefault("combined", sf),
     )
-    monkeypatch.setattr(
-        "guppy.orchestration.transients.execute_average_for_group",
-        lambda ip, folders: calls.setdefault("average", folders),
-    )
     return calls
 
 
 class TestExecuteFindFreqAndAmpDispatch:
     def test_individual_path(self, transient_params, capture_dispatch):
-        transient_params["averageForGroup"] = False
         transient_params["combine_data"] = False
         executeFindFreqAndAmp(transient_params)
         assert set(capture_dispatch) == {"individual"}
         assert capture_dispatch["individual"] == ["/session_1"]
 
     def test_combined_path(self, transient_params, capture_dispatch):
-        transient_params["averageForGroup"] = False
         transient_params["combine_data"] = True
         executeFindFreqAndAmp(transient_params)
         assert set(capture_dispatch) == {"combined"}
         assert capture_dispatch["combined"] == ["/session_1"]
-
-    def test_average_path(self, transient_params, capture_dispatch):
-        transient_params["averageForGroup"] = True
-        transient_params["combine_data"] = False
-        executeFindFreqAndAmp(transient_params)
-        assert set(capture_dispatch) == {"average"}
-        assert capture_dispatch["average"] == ["/group_1"]
-
-
-def test_execute_average_for_group_raises_for_empty_folders(base_input_parameters):
-    with pytest.raises(ValueError, match="No folders selected for group averaging"):
-        execute_average_for_group(base_input_parameters, [])
 
 
 class TestFindBinnedMetrics:
@@ -95,7 +75,7 @@ class TestFindBinnedMetrics:
         np.testing.assert_allclose(binned["mean_zscore"].to_numpy(), [2.0, 7.5])
         np.testing.assert_allclose(binned["mean_dff"].to_numpy(), [0.2, 0.75])
         np.testing.assert_array_equal(binned["transient_count_z_score"].to_numpy(), [1, 2])
-        assert os.path.exists(os.path.join(run_folder, "binned_metrics_dms.csv"))
+        assert (Path(run_folder) / "binned_metrics_dms.csv").exists()
 
     def test_bins_span_the_uncompressed_time_axis(self, run_folder, base_input_parameters):
         # Regression guard: binning must use timestampNew, not the NaN-stripped
@@ -125,7 +105,7 @@ class TestFindCovariateCorrelations:
     def run_folder(self, tmp_path):
         """A run folder with one binned-metrics table and one covariate store."""
         np.savetxt(
-            os.path.join(str(tmp_path), "storesList.csv"),
+            Path(str(tmp_path)) / "storesList.csv",
             np.array([["akinesia", "Dv2A"], ["covariate_akinesia", "signal_dms"]]),
             delimiter=",",
             fmt="%s",
@@ -175,12 +155,12 @@ class TestFindCovariateCorrelations:
     def test_writes_csv_twins(self, run_folder, base_input_parameters):
         findCovariateCorrelations(run_folder, base_input_parameters, ["dms"])
 
-        assert os.path.exists(os.path.join(run_folder, "binned_covariates_dms.csv"))
-        assert os.path.exists(os.path.join(run_folder, "covariate_correlations_dms.csv"))
+        assert (Path(run_folder) / "binned_covariates_dms.csv").exists()
+        assert (Path(run_folder) / "covariate_correlations_dms.csv").exists()
 
     def test_no_covariate_store_writes_nothing(self, tmp_path, base_input_parameters):
         np.savetxt(
-            os.path.join(str(tmp_path), "storesList.csv"),
+            Path(str(tmp_path)) / "storesList.csv",
             np.array([["Dv2A", "PrtN"], ["signal_dms", "port_entries"]]),
             delimiter=",",
             fmt="%s",
@@ -188,10 +168,10 @@ class TestFindCovariateCorrelations:
 
         findCovariateCorrelations(str(tmp_path), base_input_parameters, ["dms"])
 
-        assert not os.path.exists(os.path.join(str(tmp_path), "covariate_correlations_dms.h5"))
+        assert not (Path(str(tmp_path)) / "covariate_correlations_dms.h5").exists()
 
     def test_concatenated_outputs_raise(self, run_folder, base_input_parameters):
-        with open(os.path.join(run_folder, "GuPPyParamtersUsed.json"), "w") as parameters_file:
+        with (Path(run_folder) / "GuPPyParamtersUsed.json").open("w") as parameters_file:
             json.dump({"removeArtifacts": True, "artifactsRemovalMethod": "concatenate"}, parameters_file)
 
         with pytest.raises(ValueError, match="concatenate"):

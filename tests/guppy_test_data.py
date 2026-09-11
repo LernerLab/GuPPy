@@ -36,7 +36,7 @@ def event_ts_offset_for(base_dir: str | Path) -> float:
     """
     matches = sorted(Path(base_dir).rglob("GuPPyParamtersUsed.json"))
     assert matches, f"No GuPPyParamtersUsed.json found under {base_dir}"
-    with open(matches[0]) as params_file:
+    with Path(matches[0]).open() as params_file:
         time_for_lights_turn_on = json.load(params_file)["timeForLightsTurnOn"]
 
     return recording_start_for(base_dir) + time_for_lights_turn_on

@@ -1,6 +1,5 @@
-import glob
-import os
 import shutil
+from pathlib import Path
 
 import pytest
 
@@ -38,7 +37,7 @@ def test_consistency_dff(tmp_path):
     session_copy = tmp_base / dest_name
     shutil.copytree(src_session, session_copy)
 
-    for d in glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")):
+    for d in list(Path(session_copy).glob(f"{dest_name}_output_*")):
         shutil.rmtree(d)
     params_fp = session_copy / "GuPPyParamtersUsed.json"
     if params_fp.exists():
@@ -55,7 +54,7 @@ def test_consistency_dff(tmp_path):
     step3(**common_kwargs, control_fit_method="OLS", selected_runs=selected_runs)
     step4(**common_kwargs, select_for_compute_psth="dff", select_for_transients="dff", selected_runs=selected_runs)
 
-    run_folders = sorted(glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")))
+    run_folders = sorted(list(Path(session_copy).glob(f"{dest_name}_output_*")))
     assert run_folders, f"No output directory found under {session_copy}"
     actual_output_dir = run_folders[0]
 

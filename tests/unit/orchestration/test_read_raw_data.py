@@ -5,6 +5,7 @@ import time
 
 import pytest
 
+from guppy.extractors.base_recording_extractor import BaseRecordingExtractor
 from guppy.orchestration.read_raw_data import orchestrate_read_raw_data
 from guppy.utils.progress import StepProgress, _current_step
 from guppy_test_data import STUBBED_TESTING_DATA
@@ -30,6 +31,11 @@ DEFAULT_ANALYSIS_PARAMETERS = {
     "nSecPrev": -10,
     "nSecPost": 20,
     "computeCorr": False,
+    "computePsthSignificance": False,
+    "psthComparisonsA": [],
+    "psthComparisonsB": [],
+    "psthSignificanceAlpha": 0.05,
+    "psthBootstrapResamples": 1000,
     "useTransientsAsEvents": False,
     "timeInterval": 2,
     "bin_psth_trials": 0,
@@ -46,7 +52,6 @@ DEFAULT_ANALYSIS_PARAMETERS = {
     "transientsThresh": 3,
     "computeBinnedMetrics": False,
     "binnedMetricsWidth": 120,
-    "visualize_zscore_or_dff": "z_score",
     "averageForGroup": False,
 }
 
@@ -117,10 +122,14 @@ class TestProgressAccountingEndToEnd:
         # read+save are no-ops on disk.
         observed_during_read = []
 
-        class _ObservingExtractor:
+        class _ObservingExtractor(BaseRecordingExtractor):
             def __init__(self, event, sample_count):
                 self.event = event
                 self.sample_count = sample_count
+
+            @classmethod
+            def discover_events_and_flags(cls):
+                raise NotImplementedError
 
             def count_samples(self, *, event):
                 return self.sample_count
@@ -132,6 +141,9 @@ class TestProgressAccountingEndToEnd:
 
             def save(self, *, output_dicts, outputPath):
                 return None
+
+            def stub(self, *, folder_path, duration_in_seconds=1.0):
+                raise NotImplementedError
 
         def fake_build_event_to_extractor(*, folder_path, store_array, inputParameters):
             return {

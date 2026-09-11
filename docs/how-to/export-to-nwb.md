@@ -26,8 +26,9 @@ For what an exported file holds and why, see
 
 Run **Step 1: Label Stores**, **Step 2: Read Raw Data** and **Step 3:
 Preprocess** on the sessions you want to export. **Step 4: PSTH Computation**
-is optional, but PSTHs, transients, peak/AUC summaries and cross-correlations
-reach the file only if it ran.
+is optional, but PSTHs, transients, peak/AUC summaries, cross-correlations,
+binned metrics and bootstrap significance results reach the file only if it ran,
+and the same holds for **Tonic Analysis** and the epoch means it writes.
 
 Both steps read the run folder, so select the session folder(s) **and** the
 output run(s) on the homepage before clicking either.
@@ -188,7 +189,7 @@ Notes:
 - The metadata you enter in Step 6 is applied *on top of* what GuPPy and the
   acquisition files already supply — it only ever adds or replaces, and never
   removes what was read from the data.
-- Group averaging is not exported. The `average/` directory is a group product
+- Group averaging is not exported. A group directory is a group product
   with no session behind it, and combined runs are refused outright.
 - Export errors name both the session and the run, so a partial batch tells you
   exactly which run folder to fix.

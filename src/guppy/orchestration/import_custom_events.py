@@ -1,5 +1,5 @@
 import logging
-import os
+from pathlib import Path
 
 import panel as pn
 
@@ -27,7 +27,7 @@ def build_custom_events_template(folder_path: str) -> pn.template.BootstrapTempl
     pn.template.BootstrapTemplate
         Fully configured Panel template ready to be served.
     """
-    template = pn.template.BootstrapTemplate(title="Import Custom Events - {}".format(os.path.basename(folder_path)))
+    template = pn.template.BootstrapTemplate(title=f"Import Custom Events - {Path(folder_path).name}")
     config = CustomEventsConfig()
 
     def save_button(event: object = None) -> None:
@@ -58,7 +58,7 @@ def build_custom_events_template(folder_path: str) -> pn.template.BootstrapTempl
             except FileExistsError as exc:
                 config.set_alert_message(f"#### Alert !! \n {exc}")
                 return
-            written.append(os.path.basename(csv_path))
+            written.append(Path(csv_path).name)
 
         if not written:
             config.set_alert_message("#### No events to save — continue to the Label Stores GUI.")
@@ -95,12 +95,12 @@ def build_custom_events_page(inputParameters: dict[str, object], folder_path: st
     """
     custom_events_map = inputParameters.get("custom_events_map")
     if isinstance(custom_events_map, dict):
-        events_for_session = custom_events_map.get(os.path.basename(folder_path), {})
+        events_for_session = custom_events_map.get(Path(folder_path).name, {})
         for name, timestamps in events_for_session.items():
             csv_path = write_custom_event_csv(
                 name=name, timestamps=list(timestamps), folder_path=folder_path, overwrite=True
             )
-            logger.info(f"Custom event saved at {csv_path}")
+            logger.info("Custom event saved at %s", csv_path)
         return
 
     template = build_custom_events_template(folder_path)
@@ -114,13 +114,12 @@ def orchestrate_custom_events_page(inputParameters: dict[str, object]) -> None:
     Parameters
     ----------
     inputParameters : dict
-        Full pipeline input parameters; uses ``session_folders`` and ``abspath``,
-        and optionally ``custom_events_map`` for headless operation.
+        Full pipeline input parameters; uses ``session_folders``, and optionally
+        ``custom_events_map`` for headless operation.
     """
     session_folders = inputParameters["session_folders"]
     logger.info(session_folders)
 
-    for i in session_folders:
-        folder_path = os.path.join(inputParameters["abspath"], i)
+    for folder_path in session_folders:
         build_custom_events_page(inputParameters, folder_path)
     logger.info("#" * 400)

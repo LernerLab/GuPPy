@@ -1,6 +1,5 @@
-import glob
-import os
 import shutil
+from pathlib import Path
 
 import h5py
 import numpy as np
@@ -82,8 +81,8 @@ def test_artifact_removal(tmp_path, artifact_removal_method, coords):
     session_copy = tmp_base / dest_name
     shutil.copytree(src_session, session_copy)
 
-    for d in glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")):
-        assert os.path.isdir(d), f"Expected output directory for cleanup, got non-directory: {d}"
+    for d in list(Path(session_copy).glob(f"{dest_name}_output_*")):
+        assert Path(d).is_dir(), f"Expected output directory for cleanup, got non-directory: {d}"
         shutil.rmtree(d)
     params_fp = session_copy / "GuPPyParamtersUsed.json"
     if params_fp.exists():
@@ -107,26 +106,26 @@ def test_artifact_removal(tmp_path, artifact_removal_method, coords):
     remove_artifacts(**common_kwargs, selected_runs=selected_runs)
     step4(**common_kwargs, selected_runs=selected_runs)
 
-    run_folders = sorted(glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")))
+    run_folders = sorted(list(Path(session_copy).glob(f"{dest_name}_output_*")))
     assert run_folders, f"No output directories found in {session_copy}"
     out_dir = None
     for d in run_folders:
-        if os.path.exists(os.path.join(d, "storesList.csv")):
+        if (Path(d) / "storesList.csv").exists():
             out_dir = d
             break
     assert out_dir is not None, f"No storesList.csv found in any output directory under {session_copy}"
 
-    assert os.path.exists(os.path.join(out_dir, "storesList.csv")), "Missing storesList.csv"
+    assert (Path(out_dir) / "storesList.csv").exists(), "Missing storesList.csv"
 
-    timecorr = os.path.join(out_dir, "timeCorrection_dms.hdf5")
-    assert os.path.exists(timecorr), f"Missing {timecorr}"
+    timecorr = Path(out_dir) / "timeCorrection_dms.hdf5"
+    assert Path(timecorr).exists(), f"Missing {timecorr}"
     with h5py.File(timecorr, "r") as f:
         assert "timestampNew" in f, f"Expected 'timestampNew' dataset in {timecorr}"
 
-    ttl_fp = os.path.join(out_dir, "port_entries_dms_dms.hdf5")
-    assert os.path.exists(ttl_fp), f"Missing TTL-aligned file {ttl_fp}"
+    ttl_fp = Path(out_dir) / "port_entries_dms_dms.hdf5"
+    assert Path(ttl_fp).exists(), f"Missing TTL-aligned file {ttl_fp}"
     with h5py.File(ttl_fp, "r") as f:
         assert "ts" in f, f"Expected 'ts' dataset in {ttl_fp}"
 
-    zscore_fp = os.path.join(out_dir, "z_score_dms.hdf5")
-    assert os.path.exists(zscore_fp), f"Missing processed signal file {zscore_fp}"
+    zscore_fp = Path(out_dir) / "z_score_dms.hdf5"
+    assert Path(zscore_fp).exists(), f"Missing processed signal file {zscore_fp}"

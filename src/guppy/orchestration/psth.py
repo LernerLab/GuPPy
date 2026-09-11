@@ -1,30 +1,24 @@
-# coding: utf-8
-
-import glob
 import logging
 import multiprocessing as mp
-import os
 import re
 from itertools import repeat
+from pathlib import Path
 
 import numpy as np
 from scipy import signal as ss
 
-from .group_utils import gather_group_run_folders
+from .psth_significance import execute_compute_psth_significance
 from .save_parameters import read_artifact_provenance, save_parameters
 from .transients import executeFindFreqAndAmp
 from ..analysis.compute_psth import compute_psth
 from ..analysis.cross_correlation import compute_cross_correlation
 from ..analysis.io_utils import (
-    is_channel_label,
     is_continuous_label,
     make_dir_for_cross_correlation,
-    makeAverageDir,
     read_hdf5,
     recording_site_from_preprocessed_label,
     write_hdf5,
 )
-from ..analysis.psth_average import averageForGroup
 from ..analysis.psth_peak_and_area import compute_psth_peak_and_area
 from ..analysis.psth_utils import (
     create_Df_for_cross_correlation,
@@ -38,6 +32,7 @@ from ..analysis.standard_io import (
 )
 from ..utils import progress
 from ..utils.progress import step_error_handler
+from ..utils.stores_list import read_stores_list
 from ..utils.utils import (
     event_labels_for_analysis,
     get_all_stores_for_combining_data,
@@ -46,7 +41,11 @@ from ..utils.utils import (
     select_run_folders,
     transient_event_labels,
 )
-from ..utils.validation import validate_peak_windows, validate_window_bounds
+from ..utils.validation import (
+    validate_peak_windows,
+    validate_psth_comparisons,
+    validate_window_bounds,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -77,22 +76,22 @@ def execute_compute_psth(filepath: str, event: str, inputParameters: dict[str, o
     timeForLightsTurnOn = inputParameters["timeForLightsTurnOn"]
 
     if selectForComputePsth == "z_score":
-        path = glob.glob(os.path.join(filepath, "z_score_*"))
+        path = list(Path(filepath).glob("z_score_*"))
     elif selectForComputePsth == "dff":
-        path = glob.glob(os.path.join(filepath, "dff_*"))
+        path = list(Path(filepath).glob("dff_*"))
     else:
-        path = glob.glob(os.path.join(filepath, "z_score_*")) + glob.glob(os.path.join(filepath, "dff_*"))
+        path = list(Path(filepath).glob("z_score_*")) + list(Path(filepath).glob("dff_*"))
 
     b = np.divide(np.ones((100,)), 100)
     a = 1
 
     for i in range(len(path)):
-        logger.info(f"Computing PSTH for event {event}...")
-        basename = (os.path.basename(path[i])).split(".")[0]
+        logger.info("Computing PSTH for event %s...", event)
+        basename = (Path(path[i]).name).split(".")[0]
         name_1 = recording_site_from_preprocessed_label(basename)
-        control = read_hdf5("control_" + name_1, os.path.dirname(path[i]), "data")
+        control = read_hdf5("control_" + name_1, Path(path[i]).parent, "data")
         if (control == 0).all() == True:
-            signal = read_hdf5("signal_" + name_1, os.path.dirname(path[i]), "data")
+            signal = read_hdf5("signal_" + name_1, Path(path[i]).parent, "data")
             z_score = ss.filtfilt(b, a, signal)
             just_use_signal = True
         else:
@@ -135,7 +134,7 @@ def execute_compute_psth(filepath: str, event: str, inputParameters: dict[str, o
             columns=columns,
         )
         create_Df_for_psth(filepath, event + "_" + name_1, basename, psth, columns=columns)
-        logger.info(f"PSTH for event {event} computed.")
+        logger.info("PSTH for event %s computed.", event)
 
 
 def execute_compute_psth_peak_and_area(filepath: str, event: str, inputParameters: dict[str, object]) -> None:
@@ -161,15 +160,15 @@ def execute_compute_psth_peak_and_area(filepath: str, event: str, inputParameter
     selectForComputePsth = inputParameters["selectForComputePsth"]
 
     if selectForComputePsth == "z_score":
-        path = glob.glob(os.path.join(filepath, "z_score_*"))
+        path = list(Path(filepath).glob("z_score_*"))
     elif selectForComputePsth == "dff":
-        path = glob.glob(os.path.join(filepath, "dff_*"))
+        path = list(Path(filepath).glob("dff_*"))
     else:
-        path = glob.glob(os.path.join(filepath, "z_score_*")) + glob.glob(os.path.join(filepath, "dff_*"))
+        path = list(Path(filepath).glob("z_score_*")) + list(Path(filepath).glob("dff_*"))
 
     for i in range(len(path)):
-        logger.info(f"Computing peak and area for PSTH mean signal for event {event}...")
-        basename = (os.path.basename(path[i])).split(".")[0]
+        logger.info("Computing peak and area for PSTH mean signal for event %s...", event)
+        basename = (Path(path[i]).name).split(".")[0]
         name_1 = recording_site_from_preprocessed_label(basename)
         sampling_rate = read_hdf5("timeCorrection_" + name_1, filepath, "sampling_rate")[0]
         psth = read_Df(filepath, event + "_" + name_1, basename)
@@ -184,11 +183,11 @@ def execute_compute_psth_peak_and_area(filepath: str, event: str, inputParameter
         peak_area = compute_psth_peak_and_area(
             psth_mean_bin_mean, timestamps, sampling_rate, peak_startPoint, peak_endPoint, auc_units=auc_units
         )
-        fileName = [os.path.basename(os.path.dirname(filepath))]
+        fileName = [Path(filepath).parent.name]
         index = [fileName[0] + "_" + name for name in psth_mean_bin_names]
         write_peak_and_area_to_hdf5(filepath, peak_area, event + "_" + name_1 + "_" + basename, index=index)
         write_peak_and_area_to_csv(filepath, peak_area, event + "_" + name_1 + "_" + basename, index=index)
-        logger.info(f"Peak and Area for PSTH mean signal for event {event} computed.")
+        logger.info("Peak and Area for PSTH mean signal for event %s computed.", event)
 
 
 def execute_compute_cross_correlation(filepath: str, event: str, inputParameters: dict[str, object]) -> None:
@@ -235,7 +234,7 @@ def execute_compute_cross_correlation(filepath: str, event: str, inputParameters
             return
         else:
             for i in range(1, len(corr_info)):
-                logger.debug(f"Computing cross-correlation for event {event}...")
+                logger.debug("Computing cross-correlation for event %s...", event)
                 for j in range(len(type)):
                     psth_a = read_Df(filepath, event + "_" + corr_info[i - 1], type[j] + "_" + corr_info[i - 1])
                     psth_b = read_Df(filepath, event + "_" + corr_info[i], type[j] + "_" + corr_info[i])
@@ -255,10 +254,15 @@ def execute_compute_cross_correlation(filepath: str, event: str, inputParameters
                         )
                     if len(matched_labels) < max(len(psth_a.columns), len(psth_b.columns)):
                         logger.warning(
-                            f"Recording sites '{corr_info[i - 1]}' and '{corr_info[i]}' have a different set of "
-                            f"surviving trials for event '{event}' (uneven artifact removal): "
-                            f"{len(psth_a.columns)} vs {len(psth_b.columns)} trials, {len(matched_labels)} matched. "
-                            f"Cross-correlating only the matched trials."
+                            "Recording sites '%s' and '%s' have a different set of surviving trials for event '%s' "
+                            "(uneven artifact removal): %s vs %s trials, %s matched. Cross-correlating only the matched "
+                            "trials.",
+                            corr_info[i - 1],
+                            corr_info[i],
+                            event,
+                            len(psth_a.columns),
+                            len(psth_b.columns),
+                            len(matched_labels),
                         )
                     psth_array_a = np.array(psth_a).T[indices_a]
                     psth_array_b = np.array(psth_b).T[indices_b]
@@ -272,7 +276,7 @@ def execute_compute_cross_correlation(filepath: str, event: str, inputParameters
                         cross_corr,
                         columns,
                     )
-                logger.info(f"Cross-correlation for event {event} computed.")
+                logger.info("Cross-correlation for event %s computed.", event)
 
 
 def orchestrate_psth(inputParameters: dict[str, object]) -> None:
@@ -291,31 +295,44 @@ def orchestrate_psth(inputParameters: dict[str, object]) -> None:
     spawn_context = mp.get_context("spawn")
     selected_runs = inputParameters.get("selected_runs") or {}
     for i in range(len(session_folders)):
-        logger.debug(f"Computing PSTH, Peak and Area for each event in {session_folders[i]}")
+        logger.debug("Computing PSTH, Peak and Area for each event in %s", session_folders[i])
         run_folders = select_run_folders(session_folders[i], selected_runs.get(session_folders[i]))
         for j in range(len(run_folders)):
             filepath = run_folders[j]
-            store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(
-                2, -1
-            )
+            store_array = read_stores_list(run_folder=filepath)
             event_labels = event_labels_for_analysis(store_array=store_array, inputParameters=inputParameters)
 
+            # Each pool is closed and joined before leaving its block. The context manager's
+            # __exit__ calls terminate(), which signals every worker and then blocks in waitpid()
+            # until it is gone; a worker that is slow to exit never gets there and the parent waits
+            # forever. starmap has already returned, so there is nothing to abort -- close() lets
+            # each worker exit on its own.
             with spawn_context.Pool(numProcesses) as psth_pool:
                 psth_pool.starmap(execute_compute_psth, zip(repeat(filepath), event_labels, repeat(inputParameters)))
+                psth_pool.close()
+                psth_pool.join()
 
             with spawn_context.Pool(numProcesses) as peak_area_pool:
                 peak_area_pool.starmap(
                     execute_compute_psth_peak_and_area,
                     zip(repeat(filepath), event_labels, repeat(inputParameters)),
                 )
+                peak_area_pool.close()
+                peak_area_pool.join()
 
             with spawn_context.Pool(numProcesses) as cross_correlation_pool:
                 cross_correlation_pool.starmap(
                     execute_compute_cross_correlation, zip(repeat(filepath), event_labels, repeat(inputParameters))
                 )
+                cross_correlation_pool.close()
+                cross_correlation_pool.join()
 
             progress.advance()
-        logger.info(f"PSTH, Area and Peak are computed for all events in {session_folders[i]}.")
+
+            execute_compute_psth_significance(filepath, inputParameters)
+            if inputParameters["computePsthSignificance"]:
+                progress.advance()
+        logger.info("PSTH, Area and Peak are computed for all events in %s.", session_folders[i])
 
 
 def execute_psth_combined(inputParameters: dict[str, object]) -> None:
@@ -339,9 +356,7 @@ def execute_psth_combined(inputParameters: dict[str, object]) -> None:
             store_array = np.concatenate(
                 (
                     store_array,
-                    np.genfromtxt(
-                        os.path.join(combined_output_groups[i][j], "storesList.csv"), dtype="str", delimiter=","
-                    ).reshape(2, -1),
+                    read_stores_list(run_folder=combined_output_groups[i][j]),
                 ),
                 axis=1,
             )
@@ -352,55 +367,44 @@ def execute_psth_combined(inputParameters: dict[str, object]) -> None:
             execute_compute_cross_correlation(combined_output_groups[i][0], event, inputParameters)
         progress.advance()
 
+        execute_compute_psth_significance(combined_output_groups[i][0], inputParameters)
+        if inputParameters["computePsthSignificance"]:
+            progress.advance()
 
-def _validate_fiber_recording_sites_consistent_for_group(run_folders: np.ndarray) -> None:
-    """Check that every session shares the same fiber (control/signal) store_ids.
 
-    Group averaging buckets each session's data by its fiber recording-site basename
-    (``z_score_<recording_site>`` / ``dff_<recording_site>``) and averages each
-    behavioral event independently, skipping sessions that lack a given event.  Sessions
-    may therefore differ in their *event* store_ids — that is the intended
-    cross-condition workflow (e.g. ``novelobject`` sessions averaged alongside
-    ``novelfemale1`` sessions).  What must agree is the set of *fiber* store_ids:
-    averaging across different recording sites produces meaningless per-recording-site
-    single-session "averages".  Detect that mismatch up-front and raise a clear
-    error listing the offending sessions.
+def _validate_psth_significance_parameters(inputParameters: dict[str, object]) -> None:
+    """Upfront validation of the PSTH significance parameters, run before any HDF5 IO.
 
-    Fiber store_ids follow the codebase-wide convention that their names contain
-    ``control`` or ``signal``; every other store_id is treated as a behavioral
-    event and ignored here.
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters.
 
     Raises
     ------
     ValueError
-        When the sessions disagree on the set of fiber (control/signal) store_ids.
+        If a comparison row is half-filled or self-referential, or if the moving-average
+        filter is disabled while significance testing is on.
     """
-    per_session_fibers = {}
-    for run_folder in run_folders:
-        session_stores_list = np.genfromtxt(
-            os.path.join(run_folder, "storesList.csv"), dtype="str", delimiter=","
-        ).reshape(2, -1)
-        fiber_stores = tuple(sorted(name for name in set(session_stores_list[1, :]) if is_channel_label(name)))
-        per_session_fibers[run_folder] = fiber_stores
-
-    unique_fiber_sets = set(per_session_fibers.values())
-    if len(unique_fiber_sets) <= 1:
+    if not inputParameters["computePsthSignificance"]:
         return
 
-    session_lines = "\n".join(
-        f"  - {os.path.basename(os.path.dirname(run_folder))}: "
-        f"{', '.join(stores) if stores else '(no control/signal store_ids)'}"
-        for run_folder, stores in per_session_fibers.items()
+    validate_psth_comparisons(
+        comparisons_a=inputParameters["psthComparisonsA"],
+        comparisons_b=inputParameters["psthComparisonsB"],
     )
-    raise ValueError(
-        "Group averaging requires every selected session to share the same fiber "
-        "recording sites, but the selected sessions have mismatched control/signal "
-        "store_ids:\n"
-        f"{session_lines}\n"
-        "Event store_ids may differ across sessions, but the control/signal "
-        "store_ids must match. Fix the store_id labels in step 1, deselect the "
-        "mismatched sessions, or disable 'Average Group? (bool)'."
-    )
+
+    # The significance run-length threshold is derived from the filter window, so with
+    # filtering disabled every isolated significant sample would survive and the
+    # multiple-comparisons control would silently vanish.
+    if inputParameters["filter_window"] == 0:
+        message = (
+            "filter_window=0 disables the moving-average filter, but PSTH significance testing "
+            "derives its minimum significant duration from it. Set a filter window, or turn off "
+            "Compute PSTH Significance."
+        )
+        logger.error(message)
+        raise ValueError(message)
 
 
 def _validate_psth_window_parameters(inputParameters: dict[str, object]) -> None:
@@ -433,79 +437,63 @@ def _validate_psth_window_parameters(inputParameters: dict[str, object]) -> None
     )
 
 
-def _merge_group_stores_list(run_folders: np.ndarray) -> np.ndarray:
-    """Return the union of every group session's storesList as a single store array.
+def _validate_events_overlap_signal(inputParameters: dict[str, object]) -> None:
+    """Upfront check that each event store shares a timeline with the signal, run before any worker.
 
-    Parameters
-    ----------
-    run_folders : np.ndarray
-        Output directories of every session in the group.
-
-    Returns
-    -------
-    np.ndarray
-        2-D array with rows [store_id, store_label], deduplicated column-wise.
+    An event whose PSTH window only partly overlaps the signal is legitimate — ``rowFormation``
+    NaN-pads it. An event whose window does not overlap at all can only ever produce an
+    all-NaN trial, and a whole store of them means the events and the signal are on different
+    clocks. That used to surface as an out-of-range index deep inside the PSTH pools.
     """
-    store_array = np.asarray([[], []])
-    for run_folder in run_folders:
-        store_array = np.concatenate(
-            (
-                store_array,
-                np.genfromtxt(os.path.join(run_folder, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1),
-            ),
-            axis=1,
+    nSecPrev = float(inputParameters["nSecPrev"])
+    nSecPost = float(inputParameters["nSecPost"])
+    selectForComputePsth = inputParameters["selectForComputePsth"]
+    # Transient event files are written by executeFindFreqAndAmp, which runs after this check;
+    # their timestamps are on the corrected basis by construction and cannot be off-clock.
+    transient_labels = set(transient_event_labels(inputParameters=inputParameters))
+
+    for filepath in resolve_run_folders(inputParameters["session_folders"], inputParameters):
+        store_array = read_stores_list(run_folder=filepath)
+        events = [
+            event.replace("\\", "_").replace("/", "_")
+            for event in event_labels_for_analysis(store_array=store_array, inputParameters=inputParameters)
+            if not is_continuous_label(event) and event not in transient_labels
+        ]
+        if not events:
+            continue
+
+        # Mirror the worker's site resolution so we validate exactly what will be computed.
+        if selectForComputePsth == "z_score":
+            preprocessed_paths = list(Path(filepath).glob("z_score_*"))
+        elif selectForComputePsth == "dff":
+            preprocessed_paths = list(Path(filepath).glob("dff_*"))
+        else:
+            preprocessed_paths = list(Path(filepath).glob("z_score_*")) + list(Path(filepath).glob("dff_*"))
+        recording_sites = dict.fromkeys(
+            recording_site_from_preprocessed_label(path.name.split(".")[0]) for path in preprocessed_paths
         )
-    return np.unique(store_array, axis=1)
 
-
-def _group_event_labels(*, store_array: np.ndarray, inputParameters: dict[str, object]) -> list[str]:
-    """Return the event labels group averaging computes a PSTH average for.
-
-    Parameters
-    ----------
-    store_array : np.ndarray
-        Merged store array of every session in the group.
-    inputParameters : dict
-        Full pipeline input parameters.
-
-    Returns
-    -------
-    list of str
-        Store labels with the continuously sampled streams dropped.
-    """
-    return [
-        label
-        for label in event_labels_for_analysis(store_array=store_array, inputParameters=inputParameters)
-        if not is_continuous_label(label)
-    ]
-
-
-def execute_average_for_group(inputParameters: dict[str, object]) -> None:
-    """Average PSTH results across all selected sessions in the group.
-
-    Parameters
-    ----------
-    inputParameters : dict
-        Full pipeline input parameters; must contain a non-empty
-        ``group_session_folders`` list.
-
-    Raises
-    ------
-    ValueError
-        When ``group_session_folders`` is empty or the fiber (control/signal)
-        store_ids are inconsistent across sessions.
-    """
-    group_session_folders = inputParameters["group_session_folders"]
-    run_folders = gather_group_run_folders(inputParameters, group_session_folders)
-
-    _validate_fiber_recording_sites_consistent_for_group(run_folders)
-
-    store_array = _merge_group_stores_list(run_folders)
-    average_dir = makeAverageDir(inputParameters["abspath"])
-    np.savetxt(os.path.join(average_dir, "storesList.csv"), store_array, delimiter=",", fmt="%s")
-    for event in _group_event_labels(store_array=store_array, inputParameters=inputParameters):
-        averageForGroup(run_folders, event, inputParameters)
-        progress.advance()
+        for name_1 in recording_sites:
+            timestamps = read_hdf5("timeCorrection_" + name_1, filepath, "timestampNew")
+            signal_start, signal_end = float(timestamps[0]), float(timestamps[-1])
+            for event in events:
+                event_timestamps = read_hdf5(event + "_" + name_1, filepath, "ts")
+                # An event store with no timestamps is a separate problem, warned about downstream.
+                if len(event_timestamps) == 0:
+                    continue
+                overlaps = (event_timestamps + nSecPost >= signal_start) & (event_timestamps + nSecPrev <= signal_end)
+                if overlaps.any():
+                    continue
+                message = (
+                    f"Event store '{event}' spans [{float(event_timestamps[0]):.6g}, "
+                    f"{float(event_timestamps[-1]):.6g}]s, and with a PSTH window of "
+                    f"[{nSecPrev:g}, {nSecPost:g}]s no trial overlaps the '{name_1}' signal, which spans "
+                    f"[{signal_start:.6g}, {signal_end:.6g}]s in '{filepath}'. Every trial would be empty. "
+                    "Events and signal must come from the same acquisition clock — re-run step 1 and "
+                    "step 2 with the timestamp settings that put them on one timeline."
+                )
+                logger.error(message)
+                raise ValueError(message)
 
 
 def psthForEachStore(inputParameters: dict[str, object]) -> None:
@@ -520,38 +508,30 @@ def psthForEachStore(inputParameters: dict[str, object]) -> None:
     inputParameters = inputParameters
 
     _validate_psth_window_parameters(inputParameters)
+    _validate_psth_significance_parameters(inputParameters)
+    _validate_events_overlap_signal(inputParameters)
 
-    average = inputParameters["averageForGroup"]
     combine_data = inputParameters["combine_data"]
     numProcesses = inputParameters["numberOfCores"]
 
     # Snapshot the parameters being executed into each selected output dir so the
     # on-disk GuPPyParamtersUsed.json always reflects the last-run configuration.
-    # Group runs aggregate over the average/ dir rather than the individual
-    # selected_runs, so skip the snapshot there (steps 2-3 already wrote it per session).
-    if not average:
-        save_parameters(inputParameters=inputParameters)
+    save_parameters(inputParameters=inputParameters)
     if numProcesses == 0:
         numProcesses = mp.cpu_count()
     elif numProcesses > mp.cpu_count():
         logger.warning(
-            f"Number of cores requested ({numProcesses}) exceeds available cores "
-            f"({mp.cpu_count()}); using {mp.cpu_count() - 1}."
+            "Number of cores requested (%s) exceeds available cores (%s); using %s.",
+            numProcesses,
+            mp.cpu_count(),
+            mp.cpu_count() - 1,
         )
         numProcesses = mp.cpu_count() - 1
 
-    logger.info(f"Average for group : {average}")
-
-    # Group-average analysis aggregates PSTHs across all sessions in the group.
-    if average == True:
-        execute_average_for_group(inputParameters)
-
-    # Otherwise each session is analyzed individually.
+    if combine_data == True:
+        execute_psth_combined(inputParameters)
     else:
-        if combine_data == True:
-            execute_psth_combined(inputParameters)
-        else:
-            orchestrate_psth(inputParameters)
+        orchestrate_psth(inputParameters)
     logger.info("PSTH, Area and Peak are computed for all events.")
 
 
@@ -567,17 +547,11 @@ def _start_step4_progress(input_parameters: dict[str, object]) -> None:
     input_parameters : dict
         Full pipeline input parameters.
     """
-    if input_parameters["averageForGroup"] == True:
-        run_folders = gather_group_run_folders(input_parameters, input_parameters["group_session_folders"])
-        store_array = _merge_group_stores_list(run_folders)
-        event_labels = _group_event_labels(store_array=store_array, inputParameters=input_parameters)
-        # One unit per event store, plus the single unit group transient analysis reports.
-        progress.start(len(event_labels) + 1)
-        return
-
-    # Two units per output directory: transient analysis, then PSTH.
+    # Two units per output directory: transient analysis, then PSTH. Significance
+    # testing, when enabled, adds a third.
     run_folders = resolve_run_folders(input_parameters["session_folders"], input_parameters)
-    progress.start(len(run_folders) * 2)
+    units_per_run_folder = 3 if input_parameters["computePsthSignificance"] else 2
+    progress.start(len(run_folders) * units_per_run_folder)
 
 
 @step_error_handler
@@ -593,6 +567,8 @@ def run_psth_step(input_parameters: dict[str, object]) -> None:
         Full pipeline input parameters.
     """
     _validate_psth_window_parameters(input_parameters)
+    _validate_psth_significance_parameters(input_parameters)
+    _validate_events_overlap_signal(input_parameters)
     _start_step4_progress(input_parameters)
     executeFindFreqAndAmp(input_parameters)
     psthForEachStore(input_parameters)

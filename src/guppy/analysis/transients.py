@@ -64,6 +64,12 @@ def analyze_transients(
         result = pool.starmap(
             processChunks, zip(z_score_chunks, z_score_chunks_index, repeat(highAmpFilt), repeat(transientsThresh))
         )
+        # Close and join before leaving the block. The context manager's __exit__ calls terminate(),
+        # which signals every worker and then blocks in waitpid() until it is gone; a worker that is
+        # slow to exit never gets there and the parent waits forever. starmap has already returned,
+        # so there is nothing to abort -- close() lets each worker exit on its own.
+        pool.close()
+        pool.join()
 
     result = np.asarray(result, dtype=object)
     timestamps = timestamps[not_nan_indices]

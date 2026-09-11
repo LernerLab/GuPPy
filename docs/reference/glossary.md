@@ -42,4 +42,23 @@ run_name
 
 run_folder
   The directory on disk holding one run's outputs.
+
+group
+  A named set of runs whose results are averaged together, giving a cohort- or
+  animal-level view of an event's response. A group is defined in the Label
+  Groups step and averaged by the Group Analysis step.
+
+group_name
+  The user-supplied label for a group (e.g. `saline`). It names the group's
+  directory, `<group_name>_group`.
+
+group_folder
+  The directory on disk holding one group's definition and averaged outputs,
+  named `<group_name>_group`. It behaves like a {term}`run_folder` to the steps
+  that read PSTH results, so the visualizer opens it the same way.
+
+member_run
+  One {term}`run` belonging to a group. Each member contributes a single column
+  to the group's averaged outputs, so the number of members is the group's
+  statistical *n*.
 ```

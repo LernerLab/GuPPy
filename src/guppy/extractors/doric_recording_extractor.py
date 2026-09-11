@@ -1,6 +1,4 @@
-import glob
 import logging
-import os
 import re
 import shutil
 import warnings
@@ -57,18 +55,17 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
             List of format flags (e.g., 'doric_csv', 'doric_doric')
         """
         logger.debug("Discovering Doric events from file headers")
-        path = sorted(glob.glob(os.path.join(folder_path, "*.csv"))) + sorted(
-            glob.glob(os.path.join(folder_path, "*.doric"))
-        )
+        session_folder = Path(folder_path)
+        path = sorted(session_folder.glob("*.csv")) + sorted(session_folder.glob("*.doric"))
         # Exclude event CSV files (single 'timestamps' column) — those belong to CsvRecordingExtractor
-        path = [data_path for data_path in path if not (data_path.endswith(".csv") and _is_event_csv(data_path))]
+        path = [data_path for data_path in path if not (data_path.suffix == ".csv" and _is_event_csv(data_path))]
         path = sorted(list(set(path)))
         flag = "None"
         event_from_filename = []
         flags = []
 
         for i in range(len(path)):
-            extension = os.path.basename(path[i]).split(".")[-1]
+            extension = path[i].name.split(".")[-1]
             if extension == "doric":
                 key_names = cls._read_doric_file(path[i])
                 event_from_filename.extend(key_names)
@@ -246,14 +243,14 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
         """Return the number of samples for ``event`` using only metadata reads."""
         flag = self._check_doric()
         if flag == "doric_csv":
-            csv_paths = glob.glob(os.path.join(self.folder_path, "*.csv"))
+            csv_paths = list(Path(self.folder_path).glob("*.csv"))
             if not csv_paths:
                 return 0
-            with open(csv_paths[0], "rb") as file:
+            with csv_paths[0].open("rb") as file:
                 total_lines = sum(1 for _ in file)
             return max(0, total_lines - 2)
         if flag == "doric_doric":
-            doric_paths = glob.glob(os.path.join(self.folder_path, "*.doric"))
+            doric_paths = list(Path(self.folder_path).glob("*.doric"))
             if not doric_paths:
                 return 0
             with h5py.File(doric_paths[0], "r") as doric_file:
@@ -287,11 +284,12 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
 
     def _check_doric(self) -> str | int:
         logger.debug("Checking if doric file exists")
-        path = glob.glob(os.path.join(self.folder_path, "*.csv")) + glob.glob(os.path.join(self.folder_path, "*.doric"))
+        session_folder = Path(self.folder_path)
+        path = list(session_folder.glob("*.csv")) + list(session_folder.glob("*.doric"))
 
         flags = []
         for i in range(len(path)):
-            extension = os.path.basename(path[i]).split(".")[-1]
+            extension = path[i].name.split(".")[-1]
             if extension == "csv":
                 with warnings.catch_warnings():
                     warnings.simplefilter("error")
@@ -308,10 +306,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                 pass
 
         if len(flags) > 1:
-            doric_paths = sorted(
-                glob.glob(os.path.join(self.folder_path, "*.csv"))
-                + glob.glob(os.path.join(self.folder_path, "*.doric"))
-            )
+            doric_paths = sorted(list(session_folder.glob("*.csv")) + list(session_folder.glob("*.doric")))
             message = (
                 f"Multiple Doric data files found in '{self.folder_path}': {doric_paths}. "
                 "Each session folder must contain exactly one Doric file."
@@ -325,7 +320,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
         return flags[0]
 
     def _read_doric_csv(self, events: list[str]) -> list[dict[str, object]]:
-        path = glob.glob(os.path.join(self.folder_path, "*.csv"))
+        path = list(Path(self.folder_path).glob("*.csv"))
         if len(path) > 1:
             message = (
                 f"Multiple Doric .csv files found in '{self.folder_path}': {sorted(path)}. "
@@ -372,7 +367,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
         return output_dicts
 
     def _read_doric_doric(self, events: list[str]) -> list[dict[str, object]]:
-        path = glob.glob(os.path.join(self.folder_path, "*.doric"))
+        path = list(Path(self.folder_path).glob("*.doric"))
         if len(path) > 1:
             message = (
                 f"Multiple Doric .doric files found in '{self.folder_path}': {sorted(path)}. "
@@ -578,7 +573,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
             self._stub_doric_csv(folder_path=folder_path, duration_in_seconds=duration_in_seconds)
 
     def _stub_doric_hdf5(self, *, folder_path: Path | str, duration_in_seconds: float) -> None:
-        doric_paths = glob.glob(os.path.join(folder_path, "*.doric"))
+        doric_paths = list(Path(folder_path).glob("*.doric"))
         doric_path = doric_paths[0]
 
         with h5py.File(doric_path, "r") as source_file:
@@ -592,9 +587,9 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                 )
 
         # Replace after closing source_file so Windows does not raise PermissionError on open files.
-        os.replace(temporary_path, doric_path)
+        temporary_path.replace(doric_path)
 
-    def _stub_doric_hdf5_v1(self, *, source_file: h5py.File, doric_path: str, duration_in_seconds: float) -> str:
+    def _stub_doric_hdf5_v1(self, *, source_file: h5py.File, doric_path: Path, duration_in_seconds: float) -> Path:
         timestamps = np.array(source_file["Traces"]["Console"]["Time(s)"]["Console_time(s)"])
         cutoff_timestamp = timestamps[0] + duration_in_seconds
         cutoff_index = int(np.searchsorted(timestamps, cutoff_timestamp, side="right"))
@@ -607,7 +602,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
         for key in channel_keys:
             channel_data[key] = np.array(source_file["Traces"]["Console"][key][key])
 
-        temporary_path = doric_path + ".tmp"
+        temporary_path = doric_path.with_name(doric_path.name + ".tmp")
         with h5py.File(temporary_path, "w") as destination_file:
             console = destination_file.require_group("Traces/Console")
             time_group = console.require_group("Time(s)")
@@ -618,8 +613,8 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
 
         return temporary_path
 
-    def _stub_doric_hdf5_v6(self, *, source_file: h5py.File, doric_path: str, duration_in_seconds: float) -> str:
-        temporary_path = doric_path + ".tmp"
+    def _stub_doric_hdf5_v6(self, *, source_file: h5py.File, doric_path: Path, duration_in_seconds: float) -> Path:
+        temporary_path = doric_path.with_name(doric_path.name + ".tmp")
         with h5py.File(temporary_path, "w") as destination_file:
             if "Configurations" in source_file:
                 source_file.copy("Configurations", destination_file)
@@ -651,7 +646,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
                     destination_group.create_dataset(key, data=item[:])
 
     def _stub_doric_csv(self, *, folder_path: Path | str, duration_in_seconds: float) -> None:
-        csv_paths = glob.glob(os.path.join(folder_path, "*.csv"))
+        csv_paths = list(Path(folder_path).glob("*.csv"))
         csv_path = csv_paths[0]
 
         # Row 0 is the channel descriptor row; row 1 is the column name row (header=1 skips both)
@@ -662,7 +657,7 @@ class DoricRecordingExtractor(BaseRecordingExtractor):
         cutoff_timestamp = dataframe["Time(s)"].iloc[0] + duration_in_seconds
         dataframe = dataframe[dataframe["Time(s)"] <= cutoff_timestamp]
 
-        with open(csv_path, "w") as file:
+        with csv_path.open("w") as file:
             header_rows.to_csv(file, index=False, header=False)
             dataframe.to_csv(file, index=False, header=False)
 

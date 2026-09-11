@@ -102,7 +102,9 @@ def main() -> None:
         description="Mock events with a strobe code column, as written by TDTEventsInterface.",
     )
     strobe_events.add_column(name="strobe", description="Strobe code for each event.")
-    for timestamp, strobe_code in zip(np.arange(60, 65, dtype=np.float64), ["16", "2064", "0", "16", "2064"]):
+    for timestamp, strobe_code in zip(
+        np.arange(60, 65, dtype=np.float64), ["16", "2064", "0", "16", "2064"], strict=True
+    ):
         strobe_events.add_row(timestamp=timestamp, strobe=strobe_code)
     nwbfile.add_events_table(strobe_events)
 

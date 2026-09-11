@@ -4,6 +4,7 @@ import pytest
 from guppy.frontend.visualization_dashboard import VisualizationDashboard
 
 BASENAME = "test_session"
+EVENTS = ["event1", "event2"]
 
 
 class _FakeRange:
@@ -18,15 +19,128 @@ class _FakeFigure:
         self.y_range = _FakeRange(-1.0, 1.0)
 
 
+def metric_selectors(tab):
+    """Return the "Metric" selectors rendered inside one dashboard tab."""
+    return [widget for widget in tab.select(pn.widgets.Select) if widget.name == "Metric"]
+
+
 @pytest.fixture
 def dashboard(plotter, panel_extension):
-    return VisualizationDashboard(plotter=plotter, basename=BASENAME)
+    return VisualizationDashboard(
+        plotter=plotter,
+        basename=BASENAME,
+        events=EVENTS,
+        metric="z_score",
+        available_metrics=["z_score", "dff"],
+    )
+
+
+@pytest.fixture
+def single_metric_dashboard(plotter, panel_extension):
+    """A dashboard for an output directory where step 4 only computed the z-score."""
+    return VisualizationDashboard(
+        plotter=plotter,
+        basename=BASENAME,
+        events=EVENTS,
+        metric="z_score",
+        available_metrics=["z_score"],
+    )
 
 
 class TestVisualizationDashboard:
     def test_constructs(self, dashboard, plotter):
         assert dashboard.plotter is plotter
         assert dashboard.basename == BASENAME
+
+    def test_metric_selector_offers_every_available_metric(self, dashboard):
+        for tab in (dashboard._psth_tab, dashboard._heatmap_tab):
+            (selector,) = metric_selectors(tab)
+            assert selector.options == {"z-score": "z_score", "\u0394F/F": "dff"}
+            assert selector.value == "z_score"
+
+    def test_metric_selector_offers_the_one_metric_that_was_computed(self, single_metric_dashboard):
+        for tab in (single_metric_dashboard._psth_tab, single_metric_dashboard._heatmap_tab):
+            (selector,) = metric_selectors(tab)
+            assert selector.options == {"z-score": "z_score"}
+            assert selector.value == "z_score"
+            assert selector.disabled is False
+
+    def test_metric_selector_leads_the_psth_display_settings(self, dashboard):
+        display_settings = dashboard._psth_tab[1]
+
+        assert display_settings.title == "Display settings (all plots)"
+        assert display_settings[0][0] is metric_selectors(dashboard._psth_tab)[0]
+
+    def test_metric_selector_follows_the_heatmap_event_selector(self, dashboard):
+        heatmap_card = dashboard._heatmap_tab[1]
+
+        assert heatmap_card.title == "Trial heatmap"
+        assert heatmap_card[0][1] is metric_selectors(dashboard._heatmap_tab)[0]
+
+    def test_the_y_axis_label_is_not_a_display_setting(self, dashboard):
+        """The label follows the metric, so no widget offers to change it."""
+        widget_names = [widget.name for widget in dashboard._psth_tab.select(pn.widgets.Select)]
+
+        assert "Y Label" not in widget_names
+
+    def test_the_tabs_are_the_whole_template(self, dashboard):
+        template = dashboard.build_template()
+
+        assert list(template.main.objects) == [dashboard._tabs]
+
+    def test_changing_the_metric_rebuilds_only_the_psth_and_heatmap_tabs(self, dashboard, plotter, monkeypatch):
+        requested = {}
+        monkeypatch.setattr(
+            "guppy.frontend.visualization_dashboard.build_plotter",
+            lambda **kwargs: requested.update(kwargs) or plotter,
+        )
+        unchanged_tabs = list(dashboard._tabs.objects[2:])
+
+        metric_selectors(dashboard._psth_tab)[0].value = "dff"
+
+        assert requested["metric"] == "dff"
+        assert requested["events"] == EVENTS
+        assert requested["filepath"] == plotter.filepath
+        assert dashboard.metric == "dff"
+        assert dashboard._tabs._names == ["PSTH", "Heat Map", "Tonic", "Binned", "Covariates", "Significance"]
+        assert list(dashboard._tabs.objects[2:]) == unchanged_tabs
+
+    def test_changing_the_metric_in_one_tab_moves_the_other_tab_selector(self, dashboard, plotter, monkeypatch):
+        monkeypatch.setattr("guppy.frontend.visualization_dashboard.build_plotter", lambda **kwargs: plotter)
+
+        metric_selectors(dashboard._heatmap_tab)[0].value = "dff"
+
+        assert metric_selectors(dashboard._psth_tab)[0].value == "dff"
+        assert metric_selectors(dashboard._heatmap_tab)[0].value == "dff"
+
+    def test_changing_the_metric_keeps_the_axis_bounds(self, dashboard, plotter, monkeypatch):
+        requested = {}
+        monkeypatch.setattr(
+            "guppy.frontend.visualization_dashboard.build_plotter",
+            lambda **kwargs: requested.update(kwargs) or plotter,
+        )
+
+        metric_selectors(dashboard._psth_tab)[0].value = "dff"
+
+        assert requested["x_min"] == -5.0
+        assert requested["x_max"] == 10.0
+
+    def test_build_template_exposes_every_tab_in_order(self, dashboard):
+        dashboard.build_template()
+
+        assert dashboard._tabs._names == [
+            "PSTH",
+            "Heat Map",
+            "Tonic",
+            "Binned",
+            "Covariates",
+            "Significance",
+        ]
+
+    def test_significance_tab_reports_an_empty_state_for_a_session_without_results(self, dashboard):
+        # The plotter fixture's directory holds no significance output, so the tab renders
+        # its note rather than failing -- which is what lets it be added unconditionally.
+        assert "No PSTH significance results" in dashboard._significance_tab[0].object
 
     def test_psth_tab_is_panel_column(self, dashboard):
         assert isinstance(dashboard._psth_tab, pn.Column)
@@ -85,7 +199,7 @@ class TestVisualizationDashboard:
         card = dashboard._per_event_color_pickers()
         pickers = list(card.select(pn.widgets.ColorPicker))
         labels = [pane.object for pane in card.select(pn.pane.Markdown)]
-        pickers_by_event = dict(zip(labels, pickers))
+        pickers_by_event = dict(zip(labels, pickers, strict=True))
 
         pickers_by_event["event2"].value = "#123456"
 

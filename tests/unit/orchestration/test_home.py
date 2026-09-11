@@ -1,5 +1,6 @@
 import threading
 import time
+from importlib.metadata import version
 
 import panel as pn
 import pytest
@@ -31,6 +32,11 @@ def homepage(panel_extension):
 
 def test_returns_bootstrap_template(homepage):
     assert isinstance(homepage, pn.template.BootstrapTemplate)
+
+
+def test_header_shows_installed_version(homepage):
+    version_pane = homepage.header.objects[0]
+    assert version_pane.object == f"GuPPy {version('guppy-neuro')}"
 
 
 def test_hooks_omits_removed_save_parameters_hook(homepage):

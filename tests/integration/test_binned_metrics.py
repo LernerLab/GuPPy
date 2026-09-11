@@ -1,5 +1,5 @@
-import os
 import shutil
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -22,9 +22,9 @@ RECORDING_SITE = "region"
 @pytest.fixture(scope="module")
 def preprocessed_session(tmp_path_factory):
     representative_config = REPRESENTATIVE_SESSIONS["csv"]
-    source_session = os.path.join(str(STUBBED_TESTING_DATA), representative_config["session_subdir"])
+    source_session = Path(str(STUBBED_TESTING_DATA)) / representative_config["session_subdir"]
     base_directory = tmp_path_factory.mktemp("integration_binned_metrics")
-    session = base_directory / os.path.basename(source_session)
+    session = base_directory / Path(source_session).name
     # Output directories are gitignored, so a stale one from a previous local run
     # would otherwise seed this session.
     shutil.copytree(source_session, session, ignore=shutil.ignore_patterns("*_output_*"))
@@ -63,8 +63,8 @@ def binned_output(preprocessed_session):
 @pytest.mark.filterwarnings("ignore::UserWarning")
 class TestBinnedMetrics:
     def test_writes_both_formats(self, binned_output):
-        assert os.path.exists(os.path.join(binned_output, f"binned_metrics_{RECORDING_SITE}.h5"))
-        assert os.path.exists(os.path.join(binned_output, f"binned_metrics_{RECORDING_SITE}.csv"))
+        assert (Path(binned_output) / (f"binned_metrics_{RECORDING_SITE}.h5")).exists()
+        assert (Path(binned_output) / (f"binned_metrics_{RECORDING_SITE}.csv")).exists()
 
     def test_schema(self, binned_output):
         binned = read_binned_metrics_from_hdf5(binned_output, RECORDING_SITE)
@@ -122,13 +122,13 @@ class TestBinnedMetrics:
     def test_transient_counts_account_for_every_detected_transient(self, binned_output):
         binned = read_binned_metrics_from_hdf5(binned_output, RECORDING_SITE)
         occurrences = pd.read_csv(
-            os.path.join(binned_output, f"transientsOccurrences_z_score_{RECORDING_SITE}.csv"), index_col=0
+            Path(binned_output) / (f"transientsOccurrences_z_score_{RECORDING_SITE}.csv"), index_col=0
         )
 
         assert binned["transient_count_z_score"].sum() == occurrences.shape[0]
 
     def test_csv_matches_the_hdf5(self, binned_output):
         from_hdf5 = read_binned_metrics_from_hdf5(binned_output, RECORDING_SITE)
-        from_csv = pd.read_csv(os.path.join(binned_output, f"binned_metrics_{RECORDING_SITE}.csv"), index_col="bin")
+        from_csv = pd.read_csv(Path(binned_output) / (f"binned_metrics_{RECORDING_SITE}.csv"), index_col="bin")
 
         pd.testing.assert_frame_equal(from_csv, from_hdf5, check_dtype=False)

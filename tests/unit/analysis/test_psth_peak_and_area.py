@@ -89,7 +89,7 @@ def test_unrecognized_auc_units_raises():
 def test_end_point_less_than_start_point_raises():
     psth_mean = _make_psth_mean()
     timestamps = np.linspace(-5, 5, 101)
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         compute_psth_peak_and_area(
             psth_mean, timestamps, sampling_rate=10.0, peak_startPoint=[2.0], peak_endPoint=[0.0]
         )
@@ -98,7 +98,7 @@ def test_end_point_less_than_start_point_raises():
 def test_end_point_equal_to_start_point_raises():
     psth_mean = _make_psth_mean()
     timestamps = np.linspace(-5, 5, 101)
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         compute_psth_peak_and_area(
             psth_mean, timestamps, sampling_rate=10.0, peak_startPoint=[1.0], peak_endPoint=[1.0]
         )
@@ -107,7 +107,7 @@ def test_end_point_equal_to_start_point_raises():
 def test_unequal_start_and_end_point_counts_raises():
     psth_mean = _make_psth_mean()
     timestamps = np.linspace(-5, 5, 101)
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         compute_psth_peak_and_area(
             psth_mean, timestamps, sampling_rate=10.0, peak_startPoint=[0.0, 1.0], peak_endPoint=[2.0]
         )
@@ -139,3 +139,16 @@ def test_multiple_windows_produce_correctly_numbered_keys():
     assert "peak_pos_2" in result
     assert "peak_neg_2" in result
     assert "area_2" in result
+
+
+def test_peak_window_containing_no_samples_returns_nan():
+    # A 0.03 Hz PSTH axis puts no sample inside [-5, 0], which used to reach np.argmax with
+    # an empty slice.
+    psth_mean = np.zeros((2, 3))
+    timestamps = np.array([-10.0, 50.0])
+
+    result = compute_psth_peak_and_area(psth_mean, timestamps, 0.03, [-5.0], [0.0])
+
+    assert list(result.keys()) == ["peak_1", "area_1"]
+    assert np.isnan(result["peak_1"])
+    assert np.isnan(result["area_1"])

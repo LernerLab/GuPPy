@@ -6,7 +6,7 @@ the analysis layer (preprocessing, z-score, transients, etc.).
 """
 
 import logging
-import os
+from pathlib import Path
 
 import h5py
 import numpy as np
@@ -14,15 +14,15 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
-def read_hdf5(event: str, filepath: str, key: str) -> np.ndarray:
+def read_hdf5(event: str, filepath: str | Path, key: str) -> np.ndarray:
     if event:
         event = event.replace("\\", "_")
         event = event.replace("/", "_")
-        hdf5_path = os.path.join(filepath, event + ".hdf5")
+        hdf5_path = Path(filepath) / (event + ".hdf5")
     else:
-        hdf5_path = filepath
+        hdf5_path = Path(filepath)
 
-    if os.path.exists(hdf5_path):
+    if hdf5_path.exists():
         with h5py.File(hdf5_path, "r") as hdf5_file:
             data = np.asarray(hdf5_file[key])
     else:
@@ -33,12 +33,12 @@ def read_hdf5(event: str, filepath: str, key: str) -> np.ndarray:
     return data
 
 
-def write_hdf5(data: np.ndarray | float | int | str | bool, store_id: str, output_path: str, key: str) -> None:
+def write_hdf5(data: np.ndarray | float | int | str | bool, store_id: str, output_path: str | Path, key: str) -> None:
     store_id = store_id.replace("\\", "_")
     store_id = store_id.replace("/", "_")
-    hdf5_path = os.path.join(output_path, store_id + ".hdf5")
+    hdf5_path = Path(output_path) / (store_id + ".hdf5")
 
-    if not os.path.exists(hdf5_path):
+    if not hdf5_path.exists():
         with h5py.File(hdf5_path, "w") as hdf5_file:
             if isinstance(data, np.ndarray):
                 hdf5_file.create_dataset(key, data=data, maxshape=(None,), chunks=True)

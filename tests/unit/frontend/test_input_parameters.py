@@ -1,38 +1,28 @@
 import json
 import math
-import os
+from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
+import pandas as pd
 import panel as pn
 import pytest
 
-from guppy.frontend.frontend_utils import default_root_path
-from guppy.frontend.input_parameters import ParameterForm, checkSameLocation, getAbsPath
+from guppy.frontend.input_parameters import ParameterForm, _table_heading, _titled_box
 from guppy.utils.utils import run_folder_for_run
 
 
 @pytest.fixture(scope="session")
 def frontend_base_dir(tmp_path_factory):
-    """Create a real temp directory and point GUPPY_BASE_DIR at it.
-
-    Ensures FileSelector resolves to a real path. Restores the original value
-    on teardown.
-    """
-    base_dir = tmp_path_factory.mktemp("frontend_base")
-    original = os.environ.get("GUPPY_BASE_DIR")
-    os.environ["GUPPY_BASE_DIR"] = str(base_dir)
-    yield base_dir
-    if original is None:
-        del os.environ["GUPPY_BASE_DIR"]
-    else:
-        os.environ["GUPPY_BASE_DIR"] = original
+    """Create a real temp directory for the form's file selectors to start in."""
+    return tmp_path_factory.mktemp("frontend_base")
 
 
 @pytest.fixture
 def bare_parameter_form(panel_extension, frontend_base_dir):
     """Build a BootstrapTemplate + ParameterForm with no files set."""
     template = pn.template.BootstrapTemplate(title="Test")
-    return ParameterForm(template=template)
+    return ParameterForm(template=template, start_path=str(frontend_base_dir))
 
 
 @pytest.fixture
@@ -45,61 +35,72 @@ def parameter_form(panel_extension, frontend_base_dir, tmp_path):
     session_dir = tmp_path / "session1"
     session_dir.mkdir()
     template = pn.template.BootstrapTemplate(title="Test")
-    form = ParameterForm(template=template)
+    form = ParameterForm(template=template, start_path=str(frontend_base_dir))
     form.files_1.value = [str(session_dir)]
     return form
 
 
-# ── checkSameLocation ─────────────────────────────────────────────────────────
+# The cards ParameterForm appends to the template, in display order.
+_CARD_ATTRIBUTES = (
+    "input_folder_selection",
+    "output_folder_selection",
+    "individual",
+    "group",
+)
+
+# The titled sections stacked inside the Parameter Selection card, in display order.
+_SECTION_ATTRIBUTES = (
+    "execution_param_wd",
+    "control_fit_param_wd",
+    "filtering_param_wd",
+    "zscore_param_wd",
+    "psth_param_wd",
+    "peak_param_wd",
+    "transients_param_wd",
+    "binned_metrics_param_wd",
+    "significance_param_wd",
+)
+
+# Panel puts a default 5px margin either side of every object, so each member of a
+# row of siblings occupies its own width plus 10px.
+_SIBLING_MARGIN = 10
 
 
-def test_check_same_location_same_parent_returns_single_element_array(tmp_path):
-    parent = tmp_path / "parent"
-    parent.mkdir()
-    paths = [str(parent / "a"), str(parent / "b")]
-    result = checkSameLocation(paths, [])
-    assert len(result) == 1
-    assert result[0] == str(parent)
+def _occupied_width(node) -> int:
+    """Return the horizontal extent ``node`` takes up inside its parent, in pixels."""
+    declared = getattr(node, "width", None)
+    if declared:
+        return declared
+    return _content_width(node)
 
 
-def test_check_same_location_different_parents_raises(tmp_path):
-    dir_a = tmp_path / "dir_a"
-    dir_b = tmp_path / "dir_b"
-    dir_a.mkdir()
-    dir_b.mkdir()
-    paths = [str(dir_a / "x"), str(dir_b / "y")]
-    with pytest.raises(Exception, match="same location"):
-        checkSameLocation(paths, [])
+def _content_width(node) -> int:
+    """Return the horizontal extent a layout's children need, ignoring its own declared width."""
+    # pn.WidgetBox is not a pn.Column subclass; ListPanel is the common base that
+    # also covers Column, Row and Card.
+    if not isinstance(node, pn.layout.ListPanel):
+        return 0
+    extents = [extent for extent in (_occupied_width(child) for child in node.objects) if extent]
+    if not extents:
+        return 0
+    if isinstance(node, pn.Row):
+        return sum(extents) + _SIBLING_MARGIN * len(extents)
+    return max(extents)
 
 
-# ── getAbsPath ────────────────────────────────────────────────────────────────
+def _label_width(name: str) -> int:
+    """Approximate the rendered width of a widget label plus its help icon, in pixels."""
+    return int(len(name) * 7.1) + 26
 
 
-def test_get_abs_path_both_empty_raises(bare_parameter_form):
-    with pytest.raises(Exception, match="No folder"):
-        getAbsPath(bare_parameter_form.files_1, bare_parameter_form.files_2)
-
-
-def test_get_abs_path_files_1_populated_returns_parent(tmp_path, bare_parameter_form):
-    parent = tmp_path / "data"
-    parent.mkdir()
-    session = parent / "session1"
-    session.mkdir()
-    bare_parameter_form.files_1.value = [str(session)]
-    result = getAbsPath(bare_parameter_form.files_1, bare_parameter_form.files_2)
-    assert len(result) == 1
-    assert result[0] == str(parent)
-
-
-def test_get_abs_path_files_2_used_when_files_1_empty(tmp_path, bare_parameter_form):
-    parent = tmp_path / "data"
-    parent.mkdir()
-    session = parent / "session1"
-    session.mkdir()
-    bare_parameter_form.files_2.value = [str(session)]
-    result = getAbsPath(bare_parameter_form.files_1, bare_parameter_form.files_2)
-    assert len(result) == 1
-    assert result[0] == str(parent)
+def _width_bearing_containers(node) -> list:
+    """Return every layout at or below ``node`` that pins its own width."""
+    if not isinstance(node, pn.layout.ListPanel):
+        return []
+    found = [node] if getattr(node, "width", None) else []
+    for child in node.objects:
+        found.extend(_width_bearing_containers(child))
+    return found
 
 
 # ── ParameterForm ─────────────────────────────────────────────────────────────
@@ -129,9 +130,6 @@ class TestParameterForm:
 
     def test_binned_metrics_width_default(self, parameter_form):
         assert parameter_form.binnedMetricsWidth.value == 120
-
-    def test_no_channels_np_default(self, parameter_form):
-        assert parameter_form.no_channels_np.value == 2
 
     def test_n_sec_prev_default(self, parameter_form):
         assert parameter_form.nSecPrev.value == -10
@@ -201,16 +199,70 @@ class TestParameterForm:
         assert "Time (min)" in parameter_form.use_time_or_trials.options
         assert "# of trials" in parameter_form.use_time_or_trials.options
 
-    def test_average_for_group_default(self, parameter_form):
-        assert parameter_form.averageForGroup.value is False
+    def test_comparison_table_starts_with_a_single_blank_row(self, parameter_form):
+        # A fixed block of slots is mostly blank rows for anyone running two comparisons.
+        assert parameter_form.comparison_df_widget.value.shape == (1, 2)
+        assert list(parameter_form.comparison_df_widget.value.columns) == ["Event A", "Event B"]
 
-    def test_visualize_average_results_default(self, parameter_form):
-        assert parameter_form.visualizeAverageResults.value is False
+    def test_add_button_grows_the_comparison_table_without_limit(self, parameter_form):
+        # The number of worthwhile pairs grows with the square of the event count, so six
+        # events already allow fifteen -- more than any fixed table would hold.
+        for _ in range(14):
+            parameter_form._add_comparison_row()
 
-    def test_visualize_zscore_or_dff_default(self, parameter_form):
-        assert parameter_form.visualize_zscore_or_dff.value == "z_score"
-        assert "z_score" in parameter_form.visualize_zscore_or_dff.options
-        assert "dff" in parameter_form.visualize_zscore_or_dff.options
+        assert parameter_form.comparison_df_widget.value.shape == (15, 2)
+
+    def test_removing_a_row_drops_that_comparison(self, parameter_form):
+        parameter_form.comparison_df_widget.value = pd.DataFrame(
+            {"Event A": ["a", "b", "c"], "Event B": ["x", "y", "z"]}
+        )
+
+        parameter_form._remove_comparison_row(SimpleNamespace(row=1))
+
+        assert list(parameter_form.comparison_df_widget.value["Event A"]) == ["a", "c"]
+        assert list(parameter_form.comparison_df_widget.value["Event B"]) == ["x", "z"]
+
+    def test_removing_the_last_row_leaves_one_blank_row(self, parameter_form):
+        parameter_form.comparison_df_widget.value = pd.DataFrame({"Event A": ["only"], "Event B": ["pair"]})
+
+        parameter_form._remove_comparison_row(SimpleNamespace(row=0))
+
+        assert parameter_form.comparison_df_widget.value.shape == (1, 2)
+        assert list(parameter_form.comparison_df_widget.value["Event A"]) == [""]
+
+    def test_loads_a_saved_run_holding_more_comparisons_than_the_table_shows(self, parameter_form):
+        # Assigning a longer list into the table's existing index used to raise, so a run
+        # driven through the API with many comparisons could not be reopened in the form.
+        saved_a = [f"a{index}" for index in range(12)]
+        saved_b = [f"b{index}" for index in range(12)]
+
+        parameter_form.setInputParameters({"psthComparisonsA": saved_a, "psthComparisonsB": saved_b})
+
+        assert list(parameter_form.comparison_df_widget.value["Event A"]) == saved_a
+        assert list(parameter_form.comparison_df_widget.value["Event B"]) == saved_b
+
+    def test_no_layout_overflows_its_declared_width(self, parameter_form):
+        # Contents wider than their container overflow the panel visually, which no other
+        # assertion here would catch. Sweeping every card rather than a hardcoded list of
+        # boxes means a newly added parameter cannot slip past the check.
+        for card_name in _CARD_ATTRIBUTES:
+            for container in _width_bearing_containers(getattr(parameter_form, card_name)):
+                occupied = _content_width(container)
+                assert occupied <= container.width, (
+                    f"{card_name}: {type(container).__name__} contents occupy {occupied}px "
+                    f"inside a {container.width}px container"
+                )
+
+    def test_width_sweep_reaches_every_parameter_box(self, parameter_form):
+        # Guards the sweep itself: a refactor that drops a box out of the card tree would
+        # otherwise leave the overflow test passing because it found nothing to check.
+        swept = {
+            id(container)
+            for card_name in _CARD_ATTRIBUTES
+            for container in _width_bearing_containers(getattr(parameter_form, card_name))
+        }
+        for box_name in _SECTION_ATTRIBUTES:
+            assert id(getattr(parameter_form, box_name)) in swept, f"{box_name} was not reached by the sweep"
 
     def test_df_widget_initial_peak_start_values(self, parameter_form):
         df = parameter_form.df_widget.value
@@ -250,6 +302,30 @@ class TestParameterForm:
             "zscore_method",
         ):
             assert key in result
+
+    def test_get_input_parameters_abspath_is_the_shared_parent(self, parameter_form, tmp_path):
+        session_a = tmp_path / "sessions" / "session_a"
+        session_b = tmp_path / "sessions" / "session_b"
+        session_a.mkdir(parents=True)
+        session_b.mkdir(parents=True)
+        parameter_form.files_1.value = [str(session_a), str(session_b)]
+
+        result = parameter_form.getInputParameters()
+
+        assert result["abspath"] == str(tmp_path / "sessions")
+        assert result["session_folders"] == [str(session_a), str(session_b)]
+
+    def test_get_input_parameters_accepts_sessions_from_different_parents(self, parameter_form, tmp_path):
+        tdt_session = tmp_path / "tdt_data" / "session_a"
+        csv_session = tmp_path / "csv_data" / "session_b"
+        tdt_session.mkdir(parents=True)
+        csv_session.mkdir(parents=True)
+        parameter_form.files_1.value = [str(tdt_session), str(csv_session)]
+
+        result = parameter_form.getInputParameters()
+
+        assert result["abspath"] == str(tmp_path)
+        assert result["session_folders"] == [str(tdt_session), str(csv_session)]
 
     def test_get_input_parameters_default_scalar_values(self, parameter_form):
         result = parameter_form.getInputParameters()
@@ -383,6 +459,26 @@ def patched_dandi_client(monkeypatch, tmp_path):
     return _FakeDandiAPIClient
 
 
+def _dandi_form_with_existing_runs(*, form, patched_dandi_client, output_root, asset_paths, run_names):
+    """Drive a form into DANDI mode with assets whose mirrored session dirs already hold runs."""
+    patched_dandi_client.dandisets_by_id = {"000971": _FakeDandiset(asset_paths)}
+    output_root.mkdir()
+    for asset_path in asset_paths:
+        session = output_root / Path(asset_path).name.removesuffix(".nwb")
+        session.mkdir()
+        for run_name in run_names:
+            Path(run_folder_for_run(str(session), run_name)).mkdir()
+
+    form.source_mode.value = "dandi"
+    form.dandi_selector.dandiset_input.value = "000971"
+    mirror_root = form.dandi_selector._current_mirror_root
+    form.dandi_selector.asset_file_selector.value = [
+        str(Path(mirror_root).joinpath(*asset_path.split("/"))) for asset_path in asset_paths
+    ]
+    form.dandi_selector.output_root_selector.value = [str(output_root)]
+    return form
+
+
 class TestParameterFormDandiMode:
     def test_dandi_mode_builds_uri_map_and_session_dirs(self, bare_parameter_form, tmp_path, patched_dandi_client):
         output_root = tmp_path / "dandi_output"
@@ -395,8 +491,8 @@ class TestParameterFormDandiMode:
         form.dandi_selector.dandiset_input.value = "000971"
         mirror_root = form.dandi_selector._current_mirror_root
         form.dandi_selector.asset_file_selector.value = [
-            os.path.join(mirror_root, "sub-01", "session_a.nwb"),
-            os.path.join(mirror_root, "sub-02", "session_b.nwb"),
+            str(Path(mirror_root) / "sub-01" / "session_a.nwb"),
+            str(Path(mirror_root) / "sub-02" / "session_b.nwb"),
         ]
         form.dandi_selector.output_root_selector.value = [str(output_root)]
 
@@ -412,7 +508,7 @@ class TestParameterFormDandiMode:
             session_b: "dandi://000971/sub-02/session_b.nwb",
         }
         for session_dir in (session_a, session_b):
-            assert os.path.isdir(session_dir)
+            assert Path(session_dir).is_dir()
 
     def test_dandi_mode_no_asset_raises(self, bare_parameter_form, tmp_path):
         form = bare_parameter_form
@@ -427,9 +523,96 @@ class TestParameterFormDandiMode:
         form.source_mode.value = "dandi"
         form.dandi_selector.dandiset_input.value = "000971"
         mirror_root = form.dandi_selector._current_mirror_root
-        form.dandi_selector.asset_file_selector.value = [os.path.join(mirror_root, "sub-01", "data.nwb")]
+        form.dandi_selector.asset_file_selector.value = [str(Path(mirror_root) / "sub-01" / "data.nwb")]
         with pytest.raises(Exception, match="local output directory"):
             form.getInputParameters()
+
+    def test_dandi_asset_selection_offers_that_session_run_names(
+        self, bare_parameter_form, tmp_path, patched_dandi_client
+    ):
+        form = _dandi_form_with_existing_runs(
+            form=bare_parameter_form,
+            patched_dandi_client=patched_dandi_client,
+            output_root=tmp_path / "dandi_output",
+            asset_paths=["sub-01/session_a.nwb"],
+            run_names=["1", "baseline"],
+        )
+        assert form.run_names_for_all_sessions.options == ["1", "baseline"]
+
+    def test_dandi_run_name_choice_selects_the_mirrored_session_run(
+        self, bare_parameter_form, tmp_path, patched_dandi_client
+    ):
+        output_root = tmp_path / "dandi_output"
+        form = _dandi_form_with_existing_runs(
+            form=bare_parameter_form,
+            patched_dandi_client=patched_dandi_client,
+            output_root=output_root,
+            asset_paths=["sub-01/session_a.nwb", "sub-02/session_b.nwb"],
+            run_names=["1"],
+        )
+
+        form.run_names_for_all_sessions.value = ["1"]
+
+        assert form._collect_selected_runs() == {
+            str(output_root / "session_a"): ["1"],
+            str(output_root / "session_b"): ["1"],
+        }
+
+    def test_dandi_outputs_selector_is_rooted_at_the_output_root(
+        self, bare_parameter_form, tmp_path, patched_dandi_client
+    ):
+        output_root = tmp_path / "dandi_output"
+        form = _dandi_form_with_existing_runs(
+            form=bare_parameter_form,
+            patched_dandi_client=patched_dandi_client,
+            output_root=output_root,
+            asset_paths=["sub-01/session_a.nwb"],
+            run_names=["1"],
+        )
+        assert form.outputs_selector.root_directory == str(output_root)
+
+    def test_switching_dandisets_drops_the_previous_run_selection(
+        self, bare_parameter_form, tmp_path, patched_dandi_client
+    ):
+        # The asset FileSelector is rebuilt on a dandiset change, which empties the asset
+        # selection without firing a value event of its own.
+        form = _dandi_form_with_existing_runs(
+            form=bare_parameter_form,
+            patched_dandi_client=patched_dandi_client,
+            output_root=tmp_path / "dandi_output",
+            asset_paths=["sub-01/session_a.nwb"],
+            run_names=["1"],
+        )
+        form.run_names_for_all_sessions.value = ["1"]
+        patched_dandi_client.dandisets_by_id["000972"] = _FakeDandiset(["sub-09/other.nwb"])
+
+        form.dandi_selector.dandiset_input.value = "000972"
+
+        assert form.run_names_for_all_sessions.options == []
+        assert form._collect_selected_runs() == {}
+
+
+@pytest.fixture
+def sessions_with_runs(tmp_path):
+    """Build three sessions on disk: A has runs 1/baseline, B has 1/2, C has none.
+
+    ``1`` is shared by A and B while ``baseline`` and ``2`` belong to one session each,
+    so the union the run-name picker offers is distinguishable from an intersection.
+    C exercises the pre-step-1 case.
+    """
+
+    def build(name, run_names):
+        session = tmp_path / name
+        session.mkdir()
+        for run_name in run_names:
+            Path(run_folder_for_run(str(session), run_name)).mkdir()
+        return str(session)
+
+    return SimpleNamespace(
+        session_a=build("sessionA", ["1", "baseline"]),
+        session_b=build("sessionB", ["1", "2"]),
+        session_c=build("sessionC", []),
+    )
 
 
 class TestOutputsSelector:
@@ -448,12 +631,14 @@ class TestOutputsSelector:
         assert bare_parameter_form.outputs_selector.directory == str(session)
         assert bare_parameter_form.outputs_selector.value == []
 
-    def test_retarget_falls_back_to_default_root_when_files_1_cleared(self, bare_parameter_form, tmp_path):
+    def test_retarget_falls_back_to_start_path_when_files_1_cleared(
+        self, bare_parameter_form, frontend_base_dir, tmp_path
+    ):
         session = tmp_path / "sessionA"
         session.mkdir()
         bare_parameter_form.files_1.value = [str(session)]
         bare_parameter_form.files_1.value = []
-        assert bare_parameter_form.outputs_selector.directory == default_root_path()
+        assert bare_parameter_form.outputs_selector.directory == str(frontend_base_dir)
 
     def test_retarget_multiple_sessions_uses_common_parent_as_root(self, bare_parameter_form, tmp_path):
         # Multi-session: root must be the common parent so the user can navigate between
@@ -467,17 +652,6 @@ class TestOutputsSelector:
         assert bare_parameter_form.outputs_selector.root_directory == str(tmp_path)
         assert bare_parameter_form.outputs_selector.directory == str(session_a)
 
-    def test_retarget_clears_stale_outputs_selector_value(self, bare_parameter_form, tmp_path):
-        session_a = tmp_path / "sessionA"
-        session_a.mkdir()
-        bare_parameter_form.files_1.value = [str(session_a)]
-        bare_parameter_form.outputs_selector.value = [str(session_a / "stale_output_x")]
-
-        session_b = tmp_path / "sessionB"
-        session_b.mkdir()
-        bare_parameter_form.files_1.value = [str(session_b)]
-        assert bare_parameter_form.outputs_selector.value == []
-
     def test_collect_selected_outputs_groups_by_session(self, bare_parameter_form, tmp_path):
         session_a = tmp_path / "sessionA"
         session_a.mkdir()
@@ -487,7 +661,7 @@ class TestOutputsSelector:
         run_a2 = run_folder_for_run(str(session_a), "run2")
         run_b1 = run_folder_for_run(str(session_b), "run1")
         for path in (run_a1, run_a2, run_b1):
-            os.mkdir(path)
+            Path(path).mkdir()
 
         bare_parameter_form.outputs_selector.value = [run_a1, run_a2, run_b1]
         result = bare_parameter_form._collect_selected_runs()
@@ -505,7 +679,7 @@ class TestOutputsSelector:
     ):
         session = tmp_path / "sessionA"
         session.mkdir()
-        os.mkdir(run_folder_for_run(str(session), "baseline"))
+        Path(run_folder_for_run(str(session), "baseline")).mkdir()
 
         bare_parameter_form.files_1.value = [str(session)]
         bare_parameter_form.outputs_selector.value = []
@@ -530,7 +704,7 @@ class TestOutputsSelector:
         session = tmp_path / "sessionA"
         session.mkdir()
         run_dir = run_folder_for_run(str(session), "baseline")
-        os.mkdir(run_dir)
+        Path(run_dir).mkdir()
 
         bare_parameter_form.files_1.value = [str(session)]
         bare_parameter_form.outputs_selector.value = [run_dir]
@@ -539,45 +713,107 @@ class TestOutputsSelector:
         assert result["selected_runs"] == {str(session): ["baseline"]}
 
 
-class TestRebuildPerSessionWidgets:
-    def test_preserves_existing_widget_value_across_rebuilds(self, bare_parameter_form, tmp_path):
-        """When files_2 fires twice and the prior selection still exists, preserve it."""
-        session = tmp_path / "sessionA"
-        session.mkdir()
-        os.mkdir(run_folder_for_run(str(session), "run1"))
-        os.mkdir(run_folder_for_run(str(session), "run2"))
+class TestRunNamePicker:
+    def test_offers_every_run_name_any_selected_session_has(self, bare_parameter_form, sessions_with_runs):
+        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
+        assert bare_parameter_form.run_names_for_all_sessions.options == ["1", "baseline", "2"]
 
-        bare_parameter_form.files_2.value = [str(session)]
-        widget = bare_parameter_form.group_selected_outputs_widgets[str(session)]
-        widget.value = "run2"
+    def test_session_without_run_folders_contributes_no_names(self, bare_parameter_form, sessions_with_runs):
+        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_c]
+        assert bare_parameter_form.run_names_for_all_sessions.options == ["1", "baseline"]
 
-        # Rebuild with the same session — existing widget is reused, "run2" preserved.
-        bare_parameter_form.files_2.param.trigger("value")
-        reused_widget = bare_parameter_form.group_selected_outputs_widgets[str(session)]
-        assert reused_widget is widget
-        assert reused_widget.value == "run2"
+    def test_choosing_a_name_selects_that_run_in_every_session(self, bare_parameter_form, sessions_with_runs):
+        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
+        bare_parameter_form.run_names_for_all_sessions.value = ["1"]
+        assert bare_parameter_form._collect_selected_runs() == {
+            sessions_with_runs.session_a: ["1"],
+            sessions_with_runs.session_b: ["1"],
+        }
 
-    def test_resets_existing_widget_value_when_prior_selection_invalid(self, bare_parameter_form, tmp_path):
-        """When the prior selection no longer exists in run_names, fall back to the first option."""
-        session = tmp_path / "sessionA"
-        session.mkdir()
-        run1 = run_folder_for_run(str(session), "run1")
-        run2 = run_folder_for_run(str(session), "run2")
-        os.mkdir(run1)
-        os.mkdir(run2)
+    def test_name_only_one_session_has_selects_only_that_session(self, bare_parameter_form, sessions_with_runs):
+        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
+        bare_parameter_form.run_names_for_all_sessions.value = ["baseline"]
+        assert bare_parameter_form._collect_selected_runs() == {sessions_with_runs.session_a: ["baseline"]}
 
-        bare_parameter_form.files_2.value = [str(session)]
-        widget = bare_parameter_form.group_selected_outputs_widgets[str(session)]
-        widget.value = "run2"
+    def test_programmatic_selection_reaches_the_visible_pane(self, bare_parameter_form, sessions_with_runs):
+        # FileSelector.value alone leaves the "Selected files" pane empty; the picker has to
+        # re-enumerate the browser for a bulk choice to be visible to the user.
+        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
+        bare_parameter_form.run_names_for_all_sessions.value = ["1"]
+        assert sorted(bare_parameter_form.outputs_selector._selector.value) == [
+            run_folder_for_run(sessions_with_runs.session_a, "1"),
+            run_folder_for_run(sessions_with_runs.session_b, "1"),
+        ]
 
-        # Remove run2 so the prior selection becomes invalid; rebuild.
-        os.rmdir(run2)
-        bare_parameter_form.files_2.param.trigger("value")
+    def test_dropping_a_name_deselects_only_the_runs_it_named(self, bare_parameter_form, sessions_with_runs):
+        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
+        bare_parameter_form.run_names_for_all_sessions.value = ["1", "2"]
 
-        reused_widget = bare_parameter_form.group_selected_outputs_widgets[str(session)]
-        assert reused_widget is widget
-        assert reused_widget.value == "run1"
-        assert reused_widget.options == ["run1"]
+        bare_parameter_form.run_names_for_all_sessions.value = ["2"]
+
+        assert bare_parameter_form._collect_selected_runs() == {sessions_with_runs.session_b: ["2"]}
+
+    def test_runs_picked_in_the_tree_survive_a_later_bulk_choice(self, bare_parameter_form, sessions_with_runs):
+        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
+        hand_picked = run_folder_for_run(sessions_with_runs.session_a, "baseline")
+        bare_parameter_form.outputs_selector.value = [hand_picked]
+
+        bare_parameter_form.run_names_for_all_sessions.value = ["1"]
+        bare_parameter_form.run_names_for_all_sessions.value = []
+
+        assert bare_parameter_form._collect_selected_runs() == {sessions_with_runs.session_a: ["baseline"]}
+
+    def test_removing_a_session_preserves_the_other_sessions_choices(self, bare_parameter_form, sessions_with_runs):
+        # Regression for #462: dropping one session used to wipe every run choice.
+        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
+        bare_parameter_form.run_names_for_all_sessions.value = ["1"]
+
+        bare_parameter_form.files_1.value = [sessions_with_runs.session_a]
+
+        assert bare_parameter_form._collect_selected_runs() == {sessions_with_runs.session_a: ["1"]}
+
+    def test_newly_added_session_inherits_the_current_choice(self, bare_parameter_form, sessions_with_runs):
+        bare_parameter_form.files_1.value = [sessions_with_runs.session_a]
+        bare_parameter_form.run_names_for_all_sessions.value = ["1"]
+
+        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
+
+        assert bare_parameter_form._collect_selected_runs() == {
+            sessions_with_runs.session_a: ["1"],
+            sessions_with_runs.session_b: ["1"],
+        }
+
+    def test_name_gone_from_disk_leaves_the_picker_when_its_session_does(self, bare_parameter_form, sessions_with_runs):
+        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
+        bare_parameter_form.run_names_for_all_sessions.value = ["1", "2"]
+
+        bare_parameter_form.files_1.value = [sessions_with_runs.session_a]
+
+        assert bare_parameter_form.run_names_for_all_sessions.options == ["1", "baseline"]
+        assert bare_parameter_form.run_names_for_all_sessions.value == ["1"]
+
+    def test_refresh_individual_outputs_offers_new_runs_and_keeps_the_selection(
+        self, bare_parameter_form, sessions_with_runs
+    ):
+        bare_parameter_form.files_1.value = [sessions_with_runs.session_a]
+        bare_parameter_form.run_names_for_all_sessions.value = ["1"]
+        Path(run_folder_for_run(sessions_with_runs.session_a, "2")).mkdir()
+
+        bare_parameter_form.refresh_individual_outputs()
+
+        assert bare_parameter_form.run_names_for_all_sessions.options == ["1", "2", "baseline"]
+        assert bare_parameter_form._collect_selected_runs() == {sessions_with_runs.session_a: ["1"]}
+
+    def test_switching_source_mode_and_back_keeps_the_local_selection(self, bare_parameter_form, sessions_with_runs):
+        bare_parameter_form.files_1.value = [sessions_with_runs.session_a]
+        bare_parameter_form.run_names_for_all_sessions.value = ["1"]
+
+        bare_parameter_form.source_mode.value = "dandi"
+        assert bare_parameter_form._collect_selected_runs() == {}
+
+        bare_parameter_form.source_mode.value = "local"
+        assert bare_parameter_form.run_names_for_all_sessions.value == ["1"]
+        assert bare_parameter_form._collect_selected_runs() == {sessions_with_runs.session_a: ["1"]}
 
 
 class TestFolderSelectionCards:
@@ -600,7 +836,115 @@ class TestFolderSelectionCards:
         assert main[1] is parameter_form.output_folder_selection
         assert main[2] is parameter_form.individual
         assert main[3] is parameter_form.group
-        assert main[4] is parameter_form.visualize
+        assert len(main) == 4
+
+
+class TestTitledBox:
+    def test_heading_carries_the_title(self, panel_extension):
+        box = _titled_box(title="Signal Filtering", read_by="Step 3", contents=[], width=960)
+
+        assert box.objects[0].object == "### Signal Filtering"
+
+    def test_second_pane_names_the_consuming_steps(self, panel_extension):
+        box = _titled_box(title="Signal Filtering", read_by="Step 3 and Group Analysis", contents=[], width=960)
+
+        assert box.objects[1].object == "*Read by Step 3 and Group Analysis*"
+
+    def test_contents_follow_the_heading(self, panel_extension):
+        widget = pn.widgets.IntInput(name="Cores", value=2, width=150)
+
+        box = _titled_box(title="Parallel Execution", read_by="Step 2", contents=[widget], width=960)
+
+        assert box.objects[2] is widget
+
+    def test_panes_sit_inside_the_declared_width(self, panel_extension):
+        box = _titled_box(title="Metric Binning", read_by="Step 4", contents=[], width=960)
+
+        assert box.width == 960
+        assert [pane.width for pane in box.objects] == [920, 920]
+
+
+class TestTableHeading:
+    def test_label_is_rendered_bold(self, panel_extension):
+        heading = _table_heading(label="Event comparisons", description="Pairs to compare.", width=200)
+
+        assert heading.objects[0].object == "**Event comparisons**"
+
+    def test_help_icon_carries_the_description(self, panel_extension):
+        heading = _table_heading(label="Event comparisons", description="Pairs to compare.", width=200)
+
+        assert isinstance(heading.objects[1], pn.widgets.TooltipIcon)
+        assert heading.objects[1].value == "Pairs to compare."
+
+
+class TestParameterHelp:
+    """Every control explains itself, since the form carries no prose of its own."""
+
+    def test_every_parameter_widget_has_a_description(self, parameter_form):
+        undocumented = [
+            widget.name
+            for section in parameter_form.individual_parameters.objects
+            for item in section
+            for widget in (list(item) if isinstance(item, pn.Row) else [item])
+            if isinstance(widget, pn.widgets.Widget)
+            and not isinstance(widget, (pn.widgets.Tabulator, pn.widgets.Button, pn.widgets.TooltipIcon))
+            and not widget.description
+        ]
+
+        assert undocumented == []
+
+    def test_combine_data_explains_itself_in_the_input_card(self, parameter_form):
+        assert "two separate data files" in parameter_form.combine_data.description
+
+    def test_each_label_fits_beside_its_help_icon(self, parameter_form):
+        # Panel renders the description as an icon after the label, so a widget narrower
+        # than its own label pushes the icon over the control beside it.
+        crowded = [
+            (widget.name, widget.width)
+            for section in parameter_form.individual_parameters.objects
+            for item in section
+            for widget in (list(item) if isinstance(item, pn.Row) else [item])
+            if isinstance(widget, pn.widgets.Widget)
+            and getattr(widget, "description", None)
+            and widget.width
+            and _label_width(widget.name) > widget.width
+        ]
+
+        assert crowded == []
+
+
+class TestParameterSections:
+    def test_sections_appear_in_pipeline_order(self, parameter_form):
+        titles = [section.objects[0].object for section in parameter_form.individual_parameters.objects]
+
+        assert titles == [
+            "### Parallel Execution",
+            "### Control Channel Fitting",
+            "### Signal Filtering",
+            "### Z-score Normalization",
+            "### PSTH Computation",
+            "### Peak and AUC Measurement",
+            "### Transient Detection",
+            "### Metric Binning",
+            "### Significance Testing",
+        ]
+
+    def test_the_card_does_not_claim_a_single_analysis_level(self, parameter_form):
+        assert parameter_form.individual.title == "Parameter Selection"
+
+    def test_the_shared_transient_controls_sit_with_the_detector(self, parameter_form):
+        section = parameter_form.transients_param_wd
+        widgets = [widget for item in section for widget in (list(item) if isinstance(item, pn.Row) else [item])]
+
+        assert parameter_form.transients in widgets
+        assert parameter_form.useTransientsAsEvents in widgets
+
+    def test_the_psth_metric_sits_with_the_psth_window(self, parameter_form):
+        section = parameter_form.psth_param_wd
+        widgets = [widget for item in section for widget in (list(item) if isinstance(item, pn.Row) else [item])]
+
+        assert parameter_form.computePsth in widgets
+        assert parameter_form.baselineCorrectionStart in widgets
 
 
 # Distinctive non-default snapshot so a successful load is unambiguous. peak_*Point
@@ -616,7 +960,6 @@ SAVED_PARAMETERS = {
     "photobleaching_detrend": True,
     "timeForLightsTurnOn": 7,
     "filter_window": 42,
-    "noChannels": 3,
     "zscore_method": "modified z-score",
     "baselineWindowStart": 2,
     "baselineWindowEnd": 9,
@@ -638,17 +981,18 @@ SAVED_PARAMETERS = {
     "highAmpFilt": 5,
     "transientsThresh": 6,
     "computeBinnedMetrics": True,
+    "computePsthSignificance": True,
+    "psthSignificanceAlpha": 0.01,
+    "psthBootstrapResamples": 500,
     "binnedMetricsWidth": 60,
-    "visualize_zscore_or_dff": "dff",
-    "averageForGroup": True,
 }
 
 
 def _write_run_with_parameters(session_dir, run_name, parameters):
     """Create an ``_output_<run>`` dir under session_dir holding a GuPPyParamtersUsed.json."""
     run_dir = run_folder_for_run(str(session_dir), run_name)
-    os.mkdir(run_dir)
-    with open(os.path.join(run_dir, "GuPPyParamtersUsed.json"), "w") as parameters_file:
+    Path(run_dir).mkdir()
+    with (Path(run_dir) / "GuPPyParamtersUsed.json").open("w") as parameters_file:
         json.dump(parameters, parameters_file)
     return run_dir
 
@@ -657,7 +1001,7 @@ class TestParameterAutoPopulate:
     def test_set_input_parameters_round_trips_get_input_parameters(self, parameter_form):
         parameter_form.setInputParameters(SAVED_PARAMETERS)
         result = parameter_form.getInputParameters()
-        for key, widget in parameter_form._scalar_parameter_widgets().items():
+        for key in parameter_form._scalar_parameter_widgets():
             assert result[key] == SAVED_PARAMETERS[key], f"{key} did not round-trip"
         # NaN tail entries compare equal only via isnan.
         np.testing.assert_array_equal(result["peak_startPoint"], SAVED_PARAMETERS["peak_startPoint"])
@@ -719,10 +1063,23 @@ class TestParameterAutoPopulate:
         session = tmp_path / "sessionA"
         session.mkdir()
         run_dir = run_folder_for_run(str(session), "fresh")
-        os.mkdir(run_dir)
+        Path(run_dir).mkdir()
 
         default_time = bare_parameter_form.timeForLightsTurnOn.value
         bare_parameter_form.files_1.value = [str(session)]
         bare_parameter_form.outputs_selector.value = [run_dir]
 
         assert bare_parameter_form.timeForLightsTurnOn.value == default_time
+
+    def test_choosing_a_run_name_populates_widgets_from_every_session_it_selects(self, bare_parameter_form, tmp_path):
+        sessions = []
+        for name in ("sessionA", "sessionB", "sessionC"):
+            session = tmp_path / name
+            session.mkdir()
+            _write_run_with_parameters(session, "shared", SAVED_PARAMETERS)
+            sessions.append(str(session))
+        bare_parameter_form.files_1.value = sessions
+
+        bare_parameter_form.run_names_for_all_sessions.value = ["shared"]
+
+        assert bare_parameter_form.timeForLightsTurnOn.value == 7

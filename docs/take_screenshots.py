@@ -16,7 +16,7 @@ public dandiset is unauthenticated (only streaming an asset's data authenticates
 
 from __future__ import annotations
 
-import os
+import math
 import socket
 import time
 from pathlib import Path
@@ -33,6 +33,7 @@ from guppy.frontend.covariate_correlation_view import build_covariate_correlatio
 from guppy.frontend.custom_events_config import CustomEventsConfig
 from guppy.frontend.dandi_selector import DandiSelector
 from guppy.frontend.frontend_utils import scanPortsAndFind
+from guppy.frontend.group_labeling import GroupLabelingPage
 from guppy.frontend.input_parameters import ParameterForm
 from guppy.frontend.parameterized_plotter import ParameterizedPlotter
 from guppy.frontend.store_labeling_selector import StoreLabelingSelector
@@ -110,12 +111,11 @@ def _sidebar_clip(page: Page, from_step: str | None) -> dict[str, float]:
 
 def screenshot_homepage(page: Page) -> None:
     """Screenshot 1: the Input Parameters GUI landing page."""
-    os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
-    template = build_homepage()
+    template = build_homepage(start_path=str(SAMPLE_DATA_DIR.parent))
     url = _serve(template)
 
     page.goto(url)
-    page.get_by_text("Individual Analysis").first.wait_for()
+    page.get_by_text("Parameter Selection").first.wait_for()
     page.wait_for_timeout(1000)
     page.screenshot(path=OUTPUT_DIR / "01_homepage.png", full_page=False)
     print("Saved 01_homepage.png")
@@ -125,11 +125,10 @@ def screenshot_homepage(page: Page) -> None:
 
 def screenshot_import_custom_events_button(page: Page) -> None:
     """How-to: the sidebar top showing the Import Custom Events button above Step 1."""
-    os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
-    template = build_homepage()
+    template = build_homepage(start_path=str(SAMPLE_DATA_DIR.parent))
     url = _serve(template)
     page.goto(url)
-    page.get_by_text("Individual Analysis").first.wait_for()
+    page.get_by_text("Parameter Selection").first.wait_for()
     page.wait_for_timeout(1000)
     page.screenshot(
         path=OUTPUT_DIR / "import_custom_events_button.png",
@@ -142,11 +141,10 @@ def screenshot_import_custom_events_button(page: Page) -> None:
 
 def screenshot_select_artifact_windows_button(page: Page) -> None:
     """How-to: the sidebar showing the two optional artifact steps between Step 3 and Step 4."""
-    os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
-    template = build_homepage()
+    template = build_homepage(start_path=str(SAMPLE_DATA_DIR.parent))
     url = _serve(template)
     page.goto(url)
-    page.get_by_text("Individual Analysis").first.wait_for()
+    page.get_by_text("Parameter Selection").first.wait_for()
     page.wait_for_timeout(1000)
     page.screenshot(
         path=OUTPUT_DIR / "select_artifact_windows_button.png",
@@ -199,7 +197,7 @@ def screenshot_select_artifact_windows(page: Page, tmp_path: Path) -> None:
     template.main.append(selector.widget)
     url = _serve(template)
 
-    # Render tall enough that every trace panel lays out (bokeh does not draw plots that
+    # Render tall enough that the trace panel lays out (bokeh does not draw plots that
     # never enter the viewport), then clip to the content instead of the padded page.
     page.set_viewport_size({"width": 1280, "height": 1700})
     page.goto(url)
@@ -207,7 +205,7 @@ def screenshot_select_artifact_windows(page: Page, tmp_path: Path) -> None:
     page.wait_for_timeout(3000)
     page.screenshot(
         path=OUTPUT_DIR / "select_artifact_windows.png",
-        clip={"x": 0, "y": 0, "width": 1280, "height": 1310},
+        clip={"x": 0, "y": 0, "width": 1280, "height": 1180},
     )
     print("Saved select_artifact_windows.png")
 
@@ -248,14 +246,13 @@ def _synthetic_site_traces(*, recording_sites: list[str]) -> dict[str, dict[str,
 
 def screenshot_tonic_analysis_button(page: Page) -> None:
     """How-to: the sidebar showing the optional tonic step between Remove Artifacts and Step 4."""
-    os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
-    template = build_homepage()
+    template = build_homepage(start_path=str(SAMPLE_DATA_DIR.parent))
     url = _serve(template)
     # The crop has to reach Step 4 to show where the optional step falls in the order, which
     # runs past the bottom of the default viewport — a clip beyond it is silently truncated.
     page.set_viewport_size({"width": 1280, "height": 1200})
     page.goto(url)
-    page.get_by_text("Individual Analysis").first.wait_for()
+    page.get_by_text("Parameter Selection").first.wait_for()
     page.wait_for_timeout(1000)
     page.screenshot(
         path=OUTPUT_DIR / "tonic_analysis_button.png",
@@ -460,14 +457,13 @@ def screenshot_label_stores(page: Page, tmp_path: Path) -> None:
 def screenshot_data_selection(page: Page) -> None:
     """Screenshot for Step 2 substep 1: the file-selector portion of the homepage.
 
-    Captures the top of the Individual Analysis card so the reader can see the
+    Captures the top of the Parameter Selection card so the reader can see the
     file browser they are about to interact with.
     """
-    os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
-    template = build_homepage()
+    template = build_homepage(start_path=str(SAMPLE_DATA_DIR.parent))
     url = _serve(template)
     page.goto(url)
-    page.get_by_text("Individual Analysis").first.wait_for()
+    page.get_by_text("Parameter Selection").first.wait_for()
     page.wait_for_timeout(1000)
     page.screenshot(
         path=OUTPUT_DIR / "02_data_selection.png",
@@ -483,93 +479,90 @@ def screenshot_parameters(page: Page) -> None:
 
     The homepage uses a sticky header and sticky sidebar, so window-level
     scrolling does not move the parameters into view. Instead we render with a
-    tall viewport so the whole Individual Analysis card lays out without
+    tall viewport so the whole Parameter Selection card lays out without
     scrolling, then clip to the parameter region in absolute page coordinates.
     """
-    os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
-    template = build_homepage()
-    # The Individual Analysis card is collapsed by default; expand it so the
+    template = build_homepage(start_path=str(SAMPLE_DATA_DIR.parent))
+    # The Parameter Selection card is collapsed by default; expand it so the
     # parameter widgets render and fall inside the clip region below.
     for card in template.main:
-        if isinstance(card, pn.Card) and card.title == "Individual Analysis":
+        if isinstance(card, pn.Card) and card.title == "Parameter Selection":
             card.collapsed = False
     url = _serve(template)
-    page.set_viewport_size({"width": 1280, "height": 1800})
+    # Wide enough that the 1000px card clears the sidebar without being cut off on the
+    # right, tall enough that the card lays out without scrolling.
+    page.set_viewport_size({"width": 1450, "height": 1800})
     page.goto(url)
-    page.get_by_text("Individual Analysis").first.wait_for()
+    page.get_by_text("Parameter Selection").first.wait_for()
     page.wait_for_timeout(1500)
     page.screenshot(
         path=OUTPUT_DIR / "02_parameters.png",
-        clip={"x": 0, "y": 600, "width": 1280, "height": 800},
+        clip={"x": 355, "y": 665, "width": 1030, "height": 900},
     )
     print("Saved 02_parameters.png")
     page.set_viewport_size(VIEWPORT)
     pn.state.kill_all_servers()
 
 
-def screenshot_group_analysis_card(page: Page) -> None:
-    """How-to: the Group Analysis card, expanded, with its folder browser and toggle.
-
-    The card is collapsed by default, so expand it before rendering, then clip to its
-    region — mirrors screenshot_parameters.
-    """
-    os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
-    template = build_homepage()
-    for card in template.main:
-        if isinstance(card, pn.Card) and card.title == "Group Analysis":
-            card.collapsed = False
-    url = _serve(template)
-    page.set_viewport_size({"width": 1280, "height": 1800})
+def screenshot_label_groups_page(page: Page) -> None:
+    """How-to: the Label Groups page, showing its member-runs and destination sections."""
+    labeling_page = GroupLabelingPage(start_path=str(SAMPLE_DATA_DIR.parent), selected_group_folders=[])
+    url = _serve(labeling_page.build_template())
+    # The page lays out two 640px columns side by side, so it needs a wide viewport.
+    page.set_viewport_size({"width": 1600, "height": 1300})
     page.goto(url)
-    page.get_by_text("Group Analysis").first.wait_for()
+    page.get_by_text("Group name").first.wait_for()
     page.wait_for_timeout(1500)
     page.screenshot(
-        path=OUTPUT_DIR / "group_analysis_card.png",
-        clip={"x": 0, "y": 620, "width": 1280, "height": 750},
+        path=OUTPUT_DIR / "label_groups_page.png",
+        clip={"x": 0, "y": 0, "width": 1600, "height": 1050},
     )
-    print("Saved group_analysis_card.png")
-    page.set_viewport_size(VIEWPORT)
-    pn.state.kill_all_servers()
-
-
-def screenshot_visualize_average_toggle(page: Page) -> None:
-    """How-to: the Visualization Parameters card showing the Visualize Average Results? toggle."""
-    os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
-    template = build_homepage()
-    for card in template.main:
-        if isinstance(card, pn.Card) and card.title == "Visualization Parameters":
-            card.collapsed = False
-    url = _serve(template)
-    page.set_viewport_size({"width": 1280, "height": 1800})
-    page.goto(url)
-    page.get_by_text("Visualization Parameters").first.wait_for()
-    page.wait_for_timeout(1500)
-    page.screenshot(
-        path=OUTPUT_DIR / "visualize_average_results_toggle.png",
-        clip={"x": 0, "y": 600, "width": 1280, "height": 300},
-    )
-    print("Saved visualize_average_results_toggle.png")
+    print("Saved label_groups_page.png")
     page.set_viewport_size(VIEWPORT)
     pn.state.kill_all_servers()
 
 
 def screenshot_group_psth_plot(page: Page, tmp_path: Path) -> None:
-    """How-to: the Visualization dashboard's PSTH plot with one trace per session.
+    """How-to: the Visualization dashboard's PSTH plot for a group.
 
-    Mirrors screenshot_visualization, but names the data columns like session folders
-    rather than trials, matching the real shape of a group-averaged PSTH file.
+    Mirrors screenshot_visualization, but names the data columns after session folders
+    the way a group-averaged PSTH file does, and synthesizes event-evoked traces so the
+    figure shows a real response shape with its across-session error band.
     """
     events = ["RewardPort"]
     sessions = ["session_1", "session_2", "session_3"]
-    n_timepoints = 30
+    n_timepoints = 600
     timestamps = np.linspace(-10.0, 20.0, n_timepoints)
     # bin_1 / bin_err_1 keep the column count and trailing order the same shape the
     # dashboard's default-selection logic expects (mirrors screenshot_visualization);
     # they do not represent real group-average output, which has no bin_* columns.
     columns = [*sessions, "bin_1", "timestamps", "mean", "err", "bin_err_1"]
 
+    def session_trace(*, amplitude: float, latency: float, seed: int) -> np.ndarray:
+        """One session's averaged z-score: flat baseline, then an event-evoked transient."""
+        random_generator = np.random.default_rng(seed)
+        # Rise into the peak just after the event, then an exponential return to baseline.
+        response = amplitude * np.exp(-(((timestamps - latency) / 1.4) ** 2))
+        decay = 0.45 * amplitude * np.exp(-np.clip(timestamps - latency, 0.0, None) / 6.0)
+        decay[timestamps < latency] = 0.0
+        return response + decay + random_generator.normal(0.0, 0.16, n_timepoints)
+
+    traces = {
+        "session_1": session_trace(amplitude=2.6, latency=1.1, seed=0),
+        "session_2": session_trace(amplitude=1.9, latency=1.5, seed=1),
+        "session_3": session_trace(amplitude=3.1, latency=0.9, seed=2),
+    }
+    stacked = np.vstack([traces[name] for name in sessions])
+
     def make_df() -> pd.DataFrame:
-        return pd.DataFrame({col: (timestamps if col == "timestamps" else np.zeros(n_timepoints)) for col in columns})
+        data = dict(traces)
+        data["timestamps"] = timestamps
+        # The group's mean and error bar are computed across member runs, as they are on disk.
+        data["mean"] = stacked.mean(axis=0)
+        data["err"] = stacked.std(axis=0) / math.sqrt(stacked.shape[0])
+        data["bin_1"] = data["mean"]
+        data["bin_err_1"] = data["err"]
+        return pd.DataFrame({column: data[column] for column in columns})
 
     df_new = pd.concat([make_df() for _ in events], keys=events, axis=1)
 
@@ -579,7 +572,7 @@ def screenshot_group_psth_plot(page: Page, tmp_path: Path) -> None:
         selector_for_multipe_events_plot_objects=events,
         color_map_objects=["plasma", "viridis"],
         x_objects=["timestamps"],
-        y_objects=[*sessions, "mean"],
+        y_objects=["All", *sessions, "mean"],
         heatmap_y_objects=[f"1 - {sessions[0]}", "All"],
         psth_y_objects=None,
         filepath=str(tmp_path),
@@ -588,15 +581,31 @@ def screenshot_group_psth_plot(page: Page, tmp_path: Path) -> None:
         x_min=-10.0,
         x_max=20.0,
     )
-    dashboard = VisualizationDashboard(plotter=plotter, basename="average")
+    dashboard = VisualizationDashboard(
+        plotter=plotter,
+        basename="average",
+        events=events,
+        metric="z_score",
+        available_metrics=["z_score", "dff"],
+    )
     template = dashboard.build_template()
     url = _serve(template)
 
+    page.set_viewport_size({"width": 1280, "height": 1600})
     page.goto(url)
     page.get_by_text("PSTH").first.wait_for()
-    page.wait_for_timeout(1500)
-    page.screenshot(path=OUTPUT_DIR / "group_psth_plot.png", full_page=False)
+    page.wait_for_timeout(2500)
+    # Clip to the rendered trace rather than the controls above it: the point of the
+    # figure is the per-member-run curves, not the dashboard chrome.
+    plot = page.locator("canvas").first
+    plot.wait_for(timeout=15000)
+    box = plot.bounding_box()
+    page.screenshot(
+        path=OUTPUT_DIR / "group_psth_plot.png",
+        clip={"x": box["x"] - 60, "y": box["y"] - 20, "width": box["width"] + 90, "height": box["height"] + 60},
+    )
     print("Saved group_psth_plot.png")
+    page.set_viewport_size(VIEWPORT)
 
     pn.state.kill_all_servers()
 
@@ -623,8 +632,7 @@ def screenshot_sidebar_progress(
     anchored on the step they belong to rather than on the top of the page — pass
     viewport_height and clip_from_step (the sidebar label to start the crop at) for those.
     """
-    os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
-    template = build_homepage()
+    template = build_homepage(start_path=str(SAMPLE_DATA_DIR.parent))
 
     progress_bars = [w for w in template.sidebar if isinstance(w, pn.indicators.Progress)]
     progress_bars[progress_index].value = 60
@@ -632,7 +640,7 @@ def screenshot_sidebar_progress(
     url = _serve(template)
     page.set_viewport_size({"width": VIEWPORT["width"], "height": viewport_height})
     page.goto(url)
-    page.get_by_text("Individual Analysis").first.wait_for()
+    page.get_by_text("Parameter Selection").first.wait_for()
     page.wait_for_timeout(1000)
     page.screenshot(path=OUTPUT_DIR / output_name, clip=_sidebar_clip(page, clip_from_step))
     print(f"Saved {output_name}")
@@ -703,7 +711,14 @@ def screenshot_visualization(page: Page, tmp_path: Path) -> None:
         x_min=-10.0,
         x_max=20.0,
     )
-    dashboard = VisualizationDashboard(plotter=plotter, basename="sample_data_csv_1")
+    dashboard = VisualizationDashboard(
+        plotter=plotter,
+        basename="sample_data_csv_1",
+        events=events,
+        metric="z_score",
+        # The tutorial run computes only the z-score, so the metric selector offers it alone.
+        available_metrics=["z_score"],
+    )
     template = dashboard.build_template()
     url = _serve(template)
 
@@ -748,8 +763,7 @@ def screenshot_dandi_source_selection(page: Page) -> None:
     Fetching the asset list touches one zero-byte placeholder per NWB asset under the
     system temp dir; the tree is reused on subsequent runs.
     """
-    os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
-    template = build_homepage()
+    template = build_homepage(start_path=str(SAMPLE_DATA_DIR.parent))
     template._widgets["source_mode"].value = "dandi"
     template._widgets["dandi_selector"].dandiset_input.value = DANDI_DEMO_DANDISET_ID
     url = _serve(template)
@@ -780,14 +794,15 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
         run_folder.mkdir(exist_ok=True)
 
     try:
-        os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
-
         # Drive the card directly rather than through the homepage: selecting a run
         # in a served FileSelector takes several dependent clicks, and only this one
         # card is in shot. Assigning the inner cross-selector's value is what moves
         # an entry into the "Selected files" pane; setting FileSelector.value alone
         # updates the parameter without redrawing the panes.
-        form = ParameterForm(template=pn.template.MaterialTemplate(title="Input Parameters GUI"))
+        form = ParameterForm(
+            template=pn.template.MaterialTemplate(title="Input Parameters GUI"),
+            start_path=str(SAMPLE_DATA_DIR.parent),
+        )
         form.outputs_selector._directory.value = str(SAMPLE_DATA_DIR)
         form.outputs_selector._update_files()
         form.outputs_selector._selector.value = [str(run_folders[2])]
@@ -802,7 +817,7 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
         page.wait_for_timeout(1500)
         page.screenshot(
             path=OUTPUT_DIR / "compare_parameters_existing_runs.png",
-            clip={"x": 0, "y": 0, "width": 1060, "height": 520},
+            clip={"x": 0, "y": 0, "width": 1060, "height": 660},
         )
         print("Saved compare_parameters_existing_runs.png")
 
@@ -822,13 +837,13 @@ def screenshot_dandi_asset_browser(page: Page) -> None:
     """
     selector = DandiSelector()
     selector.dandiset_input.value = DANDI_DEMO_DANDISET_ID
-    subject_directory = os.path.join(selector._current_mirror_root, DANDI_DEMO_SUBJECT)
+    subject_directory = str(Path(selector._current_mirror_root) / DANDI_DEMO_SUBJECT)
     file_selector = pn.widgets.FileSelector(
         subject_directory,
         root_directory=selector._current_mirror_root,
         file_pattern="*.nwb",
         name="NWB assets",
-        value=[os.path.join(subject_directory, DANDI_DEMO_ASSET)],
+        value=[str(Path(subject_directory) / DANDI_DEMO_ASSET)],
         width=950,
     )
     file_selector._directory.visible = False
@@ -849,14 +864,14 @@ def screenshot_dandi_asset_browser(page: Page) -> None:
     print("Saved dandi_asset_browser.png")
     page.set_viewport_size(VIEWPORT)
 
+
 def screenshot_export_to_nwb_button(page: Page) -> None:
     """How-to: the sidebar bottom showing the two optional NWB steps below Step 5."""
-    os.environ["GUPPY_BASE_DIR"] = str(SAMPLE_DATA_DIR.parent)
-    template = build_homepage()
+    template = build_homepage(start_path=str(SAMPLE_DATA_DIR.parent))
     url = _serve(template)
     page.set_viewport_size({"width": VIEWPORT["width"], "height": 1400})
     page.goto(url)
-    page.get_by_text("Individual Analysis").first.wait_for()
+    page.get_by_text("Parameter Selection").first.wait_for()
     page.wait_for_timeout(1000)
     page.screenshot(
         path=OUTPUT_DIR / "export_to_nwb_button.png",
@@ -910,9 +925,7 @@ def _metadata_template() -> BasicTemplate:
     return build_metadata_template(
         session_label="Photo_63_207 (1)",
         channels=channels,
-        metadata=build_metadata_dict(
-            devices=devices, channel_rows=channel_rows, scalars=scalars, channels=channels
-        ),
+        metadata=build_metadata_dict(devices=devices, channel_rows=channel_rows, scalars=scalars, channels=channels),
         metadata_yaml_path=str(SAMPLE_DATA_DIR / "nwb_metadata.yaml"),
     )
 
@@ -1002,8 +1015,7 @@ def main() -> None:
             screenshot_visualization(page, tmp_path)
             screenshot_compare_parameters_run_name(page)
             screenshot_compare_parameters_existing_runs(page)
-            screenshot_group_analysis_card(page)
-            screenshot_visualize_average_toggle(page)
+            screenshot_label_groups_page(page)
             screenshot_group_psth_plot(page, tmp_path)
             screenshot_export_to_nwb_button(page)
             screenshot_sidebar_progress(

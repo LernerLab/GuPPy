@@ -23,13 +23,17 @@ EXPECTED_JSON_KEYS = {
     "filter_window",
     "removeArtifacts",
     "artifactsRemovalMethod",
-    "noChannels",
     "zscore_method",
     "baselineWindowStart",
     "baselineWindowEnd",
     "nSecPrev",
     "nSecPost",
     "computeCorr",
+    "computePsthSignificance",
+    "psthComparisonsA",
+    "psthComparisonsB",
+    "psthSignificanceAlpha",
+    "psthBootstrapResamples",
     "useTransientsAsEvents",
     "timeInterval",
     "bin_psth_trials",
@@ -46,8 +50,6 @@ EXPECTED_JSON_KEYS = {
     "transientsThresh",
     "computeBinnedMetrics",
     "binnedMetricsWidth",
-    "visualize_zscore_or_dff",
-    "averageForGroup",
 }
 
 
@@ -74,7 +76,7 @@ def test_parameters_json_contains_expected_keys(homepage, tmp_path):
     session_directory.mkdir()
     homepage._widgets["files_1"].value = [str(session_directory)]
     save_parameters(homepage._hooks["getInputParameters"]())
-    with open(session_directory / "GuPPyParamtersUsed.json") as json_file:
+    with (session_directory / "GuPPyParamtersUsed.json").open() as json_file:
         saved_parameters = json.load(json_file)
     assert set(saved_parameters.keys()) == EXPECTED_JSON_KEYS
 
@@ -84,7 +86,7 @@ def test_get_input_parameters_keys_include_saved_keys(homepage, tmp_path):
     session_directory.mkdir()
     homepage._widgets["files_1"].value = [str(session_directory)]
     save_parameters(homepage._hooks["getInputParameters"]())
-    with open(session_directory / "GuPPyParamtersUsed.json") as json_file:
+    with (session_directory / "GuPPyParamtersUsed.json").open() as json_file:
         saved_parameters = json.load(json_file)
     in_memory_parameters = homepage._hooks["getInputParameters"]()
     for key in saved_parameters:
@@ -94,12 +96,12 @@ def test_get_input_parameters_keys_include_saved_keys(homepage, tmp_path):
 
 
 def test_derived_keys_are_recorded_but_absent_from_the_form(homepage, tmp_path):
-    """The artifact keys are provenance written by the preprocessing steps, not form inputs."""
+    """Keys recorded in the snapshot by the preprocessing steps rather than collected from this form."""
     session_directory = tmp_path / "session1"
     session_directory.mkdir()
     homepage._widgets["files_1"].value = [str(session_directory)]
     save_parameters(homepage._hooks["getInputParameters"]())
-    with open(session_directory / "GuPPyParamtersUsed.json") as json_file:
+    with (session_directory / "GuPPyParamtersUsed.json").open() as json_file:
         saved_parameters = json.load(json_file)
 
     in_memory_parameters = homepage._hooks["getInputParameters"]()

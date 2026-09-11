@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 import shutil
 from pathlib import Path
 
@@ -18,17 +17,20 @@ from guppy.extractors import (
     TdtRecordingExtractor,
     detect_acquisition_formats,
 )
-from guppy.extractors.npm_recording_extractor import DEFAULT_TIME_UNIT
+from guppy.extractors.npm_recording_extractor import (
+    DEFAULT_NUM_CHANNELS,
+    DEFAULT_TIME_UNIT,
+)
 from guppy.frontend.frontend_utils import scanPortsAndFind
 from guppy.frontend.store_labeling_instructions import (
     StoreLabelingInstructions,
     StoreLabelingInstructionsNPM,
 )
 from guppy.frontend.store_labeling_selector import StoreLabelingSelector
+from guppy.utils.stores_list import write_stores_list
 from guppy.utils.utils import (
     NPM_PARAM_KEYS,
     discover_run_folders,
-    is_headless,
     run_folder_for_run,
     validate_run_name,
     write_npm_params,
@@ -37,6 +39,15 @@ from guppy.utils.utils import (
 pn.extension()
 
 logger = logging.getLogger(__name__)
+
+
+def store_label_cache_path() -> Path:
+    """Path of the cache remembering which store labels each raw store id was given.
+
+    The Label Stores page reads it to pre-fill a store id it has seen before. Resolved
+    on each call rather than at import so ``Path.home()`` is looked up when it is used.
+    """
+    return Path.home() / ".storesList.json"
 
 
 def show_dir(filepath: str, run_name: str | None = None) -> str:
@@ -64,55 +75,9 @@ def show_dir(filepath: str, run_name: str | None = None) -> str:
     i = 1
     while True:
         run_folder = run_folder_for_run(filepath, str(i))
-        if not os.path.exists(run_folder):
+        if not Path(run_folder).exists():
             break
         i += 1
-    return run_folder
-
-
-def make_dir(filepath: str, run_name: str | None = None, run_name_policy: str = "create") -> str:
-    """Create and return an output directory.
-
-    Parameters
-    ----------
-    filepath : str
-        Path to the session folder.
-    run_name : str or None, optional
-        Explicit run-name suffix.  When ``None`` (the default) the next-available
-        integer is used (legacy behaviour).
-    run_name_policy : {"create", "overwrite"}, optional
-        With ``run_name`` set, controls collision behaviour.  ``"create"``
-        raises if the target directory already exists; ``"overwrite"``
-        ``rmtree``s an existing directory before recreating it.  Ignored when
-        ``run_name`` is ``None`` (auto-increment never collides).
-
-    Returns
-    -------
-    str
-        Path of the newly created directory.
-    """
-    if run_name is None:
-        i = 1
-        while True:
-            run_folder = run_folder_for_run(filepath, str(i))
-            if not os.path.exists(run_folder):
-                os.mkdir(run_folder)
-                return run_folder
-            i += 1
-
-    validate_run_name(run_name)
-    if run_name_policy not in ("create", "overwrite"):
-        raise ValueError(f"run_name_policy must be 'create' or 'overwrite'; got {run_name_policy!r}.")
-    run_folder = run_folder_for_run(filepath, run_name)
-    if os.path.exists(run_folder):
-        if run_name_policy == "create":
-            raise ValueError(
-                f"Output directory already exists: {run_folder!r}. "
-                "Choose a different run_name or set run_name_policy='overwrite' to replace it."
-            )
-        shutil.rmtree(run_folder)
-        logger.info(f"Cleared output directory for overwrite: {run_folder}")
-    os.mkdir(run_folder)
     return run_folder
 
 
@@ -149,7 +114,7 @@ def _fetchValues(
                 return "####Alert !! \n One of the text box entry is empty."
             if len(name.split()) > 1:
                 return "####Alert !! \n Whitespace is not allowed in the text box entry."
-            store_labels.append("signal_{}".format(name))
+            store_labels.append(f"signal_{name}")
             signal_names.append(name)
         elif dropdown_value == "control":
             signal_key = store_id_control_refs[key].value
@@ -159,7 +124,7 @@ def _fetchValues(
                     "Select the signal each control belongs to."
                 )
             signal_name = signal_key_to_name.get(signal_key, "")
-            store_labels.append("control_{}".format(signal_name))
+            store_labels.append(f"control_{signal_name}")
             signals_with_control.add(signal_name)
         elif dropdown_value == "event TTLs":
             name = store_id_textboxes[key].value or ""
@@ -174,7 +139,7 @@ def _fetchValues(
                 return "####Alert !! \n One of the text box entry is empty."
             if len(name.split()) > 1:
                 return "####Alert !! \n Whitespace is not allowed in the text box entry."
-            store_labels.append("covariate_{}".format(name))
+            store_labels.append(f"covariate_{name}")
         else:
             store_labels.append(dropdown_value)
 
@@ -236,7 +201,13 @@ def _npm_params_to_persist(inputParameters: dict[str, object]) -> dict[str, obje
     return npm_params
 
 
-def _save(store_labeling_config: dict, select_location: str, npm_params: dict[str, object] | None = None) -> str:
+def _save(
+    *,
+    store_labeling_config: dict,
+    select_location: str,
+    overwrite_mode: str,
+    npm_params: dict[str, object] | None = None,
+) -> str:
     store_ids_array = np.asarray(store_labeling_config["store_ids"])
     store_labels_array = np.asarray(store_labeling_config["store_labels"])
 
@@ -265,7 +236,7 @@ def _save(store_labeling_config: dict, select_location: str, npm_params: dict[st
         logger.error(detail)
         return alert_message
 
-    if not os.path.exists(os.path.join(Path.home(), ".storesList.json")):
+    if not store_label_cache_path().exists():
         store_id_to_store_labels = dict()
 
         for i in range(store_ids_array.shape[0]):
@@ -275,10 +246,10 @@ def _save(store_labeling_config: dict, select_location: str, npm_params: dict[st
             else:
                 store_id_to_store_labels[store_ids_array[i]] = [store_labels_array[i]]
 
-        with open(os.path.join(Path.home(), ".storesList.json"), "w") as cache_file:
+        with store_label_cache_path().open("w") as cache_file:
             json.dump(store_id_to_store_labels, cache_file, indent=4)
     else:
-        with open(os.path.join(Path.home(), ".storesList.json")) as cache_file:
+        with store_label_cache_path().open() as cache_file:
             store_id_to_store_labels = json.load(cache_file)
 
         for i in range(store_ids_array.shape[0]):
@@ -288,22 +259,29 @@ def _save(store_labeling_config: dict, select_location: str, npm_params: dict[st
             else:
                 store_id_to_store_labels[store_ids_array[i]] = [store_labels_array[i]]
 
-        with open(os.path.join(Path.home(), ".storesList.json"), "w") as cache_file:
+        with store_label_cache_path().open("w") as cache_file:
             json.dump(store_id_to_store_labels, cache_file, indent=4)
 
     store_array = np.asarray([store_ids_array, store_labels_array])
     logger.info(store_array)
-    if os.path.exists(select_location):
+    if Path(select_location).exists():
+        if overwrite_mode != "over_write_file":
+            detail = (
+                f"Output directory already exists: {select_location!r}. "
+                "Choose a different run name or select over_write_file to replace it."
+            )
+            logger.error(detail)
+            return f"#### Alert !! \n {detail}"
         # Overwrite mode: clear all derived data from the previous run before saving the new store_array.
         shutil.rmtree(select_location)
-        logger.info(f"Cleared output directory for overwrite: {select_location}")
-    os.mkdir(select_location)
+        logger.info("Cleared output directory for overwrite: %s", select_location)
+    Path(select_location).mkdir()
 
-    np.savetxt(os.path.join(select_location, "storesList.csv"), store_array, delimiter=",", fmt="%s")
+    write_stores_list(run_folder=select_location, store_array=store_array)
     if npm_params is not None:
         write_npm_params(run_folder=select_location, npm_params=npm_params)
-    logger.info(f"Storeslist file saved at {select_location}")
-    logger.info("Storeslist : \n" + str(store_array))
+    logger.info("Storeslist file saved at %s", select_location)
+    logger.info("Storeslist : \n%s", store_array)
     return "#### No alerts !!"
 
 
@@ -346,7 +324,7 @@ def build_store_labeling_template(
     """
     allnames = events
 
-    template = pn.template.BootstrapTemplate(title="Label Stores GUI - {}".format(os.path.basename(folder_path)))
+    template = pn.template.BootstrapTemplate(title=f"Label Stores GUI - {Path(folder_path).name}")
 
     if npm_interactive is not None:
         store_labeling_instructions = StoreLabelingInstructionsNPM(
@@ -402,7 +380,7 @@ def build_store_labeling_template(
         take_widgets = store_labeling_selector.get_take_widgets()
         expanded_store_ids = []
         for i in range(len(take_widgets[1])):
-            for j in range(take_widgets[1][i]):
+            for _ in range(take_widgets[1][i]):
                 expanded_store_ids.append(take_widgets[0][i])
         if len(expanded_store_ids) > 0:
             store_ids = store_labeling_selector.get_cross_selector() + expanded_store_ids
@@ -412,8 +390,8 @@ def build_store_labeling_template(
         store_labeling_selector.set_change_widgets(store_ids)
 
         store_id_to_store_labels = dict()
-        if os.path.exists(os.path.join(Path.home(), ".storesList.json")):
-            with open(os.path.join(Path.home(), ".storesList.json")) as f:
+        if store_label_cache_path().exists():
+            with store_label_cache_path().open() as f:
                 store_id_to_store_labels = json.load(f)
 
         store_labeling_selector.configure_store_ids(store_id_to_store_labels=store_id_to_store_labels)
@@ -427,10 +405,13 @@ def build_store_labeling_template(
         is_npm = npm_interactive is not None or "data_np_v2" in flags or "data_np" in flags or "event_np" in flags
         npm_params = _npm_params_to_persist(inputParameters) if is_npm else None
         alert_message = _save(
-            store_labeling_config=store_labeling_config, select_location=select_location, npm_params=npm_params
+            store_labeling_config=store_labeling_config,
+            select_location=select_location,
+            overwrite_mode=store_labeling_selector.get_overwrite_mode(),
+            npm_params=npm_params,
         )
         store_labeling_selector.set_alert_message(alert_message)
-        store_labeling_selector.set_path(os.path.join(select_location, "storesList.csv"))
+        store_labeling_selector.set_path(str(Path(select_location) / "storesList.csv"))
 
     # on clicking the NPM "Confirm NPM configuration" button, following function is executed
     def confirm_npm_configuration(event: object = None) -> None:
@@ -440,11 +421,16 @@ def build_store_labeling_template(
         inputParameters["npm_time_unit"] = npm_time_unit
         inputParameters["npm_timestamp_column_name"] = npm_timestamp_column_name
 
+        inputParameters["noChannels"] = store_labeling_instructions.get_number_of_channels()
+
         num_ch = inputParameters["noChannels"]
         events, _ = NpmRecordingExtractor.discover_events_and_flags(
             folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
         )
-        store_labeling_selector.set_events(events=events)
+        # Keep the non-NPM events discovered at build time selectable alongside the
+        # freshly discovered NPM events (mixed-modality sessions).
+        merged_events = [*events, *(name for name in allnames if name not in events)]
+        store_labeling_selector.set_events(events=merged_events)
         channel_previews = _compute_npm_channel_previews(inputParameters, folder_path)
         store_labeling_instructions.set_channel_previews(channel_previews=channel_previews)
         store_labeling_selector.set_alert_message("#### No alerts !!")
@@ -473,73 +459,6 @@ def build_store_labeling_template(
     return template
 
 
-def build_store_labeling_page(
-    inputParameters: dict[str, object],
-    events: list[str],
-    flags: list[str],
-    folder_path: str,
-    *,
-    npm_interactive: dict[str, object] | None = None,
-) -> None:
-    """Write storesList.csv for one session, headlessly or via the Panel GUI.
-
-    In headless mode (``store_id_to_store_label`` key present in ``inputParameters``)
-    the mapping is written directly.  Otherwise a Panel GUI is launched in a
-    browser so the user can assign store labels interactively.
-
-    Parameters
-    ----------
-    inputParameters : dict
-        Full pipeline input parameters; may contain ``store_id_to_store_label`` for
-        headless operation.
-    events : list of str
-        store_id strings discovered from the acquisition files.
-    flags : list of str
-        Feature flags (e.g. ``"data_np_v2"``) passed to the GUI template.
-    folder_path : str
-        Absolute path to the session directory.
-    npm_interactive : dict or None
-        NPM configuration-form probe data from :func:`read_header` (non-headless
-        NPM only); when set, the GUI renders the NPM configuration form and
-        defers NPM discovery/previews to its confirm callback.
-    """
-    logger.debug("Saving stores list file.")
-
-    # NPM decomposition is parameterized by interactive Step-1 choices; persist them
-    # next to storesList.csv so Step 2 can reproduce the same in-memory decomposition.
-    is_npm = "data_np_v2" in flags or "data_np" in flags or "event_np" in flags
-    npm_params = _npm_params_to_persist(inputParameters) if is_npm else None
-
-    # Headless path: if store_id_to_store_label provided, write storesList.csv without building the Panel UI
-    store_id_to_store_label = inputParameters.get("store_id_to_store_label")
-    if isinstance(store_id_to_store_label, dict) and len(store_id_to_store_label) > 0:
-        run_name = inputParameters.get("run_name") or None
-        run_name_policy = inputParameters.get("run_name_policy", "create")
-        run_folder = make_dir(folder_path, run_name=run_name, run_name_policy=run_name_policy)
-        store_array = np.asarray(
-            [list(store_id_to_store_label.keys()), list(store_id_to_store_label.values())], dtype=str
-        )
-        np.savetxt(os.path.join(run_folder, "storesList.csv"), store_array, delimiter=",", fmt="%s")
-        if npm_params is not None:
-            write_npm_params(run_folder=run_folder, npm_params=npm_params)
-        logger.info(f"Storeslist file saved at {run_folder}")
-        logger.info("Storeslist : \n" + str(store_array))
-        return
-
-    template = build_store_labeling_template(
-        events,
-        flags,
-        folder_path,
-        isosbestic_control=bool(inputParameters.get("isosbestic_control")),
-        inputParameters=inputParameters,
-        npm_interactive=npm_interactive,
-    )
-
-    # creating widgets, adding them to template and showing a GUI on a new browser window
-    number = scanPortsAndFind(start_port=5000, end_port=5200)
-    template.show(port=number)
-
-
 def _compute_npm_channel_previews(
     inputParameters: dict[str, object], folder_path: str
 ) -> dict[str, dict[str, np.ndarray]]:
@@ -560,7 +479,7 @@ def _compute_npm_channel_previews(
     """
     extractor = NpmRecordingExtractor(
         folder_path=folder_path,
-        num_ch=inputParameters["noChannels"],
+        num_ch=inputParameters.get("noChannels", DEFAULT_NUM_CHANNELS),
         npm_timestamp_column_name=inputParameters.get("npm_timestamp_column_name"),
         npm_time_unit=inputParameters.get("npm_time_unit"),
         npm_split_events=inputParameters.get("npm_split_events"),
@@ -579,7 +498,7 @@ def _compute_npm_channel_previews(
 
 
 def read_header(
-    inputParameters: dict[str, object], num_ch: int, folder_path: str, headless: bool
+    inputParameters: dict[str, object], num_ch: int, folder_path: str
 ) -> tuple[list[str], list[str], dict[str, object] | None]:
     """Discover events and feature flags for a single session folder.
 
@@ -592,8 +511,6 @@ def read_header(
         Number of photometry channels (used by NPM extractor discovery).
     folder_path : str
         Absolute path to the session directory.
-    headless : bool
-        When True, suppress the interactive NPM configuration form.
 
     Returns
     -------
@@ -604,11 +521,10 @@ def read_header(
     flags : list of str
         Feature flags (e.g. ``"data_np_v2"``) from the discovered formats.
     npm_interactive : dict or None
-        When NPM data is present and running non-headless, the probe outputs
-        (``multiple_event_ttls``, ``timestamp_column_options``) needed to build
-        the on-page NPM configuration form. NPM discovery is deferred to
-        the form's confirm callback because event names depend on the answers.
-        ``None`` otherwise.
+        When NPM data is present, the probe outputs (``multiple_event_ttls``,
+        ``timestamp_column_options``) needed to build the on-page NPM
+        configuration form. NPM discovery is deferred to the form's confirm
+        callback because event names depend on the answers. ``None`` otherwise.
     """
     # DANDI mode bypasses local format detection — discover events via streaming
     if inputParameters.get("mode") == "dandi":
@@ -618,11 +534,11 @@ def read_header(
 
     all_formats = detect_acquisition_formats(folder_path)
 
-    # Non-headless NPM: probe the files for the configuration form and defer NPM
+    # NPM: probe the files for the configuration form and defer NPM
     # discovery/decomposition until the user confirms their choices (the derived
     # event names change with the split-events answer).
     npm_interactive = None
-    if "npm" in all_formats and not headless:
+    if "npm" in all_formats:
         npm_interactive = {
             "multiple_event_ttls": NpmRecordingExtractor.has_multiple_event_ttls(folder_path=folder_path),
             "timestamp_column_options": NpmRecordingExtractor.timestamp_column_options(folder_path=folder_path),
@@ -632,8 +548,8 @@ def read_header(
     existing_events = set()
 
     for format in sorted(all_formats):
-        # NPM discovery is deferred to the confirm callback in interactive mode.
-        if format == "npm" and npm_interactive is not None:
+        # NPM discovery is deferred to the configuration form's confirm callback.
+        if format == "npm":
             continue
         if format == "nwb":
             fmt_events, fmt_flags = NwbRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
@@ -645,10 +561,6 @@ def read_header(
             fmt_events, fmt_flags = CsvRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
         elif format == "pyphotometry":
             fmt_events, fmt_flags = PyPhotometryRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
-        elif format == "npm":
-            fmt_events, fmt_flags = NpmRecordingExtractor.discover_events_and_flags(
-                folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
-            )
         else:
             raise ValueError(
                 f"Format not recognized: '{format}'. Expected one of 'nwb', 'tdt', 'csv', 'doric', 'npm', "
@@ -667,28 +579,29 @@ def read_header(
 
 
 def orchestrate_store_labeling_page(inputParameters: dict[str, object]) -> None:
-    """Run the step-1 store_ids configuration for every selected session folder.
+    """Open the Label Stores page for every selected session folder.
 
     Parameters
     ----------
     inputParameters : dict
-        Full pipeline input parameters; uses ``session_folders``, ``abspath``,
+        Full pipeline input parameters; uses ``session_folders``,
         ``isosbestic_control``, and ``noChannels``.
     """
-    inputParameters = inputParameters
     session_folders = inputParameters["session_folders"]
     isosbestic_control = inputParameters["isosbestic_control"]
-    num_ch = inputParameters["noChannels"]
-    headless = is_headless()
+    num_ch = inputParameters.get("noChannels", DEFAULT_NUM_CHANNELS)
 
     logger.info(session_folders)
 
-    try:
-        for i in session_folders:
-            folder_path = os.path.join(inputParameters["abspath"], i)
-            events, flags, npm_interactive = read_header(inputParameters, num_ch, folder_path, headless)
-            build_store_labeling_page(inputParameters, events, flags, folder_path, npm_interactive=npm_interactive)
-        logger.info("#" * 400)
-    except Exception as e:
-        logger.error(str(e))
-        raise e
+    for folder_path in session_folders:
+        events, flags, npm_interactive = read_header(inputParameters, num_ch, folder_path)
+        template = build_store_labeling_template(
+            events,
+            flags,
+            folder_path,
+            isosbestic_control=bool(isosbestic_control),
+            inputParameters=inputParameters,
+            npm_interactive=npm_interactive,
+        )
+        template.show(port=scanPortsAndFind(start_port=5000, end_port=5200))
+    logger.info("#" * 400)

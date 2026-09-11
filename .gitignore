@@ -23,3 +23,8 @@ docs/_build/
 uv.lock
 
 tmp/
+
+# Coverage data files (pytest-cov)
+.coverage
+.coverage.*
+coverage.xml

@@ -1,22 +1,20 @@
 import logging
-import os
 import socket
+from pathlib import Path
 from random import randint
 
 logger = logging.getLogger(__name__)
 
 
 def default_root_path() -> str:
-    """Starting directory for the GUI's directory pickers.
+    """Starting directory for the GUI's directory pickers when no ``start_path`` is given.
 
-    Honors ``GUPPY_BASE_DIR`` (used by headless tests and the testing API to
-    point pickers at a temp directory); otherwise falls back to the user's
-    home directory.
+    Returns
+    -------
+    str
+        The user's home directory.
     """
-    base_dir_env = os.environ.get("GUPPY_BASE_DIR")
-    if base_dir_env and os.path.isdir(base_dir_env):
-        return base_dir_env
-    return os.path.expanduser("~")
+    return str(Path.home())
 
 
 # Ports that all major browsers refuse to connect to (ERR_UNSAFE_PORT).

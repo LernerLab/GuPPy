@@ -1,6 +1,6 @@
 import json
-import os
 from importlib.metadata import version
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -22,7 +22,6 @@ def default_parameters():
         "filter_window": 100,
         "removeArtifacts": False,
         "artifactsRemovalMethod": "replace with NaN",
-        "noChannels": 2,
         "zscore_method": "standard z-score",
         "baselineWindowStart": 0,
         "baselineWindowEnd": 0,
@@ -45,8 +44,6 @@ def default_parameters():
         "transientsThresh": 3,
         "computeBinnedMetrics": False,
         "binnedMetricsWidth": 120,
-        "visualize_zscore_or_dff": "z_score",
-        "averageForGroup": False,
     }
 
 
@@ -68,9 +65,9 @@ def test_save_parameters(tmp_path, default_parameters):
 
     # Assert: JSON written for each session with key defaults
     for s in sessions:
-        out_fp = os.path.join(s, "GuPPyParamtersUsed.json")
-        assert os.path.exists(out_fp), f"Missing file: {out_fp}"
-        with open(out_fp, "r") as f:
+        out_fp = Path(s) / "GuPPyParamtersUsed.json"
+        assert Path(out_fp).exists(), f"Missing file: {out_fp}"
+        with Path(out_fp).open() as f:
             data = json.load(f)
 
         assert data["guppy_version"] == version("guppy-neuro")
@@ -83,7 +80,7 @@ def test_save_parameters(tmp_path, default_parameters):
                 # Handle lists with NaN values
                 actual = data[key]
                 assert len(actual) == len(expected_value)
-                for i, (a, e) in enumerate(zip(actual, expected_value)):
+                for i, (a, e) in enumerate(zip(actual, expected_value, strict=True)):
                     if np.isnan(e):
                         assert np.isnan(a) or a is None, f"Mismatch at index {i}: expected NaN, got {a}"
                     else:

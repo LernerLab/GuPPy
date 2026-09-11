@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -8,57 +9,123 @@ import panel as pn
 
 from .dandi_selector import DandiSelector
 from .frontend_utils import default_root_path
-from ..utils.utils import discover_run_folders, parse_run_name
+from ..utils.utils import (
+    common_parent_directory,
+    discover_run_folders,
+    is_group_folder,
+    parse_run_name,
+    run_folder_for_run,
+)
 from ..utils.validation import (
     validate_non_negative,
     validate_positive,
     validate_required_folder_selection,
-    validate_same_parent_directory,
+    validate_significance_level,
 )
 
 logger = logging.getLogger(__name__)
 
-
-def checkSameLocation(paths: list[str], abspath: object) -> str:
-    """Check that all ``paths`` share the same parent directory.
-
-    Parameters
-    ----------
-    paths : sequence of str
-        Paths to validate.
-    abspath : object
-        Ignored; retained for backwards-compatibility with existing callers.
-
-    Returns
-    -------
-    str
-        The common parent directory of all ``paths``.
-    """
-    # abspath retained as a positional arg for backwards compatibility with existing
-    # callers; only the contents of paths are inspected.
-    del abspath
-    return validate_same_parent_directory(paths=list(paths))
+# Width of each parameter section inside the 1000px Individual Analysis card.
+SECTION_WIDTH = 960
+# White against the card's WhiteSmoke, with a border, so the sections read as
+# distinct blocks rather than merging into the card behind them.
+SECTION_STYLES = {
+    "background": "White",
+    "border": "1px solid #C8CCD0",
+    "border-radius": "6px",
+    "margin-bottom": "12px",
+}
 
 
-def getAbsPath(files_1: pn.widgets.FileSelector, files_2: pn.widgets.FileSelector) -> str:
-    """Return the common parent directory of the selected folders.
+def _reject_group_folder_selected_as_run(*, path: str) -> None:
+    """Raise when a group output directory is selected where a session run is expected.
 
     Parameters
     ----------
-    files_1 : pn.widgets.FileSelector
-        Primary file selector (individual analysis).
-    files_2 : pn.widgets.FileSelector
-        Secondary file selector (group analysis).
+    path : str
+        A path selected in the individual-analysis session or output selectors.
+
+    Raises
+    ------
+    ValueError
+        If ``path`` names a ``<group_name>_group`` directory.
+    """
+    if is_group_folder(path):
+        message = (
+            f"'{path}' is a group output directory, not a session run. Groups are created in the "
+            "Group Analysis card and can only be opened by Step 5 (Visualization); Steps 2-4 need "
+            "the raw traces a group directory does not contain."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+
+def _blank_comparison_rows(count: int) -> pd.DataFrame:
+    """Build an empty PSTH comparison table of ``count`` rows.
+
+    Parameters
+    ----------
+    count : int
+        Number of blank rows.
 
     Returns
     -------
-    str
-        Absolute path of the common parent directory shared by the selected
-        folders.
+    pd.DataFrame
+        Table with the ``Event A`` and ``Event B`` columns the form reads.
     """
-    validate_required_folder_selection(file_selectors=[files_1, files_2])
-    selected = files_1.value if len(files_1.value) > 0 else files_2.value
-    return validate_same_parent_directory(paths=list(selected))
+    return pd.DataFrame({"Event A": [""] * count, "Event B": [""] * count})
+
+
+def _titled_box(*, title: str, read_by: str, contents: list, width: int) -> pn.WidgetBox:
+    """Build one parameter section, headed by its title and the steps that consume it.
+
+    Parameters
+    ----------
+    title : str
+        Heading for the section.
+    read_by : str
+        The pipeline steps whose workers read the section's parameters, phrased to
+        follow "Read by" (e.g. ``"Step 3"``).
+    contents : list
+        Panel objects to lay out under the heading.
+    width : int
+        Fixed width of the returned box, in pixels.
+
+    Returns
+    -------
+    panel.WidgetBox
+        The assembled section.
+    """
+    heading = pn.pane.Markdown(f"### {title}", width=width - 40, styles={"margin-bottom": "0"})
+    read_by_note = pn.pane.Markdown(
+        f"*Read by {read_by}*",
+        width=width - 40,
+        styles={"color": "#6C757D", "font-size": "0.85em", "margin-top": "0"},
+    )
+    return pn.WidgetBox(heading, read_by_note, *contents, width=width, styles=SECTION_STYLES)
+
+
+def _table_heading(*, label: str, description: str, width: int) -> pn.Row:
+    """Label a Tabulator and give it the help icon Tabulator itself cannot carry.
+
+    Parameters
+    ----------
+    label : str
+        Name shown above the table.
+    description : str
+        Help text the icon reveals.
+    width : int
+        Width of the label pane, in pixels.
+
+    Returns
+    -------
+    panel.Row
+        The label beside its help icon.
+    """
+    return pn.Row(
+        pn.pane.Markdown(f"**{label}**", width=width, styles={"margin-bottom": "0"}),
+        pn.widgets.TooltipIcon(value=description),
+    )
 
 
 class ParameterForm:
@@ -80,24 +147,30 @@ class ParameterForm:
 
     def __init__(self, *, template: object, start_path: str | None = None) -> None:
         self.template = template
-        self.folder_path = start_path if start_path and os.path.isdir(start_path) else default_root_path()
+        self.folder_path = start_path if start_path and Path(start_path).is_dir() else default_root_path()
         self.styles = dict(background="WhiteSmoke")
-        self.group_selected_outputs_widgets: dict[str, pn.widgets.Select] = {}
+        # Sessions the run selection was last synced against, so a change can tell which
+        # sessions are new and should inherit the bulk run-name choice.
+        self._sessions_in_run_selection: list[str] = []
+        # Set while the bulk picker is written to programmatically, so a value dropped for
+        # being gone from disk is not mistaken for the user deselecting it.
+        self._suppressing_run_name_propagation = False
+        # Run selections stashed per source mode, so switching to DANDI and back does not
+        # discard the choices made for local sessions (and vice versa).
+        self._run_selection_by_source_mode: dict[str, tuple[list[str], list[str]]] = {}
+
         self.setup_individual_parameters()
         self.setup_group_parameters()
-        self.setup_visualization_parameters()
         self.add_to_template()
-        self.files_1.param.watch(self._retarget_outputs_selector, "value")
-        self.files_2.param.watch(self._rebuild_group_selected_outputs_widgets, "value")
+        self.files_1.param.watch(self._on_sessions_changed, "value")
+        self.run_names_for_all_sessions.param.watch(self._on_run_names_for_all_sessions_change, "value")
         self.outputs_selector.param.watch(self._load_parameters_from_selected_runs, "value")
+        self.dandi_selector.output_root_selector.param.watch(self._on_sessions_changed, "value")
+        self.dandi_selector.attach_asset_selection_watcher(callback=self._on_sessions_changed)
 
     def setup_individual_parameters(self) -> None:
         """Build all widgets for the individual-analysis card and store them as instance attributes."""
         # Individual analysis components
-        self.mark_down_1 = pn.pane.Markdown(
-            """**Select folders for the analysis from the file selector below**""", width=600
-        )
-
         # Color the "dandi" button muted pink (matches the DANDI brain-logo palette) so
         # the two options are visually distinguishable at a glance.
         dandi_button_stylesheet = """
@@ -124,92 +197,89 @@ class ParameterForm:
 
         self.files_1 = pn.widgets.FileSelector(self.folder_path, root_directory="/", name="session_folders", width=950)
 
-        self.dandi_selector = DandiSelector(styles=self.styles)
+        self.dandi_selector = DandiSelector(styles=self.styles, start_path=self.folder_path)
         # Hidden by default; shown when source_mode == "dandi"
         self.dandi_selector.panel.visible = False
 
-        self.explain_time_artifacts = pn.pane.Markdown(
-            """
-                                - ***Number of cores :*** Number of cores used for analysis. Try to
-                                keep it less than the number of cores in your machine.
-                                - ***Combine Data? :*** Make this parameter ``` True ``` if user wants to combine
-                                the data, especially when there is two different
-                                data files for the same recording session.<br>
-                                - ***Isosbestic Control Channel? :*** Make this parameter ``` False ``` if user
-                                does not want to use isosbestic control channel in the analysis.<br>
-                                - ***Photobleaching Detrend? :*** Make this parameter ``` True ``` to fit an
-                                exponential decay to the corrected &#916;F/F and subtract it, removing the
-                                residual photobleaching drift that remains after the control channel is
-                                subtracted. Useful for long (multi-hour) recordings. Requires an isosbestic
-                                control channel. Default is ``` False ```.<br>
-                                - ***Eliminate first few seconds :*** It is the parameter to cut out first x seconds
-                                from the data. Default is 1 seconds.<br>
-                                - ***Window for Moving Average filter :*** The filtering of signals
-                                is done using moving average filter. Default window used for moving
-                                average filter is 100 datapoints. Change it based on the requirement.<br>
-                                - ***Moving Window (transients detection) :*** Transients in the z-score
-                                and/or \u0394F/F are detected using this moving window.
-                                Default is 15 seconds. Change it based on the requirement.<br>
-                                - ***High Amplitude filtering threshold (HAFT) (transients detection) :*** High amplitude
-                                events greater than x times the MAD above the median are filtered out. Here, x is
-                                high amplitude filtering threshold. Default is 2.
-                                - ***Transients detection threshold (TD Thresh):*** Peaks with local maxima greater than x times
-                                the MAD above the median of the trace (after filtering high amplitude events) are detected
-                                as transients. Here, x is transients detection threshold. Default is 3.
-                                - ***Compute Binned Metrics? :*** Make this parameter ``` True ``` to divide the
-                                whole session into equal time bins and report the mean z-score, mean &#916;F/F and
-                                number of transients in each one. Useful for correlating the signal against a
-                                behavioral measure scored at a fixed cadence. Default is ``` False ```.<br>
-                                - ***Bin Width :*** Width of those bins in seconds. The last bin is kept even
-                                when the session does not divide evenly, so it may be shorter than the rest.
-                                Default is 120 seconds.<br>
-                                - ***Number of channels (Neurophotometrics only) :*** Number of
-                                channels used while recording, when data files has no column names mentioning "Flags"
-                                or "LedState".
-                                """,
-            width=350,
+        self.timeForLightsTurnOn = pn.widgets.IntInput(
+            name="Eliminate first few seconds (int)",
+            value=1,
+            width=320,
+            description="Seconds dropped from the start of every recording, discarding the bright transient from when the LED first turns on. Applies to every session in the batch; to cut deeper into one recording, mark its opening as an artifact period instead.",
         )
 
-        self.timeForLightsTurnOn = pn.widgets.IntInput(name="Eliminate first few seconds (int)", value=1, width=320)
-
         self.isosbestic_control = pn.widgets.Select(
-            name="Isosbestic Control Channel? (bool)", value=True, options=[True, False], width=320
+            name="Isosbestic Control Channel? (bool)",
+            value=True,
+            options=[True, False],
+            width=310,
+            description="Whether the recording includes an isosbestic control channel. When False, GuPPy fits an exponential decay to the signal itself and uses that as a stand-in control, which removes the photobleaching trend but not motion artifacts.",
         )
 
         self.control_fit_method = pn.widgets.Select(
             name="Control Channel Fitting Method",
             options=["IRWLS", "OLS"],
             value="IRWLS",
-            width=320,
+            width=310,
+            description="How the control channel is rescaled onto the signal before subtraction. IRWLS down-weights outlier samples so transients do not distort the fit; OLS is a plain least-squares fit.",
         )
 
         self.control_fit_window_mode = pn.widgets.Select(
             name="Control Fit Window",
             options=["full trace", "baseline epoch"],
             value="full trace",
-            width=320,
+            width=310,
+            description="Which part of the recording the fit is estimated from. 'full trace' uses the whole recording; 'baseline epoch' uses only the window set beside it and applies those coefficients throughout, for sessions where a sustained step change such as a drug injection would otherwise distort the fit.",
         )
         self.control_fit_window_strt = pn.widgets.IntInput(
-            name="Control Fit Window Start Time (s) (int)", value=0, width=320
+            name="Control Fit Window Start Time (s) (int)",
+            value=0,
+            width=310,
+            description="Start of the baseline epoch the fit is estimated from, in seconds. Must be less than the end and fall inside the recording. Ignored when the fit window is 'full trace'.",
         )
         self.control_fit_window_end = pn.widgets.IntInput(
-            name="Control Fit Window End Time (s) (int)", value=0, width=320
+            name="Control Fit Window End Time (s) (int)",
+            value=0,
+            width=310,
+            description="End of the baseline epoch the fit is estimated from, in seconds. Must be greater than the start and fall inside the recording. Ignored when the fit window is 'full trace'.",
         )
 
         self.photobleaching_detrend = pn.widgets.Select(
-            name="Photobleaching Detrend? (bool)", value=False, options=[True, False], width=320
+            name="Photobleaching Detrend? (bool)",
+            value=False,
+            options=[True, False],
+            width=310,
+            description="Adds an exponential decay term to the control fit, removing the residual photobleaching the control channel does not see. Useful for long recordings. Requires an isosbestic control channel and the OLS fitting method.",
         )
 
-        self.numberOfCores = pn.widgets.IntInput(name="# of cores (int)", value=2, width=150)
+        self.numberOfCores = pn.widgets.IntInput(
+            name="# of cores (int)",
+            value=2,
+            width=150,
+            description="Number of CPU workers used for the per-channel steps. Keep it at or below the number of cores in your machine; setting it higher does not help.",
+        )
 
         self.combine_data = pn.widgets.Select(
-            name="Combine Data? (bool)", value=False, options=[True, False], width=150
+            name="Combine Data? (bool)",
+            value=False,
+            options=[True, False],
+            width=150,
+            description="Set to True when one recording session was written as two separate data files; the matching channels are concatenated into a single trace before preprocessing.",
         )
 
         self.outputs_selector_header = pn.pane.Markdown(
             "**Existing runs (steps 2–5):** Pick at least one existing output directory per "
-            "selected session. To create a new run, use the Label Stores GUI in step 1.",
+            "selected session. Naming a run below selects it in every session that has it; the "
+            "tree underneath shows the result and can be adjusted session by session. To create "
+            "a new run, use the Label Stores GUI in step 1.",
             width=950,
+        )
+        self.run_names_for_all_sessions = pn.widgets.MultiChoice(
+            name="Run name(s) for all sessions",
+            value=[],
+            options=[],
+            placeholder="Select runs by name across all sessions",
+            width=620,
         )
         self.outputs_selector = pn.widgets.FileSelector(
             self.folder_path,
@@ -220,157 +290,192 @@ class ParameterForm:
         )
 
         self.computePsth = pn.widgets.Select(
-            name="z_score and/or \u0394F/F? (psth)", options=["z_score", "dff", "Both"], width=320
+            name="z_score and/or \u0394F/F? (psth)",
+            options=["z_score", "dff", "Both"],
+            width=320,
+            description="Which metric Step 4 aligns events on. 'Both' writes a complete set of PSTH outputs for each metric.",
         )
 
         self.transients = pn.widgets.Select(
-            name="z_score and/or \u0394F/F? (transients)", options=["z_score", "dff", "Both"], width=320
+            name="z_score and/or \u0394F/F? (transients)",
+            options=["z_score", "dff", "Both"],
+            width=320,
+            description="Which metric the transient detector runs on. 'Both' runs it on each metric in turn.",
         )
 
         self.moving_wd = pn.widgets.IntInput(
-            name="Moving Window for transients detection (s) (int)", value=15, width=320
+            name="Moving Window for transients detection (s) (int)",
+            value=15,
+            width=380,
+            description="Width of the moving window transients are detected in, in seconds.",
         )
 
-        self.highAmpFilt = pn.widgets.IntInput(name="HAFT (int)", value=2, width=150)
+        self.highAmpFilt = pn.widgets.IntInput(
+            name="HAFT (int)",
+            value=2,
+            width=150,
+            description="High-amplitude filtering threshold. Events greater than this many MADs above the median are filtered out before transients are detected.",
+        )
 
-        self.transientsThresh = pn.widgets.IntInput(name="TD Thresh (int)", value=3, width=150)
+        self.transientsThresh = pn.widgets.IntInput(
+            name="TD Thresh (int)",
+            value=3,
+            width=160,
+            description="Transient detection threshold. Peaks with local maxima greater than this many MADs above the median of the filtered trace are detected as transients.",
+        )
 
         self.computeBinnedMetrics = pn.widgets.Select(
-            name="Compute Binned Metrics? (bool)", options=[True, False], value=False, width=200
+            name="Compute Binned Metrics? (bool)",
+            options=[True, False],
+            value=False,
+            width=250,
+            description="Divides the session into equal time bins and reports the mean z-score, mean dF/F and transient count in each. Useful for correlating the signal against a behavioral measure scored at a fixed cadence.",
         )
 
-        self.binnedMetricsWidth = pn.widgets.IntInput(name="Bin Width (s) (int)", value=120, width=150)
+        self.binnedMetricsWidth = pn.widgets.IntInput(
+            name="Bin Width (s) (int)",
+            value=120,
+            width=170,
+            description="Width of those bins in seconds. The last bin is kept even when the session does not divide evenly, so it may be shorter than the rest.",
+        )
 
         self.moving_avg_filter = pn.widgets.IntInput(
-            name="Window for Moving Average filter (int)", value=100, width=320
-        )
-
-        self.no_channels_np = pn.widgets.IntInput(
-            name="Number of channels (Neurophotometrics only)", value=2, width=320
+            name="Window for Moving Average filter (int)",
+            value=100,
+            width=320,
+            description="Width of the moving-average smoothing kernel applied to the control and signal traces, in samples rather than seconds. The default suits recordings around 1 kHz; lower it proportionally for slower acquisition rates.",
         )
 
         self.z_score_computation = pn.widgets.Select(
             name="z-score computation Method",
             options=["standard z-score", "baseline z-score", "modified z-score"],
             value="standard z-score",
-            width=200,
+            width=260,
+            description="How each trace is normalized. The z-score explainer in the documentation covers what the three methods do and which one suits which recording.",
         )
 
-        self.baseline_wd_strt = pn.widgets.IntInput(name="Baseline Window Start Time (s) (int)", value=0, width=200)
-        self.baseline_wd_end = pn.widgets.IntInput(name="Baseline Window End Time (s) (int)", value=0, width=200)
-
-        self.explain_z_score = pn.pane.Markdown(
-            """
-                        ***Note :***<br>
-                        - Details about z-score computation methods are explained in Github wiki.<br>
-                        - The details will make user understand what computation method to use for
-                        their data.<br>
-                        - **Baseline Window Parameters** are only used with the *baseline z-score*
-                        method; keep both at 0 for other methods.<br>
-                        - Both values are in **seconds** and must be within the signal's recorded
-                        timespan. **Start** must be strictly less than **End**
-                        (e.g. Start=0, End=60 for a 0–60 s baseline window).<br>
-                        - If either value falls outside the available signal timespan you will
-                        receive an error indicating the offending parameter, the value supplied,
-                        and the valid range (e.g.
-                        "baselineWindowEnd=120 exceeds signal duration 90.5s;
-                        signal timespan is [0, 90.5]s — choose values within this range.").
-                        """,
-            width=580,
+        self.baseline_wd_strt = pn.widgets.IntInput(
+            name="Baseline Window Start Time (s) (int)",
+            value=0,
+            width=290,
+            description="Start of the epoch the baseline z-score method normalizes against, in seconds. Leave at 0 for the other two methods. Must be less than the end and fall inside the recording.",
+        )
+        self.baseline_wd_end = pn.widgets.IntInput(
+            name="Baseline Window End Time (s) (int)",
+            value=0,
+            width=280,
+            description="End of the epoch the baseline z-score method normalizes against, in seconds. Leave at 0 for the other two methods. Must be greater than the start and fall inside the recording.",
         )
 
-        self.explain_nsec = pn.pane.Markdown(
-            """
-                        - ***Time Interval :*** To omit bursts of event timestamps, user defined time interval
-                        is set so that if the time difference between two timestamps is less than this defined time
-                        interval, it will be deleted for the calculation of PSTH.
-                        - ***Compute Cross-correlation :*** Make this parameter ```True```, when user wants
-                        to compute cross-correlation between PSTHs of two different signals or signals
-                        recorded from different recording sites.
-                        - ***Use Transients as Events :*** Make this parameter ```True```, when user studies
-                        spontaneous activity and has no external event TTLs. The transients detected in each
-                        recording site are then used as that recording site's event timestamps for the PSTH
-                        and peak/area computation.
-                        """,
-            width=580,
+        self.nSecPrev = pn.widgets.IntInput(
+            name="Seconds before 0 (int)",
+            value=-10,
+            width=190,
+            description="Start of the peri-event window, in seconds relative to each event timestamp. Negative values reach back before the event, so the default of -10 opens the window 10 seconds before it; a positive value would start the window after the event instead.",
         )
 
-        self.nSecPrev = pn.widgets.IntInput(name="Seconds before 0 (int)", value=-10, width=120)
-
-        self.nSecPost = pn.widgets.IntInput(name="Seconds after 0 (int)", value=20, width=120)
+        self.nSecPost = pn.widgets.IntInput(
+            name="Seconds after 0 (int)",
+            value=20,
+            width=180,
+            description="End of the peri-event window, in seconds relative to each event timestamp.",
+        )
 
         self.computeCorr = pn.widgets.Select(
-            name="Compute Cross-correlation (bool)", options=[True, False], value=False, width=200
+            name="Compute Cross-correlation (bool)",
+            options=[True, False],
+            value=False,
+            width=260,
+            description="Cross-correlates the PSTHs of two distinct signal recording sites, for detecting coordinated activity between areas. Requires at least two signal recording sites.",
+        )
+
+        self.computePsthSignificance = pn.widgets.Select(
+            name="Compute PSTH Significance? (bool)",
+            options=[True, False],
+            value=False,
+            width=270,
+            description="Whether bootstrap confidence intervals and the comparison tests below are computed for each PSTH.",
+        )
+
+        self.psthSignificanceAlpha = pn.widgets.FloatInput(
+            name="Significance Level (alpha) (float)",
+            value=0.05,
+            step=0.01,
+            width=280,
+            description="The two-sided threshold the confidence interval is computed at. 0.05 gives a 95% interval.",
+        )
+
+        self.psthBootstrapResamples = pn.widgets.IntInput(
+            name="Bootstrap Resamples (int)",
+            value=1000,
+            step=100,
+            width=210,
+            description="How many times the trials are resampled to build each interval. More resamples means less run-to-run variation and a longer run.",
         )
 
         self.useTransientsAsEvents = pn.widgets.Select(
-            name="Use Transients as Events? (bool)", options=[True, False], value=False, width=200
+            name="Use Transients as Events? (bool)",
+            options=[True, False],
+            value=False,
+            width=260,
+            description="Uses each recording site's detected transients as its own event timestamps, for spontaneous activity with no external event TTLs. The PSTH, peak and area are then computed against them exactly as against a TTL train.",
         )
 
-        self.timeInterval = pn.widgets.IntInput(name="Time Interval (s)", value=2, width=120)
+        self.timeInterval = pn.widgets.IntInput(
+            name="Time Interval (s)",
+            value=2,
+            width=150,
+            description="Minimum spacing between accepted event timestamps, in seconds. When two timestamps fall closer than this the second is dropped, so bursts do not produce double-counted overlapping windows.",
+        )
 
         self.use_time_or_trials = pn.widgets.Select(
-            name="Bin PSTH trials (str)", options=["Time (min)", "# of trials"], value="Time (min)", width=120
+            name="Bin PSTH trials (str)",
+            options=["Time (min)", "# of trials"],
+            value="Time (min)",
+            width=180,
+            description="Whether PSTH trials are binned by elapsed time or by trial count.",
         )
 
         self.bin_psth_trials = pn.widgets.IntInput(
-            name="Time(min) / # of trials \n for binning? (int)", value=0, width=200
-        )
-
-        self.explain_baseline = pn.pane.Markdown(
-            """
-                            ***Note :***<br>
-                            - If user does not want to do baseline correction,
-                            put both parameters 0.<br>
-                            - If the first event timestamp is less than the length of baseline
-                            window, it will be rejected in the PSTH computation step.<br>
-                            - Baseline parameters must be within the PSTH parameters
-                            set in the PSTH parameters section.
-                            """,
-            width=580,
+            name="Time(min) / # of trials for binning? (int)",
+            value=0,
+            width=330,
+            description="Size of each bin, in the unit chosen beside it. Set to 0 to leave the trials unbinned.",
         )
 
         self.baselineCorrectionStart = pn.widgets.IntInput(
-            name="Baseline Correction Start time(int)", value=-5, width=200
+            name="Baseline Correction Start time(int)",
+            value=-5,
+            width=280,
+            description="Start of the window each trial is baselined against, in seconds relative to the event. Set both bounds to 0 to skip baseline correction. Must lie inside the PSTH window.",
         )
 
-        self.baselineCorrectionEnd = pn.widgets.IntInput(name="Baseline Correction End time(int)", value=0, width=200)
-
-        self.zscore_param_wd = pn.WidgetBox(
-            "### Z-score Parameters",
-            self.explain_z_score,
-            self.z_score_computation,
-            pn.Row(self.baseline_wd_strt, self.baseline_wd_end),
-            width=600,
+        self.baselineCorrectionEnd = pn.widgets.IntInput(
+            name="Baseline Correction End time(int)",
+            value=0,
+            width=280,
+            description="End of the window each trial is baselined against, in seconds relative to the event. Set both bounds to 0 to skip baseline correction. Must lie inside the PSTH window.",
         )
 
-        self.psth_param_wd = pn.WidgetBox(
-            "### PSTH Parameters",
-            self.explain_nsec,
-            pn.Row(self.nSecPrev, self.nSecPost, self.computeCorr),
-            pn.Row(self.timeInterval, self.use_time_or_trials, self.bin_psth_trials),
-            pn.Row(self.useTransientsAsEvents),
-            width=600,
+        self.zscore_param_wd = _titled_box(
+            title="Z-score Normalization",
+            read_by="Step 3",
+            contents=[
+                pn.Row(self.z_score_computation, self.baseline_wd_strt, self.baseline_wd_end),
+            ],
+            width=SECTION_WIDTH,
         )
 
-        self.baseline_param_wd = pn.WidgetBox(
-            "### Baseline Parameters",
-            self.explain_baseline,
-            pn.Row(self.baselineCorrectionStart, self.baselineCorrectionEnd),
-            width=600,
-        )
-        self.peak_explain = pn.pane.Markdown(
-            """
-                        ***Note :***<br>
-                        - Peak and area are computed between the window set below.<br>
-                        - Peak and AUC parameters must be within the PSTH parameters set in the PSTH parameters section.<br>
-                        - Please make sure when user changes the parameters in the table below, click on any other cell after
-                        changing a value in a particular cell.
-                        - ***AUC Units :*** ```seconds``` reports the area in z-score (or ΔF/F) × seconds, the unit
-                        commonly reported in the literature. ```samples``` integrates with one-sample spacing instead,
-                        so the area also scales with the recording's sampling rate.
-                        """,
-            width=580,
+        self.psth_param_wd = _titled_box(
+            title="PSTH Computation",
+            read_by="Step 4 and Group Analysis",
+            contents=[
+                pn.Row(self.computePsth, self.nSecPrev, self.nSecPost),
+                pn.Row(self.computeCorr),
+                pn.Row(self.timeInterval, self.use_time_or_trials, self.bin_psth_trials),
+                pn.Row(self.baselineCorrectionStart, self.baselineCorrectionEnd),
+            ],
+            width=SECTION_WIDTH,
         )
 
         self.start_end_point_df = pd.DataFrame(
@@ -383,40 +488,137 @@ class ParameterForm:
         self.df_widget = pn.widgets.Tabulator(self.start_end_point_df, name="DataFrame", show_index=False, widths=280)
 
         self.auc_units = pn.widgets.Select(
-            name="AUC Units (str)", options=["samples", "seconds"], value="samples", width=200
+            name="AUC Units (str)",
+            options=["samples", "seconds"],
+            value="samples",
+            width=260,
+            description="'seconds' reports the area in z-score (or dF/F) times seconds, the unit commonly reported in the literature. 'samples' integrates with one-sample spacing instead, so the area also scales with the recording's sampling rate.",
         )
 
-        self.peak_param_wd = pn.WidgetBox(
-            "### Peak and AUC Parameters", self.peak_explain, self.df_widget, self.auc_units, width=600
+        self.peak_param_wd = _titled_box(
+            title="Peak and AUC Measurement",
+            read_by="Step 4",
+            contents=[
+                _table_heading(
+                    label="Peak and area windows",
+                    description=(
+                        "Each row is one window that peak amplitude and area are measured over, in "
+                        "seconds relative to the event. Every window must lie inside the PSTH window. "
+                        "The table commits an edit only once you click another cell."
+                    ),
+                    width=260,
+                ),
+                self.df_widget,
+                self.auc_units,
+            ],
+            width=SECTION_WIDTH,
         )
 
-        self.individual_analysis_wd_2 = pn.Column(
-            self.explain_time_artifacts,
-            pn.Row(self.numberOfCores, self.combine_data),
-            self.isosbestic_control,
-            self.control_fit_method,
-            self.control_fit_window_mode,
-            self.control_fit_window_strt,
-            self.control_fit_window_end,
-            self.photobleaching_detrend,
-            self.timeForLightsTurnOn,
-            self.moving_avg_filter,
-            self.computePsth,
-            self.transients,
-            self.moving_wd,
-            pn.Row(self.highAmpFilt, self.transientsThresh),
-            pn.Row(self.computeBinnedMetrics, self.binnedMetricsWidth),
-            self.no_channels_np,
+        # One blank row to start, grown by the Add button rather than a fixed block of
+        # slots: the number of worthwhile pairs scales with the square of the event count,
+        # so any fixed size is both too many rows to look at and too few to hold.
+        self.comparison_df = _blank_comparison_rows(1)
+
+        self.comparison_df_widget = pn.widgets.Tabulator(
+            self.comparison_df,
+            name="Comparisons",
+            show_index=False,
+            widths=250,
+            buttons={"remove": '<div title="Remove this comparison">\u2715</div>'},
+        )
+        self.comparison_df_widget.on_click(self._remove_comparison_row, column="remove")
+
+        self.add_comparison_button = pn.widgets.Button(
+            name="+ Add comparison", button_type="default", width=180, align="start"
+        )
+        self.add_comparison_button.on_click(self._add_comparison_row)
+
+        self.significance_param_wd = _titled_box(
+            title="Significance Testing",
+            read_by="Step 4 and Group Analysis",
+            contents=[
+                pn.Row(self.computePsthSignificance, self.psthSignificanceAlpha, self.psthBootstrapResamples),
+                _table_heading(
+                    label="Event comparisons",
+                    description=(
+                        "Each row names a pair of events to compare against each other, for example "
+                        "rewarded versus unrewarded nose pokes. Every event is tested against zero "
+                        "automatically, so leave this blank to run only those tests. Each pair is "
+                        "compared within every recording site and metric, using the labels assigned in "
+                        "Step 1. Comparisons run inside one output folder: in a session run folder the "
+                        "trials are resampled, in a group folder the session averages are."
+                    ),
+                    width=200,
+                ),
+                self.comparison_df_widget,
+                self.add_comparison_button,
+            ],
+            width=SECTION_WIDTH,
         )
 
-        self.psth_baseline_param = pn.Column(
-            self.zscore_param_wd, self.psth_param_wd, self.baseline_param_wd, self.peak_param_wd
+        self.execution_param_wd = _titled_box(
+            title="Parallel Execution",
+            read_by="Steps 2 and 4 and Group Analysis",
+            contents=[self.numberOfCores],
+            width=SECTION_WIDTH,
+        )
+
+        self.control_fit_param_wd = _titled_box(
+            title="Control Channel Fitting",
+            read_by="Step 3",
+            contents=[
+                pn.Row(self.isosbestic_control, self.control_fit_method),
+                pn.Row(self.photobleaching_detrend, self.control_fit_window_mode),
+                pn.Row(self.control_fit_window_strt, self.control_fit_window_end),
+            ],
+            width=SECTION_WIDTH,
+        )
+
+        self.filtering_param_wd = _titled_box(
+            title="Signal Filtering",
+            read_by="Step 3 and Group Analysis",
+            contents=[pn.Row(self.timeForLightsTurnOn, self.moving_avg_filter)],
+            width=SECTION_WIDTH,
+        )
+
+        self.transients_param_wd = _titled_box(
+            title="Transient Detection",
+            read_by="Steps 4 and 5 and Group Analysis",
+            contents=[
+                pn.Row(self.transients, self.useTransientsAsEvents),
+                pn.Row(self.moving_wd, self.highAmpFilt, self.transientsThresh),
+            ],
+            width=SECTION_WIDTH,
+        )
+
+        self.binned_metrics_param_wd = _titled_box(
+            title="Metric Binning",
+            read_by="Step 4",
+            contents=[
+                pn.Row(self.computeBinnedMetrics, self.binnedMetricsWidth),
+            ],
+            width=SECTION_WIDTH,
+        )
+
+        # One column, ordered by the step that reads each section, so the card reads
+        # straight down rather than leaving the reader to guess a column order.
+        self.individual_parameters = pn.Column(
+            self.execution_param_wd,
+            self.control_fit_param_wd,
+            self.filtering_param_wd,
+            self.zscore_param_wd,
+            self.psth_param_wd,
+            self.peak_param_wd,
+            self.transients_param_wd,
+            self.binned_metrics_param_wd,
+            self.significance_param_wd,
         )
 
         self.input_folder_selection_widget = pn.Column(
             pn.Row(pn.pane.Markdown("**Data Source:**"), self.source_mode),
             self.files_1,
             self.dandi_selector.panel,
+            self.combine_data,
         )
         self.input_folder_selection = pn.Card(
             self.input_folder_selection_widget,
@@ -427,6 +629,7 @@ class ParameterForm:
 
         self.output_folder_selection_widget = pn.Column(
             self.outputs_selector_header,
+            self.run_names_for_all_sessions,
             self.outputs_selector,
         )
         self.output_folder_selection = pn.Card(
@@ -437,24 +640,34 @@ class ParameterForm:
             collapsed=True,
         )
 
-        self.widget = pn.Column(
-            self.mark_down_1,
-            pn.Row(self.individual_analysis_wd_2, self.psth_baseline_param),
-        )
+        self.widget = pn.Column(self.individual_parameters)
         self.individual = pn.Card(
-            self.widget, title="Individual Analysis", styles=self.styles, width=1000, collapsed=True
+            self.widget, title="Parameter Selection", styles=self.styles, width=1000, collapsed=True
         )
 
     def _on_source_mode_change(self, event: object) -> None:
         is_dandi = event.new == "dandi"
         self.files_1.visible = not is_dandi
         self.dandi_selector.panel.visible = is_dandi
+        self._run_selection_by_source_mode[event.old] = (
+            list(self.outputs_selector.value or []),
+            list(self.run_names_for_all_sessions.value),
+        )
+        run_folders, run_names = self._run_selection_by_source_mode.get(event.new, ([], []))
+        self._restore_run_selection(run_folders=run_folders, run_names=run_names)
 
     def _collect_selected_runs(self) -> dict[str, list[str]]:
-        """Group the FileSelector's selected output dirs by parent session."""
+        """Group the FileSelector's selected output dirs by parent session.
+
+        Raises
+        ------
+        ValueError
+            If a group output directory was selected as an individual run.
+        """
         grouped: dict[str, list[str]] = {}
         for path in self.outputs_selector.value or []:
-            session = os.path.dirname(path)
+            _reject_group_folder_selected_as_run(path=path)
+            session = str(Path(path).parent)
             grouped.setdefault(session, []).append(parse_run_name(path))
         return grouped
 
@@ -465,6 +678,8 @@ class ParameterForm:
         output directories). Skips sessions with no ``_output_<run>`` subdirs
         yet — those are typically pre-step-1 states.
         """
+        for session in self.files_1.value or []:
+            _reject_group_folder_selected_as_run(path=session)
         grouped = self._collect_selected_runs()
         missing = [
             session
@@ -478,20 +693,59 @@ class ParameterForm:
                 "_output_<run> directory per selected session."
             )
 
-    def _retarget_outputs_selector(self, event: object) -> None:
+    def _sessions_for_run_selection(self) -> list[str]:
+        """Return the existing session directories whose runs steps 2-5 will read."""
+        if self.source_mode.value == "dandi":
+            candidates = self._prospective_dandi_sessions()
+        else:
+            candidates = list(self.files_1.value or [])
+        return [session for session in candidates if Path(session).is_dir()]
+
+    @staticmethod
+    def _run_names_for_sessions(sessions: list[str]) -> list[str]:
+        """Return every run name present in at least one of ``sessions``, in run-name order.
+
+        A name need not exist in every session to be offered: applying it selects the runs
+        that do exist and leaves the remaining sessions to the folder tree.
+        """
+        run_names = []
+        for session in sessions:
+            for directory in discover_run_folders(session):
+                run_name = parse_run_name(directory)
+                if run_name not in run_names:
+                    run_names.append(run_name)
+        return run_names
+
+    def _apply_selected_run_folders(self, run_folders: list[str]) -> None:
+        """Write ``run_folders`` into the outputs FileSelector as its selection.
+
+        Setting ``value`` updates the parameter but not the widget's "Selected files" pane;
+        ``_update_files`` re-enumerates so programmatic picks appear there — including runs
+        outside the directory currently shown, which it lists by their relative path.
+        """
+        deduplicated = list(dict.fromkeys(run_folders))
+        if deduplicated != list(self.outputs_selector.value or []):
+            self.outputs_selector.value = deduplicated
+        self.outputs_selector._update_files()
+
+    def _retarget_outputs_selector(self, sessions: list[str]) -> None:
         """Root the existing-runs FileSelector so all selected sessions' `_output_*` dirs are reachable.
 
-        - Zero sessions: fall back to ``default_root_path()``.
+        - Zero sessions: fall back to the form's starting directory.
         - One session: root and starting directory both set to that session so its `_output_*`
           children show directly (no extra click).
         - Multiple sessions: root set to their common parent so every session is navigable;
           starting directory set to the first session so the user lands on one session's
           outputs and can navigate up to switch between sessions.
+        - DANDI mode: root set to the chosen output root, which holds every mirrored session.
         """
-        sessions = [session for session in (event.new or []) if os.path.isdir(session)]
-        if not sessions:
-            root_target = default_root_path()
-            directory_target = default_root_path()
+        dandi_output_root = self.dandi_selector.output_root if self.source_mode.value == "dandi" else None
+        if dandi_output_root:
+            root_target = dandi_output_root
+            directory_target = sessions[0] if sessions else dandi_output_root
+        elif not sessions:
+            root_target = self.folder_path
+            directory_target = self.folder_path
         elif len(sessions) == 1:
             root_target = sessions[0]
             directory_target = sessions[0]
@@ -504,77 +758,95 @@ class ParameterForm:
         # with tmp_path or the user's session folder).
         self.outputs_selector.root_directory = root_target
         self.outputs_selector.directory = directory_target
-        # Clear any prior selection that no longer makes sense for the new root.
-        self.outputs_selector.value = []
         # Sync the FileSelector's internal _cwd and re-enumerate. Without this, _cwd remains
         # at the construction-time path; clicking a sub-dir uses the stale _cwd to compute
         # the navigated path, that path doesn't exist, and the FileSelector silently snaps
         # back to the stale _cwd — visible to the user as "selection resets the directory".
         self.outputs_selector._update_files()
 
-    def _rebuild_group_selected_outputs_widgets(self, event: object) -> None:
-        """Rebuild the per-session group-run-name Selects when files_2 changes."""
-        self._rebuild_per_session_widgets(
-            sessions=event.new,
-            target_box=self.group_selected_outputs_box,
-            store=self.group_selected_outputs_widgets,
-            scope="group",
-        )
+    def _refresh_run_name_options(self, sessions: list[str]) -> None:
+        """Re-read the run names on disk into the bulk picker, dropping any that no longer exist."""
+        run_names = self._run_names_for_sessions(sessions)
+        self.run_names_for_all_sessions.options = run_names
+        surviving = [run_name for run_name in self.run_names_for_all_sessions.value if run_name in run_names]
+        if surviving != list(self.run_names_for_all_sessions.value):
+            # A name drops out only when the sessions holding it are gone, so the paths it
+            # would deselect have already left the selection with them.
+            self._suppressing_run_name_propagation = True
+            self.run_names_for_all_sessions.value = surviving
+            self._suppressing_run_name_propagation = False
+
+    def _on_sessions_changed(self, event: object = None) -> None:
+        """Retarget the folder tree and carry the run selection across a change of sessions.
+
+        Sessions that survive the change keep the runs already picked for them, so dropping
+        one session does not discard the choices made for the others. A session new to the
+        selection starts out with the runs the bulk picker currently names.
+        """
+        sessions = self._sessions_for_run_selection()
+        new_sessions = [session for session in sessions if session not in self._sessions_in_run_selection]
+        self._sessions_in_run_selection = sessions
+        self._retarget_outputs_selector(sessions)
+
+        selected = [path for path in (self.outputs_selector.value or []) if str(Path(path).parent) in sessions]
+        selected += self._run_folders_on_disk(sessions=new_sessions, run_names=self.run_names_for_all_sessions.value)
+        self._apply_selected_run_folders(selected)
+        self._refresh_run_name_options(sessions)
+
+    def _restore_run_selection(self, *, run_folders: list[str], run_names: list[str]) -> None:
+        """Point the card at the current source mode's sessions and put back its stashed selection."""
+        sessions = self._sessions_for_run_selection()
+        self._sessions_in_run_selection = sessions
+        self._retarget_outputs_selector(sessions)
+        self._refresh_run_name_options(sessions)
+        self._suppressing_run_name_propagation = True
+        self.run_names_for_all_sessions.value = [
+            run_name for run_name in run_names if run_name in self.run_names_for_all_sessions.options
+        ]
+        self._suppressing_run_name_propagation = False
+        self._apply_selected_run_folders([path for path in run_folders if str(Path(path).parent) in sessions])
+
+    def _on_run_names_for_all_sessions_change(self, event: object) -> None:
+        """Select or deselect the runs matching the bulk choice, leaving hand-picked ones alone."""
+        if self._suppressing_run_name_propagation:
+            return
+        added = [run_name for run_name in event.new if run_name not in event.old]
+        removed = [run_name for run_name in event.old if run_name not in event.new]
+        kept = [path for path in (self.outputs_selector.value or []) if parse_run_name(path) not in removed]
+        sessions = self._sessions_for_run_selection()
+        self._apply_selected_run_folders(kept + self._run_folders_on_disk(sessions=sessions, run_names=added))
+
+    @staticmethod
+    def _run_folders_on_disk(*, sessions: list[str], run_names: list[str]) -> list[str]:
+        """Return the existing run directories named by ``run_names`` across ``sessions``."""
+        run_folders = []
+        for session in sessions:
+            for run_name in run_names:
+                run_folder = run_folder_for_run(session, run_name)
+                if Path(run_folder).is_dir():
+                    run_folders.append(run_folder)
+        return run_folders
 
     def refresh_individual_outputs(self) -> None:
         """Re-list the outputs FileSelector so newly-created run dirs (e.g. from step 1) appear."""
         self.outputs_selector._refresh()
+        self._refresh_run_name_options(self._sessions_for_run_selection())
 
-    def refresh_group_outputs(self) -> None:
-        """Re-discover output directories for the currently-selected group sessions."""
-        self._rebuild_per_session_widgets(
-            sessions=self.files_2.value,
-            target_box=self.group_selected_outputs_box,
-            store=self.group_selected_outputs_widgets,
-            scope="group",
-        )
+    def _prospective_dandi_sessions(self) -> list[str]:
+        """Return the local session directories the selected DANDI assets map to.
 
-    @staticmethod
-    def _make_outputs_placeholder(scope: str) -> pn.pane.Markdown:
-        text = (
-            "**Run-name filter:** No output directories yet — run step 1 first."
-            if scope == "individual"
-            else "**Run-name filter (group):** No output directories yet — run step 1 first."
-        )
-        return pn.pane.Markdown(text, width=520)
-
-    @classmethod
-    def _rebuild_per_session_widgets(
-        cls, sessions: list[str] | None, target_box: pn.Column, store: dict[str, pn.widgets.Select], scope: str
-    ) -> None:
-        new_objects = []
-        new_store = {}
-        for session in sessions or []:
-            run_names = [parse_run_name(directory) for directory in discover_run_folders(session)]
-            # Skip sessions with no output dirs — nothing to filter, no widget needed.
-            if not run_names:
-                continue
-            existing = store.get(session)
-            if existing is not None:
-                # Preserve the user's prior selection across rebuilds when it remains valid.
-                preserved = existing.value if existing.value in run_names else run_names[0]
-                existing.options = run_names
-                existing.value = preserved
-                widget = existing
-            else:
-                widget = pn.widgets.Select(
-                    name=f"Outputs for {os.path.basename(session)}",
-                    value=run_names[0],
-                    options=run_names,
-                    width=320,
-                )
-            new_store[session] = widget
-            new_objects.append(widget)
-        store.clear()
-        store.update(new_store)
-        # When no per-session widgets are populated, show the placeholder so the
-        # box has a stable, always-visible footprint in the layout.
-        target_box.objects = new_objects or [cls._make_outputs_placeholder(scope)]
+        The directories are not created here; ``_resolve_dandi_sessions`` does that when
+        the pipeline actually runs.
+        """
+        output_root = self.dandi_selector.output_root
+        if not output_root:
+            return []
+        sessions = []
+        for uri in self.dandi_selector.selected_uris:
+            asset_path = uri.split("/", 3)[-1]
+            session_stem = Path(asset_path).stem
+            sessions.append(str(Path(output_root) / session_stem))
+        return sessions
 
     def _resolve_dandi_sessions(self) -> tuple[list[str], str, dict[str, str]]:
         """
@@ -603,62 +875,58 @@ class ParameterForm:
             logger.error("DANDI mode: no local output directory selected")
             raise ValueError("DANDI mode: select a local output directory before running the pipeline")
 
-        folder_names = []
-        dandi_uri_map = {}
-        for uri in selected_uris:
-            asset_path = uri.split("/", 3)[-1]
-            session_stem = os.path.splitext(os.path.basename(asset_path))[0]
-            session_directory = os.path.join(output_root, session_stem)
-            os.makedirs(session_directory, exist_ok=True)
-            folder_names.append(session_directory)
-            dandi_uri_map[session_directory] = uri
+        folder_names = self._prospective_dandi_sessions()
+        for session_directory in folder_names:
+            Path(session_directory).mkdir(parents=True, exist_ok=True)
+        dandi_uri_map = dict(zip(folder_names, selected_uris, strict=True))
         return folder_names, output_root, dandi_uri_map
 
+    def _add_comparison_row(self, event: object = None) -> None:
+        """Append a blank comparison row to the table."""
+        self.comparison_df_widget.value = pd.concat(
+            [self.comparison_df_widget.value, _blank_comparison_rows(1)], ignore_index=True
+        )
+
+    def _remove_comparison_row(self, event: object) -> None:
+        """Drop the clicked comparison row, keeping one blank row when the last one goes."""
+        remaining = self.comparison_df_widget.value.drop(index=event.row).reset_index(drop=True)
+        self.comparison_df_widget.value = remaining if len(remaining) else _blank_comparison_rows(1)
+
     def setup_group_parameters(self) -> None:
-        """Build all widgets for the group-analysis card and store them as instance attributes."""
+        """Build the group output-folder selection card and store its widgets as attributes."""
         self.mark_down_2 = pn.pane.Markdown(
-            """**Select folders for the average analysis from the file selector below**""", width=600
+            "**Existing groups:** pick the `<name>_group` directories to work with. The Group "
+            "Analysis step averages into them, and Step 5 opens them — the same selection serves "
+            "both, so you choose it once. To define a new group, use the Label Groups step.",
+            width=950,
         )
-
-        self.files_2 = pn.widgets.FileSelector(
-            self.folder_path, root_directory="/", name="group_session_folders", width=950
+        self.group_folders_selector = pn.widgets.FileSelector(
+            self.folder_path, root_directory="/", name="Group output directories", width=950
         )
-
-        self.averageForGroup = pn.widgets.Select(
-            name="Average Group? (bool)", value=False, options=[True, False], width=435
-        )
-
-        self.group_selected_outputs_box = pn.Column(self._make_outputs_placeholder("group"))
 
         self.group_analysis_wd_1 = pn.Column(
-            self.mark_down_2, self.files_2, self.group_selected_outputs_box, self.averageForGroup, width=800
+            self.mark_down_2,
+            self.group_folders_selector,
+            width=980,
         )
         self.group = pn.Card(
-            self.group_analysis_wd_1, title="Group Analysis", styles=self.styles, width=1000, collapsed=True
+            self.group_analysis_wd_1,
+            title="Group Output Folder Selection",
+            styles=self.styles,
+            width=1000,
+            collapsed=True,
         )
 
-    def setup_visualization_parameters(self) -> None:
-        """Build all widgets for the visualization-parameters card and store them as instance attributes."""
-        self.visualizeAverageResults = pn.widgets.Select(
-            name="Visualize Average Results? (bool)", value=False, options=[True, False], width=435
-        )
-
-        self.visualize_zscore_or_dff = pn.widgets.Select(
-            name="z-score or \u0394F/F? (for visualization)", options=["z_score", "dff"], width=435
-        )
-
-        self.visualization_wd = pn.Row(self.visualize_zscore_or_dff, pn.Spacer(width=60), self.visualizeAverageResults)
-        self.visualize = pn.Card(
-            self.visualization_wd, title="Visualization Parameters", styles=self.styles, width=1000, collapsed=True
-        )
+    def refresh_group_folders(self) -> None:
+        """Re-list the group selector so groups created since the last interaction appear."""
+        self.group_folders_selector._refresh()
 
     def add_to_template(self) -> None:
-        """Append the input/output folder, individual, group, and visualization cards to the template's main area."""
+        """Append the input/output folder, individual, and group cards to the template's main area."""
         self.template.main.append(self.input_folder_selection)
         self.template.main.append(self.output_folder_selection)
         self.template.main.append(self.individual)
         self.template.main.append(self.group)
-        self.template.main.append(self.visualize)
 
     def _validate_numeric_parameters(self) -> None:
         """Validate the scalar numeric parameters at config time.
@@ -693,6 +961,8 @@ class ParameterForm:
         validate_positive(value=self.highAmpFilt.value, name="highAmpFilt")
         validate_positive(value=self.transientsThresh.value, name="transientsThresh")
         validate_positive(value=self.binnedMetricsWidth.value, name="binnedMetricsWidth")
+        validate_significance_level(value=self.psthSignificanceAlpha.value, name="psthSignificanceAlpha")
+        validate_positive(value=self.psthBootstrapResamples.value, name="psthBootstrapResamples")
 
         if self.nSecPrev.value >= self.nSecPost.value:
             message = (
@@ -712,19 +982,17 @@ class ParameterForm:
             pipeline, keyed by the parameter names expected by the orchestration
             layer (e.g. ``"session_folders"``, ``"zscore_method"``, ``"nSecPrev"``).
         """
-        # Re-discover group output dirs so the per-session filters reflect any new dirs
-        # produced by step 1 since the user last deselected/reselected their session folder.
-        self.refresh_group_outputs()
-
         self._validate_numeric_parameters()
 
         if self.source_mode.value == "dandi":
             folder_names, abspath_value, dandi_uri_map = self._resolve_dandi_sessions()
             mode = "dandi"
         else:
-            abspath = getAbsPath(self.files_1, self.files_2)
+            # Local mode requires a selection somewhere: individual sessions, or the group
+            # card's members or existing-group picker for a group-only workflow.
+            validate_required_folder_selection(file_selectors=[self.files_1, self.group_folders_selector])
             folder_names = self.files_1.value
-            abspath_value = abspath[0]
+            abspath_value = common_parent_directory(paths=list(folder_names)) if folder_names else None
             dandi_uri_map = None
             mode = "local"
 
@@ -743,7 +1011,6 @@ class ParameterForm:
             "photobleaching_detrend": self.photobleaching_detrend.value,
             "timeForLightsTurnOn": self.timeForLightsTurnOn.value,
             "filter_window": self.moving_avg_filter.value,
-            "noChannels": self.no_channels_np.value,
             "zscore_method": self.z_score_computation.value,
             "baselineWindowStart": self.baseline_wd_strt.value,
             "baselineWindowEnd": self.baseline_wd_end.value,
@@ -758,6 +1025,11 @@ class ParameterForm:
             "baselineCorrectionEnd": self.baselineCorrectionEnd.value,
             "peak_startPoint": list(self.df_widget.value["Peak Start time"]),  # startPoint.value,
             "peak_endPoint": list(self.df_widget.value["Peak End time"]),  # endPoint.value,
+            "computePsthSignificance": self.computePsthSignificance.value,
+            "psthSignificanceAlpha": self.psthSignificanceAlpha.value,
+            "psthBootstrapResamples": self.psthBootstrapResamples.value,
+            "psthComparisonsA": list(self.comparison_df_widget.value["Event A"]),
+            "psthComparisonsB": list(self.comparison_df_widget.value["Event B"]),
             "auc_units": self.auc_units.value,
             "selectForComputePsth": self.computePsth.value,
             "selectForTransientsComputation": self.transients.value,
@@ -766,14 +1038,8 @@ class ParameterForm:
             "transientsThresh": self.transientsThresh.value,
             "computeBinnedMetrics": self.computeBinnedMetrics.value,
             "binnedMetricsWidth": self.binnedMetricsWidth.value,
-            "visualize_zscore_or_dff": self.visualize_zscore_or_dff.value,
-            "group_session_folders": self.files_2.value,
-            "averageForGroup": self.averageForGroup.value,
-            "visualizeAverageResults": self.visualizeAverageResults.value,
+            "selected_group_folders": list(self.group_folders_selector.value or []),
             "selected_runs": self._collect_selected_runs(),
-            "group_selected_runs": {
-                session: [widget.value] for session, widget in self.group_selected_outputs_widgets.items()
-            },
         }
         return inputParameters
 
@@ -799,13 +1065,15 @@ class ParameterForm:
             "photobleaching_detrend": self.photobleaching_detrend,
             "timeForLightsTurnOn": self.timeForLightsTurnOn,
             "filter_window": self.moving_avg_filter,
-            "noChannels": self.no_channels_np,
             "zscore_method": self.z_score_computation,
             "baselineWindowStart": self.baseline_wd_strt,
             "baselineWindowEnd": self.baseline_wd_end,
             "nSecPrev": self.nSecPrev,
             "nSecPost": self.nSecPost,
             "computeCorr": self.computeCorr,
+            "computePsthSignificance": self.computePsthSignificance,
+            "psthSignificanceAlpha": self.psthSignificanceAlpha,
+            "psthBootstrapResamples": self.psthBootstrapResamples,
             "useTransientsAsEvents": self.useTransientsAsEvents,
             "timeInterval": self.timeInterval,
             "bin_psth_trials": self.bin_psth_trials,
@@ -820,8 +1088,6 @@ class ParameterForm:
             "transientsThresh": self.transientsThresh,
             "computeBinnedMetrics": self.computeBinnedMetrics,
             "binnedMetricsWidth": self.binnedMetricsWidth,
-            "visualize_zscore_or_dff": self.visualize_zscore_or_dff,
-            "averageForGroup": self.averageForGroup,
         }
 
     def setInputParameters(self, parameters: dict[str, object]) -> None:
@@ -843,6 +1109,11 @@ class ParameterForm:
             df["Peak Start time"] = parameters["peak_startPoint"]
             df["Peak End time"] = parameters["peak_endPoint"]
             self.df_widget.value = df
+        if "psthComparisonsA" in parameters and "psthComparisonsB" in parameters:
+            # Rebuilt rather than assigned into: a saved run may hold any number of
+            # comparisons, and assigning a longer list into the existing index raises.
+            saved = pd.DataFrame({"Event A": parameters["psthComparisonsA"], "Event B": parameters["psthComparisonsB"]})
+            self.comparison_df_widget.value = saved if len(saved) else _blank_comparison_rows(1)
 
     def _load_parameters_from_selected_runs(self, event: object) -> None:
         """Reload analysis parameters from the saved JSON of the selected output run(s).
@@ -856,9 +1127,9 @@ class ParameterForm:
         """
         saved = []
         for run_folder in event.new or []:
-            json_path = os.path.join(run_folder, "GuPPyParamtersUsed.json")
-            if os.path.exists(json_path):
-                with open(json_path) as parameters_file:
+            json_path = Path(run_folder) / "GuPPyParamtersUsed.json"
+            if json_path.exists():
+                with json_path.open() as parameters_file:
                     saved.append(json.load(parameters_file))
         if not saved:
             return

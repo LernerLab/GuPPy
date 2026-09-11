@@ -11,6 +11,7 @@ in ``guppy.app``, imported below only once the CLI has decided to serve it.
 """
 
 import argparse
+from importlib.metadata import version
 
 from . import logging_config
 
@@ -23,6 +24,7 @@ def main(*, argv: list[str] | None = None) -> None:
     """Main entry point for GuPPy.
 
     Supports command-line flags:
+    - --version: Print the installed GuPPy version and exit
     - --export-logs: Export the log file to Desktop for sharing with support
     - --start-path: Set the initial directory for the folder selector
     - (no flags): Launch the GUI application
@@ -34,6 +36,12 @@ def main(*, argv: list[str] | None = None) -> None:
         ``sys.argv``.
     """
     parser = argparse.ArgumentParser(description="GuPPy - Guided Photometry Analysis in Python")
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"GuPPy {version('guppy-neuro')}",
+        help="Print the installed GuPPy version and exit",
+    )
     parser.add_argument(
         "--export-logs",
         action="store_true",

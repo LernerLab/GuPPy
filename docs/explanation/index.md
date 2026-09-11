@@ -10,6 +10,7 @@ zscore
 transient_detection
 cross_correlation
 psth
+psth_significance
 artifacts
 isosbestic_correction
 nwb

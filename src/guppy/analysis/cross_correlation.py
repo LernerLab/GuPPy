@@ -19,13 +19,13 @@ def compute_cross_correlation(
     signal_b_trials : array-like of np.ndarray
         Sequence of 1-D arrays for the second signal (one per trial).
     sample_rate : float
-        Sampling rate in Hz; used to convert lag indices to milliseconds.
+        Sampling rate in Hz; used to convert lag indices to seconds.
 
     Returns
     -------
     cross_correlations : np.ndarray
         Shape ``(n_trials + 1, n_lags)`` array where the last row contains
-        lag values in milliseconds.
+        lag values in seconds.
 
     Raises
     ------
@@ -51,7 +51,7 @@ def compute_cross_correlation(
         raise ValueError(message)
 
     cross_corr = list()
-    for trial_a, trial_b in zip(a_trials, b_trials):
+    for trial_a, trial_b in zip(a_trials, b_trials, strict=True):
         if np.isnan(trial_a).any() or np.isnan(trial_b).any():
             corr = signal.correlate(trial_a, trial_b, method="direct")
         else:
@@ -60,8 +60,8 @@ def compute_cross_correlation(
         cross_corr.append(corr_norm)
 
     lag = signal.correlation_lags(len(a_trials[0]), len(b_trials[0]))
-    lag_msec = np.array(lag / sample_rate, dtype="float32").reshape(1, -1)
+    lag_seconds = np.array(lag / sample_rate, dtype="float32").reshape(1, -1)
 
     cross_correlations = np.array(cross_corr, dtype="float32")
-    cross_correlations = np.concatenate((cross_correlations, lag_msec), axis=0)
+    cross_correlations = np.concatenate((cross_correlations, lag_seconds), axis=0)
     return cross_correlations

@@ -89,7 +89,7 @@ def export_log_file() -> None:
         print("The log file may not exist yet. Try running GuPPy first to generate logs.")
         return
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now().astimezone().strftime("%Y%m%d_%H%M%S")
     export_filename = f"guppy_log_{timestamp}.log"
     desktop_dir = Path(user_desktop_dir())
     export_path = desktop_dir / export_filename

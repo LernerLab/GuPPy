@@ -1,94 +1,108 @@
 # Average results across sessions
 
-Group analysis pools an event's response — PSTH, peak/AUC, transient frequency and amplitude,
-and cross-correlation — across a set of sessions into one averaged output, with one column per
-session instead of one column per trial. Use it to see a cohort- or animal-level average rather
-than reading each session's plot separately. It is **optional**: most analyses only need
-per-session results, produced without touching the Group Analysis card at all.
+Group analysis pools an event's response across several output runs into one averaged result,
+covering the PSTH, peak/AUC, transient frequency and amplitude, and cross-correlation. The
+averaged output has one column per member run where a single session's output has one column per
+trial, which gives you a cohort- or animal-level view without reading each session's plot
+separately. Group analysis is optional. Most analyses only need per-session results, and those
+never touch the group steps.
+
+A group is a named output directory, so several can sit side by side. You might keep a
+`saline_group` and a `cocaine_group` and visualize both at once.
 
 ## Before you start
 
-Group analysis averages results that already exist — it does not compute a PSTH from raw
-traces. Run **Step 1** through **Step 4** individually on every session you want to include,
-with **Average Group?** left at its default `False`. See
-[Your First Analysis](../tutorials/first_analysis.md) for that baseline workflow. Only once
-every session has its own PSTH output on disk can it be added to a group.
+Group analysis averages results that already exist on disk. Run **Step 1** through **Step 4** on
+every session you want to include first; see [Your First Analysis](../tutorials/first_analysis.md)
+for that baseline workflow. A run folder can join a group once it has its own PSTH output.
 
-Every session in the group also needs the **same recording-site labels** (the names you gave
-channels in Step 1's Label Stores GUI, e.g. `DMS`, `DLS`). GuPPy checks this when you run the
-average and stops with an error naming the mismatched session if the sites don't line up.
+Every member run also needs the same **recording-site labels**, meaning the names you gave the
+channels in Step 1's Label Stores GUI, such as `DMS` or `DLS`. GuPPy checks this when the step
+runs and stops with an error naming the mismatched run if the sites disagree.
 
-## Selecting the group
+Behavioral **event** labels are free to differ between members. Averaging a `novelobject` session
+alongside a `novelfemale1` session works, and GuPPy averages each event over just the members that
+recorded it.
 
-1. Open the **Group Analysis** card in the main area (collapsed by default).
-2. Use its file browser to select the session folders to include. This is a separate browser
-   from the one in the Individual Analysis card, so you can run an individual analysis and a
-   group analysis against different folder sets without reselecting anything.
+## Defining a group
 
-   ```{image} ../_static/images/group_analysis_card.png
-   :alt: The Group Analysis card, expanded, showing its file browser for selecting session folders and the Average Group? toggle below it
+Groups follow the same pattern as individual runs. **Label Groups** defines one, and the **Group
+Output Folder Selection** card picks which defined groups you are working with, once, for every
+step that touches them.
+
+1. Click **Label Groups** in the sidebar. A new browser tab opens with the Label Groups page.
+2. Leave the mode at **create_new_group**.
+3. Under **1 · What goes into the group?**, pick the member runs. These are the
+   `<session>_output_<run>` directories found inside each session. They may live under different
+   parent directories.
+4. Under **2 · Where does the group go?**, type a **Group name** and pick the destination
+   directory. The name may not contain path separators, `..`, `_output_`, or `_group`.
+5. Click **Save group definition**.
+
+   ```{image} ../_static/images/label_groups_page.png
+   :alt: The Label Groups page, with the member-runs browser on the left and the group name and destination browser on the right
    :width: 100%
    ```
 
-3. If a session has more than one output run, a run-name selector appears for it once selected
-   — pick the run to include in the average.
+This writes `<destination>/<name>_group/` containing a single file, `group_members.json`, which
+records the group's membership. The group has no results at this point, much like a run folder
+that holds `storesList.csv` before Step 2 fills it.
 
-## Running the average
+To change a group later, open Label Groups again and switch the mode to **edit_existing_group**.
+Section 2 becomes a browser for the group itself. Navigate to the `<name>_group` directory you
+want to change and its recorded members load into the member browser, ready to adjust. Editing
+works whether or not anything is selected on the homepage.
 
-Set **Average Group? (bool)** to `True`, then click **PSTH Computation** in the sidebar — the
-same button used for individual analysis. With the toggle on, it averages the selected sessions
-instead of computing a new per-session PSTH.
+## Selecting and averaging
 
-The averaged output is written to an `average/` directory, created in the common parent
-directory of the selected sessions rather than inside any single session folder.
+1. Open the **Group Output Folder Selection** card and tick the `<name>_group` directories you
+   want to work with. This card is the group counterpart of Output Folder Selection, and you
+   choose once: the same selection serves both averaging and visualization.
+2. Click **Group Analysis** in the sidebar.
 
-## Visualizing the average
+Each selected group is averaged from its recorded members into its own directory. Re-running
+rebuilds a group's results from scratch, so dropping a member also drops its columns. The group's
+definition survives the rebuild.
 
-1. Open the **Visualization Parameters** card and set **Visualize Average Results?** to `True`.
+## Visualizing a group
 
-   ```{image} ../_static/images/visualize_average_results_toggle.png
-   :alt: The Visualization Parameters card showing the Visualize Average Results? toggle set to True
-   :width: 100%
-   ```
+A group directory behaves like any other output directory in the visualizer, so there is no mode
+to switch on and nothing to select a second time. Click **Open Visualization GUI** in the sidebar.
 
-2. Keep the same sessions selected in the Group Analysis card's file browser — the visualizer
-   uses that selection to find the averaged files.
-3. Click **Open Visualization GUI** in the sidebar. The dashboard opens on the `average/`
-   directory instead of a single session's output, with one line per session in place of one
-   line per trial.
+You can visualize a group on its own. Step 5 accepts an empty individual selection as long as a
+group is ticked, so you can leave Output Folder Selection alone and open only the groups.
 
-   ```{image} ../_static/images/group_psth_plot.png
-   :alt: The Visualization dashboard's PSTH plot showing one trace per session in the averaged group
-   :width: 100%
-   ```
+One dashboard opens per selected group, with one line per member run where a session's dashboard
+has one line per trial. Any selected session runs open their own dashboards at the same time, so a
+group and an individual session can be compared in one click.
 
-If you see an error instead, it names the specific gap:
-
-- *"no folders are selected in the Group Analysis folder picker"* — the Group Analysis card's
-  file browser is empty; select the sessions to visualize.
-- *"no 'average' directory was found"* — Step 4 hasn't been run with **Average Group?** = `True`
-  yet for this folder set; run it first.
-- *"contains no PSTH outputs for the '...' metric"* — Step 4's average was run for a different
-  metric (z-score vs. ΔF/F) than the one selected here; either re-run the average with the
-  matching metric or change **z-score or ΔF/F? (for visualization)**.
+```{image} ../_static/images/group_psth_plot.png
+:alt: The Visualization dashboard's PSTH plot for a group, showing the averaged trace with a shaded error band across member runs
+:width: 100%
+```
 
 ## What lands on disk
 
-In the `average/` directory:
+In the `<name>_group/` directory:
 
 | File | Contents |
 |------|----------|
-| `storesList.csv` | The store mapping the group was averaged under |
-| `<event>_<site>_<metric>.h5` | Group PSTH: one column per session |
-| `peak_AUC_<event>_<site>_<metric>.h5` / `.csv` | Every session's peak/AUC rows concatenated |
-| `freqAndAmp_<metric>.h5` / `.csv` | One row per session |
-| `cross_correlation_output/corr_*.h5` | One column per session |
+| `group_members.json` | The run folders this group averaged, in averaging order |
+| `GuPPyParamtersUsed.json` | The parameters the averaging ran under |
+| `storesList.csv` | The store mapping, listing the events the group actually holds |
+| `<event>_<site>_<metric>.h5` | Group PSTH: one column per member run |
+| `peak_AUC_<event>_<site>_<metric>.h5` / `.csv` | Every member's peak/AUC rows concatenated |
+| `freqAndAmp_<metric>.h5` / `.csv` | One row per member run |
+| `cross_correlation_output/corr_*.h5` | One column per member run |
 
-See [Output data model](../reference/outputs.md#group-analysis-the-average-directory) for the
-full file layout, including the empty placeholder files also written there.
+Group PSTH columns are named after the member run folder, and their order matches
+`group_members.json`, so column *n* is member *n*.
+
+See [Output data model](../reference/outputs.md#group-analysis-group-directories) for the full
+file layout.
 
 ## Re-running
 
-Group averaging fully recomputes `average/` from the selected sessions' current outputs each
-time — nothing compounds. To add a session, re-analyze one, or drop one from the group, adjust
-the selection in the Group Analysis card and click **PSTH Computation** again.
+Group averaging recomputes a group's results from its members' current outputs every time, so
+nothing accumulates across runs. After re-analyzing a member, click **Group Analysis** again. To
+add or drop a member, edit the group in **Label Groups** first, then re-run.

@@ -9,6 +9,7 @@ saved YAML is a reusable, hand-editable source of truth for the Step 7 export.
 
 import logging
 import os
+from pathlib import Path
 
 import panel as pn
 
@@ -99,7 +100,7 @@ def build_metadata_template(
         if errors:
             selector.set_alert_message(_format_errors(errors), is_error=True)
             return
-        os.makedirs(os.path.dirname(metadata_yaml_path), exist_ok=True)
+        Path(metadata_yaml_path).parent.mkdir(parents=True, exist_ok=True)
         dump_yaml(metadata=to_save, path=metadata_yaml_path)
         selector.set_path(metadata_yaml_path)
         selector.set_alert_message("#### No alerts !!", is_error=False)
@@ -109,16 +110,24 @@ def build_metadata_template(
     return template
 
 
-def orchestrate_metadata_page(inputParameters: dict[str, object]) -> None:
-    """Open one metadata window per selected session that needs one.
+def build_metadata_templates(*, inputParameters: dict[str, object]) -> list[pn.template.BootstrapTemplate]:
+    """Build one metadata form template per selected session that needs one.
 
-    Each window edits that session's ``nwb_metadata.yaml`` (in its output
+    Each template edits that session's ``nwb_metadata.yaml`` (in its output
     directory), bootstrapped from the saved file when present and otherwise empty.
-    Each window is served on its own port in a new browser tab, mirroring the
-    Storenames GUI. Skipped in headless mode (``GUPPY_BASE_DIR`` set).
 
     Sessions GuPPy processed out of an NWB file are skipped: the export adds their outputs to the
     file they came from, which already carries everything this form collects.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters; uses ``combine_data`` and ``selected_runs``.
+
+    Returns
+    -------
+    list of pn.template.BootstrapTemplate
+        One fully configured template per session needing a metadata form.
 
     Raises
     ------
@@ -127,7 +136,6 @@ def orchestrate_metadata_page(inputParameters: dict[str, object]) -> None:
         cannot be resolved.
     """
     validate_data_not_combined(combine_data=inputParameters["combine_data"])
-    headless = bool(os.environ.get("GUPPY_BASE_DIR"))
 
     pairs = selected_session_runs(inputParameters=inputParameters)
     # Resolved once per session and reused below: a session already in NWB needs no form at all, and
@@ -148,14 +156,15 @@ def orchestrate_metadata_page(inputParameters: dict[str, object]) -> None:
         logger.info(message)
         if pn.state.notifications is not None:
             pn.state.notifications.info(message, duration=0)
-        return
+        return []
 
+    templates = []
     for session_path, run_name in pairs_needing_metadata:
         guppy_folder_path = run_folder_for_run(session_path, run_name)
-        metadata_yaml_path = os.path.join(guppy_folder_path, METADATA_FILENAME)
-        initial_metadata = load_yaml(metadata_yaml_path) if os.path.exists(metadata_yaml_path) else {}
+        metadata_yaml_path = Path(guppy_folder_path) / METADATA_FILENAME
+        initial_metadata = load_yaml(metadata_yaml_path) if Path(metadata_yaml_path).exists() else {}
         channels = derive_channels(output_dir=guppy_folder_path)
-        session_label = f"{os.path.basename(session_path.rstrip(os.sep))} ({run_name})"
+        session_label = f"{Path(session_path.rstrip(os.sep)).name} ({run_name})"
         acquisition_format, _nwb_source = source_by_session[session_path]
         template = build_metadata_template(
             session_label=session_label,
@@ -166,5 +175,26 @@ def orchestrate_metadata_page(inputParameters: dict[str, object]) -> None:
                 session_folder_path=session_path, acquisition_format=acquisition_format
             ),
         )
-        if not headless:
-            template.show(port=scanPortsAndFind(start_port=5000, end_port=5200))
+        templates.append(template)
+    return templates
+
+
+def orchestrate_metadata_page(inputParameters: dict[str, object]) -> None:
+    """Open one metadata window per selected session that needs one.
+
+    Each window is served on its own port in a new browser tab, mirroring the
+    Label Stores GUI.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        Full pipeline input parameters; see :func:`build_metadata_templates`.
+
+    Raises
+    ------
+    ValueError
+        If the pipeline was run with ``combine_data`` enabled, or if a selected session's source
+        cannot be resolved.
+    """
+    for template in build_metadata_templates(inputParameters=inputParameters):
+        template.show(port=scanPortsAndFind(start_port=5000, end_port=5200))

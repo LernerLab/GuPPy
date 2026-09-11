@@ -1,0 +1,31 @@
+name: Warm stubbed data cache
+
+# PR Tests never runs on push, so without this only the nightly dailies write main's cache and
+# every PR opened in between pays full price for a data change it did not make.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'stubbed_testing_data/**'
+      - '.gitattributes'
+      - '.github/actions/load-stubbed-data/**'
+      - '.github/workflows/warm-stubbed-data-cache.yml'
+  workflow_dispatch:
+
+# Serialized so that two data changes landing close together warm the cache in order: the second
+# run restores what the first saved and fetches only its own delta.
+concurrency:
+  group: warm-stubbed-data-cache
+  cancel-in-progress: false
+
+jobs:
+  warm:
+    name: Warm stubbed data cache
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Load stubbed data for tests
+        uses: ./.github/actions/load-stubbed-data
+        with:
+          save-cache: 'true'

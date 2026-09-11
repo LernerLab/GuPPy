@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "guppy-neuro"
-version = "2.0.0-beta2"
+version = "2.0.0-beta4"
 description = "Guided Photometry Analysis in Python, a free and open-source fiber photometry data analysis tool."
 readme = "README.md"
 authors = [
@@ -61,8 +61,8 @@ dependencies = [
     "dandi",
     "remfile",
     "pyyaml",
-    "neuroconv[guppy]>=0.10.0",
-    "ndx-guppy==0.1.0",
+    "neuroconv[guppy]>=0.10.2",
+    "ndx-guppy>=0.2.1",
 ]
 
 [dependency-groups]
@@ -78,6 +78,7 @@ test = [
     "pytest",
     "pytest-cov",
     "pytest-xdist",  # Runs tests on parallel
+    "pytest-timeout",  # Fails a hung test with a traceback instead of stalling the whole job
     "pytest-playwright",
     "playwright",
     # Pinned to the version the mock NWB files were written with: 0.2.x is the last release with
@@ -132,17 +133,21 @@ select = [
     "D101",  # Missing docstring in public class
     "D102",  # Missing docstring in public method
     "D103",  # Missing docstring in public function
-    "UP006", # non-pep585 annotation (tuple, list -> tuple, list)
-    "UP007", # non-pep604 annotation (Union[x, y] -> X | Y )
+    "UP", # All pyupgrade rules (includes UP006 non-pep585 and UP007 non-pep604 annotations)
+    "G", # All flake8-logging-format rules (lazy %-formatting in logging calls)
+    "B", # All flake8-bugbear rules (mutable argument defaults, zip() without strict=, ...)
+    "RUF012", # Mutable class attribute not annotated with typing.ClassVar
+    "DTZ", # All flake8-datetimez rules (naive datetime construction)
+    "PTH", # All flake8-use-pathlib rules (os.path/glob/open -> pathlib.Path)
     "ANN", # All type hint rules
 ]
 fixable = ["ALL"]
 
 [tool.ruff.lint.per-file-ignores]
 "**__init__.py" = ["F401", "I", "D1"]  # We are not enforcing import or docstring rules in __init__'s
-"test_**.py" = ["D1", "ANN"] # We are not enforcing docstring or type hint rules in test files.
-"**conftest.py" = ["D1", "ANN"] # conftest.py is test infrastructure; same exemption as test files.
-"**recording_extractor_test_mixin.py" = ["D1", "ANN"] # shared test mixin; test infrastructure, same exemption as test files.
+"test_**.py" = ["D1", "ANN", "RUF012"] # We are not enforcing docstring, type hint, or ClassVar rules in test files.
+"**conftest.py" = ["D1", "ANN", "RUF012"] # conftest.py is test infrastructure; same exemption as test files.
+"**recording_extractor_test_mixin.py" = ["D1", "ANN", "RUF012"] # shared test mixin; test infrastructure, same exemption as test files.
 
 [tool.ruff.lint.isort]
 relative-imports-order = "closest-to-furthest"
@@ -177,10 +182,17 @@ branch = true
 # modules like guppy_test_data are importable no matter which directory pytest is invoked from.
 # src is intentionally omitted: guppy is editable-installed, so adding src would shadow it.
 pythonpath = ["tests"]
+# Bound every test so a deadlock surfaces as a traceback rather than a silent stall that burns the
+# whole CI job. 300s is roughly six times the slowest real test, so it never fires on honest work.
+# The method is left to auto-select -- "signal" on POSIX, "thread" on Windows. Do not pin "thread":
+# it dumps to the worker's stderr and then calls os._exit, and xdist forwards neither, so the
+# timeout reaches the log as an opaque "node down: Not properly terminated" with the traceback
+# discarded. "signal" raises inside the test, which xdist reports as an ordinary failure with the
+# stack intact.
+timeout = 300
 markers = [
     "full_data: marks tests that require the full testing_data download (deselect with '-m not full_data')",
     "parallel: marks tests that verify GuPPy multiprocessing behavior (run separately from the main suite)",
     "ui: marks tests that require a live Panel server and browser (deselect with '-m not ui')",
     "dandi_live: marks tests that stream from the real DANDI Archive (deselect with '-m not dandi_live'; skipped in CI, for local use only)",
-    "progress_bar: marks tests that exercise the progress-bar file-locking loop (skipped on Windows in CI due to threading/file-lock issues; see issue #286)",
 ]

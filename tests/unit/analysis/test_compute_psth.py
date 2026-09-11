@@ -404,3 +404,27 @@ def test_compute_psth_index_shifts_with_lights_on_origin():
         timeForLightsTurnOn=0.0,
     )
     np.testing.assert_allclose(psth[0, 11], 100.0)
+
+
+def test_row_formation_event_far_past_the_signal_returns_all_nan_trial():
+    # The NaN padding is sized from the gap between the window and the signal, so an event
+    # this far out used to build a ~1.5e9-element array before failing to broadcast it.
+    z_score = np.arange(100, dtype=float)
+    result = rowFormation(z_score, 1498718208, 300, 600)
+    assert result.shape[0] == 901
+    assert np.all(np.isnan(result))
+
+
+def test_row_formation_event_far_before_the_signal_returns_all_nan_trial():
+    z_score = np.arange(100, dtype=float)
+    result = rowFormation(z_score, -50000, 300, 600)
+    assert result.shape[0] == 901
+    assert np.all(np.isnan(result))
+
+
+def test_row_formation_window_ending_exactly_at_the_signal_start_returns_all_nan_trial():
+    # thisIndex + nTsPost == 0 leaves no sample inside the window.
+    z_score = np.arange(100, dtype=float)
+    result = rowFormation(z_score, -20, 10, 20)
+    assert result.shape[0] == 31
+    assert np.all(np.isnan(result))

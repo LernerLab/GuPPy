@@ -30,12 +30,13 @@ Conventions
   the user the valid range or fix. See PR #283 for the established template.
 """
 
-import glob
 import logging
-import os
-from typing import Sequence
+from collections.abc import Sequence
+from pathlib import Path
 
 import numpy as np
+
+from .utils import _RUN_NAME_MARKER, GROUP_MEMBERS_FILENAME, is_group_folder
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +153,30 @@ def validate_non_negative(*, value: float, name: str) -> None:
         raise ValueError(message)
 
 
+def validate_significance_level(*, value: object, name: str) -> None:
+    """Validate that a significance level lies strictly between 0 and 1.
+
+    Parameters
+    ----------
+    value : object
+        The candidate alpha.
+    name : str
+        Parameter name used in the error message.
+
+    Raises
+    ------
+    ValueError
+        If ``value`` is not a finite number strictly between 0 and 1.
+    """
+    if not _is_finite_number(value) or not 0 < float(value) < 1:
+        message = (
+            f"{name}={value} is not a valid significance level. "
+            f"Choose a value strictly between 0 and 1, for example 0.05 for a 95% interval."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+
 def validate_peak_windows(*, peak_starts: Sequence[float], peak_ends: Sequence[float]) -> tuple[np.ndarray, np.ndarray]:
     """Validate paired peak-window arrays and return them with NaN padding stripped.
 
@@ -201,6 +226,89 @@ def validate_peak_windows(*, peak_starts: Sequence[float], peak_ends: Sequence[f
     return starts, ends
 
 
+def validate_psth_comparisons(
+    *, comparisons_a: Sequence[object], comparisons_b: Sequence[object]
+) -> list[tuple[str, str]]:
+    """Validate paired PSTH comparison event names and return them with blank rows stripped.
+
+    The GUI exposes ten comparison slots, each left blank when unused, so valid input has
+    both event names filled in on every used row.
+
+    Parameters
+    ----------
+    comparisons_a, comparisons_b : sequence
+        Per-row event names naming the two sides of each comparison.
+
+    Returns
+    -------
+    comparisons : list of tuple of str
+        Cleaned ``(event_a, event_b)`` pairs, in table order.
+
+    Raises
+    ------
+    ValueError
+        If a row names only one of its two events, or names the same event twice.
+    """
+
+    def _clean(value: object) -> str:
+        if value is None or (isinstance(value, float) and np.isnan(value)):
+            return ""
+        return str(value).strip()
+
+    comparisons = []
+    for row_index, (raw_a, raw_b) in enumerate(zip(comparisons_a, comparisons_b, strict=True), start=1):
+        event_a, event_b = _clean(raw_a), _clean(raw_b)
+        if not event_a and not event_b:
+            continue
+        if not event_a or not event_b:
+            filled, missing = ("Event A", "Event B") if event_a else ("Event B", "Event A")
+            message = (
+                f"PSTH comparison row {row_index} has {filled} but no {missing}. "
+                f"Each comparison needs both event names, or leave the row blank."
+            )
+            logger.error(message)
+            raise ValueError(message)
+        if event_a == event_b:
+            message = (
+                f"PSTH comparison row {row_index} compares {event_a!r} with itself. "
+                f"Name two different events, or leave the row blank."
+            )
+            logger.error(message)
+            raise ValueError(message)
+        comparisons.append((event_a, event_b))
+
+    return comparisons
+
+
+def validate_comparison_events_available(
+    *, comparisons: Sequence[tuple[str, str]], available_events: Sequence[str]
+) -> None:
+    """Check that every named PSTH comparison event has results to compare.
+
+    Parameters
+    ----------
+    comparisons : sequence of tuple of str
+        ``(event_a, event_b)`` pairs, as returned by :func:`validate_psth_comparisons`.
+    available_events : sequence of str
+        Event labels the output directory holds PSTHs for.
+
+    Raises
+    ------
+    ValueError
+        If any named event is not among ``available_events``.
+    """
+    unknown = sorted({event for pair in comparisons for event in pair if event not in available_events})
+    if not unknown:
+        return
+
+    message = (
+        f"PSTH comparison names {len(unknown)} event(s) with no results: {', '.join(unknown)}. "
+        f"Available events are: {', '.join(sorted(available_events))}."
+    )
+    logger.error(message)
+    raise ValueError(message)
+
+
 def validate_required_folder_selection(*, file_selectors: Sequence) -> None:
     """Validate that at least one folder is selected across the given file selectors.
 
@@ -224,36 +332,6 @@ def validate_required_folder_selection(*, file_selectors: Sequence) -> None:
         raise ValueError(message)
 
 
-def validate_same_parent_directory(*, paths: Sequence[str]) -> np.ndarray:
-    """Validate that every path shares the same parent directory.
-
-    Parameters
-    ----------
-    paths : sequence of str
-        Absolute paths to selected session folders.
-
-    Returns
-    -------
-    np.ndarray
-        A length-1 array containing the shared parent directory.
-
-    Raises
-    ------
-    ValueError
-        If the paths span more than one parent directory.
-    """
-    parents = np.unique(np.asarray([os.path.dirname(path) for path in paths]))
-    if len(parents) > 1:
-        path_to_parent = "\n".join(f"  - {path} (parent: {os.path.dirname(path)})" for path in paths)
-        message = (
-            "All the folders selected should be at the same location, but the selected folders "
-            f"span {len(parents)} parent directories:\n{path_to_parent}"
-        )
-        logger.error(message)
-        raise ValueError(message)
-    return parents
-
-
 def validate_artifact_coords_present(*, run_folders: Sequence[str]) -> None:
     """Validate that artifact windows have been selected for every run folder.
 
@@ -268,7 +346,7 @@ def validate_artifact_coords_present(*, run_folders: Sequence[str]) -> None:
         If any run folder has no ``coordsForPreProcessing_<recording_site>.npy`` file.
     """
     for run_folder in run_folders:
-        if not glob.glob(os.path.join(run_folder, "coordsForPreProcessing_*.npy")):
+        if not any(Path(run_folder).glob("coordsForPreProcessing_*.npy")):
             message = (
                 f"No artifact windows have been selected for '{run_folder}'. Run Select Artifact Windows "
                 "and save at least one window before running Remove Artifacts."
@@ -295,10 +373,123 @@ def validate_preprocessing_outputs_present(
         If any run folder is missing its ``cntrl_sig_fit_<recording_site>.hdf5`` files.
     """
     for run_folder in run_folders:
-        if not glob.glob(os.path.join(run_folder, "cntrl_sig_fit_*.hdf5")):
+        if not any(Path(run_folder).glob("cntrl_sig_fit_*.hdf5")):
             message = f"No preprocessing outputs found in '{run_folder}'. Run Step 3 (Preprocess) before {action}."
             logger.error(message)
             raise ValueError(message)
+
+
+def validate_group_member_run_folders(*, member_run_folders: Sequence[str]) -> None:
+    """Validate the run folders selected as a group's members.
+
+    Parameters
+    ----------
+    member_run_folders : sequence of str
+        Output (run) directories selected to be averaged into a group.
+
+    Raises
+    ------
+    ValueError
+        If the selection is empty, or if any path is missing, is not an output
+        directory, or holds no ``storesList.csv``.
+    """
+    if not member_run_folders:
+        message = (
+            "No member runs selected for group averaging. Pick at least one "
+            "'<session>_output_<run>' directory in the Group Analysis card before running the step."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+    not_output_directories = [path for path in member_run_folders if _RUN_NAME_MARKER not in Path(path).name]
+    if not_output_directories:
+        message = (
+            f"Group members must be output directories, but these are not: {not_output_directories!r}. "
+            "Select the '<session>_output_<run>' directories inside each session, not the session folders "
+            "themselves."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+    missing = [path for path in member_run_folders if not Path(path).is_dir()]
+    if missing:
+        message = f"Group member run folders do not exist: {missing!r}. Re-select the group's members."
+        logger.error(message)
+        raise ValueError(message)
+
+    missing_stores = [path for path in member_run_folders if not (Path(path) / "storesList.csv").exists()]
+    if missing_stores:
+        message = (
+            f"Group member run folders are missing storesList.csv: {missing_stores!r}. "
+            "Re-run Step 1 (Label Stores) for these runs before adding them to a group."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+
+def validate_group_definitions(*, group_folders: Sequence[str]) -> None:
+    """Validate a selection of group output directories as group *definitions*.
+
+    Checks only what the Label Groups step writes; a group holds no averaged results
+    until the Group Analysis step runs against it.
+
+    Parameters
+    ----------
+    group_folders : sequence of str
+        Group output directories to check.
+
+    Raises
+    ------
+    ValueError
+        If any path is missing, is not a ``<group_name>_group`` directory, or holds no
+        ``group_members.json``.
+    """
+    not_group_directories = [path for path in group_folders if not is_group_folder(path)]
+    if not_group_directories:
+        message = (
+            f"These are not group output directories: {not_group_directories!r}. "
+            "A group directory is named '<group_name>_group' and is created by the Label Groups step."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+    missing = [path for path in group_folders if not Path(path).is_dir()]
+    if missing:
+        message = f"Group output directories do not exist: {missing!r}. Re-create them with the Label Groups step."
+        logger.error(message)
+        raise ValueError(message)
+
+    undefined = [path for path in group_folders if not (Path(path) / GROUP_MEMBERS_FILENAME).exists()]
+    if undefined:
+        message = (
+            f"Group output directories hold no {GROUP_MEMBERS_FILENAME}: {undefined!r}. "
+            "Define their members with the Label Groups step."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+
+def validate_group_folders_selected(*, group_folders: Sequence[str]) -> None:
+    """Validate that at least one usable group directory is selected.
+
+    Parameters
+    ----------
+    group_folders : sequence of str
+        Group output directories selected on the homepage.
+
+    Raises
+    ------
+    ValueError
+        If nothing is selected, or if any selection is not a usable group directory.
+    """
+    if not group_folders:
+        message = (
+            "No groups selected. Pick at least one '<name>_group' directory in the Group Output "
+            "Folder Selection panel, or define a group first with the Label Groups step."
+        )
+        logger.error(message)
+        raise ValueError(message)
+    validate_group_definitions(group_folders=group_folders)
 
 
 def validate_data_not_combined(*, combine_data: bool) -> None:

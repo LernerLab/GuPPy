@@ -1,7 +1,6 @@
 """Contract and mode-table tests for PyPhotometryRecordingExtractor."""
 
 import json
-import os
 from pathlib import Path
 
 import numpy as np
@@ -14,11 +13,11 @@ from guppy_test_data import STUBBED_TESTING_DATA
 
 from .recording_extractor_test_mixin import RecordingExtractorTestMixin
 
-PYPHOTOMETRY_DATA = os.path.join(STUBBED_TESTING_DATA, "pyphotometry")
+PYPHOTOMETRY_DATA = Path(STUBBED_TESTING_DATA) / "pyphotometry"
 
 
 def _session(name: str) -> str:
-    return os.path.join(PYPHOTOMETRY_DATA, name)
+    return str(PYPHOTOMETRY_DATA / name)
 
 
 def _deinterleave_two_signal_file(folder_path: str) -> dict:

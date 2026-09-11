@@ -42,9 +42,8 @@ means a user sees the error before a progress bar starts moving.
 ### `extractors/`
 
 Reads raw acquisition data. Every reader subclasses `BaseRecordingExtractor` and implements the same
-four required methods — `discover_events_and_flags()`, `read()`, `save()`, and `stub()` — plus
-`count_samples()` for progress reporting, so the rest of the codebase never branches on acquisition
-format.
+five required methods — `discover_events_and_flags()`, `read()`, `save()`, `count_samples()`, and
+`stub()` — so the rest of the codebase never branches on acquisition format.
 
 Supported formats: `TdtRecordingExtractor`, `DoricRecordingExtractor`, `NpmRecordingExtractor`,
 `CsvRecordingExtractor`, `NwbRecordingExtractor`, and `DandiNwbRecordingExtractor` for streaming
@@ -90,11 +89,9 @@ Validation at this layer covers only what the form can judge by itself — a req
 not selected, a missing DANDI URI. Anything needing cross-parameter context belongs in orchestration
 instead.
 
-The GUI has a headless mode, signalled by the `GUPPY_BASE_DIR` environment variable. It points the
-folder and run selectors at that directory instead of the user's home directory, and makes
-`utils.is_headless()` return `True` so the steps skip the parts that need a user at the browser — the
-Neurophotometrics configuration form in step 1, for one. This is what lets the testing API drive the
-whole application without one.
+The folder and run selectors start in the user's home directory unless a starting directory is
+passed down from `build_homepage(start_path=...)` — the `guppy --start-path` flag, which the testing
+API and the screenshot scripts use to land the pickers on their own data.
 
 ### `utils/`
 
@@ -133,6 +130,8 @@ Three modules sit directly under `src/guppy/`: `main.py` (the `guppy` console en
 | *optional* — Select Artifact Windows | `orchestration/select_artifact_windows.py` | `orchestrate_select_artifact_windows` |
 | *optional* — Remove Artifacts | `orchestration/preprocess.py` | `removeArtifactsFromSignal` |
 | *optional* — Tonic Analysis | `orchestration/tonic_analysis.py` | `orchestrate_tonic_analysis` |
+| *optional* — Label Groups | `orchestration/group_labeling.py` | `orchestrate_group_labeling_page` |
+| *optional* — Group Analysis | `orchestration/group_analysis.py` | `orchestrate_group_analysis` |
 
 Saving the parameters is not a step of its own. `orchestration/save_parameters.py` is called by each
 worker, so `GuPPyParamtersUsed.json` in an output folder always reflects the configuration that

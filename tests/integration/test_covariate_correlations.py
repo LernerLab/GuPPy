@@ -1,5 +1,4 @@
-import glob
-import os
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -52,12 +51,7 @@ class TestCovariateIngestion:
     def test_step2_preserves_values_and_timestamps(self, covariate_session):
         values = np.asarray(read_hdf5(DRIVING_COVARIATE, covariate_session, "data")).ravel()
         timestamps = np.asarray(read_hdf5(DRIVING_COVARIATE, covariate_session, "timestamps")).ravel()
-        scored = pd.read_csv(
-            os.path.join(
-                os.path.dirname(covariate_session),
-                DRIVING_COVARIATE + ".csv",
-            )
-        )
+        scored = pd.read_csv(Path(Path(covariate_session).parent) / (DRIVING_COVARIATE + ".csv"))
 
         np.testing.assert_allclose(values, scored["data"].to_numpy())
         np.testing.assert_allclose(timestamps, np.arange(0.0, COVARIATE_CSV_DURATION, COVARIATE_SCORING_CADENCE))
@@ -65,12 +59,12 @@ class TestCovariateIngestion:
     def test_step3_does_not_treat_the_covariate_as_an_event(self, covariate_session):
         # Regression guard: a covariate must not go down the event-correction path,
         # which keeps only timestamps and drops the scored values.
-        assert glob.glob(os.path.join(covariate_session, "covariate_*_" + RECORDING_SITE + ".hdf5")) == []
+        assert list(Path(covariate_session).glob("covariate_*_" + RECORDING_SITE + ".hdf5")) == []
 
     def test_step4_computes_no_psth_for_the_covariate(self, covariate_session):
-        psth_files = glob.glob(os.path.join(covariate_session, "*covariate*psth*"))
+        psth_files = list(Path(covariate_session).glob("*covariate*psth*"))
         for name in COVARIATE_NAMES:
-            psth_files += glob.glob(os.path.join(covariate_session, "*" + name + "*_z_score*"))
+            psth_files += list(Path(covariate_session).glob("*" + name + "*_z_score*"))
 
         assert psth_files == []
 
@@ -83,7 +77,7 @@ class TestCovariateOutputs:
             "covariate_correlations_" + RECORDING_SITE + ".h5",
             "covariate_correlations_" + RECORDING_SITE + ".csv",
         ]:
-            assert os.path.exists(os.path.join(covariate_session, name)), name
+            assert (Path(covariate_session) / name).exists(), name
 
     def test_binned_covariates_schema(self, covariate_session):
         binned = read_binned_covariates_from_hdf5(filepath=covariate_session, recording_site=RECORDING_SITE)
@@ -148,7 +142,7 @@ class TestCovariateOutputs:
     def test_csv_matches_hdf5(self, covariate_session):
         from_hdf5 = read_binned_covariates_from_hdf5(filepath=covariate_session, recording_site=RECORDING_SITE)
         from_csv = pd.read_csv(
-            os.path.join(covariate_session, "binned_covariates_" + RECORDING_SITE + ".csv"), index_col="bin"
+            Path(covariate_session) / ("binned_covariates_" + RECORDING_SITE + ".csv"), index_col="bin"
         )
 
         pd.testing.assert_frame_equal(from_hdf5, from_csv, check_dtype=False)

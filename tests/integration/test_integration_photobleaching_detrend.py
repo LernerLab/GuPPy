@@ -1,7 +1,6 @@
-import glob
 import json
-import os
 import shutil
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -36,7 +35,7 @@ def run_preprocessing(tmp_path):
         session_copy = temporary_base_directory / session_name
         shutil.copytree(source_session, session_copy)
 
-        for output_directory in glob.glob(os.path.join(session_copy, f"{session_name}_output_*")):
+        for output_directory in list(Path(session_copy).glob(f"{session_name}_output_*")):
             shutil.rmtree(output_directory)
         parameters_path = session_copy / "GuPPyParamtersUsed.json"
         if parameters_path.exists():
@@ -49,9 +48,9 @@ def run_preprocessing(tmp_path):
         step2(**common_kwargs, selected_runs=selected_runs)
         step3(**common_kwargs, selected_runs=selected_runs, **step3_kwargs)
 
-        output_directories = sorted(glob.glob(os.path.join(session_copy, f"{session_name}_output_*")))
+        output_directories = sorted(list(Path(session_copy).glob(f"{session_name}_output_*")))
         for candidate in output_directories:
-            if os.path.exists(os.path.join(candidate, "storesList.csv")):
+            if (Path(candidate) / "storesList.csv").exists():
                 return candidate
         raise AssertionError(f"No storesList.csv found in any output directory under {session_copy}")
 
@@ -72,7 +71,7 @@ def test_detrending_changes_the_fitted_control_and_the_dff(run_preprocessing):
 
     assert plain_fit.shape == detrended_fit.shape
     # No separate trend file: the bleaching lives inside the control fit.
-    assert not os.path.exists(os.path.join(detrended_output, f"photobleaching_trend_{EXPECTED_RECORDING_SITE}.hdf5"))
+    assert not (Path(detrended_output) / (f"photobleaching_trend_{EXPECTED_RECORDING_SITE}.hdf5")).exists()
     assert np.abs(detrended_fit - plain_fit).max() > 0.0
     assert np.abs(detrended_dff - plain_dff).max() > 0.0
 
@@ -81,7 +80,7 @@ def test_detrending_changes_the_fitted_control_and_the_dff(run_preprocessing):
 def test_detrending_choice_is_recorded_in_the_parameter_snapshot(run_preprocessing):
     output_directory = run_preprocessing("recorded", control_fit_method="OLS", photobleaching_detrend=True)
 
-    with open(os.path.join(output_directory, "GuPPyParamtersUsed.json")) as parameters_file:
+    with (Path(output_directory) / "GuPPyParamtersUsed.json").open() as parameters_file:
         parameters = json.load(parameters_file)
     assert parameters["photobleaching_detrend"] is True
 
@@ -113,4 +112,4 @@ def test_detrending_composes_with_baseline_epoch_fitting(run_preprocessing):
         control_fit_window_end=60,
     )
 
-    assert os.path.exists(os.path.join(output_directory, f"dff_{EXPECTED_RECORDING_SITE}.hdf5"))
+    assert (Path(output_directory) / (f"dff_{EXPECTED_RECORDING_SITE}.hdf5")).exists()

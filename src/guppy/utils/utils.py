@@ -1,7 +1,8 @@
-import glob
 import json
 import logging
 import os
+from collections.abc import Sequence
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -13,31 +14,23 @@ RAISE_ISSUE_URL = "https://github.com/LernerLab/GuPPy/issues/new"
 _RUN_NAME_MARKER = "_output_"
 _FORBIDDEN_RUN_NAME_CHARACTERS = ("/", "\\", ":", "\0")
 
+# Group output directories are named "<group_name>_group". The marker contains no
+# "_output_", so discover_run_folders can never return a group folder.
+_GROUP_NAME_MARKER = "_group"
+
+# Records which run folders a group averaged, so the group can be reopened and rebuilt
+# and so column N of a group PSTH can be traced back to member N.
+GROUP_MEMBERS_FILENAME = "group_members.json"
+
 # NPM decomposition parameters chosen interactively in Step 1 are not part of the
 # saved analysis parameters, so they are persisted next to storesList.csv for Step 2.
 NPM_PARAMS_FILENAME = ".npm_params.json"
-NPM_PARAM_KEYS = ("npm_split_events", "npm_time_unit", "npm_timestamp_column_name")
+NPM_PARAM_KEYS = ("npm_split_events", "npm_time_unit", "npm_timestamp_column_name", "noChannels")
 
 # Event-label prefix for the transient trains that stand in for external TTLs when
 # useTransientsAsEvents is on. Prepended to a preprocessed basename it yields the
 # event file name, e.g. "transients_" + "z_score_DMS" -> transients_z_score_DMS.hdf5.
 TRANSIENT_EVENT_PREFIX = "transients_"
-
-
-def is_headless() -> bool:
-    """Report whether GuPPy is running in headless/test mode.
-
-    Headless mode is signalled by the ``GUPPY_BASE_DIR`` environment variable,
-    which the testing API sets to bypass the folder dialog. Code paths that
-    open GUI dialogs or interactive matplotlib backends should be skipped when
-    this returns ``True``.
-
-    Returns
-    -------
-    bool
-        ``True`` when ``GUPPY_BASE_DIR`` is set, ``False`` otherwise.
-    """
-    return bool(os.environ.get("GUPPY_BASE_DIR"))
 
 
 def write_npm_params(*, run_folder: str, npm_params: dict[str, object]) -> None:
@@ -55,7 +48,7 @@ def write_npm_params(*, run_folder: str, npm_params: dict[str, object]) -> None:
     npm_params : dict
         The NPM parameters (keys in :data:`NPM_PARAM_KEYS`) to persist.
     """
-    with open(os.path.join(run_folder, NPM_PARAMS_FILENAME), "w") as file:
+    with (Path(run_folder) / NPM_PARAMS_FILENAME).open("w") as file:
         json.dump(npm_params, file, indent=4)
 
 
@@ -78,10 +71,10 @@ def load_npm_params(run_folder: str) -> dict[str, object]:
         If the file predates the session-wide timestamp unit and so records no
         unit that can be trusted to match the one its data was read with.
     """
-    npm_params_path = os.path.join(run_folder, NPM_PARAMS_FILENAME)
-    if not os.path.exists(npm_params_path):
+    npm_params_path = Path(run_folder) / NPM_PARAMS_FILENAME
+    if not npm_params_path.exists():
         return {}
-    with open(npm_params_path) as file:
+    with npm_params_path.open() as file:
         npm_params = json.load(file)
 
     if "npm_time_unit" not in npm_params:
@@ -94,6 +87,50 @@ def load_npm_params(run_folder: str) -> dict[str, object]:
         raise ValueError(message)
 
     return npm_params
+
+
+def write_group_members(*, group_folder: str, member_run_folders: list[str]) -> None:
+    """Persist the run folders a group was averaged from.
+
+    Parameters
+    ----------
+    group_folder : str
+        Group output directory receiving the manifest.
+    member_run_folders : list of str
+        Absolute paths of the member run folders, in averaging order.
+    """
+    with (Path(group_folder) / GROUP_MEMBERS_FILENAME).open("w") as file:
+        json.dump({"member_run_folders": list(member_run_folders)}, file, indent=4)
+
+
+def read_group_members(*, group_folder: str) -> list[str]:
+    """Return the run folders recorded in a group's manifest.
+
+    Parameters
+    ----------
+    group_folder : str
+        Group output directory holding the manifest.
+
+    Returns
+    -------
+    list of str
+        Absolute paths of the member run folders, in averaging order.
+
+    Raises
+    ------
+    ValueError
+        If the group directory holds no manifest.
+    """
+    manifest_path = Path(group_folder) / GROUP_MEMBERS_FILENAME
+    if not manifest_path.exists():
+        message = (
+            f"{group_folder!r} holds no {GROUP_MEMBERS_FILENAME}, so it was not created by GuPPy's "
+            "Group Analysis step. Re-create the group from the Group Analysis card."
+        )
+        logger.error(message)
+        raise ValueError(message)
+    with manifest_path.open() as file:
+        return json.load(file)["member_run_folders"]
 
 
 def takeOnlyDirs(paths: list[str]) -> list[str]:
@@ -109,11 +146,7 @@ def takeOnlyDirs(paths: list[str]) -> list[str]:
     list of str
         Subset of ``paths`` containing only directories.
     """
-    removePaths = []
-    for path in paths:
-        if os.path.isfile(path):
-            removePaths.append(path)
-    return list(set(paths) - set(removePaths))
+    return [path for path in paths if not Path(path).is_file()]
 
 
 def parse_run_name(run_folder: str) -> str:
@@ -140,7 +173,7 @@ def parse_run_name(run_folder: str) -> str:
     """
     # Strip both separators so trailing forward slashes are tolerated on Windows
     # (where os.sep is "\\" but paths can still use "/").
-    basename = os.path.basename(run_folder.rstrip("/\\"))
+    basename = Path(str(run_folder).rstrip("/\\")).name
     index = basename.rfind(_RUN_NAME_MARKER)
     if index < 0:
         raise ValueError(
@@ -165,7 +198,7 @@ def discover_run_folders(session_path: str) -> list[str]:
         deterministically: numeric run names first (sorted numerically), then
         non-numeric run names (sorted case-insensitively).
     """
-    candidates = takeOnlyDirs(glob.glob(os.path.join(session_path, "*" + _RUN_NAME_MARKER + "*")))
+    candidates = [str(path) for path in Path(session_path).glob("*" + _RUN_NAME_MARKER + "*") if path.is_dir()]
     return sorted(candidates, key=_run_name_sort_key_for_path)
 
 
@@ -186,8 +219,8 @@ def run_folder_for_run(session_path: str, run_name: str) -> str:
     str
         Path of the form ``<session_path>/<basename>_output_<run_name>``.
     """
-    basename = os.path.basename(session_path.rstrip(os.sep))
-    return os.path.join(session_path, basename + _RUN_NAME_MARKER + run_name)
+    basename = Path(str(session_path).rstrip(os.sep)).name
+    return str(Path(session_path) / (basename + _RUN_NAME_MARKER + run_name))
 
 
 def selected_session_runs(*, inputParameters: dict[str, object]) -> list[tuple[str, str]]:
@@ -247,9 +280,7 @@ def select_run_folders(session_path: str, selected_runs: list[str]) -> list[str]
         )
 
     selected = [available_by_name[run] for run in selected_runs]
-    missing_stores = [
-        run_folder for run_folder in selected if not os.path.exists(os.path.join(run_folder, "storesList.csv"))
-    ]
+    missing_stores = [run_folder for run_folder in selected if not (Path(run_folder) / "storesList.csv").exists()]
     if missing_stores:
         raise ValueError(
             f"Selected output directories are missing storesList.csv: {missing_stores!r}. "
@@ -297,6 +328,152 @@ def validate_run_name(run_name: str) -> None:
         )
 
 
+def parse_group_name(group_folder: str) -> str:
+    """Return the group name of a group output directory.
+
+    Parameters
+    ----------
+    group_folder : str
+        Path to a ``<group_name>_group`` directory.
+
+    Returns
+    -------
+    str
+        The group name.
+
+    Raises
+    ------
+    ValueError
+        If the basename does not match the expected pattern.
+    """
+    basename = Path(str(group_folder).rstrip("/\\")).name
+    if not basename.endswith(_GROUP_NAME_MARKER) or basename == _GROUP_NAME_MARKER:
+        raise ValueError(
+            f"Cannot parse group name from {group_folder!r}: basename {basename!r} does not match "
+            f"'<group_name>_group' pattern."
+        )
+    return basename[: -len(_GROUP_NAME_MARKER)]
+
+
+def common_parent_directory(*, paths: Sequence[str]) -> str:
+    """Return the deepest directory that contains every one of ``paths``.
+
+    Parameters
+    ----------
+    paths : sequence of str
+        Absolute paths to selected session folders.
+
+    Returns
+    -------
+    str
+        The parent directory shared by all ``paths`` when they sit side by side,
+        or their nearest common ancestor when they do not.
+    """
+    parent_directories = {str(Path(path).parent) for path in paths}
+    return os.path.commonpath(sorted(parent_directories))
+
+
+def is_group_folder(path: str) -> bool:
+    """Report whether a path names a group output directory.
+
+    Parameters
+    ----------
+    path : str
+        Path to test.
+
+    Returns
+    -------
+    bool
+        ``True`` when the basename ends with ``_group`` and is not itself a run
+        folder (a run named ``group`` would otherwise match both).
+    """
+    basename = Path(str(path).rstrip("/\\")).name
+    if _RUN_NAME_MARKER in basename:
+        return False
+    return basename.endswith(_GROUP_NAME_MARKER) and basename != _GROUP_NAME_MARKER
+
+
+def discover_group_folders(destination_directory: str) -> list[str]:
+    """Return all group output directories within a destination directory.
+
+    Parameters
+    ----------
+    destination_directory : str
+        Directory that group output directories are written into.
+
+    Returns
+    -------
+    list of str
+        Absolute paths of every ``<group_name>_group`` subdirectory, sorted
+        case-insensitively by group name.
+    """
+    candidates = [str(path) for path in Path(destination_directory).glob("*" + _GROUP_NAME_MARKER) if path.is_dir()]
+    group_folders = [path for path in candidates if is_group_folder(path)]
+    return sorted(group_folders, key=lambda path: parse_group_name(path).casefold())
+
+
+def group_folder_for_group(*, destination_directory: str, group_name: str) -> str:
+    """Build the path of the output directory for a given group name.
+
+    Does not check whether the directory exists.
+
+    Parameters
+    ----------
+    destination_directory : str
+        Directory the group output directory is written into.
+    group_name : str
+        Name of the group.
+
+    Returns
+    -------
+    str
+        Path of the group output directory.
+    """
+    return str(Path(destination_directory) / (group_name + _GROUP_NAME_MARKER))
+
+
+def validate_group_name(group_name: str) -> None:
+    """Validate that ``group_name`` is a legal group name.
+
+    Rejects empty strings, whitespace-only strings, path separators, ``..``,
+    null bytes, and any string containing ``_output_`` or ``_group`` (either of
+    which would make the resulting directory indistinguishable from a run
+    folder or from a session folder that merely ends in ``_group``).
+
+    Parameters
+    ----------
+    group_name : str
+        Candidate group name.
+
+    Raises
+    ------
+    ValueError
+        If ``group_name`` is invalid.
+    """
+    if not isinstance(group_name, str):
+        raise ValueError(f"group_name must be a string; got {type(group_name).__name__}.")
+    if not group_name:
+        raise ValueError("group_name must be a non-empty string. Type a name in the Group Analysis card.")
+    if group_name.strip() != group_name or not group_name.strip():
+        raise ValueError(
+            f"group_name {group_name!r} must not contain leading/trailing whitespace or be all whitespace."
+        )
+    for character in _FORBIDDEN_RUN_NAME_CHARACTERS:
+        if character in group_name:
+            raise ValueError(
+                f"group_name {group_name!r} contains forbidden character {character!r}. "
+                f"Path separators and null bytes are not allowed."
+            )
+    if ".." in group_name:
+        raise ValueError(f"group_name {group_name!r} must not contain '..' (path traversal).")
+    for marker in (_RUN_NAME_MARKER, _GROUP_NAME_MARKER):
+        if marker in group_name:
+            raise ValueError(
+                f"group_name {group_name!r} must not contain the substring {marker!r}; "
+                "this would break parsing of the group directory name."
+            )
+
+
 def _run_name_sort_key(run_name: str) -> tuple[int, int, str]:
     """Sort key that orders numeric run names ahead of alphanumeric ones."""
     try:
@@ -310,7 +487,7 @@ def _run_name_sort_key_for_path(path: str) -> tuple[int, int, str]:
     try:
         run_name = parse_run_name(path)
     except ValueError:
-        return (2, 0, os.path.basename(path).casefold())
+        return (2, 0, Path(path).name.casefold())
     return _run_name_sort_key(run_name)
 
 
@@ -415,9 +592,9 @@ def read_Df(filepath: str, event: str, name: str) -> pd.DataFrame:
     event = event.replace("\\", "_")
     event = event.replace("/", "_")
     if name:
-        hdf5_path = os.path.join(filepath, event + "_{}.h5".format(name))
+        hdf5_path = Path(filepath) / (event + f"_{name}.h5")
     else:
-        hdf5_path = os.path.join(filepath, event + ".h5")
+        hdf5_path = Path(filepath) / (event + ".h5")
     df = pd.read_hdf(hdf5_path, key="df", mode="r")
 
     return df

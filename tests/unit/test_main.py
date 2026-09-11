@@ -1,3 +1,5 @@
+from importlib.metadata import version
+
 import pytest
 
 from guppy import app
@@ -51,6 +53,15 @@ class TestMain:
 
         assert exported == [True]
         assert served == {}
+
+    def test_version_prints_the_installed_version_without_starting_a_server(self, served, exported, capsys):
+        with pytest.raises(SystemExit) as exit_info:
+            main(argv=["--version"])
+
+        assert exit_info.value.code == 0
+        assert capsys.readouterr().out.strip() == f"GuPPy {version('guppy-neuro')}"
+        assert served == {}
+        assert exported == []
 
     def test_unrecognized_argument_exits(self, served, exported):
         with pytest.raises(SystemExit):

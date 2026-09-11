@@ -9,9 +9,8 @@ averages the traces over them; the resulting ``tonic_region.h5`` is checked for 
 per-epoch means and for the rise-then-recover ordering across the three epochs.
 """
 
-import glob
-import os
 import shutil
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -37,18 +36,18 @@ WASH_OUT_EPOCH = (145.0, 178.0)  # clearance settled onto its residual level
 
 
 def _stubbed_data_root():
-    return os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "stubbed_testing_data")
+    return Path((Path(__file__).parent).parent.parent) / "stubbed_testing_data"
 
 
 def _output_directory(session):
-    return sorted(glob.glob(os.path.join(session, f"{SESSION_NAME}_output_*")))[0]
+    return sorted(list(Path(session).glob(f"{SESSION_NAME}_output_*")))[0]
 
 
 @pytest.fixture
 def injection_session(tmp_path):
-    source = os.path.join(_stubbed_data_root(), SESSION_SUBDIR)
+    source = Path(_stubbed_data_root()) / SESSION_SUBDIR
     base_dir = str(tmp_path)
-    session = os.path.join(base_dir, SESSION_NAME)
+    session = Path(base_dir) / SESSION_NAME
     # Output dirs are gitignored, so running GuPPy against the stubbed data leaves them
     # behind; copying them would seed this session with another run's results.
     shutil.copytree(source, session, ignore=shutil.ignore_patterns("*_output_*"))
@@ -87,8 +86,8 @@ class TestTonicAnalysis:
         )
 
         output_directory = _output_directory(injection_session["session"])
-        tonic_path = os.path.join(output_directory, "tonic_region.h5")
-        assert os.path.exists(tonic_path)
+        tonic_path = Path(output_directory) / "tonic_region.h5"
+        assert Path(tonic_path).exists()
 
         tonic = pd.read_hdf(tonic_path, key="df")
         assert list(tonic.index) == ["baseline", "wash_in", "wash_out"]
@@ -124,4 +123,4 @@ class TestTonicAnalysis:
             selected_runs=injection_session["selected_runs"],
         )
         output_directory = _output_directory(injection_session["session"])
-        assert not os.path.exists(os.path.join(output_directory, "tonic_region.h5"))
+        assert not (Path(output_directory) / "tonic_region.h5").exists()

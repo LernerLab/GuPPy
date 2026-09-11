@@ -1,6 +1,4 @@
-import glob
 import logging
-import os
 import shutil
 from pathlib import Path
 from typing import Any
@@ -58,20 +56,20 @@ class PyPhotometryRecordingExtractor(BaseRecordingExtractor):
     @staticmethod
     def _find_ppd_file(folder_path: str | Path) -> str:
         """Return the single ``.ppd`` file in ``folder_path``, refusing zero or several."""
-        ppd_paths = sorted(glob.glob(os.path.join(str(folder_path), "*.ppd")))
+        ppd_paths = sorted(Path(folder_path).glob("*.ppd"))
         if not ppd_paths:
             message = f"No pyPhotometry '.ppd' file found in '{folder_path}'."
             logger.error(message)
             raise FileNotFoundError(message)
         if len(ppd_paths) > 1:
-            names = [os.path.basename(path) for path in ppd_paths]
+            names = [path.name for path in ppd_paths]
             message = (
                 f"Found {len(ppd_paths)} '.ppd' files in '{folder_path}': {names}. A pyPhotometry "
                 "session folder must hold exactly one recording; put each recording in its own folder."
             )
             logger.error(message)
             raise ValueError(message)
-        return ppd_paths[0]
+        return str(ppd_paths[0])
 
     @staticmethod
     def _analog_store_id(detector_index: int, excitation_index: int) -> str:
@@ -100,7 +98,7 @@ class PyPhotometryRecordingExtractor(BaseRecordingExtractor):
             Always empty: the format carries no feature flags the GUI branches on.
         """
         ppd_path = cls._find_ppd_file(folder_path)
-        logger.debug(f"Discovering pyPhotometry stores in {ppd_path}.")
+        logger.debug("Discovering pyPhotometry stores in %s.", ppd_path)
 
         # Only the header is needed to name the stores, and it decides the layout, so the words are
         # not de-interleaved here — discovery runs on every session folder in step 1.
@@ -116,7 +114,7 @@ class PyPhotometryRecordingExtractor(BaseRecordingExtractor):
         for digital_input in range(digital_count):
             events.append(f"digital_{digital_input + 1}")
 
-        logger.info(f"Discovered {len(events)} pyPhotometry stores: {events}.")
+        logger.info("Discovered %d pyPhotometry stores: %s.", len(events), events)
         return events, []
 
     def __init__(self, folder_path: str) -> None:

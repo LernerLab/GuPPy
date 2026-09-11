@@ -1,6 +1,5 @@
-import glob
-import os
 import shutil
+from pathlib import Path
 
 import h5py
 import numpy as np
@@ -22,13 +21,13 @@ def _is_float_label(column):
 
 def _stage_session(src_base_dir, session_subdir, tmp_base):
     """Copy a session to a temp workspace, clean output dirs and param files."""
-    src_session = os.path.join(src_base_dir, session_subdir)
-    assert os.path.isdir(src_session), f"Sample data not available at expected path: {src_session}"
-    dest_name = os.path.basename(src_session)
+    src_session = Path(src_base_dir) / session_subdir
+    assert Path(src_session).is_dir(), f"Sample data not available at expected path: {src_session}"
+    dest_name = Path(src_session).name
     session_copy = tmp_base / dest_name
     shutil.copytree(src_session, session_copy)
-    for d in glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")):
-        assert os.path.isdir(d)
+    for d in list(Path(session_copy).glob(f"{dest_name}_output_*")):
+        assert Path(d).is_dir()
         shutil.rmtree(d)
     params_fp = session_copy / "GuPPyParamtersUsed.json"
     if params_fp.exists():
@@ -37,23 +36,23 @@ def _stage_session(src_base_dir, session_subdir, tmp_base):
 
 
 def _assert_intra_session_outputs(session_copy, expected_recording_site, expected_ttl):
-    dest_name = os.path.basename(session_copy)
-    run_folders = sorted(glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")))
+    dest_name = Path(session_copy).name
+    run_folders = sorted(list(Path(session_copy).glob(f"{dest_name}_output_*")))
     assert run_folders, f"No output directories found in {session_copy}"
     out_dir = None
     for d in run_folders:
-        if os.path.exists(os.path.join(d, "storesList.csv")):
+        if (Path(d) / "storesList.csv").exists():
             out_dir = d
             break
     assert out_dir is not None, f"No storesList.csv found under {session_copy}"
 
-    timecorr = os.path.join(out_dir, f"timeCorrection_{expected_recording_site}.hdf5")
-    assert os.path.exists(timecorr), f"Missing {timecorr}"
+    timecorr = Path(out_dir) / (f"timeCorrection_{expected_recording_site}.hdf5")
+    assert Path(timecorr).exists(), f"Missing {timecorr}"
     with h5py.File(timecorr, "r") as f:
         assert "timestampNew" in f
 
-    ttl_fp = os.path.join(out_dir, f"{expected_ttl}_{expected_recording_site}.hdf5")
-    assert os.path.exists(ttl_fp), f"Missing TTL-aligned file {ttl_fp}"
+    ttl_fp = Path(out_dir) / (f"{expected_ttl}_{expected_recording_site}.hdf5")
+    assert Path(ttl_fp).exists(), f"Missing TTL-aligned file {ttl_fp}"
     with h5py.File(ttl_fp, "r") as f:
         assert "ts" in f
 
@@ -202,8 +201,8 @@ def test_mixed_modality_npm_csv_ttl(tmp_path):
 
     # The TTLs must land inside the NPM recording, not merely be written out: an event
     # outside the signal span yields an empty PSTH that the checks above still accept.
-    run_folder = sorted(glob.glob(os.path.join(session_copy, f"{os.path.basename(session_copy)}_output_*")))[0]
-    psth = pd.read_hdf(os.path.join(run_folder, "ttl_region_region_z_score_region.h5"))
+    run_folder = sorted(list(Path(session_copy).glob(f"{Path(session_copy).name}_output_*")))[0]
+    psth = pd.read_hdf(Path(run_folder) / "ttl_region_region_z_score_region.h5")
     trial_times = sorted(float(column) for column in psth.columns if _is_float_label(column))
     np.testing.assert_allclose(trial_times, csv_ttl_timestamps)
 

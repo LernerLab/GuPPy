@@ -336,7 +336,7 @@ class TestValidateMetadata:
 
     def test_supplied_session_start_time_satisfies_the_requirement(self, channels):
         metadata = self._complete_metadata(channels)
-        metadata["NWBFile"]["session_start_time"] = datetime(2018, 10, 30, 10, 33, 32)
+        metadata["NWBFile"]["session_start_time"] = datetime(2018, 10, 30, 10, 33, 32, tzinfo=timezone.utc)
         assert m.validate_metadata_dict(metadata=metadata, channels=channels, require_session_start_time=True) == []
 
     def test_unparseable_session_start_time_is_reported(self, channels):

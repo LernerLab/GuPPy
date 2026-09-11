@@ -6,9 +6,8 @@ selector switches between every ``z_score`` / ``dff`` trace across the run folde
 shown with its detected transient peaks marked.
 """
 
-import glob
 import logging
-import os
+from pathlib import Path
 
 import holoviews as hv
 import numpy as np
@@ -26,10 +25,10 @@ logger = logging.getLogger(__name__)
 
 def _trace_paths(filepath: str, select_for_transients: str) -> list[str]:
     if select_for_transients == "z_score":
-        return glob.glob(os.path.join(filepath, "z_score_*"))
+        return list(Path(filepath).glob("z_score_*"))
     if select_for_transients == "dff":
-        return glob.glob(os.path.join(filepath, "dff_*"))
-    return glob.glob(os.path.join(filepath, "z_score_*")) + glob.glob(os.path.join(filepath, "dff_*"))
+        return list(Path(filepath).glob("dff_*"))
+    return list(Path(filepath).glob("z_score_*")) + list(Path(filepath).glob("dff_*"))
 
 
 def load_peaks(run_folders: list[str], select_for_transients: str) -> dict[str, dict[str, np.ndarray]]:
@@ -51,8 +50,8 @@ def load_peaks(run_folders: list[str], select_for_transients: str) -> dict[str, 
     entries: dict[str, dict[str, np.ndarray]] = {}
     for filepath in run_folders:
         for path in _trace_paths(filepath, select_for_transients):
-            title = os.path.basename(path).split(".")[0]
-            suptitle = os.path.basename(os.path.dirname(path))
+            title = path.name.split(".")[0]
+            suptitle = path.parent.name
             z_score, timestamps, peaksInd = read_transients_from_hdf5(filepath, title)
             entries[f"{suptitle} / {title}"] = {
                 "z_score": np.asarray(z_score).ravel(),

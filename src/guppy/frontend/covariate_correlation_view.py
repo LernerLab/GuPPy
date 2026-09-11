@@ -8,9 +8,8 @@ covariate store have no such tables, so the tab renders a short note instead and
 be added to the dashboard unconditionally.
 """
 
-import glob
 import logging
-import os
+from pathlib import Path
 
 import holoviews as hv
 import numpy as np
@@ -52,8 +51,8 @@ def covariate_correlation_sites(filepath: str) -> list[str]:
     list of str
         Recording site names, empty when the session has no covariate correlations.
     """
-    paths = glob.glob(os.path.join(filepath, _FILE_PREFIX + "*.h5"))
-    return sorted(os.path.basename(path)[len(_FILE_PREFIX) : -len(".h5")] for path in paths)
+    paths = Path(filepath).glob(_FILE_PREFIX + "*.h5")
+    return sorted(path.name[len(_FILE_PREFIX) : -len(".h5")] for path in paths)
 
 
 class CovariateCorrelationView:

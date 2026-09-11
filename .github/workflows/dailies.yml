@@ -27,6 +27,8 @@ jobs:
     with:  #  Ternary operator: condition && value_if_true || value_if_false
       python-versions: ${{ github.event.pull_request.draft == true && '["3.10"]' || needs.load_python_and_os_versions.outputs.ALL_PYTHON_VERSIONS }}
       os-versions: ${{ github.event.pull_request.draft == true && '["ubuntu-latest"]' || needs.load_python_and_os_versions.outputs.ALL_OS_VERSIONS }}
+      # Dailies also run the full_data consistency suite, which PR tests skip.
+      timeout-minutes: '60'
 
   notify-test-failure:
     runs-on: ubuntu-latest

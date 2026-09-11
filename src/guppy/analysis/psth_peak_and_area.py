@@ -60,7 +60,9 @@ def compute_psth_peak_and_area(
     for i in range(peak_startPoint.shape[0]):
         startPtForPeak = np.where(timestamps >= peak_startPoint[i])[0]
         endPtForPeak = np.where(timestamps >= peak_endPoint[i])[0]
-        if len(startPtForPeak) >= 1 and len(endPtForPeak) >= 1:
+        # Equal indices mean no sample falls inside the window, which reduces the slices below
+        # to empty sequences that np.argmax cannot reduce over.
+        if len(startPtForPeak) >= 1 and len(endPtForPeak) >= 1 and startPtForPeak[0] < endPtForPeak[0]:
             peakPoint_pos = startPtForPeak[0] + np.argmax(psth_mean[startPtForPeak[0] : endPtForPeak[0], :], axis=0)
             peakPoint_neg = startPtForPeak[0] + np.argmin(psth_mean[startPtForPeak[0] : endPtForPeak[0], :], axis=0)
             peak_and_area["peak_pos_" + str(i + 1)] = np.amax(psth_mean[peakPoint_pos], axis=0)

@@ -19,10 +19,11 @@ Three further directories can appear:
 | Directory | Location | Written by |
 |-----------|----------|------------|
 | `cross_correlation_output/` | inside a run folder | Step 4, when **Compute Cross-correlation** is enabled |
-| `average/` | beside the session folders, in their common parent directory | Step 4, when **Average Group?** is enabled |
+| `psth_significance_output/` | inside a run or group folder | Step 4 and Group Analysis, when **Compute PSTH Significance?** is enabled |
+| `<name>_group/` | in the destination directory you pick | the Label Groups step (definition) and the Group Analysis step (results) |
 | `saved_plots/` | inside a run folder | Step 5 — created but left empty, see [Step 5](#step-5-visualize-the-results) |
 
-The `average/` directory is not inside any session folder. It is created in the directory that contains all the sessions selected for the group.
+A group directory is not inside any session folder. It is created in the destination directory chosen on the Label Groups page.
 
 ---
 
@@ -36,7 +37,9 @@ Raw HDF5 written with h5py, following GuPPy's convention of one file per store w
 
 ### `.h5`
 
-A pandas DataFrame written with `DataFrame.to_hdf`, holding exactly one DataFrame under the key `df`, and read back through pandas rather than h5py. These are the PSTH, peak/AUC, transient-summary, binned-metrics, covariate, cross-correlation and tonic tables.
+A pandas DataFrame written with `DataFrame.to_hdf`, holding exactly one DataFrame under the key `df`, and read back with `pandas.read_hdf` rather than h5py. These are the PSTH, peak/AUC, transient-summary, binned-metrics, covariate, cross-correlation and tonic tables.
+
+`to_hdf` stores the frame in pandas' fixed format, which mirrors its in-memory layout: the column labels in `axis0`, the row index in `axis1`, and the values in one or more `block<N>_values` arrays with columns grouped by dtype. None of that is hidden from h5py, but it is the frame taken apart rather than the assembled table, and `axis0` order does not follow the block grouping — putting it back together by hand means matching each block against its own `block<N>_items`.
 
 ### `.csv`
 
@@ -93,7 +96,7 @@ Dv1A,Dv2A,PrtN
 control_DMS,signal_DMS,port_entries
 ```
 
-**`.npm_params.json`** is written only for Neurophotometrics sessions and holds the settings Step 2 uses to demultiplex the interleaved channels: `npm_split_events`, `npm_time_unit` (always stored resolved, never null) and `npm_timestamp_column_name`.
+**`.npm_params.json`** is written only for Neurophotometrics sessions and holds the settings Step 2 uses to demultiplex the interleaved channels: `npm_split_events`, `npm_time_unit` (always stored resolved, never null), `npm_timestamp_column_name` and `noChannels`.
 
 ---
 
@@ -201,10 +204,22 @@ The means are computed at save time from the traces then on disk, and the differ
 | `binned_covariates_<site>.h5` and `.csv` | One row per time bin, holding the behavioral covariate means |
 | `covariate_correlations_<site>.h5` and `.csv` | One row per metric–covariate pair |
 | `cross_correlation_output/corr_<event>_<metric-prefix>_<siteA>_<siteB>.h5` | Cross-correlation between two recording sites |
+| `psth_significance_output/significance_<comparison>.h5` and `.csv` | Which stretches of the PSTH window are significant |
 
 **The PSTH files** hold a `float32` DataFrame under the key `df`, with one row per time point in the peri-event window. The columns, in order: one column per trial, labeled with that trial's event timestamp as a string; then, when trial binning is enabled, a `bin_(<label>)` and `bin_err_(<label>)` pair per bin; then `timestamps` (the peri-event time axis, running from `-nSecPrev` to `+nSecPost`); then `mean` and `err`, the mean and standard error across the single-trial columns only. The `_baselineUncorrected_` file is the same table before the baseline correction was subtracted.
 
 **The peak/AUC files** hold a DataFrame with one row per trial, per bin, and one for `mean` — matching the PSTH columns — and one column per configured peak window: `peak_pos_<N>`, `peak_neg_<N>` and `area_<N>` for the Nth window. The row index is the session folder name joined to the column label, so a trial row reads `<session_name>_<event timestamp>`. A window that falls outside the PSTH yields `peak_<N>` and `area_<N>` set to `NaN`; when no peak windows are configured at all, the columns are a single `peak` and `area` pair, both `NaN`. Whether `area_<N>` is in metric-seconds or in metric-samples depends on the **AUC Units** parameter. The `.h5` and `.csv` hold the same table.
+
+**The significance files** appear when **Compute PSTH Significance?** is enabled, one per comparison, holding a DataFrame under the key `df` with one row per time point. Two comparison kinds share the directory, distinguished by their filename:
+
+| Filename | Comparison |
+|------|----------|
+| `significance_<event>_<site>_<metric>_<site>.h5` | That event's mean PSTH against zero |
+| `significance_<eventA>_vs_<eventB>_<site>_<metric>_<site>.h5` | Event A's mean PSTH against event B's |
+
+The columns are `timestamps` (the same peri-event axis as the PSTH), `estimate` (the mean PSTH, or the A minus B difference), `ci_lower` and `ci_upper` (the bootstrap confidence bounds on `estimate`), `significant` (`1` inside a significant stretch, `0` elsewhere), `alpha` (the two-sided threshold the interval was computed at), and `n` — the number of columns resampled, which is a trial count in a run folder and a member-session count in a group folder. Two-sample files carry an additional `n_b` for the second event.
+
+`ci_lower` and `ci_upper` are `NaN` at timepoints where too few trials overlap to bootstrap, which happens at the window edges and wherever artifact removal blanked a stretch. Those timepoints are reported as not significant. A comparison whose event has fewer than three trials or sessions is skipped entirely rather than written. The `.h5` and `.csv` hold the same table. See the [explainer](../explanation/psth_significance.md) for how the test works and what it does not tell you.
 
 **`freqAndAmp_<metric>.h5` and `.csv`** hold a single row indexed by the session folder name, with columns `freq (events/min)` and `amplitude` — the transient rate and the mean transient amplitude for that trace.
 
@@ -268,22 +283,28 @@ See [Fiber photometry data in NWB](../explanation/nwb.md) for what each object h
 
 ---
 
-## Group analysis: the `average/` directory
+## Group analysis: group directories
 
-*Written by: Step 4 (Compute the PSTH), when **Average Group?** is enabled.*
+*Written by: the Label Groups step (`group_members.json`) and the Group Analysis step (everything else).*
 
-The `average/` directory sits in the common parent of the selected session folders and holds the same filename patterns as a run folder, with the per-session values combined:
+A group directory is named `<group_name>_group` and sits in the destination directory chosen on the Label Groups page. It holds the same filename patterns as a run folder, with the per-member values combined:
 
 | File | Contents |
 |------|----------|
-| `storesList.csv` | The store mapping the group was averaged under |
-| `z_score_<site>.hdf5`, `dff_<site>.hdf5` | Empty placeholders |
-| `<event>_<site>_<metric>.h5` | Group PSTH: one column per session |
-| `peak_AUC_<event>_<site>_<metric>.h5` and `.csv` | Every session's peak/AUC rows concatenated |
-| `freqAndAmp_<metric>.h5` and `.csv` | One row per session |
-| `cross_correlation_output/corr_<event>_<metric-prefix>_<siteA>_<siteB>.h5` | One column per session |
+| `group_members.json` | The run folders this group averaged, in averaging order |
+| `GuPPyParamtersUsed.json` | The parameters the averaging ran under |
+| `storesList.csv` | The store mapping, listing only the events the group holds a PSTH for |
+| `<event>_<site>_<metric>.h5` | Group PSTH: one column per member run |
+| `peak_AUC_<event>_<site>_<metric>.h5` and `.csv` | Every member's peak/AUC rows concatenated |
+| `freqAndAmp_<metric>.h5` and `.csv` | One row per member run |
+| `cross_correlation_output/corr_<event>_<metric-prefix>_<siteA>_<siteB>.h5` | One column per member run |
+| `psth_significance_output/significance_<comparison>.h5` and `.csv` | Significance over the group, resampling member sessions |
 
-The group PSTH has the same shape as a per-session PSTH, but its trial columns are replaced by one column per session, labeled with the session folder's name, followed by the same `timestamps`, `mean` and `err` columns. The `z_score_<site>.hdf5` and `dff_<site>.hdf5` files in `average/` hold an empty `data` dataset; only their filenames carry information, naming the group's recording sites.
+The group PSTH has the same shape as a per-session PSTH, but its trial columns are replaced by one column per member run, labeled with the run folder's name, followed by the same `timestamps`, `mean` and `err` columns. Column order matches `group_members.json`, so column *n* is member *n*.
+
+`group_members.json` has a single key, `member_run_folders`, holding the absolute paths of the runs the group averages. It is the group's definition: the Label Groups step writes it, and the Group Analysis step reads it to know what to average. A group directory holding only this file is a defined group with no results yet, in the same way a run folder holds `storesList.csv` before Step 2 fills it.
+
+Because the step averages what its members already hold, `storesList.csv` lists only the events a PSTH was actually written for. An event that no member recorded is dropped rather than listed.
 
 ---
 
@@ -291,11 +312,11 @@ The group PSTH has the same shape as a per-session PSTH, but its trial columns a
 
 *Written by: Steps 2, 3 and 4, and by Select Artifact Windows.*
 
-A JSON snapshot of the analysis parameters, written into every run folder the step operated on. Each of Steps 2, 3 and 4 rewrites it, so the file always reflects the most recent step to touch that run. Group averaging is the one exception: it writes no snapshot into `average/`. When a session has no run folder yet, the snapshot is written at the session folder root instead.
+A JSON snapshot of the analysis parameters, written into every run folder the step operated on. Each of Steps 2, 3 and 4 rewrites it, so the file always reflects the most recent step to touch that run. When a session has no run folder yet, the snapshot is written at the session folder root instead. The Group Analysis step writes one into the group directory too, recording the parameters the averaging ran under.
 
-The first key is `guppy_version`, the installed version of the `guppy-neuro` package that produced the run. The rest are the analysis parameters themselves: `combine_data`, `isosbestic_control`, `control_fit_method`, `controlFitWindowMode`, `controlFitWindowStart`, `controlFitWindowEnd`, `photobleaching_detrend`, `timeForLightsTurnOn`, `filter_window`, `removeArtifacts`, `artifactsRemovalMethod`, `noChannels`, `zscore_method`, `baselineWindowStart`, `baselineWindowEnd`, `nSecPrev`, `nSecPost`, `computeCorr`, `useTransientsAsEvents`, `timeInterval`, `bin_psth_trials`, `use_time_or_trials`, `baselineCorrectionStart`, `baselineCorrectionEnd`, `peak_startPoint`, `peak_endPoint`, `auc_units`, `selectForComputePsth`, `selectForTransientsComputation`, `moving_window`, `highAmpFilt`, `transientsThresh`, `computeBinnedMetrics`, `binnedMetricsWidth`, `visualize_zscore_or_dff` and `averageForGroup`. See the [Input parameter reference](parameters.md) for what each one controls.
+The first key is `guppy_version`, the installed version of the `guppy-neuro` package that produced the run. The rest are the analysis parameters themselves: `combine_data`, `isosbestic_control`, `control_fit_method`, `controlFitWindowMode`, `controlFitWindowStart`, `controlFitWindowEnd`, `photobleaching_detrend`, `timeForLightsTurnOn`, `filter_window`, `removeArtifacts`, `artifactsRemovalMethod`, `zscore_method`, `baselineWindowStart`, `baselineWindowEnd`, `nSecPrev`, `nSecPost`, `computeCorr`, `useTransientsAsEvents`, `timeInterval`, `bin_psth_trials`, `use_time_or_trials`, `baselineCorrectionStart`, `baselineCorrectionEnd`, `peak_startPoint`, `peak_endPoint`, `computePsthSignificance`, `psthComparisonsA`, `psthComparisonsB`, `psthSignificanceAlpha`, `psthBootstrapResamples`, `auc_units`, `selectForComputePsth`, `selectForTransientsComputation`, `moving_window`, `highAmpFilt`, `transientsThresh`, `computeBinnedMetrics` and `binnedMetricsWidth`. See the [Input parameter reference](parameters.md) for what each one controls.
 
-`removeArtifacts` and `artifactsRemovalMethod` describe what was applied to that run rather than what the form currently holds: each step carries them forward from whatever the run folder already records. Saving artifact windows patches these two keys in place and leaves everything else untouched.
+`removeArtifacts` and `artifactsRemovalMethod` describe what was applied to that run rather than what the form currently holds: each step carries them forward from whatever the run folder already records. Saving artifact windows patches these two keys in place and leaves everything else untouched. In a group directory both take their defaults, since the Group Analysis step removes no artifacts of its own.
 
 ---
 
@@ -360,18 +381,23 @@ The first key is `guppy_version`, the installed version of the `guppy-neuro` pac
     covariate_correlations_<site>.csv              step 4
     cross_correlation_output/
       corr_<event>_<metric-prefix>_<siteA>_<siteB>.h5   step 4   DataFrame, key "df"
+    psth_significance_output/
+      significance_<comparison>.h5                      step 4   DataFrame, key "df"
+      significance_<comparison>.csv                     step 4
     saved_plots/                                   step 5, created empty
     nwb_metadata.yaml                              step 6, optional
     <session_name>_output_<run_name>.nwb           step 7, optional
 
-<common parent of the selected sessions>/
-  average/                                         step 4, Average Group? only
+<group destination directory>/
+  <group_name>_group/                              Group Analysis step
+    group_members.json
+    GuPPyParamtersUsed.json
     storesList.csv
-    z_score_<site>.hdf5                            empty placeholder
-    dff_<site>.hdf5                                empty placeholder
     <event>_<site>_<metric>.h5
     peak_AUC_<event>_<site>_<metric>.h5 and .csv
     freqAndAmp_<metric>.h5 and .csv
     cross_correlation_output/
       corr_<event>_<metric-prefix>_<siteA>_<siteB>.h5
+    psth_significance_output/
+      significance_<comparison>.h5 and .csv
 ```

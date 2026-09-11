@@ -22,11 +22,11 @@ Then launch the user interface:
 guppy
 ```
 
-See the [installation guide](https://guppy.readthedocs.io/en/latest/installation.html) for the full walkthrough, including installing conda and installing from source.
+See the [installation guide](https://guppy.readthedocs.io/installation.html) for the full walkthrough, including installing conda and installing from source.
 
 ## Documentation
 
-The GuPPy documentation lives at [guppy.readthedocs.io](https://guppy.readthedocs.io/): a [tutorial](https://guppy.readthedocs.io/en/latest/tutorials/index.html) walking through a first analysis end to end, [how-to guides](https://guppy.readthedocs.io/en/latest/how-to/index.html) for individual tasks, [explanations](https://guppy.readthedocs.io/en/latest/explanation/index.html) of how the analysis works, and a [reference](https://guppy.readthedocs.io/en/latest/reference/index.html) for every input parameter and output file.
+The GuPPy documentation lives at [guppy.readthedocs.io](https://guppy.readthedocs.io/): a [tutorial](https://guppy.readthedocs.io/tutorials/index.html) walking through a first analysis end to end, [how-to guides](https://guppy.readthedocs.io/how-to/index.html) for individual tasks, [explanations](https://guppy.readthedocs.io/explanation/index.html) of how the analysis works, and a [reference](https://guppy.readthedocs.io/reference/index.html) for every input parameter and output file.
 
 ## Citation
 

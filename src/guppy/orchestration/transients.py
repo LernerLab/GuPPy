@@ -1,11 +1,9 @@
-import glob
 import logging
 import multiprocessing as mp
-import os
+from pathlib import Path
 
 import numpy as np
 
-from .group_utils import gather_group_run_folders
 from .save_parameters import read_artifact_provenance
 from ..analysis.binned_metrics import compute_binned_metrics
 from ..analysis.covariates import (
@@ -33,7 +31,6 @@ from ..analysis.standard_io import (
     write_transients_to_hdf5,
 )
 from ..analysis.transients import analyze_transients
-from ..analysis.transients_average import averageForGroup
 from ..utils import progress
 from ..utils.utils import (
     get_all_stores_for_combining_data,
@@ -66,11 +63,11 @@ def findFreqAndAmp(
     useTransientsAsEvents = inputParameters["useTransientsAsEvents"]
 
     if selectForTransientsComputation == "z_score":
-        path = glob.glob(os.path.join(filepath, "z_score_*"))
+        path = list(Path(filepath).glob("z_score_*"))
     elif selectForTransientsComputation == "dff":
-        path = glob.glob(os.path.join(filepath, "dff_*"))
+        path = list(Path(filepath).glob("dff_*"))
     else:
-        path = glob.glob(os.path.join(filepath, "z_score_*")) + glob.glob(os.path.join(filepath, "dff_*"))
+        path = list(Path(filepath).glob("z_score_*")) + list(Path(filepath).glob("dff_*"))
 
     # Occurrence times per recording site per metric, kept for the binned metrics
     # below; with "Both" selected each site is visited twice, so they are
@@ -78,7 +75,7 @@ def findFreqAndAmp(
     site_to_transient_timestamps = {}
 
     for i in range(len(path)):
-        basename = (os.path.basename(path[i])).split(".")[0]
+        basename = (Path(path[i]).name).split(".")[0]
         name_1 = recording_site_from_preprocessed_label(basename)
         sampling_rate = read_hdf5("timeCorrection_" + name_1, filepath, "sampling_rate")[0]
         z_score = read_hdf5("", path[i], "data")
@@ -86,7 +83,7 @@ def findFreqAndAmp(
         z_score, timestamps, peaksInd, peaks_occurrences, freq_and_amp = analyze_transients(
             timestamps, window, numProcesses, highAmpFilt, transientsThresh, sampling_rate, z_score
         )
-        fileName = [os.path.basename(os.path.dirname(filepath))]
+        fileName = [Path(filepath).parent.name]
         write_freq_and_amp_to_hdf5(
             filepath, freq_and_amp, basename, index=fileName, columns=["freq (events/min)", "amplitude"]
         )
@@ -227,8 +224,6 @@ def executeFindFreqAndAmp(inputParameters: dict[str, object]) -> None:
 
     inputParameters = inputParameters
 
-    average = inputParameters["averageForGroup"]
-    group_session_folders = inputParameters["group_session_folders"]
     session_folders = inputParameters["session_folders"]
     combine_data = inputParameters["combine_data"]
     moving_window = inputParameters["moving_window"]
@@ -237,14 +232,14 @@ def executeFindFreqAndAmp(inputParameters: dict[str, object]) -> None:
         numProcesses = mp.cpu_count()
     elif numProcesses > mp.cpu_count():
         logger.warning(
-            f"Number of cores requested ({numProcesses}) exceeds available cores "
-            f"({mp.cpu_count()}); using {mp.cpu_count() - 1}."
+            "Number of cores requested (%s) exceeds available cores (%s); using %s.",
+            numProcesses,
+            mp.cpu_count(),
+            mp.cpu_count() - 1,
         )
         numProcesses = mp.cpu_count() - 1
 
-    if average == True:
-        execute_average_for_group(inputParameters, group_session_folders)
-    elif combine_data == True:
+    if combine_data == True:
         execute_find_freq_and_amp_combined(inputParameters, session_folders, moving_window, numProcesses)
     else:
         execute_find_freq_and_amp(inputParameters, session_folders, moving_window, numProcesses)
@@ -271,15 +266,12 @@ def execute_find_freq_and_amp(
     selected_runs = inputParameters.get("selected_runs") or {}
     for i in range(len(session_folders)):
         logger.debug(
-            f"Finding transients in z-score data of {session_folders[i]} and calculating frequency and amplitude."
+            "Finding transients in z-score data of %s and calculating frequency and amplitude.", session_folders[i]
         )
         filepath = session_folders[i]
         run_folders = select_run_folders(filepath, selected_runs.get(filepath))
         for j in range(len(run_folders)):
             filepath = run_folders[j]
-            store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(
-                2, -1
-            )
             findFreqAndAmp(filepath, inputParameters, window=moving_window, numProcesses=numProcesses)
             progress.advance()
         logger.info("Transients in z-score data found and frequency and amplitude are calculated.")
@@ -310,26 +302,5 @@ def execute_find_freq_and_amp_combined(
     combined_output_groups = get_all_stores_for_combining_data(run_folders)
     for i in range(len(combined_output_groups)):
         filepath = combined_output_groups[i][0]
-        store_array = np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
         findFreqAndAmp(filepath, inputParameters, window=moving_window, numProcesses=numProcesses)
         progress.advance()
-
-
-def execute_average_for_group(inputParameters: dict[str, object], group_session_folders: list[str]) -> None:
-    """Average transient frequency and amplitude results across all group sessions.
-
-    Parameters
-    ----------
-    inputParameters : dict
-        Full pipeline input parameters.
-    group_session_folders : list of str
-        Session folder paths selected for group averaging.
-
-    Raises
-    ------
-    ValueError
-        When ``group_session_folders`` is empty.
-    """
-    run_folders = gather_group_run_folders(inputParameters, group_session_folders)
-    averageForGroup(run_folders, inputParameters)
-    progress.advance()

@@ -69,5 +69,5 @@ class StepView:
         self.pending[token] = (session_folders, inputParameters)
         parts = urlsplit(_current_href())
         url = f"{parts.scheme}://{parts.netloc}/{self.route}?token={token}"
-        logger.info(f"Opening {self.route} at {url}")
+        logger.info("Opening %s at %s", self.route, url)
         webbrowser.open(url)

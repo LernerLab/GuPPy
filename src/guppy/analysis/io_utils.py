@@ -1,12 +1,16 @@
 import fnmatch
-import glob
 import logging
-import os
 import re
+from pathlib import Path
 
 import numpy as np
 
 from ..utils._hdf5_io import read_hdf5, write_hdf5  # noqa: F401  (re-exported)
+from ..utils.stores_list import (
+    COMBINED_STORES_LIST_FILENAME,
+    read_stores_list,
+    write_stores_list,
+)
 from ..utils.utils import takeOnlyDirs
 
 logger = logging.getLogger(__name__)
@@ -16,6 +20,9 @@ CONTROL_PREFIX = "control_"
 COVARIATE_PREFIX = "covariate_"
 ZSCORE_PREFIX = "z_score_"
 DFF_PREFIX = "dff_"
+
+PSTH_SIGNIFICANCE_DIRNAME = "psth_significance_output"
+PSTH_SIGNIFICANCE_PREFIX = "significance_"
 
 
 def is_channel_label(label: str) -> bool:
@@ -166,7 +173,7 @@ def recording_site_from_channel_path(path: str) -> str:
 
     Parameters
     ----------
-    path : str
+    path : str or Path
         File path such as ``".../signal_left_hemisphere.hdf5"``.
 
     Returns
@@ -174,16 +181,16 @@ def recording_site_from_channel_path(path: str) -> str:
     str
         The recording-site name, e.g. ``"left_hemisphere"``.
     """
-    return recording_site_from_channel_label(os.path.splitext(os.path.basename(path))[0])
+    return recording_site_from_channel_label(Path(path).stem)
 
 
-def find_files(path: str, glob_path: str, ignore_case: bool = False) -> list[str]:
+def find_files(path: str | Path, glob_path: str, ignore_case: bool = False) -> list[Path]:
     """
     List files in ``path`` matching a glob pattern, optionally case-insensitively.
 
     Parameters
     ----------
-    path : str
+    path : str or Path
         Directory to search.
     glob_path : str
         Glob-style pattern (e.g. ``'control_*'``).
@@ -192,7 +199,7 @@ def find_files(path: str, glob_path: str, ignore_case: bool = False) -> list[str
 
     Returns
     -------
-    list of str
+    list of Path
         Absolute paths of matching files.
     """
     rule = (
@@ -201,16 +208,8 @@ def find_files(path: str, glob_path: str, ignore_case: bool = False) -> list[str
         else re.compile(fnmatch.translate(glob_path))
     )
 
-    no_bytes_path = os.listdir(os.path.expanduser(path))
-    decoded_names = []
-
-    # converting byte object to string
-    for raw_name in no_bytes_path:
-        try:
-            decoded_names.append(raw_name.decode("utf-8"))
-        except:
-            decoded_names.append(raw_name)
-    return [os.path.join(path, name) for name in decoded_names if rule.match(name)]
+    directory = Path(path).expanduser()
+    return [entry for entry in directory.iterdir() if rule.match(entry.name)]
 
 
 def check_TDT(filepath: str) -> bool:
@@ -219,7 +218,7 @@ def check_TDT(filepath: str) -> bool:
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Directory to check.
 
     Returns
@@ -227,11 +226,7 @@ def check_TDT(filepath: str) -> bool:
     bool
         True if at least one ``.tsq`` file exists in the directory.
     """
-    path = glob.glob(os.path.join(filepath, "*.tsq"))
-    if len(path) > 0:
-        return True
-    else:
-        return False
+    return any(Path(filepath).glob("*.tsq"))
 
 
 def decide_naming_convention(filepath: str) -> np.ndarray:
@@ -254,12 +249,8 @@ def decide_naming_convention(filepath: str) -> np.ndarray:
 
     # Pair by recording-site name (fixed-prefix strip) rather than by sort position so
     # that recording-site names containing underscores are handled correctly.
-    control_by_recording_site = {
-        recording_site_from_channel_label(os.path.splitext(os.path.basename(p))[0]): p for p in control_paths
-    }
-    signal_by_recording_site = {
-        recording_site_from_channel_label(os.path.splitext(os.path.basename(p))[0]): p for p in signal_paths
-    }
+    control_by_recording_site = {recording_site_from_channel_label(p.stem): p for p in control_paths}
+    signal_by_recording_site = {recording_site_from_channel_label(p.stem): p for p in signal_paths}
 
     if set(control_by_recording_site) != set(signal_by_recording_site):
         control_without_signal = sorted(set(control_by_recording_site) - set(signal_by_recording_site))
@@ -307,15 +298,14 @@ def fetchCoords(filepath: str, naming: str, data: np.ndarray) -> np.ndarray:
         Shape ``(N, 2)`` array of ``[start, end]`` bounds for good chunks.
     """
 
-    path = os.path.join(filepath, "coordsForPreProcessing_" + naming + ".npy")
+    coords_path = Path(filepath) / ("coordsForPreProcessing_" + naming + ".npy")
 
-    if not os.path.exists(path):
+    if not coords_path.exists():
         coords = np.array([0, data[-1]])
     else:
-        coords = np.load(os.path.join(filepath, "coordsForPreProcessing_" + naming + ".npy"))[:, 0]
+        coords = np.load(coords_path)[:, 0]
 
     if coords.shape[0] % 2 != 0:
-        coords_path = os.path.join(filepath, "coordsForPreProcessing_" + naming + ".npy")
         message = (
             f"Coordinates file '{coords_path}' contains {coords.shape[0]} values, but artifact-removal "
             "coordinates must come in pairs (start, end) — i.e. an even count."
@@ -376,13 +366,13 @@ def check_storeslistfile(session_folders: list[str]) -> np.ndarray:
     store_array = np.array([[], []])
     for i in range(len(session_folders)):
         filepath = session_folders[i]
-        run_folders = takeOnlyDirs(glob.glob(os.path.join(filepath, "*_output_*")))
+        run_folders = takeOnlyDirs(list(Path(filepath).glob("*_output_*")))
         for j in range(len(run_folders)):
             filepath = run_folders[j]
             store_array = np.concatenate(
                 (
                     store_array,
-                    np.genfromtxt(os.path.join(filepath, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1),
+                    read_stores_list(run_folder=filepath),
                 ),
                 axis=1,
             )
@@ -405,7 +395,7 @@ def write_combined_stores_list(run_folders: list[object], store_array: np.ndarra
     """
     for k in range(len(run_folders)):
         filepath = run_folders[k][0]
-        np.savetxt(os.path.join(filepath, "combine_storesList.csv"), store_array, fmt="%s", delimiter=",")
+        write_stores_list(run_folder=filepath, store_array=store_array, filename=COMBINED_STORES_LIST_FILENAME)
 
 
 def get_control_and_signal_channel_names(store_array: np.ndarray) -> np.ndarray:
@@ -471,37 +461,64 @@ def make_dir_for_cross_correlation(filepath: str) -> str:
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         Parent directory inside which ``cross_correlation_output/`` is created.
 
     Returns
     -------
-    run_folder : str
+    run_folder : Path
         Path to the cross-correlation output directory.
     """
-    run_folder = os.path.join(filepath, "cross_correlation_output")
-    if not os.path.exists(run_folder):
-        os.mkdir(run_folder)
+    run_folder = Path(filepath) / "cross_correlation_output"
+    run_folder.mkdir(exist_ok=True)
     return run_folder
 
 
-def makeAverageDir(filepath: str) -> str:
+def recording_sites_for_output_directory(filepath: str) -> list[str]:
     """
-    Create and return the group-average output subdirectory.
+    Return the recording-site names an output directory holds results for.
+
+    Read from ``storesList.csv`` rather than from the preprocessed trace filenames, so a
+    directory that holds averaged results but no traces of its own (a group) needs no
+    stand-in files to name its sites.
 
     Parameters
     ----------
     filepath : str
-        Parent directory inside which ``average/`` is created.
+        Path to an output directory: a session run folder or a group folder.
 
     Returns
     -------
-    run_folder : str
-        Path to the average output directory.
+    list of str
+        Recording-site names, in the order their channels appear in ``storesList.csv``.
     """
+    store_array = read_stores_list(run_folder=filepath)
+    sites = []
+    for label in store_array[1, :]:
+        if not is_channel_label(label):
+            continue
+        site = recording_site_from_channel_label(label)
+        if site not in sites:
+            sites.append(site)
+    return sites
 
-    run_folder = os.path.join(filepath, "average")
-    if not os.path.exists(run_folder):
-        os.mkdir(run_folder)
 
+def make_dir_for_psth_significance(filepath: str) -> str:
+    """
+    Create and return the PSTH significance output subdirectory.
+
+    Parameters
+    ----------
+    filepath : str or Path
+        Parent directory inside which ``psth_significance_output/`` is created.
+
+    Returns
+    -------
+    run_folder : Path
+        Path to the PSTH significance output directory.
+    """
+    run_folder = Path(filepath) / PSTH_SIGNIFICANCE_DIRNAME
+    # Created rather than checked-then-created: comparisons run in parallel, so two
+    # workers can otherwise both find it missing and race to make it.
+    run_folder.mkdir(parents=True, exist_ok=True)
     return run_folder

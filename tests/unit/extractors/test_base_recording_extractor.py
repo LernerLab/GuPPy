@@ -4,7 +4,10 @@ import h5py
 import numpy as np
 import pytest
 
-from guppy.extractors.base_recording_extractor import read_and_save_events_for_extractor
+from guppy.extractors.base_recording_extractor import (
+    BaseRecordingExtractor,
+    read_and_save_events_for_extractor,
+)
 from guppy.testing.mock_recording_extractor import (
     _MOCK_DURATION_IN_SECONDS,
     _MOCK_SAMPLING_RATE,
@@ -66,6 +69,38 @@ def test_batched_events_with_u34_store_id_normalizes_dtype(tmp_path):
     assert (tmp_path / "fiber_photometry_response_series_0.hdf5").exists()
     with h5py.File(tmp_path / "fiber_photometry_response_series_0.hdf5", "r") as file:
         assert "timestamps" in file
+
+
+# ---------------------------------------------------------------------------
+# Abstract-method contract
+# ---------------------------------------------------------------------------
+
+
+def test_subclass_without_count_samples_cannot_be_instantiated():
+    """A subclass that forgets count_samples fails loudly at instantiation."""
+
+    class _MissingCountSamples(BaseRecordingExtractor):
+        @classmethod
+        def discover_events_and_flags(cls):
+            return [], []
+
+        def read(self, *, events, outputPath):
+            return []
+
+        def save(self, *, output_dicts, outputPath):
+            return None
+
+        def stub(self, *, folder_path, duration_in_seconds=1.0):
+            return None
+
+    with pytest.raises(TypeError, match="count_samples"):
+        _MissingCountSamples()
+
+
+def test_committed_samples_for_event_defaults_to_zero():
+    extractor = MockRecordingExtractor("mock_folder")
+
+    assert extractor.committed_samples_for_event("mock_signal") == 0
 
 
 # ---------------------------------------------------------------------------

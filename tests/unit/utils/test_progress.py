@@ -16,7 +16,7 @@ def bound_step():
 class TestStepProgress:
     def test_starts_empty(self):
         step = StepProgress()
-        assert (step.total, step.value, step.error_message) == (0, 0, None)
+        assert (step.total, step.value, step.error_message, step.warnings) == (0, 0, None, [])
 
     def test_start_sets_total_and_zeroes_value(self):
         step = StepProgress()
@@ -50,6 +50,13 @@ class TestStepProgress:
         step.fail("baselineWindowStart=-1 is before the signal start 0s")
         assert step.error_message == "baselineWindowStart=-1 is before the signal start 0s"
 
+    def test_warn_collects_messages_without_failing(self):
+        step = StepProgress()
+        step.warn("skipped rewarded_dms_z_score_dms")
+        step.warn("skipped port_entries_dms_z_score_dms")
+        assert step.warnings == ["skipped rewarded_dms_z_score_dms", "skipped port_entries_dms_z_score_dms"]
+        assert step.error_message is None
+
 
 class TestModuleFunctions:
     def test_emit_to_the_bound_step(self, bound_step):
@@ -57,8 +64,10 @@ class TestModuleFunctions:
         progress.advance()
         progress.advance(2)
         progress.fail("boom")
+        progress.warn("two sessions is too few")
 
         assert (bound_step.total, bound_step.value, bound_step.error_message) == (6, 3, "boom")
+        assert bound_step.warnings == ["two sessions is too few"]
 
     def test_track_reaches_the_bound_step(self, bound_step):
         progress.start(50)
@@ -75,6 +84,7 @@ class TestModuleFunctions:
         progress.advance()
         progress.track(lambda: 3)
         progress.fail("ignored")
+        progress.warn("ignored")
 
         assert _current_step.get() is None
 

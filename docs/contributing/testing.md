@@ -20,8 +20,7 @@ command to run while iterating on it — saves you from waiting on the slow ones
 
 ## Markers
 
-Four of the five registered markers gate tests that need something beyond a plain `pytest`
-invocation:
+The registered markers gate tests that need something beyond a plain `pytest` invocation:
 
 - **`full_data`** — needs the full `testing_data/` download, not present in a normal checkout.
   Deselect with `-m "not full_data"`.
@@ -31,8 +30,6 @@ invocation:
   `-m "not ui"`.
 - **`dandi_live`** — streams from the real DANDI Archive over the network. Opt in explicitly with
   `-m dandi_live`; never run it as part of a broader selection.
-- **`progress_bar`** — exercises the progress-bar file-locking loop. Currently applied to no tests,
-  and skipped on Windows in CI when it is.
 
 Markers are declared in
 [`pyproject.toml`](https://github.com/LernerLab/GuPPy/blob/main/pyproject.toml) under
@@ -75,11 +72,21 @@ the full OS-by-Python-version matrix overnight, including `full_data` tests. `da
 excluded from every pytest invocation in both workflows, so they never run automatically — only a
 contributor running `-m dandi_live` locally exercises them.
 
+Neither workflow downloads `stubbed_testing_data/` in every job. Each run starts with a
+`Prepare stubbed data` job that restores the Git LFS object store from the Actions cache, fetches
+whatever that store is missing, and saves it back; the matrix jobs then restore the same cache and
+check their files out of it without touching the network. Because the cache holds LFS objects
+rather than the checked-out files, and because it falls back to the previous entry when the data
+changes, adding a session under `stubbed_testing_data/` costs CI roughly that session's own bytes
+instead of the whole tree. A companion `warm-stubbed-data-cache.yml` repeats the same warm-up on
+every push to `main` that touches the data, so pull requests opened afterwards inherit a current
+cache.
+
 ## The headless testing pattern
 
-Most integration and orchestration tests never touch a browser. They set the `GUPPY_BASE_DIR`
-environment variable to bypass the Tk folder dialogs, call `build_homepage()` to assemble the Panel
-template, and then drive the pipeline through `step1()` through `step5()` from
+Most integration and orchestration tests never touch a browser. They call
+`build_homepage(start_path=...)` to assemble the Panel template with its file selectors rooted at
+the test's data directory, and then drive the pipeline through `step1()` through `step5()` from
 [`guppy.testing.api`](https://github.com/LernerLab/GuPPy/blob/main/src/guppy/testing/api.py). This
 mirrors the production call chain, so a test exercises the same code path a click does.
 

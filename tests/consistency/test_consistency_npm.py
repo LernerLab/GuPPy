@@ -1,6 +1,5 @@
-import glob
-import os
 import shutil
+from pathlib import Path
 
 import pytest
 
@@ -16,7 +15,7 @@ CONSISTENCY_CASES = [
             "file0_chev6": "control_region",
             "file1_chev6": "signal_region",
         },
-        {"npm_split_events": [True, True]},
+        {"npm_split_events": None},
     ),
     (
         "SampleData_Neurophotometrics/sampleData_NPM_3",
@@ -40,7 +39,7 @@ CONSISTENCY_CASES = [
             "file0_chod1": "signal_region1",
             "eventTrue": "ttl_true_region1",
         },
-        {"npm_split_events": [True, True]},
+        {"npm_split_events": [False, True]},
     ),
     (
         "SampleData_Neurophotometrics/sampleData_NPM_5",
@@ -94,7 +93,7 @@ def test_consistency(
     session_copy = tmp_base / dest_name
     shutil.copytree(src_session, session_copy)
 
-    for d in glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")):
+    for d in list(Path(session_copy).glob(f"{dest_name}_output_*")):
         shutil.rmtree(d)
     params_fp = session_copy / "GuPPyParamtersUsed.json"
     if params_fp.exists():
@@ -111,7 +110,7 @@ def test_consistency(
     step3(**common_kwargs, control_fit_method="OLS", selected_runs=selected_runs, **extra_kwargs)
     step4(**common_kwargs, selected_runs=selected_runs, **extra_kwargs)
 
-    run_folders = sorted(glob.glob(os.path.join(session_copy, f"{dest_name}_output_*")))
+    run_folders = sorted(list(Path(session_copy).glob(f"{dest_name}_output_*")))
     assert run_folders, f"No output directory found under {session_copy}"
     actual_output_dir = run_folders[0]
 

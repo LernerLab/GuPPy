@@ -110,7 +110,7 @@ def compute_psth(
     # skip the event if there are no TTLs
     if len(event_timestamps) == 0:
         kept_timestamps = np.array([])
-        logger.info(f"Warning : No TTLs present for {event}. This will cause an error in Visualization step")
+        logger.info("Warning : No TTLs present for %s. This will cause an error in Visualization step", event)
     else:
         kept_timestamps = [event_timestamps[0]]
         for i in range(1, event_timestamps.shape[0]):
@@ -227,6 +227,12 @@ def rowFormation(z_score: np.ndarray, thisIndex: int, nTsPrev: int, nTsPost: int
         1-D trial array of length ``nTsPrev + nTsPost + 1``, NaN-padded where the
         signal does not exist.
     """
+
+    # The branches below size their NaN padding from the gap between the requested window and
+    # the signal. That gap is bounded only while the window still overlaps the signal, so an
+    # event landing far outside the trace is answered here rather than by allocating the gap.
+    if (thisIndex + nTsPost) <= 0 or (thisIndex - nTsPrev - 1) >= z_score.shape[0]:
+        return np.full(nTsPrev + nTsPost + 1, np.nan)
 
     if nTsPrev < thisIndex and z_score.shape[0] > (thisIndex + nTsPost):
         trial = z_score[thisIndex - nTsPrev - 1 : thisIndex + nTsPost]

@@ -1,6 +1,5 @@
 import logging
 import multiprocessing as mp
-import os
 
 import numpy as np
 
@@ -17,9 +16,11 @@ from guppy.extractors import (
 )
 from guppy.extractors import base_recording_extractor as base_module
 from guppy.extractors.base_recording_extractor import _pool_initializer
+from guppy.extractors.npm_recording_extractor import DEFAULT_NUM_CHANNELS
 from guppy.orchestration.save_parameters import save_parameters
 from guppy.utils import progress
 from guppy.utils.progress import step_error_handler
+from guppy.utils.stores_list import read_stores_list
 from guppy.utils.utils import load_npm_params, select_run_folders
 
 logger = logging.getLogger(__name__)
@@ -76,7 +77,7 @@ def _build_event_to_extractor(*, folder_path: str, store_array: np.ndarray, inpu
             event_to_extractor[event] = extractor
         return event_to_extractor
 
-    num_ch = inputParameters["noChannels"]
+    num_ch = inputParameters.get("noChannels", DEFAULT_NUM_CHANNELS)
     all_formats = detect_acquisition_formats(folder_path)
     # Doric extractor requires a store-name→event-type mapping built from store_array
     event_name_to_event_type = {
@@ -147,8 +148,10 @@ def orchestrate_read_raw_data(inputParameters: dict[str, object]) -> None:
         numProcesses = mp.cpu_count()
     elif numProcesses > mp.cpu_count():
         logger.warning(
-            f"Number of cores requested ({numProcesses}) exceeds available cores "
-            f"({mp.cpu_count()}); using {mp.cpu_count() - 1}."
+            "Number of cores requested (%s) exceeds available cores (%s); using %s.",
+            numProcesses,
+            mp.cpu_count(),
+            mp.cpu_count() - 1,
         )
         numProcesses = mp.cpu_count() - 1
 
@@ -179,9 +182,7 @@ def orchestrate_read_raw_data(inputParameters: dict[str, object]) -> None:
                         f"Event '{event}' not found in any extractor for folder {filepath}. "
                         f"Available events: {available}."
                     )
-                event_total_samples[event] = (
-                    int(extractor.count_samples(event=event)) if hasattr(extractor, "count_samples") else 0
-                )
+                event_total_samples[event] = int(extractor.count_samples(event=event))
                 total_samples += event_total_samples[event]
 
             # Group events by extractor instance identity so each task is one
@@ -218,13 +219,19 @@ def orchestrate_read_raw_data(inputParameters: dict[str, object]) -> None:
         base_module._SAMPLES_DONE = samples_done
         try:
             for extractor, grouped_events, run_folder, event_totals in tasks:
-                logger.debug(f"### Reading raw data for {len(grouped_events)} event(s) into {run_folder}")
+                logger.debug("### Reading raw data for %s event(s) into %s", len(grouped_events), run_folder)
                 read_and_save_events_for_extractor(extractor, grouped_events, run_folder, event_totals)
         finally:
             base_module._SAMPLES_DONE = None
     else:
         with spawn_context.Pool(numProcesses, initializer=_pool_initializer, initargs=(samples_done,)) as pool:
             pool.starmap(read_and_save_events_for_extractor, tasks)
+            # Close and join before leaving the block. The context manager's __exit__ calls
+            # terminate(), which signals every worker and then blocks in waitpid() until it is
+            # gone; a worker that is slow to exit never gets there and the parent waits forever.
+            # starmap has already returned, so there is nothing to abort.
+            pool.close()
+            pool.join()
     logger.info("### Raw data fetched for all sessions")
 
     logger.info("Raw data fetched and saved.")
@@ -237,7 +244,7 @@ def _load_stores_list(run_folder: str) -> np.ndarray:
     store_array is finalized in step 1 (including TDT split sub-events) and is no
     longer mutated during extraction, so it is read directly.
     """
-    return np.genfromtxt(os.path.join(run_folder, "storesList.csv"), dtype="str", delimiter=",").reshape(2, -1)
+    return read_stores_list(run_folder=run_folder)
 
 
 @step_error_handler

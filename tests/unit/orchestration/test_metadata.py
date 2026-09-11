@@ -13,6 +13,7 @@ from guppy.orchestration import metadata as metadata_module
 from guppy.orchestration.metadata import (
     METADATA_FILENAME,
     build_metadata_template,
+    build_metadata_templates,
     orchestrate_metadata_page,
 )
 from guppy.utils.nwb_metadata import Channel, build_metadata_dict, load_yaml
@@ -220,14 +221,14 @@ class TestRequiresSessionStartTime:
     def test_tdt_session_does_not_require_one(self, required_flags, session_path):
         (session_path / "Photo_session.tsq").write_bytes(b"\x00")
 
-        orchestrate_metadata_page(self._input_parameters(session_path))
+        build_metadata_templates(inputParameters=self._input_parameters(session_path))
 
         assert required_flags == [False]
 
     def test_csv_session_requires_one(self, required_flags, session_path):
         (session_path / "signal_dms.csv").write_text("timestamps,data,sampling_rate\n0.0,1.0,100.0\n")
 
-        orchestrate_metadata_page(self._input_parameters(session_path))
+        build_metadata_templates(inputParameters=self._input_parameters(session_path))
 
         assert required_flags == [True]
 
@@ -242,8 +243,7 @@ class TestRequiresSessionStartTime:
 
 
 class TestOrchestrateMetadataPage:
-    def test_headless_builds_pages_without_serving(self, panel_extension, tmp_path):
-        # GUPPY_BASE_DIR is set by the test conftest -> headless: pages are built but never served.
+    def test_builder_builds_pages_without_serving(self, panel_extension, tmp_path):
         session = tmp_path / "Photo_session"
         output_dir = session / "Photo_session_output_run1"
         output_dir.mkdir(parents=True)
@@ -257,7 +257,29 @@ class TestOrchestrateMetadataPage:
         input_parameters = {"selected_runs": {str(session): ["run1"]}, "combine_data": False}
 
         # Must return without raising and without opening a server.
+        build_metadata_templates(inputParameters=input_parameters)
+
+    def test_orchestrator_serves_each_built_page(self, panel_extension, monkeypatch, tmp_path):
+        session = tmp_path / "Photo_session"
+        output_dir = session / "Photo_session_output_run1"
+        output_dir.mkdir(parents=True)
+        (session / "Photo_session.tsq").write_bytes(b"\x00")
+        np.savetxt(
+            output_dir / "storesList.csv",
+            np.array([["Dv1A", "Dv2A"], ["control_dms", "signal_dms"]]),
+            delimiter=",",
+            fmt="%s",
+        )
+        input_parameters = {"selected_runs": {str(session): ["run1"]}, "combine_data": False}
+
+        served_ports = []
+        monkeypatch.setattr(
+            metadata_module.pn.template.BootstrapTemplate, "show", lambda self, port: served_ports.append(port)
+        )
+
         orchestrate_metadata_page(input_parameters)
+
+        assert len(served_ports) == 1
 
     def test_combined_run_is_refused_before_any_page_is_built(self, panel_extension, tmp_path):
         # Step 6 edits one metadata file per session output directory, which combining collapses,
@@ -311,14 +333,14 @@ class TestOrchestrateMetadataPageSkipsNwbSources:
             "combine_data": False,
         }
 
-        orchestrate_metadata_page(input_parameters)
+        build_metadata_templates(inputParameters=input_parameters)
 
         assert built_sessions == ["Photo_raw (run1)"]
 
     def test_an_all_nwb_batch_builds_nothing(self, built_sessions, nwb_session):
         input_parameters = {"selected_runs": {str(nwb_session): ["run1"]}, "combine_data": False}
 
-        orchestrate_metadata_page(input_parameters)
+        build_metadata_templates(inputParameters=input_parameters)
 
         assert built_sessions == []
 
@@ -333,6 +355,6 @@ class TestOrchestrateMetadataPageSkipsNwbSources:
             "combine_data": False,
         }
 
-        orchestrate_metadata_page(input_parameters)
+        build_metadata_templates(inputParameters=input_parameters)
 
         assert built_sessions == []
