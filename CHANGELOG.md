@@ -1,6 +1,7 @@
 # v2.0.0-beta3 (Upcoming)
 
 ## Features
+- The DANDI source panel can now search the archive for fiber photometry dandisets and filter the results by brain region, indicator, species, experimental approach and dataset scale, then stream one NWB file's header to show its channels, their recording sites, indicators and wavelengths, the store names Step 1 will ask you to label, and the first 60 seconds of every channel. The asset browser filters its tree by path and by minimum file size, which separates a dandiset's recordings from its behavior-only files, and previews any file you select. [PR #506](https://github.com/LernerLab/GuPPy/pull/506)
 - PSTH significance results now reach the exported NWB file, as one `GuppyPSTHSignificance` object per recording site, trace type and comparison kind. [PR #502](https://github.com/LernerLab/GuPPy/pull/502)
 - Artifact periods can now be marked by dragging horizontally across a trace on the Select Artifact Windows page, which shows one selectable trace at a time and toggles between **Mark artifacts** and **Navigate**; a **Copy windows from run** control loads the periods already saved for another run of the same session. [PR #472](https://github.com/LernerLab/GuPPy/pull/472)
 
