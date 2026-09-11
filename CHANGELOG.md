@@ -1,6 +1,7 @@
 # v2.0.0-beta4 (Upcoming)
 
 ## Features
+- Analysis outputs no longer land inside the session folder: each run folder is written to an output base directory chosen in the Output Folder Selection card, defaulting to a `guppy_output` directory beside each selected session, so raw data is never written to. The previous layout remains available as the **Output Location** setting *inside each session folder*. [PR #508](https://github.com/LernerLab/GuPPy/pull/508)
 
 ## Fixes
 
