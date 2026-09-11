@@ -15,6 +15,7 @@ import pytest
 
 from guppy.analysis.io_utils import read_hdf5
 from guppy.testing.api import (
+    locate_run_folder,
     remove_artifacts,
     select_artifact_windows,
     step1,
@@ -39,7 +40,7 @@ def _stubbed_data_root():
 
 
 def _output_directory(session):
-    return sorted(list(Path(session).glob(f"{SESSION_NAME}_output_*")))[0]
+    return Path(locate_run_folder(session=str(session)))
 
 
 @pytest.fixture
