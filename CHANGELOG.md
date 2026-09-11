@@ -3,6 +3,7 @@
 ## Features
 
 ## Fixes
+- A Neurophotometrics file whose header carries blank column titles, or a second timestamp column alongside one named `Timestamp`, now opens the Label Stores page instead of leaving it blank with a pandas error visible only in the terminal running the server. Blank-header columns name no channel, so they are excluded from the derived stores and named in a warning, and a `FrameCounter` column is no longer required. Any other problem with an NPM configuration is now reported in the page's alert pane. [PR #507](https://github.com/LernerLab/GuPPy/pull/507)
 
 ## Improvements
 - The cross-correlation lag axis is now named and documented in seconds, the unit it has always held, rather than milliseconds. [PR #503](https://github.com/LernerLab/GuPPy/pull/503)
