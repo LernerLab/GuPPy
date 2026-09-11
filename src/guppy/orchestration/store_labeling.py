@@ -461,7 +461,7 @@ def build_store_labeling_template(
 def _compute_npm_channel_previews(
     inputParameters: dict[str, object], folder_path: str
 ) -> dict[str, dict[str, np.ndarray]]:
-    """Decompose the NPM session in memory and return chev/chod/chpr preview traces.
+    """Decompose the NPM session in memory and return the photometry channels' preview traces.
 
     Parameters
     ----------
@@ -474,7 +474,7 @@ def _compute_npm_channel_previews(
     Returns
     -------
     dict
-        Maps each chev/chod/chpr channel name to ``{"x": timestamps, "y": data}``.
+        Maps each photometry channel name to ``{"x": timestamps, "y": data}``.
     """
     extractor = NpmRecordingExtractor(
         folder_path=folder_path,
@@ -486,11 +486,12 @@ def _compute_npm_channel_previews(
     streams = extractor.decompose()
     previews = {}
     for name, stream in streams.items():
-        if "data" in stream and ("chev" in name or "chod" in name or "chpr" in name):
+        # Only the photometry channels carry data; the event streams are timestamps alone.
+        if "data" in stream:
             x = stream["timestamps"]
             y = stream["data"]
-            # chod/chpr borrow chev's timestamps, which can be one sample shorter
-            # than their own data (ragged interleaving); align lengths for plotting.
+            # The paired channels borrow the first channel group's timestamps, which can be
+            # one sample shorter than their own data (ragged interleaving); align for plotting.
             n = min(len(x), len(y))
             previews[name] = {"x": x[:n], "y": y[:n]}
     return previews

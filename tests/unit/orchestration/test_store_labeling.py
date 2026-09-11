@@ -864,8 +864,8 @@ def test_save_button_sets_alert_on_mismatched_lengths(store_labeling_closures, t
 
 
 def test_compute_npm_channel_previews_aligns_ragged_channel_lengths():
-    # sampleData_NPM_4 interleaves unevenly: chod has one more sample than chev, so chod
-    # borrows chev's (shorter) timestamps. The preview must align x/y to equal length,
+    # sampleData_NPM_4 interleaves unevenly: the 470 nm channels have one more sample than the
+    # 415 nm ones, so they borrow the 415 nm (shorter) timestamps. The preview must align x/y to equal length,
     # otherwise hv.Curve raises a DataError in the Step-1 GUI.
     folder_path = Path(STUBBED_TESTING_DATA) / "npm" / "sampleData_NPM_4"
     input_parameters = {"noChannels": 2}
@@ -878,11 +878,11 @@ def test_compute_npm_channel_previews_aligns_ragged_channel_lengths():
         for name, stream in streams.items()
         if "data" in stream and len(stream["timestamps"]) != len(stream["data"])
     ]
-    assert ragged, "Expected at least one ragged chod/chpr channel in sampleData_NPM_4"
+    assert ragged, "Expected at least one ragged paired channel in sampleData_NPM_4"
 
     previews = _compute_npm_channel_previews(input_parameters, folder_path)
 
-    assert previews, "Expected chev/chod/chpr previews for an NPM session"
+    assert previews, "Expected photometry channel previews for an NPM session"
     for name, preview in previews.items():
         assert len(preview["x"]) == len(preview["y"]), f"Unequal x/y lengths for preview {name!r}"
 
@@ -947,7 +947,7 @@ def test_confirm_npm_configuration_writes_params_and_populates_page(panel_extens
     assert input_parameters["npm_timestamp_column_name"] == "ComputerTimestamp"
 
     # Discovery ran and populated the store selector with the derived NPM store_ids.
-    assert "file0_chod3" in selector.cross_selector.options
+    assert "file0_470nm_column3" in selector.cross_selector.options
     assert "event3" in selector.cross_selector.options
     assert selector.cross_selector.options == selector.multi_choice.options
 

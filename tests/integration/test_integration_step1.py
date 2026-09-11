@@ -89,30 +89,30 @@ from guppy_test_data import STUBBED_TESTING_DATA
         (
             "npm/sampleData_NPM_1",
             {
-                "file0_chev1": "signal_region",
-                "file0_chod1": "control_region",
+                "file0_415nm_column1": "signal_region",
+                "file0_470nm_column1": "control_region",
             },
         ),
         (
             "npm/sampleData_NPM_2",
             {
-                "file0_chev6": "control_region",
-                "file1_chev6": "signal_region",
+                "file0_415nm_column6": "control_region",
+                "file1_470nm_column6": "signal_region",
             },
         ),
         (
             "npm/sampleData_NPM_3",
             {
-                "file0_chev3": "control_region3",
-                "file0_chod3": "signal_region3",
+                "file0_415nm_column3": "control_region3",
+                "file0_470nm_column3": "signal_region3",
                 "event3": "ttl_region3",
             },
         ),
         (
             "npm/sampleData_NPM_4",
             {
-                "file0_chev1": "control_region1",
-                "file0_chod1": "signal_region1",
+                "file0_415nm_column1": "control_region1",
+                "file0_470nm_column1": "signal_region1",
                 "eventTrue": "ttl_true_region1",
             },
         ),
@@ -232,7 +232,8 @@ def test_step1(tmp_path, session_subdir, store_id_to_store_label):
     # source session folder, and must persist the decomposition params next to storesList.csv.
     if session_subdir.startswith("npm/"):
         intermediates = (
-            list(Path(session_copy).glob("file*_chev*.csv"))
+            list(Path(session_copy).glob("file*nm_column*.csv"))
+            + list(Path(session_copy).glob("file*_chev*.csv"))
             + list(Path(session_copy).glob("file*_chod*.csv"))
             + list(Path(session_copy).glob("file*_chpr*.csv"))
             + list(Path(session_copy).glob("event*.csv"))

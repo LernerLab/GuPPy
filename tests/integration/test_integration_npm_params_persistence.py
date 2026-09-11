@@ -26,8 +26,8 @@ def test_step2_reproduces_split_events_from_persisted_params(tmp_path):
     shutil.copytree(src_session, session_copy)
 
     store_id_to_store_label = {
-        "file0_chev1": "control_region1",
-        "file0_chod1": "signal_region1",
+        "file0_415nm_column1": "control_region1",
+        "file0_470nm_column1": "signal_region1",
         "eventTrue": "ttl_true_region1",
     }
 

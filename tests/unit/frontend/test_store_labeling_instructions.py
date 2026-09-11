@@ -37,23 +37,23 @@ class TestStoreLabelingInstructionsNPM:
     def one_file_instructions(self, tmp_path, panel_extension):
         return StoreLabelingInstructionsNPM(
             folder_path=str(tmp_path / "npm_session"),
-            channel_previews={"chev1": self._preview()},
+            channel_previews={"file0_415nm_column1": self._preview()},
         )
 
     @pytest.fixture
     def two_file_instructions(self, tmp_path, panel_extension):
         return StoreLabelingInstructionsNPM(
             folder_path=str(tmp_path / "npm_session"),
-            channel_previews={"chev1": self._preview(), "chev2": self._preview()},
+            channel_previews={"file0_415nm_column1": self._preview(), "file0_470nm_column1": self._preview()},
         )
 
     def test_plot_select_options_match_basenames(self, two_file_instructions):
-        expected_basenames = sorted(["chev1", "chev2"])
+        expected_basenames = sorted(["file0_415nm_column1", "file0_470nm_column1"])
         actual_options = sorted(two_file_instructions.plot_select.options)
         assert actual_options == expected_basenames
 
     def test_make_plot_returns_hv_curve(self, one_file_instructions):
-        plot = one_file_instructions._make_plot("chev1")
+        plot = one_file_instructions._make_plot("file0_415nm_column1")
         assert isinstance(plot, hv.Curve)
 
     def test_plot_select_change_updates_plot_pane(self, two_file_instructions):
@@ -150,15 +150,15 @@ class TestStoreLabelingInstructionsNPMConfigForm:
     def test_set_channel_previews_populates_plot_after_confirm(self, config_form):
         assert config_form.plot_select is None
         config_form.set_channel_previews(
-            channel_previews={"chev1": {"x": np.array([0.0, 1.0]), "y": np.array([2.0, 3.0])}}
+            channel_previews={"file0_415nm_column1": {"x": np.array([0.0, 1.0]), "y": np.array([2.0, 3.0])}}
         )
-        assert config_form.plot_select.options == ["chev1"]
-        assert isinstance(config_form._make_plot("chev1"), hv.Curve)
+        assert config_form.plot_select.options == ["file0_415nm_column1"]
+        assert isinstance(config_form._make_plot("file0_415nm_column1"), hv.Curve)
 
     def test_non_interactive_mode_has_no_confirm_button(self, tmp_path, panel_extension):
         instructions = StoreLabelingInstructionsNPM(
             folder_path=str(tmp_path / "npm_session"),
-            channel_previews={"chev1": {"x": np.array([0.0, 1.0]), "y": np.array([2.0, 3.0])}},
+            channel_previews={"file0_415nm_column1": {"x": np.array([0.0, 1.0]), "y": np.array([2.0, 3.0])}},
         )
         assert instructions.confirm_button is None
-        assert instructions.plot_select.options == ["chev1"]
+        assert instructions.plot_select.options == ["file0_415nm_column1"]

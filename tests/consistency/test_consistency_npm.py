@@ -12,8 +12,8 @@ CONSISTENCY_CASES = [
         "SampleData_Neurophotometrics/sampleData_NPM_2",
         "StandardOutputs_Neurophotometrics/sampleData_NPM_2/sampleData_NPM_2_output_1",
         {
-            "file0_chev6": "control_region",
-            "file1_chev6": "signal_region",
+            "file0_415nm_column6": "control_region",
+            "file1_470nm_column6": "signal_region",
         },
         {"npm_split_events": None},
     ),
@@ -21,8 +21,8 @@ CONSISTENCY_CASES = [
         "SampleData_Neurophotometrics/sampleData_NPM_3",
         "StandardOutputs_Neurophotometrics/sampleData_NPM_3/sampleData_NPM_3_output_1",
         {
-            "file0_chev3": "control_region3",
-            "file0_chod3": "signal_region3",
+            "file0_415nm_column3": "control_region3",
+            "file0_470nm_column3": "signal_region3",
             "event3": "ttl_region3",
         },
         {
@@ -35,8 +35,8 @@ CONSISTENCY_CASES = [
         "SampleData_Neurophotometrics/sampleData_NPM_4",
         "StandardOutputs_Neurophotometrics/sampleData_NPM_4/sampleData_NPM_4_output_1",
         {
-            "file0_chev1": "control_region1",
-            "file0_chod1": "signal_region1",
+            "file0_415nm_column1": "control_region1",
+            "file0_470nm_column1": "signal_region1",
             "eventTrue": "ttl_true_region1",
         },
         {"npm_split_events": [False, True]},

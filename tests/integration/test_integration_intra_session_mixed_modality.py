@@ -171,8 +171,8 @@ def test_mixed_modality_npm_csv_ttl(tmp_path):
         base_dir=base_dir,
         selected_folders=selected_folders,
         store_id_to_store_label={
-            "file0_chev1": "signal_region",
-            "file0_chod1": "control_region",
+            "file0_415nm_column1": "signal_region",
+            "file0_470nm_column1": "control_region",
             "csv_event": "ttl_region",
         },
         npm_split_events=[False, True],

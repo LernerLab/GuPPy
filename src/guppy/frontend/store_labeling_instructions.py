@@ -74,7 +74,7 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
         Absolute path to the NPM session directory; its basename is shown as a
         heading above the instructions.
     channel_previews : dict
-        Maps each chev/chod/chpr channel name to a dict with ``"x"`` (timestamps)
+        Maps each photometry channel name to a dict with ``"x"`` (timestamps)
         and ``"y"`` (data) arrays to plot. Pass an empty dict to start with no
         preview (populated later via :meth:`set_channel_previews`).
     multiple_event_ttls : list of bool, optional
@@ -103,17 +103,20 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
                                         ### Extra Instructions to follow when using Neurophotometrics data :
                                         - Guppy will take the NPM data, which has interleaved frames
                                         from the signal and control channels, and divide it out into
-                                        separate channels for each site you recordded.
-                                        However, since NPM does not automatically annotate which
-                                        frames belong to the signal channel and which belong to the
-                                        control channel, the user must specify this for GuPPy.
-                                        - Each of your recording sites will have a channel
-                                        named “chod” and a channel named “chev”
-                                        - View the plots below and, for each site,
-                                        determine whether the “chev” or “chod” channel is signal or control
+                                        separate channels for each site you recorded.
+                                        - When the file carries a “LedState” or “Flags” column, each
+                                        channel is named after the excitation wavelength that frame was
+                                        illuminated with, e.g. “file0_415nm_column1”. The 415 nm channel
+                                        is the isosbestic **control** and 470 nm (or 560 nm) carries the
+                                        **signal**.
+                                        - Older files without that column cannot say which LED lit which
+                                        frame, so their channels are named positionally instead: each
+                                        recording site gets a channel named “chev” and one named “chod”.
+                                        View the plots below and, for each site, determine which of the
+                                        two is signal and which is control.
                                         - Label the channels using the Type dropdowns. For example,
-                                        mark “chev1” as **signal** and name it “A”, then mark “chod1”
-                                        as **control** and set its **Control for** to “chev1” (or vice
+                                        mark “chod1” as **signal** and name it “A”, then mark “chev1”
+                                        as **control** and set its **Control for** to “chod1” (or vice
                                         versa).
 
                                             """,
@@ -234,7 +237,7 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
         Parameters
         ----------
         channel_previews : dict
-            Maps each chev/chod/chpr channel name to a dict with ``"x"`` and
+            Maps each photometry channel name to a dict with ``"x"`` and
             ``"y"`` arrays to plot.
         """
         self.channel_preview_arrays = {

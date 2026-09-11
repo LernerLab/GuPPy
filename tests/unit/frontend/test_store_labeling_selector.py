@@ -33,9 +33,9 @@ class TestStoreLabelingSelector:
 
     def test_set_events_replaces_options_in_both_widgets(self, panel_extension):
         selector = StoreLabelingSelector(allnames=[])
-        selector.set_events(events=["file0_chev1", "file0_chod1", "event0"])
-        assert selector.cross_selector.options == ["file0_chev1", "file0_chod1", "event0"]
-        assert selector.multi_choice.options == ["file0_chev1", "file0_chod1", "event0"]
+        selector.set_events(events=["file0_415nm_column1", "file0_470nm_column1", "event0"])
+        assert selector.cross_selector.options == ["file0_415nm_column1", "file0_470nm_column1", "event0"]
+        assert selector.multi_choice.options == ["file0_415nm_column1", "file0_470nm_column1", "event0"]
 
     def test_set_select_location_options(self, panel_extension):
         selector = StoreLabelingSelector(allnames=["Dv1A"])

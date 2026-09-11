@@ -23,6 +23,12 @@ TIME_UNIT_DIVISORS = {"seconds": 1.0, "milliseconds": 1e3, "microseconds": 1e6}
 DEFAULT_TIME_UNIT = "seconds"
 # Channel count assumed until the Label Stores page asks for one.
 DEFAULT_NUM_CHANNELS = 2
+# Excitation wavelength, in nanometres, of the LED each state value selects. The low three
+# bits of the state column pick the LED, which is what lets one mapping serve both firmware
+# encodings: LedState writes those bits on their own (1/2/4), while Flags carries them with
+# an offset (17/18/20, and 273/274 while stimulation is on).
+LED_STATE_WAVELENGTHS_IN_NM = {1: 415, 2: 470, 4: 560}
+LED_STATE_MASK = 0b111
 
 
 class NpmRecordingExtractor(CsvRecordingExtractor):
@@ -261,8 +267,9 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         -------
         streams : dict
             Maps event name to a stream dict. Data channels
-            (``file{i}_chev{j}`` / ``chod{j}`` / ``chpr{j}``) carry
-            ``timestamps``, ``data``, and ``sampling_rate``; event streams
+            (``file{i}_{wavelength}nm_column{j}``, or ``file{i}_chev{j}`` /
+            ``chod{j}`` / ``chpr{j}`` when the file does not name its LEDs)
+            carry ``timestamps``, ``data``, and ``sampling_rate``; event streams
             (``event{value}`` / ``event0``) carry only ``timestamps``.
         flags : list of str
             One format flag per raw source file processed.
@@ -272,11 +279,11 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         path = cls._list_npm_files(folder_path)
 
         streams: dict[str, dict[str, np.ndarray]] = {}
-        # Track derived stream names in creation order so the cross-file channel
-        # pairing (chod/chpr borrow their paired chev) is deterministic.
-        chev_names: list[str] = []
-        chod_names: list[str] = []
-        chpr_names: list[str] = []
+        # Track derived stream names per channel group, in creation order, so the
+        # cross-file channel pairing (the later groups borrow the first group's
+        # timebase) is deterministic. A group is one position in decide_indices'
+        # key order, which is the same across every file of a session.
+        channel_group_names: list[list[str]] = [[], [], []]
         flags: list[str] = []
         for i in range(len(path)):
             # TODO: validate npm_split_events length
@@ -303,7 +310,7 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
                                 "timestamps": np.asarray(timestamps, dtype=float),
                                 "data": np.asarray(df.iloc[:, j][indices_dict[keys[k]]], dtype=float),
                             }
-                            cls._register_channel_name(name, keys[k], chev_names, chod_names, chpr_names)
+                            channel_group_names[k].append(name)
 
             elif flag == "event_np":
                 type_val = np.array(df.iloc[:, 1])
@@ -333,42 +340,36 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
                                 "timestamps": np.asarray(timestamps, dtype=float),
                                 "data": np.asarray(df.iloc[:, j][indices_dict[keys[k]]], dtype=float),
                             }
-                            cls._register_channel_name(name, keys[k], chev_names, chod_names, chpr_names)
+                            channel_group_names[k].append(name)
 
         # Convert every stream to seconds with the session's single timestamp unit, then
         # compute sampling rates. Timestamps keep the acquisition's own clock.
         for stream in streams.values():
             stream["timestamps"] = stream["timestamps"] / divisor
 
-        channel_group_lengths = [len(names) for names in (chev_names, chod_names, chpr_names) if len(names) > 0]
-        if len(set(channel_group_lengths)) > 1:
-            channel_group_counts = {
-                "chev": len(chev_names),
-                "chod": len(chod_names),
-                "chpr": len(chpr_names),
-            }
+        populated_groups = [names for names in channel_group_names if len(names) > 0]
+        if len({len(names) for names in populated_groups}) > 1:
+            channel_group_counts = {names[0]: len(names) for names in populated_groups}
             message = (
-                "Number of channel files must match across channel groups (chev/chod/chpr). "
-                f"Found per-channel-group counts: {channel_group_counts}."
+                "Number of channel files must match across channel groups. Found per-channel-group "
+                f"counts, keyed by each group's first channel: {channel_group_counts}."
             )
             logger.error(message)
             raise ValueError(message)
 
-        # The paired chod/chpr channels borrow chev's timestamps and rate.
-        for j in range(len(chev_names)):
-            chev_stream = streams[chev_names[j]]
-            chev_timestamps = chev_stream["timestamps"]
-            sampling_rate = chev_timestamps.shape[0] / (chev_timestamps[-1] - chev_timestamps[0])
-            chev_stream["sampling_rate"] = np.array([sampling_rate])
+        # The later channel groups borrow the first group's timestamps and rate.
+        reference_names = channel_group_names[0]
+        paired_groups = [names for names in channel_group_names[1:] if len(names) > 0]
+        for j in range(len(reference_names)):
+            reference_stream = streams[reference_names[j]]
+            reference_timestamps = reference_stream["timestamps"]
+            sampling_rate = reference_timestamps.shape[0] / (reference_timestamps[-1] - reference_timestamps[0])
+            reference_stream["sampling_rate"] = np.array([sampling_rate])
 
-            if j < len(chod_names):
-                chod_stream = streams[chod_names[j]]
-                chod_stream["timestamps"] = chev_timestamps
-                chod_stream["sampling_rate"] = np.array([sampling_rate])
-            if j < len(chpr_names):
-                chpr_stream = streams[chpr_names[j]]
-                chpr_stream["timestamps"] = chev_timestamps
-                chpr_stream["sampling_rate"] = np.array([sampling_rate])
+            for paired_names in paired_groups:
+                paired_stream = streams[paired_names[j]]
+                paired_stream["timestamps"] = reference_timestamps
+                paired_stream["sampling_rate"] = np.array([sampling_rate])
 
         logger.info("Importing of NPM file is done.")
         return streams, flags
@@ -397,18 +398,6 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             logger.error(message)
             raise ValueError(message)
         return TIME_UNIT_DIVISORS[time_unit]
-
-    @staticmethod
-    def _register_channel_name(
-        name: str, channel_key: str, chev_names: list[str], chod_names: list[str], chpr_names: list[str]
-    ) -> None:
-        """Append ``name`` to the creation-order list for its channel group."""
-        if "chev" in channel_key:
-            chev_names.append(name)
-        elif "chod" in channel_key:
-            chod_names.append(name)
-        elif "chpr" in channel_key:
-            chpr_names.append(name)
 
     def decompose(self) -> dict[str, dict[str, np.ndarray]]:
         """
@@ -690,8 +679,10 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             The input DataFrame with flag columns (``Flags`` / ``LedState``)
             dropped for ``data_np_v2`` layouts.
         indices_dict : dict
-            Mapping from channel key (e.g. ``"file0_chev"``) to a NumPy array
-            of row indices belonging to that channel.
+            Mapping from channel key to a NumPy array of row indices belonging
+            to that channel. The key is the prefix its streams are named with:
+            ``"file0_470nm_column"`` when the state column names the LED,
+            ``"file0_chev"`` when it does not.
         num_ch : int
             Actual number of channels detected.
         """
@@ -729,6 +720,9 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
                 raise ValueError(message)
 
             num_ch, unique_states = cls.check_channels(state)
+            wavelength_keys = cls._wavelength_channel_keys(file_prefix, unique_states)
+            if wavelength_keys is not None:
+                channel_keys = wavelength_keys
             indices_dict = dict()
             for i in range(num_ch):
                 first_occurrence = np.where(state == unique_states[i])[0]
@@ -737,6 +731,36 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             df = df.drop(columns_to_drop, axis=1)
 
         return df, indices_dict, num_ch
+
+    @staticmethod
+    def _wavelength_channel_keys(file_prefix: str, unique_states: np.ndarray) -> list[str] | None:
+        """
+        Name each channel of a ``data_np_v2`` file after the LED that illuminated it.
+
+        Parameters
+        ----------
+        file_prefix : str
+            Filename prefix the keys are built on (e.g. ``"file0_"``).
+        unique_states : np.ndarray
+            The file's distinct ``Flags``/``LedState`` values, as returned by
+            :meth:`check_channels`.
+
+        Returns
+        -------
+        list of str or None
+            One key per state, in the same order (e.g. ``"file0_415nm_column"``),
+            or ``None`` when the states do not resolve to distinct wavelengths and
+            the caller should fall back to positional keys.
+        """
+        wavelengths = [LED_STATE_WAVELENGTHS_IN_NM.get(int(state) & LED_STATE_MASK) for state in unique_states]
+        if None in wavelengths or len(set(wavelengths)) < len(wavelengths):
+            message = (
+                f"Channel states {unique_states.tolist()} do not name distinct excitation wavelengths; "
+                "falling back to positional channel names."
+            )
+            logger.info(message)
+            return None
+        return [f"{file_prefix}{wavelength}nm_column" for wavelength in wavelengths]
 
     # check flag consistency in neurophotometrics data
     @classmethod

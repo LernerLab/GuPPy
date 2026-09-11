@@ -258,9 +258,9 @@ class TestCompareOutputFolders:
         expected_directory.mkdir()
         actual_directory.mkdir()
 
-        with h5py.File(expected_directory / "file0_chev1.hdf5", "w") as f:
+        with h5py.File(expected_directory / "file0_415nm_column1.hdf5", "w") as f:
             f.create_dataset("timestamps", data=np.array([0.0, 0.05, 0.1]))
-        with h5py.File(actual_directory / "file0_chev1.hdf5", "w") as f:
+        with h5py.File(actual_directory / "file0_415nm_column1.hdf5", "w") as f:
             f.create_dataset("timestamps", data=np.array([100.0, 100.05, 100.1]))
 
         with h5py.File(expected_directory / "timeCorrection_region.hdf5", "w") as f:

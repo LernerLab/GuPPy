@@ -83,10 +83,92 @@ def test_decide_indices_v2_resolves_flag_columns_case_insensitively(state_column
     result_df, indices_dict, num_channels = NpmRecordingExtractor.decide_indices(
         "file0_", dataframe, "data_np_v2", num_ch=2
     )
-    np.testing.assert_array_equal(indices_dict["file0_chev"], [2, 4, 6, 8, 10])
-    np.testing.assert_array_equal(indices_dict["file0_chod"], [3, 5, 7, 9, 11])
+    np.testing.assert_array_equal(indices_dict["file0_415nm_column"], [2, 4, 6, 8, 10])
+    np.testing.assert_array_equal(indices_dict["file0_470nm_column"], [3, 5, 7, 9, 11])
     assert num_channels == 2
     assert list(result_df.columns) == ["Timestamp", "Signal"]
+
+
+# ---------------------------------------------------------------------------
+# Channel naming (issue #336)
+# ---------------------------------------------------------------------------
+
+
+def _state_column_dataframe(state_column, state_values):
+    """A data_np_v2 frame whose state column cycles through ``state_values``."""
+    rows = len(state_values) * 4
+    return pd.DataFrame(
+        {
+            "FrameCounter": range(rows),
+            state_column: [state_values[i % len(state_values)] for i in range(rows)],
+            "Timestamp": np.arange(rows) * 0.01,
+            "Signal": np.arange(rows, dtype=float),
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "state_column, state_values, expected_keys",
+    [
+        # LedState writes the LED-selecting bits on their own.
+        ("LedState", [1, 2], ["file0_415nm_column", "file0_470nm_column"]),
+        ("LedState", [1, 2, 4], ["file0_415nm_column", "file0_470nm_column", "file0_560nm_column"]),
+        ("LedState", [2, 4], ["file0_470nm_column", "file0_560nm_column"]),
+        # Flags carries the same bits offset by 16, and by a further 256 during stimulation.
+        ("Flags", [17, 18], ["file0_415nm_column", "file0_470nm_column"]),
+        ("Flags", [17, 18, 20], ["file0_415nm_column", "file0_470nm_column", "file0_560nm_column"]),
+        ("Flags", [273, 274], ["file0_415nm_column", "file0_470nm_column"]),
+    ],
+)
+def test_decide_indices_names_channels_after_the_excitation_wavelength(state_column, state_values, expected_keys):
+    dataframe = _state_column_dataframe(state_column, state_values)
+
+    _, indices_dict, _ = NpmRecordingExtractor.decide_indices(
+        "file0_", dataframe, "data_np_v2", num_ch=len(state_values)
+    )
+
+    assert list(indices_dict) == expected_keys
+
+
+@pytest.mark.parametrize(
+    "state_values",
+    [
+        # 3 selects two LEDs at once, so it names no single wavelength.
+        [1, 3],
+        # 17 and 273 are both 415 nm, which would collide into one channel name.
+        [17, 273],
+    ],
+)
+def test_decide_indices_falls_back_to_positional_names_for_unresolvable_states(state_values):
+    dataframe = _state_column_dataframe("LedState", state_values)
+
+    _, indices_dict, _ = NpmRecordingExtractor.decide_indices("file0_", dataframe, "data_np_v2", num_ch=2)
+
+    assert list(indices_dict) == ["file0_chev", "file0_chod"]
+
+
+def test_discover_names_a_multi_file_session_by_its_per_file_wavelength(tmp_path):
+    # sampleData_NPM_2's layout: one file per wavelength, each carrying a single LedState.
+    # Both files are the first channel group, so positional naming called them both "chev".
+    for name, state in (("a_415.csv", 1), ("b_470.csv", 2)):
+        rows = "".join(f"{i},{0.01 * i},{state},{i}\n" for i in range(6))
+        (tmp_path / name).write_text("FrameCounter,Timestamp,LedState,Region0G\n" + rows)
+
+    events, flags = NpmRecordingExtractor.discover_events_and_flags(str(tmp_path), num_ch=1, inputParameters={})
+
+    assert events == ["file0_415nm_column1", "file1_470nm_column1"]
+    assert flags == ["data_np_v2", "data_np_v2"]
+
+
+def test_discover_keeps_positional_names_for_a_headerless_session(tmp_path):
+    # A data_np file has no state column, so nothing says which LED lit which frame.
+    rows = "".join(f"{0.01 * i},{i},{10 + i},{20 + i}\n" for i in range(6))
+    (tmp_path / "a_data.csv").write_text(rows)
+
+    events, flags = NpmRecordingExtractor.discover_events_and_flags(str(tmp_path), num_ch=2, inputParameters={})
+
+    assert events == ["file0_chev1", "file0_chev2", "file0_chev3", "file0_chod1", "file0_chod2", "file0_chod3"]
+    assert flags == ["data_np"]
 
 
 # ---------------------------------------------------------------------------
@@ -308,7 +390,7 @@ def test_discover_raises_for_data_csv_three_columns(tmp_path):
 
 def test_discover_raises_when_channel_group_counts_do_not_match(tmp_path):
     # Two data_np_v2 files with different channel counts (2 vs 3, by LedState) decompose
-    # into unequal per-channel-group counts (chev=2, chod=2, chpr=1), which is rejected.
+    # into unequal per-channel-group counts (415nm=2, 470nm=2, 560nm=1), which is rejected.
     two_channel_csv = (
         "FrameCounter,LedState,Timestamp,Signal\n"
         "0,0,0.00,0.0\n1,0,0.01,0.0\n2,1,0.02,1.0\n3,2,0.03,2.0\n4,1,0.04,3.0\n5,2,0.05,4.0\n"
@@ -403,11 +485,11 @@ class TestNpmRecordingExtractor(NpmRecordingExtractorTestMixin):
     # sampleData_NPM_1 entry in stubbed_testing_data/README.md.
     clock_kwargs = {"npm_timestamp_column_name": "ComputerTimestamp", "npm_time_unit": "milliseconds"}
     extractor_instance = NpmRecordingExtractor(folder_path, num_ch=2, **clock_kwargs)
-    expected_events = ["file0_chev1", "file0_chod1", "event0"]
+    expected_events = ["file0_415nm_column1", "file0_470nm_column1", "event0"]
     discover_kwargs = {"num_ch": 2, "inputParameters": clock_kwargs}
     stub_extractor_kwargs = {"num_ch": 2, **clock_kwargs}
-    control_event = "file0_chod1"
-    signal_event = "file0_chev1"
+    control_event = "file0_470nm_column1"
+    signal_event = "file0_415nm_column1"
     ttl_event = "event0"
     stub_ttl_test_duration_in_seconds = 100.0
 
@@ -416,11 +498,11 @@ class TestNpmRecordingExtractorSession2(NpmRecordingExtractorTestMixin):
     extractor_class = NpmRecordingExtractor
     folder_path = Path(STUBBED_TESTING_DATA) / "npm" / "sampleData_NPM_2"
     extractor_instance = NpmRecordingExtractor(folder_path, num_ch=2)
-    expected_events = ["file0_chev6", "file1_chev6"]
+    expected_events = ["file0_415nm_column6", "file1_470nm_column6"]
     discover_kwargs = {"num_ch": 2, "inputParameters": {}}
     stub_extractor_kwargs = {"num_ch": 2}
-    control_event = "file0_chev6"
-    signal_event = "file1_chev6"
+    control_event = "file0_415nm_column6"
+    signal_event = "file1_470nm_column6"
     ttl_event = None
 
 
@@ -430,11 +512,11 @@ class TestNpmRecordingExtractorSession3(NpmRecordingExtractorTestMixin):
     # Same two-column shape as sampleData_NPM_1: ttls.csv rides ComputerTimestamp.
     clock_kwargs = {"npm_timestamp_column_name": "ComputerTimestamp", "npm_time_unit": "milliseconds"}
     extractor_instance = NpmRecordingExtractor(folder_path, num_ch=2, **clock_kwargs)
-    expected_events = ["file0_chev1", "file0_chod1", "event0"]
+    expected_events = ["file0_415nm_column1", "file0_470nm_column1", "event0"]
     discover_kwargs = {"num_ch": 2, "inputParameters": clock_kwargs}
     stub_extractor_kwargs = {"num_ch": 2, **clock_kwargs}
-    control_event = "file0_chod1"
-    signal_event = "file0_chev1"
+    control_event = "file0_470nm_column1"
+    signal_event = "file0_415nm_column1"
     ttl_event = "event0"
     stub_ttl_test_duration_in_seconds = 600.0
 
@@ -443,12 +525,12 @@ class TestNpmRecordingExtractorSession4(NpmRecordingExtractorTestMixin):
     extractor_class = NpmRecordingExtractor
     folder_path = Path(STUBBED_TESTING_DATA) / "npm" / "sampleData_NPM_4"
     extractor_instance = NpmRecordingExtractor(folder_path, num_ch=2, npm_split_events=[True, True])
-    expected_events = ["file0_chev1", "file0_chod1", "eventTrue"]
+    expected_events = ["file0_415nm_column1", "file0_470nm_column1", "eventTrue"]
     # npm_split_events=[True, True] splits the boolean event stream into eventTrue/eventFalse.
     discover_kwargs = {"num_ch": 2, "inputParameters": {"npm_split_events": [True, True]}}
     stub_extractor_kwargs = {"num_ch": 2, "npm_split_events": [True, True]}
-    control_event = "file0_chev1"
-    signal_event = "file0_chod1"
+    control_event = "file0_415nm_column1"
+    signal_event = "file0_470nm_column1"
     ttl_event = "eventTrue"
     stub_ttl_test_duration_in_seconds = 100.0
 
@@ -514,11 +596,11 @@ class TestNpmAbsoluteTime:
         # LedState==1 selects rows 0,2,4,6,8,10 → Timestamp 500.0 + 0.5*row. Re-zeroing
         # would have produced [0, 1, 2, 3, 4, 5].
         expected = np.array([500.0, 501.0, 502.0, 503.0, 504.0, 505.0])
-        np.testing.assert_allclose(streams["file0_chev1"]["timestamps"], expected)
-        # chod borrows chev's axis, so it is absolute too.
-        np.testing.assert_allclose(streams["file0_chod1"]["timestamps"], expected)
+        np.testing.assert_allclose(streams["file0_415nm_column1"]["timestamps"], expected)
+        # The 470 nm channel borrows the 415 nm axis, so it is absolute too.
+        np.testing.assert_allclose(streams["file0_470nm_column1"]["timestamps"], expected)
         # 6 samples spanning 505.0 - 500.0 = 5.0 s.
-        np.testing.assert_allclose(streams["file0_chev1"]["sampling_rate"], np.array([1.2]))
+        np.testing.assert_allclose(streams["file0_415nm_column1"]["sampling_rate"], np.array([1.2]))
 
     def test_headered_event_timestamps_are_absolute(self, headered_session):
         streams = NpmRecordingExtractor(
@@ -528,7 +610,7 @@ class TestNpmAbsoluteTime:
             npm_split_events=[False, False],
         ).decompose()
 
-        # Raw event values, not shifted by the 500.0 chev reference (which gave [2.0, 4.0]).
+        # Raw event values, not shifted by the 500.0 photometry reference (which gave [2.0, 4.0]).
         np.testing.assert_allclose(streams["event0"]["timestamps"], np.array([502.0, 504.0]))
 
     def test_headerless_timestamps_are_absolute_and_converted_to_seconds(self, headerless_session):
@@ -621,24 +703,31 @@ class TestNpmEventClockValidation:
     def test_off_clock_event_read_reports_both_spans(self, wrong_clock_extractor, tmp_path):
         with pytest.raises(ValueError, match=r"lies entirely outside the photometry timespan"):
             wrong_clock_extractor.read(
-                events=["file0_chev1", "file0_chod1", "eventpinknoise"], outputPath=str(tmp_path)
+                events=["file0_415nm_column1", "file0_470nm_column1", "eventpinknoise"], outputPath=str(tmp_path)
             )
 
     def test_off_clock_event_read_names_the_column_the_events_ride(self, wrong_clock_extractor, tmp_path):
         with pytest.raises(ValueError, match=r"Set Timestamp column to 'ComputerTimestamp'"):
             wrong_clock_extractor.read(
-                events=["file0_chev1", "file0_chod1", "eventpinknoise"], outputPath=str(tmp_path)
+                events=["file0_415nm_column1", "file0_470nm_column1", "eventpinknoise"], outputPath=str(tmp_path)
             )
 
     def test_photometry_only_read_is_not_checked(self, wrong_clock_extractor, tmp_path):
         # A mixed-modality session takes its traces from another format and selects no NPM
         # channel, so the NPM photometry span is not the reference for its events.
-        output_dicts = wrong_clock_extractor.read(events=["file0_chev1", "file0_chod1"], outputPath=str(tmp_path))
+        output_dicts = wrong_clock_extractor.read(
+            events=["file0_415nm_column1", "file0_470nm_column1"], outputPath=str(tmp_path)
+        )
 
-        assert [output_dict["store_id"] for output_dict in output_dicts] == ["file0_chev1", "file0_chod1"]
+        assert [output_dict["store_id"] for output_dict in output_dicts] == [
+            "file0_415nm_column1",
+            "file0_470nm_column1",
+        ]
 
     def test_matching_clock_read_succeeds(self, matching_clock_extractor, tmp_path):
-        output_dicts = matching_clock_extractor.read(events=["file0_chev1", "eventpinknoise"], outputPath=str(tmp_path))
+        output_dicts = matching_clock_extractor.read(
+            events=["file0_415nm_column1", "eventpinknoise"], outputPath=str(tmp_path)
+        )
 
         # 49956358.72 ms is the stub's single pinknoise stimulus, in seconds.
         np.testing.assert_allclose(output_dicts[1]["timestamps"], np.array([49956.35872]))
@@ -692,7 +781,7 @@ class TestNpmEventClockValidation:
         )
 
         with pytest.raises(ValueError, match=r"none of this session's timestamp columns") as excinfo:
-            extractor.read(events=["file0_chev1", "event0"], outputPath=str(tmp_path))
+            extractor.read(events=["file0_415nm_column1", "event0"], outputPath=str(tmp_path))
 
         assert "'SystemTimestamp' [500, 505.5]" in str(excinfo.value)
         assert "'ComputerTimestamp' [900000, 905500]" in str(excinfo.value)
