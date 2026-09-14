@@ -6,6 +6,7 @@
 ## Fixes
 
 ## Improvements
+- `stubbed_testing_data/README.md` is no longer tracked in Git LFS, so the stub catalogue can be read in a diff and edited on two branches without conflicting as a pair of opaque hashes. The recordings it describes, and the acquisition artifacts alongside them, stay in LFS. [PR #510](https://github.com/LernerLab/GuPPy/pull/510)
 - The cross-correlation lag axis is now named and documented in seconds, the unit it has always held, rather than milliseconds. [PR #503](https://github.com/LernerLab/GuPPy/pull/503)
 - Saving on the Label Stores page now pops up a confirmation naming the output folder, and the homepage lists the new run under **Output Folder Selection** as soon as it is saved. [PR #504](https://github.com/LernerLab/GuPPy/pull/504)
 - The Label Stores page's save controls are now a **Create new run** / **Overwrite existing run** choice, with **Run name** pre-filled with the next free integer and a **Run to overwrite** picker, listing runs by folder name, shown only when overwriting; the alert pane appears only when there is something to report. [PR #504](https://github.com/LernerLab/GuPPy/pull/504)
