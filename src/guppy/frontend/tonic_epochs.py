@@ -159,8 +159,9 @@ class TonicEpochConfig:
     On save, writes each site's windows and their per-epoch means.
     """
 
-    def __init__(self, filepath: str, site_traces: dict[str, dict[str, np.ndarray]]) -> None:
+    def __init__(self, filepath: str, site_traces: dict[str, dict[str, np.ndarray]], *, label: str) -> None:
         self.filepath = filepath
+        self.label = label
         self.site_traces = site_traces
         self.sites = list(site_traces.keys())
 
@@ -187,7 +188,7 @@ class TonicEpochConfig:
         self.save_button.on_click(self._on_save)
 
         self.widget = pn.Column(
-            f"# Tonic Analysis — {Path(filepath).name}",
+            f"# Tonic Analysis — {self.label}",
             pn.pane.Markdown(_INSTRUCTIONS),
             self.site_select,
             self.plot_pane,
@@ -312,7 +313,7 @@ class TonicEpochConfig:
         return build_stacked_traces(
             x=trace["x"],
             traces={"z-score": trace["y_zscore"], "ΔF/F": trace["y_dff"]},
-            suptitle=Path(self.filepath).name,
+            suptitle=self.label,
             spans=self.spans_pipe,
         )
 
@@ -344,7 +345,9 @@ def build_tonic_epoch_page(*, run_folders: list[str]) -> pn.viewable.Viewable:
     """
     return build_run_folder_page(
         run_folders=run_folders,
-        build_folder_page=lambda filepath: TonicEpochConfig(filepath, load_site_traces(filepath)).widget,
+        build_folder_page=lambda filepath, label: TonicEpochConfig(
+            filepath, load_site_traces(filepath), label=label
+        ).widget,
     )
 
 
@@ -366,8 +369,9 @@ class TonicResultsView:
     the selector re-bases the bars and the ``diff_zscore`` / ``diff_dff`` columns.
     """
 
-    def __init__(self, filepath: str) -> None:
+    def __init__(self, filepath: str, *, label: str) -> None:
         self.filepath = filepath
+        self.label = label
         self.sites = _tonic_result_sites(filepath)
 
         self.site_select = pn.widgets.Select(name="Recording site", options=self.sites, value=self.sites[0])
@@ -383,7 +387,7 @@ class TonicResultsView:
         self.baseline_select.param.watch(self._refresh, "value")
 
         self.widget = pn.Column(
-            f"## Tonic / basal analysis — {Path(filepath).name}",
+            f"## Tonic / basal analysis — {self.label}",
             pn.Row(self.site_select, self.baseline_select),
             self.bars_pane,
             pn.pane.Markdown(_BASELINE_HINT),
@@ -456,7 +460,7 @@ class TonicResultsView:
         return build_stacked_traces(
             x=timestamps,
             traces=traces,
-            suptitle=Path(self.filepath).name,
+            suptitle=self.label,
             spans=self.spans_pipe,
         )
 
@@ -472,7 +476,7 @@ class TonicResultsView:
         self.table_pane.object = self._means_with_diff()
 
 
-def build_tonic_results_view(filepath: str) -> pn.Column:
+def build_tonic_results_view(filepath: str, *, label: str) -> pn.Column:
     """Build the Step-5 tonic results panel for a run folder.
 
     Returns a short note when the folder holds no ``tonic_<site>.h5`` results so
@@ -480,4 +484,4 @@ def build_tonic_results_view(filepath: str) -> pn.Column:
     """
     if not _tonic_result_sites(filepath):
         return pn.Column(pn.pane.Markdown("_No tonic/basal analysis results in this session._"))
-    return TonicResultsView(filepath).widget
+    return TonicResultsView(filepath, label=label).widget

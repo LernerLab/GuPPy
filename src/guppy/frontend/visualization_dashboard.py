@@ -56,7 +56,7 @@ class VisualizationDashboard:
         self.available_metrics = available_metrics
         self._psth_tab = self._build_psth_tab()
         self._heatmap_tab = self._build_heatmap_tab()
-        self._tonic_tab = build_tonic_results_view(plotter.filepath)
+        self._tonic_tab = build_tonic_results_view(plotter.filepath, label=basename)
         self._binned_tab = build_binned_metrics_view(plotter.filepath)
         self._covariate_tab = build_covariate_correlation_view(plotter.filepath)
         self._significance_tab = build_psth_significance_view(plotter.filepath)

@@ -373,6 +373,35 @@ def common_parent_directory(*, paths: Sequence[str]) -> str:
     return os.path.commonpath(sorted(parent_directories))
 
 
+def _normalize(path: str) -> str:
+    """Return ``path`` as an absolute, symlink-resolved path."""
+    return str(Path(str(path).rstrip("/\\")).resolve())
+
+
+def relative_output_labels(paths: Sequence[str]) -> dict[str, str]:
+    """Label each output directory by its path below what the whole set has in common.
+
+    A basename does not identify a run among several sessions': sessions that share a
+    folder name produce run folders that share a name. The label is the real path below
+    the deepest directory the given set shares, which grows only as far as it has to:
+    runs of one session are told apart by the run folder alone, runs of different
+    sessions carry the session, and sessions sharing a folder name carry their parents
+    too.
+
+    Parameters
+    ----------
+    paths : sequence of str
+        Paths to run folders and group folders.
+
+    Returns
+    -------
+    dict of {str: str}
+        Each path mapped to its label, written with forward slashes.
+    """
+    root = common_parent_directory(paths=[_normalize(path) for path in paths])
+    return {str(path): Path(_normalize(path)).relative_to(root).as_posix() for path in paths}
+
+
 def is_group_folder(path: str) -> bool:
     """Report whether a path names a group output directory.
 
