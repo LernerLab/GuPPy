@@ -8,6 +8,7 @@ from .standard_io import (
     write_freq_and_amp_to_csv,
     write_freq_and_amp_to_hdf5,
 )
+from ..utils.utils import run_folder_label
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,7 @@ def average_transients_for_group(
             else:
                 df = read_freq_and_amp_from_hdf5(session_entries[j][0], session_entries[j][1])
                 freq_and_amp_values.append(np.array([df["freq (events/min)"].iloc[0], df["amplitude"].iloc[0]]))
-                fileName.append(Path(session_entries[j][0]).name)
+                fileName.append(run_folder_label(session_entries[j][0]))
 
         freq_and_amp_values = np.asarray(freq_and_amp_values)
         write_freq_and_amp_to_hdf5(

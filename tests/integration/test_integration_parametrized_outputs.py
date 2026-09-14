@@ -10,8 +10,9 @@ from pathlib import Path
 
 import pytest
 
+from guppy.testing import default_output_base_directory
 from guppy.testing.api import step1, step2, step3
-from guppy.utils.utils import OUTPUT_BASE_BESIDE_SESSIONS, run_folder_for_run
+from guppy.utils.utils import run_folder_for_run
 from guppy_test_data import STUBBED_TESTING_DATA
 
 CSV_SESSION = "csv/sample_data_csv_1"
@@ -42,8 +43,16 @@ def csv_session_copy(tmp_path):
 
 
 def _run_folder(session, run_name):
-    """The run folder Step 1 creates for ``session`` under the default output layout."""
-    return Path(run_folder_for_run(session, run_name, output_base_directory=OUTPUT_BASE_BESIDE_SESSIONS))
+    """The run folder Step 1 creates for ``session`` under the headless steps' output layout."""
+    data_root = str(Path(session).parent)
+    return Path(
+        run_folder_for_run(
+            session,
+            run_name,
+            output_base_directory=default_output_base_directory(base_dir=data_root),
+            data_root=data_root,
+        )
+    )
 
 
 class TestStep1RunName:

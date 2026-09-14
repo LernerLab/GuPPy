@@ -86,27 +86,28 @@ def test_show_dir_with_explicit_run_name_returns_named_path(tmp_path):
 
 
 def test_show_dir_numbers_runs_in_the_output_base_directory(tmp_path):
-    session = tmp_path / "session1"
-    session.mkdir()
-    output_base = tmp_path / "guppy_output"
-    output_base.mkdir()
-    (output_base / "session1_output_1").mkdir()
+    data_root = tmp_path / "data"
+    session = data_root / "session1"
+    session.mkdir(parents=True)
+    output_base = tmp_path / "derivatives"
+    (output_base / "session1" / "output_1").mkdir(parents=True)
     # Another session's run in the same base directory must not shift this session's numbering.
-    (output_base / "otherSession_output_2").mkdir()
+    (output_base / "otherSession" / "output_2").mkdir(parents=True)
 
-    result = show_dir(str(session), output_base_directory=str(output_base))
+    result = show_dir(str(session), output_base_directory=str(output_base), data_root=str(data_root))
 
-    assert result == str(output_base / "session1_output_2")
+    assert result == str(output_base / "session1" / "output_2")
 
 
 def test_show_dir_with_explicit_run_name_in_the_output_base_directory(tmp_path):
-    session = tmp_path / "session1"
-    session.mkdir()
-    output_base = tmp_path / "guppy_output"
+    data_root = tmp_path / "data"
+    session = data_root / "session1"
+    session.mkdir(parents=True)
+    output_base = tmp_path / "derivatives"
 
-    result = show_dir(str(session), run_name="strict", output_base_directory=str(output_base))
+    result = show_dir(str(session), run_name="strict", output_base_directory=str(output_base), data_root=str(data_root))
 
-    assert result == str(output_base / "session1_output_strict")
+    assert result == str(output_base / "session1" / "output_strict")
 
 
 def test_show_dir_invalid_run_name_raises(tmp_path):

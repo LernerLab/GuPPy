@@ -160,8 +160,11 @@ def build_metadata_templates(*, inputParameters: dict[str, object]) -> list[pn.t
 
     templates = []
     output_base_directory = inputParameters.get("output_base_directory")
+    data_root = inputParameters.get("data_root")
     for session_path, run_name in pairs_needing_metadata:
-        guppy_folder_path = run_folder_for_run(session_path, run_name, output_base_directory=output_base_directory)
+        guppy_folder_path = run_folder_for_run(
+            session_path, run_name, output_base_directory=output_base_directory, data_root=data_root
+        )
         metadata_yaml_path = Path(guppy_folder_path) / METADATA_FILENAME
         initial_metadata = load_yaml(metadata_yaml_path) if Path(metadata_yaml_path).exists() else {}
         channels = derive_channels(output_dir=guppy_folder_path)

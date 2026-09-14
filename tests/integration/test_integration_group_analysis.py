@@ -19,6 +19,7 @@ from guppy.testing.api import (
     step4,
     step5,
 )
+from guppy.utils.utils import run_folder_label
 from guppy_test_data import STUBBED_TESTING_DATA
 
 SESSION_SUBDIRS = [
@@ -270,7 +271,7 @@ def test_group_analysis_step_writes_a_named_group_directory(copied_sessions):
     group_psth = pd.read_hdf(group_psth_path, key="df")
     # One column per member run, named by the run folder's basename, plus mean/err/timestamps.
     for run_folder in member_run_folders:
-        assert Path(run_folder).name in group_psth.columns
+        assert run_folder_label(run_folder) in group_psth.columns
     assert list(group_psth.columns[-3:]) == ["timestamps", "mean", "err"]
 
 
@@ -307,5 +308,5 @@ def test_group_analysis_step_rebuilds_the_group_when_a_member_is_dropped(copied_
     with (group_folder / "group_members.json").open() as manifest_file:
         assert json.load(manifest_file) == {"member_run_folders": member_run_folders[:1]}
     remaining = pd.read_hdf(psth_path, key="df")
-    assert Path(member_run_folders[0]).name in remaining.columns
-    assert Path(member_run_folders[1]).name not in remaining.columns
+    assert run_folder_label(member_run_folders[0]) in remaining.columns
+    assert run_folder_label(member_run_folders[1]) not in remaining.columns

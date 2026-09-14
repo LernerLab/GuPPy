@@ -326,7 +326,7 @@ class TestStep1Driver:
         )
 
         expected_base = Path(testing_api.default_output_base_directory(base_dir=staged_csv_session["base_dir"]))
-        assert (expected_base / "sample_data_csv_1_output_1" / "storesList.csv").exists()
+        assert (expected_base / "sample_data_csv_1" / "output_1" / "storesList.csv").exists()
         assert sorted(path.name for path in session.iterdir()) == before
 
     def test_unknown_store_id_raises(self, staged_csv_session):

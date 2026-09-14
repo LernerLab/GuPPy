@@ -11,7 +11,7 @@ from .io_utils import (
     recording_site_from_preprocessed_label,
 )
 from .psth_utils import create_Df_for_psth, getCorrCombinations
-from ..utils.utils import read_Df
+from ..utils.utils import read_Df, run_folder_label
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +96,7 @@ def average_psth_for_group(
                 regex = re.compile("bin_[(]")
                 bin_columns = [column_names[i] for i in range(len(column_names)) if regex.match(column_names[i])]
                 psth.append(np.asarray(df["mean"]))
-                columns.append(Path(session_entries[j][0]).name)
+                columns.append(run_folder_label(session_entries[j][0]))
                 if len(bin_columns) > 0:
                     psth_bins.append(df[bin_columns])
 
@@ -192,7 +192,7 @@ def average_psth_for_group(
                 else:
                     df = read_Df(correlation_folder, "corr_" + event, name)
                     corr.append(df["mean"])
-                    columns.append(Path(member_run_folders[j]).name)
+                    columns.append(run_folder_label(member_run_folders[j]))
 
         if not isinstance(df, pd.DataFrame):
             break

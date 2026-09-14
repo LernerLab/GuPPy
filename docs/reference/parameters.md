@@ -15,13 +15,16 @@ The first card on the homepage, open by default. Selects the session data the pi
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
 | Data Source | Local-folder mode vs DANDI streaming. | radio | `local` | `local`, `dandi` |
-| (file browser) | Session folders to analyze. | list of paths | empty | absolute paths to session directories |
+| (data root browser) | The directory your session folders live under. | path | empty | any directory containing every selected session |
+| (file browser) | Session folders to analyze. | list of paths | empty | absolute paths to session directories under the data root |
 | (DANDI selector) | DANDI assets to materialize as sessions. | dict | `None` (local mode) | per-session mapping of `dandi://` URIs |
 | Combine Data? | Concatenate two split files into one trace. | bool | `False` | `True`, `False` |
 
 **Data Source** picks between selecting local session folders from the file browser (the common case) and streaming NWB sessions directly from DANDI. The browser is hidden when `dandi` is selected and the DANDI selector takes its place. See [Analyze data streamed from the DANDI Archive](../how-to/analyze-dandi-data.md) for the DANDI workflow.
 
-**File browser** holds the list of session folder paths the pipeline will analyze. Multiple folders are allowed for batch runs, and they do not have to sit side by side: sessions kept in different folders can be analyzed together in a single run. Each session's results are written inside that session's own folder. The pipeline records the directory that contains all of the selected sessions automatically; this is not a configurable knob.
+**Data root** is the directory your session folders live under. GuPPy mirrors each session's path below it into the output directory, so `<data root>/subject1/session1` writes its runs to `<output directory>/subject1/session1`. Naming the root yourself is what makes that mapping predictable — you can read a run folder's path straight off the session's, without knowing what else was selected alongside it. Every selected session has to sit under the root; a session outside it has no place in the mirror, and GuPPy refuses the run rather than guessing one.
+
+**File browser** holds the list of session folder paths the pipeline will analyze. Multiple folders are allowed for batch runs, and they do not have to sit side by side: sessions kept in different sub-directories of the data root can be analyzed together in a single run, and their differing depths carry straight through into the output tree.
 
 **Combine Data?** is for the unusual case where one recording session was split across two data files (for example a system that wrote separate files for two halves of a recording). When `True`, the pipeline concatenates the matching channels across both files into a single trace before preprocessing.
 
@@ -37,18 +40,18 @@ The second card on the homepage, collapsed by default. Says where GuPPy writes i
 
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
-| Output Location | Whether run folders are collected in one base directory or written inside each session folder. | choice | separate output directory | `separate output directory`, `inside each session folder` |
-| (output base directory browser) | The directory the run folders are written into. | path | empty | any directory that is not itself a selected session |
+| Output Location | Whether the output tree mirrors the data root or run folders are written inside each session folder. | choice | mirror the data root | mirror the data root into a separate output directory, write each run inside the session folder it came from |
+| (output directory browser) | The directory the mirrored output tree is written into. | path | empty | any directory outside the data root's selected sessions |
 | Run name(s) for all sessions | Run names to select across every selected session at once. | list of run names | empty | run names found in any selected session |
-| (existing-runs browser) | Existing `*_output_*` run directories the later steps act on. | list of paths | empty | one or more `*_output_*` directories, at least one per selected session |
+| (existing-runs browser) | Existing run directories the later steps act on. | list of paths | empty | one or more run directories, at least one per selected session |
 
-**Output Location** decides where every run folder goes. On *separate output directory* — the default — no analysis output is written into your session folders, which keeps raw data immutable and lets it live on a read-only volume, be archived, or be checksummed as a unit. Leave the browser under it empty and each session's runs go into a `guppy_output` directory beside that session; because that is worked out one session at a time, a session's runs stay put however you change the selection between steps. Pick a directory in the browser instead and every selected session's runs go there together. Since a run folder is named `<session folder name>_output_<run name>`, sessions writing into the same base directory need distinct folder names, and GuPPy refuses the run rather than letting two sessions write over each other.
+**Output Location** decides where every run folder goes. On the mirrored layout — the default — no analysis output is written into your session folders, which keeps raw data immutable and lets it live on a read-only volume, be archived, or be checksummed as a unit. Each session's path under the data root is reproduced inside the output directory, and its run folders are created there as `output_<run name>`. Because the mapping depends only on the session and the root you named, two sessions sharing a folder name never collide, and a session's runs stay put however you change the selection between steps. Choosing an output directory is required; GuPPy refuses to start rather than picking one for you.
 
-*inside each session folder* restores the pre-2.0.0-beta4 layout, where each run folder is created inside the session folder it was analyzed from. Analyses made with an earlier version of GuPPy are only reachable under this setting.
+*write each run inside the session folder it came from* restores the pre-2.0.0-beta4 layout, where each run folder is created inside the session folder it was analyzed from, named `<session folder name>_output_<run name>`. Analyses made with an earlier version of GuPPy are only reachable under this setting.
 
-**Existing-runs browser** lists the `*_output_*` directories that already exist for the selected sessions and lets you pick which run each later step acts on. A run directory is created when you configure channels in the Label Stores GUI (Step 1); every step from loading the raw data onward then reads and writes the run you select here.
+**Existing-runs browser** lists the run directories that already exist for the selected sessions and lets you pick which run each later step acts on. A run directory is created when you configure channels in the Label Stores GUI (Step 1); every step from loading the raw data onward then reads and writes the run you select here.
 
-**Run name(s) for all sessions** reaches those same directories by name instead of by browsing to them, so one choice covers a whole batch. Step 1 names each run: the run directory `sample_data_csv_1_output_1` has the run name `1`. Naming a run selects it in every selected session that has one by that name, and removing the name deselects exactly those — directories you ticked in the browser yourself are left alone either way. The picker offers every run name found in *any* selected session, so a name only some of them have still works; the sessions without it are yours to fill in from the browser.
+**Run name(s) for all sessions** reaches those same directories by name instead of by browsing to them, so one choice covers a whole batch. Step 1 names each run: the run directory `output_1` has the run name `1`. Naming a run selects it in every selected session that has one by that name, and removing the name deselects exactly those — directories you ticked in the browser yourself are left alone either way. The picker offers every run name found in *any* selected session, so a name only some of them have still works; the sessions without it are yours to fill in from the browser.
 
 Changing which sessions are selected does not discard these choices: sessions that stay selected keep the runs you picked for them, and a session you add picks up the run names currently named above.
 

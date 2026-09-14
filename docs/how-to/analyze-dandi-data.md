@@ -91,12 +91,13 @@ preprocessing, PSTH, and visualization offline and without a key.
 
 ## What lands on disk
 
-Nothing from the archive is cached. Under the output directory you chose:
+Nothing from the archive is cached. The DANDI output root you chose is the data root for
+the sessions materialized there, so it is what GuPPy mirrors into the output directory:
 
 | Path | Contents |
 |------|----------|
 | `<asset name>/` | Session folder, one per selected asset |
-| `guppy_output/<asset name>_output_1/` | Run folder, in the output base directory beside the session folders |
+| `<output directory>/<asset name>/output_1/` | Run folder, in the session's mirror under the output directory |
 | `.../storesList.csv` | Store-to-label mapping from Step 1 |
 | `.../<store id>.hdf5` | One raw stream per store from Step 2, named by store id (e.g. `fiber_photometry_response_series_0.hdf5`) |
 
@@ -112,6 +113,6 @@ Step 3 onward writes the usual per-site files (`signal_DMS.hdf5`,
   real files, so you can navigate it without downloading anything. They live
   under your system temp directory.
 - Re-selecting an asset reuses its existing session folder; Step 1 then creates
-  an `_output_2` run alongside the first.
+  an `output_2` run alongside the first.
 - After Step 2 the sessions are ordinary local folders, so group analysis and
   **Combine Data?** apply normally.

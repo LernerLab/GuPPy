@@ -48,7 +48,7 @@ from guppy.testing.covariate_session import (
     SESSION_NAME,
     run_covariate_session,
 )
-from guppy.utils.utils import parse_run_name
+from guppy.utils.utils import parse_run_name, run_folder_label
 from guppy_test_data import STUBBED_TESTING_DATA
 
 from .integration_helpers import _locate_output_directory, write_metadata_yaml
@@ -124,7 +124,7 @@ def export_run(*, session: str, output_directory: str, acquisition_format: str) 
         selected_folders=[session],
         selected_runs={session: [parse_run_name(output_directory)]},
     )
-    return Path(output_directory) / (f"{Path(output_directory).name}.nwb")
+    return Path(output_directory) / (f"{run_folder_label(str(output_directory))}.nwb")
 
 
 class TestCovariateAndWholeSessionOutputs:

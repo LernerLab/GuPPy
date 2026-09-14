@@ -18,10 +18,10 @@ def group_folder(tmp_path):
 
 
 def test_average_transients_for_group_stacks_the_members_freq_and_amp(tmp_path, group_folder):
-    session1 = tmp_path / "session1"
-    session2 = tmp_path / "session2"
-    session1.mkdir()
-    session2.mkdir()
+    session1 = tmp_path / "session1" / "output_1"
+    session2 = tmp_path / "session2" / "output_1"
+    session1.mkdir(parents=True)
+    session2.mkdir(parents=True)
 
     # Stub files so glob("z_score_*") finds them
     (session1 / "z_score_dms.hdf5").touch()
@@ -62,10 +62,10 @@ def test_average_transients_for_group_stacks_the_members_freq_and_amp(tmp_path, 
 
 
 def test_average_transients_for_group_dff_mode_reads_the_dff_results(tmp_path, group_folder):
-    session1 = tmp_path / "session1"
-    session2 = tmp_path / "session2"
-    session1.mkdir()
-    session2.mkdir()
+    session1 = tmp_path / "session1" / "output_1"
+    session2 = tmp_path / "session2" / "output_1"
+    session1.mkdir(parents=True)
+    session2.mkdir(parents=True)
 
     # A z-score trace is present but must be ignored in dff mode.
     for session, values in ((session1, [[2.0, 1.5]]), (session2, [[3.0, 2.5]])):
@@ -92,8 +92,8 @@ def test_average_transients_for_group_dff_mode_reads_the_dff_results(tmp_path, g
 
 
 def test_average_transients_for_group_both_modes_reads_z_score_and_dff(tmp_path, group_folder):
-    session = tmp_path / "session1"
-    session.mkdir()
+    session = tmp_path / "session1" / "output_1"
+    session.mkdir(parents=True)
     (session / "z_score_dms.hdf5").touch()
     (session / "dff_dms.hdf5").touch()
 
@@ -126,10 +126,10 @@ def test_average_transients_for_group_both_modes_reads_z_score_and_dff(tmp_path,
 
 def test_average_transients_for_group_skips_a_member_with_no_freq_and_amp_results(tmp_path, group_folder):
     """A member whose transients were never computed is left out rather than failing the group."""
-    session1 = tmp_path / "session1"
-    session2 = tmp_path / "session2"
-    session1.mkdir()
-    session2.mkdir()
+    session1 = tmp_path / "session1" / "output_1"
+    session2 = tmp_path / "session2" / "output_1"
+    session1.mkdir(parents=True)
+    session2.mkdir(parents=True)
 
     (session1 / "z_score_dms.hdf5").touch()
     (session2 / "z_score_dms.hdf5").touch()
@@ -150,7 +150,7 @@ def test_average_transients_for_group_skips_a_member_with_no_freq_and_amp_result
     )
 
     df = read_freq_and_amp_from_hdf5(str(group_folder), "z_score_dms")
-    assert list(df.index) == ["session1"]
+    assert list(df.index) == ["session1_output_1"]
     np.testing.assert_allclose(df["freq (events/min)"].values, np.array([2.0]))
     np.testing.assert_allclose(df["amplitude"].values, np.array([1.5]))
 
@@ -160,10 +160,10 @@ def test_average_transients_for_group_handles_non_overlapping_stores_without_ind
 
     Regression test for issue #274.
     """
-    session1 = tmp_path / "session1"
-    session2 = tmp_path / "session2"
-    session1.mkdir()
-    session2.mkdir()
+    session1 = tmp_path / "session1" / "output_1"
+    session2 = tmp_path / "session2" / "output_1"
+    session1.mkdir(parents=True)
+    session2.mkdir(parents=True)
 
     (session1 / "z_score_regionA.hdf5").touch()
     (session2 / "z_score_regionB.hdf5").touch()

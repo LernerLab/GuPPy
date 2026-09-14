@@ -51,10 +51,9 @@ Configuration**.
 Now the part that is new. Leave **Create new run** selected, and instead of keeping the
 **Run name** GuPPy filled in, replace it with `filter_100`. Click **Save**.
 
-A run's name is the suffix on its run folder, `<session>_output_<run name>`, so this one
-creates `sample_data_csv_1_output_filter_100/` in the output base directory. The name
-GuPPy fills in is the next free integer — `1`, then `2` — which is what the first tutorial
-got. Naming the run for the parameter you are varying carries that name into the folder
+A run's name is the suffix on its run folder, `output_<run name>`, so this one creates
+`output_filter_100/` in the session's mirror inside the output directory. The name GuPPy
+fills in is the next free integer — `1`, then `2` — which is what the first tutorial got. Naming the run for the parameter you are varying carries that name into the folder
 name and into the heading on the run's visualization dashboard.
 
 Run names may not be empty, contain path separators or `..`, or contain the substring
@@ -63,7 +62,7 @@ Run names may not be empty, contain path separators or `..`, or contain the subs
 ## Analyze it with the default filter window
 
 Back on the homepage, open **Output Folder Selection** and, under **Existing runs (steps
-2–5)**, select `sample_data_csv_1_output_filter_100` — and only that one. Every step you
+2–5)**, navigate into `sample_data_csv_1/` and select `output_filter_100` — and only that one. Every step you
 run acts on the runs selected here.
 
 Leave the parameters at their defaults; **Window for Moving Average filter (int)** is
@@ -93,11 +92,11 @@ folder, which would throw away the result you just computed.
 ## Analyze it with a wider filter window
 
 Back on the homepage, open **Output Folder Selection** again. Both runs are now listed
-under **Existing runs (steps 2–5)**. Select `sample_data_csv_1_output_filter_250`, and
-make sure the first run is *not* selected.
+under **Existing runs (steps 2–5)**. Select `output_filter_250`, and make sure the first
+run is *not* selected.
 
 ```{image} ../_static/images/compare_parameters_existing_runs.png
-:alt: The Output Folder Selection card's file browser listing the session's three run folders, sample_data_csv_1_output_1 and sample_data_csv_1_output_filter_100 on the left, with sample_data_csv_1_output_filter_250 moved into the Selected files list
+:alt: The Output Folder Selection card's file browser listing the session's three run folders, output_1 and output_filter_100 on the left, with output_filter_250 moved into the Selected files list
 :width: 100%
 ```
 
@@ -145,16 +144,18 @@ browser's downloads.
 
 ## What landed on disk
 
-The output base directory now holds three run folders, the two from this tutorial beside the
-one from the first, with the session folder itself untouched:
+The session's mirror in the output directory now holds three run folders, the two from this
+tutorial beside the one from the first, with the session folder itself untouched:
 
 ```text
-stubbed_testing_data/csv/
-├── sample_data_csv_1/
-└── guppy_output/
-    ├── sample_data_csv_1_output_1/
-    ├── sample_data_csv_1_output_filter_100/
-    └── sample_data_csv_1_output_filter_250/
+stubbed_testing_data/csv/          the data root
+└── sample_data_csv_1/             the session folder
+
+guppy_output/                      the output directory
+└── sample_data_csv_1/             the session's mirror
+    ├── output_1/
+    ├── output_filter_100/
+    └── output_filter_250/
 ```
 
 Each is a complete, independent result — its own raw HDF5 copies, preprocessed traces,

@@ -202,11 +202,16 @@ def save_parameters(
     logger.debug("Saving Input Parameters file.")
     analysisParameters = build_analysis_parameters(inputParameters=inputParameters)
     output_base_directory = inputParameters.get("output_base_directory")
+    data_root = inputParameters.get("data_root")
     for session in inputParameters["session_folders"]:
         # Fall back to the directory the run folders will be created in when none exist
         # yet, so parameter saving can still run before Label Stores (Step 1) creates them.
-        if not discover_run_folders(session, output_base_directory=output_base_directory):
-            destinations = [run_directory_root(session_path=session, output_base_directory=output_base_directory)]
+        if not discover_run_folders(session, output_base_directory=output_base_directory, data_root=data_root):
+            destinations = [
+                run_directory_root(
+                    session_path=session, output_base_directory=output_base_directory, data_root=data_root
+                )
+            ]
         else:
             destinations = select_run_folders(session, inputParameters=inputParameters)
         for destination in destinations:

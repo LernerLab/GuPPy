@@ -293,6 +293,7 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
         "group_folders_selector": parameter_form.group_folders_selector,
         "output_location_mode": parameter_form.output_location_mode,
         "output_base_selector": parameter_form.output_base_selector,
+        "data_root_selector": parameter_form.data_root_selector,
         "remove_artifacts_progress": sidebar.remove_artifacts_progress,
     }
 

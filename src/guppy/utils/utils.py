@@ -11,23 +11,13 @@ logger = logging.getLogger(__name__)
 
 RAISE_ISSUE_URL = "https://github.com/LernerLab/GuPPy/issues/new"
 
-_RUN_NAME_MARKER = "_output_"
+_RUN_FOLDER_PREFIX = "output_"
+_RUN_NAME_MARKER = "_" + _RUN_FOLDER_PREFIX
 _FORBIDDEN_RUN_NAME_CHARACTERS = ("/", "\\", ":", "\0")
 
 # Group output directories are named "<group_name>_group". The marker contains no
 # "_output_", so discover_run_folders can never return a group folder.
 _GROUP_NAME_MARKER = "_group"
-
-# Directory created beside a session when the user names no output base directory of their
-# own, so analysis outputs collect in one place instead of landing among the raw session
-# folders.
-DEFAULT_OUTPUT_BASE_DIRECTORY_NAME = "guppy_output"
-
-# Stands in for "a DEFAULT_OUTPUT_BASE_DIRECTORY_NAME directory beside each session" wherever an
-# output base directory is named. It is resolved per session, so which sessions are selected
-# alongside one another never changes where a session's runs are written or looked for. The
-# angle brackets keep it from colliding with a real path.
-OUTPUT_BASE_BESIDE_SESSIONS = "<beside each session>"
 
 # Records which run folders a group averaged, so the group can be reopened and rebuilt
 # and so column N of a group PSTH can be traced back to member N.
@@ -160,22 +150,43 @@ def takeOnlyDirs(paths: list[str]) -> list[str]:
     return [path for path in paths if not Path(path).is_file()]
 
 
-def parse_run_name(run_folder: str) -> str:
-    """Return the run-name suffix of an output directory.
+def is_run_folder(path: str) -> bool:
+    """Return whether a directory's name is that of an output directory.
 
-    Splits the directory's basename on the last occurrence of ``_output_`` and
-    returns everything after it.  Legacy ``mySession_output_1`` directories
-    yield ``"1"``.
+    Recognises both the ``output_<run name>`` directories written under an output base
+    directory and the ``<session basename>_output_<run name>`` directories of the
+    inside-the-session layout.
+
+    Parameters
+    ----------
+    path : str
+        Path to check.
+
+    Returns
+    -------
+    bool
+        ``True`` when the basename carries the run-folder marker.
+    """
+    return _RUN_FOLDER_PREFIX in Path(str(path).rstrip("/\\")).name
+
+
+def parse_run_name(run_folder: str) -> str:
+    """Return the run name of an output directory.
+
+    Reads everything after the last ``output_`` in the basename, which covers the
+    ``output_<run name>`` directories written under an output base directory and the
+    ``<session basename>_output_<run name>`` directories of the inside-the-session
+    layout.
 
     Parameters
     ----------
     run_folder : str
-        Path to an ``<session_basename>_output_<run_name>`` directory.
+        Path to an output directory.
 
     Returns
     -------
     str
-        The run-name suffix.
+        The run name.
 
     Raises
     ------
@@ -185,59 +196,135 @@ def parse_run_name(run_folder: str) -> str:
     # Strip both separators so trailing forward slashes are tolerated on Windows
     # (where os.sep is "\\" but paths can still use "/").
     basename = Path(str(run_folder).rstrip("/\\")).name
-    index = basename.rfind(_RUN_NAME_MARKER)
+    index = basename.rfind(_RUN_FOLDER_PREFIX)
     if index < 0:
         raise ValueError(
             f"Cannot parse run name from {run_folder!r}: basename {basename!r} does not match "
-            f"'<session_basename>_output_<run_name>' pattern."
+            f"'output_<run_name>' or '<session_basename>_output_<run_name>' pattern."
         )
-    return basename[index + len(_RUN_NAME_MARKER) :]
+    return basename[index + len(_RUN_FOLDER_PREFIX) :]
 
 
 def parse_session_basename(run_folder: str) -> str:
-    """Return the session-folder name an output directory was written for.
+    """Return the name of the session folder an output directory belongs to.
 
-    The complement of :func:`parse_run_name`: it reads everything before the last
-    ``_output_`` in the basename.  This is how a run folder names its session once
-    the two no longer sit inside one another.
+    An output directory always sits in a directory named for its session: the mirror
+    of the session under the output base directory, or the session folder itself in
+    the inside-the-session layout.
 
     Parameters
     ----------
     run_folder : str
-        Path to an ``<session_basename>_output_<run_name>`` directory.
+        Path to an output directory.
 
     Returns
     -------
     str
         The session folder's basename.
+    """
+    return Path(_normalize(run_folder)).parent.name
+
+
+def _normalize(path: str) -> str:
+    """Return ``path`` as an absolute, symlink-resolved path.
+
+    Session folders reach GuPPy from a file browser and data roots can be typed, so the
+    two sides of a containment check are resolved before they are compared.
+    """
+    return str(Path(str(path).rstrip("/\\")).resolve())
+
+
+def session_is_under_data_root(*, session_path: str, data_root: str | None) -> bool:
+    """Return whether a session folder sits inside the data root.
+
+    Parameters
+    ----------
+    session_path : str
+        Path to a session folder.
+    data_root : str or None
+        Directory the session folders are selected inside.
+
+    Returns
+    -------
+    bool
+        ``True`` when the session sits strictly below ``data_root``.
+    """
+    if data_root is None:
+        return False
+    return Path(_normalize(data_root)) in Path(_normalize(session_path)).parents
+
+
+def session_relative_path(*, session_path: str, data_root: str | None) -> str:
+    """Return a session folder's path relative to the data root it was selected under.
+
+    Parameters
+    ----------
+    session_path : str
+        Path to a session folder.
+    data_root : str or None
+        Directory the session folders are selected inside.
+
+    Returns
+    -------
+    str
+        ``session_path`` relative to ``data_root``.
 
     Raises
     ------
     ValueError
-        If the basename does not match the expected pattern.
+        If ``data_root`` is ``None`` or ``session_path`` does not sit under it.
     """
-    basename = Path(str(run_folder).rstrip("/\\")).name
-    index = basename.rfind(_RUN_NAME_MARKER)
-    if index < 0:
+    if data_root is None:
         raise ValueError(
-            f"Cannot parse session basename from {run_folder!r}: basename {basename!r} does not match "
-            f"'<session_basename>_output_<run_name>' pattern."
+            f"No data root given for session {str(session_path)!r}, so its path cannot be mirrored "
+            f"into the output base directory. Pick a data root in the Input Folder Selection card."
         )
-    return basename[:index]
+    session = Path(_normalize(session_path))
+    root = Path(_normalize(data_root))
+    if session == root or root not in session.parents:
+        raise ValueError(
+            f"Session folder {str(session)!r} is not inside the data root {str(root)!r}, so its "
+            f"output directory has no place in the mirrored output tree."
+        )
+    return str(session.relative_to(root))
 
 
-def run_directory_root(*, session_path: str, output_base_directory: str | None) -> str:
+def run_folder_label(run_folder: str) -> str:
+    """Return a label naming both the session and the run an output directory holds.
+
+    Group results carry one column per member run, so the label has to stay distinct
+    across sessions even though the directories themselves are named for the run alone.
+
+    Parameters
+    ----------
+    run_folder : str
+        Path to an output directory.
+
+    Returns
+    -------
+    str
+        ``<session basename>_output_<run name>``.
+    """
+    return parse_session_basename(run_folder) + _RUN_NAME_MARKER + parse_run_name(run_folder)
+
+
+def run_directory_root(*, session_path: str, output_base_directory: str | None, data_root: str | None = None) -> str:
     """Return the directory a session's output directories are written into.
+
+    With an output base directory the session's path relative to ``data_root`` is
+    mirrored underneath it, so ``<data_root>/subject1/session1`` writes its runs into
+    ``<output base>/subject1/session1``.
 
     Parameters
     ----------
     session_path : str
         Path to a session folder.
     output_base_directory : str or None
-        Directory that holds every session's output directories;
-        :data:`OUTPUT_BASE_BESIDE_SESSIONS` for one beside each session, or ``None``
-        for the legacy layout, where a session's output directories are written
-        inside the session folder itself.
+        Directory the mirrored output tree is written into, or ``None`` to write the
+        output directories inside the session folder itself.
+    data_root : str or None, optional
+        Directory the session folders are selected inside.  Required whenever
+        ``output_base_directory`` is given.
 
     Returns
     -------
@@ -246,12 +333,37 @@ def run_directory_root(*, session_path: str, output_base_directory: str | None) 
     """
     if output_base_directory is None:
         return session_path
-    if output_base_directory == OUTPUT_BASE_BESIDE_SESSIONS:
-        return str(Path(str(session_path).rstrip(os.sep)).parent / DEFAULT_OUTPUT_BASE_DIRECTORY_NAME)
-    return output_base_directory
+    relative = session_relative_path(session_path=session_path, data_root=data_root)
+    return str(Path(output_base_directory) / relative)
 
 
-def discover_run_folders(session_path: str, *, output_base_directory: str | None = None) -> list[str]:
+def run_folder_basename(*, session_path: str, run_name: str, output_base_directory: str | None) -> str:
+    """Return the basename an output directory carries for a given run name.
+
+    Parameters
+    ----------
+    session_path : str
+        Path to a session folder.
+    run_name : str
+        Run name the output directory is for.
+    output_base_directory : str or None
+        Directory the mirrored output tree is written into, or ``None`` for the
+        inside-the-session layout, where the basename is prefixed with the session
+        name to keep the session folder readable.
+
+    Returns
+    -------
+    str
+        The output directory's basename.
+    """
+    if output_base_directory is None:
+        return Path(str(session_path).rstrip(os.sep)).name + _RUN_NAME_MARKER + run_name
+    return _RUN_FOLDER_PREFIX + run_name
+
+
+def discover_run_folders(
+    session_path: str, *, output_base_directory: str | None = None, data_root: str | None = None
+) -> list[str]:
     """Return all output directories belonging to a session, sorted by run name.
 
     Parameters
@@ -259,26 +371,30 @@ def discover_run_folders(session_path: str, *, output_base_directory: str | None
     session_path : str
         Path to a session folder.
     output_base_directory : str or None, optional
-        Directory the session's output directories are written into;
-        :data:`OUTPUT_BASE_BESIDE_SESSIONS` for one beside the session, or ``None``
-        (the default) to look inside the session folder.
+        Directory the mirrored output tree is written into, or ``None`` (the default)
+        to look inside the session folder.
+    data_root : str or None, optional
+        Directory the session folders are selected inside.  Required whenever
+        ``output_base_directory`` is given.
 
     Returns
     -------
     list of str
-        Absolute paths of every ``<basename>_output_*`` directory, sorted
-        deterministically: numeric run names first (sorted numerically), then
-        non-numeric run names (sorted case-insensitively).
+        Absolute paths of the session's output directories, sorted deterministically:
+        numeric run names first (sorted numerically), then non-numeric run names
+        (sorted case-insensitively).
     """
-    root = run_directory_root(session_path=session_path, output_base_directory=output_base_directory)
+    root = run_directory_root(
+        session_path=session_path, output_base_directory=output_base_directory, data_root=data_root
+    )
     if output_base_directory is None:
         # Inside a session folder every "*_output_*" child is one of its own runs, whatever
         # prefix it carries — so a session folder renamed after an analysis keeps its runs.
         pattern = "*" + _RUN_NAME_MARKER + "*"
     else:
-        # A base directory can hold several sessions' runs, so only the ones named for this
-        # session count.
-        pattern = Path(str(session_path).rstrip(os.sep)).name + _RUN_NAME_MARKER + "*"
+        # The mirror gives each session a directory of its own, so every run inside it is
+        # named for the run alone.
+        pattern = _RUN_FOLDER_PREFIX + "*"
     candidates = [str(path) for path in Path(root).glob(pattern) if path.is_dir()]
     return sorted(candidates, key=_run_name_sort_key_for_path)
 
@@ -286,14 +402,10 @@ def discover_run_folders(session_path: str, *, output_base_directory: str | None
 def sibling_run_folders(run_folder: str) -> list[str]:
     """Return every output directory written beside ``run_folder`` for the same session.
 
-    Resolved from the directory's own location and name, so it holds for both the
-    shared output base and the legacy inside-the-session layout without needing to
-    know which is in force.
-
     Parameters
     ----------
     run_folder : str
-        Path to an ``<session_basename>_output_<run_name>`` directory.
+        Path to an output directory.
 
     Returns
     -------
@@ -301,13 +413,14 @@ def sibling_run_folders(run_folder: str) -> list[str]:
         Absolute paths of the session's output directories, ``run_folder``
         included, sorted by run name.
     """
-    root = str(Path(str(run_folder).rstrip("/\\")).parent)
-    pattern = parse_session_basename(run_folder) + _RUN_NAME_MARKER + "*"
-    candidates = [str(path) for path in Path(root).glob(pattern) if path.is_dir()]
+    root = str(Path(_normalize(run_folder)).parent)
+    candidates = [str(path) for path in Path(root).glob("*" + _RUN_FOLDER_PREFIX + "*") if path.is_dir()]
     return sorted(candidates, key=_run_name_sort_key_for_path)
 
 
-def run_folder_for_run(session_path: str, run_name: str, *, output_base_directory: str | None = None) -> str:
+def run_folder_for_run(
+    session_path: str, run_name: str, *, output_base_directory: str | None = None, data_root: str | None = None
+) -> str:
     """Build the path of the output directory for a given run name.
 
     Does not check whether the directory exists.
@@ -317,20 +430,26 @@ def run_folder_for_run(session_path: str, run_name: str, *, output_base_director
     session_path : str
         Path to a session folder.
     run_name : str
-        Run-name suffix to append after ``_output_``.
+        Run name the output directory is for.
     output_base_directory : str or None, optional
-        Directory the output directory is written into;
-        :data:`OUTPUT_BASE_BESIDE_SESSIONS` for one beside the session, or ``None``
-        (the default) to write it inside the session folder.
+        Directory the mirrored output tree is written into, or ``None`` (the default)
+        to write the output directory inside the session folder.
+    data_root : str or None, optional
+        Directory the session folders are selected inside.  Required whenever
+        ``output_base_directory`` is given.
 
     Returns
     -------
     str
-        Path of the form ``<root>/<session basename>_output_<run_name>``.
+        Path of the output directory.
     """
-    basename = Path(str(session_path).rstrip(os.sep)).name
-    root = run_directory_root(session_path=session_path, output_base_directory=output_base_directory)
-    return str(Path(root) / (basename + _RUN_NAME_MARKER + run_name))
+    root = run_directory_root(
+        session_path=session_path, output_base_directory=output_base_directory, data_root=data_root
+    )
+    basename = run_folder_basename(
+        session_path=session_path, run_name=run_name, output_base_directory=output_base_directory
+    )
+    return str(Path(root) / basename)
 
 
 def selected_session_runs(*, inputParameters: dict[str, object]) -> list[tuple[str, str]]:
@@ -358,9 +477,9 @@ def select_run_folders(session_path: str, *, inputParameters: dict[str, object])
     session_path : str
         Path to a session folder.
     inputParameters : dict
-        Full pipeline input parameters; supplies ``selected_runs`` (the run-name
-        suffixes to keep, per session) and ``output_base_directory`` (where the
-        session's output directories live).
+        Full pipeline input parameters; supplies ``selected_runs`` (the run names
+        to keep, per session) and ``output_base_directory`` / ``data_root`` (where
+        the session's output directories live).
 
     Returns
     -------
@@ -376,14 +495,15 @@ def select_run_folders(session_path: str, *, inputParameters: dict[str, object])
         the user can correct their input.
     """
     output_base_directory = inputParameters.get("output_base_directory")
+    data_root = inputParameters.get("data_root")
     selected_runs = (inputParameters.get("selected_runs") or {}).get(session_path)
     if not selected_runs:
         raise ValueError(
             f"select_run_folders requires an explicit non-empty list of run names for session "
-            f"{session_path!r}; got {selected_runs!r}. Pick at least one existing _output_<run> "
+            f"{session_path!r}; got {selected_runs!r}. Pick at least one existing run "
             "directory in the Output Folder Selection panel."
         )
-    available = discover_run_folders(session_path, output_base_directory=output_base_directory)
+    available = discover_run_folders(session_path, output_base_directory=output_base_directory, data_root=data_root)
     available_by_name = {parse_run_name(directory): directory for directory in available}
     missing = [run for run in selected_runs if run not in available_by_name]
     if missing:
@@ -725,8 +845,8 @@ def resolve_run_folders(session_folders: list, inputParameters: dict) -> list[st
     session_folders : list
         Session directories to resolve.
     inputParameters : dict
-        Pipeline configuration; must include ``'combine_data'``, ``'selected_runs'``
-        and ``'output_base_directory'``.
+        Pipeline configuration; must include ``'combine_data'``, ``'selected_runs'``,
+        ``'output_base_directory'`` and ``'data_root'``.
 
     Returns
     -------

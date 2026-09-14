@@ -63,13 +63,15 @@ def test_save_parameters(tmp_path, default_parameters):
     # Act: write the parameter snapshot via the API helper (headless)
     save_parameters_snapshot(base_dir=base_dir, selected_folders=sessions)
 
-    # Assert: with no run folders created yet, the snapshot lands in the directory the run
-    # folders will be created in — one beside the sessions, shared because they sit together.
-    out_fp = Path(default_output_base_directory(base_dir=base_dir)) / "GuPPyParamtersUsed.json"
-    assert Path(out_fp).exists(), f"Missing file: {out_fp}"
+    # Assert: with no run folders created yet, the snapshot lands in each session's own
+    # mirrored directory — the directory its run folders will be created in.
+    output_base = Path(default_output_base_directory(base_dir=base_dir))
     for session in sessions:
+        out_fp = output_base / Path(session).name / "GuPPyParamtersUsed.json"
+        assert Path(out_fp).exists(), f"Missing file: {out_fp}"
         assert not (Path(session) / "GuPPyParamtersUsed.json").exists(), f"Wrote into the session {session}"
 
+    out_fp = output_base / Path(sessions[0]).name / "GuPPyParamtersUsed.json"
     with Path(out_fp).open() as f:
         data = json.load(f)
 

@@ -6,17 +6,21 @@ Every file GuPPy writes to disk: where it lands, what its name means, and what i
 
 ## Where outputs go
 
-Every output of a run lives in a single directory, the run folder, created inside the output base directory:
+Every output of a run lives in a single directory, the run folder. GuPPy mirrors each session's path under the data root into the output directory, and creates the run folders inside that mirror:
 
 ```
-<output_base_directory>/<session_name>_output_<run_name>/
+<output_directory>/<session path under the data root>/output_<run_name>/
 ```
 
-The output base directory is chosen in the **Output Folder Selection** card. No analysis output is written into a session folder, so the raw data stays as your acquisition system left it — the one thing GuPPy adds to a session folder is a custom event you explicitly import, which has to sit beside the acquisition files for Step 1 to discover it. Leave the selector empty and each session's runs go into a `guppy_output` directory beside that session, so a session at `/data/Photo_63_207` gets run folders at `/data/guppy_output/Photo_63_207_output_1`. That is resolved per session, so a session's runs stay in the same place no matter which other sessions you have selected alongside it. Picking a directory in the selector instead sends every selected session's runs to that one directory.
+So with a data root of `/data`, a session at `/data/subject1/session1` gets its run folders at `/data_analysis/subject1/session1/output_1`. The two directories are chosen separately: the **data root** in the **Input Folder Selection** card, and the **output directory** in **Output Folder Selection**. Both are required, and GuPPy refuses to start an analysis without them rather than picking somewhere for you.
 
-`<session_name>` is the session folder's own name, which is what keeps one session's runs apart from another's inside a shared base directory. Sessions writing into the same base directory therefore have to have distinct folder names — with the default they only share one when they sit side by side, in which case they already do. `<run_name>` is either the name you type in the Label Stores GUI or, when you leave it to GuPPy, the lowest integer for which no such directory exists yet — `_output_1` on the first run, `_output_2` on the second. Re-running Step 1 over an existing run folder with the overwrite option deletes its entire contents first. Because each run folder is self-contained, one session can have several runs analyzed under different parameters — see [Comparing Two Parameter Sets](../tutorials/compare_parameters.md).
+Mirroring the input structure is what makes the output tree navigable: a session's results sit exactly where you would look for the session itself, one directory over. It also means two sessions that share a folder name — `subject1/session1` and `subject2/session1` — never collide, because their parent directories keep them apart.
 
-Setting **Output Location** to *inside each session folder* puts the run folders back where GuPPy wrote them before version 2.0.0-beta4, at `<session_folder>/<session_name>_output_<run_name>/`. Analyses made with an earlier version are only visible with that setting, since the shared base directory does not look inside the session folders.
+No analysis output is written into a session folder, so the raw data stays as your acquisition system left it — the one thing GuPPy adds to a session folder is a custom event you explicitly import, which has to sit beside the acquisition files for Step 1 to discover it. Every selected session must sit under the data root; one that does not has no place in the mirror, and GuPPy says so rather than guessing.
+
+`<run_name>` is either the name you type in the Label Stores GUI or, when you leave it to GuPPy, the lowest integer for which no such directory exists yet — `output_1` on the first run, `output_2` on the second. Re-running Step 1 over an existing run folder with the overwrite option deletes its entire contents first. Because each run folder is self-contained, one session can have several runs analyzed under different parameters — see [Comparing Two Parameter Sets](../tutorials/compare_parameters.md).
+
+Setting **Output Location** to *inside each session folder* puts the run folders inside the session folder they came from, at `<session_folder>/<session_name>_output_<run_name>/`, which is where GuPPy wrote them before version 2.0.0-beta4. Analyses made that way are only visible with that setting, since the mirrored output tree does not look inside the session folders.
 
 Three further directories can appear:
 
@@ -346,8 +350,8 @@ The first key is `guppy_version`, the installed version of the `guppy-neuro` pac
 <session_folder>/
   <name>.csv                                       imported custom event
 
-<output_base_directory>/
-  <session_name>_output_<run_name>/
+<output_directory>/<session path under the data root>/
+  output_<run_name>/
     storesList.csv                                 step 1
     .npm_params.json                               step 1, NPM only
     GuPPyParamtersUsed.json                        steps 2, 3, 4

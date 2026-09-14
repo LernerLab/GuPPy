@@ -204,14 +204,53 @@ def test_output_dir_for_run_does_not_create_directory(tmp_path):
     assert not Path(result).exists()
 
 
-def test_output_dir_for_run_places_the_run_in_the_output_base_directory(tmp_path):
+def test_output_dir_for_run_mirrors_the_session_under_the_output_base_directory(tmp_path):
+    data_root = tmp_path / "data"
+    session = data_root / "subject1" / "mySession"
+    session.mkdir(parents=True)
+    output_base = tmp_path / "derivatives"
+
+    result = run_folder_for_run(
+        str(session), "baseline", output_base_directory=str(output_base), data_root=str(data_root)
+    )
+
+    assert result == str(output_base / "subject1" / "mySession" / "output_baseline")
+
+
+def test_output_dir_for_run_keeps_identically_named_sessions_apart(tmp_path):
+    data_root = tmp_path / "data"
+    first = data_root / "subject1" / "session1"
+    second = data_root / "subject2" / "session1"
+    first.mkdir(parents=True)
+    second.mkdir(parents=True)
+    output_base = tmp_path / "derivatives"
+
+    assert run_folder_for_run(str(first), "1", output_base_directory=str(output_base), data_root=str(data_root)) == str(
+        output_base / "subject1" / "session1" / "output_1"
+    )
+    assert run_folder_for_run(
+        str(second), "1", output_base_directory=str(output_base), data_root=str(data_root)
+    ) == str(output_base / "subject2" / "session1" / "output_1")
+
+
+def test_output_dir_for_run_raises_for_a_session_outside_the_data_root(tmp_path):
+    session = tmp_path / "elsewhere" / "mySession"
+    session.mkdir(parents=True)
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+
+    with pytest.raises(ValueError, match="is not inside the data root"):
+        run_folder_for_run(
+            str(session), "1", output_base_directory=str(tmp_path / "derivatives"), data_root=str(data_root)
+        )
+
+
+def test_output_dir_for_run_raises_without_a_data_root(tmp_path):
     session = tmp_path / "mySession"
     session.mkdir()
-    output_base = tmp_path / "guppy_output"
 
-    result = run_folder_for_run(str(session), "baseline", output_base_directory=str(output_base))
-
-    assert result == str(output_base / "mySession_output_baseline")
+    with pytest.raises(ValueError, match="No data root given"):
+        run_folder_for_run(str(session), "1", output_base_directory=str(tmp_path / "derivatives"))
 
 
 # ── discover_run_folders ──────────────────────────────────────────────────────
@@ -254,59 +293,64 @@ def test_discover_output_dirs_empty_when_no_outputs(tmp_path):
 
 
 def test_discover_output_dirs_in_base_returns_only_this_sessions_runs(tmp_path):
-    session = tmp_path / "mySession"
-    session.mkdir()
-    output_base = tmp_path / "guppy_output"
-    output_base.mkdir()
-    (output_base / "mySession_output_1").mkdir()
-    (output_base / "mySession_output_baseline").mkdir()
-    (output_base / "otherSession_output_1").mkdir()
+    data_root = tmp_path / "data"
+    session = data_root / "subject1" / "mySession"
+    session.mkdir(parents=True)
+    output_base = tmp_path / "derivatives"
+    mirrored = output_base / "subject1" / "mySession"
+    mirrored.mkdir(parents=True)
+    (mirrored / "output_1").mkdir()
+    (mirrored / "output_baseline").mkdir()
+    (output_base / "subject1" / "otherSession").mkdir(parents=True)
+    (output_base / "subject1" / "otherSession" / "output_1").mkdir()
 
-    result = discover_run_folders(str(session), output_base_directory=str(output_base))
+    result = discover_run_folders(str(session), output_base_directory=str(output_base), data_root=str(data_root))
 
     assert result == [
-        str(output_base / "mySession_output_1"),
-        str(output_base / "mySession_output_baseline"),
+        str(mirrored / "output_1"),
+        str(mirrored / "output_baseline"),
     ]
 
 
 def test_discover_output_dirs_empty_when_the_output_base_directory_is_absent(tmp_path):
-    session = tmp_path / "mySession"
-    session.mkdir()
+    data_root = tmp_path / "data"
+    session = data_root / "mySession"
+    session.mkdir(parents=True)
 
-    assert discover_run_folders(str(session), output_base_directory=str(tmp_path / "not_created_yet")) == []
+    assert (
+        discover_run_folders(
+            str(session), output_base_directory=str(tmp_path / "not_created_yet"), data_root=str(data_root)
+        )
+        == []
+    )
 
 
 # ── parse_session_basename ────────────────────────────────────────────────────
 
 
-def test_parse_session_basename_returns_the_prefix(tmp_path):
-    assert parse_session_basename(str(tmp_path / "guppy_output" / "mySession_output_baseline")) == "mySession"
+def test_parse_session_basename_reads_the_mirrored_session_directory():
+    assert parse_session_basename("/derivatives/subject1/mySession/output_baseline") == "mySession"
 
 
-def test_parse_session_basename_splits_on_the_last_marker():
-    assert parse_session_basename("/base/a_output_b_output_2") == "a_output_b"
-
-
-def test_parse_session_basename_raises_for_a_non_run_folder():
-    with pytest.raises(ValueError, match="does not match"):
-        parse_session_basename("/base/mySession")
+def test_parse_session_basename_reads_the_session_folder_of_an_inside_session_run():
+    assert parse_session_basename("/data/mySession/mySession_output_2") == "mySession"
 
 
 # ── sibling_run_folders ───────────────────────────────────────────────────────
 
 
 def test_sibling_run_folders_finds_the_sessions_other_runs_in_a_shared_base(tmp_path):
-    output_base = tmp_path / "guppy_output"
-    output_base.mkdir()
-    for name in ("mySession_output_1", "mySession_output_2", "otherSession_output_1"):
-        (output_base / name).mkdir()
+    mirrored = tmp_path / "derivatives" / "subject1" / "mySession"
+    mirrored.mkdir(parents=True)
+    for name in ("output_1", "output_2"):
+        (mirrored / name).mkdir()
+    (tmp_path / "derivatives" / "subject1" / "otherSession" / "output_1").mkdir(parents=True)
 
-    result = sibling_run_folders(str(output_base / "mySession_output_1"))
+    result = sibling_run_folders(str(mirrored / "output_1"))
 
     assert result == [
-        str(output_base / "mySession_output_1"),
-        str(output_base / "mySession_output_2"),
+        str(mirrored / "output_1"),
+        str(mirrored / "output_2"),
     ]
 
 
@@ -350,21 +394,26 @@ def test_select_output_dirs_filters_to_requested_runs(tmp_path):
 
 
 def test_select_output_dirs_reads_the_output_base_directory(tmp_path):
-    session = tmp_path / "mySession"
-    session.mkdir()
-    output_base = tmp_path / "guppy_output"
-    output_base.mkdir()
+    data_root = tmp_path / "data"
+    session = data_root / "mySession"
+    session.mkdir(parents=True)
+    mirrored = tmp_path / "derivatives" / "mySession"
+    mirrored.mkdir(parents=True)
     for run_name in ("1", "baseline"):
-        directory = output_base / f"mySession_output_{run_name}"
+        directory = mirrored / f"output_{run_name}"
         directory.mkdir()
         (directory / "storesList.csv").touch()
 
     result = select_run_folders(
         str(session),
-        inputParameters={"selected_runs": {str(session): ["baseline"]}, "output_base_directory": str(output_base)},
+        inputParameters={
+            "selected_runs": {str(session): ["baseline"]},
+            "output_base_directory": str(tmp_path / "derivatives"),
+            "data_root": str(data_root),
+        },
     )
 
-    assert result == [str(output_base / "mySession_output_baseline")]
+    assert result == [str(mirrored / "output_baseline")]
 
 
 def test_select_output_dirs_raises_for_missing_run_name(tmp_path):
@@ -554,47 +603,49 @@ class TestEventLabelsForAnalysis:
 class TestResolveRunFolders:
     @pytest.fixture
     def sessions_with_one_run_each(self, tmp_path):
-        """Two sessions, each with a run named "1" written into a shared output base."""
-        output_base = tmp_path / "guppy_output"
-        output_base.mkdir()
+        """Two sessions, each with a run named "1" mirrored into a shared output base."""
+        data_root = tmp_path / "data"
+        output_base = tmp_path / "derivatives"
         sessions = []
         for session_name in ("session_a", "session_b"):
-            session = tmp_path / session_name
-            session.mkdir()
-            run_folder = output_base / f"{session_name}_output_1"
-            run_folder.mkdir()
+            session = data_root / session_name
+            session.mkdir(parents=True)
+            run_folder = output_base / session_name / "output_1"
+            run_folder.mkdir(parents=True)
             (run_folder / "storesList.csv").touch()
             sessions.append(str(session))
-        return sessions, str(output_base)
+        return sessions, str(output_base), str(data_root)
 
     def test_non_combine_returns_per_session_run_folders(self, sessions_with_one_run_each):
-        sessions, output_base = sessions_with_one_run_each
+        sessions, output_base, data_root = sessions_with_one_run_each
         result = resolve_run_folders(
             sessions,
             {
                 "combine_data": False,
                 "output_base_directory": output_base,
+                "data_root": data_root,
                 "selected_runs": {session: ["1"] for session in sessions},
             },
         )
         assert result == [
-            str(Path(output_base) / "session_a_output_1"),
-            str(Path(output_base) / "session_b_output_1"),
+            str(Path(output_base) / "session_a" / "output_1"),
+            str(Path(output_base) / "session_b" / "output_1"),
         ]
 
     def test_combine_returns_first_folder_of_each_group(self, sessions_with_one_run_each):
-        sessions, output_base = sessions_with_one_run_each
+        sessions, output_base, data_root = sessions_with_one_run_each
         result = resolve_run_folders(
             sessions,
             {
                 "combine_data": True,
                 "output_base_directory": output_base,
+                "data_root": data_root,
                 "selected_runs": {session: ["1"] for session in sessions},
             },
         )
         # Both runs share the run name "1", so they combine into one group whose first
         # folder (alphabetical by path) represents it.
-        assert result == [str(Path(output_base) / "session_a_output_1")]
+        assert result == [str(Path(output_base) / "session_a" / "output_1")]
 
 
 class TestSelectedSessionRuns:

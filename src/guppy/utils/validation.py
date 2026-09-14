@@ -37,10 +37,11 @@ from pathlib import Path
 import numpy as np
 
 from .utils import (
-    _RUN_NAME_MARKER,
     GROUP_MEMBERS_FILENAME,
+    _normalize,
     is_group_folder,
-    run_directory_root,
+    is_run_folder,
+    session_is_under_data_root,
 )
 
 logger = logging.getLogger(__name__)
@@ -337,57 +338,71 @@ def validate_required_folder_selection(*, file_selectors: Sequence) -> None:
         raise ValueError(message)
 
 
-def validate_output_base_directory(*, session_folders: Sequence[str], output_base_directory: str) -> None:
-    """Validate that the output base directory can hold every selected session's runs.
-
-    A session's output directories are named after the session folder, so two sessions
-    with the same folder name writing into the same base directory would claim the same
-    paths.
+def validate_output_base_directory(
+    *, session_folders: Sequence[str], output_base_directory: str, data_root: str
+) -> None:
+    """Validate that the output base directory can mirror every selected session.
 
     Parameters
     ----------
     session_folders : sequence of str
         The session folders whose runs the base directory will hold.
     output_base_directory : str
-        The directory the output directories are written into, or
-        :data:`~guppy.utils.utils.OUTPUT_BASE_BESIDE_SESSIONS` for one beside each session.
+        The directory the mirrored output tree is written into.
+    data_root : str
+        The directory the session folders are selected inside.
 
     Raises
     ------
     ValueError
-        If two selected sessions would write to the same base directory under the same
-        folder name, or if a base directory is itself one of the selected sessions.
+        If a selected session sits outside the data root, or if the output base
+        directory overlaps the raw data it would be written from.
     """
-    root_and_basename_to_sessions: dict[tuple[str, str], list[str]] = {}
-    for session in session_folders:
-        root = run_directory_root(session_path=str(session), output_base_directory=output_base_directory)
-        basename = Path(str(session).rstrip("/\\")).name
-        root_and_basename_to_sessions.setdefault((root, basename), []).append(str(session))
+    root = Path(_normalize(data_root))
+    base = Path(_normalize(output_base_directory))
 
-    colliding = {
-        f"{basename} in {root}": sessions
-        for (root, basename), sessions in root_and_basename_to_sessions.items()
-        if len(sessions) > 1
-    }
-    if colliding:
+    outside = sorted(
+        str(session)
+        for session in session_folders
+        if not session_is_under_data_root(session_path=str(session), data_root=data_root)
+    )
+    if outside:
         message = (
-            "Sessions writing into the same output base directory must have distinct folder names, "
-            "because their output directories are named '<session folder name>_output_<run>'. "
-            f"Colliding names: {colliding!r}. Rename the session folders, analyse them separately, "
-            "or write outputs inside each session folder."
+            f"Session folder(s) {outside!r} are not inside the data root {str(root)!r}, so GuPPy "
+            f"cannot mirror them into the output base directory. Choose a data root that contains "
+            f"every selected session."
         )
         logger.error(message)
         raise ValueError(message)
 
-    session_paths = {Path(session).resolve() for session in session_folders}
-    overlapping = sorted(
-        {root for (root, _basename) in root_and_basename_to_sessions if Path(root).resolve() in session_paths}
-    )
-    if overlapping:
+    if base == root:
         message = (
-            f"The output base directory would be a selected session folder ({overlapping!r}), which "
-            "would write analysis outputs into the raw data it reads. Choose a directory outside the "
-            "selected sessions."
+            f"The output base directory {str(base)!r} is the data root, so analysis outputs would be "
+            f"written over the raw data. Choose a directory outside the data root."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+    enclosing = sorted(
+        str(session)
+        for session in session_folders
+        if base == Path(_normalize(session)) or Path(_normalize(session)) in base.parents
+    )
+    if enclosing:
+        message = (
+            f"The output base directory {str(base)!r} is inside the selected session(s) {enclosing!r}, "
+            f"which would write analysis outputs into the raw data GuPPy reads. Choose a directory "
+            f"outside the selected sessions."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+    enclosed = sorted(str(session) for session in session_folders if base in Path(_normalize(session)).parents)
+    if enclosed:
+        message = (
+            f"The selected session(s) {enclosed!r} are inside the output base directory {str(base)!r}, "
+            f"so GuPPy would read raw data out of its own output tree. Choose a directory outside the "
+            f"selected sessions."
         )
         logger.error(message)
         raise ValueError(message)
@@ -456,18 +471,17 @@ def validate_group_member_run_folders(*, member_run_folders: Sequence[str]) -> N
     """
     if not member_run_folders:
         message = (
-            "No member runs selected for group averaging. Pick at least one "
-            "'<session>_output_<run>' directory in the Group Analysis card before running the step."
+            "No member runs selected for group averaging. Pick at least one run "
+            "directory in the Group Analysis card before running the step."
         )
         logger.error(message)
         raise ValueError(message)
 
-    not_output_directories = [path for path in member_run_folders if _RUN_NAME_MARKER not in Path(path).name]
+    not_output_directories = [path for path in member_run_folders if not is_run_folder(path)]
     if not_output_directories:
         message = (
             f"Group members must be output directories, but these are not: {not_output_directories!r}. "
-            "Select the '<session>_output_<run>' directories inside each session, not the session folders "
-            "themselves."
+            "Select each session's run directories, not the session folders themselves."
         )
         logger.error(message)
         raise ValueError(message)

@@ -40,56 +40,78 @@ from guppy.orchestration.store_labeling import (
 from guppy.orchestration.transients import executeFindFreqAndAmp
 from guppy.orchestration.visualize import visualizeResults
 from guppy.utils.utils import (
-    DEFAULT_OUTPUT_BASE_DIRECTORY_NAME,
     discover_run_folders,
     resolve_run_folders,
     run_folder_for_run,
 )
 
+# Name of the output directory the headless steps write into, beside the sessions they
+# select. Real users pick this directory themselves; the steps here need a fixed
+# convention so tests can find what a step wrote.
+TEST_OUTPUT_DIRECTORY_NAME = "guppy_output"
+
 
 def default_output_base_directory(*, base_dir: str) -> str:
-    """Return the output base directory the homepage defaults to for sessions under ``base_dir``.
-
-    The steps here select sessions that sit directly under ``base_dir``, so the form's
-    default — a ``guppy_output`` directory beside each session — resolves there.
+    """Return the output base directory the headless steps write into for ``base_dir``.
 
     Parameters
     ----------
     base_dir : str
-        Directory the session folders sit directly under.
+        Data root the session folders sit under.
 
     Returns
     -------
     str
-        Path of the default output base directory.
+        Path of the output base directory.
     """
-    return str(Path(base_dir) / DEFAULT_OUTPUT_BASE_DIRECTORY_NAME)
+    return str(Path(base_dir) / TEST_OUTPUT_DIRECTORY_NAME)
 
 
-def locate_run_folder(*, session: str, output_base_directory: str | None = None) -> str:
+def locate_run_folder(*, session: str, data_root: str | None = None, output_base_directory: str | None = None) -> str:
     """Return the run folder Step 1 wrote for ``session``.
 
     Parameters
     ----------
     session : str
         Session folder the run was created for.
+    data_root : str or None, optional
+        Data root the session was selected under. ``None`` (the default) uses the
+        session's parent directory, which is where the headless steps put it.
     output_base_directory : str or None, optional
-        Directory the run folders were written into. ``None`` (the default) uses the
-        homepage's default for a session sitting directly under its base directory.
+        Directory the mirrored output tree was written into. ``None`` (the default)
+        uses the headless steps' own output directory for ``data_root``.
 
     Returns
     -------
     str
         Path of the session's first run folder holding a ``storesList.csv``.
     """
+    if data_root is None:
+        data_root = str(Path(session).parent)
     if output_base_directory is None:
-        output_base_directory = default_output_base_directory(base_dir=str(Path(session).parent))
-    run_folders = discover_run_folders(str(session), output_base_directory=output_base_directory)
+        output_base_directory = default_output_base_directory(base_dir=data_root)
+    run_folders = discover_run_folders(str(session), output_base_directory=output_base_directory, data_root=data_root)
     assert run_folders, f"no output directory was created for {session} in {output_base_directory}"
     for run_folder in run_folders:
         if (Path(run_folder) / "storesList.csv").exists():
             return run_folder
     raise AssertionError(f"no output directory for {session} in {output_base_directory} contains storesList.csv")
+
+
+def _point_form_at_output_directory(*, template: object, base_dir: str) -> None:
+    """Set the form's data root and output directory to the headless steps' convention.
+
+    Parameters
+    ----------
+    template : pn.template.BootstrapTemplate
+        Homepage template exposing ``_widgets``.
+    base_dir : str
+        Data root the session folders sit under.
+    """
+    output_base_directory = default_output_base_directory(base_dir=base_dir)
+    Path(output_base_directory).mkdir(parents=True, exist_ok=True)
+    template._widgets["data_root_selector"].value = [base_dir]
+    template._widgets["output_base_selector"].value = [output_base_directory]
 
 
 def _validate_sessions_under_base_dir(*, abs_sessions: list[str], base_dir: str) -> None:
@@ -200,6 +222,7 @@ def save_parameters_snapshot(*, base_dir: str, selected_folders: Iterable[str]) 
 
     # Select folders and write the parameter snapshot, mirroring the per-step auto-write.
     template._widgets["files_1"].value = list(selected_folders)
+    _point_form_at_output_directory(template=template, base_dir=base_dir)
     save_parameters(inputParameters=template._hooks["getInputParameters"]())
 
 
@@ -239,6 +262,7 @@ def import_custom_events(
         raise RuntimeError("build_homepage did not expose 'files_1' widget")
 
     template._widgets["files_1"].value = list(selected_folders)
+    _point_form_at_output_directory(template=template, base_dir=base_dir)
     input_params = template._hooks["getInputParameters"]()
     input_params["custom_events_map"] = custom_events_map
     orchestrate_custom_events_page(input_params)
@@ -349,6 +373,7 @@ def _drive_store_labeling_page(
     run_name: str | None,
     run_name_policy: str,
     output_base_directory: str | None,
+    data_root: str | None,
 ) -> None:
     """Drive one session's Label Stores page to save storesList.csv.
 
@@ -371,7 +396,9 @@ def _drive_store_labeling_page(
     run_name_policy : {"create", "overwrite"}
         Collision behavior for an explicit ``run_name``.
     output_base_directory : str or None
-        Directory the run folder is written into, as the page resolves it.
+        Directory the mirrored output tree is written into, as the page resolves it.
+    data_root : str or None
+        Data root the session was selected under, as the page resolves it.
     """
     selector = template._widgets["selector"]
 
@@ -412,7 +439,7 @@ def _drive_store_labeling_page(
     _raise_on_alert(selector=selector)
 
     target_run_folder = (
-        run_folder_for_run(folder_path, run_name, output_base_directory=output_base_directory)
+        run_folder_for_run(folder_path, run_name, output_base_directory=output_base_directory, data_root=data_root)
         if run_name is not None
         else None
     )
@@ -526,6 +553,7 @@ def step1(
 
     # Select folders and fetch input parameters
     homepage._widgets["files_1"].value = abs_sessions
+    _point_form_at_output_directory(template=homepage, base_dir=base_dir)
     input_params = homepage._hooks["getInputParameters"]()
 
     input_params["isosbestic_control"] = isosbestic_control
@@ -568,6 +596,7 @@ def step1(
             run_name=run_name,
             run_name_policy=run_name_policy,
             output_base_directory=input_params["output_base_directory"],
+            data_root=input_params["data_root"],
         )
 
 
@@ -641,6 +670,7 @@ def step2(
 
     # Select folders and fetch input parameters
     template._widgets["files_1"].value = abs_sessions
+    _point_form_at_output_directory(template=template, base_dir=base_dir)
     input_params = template._hooks["getInputParameters"]()
 
     # Inject explicit NPM parameters
@@ -732,6 +762,7 @@ def _build_preprocess_input_parameters(
 
     # Select folders and fetch input parameters
     template._widgets["files_1"].value = abs_sessions
+    _point_form_at_output_directory(template=template, base_dir=base_dir)
     input_params = template._hooks["getInputParameters"]()
 
     # Inject explicit NPM parameters
@@ -1207,6 +1238,7 @@ def step4(
 
     # Select folders and fetch input parameters
     template._widgets["files_1"].value = abs_sessions
+    _point_form_at_output_directory(template=template, base_dir=base_dir)
     input_params = template._hooks["getInputParameters"]()
 
     # Inject explicit NPM parameters
@@ -1330,6 +1362,7 @@ def group_analysis(
         Whether transient trains stand in for external event TTLs.
     """
     template = build_homepage(start_path=base_dir)
+    _point_form_at_output_directory(template=template, base_dir=base_dir)
 
     absolute_groups = [str(Path(folder).resolve()) for folder in selected_group_folders]
     template._widgets["group_folders_selector"].value = absolute_groups
@@ -1427,6 +1460,7 @@ def step5(
 
     # Select folders and fetch input parameters
     template._widgets["files_1"].value = abs_sessions
+    _point_form_at_output_directory(template=template, base_dir=base_dir)
     input_params = template._hooks["getInputParameters"]()
 
     # Inject explicit NPM parameters
@@ -1503,6 +1537,7 @@ def _build_headless_input_parameters(
         raise RuntimeError("savingInputParameters did not expose 'files_1' widget")
 
     template._widgets["files_1"].value = abs_sessions
+    _point_form_at_output_directory(template=template, base_dir=base_dir)
     return template._hooks["getInputParameters"](), abs_sessions
 
 

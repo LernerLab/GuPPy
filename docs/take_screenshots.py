@@ -51,7 +51,6 @@ from guppy.utils.nwb_metadata import (
     load_yaml,
     parse_metadata_dict,
 )
-from guppy.utils.utils import DEFAULT_OUTPUT_BASE_DIRECTORY_NAME
 
 if TYPE_CHECKING:
     from panel.template.base import BasicTemplate
@@ -188,8 +187,8 @@ def screenshot_select_artifact_windows(page: Page, tmp_path: Path) -> None:
     The selector is built against synthetic traces rather than a preprocessed run folder
     so the screenshot does not depend on running Steps 1-3 first.
     """
-    run_folder = tmp_path / "sample_data_csv_1_output_1"
-    run_folder.mkdir(exist_ok=True)
+    run_folder = tmp_path / "sample_data_csv_1" / "output_1"
+    run_folder.mkdir(parents=True, exist_ok=True)
 
     selector = ArtifactWindowSelector(str(run_folder), _synthetic_pair_traces(recording_sites=["DMS", "DLS"]))
     selector.set_windows("DMS", [(128.0, 140.0)])
@@ -267,8 +266,8 @@ def screenshot_tonic_analysis_button(page: Page) -> None:
 
 def screenshot_tonic_analysis(page: Page, tmp_path: Path) -> None:
     """How-to: the Tonic Analysis page with the three injection phases filled in."""
-    run_folder = tmp_path / "sample_data_csv_injection_1_output_1"
-    run_folder.mkdir(exist_ok=True)
+    run_folder = tmp_path / "sample_data_csv_injection_1" / "output_1"
+    run_folder.mkdir(parents=True, exist_ok=True)
 
     config = TonicEpochConfig(str(run_folder), _synthetic_site_traces(recording_sites=["DMS", "DLS"]))
     config.set_epochs("DMS", TONIC_EPOCHS)
@@ -785,13 +784,14 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
 
     The three runs match what a reader following the tutorial sees: the unnamed run left
     by the first-analysis tutorial, plus the two named ones this tutorial builds. The run
-    folders are created in a real output base directory beside the sample data, and removed
+    folders are created in a real output directory beside the sample data, and removed
     afterwards, so the Directory field shows a normal path rather than a temp-dir basename.
     """
     run_names = ("1", "filter_100", "filter_250")
-    output_base_directory = SAMPLE_DATA_DIR.parent / DEFAULT_OUTPUT_BASE_DIRECTORY_NAME
-    output_base_directory.mkdir(exist_ok=True)
-    run_folders = [output_base_directory / f"sample_data_csv_1_output_{name}" for name in run_names]
+    output_base_directory = SAMPLE_DATA_DIR.parent / "guppy_output"
+    mirrored_session = output_base_directory / SAMPLE_DATA_DIR.name
+    mirrored_session.mkdir(parents=True, exist_ok=True)
+    run_folders = [mirrored_session / f"output_{name}" for name in run_names]
     for run_folder in run_folders:
         run_folder.mkdir(exist_ok=True)
 
@@ -805,7 +805,9 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
             template=pn.template.MaterialTemplate(title="Input Parameters GUI"),
             start_path=str(SAMPLE_DATA_DIR.parent),
         )
-        form.outputs_selector._directory.value = str(output_base_directory)
+        form.data_root_selector.value = [str(SAMPLE_DATA_DIR.parent)]
+        form.output_base_selector.value = [str(output_base_directory)]
+        form.outputs_selector._directory.value = str(mirrored_session)
         form.outputs_selector._update_files()
         form.outputs_selector._selector.value = [str(run_folders[2])]
         form.output_folder_selection.collapsed = False
@@ -827,6 +829,7 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
     finally:
         for run_folder in run_folders:
             run_folder.rmdir()
+        mirrored_session.rmdir()
         output_base_directory.rmdir()
 
 

@@ -10,14 +10,13 @@ import panel as pn
 from .dandi_selector import DandiSelector
 from .frontend_utils import default_root_path
 from ..utils.utils import (
-    DEFAULT_OUTPUT_BASE_DIRECTORY_NAME,
-    OUTPUT_BASE_BESIDE_SESSIONS,
     common_parent_directory,
     discover_run_folders,
     is_group_folder,
     parse_run_name,
     run_directory_root,
     run_folder_for_run,
+    session_is_under_data_root,
 )
 from ..utils.validation import (
     validate_non_negative,
@@ -29,9 +28,9 @@ from ..utils.validation import (
 
 logger = logging.getLogger(__name__)
 
-# The two output layouts the form offers, as they read on the radio button group.
-SEPARATE_OUTPUT_DIRECTORY = "separate output directory"
-OUTPUTS_INSIDE_SESSION = "inside each session folder"
+# The two output layouts the form offers, as they read on the radio buttons.
+SEPARATE_OUTPUT_DIRECTORY = "Mirror the data root into a separate output directory"
+OUTPUTS_INSIDE_SESSION = "Write each run inside the session folder it came from"
 
 # Width of each parameter section inside the 1000px Individual Analysis card.
 SECTION_WIDTH = 960
@@ -175,6 +174,7 @@ class ParameterForm:
         self.outputs_selector.param.watch(self._load_parameters_from_selected_runs, "value")
         self.output_location_mode.param.watch(self._on_output_location_changed, "value")
         self.output_base_selector.param.watch(self._on_output_location_changed, "value")
+        self.data_root_selector.param.watch(self._on_data_root_changed, "value")
         self.dandi_selector.output_root_selector.param.watch(self._on_sessions_changed, "value")
         self.dandi_selector.attach_asset_selection_watcher(callback=self._on_sessions_changed)
 
@@ -205,6 +205,23 @@ class ParameterForm:
         )
         self.source_mode.param.watch(self._on_source_mode_change, "value")
 
+        self.data_root_header = pn.pane.Markdown(
+            "**Data root.** The directory your session folders live under. GuPPy mirrors each "
+            "session's path below it into the output directory, so `<data root>/subject1/session1` "
+            "writes its runs to `<output directory>/subject1/session1`.",
+            width=950,
+        )
+        self.data_root_selector = pn.widgets.FileSelector(
+            self.folder_path,
+            root_directory="/",
+            name="Data root",
+            width=950,
+        )
+
+        self.session_selector_header = pn.pane.Markdown(
+            "**Session folders.** The sessions to analyse. Each one must sit under the data root.",
+            width=950,
+        )
         self.files_1 = pn.widgets.FileSelector(self.folder_path, root_directory="/", name="session_folders", width=950)
 
         self.dandi_selector = DandiSelector(styles=self.styles, start_path=self.folder_path)
@@ -277,28 +294,22 @@ class ParameterForm:
             description="Set to True when one recording session was written as two separate data files; the matching channels are concatenated into a single trace before preprocessing.",
         )
 
-        self.output_location_mode = pn.widgets.RadioButtonGroup(
+        self.output_location_mode = pn.widgets.RadioBoxGroup(
             name="Output location",
             options=[SEPARATE_OUTPUT_DIRECTORY, OUTPUTS_INSIDE_SESSION],
             value=SEPARATE_OUTPUT_DIRECTORY,
-            button_type="primary",
-            width=420,
+            width=620,
         )
         self.output_location_header = pn.pane.Markdown(
-            "**Where analysis outputs are written.** Every run is a "
-            "`<session folder name>_output_<run>` directory. With "
-            f"*{SEPARATE_OUTPUT_DIRECTORY}* no analysis output is written into the raw session "
-            f"folders: leave the browser below empty and each session's runs go into a "
-            f"`{DEFAULT_OUTPUT_BASE_DIRECTORY_NAME}` directory beside that session, or pick one "
-            "directory below to collect every selected session's runs there. Switch to "
-            f"*{OUTPUTS_INSIDE_SESSION}* to write each run inside the session folder it came "
-            "from, which is where GuPPy wrote them before version 2.0.0-beta4.",
+            "**Where analysis outputs are written.** Pick the directory the mirrored output tree "
+            "is written into; a session's runs land in `<output directory>/<session path under the "
+            "data root>/output_<run name>`. Choosing a directory is required.",
             width=950,
         )
         self.output_base_selector = pn.widgets.FileSelector(
             self.folder_path,
             root_directory="/",
-            name="Output base directory",
+            name="Output directory",
             width=950,
         )
 
@@ -319,7 +330,7 @@ class ParameterForm:
         self.outputs_selector = pn.widgets.FileSelector(
             self.folder_path,
             root_directory="/",
-            file_pattern="*_output_*",
+            file_pattern="*output_*",
             name="Existing runs (steps 2–5)",
             width=950,
         )
@@ -651,6 +662,10 @@ class ParameterForm:
 
         self.input_folder_selection_widget = pn.Column(
             pn.Row(pn.pane.Markdown("**Data Source:**"), self.source_mode),
+            self.data_root_header,
+            self.data_root_selector,
+            pn.layout.Divider(),
+            self.session_selector_header,
             self.files_1,
             self.dandi_selector.panel,
             self.combine_data,
@@ -696,36 +711,52 @@ class ParameterForm:
         self._restore_run_selection(run_folders=run_folders, run_names=run_names)
 
     @property
-    def output_base_directory(self) -> str | None:
-        """Return the directory the run folders are written into.
-
-        ``None`` when the form is set to write each run inside the session folder it
-        came from, which is what the path helpers read as the legacy layout.
+    def data_root(self) -> str | None:
+        """Return the directory the session folders are selected under.
 
         Returns
         -------
         str or None
-            The chosen base directory, :data:`OUTPUT_BASE_BESIDE_SESSIONS` when none is
-            chosen, or ``None`` for the inside-the-session layout.
+            The chosen data root, the DANDI output root in DANDI mode, or ``None``
+            when neither has been chosen.
+        """
+        if self.source_mode.value == "dandi":
+            return self.dandi_selector.output_root
+        selected = list(self.data_root_selector.value or [])
+        return str(selected[0]) if selected else None
+
+    @property
+    def output_base_directory(self) -> str | None:
+        """Return the directory the mirrored output tree is written into.
+
+        Returns
+        -------
+        str or None
+            The chosen output directory, or ``None`` for the inside-the-session
+            layout and while no directory has been chosen yet.
         """
         if self.output_location_mode.value == OUTPUTS_INSIDE_SESSION:
             return None
         selected = list(self.output_base_selector.value or [])
-        if selected:
-            return str(selected[0])
-        return OUTPUT_BASE_BESIDE_SESSIONS
+        return str(selected[0]) if selected else None
+
+    def _on_data_root_changed(self, event: object = None) -> None:
+        """Start the session browser inside the newly chosen data root."""
+        data_root = self.data_root
+        if data_root:
+            self.files_1.directory = data_root
+        self._on_output_location_changed()
 
     def _session_by_run_folder(self) -> dict[str, str]:
-        """Map each run folder on disk back to the selected session it belongs to.
-
-        Once run folders live in a shared base directory their parent is no longer
-        their session, so the mapping is built forwards from the selected sessions.
-        """
+        """Map each run folder on disk back to the selected session it belongs to."""
         output_base_directory = self.output_base_directory
+        data_root = self.data_root
         return {
             str(Path(run_folder)): session
             for session in self._sessions_for_run_selection()
-            for run_folder in discover_run_folders(session, output_base_directory=output_base_directory)
+            for run_folder in discover_run_folders(
+                session, output_base_directory=output_base_directory, data_root=data_root
+            )
         }
 
     def _collect_selected_runs(self) -> dict[str, list[str]]:
@@ -762,38 +793,38 @@ class ParameterForm:
             _reject_group_folder_selected_as_run(path=session)
         grouped = self._collect_selected_runs()
         output_base_directory = self.output_base_directory
+        data_root = self.data_root
         missing = [
             session
             for session in (self.files_1.value or [])
-            if discover_run_folders(session, output_base_directory=output_base_directory) and not grouped.get(session)
+            if discover_run_folders(session, output_base_directory=output_base_directory, data_root=data_root)
+            and not grouped.get(session)
         ]
         if missing:
             raise ValueError(
                 f"No output directory selected for session(s) {missing!r}. "
-                "Open the Output Folder Selection panel and pick at least one "
-                "_output_<run> directory per selected session."
+                "Open the Output Folder Selection panel and pick at least one run "
+                "directory per selected session."
             )
         self._warn_about_runs_only_in_session_folders()
 
     def _warn_about_runs_only_in_session_folders(self) -> None:
-        """Point at the legacy layout when a session's only runs sit inside it.
-
-        Analyses made before the output base directory existed wrote their runs into the
-        session folder, where the shared base directory does not look for them.
-        """
+        """Warn when a session's only runs sit inside the session folder."""
         if self.output_base_directory is None:
             return
         stranded = [
             session
             for session in (self.files_1.value or [])
             if discover_run_folders(session)
-            and not discover_run_folders(session, output_base_directory=self.output_base_directory)
+            and not discover_run_folders(
+                session, output_base_directory=self.output_base_directory, data_root=self.data_root
+            )
         ]
         if stranded:
             self._notify(
                 "warning",
                 f"Session(s) {stranded!r} hold output directories inside the session folder, which "
-                f"the output base directory {self.output_base_directory!r} does not list. Set Output "
+                f"the output directory {self.output_base_directory!r} does not list. Set Output "
                 f"Location to '{OUTPUTS_INSIDE_SESSION}' to work with them.",
             )
 
@@ -804,8 +835,19 @@ class ParameterForm:
         return list(self.files_1.value or [])
 
     def _sessions_for_run_selection(self) -> list[str]:
-        """Return the existing session directories whose runs steps 2-5 will read."""
-        return [session for session in self._prospective_sessions() if Path(session).is_dir()]
+        """Return the existing session directories whose runs steps 2-5 will read.
+
+        A session the form cannot place in the output tree yet — because no data root has
+        been chosen, or because it sits outside the one that has — contributes no runs to
+        browse. ``getInputParameters`` is what reports it, when an analysis is started.
+        """
+        sessions = [session for session in self._prospective_sessions() if Path(session).is_dir()]
+        if self.output_base_directory is None:
+            return sessions
+        data_root = self.data_root
+        return [
+            session for session in sessions if session_is_under_data_root(session_path=session, data_root=data_root)
+        ]
 
     def _run_names_for_sessions(self, sessions: list[str]) -> list[str]:
         """Return every run name present in at least one of ``sessions``, in run-name order.
@@ -814,9 +856,12 @@ class ParameterForm:
         that do exist and leaves the remaining sessions to the folder tree.
         """
         output_base_directory = self.output_base_directory
+        data_root = self.data_root
         run_names = []
         for session in sessions:
-            for directory in discover_run_folders(session, output_base_directory=output_base_directory):
+            for directory in discover_run_folders(
+                session, output_base_directory=output_base_directory, data_root=data_root
+            ):
                 run_name = parse_run_name(directory)
                 if run_name not in run_names:
                     run_names.append(run_name)
@@ -835,11 +880,11 @@ class ParameterForm:
         self.outputs_selector._update_files()
 
     def _retarget_outputs_selector(self, sessions: list[str]) -> None:
-        """Root the existing-runs FileSelector so all selected sessions' `_output_*` dirs are reachable.
+        """Root the existing-runs FileSelector so all selected sessions' run dirs are reachable.
 
-        - A shared output base directory holds every session's runs, so it is both root and
-          starting directory. The cases below are the inside-the-session layout, where each
-          session holds its own runs:
+        - An output base directory holds the mirrored tree for every session, so it is both
+          root and starting directory. The cases below are the inside-the-session layout,
+          where each session holds its own runs:
         - Zero sessions: fall back to the form's starting directory.
         - One session: root and starting directory both set to that session so its `_output_*`
           children show directly (no extra click).
@@ -851,22 +896,8 @@ class ParameterForm:
         output_base_directory = self.output_base_directory
         dandi_output_root = self.dandi_selector.output_root if self.source_mode.value == "dandi" else None
         if output_base_directory is not None:
-            # Each session resolves to its own base directory under the beside-each-session
-            # default, so root the tree at the deepest directory containing all of them.
-            # Before step 1 has run none of them need exist yet; rooting the tree at a missing
-            # directory would leave it showing nothing at all.
-            roots = [
-                run_directory_root(session_path=session, output_base_directory=output_base_directory)
-                for session in sessions
-            ]
-            existing_roots = sorted({root for root in roots if Path(root).is_dir()})
-            if not existing_roots:
-                root_target = self.folder_path
-            elif len(existing_roots) == 1:
-                root_target = existing_roots[0]
-            else:
-                root_target = os.path.commonpath(existing_roots)
-            directory_target = root_target
+            root_target = output_base_directory
+            directory_target = output_base_directory
         elif dandi_output_root:
             root_target = dandi_output_root
             directory_target = sessions[0] if sessions else dandi_output_root
@@ -948,10 +979,13 @@ class ParameterForm:
     def _run_folders_on_disk(self, *, sessions: list[str], run_names: list[str]) -> list[str]:
         """Return the existing run directories named by ``run_names`` across ``sessions``."""
         output_base_directory = self.output_base_directory
+        data_root = self.data_root
         run_folders = []
         for session in sessions:
             for run_name in run_names:
-                run_folder = run_folder_for_run(session, run_name, output_base_directory=output_base_directory)
+                run_folder = run_folder_for_run(
+                    session, run_name, output_base_directory=output_base_directory, data_root=data_root
+                )
                 if Path(run_folder).is_dir():
                     run_folders.append(run_folder)
         return run_folders
@@ -1139,15 +1173,30 @@ class ParameterForm:
             dandi_uri_map = None
             mode = "local"
 
+        data_root = self.data_root
         output_base_directory = self.output_base_directory
-        if output_base_directory is not None:
+        if self.output_location_mode.value == SEPARATE_OUTPUT_DIRECTORY:
+            if output_base_directory is None:
+                raise ValueError(
+                    "No output directory chosen. Pick one in the Output Folder Selection card, or set "
+                    f"Output Location to '{OUTPUTS_INSIDE_SESSION}'."
+                )
+            if data_root is None:
+                raise ValueError(
+                    "No data root chosen. Pick the directory your session folders live under in the "
+                    "Input Folder Selection card."
+                )
             validate_output_base_directory(
-                session_folders=list(folder_names), output_base_directory=output_base_directory
+                session_folders=list(folder_names),
+                output_base_directory=output_base_directory,
+                data_root=data_root,
             )
             # Created here rather than at save time so every step, and the Label Stores page
             # that writes the first run folder into it, can count on it existing.
             for session in folder_names:
-                root = run_directory_root(session_path=session, output_base_directory=output_base_directory)
+                root = run_directory_root(
+                    session_path=session, output_base_directory=output_base_directory, data_root=data_root
+                )
                 Path(root).mkdir(parents=True, exist_ok=True)
 
         inputParameters = {
@@ -1155,6 +1204,7 @@ class ParameterForm:
             "dandi_uri_map": dandi_uri_map,
             "abspath": abspath_value,
             "output_base_directory": output_base_directory,
+            "data_root": data_root,
             "session_folders": folder_names,
             "numberOfCores": self.numberOfCores.value,
             "combine_data": self.combine_data.value,

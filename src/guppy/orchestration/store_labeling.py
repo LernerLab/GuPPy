@@ -52,7 +52,13 @@ def store_label_cache_path() -> Path:
     return Path.home() / ".storesList.json"
 
 
-def show_dir(filepath: str, run_name: str | None = None, *, output_base_directory: str | None = None) -> str:
+def show_dir(
+    filepath: str,
+    run_name: str | None = None,
+    *,
+    output_base_directory: str | None = None,
+    data_root: str | None = None,
+) -> str:
     """Return the path of an output directory without creating it.
 
     Parameters
@@ -60,26 +66,31 @@ def show_dir(filepath: str, run_name: str | None = None, *, output_base_director
     filepath : str
         Path to the session folder.
     run_name : str or None, optional
-        Explicit run-name suffix.  When ``None`` (the default) the legacy
-        next-available-integer behaviour is used.
+        Explicit run-name suffix.  When ``None`` (the default) the next
+        available integer is used.
     output_base_directory : str or None, optional
-        Directory the output directory is written into.  ``None`` (the default)
-        writes it inside the session folder.
+        Directory the mirrored output tree is written into.  ``None`` (the default)
+        writes the output directory inside the session folder.
+    data_root : str or None, optional
+        Directory the session folders are selected inside.  Required whenever
+        ``output_base_directory`` is given.
 
     Returns
     -------
     str
-        Path of the form ``<root>/<basename>_output_<run_name>``.  When
+        Path of the output directory.  When
         ``run_name`` is ``None`` the suffix is the lowest integer for which
         the directory does not yet exist.
     """
     if run_name is not None:
         validate_run_name(run_name)
-        return run_folder_for_run(filepath, run_name, output_base_directory=output_base_directory)
+        return run_folder_for_run(filepath, run_name, output_base_directory=output_base_directory, data_root=data_root)
 
     i = 1
     while True:
-        run_folder = run_folder_for_run(filepath, str(i), output_base_directory=output_base_directory)
+        run_folder = run_folder_for_run(
+            filepath, str(i), output_base_directory=output_base_directory, data_root=data_root
+        )
         if not Path(run_folder).exists():
             break
         i += 1
@@ -315,7 +326,8 @@ def build_store_labeling_template(
     isosbestic_control : bool, optional
         Whether isosbestic-control naming applies. Default is False.
     inputParameters : dict, optional
-        Full pipeline input parameters. Supplies ``output_base_directory``, and is
+        Full pipeline input parameters. Supplies ``output_base_directory`` and
+        ``data_root``, and is
         required for interactive NPM sessions so the confirm callback can decompose
         the session and persist the choices.
     npm_interactive : dict, optional
@@ -333,6 +345,7 @@ def build_store_labeling_template(
     """
     allnames = events
     output_base_directory = (inputParameters or {}).get("output_base_directory")
+    data_root = (inputParameters or {}).get("data_root")
 
     template = pn.template.BootstrapTemplate(title=f"Label Stores GUI - {Path(folder_path).name}")
 
@@ -352,11 +365,20 @@ def build_store_labeling_template(
     # on switching between creating a new run and overwriting one, following function is executed
     def overwrite_button_actions(event: object) -> None:
         if event.new == "over_write_file":
-            options = discover_run_folders(folder_path, output_base_directory=output_base_directory)
+            options = discover_run_folders(
+                folder_path, output_base_directory=output_base_directory, data_root=data_root
+            )
             store_labeling_selector.set_select_location_options(options=options)
         else:
             run_name = store_labeling_selector.get_run_name()
-            options = [show_dir(folder_path, run_name=run_name or None, output_base_directory=output_base_directory)]
+            options = [
+                show_dir(
+                    folder_path,
+                    run_name=run_name or None,
+                    output_base_directory=output_base_directory,
+                    data_root=data_root,
+                )
+            ]
             store_labeling_selector.set_select_location_options(options=options)
 
     def run_name_input_changed(event: object) -> None:
@@ -364,7 +386,14 @@ def build_store_labeling_template(
             return
         run_name = event.new or None
         try:
-            options = [show_dir(folder_path, run_name=run_name, output_base_directory=output_base_directory)]
+            options = [
+                show_dir(
+                    folder_path,
+                    run_name=run_name,
+                    output_base_directory=output_base_directory,
+                    data_root=data_root,
+                )
+            ]
         except ValueError as exc:
             store_labeling_selector.set_alert_message(f"####Alert !! \n {exc}")
             return
@@ -466,7 +495,7 @@ def build_store_labeling_template(
     # The page opens in create-new-run mode, so fill the run name with the next free integer;
     # the run-name watcher resolves it to the run folder Save will create.
     store_labeling_selector.set_run_name(
-        parse_run_name(show_dir(folder_path, output_base_directory=output_base_directory))
+        parse_run_name(show_dir(folder_path, output_base_directory=output_base_directory, data_root=data_root))
     )
 
     if npm_interactive is not None:

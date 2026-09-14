@@ -69,14 +69,18 @@ def homepage(panel_extension):
 def snapshot_path(homepage, tmp_path):
     """Run the pre-step-1 parameter save for one session and return the snapshot it wrote.
 
-    No run folder exists yet, so the snapshot lands in the output base directory the run
-    folders will be created in rather than in any of them.
+    No run folder exists yet, so the snapshot lands in the session's mirrored directory —
+    the one its run folders will be created in — rather than in any of them.
     """
     session_directory = tmp_path / "session1"
     session_directory.mkdir()
+    output_base_directory = Path(default_output_base_directory(base_dir=str(tmp_path)))
+    output_base_directory.mkdir(parents=True, exist_ok=True)
+    homepage._widgets["data_root_selector"].value = [str(tmp_path)]
+    homepage._widgets["output_base_selector"].value = [str(output_base_directory)]
     homepage._widgets["files_1"].value = [str(session_directory)]
     save_parameters(homepage._hooks["getInputParameters"]())
-    return Path(default_output_base_directory(base_dir=str(tmp_path))) / "GuPPyParamtersUsed.json"
+    return output_base_directory / "session1" / "GuPPyParamtersUsed.json"
 
 
 def test_save_parameters_writes_parameters_json_into_the_output_base_directory(snapshot_path, tmp_path):

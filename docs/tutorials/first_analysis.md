@@ -57,7 +57,9 @@ Before running the pipeline you pick the session folder you want to analyze, the
 
 ### Select your data
 
-Inside the **Input Folder Selection** card, use the file browser to navigate to `stubbed_testing_data/csv/sample_data_csv_1/`. Click **`>>`** to move that folder into the **Selected files** pane on the right. The card supports selecting multiple session folders at once for batch analysis; for this tutorial we are running a single session.
+Inside the **Input Folder Selection** card, first set the **data root** — the directory your session folders live under. Navigate to `stubbed_testing_data/csv/` and move it across with **`>>`**. GuPPy mirrors each session's path below this root into the output directory, so naming it is what decides the shape of your results tree.
+
+Then, in the **Session folders** browser underneath, navigate to `stubbed_testing_data/csv/sample_data_csv_1/` and click **`>>`** to move that folder into the **Selected files** pane on the right. The browser supports selecting multiple session folders at once for batch analysis; for this tutorial we are running a single session. Every session you select has to sit under the data root.
 
 ```{image} ../_static/images/02_data_selection.png
 :alt: GuPPy homepage Input Folder Selection card showing the file browser with the sample_data_csv_1 folder available for selection
@@ -131,15 +133,15 @@ The three CSV filenames appear in the left list (**Filter available options**) o
 
 5. **Choose the output directory.** Leave **Create new run** selected, and leave the **Run name** GuPPy fills in, `1`.
 
-   This choice picks the **run folder** for the entire analysis pipeline. From this point on, every downstream step (Read Raw Data, Preprocess, PSTH Computation, Visualization) writes its outputs (HDF5 files, PSTH results, plots) into that directory and reads `storesList.csv` from it to know which raw channel maps to which store. **Create new run** makes a fresh directory named `<session>_output_<run name>/` inside the output base directory. The run name GuPPy fills in is the next free integer, so the first run gets `_output_1`, the second `_output_2`, and so on. You did not choose an output base directory, so that is a `guppy_output` directory beside the session folder — your raw session folder is left exactly as it was.
+   This choice picks the **run folder** for the entire analysis pipeline. From this point on, every downstream step (Read Raw Data, Preprocess, PSTH Computation, Visualization) writes its outputs (HDF5 files, PSTH results, plots) into that directory and reads `storesList.csv` from it to know which raw channel maps to which store. **Create new run** makes a fresh directory named `output_<run name>/` inside the session's mirror in the output directory — for this tutorial, `<output directory>/sample_data_csv_1/`. The run name GuPPy fills in is the next free integer, so the first run gets `output_1`, the second `output_2`, and so on. Your raw session folder is left exactly as it was.
 
    :::{note}
-   The other option, **Overwrite existing run**, is for re-running on a session that already has a run folder. It lets you pick an existing `<session>_output_<run name>/` under **Run to overwrite**, deletes everything inside it (the previous `storesList.csv` plus any HDF5 and PSTH results from the previous run), and starts that directory over fresh. Pick it only when you genuinely want that destructive behavior. For the tutorial, ignore it.
+   The other option, **Overwrite existing run**, is for re-running on a session that already has a run folder. It lets you pick an existing `output_<run name>/` under **Run to overwrite**, deletes everything inside it (the previous `storesList.csv` plus any HDF5 and PSTH results from the previous run), and starts that directory over fresh. Pick it only when you genuinely want that destructive behavior. For the tutorial, ignore it.
    :::
 
-6. **Click Save.** GuPPy creates the run folder (e.g. `guppy_output/sample_data_csv_1_output_1/`) and writes `storesList.csv` into it. The downstream steps will read and write inside this folder.
+6. **Click Save.** GuPPy creates the run folder (`<output directory>/sample_data_csv_1/output_1/`) and writes `storesList.csv` into it. The downstream steps will read and write inside this folder.
 
-You can close this Label Stores tab and return to the original homepage tab. Open **Output Folder Selection** and, under **Existing runs (steps 2–5)**, select `sample_data_csv_1_output_1`. Every step from here on acts on the runs selected there.
+You can close this Label Stores tab and return to the original homepage tab. Open **Output Folder Selection** and, under **Existing runs (steps 2–5)**, select `output_1` under `sample_data_csv_1`. Every step from here on acts on the runs selected there.
 
 ## Step 2: Load the raw data
 
@@ -152,7 +154,7 @@ Click **Read Raw Data**. A progress bar appears in the sidebar directly below th
 
 The other bars on the sidebar (under *Preprocess*, *Remove Artifacts*, and *PSTH Computation*) appear pre-filled at 100% as a styling default; they reset to 0 and fill while their own step is running. So a fully-green bar does not mean that step is done, it just means it has not been touched yet.
 
-GuPPy loads each CSV file and writes the data into the output folder you created in Step 1, one HDF5 file per store (so for this tutorial: `sample_data_csv_1_output_1/control_A.hdf5`, `.../signal_A.hdf5`, `.../RewardPort.hdf5`). Each file holds the channel's `data`, `timestamps`, and `sampling_rate` datasets plus a few metadata fields. HDF5 is a binary format that stores large numerical arrays efficiently and supports partial reads, which speeds up the later pipeline steps.
+GuPPy loads each CSV file and writes the data into the output folder you created in Step 1, one HDF5 file per store (so for this tutorial: `sample_data_csv_1/output_1/control_A.hdf5`, `.../signal_A.hdf5`, `.../RewardPort.hdf5`). Each file holds the channel's `data`, `timestamps`, and `sampling_rate` datasets plus a few metadata fields. HDF5 is a binary format that stores large numerical arrays efficiently and supports partial reads, which speeds up the later pipeline steps.
 
 When the progress bar reaches 100% the step is complete. Confirmation messages are also logged to the terminal where you launched `guppy`.
 
@@ -205,7 +207,7 @@ GuPPy aligns the z-scored trace to each event timestamp in `Sample_TTL.csv`, ext
 
 The default window is -10 to +20 seconds. With the sample data you will get a small number of trials (the TTL file has just a handful of timestamps), so the average will be noisy. This is expected for a minimal example dataset.
 
-The outputs land in the same `sample_data_csv_1_output_1/` directory you have been using since Step 1, with one set of files per (event, recording site) pair. For this tutorial that is the single pair `(RewardPort, A)`:
+The outputs land in the same `sample_data_csv_1/output_1/` directory you have been using since Step 1, with one set of files per (event, recording site) pair. For this tutorial that is the single pair `(RewardPort, A)`:
 
 | File | Contents |
 |------|----------|
