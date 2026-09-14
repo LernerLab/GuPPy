@@ -16,7 +16,7 @@ from pynwb import NWBHDF5IO
 from guppy.extractors.nwb_recording_extractor import _find_nwb_file
 from guppy.orchestration.export_nwb import export_session_to_nwb
 from guppy.orchestration.metadata import METADATA_FILENAME
-from guppy.testing import default_output_base_directory
+from guppy.testing import default_output_root_folder
 from guppy.testing.api import step7
 from guppy.utils._hdf5_io import read_hdf5
 from guppy.utils.acquisition_format import (
@@ -345,7 +345,7 @@ class TestExportMixedFormatSession:
     def output_directory(self, step5_output_tdt, tmp_path) -> Path:
         """The run's outputs, copied beside the mixed session the way GuPPy writes them."""
         destination = (
-            Path(default_output_base_directory(base_dir=str(tmp_path)))
+            Path(default_output_root_folder(base_dir=str(tmp_path)))
             / "mixed_session"
             / Path(step5_output_tdt["output_directory"]).name
         )

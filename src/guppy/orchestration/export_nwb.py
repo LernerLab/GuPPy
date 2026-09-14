@@ -44,7 +44,7 @@ _UNSUPPORTED_ARTIFACT_REMOVAL_METHOD = "concatenate"
 
 
 def _validate_artifact_removal_methods(
-    *, pairs: list[tuple[str, str]], output_base_directory: str | None = None, data_root: str | None = None
+    *, pairs: list[tuple[str, str]], output_root_folder: str | None = None, input_root_folder: str | None = None
 ) -> None:
     """Abort the NWB export batch if any selected run had its artifacts removed by ``concatenate``.
 
@@ -57,9 +57,9 @@ def _validate_artifact_removal_methods(
     ----------
     pairs : list of (str, str)
         ``(session_path, run_name)`` pairs selected for export.
-    data_root : str or None, optional
+    input_root_folder : str or None, optional
         Directory the session folders are selected inside.
-    output_base_directory : str or None, optional
+    output_root_folder : str or None, optional
         Directory holding the run folders; ``None`` looks inside each session folder.
 
     Raises
@@ -71,7 +71,7 @@ def _validate_artifact_removal_methods(
     offending = []
     for session_path, run_name in pairs:
         guppy_folder_path = run_folder_for_run(
-            session_path, run_name, output_base_directory=output_base_directory, data_root=data_root
+            session_path, run_name, output_root_folder=output_root_folder, input_root_folder=input_root_folder
         )
         artifacts_removed, removal_method = read_artifact_provenance(destination=guppy_folder_path)
         if artifacts_removed and removal_method == _UNSUPPORTED_ARTIFACT_REMOVAL_METHOD:
@@ -290,16 +290,18 @@ def orchestrate_export_nwb(inputParameters: dict[str, object]) -> None:
     ends.
     """
     pairs = selected_session_runs(inputParameters=inputParameters)
-    output_base_directory = inputParameters.get("output_base_directory")
-    data_root = inputParameters.get("data_root")
+    output_root_folder = inputParameters.get("output_root_folder")
+    input_root_folder = inputParameters.get("input_root_folder")
     validate_data_not_combined(combine_data=inputParameters["combine_data"])
-    _validate_artifact_removal_methods(pairs=pairs, output_base_directory=output_base_directory, data_root=data_root)
+    _validate_artifact_removal_methods(
+        pairs=pairs, output_root_folder=output_root_folder, input_root_folder=input_root_folder
+    )
     progress.start(len(pairs))
 
     failures = []
     for session_path, run_name in pairs:
         guppy_folder_path = run_folder_for_run(
-            session_path, run_name, output_base_directory=output_base_directory, data_root=data_root
+            session_path, run_name, output_root_folder=output_root_folder, input_root_folder=input_root_folder
         )
         session_basename = Path(session_path.rstrip(os.sep)).name
         metadata_yaml_path = Path(guppy_folder_path) / METADATA_FILENAME

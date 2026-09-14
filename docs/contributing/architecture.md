@@ -90,7 +90,7 @@ not selected, a missing DANDI URI. Anything needing cross-parameter context belo
 instead.
 
 The folder and run selectors start in the user's home directory unless a starting directory is
-passed down from `build_homepage(start_path=...)` — the `guppy --start-path` flag, which the testing
+passed down from `build_homepage(start_path=...)` — an internal parameter the testing
 API and the screenshot scripts use to land the pickers on their own data.
 
 ### `utils/`

@@ -44,13 +44,22 @@ def isolated_cache(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
+def _roots_for(session) -> dict[str, str]:
+    """Input parameters pointing both roots at the session's parent.
+
+    That is the self-contained configuration, where a session's runs sit inside it.
+    """
+    parent = str(Path(session).parent)
+    return {"input_root_folder": parent, "output_root_folder": parent}
+
+
 def test_show_dir_returns_output_1_when_no_existing_dirs(tmp_path):
     session = tmp_path / "session1"
     session.mkdir()
 
-    result = show_dir(str(session))
+    result = show_dir(str(session), output_root_folder=str(tmp_path), input_root_folder=str(tmp_path))
 
-    assert result == str(session / "session1_output_1")
+    assert result == str(session / "output_1")
 
 
 def test_show_dir_returns_output_3_when_output_1_and_2_exist(tmp_path):
@@ -59,53 +68,58 @@ def test_show_dir_returns_output_3_when_output_1_and_2_exist(tmp_path):
     (session / "session1_output_1").mkdir()
     (session / "session1_output_2").mkdir()
 
-    result = show_dir(str(session))
+    result = show_dir(str(session), output_root_folder=str(tmp_path), input_root_folder=str(tmp_path))
 
-    assert result == str(session / "session1_output_3")
+    # The pre-2.0.0-beta4 folders occupy run names 1 and 2, so the next free name is 3.
+    assert result == str(session / "output_3")
 
 
 def test_show_dir_sequential_numbering_no_gap_filling(tmp_path):
-    """show_dir counts up from 1; if only _output_1 exists it returns _output_2."""
+    """show_dir counts up from 1; if only run 1 exists it returns run 2."""
     session = tmp_path / "session1"
     session.mkdir()
-    (session / "session1_output_1").mkdir()
+    (session / "output_1").mkdir()
 
-    result = show_dir(str(session))
+    result = show_dir(str(session), output_root_folder=str(tmp_path), input_root_folder=str(tmp_path))
 
-    assert result == str(session / "session1_output_2")
+    assert result == str(session / "output_2")
 
 
 def test_show_dir_with_explicit_run_name_returns_named_path(tmp_path):
     session = tmp_path / "session1"
     session.mkdir()
 
-    result = show_dir(str(session), run_name="strict")
+    result = show_dir(
+        str(session), run_name="strict", output_root_folder=str(tmp_path), input_root_folder=str(tmp_path)
+    )
 
-    assert result == str(session / "session1_output_strict")
+    assert result == str(session / "output_strict")
     assert not Path(result).exists()
 
 
-def test_show_dir_numbers_runs_in_the_output_base_directory(tmp_path):
-    data_root = tmp_path / "data"
-    session = data_root / "session1"
+def test_show_dir_numbers_runs_in_the_output_root_folder(tmp_path):
+    input_root_folder = tmp_path / "data"
+    session = input_root_folder / "session1"
     session.mkdir(parents=True)
     output_base = tmp_path / "derivatives"
     (output_base / "session1" / "output_1").mkdir(parents=True)
     # Another session's run in the same base directory must not shift this session's numbering.
     (output_base / "otherSession" / "output_2").mkdir(parents=True)
 
-    result = show_dir(str(session), output_base_directory=str(output_base), data_root=str(data_root))
+    result = show_dir(str(session), output_root_folder=str(output_base), input_root_folder=str(input_root_folder))
 
     assert result == str(output_base / "session1" / "output_2")
 
 
-def test_show_dir_with_explicit_run_name_in_the_output_base_directory(tmp_path):
-    data_root = tmp_path / "data"
-    session = data_root / "session1"
+def test_show_dir_with_explicit_run_name_in_the_output_root_folder(tmp_path):
+    input_root_folder = tmp_path / "data"
+    session = input_root_folder / "session1"
     session.mkdir(parents=True)
     output_base = tmp_path / "derivatives"
 
-    result = show_dir(str(session), run_name="strict", output_base_directory=str(output_base), data_root=str(data_root))
+    result = show_dir(
+        str(session), run_name="strict", output_root_folder=str(output_base), input_root_folder=str(input_root_folder)
+    )
 
     assert result == str(output_base / "session1" / "output_strict")
 
@@ -115,7 +129,7 @@ def test_show_dir_invalid_run_name_raises(tmp_path):
     session.mkdir()
 
     with pytest.raises(ValueError, match="forbidden character"):
-        show_dir(str(session), run_name="bad/name")
+        show_dir(str(session), run_name="bad/name", output_root_folder=str(tmp_path), input_root_folder=str(tmp_path))
 
 
 # ---------------------------------------------------------------------------
@@ -672,6 +686,7 @@ def store_labeling_closures(tmp_path, monkeypatch, panel_extension):
         ["Dv1A", "Dv2A", "PulA"],
         [],
         str(folder),
+        inputParameters=_roots_for(folder),
         on_saved=lambda: captured_selector.on_saved_calls.append(None),
     )
 
@@ -682,7 +697,7 @@ def test_build_fills_run_name_with_next_free_integer(store_labeling_closures):
     selector, folder_path = store_labeling_closures
 
     assert selector.get_run_name() == "1"
-    assert selector.select_location_options == [str(Path(folder_path) / "my_session_output_1")]
+    assert selector.select_location_options == [str(Path(folder_path) / "output_1")]
 
 
 # ---------------------------------------------------------------------------
@@ -696,13 +711,13 @@ def test_overwrite_button_actions_create_new_file_targets_the_run_name(store_lab
 
     selector.overwrite_mode_callback(types.SimpleNamespace(new="create_new_file"))
 
-    assert selector.select_location_options == [str(Path(folder_path) / "my_session_output_myrun")]
+    assert selector.select_location_options == [str(Path(folder_path) / "output_myrun")]
 
 
 def test_overwrite_button_actions_over_write_file_returns_existing_output_dirs(store_labeling_closures):
     selector, folder_path = store_labeling_closures
 
-    run_folder = Path(folder_path) / "my_session_output_1"
+    run_folder = Path(folder_path) / "output_1"
     run_folder.mkdir()
 
     selector.overwrite_mode_callback(types.SimpleNamespace(new="over_write_file"))
@@ -733,7 +748,7 @@ def test_run_name_input_changed_updates_select_location_options(store_labeling_c
 
     selector.run_name_callback(types.SimpleNamespace(new="myrun"))
 
-    expected = str(Path(folder_path) / "my_session_output_myrun")
+    expected = str(Path(folder_path) / "output_myrun")
     assert selector.select_location_options == [expected]
     assert selector.alert_message == "#### No alerts !!"
 
@@ -744,7 +759,7 @@ def test_run_name_input_changed_empty_string_falls_back_to_numeric(store_labelin
 
     selector.run_name_callback(types.SimpleNamespace(new=""))
 
-    expected = str(Path(folder_path) / "my_session_output_1")
+    expected = str(Path(folder_path) / "output_1")
     assert selector.select_location_options == [expected]
 
 
@@ -756,7 +771,7 @@ def test_run_name_input_changed_invalid_run_name_sets_alert(store_labeling_closu
 
     assert "Alert" in selector.alert_message
     # When show_dir raises, the run folder resolved when the page was built stands.
-    assert selector.select_location_options == [str(Path(folder_path) / "my_session_output_1")]
+    assert selector.select_location_options == [str(Path(folder_path) / "output_1")]
 
 
 # ---------------------------------------------------------------------------
@@ -938,7 +953,7 @@ def test_compute_npm_channel_previews_aligns_ragged_channel_lengths():
     # borrows chev's (shorter) timestamps. The preview must align x/y to equal length,
     # otherwise hv.Curve raises a DataError in the Step-1 GUI.
     folder_path = Path(STUBBED_TESTING_DATA) / "npm" / "sampleData_NPM_4"
-    input_parameters = {"noChannels": 2}
+    input_parameters = {"noChannels": 2, **_roots_for(NPM_3_FOLDER)}
 
     # Confirm the ragged scenario is real: at least one channel stream has unequal
     # timestamps/data lengths, which is exactly what the alignment guards against.
@@ -987,10 +1002,12 @@ def test_build_template_run_name_skips_existing_runs(panel_extension, tmp_path):
     session.mkdir()
     (session / "my_session_output_1").mkdir()
 
-    selector = build_store_labeling_template(["Dv1A"], [], str(session))._widgets["selector"]
+    selector = build_store_labeling_template(["Dv1A"], [], str(session), inputParameters=_roots_for(session))._widgets[
+        "selector"
+    ]
 
     assert selector.run_name.value == "2"
-    assert selector.select_location.value == str(session / "my_session_output_2")
+    assert selector.select_location.value == str(session / "output_2")
 
 
 def test_build_template_overwrite_mode_offers_existing_runs_by_folder_name(panel_extension, tmp_path):
@@ -998,7 +1015,9 @@ def test_build_template_overwrite_mode_offers_existing_runs_by_folder_name(panel
     session.mkdir()
     (session / "my_session_output_1").mkdir()
     (session / "my_session_output_filter_100").mkdir()
-    selector = build_store_labeling_template(["Dv1A"], [], str(session))._widgets["selector"]
+    selector = build_store_labeling_template(["Dv1A"], [], str(session), inputParameters=_roots_for(session))._widgets[
+        "selector"
+    ]
 
     selector.overwrite_mode.value = "over_write_file"
 
@@ -1017,7 +1036,7 @@ def test_build_template_overwrite_mode_offers_existing_runs_by_folder_name(panel
 
 
 def test_build_template_npm_interactive_uses_npm_instructions(panel_extension):
-    input_parameters = {"noChannels": 2}
+    input_parameters = {"noChannels": 2, **_roots_for(NPM_3_FOLDER)}
     _, _, npm_interactive = read_header(input_parameters, num_ch=2, folder_path=NPM_3_FOLDER)
 
     template = build_store_labeling_template(
@@ -1030,7 +1049,7 @@ def test_build_template_npm_interactive_uses_npm_instructions(panel_extension):
 
 
 def test_confirm_npm_configuration_writes_params_and_populates_page(panel_extension):
-    input_parameters = {"noChannels": 2}
+    input_parameters = {"noChannels": 2, **_roots_for(NPM_3_FOLDER)}
     _, _, npm_interactive = read_header(input_parameters, num_ch=2, folder_path=NPM_3_FOLDER)
 
     template = build_store_labeling_template(
@@ -1140,9 +1159,12 @@ def test_fetchValues_returns_alert_when_whitespace_in_covariate_name():
 def test_orchestrate_store_labeling_page_serves_one_page_per_session(panel_extension, monkeypatch):
     served_ports = []
     monkeypatch.setattr(pn.template.BootstrapTemplate, "show", lambda self, port: served_ports.append(port))
+    csv_root = str(Path(str(STUBBED_TESTING_DATA)) / "csv")
     input_parameters = {
-        "session_folders": ["sample_data_csv_1"],
-        "abspath": Path(str(STUBBED_TESTING_DATA)) / "csv",
+        "session_folders": [str(Path(csv_root) / "sample_data_csv_1")],
+        "abspath": Path(csv_root),
+        "input_root_folder": csv_root,
+        "output_root_folder": csv_root,
         "isosbestic_control": True,
         "noChannels": 2,
     }

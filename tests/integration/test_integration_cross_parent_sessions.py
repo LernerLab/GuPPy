@@ -27,8 +27,8 @@ def _stage_session(*, session_subdir: str, destination_parent) -> str:
     return str(session_copy)
 
 
-def _assert_psth_outputs(*, session_copy: str, data_root: str, recording_site: str, ttl: str) -> None:
-    output_directory = locate_run_folder(session=str(session_copy), data_root=data_root)
+def _assert_psth_outputs(*, session_copy: str, input_root_folder: str, recording_site: str, ttl: str) -> None:
+    output_directory = locate_run_folder(session=str(session_copy), input_root_folder=input_root_folder)
 
     assert (Path(output_directory) / "storesList.csv").exists(), "Missing storesList.csv"
 
@@ -78,5 +78,7 @@ def test_sessions_from_different_parent_directories(tmp_path):
     step3(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
 
-    _assert_psth_outputs(session_copy=tdt_session, data_root=base_dir, recording_site="dms", ttl="port_entries_dms")
-    _assert_psth_outputs(session_copy=csv_session, data_root=base_dir, recording_site="region", ttl="ttl")
+    _assert_psth_outputs(
+        session_copy=tdt_session, input_root_folder=base_dir, recording_site="dms", ttl="port_entries_dms"
+    )
+    _assert_psth_outputs(session_copy=csv_session, input_root_folder=base_dir, recording_site="region", ttl="ttl")

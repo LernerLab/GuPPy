@@ -788,8 +788,8 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
     afterwards, so the Directory field shows a normal path rather than a temp-dir basename.
     """
     run_names = ("1", "filter_100", "filter_250")
-    output_base_directory = SAMPLE_DATA_DIR.parent / "guppy_output"
-    mirrored_session = output_base_directory / SAMPLE_DATA_DIR.name
+    output_root_folder = SAMPLE_DATA_DIR.parent / "guppy_output"
+    mirrored_session = output_root_folder / SAMPLE_DATA_DIR.name
     mirrored_session.mkdir(parents=True, exist_ok=True)
     run_folders = [mirrored_session / f"output_{name}" for name in run_names]
     for run_folder in run_folders:
@@ -805,8 +805,8 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
             template=pn.template.MaterialTemplate(title="Input Parameters GUI"),
             start_path=str(SAMPLE_DATA_DIR.parent),
         )
-        form.data_root_selector.value = [str(SAMPLE_DATA_DIR.parent)]
-        form.output_base_selector.value = [str(output_base_directory)]
+        form.input_root_selector.value = [str(SAMPLE_DATA_DIR.parent)]
+        form.output_root_selector.value = [str(output_root_folder)]
         form.outputs_selector._directory.value = str(mirrored_session)
         form.outputs_selector._update_files()
         form.outputs_selector._selector.value = [str(run_folders[2])]
@@ -830,7 +830,7 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
         for run_folder in run_folders:
             run_folder.rmdir()
         mirrored_session.rmdir()
-        output_base_directory.rmdir()
+        output_root_folder.rmdir()
 
 
 def screenshot_dandi_asset_browser(page: Page) -> None:

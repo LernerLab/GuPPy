@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from guppy.testing import default_output_base_directory
+from guppy.testing import default_output_root_folder
 from guppy.testing.api import step1, step2, step3
 from guppy.utils.utils import run_folder_for_run
 from guppy_test_data import STUBBED_TESTING_DATA
@@ -27,7 +27,7 @@ CSV_STORE_ID_TO_STORE_LABEL = {
 def csv_session_copy(tmp_path):
     """Stage a clean copy of the CSV sample session and yield (base_dir, session_path)."""
     source = STUBBED_TESTING_DATA / CSV_SESSION
-    base = tmp_path / "data_root"
+    base = tmp_path / "input_root_folder"
     base.mkdir()
     destination = base / source.name
     shutil.copytree(source, destination)
@@ -44,13 +44,13 @@ def csv_session_copy(tmp_path):
 
 def _run_folder(session, run_name):
     """The run folder Step 1 creates for ``session`` under the headless steps' output layout."""
-    data_root = str(Path(session).parent)
+    input_root_folder = str(Path(session).parent)
     return Path(
         run_folder_for_run(
             session,
             run_name,
-            output_base_directory=default_output_base_directory(base_dir=data_root),
-            data_root=data_root,
+            output_root_folder=default_output_root_folder(base_dir=input_root_folder),
+            input_root_folder=input_root_folder,
         )
     )
 

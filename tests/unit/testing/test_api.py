@@ -20,7 +20,7 @@ class FakeTemplate:
 
 @pytest.fixture
 def api_workspace(tmp_path):
-    base_directory = tmp_path / "data_root"
+    base_directory = tmp_path / "input_root_folder"
     base_directory.mkdir()
 
     session_directory = base_directory / "session_one"
@@ -299,7 +299,7 @@ class TestParseStoreLabel:
 @pytest.fixture
 def staged_csv_session(tmp_path):
     """Copy the csv stub session into a temporary workspace, without any prior outputs."""
-    base_directory = tmp_path / "data_root"
+    base_directory = tmp_path / "input_root_folder"
     base_directory.mkdir()
     session_copy = base_directory / "sample_data_csv_1"
     shutil.copytree(
@@ -325,7 +325,7 @@ class TestStep1Driver:
             },
         )
 
-        expected_base = Path(testing_api.default_output_base_directory(base_dir=staged_csv_session["base_dir"]))
+        expected_base = Path(testing_api.default_output_root_folder(base_dir=staged_csv_session["base_dir"]))
         assert (expected_base / "sample_data_csv_1" / "output_1" / "storesList.csv").exists()
         assert sorted(path.name for path in session.iterdir()) == before
 
@@ -381,7 +381,12 @@ class TestStep1Driver:
 def npm_template_two_timestamp_columns(panel_extension):
     """Label Stores template for the NPM_3 stub: two timestamp columns, split checkbox on file 1."""
     folder_path = Path(str(STUBBED_TESTING_DATA)) / "npm" / "sampleData_NPM_3"
-    input_parameters = {"noChannels": 2}
+    npm_root = str(folder_path.parent)
+    input_parameters = {
+        "noChannels": 2,
+        "input_root_folder": npm_root,
+        "output_root_folder": npm_root,
+    }
     _, _, npm_interactive = read_header(input_parameters, 2, folder_path)
     return build_store_labeling_template(
         [], [], folder_path, inputParameters=input_parameters, npm_interactive=npm_interactive
@@ -392,7 +397,12 @@ def npm_template_two_timestamp_columns(panel_extension):
 def npm_template_single_timestamp_column(panel_extension):
     """Label Stores template for the NPM_4 stub: one timestamp column, split checkbox on file 1."""
     folder_path = Path(str(STUBBED_TESTING_DATA)) / "npm" / "sampleData_NPM_4"
-    input_parameters = {"noChannels": 2}
+    npm_root = str(folder_path.parent)
+    input_parameters = {
+        "noChannels": 2,
+        "input_root_folder": npm_root,
+        "output_root_folder": npm_root,
+    }
     _, _, npm_interactive = read_header(input_parameters, 2, folder_path)
     return build_store_labeling_template(
         [], [], folder_path, inputParameters=input_parameters, npm_interactive=npm_interactive

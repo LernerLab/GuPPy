@@ -15,16 +15,16 @@ The first card on the homepage, open by default. Selects the session data the pi
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
 | Data Source | Local-folder mode vs DANDI streaming. | radio | `local` | `local`, `dandi` |
-| (data root browser) | The directory your session folders live under. | path | empty | any directory containing every selected session |
-| (file browser) | Session folders to analyze. | list of paths | empty | absolute paths to session directories under the data root |
+| (input root folder browser) | The directory your session folders live under. | path | empty | any directory containing every selected session |
+| (file browser) | Session folders to analyze. | list of paths | empty | absolute paths to session directories under the input root folder |
 | (DANDI selector) | DANDI assets to materialize as sessions. | dict | `None` (local mode) | per-session mapping of `dandi://` URIs |
 | Combine Data? | Concatenate two split files into one trace. | bool | `False` | `True`, `False` |
 
 **Data Source** picks between selecting local session folders from the file browser (the common case) and streaming NWB sessions directly from DANDI. The browser is hidden when `dandi` is selected and the DANDI selector takes its place. See [Analyze data streamed from the DANDI Archive](../how-to/analyze-dandi-data.md) for the DANDI workflow.
 
-**Data root** is the directory your session folders live under. It rarely changes between analyses, so `guppy --data-root <path>` pre-selects it at launch alongside `--output-directory`, leaving only the session folders to pick each time. GuPPy mirrors each session's path below it into the output directory, so `<data root>/subject1/session1` writes its runs to `<output directory>/subject1/session1`. Naming the root yourself is what makes that mapping predictable — you can read a run folder's path straight off the session's, without knowing what else was selected alongside it. Every selected session has to sit under the root; a session outside it has no place in the mirror, and GuPPy refuses the run rather than guessing one.
+**Input root folder** is the directory your session folders live under. It rarely changes between analyses, so GuPPy remembers it between launches and `guppy --input-root <path> --output-root <path>` sets both at launch, leaving only the session folders to pick each time. Both live in the **Root Folder Selection** card, which folds away once they are known. GuPPy mirrors each session's path below it into the output root folder, so `<input root folder>/subject1/session1` writes its runs to `<output root folder>/subject1/session1`. Naming the root yourself is what makes that mapping predictable — you can read a run folder's path straight off the session's, without knowing what else was selected alongside it. Every selected session has to sit under the root; a session outside it has no place in the mirror, and GuPPy refuses the run rather than guessing one.
 
-**File browser** holds the list of session folder paths the pipeline will analyze. Multiple folders are allowed for batch runs, and they do not have to sit side by side: sessions kept in different sub-directories of the data root can be analyzed together in a single run, and their differing depths carry straight through into the output tree.
+**File browser** holds the list of session folder paths the pipeline will analyze. Multiple folders are allowed for batch runs, and they do not have to sit side by side: sessions kept in different sub-directories of the input root folder can be analyzed together in a single run, and their differing depths carry straight through into the output tree.
 
 **Combine Data?** is for the unusual case where one recording session was split across two data files (for example a system that wrote separate files for two halves of a recording). When `True`, the pipeline concatenates the matching channels across both files into a single trace before preprocessing.
 
@@ -40,14 +40,14 @@ The second card on the homepage, collapsed by default. Says where GuPPy writes i
 
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
-| Output Location | Whether the output tree mirrors the data root or run folders are written inside each session folder. | choice | mirror the data root | mirror the data root into a separate output directory, write each run inside the session folder it came from |
-| (output directory browser) | The directory the mirrored output tree is written into. | path | empty | any directory outside the data root's selected sessions |
+| Output root folder is the same as the input root folder | Point both roots at one folder, so each session's runs are written inside it. | bool | `False` | `True`, `False` |
+| (output root folder browser) | The directory the mirrored output tree is written into. | path | empty | any directory outside the input root folder's selected sessions |
 | Run name(s) for all sessions | Run names to select across every selected session at once. | list of run names | empty | run names found in any selected session |
 | (existing-runs browser) | Existing run directories the later steps act on. | list of paths | empty | one or more run directories, at least one per selected session |
 
-**Output Location** decides where every run folder goes. Like the data root, the output directory can be pre-selected at launch with `guppy --output-directory <path>`. On the mirrored layout — the default — no analysis output is written into your session folders, which keeps raw data immutable and lets it live on a read-only volume, be archived, or be checksummed as a unit. Each session's path under the data root is reproduced inside the output directory, and its run folders are created there as `output_<run name>`. Because the mapping depends only on the session and the root you named, two sessions sharing a folder name never collide, and a session's runs stay put however you change the selection between steps. Choosing an output directory is required; GuPPy refuses to start rather than picking one for you.
+**Output root folder** is where the mirrored output tree is written. Like the input root folder, it can be pre-selected at launch with `guppy --output-root <path>`, and GuPPy remembers the pair between launches. Each session's path under the input root folder is reproduced inside it, and the run folders are created there as `output_<run name>`. Because the mapping depends only on the session and the roots you named, two sessions sharing a folder name never collide, and a session's runs stay put however you change the selection between steps. Choosing one is required; GuPPy refuses to start rather than picking a location for you.
 
-*write each run inside the session folder it came from* restores the pre-2.0.0-beta4 layout, where each run folder is created inside the session folder it was analyzed from, named `<session folder name>_output_<run name>`. Analyses made with an earlier version of GuPPy are only reachable under this setting.
+**Output root folder is the same as the input root folder** points both roots at one folder, which makes each session mirror onto itself: its run folders are created inside the session folder, so the session travels as one self-contained directory. It also means GuPPy writes into your raw data, which is why it is off by default. Ticking it hides the output-root browser, since there is nothing left to choose.
 
 **Existing-runs browser** lists the run directories that already exist for the selected sessions and lets you pick which run each later step acts on. A run directory is created when you configure channels in the Label Stores GUI (Step 1); every step from loading the raw data onward then reads and writes the run you select here.
 

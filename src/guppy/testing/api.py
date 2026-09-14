@@ -51,74 +51,78 @@ from guppy.utils.utils import (
 TEST_OUTPUT_DIRECTORY_NAME = "guppy_output"
 
 
-def default_output_base_directory(*, base_dir: str) -> str:
-    """Return the output base directory the headless steps write into for ``base_dir``.
+def default_output_root_folder(*, base_dir: str) -> str:
+    """Return the output root folder the headless steps write into for ``base_dir``.
 
     Parameters
     ----------
     base_dir : str
-        Data root the session folders sit under.
+        Input root folder the session folders sit under.
 
     Returns
     -------
     str
-        Path of the output base directory.
+        Path of the output root folder.
     """
     return str(Path(base_dir) / TEST_OUTPUT_DIRECTORY_NAME)
 
 
-def locate_run_folder(*, session: str, data_root: str | None = None, output_base_directory: str | None = None) -> str:
+def locate_run_folder(
+    *, session: str, input_root_folder: str | None = None, output_root_folder: str | None = None
+) -> str:
     """Return the run folder Step 1 wrote for ``session``.
 
     Parameters
     ----------
     session : str
         Session folder the run was created for.
-    data_root : str or None, optional
-        Data root the session was selected under. ``None`` (the default) uses the
+    input_root_folder : str or None, optional
+        Input root folder the session was selected under. ``None`` (the default) uses the
         session's parent directory, which is where the headless steps put it.
-    output_base_directory : str or None, optional
+    output_root_folder : str or None, optional
         Directory the mirrored output tree was written into. ``None`` (the default)
-        uses the headless steps' own output directory for ``data_root``.
+        uses the headless steps' own output directory for ``input_root_folder``.
 
     Returns
     -------
     str
         Path of the session's first run folder holding a ``storesList.csv``.
     """
-    if data_root is None:
-        data_root = str(Path(session).parent)
-    if output_base_directory is None:
-        output_base_directory = default_output_base_directory(base_dir=data_root)
-    run_folders = discover_run_folders(str(session), output_base_directory=output_base_directory, data_root=data_root)
-    assert run_folders, f"no output directory was created for {session} in {output_base_directory}"
+    if input_root_folder is None:
+        input_root_folder = str(Path(session).parent)
+    if output_root_folder is None:
+        output_root_folder = default_output_root_folder(base_dir=input_root_folder)
+    run_folders = discover_run_folders(
+        str(session), output_root_folder=output_root_folder, input_root_folder=input_root_folder
+    )
+    assert run_folders, f"no output directory was created for {session} in {output_root_folder}"
     for run_folder in run_folders:
         if (Path(run_folder) / "storesList.csv").exists():
             return run_folder
-    raise AssertionError(f"no output directory for {session} in {output_base_directory} contains storesList.csv")
+    raise AssertionError(f"no output directory for {session} in {output_root_folder} contains storesList.csv")
 
 
 def _point_form_at_output_directory(*, template: object, base_dir: str) -> None:
-    """Set the form's data root and output directory to the headless steps' convention.
+    """Set the form's input root folder and output directory to the headless steps' convention.
 
     Parameters
     ----------
     template : pn.template.BootstrapTemplate
         Homepage template exposing ``_widgets``.
     base_dir : str
-        Data root the session folders sit under.
+        Input root folder the session folders sit under.
     """
-    output_base_directory = default_output_base_directory(base_dir=base_dir)
-    Path(output_base_directory).mkdir(parents=True, exist_ok=True)
-    template._widgets["data_root_selector"].value = [base_dir]
-    template._widgets["output_base_selector"].value = [output_base_directory]
+    output_root_folder = default_output_root_folder(base_dir=base_dir)
+    Path(output_root_folder).mkdir(parents=True, exist_ok=True)
+    template._widgets["input_root_selector"].value = [base_dir]
+    template._widgets["output_root_selector"].value = [output_root_folder]
 
 
 def _validate_sessions_under_base_dir(*, abs_sessions: list[str], base_dir: str) -> None:
     """Validate that every session directory exists and lives somewhere under ``base_dir``.
 
     Sessions need not be siblings: ``base_dir`` only has to contain them, so a run can
-    mix sessions kept in different sub-directories of a shared data root.
+    mix sessions kept in different sub-directories of a shared input root folder.
 
     Parameters
     ----------
@@ -372,8 +376,8 @@ def _drive_store_labeling_page(
     store_id_to_store_label: dict[str, str],
     run_name: str | None,
     run_name_policy: str,
-    output_base_directory: str | None,
-    data_root: str | None,
+    output_root_folder: str | None,
+    input_root_folder: str | None,
 ) -> None:
     """Drive one session's Label Stores page to save storesList.csv.
 
@@ -395,10 +399,10 @@ def _drive_store_labeling_page(
         Explicit run-name suffix, or ``None`` for the auto-incremented integer.
     run_name_policy : {"create", "overwrite"}
         Collision behavior for an explicit ``run_name``.
-    output_base_directory : str or None
+    output_root_folder : str or None
         Directory the mirrored output tree is written into, as the page resolves it.
-    data_root : str or None
-        Data root the session was selected under, as the page resolves it.
+    input_root_folder : str or None
+        Input root folder the session was selected under, as the page resolves it.
     """
     selector = template._widgets["selector"]
 
@@ -439,7 +443,9 @@ def _drive_store_labeling_page(
     _raise_on_alert(selector=selector)
 
     target_run_folder = (
-        run_folder_for_run(folder_path, run_name, output_base_directory=output_base_directory, data_root=data_root)
+        run_folder_for_run(
+            folder_path, run_name, output_root_folder=output_root_folder, input_root_folder=input_root_folder
+        )
         if run_name is not None
         else None
     )
@@ -595,8 +601,8 @@ def step1(
             store_id_to_store_label=store_id_to_store_label,
             run_name=run_name,
             run_name_policy=run_name_policy,
-            output_base_directory=input_params["output_base_directory"],
-            data_root=input_params["data_root"],
+            output_root_folder=input_params["output_root_folder"],
+            input_root_folder=input_params["input_root_folder"],
         )
 
 

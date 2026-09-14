@@ -57,9 +57,9 @@ Before running the pipeline you pick the session folder you want to analyze, the
 
 ### Select your data
 
-Inside the **Input Folder Selection** card, first set the **data root** — the directory your session folders live under. Navigate to `stubbed_testing_data/csv/` and move it across with **`>>`**. GuPPy mirrors each session's path below this root into the output directory, so naming it is what decides the shape of your results tree.
+Open the **Root Folder Selection** card at the top of the page. It holds the two folders a project keeps for the life of its analyses, and it opens itself while either is unset. Set the **input root folder** — the folder your session folders live under — to `stubbed_testing_data/csv/`, and the **output root folder** to wherever you want results written; anywhere outside your data is fine. GuPPy mirrors each session's path below the input root into the output root, so these two decide the shape of your results tree. It remembers them, so the card folds away next time.
 
-Then, in the **Session folders** browser underneath, navigate to `stubbed_testing_data/csv/sample_data_csv_1/` and click **`>>`** to move that folder into the **Selected files** pane on the right. The browser supports selecting multiple session folders at once for batch analysis; for this tutorial we are running a single session. Every session you select has to sit under the data root.
+In the **Input Folder Selection** card's **Session folders** browser, navigate to `stubbed_testing_data/csv/sample_data_csv_1/` and click **`>>`** to move that folder into the **Selected files** pane on the right. The browser supports selecting multiple session folders at once for batch analysis; for this tutorial we are running a single session. Every session you select has to sit under the input root folder.
 
 ```{image} ../_static/images/02_data_selection.png
 :alt: GuPPy homepage Input Folder Selection card showing the file browser with the sample_data_csv_1 folder available for selection
@@ -131,15 +131,15 @@ The three CSV filenames appear in the left list (**Filter available options**) o
    }
    ```
 
-5. **Choose the output directory.** Leave **Create new run** selected, and leave the **Run name** GuPPy fills in, `1`.
+5. **Choose the output root folder.** Leave **Create new run** selected, and leave the **Run name** GuPPy fills in, `1`.
 
-   This choice picks the **run folder** for the entire analysis pipeline. From this point on, every downstream step (Read Raw Data, Preprocess, PSTH Computation, Visualization) writes its outputs (HDF5 files, PSTH results, plots) into that directory and reads `storesList.csv` from it to know which raw channel maps to which store. **Create new run** makes a fresh directory named `output_<run name>/` inside the session's mirror in the output directory — for this tutorial, `<output directory>/sample_data_csv_1/`. The run name GuPPy fills in is the next free integer, so the first run gets `output_1`, the second `output_2`, and so on. Your raw session folder is left exactly as it was.
+   This choice picks the **run folder** for the entire analysis pipeline. From this point on, every downstream step (Read Raw Data, Preprocess, PSTH Computation, Visualization) writes its outputs (HDF5 files, PSTH results, plots) into that directory and reads `storesList.csv` from it to know which raw channel maps to which store. **Create new run** makes a fresh directory named `output_<run name>/` inside the session's mirror in the output root folder — for this tutorial, `<output root folder>/sample_data_csv_1/`. The run name GuPPy fills in is the next free integer, so the first run gets `output_1`, the second `output_2`, and so on. Your raw session folder is left exactly as it was.
 
    :::{note}
    The other option, **Overwrite existing run**, is for re-running on a session that already has a run folder. It lets you pick an existing `output_<run name>/` under **Run to overwrite**, deletes everything inside it (the previous `storesList.csv` plus any HDF5 and PSTH results from the previous run), and starts that directory over fresh. Pick it only when you genuinely want that destructive behavior. For the tutorial, ignore it.
    :::
 
-6. **Click Save.** GuPPy creates the run folder (`<output directory>/sample_data_csv_1/output_1/`) and writes `storesList.csv` into it. The downstream steps will read and write inside this folder.
+6. **Click Save.** GuPPy creates the run folder (`<output root folder>/sample_data_csv_1/output_1/`) and writes `storesList.csv` into it. The downstream steps will read and write inside this folder.
 
 You can close this Label Stores tab and return to the original homepage tab. Open **Output Folder Selection** and, under **Existing runs (steps 2–5)**, select `output_1` under `sample_data_csv_1`. Every step from here on acts on the runs selected there.
 

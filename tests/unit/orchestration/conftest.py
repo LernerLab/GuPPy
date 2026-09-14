@@ -2,10 +2,16 @@ import pytest
 
 
 @pytest.fixture
-def base_input_parameters() -> dict[str, object]:
-    """Fully-populated inputParameters dict with all keys needed by preprocess and psth tests."""
+def base_input_parameters(tmp_path) -> dict[str, object]:
+    """Fully-populated inputParameters dict with all keys needed by preprocess and psth tests.
+
+    Both roots point at ``tmp_path``, which is where these tests put their sessions, so each
+    session mirrors onto itself and its run folders sit inside it.
+    """
     return {
         "session_folders": [],
+        "input_root_folder": str(tmp_path),
+        "output_root_folder": str(tmp_path),
         "step": 0,
         "numberOfCores": 1,
         "noChannels": 2,

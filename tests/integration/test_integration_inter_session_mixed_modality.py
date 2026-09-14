@@ -40,7 +40,7 @@ def test_mixed_modality(tmp_path):
     doric_src = Path(src_base_dir) / doric_session_subdir
 
     # Stage a clean copy of each session into a shared temporary workspace
-    tmp_base = tmp_path / "data_root"
+    tmp_base = tmp_path / "input_root_folder"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
     npm_dest = tmp_base / "sampleData_NPM_4"
@@ -129,7 +129,7 @@ def test_mixed_modality_tdt_doric(tmp_path):
     Step 1 runs separately per session; steps 2–4 run together across both sessions.
     """
     src_base_dir = str(STUBBED_TESTING_DATA)
-    tmp_base = tmp_path / "data_root"
+    tmp_base = tmp_path / "input_root_folder"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
     tdt_session = _stage_session(src_base_dir, "tdt/Photo_63_207-181030-103332", tmp_base)
@@ -172,7 +172,7 @@ def test_mixed_modality_tdt_npm(tmp_path):
     The NPM session (sampleData_NPM_4) uses split events.
     """
     src_base_dir = str(STUBBED_TESTING_DATA)
-    tmp_base = tmp_path / "data_root"
+    tmp_base = tmp_path / "input_root_folder"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
     tdt_session = _stage_session(src_base_dir, "tdt/Photo_63_207-181030-103332", tmp_base)
@@ -221,7 +221,7 @@ def test_mixed_modality_tdt_csv_data(tmp_path):
     Step 1 runs separately per session; steps 2–4 run together across both sessions.
     """
     src_base_dir = str(STUBBED_TESTING_DATA)
-    tmp_base = tmp_path / "data_root"
+    tmp_base = tmp_path / "input_root_folder"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
     tdt_session = _stage_session(src_base_dir, "tdt/Photo_63_207-181030-103332", tmp_base)
@@ -263,7 +263,7 @@ def test_mixed_modality_nwb_csv(tmp_path):
     Step 1 runs separately per session; steps 2–4 run together across both sessions.
     """
     src_base_dir = str(STUBBED_TESTING_DATA)
-    tmp_base = tmp_path / "data_root"
+    tmp_base = tmp_path / "input_root_folder"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
     nwb_session = _stage_session(src_base_dir, "nwb/mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_2", tmp_base)
@@ -309,7 +309,7 @@ def test_mixed_modality_nwb_tdt(tmp_path):
     Step 1 runs separately per session; steps 2–4 run together across both sessions.
     """
     src_base_dir = str(STUBBED_TESTING_DATA)
-    tmp_base = tmp_path / "data_root"
+    tmp_base = tmp_path / "input_root_folder"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
     nwb_session = _stage_session(src_base_dir, "nwb/mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_2", tmp_base)
@@ -351,7 +351,7 @@ def test_mixed_modality_nwb_doric(tmp_path):
     Step 1 runs separately per session; steps 2–4 run together across both sessions.
     """
     src_base_dir = str(STUBBED_TESTING_DATA)
-    tmp_base = tmp_path / "data_root"
+    tmp_base = tmp_path / "input_root_folder"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
     nwb_session = _stage_session(src_base_dir, "nwb/mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_2", tmp_base)
@@ -398,7 +398,7 @@ def test_mixed_modality_nwb_npm(tmp_path):
     The NPM session (sampleData_NPM_4) uses split events.
     """
     src_base_dir = str(STUBBED_TESTING_DATA)
-    tmp_base = tmp_path / "data_root"
+    tmp_base = tmp_path / "input_root_folder"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
     nwb_session = _stage_session(src_base_dir, "nwb/mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_2", tmp_base)

@@ -6,6 +6,8 @@ buttons are fired synchronously (``button.clicks += 1``), so the callbacks are e
 without a browser.
 """
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -204,7 +206,7 @@ class TestRequiresSessionStartTime:
     @pytest.fixture
     def session_path(self, tmp_path):
         session = tmp_path / "Photo_session"
-        output_dir = session / "Photo_session_output_run1"
+        output_dir = session / "output_run1"
         output_dir.mkdir(parents=True)
         np.savetxt(
             output_dir / "storesList.csv",
@@ -216,7 +218,13 @@ class TestRequiresSessionStartTime:
 
     @staticmethod
     def _input_parameters(session_path):
-        return {"selected_runs": {str(session_path): ["run1"]}, "combine_data": False}
+        parent = str(Path(session_path).parent)
+        return {
+            "selected_runs": {str(session_path): ["run1"]},
+            "combine_data": False,
+            "input_root_folder": parent,
+            "output_root_folder": parent,
+        }
 
     def test_tdt_session_does_not_require_one(self, required_flags, session_path):
         (session_path / "Photo_session.tsq").write_bytes(b"\x00")
@@ -245,7 +253,7 @@ class TestRequiresSessionStartTime:
 class TestOrchestrateMetadataPage:
     def test_builder_builds_pages_without_serving(self, panel_extension, tmp_path):
         session = tmp_path / "Photo_session"
-        output_dir = session / "Photo_session_output_run1"
+        output_dir = session / "output_run1"
         output_dir.mkdir(parents=True)
         (session / "Photo_session.tsq").write_bytes(b"\x00")
         np.savetxt(
@@ -254,14 +262,19 @@ class TestOrchestrateMetadataPage:
             delimiter=",",
             fmt="%s",
         )
-        input_parameters = {"selected_runs": {str(session): ["run1"]}, "combine_data": False}
+        input_parameters = {
+            "selected_runs": {str(session): ["run1"]},
+            "combine_data": False,
+            "input_root_folder": str(tmp_path),
+            "output_root_folder": str(tmp_path),
+        }
 
         # Must return without raising and without opening a server.
         build_metadata_templates(inputParameters=input_parameters)
 
     def test_orchestrator_serves_each_built_page(self, panel_extension, monkeypatch, tmp_path):
         session = tmp_path / "Photo_session"
-        output_dir = session / "Photo_session_output_run1"
+        output_dir = session / "output_run1"
         output_dir.mkdir(parents=True)
         (session / "Photo_session.tsq").write_bytes(b"\x00")
         np.savetxt(
@@ -270,7 +283,12 @@ class TestOrchestrateMetadataPage:
             delimiter=",",
             fmt="%s",
         )
-        input_parameters = {"selected_runs": {str(session): ["run1"]}, "combine_data": False}
+        input_parameters = {
+            "selected_runs": {str(session): ["run1"]},
+            "combine_data": False,
+            "input_root_folder": str(tmp_path),
+            "output_root_folder": str(tmp_path),
+        }
 
         served_ports = []
         monkeypatch.setattr(
@@ -284,7 +302,12 @@ class TestOrchestrateMetadataPage:
     def test_combined_run_is_refused_before_any_page_is_built(self, panel_extension, tmp_path):
         # Step 6 edits one metadata file per session output directory, which combining collapses,
         # so the form has nothing coherent to edit. Refused the same way Step 7 refuses it.
-        input_parameters = {"selected_runs": {str(tmp_path / "Photo_session"): ["run1"]}, "combine_data": True}
+        input_parameters = {
+            "selected_runs": {str(tmp_path / "Photo_session"): ["run1"]},
+            "input_root_folder": str(tmp_path),
+            "output_root_folder": str(tmp_path),
+            "combine_data": True,
+        }
 
         with pytest.raises(ValueError) as excinfo:
             orchestrate_metadata_page(input_parameters)
@@ -310,10 +333,10 @@ class TestOrchestrateMetadataPageSkipsNwbSources:
     @pytest.fixture
     def raw_session(self, tmp_path):
         session = tmp_path / "Photo_raw"
-        (session / "Photo_raw_output_run1").mkdir(parents=True)
+        (session / "output_run1").mkdir(parents=True)
         (session / "Photo_raw.tsq").write_bytes(b"\x00")
         np.savetxt(
-            session / "Photo_raw_output_run1" / "storesList.csv",
+            session / "output_run1" / "storesList.csv",
             np.array([["Dv1A", "Dv2A"], ["control_dms", "signal_dms"]]),
             delimiter=",",
             fmt="%s",
@@ -323,13 +346,16 @@ class TestOrchestrateMetadataPageSkipsNwbSources:
     @pytest.fixture
     def nwb_session(self, tmp_path):
         session = tmp_path / "Photo_nwb"
-        (session / "Photo_nwb_output_run1").mkdir(parents=True)
+        (session / "output_run1").mkdir(parents=True)
         (session / "session.nwb").write_bytes(b"\x00")
         return session
 
     def test_nwb_session_is_skipped_and_the_raw_one_is_not(self, built_sessions, raw_session, nwb_session):
+        root = str(Path(raw_session).parent)
         input_parameters = {
             "selected_runs": {str(raw_session): ["run1"], str(nwb_session): ["run1"]},
+            "input_root_folder": root,
+            "output_root_folder": root,
             "combine_data": False,
         }
 
@@ -338,7 +364,13 @@ class TestOrchestrateMetadataPageSkipsNwbSources:
         assert built_sessions == ["Photo_raw (run1)"]
 
     def test_an_all_nwb_batch_builds_nothing(self, built_sessions, nwb_session):
-        input_parameters = {"selected_runs": {str(nwb_session): ["run1"]}, "combine_data": False}
+        root = str(Path(nwb_session).parent)
+        input_parameters = {
+            "selected_runs": {str(nwb_session): ["run1"]},
+            "input_root_folder": root,
+            "output_root_folder": root,
+            "combine_data": False,
+        }
 
         build_metadata_templates(inputParameters=input_parameters)
 
@@ -347,7 +379,7 @@ class TestOrchestrateMetadataPageSkipsNwbSources:
     def test_a_dandi_batch_builds_nothing(self, built_sessions, tmp_path):
         # A DANDI session's folder holds only GuPPy's outputs, so there is nothing to detect in it.
         session = tmp_path / "Photo_dandi"
-        (session / "Photo_dandi_output_run1").mkdir(parents=True)
+        (session / "output_run1").mkdir(parents=True)
         input_parameters = {
             "mode": "dandi",
             "dandi_uri_map": {str(session): "dandi://000971/sub-112/sub-112_ses-1.nwb"},

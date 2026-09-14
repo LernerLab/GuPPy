@@ -4,6 +4,7 @@ Unit tests for guppy.orchestration.visualize._validate_psth_outputs_exist.
 
 import logging
 import re
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -22,7 +23,7 @@ def make_session():
     def _make(tmp_path, name="session1"):
         session_dir = tmp_path / name
         session_dir.mkdir(parents=True, exist_ok=True)
-        run_folder = session_dir / f"{name}_output_1"
+        run_folder = session_dir / "output_1"
         run_folder.mkdir(parents=True, exist_ok=True)
         # select_run_folders validates that picked outputs have a storesList.csv.
         (run_folder / "storesList.csv").write_text("")
@@ -36,11 +37,14 @@ def make_parameters():
     """Return a factory for the minimal inputParameters the validator reads."""
 
     def _make(session_dir, *, selected_runs=("1",), selected_group_folders=()):
+        parent = str(Path(session_dir).parent)
         return {
             "session_folders": [str(session_dir)],
             "combine_data": False,
             "selected_runs": {str(session_dir): list(selected_runs)},
             "selected_group_folders": list(selected_group_folders),
+            "input_root_folder": parent,
+            "output_root_folder": parent,
         }
 
     return _make
@@ -96,6 +100,8 @@ class TestValidatePsthOutputsExist:
                 "session_folders": [str(session1_dir), str(session2_dir)],
                 "combine_data": False,
                 "selected_runs": {str(session1_dir): ["1"], str(session2_dir): ["1"]},
+                "input_root_folder": str(tmp_path),
+                "output_root_folder": str(tmp_path),
                 "selected_group_folders": [],
             }
         )

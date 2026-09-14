@@ -41,44 +41,30 @@ class TestMain:
         ]
         assert exported == []
 
-    def test_start_path_reaches_the_homepage_route(self, served, exported, panel_extension, tmp_path):
-        main(argv=["--start-path", str(tmp_path)])
-        template = served["routes"]["/"]()
-
-        assert template._widgets["files_1"].directory == str(tmp_path)
-        assert exported == []
-
-    def test_data_root_and_output_directory_reach_the_homepage_route(self, served, exported, panel_extension, tmp_path):
-        data_root = tmp_path / "data"
+    def test_the_roots_reach_the_homepage_route(self, served, exported, panel_extension, tmp_path):
+        input_root_folder = tmp_path / "data"
         output_directory = tmp_path / "derivatives"
-        data_root.mkdir()
+        input_root_folder.mkdir()
         output_directory.mkdir()
 
-        main(
-            argv=[
-                "--start-path",
-                str(tmp_path),
-                "--data-root",
-                str(data_root),
-                "--output-directory",
-                str(output_directory),
-            ]
-        )
+        main(argv=["--input-root", str(input_root_folder), "--output-root", str(output_directory)])
         template = served["routes"]["/"]()
 
         # The visible "Selected files" pane, not just the parameter: assigning value alone
         # leaves the browser showing nothing until it re-lists its directory.
-        assert template._widgets["data_root_selector"].value == [str(data_root)]
-        assert list(template._widgets["data_root_selector"]._selector.value) == [str(data_root)]
-        assert template._widgets["output_base_selector"].value == [str(output_directory)]
-        assert list(template._widgets["output_base_selector"]._selector.value) == [str(output_directory)]
+        assert template._widgets["input_root_selector"].value == [str(input_root_folder)]
+        assert list(template._widgets["input_root_selector"]._selector.value) == [str(input_root_folder)]
+        assert template._widgets["output_root_selector"].value == [str(output_directory)]
+        assert list(template._widgets["output_root_selector"]._selector.value) == [str(output_directory)]
 
-    def test_a_data_root_that_does_not_exist_is_left_unselected(self, served, exported, panel_extension, tmp_path):
-        main(argv=["--start-path", str(tmp_path), "--data-root", str(tmp_path / "missing")])
+    def test_an_input_root_folder_that_does_not_exist_is_left_unselected(
+        self, served, exported, panel_extension, tmp_path
+    ):
+        main(argv=["--input-root", str(tmp_path / "missing")])
         template = served["routes"]["/"]()
 
-        assert template._widgets["data_root_selector"].value == []
-        assert list(template._widgets["data_root_selector"]._selector.value) == []
+        assert template._widgets["input_root_selector"].value == []
+        assert list(template._widgets["input_root_selector"]._selector.value) == []
 
     def test_export_logs_exports_without_starting_a_server(self, served, exported):
         main(argv=["--export-logs"])

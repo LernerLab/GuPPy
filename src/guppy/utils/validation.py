@@ -41,7 +41,7 @@ from .utils import (
     _normalize,
     is_group_folder,
     is_run_folder,
-    session_is_under_data_root,
+    session_is_under_input_root,
 )
 
 logger = logging.getLogger(__name__)
@@ -338,71 +338,54 @@ def validate_required_folder_selection(*, file_selectors: Sequence) -> None:
         raise ValueError(message)
 
 
-def validate_output_base_directory(
-    *, session_folders: Sequence[str], output_base_directory: str, data_root: str
+def validate_output_root_folder(
+    *, session_folders: Sequence[str], output_root_folder: str, input_root_folder: str
 ) -> None:
-    """Validate that the output base directory can mirror every selected session.
+    """Validate that the output root folder can mirror every selected session.
+
+    Pointing the output root at the input root is allowed: each session then mirrors onto
+    itself, so its runs are written inside the session folder. What is rejected is an
+    output root *inside* a selected session, which would nest each run inside the previous
+    one's results.
 
     Parameters
     ----------
     session_folders : sequence of str
-        The session folders whose runs the base directory will hold.
-    output_base_directory : str
-        The directory the mirrored output tree is written into.
-    data_root : str
-        The directory the session folders are selected inside.
+        The session folders whose runs the output root folder will hold.
+    output_root_folder : str
+        The folder the mirrored output tree is written into.
+    input_root_folder : str
+        The folder the session folders are selected inside.
 
     Raises
     ------
     ValueError
-        If a selected session sits outside the data root, or if the output base
-        directory overlaps the raw data it would be written from.
+        If a selected session sits outside the input root folder, or if the output root
+        folder sits inside one of the selected sessions.
     """
-    root = Path(_normalize(data_root))
-    base = Path(_normalize(output_base_directory))
+    root = Path(_normalize(input_root_folder))
+    base = Path(_normalize(output_root_folder))
 
     outside = sorted(
         str(session)
         for session in session_folders
-        if not session_is_under_data_root(session_path=str(session), data_root=data_root)
+        if not session_is_under_input_root(session_path=str(session), input_root_folder=input_root_folder)
     )
     if outside:
         message = (
-            f"Session folder(s) {outside!r} are not inside the data root {str(root)!r}, so GuPPy "
-            f"cannot mirror them into the output base directory. Choose a data root that contains "
-            f"every selected session."
+            f"Session folder(s) {outside!r} are not inside the input root folder {str(root)!r}, so "
+            f"GuPPy cannot mirror them into the output root folder. Choose an input root folder "
+            f"that contains every selected session."
         )
         logger.error(message)
         raise ValueError(message)
 
-    if base == root:
-        message = (
-            f"The output base directory {str(base)!r} is the data root, so analysis outputs would be "
-            f"written over the raw data. Choose a directory outside the data root."
-        )
-        logger.error(message)
-        raise ValueError(message)
-
-    enclosing = sorted(
-        str(session)
-        for session in session_folders
-        if base == Path(_normalize(session)) or Path(_normalize(session)) in base.parents
-    )
+    enclosing = sorted(str(session) for session in session_folders if Path(_normalize(session)) in base.parents)
     if enclosing:
         message = (
-            f"The output base directory {str(base)!r} is inside the selected session(s) {enclosing!r}, "
-            f"which would write analysis outputs into the raw data GuPPy reads. Choose a directory "
-            f"outside the selected sessions."
-        )
-        logger.error(message)
-        raise ValueError(message)
-
-    enclosed = sorted(str(session) for session in session_folders if base in Path(_normalize(session)).parents)
-    if enclosed:
-        message = (
-            f"The selected session(s) {enclosed!r} are inside the output base directory {str(base)!r}, "
-            f"so GuPPy would read raw data out of its own output tree. Choose a directory outside the "
-            f"selected sessions."
+            f"The output root folder {str(base)!r} is inside the selected session(s) {enclosing!r}, "
+            f"which would write each run inside the previous run's results. Choose the session's "
+            f"own folder, or one outside it."
         )
         logger.error(message)
         raise ValueError(message)

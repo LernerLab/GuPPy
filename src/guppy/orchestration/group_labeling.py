@@ -32,7 +32,7 @@ def build_group_labeling_page(*, inputParameters: dict[str, object]) -> GroupLab
         The constructed page, not yet served.
     """
     return GroupLabelingPage(
-        start_path=inputParameters.get("output_base_directory") or inputParameters.get("abspath") or "",
+        start_path=inputParameters.get("output_root_folder") or inputParameters.get("abspath") or "",
         selected_group_folders=list(inputParameters.get("selected_group_folders") or []),
     )
 

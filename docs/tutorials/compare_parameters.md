@@ -52,7 +52,7 @@ Now the part that is new. Leave **Create new run** selected, and instead of keep
 **Run name** GuPPy filled in, replace it with `filter_100`. Click **Save**.
 
 A run's name is the suffix on its run folder, `output_<run name>`, so this one creates
-`output_filter_100/` in the session's mirror inside the output directory. The name GuPPy
+`output_filter_100/` in the session's mirror inside the output root folder. The name GuPPy
 fills in is the next free integer — `1`, then `2` — which is what the first tutorial got. Naming the run for the parameter you are varying carries that name into the folder
 name and into the heading on the run's visualization dashboard.
 
@@ -144,14 +144,14 @@ browser's downloads.
 
 ## What landed on disk
 
-The session's mirror in the output directory now holds three run folders, the two from this
+The session's mirror in the output root folder now holds three run folders, the two from this
 tutorial beside the one from the first, with the session folder itself untouched:
 
 ```text
-stubbed_testing_data/csv/          the data root
+stubbed_testing_data/csv/          the input root folder
 └── sample_data_csv_1/             the session folder
 
-guppy_output/                      the output directory
+guppy_output/                      the output root folder
 └── sample_data_csv_1/             the session's mirror
     ├── output_1/
     ├── output_filter_100/

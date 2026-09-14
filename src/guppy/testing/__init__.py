@@ -1,5 +1,5 @@
 from .api import (
-    default_output_base_directory,
+    default_output_root_folder,
     locate_run_folder,
     save_parameters_snapshot,
     step1,
@@ -11,7 +11,7 @@ from .api import (
 from .consistency import compare_output_folders
 
 __all__ = [
-    "default_output_base_directory",
+    "default_output_root_folder",
     "locate_run_folder",
     "save_parameters_snapshot",
     "step1",

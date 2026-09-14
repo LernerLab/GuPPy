@@ -26,9 +26,8 @@ def main(*, argv: list[str] | None = None) -> None:
     Supports command-line flags:
     - --version: Print the installed GuPPy version and exit
     - --export-logs: Export the log file to Desktop for sharing with support
-    - --start-path: Set the initial directory for the folder selector
-    - --data-root: Pre-select the directory the session folders live under
-    - --output-directory: Pre-select the directory the output tree is written into
+    - --input-root: Set the folder the session folders live under
+    - --output-root: Set the folder the mirrored output tree is written into
     - (no flags): Launch the GUI application
 
     Parameters
@@ -50,22 +49,16 @@ def main(*, argv: list[str] | None = None) -> None:
         help="Export log file to Desktop with timestamped name for support purposes",
     )
     parser.add_argument(
-        "--start-path",
+        "--input-root",
         type=str,
         default=None,
-        help="Initial directory for the folder selector (defaults to home directory)",
+        help="Folder your session folders live under; remembered for the next launch",
     )
     parser.add_argument(
-        "--data-root",
+        "--output-root",
         type=str,
         default=None,
-        help="Pre-select the directory your session folders live under",
-    )
-    parser.add_argument(
-        "--output-directory",
-        type=str,
-        default=None,
-        help="Pre-select the directory the mirrored output tree is written into",
+        help="Folder the mirrored output tree is written into; remembered for the next launch",
     )
 
     args = parser.parse_args(argv)
@@ -77,11 +70,7 @@ def main(*, argv: list[str] | None = None) -> None:
     # Deferred so that merely importing this module stays cheap -- see the module docstring.
     from .app import serve_app
 
-    serve_app(
-        start_path=args.start_path,
-        data_root=args.data_root,
-        output_base_directory=args.output_directory,
-    )
+    serve_app(input_root_folder=args.input_root, output_root_folder=args.output_root)
 
 
 if __name__ == "__main__":

@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 def build_homepage(
-    *, start_path: str | None = None, data_root: str | None = None, output_base_directory: str | None = None
+    *, start_path: str | None = None, input_root_folder: str | None = None, output_root_folder: str | None = None
 ) -> pn.template.BootstrapTemplate:
     """
     Build and return the GuPPy Panel web-application template.
@@ -40,9 +40,9 @@ def build_homepage(
     start_path : str or None, optional
         Initial directory shown in the folder-selection widget.  When None the
         widget starts in the current working directory.
-    data_root : str or None, optional
+    input_root_folder : str or None, optional
         Directory the session folders live under, pre-selected in the form.
-    output_base_directory : str or None, optional
+    output_root_folder : str or None, optional
         Directory the mirrored output tree is written into, pre-selected in the form.
 
     Returns
@@ -69,8 +69,8 @@ def build_homepage(
     parameter_form = ParameterForm(
         template=template,
         start_path=start_path,
-        data_root=data_root,
-        output_base_directory=output_base_directory,
+        input_root_folder=input_root_folder,
+        output_root_folder=output_root_folder,
     )
     sidebar = Sidebar(template=template)
 
@@ -302,9 +302,9 @@ def build_homepage(
         "psth_progress": sidebar.psth_progress,
         "group_progress": sidebar.group_progress,
         "group_folders_selector": parameter_form.group_folders_selector,
-        "output_location_mode": parameter_form.output_location_mode,
-        "output_base_selector": parameter_form.output_base_selector,
-        "data_root_selector": parameter_form.data_root_selector,
+        "same_root_checkbox": parameter_form.same_root_checkbox,
+        "output_root_selector": parameter_form.output_root_selector,
+        "input_root_selector": parameter_form.input_root_selector,
         "remove_artifacts_progress": sidebar.remove_artifacts_progress,
     }
 

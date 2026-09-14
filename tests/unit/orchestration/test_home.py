@@ -32,10 +32,10 @@ def homepage(panel_extension, tmp_path):
     data root; the output tree is mirrored into a sibling directory.
     """
     template = build_homepage()
-    output_base_directory = tmp_path / "guppy_output"
-    output_base_directory.mkdir(parents=True, exist_ok=True)
-    template._widgets["data_root_selector"].value = [str(tmp_path)]
-    template._widgets["output_base_selector"].value = [str(output_base_directory)]
+    output_root_folder = tmp_path / "guppy_output"
+    output_root_folder.mkdir(parents=True, exist_ok=True)
+    template._widgets["input_root_selector"].value = [str(tmp_path)]
+    template._widgets["output_root_selector"].value = [str(output_root_folder)]
     return template
 
 

@@ -6,7 +6,7 @@ import pytest
 
 from guppy.orchestration.home import build_homepage
 from guppy.orchestration.save_parameters import save_parameters
-from guppy.testing.api import default_output_base_directory
+from guppy.testing.api import default_output_root_folder
 
 # Written into the snapshot but not produced by the parameter form: the version stamp and
 # the artifact-removal provenance recorded by the preprocessing steps.
@@ -74,16 +74,16 @@ def snapshot_path(homepage, tmp_path):
     """
     session_directory = tmp_path / "session1"
     session_directory.mkdir()
-    output_base_directory = Path(default_output_base_directory(base_dir=str(tmp_path)))
-    output_base_directory.mkdir(parents=True, exist_ok=True)
-    homepage._widgets["data_root_selector"].value = [str(tmp_path)]
-    homepage._widgets["output_base_selector"].value = [str(output_base_directory)]
+    output_root_folder = Path(default_output_root_folder(base_dir=str(tmp_path)))
+    output_root_folder.mkdir(parents=True, exist_ok=True)
+    homepage._widgets["input_root_selector"].value = [str(tmp_path)]
+    homepage._widgets["output_root_selector"].value = [str(output_root_folder)]
     homepage._widgets["files_1"].value = [str(session_directory)]
     save_parameters(homepage._hooks["getInputParameters"]())
-    return output_base_directory / "session1" / "GuPPyParamtersUsed.json"
+    return output_root_folder / "session1" / "GuPPyParamtersUsed.json"
 
 
-def test_save_parameters_writes_parameters_json_into_the_output_base_directory(snapshot_path, tmp_path):
+def test_save_parameters_writes_parameters_json_into_the_output_root_folder(snapshot_path, tmp_path):
     assert snapshot_path.exists()
     assert not (tmp_path / "session1" / "GuPPyParamtersUsed.json").exists()
 

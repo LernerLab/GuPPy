@@ -7,7 +7,7 @@ trial, which gives you a cohort- or animal-level view without reading each sessi
 separately. Group analysis is optional. Most analyses only need per-session results, and those
 never touch the group steps.
 
-A group is a named output directory, so several can sit side by side. You might keep a
+A group is a named output root folder, so several can sit side by side. You might keep a
 `saline_group` and a `cocaine_group` and visualize both at once.
 
 ## Before you start
@@ -33,7 +33,7 @@ step that touches them.
 1. Click **Label Groups** in the sidebar. A new browser tab opens with the Label Groups page.
 2. Leave the mode at **create_new_group**.
 3. Under **1 · What goes into the group?**, pick the member runs. These are the
-   run directories under the output directory. They may live under different
+   run directories under the output root folder. They may live under different
    parent directories.
 4. Under **2 · Where does the group go?**, type a **Group name** and pick the destination
    directory. The name may not contain path separators, `..`, `_output_`, or `_group`.
@@ -66,7 +66,7 @@ definition survives the rebuild.
 
 ## Visualizing a group
 
-A group directory behaves like any other output directory in the visualizer, so there is no mode
+A group directory behaves like any other output root folder in the visualizer, so there is no mode
 to switch on and nothing to select a second time. Click **Open Visualization GUI** in the sidebar.
 
 You can visualize a group on its own. Step 5 accepts an empty individual selection as long as a

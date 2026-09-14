@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from guppy.testing.api import default_output_base_directory, save_parameters_snapshot
+from guppy.testing.api import default_output_root_folder, save_parameters_snapshot
 
 
 @pytest.fixture(scope="function")
@@ -50,7 +50,7 @@ def default_parameters():
 def test_save_parameters(tmp_path, default_parameters):
     # Arrange: base directory with two sessions under the same parent
     session_names = ["session1", "session2"]
-    base_name = "data_root"
+    base_name = "input_root_folder"
     base_dir = tmp_path / base_name
     base_dir.mkdir(parents=True, exist_ok=True)
     sessions = []
@@ -65,7 +65,7 @@ def test_save_parameters(tmp_path, default_parameters):
 
     # Assert: with no run folders created yet, the snapshot lands in each session's own
     # mirrored directory — the directory its run folders will be created in.
-    output_base = Path(default_output_base_directory(base_dir=base_dir))
+    output_base = Path(default_output_root_folder(base_dir=base_dir))
     for session in sessions:
         out_fp = output_base / Path(session).name / "GuPPyParamtersUsed.json"
         assert Path(out_fp).exists(), f"Missing file: {out_fp}"

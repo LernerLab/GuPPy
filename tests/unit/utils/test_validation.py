@@ -7,7 +7,7 @@ from guppy.utils.validation import (
     validate_group_folders_selected,
     validate_group_member_run_folders,
     validate_non_negative,
-    validate_output_base_directory,
+    validate_output_root_folder,
     validate_peak_windows,
     validate_positive,
     validate_required_folder_selection,
@@ -296,57 +296,58 @@ class TestValidateGroupFoldersSelected:
             validate_group_folders_selected(group_folders=[str(folder)])
 
 
-class TestValidateOutputBaseDirectory:
-    def test_sessions_under_the_data_root_pass(self, tmp_path):
+class TestValidateOutputRootFolder:
+    def test_sessions_under_the_input_root_folder_pass(self, tmp_path):
         sessions = [str(tmp_path / "data" / "sessionA"), str(tmp_path / "data" / "sessionB")]
-        validate_output_base_directory(
+        validate_output_root_folder(
             session_folders=sessions,
-            output_base_directory=str(tmp_path / "derivatives"),
-            data_root=str(tmp_path / "data"),
+            output_root_folder=str(tmp_path / "derivatives"),
+            input_root_folder=str(tmp_path / "data"),
         )
 
     def test_sessions_sharing_a_folder_name_pass(self, tmp_path):
         sessions = [str(tmp_path / "data" / "mouse1" / "day1"), str(tmp_path / "data" / "mouse2" / "day1")]
-        validate_output_base_directory(
+        validate_output_root_folder(
             session_folders=sessions,
-            output_base_directory=str(tmp_path / "derivatives"),
-            data_root=str(tmp_path / "data"),
+            output_root_folder=str(tmp_path / "derivatives"),
+            input_root_folder=str(tmp_path / "data"),
         )
 
-    def test_a_session_outside_the_data_root_is_rejected(self, tmp_path):
+    def test_a_session_outside_the_input_root_folder_is_rejected(self, tmp_path):
         sessions = [str(tmp_path / "data" / "sessionA"), str(tmp_path / "elsewhere" / "sessionB")]
-        with pytest.raises(ValueError, match="not inside the data root"):
-            validate_output_base_directory(
+        with pytest.raises(ValueError, match="not inside the input root folder"):
+            validate_output_root_folder(
                 session_folders=sessions,
-                output_base_directory=str(tmp_path / "derivatives"),
-                data_root=str(tmp_path / "data"),
+                output_root_folder=str(tmp_path / "derivatives"),
+                input_root_folder=str(tmp_path / "data"),
             )
 
-    def test_the_base_directory_may_not_be_the_data_root(self, tmp_path):
+    def test_the_two_roots_may_be_the_same_folder(self, tmp_path):
+        """Each session then mirrors onto itself, which writes its runs inside it."""
         session = str(tmp_path / "data" / "sessionA")
-        with pytest.raises(ValueError, match="is the data root"):
-            validate_output_base_directory(
-                session_folders=[session],
-                output_base_directory=str(tmp_path / "data"),
-                data_root=str(tmp_path / "data"),
-            )
+        validate_output_root_folder(
+            session_folders=[session],
+            output_root_folder=str(tmp_path / "data"),
+            input_root_folder=str(tmp_path / "data"),
+        )
 
-    def test_the_base_directory_may_not_be_inside_a_selected_session(self, tmp_path):
+    def test_a_session_may_sit_inside_the_output_root_folder(self, tmp_path):
+        """Implied by the roots being allowed to match, and true whenever they do."""
+        session = str(tmp_path / "data" / "sessionA")
+        validate_output_root_folder(
+            session_folders=[session],
+            output_root_folder=str(tmp_path / "data"),
+            input_root_folder=str(tmp_path / "data"),
+        )
+
+    def test_the_output_root_folder_may_not_be_inside_a_selected_session(self, tmp_path):
+        """That would nest each run inside the previous run's results."""
         session = str(tmp_path / "data" / "sessionA")
         with pytest.raises(ValueError, match="inside the selected session"):
-            validate_output_base_directory(
+            validate_output_root_folder(
                 session_folders=[session],
-                output_base_directory=str(tmp_path / "data" / "sessionA" / "outputs"),
-                data_root=str(tmp_path / "data"),
-            )
-
-    def test_a_selected_session_may_not_be_inside_the_base_directory(self, tmp_path):
-        session = str(tmp_path / "data" / "derivatives" / "sessionA")
-        with pytest.raises(ValueError, match="inside the output base directory"):
-            validate_output_base_directory(
-                session_folders=[session],
-                output_base_directory=str(tmp_path / "data" / "derivatives"),
-                data_root=str(tmp_path / "data"),
+                output_root_folder=str(tmp_path / "data" / "sessionA" / "outputs"),
+                input_root_folder=str(tmp_path / "data"),
             )
 
 

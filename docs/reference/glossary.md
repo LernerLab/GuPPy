@@ -47,7 +47,7 @@ run_folder
 data_root
   The directory your session folders live under, chosen in the Input Folder
   Selection card. Every selected session must sit under it, and its path below
-  the data root is what GuPPy mirrors into the {term}`output_directory`.
+  the input root folder is what GuPPy mirrors into the {term}`output_directory`.
 
 output_directory
   The directory the mirrored output tree is written into, chosen in the Output

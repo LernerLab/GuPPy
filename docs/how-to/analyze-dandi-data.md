@@ -52,8 +52,10 @@ GuPPy reads the dandiset's `draft` version.
    :width: 100%
    ```
 
-4. Choose a local output directory. GuPPy creates one session folder per
-   selected asset, named after the asset filename minus `.nwb`.
+4. Set the **input root folder** in the **Root Folder Selection** card, if you have
+   not already. GuPPy creates one session folder per selected asset inside it, named
+   after the asset filename minus `.nwb`, and from there they are ordinary local
+   sessions — the DANDI panel has no output folder of its own.
 
 ## Labeling the streamed stores
 
@@ -91,13 +93,13 @@ preprocessing, PSTH, and visualization offline and without a key.
 
 ## What lands on disk
 
-Nothing from the archive is cached. The DANDI output root you chose is the data root for
-the sessions materialized there, so it is what GuPPy mirrors into the output directory:
+Nothing from the archive is cached. Assets materialize as session folders under the input root
+folder, which is what GuPPy mirrors into the output root folder:
 
 | Path | Contents |
 |------|----------|
 | `<asset name>/` | Session folder, one per selected asset |
-| `<output directory>/<asset name>/output_1/` | Run folder, in the session's mirror under the output directory |
+| `<output root folder>/<asset name>/output_1/` | Run folder, in the session's mirror under the output root folder |
 | `.../storesList.csv` | Store-to-label mapping from Step 1 |
 | `.../<store id>.hdf5` | One raw stream per store from Step 2, named by store id (e.g. `fiber_photometry_response_series_0.hdf5`) |
 

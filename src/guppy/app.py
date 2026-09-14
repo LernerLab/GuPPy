@@ -10,9 +10,7 @@ from .orchestration.tonic_analysis import build_tonic_analysis_view
 from .orchestration.transients_view import build_transients_view
 
 
-def serve_app(
-    *, start_path: str | None = None, data_root: str | None = None, output_base_directory: str | None = None
-) -> None:
+def serve_app(*, input_root_folder: str | None = None, output_root_folder: str | None = None) -> None:
     """Serve the GuPPy application using Panel.
 
     Serves the homepage plus the step result-view routes on one persistent server (each a
@@ -21,18 +19,13 @@ def serve_app(
 
     Parameters
     ----------
-    start_path : str or None, optional
-        Initial directory shown in the folder-selection widget. When None the widget
-        starts in the current working directory.
-    data_root : str or None, optional
+    input_root_folder : str or None, optional
         Directory the session folders live under, pre-selected on the homepage.
-    output_base_directory : str or None, optional
+    output_root_folder : str or None, optional
         Directory the mirrored output tree is written into, pre-selected on the homepage.
     """
     routes = {
-        "/": lambda: build_homepage(
-            start_path=start_path, data_root=data_root, output_base_directory=output_base_directory
-        ),
+        "/": lambda: build_homepage(input_root_folder=input_root_folder, output_root_folder=output_root_folder),
         "/preprocess-view": build_preprocess_view,
         "/select-artifact-windows": build_select_artifact_windows_view,
         "/artifact-view": build_artifact_view,

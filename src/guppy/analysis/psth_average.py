@@ -50,7 +50,7 @@ def average_psth_for_group(
     # One column per member, and the columns are written to disk, so the label is anchored
     # to the output directory rather than to whichever members happen to be selected.
     member_labels = {
-        str(folder): output_label_under(path=folder, root=inputParameters.get("output_base_directory"))
+        str(folder): output_label_under(path=folder, root=inputParameters["output_root_folder"])
         for folder in member_run_folders
     }
 
