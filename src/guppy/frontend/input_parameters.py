@@ -162,22 +162,23 @@ class ParameterForm:
     ----------
     template : panel.template.base.BasicTemplate
         The Panel template whose ``main`` area will receive the form cards.
-    start_path : str, optional
-        Initial directory shown in the file selectors. Falls back to the
-        value returned by ``default_root_path()`` when not supplied or when
-        the path does not exist.
+    input_root_folder : str, optional
+        Folder the session folders live under, pre-selected in the Root Folder Selection card.
+    output_root_folder : str, optional
+        Folder the mirrored output tree is written into, pre-selected in the same card.
     """
 
     def __init__(
         self,
         *,
         template: object,
-        start_path: str | None = None,
         input_root_folder: str | None = None,
         output_root_folder: str | None = None,
     ) -> None:
         self.template = template
-        self.folder_path = start_path if start_path and Path(start_path).is_dir() else default_root_path()
+        # Where the file browsers open before a root is chosen. Choosing an input root
+        # re-points the session browser, so this only shows until then.
+        self.folder_path = default_root_path()
         self.styles = dict(background="WhiteSmoke")
         # Sessions the run selection was last synced against, so a change can tell which
         # sessions are new and should inherit the bulk run-name choice.

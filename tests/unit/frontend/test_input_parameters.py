@@ -19,12 +19,6 @@ from guppy.utils.utils import (
 )
 
 
-@pytest.fixture(scope="session")
-def frontend_base_dir(tmp_path_factory):
-    """Create a real temp directory for the form's file selectors to start in."""
-    return tmp_path_factory.mktemp("frontend_base")
-
-
 @pytest.fixture
 def notifications(monkeypatch):
     """Capture Panel notifications, which are None outside a served session."""
@@ -50,10 +44,10 @@ def output_root_folder(tmp_path):
 
 
 @pytest.fixture
-def unconfigured_parameter_form(panel_extension, frontend_base_dir):
+def unconfigured_parameter_form(panel_extension):
     """Build a BootstrapTemplate + ParameterForm with nothing chosen at all."""
     template = pn.template.BootstrapTemplate(title="Test")
-    return ParameterForm(template=template, start_path=str(frontend_base_dir))
+    return ParameterForm(template=template)
 
 
 @pytest.fixture
@@ -1072,11 +1066,10 @@ class TestRootFolderSelection:
         assert unconfigured_parameter_form.root_folder_selection.collapsed is False
 
     def test_the_card_folds_away_when_the_roots_are_known_at_launch(
-        self, panel_extension, frontend_base_dir, tmp_path, output_root_folder
+        self, panel_extension, tmp_path, output_root_folder
     ):
         form = ParameterForm(
             template=pn.template.BootstrapTemplate(title="Test"),
-            start_path=str(frontend_base_dir),
             input_root_folder=str(tmp_path),
             output_root_folder=str(output_root_folder),
         )
@@ -1084,13 +1077,12 @@ class TestRootFolderSelection:
         assert form.root_folder_selection.collapsed is True
 
     def test_the_roots_named_on_the_command_line_show_in_the_browsers(
-        self, panel_extension, frontend_base_dir, tmp_path, output_root_folder
+        self, panel_extension, tmp_path, output_root_folder
     ):
         """Setting ``value`` alone leaves the browser drawn where it was, so the choice
         would not appear until the user made the widget re-list its directory."""
         form = ParameterForm(
             template=pn.template.BootstrapTemplate(title="Test"),
-            start_path=str(frontend_base_dir),
             input_root_folder=str(tmp_path),
             output_root_folder=str(output_root_folder),
         )

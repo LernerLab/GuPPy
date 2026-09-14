@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 
 def default_root_path() -> str:
-    """Starting directory for the GUI's directory pickers when no ``start_path`` is given.
+    """Starting directory for the GUI's directory pickers before a root folder is chosen.
 
     Returns
     -------

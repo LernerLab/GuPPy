@@ -89,9 +89,9 @@ Validation at this layer covers only what the form can judge by itself — a req
 not selected, a missing DANDI URI. Anything needing cross-parameter context belongs in orchestration
 instead.
 
-The folder and run selectors start in the user's home directory unless a starting directory is
-passed down from `build_homepage(start_path=...)` — the `guppy --start-path` flag, which the testing
-API and the screenshot scripts use to land the pickers on their own data.
+The folder and run selectors start in the user's home directory. Choosing an input root folder
+re-points the session selector into it, which is how the testing API and the screenshot scripts
+land the pickers on their own data.
 
 ### `utils/`
 

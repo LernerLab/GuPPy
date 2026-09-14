@@ -30,16 +30,13 @@ logger = logging.getLogger(__name__)
 
 
 def build_homepage(
-    *, start_path: str | None = None, input_root_folder: str | None = None, output_root_folder: str | None = None
+    *, input_root_folder: str | None = None, output_root_folder: str | None = None
 ) -> pn.template.BootstrapTemplate:
     """
     Build and return the GuPPy Panel web-application template.
 
     Parameters
     ----------
-    start_path : str or None, optional
-        Initial directory shown in the folder-selection widget.  When None the
-        widget starts in the current working directory.
     input_root_folder : str or None, optional
         Directory the session folders live under, pre-selected in the form.
     output_root_folder : str or None, optional
@@ -68,7 +65,6 @@ def build_homepage(
     )
     parameter_form = ParameterForm(
         template=template,
-        start_path=start_path,
         input_root_folder=input_root_folder,
         output_root_folder=output_root_folder,
     )

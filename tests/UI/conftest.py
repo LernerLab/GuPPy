@@ -10,7 +10,7 @@ from guppy.orchestration.home import build_homepage
 
 @pytest.fixture(scope="session")
 def ui_base_dir(tmp_path_factory):
-    """Provide a real temp directory to root the homepage's file selectors at."""
+    """Provide a real temp directory to serve as the homepage's input root folder."""
     return tmp_path_factory.mktemp("ui_base")
 
 
@@ -22,7 +22,7 @@ def live_server(panel_extension, ui_base_dir):
     teardown.
     """
     port = scanPortsAndFind()
-    template = build_homepage(start_path=str(ui_base_dir))
+    template = build_homepage(input_root_folder=str(ui_base_dir))
     pn.serve(template, port=port, show=False, threaded=True)
 
     base_url = f"http://localhost:{port}"
