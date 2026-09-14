@@ -12,6 +12,14 @@ from guppy.utils._hdf5_io import write_hdf5
 
 
 @pytest.fixture
+def run_folder(tmp_path):
+    """A run folder, which is what the tonic pages are always pointed at."""
+    folder = tmp_path / "session_a" / "output_1"
+    folder.mkdir(parents=True)
+    return folder
+
+
+@pytest.fixture
 def site_traces():
     timestamps = np.arange(0.0, 11.0, 1.0)
     return {
@@ -22,47 +30,47 @@ def site_traces():
 
 class TestTonicEpochConfig:
     @pytest.fixture
-    def config(self, panel_extension, tmp_path, site_traces):
-        config = TonicEpochConfig(str(tmp_path), site_traces)
+    def config(self, panel_extension, run_folder, site_traces):
+        config = TonicEpochConfig(str(run_folder), site_traces)
         # Adding, removing, and the live preview act on the selected site; pin it so the
         # tests do not depend on dict iteration order.
         config.site_select.value = "DMS"
         return config
 
-    def test_starts_with_no_epoch_windows(self, config):
+    def test_starts_with_no_epoch_windows(self, config, run_folder):
         assert config.epochs_for("DMS") == []
         assert config.epochs_for("DLS") == []
 
-    def test_reloads_epoch_windows_saved_on_disk(self, panel_extension, tmp_path, site_traces):
+    def test_reloads_epoch_windows_saved_on_disk(self, panel_extension, run_folder, site_traces):
         pd.DataFrame({"label": ["baseline"], "start": [0.0], "end": [2.0]}).to_csv(
-            tmp_path / "tonic_epochs_DMS.csv", index=False
+            run_folder / "tonic_epochs_DMS.csv", index=False
         )
 
-        config = TonicEpochConfig(str(tmp_path), site_traces)
+        config = TonicEpochConfig(str(run_folder), site_traces)
 
         assert config.epochs_for("DMS") == [("baseline", 0.0, 2.0)]
         assert config.epochs_for("DLS") == []
 
-    def test_save_writes_csv_only_for_sites_with_windows(self, config, tmp_path):
+    def test_save_writes_csv_only_for_sites_with_windows(self, config, run_folder):
         config.set_epochs("DMS", [("baseline", 0.0, 2.0), ("post", 8.0, 10.0)])
 
         config.save()
 
-        saved = pd.read_csv(tmp_path / "tonic_epochs_DMS.csv")
+        saved = pd.read_csv(run_folder / "tonic_epochs_DMS.csv")
         expected = pd.DataFrame({"label": ["baseline", "post"], "start": [0.0, 8.0], "end": [2.0, 10.0]})
         pd.testing.assert_frame_equal(saved, expected)
 
         # DLS was left empty, so no file is written for it.
-        assert not (tmp_path / "tonic_epochs_DLS.csv").exists()
-        assert not (tmp_path / "tonic_DLS.h5").exists()
+        assert not (run_folder / "tonic_epochs_DLS.csv").exists()
+        assert not (run_folder / "tonic_DLS.h5").exists()
 
-    def test_save_also_computes_the_per_epoch_means(self, config, tmp_path):
+    def test_save_also_computes_the_per_epoch_means(self, config, run_folder):
         """Saving is the whole step — no later preprocessing pass produces the means."""
         config.set_epochs("DMS", [("baseline", 0.0, 2.0), ("post", 8.0, 10.0)])
 
         config.save()
 
-        means = pd.read_hdf(tmp_path / "tonic_DMS.h5", key="df")
+        means = pd.read_hdf(run_folder / "tonic_DMS.h5", key="df")
         # The DMS z-score trace is the timestamps themselves (0..10 by 1), and dF/F is
         # that over 10, so [0, 2] averages to 1.0 / 0.1 and [8, 10] to 9.0 / 0.9.
         assert list(means.index) == ["baseline", "post"]
@@ -71,68 +79,68 @@ class TestTonicEpochConfig:
         assert means.loc["post", "mean_zscore"] == pytest.approx(9.0)
         assert means.loc["post", "mean_dff"] == pytest.approx(0.9)
 
-    def test_blank_row_is_not_saved(self, config, tmp_path):
+    def test_blank_row_is_not_saved(self, config, run_folder):
         config.set_epochs("DMS", [("baseline", 0.0, 2.0)])
         config.add_epoch_row()
 
         config.save()
 
-        saved = pd.read_csv(tmp_path / "tonic_epochs_DMS.csv")
+        saved = pd.read_csv(run_folder / "tonic_epochs_DMS.csv")
         pd.testing.assert_frame_equal(saved, pd.DataFrame({"label": ["baseline"], "start": [0.0], "end": [2.0]}))
 
-    def test_clearing_a_sites_rows_removes_its_saved_files(self, config, tmp_path):
+    def test_clearing_a_sites_rows_removes_its_saved_files(self, config, run_folder):
         """Save reflects the page, so a site cleared of windows drops out of the results."""
         config.set_epochs("DMS", [("baseline", 0.0, 2.0)])
         config.save()
-        assert (tmp_path / "tonic_epochs_DMS.csv").exists()
-        assert (tmp_path / "tonic_DMS.h5").exists()
+        assert (run_folder / "tonic_epochs_DMS.csv").exists()
+        assert (run_folder / "tonic_DMS.h5").exists()
 
         config.set_epochs("DMS", [])
         config.save()
 
-        assert not (tmp_path / "tonic_epochs_DMS.csv").exists()
-        assert not (tmp_path / "tonic_DMS.h5").exists()
+        assert not (run_folder / "tonic_epochs_DMS.csv").exists()
+        assert not (run_folder / "tonic_DMS.h5").exists()
 
-    def test_saving_a_site_that_never_had_windows_is_a_no_op(self, config, tmp_path):
+    def test_saving_a_site_that_never_had_windows_is_a_no_op(self, config, run_folder):
         config.set_epochs("DMS", [("baseline", 0.0, 2.0)])
 
         config.save()
 
         # DLS was never populated, so there is nothing of its own to remove and the
         # cleanup must not disturb the site that was saved.
-        assert not (tmp_path / "tonic_epochs_DLS.csv").exists()
-        assert (tmp_path / "tonic_epochs_DMS.csv").exists()
+        assert not (run_folder / "tonic_epochs_DLS.csv").exists()
+        assert (run_folder / "tonic_epochs_DMS.csv").exists()
 
-    def test_removing_a_row_drops_its_window(self, config):
+    def test_removing_a_row_drops_its_window(self, config, run_folder):
         config.set_epochs("DMS", [("baseline", 0.0, 2.0), ("post", 8.0, 10.0)])
 
         config._remove_row(config.site_to_rows["DMS"][0])
 
         assert config.epochs_for("DMS") == [("post", 8.0, 10.0)]
 
-    def test_save_raises_on_window_not_overlapping_recording(self, config, tmp_path):
+    def test_save_raises_on_window_not_overlapping_recording(self, config, run_folder):
         # site traces span t in [0, 10]; a [15, 20] window overlaps nothing -> reject early,
         # before any file is written, so the worker never sees an invalid epoch.
         config.set_epochs("DMS", [("late", 15.0, 20.0)])
         with pytest.raises(ValueError, match="does not overlap"):
             config.save()
-        assert not (tmp_path / "tonic_epochs_DMS.csv").exists()
+        assert not (run_folder / "tonic_epochs_DMS.csv").exists()
 
-    def test_on_save_swallows_validation_error_without_writing(self, config, tmp_path):
+    def test_on_save_swallows_validation_error_without_writing(self, config, run_folder):
         config.set_epochs("DMS", [("late", 15.0, 20.0)])
         # _on_save catches the ValueError (surfacing it as a notification when served)
         # instead of propagating; no file is written.
         config._on_save(None)
-        assert not (tmp_path / "tonic_epochs_DMS.csv").exists()
+        assert not (run_folder / "tonic_epochs_DMS.csv").exists()
 
-    def test_apply_to_all_replicates_current_sites_windows(self, config):
+    def test_apply_to_all_replicates_current_sites_windows(self, config, run_folder):
         config.set_epochs("DMS", [("baseline", 0.0, 2.0)])
 
         config.apply_epochs_to_all_sites()
 
         assert config.epochs_for("DLS") == [("baseline", 0.0, 2.0)]
 
-    def test_editing_a_bound_repaints_the_spans_without_rebuilding_the_plot(self, config):
+    def test_editing_a_bound_repaints_the_spans_without_rebuilding_the_plot(self, config, run_folder):
         config.set_epochs("DMS", [("baseline", 0.0, 2.0)])
         plot = config.plot_pane.object
 
@@ -162,14 +170,14 @@ def _write_tonic_results(filepath, site):
 
 
 class TestTonicResultsView:
-    def test_build_returns_note_when_no_results(self, panel_extension, tmp_path):
-        panel_column = build_tonic_results_view(str(tmp_path))
+    def test_build_returns_note_when_no_results(self, panel_extension, run_folder):
+        panel_column = build_tonic_results_view(str(run_folder))
         markdown = panel_column.objects[0]
         assert "No tonic" in markdown.object
 
-    def test_diff_table_is_relative_to_selected_baseline(self, panel_extension, tmp_path):
-        _write_tonic_results(tmp_path, "DMS")
-        view = TonicResultsView(str(tmp_path))
+    def test_diff_table_is_relative_to_selected_baseline(self, panel_extension, run_folder):
+        _write_tonic_results(run_folder, "DMS")
+        view = TonicResultsView(str(run_folder))
 
         table = view.table_pane.object
         # Baseline defaults to the first epoch ("baseline"), so its diff is 0 and
@@ -184,9 +192,9 @@ class TestTonicResultsView:
         assert rebased.loc["baseline", "diff_zscore"] == pytest.approx(-8.0)
         assert rebased.loc["post", "diff_zscore"] == 0.0
 
-    def test_bars_plot_the_change_from_baseline_not_the_absolute_means(self, panel_extension, tmp_path):
-        _write_tonic_results(tmp_path, "DMS")
-        view = TonicResultsView(str(tmp_path))
+    def test_bars_plot_the_change_from_baseline_not_the_absolute_means(self, panel_extension, run_folder):
+        _write_tonic_results(run_folder, "DMS")
+        view = TonicResultsView(str(run_folder))
 
         bars = view.bars_pane.object
         # One panel for z-score, one for dF/F — the two differ by an order of magnitude,
@@ -202,9 +210,9 @@ class TestTonicResultsView:
         dff_bars = bars[1].Bars.I
         np.testing.assert_allclose(dff_bars.dimension_values("Δ mean ΔF/F"), [0.0, 0.8])
 
-    def test_bars_rebase_when_the_baseline_epoch_changes(self, panel_extension, tmp_path):
-        _write_tonic_results(tmp_path, "DMS")
-        view = TonicResultsView(str(tmp_path))
+    def test_bars_rebase_when_the_baseline_epoch_changes(self, panel_extension, run_folder):
+        _write_tonic_results(run_folder, "DMS")
+        view = TonicResultsView(str(run_folder))
 
         view.baseline_select.value = "post"
 
@@ -213,9 +221,9 @@ class TestTonicResultsView:
         np.testing.assert_allclose(zscore_bars.dimension_values("Δ mean z-score"), [-8.0, 0.0])
         assert view.bars_pane.object[0].Bars.I.kdims[0].name == "epoch"
 
-    def test_bars_mark_no_change_at_zero(self, panel_extension, tmp_path):
-        _write_tonic_results(tmp_path, "DMS")
-        view = TonicResultsView(str(tmp_path))
+    def test_bars_mark_no_change_at_zero(self, panel_extension, run_folder):
+        _write_tonic_results(run_folder, "DMS")
+        view = TonicResultsView(str(run_folder))
 
         # Bars run either side of zero, so the dashed line is pinned to no-change
         # regardless of which epoch is the baseline.

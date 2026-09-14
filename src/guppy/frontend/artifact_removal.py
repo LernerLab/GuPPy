@@ -26,6 +26,7 @@ from ..analysis.io_utils import (
     recording_site_from_channel_path,
     recording_site_from_preprocessed_label,
 )
+from ..utils.utils import disambiguated_output_labels, output_directory_label
 from ..visualization.preprocessing import build_control_signal_fit
 
 # Load the bokeh HoloViews backend these components rely on for the trace plots.
@@ -118,7 +119,7 @@ class PreprocessingReviewView:
 
         heading = "Artifact removal review" if artifacts_removed else "Preprocessing review"
         self.widget = pn.Column(
-            f"## {heading} — {Path(filepath).name}",
+            f"## {heading} — {output_directory_label(filepath)}",
             self.site_select,
             self.plot_pane,
             sizing_mode="stretch_width",
@@ -134,7 +135,7 @@ class PreprocessingReviewView:
             signal=trace["signal"],
             fit=trace["fit"],
             titles=trace["plot_name"],
-            suptitle=Path(self.filepath).name,
+            suptitle=output_directory_label(self.filepath),
             extra_traces={
                 f"z_score_{site}": preprocessed["y_zscore"],
                 f"dff_{site}": preprocessed["y_dff"],
@@ -168,8 +169,10 @@ def build_run_folder_page(
     if len(run_folders) == 1:
         return content
 
-    # The run folder's own name carries its session, so it identifies the run on its own.
-    options = {Path(f).name: f for f in run_folders}
+    # Run folders are named for the run alone, so the label has to name the session too —
+    # and the parent directories as well when two sessions share a folder name.
+    labels = disambiguated_output_labels(run_folders)
+    options = {labels[str(folder)]: folder for folder in run_folders}
     folder_select = pn.widgets.Select(name="Run folder", options=options, value=run_folders[0])
 
     def _on_folder_change(event: object) -> None:

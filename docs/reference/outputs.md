@@ -308,7 +308,7 @@ A group directory is named `<group_name>_group` and sits in the destination dire
 | `cross_correlation_output/corr_<event>_<metric-prefix>_<siteA>_<siteB>.h5` | One column per member run |
 | `psth_significance_output/significance_<comparison>.h5` and `.csv` | Significance over the group, resampling member sessions |
 
-The group PSTH has the same shape as a per-session PSTH, but its trial columns are replaced by one column per member run, labeled with the run folder's name, followed by the same `timestamps`, `mean` and `err` columns. Column order matches `group_members.json`, so column *n* is member *n*.
+The group PSTH has the same shape as a per-session PSTH, but its trial columns are replaced by one column per member run, followed by the same `timestamps`, `mean` and `err` columns. Column order matches `group_members.json`, so column *n* is member *n*. Each column is labeled `<session folder name>_output_<run name>`, and when two members come from sessions sharing a folder name their mirrored parent directories are prepended until the labels differ — so a group mixing `subject1/session1` and `subject2/session1` gets `subject1_session1_output_1` and `subject2_session1_output_1`.
 
 `group_members.json` has a single key, `member_run_folders`, holding the absolute paths of the runs the group averages. It is the group's definition: the Label Groups step writes it, and the Group Analysis step reads it to know what to average. A group directory holding only this file is a defined group with no results yet, in the same way a run folder holds `storesList.csv` before Step 2 fills it.
 

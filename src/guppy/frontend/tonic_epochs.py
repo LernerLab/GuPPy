@@ -30,6 +30,7 @@ from ..analysis.tonic import (
     compute_tonic_means,
     validate_tonic_epochs,
 )
+from ..utils.utils import output_directory_label
 from ..visualization.preprocessing import build_stacked_traces, make_spans_pipe
 
 pn.extension(notifications=True)
@@ -187,7 +188,7 @@ class TonicEpochConfig:
         self.save_button.on_click(self._on_save)
 
         self.widget = pn.Column(
-            f"# Tonic Analysis — {Path(filepath).name}",
+            f"# Tonic Analysis — {output_directory_label(filepath)}",
             pn.pane.Markdown(_INSTRUCTIONS),
             self.site_select,
             self.plot_pane,
@@ -312,7 +313,7 @@ class TonicEpochConfig:
         return build_stacked_traces(
             x=trace["x"],
             traces={"z-score": trace["y_zscore"], "ΔF/F": trace["y_dff"]},
-            suptitle=Path(self.filepath).name,
+            suptitle=output_directory_label(self.filepath),
             spans=self.spans_pipe,
         )
 
@@ -383,7 +384,7 @@ class TonicResultsView:
         self.baseline_select.param.watch(self._refresh, "value")
 
         self.widget = pn.Column(
-            f"## Tonic / basal analysis — {Path(filepath).name}",
+            f"## Tonic / basal analysis — {output_directory_label(filepath)}",
             pn.Row(self.site_select, self.baseline_select),
             self.bars_pane,
             pn.pane.Markdown(_BASELINE_HINT),
@@ -456,7 +457,7 @@ class TonicResultsView:
         return build_stacked_traces(
             x=timestamps,
             traces=traces,
-            suptitle=Path(self.filepath).name,
+            suptitle=output_directory_label(self.filepath),
             spans=self.spans_pipe,
         )
 

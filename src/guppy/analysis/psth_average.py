@@ -11,7 +11,7 @@ from .io_utils import (
     recording_site_from_preprocessed_label,
 )
 from .psth_utils import create_Df_for_psth, getCorrCombinations
-from ..utils.utils import read_Df, run_folder_label
+from ..utils.utils import disambiguated_output_labels, read_Df
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +47,9 @@ def average_psth_for_group(
     path = []
     selectForComputePsth = inputParameters["selectForComputePsth"]
     run_folder = group_folder
+    # One column per member, so the labels have to tell the members apart even when two
+    # of them come from sessions sharing a folder name.
+    member_labels = disambiguated_output_labels(member_run_folders)
 
     # combining paths to all the selected folders for doing average
     for i in range(len(member_run_folders)):
@@ -96,7 +99,7 @@ def average_psth_for_group(
                 regex = re.compile("bin_[(]")
                 bin_columns = [column_names[i] for i in range(len(column_names)) if regex.match(column_names[i])]
                 psth.append(np.asarray(df["mean"]))
-                columns.append(run_folder_label(session_entries[j][0]))
+                columns.append(member_labels[str(session_entries[j][0])])
                 if len(bin_columns) > 0:
                     psth_bins.append(df[bin_columns])
 
@@ -192,7 +195,7 @@ def average_psth_for_group(
                 else:
                     df = read_Df(correlation_folder, "corr_" + event, name)
                     corr.append(df["mean"])
-                    columns.append(run_folder_label(member_run_folders[j]))
+                    columns.append(member_labels[str(member_run_folders[j])])
 
         if not isinstance(df, pd.DataFrame):
             break

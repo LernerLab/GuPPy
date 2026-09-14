@@ -11,6 +11,7 @@ from ..utils.stores_list import read_stores_list
 from ..utils.utils import (
     event_labels_for_analysis,
     get_all_stores_for_combining_data,
+    output_directory_label,
     select_run_folders,
 )
 from ..utils.validation import validate_group_definitions
@@ -59,7 +60,7 @@ def helper_plots(filepath: str, event: list[str], inputParameters: dict[str, obj
     )
     dashboard = VisualizationDashboard(
         plotter=plotter,
-        basename=Path(filepath).name,
+        basename=output_directory_label(filepath),
         events=list(event),
         metric=metric,
         available_metrics=available_metrics,

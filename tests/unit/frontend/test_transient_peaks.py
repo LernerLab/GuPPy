@@ -26,8 +26,8 @@ def _write_transient_outputs(filepath, title):
 
 @pytest.fixture
 def run_folder(tmp_path):
-    output_dir = tmp_path / "session_output_1"
-    output_dir.mkdir()
+    output_dir = tmp_path / "session" / "output_1"
+    output_dir.mkdir(parents=True)
     _write_transient_outputs(output_dir, "z_score_DMS")
     return output_dir
 

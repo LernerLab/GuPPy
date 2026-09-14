@@ -308,6 +308,75 @@ def run_folder_label(run_folder: str) -> str:
     return parse_session_basename(run_folder) + _RUN_NAME_MARKER + parse_run_name(run_folder)
 
 
+def output_directory_label(path: str) -> str:
+    """Return a user-facing label naming an output directory.
+
+    Run folders are named for the run alone, so several sessions' runs share the
+    basename ``output_1``; the label carries the session as well, which is what makes
+    it usable as a heading or as a key identifying one run among many. Group folders
+    are named uniquely already and keep their own name.
+
+    Parameters
+    ----------
+    path : str
+        Path to a run folder or a group folder.
+
+    Returns
+    -------
+    str
+        ``<session basename>_output_<run name>`` for a run folder, or the group
+        folder's own name.
+    """
+    if is_group_folder(path):
+        return Path(str(path).rstrip("/\\")).name
+    return run_folder_label(path)
+
+
+def disambiguated_output_labels(paths: Sequence[str]) -> dict[str, str]:
+    """Return a label per output directory, distinct within ``paths``.
+
+    :func:`output_directory_label` names a run folder for its session and run, which
+    is enough until two selected runs come from sessions sharing a folder name. Those
+    are kept apart by their mirrored parent directories, so this prepends as many of
+    them as it takes to tell the colliding labels apart and leaves the rest alone.
+
+    Parameters
+    ----------
+    paths : sequence of str
+        Paths to run folders and group folders.
+
+    Returns
+    -------
+    dict of {str: str}
+        Each path mapped to its label.
+    """
+    depth_by_path = {str(path): 0 for path in paths}
+    ancestors_by_path = {
+        str(path): [parent.name for parent in Path(_normalize(path)).parents if parent.name] for path in paths
+    }
+
+    def label_for(path: str) -> str:
+        prefix = ancestors_by_path[path][1 : depth_by_path[path] + 1]
+        return "_".join(reversed(prefix)) + ("_" if prefix else "") + output_directory_label(path)
+
+    while True:
+        by_label: dict[str, list[str]] = {}
+        for path in depth_by_path:
+            by_label.setdefault(label_for(path), []).append(path)
+        colliding = [
+            path
+            for paths_sharing_label in by_label.values()
+            if len(paths_sharing_label) > 1
+            for path in paths_sharing_label
+            # A path with no ancestors left to add cannot be distinguished any further.
+            if depth_by_path[path] + 1 < len(ancestors_by_path[path])
+        ]
+        if not colliding:
+            return {path: label_for(path) for path in depth_by_path}
+        for path in colliding:
+            depth_by_path[path] += 1
+
+
 def run_directory_root(*, session_path: str, output_base_directory: str | None, data_root: str | None = None) -> str:
     """Return the directory a session's output directories are written into.
 
