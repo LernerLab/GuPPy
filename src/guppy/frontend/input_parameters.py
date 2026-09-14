@@ -716,8 +716,8 @@ class ParameterForm:
             self.significance_param_wd,
         )
 
+        self.source_mode_row = pn.Row(pn.pane.Markdown("**Data Source:**"), self.source_mode)
         self.input_folder_selection_widget = pn.Column(
-            pn.Row(pn.pane.Markdown("**Data Source:**"), self.source_mode),
             self.session_selector_header,
             self.files_1,
             self.dandi_selector.panel,
@@ -769,29 +769,49 @@ class ParameterForm:
         is_dandi = event.new == "dandi"
         self.files_1.visible = not is_dandi
         self.dandi_selector.panel.visible = is_dandi
+        # Stash before re-pointing the roots, which re-reads the runs on disk and would
+        # otherwise clear the outgoing mode's selection before it was put away.
         self._run_selection_by_source_mode[event.old] = (
             list(self.outputs_selector.value or []),
             list(self.run_names_for_all_sessions.value),
         )
+        self._apply_source_mode_to_root_folders()
         run_folders, run_names = self._run_selection_by_source_mode.get(event.new, ([], []))
         self._restore_run_selection(run_folders=run_folders, run_names=run_names)
 
     @property
-    def input_root_folder(self) -> str | None:
-        """Return the directory the session folders are selected under.
+    def _chosen_input_root_folder(self) -> str | None:
+        """Return the input root folder as picked in the Root Folder Selection card.
 
         Returns
         -------
         str or None
-            The chosen input root folder, the DANDI output root in DANDI mode, or ``None``
-            when neither has been chosen.
+            The chosen folder, or ``None`` while nothing has been chosen yet.
         """
         selected = list(self.input_root_selector.value or [])
         return str(selected[0]) if selected else None
 
     @property
+    def input_root_folder(self) -> str | None:
+        """Return the folder the session folders are selected under.
+
+        A DANDI session has no local input to be selected under, so DANDI mode names the
+        output root folder here: the session folders are synthesized inside it, which is
+        the mirror's degenerate case where a session's runs sit in the session folder.
+
+        Returns
+        -------
+        str or None
+            The chosen input root folder, the output root folder in DANDI mode, or
+            ``None`` while the relevant one has not been chosen.
+        """
+        if self.source_mode.value == "dandi":
+            return self.output_root_folder
+        return self._chosen_input_root_folder
+
+    @property
     def output_root_folder(self) -> str | None:
-        """Return the directory the mirrored output tree is written into.
+        """Return the folder the mirrored output tree is written into.
 
         Returns
         -------
@@ -799,8 +819,10 @@ class ParameterForm:
             The input root folder when the two are set to match, the chosen folder
             otherwise, or ``None`` while nothing has been chosen yet.
         """
-        if self.same_root_checkbox.value:
-            return self.input_root_folder
+        # Read the picked folder rather than `input_root_folder`, which names this
+        # property back in DANDI mode.
+        if self.same_root_checkbox.value and self.source_mode.value != "dandi":
+            return self._chosen_input_root_folder
         selected = list(self.output_root_selector.value or [])
         return str(selected[0]) if selected else None
 
@@ -976,13 +998,9 @@ class ParameterForm:
         - DANDI mode: root set to the chosen output root, which holds every mirrored session.
         """
         output_root_folder = self.output_root_folder
-        dandi_output_root = self.input_root_folder if self.source_mode.value == "dandi" else None
         if output_root_folder is not None:
             root_target = output_root_folder
             directory_target = output_root_folder
-        elif dandi_output_root:
-            root_target = dandi_output_root
-            directory_target = sessions[0] if sessions else dandi_output_root
         elif not sessions:
             root_target = self.folder_path
             directory_target = self.folder_path
@@ -1072,10 +1090,26 @@ class ParameterForm:
                     run_folders.append(run_folder)
         return run_folders
 
+    def _apply_source_mode_to_root_folders(self) -> None:
+        """Show only the root folders the current data source has a use for.
+
+        DANDI assets are materialized as session folders inside the output root, so there
+        is no input root to pick and nothing for the matching checkbox to match.
+        """
+        is_dandi = self.source_mode.value == "dandi"
+        self.input_root_header.visible = not is_dandi
+        self.input_root_selector.visible = not is_dandi
+        self.same_root_checkbox.visible = not is_dandi
+        self.same_root_note.visible = not is_dandi
+        self._on_same_root_toggled()
+
     def _on_same_root_toggled(self, event: object = None) -> None:
         """Hide the output root browser while the two roots are set to match."""
-        self.output_root_selector.visible = not self.same_root_checkbox.value
-        self.output_location_header.visible = not self.same_root_checkbox.value
+        # In DANDI mode the checkbox is hidden and the output root is the only root there
+        # is, so it stays on screen whatever the checkbox was left at.
+        matched = self.same_root_checkbox.value and self.source_mode.value != "dandi"
+        self.output_root_selector.visible = not matched
+        self.output_location_header.visible = not matched
         self._on_output_location_changed()
 
     def _on_output_location_changed(self, event: object = None) -> None:
@@ -1117,8 +1151,9 @@ class ParameterForm:
         """
         Materialize DANDI asset selections into local session directories.
 
-        For each selected ``dandi://`` URI, create a directory under the input root folder
-        named after the asset's basename (minus suffix). The returned
+        For each selected ``dandi://`` URI, create a directory under the output root folder
+        named after the asset's basename (minus suffix). Nothing is written into it: the
+        folder is the session's name, and the recording is read by streaming. The returned
         ``dandi_uri_map`` is keyed by that session directory — matching the key
         used by the orchestration layer when ``mode == "dandi"``.
 
@@ -1127,7 +1162,7 @@ class ParameterForm:
         folder_names : list[str]
             Absolute paths of the created session directories.
         input_root_folder : str
-            The input root folder the session folders were created inside.
+            The output root folder the session folders were created inside.
         dandi_uri_map : dict[str, str]
             Mapping from session directory to the originating DANDI URI.
         """
@@ -1137,9 +1172,9 @@ class ParameterForm:
             logger.error("DANDI mode: no NWB assets selected")
             raise ValueError("DANDI mode: select at least one NWB asset before running the pipeline")
         if not input_root_folder:
-            logger.error("DANDI mode: no input root folder selected")
+            logger.error("DANDI mode: no output root folder selected")
             raise ValueError(
-                "DANDI mode: pick an input root folder in the Root Directory Selection card before running "
+                "DANDI mode: pick an output root folder in the Root Folder Selection card before running "
                 "the pipeline; the selected assets are materialized as session folders inside it"
             )
 
@@ -1190,7 +1225,8 @@ class ParameterForm:
         self.group_folders_selector._refresh()
 
     def add_to_template(self) -> None:
-        """Append the root, input/output folder, individual, and group cards to the template's main area."""
+        """Append the data-source row and the folder, individual, and group cards to the template's main area."""
+        self.template.main.append(self.source_mode_row)
         self.template.main.append(self.root_folder_selection)
         self.template.main.append(self.input_folder_selection)
         self.template.main.append(self.output_folder_selection)

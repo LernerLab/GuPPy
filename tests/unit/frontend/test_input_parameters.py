@@ -489,10 +489,8 @@ def patched_dandi_client(monkeypatch, tmp_path):
     return _FakeDandiAPIClient
 
 
-def _dandi_form_with_existing_runs(
-    *, form, patched_dandi_client, output_root, asset_paths, run_names, output_root_folder
-):
-    """Drive a form into DANDI mode with assets whose mirrored session dirs already hold runs."""
+def _dandi_form_with_existing_runs(*, form, patched_dandi_client, output_root, asset_paths, run_names):
+    """Drive a form into DANDI mode with assets whose session dirs already hold runs."""
     patched_dandi_client.dandisets_by_id = {"000971": _FakeDandiset(asset_paths)}
     output_root.mkdir()
     for asset_path in asset_paths:
@@ -503,7 +501,7 @@ def _dandi_form_with_existing_runs(
                 run_folder_for_run(
                     str(session),
                     run_name,
-                    output_root_folder=str(output_root_folder),
+                    output_root_folder=str(output_root),
                     input_root_folder=str(output_root),
                 )
             ).mkdir(parents=True, exist_ok=True)
@@ -514,7 +512,7 @@ def _dandi_form_with_existing_runs(
     form.dandi_selector.asset_file_selector.value = [
         str(Path(mirror_root).joinpath(*asset_path.split("/"))) for asset_path in asset_paths
     ]
-    form.input_root_selector.value = [str(output_root)]
+    form.output_root_selector.value = [str(output_root)]
     return form
 
 
@@ -533,7 +531,7 @@ class TestParameterFormDandiMode:
             str(Path(mirror_root) / "sub-01" / "session_a.nwb"),
             str(Path(mirror_root) / "sub-02" / "session_b.nwb"),
         ]
-        form.input_root_selector.value = [str(output_root)]
+        form.output_root_selector.value = [str(output_root)]
 
         result = form.getInputParameters()
 
@@ -555,18 +553,37 @@ class TestParameterFormDandiMode:
         with pytest.raises(Exception, match="select at least one NWB asset"):
             form.getInputParameters()
 
-    def test_dandi_mode_without_an_input_root_folder_raises(
-        self, unconfigured_parameter_form, patched_dandi_client, output_root_folder
-    ):
+    def test_dandi_mode_without_an_output_root_folder_raises(self, unconfigured_parameter_form, patched_dandi_client):
         patched_dandi_client.dandisets_by_id = {"000971": _FakeDandiset(["sub-01/data.nwb"])}
         form = unconfigured_parameter_form
-        form.output_root_selector.value = [str(output_root_folder)]
         form.source_mode.value = "dandi"
         form.dandi_selector.dandiset_input.value = "000971"
         mirror_root = form.dandi_selector._current_mirror_root
         form.dandi_selector.asset_file_selector.value = [str(Path(mirror_root) / "sub-01" / "data.nwb")]
-        with pytest.raises(Exception, match="no data root selected|input root folder"):
+        with pytest.raises(Exception, match="pick an output root folder"):
             form.getInputParameters()
+
+    def test_dandi_sessions_are_created_inside_the_output_root(
+        self, bare_parameter_form, tmp_path, patched_dandi_client
+    ):
+        """Nothing is written into the input root: a DANDI session has no local input, and
+        writing placeholders there would put GuPPy's own folders in the user's raw data."""
+        output_root = tmp_path / "dandi_output"
+        form = _dandi_form_with_existing_runs(
+            form=bare_parameter_form,
+            patched_dandi_client=patched_dandi_client,
+            output_root=output_root,
+            asset_paths=["sub-01/session_a.nwb"],
+            run_names=[],
+        )
+
+        parameters = form.getInputParameters()
+
+        assert parameters["session_folders"] == [str(output_root / "session_a")]
+        assert parameters["input_root_folder"] == str(output_root)
+        assert parameters["output_root_folder"] == str(output_root)
+        # The input root the user picked for local work is left untouched.
+        assert list(Path(tmp_path).glob("session_a")) == []
 
     def test_dandi_asset_selection_offers_that_session_run_names(
         self, bare_parameter_form, tmp_path, patched_dandi_client, output_root_folder
@@ -577,7 +594,6 @@ class TestParameterFormDandiMode:
             output_root=tmp_path / "dandi_output",
             asset_paths=["sub-01/session_a.nwb"],
             run_names=["1", "baseline"],
-            output_root_folder=output_root_folder,
         )
         assert form.run_names_for_all_sessions.options == ["1", "baseline"]
 
@@ -591,7 +607,6 @@ class TestParameterFormDandiMode:
             output_root=output_root,
             asset_paths=["sub-01/session_a.nwb", "sub-02/session_b.nwb"],
             run_names=["1"],
-            output_root_folder=output_root_folder,
         )
 
         form.run_names_for_all_sessions.value = ["1"]
@@ -602,7 +617,7 @@ class TestParameterFormDandiMode:
         }
 
     def test_dandi_outputs_selector_is_rooted_at_the_output_root(
-        self, bare_parameter_form, tmp_path, patched_dandi_client, output_root_folder
+        self, bare_parameter_form, tmp_path, patched_dandi_client
     ):
         output_root = tmp_path / "dandi_output"
         form = _dandi_form_with_existing_runs(
@@ -611,9 +626,8 @@ class TestParameterFormDandiMode:
             output_root=output_root,
             asset_paths=["sub-01/session_a.nwb"],
             run_names=["1"],
-            output_root_folder=output_root_folder,
         )
-        assert form.outputs_selector.root_directory == str(output_root_folder)
+        assert form.outputs_selector.root_directory == str(output_root)
 
     def test_switching_dandisets_drops_the_previous_run_selection(
         self, bare_parameter_form, tmp_path, patched_dandi_client, output_root_folder
@@ -626,7 +640,6 @@ class TestParameterFormDandiMode:
             output_root=tmp_path / "dandi_output",
             asset_paths=["sub-01/session_a.nwb"],
             run_names=["1"],
-            output_root_folder=output_root_folder,
         )
         form.run_names_for_all_sessions.value = ["1"]
         patched_dandi_client.dandisets_by_id["000972"] = _FakeDandiset(["sub-09/other.nwb"])
@@ -1059,9 +1072,37 @@ class TestOutputBaseDirectory:
 
 
 class TestRootFolderSelection:
-    def test_the_card_leads_the_page(self, parameter_form):
+    def test_the_card_leads_the_cards(self, parameter_form):
         assert parameter_form.root_folder_selection.title == "Root Folder Selection"
-        assert parameter_form.template.main[0] is parameter_form.root_folder_selection
+        assert parameter_form.template.main[1] is parameter_form.root_folder_selection
+
+    def test_dandi_mode_hides_the_input_root(self, bare_parameter_form):
+        """A DANDI session has no local input, so there is no input root to pick and
+        nothing for the matching checkbox to match."""
+        bare_parameter_form.source_mode.value = "dandi"
+
+        assert bare_parameter_form.input_root_selector.visible is False
+        assert bare_parameter_form.input_root_header.visible is False
+        assert bare_parameter_form.same_root_checkbox.visible is False
+        assert bare_parameter_form.output_root_selector.visible is True
+
+    def test_returning_to_local_brings_the_input_root_back(self, bare_parameter_form):
+        bare_parameter_form.source_mode.value = "dandi"
+        bare_parameter_form.source_mode.value = "local"
+
+        assert bare_parameter_form.input_root_selector.visible is True
+        assert bare_parameter_form.same_root_checkbox.visible is True
+
+    def test_dandi_mode_keeps_the_output_root_on_screen_despite_a_ticked_checkbox(self, bare_parameter_form, tmp_path):
+        """The checkbox is hidden in DANDI mode, so whatever it was left at must not be
+        able to hide the only root the mode has."""
+        bare_parameter_form.same_root_checkbox.value = True
+        assert bare_parameter_form.output_root_selector.visible is False
+
+        bare_parameter_form.source_mode.value = "dandi"
+
+        assert bare_parameter_form.output_root_selector.visible is True
+        assert bare_parameter_form.output_root_folder is not None
 
     def test_the_card_opens_itself_while_a_root_is_missing(self, unconfigured_parameter_form):
         assert unconfigured_parameter_form.root_folder_selection.collapsed is False
@@ -1220,15 +1261,23 @@ class TestFolderSelectionCards:
     def test_individual_card_starts_collapsed(self, parameter_form):
         assert parameter_form.individual.collapsed is True
 
-    def test_add_to_template_appends_the_roots_first_then_input_and_output(self, parameter_form):
+    def test_add_to_template_leads_with_the_data_source_then_the_roots(self, parameter_form):
         main = parameter_form.template.main
-        # The roots lead: they are the project constants the per-run choices sit under.
-        assert main[0] is parameter_form.root_folder_selection
-        assert main[1] is parameter_form.input_folder_selection
-        assert main[2] is parameter_form.output_folder_selection
-        assert main[3] is parameter_form.individual
-        assert main[4] is parameter_form.group
-        assert len(main) == 5
+        # The data source decides what the roots mean, and the roots are the project
+        # constants the per-run choices sit under, so both precede the cards they govern.
+        assert main[0] is parameter_form.source_mode_row
+        assert main[1] is parameter_form.root_folder_selection
+        assert main[2] is parameter_form.input_folder_selection
+        assert main[3] is parameter_form.output_folder_selection
+        assert main[4] is parameter_form.individual
+        assert main[5] is parameter_form.group
+        assert len(main) == 6
+
+    def test_the_data_source_sits_outside_the_card_it_governs(self, parameter_form):
+        """The Root Folder Selection card collapses itself, so a toggle that reshapes it
+        cannot live inside it."""
+        assert parameter_form.source_mode_row not in list(parameter_form.root_folder_selection_widget)
+        assert parameter_form.source_mode_row not in list(parameter_form.input_folder_selection_widget)
 
 
 class TestTitledBox:
