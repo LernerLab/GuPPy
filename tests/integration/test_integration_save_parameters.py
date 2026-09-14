@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from guppy.testing.api import save_parameters_snapshot
+from guppy.testing.api import default_output_root_folder, save_parameters_snapshot
 
 
 @pytest.fixture(scope="function")
@@ -50,7 +50,7 @@ def default_parameters():
 def test_save_parameters(tmp_path, default_parameters):
     # Arrange: base directory with two sessions under the same parent
     session_names = ["session1", "session2"]
-    base_name = "data_root"
+    base_name = "input_root_folder"
     base_dir = tmp_path / base_name
     base_dir.mkdir(parents=True, exist_ok=True)
     sessions = []
@@ -63,27 +63,32 @@ def test_save_parameters(tmp_path, default_parameters):
     # Act: write the parameter snapshot via the API helper (headless)
     save_parameters_snapshot(base_dir=base_dir, selected_folders=sessions)
 
-    # Assert: JSON written for each session with key defaults
-    for s in sessions:
-        out_fp = Path(s) / "GuPPyParamtersUsed.json"
+    # Assert: with no run folders created yet, the snapshot lands in each session's own
+    # mirrored directory — the directory its run folders will be created in.
+    output_base = Path(default_output_root_folder(base_dir=base_dir))
+    for session in sessions:
+        out_fp = output_base / Path(session).name / "GuPPyParamtersUsed.json"
         assert Path(out_fp).exists(), f"Missing file: {out_fp}"
-        with Path(out_fp).open() as f:
-            data = json.load(f)
+        assert not (Path(session) / "GuPPyParamtersUsed.json").exists(), f"Wrote into the session {session}"
 
-        assert data["guppy_version"] == version("guppy-neuro")
+    out_fp = output_base / Path(sessions[0]).name / "GuPPyParamtersUsed.json"
+    with Path(out_fp).open() as f:
+        data = json.load(f)
 
-        # Check that JSON data matches default parameters
-        for key, expected_value in default_parameters.items():
-            if isinstance(expected_value, np.ndarray):
-                np.testing.assert_array_equal(data[key], expected_value)
-            elif isinstance(expected_value, list) and any(isinstance(x, float) and np.isnan(x) for x in expected_value):
-                # Handle lists with NaN values
-                actual = data[key]
-                assert len(actual) == len(expected_value)
-                for i, (a, e) in enumerate(zip(actual, expected_value, strict=True)):
-                    if np.isnan(e):
-                        assert np.isnan(a) or a is None, f"Mismatch at index {i}: expected NaN, got {a}"
-                    else:
-                        assert a == e, f"Mismatch at index {i}: expected {e}, got {a}"
-            else:
-                assert data[key] == expected_value, f"Mismatch for {key}: expected {expected_value}, got {data[key]}"
+    assert data["guppy_version"] == version("guppy-neuro")
+
+    # Check that JSON data matches default parameters
+    for key, expected_value in default_parameters.items():
+        if isinstance(expected_value, np.ndarray):
+            np.testing.assert_array_equal(data[key], expected_value)
+        elif isinstance(expected_value, list) and any(isinstance(x, float) and np.isnan(x) for x in expected_value):
+            # Handle lists with NaN values
+            actual = data[key]
+            assert len(actual) == len(expected_value)
+            for i, (a, e) in enumerate(zip(actual, expected_value, strict=True)):
+                if np.isnan(e):
+                    assert np.isnan(a) or a is None, f"Mismatch at index {i}: expected NaN, got {a}"
+                else:
+                    assert a == e, f"Mismatch at index {i}: expected {e}, got {a}"
+        else:
+            assert data[key] == expected_value, f"Mismatch for {key}: expected {expected_value}, got {data[key]}"

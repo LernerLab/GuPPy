@@ -38,20 +38,31 @@ NULL_PEARSON_R = 0.3288
 
 
 @pytest.fixture(scope="module")
-def covariate_session(tmp_path_factory):
-    """The behavioral-covariate sample session, run through step 4."""
-    base_directory = tmp_path_factory.mktemp("integration_covariates")
+def covariate_base_directory(tmp_path_factory):
+    """The workspace the sample session is copied into and its runs written beside."""
+    return tmp_path_factory.mktemp("integration_covariates")
+
+
+@pytest.fixture(scope="module")
+def covariate_session(covariate_base_directory):
+    """The run folder of the behavioral-covariate sample session, run through step 4."""
     return run_covariate_session(
         session_path=STUBBED_TESTING_DATA / "csv" / SESSION_NAME,
-        base_directory=base_directory,
+        base_directory=covariate_base_directory,
     )
 
 
+@pytest.fixture(scope="module")
+def covariate_session_folder(covariate_base_directory, covariate_session):
+    """The copied session folder holding the scored-covariate CSVs the run was built from."""
+    return Path(covariate_base_directory) / SESSION_NAME
+
+
 class TestCovariateIngestion:
-    def test_step2_preserves_values_and_timestamps(self, covariate_session):
+    def test_step2_preserves_values_and_timestamps(self, covariate_session, covariate_session_folder):
         values = np.asarray(read_hdf5(DRIVING_COVARIATE, covariate_session, "data")).ravel()
         timestamps = np.asarray(read_hdf5(DRIVING_COVARIATE, covariate_session, "timestamps")).ravel()
-        scored = pd.read_csv(Path(Path(covariate_session).parent) / (DRIVING_COVARIATE + ".csv"))
+        scored = pd.read_csv(covariate_session_folder / (DRIVING_COVARIATE + ".csv"))
 
         np.testing.assert_allclose(values, scored["data"].to_numpy())
         np.testing.assert_allclose(timestamps, np.arange(0.0, COVARIATE_CSV_DURATION, COVARIATE_SCORING_CADENCE))

@@ -35,7 +35,7 @@ WASH_IN_EPOCH = (65.0, 115.0)  # drug on board, plateau
 WASH_OUT_EPOCH = (145.0, 178.0)  # clearance settled onto its residual level
 
 
-def _stubbed_data_root():
+def _stubbed_input_root_folder():
     return Path((Path(__file__).parent).parent.parent) / "stubbed_testing_data"
 
 
@@ -45,7 +45,7 @@ def _output_directory(session):
 
 @pytest.fixture
 def injection_session(tmp_path):
-    source = Path(_stubbed_data_root()) / SESSION_SUBDIR
+    source = Path(_stubbed_input_root_folder()) / SESSION_SUBDIR
     base_dir = str(tmp_path)
     session = Path(base_dir) / SESSION_NAME
     # Output dirs are gitignored, so running GuPPy against the stubbed data leaves them

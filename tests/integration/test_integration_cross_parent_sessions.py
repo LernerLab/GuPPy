@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from guppy.testing.api import step1, step2, step3, step4
+from guppy.testing.api import locate_run_folder, step1, step2, step3, step4
 from guppy_test_data import STUBBED_TESTING_DATA
 
 
@@ -27,11 +27,8 @@ def _stage_session(*, session_subdir: str, destination_parent) -> str:
     return str(session_copy)
 
 
-def _assert_psth_outputs(*, session_copy: str, recording_site: str, ttl: str) -> None:
-    session_name = Path(session_copy).name
-    output_directories = sorted(list(Path(session_copy).glob(f"{session_name}_output_*")))
-    assert output_directories, f"No output directories found in {session_copy}"
-    output_directory = output_directories[0]
+def _assert_psth_outputs(*, session_copy: str, input_root_folder: str, recording_site: str, ttl: str) -> None:
+    output_directory = locate_run_folder(session=str(session_copy), input_root_folder=input_root_folder)
 
     assert (Path(output_directory) / "storesList.csv").exists(), "Missing storesList.csv"
 
@@ -81,5 +78,7 @@ def test_sessions_from_different_parent_directories(tmp_path):
     step3(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
     step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
 
-    _assert_psth_outputs(session_copy=tdt_session, recording_site="dms", ttl="port_entries_dms")
-    _assert_psth_outputs(session_copy=csv_session, recording_site="region", ttl="ttl")
+    _assert_psth_outputs(
+        session_copy=tdt_session, input_root_folder=base_dir, recording_site="dms", ttl="port_entries_dms"
+    )
+    _assert_psth_outputs(session_copy=csv_session, input_root_folder=base_dir, recording_site="region", ttl="ttl")

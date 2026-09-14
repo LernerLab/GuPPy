@@ -27,7 +27,12 @@ from ..utils import progress
 from ..utils.acquisition_format import resolve_session_source
 from ..utils.nwb_io import open_nwbfile_io, write_nwbfile_from_source
 from ..utils.progress import step_error_handler
-from ..utils.utils import RAISE_ISSUE_URL, run_folder_for_run, selected_session_runs
+from ..utils.utils import (
+    RAISE_ISSUE_URL,
+    run_folder_for_run,
+    run_folder_label,
+    selected_session_runs,
+)
 from ..utils.validation import validate_data_not_combined
 
 logger = logging.getLogger(__name__)
@@ -38,7 +43,9 @@ logger = logging.getLogger(__name__)
 _UNSUPPORTED_ARTIFACT_REMOVAL_METHOD = "concatenate"
 
 
-def _validate_artifact_removal_methods(*, pairs: list[tuple[str, str]]) -> None:
+def _validate_artifact_removal_methods(
+    *, pairs: list[tuple[str, str]], output_root_folder: str | None = None, input_root_folder: str | None = None
+) -> None:
     """Abort the NWB export batch if any selected run had its artifacts removed by ``concatenate``.
 
     ``concatenate`` re-times the kept samples onto a fresh timeline (see GuPPy issue #354),
@@ -50,6 +57,10 @@ def _validate_artifact_removal_methods(*, pairs: list[tuple[str, str]]) -> None:
     ----------
     pairs : list of (str, str)
         ``(session_path, run_name)`` pairs selected for export.
+    input_root_folder : str or None, optional
+        Directory the session folders are selected inside.
+    output_root_folder : str or None, optional
+        Directory holding the run folders; ``None`` looks inside each session folder.
 
     Raises
     ------
@@ -59,7 +70,9 @@ def _validate_artifact_removal_methods(*, pairs: list[tuple[str, str]]) -> None:
     """
     offending = []
     for session_path, run_name in pairs:
-        guppy_folder_path = run_folder_for_run(session_path, run_name)
+        guppy_folder_path = run_folder_for_run(
+            session_path, run_name, output_root_folder=output_root_folder, input_root_folder=input_root_folder
+        )
         artifacts_removed, removal_method = read_artifact_provenance(destination=guppy_folder_path)
         if artifacts_removed and removal_method == _UNSUPPORTED_ARTIFACT_REMOVAL_METHOD:
             offending.append(f"{Path(session_path.rstrip(os.sep)).name} ({run_name})")
@@ -277,19 +290,25 @@ def orchestrate_export_nwb(inputParameters: dict[str, object]) -> None:
     ends.
     """
     pairs = selected_session_runs(inputParameters=inputParameters)
+    output_root_folder = inputParameters.get("output_root_folder")
+    input_root_folder = inputParameters.get("input_root_folder")
     validate_data_not_combined(combine_data=inputParameters["combine_data"])
-    _validate_artifact_removal_methods(pairs=pairs)
+    _validate_artifact_removal_methods(
+        pairs=pairs, output_root_folder=output_root_folder, input_root_folder=input_root_folder
+    )
     progress.start(len(pairs))
 
     failures = []
     for session_path, run_name in pairs:
-        guppy_folder_path = run_folder_for_run(session_path, run_name)
+        guppy_folder_path = run_folder_for_run(
+            session_path, run_name, output_root_folder=output_root_folder, input_root_folder=input_root_folder
+        )
         session_basename = Path(session_path.rstrip(os.sep)).name
-        output_dir_name = Path(guppy_folder_path.rstrip(os.sep)).name
         metadata_yaml_path = Path(guppy_folder_path) / METADATA_FILENAME
-        # Name the file after the full output directory so exports from multiple runs/sessions
-        # stay distinct and can be aggregated into one folder without renaming.
-        nwbfile_path = Path(guppy_folder_path) / f"{output_dir_name}.nwb"
+        # Name the file after the session and run rather than the output directory, so exports
+        # from multiple runs/sessions stay distinct and can be aggregated into one folder
+        # without renaming.
+        nwbfile_path = Path(guppy_folder_path) / f"{run_folder_label(guppy_folder_path)}.nwb"
 
         try:
             acquisition_format, nwb_source = resolve_session_source(

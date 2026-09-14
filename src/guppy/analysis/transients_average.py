@@ -8,6 +8,7 @@ from .standard_io import (
     write_freq_and_amp_to_csv,
     write_freq_and_amp_to_hdf5,
 )
+from ..utils.utils import output_label_under
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,13 @@ def average_transients_for_group(
     logger.debug("Combining results for frequency and amplitude of transients in z-score data...")
     path = []
     selectForTransientsComputation = inputParameters["selectForTransientsComputation"]
+
+    # One column per member, and the columns are written to disk, so the label is anchored
+    # to the output directory rather than to whichever members happen to be selected.
+    member_labels = {
+        str(folder): output_label_under(path=folder, root=inputParameters["output_root_folder"])
+        for folder in member_run_folders
+    }
 
     for i in range(len(member_run_folders)):
         if selectForTransientsComputation == "z_score":
@@ -72,7 +80,7 @@ def average_transients_for_group(
             else:
                 df = read_freq_and_amp_from_hdf5(session_entries[j][0], session_entries[j][1])
                 freq_and_amp_values.append(np.array([df["freq (events/min)"].iloc[0], df["amplitude"].iloc[0]]))
-                fileName.append(Path(session_entries[j][0]).name)
+                fileName.append(member_labels[str(session_entries[j][0])])
 
         freq_and_amp_values = np.asarray(freq_and_amp_values)
         write_freq_and_amp_to_hdf5(

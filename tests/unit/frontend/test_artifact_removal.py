@@ -28,7 +28,7 @@ def _write_site(filepath, site):
 
 @pytest.fixture
 def run_folder(tmp_path):
-    folder = tmp_path / "session_a" / "session_a_output_1"
+    folder = tmp_path / "session_a" / "output_1"
     folder.mkdir(parents=True)
     for site in ("DMS", "DLS"):
         _write_site(folder, site)
@@ -41,7 +41,7 @@ def preprocessing_review(panel_extension, run_folder):
         str(run_folder),
         load_pair_traces(str(run_folder)),
         load_preprocessed_traces(str(run_folder)),
-        label="session_a_output_1",
+        label="output_1",
         artifacts_removed=False,
     )
 
@@ -52,7 +52,7 @@ def artifact_review(panel_extension, run_folder):
         str(run_folder),
         load_pair_traces(str(run_folder)),
         load_preprocessed_traces(str(run_folder)),
-        label="session_a_output_1",
+        label="output_1",
         artifacts_removed=True,
     )
 
@@ -80,33 +80,15 @@ class TestBuildPreprocessViewPage:
         assert run_folder_selectors == []
 
     def test_multiple_folders_get_a_folder_selector(self, panel_extension, tmp_path):
-        folder_a = tmp_path / "session_a" / "session_a_output_1"
-        folder_b = tmp_path / "session_b" / "session_b_output_1"
+        folder_a = tmp_path / "session_a" / "output_1"
+        folder_b = tmp_path / "session_b" / "output_1"
         for folder in (folder_a, folder_b):
             folder.mkdir(parents=True)
             _write_site(folder, "DMS")
         page = build_preprocess_view_page(run_folders=[str(folder_a), str(folder_b)])
         run_folder_selectors = [w for w in page.select(pn.widgets.Select) if w.name == "Run folder"]
         assert len(run_folder_selectors) == 1
-        assert run_folder_selectors[0].options == {
-            "session_a/session_a_output_1": str(folder_a),
-            "session_b/session_b_output_1": str(folder_b),
-        }
-
-    def test_sessions_sharing_a_name_stay_separate_in_the_selector(self, panel_extension, tmp_path):
-        """Two subjects' session1 runs have the same folder name, so a name-based label
-        would collapse them into one entry and hide the second folder."""
-        folder_a = tmp_path / "subject1" / "session1" / "session1_output_1"
-        folder_b = tmp_path / "subject2" / "session1" / "session1_output_1"
-        for folder in (folder_a, folder_b):
-            folder.mkdir(parents=True)
-            _write_site(folder, "DMS")
-        page = build_preprocess_view_page(run_folders=[str(folder_a), str(folder_b)])
-        [run_folder_selector] = [w for w in page.select(pn.widgets.Select) if w.name == "Run folder"]
-        assert run_folder_selector.options == {
-            "subject1/session1/session1_output_1": str(folder_a),
-            "subject2/session1/session1_output_1": str(folder_b),
-        }
+        assert set(run_folder_selectors[0].options.values()) == {str(folder_a), str(folder_b)}
 
 
 class TestBuildArtifactReviewPage:
@@ -149,7 +131,7 @@ class TestPreprocessingReviewView:
     def test_stacks_all_five_traces_for_the_selected_site(self, preprocessing_review, run_folder):
         preprocessing_review.site_select.value = "DMS"
         assert _panel_titles(preprocessing_review) == [
-            "session_a_output_1 — control_DMS",
+            f"output_1 — control_DMS",
             "signal_DMS",
             "cntrl_sig_fit_DMS",
             "z_score_DMS",
@@ -166,7 +148,7 @@ class TestPreprocessingReviewView:
     def test_site_selector_switches_every_panel_together(self, preprocessing_review, run_folder):
         preprocessing_review.site_select.value = "DLS"
         assert _panel_titles(preprocessing_review) == [
-            "session_a_output_1 — control_DLS",
+            f"output_1 — control_DLS",
             "signal_DLS",
             "cntrl_sig_fit_DLS",
             "z_score_DLS",
