@@ -5,6 +5,7 @@
 
 ## Fixes
 - GuPPy now requires tornado 6.5.10 or later, since 6.5.9 broke Bokeh's static-file serving and left the Panel pages unable to load. [PR #520](https://github.com/LernerLab/GuPPy/pull/520)
+- Pages that list more than one output folder — the **Run folder** switcher on the preprocessing, artifact and tonic pages, and the transient peak entries — now name each folder by its path below the deepest folder they share, rather than by its own name. Two subjects' `session1` folders produce run folders with the same name, which collapsed them into a single entry and left the second one unreachable. [PR #512](https://github.com/LernerLab/GuPPy/pull/512)
 
 ## Improvements
 - The cross-correlation lag axis is now named and documented in seconds, the unit it has always held, rather than milliseconds. [PR #503](https://github.com/LernerLab/GuPPy/pull/503)
