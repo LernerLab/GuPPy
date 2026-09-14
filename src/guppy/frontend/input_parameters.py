@@ -135,6 +135,23 @@ def _table_heading(*, label: str, description: str, width: int) -> pn.Row:
     )
 
 
+def _preselect(selector: pn.widgets.FileSelector, path: str) -> None:
+    """Select ``path`` in a file browser and show it in the Selected files pane.
+
+    Assigning ``value`` alone sets the parameter without redrawing the browser, so the
+    choice would not appear until something else made the widget re-list its directory.
+
+    Parameters
+    ----------
+    selector : pn.widgets.FileSelector
+        The browser to select in.
+    path : str
+        Absolute path to select.
+    """
+    selector.value = [path]
+    selector._update_files()
+
+
 class ParameterForm:
     """Panel form collecting all GuPPy analysis parameters.
 
@@ -188,9 +205,9 @@ class ParameterForm:
         # Pre-select the directories named on the command line, which are the ones a user
         # keeps across sessions, so only the session folders are left to pick each time.
         if data_root and Path(data_root).is_dir():
-            self.data_root_selector.value = [str(Path(data_root))]
+            _preselect(self.data_root_selector, str(Path(data_root)))
         if output_base_directory and Path(output_base_directory).is_dir():
-            self.output_base_selector.value = [str(Path(output_base_directory))]
+            _preselect(self.output_base_selector, str(Path(output_base_directory)))
 
     def setup_individual_parameters(self) -> None:
         """Build all widgets for the individual-analysis card and store them as instance attributes."""

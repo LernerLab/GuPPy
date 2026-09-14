@@ -66,14 +66,19 @@ class TestMain:
         )
         template = served["routes"]["/"]()
 
+        # The visible "Selected files" pane, not just the parameter: assigning value alone
+        # leaves the browser showing nothing until it re-lists its directory.
         assert template._widgets["data_root_selector"].value == [str(data_root)]
+        assert list(template._widgets["data_root_selector"]._selector.value) == [str(data_root)]
         assert template._widgets["output_base_selector"].value == [str(output_directory)]
+        assert list(template._widgets["output_base_selector"]._selector.value) == [str(output_directory)]
 
     def test_a_data_root_that_does_not_exist_is_left_unselected(self, served, exported, panel_extension, tmp_path):
         main(argv=["--start-path", str(tmp_path), "--data-root", str(tmp_path / "missing")])
         template = served["routes"]["/"]()
 
         assert template._widgets["data_root_selector"].value == []
+        assert list(template._widgets["data_root_selector"]._selector.value) == []
 
     def test_export_logs_exports_without_starting_a_server(self, served, exported):
         main(argv=["--export-logs"])
