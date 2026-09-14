@@ -9,6 +9,7 @@ import panel as pn
 
 from .dandi_selector import DandiSelector
 from .frontend_utils import default_root_path
+from ..settings import remember_root_folders, remembered_root_folders
 from ..utils.utils import (
     common_parent_directory,
     discover_run_folders,
@@ -202,11 +203,21 @@ class ParameterForm:
         self.dandi_selector.attach_asset_selection_watcher(callback=self._on_sessions_changed)
 
         # The root folders a user keeps across analyses, so only the session folders are
-        # left to pick each time.
-        if input_root_folder and Path(input_root_folder).is_dir():
-            _preselect(self.input_root_selector, str(Path(input_root_folder)))
-        if output_root_folder and Path(output_root_folder).is_dir():
-            _preselect(self.output_root_selector, str(Path(output_root_folder)))
+        # left to pick each time. What the command line names wins; otherwise the pair
+        # remembered from the last analysis stands in.
+        remembered_input_root_folder, remembered_output_base = remembered_root_folders()
+        chosen_input_root_folder = (
+            input_root_folder
+            if input_root_folder and Path(input_root_folder).is_dir()
+            else remembered_input_root_folder
+        )
+        chosen_output_base = (
+            output_root_folder if output_root_folder and Path(output_root_folder).is_dir() else remembered_output_base
+        )
+        if chosen_input_root_folder:
+            _preselect(self.input_root_selector, str(Path(chosen_input_root_folder)))
+        if chosen_output_base:
+            _preselect(self.output_root_selector, str(Path(chosen_output_base)))
         # Folded away once both are known, open when either is missing: a returning user
         # never sees the card, and a first-time one finds it already open in first position.
         self.root_folder_selection.collapsed = bool(self.input_root_folder and self.output_root_folder)
@@ -239,8 +250,9 @@ class ParameterForm:
         self.source_mode.param.watch(self._on_source_mode_change, "value")
 
         self.root_folder_selection_header = pn.pane.Markdown(
-            "The two folders a project keeps for the life of its analyses. "
-            "`guppy --input-root <path> --output-root <path>` sets them at launch.",
+            "The two folders a project keeps for the life of its analyses. Set them once and "
+            "GuPPy remembers them for next time; `guppy --input-root <path> --output-root "
+            "<path>` sets them at launch.",
             width=950,
         )
         self.input_root_header = pn.pane.Markdown(
@@ -1270,6 +1282,9 @@ class ParameterForm:
             output_root_folder=output_root_folder,
             input_root_folder=input_root_folder,
         )
+        # Remembered here rather than on every click in the browser, so idly navigating
+        # while looking for a folder does not quietly rewrite the next launch's default.
+        remember_root_folders(input_root_folder=input_root_folder, output_root_folder=output_root_folder)
         # Created here rather than at save time so every step, and the Label Stores page
         # that writes the first run folder into it, can count on it existing.
         for session in folder_names:
