@@ -76,12 +76,7 @@ def test_selected_stores_label_visible(page, store_labeling_server_url):
 
 
 @pytest.mark.ui
-def test_location_to_stores_list_file_label_visible(page, store_labeling_server_url):
+def test_overwrite_mode_choices_visible(page, store_labeling_server_url):
     page.goto(store_labeling_server_url)
-    expect(page.get_by_text("Location to storesList file").first).to_be_visible()
-
-
-@pytest.mark.ui
-def test_overwrite_button_visible(page, store_labeling_server_url):
-    page.goto(store_labeling_server_url)
-    expect(page.get_by_text("over-write storeslist file or create a new one?").first).to_be_visible()
+    expect(page.get_by_text("Create new run", exact=True).first).to_be_visible()
+    expect(page.get_by_text("Overwrite existing run", exact=True).first).to_be_visible()

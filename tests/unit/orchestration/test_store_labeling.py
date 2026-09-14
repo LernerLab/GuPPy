@@ -538,7 +538,8 @@ class CapturingStoreLabelingSelector:
         self.alert_message = None
         self.select_location_options = None
         self.change_widgets_value = None
-        self.path_value = None
+        self.saved_message = None
+        self.on_saved_calls = []
         self._literal_input_2 = {}
         self._cross_selector_value = []
         self._take_widgets = [[], []]
@@ -574,14 +575,25 @@ class CapturingStoreLabelingSelector:
     def get_select_location(self):
         return self._select_location_value
 
-    def set_path(self, value):
-        self.path_value = value
+    def show_saved_message(self, message):
+        self.saved_message = message
+
+    def hide_saved_message(self):
+        self.saved_message = None
 
     def attach_callbacks(self, button_name_to_onclick_fn):
         self.callbacks = button_name_to_onclick_fn
 
+    def attach_overwrite_mode_watcher(self, callback):
+        self.overwrite_mode_callback = callback
+
     def attach_run_name_watcher(self, callback):
         self.run_name_callback = callback
+
+    def set_run_name(self, value):
+        # Mirrors the real TextInput, whose value change fires the run-name watcher.
+        self._run_name_value = value
+        self.run_name_callback(types.SimpleNamespace(new=value))
 
     def get_run_name(self):
         return getattr(self, "_run_name_value", "")
@@ -631,9 +643,21 @@ def store_labeling_closures(tmp_path, monkeypatch, panel_extension):
     monkeypatch.setattr(pn.template, "BootstrapTemplate", FakeBootstrapTemplate)
     monkeypatch.setattr(pn, "Row", lambda *args, **kwargs: None)
 
-    build_store_labeling_template(["Dv1A", "Dv2A", "PulA"], [], str(folder))
+    build_store_labeling_template(
+        ["Dv1A", "Dv2A", "PulA"],
+        [],
+        str(folder),
+        on_saved=lambda: captured_selector.on_saved_calls.append(None),
+    )
 
     return captured_selector, str(folder)
+
+
+def test_build_fills_run_name_with_next_free_integer(store_labeling_closures):
+    selector, folder_path = store_labeling_closures
+
+    assert selector.get_run_name() == "1"
+    assert selector.select_location_options == [str(Path(folder_path) / "my_session_output_1")]
 
 
 # ---------------------------------------------------------------------------
@@ -641,24 +665,22 @@ def store_labeling_closures(tmp_path, monkeypatch, panel_extension):
 # ---------------------------------------------------------------------------
 
 
-def test_overwrite_button_actions_create_new_file_sets_next_output_dir(store_labeling_closures):
+def test_overwrite_button_actions_create_new_file_targets_the_run_name(store_labeling_closures):
     selector, folder_path = store_labeling_closures
-    overwrite_button_actions = selector.callbacks["overwrite_button"]
+    selector._run_name_value = "myrun"
 
-    overwrite_button_actions(types.SimpleNamespace(new="create_new_file"))
+    selector.overwrite_mode_callback(types.SimpleNamespace(new="create_new_file"))
 
-    expected = str(Path(folder_path) / "my_session_output_1")
-    assert selector.select_location_options == [expected]
+    assert selector.select_location_options == [str(Path(folder_path) / "my_session_output_myrun")]
 
 
 def test_overwrite_button_actions_over_write_file_returns_existing_output_dirs(store_labeling_closures):
     selector, folder_path = store_labeling_closures
-    overwrite_button_actions = selector.callbacks["overwrite_button"]
 
     run_folder = Path(folder_path) / "my_session_output_1"
     run_folder.mkdir()
 
-    overwrite_button_actions(types.SimpleNamespace(new="over_write_file"))
+    selector.overwrite_mode_callback(types.SimpleNamespace(new="over_write_file"))
 
     assert selector.select_location_options == [str(run_folder)]
 
@@ -672,11 +694,12 @@ def test_run_name_input_changed_no_op_when_not_create_new_file(store_labeling_cl
     selector, _ = store_labeling_closures
     selector._overwrite_mode_value = "over_write_file"
     selector.select_location_options = "untouched"
+    selector.alert_message = "untouched"
 
     selector.run_name_callback(types.SimpleNamespace(new="myrun"))
 
     assert selector.select_location_options == "untouched"
-    assert selector.alert_message is None
+    assert selector.alert_message == "untouched"
 
 
 def test_run_name_input_changed_updates_select_location_options(store_labeling_closures):
@@ -701,14 +724,14 @@ def test_run_name_input_changed_empty_string_falls_back_to_numeric(store_labelin
 
 
 def test_run_name_input_changed_invalid_run_name_sets_alert(store_labeling_closures):
-    selector, _ = store_labeling_closures
+    selector, folder_path = store_labeling_closures
     selector._overwrite_mode_value = "create_new_file"
 
     selector.run_name_callback(types.SimpleNamespace(new="bad/name"))
 
     assert "Alert" in selector.alert_message
-    # When show_dir raises, select_location_options is not updated.
-    assert selector.select_location_options is None
+    # When show_dir raises, the run folder resolved when the page was built stands.
+    assert selector.select_location_options == [str(Path(folder_path) / "my_session_output_1")]
 
 
 # ---------------------------------------------------------------------------
@@ -826,7 +849,7 @@ def test_update_values_passes_empty_cache_when_no_json_file_exists(store_labelin
 # ---------------------------------------------------------------------------
 
 
-def test_save_button_writes_storeslist_and_updates_path(store_labeling_closures, tmp_path):
+def test_save_button_writes_storeslist_and_shows_saved_message(store_labeling_closures, tmp_path):
     selector, _ = store_labeling_closures
     run_folder = str(tmp_path / "my_session_output_1")
 
@@ -839,7 +862,8 @@ def test_save_button_writes_storeslist_and_updates_path(store_labeling_closures,
     selector.callbacks["save"](None)
 
     assert selector.alert_message == "#### No alerts !!"
-    assert selector.path_value == str(Path(run_folder) / "storesList.csv")
+    assert selector.saved_message == f"Saved the store labels to <b>{run_folder}</b>. You may now close this tab."
+    assert selector.on_saved_calls == [None]
     assert (Path(run_folder) / "storesList.csv").exists()
 
 
@@ -856,6 +880,27 @@ def test_save_button_sets_alert_on_mismatched_lengths(store_labeling_closures, t
     selector.callbacks["save"](None)
 
     assert "Alert" in selector.alert_message
+    assert selector.saved_message is None
+    assert selector.on_saved_calls == []
+
+
+def test_save_button_failed_resave_hides_saved_message(store_labeling_closures, tmp_path):
+    selector, _ = store_labeling_closures
+    run_folder = str(tmp_path / "my_session_output_1")
+
+    selector._literal_input_2 = {
+        "store_ids": ["Dv1A", "Dv2A"],
+        "store_labels": ["control_DMS", "signal_DMS"],
+    }
+    selector._select_location_value = run_folder
+
+    selector.callbacks["save"](None)
+    # Saving again in create mode collides with the run folder the first save made.
+    selector.callbacks["save"](None)
+
+    assert "Output directory already exists" in selector.alert_message
+    assert selector.saved_message is None
+    assert selector.on_saved_calls == [None]
 
 
 # ---------------------------------------------------------------------------
@@ -905,6 +950,40 @@ def test_read_header_npm_defers_discovery():
         "multiple_event_ttls": [False, True],
         "timestamp_column_options": ["SystemTimestamp", "ComputerTimestamp"],
     }
+
+
+# ---------------------------------------------------------------------------
+# build_store_labeling_template: save controls on the real page
+# ---------------------------------------------------------------------------
+
+
+def test_build_template_run_name_skips_existing_runs(panel_extension, tmp_path):
+    session = tmp_path / "my_session"
+    session.mkdir()
+    (session / "my_session_output_1").mkdir()
+
+    selector = build_store_labeling_template(["Dv1A"], [], str(session))._widgets["selector"]
+
+    assert selector.run_name.value == "2"
+    assert selector.select_location.value == str(session / "my_session_output_2")
+
+
+def test_build_template_overwrite_mode_offers_existing_runs_by_folder_name(panel_extension, tmp_path):
+    session = tmp_path / "my_session"
+    session.mkdir()
+    (session / "my_session_output_1").mkdir()
+    (session / "my_session_output_filter_100").mkdir()
+    selector = build_store_labeling_template(["Dv1A"], [], str(session))._widgets["selector"]
+
+    selector.overwrite_mode.value = "over_write_file"
+
+    assert selector.select_location.options == {
+        "my_session_output_1": str(session / "my_session_output_1"),
+        "my_session_output_filter_100": str(session / "my_session_output_filter_100"),
+    }
+    assert selector.select_location.value == str(session / "my_session_output_1")
+    assert selector.select_location.visible is True
+    assert selector.run_name.visible is False
 
 
 # ---------------------------------------------------------------------------
