@@ -28,9 +28,9 @@ from ..utils.acquisition_format import resolve_session_source
 from ..utils.nwb_io import open_nwbfile_io, write_nwbfile_from_source
 from ..utils.progress import step_error_handler
 from ..utils.utils import (
-    _RUN_NAME_MARKER,
     RAISE_ISSUE_URL,
     run_folder_for_run,
+    run_folder_label,
     selected_session_runs,
 )
 from ..utils.validation import validate_data_not_combined
@@ -306,7 +306,7 @@ def orchestrate_export_nwb(inputParameters: dict[str, object]) -> None:
         # Name the file after the session and run rather than the output directory, so exports
         # from multiple runs/sessions stay distinct and can be aggregated into one folder
         # without renaming.
-        nwbfile_path = Path(guppy_folder_path) / f"{session_basename}{_RUN_NAME_MARKER}{run_name}.nwb"
+        nwbfile_path = Path(guppy_folder_path) / f"{run_folder_label(guppy_folder_path)}.nwb"
 
         try:
             acquisition_format, nwb_source = resolve_session_source(

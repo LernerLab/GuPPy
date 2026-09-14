@@ -11,7 +11,7 @@ from .io_utils import (
     recording_site_from_preprocessed_label,
 )
 from .psth_utils import create_Df_for_psth, getCorrCombinations
-from ..utils.utils import disambiguated_output_labels, read_Df
+from ..utils.utils import output_label_under, read_Df
 
 logger = logging.getLogger(__name__)
 
@@ -47,9 +47,12 @@ def average_psth_for_group(
     path = []
     selectForComputePsth = inputParameters["selectForComputePsth"]
     run_folder = group_folder
-    # One column per member, so the labels have to tell the members apart even when two
-    # of them come from sessions sharing a folder name.
-    member_labels = disambiguated_output_labels(member_run_folders)
+    # One column per member, and the columns are written to disk, so the label is anchored
+    # to the output directory rather than to whichever members happen to be selected.
+    member_labels = {
+        str(folder): output_label_under(path=folder, root=inputParameters.get("output_base_directory"))
+        for folder in member_run_folders
+    }
 
     # combining paths to all the selected folders for doing average
     for i in range(len(member_run_folders)):

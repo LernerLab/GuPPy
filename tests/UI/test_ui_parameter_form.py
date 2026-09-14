@@ -31,8 +31,8 @@ def test_input_folder_selection_card_visible_on_load(page, live_server_url):
 def test_input_folder_selection_card_shows_the_data_root_browser(page, live_server_url):
     # The card is open on load, so both browsers and their headings are already on screen.
     page.goto(live_server_url)
-    expect(page.get_by_text("The directory your session folders live under.").first).to_be_visible()
-    expect(page.get_by_text("The sessions to analyze.").first).to_be_visible()
+    expect(page.get_by_text("Pick the directory your session folders live under.").first).to_be_visible()
+    expect(page.get_by_text("Pick the sessions to analyze.").first).to_be_visible()
 
 
 @pytest.mark.ui
@@ -70,7 +70,7 @@ def test_output_folder_selection_card_shows_its_contents(page, live_server_url):
     page.goto(live_server_url)
     expect(page.get_by_text("Output Folder Selection").first).to_be_visible()
     page.get_by_text("Output Folder Selection").first.click()
-    expect(page.get_by_text("Where analysis outputs are written.").first).to_be_visible()
+    expect(page.get_by_text("Pick the directory the mirrored output tree is written into.").first).to_be_visible()
     expect(page.get_by_text("Write each run inside the session folder it came from").first).to_be_visible()
     expect(page.get_by_text("Run name(s) for all sessions").first).to_be_visible()
     expect(page.get_by_text("Selected files").first).to_be_visible()

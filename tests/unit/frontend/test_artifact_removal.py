@@ -11,7 +11,6 @@ from guppy.frontend.artifact_removal import (
     load_preprocessed_traces,
 )
 from guppy.utils._hdf5_io import write_hdf5
-from guppy.utils.utils import output_directory_label
 from guppy_test_data import resolve_plot
 
 TIMESTAMPS = np.arange(0.0, 11.0, 1.0)
@@ -42,6 +41,7 @@ def preprocessing_review(panel_extension, run_folder):
         str(run_folder),
         load_pair_traces(str(run_folder)),
         load_preprocessed_traces(str(run_folder)),
+        label="output_1",
         artifacts_removed=False,
     )
 
@@ -52,6 +52,7 @@ def artifact_review(panel_extension, run_folder):
         str(run_folder),
         load_pair_traces(str(run_folder)),
         load_preprocessed_traces(str(run_folder)),
+        label="output_1",
         artifacts_removed=True,
     )
 
@@ -130,7 +131,7 @@ class TestPreprocessingReviewView:
     def test_stacks_all_five_traces_for_the_selected_site(self, preprocessing_review, run_folder):
         preprocessing_review.site_select.value = "DMS"
         assert _panel_titles(preprocessing_review) == [
-            f"{output_directory_label(str(run_folder))} — control_DMS",
+            f"output_1 — control_DMS",
             "signal_DMS",
             "cntrl_sig_fit_DMS",
             "z_score_DMS",
@@ -147,7 +148,7 @@ class TestPreprocessingReviewView:
     def test_site_selector_switches_every_panel_together(self, preprocessing_review, run_folder):
         preprocessing_review.site_select.value = "DLS"
         assert _panel_titles(preprocessing_review) == [
-            f"{output_directory_label(str(run_folder))} — control_DLS",
+            f"output_1 — control_DLS",
             "signal_DLS",
             "cntrl_sig_fit_DLS",
             "z_score_DLS",

@@ -8,7 +8,7 @@ from .standard_io import (
     write_freq_and_amp_to_csv,
     write_freq_and_amp_to_hdf5,
 )
-from ..utils.utils import disambiguated_output_labels
+from ..utils.utils import output_label_under
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +34,12 @@ def average_transients_for_group(
     path = []
     selectForTransientsComputation = inputParameters["selectForTransientsComputation"]
 
-    # One column per member, so the labels have to tell the members apart even when two
-    # of them come from sessions sharing a folder name.
-    member_labels = disambiguated_output_labels(member_run_folders)
+    # One column per member, and the columns are written to disk, so the label is anchored
+    # to the output directory rather than to whichever members happen to be selected.
+    member_labels = {
+        str(folder): output_label_under(path=folder, root=inputParameters.get("output_base_directory"))
+        for folder in member_run_folders
+    }
 
     for i in range(len(member_run_folders)):
         if selectForTransientsComputation == "z_score":

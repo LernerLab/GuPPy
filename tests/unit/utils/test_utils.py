@@ -10,7 +10,6 @@ from guppy.utils.utils import (
     GROUP_MEMBERS_FILENAME,
     NPM_PARAM_KEYS,
     common_parent_directory,
-    disambiguated_output_labels,
     discover_group_folders,
     discover_run_folders,
     event_labels_for_analysis,
@@ -18,12 +17,13 @@ from guppy.utils.utils import (
     group_folder_for_group,
     is_group_folder,
     load_npm_params,
-    output_directory_label,
+    output_label_under,
     parse_group_name,
     parse_run_name,
     parse_session_basename,
     read_Df,
     read_group_members,
+    relative_output_labels,
     resolve_run_folders,
     run_folder_for_run,
     select_run_folders,
@@ -338,67 +338,65 @@ def test_parse_session_basename_reads_the_session_folder_of_an_inside_session_ru
     assert parse_session_basename("/data/mySession/mySession_output_2") == "mySession"
 
 
-# ── output_directory_label / disambiguated_output_labels ──────────────────────
+# ── relative_output_labels / output_label_under ───────────────────────────────
 
 
-class TestOutputDirectoryLabel:
-    def test_names_a_run_folder_for_its_session_and_run(self):
-        assert output_directory_label("/derivatives/subject1/session1/output_1") == "session1_output_1"
-
-    def test_names_an_inside_session_run_folder_the_same_way(self):
-        assert output_directory_label("/data/session1/session1_output_2") == "session1_output_2"
-
-    def test_a_group_folder_keeps_its_own_name(self):
-        assert output_directory_label("/destination/saline_group") == "saline_group"
-
-
-class TestDisambiguatedOutputLabels:
-    def test_distinct_session_names_are_left_alone(self):
-        paths = ["/derivatives/sessionA/output_1", "/derivatives/sessionB/output_1"]
-        assert disambiguated_output_labels(paths) == {
-            "/derivatives/sessionA/output_1": "sessionA_output_1",
-            "/derivatives/sessionB/output_1": "sessionB_output_1",
-        }
-
-    def test_sessions_sharing_a_name_gain_their_parent(self):
-        paths = ["/derivatives/subject1/session1/output_1", "/derivatives/subject2/session1/output_1"]
-        assert disambiguated_output_labels(paths) == {
-            "/derivatives/subject1/session1/output_1": "subject1_session1_output_1",
-            "/derivatives/subject2/session1/output_1": "subject2_session1_output_1",
-        }
-
-    def test_only_the_colliding_paths_grow(self):
-        paths = [
-            "/derivatives/subject1/session1/output_1",
-            "/derivatives/subject2/session1/output_1",
-            "/derivatives/lone/output_2",
-        ]
-        assert disambiguated_output_labels(paths) == {
-            "/derivatives/subject1/session1/output_1": "subject1_session1_output_1",
-            "/derivatives/subject2/session1/output_1": "subject2_session1_output_1",
-            "/derivatives/lone/output_2": "lone_output_2",
-        }
-
-    def test_a_shared_intermediate_directory_is_carried_through(self):
-        paths = ["/derivatives/a/cohort/session1/output_1", "/derivatives/b/cohort/session1/output_1"]
-        assert disambiguated_output_labels(paths) == {
-            "/derivatives/a/cohort/session1/output_1": "a_cohort_session1_output_1",
-            "/derivatives/b/cohort/session1/output_1": "b_cohort_session1_output_1",
+class TestRelativeOutputLabels:
+    def test_one_directory_is_named_by_its_own_folder(self):
+        assert relative_output_labels(["/derivatives/session1/output_1"]) == {
+            "/derivatives/session1/output_1": "output_1"
         }
 
     def test_runs_of_one_session_are_told_apart_by_their_run_names(self):
         paths = ["/derivatives/session1/output_1", "/derivatives/session1/output_baseline"]
-        assert disambiguated_output_labels(paths) == {
-            "/derivatives/session1/output_1": "session1_output_1",
-            "/derivatives/session1/output_baseline": "session1_output_baseline",
+        assert relative_output_labels(paths) == {
+            "/derivatives/session1/output_1": "output_1",
+            "/derivatives/session1/output_baseline": "output_baseline",
         }
 
-    def test_group_folders_sit_alongside_run_folders(self):
-        paths = ["/destination/saline_group", "/derivatives/session1/output_1"]
-        assert disambiguated_output_labels(paths) == {
-            "/destination/saline_group": "saline_group",
-            "/derivatives/session1/output_1": "session1_output_1",
+    def test_runs_of_different_sessions_carry_the_session(self):
+        paths = ["/derivatives/sessionA/output_1", "/derivatives/sessionB/output_1"]
+        assert relative_output_labels(paths) == {
+            "/derivatives/sessionA/output_1": "sessionA/output_1",
+            "/derivatives/sessionB/output_1": "sessionB/output_1",
         }
+
+    def test_sessions_sharing_a_name_carry_their_parents_too(self):
+        paths = ["/derivatives/subject1/session1/output_1", "/derivatives/subject2/session1/output_1"]
+        assert relative_output_labels(paths) == {
+            "/derivatives/subject1/session1/output_1": "subject1/session1/output_1",
+            "/derivatives/subject2/session1/output_1": "subject2/session1/output_1",
+        }
+
+    def test_every_label_is_the_real_path_below_the_shared_root(self):
+        paths = ["/derivatives/subject1/session1/output_1", "/derivatives/subject2/session1/output_1"]
+        for path, label in relative_output_labels(paths).items():
+            assert path.endswith("/" + label)
+
+    def test_a_group_folder_sits_alongside_run_folders(self):
+        paths = ["/derivatives/saline_group", "/derivatives/session1/output_1"]
+        assert relative_output_labels(paths) == {
+            "/derivatives/saline_group": "saline_group",
+            "/derivatives/session1/output_1": "session1/output_1",
+        }
+
+
+class TestOutputLabelUnder:
+    def test_names_a_run_folder_by_its_path_below_the_root(self):
+        assert (
+            output_label_under(path="/derivatives/subject1/session1/output_1", root="/derivatives")
+            == "subject1/session1/output_1"
+        )
+
+    def test_does_not_depend_on_what_else_is_selected(self):
+        # The same run keeps the same label whether or not a same-named session is around.
+        assert output_label_under(path="/derivatives/session1/output_1", root="/derivatives") == "session1/output_1"
+
+    def test_the_inside_session_layout_uses_the_folders_own_name(self):
+        assert output_label_under(path="/data/session1/session1_output_2", root=None) == "session1_output_2"
+
+    def test_a_directory_outside_the_root_uses_its_own_name(self):
+        assert output_label_under(path="/elsewhere/saline_group", root="/derivatives") == "saline_group"
 
 
 # ── sibling_run_folders ───────────────────────────────────────────────────────

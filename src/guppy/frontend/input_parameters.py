@@ -152,7 +152,14 @@ class ParameterForm:
         the path does not exist.
     """
 
-    def __init__(self, *, template: object, start_path: str | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        template: object,
+        start_path: str | None = None,
+        data_root: str | None = None,
+        output_base_directory: str | None = None,
+    ) -> None:
         self.template = template
         self.folder_path = start_path if start_path and Path(start_path).is_dir() else default_root_path()
         self.styles = dict(background="WhiteSmoke")
@@ -177,6 +184,13 @@ class ParameterForm:
         self.data_root_selector.param.watch(self._on_data_root_changed, "value")
         self.dandi_selector.output_root_selector.param.watch(self._on_sessions_changed, "value")
         self.dandi_selector.attach_asset_selection_watcher(callback=self._on_sessions_changed)
+
+        # Pre-select the directories named on the command line, which are the ones a user
+        # keeps across sessions, so only the session folders are left to pick each time.
+        if data_root and Path(data_root).is_dir():
+            self.data_root_selector.value = [str(Path(data_root))]
+        if output_base_directory and Path(output_base_directory).is_dir():
+            self.output_base_selector.value = [str(Path(output_base_directory))]
 
     def setup_individual_parameters(self) -> None:
         """Build all widgets for the individual-analysis card and store them as instance attributes."""
@@ -206,9 +220,10 @@ class ParameterForm:
         self.source_mode.param.watch(self._on_source_mode_change, "value")
 
         self.data_root_header = pn.pane.Markdown(
-            "**Data root.** The directory your session folders live under. GuPPy mirrors each "
-            "session's path below it into the output directory, so `<data root>/subject1/session1` "
-            "writes its runs to `<output directory>/subject1/session1`.",
+            "**Data root.** Pick the directory your session folders live under. GuPPy mirrors "
+            "each session's path below it into the output directory, so "
+            "`<data root>/subject1/session1` writes its runs to "
+            "`<output directory>/subject1/session1`.",
             width=950,
         )
         self.data_root_selector = pn.widgets.FileSelector(
@@ -219,7 +234,8 @@ class ParameterForm:
         )
 
         self.session_selector_header = pn.pane.Markdown(
-            "**Session folders.** The sessions to analyze. Each one must sit under the data root.",
+            "**Session folders.** Pick the sessions to analyze. Each one must sit under the "
+            "data root you chose above.",
             width=950,
         )
         self.files_1 = pn.widgets.FileSelector(self.folder_path, root_directory="/", name="session_folders", width=950)
@@ -301,9 +317,9 @@ class ParameterForm:
             width=620,
         )
         self.output_location_header = pn.pane.Markdown(
-            "**Where analysis outputs are written.** Pick the directory the mirrored output tree "
-            "is written into; a session's runs land in `<output directory>/<session path under the "
-            "data root>/output_<run name>`. Choosing a directory is required.",
+            "**Output directory.** Pick the directory the mirrored output tree is written into. "
+            "A session's runs land in `<output directory>/<session path under the data root>/"
+            "output_<run name>`, so nothing is written into your session folders.",
             width=950,
         )
         self.output_base_selector = pn.widgets.FileSelector(

@@ -27,6 +27,8 @@ def main(*, argv: list[str] | None = None) -> None:
     - --version: Print the installed GuPPy version and exit
     - --export-logs: Export the log file to Desktop for sharing with support
     - --start-path: Set the initial directory for the folder selector
+    - --data-root: Pre-select the directory the session folders live under
+    - --output-directory: Pre-select the directory the output tree is written into
     - (no flags): Launch the GUI application
 
     Parameters
@@ -53,6 +55,18 @@ def main(*, argv: list[str] | None = None) -> None:
         default=None,
         help="Initial directory for the folder selector (defaults to home directory)",
     )
+    parser.add_argument(
+        "--data-root",
+        type=str,
+        default=None,
+        help="Pre-select the directory your session folders live under",
+    )
+    parser.add_argument(
+        "--output-directory",
+        type=str,
+        default=None,
+        help="Pre-select the directory the mirrored output tree is written into",
+    )
 
     args = parser.parse_args(argv)
 
@@ -63,7 +77,11 @@ def main(*, argv: list[str] | None = None) -> None:
     # Deferred so that merely importing this module stays cheap -- see the module docstring.
     from .app import serve_app
 
-    serve_app(start_path=args.start_path)
+    serve_app(
+        start_path=args.start_path,
+        data_root=args.data_root,
+        output_base_directory=args.output_directory,
+    )
 
 
 if __name__ == "__main__":

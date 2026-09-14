@@ -31,7 +31,7 @@ def site_traces():
 class TestTonicEpochConfig:
     @pytest.fixture
     def config(self, panel_extension, run_folder, site_traces):
-        config = TonicEpochConfig(str(run_folder), site_traces)
+        config = TonicEpochConfig(str(run_folder), site_traces, label="output_1")
         # Adding, removing, and the live preview act on the selected site; pin it so the
         # tests do not depend on dict iteration order.
         config.site_select.value = "DMS"
@@ -46,7 +46,7 @@ class TestTonicEpochConfig:
             run_folder / "tonic_epochs_DMS.csv", index=False
         )
 
-        config = TonicEpochConfig(str(run_folder), site_traces)
+        config = TonicEpochConfig(str(run_folder), site_traces, label="output_1")
 
         assert config.epochs_for("DMS") == [("baseline", 0.0, 2.0)]
         assert config.epochs_for("DLS") == []
@@ -171,13 +171,13 @@ def _write_tonic_results(filepath, site):
 
 class TestTonicResultsView:
     def test_build_returns_note_when_no_results(self, panel_extension, run_folder):
-        panel_column = build_tonic_results_view(str(run_folder))
+        panel_column = build_tonic_results_view(str(run_folder), label="output_1")
         markdown = panel_column.objects[0]
         assert "No tonic" in markdown.object
 
     def test_diff_table_is_relative_to_selected_baseline(self, panel_extension, run_folder):
         _write_tonic_results(run_folder, "DMS")
-        view = TonicResultsView(str(run_folder))
+        view = TonicResultsView(str(run_folder), label="output_1")
 
         table = view.table_pane.object
         # Baseline defaults to the first epoch ("baseline"), so its diff is 0 and
@@ -194,7 +194,7 @@ class TestTonicResultsView:
 
     def test_bars_plot_the_change_from_baseline_not_the_absolute_means(self, panel_extension, run_folder):
         _write_tonic_results(run_folder, "DMS")
-        view = TonicResultsView(str(run_folder))
+        view = TonicResultsView(str(run_folder), label="output_1")
 
         bars = view.bars_pane.object
         # One panel for z-score, one for dF/F — the two differ by an order of magnitude,
@@ -212,7 +212,7 @@ class TestTonicResultsView:
 
     def test_bars_rebase_when_the_baseline_epoch_changes(self, panel_extension, run_folder):
         _write_tonic_results(run_folder, "DMS")
-        view = TonicResultsView(str(run_folder))
+        view = TonicResultsView(str(run_folder), label="output_1")
 
         view.baseline_select.value = "post"
 
@@ -223,7 +223,7 @@ class TestTonicResultsView:
 
     def test_bars_mark_no_change_at_zero(self, panel_extension, run_folder):
         _write_tonic_results(run_folder, "DMS")
-        view = TonicResultsView(str(run_folder))
+        view = TonicResultsView(str(run_folder), label="output_1")
 
         # Bars run either side of zero, so the dashed line is pinned to no-change
         # regardless of which epoch is the baseline.

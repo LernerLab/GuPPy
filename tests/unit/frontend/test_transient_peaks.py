@@ -35,8 +35,8 @@ def run_folder(tmp_path):
 class TestLoadPeaks:
     def test_loads_entry_per_trace(self, run_folder):
         entries = load_peaks([str(run_folder)], "z_score")
-        assert list(entries.keys()) == ["session_output_1 / z_score_DMS"]
-        entry = entries["session_output_1 / z_score_DMS"]
+        assert list(entries.keys()) == ["output_1 / z_score_DMS"]
+        entry = entries["output_1 / z_score_DMS"]
         np.testing.assert_array_equal(entry["timestamps"], TIMESTAMPS)
         np.testing.assert_array_equal(entry["peaksInd"], PEAKS_INDEX)
 

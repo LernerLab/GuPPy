@@ -29,7 +29,9 @@ from ..utils.progress import StepProgress, _current_step
 logger = logging.getLogger(__name__)
 
 
-def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTemplate:
+def build_homepage(
+    *, start_path: str | None = None, data_root: str | None = None, output_base_directory: str | None = None
+) -> pn.template.BootstrapTemplate:
     """
     Build and return the GuPPy Panel web-application template.
 
@@ -38,6 +40,10 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
     start_path : str or None, optional
         Initial directory shown in the folder-selection widget.  When None the
         widget starts in the current working directory.
+    data_root : str or None, optional
+        Directory the session folders live under, pre-selected in the form.
+    output_base_directory : str or None, optional
+        Directory the mirrored output tree is written into, pre-selected in the form.
 
     Returns
     -------
@@ -60,7 +66,12 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
             styles={"color": "white", "margin-left": "auto", "margin-right": "1em"},
         )
     )
-    parameter_form = ParameterForm(template=template, start_path=start_path)
+    parameter_form = ParameterForm(
+        template=template,
+        start_path=start_path,
+        data_root=data_root,
+        output_base_directory=output_base_directory,
+    )
     sidebar = Sidebar(template=template)
 
     # ------------------------------------------------------------------------------------------------------------------

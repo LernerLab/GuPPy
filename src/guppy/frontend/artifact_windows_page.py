@@ -22,7 +22,7 @@ from ..utils.artifact_windows import (
     merge_windows,
     windows_to_coords,
 )
-from ..utils.utils import output_directory_label, parse_run_name, sibling_run_folders
+from ..utils.utils import parse_run_name, sibling_run_folders
 from ..visualization.preprocessing import (
     build_markable_trace,
     make_spans_pipe,
@@ -226,8 +226,9 @@ class ArtifactWindowSelector:
     one ``coordsForPreProcessing_<site>.npy`` per site holding the keep-windows.
     """
 
-    def __init__(self, filepath: str, pair_traces: dict[str, dict[str, object]]) -> None:
+    def __init__(self, filepath: str, pair_traces: dict[str, dict[str, object]], *, label: str) -> None:
         self.filepath = filepath
+        self.label = label
         self.pair_traces = pair_traces
         self.sites = list(pair_traces.keys())
 
@@ -284,7 +285,7 @@ class ArtifactWindowSelector:
             else []
         )
         self.widget = pn.Column(
-            f"# Select Artifact Windows — {output_directory_label(filepath)}",
+            f"# Select Artifact Windows — {self.label}",
             pn.pane.Markdown(_INSTRUCTIONS),
             *copy_from_section,
             pn.Row(self.site_select, self.trace_select, self.mode_toggle),
@@ -517,7 +518,7 @@ class ArtifactWindowSelector:
             x=trace["x"],
             values=values,
             overlay=overlay,
-            title=f"{output_directory_label(self.filepath)} — {title}",
+            title=f"{self.label} — {title}",
             spans=self.spans_pipe,
             on_x_select=self._on_drag,
             hooks=[self._capture_figure],
@@ -582,5 +583,7 @@ def build_artifact_window_page(*, run_folders: list[str]) -> pn.viewable.Viewabl
     """
     return build_run_folder_page(
         run_folders=run_folders,
-        build_folder_page=lambda filepath: ArtifactWindowSelector(filepath, load_pair_traces(filepath)).widget,
+        build_folder_page=lambda filepath, label: ArtifactWindowSelector(
+            filepath, load_pair_traces(filepath), label=label
+        ).widget,
     )
