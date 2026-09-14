@@ -26,6 +26,10 @@ GROUP_MEMBERS_FILENAME = "group_members.json"
 # saved analysis parameters, so they are persisted next to storesList.csv for Step 2.
 NPM_PARAMS_FILENAME = ".npm_params.json"
 NPM_PARAM_KEYS = ("npm_split_events", "npm_time_unit", "npm_timestamp_column_name", "noChannels")
+# Key under which .npm_params.json records what each NPM store was demultiplexed from. Unlike the
+# keys above it is not a choice the user made, so it is not read back into the input parameters;
+# it is there for a consumer of the run folder that has to resolve a store name to its source.
+NPM_STORE_PROVENANCE_KEY = "stores"
 
 # Event-label prefix for the transient trains that stand in for external TTLs when
 # useTransientsAsEvents is on. Prepended to a preprocessed basename it yields the

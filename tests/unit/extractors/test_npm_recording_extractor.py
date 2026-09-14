@@ -285,7 +285,7 @@ def test_decompose_by_excitation_splits_ledstate_into_one_group_per_wavelength()
             "Region0G": [0.0, 1.0, 2.0, 3.0, 4.0, 5.0],
         }
     )
-    channel_groups = NpmRecordingExtractor._decompose_by_excitation(
+    channel_groups, store_provenance = NpmRecordingExtractor._decompose_by_excitation(
         dataframe,
         name_prefix="signals_",
         timestamp_column="Timestamp",
@@ -306,6 +306,13 @@ def test_decompose_by_excitation_splits_ledstate_into_one_group_per_wavelength()
     np.testing.assert_allclose(streams["signals_470nm_Region0G"]["data"], [2.0, 5.0])
     np.testing.assert_allclose(streams["signals_560nm_Region0G"]["timestamps"], [0.3])
     np.testing.assert_allclose(streams["signals_560nm_Region0G"]["data"], [3.0])
+    # Each channel also reports what it was read from, so a run folder need not record only the
+    # invented name and leave a reader to parse it back.
+    assert store_provenance["signals_470nm_Region0G"] == {
+        "file": "signals.csv",
+        "excitation_wavelength_in_nm": 470,
+        "data_column": "Region0G",
+    }
 
 
 def test_decompose_by_excitation_gathers_one_wavelength_written_under_several_state_values():
@@ -318,15 +325,14 @@ def test_decompose_by_excitation_gathers_one_wavelength_written_under_several_st
             "Region0G": [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
         }
     )
-    streams = _streams_by_name(
-        NpmRecordingExtractor._decompose_by_excitation(
-            dataframe,
-            name_prefix="fear_",
-            timestamp_column="Timestamp",
-            data_columns=["Region0G"],
-            source_path="fear.csv",
-        )
+    channel_groups, _ = NpmRecordingExtractor._decompose_by_excitation(
+        dataframe,
+        name_prefix="fear_",
+        timestamp_column="Timestamp",
+        data_columns=["Region0G"],
+        source_path="fear.csv",
     )
+    streams = _streams_by_name(channel_groups)
     assert sorted(streams) == ["fear_415nm_Region0G", "fear_470nm_Region0G"]
     # Flags 16 sets no excitation bit, so row 0 belongs to no channel and needs no skipping.
     np.testing.assert_allclose(streams["fear_415nm_Region0G"]["data"], [1.0, 3.0, 5.0])
@@ -347,15 +353,14 @@ def test_decompose_by_excitation_gives_a_strobed_frame_to_every_wavelength_it_ca
             "R1": [20.0, 21.0, 22.0, 23.0],
         }
     )
-    streams = _streams_by_name(
-        NpmRecordingExtractor._decompose_by_excitation(
-            dataframe,
-            name_prefix="strobed_",
-            timestamp_column="Timestamp",
-            data_columns=["G0", "R1"],
-            source_path="strobed.csv",
-        )
+    channel_groups, _ = NpmRecordingExtractor._decompose_by_excitation(
+        dataframe,
+        name_prefix="strobed_",
+        timestamp_column="Timestamp",
+        data_columns=["G0", "R1"],
+        source_path="strobed.csv",
     )
+    streams = _streams_by_name(channel_groups)
     assert sorted(streams) == [
         "strobed_415nm_G0",
         "strobed_415nm_R1",
@@ -393,8 +398,13 @@ def test_decompose_by_excitation_raises_when_no_state_value_names_a_wavelength()
 
 def test_decompose_by_stride_partitions_rows_by_cycle_position():
     dataframe = pd.DataFrame(np.arange(18, dtype=float).reshape(6, 3))
-    channel_groups = NpmRecordingExtractor._decompose_by_stride(
-        dataframe, name_prefix="legacy_", timestamp_column=0, data_columns=[1, 2], num_ch=2
+    channel_groups, store_provenance = NpmRecordingExtractor._decompose_by_stride(
+        dataframe,
+        name_prefix="legacy_",
+        timestamp_column=0,
+        data_columns=[1, 2],
+        num_ch=2,
+        source_path="legacy.csv",
     )
     streams = _streams_by_name(channel_groups)
     assert list(streams) == ["legacy_chev1", "legacy_chev2", "legacy_chod1", "legacy_chod2"]
@@ -403,13 +413,25 @@ def test_decompose_by_stride_partitions_rows_by_cycle_position():
     np.testing.assert_allclose(streams["legacy_chev1"]["data"], [1.0, 7.0, 13.0])
     np.testing.assert_allclose(streams["legacy_chod2"]["timestamps"], [3.0, 9.0, 15.0])
     np.testing.assert_allclose(streams["legacy_chod2"]["data"], [5.0, 11.0, 17.0])
+    # Nothing names an LED here, so the position in the cycle stands in for a wavelength.
+    assert store_provenance["legacy_chod2"] == {
+        "file": "legacy.csv",
+        "excitation_wavelength_in_nm": None,
+        "interleave_position": 1,
+        "data_column": 2,
+    }
 
 
 def test_decompose_by_stride_raises_when_num_ch_exceeds_three():
     dataframe = pd.DataFrame(np.arange(16, dtype=float).reshape(8, 2))
     with pytest.raises(ValueError, match=r"set to 4, which exceeds the maximum of 3 channels"):
         NpmRecordingExtractor._decompose_by_stride(
-            dataframe, name_prefix="legacy_", timestamp_column=0, data_columns=[1], num_ch=4
+            dataframe,
+            name_prefix="legacy_",
+            timestamp_column=0,
+            data_columns=[1],
+            num_ch=4,
+            source_path="legacy.csv",
         )
 
 
@@ -635,6 +657,21 @@ class NpmRecordingExtractorTestMixin(RecordingExtractorTestMixin):
             return None
         result = isolated_extractor_instance.read(events=[self.ttl_event], outputPath="")
         return result[0]["timestamps"]
+
+    def test_store_provenance_covers_exactly_the_data_channels(self, isolated_extractor_instance):
+        # The provenance is what lets a consumer of the run folder resolve a store without
+        # parsing its invented name, so it has to account for every channel that carries data —
+        # and for no event stream, which is read whole from its own file.
+        streams = isolated_extractor_instance.decompose()
+        store_provenance = isolated_extractor_instance.store_provenance()
+
+        assert set(store_provenance) == {name for name, stream in streams.items() if "data" in stream}
+        for name, record in store_provenance.items():
+            assert record["file"], f"Store {name!r} records no source file"
+            if record["excitation_wavelength_in_nm"] is None:
+                assert "interleave_position" in record, f"Store {name!r} names neither an LED nor a cycle position"
+            else:
+                assert record["excitation_wavelength_in_nm"] in (415, 470, 560)
 
     def test_stub_ttl_timestamps_within_duration(self, tmp_path, isolated_extractor_instance):
         # NPM stub() truncates each raw file at its own first timestamp plus the duration,

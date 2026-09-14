@@ -936,6 +936,7 @@ def test_compute_npm_channel_previews_have_equal_x_and_y_lengths():
 # ---------------------------------------------------------------------------
 
 NPM_3_FOLDER = Path(STUBBED_TESTING_DATA) / "npm" / "sampleData_NPM_3"
+NPM_5_FOLDER = Path(STUBBED_TESTING_DATA) / "npm" / "sampleData_NPM_5"
 NPM_6_FOLDER = Path(STUBBED_TESTING_DATA) / "npm" / "sampleData_NPM_6"
 
 
@@ -1098,14 +1099,12 @@ def test_confirm_npm_configuration_reports_a_failure_as_a_page_alert(panel_exten
 def test_npm_params_to_persist_records_the_unit_that_will_be_applied():
     # An unset unit must not be persisted as-is: .npm_params.json is the only record of
     # the unit a run was read with, so it states the resolved value (issue #411).
-    npm_params = _npm_params_to_persist({"npm_split_events": [True, False], "noChannels": 2})
+    npm_params = _npm_params_to_persist({"npm_split_events": [False, False], "noChannels": 2}, str(NPM_5_FOLDER))
 
-    assert npm_params == {
-        "npm_split_events": [True, False],
-        "npm_time_unit": "seconds",
-        "npm_timestamp_column_name": None,
-        "noChannels": 2,
-    }
+    assert npm_params["npm_split_events"] == [False, False]
+    assert npm_params["npm_time_unit"] == "seconds"
+    assert npm_params["npm_timestamp_column_name"] is None
+    assert npm_params["noChannels"] == 2
 
 
 def test_npm_params_to_persist_keeps_an_explicit_unit():
@@ -1114,15 +1113,63 @@ def test_npm_params_to_persist_keeps_an_explicit_unit():
             "npm_split_events": None,
             "npm_time_unit": "milliseconds",
             "npm_timestamp_column_name": "ComputerTimestamp",
-            "noChannels": 3,
-        }
+            "noChannels": 2,
+        },
+        str(NPM_3_FOLDER),
     )
 
-    assert npm_params == {
-        "npm_split_events": None,
-        "npm_time_unit": "milliseconds",
-        "npm_timestamp_column_name": "ComputerTimestamp",
-        "noChannels": 3,
+    assert npm_params["npm_split_events"] is None
+    assert npm_params["npm_time_unit"] == "milliseconds"
+    assert npm_params["npm_timestamp_column_name"] == "ComputerTimestamp"
+    assert npm_params["noChannels"] == 2
+
+
+def test_npm_params_to_persist_records_what_each_store_was_read_from():
+    # NPM store names are invented while demultiplexing, so the run folder records the file,
+    # excitation and column behind each one rather than leaving a reader to parse the name.
+    npm_params = _npm_params_to_persist(
+        {
+            "npm_split_events": None,
+            "npm_time_unit": "milliseconds",
+            "npm_timestamp_column_name": "ComputerTimestamp",
+            "noChannels": 2,
+        },
+        str(NPM_3_FOLDER),
+    )
+
+    assert npm_params["stores"]["signals_415nm_G2"] == {
+        "file": "signals.csv",
+        "excitation_wavelength_in_nm": 415,
+        "data_column": "G2",
+    }
+    assert npm_params["stores"]["signals_470nm_G0"] == {
+        "file": "signals.csv",
+        "excitation_wavelength_in_nm": 470,
+        "data_column": "G0",
+    }
+    # Event streams are read whole from their own file and need no such record.
+    assert "event0" not in npm_params["stores"]
+
+
+def test_npm_params_to_persist_records_the_cycle_position_where_no_led_is_named():
+    # A header-less file says nothing about which LED lit a frame, so the record carries the
+    # position in the interleave cycle in place of a wavelength.
+    npm_params = _npm_params_to_persist(
+        {"npm_split_events": None, "npm_time_unit": "milliseconds", "noChannels": 2},
+        str(NPM_5_FOLDER),
+    )
+
+    assert npm_params["stores"]["PagCeAVgatFear_1512_1_chev1"] == {
+        "file": "PagCeAVgatFear_1512_1.csv",
+        "excitation_wavelength_in_nm": None,
+        "interleave_position": 0,
+        "data_column": 1,
+    }
+    assert npm_params["stores"]["PagCeAVgatFear_1512_1_chod3"] == {
+        "file": "PagCeAVgatFear_1512_1.csv",
+        "excitation_wavelength_in_nm": None,
+        "interleave_position": 1,
+        "data_column": 3,
     }
 
 

@@ -122,6 +122,7 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         self.npm_time_unit = npm_time_unit
         self.npm_split_events = npm_split_events
         self._decomposed: dict[str, dict[str, np.ndarray]] | None = None
+        self._store_provenance: dict[str, dict[str, object]] = {}
 
     @classmethod
     def discover_events_and_flags(
@@ -158,7 +159,7 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             # TODO: come up with a better name for npm_split_events that can be appropriately pluralized for a list
             npm_split_events = inputParameters.get("npm_split_events")
 
-        streams, flags = cls._decompose_streams(
+        streams, flags, _ = cls._decompose_streams(
             folder_path=folder_path,
             num_ch=num_ch,
             npm_timestamp_column_name=npm_timestamp_column_name,
@@ -288,7 +289,7 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         npm_timestamp_column_name: str | None,
         npm_time_unit: str | None,
         npm_split_events: list[bool] | None,
-    ) -> tuple[dict[str, dict[str, np.ndarray]], list[str]]:
+    ) -> tuple[dict[str, dict[str, np.ndarray]], list[str], dict[str, dict[str, object]]]:
         """
         Demultiplex raw NPM files into per-channel and per-event streams in memory.
 
@@ -320,6 +321,10 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             (``event{value}`` / ``event0``) carry only ``timestamps``.
         flags : list of str
             One format flag per raw source file processed.
+        store_provenance : dict
+            Maps each data channel's name to the source file, excitation (or interleave
+            position) and column it was demultiplexed from. Event streams are absent: they are
+            read whole from their own file and need no such record.
         """
         logger.debug("If it exists, importing NPM file based on the structure of file")
         divisor = cls._time_unit_divisor(npm_time_unit)
@@ -331,6 +336,9 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         # group is one channel slot of one file, and the slots are ordered the same way in
         # every file of a session: by excitation wavelength, or by cycle position.
         channel_group_names: list[list[str]] = [[] for _ in STRIDE_CHANNEL_SLOTS]
+        # What each derived channel was read from, recorded so a consumer of the run folder can
+        # resolve a store back to its source without re-deriving this demultiplexing.
+        store_provenance: dict[str, dict[str, object]] = {}
         flags: list[str] = []
         for i, file_path in enumerate(path):
             # TODO: validate npm_split_events length
@@ -366,7 +374,7 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
                 source_path=file_path,
             )
             if flag == "data_np_v2":
-                channel_groups = cls._decompose_by_excitation(
+                channel_groups, file_provenance = cls._decompose_by_excitation(
                     df,
                     name_prefix=name_prefix,
                     timestamp_column=timestamp_column,
@@ -374,13 +382,15 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
                     source_path=file_path,
                 )
             else:
-                channel_groups = cls._decompose_by_stride(
+                channel_groups, file_provenance = cls._decompose_by_stride(
                     df,
                     name_prefix=name_prefix,
                     timestamp_column=timestamp_column,
                     data_columns=data_columns,
                     num_ch=num_ch,
+                    source_path=file_path,
                 )
+            store_provenance.update(file_provenance)
             for group_index, channel_group in enumerate(channel_groups):
                 for name, stream in channel_group:
                     streams[name] = stream
@@ -420,7 +430,7 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
                 paired_stream["sampling_rate"] = np.array([sampling_rate])
 
         logger.info("Importing of NPM file is done.")
-        return streams, flags
+        return streams, flags, store_provenance
 
     @classmethod
     def _resolve_columns(
@@ -552,7 +562,7 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         timestamp_column: ColumnLabel,
         data_columns: list[ColumnLabel],
         source_path: str | Path,
-    ) -> list[list[tuple[str, dict[str, np.ndarray]]]]:
+    ) -> tuple[list[list[tuple[str, dict[str, np.ndarray]]]], dict[str, dict[str, object]]]:
         """Split a file annotated by a ``Flags``/``LedState`` column into per-excitation channels.
 
         Parameters
@@ -570,9 +580,11 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
 
         Returns
         -------
-        list of list of (str, dict)
+        channel_groups : list of list of (str, dict)
             One list per excitation wavelength, in ascending wavelength order; within it, one
             ``(name, stream)`` pair per region, in file order.
+        store_provenance : dict
+            Maps each derived name to the file, excitation and column it was read from.
         """
         state_column = cls._detect_state_column(df, source_path)
         state = np.asarray(df[state_column], dtype=int)
@@ -581,6 +593,7 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
 
         timestamps = np.asarray(df[timestamp_column], dtype=float)
         channel_groups = []
+        store_provenance: dict[str, dict[str, object]] = {}
         for wavelength, code in sorted(WAVELENGTH_TO_EXCITATION_CODE.items()):
             # ``value & code == code`` asks whether this wavelength's bit is set in the row's
             # word, ignoring whatever else is set alongside it -- which is what lets one channel
@@ -591,18 +604,24 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
                 continue
             rows = np.zeros(state.shape[0], dtype=bool)
             rows[startup_row_count:] = np.isin(state[startup_row_count:], matching_states)
-            channel_groups.append(
-                [
+            channel_group = []
+            for column in data_columns:
+                name = f"{name_prefix}{wavelength}nm_{column}"
+                channel_group.append(
                     (
-                        f"{name_prefix}{wavelength}nm_{column}",
+                        name,
                         {
                             "timestamps": timestamps[rows],
                             "data": np.asarray(df[column], dtype=float)[rows],
                         },
                     )
-                    for column in data_columns
-                ]
-            )
+                )
+                store_provenance[name] = {
+                    "file": Path(source_path).name,
+                    "excitation_wavelength_in_nm": wavelength,
+                    "data_column": column,
+                }
+            channel_groups.append(channel_group)
 
         if not channel_groups:
             message = (
@@ -612,7 +631,7 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             )
             logger.error(message)
             raise ValueError(message)
-        return channel_groups
+        return channel_groups, store_provenance
 
     @classmethod
     def _decompose_by_stride(
@@ -623,7 +642,8 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         timestamp_column: ColumnLabel,
         data_columns: list[ColumnLabel],
         num_ch: int,
-    ) -> list[list[tuple[str, dict[str, np.ndarray]]]]:
+        source_path: str | Path,
+    ) -> tuple[list[list[tuple[str, dict[str, np.ndarray]]]], dict[str, dict[str, object]]]:
         """Split a file with no state column into channels by row position.
 
         Nothing in such a file says which LED lit a frame, so the channels are taken to cycle in
@@ -641,12 +661,16 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             Labels of the data columns to read.
         num_ch : int
             Number of interleaved channels expected.
+        source_path : str or Path
+            Path the frame was read from, used to name the file in the provenance.
 
         Returns
         -------
-        list of list of (str, dict)
+        channel_groups : list of list of (str, dict)
             One list per channel slot, in cycle order; within it, one ``(name, stream)`` pair
             per data column, in file order.
+        store_provenance : dict
+            Maps each derived name to the file, cycle position and column it was read from.
         """
         if num_ch > len(STRIDE_CHANNEL_SLOTS):
             message = (
@@ -659,21 +683,29 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
 
         timestamps = np.asarray(df[timestamp_column], dtype=float)
         channel_groups = []
+        store_provenance: dict[str, dict[str, object]] = {}
         for slot_index in range(num_ch):
             rows = np.arange(slot_index, df.shape[0], num_ch)
-            channel_groups.append(
-                [
+            channel_group = []
+            for column_index, column in enumerate(data_columns):
+                name = f"{name_prefix}{STRIDE_CHANNEL_SLOTS[slot_index]}{column_index + 1}"
+                channel_group.append(
                     (
-                        f"{name_prefix}{STRIDE_CHANNEL_SLOTS[slot_index]}{column_index + 1}",
+                        name,
                         {
                             "timestamps": timestamps[rows],
                             "data": np.asarray(df[column], dtype=float)[rows],
                         },
                     )
-                    for column_index, column in enumerate(data_columns)
-                ]
-            )
-        return channel_groups
+                )
+                store_provenance[name] = {
+                    "file": Path(source_path).name,
+                    "excitation_wavelength_in_nm": None,
+                    "interleave_position": slot_index,
+                    "data_column": column,
+                }
+            channel_groups.append(channel_group)
+        return channel_groups, store_provenance
 
     @staticmethod
     def _time_unit_divisor(npm_time_unit: str | None) -> float:
@@ -712,7 +744,7 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             only ``timestamps``. The result is cached on the instance.
         """
         if self._decomposed is None:
-            streams, _ = self._decompose_streams(
+            streams, _, store_provenance = self._decompose_streams(
                 folder_path=self.folder_path,
                 num_ch=self.num_ch,
                 npm_timestamp_column_name=self.npm_timestamp_column_name,
@@ -720,7 +752,28 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
                 npm_split_events=self.npm_split_events,
             )
             self._decomposed = streams
+            self._store_provenance = store_provenance
         return self._decomposed
+
+    def store_provenance(self) -> dict[str, dict[str, object]]:
+        """Return what each data channel of this session was demultiplexed from.
+
+        NPM store names are invented here — no column of the raw file carries one — so a run
+        folder that records only the names leaves a reader to re-derive this demultiplexing from
+        them. This is that record: for each channel, the source file, the excitation wavelength
+        that lit it (``None`` where the file names no LED, with the cycle position instead), and
+        the column it was read from. It is written to ``.npm_params.json`` beside
+        ``storesList.csv`` so a consumer of the run folder can resolve a store without
+        reproducing any of this module's arithmetic.
+
+        Returns
+        -------
+        dict
+            Maps each data channel's store name to its source record. Event streams are absent:
+            they are read whole from their own file and need no such record.
+        """
+        self.decompose()
+        return self._store_provenance
 
     @classmethod
     def _timestamp_column_spans(cls, folder_path: str) -> dict[str, tuple[float, float]]:
