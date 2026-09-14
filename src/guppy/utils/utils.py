@@ -153,7 +153,7 @@ def takeOnlyDirs(paths: list[str]) -> list[str]:
 def is_run_folder(path: str) -> bool:
     """Return whether a directory's name is that of an output directory.
 
-    Recognises both the ``output_<run name>`` directories written under an output base
+    Recognizes both the ``output_<run name>`` directories written under an output base
     directory and the ``<session basename>_output_<run name>`` directories of the
     inside-the-session layout.
 

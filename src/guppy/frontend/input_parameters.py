@@ -219,7 +219,7 @@ class ParameterForm:
         )
 
         self.session_selector_header = pn.pane.Markdown(
-            "**Session folders.** The sessions to analyse. Each one must sit under the data root.",
+            "**Session folders.** The sessions to analyze. Each one must sit under the data root.",
             width=950,
         )
         self.files_1 = pn.widgets.FileSelector(self.folder_path, root_directory="/", name="session_folders", width=950)

@@ -32,7 +32,7 @@ def test_input_folder_selection_card_shows_the_data_root_browser(page, live_serv
     # The card is open on load, so both browsers and their headings are already on screen.
     page.goto(live_server_url)
     expect(page.get_by_text("The directory your session folders live under.").first).to_be_visible()
-    expect(page.get_by_text("The sessions to analyse.").first).to_be_visible()
+    expect(page.get_by_text("The sessions to analyze.").first).to_be_visible()
 
 
 @pytest.mark.ui
