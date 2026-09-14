@@ -1068,6 +1068,40 @@ class TestRootFolderSelection:
         assert parameter_form.root_folder_selection.title == "Root Folder Selection"
         assert parameter_form.template.main[0] is parameter_form.root_folder_selection
 
+    def test_the_card_opens_itself_while_a_root_is_missing(self, unconfigured_parameter_form):
+        assert unconfigured_parameter_form.root_folder_selection.collapsed is False
+
+    def test_the_card_folds_away_when_the_roots_are_known_at_launch(
+        self, panel_extension, frontend_base_dir, tmp_path, output_root_folder
+    ):
+        form = ParameterForm(
+            template=pn.template.BootstrapTemplate(title="Test"),
+            start_path=str(frontend_base_dir),
+            input_root_folder=str(tmp_path),
+            output_root_folder=str(output_root_folder),
+        )
+
+        assert form.root_folder_selection.collapsed is True
+
+    def test_the_roots_named_on_the_command_line_show_in_the_browsers(
+        self, panel_extension, frontend_base_dir, tmp_path, output_root_folder
+    ):
+        """Setting ``value`` alone leaves the browser drawn where it was, so the choice
+        would not appear until the user made the widget re-list its directory."""
+        form = ParameterForm(
+            template=pn.template.BootstrapTemplate(title="Test"),
+            start_path=str(frontend_base_dir),
+            input_root_folder=str(tmp_path),
+            output_root_folder=str(output_root_folder),
+        )
+
+        assert form.input_root_selector._selector.value == [str(tmp_path)]
+        assert form.output_root_selector._selector.value == [str(output_root_folder)]
+
+    def test_choosing_the_roots_by_hand_leaves_the_card_open(self, bare_parameter_form):
+        """Folding the card away under the user's cursor would be jarring; it settles at launch."""
+        assert bare_parameter_form.root_folder_selection.collapsed is False
+
     def test_matching_the_roots_hides_the_output_browser(self, bare_parameter_form, tmp_path):
         assert bare_parameter_form.output_root_selector.visible is True
 

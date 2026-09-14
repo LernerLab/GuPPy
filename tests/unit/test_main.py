@@ -41,12 +41,30 @@ class TestMain:
         ]
         assert exported == []
 
-    def test_start_path_reaches_the_homepage_route(self, served, exported, panel_extension, tmp_path):
-        main(argv=["--start-path", str(tmp_path)])
+    def test_the_roots_reach_the_homepage_route(self, served, exported, panel_extension, tmp_path):
+        input_root_folder = tmp_path / "data"
+        output_directory = tmp_path / "derivatives"
+        input_root_folder.mkdir()
+        output_directory.mkdir()
+
+        main(argv=["--input-root", str(input_root_folder), "--output-root", str(output_directory)])
         template = served["routes"]["/"]()
 
-        assert template._widgets["files_1"].directory == str(tmp_path)
-        assert exported == []
+        # The visible "Selected files" pane, not just the parameter: assigning value alone
+        # leaves the browser showing nothing until it re-lists its directory.
+        assert template._widgets["input_root_selector"].value == [str(input_root_folder)]
+        assert list(template._widgets["input_root_selector"]._selector.value) == [str(input_root_folder)]
+        assert template._widgets["output_root_selector"].value == [str(output_directory)]
+        assert list(template._widgets["output_root_selector"]._selector.value) == [str(output_directory)]
+
+    def test_an_input_root_folder_that_does_not_exist_is_left_unselected(
+        self, served, exported, panel_extension, tmp_path
+    ):
+        main(argv=["--input-root", str(tmp_path / "missing")])
+        template = served["routes"]["/"]()
+
+        assert template._widgets["input_root_selector"].value == []
+        assert list(template._widgets["input_root_selector"]._selector.value) == []
 
     def test_export_logs_exports_without_starting_a_server(self, served, exported):
         main(argv=["--export-logs"])
