@@ -26,8 +26,8 @@ def test_step2_reproduces_split_events_from_persisted_params(tmp_path):
     shutil.copytree(src_session, session_copy)
 
     store_id_to_store_label = {
-        "file0_chev1": "control_region1",
-        "file0_chod1": "signal_region1",
+        "PagCeAVgatFear_14421_415nm_Region0G": "control_region1",
+        "PagCeAVgatFear_14421_470nm_Region0G": "signal_region1",
         "eventTrue": "ttl_true_region1",
     }
 
@@ -69,7 +69,10 @@ def test_step2_reads_timestamps_on_the_unit_recorded_by_step1(tmp_path):
     step1(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
-        store_id_to_store_label={"file0_chev1": "control_region1", "file0_chod1": "signal_region1"},
+        store_id_to_store_label={
+            "PagCeAVgatFear_1512_1_chev1": "control_region1",
+            "PagCeAVgatFear_1512_1_chod1": "signal_region1",
+        },
         npm_time_unit="milliseconds",
     )
 
@@ -88,6 +91,6 @@ def test_step2_reads_timestamps_on_the_unit_recorded_by_step1(tmp_path):
     # chev takes every other row from row 0, whose raw timestamp in
     # PagCeAVgatFear_1512_1.csv is 40263510.4768 ms → 40263.5104768 s. Read as seconds it
     # would have stayed at 40263510.4768.
-    with h5py.File(Path(run_folder) / "file0_chev1.hdf5", "r") as hdf5_file:
+    with h5py.File(Path(run_folder) / "PagCeAVgatFear_1512_1_chev1.hdf5", "r") as hdf5_file:
         first_timestamp = np.asarray(hdf5_file["timestamps"])[0]
     np.testing.assert_allclose(first_timestamp, 40263.5104768, atol=1e-6)

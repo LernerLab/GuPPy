@@ -863,26 +863,25 @@ def test_save_button_sets_alert_on_mismatched_lengths(store_labeling_closures, t
 # ---------------------------------------------------------------------------
 
 
-def test_compute_npm_channel_previews_aligns_ragged_channel_lengths():
-    # sampleData_NPM_4 interleaves unevenly: chod has one more sample than chev, so chod
-    # borrows chev's (shorter) timestamps. The preview must align x/y to equal length,
-    # otherwise hv.Curve raises a DataError in the Step-1 GUI.
+def test_compute_npm_channel_previews_have_equal_x_and_y_lengths():
+    # sampleData_NPM_4 interleaves unevenly: 470 nm lands on one more frame than 415 nm. Every
+    # channel of a file shares the first slot's timebase, trimmed to the length they have in
+    # common, so no stream reaches the preview with unequal x/y — which hv.Curve rejects with a
+    # DataError in the Step-1 GUI.
     folder_path = Path(STUBBED_TESTING_DATA) / "npm" / "sampleData_NPM_4"
     input_parameters = {"noChannels": 2}
 
-    # Confirm the ragged scenario is real: at least one channel stream has unequal
-    # timestamps/data lengths, which is exactly what the alignment guards against.
     streams = NpmRecordingExtractor(folder_path, num_ch=2).decompose()
     ragged = [
         name
         for name, stream in streams.items()
         if "data" in stream and len(stream["timestamps"]) != len(stream["data"])
     ]
-    assert ragged, "Expected at least one ragged chod/chpr channel in sampleData_NPM_4"
+    assert not ragged, f"Channels with unequal timestamps/data lengths: {ragged}"
 
     previews = _compute_npm_channel_previews(input_parameters, folder_path)
 
-    assert previews, "Expected chev/chod/chpr previews for an NPM session"
+    assert previews, "Expected photometry previews for an NPM session"
     for name, preview in previews.items():
         assert len(preview["x"]) == len(preview["y"]), f"Unequal x/y lengths for preview {name!r}"
 
@@ -948,7 +947,7 @@ def test_confirm_npm_configuration_writes_params_and_populates_page(panel_extens
     assert input_parameters["npm_timestamp_column_name"] == "ComputerTimestamp"
 
     # Discovery ran and populated the store selector with the derived NPM store_ids.
-    assert "file0_chod3" in selector.cross_selector.options
+    assert "signals_470nm_G2" in selector.cross_selector.options
     assert "event3" in selector.cross_selector.options
     assert selector.cross_selector.options == selector.multi_choice.options
 
@@ -975,8 +974,8 @@ def test_confirm_npm_configuration_succeeds_for_a_blank_header_session(panel_ext
     template._hooks["confirm_npm_configuration"]()
 
     assert selector.alert.object == "#### No alerts !!"
-    assert "file0_chev1" in selector.cross_selector.options
-    assert "file0_chpr2" in selector.cross_selector.options
+    assert "Sample2_NPM_1fiber_415nm_Region0R" in selector.cross_selector.options
+    assert "Sample2_NPM_1fiber_560nm_Region1G" in selector.cross_selector.options
     # The blank-header columns are not offered as stores.
     assert len(selector.cross_selector.options) == 6
 

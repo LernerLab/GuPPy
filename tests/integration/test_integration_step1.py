@@ -89,38 +89,38 @@ from guppy_test_data import STUBBED_TESTING_DATA
         (
             "npm/sampleData_NPM_1",
             {
-                "file0_chev1": "signal_region",
-                "file0_chod1": "control_region",
+                "bl72bl82_12feb2024_fp_470nm_G0": "signal_region",
+                "bl72bl82_12feb2024_fp_415nm_G0": "control_region",
             },
         ),
         (
             "npm/sampleData_NPM_2",
             {
-                "file0_chev6": "control_region",
-                "file1_chev6": "signal_region",
+                "FiberData415_415nm_Region0G": "control_region",
+                "FiberData470_470nm_Region0G": "signal_region",
             },
         ),
         (
             "npm/sampleData_NPM_3",
             {
-                "file0_chev3": "control_region3",
-                "file0_chod3": "signal_region3",
+                "signals_415nm_G2": "control_region3",
+                "signals_470nm_G2": "signal_region3",
                 "event3": "ttl_region3",
             },
         ),
         (
             "npm/sampleData_NPM_4",
             {
-                "file0_chev1": "control_region1",
-                "file0_chod1": "signal_region1",
+                "PagCeAVgatFear_14421_415nm_Region0G": "control_region1",
+                "PagCeAVgatFear_14421_470nm_Region0G": "signal_region1",
                 "eventTrue": "ttl_true_region1",
             },
         ),
         (
             "npm/sampleData_NPM_5",
             {
-                "file0_chev1": "control_region1",
-                "file0_chod1": "signal_region1",
+                "PagCeAVgatFear_1512_1_chev1": "control_region1",
+                "PagCeAVgatFear_1512_1_chod1": "signal_region1",
                 "event0": "ttl_region1",
             },
         ),

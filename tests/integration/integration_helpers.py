@@ -71,8 +71,8 @@ REPRESENTATIVE_SESSIONS = {
     "npm": {
         "session_subdir": "npm/sampleData_NPM_5",
         "store_id_to_store_label": {
-            "file0_chev1": "control_region1",
-            "file0_chod1": "signal_region1",
+            "PagCeAVgatFear_1512_1_chev1": "control_region1",
+            "PagCeAVgatFear_1512_1_chod1": "signal_region1",
             "event0": "ttl_region1",
         },
         "npm_timestamp_column_name": None,
