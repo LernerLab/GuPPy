@@ -15,13 +15,16 @@ The first card on the homepage, open by default. Selects the session data the pi
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
 | Data Source | Local-folder mode vs DANDI streaming. | radio | `local` | `local`, `dandi` |
-| (file browser) | Session folders to analyze. | list of paths | empty | absolute paths to session directories |
+| (input root folder browser) | The directory your session folders live under. | path | empty | any directory containing every selected session |
+| (file browser) | Session folders to analyze. | list of paths | empty | absolute paths to session directories under the input root folder |
 | (DANDI selector) | DANDI assets to materialize as sessions. | dict | `None` (local mode) | per-session mapping of `dandi://` URIs |
 | Combine Data? | Concatenate two split files into one trace. | bool | `False` | `True`, `False` |
 
 **Data Source** picks between selecting local session folders from the file browser (the common case) and streaming NWB sessions directly from DANDI. The browser is hidden when `dandi` is selected and the DANDI selector takes its place. See [Analyze data streamed from the DANDI Archive](../how-to/analyze-dandi-data.md) for the DANDI workflow.
 
-**File browser** holds the list of session folder paths the pipeline will analyze. Multiple folders are allowed for batch runs, and they do not have to sit side by side: sessions kept in different folders can be analyzed together in a single run. Each session's results are written inside that session's own folder. The pipeline records the directory that contains all of the selected sessions automatically; this is not a configurable knob.
+**Input root folder** is the directory your session folders live under. It rarely changes between analyses, so GuPPy remembers it between launches and `guppy --input-root <path> --output-root <path>` sets both at launch, leaving only the session folders to pick each time. Both live in the **Root Folder Selection** card, which folds away once they are known. GuPPy mirrors each session's path below it into the output root folder, so `<input root folder>/subject1/session1` writes its runs to `<output root folder>/subject1/session1`. Naming the root yourself is what makes that mapping predictable — you can read a run folder's path straight off the session's, without knowing what else was selected alongside it. Every selected session has to sit under the root; a session outside it has no place in the mirror, and GuPPy refuses the run rather than guessing one.
+
+**File browser** holds the list of session folder paths the pipeline will analyze. Multiple folders are allowed for batch runs, and they do not have to sit side by side: sessions kept in different sub-directories of the input root folder can be analyzed together in a single run, and their differing depths carry straight through into the output tree.
 
 **Combine Data?** is for the unusual case where one recording session was split across two data files (for example a system that wrote separate files for two halves of a recording). When `True`, the pipeline concatenates the matching channels across both files into a single trace before preprocessing.
 
@@ -31,18 +34,24 @@ The first card on the homepage, open by default. Selects the session data the pi
 
 ## Output Folder Selection
 
-The second card on the homepage, collapsed by default. Selects which existing per-session output run the later steps read and write.
+The second card on the homepage, collapsed by default. Says where GuPPy writes its run folders, and selects which existing per-session output run the later steps read and write.
 
-*Used by: Steps 2–5 (every step that operates on an existing output run: Load the raw data, Preprocess the signal, Compute the PSTH, Visualize the results).*
+*Used by: Step 1 (which creates the run folder) and Steps 2–5 (every step that operates on an existing output run: Load the raw data, Preprocess the signal, Compute the PSTH, Visualize the results).*
 
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
+| Output root folder is the same as the input root folder | Point both roots at one folder, so each session's runs are written inside it. | bool | `False` | `True`, `False` |
+| (output root folder browser) | The directory the mirrored output tree is written into. | path | empty | any directory outside the input root folder's selected sessions |
 | Run name(s) for all sessions | Run names to select across every selected session at once. | list of run names | empty | run names found in any selected session |
-| (existing-runs browser) | Existing `*_output_*` run directories the later steps act on. | list of paths | empty | one or more `*_output_*` directories, at least one per selected session |
+| (existing-runs browser) | Existing run directories the later steps act on. | list of paths | empty | one or more run directories, at least one per selected session |
 
-**Existing-runs browser** lists the `*_output_*` directories that already exist for the selected sessions and lets you pick which run each later step acts on. A run directory is created when you configure channels in the Label Stores GUI (Step 1); every step from loading the raw data onward then reads and writes the run you select here.
+**Output root folder** is where the mirrored output tree is written. Like the input root folder, it can be pre-selected at launch with `guppy --output-root <path>`, and GuPPy remembers the pair between launches. Each session's path under the input root folder is reproduced inside it, and the run folders are created there as `output_<run name>`. Because the mapping depends only on the session and the roots you named, two sessions sharing a folder name never collide, and a session's runs stay put however you change the selection between steps. Choosing one is required; GuPPy refuses to start rather than picking a location for you.
 
-**Run name(s) for all sessions** reaches those same directories by name instead of by browsing to them, so one choice covers a whole batch. Step 1 names each run: the run directory `sample_data_csv_1_output_1` has the run name `1`. Naming a run selects it in every selected session that has one by that name, and removing the name deselects exactly those — directories you ticked in the browser yourself are left alone either way. The picker offers every run name found in *any* selected session, so a name only some of them have still works; the sessions without it are yours to fill in from the browser.
+**Output root folder is the same as the input root folder** points both roots at one folder, which makes each session mirror onto itself: its run folders are created inside the session folder, so the session travels as one self-contained directory. It also means GuPPy writes into your raw data, which is why it is off by default. Ticking it hides the output-root browser, since there is nothing left to choose.
+
+**Existing-runs browser** lists the run directories that already exist for the selected sessions and lets you pick which run each later step acts on. A run directory is created when you configure channels in the Label Stores GUI (Step 1); every step from loading the raw data onward then reads and writes the run you select here.
+
+**Run name(s) for all sessions** reaches those same directories by name instead of by browsing to them, so one choice covers a whole batch. Step 1 names each run: the run directory `output_1` has the run name `1`. Naming a run selects it in every selected session that has one by that name, and removing the name deselects exactly those — directories you ticked in the browser yourself are left alone either way. The picker offers every run name found in *any* selected session, so a name only some of them have still works; the sessions without it are yours to fill in from the browser.
 
 Changing which sessions are selected does not discard these choices: sessions that stay selected keep the runs you picked for them, and a session you add picks up the run names currently named above.
 

@@ -136,7 +136,7 @@ the button and advances once per session.
 ```
 
 Each session is written to its own run folder as
-`<session_name>_output_<run_name>.nwb` — named after the run folder, so exports
+`<session_name>_output_<run_name>.nwb` — named after the session and run, so exports
 from several runs can be pooled into one directory without renaming.
 
 A session that fails is skipped and the batch continues; the notification at the

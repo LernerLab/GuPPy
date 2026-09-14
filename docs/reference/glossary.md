@@ -41,7 +41,19 @@ run_name
   The user-supplied label for a run.
 
 run_folder
-  The directory on disk holding one run's outputs.
+  The directory on disk holding one run's outputs, named `output_<run_name>` and
+  written into the session's mirror inside the {term}`output_directory`.
+
+data_root
+  The directory your session folders live under, chosen in the Input Folder
+  Selection card. Every selected session must sit under it, and its path below
+  the input root folder is what GuPPy mirrors into the {term}`output_directory`.
+
+output_directory
+  The directory the mirrored output tree is written into, chosen in the Output
+  Folder Selection card. It sits outside the session folders, so analysis output
+  is never written into raw data. A session at `<data_root>/subject1/session1`
+  gets its run folders at `<output_directory>/subject1/session1/`.
 
 group
   A named set of runs whose results are averaged together, giving a cohort- or

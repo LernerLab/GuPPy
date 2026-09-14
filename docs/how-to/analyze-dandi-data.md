@@ -52,8 +52,15 @@ GuPPy reads the dandiset's `draft` version.
    :width: 100%
    ```
 
-4. Choose a local output directory. GuPPy creates one session folder per
-   selected asset, named after the asset filename minus `.nwb`.
+4. Set the **output root folder** in the **Root Folder Selection** card, if you have
+   not already. GuPPy creates one session folder per selected asset inside it, named
+   after the asset filename minus `.nwb`, and writes that session's runs there. The
+   recording itself is streamed and never downloaded, so the session folder holds only
+   what the analysis writes into it.
+
+   DANDI mode asks for no input root folder, and the card hides it: a streamed session
+   has no local raw data to sit under. This is why the assets land in the output root —
+   it keeps GuPPy from creating folders inside whatever you use for your own recordings.
 
 ## Labeling the streamed stores
 
@@ -91,12 +98,13 @@ preprocessing, PSTH, and visualization offline and without a key.
 
 ## What lands on disk
 
-Nothing from the archive is cached. Under the output directory you chose:
+Nothing from the archive is cached. Assets materialize as session folders inside the output
+root folder, and each session's runs are written in it:
 
 | Path | Contents |
 |------|----------|
-| `<asset name>/` | Session folder, one per selected asset |
-| `<asset name>/<asset name>_output_1/` | Run folder |
+| `<output root folder>/<asset name>/` | Session folder, one per selected asset |
+| `<output root folder>/<asset name>/output_1/` | Run folder |
 | `.../storesList.csv` | Store-to-label mapping from Step 1 |
 | `.../<store id>.hdf5` | One raw stream per store from Step 2, named by store id (e.g. `fiber_photometry_response_series_0.hdf5`) |
 
@@ -112,6 +120,6 @@ Step 3 onward writes the usual per-site files (`signal_DMS.hdf5`,
   real files, so you can navigate it without downloading anything. They live
   under your system temp directory.
 - Re-selecting an asset reuses its existing session folder; Step 1 then creates
-  an `_output_2` run alongside the first.
+  an `output_2` run alongside the first.
 - After Step 2 the sessions are ordinary local folders, so group analysis and
   **Combine Data?** apply normally.

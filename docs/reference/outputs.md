@@ -6,13 +6,23 @@ Every file GuPPy writes to disk: where it lands, what its name means, and what i
 
 ## Where outputs go
 
-Every output of a run lives in a single directory, the run folder, created as a subdirectory of the session folder:
+Every output of a run lives in a single directory, the run folder. GuPPy mirrors each session's path under the input root folder into the output root folder, and creates the run folders inside that mirror:
 
 ```
-<session_folder>/<session_name>_output_<run_name>/
+<output_directory>/<session path under the input root folder>/output_<run_name>/
 ```
 
-`<session_name>` is the session folder's own name, so a session at `/data/Photo_63_207` gets run folders at `/data/Photo_63_207/Photo_63_207_output_1`. `<run_name>` is either the name you type in the Label Stores GUI or, when you leave it to GuPPy, the lowest integer for which no such directory exists yet — `_output_1` on the first run, `_output_2` on the second. Re-running Step 1 over an existing run folder with the overwrite option deletes its entire contents first. Because each run folder is self-contained, one session can hold several runs analyzed under different parameters — see [Comparing Two Parameter Sets](../tutorials/compare_parameters.md).
+So with an input root folder of `/data`, a session at `/data/subject1/session1` gets its run folders at `/data_analysis/subject1/session1/output_1`. The two directories are chosen separately: the **input root folder** in the **Input Folder Selection** card, and the **output root folder** in **Output Folder Selection**. Both are required, and GuPPy refuses to start an analysis without them rather than picking somewhere for you.
+
+Mirroring the input structure is what makes the output tree navigable: a session's results sit exactly where you would look for the session itself, one directory over. It also means two sessions that share a folder name — `subject1/session1` and `subject2/session1` — never collide, because their parent directories keep them apart.
+
+No analysis output is written into a session folder, so the raw data stays as your acquisition system left it — the one thing GuPPy adds to a session folder is a custom event you explicitly import, which has to sit beside the acquisition files for Step 1 to discover it. Every selected session must sit under the input root folder; one that does not has no place in the mirror, and GuPPy says so rather than guessing.
+
+`<run_name>` is either the name you type in the Label Stores GUI or, when you leave it to GuPPy, the lowest integer for which no such directory exists yet — `output_1` on the first run, `output_2` on the second. Re-running Step 1 over an existing run folder with the overwrite option deletes its entire contents first. Because each run folder is self-contained, one session can have several runs analyzed under different parameters — see [Comparing Two Parameter Sets](../tutorials/compare_parameters.md).
+
+Ticking **Output root folder is the same as the input root folder** points both roots at one folder. Each session then mirrors onto itself, so its run folders are created inside the session folder — a self-contained session that travels as one directory. The cost is that GuPPy writes into your raw data, which is why it is not the default.
+
+Run folders that GuPPy wrote before version 2.0.0-beta4 are named `<session_name>_output_<run_name>` rather than `output_<run_name>`. They are still found and still open, wherever they sit, and they occupy their run name so a new run never collides with one. GuPPy only ever creates the newer name, and reading the older one is deprecated: a warning names the folders it found, and support for reading them will be removed in a future release.
 
 Three further directories can appear:
 
@@ -43,7 +53,7 @@ A pandas DataFrame written with `DataFrame.to_hdf`, holding exactly one DataFram
 
 ### `.csv`
 
-Flat text. Inside a run folder: the store mappings (`storesList.csv`, `combine_storesList.csv`), tables that also exist as an `.h5` (peak/AUC, transient frequency and amplitude, binned metrics, binned covariates and covariate correlations), and the two tables written as CSV only — `transientsOccurrences_<metric>.csv` and `tonic_epochs_<site>.csv`. The channel exports written outside the run folder are CSV too.
+Flat text. Inside a run folder: the store mappings (`storesList.csv`, `combine_storesList.csv`), the synthetic control trace `cntrl<i>.csv`, tables that also exist as an `.h5` (peak/AUC, transient frequency and amplitude, binned metrics, binned covariates and covariate correlations), and the two tables written as CSV only — `transientsOccurrences_<metric>.csv` and `tonic_epochs_<site>.csv`. Imported custom events are CSV too.
 
 ### `.npy`
 
@@ -300,7 +310,7 @@ A group directory is named `<group_name>_group` and sits in the destination dire
 | `cross_correlation_output/corr_<event>_<metric-prefix>_<siteA>_<siteB>.h5` | One column per member run |
 | `psth_significance_output/significance_<comparison>.h5` and `.csv` | Significance over the group, resampling member sessions |
 
-The group PSTH has the same shape as a per-session PSTH, but its trial columns are replaced by one column per member run, labeled with the run folder's name, followed by the same `timestamps`, `mean` and `err` columns. Column order matches `group_members.json`, so column *n* is member *n*.
+The group PSTH has the same shape as a per-session PSTH, but its trial columns are replaced by one column per member run, followed by the same `timestamps`, `mean` and `err` columns. Column order matches `group_members.json`, so column *n* is member *n*. Each column is labeled `<session folder name>_output_<run name>`, and when two members come from sessions sharing a folder name their mirrored parent directories are prepended until the labels differ — so a group mixing `subject1/session1` and `subject2/session1` gets `subject1_session1_output_1` and `subject2_session1_output_1`.
 
 `group_members.json` has a single key, `member_run_folders`, holding the absolute paths of the runs the group averages. It is the group's definition: the Label Groups step writes it, and the Group Analysis step reads it to know what to average. A group directory holding only this file is a defined group with no results yet, in the same way a run folder holds `storesList.csv` before Step 2 fills it.
 
@@ -325,13 +335,10 @@ The first key is `guppy_version`, the installed version of the `guppy-neuro` pac
 | File | Location | Contents |
 |------|----------|----------|
 | `<name>.csv` | session folder | An imported custom event: one column, header `timestamps` |
-| `cntrl<i>.csv` | session folder | The synthetic control trace, non-isosbestic runs only |
 | `.storesList.json` | your home directory | Cache of previously used store labels |
 | `guppy.log` | platform log directory | Application log |
 
 **Custom events** imported through the Import Custom Events step are written into the session folder as a single-column CSV, where Step 1 discovers them alongside the acquisition system's own stores. See [Import custom events](../how-to/import-custom-events.md).
-
-**`cntrl<i>.csv`** is written by the synthetic-control path in Step 3, alongside the `cntrl<i>.hdf5` placeholder, with columns `timestamps`, `data` and `sampling_rate`. It lands in the session folder rather than the run folder, which means a later Step 1 on the same session will discover it as an available store.
 
 **`.storesList.json`** in your home directory maps each `store_id` you have ever labeled to the labels you gave it, and is used to pre-populate the Label Stores dropdowns. It is shared across all sessions and projects, and is not part of any run's output.
 
@@ -344,8 +351,9 @@ The first key is `guppy_version`, the installed version of the `guppy-neuro` pac
 ```
 <session_folder>/
   <name>.csv                                       imported custom event
-  cntrl<i>.csv                                     step 3, non-isosbestic only
-  <session_name>_output_<run_name>/
+
+<output_directory>/<session path under the input root folder>/
+  output_<run_name>/
     storesList.csv                                 step 1
     .npm_params.json                               step 1, NPM only
     GuPPyParamtersUsed.json                        steps 2, 3, 4
@@ -357,6 +365,7 @@ The first key is `guppy_version`, the installed version of the `guppy-neuro` pac
     signal_<site>.hdf5                             step 3   data
     control_<site>.hdf5                            step 3   data
     cntrl<i>.hdf5                                  step 3   non-isosbestic placeholder
+    cntrl<i>.csv                                   step 3   non-isosbestic only
     <event>_<site>.hdf5                            step 3   ts   (rewritten by step 4)
     z_score_<site>.hdf5                            step 3   data
     dff_<site>.hdf5                                step 3   data
