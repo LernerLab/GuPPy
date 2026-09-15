@@ -312,6 +312,7 @@ def test_decompose_by_excitation_splits_ledstate_into_one_group_per_wavelength()
         "file": "signals.csv",
         "excitation_wavelength_in_nm": 470,
         "data_column": "Region0G",
+        "timestamp_column": "Timestamp",
     }
 
 
@@ -419,6 +420,7 @@ def test_decompose_by_stride_partitions_rows_by_cycle_position():
         "excitation_wavelength_in_nm": None,
         "interleave_position": 1,
         "data_column": 2,
+        "timestamp_column": 0,
     }
 
 
@@ -668,6 +670,18 @@ class NpmRecordingExtractorTestMixin(RecordingExtractorTestMixin):
         assert set(store_provenance) == {name for name, stream in streams.items() if "data" in stream}
         for name, record in store_provenance.items():
             assert record["file"], f"Store {name!r} records no source file"
+            # Which clock a file was read on is resolved per file -- a session-wide choice does
+            # not reach a file offering only one -- so it is recorded rather than left for a
+            # consumer to resolve again. A header-less file labels its columns by position, which
+            # is also how its data column is recorded.
+            header = None if isinstance(record["data_column"], int) else "infer"
+            columns = pd.read_csv(
+                Path(isolated_extractor_instance.folder_path) / record["file"], header=header, nrows=1
+            ).columns
+            assert record["timestamp_column"] in columns, (
+                f"Store {name!r} records timestamp column {record['timestamp_column']!r}, which "
+                f"'{record['file']}' does not have: {list(columns)}"
+            )
             if record["excitation_wavelength_in_nm"] is None:
                 assert "interleave_position" in record, f"Store {name!r} names neither an LED nor a cycle position"
             else:

@@ -125,6 +125,7 @@ def test_step1_records_what_each_store_was_demultiplexed_from(tmp_path):
         "file": "signals.csv",
         "excitation_wavelength_in_nm": 415,
         "data_column": "G2",
+        "timestamp_column": "ComputerTimestamp",
     }
     # Every channel the session offers is recorded, not only the two that were labeled.
     assert len(npm_params["stores"]) == 8

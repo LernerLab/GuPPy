@@ -323,8 +323,8 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             One format flag per raw source file processed.
         store_provenance : dict
             Maps each data channel's name to the source file, excitation (or interleave
-            position) and column it was demultiplexed from. Event streams are absent: they are
-            read whole from their own file and need no such record.
+            position), data column and timestamp column it was demultiplexed from. Event streams
+            are absent: they are read whole from their own file and need no such record.
         """
         logger.debug("If it exists, importing NPM file based on the structure of file")
         divisor = cls._time_unit_divisor(npm_time_unit)
@@ -465,8 +465,10 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             Labels of the columns holding channel data, in file order.
         """
         if not columns_are_strings:
-            # Nothing names these columns: the timestamps lead and the rest are data.
-            return df.columns[0], list(df.columns[1:])
+            # Nothing names these columns: the timestamps lead and the rest are data. Indexing the
+            # positional index yields a numpy integer, which the provenance record cannot be written
+            # to JSON as, so the label is the plain int the data columns already are.
+            return int(df.columns[0]), list(df.columns[1:])
 
         timestamp_column_names = [name for name in df.columns if TIMESTAMP_COLUMN_SUBSTRING in str(name).lower()]
         if not timestamp_column_names:
@@ -584,7 +586,8 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             One list per excitation wavelength, in ascending wavelength order; within it, one
             ``(name, stream)`` pair per region, in file order.
         store_provenance : dict
-            Maps each derived name to the file, excitation and column it was read from.
+            Maps each derived name to the file, excitation, data column and timestamp column it
+            was read from.
         """
         state_column = cls._detect_state_column(df, source_path)
         state = np.asarray(df[state_column], dtype=int)
@@ -620,6 +623,7 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
                     "file": Path(source_path).name,
                     "excitation_wavelength_in_nm": wavelength,
                     "data_column": column,
+                    "timestamp_column": timestamp_column,
                 }
             channel_groups.append(channel_group)
 
@@ -670,7 +674,8 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             One list per channel slot, in cycle order; within it, one ``(name, stream)`` pair
             per data column, in file order.
         store_provenance : dict
-            Maps each derived name to the file, cycle position and column it was read from.
+            Maps each derived name to the file, cycle position, data column and timestamp column
+            it was read from.
         """
         if num_ch > len(STRIDE_CHANNEL_SLOTS):
             message = (
@@ -703,6 +708,7 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
                     "excitation_wavelength_in_nm": None,
                     "interleave_position": slot_index,
                     "data_column": column,
+                    "timestamp_column": timestamp_column,
                 }
             channel_groups.append(channel_group)
         return channel_groups, store_provenance
@@ -761,8 +767,11 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         NPM store names are invented here — no column of the raw file carries one — so a run
         folder that records only the names leaves a reader to re-derive this demultiplexing from
         them. This is that record: for each channel, the source file, the excitation wavelength
-        that lit it (``None`` where the file names no LED, with the cycle position instead), and
-        the column it was read from. It is written to ``.npm_params.json`` beside
+        that lit it (``None`` where the file names no LED, with the cycle position instead), the
+        column it was read from, and the timestamp column its samples were timed by. Which clock a
+        file was read on is a per-file resolution -- a session-wide choice does not reach a file
+        offering only one -- so recording it is what keeps a consumer from having to redo that
+        resolution. It is written to ``.npm_params.json`` beside
         ``storesList.csv`` so a consumer of the run folder can resolve a store without
         reproducing any of this module's arithmetic.
 

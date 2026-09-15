@@ -1141,11 +1141,13 @@ def test_npm_params_to_persist_records_what_each_store_was_read_from():
         "file": "signals.csv",
         "excitation_wavelength_in_nm": 415,
         "data_column": "G2",
+        "timestamp_column": "ComputerTimestamp",
     }
     assert npm_params["stores"]["signals_470nm_G0"] == {
         "file": "signals.csv",
         "excitation_wavelength_in_nm": 470,
         "data_column": "G0",
+        "timestamp_column": "ComputerTimestamp",
     }
     # Event streams are read whole from their own file and need no such record.
     assert "event0" not in npm_params["stores"]
@@ -1164,12 +1166,14 @@ def test_npm_params_to_persist_records_the_cycle_position_where_no_led_is_named(
         "excitation_wavelength_in_nm": None,
         "interleave_position": 0,
         "data_column": 1,
+        "timestamp_column": 0,
     }
     assert npm_params["stores"]["PagCeAVgatFear_1512_1_chod3"] == {
         "file": "PagCeAVgatFear_1512_1.csv",
         "excitation_wavelength_in_nm": None,
         "interleave_position": 1,
         "data_column": 3,
+        "timestamp_column": 0,
     }
 
 
