@@ -32,6 +32,10 @@ session
 session_folder
   The directory on disk that holds one session's raw data files.
 
+input_root_folder
+  The directory your session folders live under, chosen in the Root Folder
+  Selection card. Every selected session must sit under it.
+
 run
   One analysis pass over a session, defined by its session, its stores, its
   parameter set, and its output destination. A single session can produce many
@@ -41,19 +45,13 @@ run_name
   The user-supplied label for a run.
 
 run_folder
-  The directory on disk holding one run's outputs, named `output_<run_name>` and
-  written into the session's mirror inside the {term}`output_directory`.
+  The directory on disk holding one run's outputs, named `output_<run_name>`.
 
-data_root
-  The directory your session folders live under, chosen in the Input Folder
-  Selection card. Every selected session must sit under it, and its path below
-  the input root folder is what GuPPy mirrors into the {term}`output_directory`.
-
-output_directory
-  The directory the mirrored output tree is written into, chosen in the Output
-  Folder Selection card. It sits outside the session folders, so analysis output
-  is never written into raw data. A session at `<data_root>/subject1/session1`
-  gets its run folders at `<output_directory>/subject1/session1/`.
+output_root_folder
+  The directory the run folders are written into, chosen in the Root Folder
+  Selection card. Each session's path below the {term}`input_root_folder` is
+  mirrored inside it, so a session at `<input_root_folder>/subject1/session1`
+  gets its run folders at `<output_root_folder>/subject1/session1/`.
 
 group
   A named set of runs whose results are averaged together, giving a cohort- or

@@ -7,7 +7,7 @@ trial, which gives you a cohort- or animal-level view without reading each sessi
 separately. Group analysis is optional. Most analyses only need per-session results, and those
 never touch the group steps.
 
-A group is a named output root folder, so several can sit side by side. You might keep a
+A group is a named directory of its own, so several can sit side by side. You might keep a
 `saline_group` and a `cocaine_group` and visualize both at once.
 
 ## Before you start
@@ -66,7 +66,7 @@ definition survives the rebuild.
 
 ## Visualizing a group
 
-A group directory behaves like any other output root folder in the visualizer, so there is no mode
+A group folder behaves like any other run folder in the visualizer, so there is no mode
 to switch on and nothing to select a second time. Click **Open Visualization GUI** in the sidebar.
 
 You can visualize a group on its own. Step 5 accepts an empty individual selection as long as a
