@@ -62,7 +62,7 @@ def rendered_figure(selector):
 
 @pytest.fixture
 def selector(panel_extension, run_folder):
-    selector = ArtifactWindowSelector(str(run_folder), load_pair_traces(str(run_folder)))
+    selector = ArtifactWindowSelector(str(run_folder), load_pair_traces(str(run_folder)), label="mySession_output_1")
     # Adding, removing, and the live preview act on the selected site; pin it so the tests
     # do not depend on which site load_pair_traces happens to yield first.
     selector.site_select.value = "DMS"
@@ -243,7 +243,9 @@ class TestClampingBoundsIntoTheRecording:
             np.array([[-1.0, 0.0], [3.0, 0.0], [5.0, 0.0], [11.0, 0.0]]),
         )
 
-        reopened = ArtifactWindowSelector(str(run_folder), load_pair_traces(str(run_folder)))
+        reopened = ArtifactWindowSelector(
+            str(run_folder), load_pair_traces(str(run_folder)), label="mySession_output_1"
+        )
 
         assert reopened.windows_for("DMS") == [(3.0, 5.0)]
         assert reopened.windows_for("DLS") == []
@@ -451,7 +453,7 @@ class TestCopyWindowsFromAnotherRun:
     @pytest.fixture
     def unmarked_selector(self, panel_extension, session_folder, marked_run):
         run_folder = str(session_folder / "mySession_output_2")
-        selector = ArtifactWindowSelector(run_folder, load_pair_traces(run_folder))
+        selector = ArtifactWindowSelector(run_folder, load_pair_traces(run_folder), label="mySession_output_1")
         selector.site_select.value = "DMS"
         return selector
 
@@ -460,13 +462,13 @@ class TestCopyWindowsFromAnotherRun:
 
     def test_does_not_offer_a_run_with_no_windows_saved(self, panel_extension, session_folder):
         run_folder = str(session_folder / "mySession_output_2")
-        selector = ArtifactWindowSelector(run_folder, load_pair_traces(run_folder))
+        selector = ArtifactWindowSelector(run_folder, load_pair_traces(run_folder), label="mySession_output_1")
 
         assert selector.runs_with_windows == {}
 
     def test_control_is_hidden_when_no_other_run_has_windows(self, panel_extension, session_folder):
         run_folder = str(session_folder / "mySession_output_2")
-        selector = ArtifactWindowSelector(run_folder, load_pair_traces(run_folder))
+        selector = ArtifactWindowSelector(run_folder, load_pair_traces(run_folder), label="mySession_output_1")
 
         assert selector.copy_from_select not in selector.widget.select(pn.widgets.Select)
 
@@ -540,7 +542,7 @@ class TestCopyWindowsAcrossMismatchedSites:
     def selector_for_run_2(self, panel_extension, session_folder):
         def build():
             run_folder = str(session_folder / "mySession_output_2")
-            selector = ArtifactWindowSelector(run_folder, load_pair_traces(run_folder))
+            selector = ArtifactWindowSelector(run_folder, load_pair_traces(run_folder), label="mySession_output_1")
             selector.site_select.value = "DMS"
             return selector
 

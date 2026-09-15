@@ -11,6 +11,7 @@ from ..utils.stores_list import read_stores_list
 from ..utils.utils import (
     event_labels_for_analysis,
     get_all_stores_for_combining_data,
+    relative_output_labels,
     select_run_folders,
 )
 from ..utils.validation import validate_group_definitions
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 PSTH_FILE_PATTERNS = ("*_z_score_*.h5", "*_dff_*.h5")
 
 
-def helper_plots(filepath: str, event: list[str], inputParameters: dict[str, object]) -> None:
+def helper_plots(filepath: str, event: list[str], inputParameters: dict[str, object], *, label: str) -> None:
     """Build and display the interactive PSTH visualization dashboard for one output directory.
 
     Parameters
@@ -59,7 +60,7 @@ def helper_plots(filepath: str, event: list[str], inputParameters: dict[str, obj
     )
     dashboard = VisualizationDashboard(
         plotter=plotter,
-        basename=Path(filepath).name,
+        basename=label,
         events=list(event),
         metric=metric,
         available_metrics=available_metrics,
@@ -67,7 +68,7 @@ def helper_plots(filepath: str, event: list[str], inputParameters: dict[str, obj
     dashboard.show()
 
 
-def createPlots(filepath: str, event: list[str], inputParameters: dict[str, object]) -> None:
+def createPlots(filepath: str, event: list[str], inputParameters: dict[str, object], *, label: str) -> None:
     """Assemble PSTH data from an output directory and delegate to ``helper_plots``.
 
     Parameters
@@ -90,7 +91,34 @@ def createPlots(filepath: str, event: list[str], inputParameters: dict[str, obje
 
     event = np.delete(event, index)
 
-    helper_plots(filepath, event, inputParameters)
+    helper_plots(filepath, event, inputParameters, label=label)
+
+
+def _output_directories(inputParameters: dict[str, object]) -> list[str]:
+    """Return every output directory step 5 will open a dashboard for.
+
+    The selected session runs plus the selected groups, which are visualized the
+    same way.
+
+    Parameters
+    ----------
+    inputParameters : dict
+        The full input-parameters dict passed to :func:`visualizeResults`.
+
+    Returns
+    -------
+    list of str
+        Paths to the run folders and group folders being visualized.
+    """
+    run_folders = list(inputParameters.get("selected_group_folders") or [])
+    selected_runs = inputParameters.get("selected_runs") or {}
+    for filepath in inputParameters["session_folders"]:
+        if not selected_runs.get(filepath):
+            # Session not in selected_runs (e.g. it holds no runs yet, which the homepage
+            # gate `validate_selected_runs_for_consumers` skips). Nothing to visualize.
+            continue
+        run_folders.extend(select_run_folders(filepath, selected_runs.get(filepath)))
+    return run_folders
 
 
 def _validate_psth_outputs_exist(inputParameters: dict[str, object]) -> None:
@@ -106,19 +134,7 @@ def _validate_psth_outputs_exist(inputParameters: dict[str, object]) -> None:
     ValueError
         When none of the selected output directories contain PSTH ``.h5`` files.
     """
-    session_folders = inputParameters["session_folders"]
-
-    # Collect every output directory that will be visualised: the selected session runs
-    # plus the selected groups, which are visualised the same way.
-    run_folders = list(inputParameters.get("selected_group_folders") or [])
-    selected_runs = inputParameters.get("selected_runs") or {}
-    for filepath in session_folders:
-        runs = selected_runs.get(filepath)
-        if not runs:
-            # Session not in selected_runs (e.g. it has no _output_* dirs yet, which the
-            # homepage gate `validate_selected_runs_for_consumers` skips). Nothing to validate.
-            continue
-        run_folders.extend(select_run_folders(filepath, runs))
+    run_folders = _output_directories(inputParameters)
 
     if not run_folders:
         return  # Nothing to check; the main function will handle the empty case.
@@ -172,6 +188,10 @@ def visualizeResults(inputParameters: dict[str, object]) -> None:
         logger.error(message)
         raise ValueError(message)
 
+    # One label per dashboard, built over every directory being opened, so each names
+    # its run by the path that distinguishes it from the others on screen.
+    labels = relative_output_labels(_output_directories(inputParameters))
+
     # Snapshot the parameters being executed into each selected output dir so the
     # on-disk GuPPyParamtersUsed.json always reflects the last-run configuration. This
     # iterates the individual sessions only, so a group's own snapshot keeps recording
@@ -201,6 +221,7 @@ def visualizeResults(inputParameters: dict[str, object]) -> None:
                 filepath,
                 event_labels_for_analysis(store_array=store_array, inputParameters=inputParameters),
                 inputParameters,
+                label=labels[str(filepath)],
             )
     else:
         for i in range(len(session_folders)):
@@ -214,6 +235,7 @@ def visualizeResults(inputParameters: dict[str, object]) -> None:
                     filepath,
                     event_labels_for_analysis(store_array=store_array, inputParameters=inputParameters),
                     inputParameters,
+                    label=labels[str(filepath)],
                 )
 
     # Groups are ordinary output directories to the visualizer: one dashboard each,
@@ -224,4 +246,5 @@ def visualizeResults(inputParameters: dict[str, object]) -> None:
             group_folder,
             event_labels_for_analysis(store_array=store_array, inputParameters=inputParameters),
             inputParameters,
+            label=labels[str(group_folder)],
         )

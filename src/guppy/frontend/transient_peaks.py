@@ -14,6 +14,7 @@ import numpy as np
 import panel as pn
 
 from ..analysis.standard_io import read_transients_from_hdf5
+from ..utils.utils import relative_output_labels
 from ..visualization.transients import build_peaks_overlay
 
 # Load the HoloViews bokeh backend for the peak-overlay plots.
@@ -48,10 +49,11 @@ def load_peaks(run_folders: list[str], select_for_transients: str) -> dict[str, 
         Mapping ``"<run folder> / <trace>"`` label → ``{"z_score", "timestamps", "peaksInd"}``.
     """
     entries: dict[str, dict[str, np.ndarray]] = {}
+    labels = relative_output_labels(run_folders)
     for filepath in run_folders:
         for path in _trace_paths(filepath, select_for_transients):
             title = path.name.split(".")[0]
-            suptitle = path.parent.name
+            suptitle = labels[str(filepath)]
             z_score, timestamps, peaksInd = read_transients_from_hdf5(filepath, title)
             entries[f"{suptitle} / {title}"] = {
                 "z_score": np.asarray(z_score).ravel(),
