@@ -24,9 +24,7 @@ from ..utils.dandi_catalog import (
 
 logger = logging.getLogger(__name__)
 
-# The catalog and channel tables are Tabulator widgets, which Panel only ships the JS for when
-# the extension is named explicitly.
-pn.extension("tabulator")
+pn.extension()
 hv.extension("bokeh")
 
 # Width of the browser's widgets inside the 1000px Input Folder Selection card.
