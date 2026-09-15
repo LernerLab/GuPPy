@@ -121,6 +121,10 @@ def _detect(folder_path: str) -> tuple[set[str], bool]:
     if any(session_folder.glob("*.doric")):
         formats.add("doric")
 
+    # pyPhotometry .ppd files provide both photometry traces and digital TTL lines
+    if any(session_folder.glob("*.ppd")):
+        formats.add("pyphotometry")
+
     csv_paths = list(session_folder.glob("*.csv"))
     event_csv_by_path = {csv_path: _is_event_csv(csv_path) for csv_path in csv_paths}
 
@@ -157,7 +161,7 @@ def detect_trace_formats(folder_path: str) -> set[str]:
     -------
     set of str
         Format strings for the trace sources found in the folder.
-        Possible elements: ``"nwb"``, ``"tdt"``, ``"doric"``, ``"csv"``, ``"npm"``.
+        Possible elements: ``"nwb"``, ``"tdt"``, ``"doric"``, ``"csv"``, ``"npm"``, ``"pyphotometry"``.
     """
     trace_formats, _has_event_csv = _detect(folder_path)
     return trace_formats
@@ -179,7 +183,7 @@ def detect_acquisition_formats(folder_path: str) -> set[str]:
     -------
     set of str
         Format strings for all sources found in the folder.
-        Possible elements: ``"nwb"``, ``"tdt"``, ``"doric"``, ``"csv"``, ``"npm"``.
+        Possible elements: ``"nwb"``, ``"tdt"``, ``"doric"``, ``"csv"``, ``"npm"``, ``"pyphotometry"``.
     """
     formats, has_event_csv = _detect(folder_path)
 

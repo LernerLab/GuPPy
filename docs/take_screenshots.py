@@ -734,27 +734,26 @@ def screenshot_visualization(page: Page, tmp_path: Path) -> None:
     pn.state.kill_all_servers()
 
 
-def screenshot_compare_parameters_run_name(page: Page) -> None:
-    """Screenshot for the compare-parameters tutorial: the save section with a named run.
+def screenshot_run_name_section(page: Page, *, run_name: str, filename: str) -> None:
+    """Screenshot the Label Stores save section with **Create new run** selected.
 
-    Only the save block is in shot, with **Run name** filled in, since naming a run
-    after the parameter it varies is the point of that guide.
+    Only the save block is in shot, with **Run name** holding ``run_name``.
     """
     selector = StoreLabelingSelector(allnames=["Sample_Control_Channel"])
-    selector.run_name.value = "filter_250"
+    selector.run_name.value = run_name
 
     template = pn.template.BootstrapTemplate(title="Label Stores GUI - sample_data_csv_1")
-    template.main.append(pn.Column(selector.mark_down_for_overwrite, selector.overwrite_button, selector.run_name))
+    template.main.append(pn.Column(selector.mark_down_for_overwrite, selector.overwrite_mode, selector.run_name))
     url = _serve(template)
 
     page.goto(url)
-    page.get_by_text("Choose how to save this store_array").first.wait_for()
+    page.get_by_text("Choose where to save these store labels").first.wait_for()
     page.wait_for_timeout(1000)
     page.screenshot(
-        path=OUTPUT_DIR / "compare_parameters_run_name.png",
-        clip={"x": 0, "y": 0, "width": 660, "height": 320},
+        path=OUTPUT_DIR / filename,
+        clip={"x": 0, "y": 0, "width": 660, "height": 300},
     )
-    print("Saved compare_parameters_run_name.png")
+    print(f"Saved {filename}")
 
 
 def screenshot_dandi_source_selection(page: Page) -> None:
@@ -1079,7 +1078,8 @@ def main() -> None:
             screenshot_covariate_label_stores(page)
             screenshot_covariate_correlations(page, tmp_path)
             screenshot_visualization(page, tmp_path)
-            screenshot_compare_parameters_run_name(page)
+            screenshot_run_name_section(page, run_name="filter_250", filename="compare_parameters_run_name.png")
+            screenshot_run_name_section(page, run_name="1", filename="combine_data_run_name.png")
             screenshot_compare_parameters_existing_runs(page)
             screenshot_label_groups_page(page)
             screenshot_group_psth_plot(page, tmp_path)

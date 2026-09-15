@@ -1,6 +1,7 @@
 import json
 import logging
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 
 import holoviews as hv  # noqa: F401
@@ -13,6 +14,7 @@ from guppy.extractors import (
     DoricRecordingExtractor,
     NpmRecordingExtractor,
     NwbRecordingExtractor,
+    PyPhotometryRecordingExtractor,
     TdtRecordingExtractor,
     detect_acquisition_formats,
 )
@@ -30,6 +32,7 @@ from guppy.utils.stores_list import write_stores_list
 from guppy.utils.utils import (
     NPM_PARAM_KEYS,
     discover_run_folders,
+    parse_run_name,
     run_folder_for_run,
     validate_run_name,
     write_npm_params,
@@ -292,6 +295,7 @@ def build_store_labeling_template(
     *,
     inputParameters: dict[str, object] | None = None,
     npm_interactive: dict[str, object] | None = None,
+    on_saved: Callable[[], None] | None = None,
 ) -> pn.template.BootstrapTemplate:
     """Build and return the Label Stores GUI Panel template without serving it.
 
@@ -315,6 +319,8 @@ def build_store_labeling_template(
         ``timestamp_column_options``). When set, the NPM configuration form is
         rendered and NPM discovery/previews are deferred to its confirm
         callback.
+    on_saved : callable, optional
+        Called with no arguments after each successful Save.
 
     Returns
     -------
@@ -338,7 +344,7 @@ def build_store_labeling_template(
 
     # ------------------------------------------------------------------------------------------------------------------
     # onclick closure functions
-    # on clicking overwrite_button, following function is executed
+    # on switching between creating a new run and overwriting one, following function is executed
     def overwrite_button_actions(event: object) -> None:
         if event.new == "over_write_file":
             options = discover_run_folders(folder_path)
@@ -410,7 +416,14 @@ def build_store_labeling_template(
             npm_params=npm_params,
         )
         store_labeling_selector.set_alert_message(alert_message)
-        store_labeling_selector.set_path(str(Path(select_location) / "storesList.csv"))
+        if alert_message != "#### No alerts !!":
+            store_labeling_selector.hide_saved_message()
+            return
+        store_labeling_selector.show_saved_message(
+            f"Saved the store labels to <b>{select_location}</b>. You may now close this tab."
+        )
+        if on_saved is not None:
+            on_saved()
 
     # on clicking the NPM "Confirm NPM configuration" button, following function is executed
     def confirm_npm_configuration(event: object = None) -> None:
@@ -440,11 +453,14 @@ def build_store_labeling_template(
     button_name_to_onclick_fn = {
         "update_options": update_values,
         "save": save_button,
-        "overwrite_button": overwrite_button_actions,
         "show_config_button": fetchValues,
     }
     store_labeling_selector.attach_callbacks(button_name_to_onclick_fn)
+    store_labeling_selector.attach_overwrite_mode_watcher(overwrite_button_actions)
     store_labeling_selector.attach_run_name_watcher(run_name_input_changed)
+    # The page opens in create-new-run mode, so fill the run name with the next free integer;
+    # the run-name watcher resolves it to the run folder Save will create.
+    store_labeling_selector.set_run_name(parse_run_name(show_dir(folder_path)))
 
     if npm_interactive is not None:
         store_labeling_instructions.confirm_button.on_click(confirm_npm_configuration)
@@ -558,8 +574,13 @@ def read_header(
             fmt_events, fmt_flags = DoricRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
         elif format == "csv":
             fmt_events, fmt_flags = CsvRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
+        elif format == "pyphotometry":
+            fmt_events, fmt_flags = PyPhotometryRecordingExtractor.discover_events_and_flags(folder_path=folder_path)
         else:
-            raise ValueError(f"Format not recognized: '{format}'. Expected one of 'nwb', 'tdt', 'csv', 'doric', 'npm'.")
+            raise ValueError(
+                f"Format not recognized: '{format}'. Expected one of 'nwb', 'tdt', 'csv', 'doric', 'npm', "
+                "'pyphotometry'."
+            )
 
         for event in fmt_events:
             if event not in existing_events:
@@ -572,7 +593,9 @@ def read_header(
     return events, flags, npm_interactive
 
 
-def orchestrate_store_labeling_page(inputParameters: dict[str, object]) -> None:
+def orchestrate_store_labeling_page(
+    inputParameters: dict[str, object], *, on_saved: Callable[[], None] | None = None
+) -> None:
     """Open the Label Stores page for every selected session folder.
 
     Parameters
@@ -580,6 +603,8 @@ def orchestrate_store_labeling_page(inputParameters: dict[str, object]) -> None:
     inputParameters : dict
         Full pipeline input parameters; uses ``session_folders``,
         ``isosbestic_control``, and ``noChannels``.
+    on_saved : callable, optional
+        Called with no arguments after each successful Save on any of the pages.
     """
     session_folders = inputParameters["session_folders"]
     isosbestic_control = inputParameters["isosbestic_control"]
@@ -596,6 +621,7 @@ def orchestrate_store_labeling_page(inputParameters: dict[str, object]) -> None:
             isosbestic_control=bool(isosbestic_control),
             inputParameters=inputParameters,
             npm_interactive=npm_interactive,
+            on_saved=on_saved,
         )
         template.show(port=scanPortsAndFind(start_port=5000, end_port=5200))
     logger.info("#" * 400)

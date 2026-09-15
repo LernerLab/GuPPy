@@ -46,8 +46,8 @@ five required methods — `discover_events_and_flags()`, `read()`, `save()`, `co
 `stub()` — so the rest of the codebase never branches on acquisition format.
 
 Supported formats: `TdtRecordingExtractor`, `DoricRecordingExtractor`, `NpmRecordingExtractor`,
-`CsvRecordingExtractor`, `NwbRecordingExtractor`, and `DandiNwbRecordingExtractor` for streaming
-straight from the DANDI Archive.
+`PyPhotometryRecordingExtractor`, `CsvRecordingExtractor`, `NwbRecordingExtractor`, and
+`DandiNwbRecordingExtractor` for streaming straight from the DANDI Archive.
 
 A session folder does not have to be a single format. `detect_acquisition_formats()` reports every
 format present, and

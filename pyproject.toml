@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "guppy-neuro"
-version = "2.0.0-beta3"
+version = "2.0.0-beta4"
 description = "Guided Photometry Analysis in Python, a free and open-source fiber photometry data analysis tool."
 readme = "README.md"
 authors = [
@@ -63,6 +63,7 @@ dependencies = [
     "pyyaml",
     "neuroconv[guppy]>=0.10.2",
     "ndx-guppy>=0.2.1",
+    "tornado>=6.5.10",  # 6.5.9 breaks Bokeh's static-file handler, so Panel pages fail to load
 ]
 
 [dependency-groups]

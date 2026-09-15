@@ -1,4 +1,20 @@
-# v2.0.0-beta3 (Upcoming)
+# v2.0.0-beta4 (Upcoming)
+
+## Features
+- Added support for reading pyPhotometry `.ppd` recordings, the open acquisition hardware from Akam and Walton (2019) also sold by Open Ephys. A session folder holding one `.ppd` file is detected like any other format and its traces and digital lines appear as stores in Label Stores, so the rest of the pipeline is unchanged. Stores are named for the photodetector that was read and the excitation source that was lit (`detector_1_excitation_2`) rather than for the board's two sockets, because a shared detector prefix is what says two traces came off one fiber and so belong to the same recording site: the strobed one-emission modes read a single photodetector twice under different excitations, which is the signal-plus-isosbestic pair, and `analog_1`/`analog_2` would invite labeling it as two regions. Every header generation the format has had is read, including the pre-JSON one whose mode is a byte rather than a string. An acquisition mode the reader does not know is refused rather than read with the default two-signal layout, which would silently interleave several excitations into one trace; the four-colour fork of the acquisition software is refused by name, with a message pointing at its paper. Because the board has no simultaneous analog-to-digital converters, the timestamps of a strobed recording's traces are staggered by one tick of the sampling timer, as the hardware sampled them. [PR #447](https://github.com/LernerLab/GuPPy/pull/447)
+
+## Fixes
+- GuPPy now requires tornado 6.5.10 or later, since 6.5.9 broke Bokeh's static-file serving and left the Panel pages unable to load. [PR #520](https://github.com/LernerLab/GuPPy/pull/520)
+
+## Improvements
+- `stubbed_testing_data/README.md` is no longer tracked in Git LFS, so the stub catalogue can be read in a diff and edited on two branches without conflicting as a pair of opaque hashes. The recordings it describes, and the acquisition artifacts alongside them, stay in LFS. [PR #510](https://github.com/LernerLab/GuPPy/pull/510)
+- The cross-correlation lag axis is now named and documented in seconds, the unit it has always held, rather than milliseconds. [PR #503](https://github.com/LernerLab/GuPPy/pull/503)
+- Saving on the Label Stores page now pops up a confirmation naming the output folder, and the homepage lists the new run under **Output Folder Selection** as soon as it is saved. [PR #504](https://github.com/LernerLab/GuPPy/pull/504)
+- The Label Stores page's save controls are now a **Create new run** / **Overwrite existing run** choice, with **Run name** pre-filled with the next free integer and a **Run to overwrite** picker, listing runs by folder name, shown only when overwriting; the alert pane appears only when there is something to report. [PR #504](https://github.com/LernerLab/GuPPy/pull/504)
+
+## Deprecations and Removals
+
+# v2.0.0-beta3 (September 10th, 2026)
 
 ## Features
 - The DANDI source panel can now search the archive for fiber photometry dandisets and filter the results by brain region, indicator, species, experimental approach and dataset scale, then stream one NWB file's header to show its channels, their recording sites, indicators and wavelengths, the store names Step 1 will ask you to label, and the first 60 seconds of every channel. The asset browser filters its tree by path and by minimum file size, which separates a dandiset's recordings from its behavior-only files, and previews any file you select. [PR #506](https://github.com/LernerLab/GuPPy/pull/506)
@@ -12,7 +28,6 @@
 - Fixed the README's documentation links, which all carried an `/en/latest/` path prefix that 404s on the single-version Read the Docs project. [PR #469](https://github.com/LernerLab/GuPPy/pull/469)
 
 ## Improvements
-- The cross-correlation lag axis is now named and documented in seconds, the unit it has always held, rather than milliseconds. [PR #503](https://github.com/LernerLab/GuPPy/pull/503)
 - `GuPPyParamtersUsed.json` no longer carries a `noChannels` copy of the Neurophotometrics channel count, which now lives only in each run's `.npm_params.json`. [PR #502](https://github.com/LernerLab/GuPPy/pull/502)
 - The Individual Analysis card is now **Parameter Selection**, a single column of titled sections each named for the operation it configures and each stating which steps read it, with a **?** beside every parameter that pops up help for that one parameter. [PR #499](https://github.com/LernerLab/GuPPy/pull/499)
 - The metric plotted by the visualization dashboard is now chosen in the dashboard itself and can be switched between the metrics Step 4 computed without re-running the step, instead of being fixed on the homepage before Step 5 starts. [PR #498](https://github.com/LernerLab/GuPPy/pull/498)
