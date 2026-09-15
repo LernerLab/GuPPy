@@ -34,8 +34,8 @@ TDT_STORE_ID_TO_STORE_LABEL = {
     "PrtN": "port_entries_dms",
 }
 NPM_STORE_ID_TO_STORE_LABEL = {
-    "file0_chev1": "signal_region",
-    "file0_chod1": "control_region",
+    "bl72bl82_12feb2024_fp_415nm_G0": "signal_region",
+    "bl72bl82_12feb2024_fp_470nm_G0": "control_region",
 }
 NWB_STORE_ID_TO_STORE_LABEL = {
     "fiber_photometry_response_series_0": "control_region",
