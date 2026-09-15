@@ -768,6 +768,9 @@ class ParameterForm:
     def _on_source_mode_change(self, event: object) -> None:
         is_dandi = event.new == "dandi"
         self.files_1.visible = not is_dandi
+        # The header describes the browser it sits above, down to the input root the
+        # sessions have to sit under, neither of which DANDI mode has.
+        self.session_selector_header.visible = not is_dandi
         self.dandi_selector.panel.visible = is_dandi
         # Stash before re-pointing the roots, which re-reads the runs on disk and would
         # otherwise clear the outgoing mode's selection before it was put away.

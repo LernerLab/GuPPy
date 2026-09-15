@@ -368,17 +368,20 @@ class TestParameterForm:
     def test_source_mode_default_is_local(self, parameter_form):
         assert parameter_form.source_mode.value == "local"
         assert parameter_form.files_1.visible is True
+        assert parameter_form.session_selector_header.visible is True
         assert parameter_form.dandi_selector.panel.visible is False
 
     def test_source_mode_toggle_to_dandi_shows_dandi_panel(self, parameter_form):
         parameter_form.source_mode.value = "dandi"
         assert parameter_form.files_1.visible is False
+        assert parameter_form.session_selector_header.visible is False
         assert parameter_form.dandi_selector.panel.visible is True
 
     def test_source_mode_toggle_back_to_local_restores(self, parameter_form):
         parameter_form.source_mode.value = "dandi"
         parameter_form.source_mode.value = "local"
         assert parameter_form.files_1.visible is True
+        assert parameter_form.session_selector_header.visible is True
         assert parameter_form.dandi_selector.panel.visible is False
 
     def test_get_input_parameters_local_mode_sets_mode_and_no_dandi_map(self, parameter_form):
