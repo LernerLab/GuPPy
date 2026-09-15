@@ -13,6 +13,7 @@ from guppy.frontend.input_parameters import (
     _table_heading,
     _titled_box,
 )
+from guppy.settings import remember_root_folders, remembered_root_folders
 from guppy.utils.utils import (
     run_directory_root,
     run_folder_for_run,
@@ -1093,6 +1094,45 @@ class TestRootFolderSelection:
     def test_choosing_the_roots_by_hand_leaves_the_card_open(self, bare_parameter_form):
         """Folding the card away under the user's cursor would be jarring; it settles at launch."""
         assert bare_parameter_form.root_folder_selection.collapsed is False
+
+    def test_the_roots_are_remembered_when_an_analysis_starts(self, bare_parameter_form, tmp_path, output_root_folder):
+        session = tmp_path / "sessionA"
+        session.mkdir()
+        bare_parameter_form.files_1.value = [str(session)]
+
+        bare_parameter_form.getInputParameters()
+
+        assert remembered_root_folders() == (str(tmp_path), str(output_root_folder))
+
+    def test_browsing_alone_does_not_rewrite_the_remembered_roots(self, bare_parameter_form, tmp_path):
+        """Idly navigating while looking for a folder must not become the next default."""
+        elsewhere = tmp_path / "elsewhere"
+        elsewhere.mkdir()
+
+        bare_parameter_form.input_root_selector.value = [str(elsewhere)]
+
+        assert remembered_root_folders() == (None, None)
+
+    def test_a_remembered_pair_is_pre_selected_at_the_next_launch(self, panel_extension, tmp_path, output_root_folder):
+        remember_root_folders(input_root_folder=str(tmp_path), output_root_folder=str(output_root_folder))
+
+        form = ParameterForm(template=pn.template.BootstrapTemplate(title="Test"))
+
+        assert form.input_root_folder == str(tmp_path)
+        assert form.output_root_folder == str(output_root_folder)
+        assert form.root_folder_selection.collapsed is True
+
+    def test_the_command_line_wins_over_what_was_remembered(self, panel_extension, tmp_path, output_root_folder):
+        remembered_input_root = tmp_path / "remembered"
+        remembered_input_root.mkdir()
+        remember_root_folders(input_root_folder=str(remembered_input_root), output_root_folder=str(output_root_folder))
+
+        form = ParameterForm(
+            template=pn.template.BootstrapTemplate(title="Test"),
+            input_root_folder=str(tmp_path),
+        )
+
+        assert form.input_root_folder == str(tmp_path)
 
     def test_matching_the_roots_hides_the_output_browser(self, bare_parameter_form, tmp_path):
         assert bare_parameter_form.output_root_selector.visible is True
