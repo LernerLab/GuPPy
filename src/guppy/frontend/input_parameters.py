@@ -134,6 +134,23 @@ def _table_heading(*, label: str, description: str, width: int) -> pn.Row:
     )
 
 
+def _preselect(selector: pn.widgets.FileSelector, path: str) -> None:
+    """Select ``path`` in a file browser and show it in the Selected files pane.
+
+    Assigning ``value`` alone sets the parameter without redrawing the browser, so the
+    choice would not appear until something else made the widget re-list its directory.
+
+    Parameters
+    ----------
+    selector : pn.widgets.FileSelector
+        The browser to select in.
+    path : str
+        Absolute path to select.
+    """
+    selector.value = [path]
+    selector._update_files()
+
+
 class ParameterForm:
     """Panel form collecting all GuPPy analysis parameters.
 
@@ -145,15 +162,23 @@ class ParameterForm:
     ----------
     template : panel.template.base.BasicTemplate
         The Panel template whose ``main`` area will receive the form cards.
-    start_path : str, optional
-        Initial directory shown in the file selectors. Falls back to the
-        value returned by ``default_root_path()`` when not supplied or when
-        the path does not exist.
+    input_root_folder : str, optional
+        Folder the session folders live under, pre-selected in the Root Folder Selection card.
+    output_root_folder : str, optional
+        Folder the mirrored output tree is written into, pre-selected in the same card.
     """
 
-    def __init__(self, *, template: object, start_path: str | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        template: object,
+        input_root_folder: str | None = None,
+        output_root_folder: str | None = None,
+    ) -> None:
         self.template = template
-        self.folder_path = start_path if start_path and Path(start_path).is_dir() else default_root_path()
+        # Where the file browsers open before a root is chosen. Choosing an input root
+        # re-points the session browser, so this only shows until then.
+        self.folder_path = default_root_path()
         self.styles = dict(background="WhiteSmoke")
         # Sessions the run selection was last synced against, so a change can tell which
         # sessions are new and should inherit the bulk run-name choice.
@@ -175,6 +200,16 @@ class ParameterForm:
         self.output_root_selector.param.watch(self._on_output_location_changed, "value")
         self.input_root_selector.param.watch(self._on_input_root_folder_changed, "value")
         self.dandi_selector.attach_asset_selection_watcher(callback=self._on_sessions_changed)
+
+        # The root folders a user keeps across analyses, so only the session folders are
+        # left to pick each time.
+        if input_root_folder and Path(input_root_folder).is_dir():
+            _preselect(self.input_root_selector, str(Path(input_root_folder)))
+        if output_root_folder and Path(output_root_folder).is_dir():
+            _preselect(self.output_root_selector, str(Path(output_root_folder)))
+        # Folded away once both are known, open when either is missing: a returning user
+        # never sees the card, and a first-time one finds it already open in first position.
+        self.root_folder_selection.collapsed = bool(self.input_root_folder and self.output_root_folder)
 
     def setup_individual_parameters(self) -> None:
         """Build all widgets for the individual-analysis card and store them as instance attributes."""
@@ -204,7 +239,8 @@ class ParameterForm:
         self.source_mode.param.watch(self._on_source_mode_change, "value")
 
         self.root_folder_selection_header = pn.pane.Markdown(
-            "The two folders a project keeps for the life of its analyses.",
+            "The two folders a project keeps for the life of its analyses. "
+            "`guppy --input-root <path> --output-root <path>` sets them at launch.",
             width=950,
         )
         self.input_root_header = pn.pane.Markdown(

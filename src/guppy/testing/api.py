@@ -216,7 +216,7 @@ def save_parameters_snapshot(*, base_dir: str, selected_folders: Iterable[str]) 
         (``_hooks['getInputParameters']`` and ``_widgets['files_1']``).
     """
     # Build the template headlessly
-    template = build_homepage(start_path=base_dir)
+    template = build_homepage()
 
     # Sanity checks: ensure hooks/widgets exposed
     if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
@@ -225,8 +225,8 @@ def save_parameters_snapshot(*, base_dir: str, selected_folders: Iterable[str]) 
         raise RuntimeError("build_homepage did not expose 'files_1' widget")
 
     # Select folders and write the parameter snapshot, mirroring the per-step auto-write.
-    template._widgets["files_1"].value = list(selected_folders)
     _point_form_at_output_directory(template=template, base_dir=base_dir)
+    template._widgets["files_1"].value = list(selected_folders)
     save_parameters(inputParameters=template._hooks["getInputParameters"]())
 
 
@@ -258,15 +258,15 @@ def import_custom_events(
     RuntimeError
         If the template does not expose the required testing hooks/widgets.
     """
-    template = build_homepage(start_path=base_dir)
+    template = build_homepage()
 
     if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
         raise RuntimeError("build_homepage did not expose 'getInputParameters' hook")
     if not hasattr(template, "_widgets") or "files_1" not in template._widgets:
         raise RuntimeError("build_homepage did not expose 'files_1' widget")
 
-    template._widgets["files_1"].value = list(selected_folders)
     _point_form_at_output_directory(template=template, base_dir=base_dir)
+    template._widgets["files_1"].value = list(selected_folders)
     input_params = template._hooks["getInputParameters"]()
     input_params["custom_events_map"] = custom_events_map
     orchestrate_custom_events_page(input_params)
@@ -549,7 +549,7 @@ def step1(
         raise ValueError(f"run_name_policy must be 'create' or 'overwrite'; got {run_name_policy!r}.")
 
     # Headless build: construct the template rooted at base_dir
-    homepage = build_homepage(start_path=base_dir)
+    homepage = build_homepage()
 
     # Ensure hooks/widgets exposed
     if not hasattr(homepage, "_hooks") or "getInputParameters" not in homepage._hooks:
@@ -558,8 +558,8 @@ def step1(
         raise RuntimeError("savingInputParameters did not expose 'files_1' widget")
 
     # Select folders and fetch input parameters
-    homepage._widgets["files_1"].value = abs_sessions
     _point_form_at_output_directory(template=homepage, base_dir=base_dir)
+    homepage._widgets["files_1"].value = abs_sessions
     input_params = homepage._hooks["getInputParameters"]()
 
     input_params["isosbestic_control"] = isosbestic_control
@@ -666,7 +666,7 @@ def step2(
     _validate_sessions_under_base_dir(abs_sessions=abs_sessions, base_dir=base_dir)
 
     # Headless build: construct the template rooted at base_dir
-    template = build_homepage(start_path=base_dir)
+    template = build_homepage()
 
     # Ensure hooks/widgets exposed
     if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
@@ -675,8 +675,8 @@ def step2(
         raise RuntimeError("savingInputParameters did not expose 'files_1' widget")
 
     # Select folders and fetch input parameters
-    template._widgets["files_1"].value = abs_sessions
     _point_form_at_output_directory(template=template, base_dir=base_dir)
+    template._widgets["files_1"].value = abs_sessions
     input_params = template._hooks["getInputParameters"]()
 
     # Inject explicit NPM parameters
@@ -758,7 +758,7 @@ def _build_preprocess_input_parameters(
     _validate_sessions_under_base_dir(abs_sessions=abs_sessions, base_dir=base_dir)
 
     # Headless build: construct the template rooted at base_dir
-    template = build_homepage(start_path=base_dir)
+    template = build_homepage()
 
     # Ensure hooks/widgets exposed
     if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
@@ -767,8 +767,8 @@ def _build_preprocess_input_parameters(
         raise RuntimeError("savingInputParameters did not expose 'files_1' widget")
 
     # Select folders and fetch input parameters
-    template._widgets["files_1"].value = abs_sessions
     _point_form_at_output_directory(template=template, base_dir=base_dir)
+    template._widgets["files_1"].value = abs_sessions
     input_params = template._hooks["getInputParameters"]()
 
     # Inject explicit NPM parameters
@@ -1234,7 +1234,7 @@ def step4(
     _validate_sessions_under_base_dir(abs_sessions=abs_sessions, base_dir=base_dir)
 
     # Headless build: construct the template rooted at base_dir
-    template = build_homepage(start_path=base_dir)
+    template = build_homepage()
 
     # Ensure hooks/widgets exposed
     if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
@@ -1243,8 +1243,8 @@ def step4(
         raise RuntimeError("savingInputParameters did not expose 'files_1' widget")
 
     # Select folders and fetch input parameters
-    template._widgets["files_1"].value = abs_sessions
     _point_form_at_output_directory(template=template, base_dir=base_dir)
+    template._widgets["files_1"].value = abs_sessions
     input_params = template._hooks["getInputParameters"]()
 
     # Inject explicit NPM parameters
@@ -1367,7 +1367,7 @@ def group_analysis(
     use_transients_as_events : bool
         Whether transient trains stand in for external event TTLs.
     """
-    template = build_homepage(start_path=base_dir)
+    template = build_homepage()
     _point_form_at_output_directory(template=template, base_dir=base_dir)
 
     absolute_groups = [str(Path(folder).resolve()) for folder in selected_group_folders]
@@ -1456,7 +1456,7 @@ def step5(
     _validate_sessions_under_base_dir(abs_sessions=abs_sessions, base_dir=base_dir)
 
     # Headless build: construct the template rooted at base_dir
-    template = build_homepage(start_path=base_dir)
+    template = build_homepage()
 
     # Ensure hooks/widgets exposed
     if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
@@ -1465,8 +1465,8 @@ def step5(
         raise RuntimeError("savingInputParameters did not expose 'files_1' widget")
 
     # Select folders and fetch input parameters
-    template._widgets["files_1"].value = abs_sessions
     _point_form_at_output_directory(template=template, base_dir=base_dir)
+    template._widgets["files_1"].value = abs_sessions
     input_params = template._hooks["getInputParameters"]()
 
     # Inject explicit NPM parameters
@@ -1535,15 +1535,15 @@ def _build_headless_input_parameters(
     abs_sessions = [str(Path(session).resolve()) for session in sessions]
     _validate_sessions_under_base_dir(abs_sessions=abs_sessions, base_dir=base_dir)
 
-    template = build_homepage(start_path=base_dir)
+    template = build_homepage()
 
     if not hasattr(template, "_hooks") or "getInputParameters" not in template._hooks:
         raise RuntimeError("savingInputParameters did not expose 'getInputParameters' hook")
     if not hasattr(template, "_widgets") or "files_1" not in template._widgets:
         raise RuntimeError("savingInputParameters did not expose 'files_1' widget")
 
-    template._widgets["files_1"].value = abs_sessions
     _point_form_at_output_directory(template=template, base_dir=base_dir)
+    template._widgets["files_1"].value = abs_sessions
     return template._hooks["getInputParameters"](), abs_sessions
 
 
