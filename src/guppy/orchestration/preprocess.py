@@ -397,7 +397,12 @@ def _correct_and_maybe_combine(session_folders: list[str], inputParameters: dict
     if inputParameters["combine_data"] == False:
         return session_folders
 
-    store_array = check_storeslistfile(session_folders)
+    run_folders = [
+        run_folder
+        for session_folder in session_folders
+        for run_folder in select_run_folders(session_folder, inputParameters=inputParameters)
+    ]
+    store_array = check_storeslistfile(run_folders)
     combined_output_folders = execute_combine_data(session_folders, inputParameters, store_array)
     write_combined_stores_list(combined_output_folders, store_array)
     return combined_output_folders
