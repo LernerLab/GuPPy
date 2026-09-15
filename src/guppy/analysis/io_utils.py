@@ -11,7 +11,6 @@ from ..utils.stores_list import (
     read_stores_list,
     write_stores_list,
 )
-from ..utils.utils import takeOnlyDirs
 
 logger = logging.getLogger(__name__)
 
@@ -349,33 +348,29 @@ def get_coords(
     return coords
 
 
-def check_storeslistfile(session_folders: list[str]) -> np.ndarray:
+def check_storeslistfile(run_folders: list[str]) -> np.ndarray:
     """
-    Merge storesList CSVs from all session output directories.
+    Merge the storesList CSVs of several run folders.
 
     Parameters
     ----------
-    session_folders : list of str
-        Session directories whose output subdirectories contain ``storesList.csv`` files.
+    run_folders : list of str
+        Run directories holding a ``storesList.csv``.
 
     Returns
     -------
     store_array : np.ndarray
-        2-D array with rows [store_id, store_label] merged across all sessions.
+        2-D array with rows [store_id, store_label] merged across all run folders.
     """
     store_array = np.array([[], []])
-    for i in range(len(session_folders)):
-        filepath = session_folders[i]
-        run_folders = takeOnlyDirs(list(Path(filepath).glob("*_output_*")))
-        for j in range(len(run_folders)):
-            filepath = run_folders[j]
-            store_array = np.concatenate(
-                (
-                    store_array,
-                    read_stores_list(run_folder=filepath),
-                ),
-                axis=1,
-            )
+    for run_folder in run_folders:
+        store_array = np.concatenate(
+            (
+                store_array,
+                read_stores_list(run_folder=run_folder),
+            ),
+            axis=1,
+        )
 
     store_array = np.unique(store_array, axis=1)
 

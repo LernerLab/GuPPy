@@ -4,10 +4,12 @@ from unittest.mock import patch
 
 import h5py
 import holoviews as hv
+import numpy as np
 import pytest
 
 from guppy.frontend.visualization_dashboard import VisualizationDashboard
 from guppy.testing.api import locate_run_folder, step1, step2, step3, step4, step5
+from guppy.utils.stores_list import read_stores_list
 from guppy_test_data import STUBBED_TESTING_DATA
 
 
@@ -36,7 +38,7 @@ def test_combine_data(tmp_path):
         assert Path(src_session).is_dir(), f"Sample data not available at expected path: {src_session}"
 
     # Stage a clean copy of the session into a temporary workspace
-    tmp_base = tmp_path / "data_root"
+    tmp_base = tmp_path / "input_root_folder"
     tmp_base.mkdir(parents=True, exist_ok=True)
     session_copies = []
     for src_session in src_sessions:
@@ -106,6 +108,14 @@ def test_combine_data(tmp_path):
     out_dir = locate_run_folder(session=str(session_copy))
     stores_fp = Path(out_dir) / "storesList.csv"
     assert Path(stores_fp).exists(), "Missing storesList.csv after Step 1/2/3"
+
+    # The combined run holds the stores merged across every session it combined; both
+    # sessions here label the same three stores, so the merge is those three.
+    combined_stores = read_stores_list(run_folder=out_dir, filename="combine_storesList.csv")
+    np.testing.assert_array_equal(
+        combined_stores,
+        np.array([["Dv1A", "Dv2A", "PrtN"], ["control_dms", "signal_dms", "port_entries_dms"]]),
+    )
 
     # Ensure timeCorrection_<recording_site>.hdf5 exists with 'timestampNew'
     timecorr = Path(out_dir) / (f"timeCorrection_{expected_recording_site}.hdf5")

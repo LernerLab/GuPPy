@@ -33,14 +33,22 @@ from guppy.analysis.standard_io import (
     read_psth_significance_from_hdf5,
 )
 from guppy.orchestration.metadata import METADATA_FILENAME
-from guppy.testing.api import step1, step2, step3, step4, step7, tonic_analysis
+from guppy.testing.api import (
+    locate_run_folder,
+    step1,
+    step2,
+    step3,
+    step4,
+    step7,
+    tonic_analysis,
+)
 from guppy.testing.covariate_session import (
     COVARIATE_NAMES,
     RECORDING_SITE,
     SESSION_NAME,
     run_covariate_session,
 )
-from guppy.utils.utils import parse_run_name
+from guppy.utils.utils import parse_run_name, run_folder_label
 from guppy_test_data import STUBBED_TESTING_DATA
 
 from .integration_helpers import _locate_output_directory, write_metadata_yaml
@@ -116,7 +124,7 @@ def export_run(*, session: str, output_directory: str, acquisition_format: str) 
         selected_folders=[session],
         selected_runs={session: [parse_run_name(output_directory)]},
     )
-    return Path(output_directory) / (f"{Path(output_directory).name}.nwb")
+    return Path(output_directory) / (f"{run_folder_label(str(output_directory))}.nwb")
 
 
 class TestCovariateAndWholeSessionOutputs:
@@ -129,7 +137,7 @@ class TestCovariateAndWholeSessionOutputs:
             session_path=STUBBED_TESTING_DATA / "csv" / SESSION_NAME,
             base_directory=base_directory,
         )
-        session = Path(output_directory).parent
+        session = base_directory / SESSION_NAME
         tonic_analysis(
             base_dir=str(base_directory),
             selected_folders=[session],
@@ -137,7 +145,7 @@ class TestCovariateAndWholeSessionOutputs:
             selected_runs={session: [parse_run_name(output_directory)]},
         )
         nwbfile_path = export_run(session=session, output_directory=output_directory, acquisition_format="csv")
-        return {"output_directory": output_directory, "nwbfile_path": nwbfile_path}
+        return {"session": session, "output_directory": output_directory, "nwbfile_path": nwbfile_path}
 
     @pytest.fixture(scope="class")
     def nwbfile(self, exported):
@@ -161,7 +169,8 @@ class TestCovariateAndWholeSessionOutputs:
     def test_covariate_series_carry_the_scored_values(self, guppy_module, exported):
         for covariate_name in COVARIATE_NAMES:
             series = guppy_module[covariate_name]
-            scored = pd.read_csv(Path(Path(exported["output_directory"]).parent) / (f"{covariate_name}.csv"))
+            # The scored covariate CSVs are an input the user drops into the session folder.
+            scored = pd.read_csv(Path(exported["session"]) / (f"{covariate_name}.csv"))
 
             np.testing.assert_allclose(series.data[:], scored["data"].to_numpy())
             np.testing.assert_allclose(series.timestamps[:], scored["timestamps"].to_numpy())
@@ -264,7 +273,7 @@ class TestSpontaneousModeOutputs:
 
         common = dict(base_dir=str(base_directory), selected_folders=[session])
         step1(**common, store_id_to_store_label=SPONTANEOUS_STORE_ID_TO_STORE_LABEL)
-        output_directory = Path(session) / (f"{SPONTANEOUS_SESSION_NAME}_output_1")
+        output_directory = Path(locate_run_folder(session=session))
         selected_runs = {session: ["1"]}
         step2(**common, selected_runs=selected_runs)
         step3(**common, selected_runs=selected_runs)

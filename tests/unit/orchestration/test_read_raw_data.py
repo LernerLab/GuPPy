@@ -2,6 +2,7 @@
 
 import shutil
 import time
+from pathlib import Path
 
 import pytest
 
@@ -66,7 +67,7 @@ class TestOrchestrateReadRawDataErrorEnrichment:
         session_folder = tmp_path / "sample_doric_1"
         shutil.copytree(source_folder, session_folder)
 
-        run_folder = session_folder / "sample_doric_1_output_1"
+        run_folder = session_folder / "output_1"
         run_folder.mkdir()
         stores_list_path = run_folder / "storesList.csv"
         stores_list_path.write_text("NotARealEvent\nsignal_DMS\n")
@@ -80,6 +81,8 @@ class TestOrchestrateReadRawDataErrorEnrichment:
             "numberOfCores": 1,
             "noChannels": 2,
             "selected_runs": {session_with_bogus_event: ["1"]},
+            "input_root_folder": str(Path(session_with_bogus_event).parent),
+            "output_root_folder": str(Path(session_with_bogus_event).parent),
         }
         with pytest.raises(ValueError) as exception_info:
             orchestrate_read_raw_data(input_parameters)
@@ -113,7 +116,7 @@ class TestProgressAccountingEndToEnd:
 
         # Build a session folder with a storesList.csv referencing two fake events.
         session_folder = tmp_path / "session"
-        run_folder = session_folder / "session_output_1"
+        run_folder = session_folder / "output_1"
         run_folder.mkdir(parents=True)
         (run_folder / "storesList.csv").write_text("event_a,event_b\nsignal_a,signal_b\n")
 
@@ -162,6 +165,8 @@ class TestProgressAccountingEndToEnd:
             "numberOfCores": 1,
             "noChannels": 2,
             "selected_runs": {str(session_folder): ["1"]},
+            "input_root_folder": str(session_folder.parent),
+            "output_root_folder": str(session_folder.parent),
         }
         orchestrate_read_raw_data(input_parameters)
 

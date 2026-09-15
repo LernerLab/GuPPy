@@ -36,6 +36,7 @@ from ..utils.stores_list import read_stores_list
 from ..utils.utils import (
     event_labels_for_analysis,
     get_all_stores_for_combining_data,
+    parse_session_basename,
     read_Df,
     resolve_run_folders,
     select_run_folders,
@@ -183,7 +184,7 @@ def execute_compute_psth_peak_and_area(filepath: str, event: str, inputParameter
         peak_area = compute_psth_peak_and_area(
             psth_mean_bin_mean, timestamps, sampling_rate, peak_startPoint, peak_endPoint, auc_units=auc_units
         )
-        fileName = [Path(filepath).parent.name]
+        fileName = [parse_session_basename(filepath)]
         index = [fileName[0] + "_" + name for name in psth_mean_bin_names]
         write_peak_and_area_to_hdf5(filepath, peak_area, event + "_" + name_1 + "_" + basename, index=index)
         write_peak_and_area_to_csv(filepath, peak_area, event + "_" + name_1 + "_" + basename, index=index)
@@ -293,10 +294,9 @@ def orchestrate_psth(inputParameters: dict[str, object]) -> None:
     # process, and forking a process that has other live threads can leave a lock they
     # held (logging, HDF5) permanently locked in the child.
     spawn_context = mp.get_context("spawn")
-    selected_runs = inputParameters.get("selected_runs") or {}
     for i in range(len(session_folders)):
         logger.debug("Computing PSTH, Peak and Area for each event in %s", session_folders[i])
-        run_folders = select_run_folders(session_folders[i], selected_runs.get(session_folders[i]))
+        run_folders = select_run_folders(session_folders[i], inputParameters=inputParameters)
         for j in range(len(run_folders)):
             filepath = run_folders[j]
             store_array = read_stores_list(run_folder=filepath)
@@ -344,10 +344,9 @@ def execute_psth_combined(inputParameters: dict[str, object]) -> None:
         Full pipeline input parameters.
     """
     session_folders = inputParameters["session_folders"]
-    selected_runs = inputParameters.get("selected_runs") or {}
     run_folders = []
     for i in range(len(session_folders)):
-        run_folders.append(select_run_folders(session_folders[i], selected_runs.get(session_folders[i])))
+        run_folders.append(select_run_folders(session_folders[i], inputParameters=inputParameters))
     run_folders = list(np.concatenate(run_folders).flatten())
     combined_output_groups = get_all_stores_for_combining_data(run_folders)
     for i in range(len(combined_output_groups)):

@@ -44,7 +44,7 @@ def test_underscore_recording_site_runs_end_to_end(tmp_path, isosbestic_control,
     source_session = STUBBED_TESTING_DATA / SESSION_SUBDIR
     assert source_session.is_dir(), f"Sample data not available at expected path: {source_session}"
 
-    temporary_base_directory = tmp_path / "data_root"
+    temporary_base_directory = tmp_path / "input_root_folder"
     temporary_base_directory.mkdir(parents=True, exist_ok=True)
     session_name = source_session.name
     session_copy = temporary_base_directory / session_name

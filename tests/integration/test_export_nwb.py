@@ -16,6 +16,7 @@ from pynwb import NWBHDF5IO
 from guppy.extractors.nwb_recording_extractor import _find_nwb_file
 from guppy.orchestration.export_nwb import export_session_to_nwb
 from guppy.orchestration.metadata import METADATA_FILENAME
+from guppy.testing import default_output_root_folder
 from guppy.testing.api import step7
 from guppy.utils._hdf5_io import read_hdf5
 from guppy.utils.acquisition_format import (
@@ -24,7 +25,7 @@ from guppy.utils.acquisition_format import (
     resolve_session_source,
 )
 from guppy.utils.nwb_io import open_nwbfile_io
-from guppy.utils.utils import parse_run_name
+from guppy.utils.utils import parse_run_name, run_folder_label
 from guppy_test_data import STUBBED_TESTING_DATA
 
 from .integration_helpers import SUPPLIED_SESSION_START_TIME, write_metadata_yaml
@@ -341,8 +342,15 @@ class TestExportMixedFormatSession:
         return session_copy
 
     @pytest.fixture
-    def output_directory(self, mixed_session, step5_output_tdt) -> Path:
-        return mixed_session / Path(step5_output_tdt["output_directory"]).name
+    def output_directory(self, step5_output_tdt, tmp_path) -> Path:
+        """The run's outputs, copied beside the mixed session the way GuPPy writes them."""
+        destination = (
+            Path(default_output_root_folder(base_dir=str(tmp_path)))
+            / "mixed_session"
+            / Path(step5_output_tdt["output_directory"]).name
+        )
+        shutil.copytree(step5_output_tdt["output_directory"], destination)
+        return destination
 
     def test_the_traces_still_resolve_to_the_acquisition_format(self, mixed_session):
         assert resolve_acquisition_format(str(mixed_session)) == "tdt"
@@ -394,8 +402,8 @@ class TestStep7EndToEnd:
             selected_runs={str(session_with_metadata): [parse_run_name(str(output_directory))]},
         )
 
-        # Named after the full output directory so exports from several runs stay distinct.
-        nwbfile_path = output_directory / f"{output_directory.name}.nwb"
+        # Named after the session and run so exports from several runs stay distinct.
+        nwbfile_path = output_directory / f"{run_folder_label(str(output_directory))}.nwb"
         assert nwbfile_path.exists()
 
         with NWBHDF5IO(str(nwbfile_path), "r") as io:

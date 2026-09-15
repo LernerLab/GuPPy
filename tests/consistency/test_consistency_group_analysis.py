@@ -49,7 +49,7 @@ def test_consistency_group_analysis(tmp_path):
     standard_output_dir = TESTING_DATA / STANDARD_OUTPUT_SUBDIR
     assert standard_output_dir.is_dir(), f"Standard output not found: {standard_output_dir}"
 
-    tmp_base = tmp_path / "data_root"
+    tmp_base = tmp_path / "input_root_folder"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
     session_copies = []
@@ -95,4 +95,7 @@ def test_consistency_group_analysis(tmp_path):
         # visualizer could read recording-site names off their filenames. Sites now come
         # from storesList.csv, so a group no longer writes them.
         name_map={"z_score_region.hdf5": None},
+        # A group labels each member run by its path below the output root folder, where the
+        # reference was written when a run folder carried its session in its own name.
+        label_map={f"{session}_output_1": f"{session}/output_1" for session in (Path(s).name for s in SESSION_SUBDIRS)},
     )

@@ -291,6 +291,9 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
         "psth_progress": sidebar.psth_progress,
         "group_progress": sidebar.group_progress,
         "group_folders_selector": parameter_form.group_folders_selector,
+        "same_root_checkbox": parameter_form.same_root_checkbox,
+        "output_root_selector": parameter_form.output_root_selector,
+        "input_root_selector": parameter_form.input_root_selector,
         "remove_artifacts_progress": sidebar.remove_artifacts_progress,
     }
 

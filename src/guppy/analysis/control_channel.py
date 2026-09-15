@@ -120,7 +120,7 @@ def create_control_channel(filepath: str, store_array: np.ndarray, window: int =
             write_hdf5(control, event_name, filepath, "data")
             data_dict = {"timestamps": timestampNew, "data": control, "sampling_rate": sampling_rate}
             df = pd.DataFrame(data_dict)
-            df.to_csv(Path(filepath).parent / (event.lower() + ".csv"), index=False)
+            df.to_csv(Path(filepath) / (event.lower() + ".csv"), index=False)
             logger.info("Control channel from signal channel created using curve-fitting")
 
 

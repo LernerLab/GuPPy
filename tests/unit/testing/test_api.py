@@ -20,7 +20,7 @@ class FakeTemplate:
 
 @pytest.fixture
 def api_workspace(tmp_path):
-    base_directory = tmp_path / "data_root"
+    base_directory = tmp_path / "input_root_folder"
     base_directory.mkdir()
 
     session_directory = base_directory / "session_one"
@@ -288,9 +288,16 @@ class TestLocateRunFolder:
         session_directory.mkdir()
         return session_directory
 
-    def test_skips_run_folders_without_a_stores_list(self, session):
-        (session / "session_one_output_1").mkdir()
-        run_folder_with_stores_list = session / "session_one_output_2"
+    @pytest.fixture
+    def run_directory_root(self, tmp_path, session):
+        """The folder under the default output root that holds the session's run folders."""
+        mirrored = Path(testing_api.default_output_root_folder(base_dir=str(tmp_path))) / session.name
+        mirrored.mkdir(parents=True)
+        return mirrored
+
+    def test_skips_run_folders_without_a_stores_list(self, session, run_directory_root):
+        (run_directory_root / "output_1").mkdir()
+        run_folder_with_stores_list = run_directory_root / "output_2"
         run_folder_with_stores_list.mkdir()
         (run_folder_with_stores_list / "storesList.csv").write_text("storenames,storesList\n")
 
@@ -300,9 +307,9 @@ class TestLocateRunFolder:
         with pytest.raises(AssertionError, match="no output directory was created"):
             testing_api.locate_run_folder(session=str(session))
 
-    def test_raises_when_no_run_folder_holds_a_stores_list(self, session):
-        (session / "session_one_output_1").mkdir()
-        (session / "session_one_output_2").mkdir()
+    def test_raises_when_no_run_folder_holds_a_stores_list(self, session, run_directory_root):
+        (run_directory_root / "output_1").mkdir()
+        (run_directory_root / "output_2").mkdir()
 
         with pytest.raises(AssertionError, match="contains storesList.csv"):
             testing_api.locate_run_folder(session=str(session))
@@ -326,7 +333,7 @@ class TestParseStoreLabel:
 @pytest.fixture
 def staged_csv_session(tmp_path):
     """Copy the csv stub session into a temporary workspace, without any prior outputs."""
-    base_directory = tmp_path / "data_root"
+    base_directory = tmp_path / "input_root_folder"
     base_directory.mkdir()
     session_copy = base_directory / "sample_data_csv_1"
     shutil.copytree(
@@ -338,6 +345,24 @@ def staged_csv_session(tmp_path):
 
 
 class TestStep1Driver:
+    def test_the_run_folder_lands_beside_the_session_and_leaves_it_untouched(self, staged_csv_session):
+        session = Path(staged_csv_session["session"])
+        before = sorted(path.name for path in session.iterdir())
+
+        testing_api.step1(
+            base_dir=staged_csv_session["base_dir"],
+            selected_folders=[str(session)],
+            store_id_to_store_label={
+                "Sample_Control_Channel": "control_region",
+                "Sample_Signal_Channel": "signal_region",
+                "Sample_TTL": "ttl",
+            },
+        )
+
+        expected_base = Path(testing_api.default_output_root_folder(base_dir=staged_csv_session["base_dir"]))
+        assert (expected_base / "sample_data_csv_1" / "output_1" / "storesList.csv").exists()
+        assert sorted(path.name for path in session.iterdir()) == before
+
     def test_unknown_store_id_raises(self, staged_csv_session):
         with pytest.raises(ValueError, match="not discovered"):
             testing_api.step1(
@@ -382,15 +407,20 @@ class TestStep1Driver:
             isosbestic_control=False,
         )
 
-        stores_list_path = Path(staged_csv_session["session"]) / "sample_data_csv_1_output_1" / "storesList.csv"
-        assert Path(stores_list_path).exists()
+        run_folder = testing_api.locate_run_folder(session=staged_csv_session["session"])
+        assert (Path(run_folder) / "storesList.csv").exists()
 
 
 @pytest.fixture
 def npm_template_two_timestamp_columns(panel_extension):
     """Label Stores template for the NPM_3 stub: two timestamp columns, split checkbox on file 1."""
     folder_path = Path(str(STUBBED_TESTING_DATA)) / "npm" / "sampleData_NPM_3"
-    input_parameters = {"noChannels": 2}
+    npm_root = str(folder_path.parent)
+    input_parameters = {
+        "noChannels": 2,
+        "input_root_folder": npm_root,
+        "output_root_folder": npm_root,
+    }
     _, _, npm_interactive = read_header(input_parameters, 2, folder_path)
     return build_store_labeling_template(
         [], [], folder_path, inputParameters=input_parameters, npm_interactive=npm_interactive
@@ -401,7 +431,12 @@ def npm_template_two_timestamp_columns(panel_extension):
 def npm_template_single_timestamp_column(panel_extension):
     """Label Stores template for the NPM_4 stub: one timestamp column, split checkbox on file 1."""
     folder_path = Path(str(STUBBED_TESTING_DATA)) / "npm" / "sampleData_NPM_4"
-    input_parameters = {"noChannels": 2}
+    npm_root = str(folder_path.parent)
+    input_parameters = {
+        "noChannels": 2,
+        "input_root_folder": npm_root,
+        "output_root_folder": npm_root,
+    }
     _, _, npm_interactive = read_header(input_parameters, 2, folder_path)
     return build_store_labeling_template(
         [], [], folder_path, inputParameters=input_parameters, npm_interactive=npm_interactive

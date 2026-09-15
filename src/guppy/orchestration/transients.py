@@ -34,6 +34,7 @@ from ..analysis.transients import analyze_transients
 from ..utils import progress
 from ..utils.utils import (
     get_all_stores_for_combining_data,
+    parse_session_basename,
     select_run_folders,
 )
 
@@ -83,7 +84,7 @@ def findFreqAndAmp(
         z_score, timestamps, peaksInd, peaks_occurrences, freq_and_amp = analyze_transients(
             timestamps, window, numProcesses, highAmpFilt, transientsThresh, sampling_rate, z_score
         )
-        fileName = [Path(filepath).parent.name]
+        fileName = [parse_session_basename(filepath)]
         write_freq_and_amp_to_hdf5(
             filepath, freq_and_amp, basename, index=fileName, columns=["freq (events/min)", "amplitude"]
         )
@@ -263,13 +264,12 @@ def execute_find_freq_and_amp(
     numProcesses : int
         Number of parallel worker processes.
     """
-    selected_runs = inputParameters.get("selected_runs") or {}
     for i in range(len(session_folders)):
         logger.debug(
             "Finding transients in z-score data of %s and calculating frequency and amplitude.", session_folders[i]
         )
         filepath = session_folders[i]
-        run_folders = select_run_folders(filepath, selected_runs.get(filepath))
+        run_folders = select_run_folders(filepath, inputParameters=inputParameters)
         for j in range(len(run_folders)):
             filepath = run_folders[j]
             findFreqAndAmp(filepath, inputParameters, window=moving_window, numProcesses=numProcesses)
@@ -293,11 +293,10 @@ def execute_find_freq_and_amp_combined(
     numProcesses : int
         Number of parallel worker processes.
     """
-    selected_runs = inputParameters.get("selected_runs") or {}
     run_folders = []
     for i in range(len(session_folders)):
         filepath = session_folders[i]
-        run_folders.append(select_run_folders(filepath, selected_runs.get(filepath)))
+        run_folders.append(select_run_folders(filepath, inputParameters=inputParameters))
     run_folders = list(np.concatenate(run_folders).flatten())
     combined_output_groups = get_all_stores_for_combining_data(run_folders)
     for i in range(len(combined_output_groups)):

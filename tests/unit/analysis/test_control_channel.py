@@ -93,24 +93,24 @@ def test_add_control_channel_raises_when_isosbestic_disabled_but_unmatched_contr
 
 
 def test_create_control_channel_writes_control_hdf5_and_csv(tmp_path):
-    session_dir = tmp_path / "session"
-    session_dir.mkdir()
+    run_folder = tmp_path / "session_output_1"
+    run_folder.mkdir()
     timestamps = np.linspace(0, 10, 200)
     # Pure exponential so curve_fit converges to known params (a=3, b=10, c=5)
     signal = 3.0 + 10.0 * np.exp(-timestamps / 5.0)
     sampling_rate = np.full(timestamps.shape, np.nan)
     sampling_rate[0] = 100.0
-    with h5py.File(session_dir / "signal_dms.hdf5", "w") as file:
+    with h5py.File(run_folder / "signal_dms.hdf5", "w") as file:
         file.create_dataset("data", data=signal)
-    with h5py.File(session_dir / "timeCorrection_dms.hdf5", "w") as file:
+    with h5py.File(run_folder / "timeCorrection_dms.hdf5", "w") as file:
         file.create_dataset("timestampNew", data=timestamps)
         file.create_dataset("sampling_rate", data=sampling_rate)
     arr = np.array([["cntrl0", "sig0"], ["control_dms", "signal_dms"]])
-    create_control_channel(str(session_dir), arr, window=101)
-    assert (session_dir / "control_dms.hdf5").exists()
-    with h5py.File(session_dir / "control_dms.hdf5", "r") as file:
+    create_control_channel(str(run_folder), arr, window=101)
+    assert (run_folder / "control_dms.hdf5").exists()
+    with h5py.File(run_folder / "control_dms.hdf5", "r") as file:
         control_data = file["data"][:]
-    dataframe = pd.read_csv(tmp_path / "cntrl0.csv")
+    dataframe = pd.read_csv(run_folder / "cntrl0.csv")
     np.testing.assert_allclose(dataframe["timestamps"].values, timestamps)
     # CSV and HDF5 should contain identical control data
     np.testing.assert_allclose(dataframe["data"].values, control_data)

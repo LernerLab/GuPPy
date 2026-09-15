@@ -16,10 +16,14 @@ def store_labeling_server_url(panel_extension, ui_base_dir, tmp_path_factory):
     Yields the base URL of the running server.
     """
     temporary_folder = tmp_path_factory.mktemp("store_labeling_session")
+    # The page resolves run folders from the roots; pointing both at the session's parent
+    # puts this session's runs inside it.
+    root = str(temporary_folder.parent)
     template = build_store_labeling_template(
         events=["Dv1A", "Dv1B"],
         flags=[],
         folder_path=str(temporary_folder),
+        inputParameters={"input_root_folder": root, "output_root_folder": root},
     )
     port = scanPortsAndFind()
     pn.serve(template, port=port, show=False, threaded=True)
