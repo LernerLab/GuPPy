@@ -82,8 +82,8 @@ full-length recordings plottable.
 ### `frontend/`
 
 The Panel widget components: the sidebar, the folder and run selectors, the parameter form, the
-store-label configuration page, the artifact-window editor, and the visualization dashboard. Each is
-a class that builds its own widgets and exposes their values.
+store-label configuration page, the artifact-window editor, the DANDI catalog browser, and the
+visualization dashboard. Each is a class that builds its own widgets and exposes their values.
 
 Validation at this layer covers only what the form can judge by itself — a required folder that was
 not selected, a missing DANDI URI. Anything needing cross-parameter context belongs in orchestration
@@ -100,6 +100,14 @@ handles run-folder discovery and naming; `progress.py` provides the step progres
 `@step_error_handler` decorator that surfaces a failed step in the GUI; `validation.py` holds the
 validation helpers reused across layers (`validate_window_bounds`, `validate_peak_windows`,
 `validate_required_folder_selection`, and friends).
+
+`dandi_catalog.py` sits here too, as the archive-side counterpart to the DANDI extractor: it
+searches the DANDI REST API for fiber photometry dandisets and reduces each hit to a
+`DandisetSummary` the browser can tabulate, and it opens one NWB asset's HDF5 header over the
+network to report the channels, sites and indicators it holds plus a decimated slice of its
+traces. The split between the two halves is forced by the archive — DANDI's structured metadata
+carries no notion of fiber photometry, so the catalog can only search free text, and anything
+authoritative has to be read out of the files.
 
 ### `testing/`
 

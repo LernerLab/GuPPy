@@ -9,9 +9,10 @@ Re-run this script whenever the GUI changes.
 Playwright browser binaries must be installed:
     uv run --group test playwright install chromium
 
-The DANDI screenshots query the live DANDI Archive for the demo dandiset's asset
-list, so this script needs network access. No API token is required: browsing a
-public dandiset is unauthenticated (only streaming an asset's data authenticates).
+The DANDI screenshots query the live DANDI Archive for the photometry catalog, the demo
+dandiset's asset list, and the header and opening seconds of the demo asset, so this script
+needs network access. No API token is required: browsing a public dandiset and reading an
+asset's header are unauthenticated (only streaming an asset's bulk data authenticates).
 """
 
 from __future__ import annotations
@@ -31,6 +32,7 @@ from guppy.analysis.tonic import compute_tonic_means
 from guppy.frontend.artifact_windows_page import ArtifactWindowSelector
 from guppy.frontend.covariate_correlation_view import build_covariate_correlation_view
 from guppy.frontend.custom_events_config import CustomEventsConfig
+from guppy.frontend.dandi_browser import DandiBrowser, PhotometryPreviewPane
 from guppy.frontend.dandi_selector import DandiSelector
 from guppy.frontend.frontend_utils import scanPortsAndFind
 from guppy.frontend.group_labeling import GroupLabelingPage
@@ -45,6 +47,7 @@ from guppy.orchestration.store_labeling import build_store_labeling_template
 from guppy.testing.covariate_session import SESSION_NAME as COVARIATE_SESSION_NAME
 from guppy.testing.covariate_session import run_covariate_session
 from guppy.utils._hdf5_io import write_hdf5
+from guppy.utils.dandi_catalog import preview_asset
 from guppy.utils.nwb_metadata import (
     Channel,
     build_metadata_dict,
@@ -772,7 +775,7 @@ def screenshot_dandi_source_selection(page: Page) -> None:
     page.wait_for_timeout(1500)
     page.screenshot(
         path=OUTPUT_DIR / "dandi_source_selection.png",
-        clip={"x": 0, "y": 80, "width": 1280, "height": 355},
+        clip={"x": 0, "y": 80, "width": 1280, "height": 465},
     )
     print("Saved dandi_source_selection.png")
 
@@ -826,6 +829,64 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
             run_folder.rmdir()
 
 
+def screenshot_dandi_catalog_search(page: Page) -> None:
+    """How-to: the catalog browser, searched and filtered down to one brain region.
+
+    Runs the real photometry search against the archive, then filters it the way the guide
+    describes, so the table and the row count in shot are the archive's own.
+    """
+    browser = DandiBrowser()
+    browser.refresh_catalog()
+    browser.brain_region_filter.value = ["Substantia nigra"]
+
+    template = pn.template.BootstrapTemplate(title="Find a fiber photometry dandiset")
+    template.main.append(pn.Card(browser.panel, title="Find a fiber photometry dandiset", width=980))
+    url = _serve(template)
+
+    page.set_viewport_size({"width": 1280, "height": 1200})
+    page.goto(url)
+    page.get_by_text("Search DANDI").first.wait_for()
+    page.wait_for_timeout(2500)
+    page.screenshot(
+        path=OUTPUT_DIR / "dandi_catalog_search.png",
+        clip={"x": 0, "y": 0, "width": 1030, "height": 890},
+    )
+    print("Saved dandi_catalog_search.png")
+    page.set_viewport_size(VIEWPORT)
+    pn.state.kill_all_servers()
+
+
+def screenshot_dandi_dataset_preview(page: Page) -> None:
+    """How-to: the preview of the demo asset — its series, channel table and example traces.
+
+    Streams the same asset the live DANDI test pins, so the channel table in shot is the one
+    the guide's store-label mapping is taken from.
+    """
+    pane = PhotometryPreviewPane()
+    pane.show(
+        preview=preview_asset(
+            dandiset_id=DANDI_DEMO_DANDISET_ID,
+            asset_path=f"{DANDI_DEMO_SUBJECT}/{DANDI_DEMO_ASSET}",
+        )
+    )
+
+    template = pn.template.BootstrapTemplate(title="NWB file preview")
+    template.main.append(pn.Card(pane.panel, title="Preview", width=980))
+    url = _serve(template)
+
+    page.set_viewport_size({"width": 1280, "height": 1200})
+    page.goto(url)
+    page.get_by_text("Store name").first.wait_for(timeout=30000)
+    page.wait_for_timeout(3000)
+    page.screenshot(
+        path=OUTPUT_DIR / "dandi_dataset_preview.png",
+        clip={"x": 0, "y": 0, "width": 1030, "height": 800},
+    )
+    print("Saved dandi_dataset_preview.png")
+    page.set_viewport_size(VIEWPORT)
+    pn.state.kill_all_servers()
+
+
 def screenshot_dandi_asset_browser(page: Page) -> None:
     """How-to: the DANDI asset browser descended into a subject folder, one asset selected.
 
@@ -833,9 +894,12 @@ def screenshot_dandi_asset_browser(page: Page) -> None:
     pushed down by the sidebar and card chrome. ``FileSelector`` computes its
     selected/unselected lists at construction, so the widget is built with ``value``
     already set and swapped into the selector's slot rather than assigned afterwards.
+    The path filter is narrowed to the demo subject, which is the filter whose effect the
+    browser below it shows: the tree in shot holds that subject's sessions and nothing else.
     """
     selector = DandiSelector()
     selector.dandiset_input.value = DANDI_DEMO_DANDISET_ID
+    selector.asset_name_filter.value = DANDI_DEMO_SUBJECT
     subject_directory = str(Path(selector._current_mirror_root) / DANDI_DEMO_SUBJECT)
     file_selector = pn.widgets.FileSelector(
         subject_directory,
@@ -858,7 +922,7 @@ def screenshot_dandi_asset_browser(page: Page) -> None:
     page.wait_for_timeout(1500)
     page.screenshot(
         path=OUTPUT_DIR / "dandi_asset_browser.png",
-        clip={"x": 0, "y": 335, "width": 1130, "height": 430},
+        clip={"x": 0, "y": 500, "width": 1130, "height": 580},
     )
     print("Saved dandi_asset_browser.png")
     page.set_viewport_size(VIEWPORT)
@@ -998,6 +1062,8 @@ def main() -> None:
             screenshot_data_selection(page)
             screenshot_parameters(page)
             screenshot_dandi_source_selection(page)
+            screenshot_dandi_catalog_search(page)
+            screenshot_dandi_dataset_preview(page)
             screenshot_dandi_asset_browser(page)
             screenshot_label_stores(page, tmp_path)
             screenshot_label_stores_configured(page, tmp_path)

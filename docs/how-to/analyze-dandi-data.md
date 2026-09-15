@@ -20,40 +20,135 @@ export DANDI_API_KEY=<your key>
 Running `dandi login` once instead stores the key in your keyring, where GuPPy
 also finds it.
 
-Browsing a dandiset does not need a key, so the asset list loads either way. If
-the key is missing, the failure surfaces later: **Step 1: Label Stores** stalls
-while the terminal that launched `guppy` silently waits at a token prompt you
-cannot see.
+Searching the archive, listing a dandiset's assets and previewing a file all
+read public data, so they work without a key. If the key is missing, the failure
+surfaces later: **Step 1: Label Stores** stalls while the terminal that launched
+`guppy` silently waits at a token prompt you cannot see.
 
 GuPPy reads the dandiset's `draft` version.
 
 ## Choosing a dandiset and assets
 
-1. In **Input Folder Selection**, set **Data Source** to `dandi`. The local file
-   browser is replaced by the DANDI browser.
+In **Input Folder Selection**, set **Data Source** to `dandi`. The local file
+browser is replaced by the DANDI browser, which has its own numbered steps 1–4.
+These are not the pipeline's Steps 1–5 in the sidebar.
 
-   ```{image} ../_static/images/dandi_source_selection.png
-   :alt: The Input Folder Selection card with the Data Source toggle switched from local to dandi, showing the DANDI source panel, a Dandiset ID field containing 000971, and a status line reading "Dandiset 000971: 4139 NWB asset(s) loaded."
-   :width: 100%
-   ```
+```{image} ../_static/images/dandi_source_selection.png
+:alt: The Input Folder Selection card with the Data Source toggle switched from local to dandi, showing the DANDI source panel's four steps, the collapsed "Find a fiber photometry dandiset" card, a Dandiset ID field containing 000971, and a status line reading "Dandiset 000971: 4139 NWB asset(s) found ranging 212 KB - 564.0 MB."
+:width: 100%
+```
 
-   The DANDI panel has its own numbered steps 1–3. These are not the pipeline's
-   Steps 1–5 in the sidebar.
+### Step 1: Find a dandiset
 
-2. Enter a six-digit Dandiset ID. Its assets load automatically and the status
-   line reports how many were found. A malformed ID or an unknown dandiset is
-   reported inline.
-3. Browse the subject folders and select one or more NWB files. Navigation works
-   the same as local mode — click a folder to descend, Ctrl/Cmd-click to
-   multi-select. Only `.nwb` assets are listed.
+Open **Find a fiber photometry dandiset** and press **Search DANDI**. This runs
+the archive's full-text search for the photometry terms and builds a catalog of
+every dandiset that matches, one row each.
 
-   ```{image} ../_static/images/dandi_asset_browser.png
-   :alt: The DANDI asset browser descended into the sub-112-283 folder, listing that subject's NWB session files, with sub-112-283_ses-FP-PS-2019-06-20T09-32-04_behavior.nwb moved into the Selected files pane
-   :width: 100%
-   ```
+```{image} ../_static/images/dandi_catalog_search.png
+:alt: The Find a fiber photometry dandiset card with the Brain region filter set to Substantia nigra, a status line reading "Showing 4 of 25 dandiset(s)", and a sortable table of four dandisets with their species, subject counts, file counts, sizes and detected brain regions
+:width: 100%
+```
 
-4. Choose a local output directory. GuPPy creates one session folder per
-   selected asset, named after the asset filename minus `.nwb`.
+The filters below the search box narrow the catalog without going back to the
+archive, so they respond immediately:
+
+| Filter | What it matches |
+|--------|-----------------|
+| **Search terms** | Every word must appear somewhere in the dandiset's title, abstract, keywords or study targets |
+| **Brain region** | A region named anywhere in that same text |
+| **Indicator** | A sensor family named there — GCaMP, dLight, GRAB-DA, and so on |
+| **Species** | The species DANDI recorded for the dandiset's subjects |
+| **Approach / technique** | DANDI's own experimental-approach and measurement-technique terms |
+| **Min. subjects**, **Min. NWB files** | The dandiset's totals, for finding datasets large enough to group |
+| **Published versions only** | Drops draft-only dandisets, which can still change |
+
+Each dropdown offers only the values present in the current catalog, so every
+option narrows the table rather than emptying it. The **Brain regions** and
+**Indicators** columns are read out of the text a submitter wrote, which is the
+only place DANDI records either — so a dataset whose abstract never names its
+target site shows a blank there even though the files know the site. Clearing
+**Fiber photometry datasets only** sends your search terms to the archive
+itself instead, which reaches all of DANDI rather than the photometry catalog.
+
+Selecting a row shows that dandiset's full metadata underneath: its citation
+details, license, subjects, keywords and abstract, with a link to its page on
+dandiarchive.org.
+
+### Reading what is inside a file
+
+**Inspect largest NWB file** streams the header of the dandiset's biggest asset
+and reports what it holds. Within a dandiset the recordings are the large files,
+so the biggest one is a representative recording.
+
+```{image} ../_static/images/dandi_dataset_preview.png
+:alt: The preview of sub-112-283_ses-FP-PS-2019-06-20T09-32-04_behavior.nwb, listing one response series of 4 channels at 1017.25 Hz over 61.6 minutes, the session's event objects and subject, a table of four channels giving their brain regions, indicator and wavelengths, and an overlay plotting the first 60 seconds of all four channels
+:width: 100%
+```
+
+The preview covers the three things that decide whether a file is worth
+analyzing:
+
+- **The response series**, with its channel count, sampling rate and duration,
+  plus the event objects GuPPy can align a PSTH to and the subject the session
+  came from.
+- **A channel table**, giving each channel's recording site, indicator and
+  excitation and emission wavelengths. Its **Store name** column is the store id
+  **Step 1: Label Stores** will show for that channel, and **Suggested label**
+  is the GuPPy label its wavelength and site imply — 405–420 nm is isosbestic,
+  so `control_<site>`, and anything longer is `signal_<site>`. A file that
+  stores derived traces as their own series repeats a site across them; pick the
+  pair you want to analyze.
+- **The first 60 seconds of every channel**, so you can see the traces before
+  committing to a full streaming run. When the file holds more than one response
+  series, **Traces from series** switches between them. The window starts at the
+  recording's first sample, so a session that begins with the LED turning on
+  opens on that transient — which is what **Eliminate first few seconds** is
+  for. Pan and zoom to look past it.
+
+A file with no `FiberPhotometryResponseSeries` in it says so instead, and lists
+whatever event objects it does hold. That is worth knowing before Step 2: many
+dandisets store each session's behavioral events in a small NWB file of their
+own alongside the recording, and those files carry no trace for GuPPy to read.
+
+### Step 2: Load the dandiset
+
+**Analyze this dandiset** fills in the Dandiset ID for you and loads its assets.
+You can also type a six-digit ID straight into the field and skip the catalog.
+Either way the status line reports how many NWB assets were found and the range
+of their sizes. A malformed ID or an unknown dandiset is reported inline.
+
+### Step 3: Select the NWB files
+
+Browse the subject folders and select one or more NWB files. Navigation works
+the same as local mode — click a folder to descend, Ctrl/Cmd-click to
+multi-select. Only `.nwb` assets are listed.
+
+```{image} ../_static/images/dandi_asset_browser.png
+:alt: The DANDI asset browser with Asset path contains set to sub-112-283, a status line reading "Showing 37 of 4139 NWB asset(s) in the tree below", that subject's session files listed in the File Browser pane, and sub-112-283_ses-FP-PS-2019-06-20T09-32-04_behavior.nwb moved into the Selected files pane
+:width: 100%
+```
+
+Two filters narrow the tree, which matters in a dandiset with thousands of
+assets:
+
+- **Asset path contains** keeps the assets whose path contains the text you
+  type, so a subject folder or a filename fragment cuts the tree down to it.
+- **Minimum file size (MB)** keeps the assets at least that large. This is the
+  cheapest way to separate recordings from behavior-only sidecar files, whose
+  sizes differ by orders of magnitude: in dandiset `000971` a floor of 5 MB
+  leaves 63 assets of 4139, and those 63 are the photometry sessions.
+
+Both read sizes and paths the archive already reported, so neither costs a
+network round trip.
+
+**Preview selected file** runs the same preview as the catalog's inspect action,
+against the file you selected. Use it to confirm a specific session before
+running it, and to read off the store labels Step 1 will ask for.
+
+### Step 4: Choose an output directory
+
+GuPPy creates one session folder per selected asset, named after the asset
+filename minus `.nwb`.
 
 ## Labeling the streamed stores
 
@@ -62,10 +157,8 @@ Store names come from inside the NWB file, not from filenames. A 2-D
 `<series name>_<column index>`; 1-D series and event objects keep their own
 names.
 
-Column order is not self-describing, so read the file's `FiberPhotometryTable`
-to map columns onto recording sites: each row's `location` names the site, and
-its excitation wavelength tells you the role — 465 nm is the calcium signal,
-405 nm the isosbestic control. For
+Column order is not self-describing, which is what the preview's channel table
+is for: it maps every store name onto the site and wavelength behind it. For
 `sub-112-283_ses-FP-PS-2019-06-20T09-32-04_behavior.nwb` in dandiset `000971`,
 a two-site recording, that gives:
 
