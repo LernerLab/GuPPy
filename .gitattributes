@@ -1,3 +1,8 @@
 # Auto detect text files and perform LF normalization
 * text=auto
 stubbed_testing_data/** filter=lfs diff=lfs merge=lfs -text
+# The stub catalogue is documentation rather than recorded data: it is edited by hand and
+# reviewed in diffs, and as an LFS pointer every edit on two branches conflicts as a pair of
+# opaque hashes that git cannot merge. "!attr" unsets the rule above rather than setting it
+# false, which is what takes the path out of the filter entirely.
+stubbed_testing_data/README.md !filter !diff !merge text
