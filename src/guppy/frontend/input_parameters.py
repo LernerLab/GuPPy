@@ -760,6 +760,10 @@ class ParameterForm:
         """Start the session browser inside the newly chosen input root folder."""
         input_root = self.input_root_folder
         if input_root:
+            # Set root_directory before directory so Panel's `path.startswith(self._root_directory)`
+            # check in FileSelector._dir_change can't silently revert (Windows-specific failure mode
+            # when the constructor's root_directory="/" never prefixes a drive-lettered path).
+            self.files_1.root_directory = input_root
             self.files_1.directory = input_root
             # Moving `directory` alone leaves the browser's own `_cwd` and listing where they
             # were, so the new root would not appear until something else re-enumerated it.
