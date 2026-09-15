@@ -29,11 +29,12 @@ GuPPy reads the dandiset's `draft` version.
 
 ## Choosing a dandiset and assets
 
-1. In **Input Folder Selection**, set **Data Source** to `dandi`. The local file
-   browser is replaced by the DANDI browser.
+1. Set **Data Source**, above the cards at the top of the page, to `dandi`. In
+   **Input Folder Selection** the local file browser is replaced by the DANDI
+   browser.
 
    ```{image} ../_static/images/dandi_source_selection.png
-   :alt: The Input Folder Selection card with the Data Source toggle switched from local to dandi, showing the DANDI source panel, a Dandiset ID field containing 000971, and a status line reading "Dandiset 000971: 4139 NWB asset(s) loaded."
+   :alt: The Data Source toggle at the top of the page switched from local to dandi, with the Input Folder Selection card below it showing the DANDI source panel, a Dandiset ID field containing 000971, and a status line reading "Dandiset 000971: 4139 NWB asset(s) loaded."
    :width: 100%
    ```
 
