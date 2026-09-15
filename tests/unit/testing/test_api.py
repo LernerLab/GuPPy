@@ -288,9 +288,16 @@ class TestLocateRunFolder:
         session_directory.mkdir()
         return session_directory
 
-    def test_skips_run_folders_without_a_stores_list(self, session):
-        (session / "session_one_output_1").mkdir()
-        run_folder_with_stores_list = session / "session_one_output_2"
+    @pytest.fixture
+    def run_directory_root(self, tmp_path, session):
+        """The folder under the default output root that holds the session's run folders."""
+        mirrored = Path(testing_api.default_output_root_folder(base_dir=str(tmp_path))) / session.name
+        mirrored.mkdir(parents=True)
+        return mirrored
+
+    def test_skips_run_folders_without_a_stores_list(self, session, run_directory_root):
+        (run_directory_root / "output_1").mkdir()
+        run_folder_with_stores_list = run_directory_root / "output_2"
         run_folder_with_stores_list.mkdir()
         (run_folder_with_stores_list / "storesList.csv").write_text("storenames,storesList\n")
 
@@ -300,9 +307,9 @@ class TestLocateRunFolder:
         with pytest.raises(AssertionError, match="no output directory was created"):
             testing_api.locate_run_folder(session=str(session))
 
-    def test_raises_when_no_run_folder_holds_a_stores_list(self, session):
-        (session / "session_one_output_1").mkdir()
-        (session / "session_one_output_2").mkdir()
+    def test_raises_when_no_run_folder_holds_a_stores_list(self, session, run_directory_root):
+        (run_directory_root / "output_1").mkdir()
+        (run_directory_root / "output_2").mkdir()
 
         with pytest.raises(AssertionError, match="contains storesList.csv"):
             testing_api.locate_run_folder(session=str(session))
