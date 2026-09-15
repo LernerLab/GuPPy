@@ -7,7 +7,7 @@ import holoviews as hv
 import pytest
 
 from guppy.frontend.visualization_dashboard import VisualizationDashboard
-from guppy.testing.api import step1, step2, step3, step4, step5
+from guppy.testing.api import locate_run_folder, step1, step2, step3, step4, step5
 from guppy_test_data import STUBBED_TESTING_DATA
 
 
@@ -102,16 +102,8 @@ def test_combine_data(tmp_path):
     )
 
     # Validate outputs exist in the temp copy
-    session_copy = selected_folders[0]  # Outputs are written to the first session folder
-    basename = Path(session_copy).name
-    run_folders = sorted(list(Path(session_copy).glob(f"{basename}_output_*")))
-    assert run_folders, f"No output directories found in {session_copy}"
-    out_dir = None
-    for d in run_folders:
-        if (Path(d) / "storesList.csv").exists():
-            out_dir = d
-            break
-    assert out_dir is not None, f"No storesList.csv found in any output directory under {session_copy}"
+    session_copy = selected_folders[0]  # Outputs are written to the first session's run folder
+    out_dir = locate_run_folder(session=str(session_copy))
     stores_fp = Path(out_dir) / "storesList.csv"
     assert Path(stores_fp).exists(), "Missing storesList.csv after Step 1/2/3"
 

@@ -4,7 +4,7 @@ from pathlib import Path
 import h5py
 import pytest
 
-from guppy.testing.api import step1, step2, step3, step4
+from guppy.testing.api import locate_run_folder, step1, step2, step3, step4
 from guppy_test_data import STUBBED_TESTING_DATA
 
 
@@ -443,15 +443,7 @@ def test_mixed_modality_nwb_npm(tmp_path):
 
 
 def _assert_pipeline_outputs(session_copy, expected_recording_site, expected_ttl):
-    basename = Path(session_copy).name
-    run_folders = sorted(list(Path(session_copy).glob(f"{basename}_output_*")))
-    assert run_folders, f"No output directories found in {session_copy}"
-    out_dir = None
-    for d in run_folders:
-        if (Path(d) / "storesList.csv").exists():
-            out_dir = d
-            break
-    assert out_dir is not None, f"No storesList.csv found in any output directory under {session_copy}"
+    out_dir = locate_run_folder(session=str(session_copy))
     assert (Path(out_dir) / "storesList.csv").exists(), "Missing storesList.csv"
 
     timecorr = Path(out_dir) / (f"timeCorrection_{expected_recording_site}.hdf5")

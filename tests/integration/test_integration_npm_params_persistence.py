@@ -14,7 +14,7 @@ from pathlib import Path
 import h5py
 import numpy as np
 
-from guppy.testing.api import step1, step2
+from guppy.testing.api import locate_run_folder, step1, step2
 from guppy_test_data import STUBBED_TESTING_DATA
 
 
@@ -39,7 +39,7 @@ def test_step2_reproduces_split_events_from_persisted_params(tmp_path):
         npm_split_events=[False, True],
     )
 
-    run_folders = sorted(list(Path(session_copy).glob("sampleData_NPM_4_output_*")))
+    run_folders = [locate_run_folder(session=str(session_copy))]
     assert run_folders, "Step 1 did not create an output directory"
     run_folder = run_folders[0]
     assert (Path(run_folder) / ".npm_params.json").exists(), "Step 1 did not persist .npm_params.json"
@@ -73,7 +73,7 @@ def test_step2_reads_timestamps_on_the_unit_recorded_by_step1(tmp_path):
         npm_time_unit="milliseconds",
     )
 
-    run_folder = sorted(list(Path(session_copy).glob("sampleData_NPM_5_output_*")))[0]
+    run_folder = locate_run_folder(session=str(session_copy))
     with (Path(run_folder) / ".npm_params.json").open() as npm_params_file:
         npm_params = json.load(npm_params_file)
     assert npm_params["npm_time_unit"] == "milliseconds"
