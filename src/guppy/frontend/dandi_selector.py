@@ -121,8 +121,9 @@ class DandiSelector:
             ),
             self._asset_file_selector_slot,
             pn.pane.Markdown(
-                "One session folder is created per selected asset, under the data root chosen "
-                "in the Root Directory Selection card."
+                "One session folder is created per selected asset, inside the output root folder "
+                "chosen in the Root Folder Selection card. The recording itself is streamed, so "
+                "the folder holds only what the analysis writes into it."
             ),
         )
 

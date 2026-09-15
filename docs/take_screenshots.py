@@ -754,7 +754,7 @@ def screenshot_run_name_section(page: Page, *, run_name: str, filename: str) -> 
 
 
 def screenshot_dandi_source_selection(page: Page) -> None:
-    """How-to: Input Folder Selection with the Data Source toggle set to ``dandi``.
+    """How-to: the DANDI panel, reached with the Data Source toggle set to ``dandi``.
 
     Assigning ``source_mode`` and ``dandiset_input`` fires their param watchers
     synchronously, so the DANDI panel is swapped in and the dandiset's assets are

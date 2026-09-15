@@ -8,6 +8,7 @@
 
 ## Fixes
 - GuPPy now requires tornado 6.5.10 or later, since 6.5.9 broke Bokeh's static-file serving and left the Panel pages unable to load. [PR #520](https://github.com/LernerLab/GuPPy/pull/520)
+- DANDI assets are now materialized as session folders inside the **output root folder** rather than the input root, so streaming a dandiset no longer leaves GuPPy's folders in your raw data. The **Data Source** toggle moves above the cards, where it belongs now that it decides which root folders apply, and DANDI mode hides the input root folder — a streamed session has no local input to sit under. [PR #518](https://github.com/LernerLab/GuPPy/pull/518)
 - Pages that list more than one output folder — the **Run folder** switcher on the preprocessing, artifact and tonic pages, and the transient peak entries — now name each folder by its path below the deepest folder they share, rather than by its own name. Two subjects' `session1` folders produce run folders with the same name, which collapsed them into a single entry and left the second one unreachable. [PR #512](https://github.com/LernerLab/GuPPy/pull/512)
 
 ## Improvements
