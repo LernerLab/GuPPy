@@ -14,7 +14,7 @@ By the end you will have:
 
 ## Prerequisites
 
-- **A completed run.** Work through [Your First Analysis](first_analysis.md) first. It leaves you with `stubbed_testing_data/csv/sample_data_csv_1/sample_data_csv_1_output_1/`, the run folder every example below reads. If you named your run something else, or ran the pipeline a second time, adjust the path.
+- **A completed run.** Work through [Your First Analysis](first_analysis.md) first. It leaves you with `guppy_output/sample_data_csv_1/output_1/`, the run folder every example below reads. If you named your run something else, or ran the pipeline a second time, adjust the path.
 
 - **No extra installation.** `h5py`, `pandas`, `numpy` and `matplotlib` are all GuPPy dependencies, so a working GuPPy environment already has them. Run the code from a Python session, a script, or a notebook — whatever you normally use.
 
@@ -23,7 +23,7 @@ Every example starts from the run folder:
 ```python
 from pathlib import Path
 
-run_folder = Path("stubbed_testing_data/csv/sample_data_csv_1/sample_data_csv_1_output_1")
+run_folder = Path("guppy_output/sample_data_csv_1/output_1")
 ```
 
 ## The two HDF5 extensions

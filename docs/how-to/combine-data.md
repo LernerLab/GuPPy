@@ -29,7 +29,7 @@ its Step 3 outputs. The other folder's outputs are left untouched.
 ## Matching the two halves
 
 GuPPy groups sessions to combine by their **run name** — the suffix on the
-`_output_<run name>` directory Step 1 creates — not by session name. Both
+`output_<run name>` directory Step 1 creates — not by session name. Both
 halves must use the same run name.
 
 1. Run **Step 1: Label Stores** on the first half, labeling its recording
@@ -52,7 +52,7 @@ halves must use the same run name.
    ```
 
 4. Open **Output Folder Selection** and, in **Existing runs (steps 2–5)**,
-   pick each session's matching output run (e.g. both `..._output_1`).
+   pick each session's matching output run (e.g. both `output_1`).
 5. In the **Input Folder Selection** card, set **Combine Data?** to `True`
    (below the file browser, where it qualifies the sessions you just picked).
 
