@@ -167,11 +167,6 @@ class DandiSelector:
             button_type="primary",
             width=260,
             disabled=True,
-            description=(
-                "Reads the header of every listed NWB file straight from the archive and reports "
-                "which of them hold fiber photometry. Nothing is downloaded; a few hundred "
-                "kilobytes per file are read to answer the question."
-            ),
         )
         self.scan_button.on_click(self.scan_assets)
 
