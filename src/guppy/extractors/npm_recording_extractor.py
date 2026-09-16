@@ -331,11 +331,10 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         path = cls._list_npm_files(folder_path)
 
         streams: dict[str, dict[str, np.ndarray]] = {}
-        # Track derived stream names per channel group, in creation order, so the cross-file
-        # pairing (the later groups borrow the first group's timebase) is deterministic. A
-        # group is one channel slot of one file, and the slots are ordered the same way in
-        # every file of a session: by excitation wavelength, or by cycle position.
-        channel_group_names: list[list[str]] = [[] for _ in STRIDE_CHANNEL_SLOTS]
+        # Track derived stream names per file, and within a file per channel group, in creation
+        # order. A group is one channel of one file -- one excitation wavelength, or one cycle
+        # position -- holding that channel's name for each data column, in file order.
+        channel_group_names_per_file: list[list[list[str]]] = []
         # What each derived channel was read from, recorded so a consumer of the run folder can
         # resolve a store back to its source without re-deriving this demultiplexing.
         store_provenance: dict[str, dict[str, object]] = {}
@@ -391,43 +390,39 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
                     source_path=file_path,
                 )
             store_provenance.update(file_provenance)
-            for group_index, channel_group in enumerate(channel_groups):
+            file_channel_group_names = []
+            for channel_group in channel_groups:
+                group_names = []
                 for name, stream in channel_group:
                     streams[name] = stream
-                    channel_group_names[group_index].append(name)
+                    group_names.append(name)
+                file_channel_group_names.append(group_names)
+            channel_group_names_per_file.append(file_channel_group_names)
 
         # Convert every stream to seconds with the session's single timestamp unit, then
         # compute sampling rates. Timestamps keep the acquisition's own clock.
         for stream in streams.values():
             stream["timestamps"] = stream["timestamps"] / divisor
 
-        populated_groups = [names for names in channel_group_names if len(names) > 0]
-        if len({len(names) for names in populated_groups}) > 1:
-            channel_group_counts = {names[0]: len(names) for names in populated_groups}
-            message = (
-                "Number of channel files must match across channel groups. Found per-channel-group "
-                f"counts, keyed by each group's first channel: {channel_group_counts}."
-            )
-            logger.error(message)
-            raise ValueError(message)
-
         # An interleaved recording lights the whole LED cycle within one frame period, and the
         # control fit downstream reads the channels as simultaneous samples, so every channel of
-        # a file is stamped with the first slot's clock and trimmed to the length they share.
-        reference_names = channel_group_names[0]
-        paired_groups = [names for names in channel_group_names[1:] if len(names) > 0]
-        for j in range(len(reference_names)):
-            reference_stream = streams[reference_names[j]]
-            reference_timestamps = reference_stream["timestamps"]
-            sampling_rate = reference_timestamps.shape[0] / (reference_timestamps[-1] - reference_timestamps[0])
-            reference_stream["sampling_rate"] = np.array([sampling_rate])
+        # a file is stamped with that file's first channel's clock and trimmed to the length they
+        # share. The pairing is within a file: a session's files each carry their own clock, and
+        # need not interleave the same channels as each other.
+        for file_channel_group_names in channel_group_names_per_file:
+            reference_names, *paired_groups = file_channel_group_names
+            for column_index, reference_name in enumerate(reference_names):
+                reference_stream = streams[reference_name]
+                reference_timestamps = reference_stream["timestamps"]
+                sampling_rate = reference_timestamps.shape[0] / (reference_timestamps[-1] - reference_timestamps[0])
+                reference_stream["sampling_rate"] = np.array([sampling_rate])
 
-            for paired_names in paired_groups:
-                paired_stream = streams[paired_names[j]]
-                sample_count = min(reference_timestamps.shape[0], paired_stream["data"].shape[0])
-                paired_stream["timestamps"] = reference_timestamps[:sample_count]
-                paired_stream["data"] = paired_stream["data"][:sample_count]
-                paired_stream["sampling_rate"] = np.array([sampling_rate])
+                for paired_names in paired_groups:
+                    paired_stream = streams[paired_names[column_index]]
+                    sample_count = min(reference_timestamps.shape[0], paired_stream["data"].shape[0])
+                    paired_stream["timestamps"] = reference_timestamps[:sample_count]
+                    paired_stream["data"] = paired_stream["data"][:sample_count]
+                    paired_stream["sampling_rate"] = np.array([sampling_rate])
 
         logger.info("Importing of NPM file is done.")
         return streams, flags, store_provenance

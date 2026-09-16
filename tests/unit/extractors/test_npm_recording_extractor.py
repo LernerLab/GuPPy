@@ -596,24 +596,38 @@ def test_discover_raises_for_data_csv_three_columns(tmp_path):
         NpmRecordingExtractor.discover_events_and_flags(folder_path=str(tmp_path), num_ch=2, inputParameters={})
 
 
-def test_discover_raises_when_channel_group_counts_do_not_match(tmp_path):
-    # Two data_np_v2 files with different channel counts (2 vs 3, by LedState) decompose
-    # into unequal per-channel-group counts (chev=2, chod=2, chpr=1), which is rejected.
+def test_files_interleaving_different_leds_are_each_paired_within_themselves(tmp_path):
+    # Two data_np_v2 files carrying different LED sets (415/470 and 415/470/560). Channels are
+    # paired within a file, so each file's channels take that file's own first-channel clock --
+    # b's 560 nm is timed by b, not by whichever channel of a happens to sit at the same index.
     two_channel_csv = (
         "FrameCounter,LedState,Timestamp,Signal\n"
-        "0,0,0.00,0.0\n1,0,0.01,0.0\n2,1,0.02,1.0\n3,2,0.03,2.0\n4,1,0.04,3.0\n5,2,0.05,4.0\n"
-        "6,1,0.06,5.0\n7,2,0.07,6.0\n8,1,0.08,7.0\n9,2,0.09,8.0\n10,1,0.10,9.0\n11,2,0.11,10.0\n"
+        "0,1,0.00,0.0\n1,2,0.01,1.0\n2,1,0.02,2.0\n3,2,0.03,3.0\n4,1,0.04,4.0\n5,2,0.05,5.0\n"
     )
     three_channel_csv = (
         "FrameCounter,LedState,Timestamp,Signal\n"
-        "0,0,0.00,0.0\n1,0,0.01,0.0\n2,1,0.02,1.0\n3,2,0.03,2.0\n4,4,0.04,3.0\n5,1,0.05,4.0\n"
-        "6,2,0.06,5.0\n7,4,0.07,6.0\n8,1,0.08,7.0\n9,2,0.09,8.0\n10,4,0.10,9.0\n11,1,0.11,10.0\n"
+        "0,1,100.00,0.0\n1,2,100.01,1.0\n2,4,100.02,2.0\n3,1,100.03,3.0\n4,2,100.04,4.0\n5,4,100.05,5.0\n"
     )
     (tmp_path / "a_data.csv").write_text(two_channel_csv)
     (tmp_path / "b_data.csv").write_text(three_channel_csv)
 
-    with pytest.raises(ValueError, match=r"Number of channel files must match across channel groups"):
-        NpmRecordingExtractor.discover_events_and_flags(folder_path=str(tmp_path), num_ch=2, inputParameters={})
+    streams = NpmRecordingExtractor(folder_path=str(tmp_path), num_ch=2, npm_time_unit="seconds").decompose()
+
+    assert sorted(streams) == [
+        "a_data_415nm_Signal",
+        "a_data_470nm_Signal",
+        "b_data_415nm_Signal",
+        "b_data_470nm_Signal",
+        "b_data_560nm_Signal",
+    ]
+    # Each file's channels are stamped with that file's own 415 nm clock.
+    np.testing.assert_allclose(streams["a_data_415nm_Signal"]["timestamps"], [0.00, 0.02, 0.04])
+    np.testing.assert_allclose(streams["a_data_470nm_Signal"]["timestamps"], [0.00, 0.02, 0.04])
+    np.testing.assert_allclose(streams["b_data_415nm_Signal"]["timestamps"], [100.00, 100.03])
+    np.testing.assert_allclose(streams["b_data_470nm_Signal"]["timestamps"], [100.00, 100.03])
+    np.testing.assert_allclose(streams["b_data_560nm_Signal"]["timestamps"], [100.00, 100.03])
+    # The data each channel carries is still its own rows'.
+    np.testing.assert_allclose(streams["b_data_560nm_Signal"]["data"], [2.0, 5.0])
 
 
 from guppy_test_data import STUBBED_TESTING_DATA
