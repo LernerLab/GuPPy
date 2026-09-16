@@ -1,6 +1,7 @@
 """Panel components for searching the DANDI Archive and previewing what an NWB asset holds."""
 
 import logging
+from threading import Thread
 
 # holoviews must be imported before the first pn.extension() call so Panel wires up the HoloViews
 # bokeh opts namespace the trace preview's opts rely on. Mirrors the import-then-extension
@@ -12,14 +13,20 @@ import panel as pn
 from ..utils.dandi_catalog import (
     PHOTOMETRY_SEARCH_TERMS,
     AssetPreview,
+    DandisetReference,
     DandisetSummary,
     PhotometryProbe,
+    PhotometryVerdictCache,
     collect_filter_options,
     filter_dandisets,
     format_byte_size,
+    list_dandiset_references,
     list_nwb_assets,
+    order_for_crawl,
     preview_asset,
     search_dandisets,
+    summarize_dandisets,
+    verify_dandisets,
 )
 
 logger = logging.getLogger(__name__)
@@ -30,7 +37,16 @@ hv.extension("bokeh")
 # Width of the browser's widgets inside the 1000px Input Folder Selection card.
 BROWSER_WIDTH = 950
 
-CATALOG_COLUMNS = ("Dandiset", "Name", "Species", "Subjects", "Files", "Size", "Brain regions", "Indicators")
+CATALOG_COLUMNS = (
+    "Dandiset",
+    "Name",
+    "Species",
+    "Subjects",
+    "Files",
+    "Size",
+    "Brain regions",
+    "Indicators",
+)
 CHANNEL_COLUMNS = (
     "Store name",
     "Brain region",
@@ -256,7 +272,13 @@ class PhotometryPreviewPane:
             configuration={"columnDefaults": {"tooltip": True}},
         )
         self.trace_pane = pn.pane.HoloViews(None, width=width)
-        self.panel = pn.Column(self.summary, self.channel_table, self.series_select, self.trace_pane, visible=False)
+        self.panel = pn.Column(
+            self.summary,
+            self.channel_table,
+            self.series_select,
+            self.trace_pane,
+            visible=False,
+        )
 
     def show(self, *, preview: AssetPreview) -> None:
         """Render ``preview`` into the pane and make it visible.
@@ -348,16 +370,28 @@ class DandiBrowser:
         search_function: object = search_dandisets,
         list_assets_function: object = list_nwb_assets,
         preview_function: object = preview_asset,
+        verify_function: object = verify_dandisets,
+        references_function: object = list_dandiset_references,
+        summarize_function: object = summarize_dandisets,
+        verdict_cache: PhotometryVerdictCache | None = None,
         width: int = BROWSER_WIDTH,
     ) -> None:
         self.on_dandiset_selected = on_dandiset_selected
         self.search_function = search_function
         self.list_assets_function = list_assets_function
         self.preview_function = preview_function
+        self.verify_function = verify_function
+        self.references_function = references_function
+        self.summarize_function = summarize_function
+        self.verdict_cache = verdict_cache if verdict_cache is not None else PhotometryVerdictCache()
         self.width = width
 
+        # Summaries of the dandisets verification has confirmed hold photometry, which is
+        # what the table draws from: a row only appears once something has read the files.
         self.summaries: list[DandisetSummary] = []
         self.visible_summaries: list[DandisetSummary] = []
+        # State of the verification or crawl currently running, if any.
+        self._verification: dict[str, object] = {}
         # Set while the filter options are rewritten after a search, so dropping a value that
         # the new catalog no longer offers does not re-run the filters mid-rewrite.
         self._rewriting_filter_options = False
@@ -373,6 +407,12 @@ class DandiBrowser:
         )
         self.search_button = pn.widgets.Button(name="Search DANDI", button_type="primary", width=150)
         self.search_button.on_click(self.refresh_catalog)
+
+        self.crawl_button = pn.widgets.Button(name="Search every dandiset", width=220)
+        self.crawl_button.on_click(self.crawl_archive)
+        self.stop_button = pn.widgets.Button(name="Stop", button_type="warning", width=90, visible=False)
+        self.stop_button.on_click(self.stop_verification)
+        self.verification_progress = pn.indicators.Progress(name="Verifying", value=0, max=1, width=460, visible=False)
 
         self.species_filter = pn.widgets.MultiChoice(name="Species", options=[], width=300)
         self.brain_region_filter = pn.widgets.MultiChoice(name="Brain region", options=[], width=300)
@@ -395,7 +435,8 @@ class DandiBrowser:
             widget.param.watch(self.apply_filters, "value")
 
         self.status = pn.pane.Markdown(
-            "Press **Search DANDI** to load the archive's fiber photometry dandisets.", width=width
+            "Press **Search DANDI** to load the archive's fiber photometry dandisets.",
+            width=width,
         )
         self.results_table = pn.widgets.Tabulator(
             catalog_dataframe([]),
@@ -426,6 +467,7 @@ class DandiBrowser:
             pn.Row(self.species_filter, self.brain_region_filter),
             pn.Row(self.indicator_filter, self.approach_filter),
             pn.Row(self.minimum_subjects, self.minimum_files),
+            pn.Row(self.crawl_button, self.stop_button, self.verification_progress),
             self.status,
             self.results_table,
             self.dandiset_details,
@@ -439,12 +481,13 @@ class DandiBrowser:
     # ------------------------------------------------------------------------------------
 
     def refresh_catalog(self, event: object = None) -> None:
-        """Search the archive and rebuild the catalog from the results.
+        """Search the archive and verify what it returned.
 
         With **Fiber photometry datasets only** checked the archive is searched for the
-        photometry terms and the query box narrows the results locally, which keeps typing
-        responsive. Unchecked, the query goes to the archive itself, so the whole of DANDI
-        is reachable from here.
+        photometry terms and each hit is then read, so that every row in the table is a
+        dandiset something has confirmed holds fiber photometry GuPPy can read. Unchecked,
+        the query goes to the archive itself and its results are listed as they come, since
+        the user is then browsing DANDI rather than the photometry catalog.
 
         Parameters
         ----------
@@ -452,18 +495,157 @@ class DandiBrowser:
             The Panel click event; unused.
         """
         query = self.query_input.value.strip()
-        if self.photometry_only.value:
-            terms = PHOTOMETRY_SEARCH_TERMS
-        elif query:
-            terms = (query,)
-        else:
-            self.status.object = (
-                "⚠️ Searching the whole archive needs a search term. Type one, or tick "
-                "**Fiber photometry datasets only** to load the photometry catalog."
-            )
+        if not self.photometry_only.value:
+            if not query:
+                self.status.object = (
+                    "⚠️ Searching the whole archive needs a search term. Type one, or tick "
+                    "**Fiber photometry datasets only** to load the photometry catalog."
+                )
+                return
+            self.status.object = "Searching the DANDI Archive…"
+            self.summaries = self.search_function(terms=(query,))
+            self._rewrite_filter_options()
+            self.apply_filters()
             return
+
         self.status.object = "Searching the DANDI Archive…"
-        self.summaries = self.search_function(terms=terms)
+        candidates = [summary for summary in self.search_function(terms=PHOTOMETRY_SEARCH_TERMS) if summary.file_count]
+        self.summaries = []
+        self.apply_filters()
+        self._start_verification(
+            references=[DandisetReference.from_summary(summary) for summary in candidates],
+            known_summaries={summary.identifier: summary for summary in candidates},
+            description="candidate",
+        )
+
+    def crawl_archive(self, event: object = None) -> None:
+        """Read every dandiset on the archive, not only those whose text mentions photometry.
+
+        The search terms find datasets that say what they are; this finds the rest. It reads
+        every asset of every dandiset, which takes far longer, and reports each dandiset as
+        soon as it settles rather than at the end.
+
+        Parameters
+        ----------
+        event : object, optional
+            The Panel click event; unused.
+        """
+        self.status.object = "Listing every dandiset on the archive…"
+        references = self.references_function()
+        found_by_text = [summary.identifier for summary in self.summaries]
+        self._start_verification(
+            references=order_for_crawl(references, first=found_by_text),
+            known_summaries={summary.identifier: summary for summary in self.summaries},
+            description="dandiset",
+        )
+
+    def stop_verification(self, event: object = None) -> None:
+        """Ask the running verification to stop after the dandiset it is on.
+
+        Parameters
+        ----------
+        event : object, optional
+            The Panel click event; unused.
+        """
+        self._verification["stopping"] = True
+        self.stop_button.disabled = True
+
+    def _start_verification(self, *, references: list, known_summaries: dict, description: str) -> None:
+        """Verify ``references`` on a worker thread, adding each dandiset as it is confirmed.
+
+        The work runs off the server IOLoop and is polled back onto it, because a run can
+        last from seconds to an hour and blocking the loop for that would drop the browser's
+        websocket. Confirmations arrive early and rejections late -- ruling a dandiset out
+        means reading every asset it has -- so the table fills quickly and then slows.
+        """
+        total = len(references)
+        if not total:
+            self.status.object = "No dandisets to verify."
+            return
+        self.search_button.disabled = True
+        self.crawl_button.disabled = True
+        self.stop_button.disabled = False
+        self.stop_button.visible = True
+        self.verification_progress.max = total
+        self.verification_progress.value = 0
+        self.verification_progress.visible = True
+
+        self._verification = {
+            "settled": 0,
+            "total": total,
+            "confirmed": [],
+            "known": known_summaries,
+            "description": description,
+            "stopping": False,
+        }
+
+        def on_verdict(reference: object, holds: bool) -> None:
+            state = self._verification
+            state["settled"] += 1
+            if holds:
+                state["confirmed"].append(reference.identifier)
+
+        def worker() -> None:
+            self.verify_function(
+                references,
+                cache=self.verdict_cache,
+                on_verdict=on_verdict,
+                should_stop=lambda: bool(self._verification["stopping"]),
+            )
+
+        self._verification["thread"] = Thread(target=worker)
+        self._verification["thread"].start()
+        self._verification["callback"] = pn.state.add_periodic_callback(self._poll_verification, period=500)
+
+    def _poll_verification(self) -> None:
+        """Draw the running verification's progress, folding in whatever it has confirmed."""
+        state = self._verification
+        settled, total = state["settled"], state["total"]
+        self.verification_progress.value = min(settled, total)
+        confirmed = list(state["confirmed"])
+        # Completion is the worker thread finishing rather than the count reaching the total,
+        # which it does not when the run is stopped early.
+        finished = not state["thread"].is_alive()
+        if finished or len(confirmed) != len(self.summaries):
+            # Redraws the table, and rewrites the status line, so the progress report below
+            # has to come after it.
+            self._show_confirmed(confirmed)
+        if finished:
+            state["callback"].stop()
+            self.search_button.disabled = False
+            self.crawl_button.disabled = False
+            self.stop_button.visible = False
+            self.verification_progress.visible = False
+        self.status.object = self._verification_status(
+            settled=settled, total=total, confirmed=len(confirmed), finished=finished
+        )
+
+    def _verification_status(self, *, settled: int, total: int, confirmed: int, finished: bool) -> str:
+        """Describe how far verification has got and what its answer does not cover."""
+        noun = self._verification["description"]
+        holds = "holds" if confirmed == 1 else "hold"
+        if not finished:
+            return f"Read **{settled}** of {total} {noun}(s) so far — " f"**{confirmed}** {holds} fiber photometry."
+        stopped = bool(self._verification["stopping"])
+        lead = "Stopped after" if stopped else "Read"
+        caveat = (
+            ""
+            if noun == "dandiset" and not stopped
+            else (
+                " Datasets whose description never mentions photometry are not in this list; "
+                "**Search every dandiset** reads the rest of the archive to find them."
+            )
+        )
+        return f"{lead} **{settled}** of {total} {noun}(s): **{confirmed}** {holds} fiber photometry.{caveat}"
+
+    def _show_confirmed(self, identifiers: list) -> None:
+        """Put the confirmed dandisets into the catalog, fetching any summary not yet held."""
+        known = self._verification["known"]
+        missing = [identifier for identifier in identifiers if identifier not in known]
+        if missing:
+            for summary in self.summarize_function(missing):
+                known[summary.identifier] = summary
+        self.summaries = [known[identifier] for identifier in identifiers if identifier in known]
         self._rewrite_filter_options()
         self.apply_filters()
 

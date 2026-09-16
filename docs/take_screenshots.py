@@ -901,13 +901,17 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
 
 
 def screenshot_dandi_catalog_search(page: Page) -> None:
-    """How-to: the catalog browser, searched and filtered down to one brain region.
+    """How-to: the catalog browser, searched, verified and filtered down to one brain region.
 
-    Runs the real photometry search against the archive, then filters it the way the guide
-    describes, so the table and the row count in shot are the archive's own.
+    Runs the real photometry search against the archive and reads the files of everything it
+    returns, so the table and the counts in shot are the archive's own. Verification runs on a
+    worker thread polled by the server; here it is driven to completion directly, since the
+    page is only served once the catalog is settled.
     """
     browser = DandiBrowser()
     browser.refresh_catalog()
+    browser._verification["thread"].join()
+    browser._poll_verification()
     browser.brain_region_filter.value = ["Substantia nigra"]
 
     template = pn.template.BootstrapTemplate(title="Find a fiber photometry dandiset")

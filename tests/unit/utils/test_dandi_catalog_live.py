@@ -18,10 +18,14 @@ import pytest
 
 from guppy.utils.dandi_catalog import (
     PHOTOMETRY_SEARCH_TERMS,
+    DandisetReference,
+    list_dandiset_references,
     list_nwb_assets,
+    order_for_crawl,
     preview_asset,
     scan_assets_for_photometry,
     search_dandisets,
+    verify_dandisets,
 )
 
 DANDISET_ID = "000971"
@@ -85,6 +89,32 @@ class TestLivePhotometryScan:
         completed = []
         scan_assets_for_photometry(subject_assets, progress_callback=completed.append)
         assert completed == list(range(1, len(subject_assets) + 1))
+
+
+@pytest.mark.dandi_live
+class TestLiveDandisetVerification:
+    """The archive-wide crawl is not exercised here; these pin one dandiset's verdict."""
+
+    def test_the_pinned_dandiset_is_confirmed_to_hold_photometry(self):
+        reference = DandisetReference(identifier=DANDISET_ID, version="draft", asset_count=4139)
+        assert verify_dandisets([reference]) == {DANDISET_ID: True}
+
+    def test_a_behavior_only_dandiset_is_ruled_out(self):
+        # 000251 mentions photometry in its text but stores fluorescence without the
+        # ndx-fiber-photometry types, so GuPPy cannot read it and it must not be offered.
+        reference = DandisetReference(identifier="000251", version="draft", asset_count=513)
+        assert verify_dandisets([reference]) == {"000251": False}
+
+    def test_the_archive_listing_covers_far_more_than_the_text_search(self):
+        references = list_dandiset_references()
+        assert len(references) > 500
+        assert all(reference.asset_count > 0 for reference in references)
+        assert DANDISET_ID in {reference.identifier for reference in references}
+
+    def test_the_crawl_visits_the_text_search_hits_first(self):
+        references = list_dandiset_references()
+        ordered = order_for_crawl(references, first=(DANDISET_ID,))
+        assert ordered[0].identifier == DANDISET_ID
 
 
 @pytest.mark.dandi_live

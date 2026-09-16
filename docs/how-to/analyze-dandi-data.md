@@ -40,14 +40,34 @@ These are not the pipeline's Steps 1–5 in the sidebar.
 
 ### Step 1: Find a dandiset
 
-Open **Find a fiber photometry dandiset** and press **Search DANDI**. This runs
-the archive's full-text search for the photometry terms and builds a catalog of
-every dandiset that matches, one row each.
+Open **Find a fiber photometry dandiset** and press **Search DANDI**. This asks
+the archive for every dandiset whose text mentions photometry, then reads the
+NWB files of each one to check. Only dandisets confirmed to hold fiber
+photometry GuPPy can read reach the table, so rows appear as they are confirmed
+rather than all at once — a dataset is confirmed as soon as one of its files
+turns out to hold traces, while ruling one out means reading every file it has.
+A progress bar tracks the work and **Stop** ends it early.
+
+DANDI records nothing about fiber photometry in its structured metadata — there
+is no measurement technique or approach for it, so it cannot be searched for
+directly — which is why the check has to read the files themselves.
 
 ```{image} ../_static/images/dandi_catalog_search.png
-:alt: The Find a fiber photometry dandiset card with the Brain region filter set to Substantia nigra, a status line reading "Showing 4 of 25 dandiset(s)", and a sortable table of four dandisets with their species, subject counts, file counts, sizes and detected brain regions
+:alt: The Find a fiber photometry dandiset card with the Brain region filter set to Substantia nigra, a Search every dandiset button, a status line reading "Showing 4 of 8 dandiset(s)", and a sortable table of four verified dandisets with their species, subject counts, file counts, sizes and detected brain regions
 :width: 100%
 ```
+
+What this cannot tell you is what it missed. A dataset that used photometry but
+never says so in its title, abstract or keywords is not in the search results,
+so nothing ever reads its files. **Search every dandiset** covers that: it reads
+every dandiset on the archive rather than only those the text search returned,
+adding each one it confirms to the same table. It takes far longer — up to about
+an hour the first time — and it visits the search's own hits first, so the
+datasets you already have keep working while the rest fills in. You can stop it
+at any point and keep what it found.
+
+Verdicts are remembered between sessions, keyed to the files they were read
+from, so a second crawl only reads what has been published since the first.
 
 The filters below the search box narrow the catalog without going back to the
 archive, so they respond immediately:

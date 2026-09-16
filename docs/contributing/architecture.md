@@ -109,6 +109,17 @@ sites and indicators it holds plus a decimated slice of its traces. The split be
 is forced by the archive — DANDI's structured metadata carries no notion of fiber photometry, so
 the catalog can only search free text, and anything authoritative has to be read out of the files.
 
+The same reading answers a second question one level up: which *dandisets* hold photometry at
+all. DANDI's structured metadata cannot say — there is no measurement technique or approach for
+fiber photometry, because those are derived from the core NWB types dandi-cli recognizes and the
+photometry types are an extension. So the catalog's free-text search proposes candidates and
+`verify_dandisets` reads them, stopping at the first asset that answers yes. That asymmetry shapes
+the UI: confirming a dandiset is usually one file, while ruling one out means reading every asset
+it has, so rows appear quickly and the run finishes slowly. `order_for_crawl` exploits it by
+visiting the search's hits first and then everything else smallest-first, and
+`PhotometryVerdictCache` keys verdicts to immutable asset IDs so the archive-wide crawl is a
+one-time cost that the catalog's own verification shortens, and vice versa.
+
 The scan is what makes a large dandiset navigable, and it is shaped by what that reading costs.
 Answering the question for one file touches about five kilobytes, but h5py finds them by
 pointer-chasing through the superblock and object headers, so the cost is round trips rather than

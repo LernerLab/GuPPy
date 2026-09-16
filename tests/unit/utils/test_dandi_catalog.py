@@ -21,7 +21,9 @@ from dandi.exceptions import NotFoundError
 from guppy.utils import dandi_catalog
 from guppy.utils.dandi_catalog import (
     AssetSummary,
+    DandisetReference,
     DandisetSummary,
+    PhotometryVerdictCache,
     PrefetchedRemoteFile,
     _direct_content_url,
     _read_fiber_photometry_table,
@@ -32,10 +34,12 @@ from guppy.utils.dandi_catalog import (
     find_vocabulary_terms,
     format_byte_size,
     list_nwb_assets,
+    order_for_crawl,
     probe_photometry,
     read_example_traces,
     scan_assets_for_photometry,
     search_dandisets,
+    verify_dandisets,
 )
 from guppy_test_data import STUBBED_TESTING_DATA
 
@@ -902,3 +906,171 @@ class TestScanAssetsForPhotometry:
     def test_scanning_nothing_asks_the_archive_nothing(self, byte_server):
         assert scan_assets_for_photometry([]) == {}
         assert byte_server.requested_ranges == []
+
+
+# ---------------------------------------------------------------------------------------------
+# Verification layer: which dandisets hold photometry
+# ---------------------------------------------------------------------------------------------
+
+
+class TestPhotometryVerdictCache:
+    @pytest.fixture
+    def assets(self):
+        return [
+            AssetSummary(asset_id="a", path="one.nwb", size_in_bytes=1, content_url="u"),
+            AssetSummary(asset_id="b", path="two.nwb", size_in_bytes=1, content_url="u"),
+        ]
+
+    def test_an_absent_file_is_an_empty_cache(self, tmp_path, assets):
+        cache = PhotometryVerdictCache(path=tmp_path / "missing.json")
+        assert len(cache) == 0
+        assert cache.known(assets) == {}
+        assert cache.unknown(assets) == assets
+
+    def test_verdicts_survive_a_round_trip_and_are_keyed_by_asset_id(self, tmp_path, assets):
+        cache = PhotometryVerdictCache(path=tmp_path / "verdicts.json")
+        cache.record({"a": True})
+        cache.save()
+
+        reloaded = PhotometryVerdictCache(path=tmp_path / "verdicts.json")
+        assert reloaded.known(assets) == {"one.nwb": True}
+        assert [asset.asset_id for asset in reloaded.unknown(assets)] == ["b"]
+
+    def test_an_unreadable_cache_is_ignored_rather_than_raised(self, tmp_path, assets, caplog):
+        path = tmp_path / "corrupt.json"
+        path.write_text("{not json")
+        cache = PhotometryVerdictCache(path=path)
+        assert len(cache) == 0
+        assert "corrupt.json" in caplog.text
+
+
+class TestOrderForCrawl:
+    @pytest.fixture
+    def references(self):
+        return [
+            DandisetReference(identifier="000001", version="draft", asset_count=4000),
+            DandisetReference(identifier="000002", version="draft", asset_count=10),
+            DandisetReference(identifier="000003", version="draft", asset_count=200),
+        ]
+
+    def test_smallest_first_when_nothing_is_prioritized(self, references):
+        assert [r.identifier for r in order_for_crawl(references)] == [
+            "000002",
+            "000003",
+            "000001",
+        ]
+
+    def test_prioritized_identifiers_lead_in_their_own_order(self, references):
+        ordered = order_for_crawl(references, first=("000001", "000003"))
+        assert [r.identifier for r in ordered] == ["000001", "000003", "000002"]
+
+    def test_a_prioritized_identifier_that_is_absent_changes_nothing(self, references):
+        ordered = order_for_crawl(references, first=("999999",))
+        assert [r.identifier for r in ordered] == ["000002", "000003", "000001"]
+
+
+class TestVerifyDandisets:
+    """The scan itself is exercised above; these cover the per-dandiset decisions around it."""
+
+    @pytest.fixture
+    def archive_assets(self, byte_server, tmp_path):
+        """Two dandisets: one whose photometry is not its largest asset, one with none."""
+        photometry = tmp_path / "photometry.nwb"
+        photometry.write_bytes(MOCK_NWB_FILES["mock_nwbfile_ndx_fiber_photometry_v0_2_core_events"].read_bytes())
+        # Padded past the photometry file so it sorts first, which is what makes this dandiset
+        # prove the scan carries on past the largest asset rather than stopping at it.
+        big_behavior = tmp_path / "big_behavior.nwb"
+        with h5py.File(big_behavior, "w") as file:
+            file.create_group("general/devices")
+            file.create_dataset("acquisition/filler", data=np.zeros(photometry.stat().st_size))
+        small_behavior = tmp_path / "small_behavior.nwb"
+        with h5py.File(small_behavior, "w") as file:
+            file.create_group("general/devices")
+        assert big_behavior.stat().st_size > photometry.stat().st_size
+
+        def asset(asset_id, path):
+            return AssetSummary(
+                asset_id=asset_id,
+                path=path.name,
+                size_in_bytes=path.stat().st_size,
+                content_url=served_url(byte_server, path.name),
+            )
+
+        return {
+            "000001": [asset("big", big_behavior), asset("photometry", photometry)],
+            "000002": [asset("small", small_behavior)],
+        }
+
+    @pytest.fixture
+    def references(self):
+        return [
+            DandisetReference(identifier="000001", version="draft", asset_count=2),
+            DandisetReference(identifier="000002", version="draft", asset_count=1),
+        ]
+
+    @pytest.fixture
+    def list_assets(self, archive_assets):
+        return lambda dandiset_id, version=None: list(archive_assets[dandiset_id])
+
+    def test_a_dandiset_is_confirmed_by_any_asset_not_only_its_largest(self, references, list_assets):
+        verdicts = verify_dandisets(references, list_assets_function=list_assets, process_count=2)
+        assert verdicts == {"000001": True, "000002": False}
+
+    def test_each_verdict_is_reported_as_it_settles(self, references, list_assets):
+        settled = []
+        verify_dandisets(
+            references,
+            list_assets_function=list_assets,
+            process_count=2,
+            on_verdict=lambda reference, holds: settled.append((reference.identifier, holds)),
+        )
+        assert settled == [("000001", True), ("000002", False)]
+
+    def test_stopping_leaves_the_unreached_dandisets_out(self, references, list_assets):
+        verdicts = verify_dandisets(
+            references,
+            list_assets_function=list_assets,
+            process_count=2,
+            should_stop=lambda: True,
+        )
+        assert verdicts == {}
+
+    def test_a_dandiset_that_cannot_be_listed_holds_nothing(self, references, caplog):
+        def refuse(dandiset_id, version=None):
+            raise RuntimeError("archive said no")
+
+        verdicts = verify_dandisets(references, list_assets_function=refuse, process_count=2)
+        assert verdicts == {"000001": False, "000002": False}
+        assert "archive said no" in caplog.text
+
+    def test_verifying_nothing_asks_the_archive_nothing(self):
+        assert verify_dandisets([]) == {}
+
+    def test_a_cached_positive_settles_a_dandiset_without_scanning(self, references, list_assets, tmp_path):
+        cache = PhotometryVerdictCache(path=tmp_path / "verdicts.json")
+        cache.record({"big": False, "photometry": True, "small": False})
+        scanned = []
+
+        def watched(dandiset_id, version=None):
+            scanned.append(dandiset_id)
+            return list_assets(dandiset_id, version)
+
+        verdicts = verify_dandisets(references, list_assets_function=watched, cache=cache, process_count=2)
+        assert verdicts == {"000001": True, "000002": False}
+        # Listing still happens -- a dandiset can gain assets -- but nothing is re-read.
+        assert scanned == ["000001", "000002"]
+
+    def test_the_cache_keeps_what_a_run_computed(self, references, list_assets, tmp_path):
+        cache = PhotometryVerdictCache(path=tmp_path / "verdicts.json")
+        verify_dandisets(references, list_assets_function=list_assets, cache=cache, process_count=2)
+        reloaded = PhotometryVerdictCache(path=tmp_path / "verdicts.json")
+        assert reloaded.known(
+            [
+                AssetSummary(
+                    asset_id="photometry",
+                    path="photometry.nwb",
+                    size_in_bytes=1,
+                    content_url="u",
+                )
+            ]
+        ) == {"photometry.nwb": True}

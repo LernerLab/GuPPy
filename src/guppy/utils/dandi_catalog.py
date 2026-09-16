@@ -1,12 +1,14 @@
 """Search the DANDI Archive for fiber photometry datasets and inspect their NWB assets.
 
-Three layers live here. The catalog layer talks to the DANDI REST API: it runs the archive's
+Four layers live here. The catalog layer talks to the DANDI REST API: it runs the archive's
 full-text search, pulls each hit's dandiset metadata, and reduces it to a
 :class:`DandisetSummary` that the browser can tabulate and filter, and it lists a dandiset's
 NWB assets with the URLs their bytes are readable from. The scan layer answers, for every
-asset of a dandiset at once, which of them hold fiber photometry at all. The probe layer opens
-one NWB asset's HDF5 header and reports what that file holds in detail -- the channels, their
-brain regions and indicators, and a short slice of each trace.
+asset of a dandiset at once, which of them hold fiber photometry at all. The verification
+layer asks the same question of whole dandisets, stopping at the first asset that answers yes
+and caching what it learns. The probe layer opens one NWB asset's HDF5 header and reports what
+that file holds in detail -- the channels, their brain regions and indicators, and a short
+slice of each trace.
 
 The split exists because DANDI's structured metadata does not describe fiber photometry.
 ``assetsSummary.variableMeasured`` is built by dandi-cli from the core NWB types it knows, and
@@ -17,28 +19,31 @@ has to come from the files.
 """
 
 import io
+import json
 import logging
 import re
 from collections.abc import Callable, Iterable, Sequence
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from math import ceil
+from pathlib import Path
 
 import h5py
 import numpy as np
 import requests
 from dandi.dandiapi import DandiAPIClient
+from platformdirs import user_cache_dir
 from requests.adapters import HTTPAdapter
 
 logger = logging.getLogger(__name__)
 
-# Terms handed to the archive's full-text search to assemble the photometry catalog. "photometry"
-# carries almost all of it: a fiber photometry dandiset names the method somewhere in its title,
-# description or keywords. The sensor families are kept alongside it for a dataset that describes
-# its recordings only by the sensor it used. Broader terms were measured and rejected -- "gcamp"
-# and "fluorescence" pull in mostly two-photon and widefield imaging datasets, which GuPPy cannot
-# read.
-PHOTOMETRY_SEARCH_TERMS = ("photometry", "dLight", "GRAB-DA")
+# Terms handed to the archive's full-text search to assemble the candidate catalog. A fiber
+# photometry dandiset names the method somewhere in its title, description or keywords, and
+# nothing else measurably adds to it: sensor families return only dandisets the one term already
+# returns, while broader words like "gcamp" and "fluorescence" pull in two-photon and widefield
+# imaging datasets that GuPPy cannot read. What the search misses is recovered by the crawl
+# rather than by more terms.
+PHOTOMETRY_SEARCH_TERMS = ("photometry",)
 
 # How many samples a preview trace is decimated to before it is plotted.
 DEFAULT_TRACE_POINTS = 2000
@@ -372,6 +377,38 @@ def search_dandisets(
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             summaries = list(executor.map(summarize, rows))
     return sorted(summaries, key=lambda summary: summary.identifier)
+
+
+def summarize_dandisets(identifiers: Sequence[str], *, max_workers: int = 8) -> list[DandisetSummary]:
+    """Fetch and summarize the named dandisets.
+
+    The crawl works from identifiers alone and only needs a dandiset's metadata once it has
+    confirmed the dandiset is worth showing, which is what this fetches.
+
+    Parameters
+    ----------
+    identifiers : sequence of str
+        Six-digit dandiset IDs.
+    max_workers : int, optional
+        How many metadata requests to make at once.
+
+    Returns
+    -------
+    list of DandisetSummary
+        One summary per identifier, in the order given. Identifiers the archive does not
+        return are omitted.
+    """
+    if not identifiers:
+        return []
+    with DandiAPIClient() as client:
+        rows = []
+        for identifier in identifiers:
+            try:
+                rows.append(client.get(f"/dandisets/{identifier}/"))
+            except Exception as error:
+                logger.warning("Could not fetch dandiset %s: %s", identifier, error)
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            return list(pool.map(lambda row: _fetch_summary_for_row(client=client, row=row), rows))
 
 
 def filter_dandisets(
@@ -746,11 +783,72 @@ def asset_holds_photometry(asset: AssetSummary) -> bool:
         return False
 
 
+class PhotometryVerdictCache:
+    """Verdicts already known for individual assets, kept between sessions.
+
+    DANDI asset IDs address immutable blobs, so an answer never needs recomputing. That makes
+    the archive-wide crawl a one-time cost rather than a recurring one, and it means the
+    catalog's own verification and the crawl each shorten the other: whatever one of them
+    scanned, the other skips.
+
+    A cache that cannot be read is an empty one. Nothing here is authoritative -- every entry
+    can be recomputed from the archive -- so a corrupt or unwritable file costs time, not
+    correctness.
+
+    Parameters
+    ----------
+    path : Path or None, optional
+        File the verdicts are stored in. Defaults to GuPPy's user cache directory.
+    """
+
+    def __init__(self, path: Path | None = None) -> None:
+        self.path = Path(path) if path is not None else default_verdict_cache_path()
+        self._verdicts: dict[str, bool] = {}
+        if self.path.is_file():
+            try:
+                self._verdicts = {key: bool(value) for key, value in json.loads(self.path.read_text()).items()}
+            except (OSError, ValueError) as error:
+                logger.warning(
+                    "Ignoring unreadable photometry verdict cache %s: %s",
+                    self.path,
+                    error,
+                )
+
+    def __len__(self) -> int:
+        return len(self._verdicts)
+
+    def known(self, assets: Sequence[AssetSummary]) -> dict[str, bool]:
+        """Return the verdicts already held for ``assets``, keyed by asset path."""
+        return {asset.path: self._verdicts[asset.asset_id] for asset in assets if asset.asset_id in self._verdicts}
+
+    def unknown(self, assets: Sequence[AssetSummary]) -> list[AssetSummary]:
+        """Return the assets whose verdict is not held yet."""
+        return [asset for asset in assets if asset.asset_id not in self._verdicts]
+
+    def record(self, verdicts_by_asset_id: dict[str, bool]) -> None:
+        """Take note of newly computed verdicts."""
+        self._verdicts.update(verdicts_by_asset_id)
+
+    def save(self) -> None:
+        """Write the verdicts out, replacing whatever was there."""
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self.path.write_text(json.dumps(self._verdicts))
+        except OSError as error:
+            logger.warning("Could not write the photometry verdict cache %s: %s", self.path, error)
+
+
+def default_verdict_cache_path() -> Path:
+    """Return the file GuPPy caches DANDI photometry verdicts in."""
+    return Path(user_cache_dir("guppy", "LernerLab")) / "dandi_photometry_verdicts.json"
+
+
 def scan_assets_for_photometry(
     assets: Sequence[AssetSummary],
     *,
     process_count: int = SCAN_PROCESS_COUNT,
     progress_callback: Callable[[int], None] | None = None,
+    cache: PhotometryVerdictCache | None = None,
 ) -> dict[str, bool]:
     """Report which of ``assets`` hold fiber photometry.
 
@@ -762,6 +860,9 @@ def scan_assets_for_photometry(
         How many assets to scan at once.
     progress_callback : callable or None, optional
         Called with the number of assets scanned so far, each time one finishes.
+    cache : PhotometryVerdictCache or None, optional
+        Verdicts already known, which are returned instead of being rescanned and extended
+        with whatever this run computes. No caching happens when omitted.
 
     Returns
     -------
@@ -770,14 +871,213 @@ def scan_assets_for_photometry(
     """
     if not assets:
         return {}
-    verdicts: dict[str, bool] = {}
-    with ProcessPoolExecutor(max_workers=min(process_count, len(assets))) as pool:
-        asset_by_future = {pool.submit(asset_holds_photometry, asset): asset for asset in assets}
-        for future in as_completed(asset_by_future):
-            verdicts[asset_by_future[future].path] = future.result()
-            if progress_callback is not None:
-                progress_callback(len(verdicts))
+    verdicts = dict(cache.known(assets)) if cache is not None else {}
+    outstanding = cache.unknown(assets) if cache is not None else list(assets)
+    if progress_callback is not None and verdicts:
+        progress_callback(len(verdicts))
+    if outstanding:
+        with ProcessPoolExecutor(max_workers=min(process_count, len(outstanding))) as pool:
+            asset_by_future = {pool.submit(asset_holds_photometry, asset): asset for asset in outstanding}
+            for future in as_completed(asset_by_future):
+                asset = asset_by_future[future]
+                holds = future.result()
+                verdicts[asset.path] = holds
+                if cache is not None:
+                    cache.record({asset.asset_id: holds})
+                if progress_callback is not None:
+                    progress_callback(len(verdicts))
+    if cache is not None:
+        cache.save()
     return verdicts
+
+
+@dataclass(frozen=True)
+class DandisetReference:
+    """The little about a dandiset that deciding whether to scan it needs.
+
+    The crawl visits every dandiset on the archive, and fetching each one's metadata to do
+    that would cost a request per dandiset for information only the confirmed ones ever
+    display. The archive's own listing carries these three fields already.
+
+    Attributes
+    ----------
+    identifier : str
+        Six-digit dandiset ID.
+    version : str
+        The version to read: its newest published one, else its draft.
+    asset_count : int
+        How many assets that version holds.
+    """
+
+    identifier: str
+    version: str
+    asset_count: int
+
+    @classmethod
+    def from_summary(cls, summary: DandisetSummary) -> "DandisetReference":
+        """Return the reference describing an already-summarized dandiset."""
+        return cls(
+            identifier=summary.identifier,
+            version=summary.version,
+            asset_count=summary.file_count,
+        )
+
+
+def list_dandiset_references(*, page_size: int = 1000) -> list[DandisetReference]:
+    """List every dandiset on the archive that holds at least one asset.
+
+    Parameters
+    ----------
+    page_size : int, optional
+        How many rows to request per page.
+
+    Returns
+    -------
+    list of DandisetReference
+        One entry per dandiset with assets, in the archive's own order.
+    """
+    references = []
+    with DandiAPIClient() as client:
+        for row in client.paginate("/dandisets/", params={"page_size": page_size}):
+            version = row.get("most_recent_published_version") or row.get("draft_version")
+            asset_count = (version or {}).get("asset_count") or 0
+            if asset_count:
+                references.append(
+                    DandisetReference(
+                        identifier=row["identifier"],
+                        version=version["version"],
+                        asset_count=asset_count,
+                    )
+                )
+    return references
+
+
+def order_for_crawl(references: Sequence[DandisetReference], *, first: Sequence[str] = ()) -> list[DandisetReference]:
+    """Order a crawl so that the dandisets likeliest to settle quickly come first.
+
+    ``first`` leads, in its own order, because those are the candidates something cheaper has
+    already flagged. The rest follow smallest-first: proving a dandiset empty means reading
+    every asset it has, so the handful of enormous dandisets -- which between them hold most
+    of the archive, and are electrophysiology and imaging rather than photometry -- go last,
+    where they delay nothing.
+
+    Parameters
+    ----------
+    references : sequence of DandisetReference
+        The dandisets to order.
+    first : sequence of str, optional
+        Identifiers to visit before the rest.
+
+    Returns
+    -------
+    list of DandisetReference
+        The same references, reordered.
+    """
+    priority = {identifier: index for index, identifier in enumerate(first)}
+    return sorted(
+        references,
+        key=lambda reference: (
+            priority.get(reference.identifier, len(priority)),
+            reference.asset_count,
+        ),
+    )
+
+
+def verify_dandisets(
+    references: Sequence[DandisetReference],
+    *,
+    list_assets_function: object = list_nwb_assets,
+    cache: PhotometryVerdictCache | None = None,
+    process_count: int = SCAN_PROCESS_COUNT,
+    on_verdict: Callable[[DandisetReference, bool], None] | None = None,
+    should_stop: Callable[[], bool] | None = None,
+) -> dict[str, bool]:
+    """Report which of ``references`` hold fiber photometry GuPPy can read.
+
+    Each dandiset's assets are read largest first and the scan stops at the first one that
+    holds photometry, so confirming a dandiset is usually a single file. Ruling one out has no
+    such shortcut -- it means reading every asset -- which is why the answers arrive as
+    confirmations quickly and rejections slowly.
+
+    Parameters
+    ----------
+    references : sequence of DandisetReference
+        The dandisets to verify, in the order they should be visited.
+    list_assets_function : callable, optional
+        Injection point for the asset listing.
+    cache : PhotometryVerdictCache or None, optional
+        Verdicts already known, which are consulted instead of rescanning and extended with
+        whatever this run computes. No caching happens when omitted.
+    process_count : int, optional
+        How many assets to scan at once.
+    on_verdict : callable or None, optional
+        Called with each reference and its verdict as soon as that dandiset settles.
+    should_stop : callable or None, optional
+        Consulted before each dandiset; a true answer ends the run early, returning the
+        verdicts reached so far.
+
+    Returns
+    -------
+    dict of {str: bool}
+        Dandiset identifier mapped to whether it holds fiber photometry. A dandiset the run
+        stopped before reaching is absent rather than False.
+    """
+    verdicts: dict[str, bool] = {}
+    if not references:
+        return verdicts
+    with ProcessPoolExecutor(max_workers=process_count) as pool:
+        for reference in references:
+            if should_stop is not None and should_stop():
+                break
+            holds = _dandiset_holds_photometry(
+                reference=reference,
+                pool=pool,
+                list_assets_function=list_assets_function,
+                cache=cache,
+                chunk_size=process_count,
+            )
+            verdicts[reference.identifier] = holds
+            if on_verdict is not None:
+                on_verdict(reference, holds)
+    if cache is not None:
+        cache.save()
+    return verdicts
+
+
+def _dandiset_holds_photometry(
+    *,
+    reference: DandisetReference,
+    pool: ProcessPoolExecutor,
+    list_assets_function: object,
+    cache: PhotometryVerdictCache | None,
+    chunk_size: int,
+) -> bool:
+    """Whether any asset of one dandiset holds photometry, stopping at the first that does."""
+    try:
+        assets = list_assets_function(dandiset_id=reference.identifier, version=reference.version)
+    except Exception as error:
+        logger.warning("Could not list dandiset %s while crawling: %s", reference.identifier, error)
+        return False
+
+    if cache is not None:
+        known = cache.known(assets)
+        if any(known.values()):
+            return True
+        assets = cache.unknown(assets)
+
+    # Largest first: a recording carries traces and a behavior-only sidecar does not, so this
+    # is the order that reaches a positive soonest. It decides nothing -- every file it
+    # reaches is still read -- so a dandiset whose photometry sits in its smallest file is
+    # found too, just later.
+    assets = sorted(assets, key=lambda asset: -asset.size_in_bytes)
+    for start in range(0, len(assets), chunk_size):
+        chunk = assets[start : start + chunk_size]
+        results = list(pool.map(asset_holds_photometry, chunk))
+        if cache is not None:
+            cache.record({asset.asset_id: holds for asset, holds in zip(chunk, results, strict=True)})
+        if any(results):
+            return True
+    return False
 
 
 def filter_assets(
